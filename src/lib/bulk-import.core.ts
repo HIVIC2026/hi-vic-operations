@@ -51,7 +51,7 @@ export function parseSiteCheck(raw: unknown): { check: SiteCheck | null; date: s
   const s = String(raw ?? "").trim().toLowerCase();
   if (!s) return { check: null, date: null };
   const date = parseDateish(s);
-  if (/^(n|no|nope|not yet|not done|not visited|not measured|false|0|-)$/.test(s) || /\b(not (yet )?(visited|measured|done|checked))\b/.test(s)) return { check: "no", date: null };
+  if (/^(n|no|nope|not yet|not done|not visited|not measured|false|0|-)$/.test(s) || /\b(not (yet )?(visited|measured|done|checked))\b/.test(s) || /\b(haven'?t|have not|not) (been )?(out|there|visited)( yet)?\b|\byet to (visit|go out|measure)\b/.test(s)) return { check: "no", date: null };
   if (/^(y|yes|done|true|1|✓|x)$/.test(s) || /\b(visited|measured|site check(ed)? done|checked|quoted|measure-?up done)\b/.test(s) || date) return { check: "yes", date };
   return { check: null, date: null };
 }

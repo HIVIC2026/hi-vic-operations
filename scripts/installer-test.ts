@@ -396,7 +396,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     c("quoted price kept exactly ($2511.00)", Number(byName("Owner 1")?.extracted["price_inc_gst"]) === 2511, String(byName("Owner 1")?.extracted["price_inc_gst"]));
     c("site check Yes + quote = Visited/quoted", byName("Owner 1")?.import_stage === "quoted", byName("Owner 1")?.import_stage);
     c("site check No = Not visited", byName("Owner 2")?.import_stage === "not_visited", byName("Owner 2")?.import_stage);
-    c("blank site check is asked, never assumed Yes", byName("Owner 3")?.extracted["site_check"] == null && byName("Owner 3")?.import_stage === "not_visited", `${byName("Owner 3")?.extracted["site_check"]}/${byName("Owner 3")?.import_stage}`);
+    c("blank site check with a quote = Visited (Jo, 7 Oct 5:45pm)", ["visited", "quoted"].includes(String(byName("Owner 3")?.import_stage)) === !!byName("Owner 3")?.extracted["price_inc_gst"], `${byName("Owner 3")?.extracted["site_check"]}/${byName("Owner 3")?.import_stage}`);
     await confirm(u.batchId);
     const again = await confirm(u.batchId).then(() => "ok", (e) => (e as Error).message);
     const { data: rows } = await admin.from("bulk_import_rows").select("job_id").eq("batch_id", u.batchId).not("job_id", "is", null);
@@ -423,7 +423,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
   await step(steps, "C5", "C5 Photos only: never a dead end, held for checking, no guessed customer", async (c) => {
     const u = await upload(null, [{ name: "ceiling-1.jpg", mime: "image/jpeg" }, { name: "ceiling-2.jpg", mime: "image/jpeg" }]);
     c("no invented customer details", u.rows.every((r) => !r.extracted["email"] && !r.extracted["phone"]), `${u.rows.length} row(s)`);
-    c("anything found is held for the office", u.rows.every((r) => r.sort_result === "office_review"));
+    c("photos with no customer show 'Customer details needed'", u.rows.length > 0 && u.rows.every((r) => r.sort_reasons.some((x) => /^Customer details needed/.test(x))));
     c("photos only: rows found", u.rows.length > 0, "no row is made from photos alone (no customer) — the photos are kept for matching only");
     c("Jo's rule 'photos mean Visited' — conflicts with the 7 Oct rule (blank site check = ask)", u.rows.length > 0 && u.rows.every((r) => r.import_stage === "visited"), "needs Jo's decision: photos alone currently mean 'please answer: site check done?'");
   });
@@ -448,7 +448,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
   await step(steps, "C9", "C9 Missing address: fix the row before Confirm", async (c) => {
     const u = await upload("missing-address.csv");
     const r = u.rows[0];
-    c("held with 'No address found'", !!r && r.sort_reasons.some((x) => /No address/.test(x)));
+    c("shows 'Customer details needed' for the address", !!r && r.sort_reasons.some((x) => /^Customer details needed.*address/.test(x)));
     if (!r) return;
     await bi.setRowAddress(r.id, { address_line: "41 Fixed St", suburb: "Fraser Rise", postcode: "3336" } as never, ownerId as never);
     const { data: fixed } = await admin.from("bulk_import_rows").select("extracted, sort_result").eq("id", r.id).single();
@@ -468,7 +468,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     c("draft created", !!imp.id);
     const bad = await pi.confirmImportFor(ownerId, { importId: imp.id, facts: { full_name: `TEST ${tag} Single`, email: "", phone: "", address_line: "", measured_area_m2: 100 }, installer: { site_check: "yes" } }).then(() => "accepted", (e) => (e as Error).message);
     c("missing address/contact refused with a clear message", bad !== "accepted" && bad.length > 10, bad);
-    const r = await pi.confirmImportFor(ownerId, { importId: imp.id, facts: { full_name: `TEST ${tag} Single`, email: `qa.owner.${tag.toLowerCase()}.single@hivic-test.example`, phone: "0412999001", address_line: "9 One Job Rd", suburb: "Fraser Rise", postcode: "3336", measured_area_m2: 104 }, installer: { site_check: "yes", site_check_date: "2026-10-02", quoted_price_inc_gst: 2987.65, price_includes: "R5 batts 104 m²" } });
+    const r = await pi.confirmImportFor(ownerId, { importId: imp.id, facts: { full_name: `TEST ${tag} Single`, email: `qa.owner.${tag.toLowerCase()}.single@hivic-test.example`, phone: "0412999001", address_line: "9 One Job Rd", suburb: "Fraser Rise", postcode: "3336", measured_area_m2: 104 }, installer: { contact_permission: true, site_check: "yes", site_check_date: "2026-10-02", quoted_price_inc_gst: 2987.65, price_includes: "R5 batts 104 m²" } });
     madeJobs.push(r.jobId);
     const { data: j } = await admin.from("jobs").select("installer_quoted_price_inc_gst, installer_site_check, source").eq("id", r.jobId).single();
     c("quoted price kept exactly ($2987.65)", Number(j?.installer_quoted_price_inc_gst) === 2987.65, String(j?.installer_quoted_price_inc_gst));

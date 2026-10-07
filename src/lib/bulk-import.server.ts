@@ -245,8 +245,9 @@ export async function analyseBatch(batchId: string, actorId: string) {
     allMatches.push(matched);
     const duplicate = dupNotes.has(i);
     const { result, reasons } = sortJob(e, { matchConfidence: confidence, duplicate });
-    const stage = leadStage(e, matched.length);
-    const sc = effectiveSiteCheck(e, matched.length);
+    const photos = matched.filter((m) => /\.(jpe?g|png|heic|heif|webp)$/i.test(m.name)).length; // photos count as visit evidence; a PDF/list does not
+    const stage = leadStage(e, photos);
+    const sc = effectiveSiteCheck(e, photos);
     reasons.unshift(`Stage: ${LEAD_STAGE_LABEL[stage]}`, siteCheckLabel(sc.check, sc.date));
     const gapReason = customerDetailsReason(e); if (gapReason) reasons.push(gapReason);
     if (quoteNeeded(e)) reasons.push(QUOTE_NEEDED_LABEL);
