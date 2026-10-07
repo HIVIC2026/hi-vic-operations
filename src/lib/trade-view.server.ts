@@ -250,7 +250,7 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
 
 export async function tradeMoney(userId: string) {
   const c = await ctxOrThrow(userId);
-  if (!c.boss) throw new WorkflowError("Money is only shown to the business boss.");
+  if (!c.boss) throw new WorkflowError("Money is only shown to the business owner.");
   const rows = await tradeMoneyRows(c.biz.id, c.kind, c.isTest);
   const now = new Date(), m0 = new Date(now.getFullYear(), now.getMonth(), 1);
   const coming = rows.filter((r) => r.state.kind === "coming");
