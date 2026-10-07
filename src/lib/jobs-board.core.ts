@@ -66,7 +66,7 @@ export type SourceFilter = "hiv" | "upload";
 
 export type BoardJob = { id: string; job_number: string; stage: string; eligibility_outcome: string | null; channel: string | null; source: string | null; owner_name: string | null; property_address: string | null; last_activity_at: string | null };
 
-export function filterBoard(jobs: BoardJob[], f: { elig?: EligFilter; src?: SourceFilter; test?: boolean }): BoardJob[] {
+export function filterBoard(jobs: BoardJob[], f: { elig?: EligFilter | undefined; src?: SourceFilter | undefined; test?: boolean | undefined }): BoardJob[] {
   const outcome = f.elig ? ELIG_FILTERS.find((e) => e.key === f.elig)!.outcome : null;
   return jobs.filter((j) =>
     (f.test || j.source !== "qa_test") &&
