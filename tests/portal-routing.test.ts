@@ -5,6 +5,7 @@ import { afterPasswordPath, portalDestination, setPasswordLink } from "../src/li
 describe("portal sign-in routing", () => {
   test("each role lands on its own dashboard", () => {
     expect(portalDestination({ roles: ["admin"], hasBusiness: false })).toBe("/admin/needs-me");
+    expect(portalDestination({ roles: ["admin", "electrician"], hasBusiness: true })).toBe("choose");
     expect(portalDestination({ roles: ["installer"], hasBusiness: true })).toBe("/field");
     expect(portalDestination({ roles: ["electrician"], hasBusiness: true })).toBe("/field");
     expect(portalDestination({ roles: [], hasBusiness: true })).toBe("/field");
