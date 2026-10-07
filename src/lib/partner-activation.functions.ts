@@ -203,3 +203,47 @@ export const getApplicationReview = createServerFn({ method: "POST" }).middlewar
     const { data: r } = await admin.from("application_reviews" as never).select("decision,message,email_status,email_detail,created_at,reopened_application_id").eq("application_id", data.applicationId).maybeSingle();
     return (r as { decision: string; message: string | null; email_status: string; email_detail: string | null; created_at: string; reopened_application_id: string | null } | null) ?? null;
   });
+
+/** Office: Jo's own one-off email to an applicant (enquiry/application) or approved partner. Recipient comes from the record, never the browser. */
+export const sendPartnerOfficeEmail = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ enquiryId: uuid.optional(), businessId: uuid.optional(), subject: z.string().trim().max(200), message: z.string().trim().min(1).max(5000) }).refine((x) => !!x.enquiryId !== !!x.businessId).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    let to = "", name: string | null = null, recipient: "applicant" | "partner" = "applicant", applicationId: string | null = null, testMode = false;
+    if (data.enquiryId) {
+      const { data: e } = await admin.from("partner_enquiries").select("email, name, raw_payload").eq("id", data.enquiryId).maybeSingle();
+      if (!e) throw new WorkflowError("Enquiry not found.");
+      to = e.email ?? ""; name = e.name;
+      applicationId = (e.raw_payload as { rec_onboarding_id?: string } | null)?.rec_onboarding_id ?? null;
+      if (applicationId) {
+        const { data: a } = await admin.from("rec_onboarding_applications").select("test_mode").eq("id", applicationId).maybeSingle();
+        testMode = !!a?.test_mode;
+        const { data: act } = await admin.from("partner_activations").select("id").eq("application_id", applicationId).maybeSingle();
+        if (act) recipient = "partner";
+      }
+    } else {
+      const { data: b } = await admin.from("businesses").select("email, name").eq("id", data.businessId!).maybeSingle();
+      if (!b) throw new WorkflowError("Partner not found.");
+      to = (b as { email?: string | null }).email ?? ""; recipient = "partner";
+    }
+    const { officeEmailTo } = await import("./office-email.core");
+    const { sendOfficeEmail } = await import("./office-email.server");
+    return sendOfficeEmail({ actorId: context.userId, recipient, to: officeEmailTo(to, testMode), contactName: name, subject: data.subject, message: data.message, label: "office_message", record: { enquiryId: data.enquiryId ?? null, businessId: data.businessId ?? null, applicationId } });
+  });
+
+/** Office: manual emails already sent from this record, newest first. */
+export const listPartnerOfficeEmails = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ enquiryId: uuid.optional(), businessId: uuid.optional(), applicationId: uuid.optional() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const ors = [data.enquiryId && `details->>enquiryId.eq.${data.enquiryId}`, data.businessId && `details->>businessId.eq.${data.businessId}`, data.applicationId && `details->>applicationId.eq.${data.applicationId}`].filter(Boolean).join(",");
+    if (!ors) return [];
+    const { data: rows, error } = await admin.from("admin_config_events").select("created_at, actor_id, details").eq("event_type", "office_manual_email").or(ors).order("created_at", { ascending: false }).limit(50);
+    if (error) throw new WorkflowError("Could not load sent emails.");
+    const ids = [...new Set((rows ?? []).map((r) => r.actor_id).filter(Boolean))] as string[];
+    const { data: ps } = ids.length ? await admin.from("profiles").select("id, full_name, email").in("id", ids) : { data: [] };
+    const who = new Map((ps ?? []).map((p) => [p.id, p.full_name || p.email]));
+    return (rows ?? []).map((r) => { const d = r.details as { to: string; subject: string; status: string; detail: string; label: string }; return { at: r.created_at, by: who.get(r.actor_id ?? "") ?? "Office", to: d.to, subject: d.subject, status: d.status, detail: d.detail, label: d.label }; });
+  });
