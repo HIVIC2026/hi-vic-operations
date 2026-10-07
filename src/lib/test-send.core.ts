@@ -41,3 +41,10 @@ export const isTestPartner = (b: { onboarding_notes?: string | null } | null | u
 
 /** Real jobs never go to TEST partners; TEST (qa_test) jobs only go to TEST partners. */
 export const partnerAllowedForJob = (b: { onboarding_notes?: string | null } | null | undefined, jobSource: string | null | undefined) => (jobSource === "qa_test") === isTestPartner(b);
+/** Why this job may not be offered to this trade (null = allowed). Unknown trade → refused. */
+export function offerPairBlocker(b: { onboarding_notes?: string | null } | null | undefined, jobSource: string | null | undefined): string | null {
+  if (!b) return "trade not found";
+  if (jobSource === "qa_test" && !isTestPartner(b)) return "a TEST job can only be offered to TEST partners";
+  if (jobSource !== "qa_test" && isTestPartner(b)) return "a real job can never be offered to a TEST partner";
+  return null;
+}

@@ -553,6 +553,7 @@ export const offerToPartner = createServerFn({ method: "POST" }).middleware([req
     if (!verifiedServiceAreaMatch(biz, p?.postcode ?? null)) throw new WorkflowError(`${biz.name} does not have office-verified coverage for postcode ${p?.postcode ?? "unknown"}. Confirm the partner's service postcodes before offering this job.`);
     if (biz.free_measureups_for_hivic_quote_leads !== true) throw new WorkflowError(`${biz.name} has not agreed to free Home Insulation Victoria quote-lead measure-ups.`);
     const summary = offerSummary({ job_number: j.job_number, stage: j.stage, suburb: p?.suburb ?? null, postcode: p?.postcode ?? null, estimated_area_m2: j.estimated_area_m2, measured_area_m2: m?.status === "complete" ? m.measured_area_m2 : null, eligibility_outcome: j.eligibility_outcome });
+    await (await import("./offer-guard.server")).assertOfferPairsAllowed(data.jobId, [data.businessId]);
     await admin.from("partner_offers").insert({ job_id: data.jobId, business_id: data.businessId, summary: summary as unknown as Json, offered_by: context.userId, expires_at: new Date(Date.now() + data.expiresInDays * 86_400_000).toISOString() });
     await logEvent(data.jobId, context.userId, "partner_offer_made", `Job offered to ${biz.name} (acquisition channel stays Home Insulation Victoria-sourced)`);
     return { ok: true };

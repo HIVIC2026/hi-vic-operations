@@ -162,7 +162,7 @@ async function ownerSignGates(ctx: JourneyCtx, r: StepResult, gates: ("A" | "B" 
     const next = p.todo.find((t) => (gates as string[]).includes(t.gate));
     if (!next) break;
     await og.signGateDoc({ jobId: s.jobId, key: next.key as never, signatoryName: "Test Journey", ticked: true, method: "link_code", signedBy: s.userId, ip: "127.0.0.1", userAgent: "journey-test",
-      answers: { role: "owner", life_support: "no", payment_option: "deposit", ...answers }, verified: { channel: s.channel, destination: s.destination, codeId: s.codeId } });
+      answers: { role: "owner", life_support: "no", payment_option: "two_instalments", ...answers }, verified: { channel: s.channel, destination: s.destination, codeId: s.codeId } });
     signed.push(next.key);
   }
   const left = (await og.ownerPaperworkToSign(ctx.jobId!)).todo.filter((t) => (gates as string[]).includes(t.gate));
@@ -274,12 +274,121 @@ function melbourneDate(daysAhead: number) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
 }
 
-const notBuilt = (what: string): StepFn => async (_ctx, r) => { check(r, what, false, "not automated yet"); };
+/** Run a real portal step; any error becomes a named failed check (never a silent pass). */
+async function act<T>(r: StepResult, name: string, fn: () => Promise<T>): Promise<T> {
+  try { const v = await fn(); r.checks.push({ name, ok: true }); return v; }
+  catch (e) { const m = e instanceof Error ? e.message : String(e); r.checks.push({ name, ok: false, detail: m }); throw new StepFail(`${name}: ${m}`); }
+}
+async function stageOf(ctx: JourneyCtx) { return (await admin.from("jobs").select("stage").eq("id", ctx.jobId!).single()).data?.stage ?? null; }
+
+// ---------- Step 5: owner accepts the quote and signs the paperwork ----------
+const s5: StepFn = async (ctx, r) => {
+  await assertOwnTestJob(ctx);
+  const { data: q0 } = await admin.from("quotes").select("id, status, release_state, version").eq("id", ctx.quoteId!).single();
+  if (q0?.status === "draft") { const { approveHeldQuote } = await import("./quotes.server"); await act(r, "office approves the held quote", () => approveHeldQuote(ctx.quoteId!, ctx.actorId)); }
+  const og = await import("./owner-gates.server");
+  const pw = await og.ownerPaperworkToSign(ctx.jobId!);
+  const line = pw.todo.find((t) => t.key === "quote_acceptance");
+  check(r, "quote acceptance line is on My job", !!line, pw.todo.map((t) => t.key).join(", "));
+  const { data: q } = await admin.from("quotes").select("id, version, customer_total_inc_gst").eq("id", ctx.quoteId!).single();
+  const total = `$${Number(q!.customer_total_inc_gst).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  check(r, "acceptance line shows the real version and inc-GST price", line!.text.includes(`version ${q!.version}, ${total} inc GST`) && !line!.text.includes("—"), line!.text.slice(0, 90));
+  if ((await stageOf(ctx)) === "ready_check_complete") {
+    const { transition } = await import("./workflow.server");
+    await act(r, "measured quote ready for the owner", () => transition(ctx.jobId!, "measured_estimate_ready", ctx.actorId, "TEST journey: measured quote ready"));
+  }
+  await ownerSignGates(ctx, r, ["B"]);
+  const { respondToQuoteImpl } = await import("./portal.functions");
+  const { data: jo } = await admin.from("jobs").select("owner_id, owners(user_id)").eq("id", ctx.jobId!).single();
+  const ownerUser = (jo?.owners as { user_id: string | null } | null)?.user_id ?? ctx.actorId;
+  await act(r, "owner accepts the quote and signs the customer agreement", () => respondToQuoteImpl({ quoteId: ctx.quoteId!, accept: true, consent: true, expectedVersion: q!.version,
+    signing: { signatoryName: "Test Journey", authorityType: "owner", over18: true, readConsumerInfo: true, acceptAgreement: true, signatureName: "Test Journey", assistance: "none" } } as never,
+    { userId: ownerUser, ip: "127.0.0.1", userAgent: "journey-test", authorize: async () => {}, isOwner: async () => true } as never));
+  const { data: qa } = await admin.from("quotes").select("status").eq("id", ctx.quoteId!).single();
+  check(r, "quote is accepted", qa?.status === "accepted", qa?.status);
+  // Safety check payment: Xero Demo Company only for TEST jobs.
+  const x = await import("./xero.server");
+  const inv = await act(r, "invoice created for the accepted quote (Demo Company)", () => x.createInvoiceForQuote(ctx.quoteId!, ctx.actorId)) as { id?: string } | null;
+  const { data: iv } = await admin.from("invoices").select("id, xero_invoice_id").eq("job_id", ctx.jobId!).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  check(r, "invoice row exists", !!iv, JSON.stringify(inv ?? null).slice(0, 80));
+  if (!iv!.xero_invoice_id) await act(r, "invoice pushed to the Xero Demo Company", () => x.pushInvoiceToXero(iv!.id, ctx.actorId) as Promise<unknown>);
+  await act(r, "safety check payment recorded (TEST payment, Demo Company)", () => x.recordDemoTestPayment(iv!.id, 349, ctx.actorId));
+  ctx.notes["invoice_id"] = iv!.id;
+  ctx.screens.push({ step: "s5_owner_accept", persona: "owner_token", path: `/my-job/${ctx.token}`, mustNotSee: ["version —"] });
+};
+
+// ---------- Step 6: electrician safety check (PIESA) and certificate ----------
+const s6: StepFn = async (ctx, r) => {
+  await assertOwnTestJob(ctx);
+  const al = await import("./allocation.server");
+  const picks: { date: string; slot: "10-12" }[] = [];
+  const { piesaWindowBlockers } = await import("./piesa-windows.core");
+  for (let d = 2; d < 25 && picks.length < 3; d++) { const p = { date: melbourneDate(d), slot: "10-12" as const }; if (!piesaWindowBlockers([...picks, p, p, p].slice(0, Math.max(3, picks.length + 1)) as never).some((b) => /business day/i.test(b))) picks.push(p); }
+  await act(r, "owner picks 3 safety check times", () => al.submitOwnerPiesaWindows(ctx.jobId!, ctx.actorId, picks as never));
+  const { count: open } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("kind", "piesa").eq("status", "pending").eq("business_id", ctx.electrician.business_id);
+  if (!open) await act(r, "office offers the safety check to TEST Delta", () => al.startPiesaAllocation(ctx.jobId!, ctx.actorId, "piesa", { onlyBusiness: ctx.electrician.business_id, rateToConfirm: true }));
+  const { data: offers } = await admin.from("partner_offers").select("id, business_id, status").eq("job_id", ctx.jobId!).eq("kind", "piesa");
+  const { data: names } = await admin.from("businesses").select("name, onboarding_notes").in("id", (offers ?? []).map((o) => o.business_id));
+  check(r, "safety check offers went only to TEST partners", (names ?? []).length > 0 && (names ?? []).every((b) => (b.onboarding_notes ?? "").includes("[TEST PARTNER]")), (names ?? []).map((b) => b.name).join(", "));
+  const mine = (offers ?? []).find((o) => o.business_id === ctx.electrician.business_id && o.status === "pending");
+  check(r, "TEST Delta has an open safety check offer", !!mine);
+  const { data: prop } = await admin.from("appointment_proposals").select("id").eq("job_id", ctx.jobId!).eq("status", "proposed").order("starts_at").limit(1).maybeSingle();
+  await act(r, "electrician accepts a time", () => al.respondToRecOffer(mine!.id, ctx.electrician.id, true, null, prop?.id ?? null));
+  ctx.notes["piesa_offer_id"] = mine!.id;
+  // Mitti PIESA form + certificate: SIMULATED (no Mitti in TEST). Writes the same assessment the Mitti sync writes.
+  r.simulated = ["Mitti PIESA form and certificate (pass written as the Mitti sync would)"];
+  const now = new Date().toISOString();
+  const { data: a } = await admin.from("assessments").select("id").eq("job_id", ctx.jobId!).maybeSingle();
+  const fields = { status: "complete", piesa_outcome: "pass", completed_at: now, assessed_on: melbourneDate(0), no_rectification_confirmed: true, notes: "TEST journey: simulated Mitti PIESA (pass)" };
+  const ae = a ? await admin.from("assessments").update(fields as never).eq("id", a.id) : await admin.from("assessments").insert({ job_id: ctx.jobId!, ...fields } as never);
+  check(r, "PIESA result recorded", !ae.error, ae.error?.message);
+  for (const c of ["switchboard_cables", "piesa_signoff"]) await uploadEvidence(ctx, c, ctx.electrician.id, "electrical");
+  await admin.from("bookings").update({ status: "completed" }).eq("job_id", ctx.jobId!).eq("kind", "assessment").eq("status", "confirmed");
+  const { transition } = await import("./workflow.server");
+  if ((await stageOf(ctx)) !== "piesa_complete") await act(r, "job moves to safety check complete", () => transition(ctx.jobId!, "piesa_complete", ctx.actorId, "TEST journey: PIESA passed"));
+  check(r, "stage is safety check complete", (await stageOf(ctx)) === "piesa_complete", await stageOf(ctx) ?? "");
+  ctx.screens.push({ step: "s6_electrician", persona: "electrician", path: `/field/day/${ctx.jobId}` });
+};
+
+// ---------- Step 7: install booking, install day and evidence ----------
+const s7: StepFn = async (ctx, r) => {
+  await assertOwnTestJob(ctx);
+  const { transition } = await import("./workflow.server");
+  if ((await stageOf(ctx)) !== "installation_scheduling") await act(r, "install scheduling opens after the PIESA pass", () => transition(ctx.jobId!, "installation_scheduling", ctx.actorId, "TEST journey: install scheduling"));
+  const days: string[] = []; for (let d = 3; d < 20 && days.length < 3; d++) { const x = melbourneDate(d); const wd = new Date(`${x}T12:00:00Z`).getUTCDay(); if (wd > 0 && wd < 6) days.push(x); }
+  const idays = await import("./install-days.server");
+  await act(r, "owner picks install days (within 30 days of the PIESA)", () => idays.submitOwnerInstallDays(ctx.jobId!, ctx.actorId, days));
+  const [p] = await idays.installerOpenDays([ctx.jobId!]);
+  check(r, "installer sees an open install day", !!p);
+  await act(r, "installer takes the install day", () => idays.installerTakeDay(ctx.jobId!, p!.id, ctx.installer.id));
+  check(r, "job is installation booked", (await stageOf(ctx)) === "installation_booked", await stageOf(ctx) ?? "");
+  for (const c of ["product_evidence", "installation_progress", "completed_installation", "post_install_video", "final_zone_plan"]) await uploadEvidence(ctx, c, ctx.installer.id, "installation");
+  await admin.from("bookings").update({ status: "completed" }).eq("job_id", ctx.jobId!).eq("kind", "installation").eq("status", "confirmed");
+  await act(r, "install done → evidence outstanding", () => transition(ctx.jobId!, "evidence_outstanding", ctx.actorId, "TEST journey: install done"));
+  await act(r, "evidence complete → AP review", () => transition(ctx.jobId!, "ap_review", ctx.actorId, "TEST journey: evidence uploaded"));
+  ctx.screens.push({ step: "s7_install", persona: "installer", path: `/field/day/${ctx.jobId}` });
+};
+
+// ---------- Step 8: AP sign-off; installer payout shows "Coming" ----------
+const s8: StepFn = async (ctx, r) => {
+  await assertOwnTestJob(ctx);
+  const now = new Date().toISOString();
+  const { error } = await admin.from("evidence_requirements").update({ status: "verified" } as never).eq("job_id", ctx.jobId!).eq("status", "uploaded");
+  check(r, "office verifies the uploaded evidence", !error, error?.message);
+  await admin.from("evidence_files").update({ verified_at: now, verified_by: ctx.actorId } as never).eq("job_id", ctx.jobId!);
+  const { transition } = await import("./workflow.server");
+  await act(r, "AP sign-off → ready for VEEC", () => transition(ctx.jobId!, "ready_for_veec", ctx.actorId, "TEST journey: AP approved"));
+  const tv = await import("./trade-view.server");
+  const money = await tv.tradeMoney(ctx.installer.id);
+  const row = money.rows.find((x) => x.jobId === ctx.jobId);
+  check(r, "installer Money shows this install", !!row, `${money.rows.length} rows`);
+  check(r, "installer payout shows Coming", row!.state.kind === "coming", row!.state.kind);
+  ctx.screens.push({ step: "s8_ap_payout", persona: "installer", path: "/field/money", mustSee: ["Coming"] });
+};
 
 const STEP_FNS: Record<JourneyStepKey, StepFn> = {
   s1_calculator: s1, s2_owner_links: s2, s3_office_offer: s3,
-  s4_ready_check: s4, s5_owner_accept: notBuilt("owner acceptance"), s6_electrician: notBuilt("electrician safety check"),
-  s7_install: notBuilt("install booking/day/evidence"), s8_ap_payout: notBuilt("AP sign-off and payout"),
+  s4_ready_check: s4, s5_owner_accept: s5, s6_electrician: s6, s7_install: s7, s8_ap_payout: s8,
   s9_visibility: async (ctx, r) => visibility(ctx, r), s10_allowlist: async (ctx, r) => allowlist(ctx, r),
 };
 
@@ -346,6 +455,11 @@ export async function cleanupJourney(ctx: JourneyCtx) {
       await admin.from("jobs").update({ qa_archived_at: now, stage: "cancelled", cancelled_reason: "TEST journey archived", next_action: "Archived TEST journey" }).eq("id", ctx.jobId).eq("source", "qa_test");
     }
   }
+  // Put the TEST businesses back exactly as they were before this run (TEST businesses only).
+  for (const b of (ctx.notes["biz_before"] as { id: string }[] | undefined) ?? []) {
+    const { id, ...orig } = b as { id: string } & Record<string, unknown>;
+    await admin.from("businesses").update(orig as never).eq("id", id).like("onboarding_notes", "%[TEST PARTNER]%");
+  }
   const files = (ctx.notes["uploaded"] as string[] | undefined) ?? [];
   if (files.length && ctx.jobId) await admin.storage.from("job-files").remove(files.filter((f) => f.startsWith(`${ctx.jobId}/journey/`)));
   if (ctx.calculatorInterestId) await admin.from("calculator_interests").delete().eq("id", ctx.calculatorInterestId).eq("email", ctx.ownerEmail);
@@ -354,9 +468,11 @@ export async function cleanupJourney(ctx: JourneyCtx) {
 /** TEST trade setup the journey depends on (TEST Alpha's field worker holds a Full, current EEC certification).
  *  Only ever touches TEST-domain workers in businesses named "TEST …". Append-only, idempotent. */
 async function ensureTestTrades(actorId: string, installerBiz: string, electricianBiz: string) {
+  const before: Record<string, unknown>[] = [];
   for (const id of [installerBiz, electricianBiz]) {
     const { data: biz } = await admin.from("businesses").select("name, service_postcodes, coverage_verified_at, free_measureups_for_hivic_quote_leads").eq("id", id).single();
     if (!biz?.name?.startsWith("TEST ")) throw new Error("SAFETY STOP: a journey trade is not a TEST business.");
+    before.push({ id, service_postcodes: biz.service_postcodes ?? [], coverage_verified_at: biz.coverage_verified_at, free_measureups_for_hivic_quote_leads: biz.free_measureups_for_hivic_quote_leads });
     const pcs = biz.service_postcodes ?? [];
     await admin.from("businesses").update({
       service_postcodes: pcs.includes(JOURNEY_POSTCODE) ? pcs : [...pcs, JOURNEY_POSTCODE], coverage_verified_at: biz.coverage_verified_at ?? new Date().toISOString(),
@@ -380,6 +496,7 @@ async function ensureTestTrades(actorId: string, installerBiz: string, electrici
       if (error) throw new Error(`TEST certification level setup: ${error.message}`);
     }
   }
+  return before;
 }
 
 export async function newJourneyCtx(): Promise<JourneyCtx> {
@@ -387,8 +504,8 @@ export async function newJourneyCtx(): Promise<JourneyCtx> {
   const { data: actor } = await admin.from("profiles").select("id").eq("email", JOURNEY_ACTOR_EMAIL).single();
   const [installer, electrician] = await Promise.all([profileByEmail(TEST_INSTALLER_EMAIL), profileByEmail(TEST_ELECTRICIAN_EMAIL)]);
   const worker = await profileByEmail(TEST_WORKER_EMAIL).catch(() => null);
-  await ensureTestTrades(actor!.id, installer.business_id, electrician.business_id);
-  return { runId, startedAt: new Date().toISOString(), actorId: actor!.id, jobId: null, jobNumber: null, token: null, ownerEmail: `qa.journey.${runId}${TEST_DOMAIN}`, installer, electrician, worker, calculatorInterestId: null, quoteId: null, notes: {}, screens: [] };
+  const bizBefore = await ensureTestTrades(actor!.id, installer.business_id, electrician.business_id);
+  return { runId, startedAt: new Date().toISOString(), actorId: actor!.id, jobId: null, jobNumber: null, token: null, ownerEmail: `qa.journey.${runId}${TEST_DOMAIN}`, installer, electrician, worker, calculatorInterestId: null, quoteId: null, notes: { biz_before: bizBefore }, screens: [] };
 }
 
 /** Run every step in order; a failed step stops later dependent steps but 9 and 10 always run. */

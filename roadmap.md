@@ -73,3 +73,11 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] G Melbourne dates in DB (PIESA view) and veec.core.ts
 - [x] H Owner code-request limit atomic
 - [x] I Trade invites obey comms switch; VEEC value separation confirmed
+
+## Full-journey fixes (Jo, 7 Oct)
+- [x] Quote line shows real version + inc-GST price (hidden if either unknown); test added
+- [x] Offer pairing guard (TEST job ↔ TEST partner only) before every offer insert; tests both ways
+- [x] Archived journey practice jobs HV-1647–1662; TEST Alpha/Delta restored; journey now restores them each run
+- [x] Steps 5–8 built; fixed owner payment-choice bug
+- [ ] Step 5 blocked: no code moves a job from "Measured estimate ready" to "Measured quote accepted" when the owner accepts — needs Jo's decision (ties to booking-order plan)
+- [ ] Later: daily check + Today card
