@@ -98,6 +98,8 @@ import { Route as ApiPublicHooksCustomerFollowupsRouteImport } from './routes/ap
 import { Route as ApiPublicHooksPostIntakeRouteImport } from './routes/api/public/hooks/post-intake'
 import { Route as ApiPublicReferralsRecordSubmissionRouteImport } from './routes/api/public/referrals/record-submission'
 import { Route as ApiPublicReferralsTrackClickRouteImport } from './routes/api/public/referrals/track-click'
+import { Route as ApiPublicTwilioInboundRouteImport } from './routes/api/public/twilio/inbound'
+import { Route as ApiPublicTwilioStatusRouteImport } from './routes/api/public/twilio/status'
 import { Route as ApiPublicEmailArtTokenFileRouteImport } from './routes/api/public/email-art.$token.$file'
 
 const IndexRoute = IndexRouteImport.update({
@@ -586,6 +588,16 @@ const ApiPublicReferralsTrackClickRoute =
     path: '/api/public/referrals/track-click',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicTwilioInboundRoute = ApiPublicTwilioInboundRouteImport.update({
+  id: '/api/public/twilio/inbound',
+  path: '/api/public/twilio/inbound',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicTwilioStatusRoute = ApiPublicTwilioStatusRouteImport.update({
+  id: '/api/public/twilio/status',
+  path: '/api/public/twilio/status',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicEmailArtTokenFileRoute =
   ApiPublicEmailArtTokenFileRouteImport.update({
     id: '/api/public/email-art/$token/$file',
@@ -682,6 +694,8 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
   '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
+  '/api/public/twilio/inbound': typeof ApiPublicTwilioInboundRoute
+  '/api/public/twilio/status': typeof ApiPublicTwilioStatusRoute
   '/api/public/email-art/$token/$file': typeof ApiPublicEmailArtTokenFileRoute
 }
 export interface FileRoutesByTo {
@@ -769,6 +783,8 @@ export interface FileRoutesByTo {
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
   '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
+  '/api/public/twilio/inbound': typeof ApiPublicTwilioInboundRoute
+  '/api/public/twilio/status': typeof ApiPublicTwilioStatusRoute
   '/api/public/email-art/$token/$file': typeof ApiPublicEmailArtTokenFileRoute
 }
 export interface FileRoutesById {
@@ -862,6 +878,8 @@ export interface FileRoutesById {
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
   '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
+  '/api/public/twilio/inbound': typeof ApiPublicTwilioInboundRoute
+  '/api/public/twilio/status': typeof ApiPublicTwilioStatusRoute
   '/api/public/email-art/$token/$file': typeof ApiPublicEmailArtTokenFileRoute
 }
 export interface FileRouteTypes {
@@ -955,6 +973,8 @@ export interface FileRouteTypes {
     | '/api/public/hooks/post-intake'
     | '/api/public/referrals/record-submission'
     | '/api/public/referrals/track-click'
+    | '/api/public/twilio/inbound'
+    | '/api/public/twilio/status'
     | '/api/public/email-art/$token/$file'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -1042,6 +1062,8 @@ export interface FileRouteTypes {
     | '/api/public/hooks/post-intake'
     | '/api/public/referrals/record-submission'
     | '/api/public/referrals/track-click'
+    | '/api/public/twilio/inbound'
+    | '/api/public/twilio/status'
     | '/api/public/email-art/$token/$file'
   id:
     | '__root__'
@@ -1134,6 +1156,8 @@ export interface FileRouteTypes {
     | '/api/public/hooks/post-intake'
     | '/api/public/referrals/record-submission'
     | '/api/public/referrals/track-click'
+    | '/api/public/twilio/inbound'
+    | '/api/public/twilio/status'
     | '/api/public/email-art/$token/$file'
   fileRoutesById: FileRoutesById
 }
@@ -1171,6 +1195,8 @@ export interface RootRouteChildren {
   ApiPublicHooksPostIntakeRoute: typeof ApiPublicHooksPostIntakeRoute
   ApiPublicReferralsRecordSubmissionRoute: typeof ApiPublicReferralsRecordSubmissionRoute
   ApiPublicReferralsTrackClickRoute: typeof ApiPublicReferralsTrackClickRoute
+  ApiPublicTwilioInboundRoute: typeof ApiPublicTwilioInboundRoute
+  ApiPublicTwilioStatusRoute: typeof ApiPublicTwilioStatusRoute
   ApiPublicEmailArtTokenFileRoute: typeof ApiPublicEmailArtTokenFileRoute
 }
 
@@ -1799,6 +1825,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicReferralsTrackClickRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/twilio/inbound': {
+      id: '/api/public/twilio/inbound'
+      path: '/api/public/twilio/inbound'
+      fullPath: '/api/public/twilio/inbound'
+      preLoaderRoute: typeof ApiPublicTwilioInboundRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/twilio/status': {
+      id: '/api/public/twilio/status'
+      path: '/api/public/twilio/status'
+      fullPath: '/api/public/twilio/status'
+      preLoaderRoute: typeof ApiPublicTwilioStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/email-art/$token/$file': {
       id: '/api/public/email-art/$token/$file'
       path: '/api/public/email-art/$token/$file'
@@ -2006,6 +2046,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicReferralsRecordSubmissionRoute:
     ApiPublicReferralsRecordSubmissionRoute,
   ApiPublicReferralsTrackClickRoute: ApiPublicReferralsTrackClickRoute,
+  ApiPublicTwilioInboundRoute: ApiPublicTwilioInboundRoute,
+  ApiPublicTwilioStatusRoute: ApiPublicTwilioStatusRoute,
   ApiPublicEmailArtTokenFileRoute: ApiPublicEmailArtTokenFileRoute,
 }
 export const routeTree = rootRouteImport
