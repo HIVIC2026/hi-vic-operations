@@ -5,7 +5,7 @@
 // Mitti stays hidden until the office ticks "Mitti account invited" for the business.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
-import { onsiteProblems, onsiteState, retryable, type OnsiteInput, type OnsiteState } from "./onsite-ready-check.core";
+import { ONSITE_CONSENT_SOURCE, TEST_MITTI_ASSIGNEE, onsiteProblems, onsiteState, retryable, type OnsiteInput, type OnsiteState } from "./onsite-ready-check.core";
 import type { ElectricianPlan } from "./job-electrician.core";
 import type { MittiCall } from "./mitti.core";
 
@@ -36,7 +36,15 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   await admin.from("job_assignments").insert({ job_id: job.id, user_id: userId, role: "installer", business_id: businessId, assigned_by: userId, first_response_at: new Date().toISOString() });
   await (await import("./job-electrician.server")).recordJobElectricianChoice(job.id, businessId, electrician ?? { mode: "hivic" }, userId);
   await logEvent(job.id, userId, "onsite_ready_check_started", "Installer added this customer while at the property and started the Ready Check", { business_id: businessId });
-  await logEvent(job.id, userId, "installer_contact_permission", "Installer confirmed the owner agreed to Home Insulation Victoria contacting them", { wording: OWNER_CONTACT_PERMISSION }, { internal: true });
+  // Gate A on site (Jo, 8 Oct): owner ticked on the installer's phone, or the installer confirmed the owner's consent.
+  const { gateDoc } = await import("./owner-gates.core");
+  const byOwner = input.consent_by === "owner";
+  const text = byOwner ? gateDoc("contact_privacy").body : OWNER_CONTACT_PERMISSION;
+  const now = new Date().toISOString();
+  const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)))].map((x) => x.toString(16).padStart(2, "0")).join("");
+  const { error: ce } = await admin.from("owner_contact_consents").insert({ job_id: job.id, owner_id: owner.id, source: ONSITE_CONSENT_SOURCE, consent_key: byOwner ? "owner_ticked" : "installer_confirmed", consent_status: "granted", contact_consent: true, consented_at: now, snapshot: { by: byOwner ? "owner" : "installer", text, recorded_by: userId }, sha256: hash });
+  if (ce) throw new WorkflowError(`Consent could not be saved: ${ce.message}`);
+  await logEvent(job.id, userId, "installer_contact_permission", byOwner ? "Owner ticked contact and privacy consent on the installer's phone" : "Installer confirmed the owner gave consent", { wording: text, by: byOwner ? "owner" : "installer" }, { internal: true });
 
   // Book "now" through the normal guarded booking (owner paperwork A, approved EEC installer, stage).
   const { gateAComplete } = await import("./owner-gates.server");
@@ -54,7 +62,7 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
 
 /** Status for "Getting your form ready…". Creates the Mitti form once; afterwards only reads what's stored. */
 export async function onsiteFormFor(jobId: string, userId: string, call?: MittiCall, force = false): Promise<OnsiteState> {
-  const { data: j } = await admin.from("jobs").select("channel, originating_installer_business_id").eq("id", jobId).maybeSingle();
+  const { data: j } = await admin.from("jobs").select("channel, originating_installer_business_id, source").eq("id", jobId).maybeSingle();
   if (!j || j.channel !== "installer_sourced" || !j.originating_installer_business_id) throw new WorkflowError("This job isn't one of your customers.");
   const { requireMember } = await import("./pilot.server");
   await requireMember(userId, j.originating_installer_business_id);
@@ -64,7 +72,7 @@ export async function onsiteFormFor(jobId: string, userId: string, call?: MittiC
   const { data: prof } = await admin.from("profiles").select("full_name, email").eq("id", userId).maybeSingle();
   try {
     const { createAssignMittiAudit, realMittiCall } = await import("./mitti.server");
-    const r = await createAssignMittiAudit(jobId, userId, call ?? realMittiCall, { readyCheck: true, assignee: { userId, fullName: prof?.full_name ?? null, email: prof?.email ?? "" } });
+    const r = await createAssignMittiAudit(jobId, userId, call ?? realMittiCall, { readyCheck: true, assignee: { userId, fullName: prof?.full_name ?? null, email: j.source === "qa_test" ? TEST_MITTI_ASSIGNEE : prof?.email ?? "" } });
     state = onsiteState({ ...facts, auditId: r.auditId, lastError: null });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Mitti error";
@@ -77,14 +85,14 @@ export async function onsiteFormFor(jobId: string, userId: string, call?: MittiC
 async function factsFor(jobId: string, businessId: string) {
   const [{ data: b }, { data: ws }, { data: m }, { count: booked }, { gateAComplete }, { data: err }] = await Promise.all([
     admin.from("businesses").select("mitti_account_invited").eq("id", businessId).maybeSingle(),
-    admin.from("workflow_settings").select("mitti_ready_check_priced_template_id").eq("id", 1).maybeSingle(),
+    admin.from("workflow_settings").select("mitti_ready_check_priced_template_id, auto_send_mitti").eq("id", 1).maybeSingle(),
     admin.from("ceiling_measurements").select("external_source, external_id, status").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
     admin.from("bookings").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", "ready_check").eq("status", "confirmed"),
     import("./owner-gates.server"),
     admin.from("workflow_events").select("summary, created_at").eq("job_id", jobId).eq("event_type", "mitti_access_needed").order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
   return {
-    mittiInvited: b?.mitti_account_invited === true, templateSet: !!ws?.mitti_ready_check_priced_template_id?.trim(),
+    mittiInvited: b?.mitti_account_invited === true, templateSet: !!ws?.mitti_ready_check_priced_template_id?.trim(), autoSend: ws?.auto_send_mitti === true,
     gateADone: await gateAComplete(jobId), booked: !!booked,
     auditId: m?.external_source === "mitti" ? m.external_id ?? null : null,
     lastError: (err as { summary?: string } | null)?.summary ?? null,

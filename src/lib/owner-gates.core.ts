@@ -131,6 +131,8 @@ export type GateFacts = {
   piesaCopyDelivered: boolean;
   piesaDeclarationMappingApproved: boolean;
   assignmentEffective: boolean;
+  /** Jo 8 Oct: on-site consent (owner ticked on the installer's phone, or installer confirmed) clears Gate A. */
+  onsiteConsent?: boolean;
 };
 
 export type GateItem = { key: string; label: string; done: boolean; draft: boolean; note?: string | undefined };
@@ -147,6 +149,7 @@ export function evaluateOwnerGates(f: GateFacts): GateResult[] {
   const A: GateItem[] = (["contact_privacy", "trade_contact_share", "details_confirmation", "life_support_answer"] as GateDocKey[]).map((k) => docItem(f, k));
   if (f.tenant) A.push(docItem(f, "tenancy_details"), docItem(f, "landlord_consent"));
   if (f.visitedByInstaller) A.push(docItem(f, "visit_permission"));
+  if (f.onsiteConsent) A.splice(0, A.length, { key: "onsite_consent", label: "On-site consent (owner ticked, or installer confirmed)", done: true, draft: false });
 
   const B: GateItem[] = [
     { key: "customer_agreement", label: "Customer agreement + consumer rights", done: f.agreementSigned, draft: !f.agreementWordingApproved },

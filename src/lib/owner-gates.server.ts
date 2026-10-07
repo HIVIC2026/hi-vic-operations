@@ -34,6 +34,7 @@ export async function gateFacts(jobId: string): Promise<GateFacts> {
     admin.from("piesa_deliveries").select("recipient").eq("job_id", jobId),
     assignmentStatus(jobId),
   ]);
+  const { count: onsite } = await admin.from("owner_contact_consents").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("source", "onsite_ready_check").eq("consent_status", "granted");
   const latest = (k: string) => (sigs ?? []).filter((s) => s.doc_key === k).at(-1)?.answers as Record<string, unknown> | undefined;
   const keys = new Set((tpl ?? []).map((t) => t.template_key));
   return {
@@ -50,6 +51,7 @@ export async function gateFacts(jobId: string): Promise<GateFacts> {
     piesaCopyDelivered: (dels ?? []).some((d) => String(d.recipient).toLowerCase().includes("owner")),
     piesaDeclarationMappingApproved: !!approved["piesa_owner_declaration"],
     assignmentEffective: assign === "effective_complete",
+    onsiteConsent: (onsite ?? 0) > 0,
   };
 }
 
