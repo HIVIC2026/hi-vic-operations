@@ -101,4 +101,4 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [~] (first fixes: job lists, indexes) Find causes (big lists, waterfalls, indexes, bundles, fonts/images, heavy panels, layout queries) and fix; target <2s
 
 ## Step 3 emails = only source (Jo, 7 Oct 17:22 UTC) — BEFORE office/speed
-- [ ] All customer email sends/tests/previews render Step 3 renderer; remove differing previews/editors; parity test; one Save my spot test to Jo (HV-1609)
+- [x] All customer email sends/tests/previews render Step 3 renderer; remove differing previews/editors; parity test; one Save my spot test to Jo (HV-1609)
