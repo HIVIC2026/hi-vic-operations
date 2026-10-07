@@ -12,7 +12,7 @@ export async function recordComplianceRecord(p: { jobId: string; key: Compliance
 }
 
 /** Signed PIESA copy handed to the owner or installer, against the current PIESA record. Caller must be office or the job's electrician. */
-export async function recordPiesaCopyDelivery(p: { jobId: string; recipient: "owner" | "installer"; deliveredAt: string; method: "portal" | "email" | "in_person" | "post"; documentId?: string | null; notes?: string | null; actorId: string }) {
+export async function recordPiesaCopyDelivery(p: { jobId: string; recipient: "owner" | "installer"; deliveredAt: string; method: "portal" | "email" | "in_person" | "post"; documentId?: string | null | undefined; notes?: string | null | undefined; actorId: string }) {
   if (new Date(p.deliveredAt).getTime() > Date.now() + 60_000) throw new WorkflowError("Delivery time cannot be in the future.");
   const { data: cur } = await admin.from("piesa_records").select("id").eq("job_id", p.jobId).eq("is_current", true).maybeSingle();
   if (!cur) throw new WorkflowError("No current PIESA record to deliver.");
