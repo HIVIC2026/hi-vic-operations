@@ -442,16 +442,7 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
       const job = await createBulkJob(e, batch, actorId, row.id, importStage);
       const quoted = importStage === "quoted" ? await draftQuoteFromImport(job.id, e, actorId, batch.business_id).catch(() => false) : false;
       const plan = ((row.electrician_plan ?? batch.electrician_plan ?? { mode: "hivic" }) as ElectricianPlan);
-      if (plan.mode === "mine") {
-        if (plan.business_id) {
-          const { data: member } = await admin.from("business_members").select("user_id").eq("business_id", plan.business_id).eq("active", true).limit(1).maybeSingle();
-          if (member) await admin.from("job_assignments").insert({ job_id: job.id, user_id: member.user_id, role: "electrician", business_id: plan.business_id, assigned_by: actorId });
-        } else if (plan.nomination_id) {
-          const { data: nomination } = await admin.from("electrician_nominations").select("contact_name,business_name,email,phone,licence_number,rec_number,nominated_for,status").eq("id", plan.nomination_id).eq("nominating_business_id", batch.business_id).maybeSingle();
-          if (nomination) await admin.from("electrician_nominations").insert({ ...nomination, job_id: job.id, nominated_by: actorId, nominating_business_id: batch.business_id, status: "invite_pending_comms" });
-          await admin.from("jobs").update({ electrician_choice: "nominated", next_action: `Waiting for ${nomination?.contact_name ?? "nominated electrician"} to sign up and be approved` }).eq("id", job.id);
-        }
-      } else await admin.from("jobs").update({ electrician_choice: "hivic_organise" }).eq("id", job.id);
+      await (await import("./job-electrician.server")).recordJobElectricianChoice(job.id, batch.business_id, plan, actorId);
       await admin.from("bulk_import_rows").update({ job_id: job.id }).eq("id", row.id);
       const ownerToken = newToken();
       await admin.from("owner_eligibility_links").insert({ job_id: job.id, business_id: batch.business_id, token_hash: await hashToken(ownerToken), created_by: actorId, expires_at: new Date(Date.now() + 30 * 86_400_000).toISOString() });
