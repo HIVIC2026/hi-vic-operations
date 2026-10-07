@@ -6,7 +6,7 @@ export type TradeKind = "electrician" | "installer";
 /** "G'day Jo" + "{N} jobs this week. Let's go." with friendly quiet-week variation. */
 export function tradeGreeting(firstName: string | null, jobsThisWeek: number): { title: string; sub: string } {
   const title = `G'day${firstName ? ` ${firstName}` : ""}`;
-  if (jobsThisWeek <= 0) return { title, sub: "Quiet week. Fresh jobs will pop up here." };
+  if (jobsThisWeek <= 0) return { title, sub: "No jobs booked this week. New job offers will appear here." };
   return { title, sub: `${jobsThisWeek} job${jobsThisWeek === 1 ? "" : "s"} this week. Let's go.` };
 }
 
@@ -89,16 +89,16 @@ export const START_LABEL: Record<DayKind, string> = { safety_check: "Start check
 /** Ready Check "Couldn't get in?" reasons (Jo-approved). */
 export const COULDNT_GET_IN = ["No one home", "Couldn't reach the manhole", "Not safe to go up", "Something else"] as const;
 export function couldntGetInMessage(reason: string): string {
-  return `No worries. We'll sort it. ${reason}. We'll rebook with the owner and offer it back to you first.`;
+  return `Thanks for letting us know. ${reason}. We'll rebook with the owner and offer it back to you first.`;
 }
 
-/** Paperwork pill: within 30 days → "{N} days"; expired → "Expired"; otherwise "All good". */
+/** Paperwork pill: within 30 days → "{N} days"; expired → "Expired"; otherwise "Current". */
 export function expiryPill(expiresOn: string | null, now = new Date()): { label: string; warn: boolean; days: number | null } {
   if (!expiresOn) return { label: "Add it", warn: true, days: null };
   const days = Math.ceil((new Date(`${expiresOn.slice(0, 10)}T00:00:00Z`).getTime() - Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())) / 86_400_000);
   if (days < 0) return { label: "Expired", warn: true, days };
   if (days <= 30) return { label: `${days} days`, warn: true, days };
-  return { label: "All good", warn: false, days };
+  return { label: "Current", warn: false, days };
 }
 
 /** Surname for "Safety check · {surname}". */

@@ -114,9 +114,9 @@ export async function createJoTestJob(actorId: string) {
   if (ofe) throw new WorkflowError(ofe.message);
   const link = `${TEST_APP_BASE}/field/offer/${offer.id}`;
   const sent = await both({ jobId: job.id, jobSource: "qa_test", label: "offer", actorId },
-    `HIV: Fresh job in Fraser Rise, $200 in your pocket. First in, best dressed ⚡ ${link}`,
+    `HIV: New job in Fraser Rise, your rate $200. The first trade to accept gets the job. ${link}`,
     "Fresh job in Fraser Rise — $200",
-    simpleEmail("Fresh job in Fraser Rise", ["Safety check (PIESA) — $200 in your pocket.", "About 120 m² of ceiling. The owner has picked three times. First in, best dressed."], { label: "See the job", url: link }));
+    simpleEmail("New job in Fraser Rise", ["Safety check (PIESA) — your rate $200.", "About 120 m² of ceiling. The owner has offered three times. The first trade to accept gets the job."], { label: "See the job", url: link }));
   return { jobId: job.id, jobNumber: job.job_number, offerId: offer.id, sent };
 }
 

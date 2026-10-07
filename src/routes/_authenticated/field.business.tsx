@@ -31,10 +31,10 @@ function Business() {
     <TradeShell installer={installer} boss={data.boss}>
       <div><h1 className="font-display text-3xl font-extrabold">My business</h1><p className="text-sm">{data.name}</p></div>
       <section className={`${card} flex items-center justify-between gap-3`}>
-        <span><span className="block font-bold">Taking new jobs</span><span className="block text-sm text-estimate-navy/70">{data.taking ? "On. Fresh jobs come straight to you." : "Paused, no new offers until you switch back on"}</span></span>
+        <span><span className="block font-bold">Taking new jobs</span><span className="block text-sm text-estimate-navy/70">{data.taking ? "On. New job offers come straight to you." : "Paused, no new offers until you switch back on"}</span></span>
         <button type="button" role="switch" aria-checked={data.taking} aria-label="Taking new jobs" disabled={busy || !data.boss} onClick={async () => { setBusy(true); try { await setTaking({ data: { taking: !data.taking } }); await refetch(); } finally { setBusy(false); } }} className={`relative h-8 w-14 shrink-0 rounded-full ${data.taking ? "bg-estimate-green" : "bg-estimate-line"}`}><span className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow transition-all ${data.taking ? "left-7" : "left-1"}`} /></button>
       </section>
-      {alert && <section className="rounded-[22px] bg-owner-house-pink p-5"><p className="font-bold">{alert.doc} runs out in {alert.d} days. Snap the new certificate so jobs keep coming</p><Link to="/field/business/insurance" className="mt-3 flex h-12 w-full items-center justify-center rounded-full bg-estimate-navy font-bold text-estimate-canvas">Upload</Link></section>}
+      {alert && <section className="rounded-[22px] bg-owner-house-pink p-5"><p className="font-bold">{alert.doc} runs out in {alert.d} days. Upload the renewed certificate to keep receiving job offers</p><Link to="/field/business/insurance" className="mt-3 flex h-12 w-full items-center justify-center rounded-full bg-estimate-navy font-bold text-estimate-canvas">Upload</Link></section>}
       <section>
         <h2 className="mb-2 font-display text-lg font-extrabold">Your business file</h2>
         <ul className="divide-y divide-estimate-line overflow-hidden rounded-[22px] bg-card shadow-sm">
