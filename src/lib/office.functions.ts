@@ -176,15 +176,3 @@ export const getPartnersOverview = createServerFn({ method: "GET" }).middleware(
     }).sort((a, b) => b.liveJobs - a.liveJobs || a.name.localeCompare(b.name));
     return { cards, applications: apps.count ?? 0 };
   });
-
-/** Jobs board: every job with its stage (the only status). TEST jobs only when asked. */
-export const getJobsBoard = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => testFlag.parse(d ?? {}))
-  .handler(async ({ context, data }) => {
-    await requireAdmin(context.supabase);
-    let q = context.supabase.from("job_overview").select("id, job_number, stage, eligibility_outcome, channel, source, owner_name, property_address, last_activity_at").order("last_activity_at", { ascending: false, nullsFirst: false }).limit(3000);
-    if (!data.includeTest) q = q.neq("source", "qa_test");
-    const { data: rows, error } = await q;
-    if (error) throw new Error(`Jobs couldn't load: ${error.message}`);
-    return (rows ?? []).map((r) => ({ id: r.id!, job_number: r.job_number!, stage: r.stage as string, eligibility_outcome: r.eligibility_outcome as string | null, channel: r.channel as string | null, source: r.source, owner_name: r.owner_name, property_address: r.property_address, last_activity_at: r.last_activity_at }));
-  });
