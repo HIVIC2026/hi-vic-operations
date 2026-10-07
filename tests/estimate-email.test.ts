@@ -233,13 +233,14 @@ describe("Save your spot (likely eligible) duplicate", () => {
   test("pink box: heading, Jo's new paragraph and button only; small lines and the rest of the email unchanged", () => {
     const email = renderSaveSpotFromLikelyEmail({ ...input, campaignUrl: campaign });
     const card = email.html.match(/<table data-likely-next-step="true"[\s\S]*?No obligation to proceed with installation\.<\/p><\/td><\/tr><\/table>/)?.[0] ?? "";
-    for (const copy of ["Save your spot", SAVE_SPOT_COPY, "Save my spot →", `href="${campaign}"`, "Demand is high. Installer availability is limited.", "Confirm your request on the next page. An installer from our panel will then contact you to arrange a time.", "No payment required. No obligation to proceed with installation."]) expect(card).toContain(copy);
-    for (const retired of ["Your installer measures the ceiling", "Free Insulation Measure-Up &amp; Eligibility Check", "Arrange my free measure-up &amp; eligibility check →"]) expect(card).not.toContain(retired);
+    for (const copy of ["Save your spot", SAVE_SPOT_COPY, "Save my spot →", `href="${campaign}"`, "Demand is high. Installer availability is limited.", "We will be in touch to book your free Ready Check as soon as we can.", "No payment required. No obligation to proceed with installation."]) expect(card).toContain(copy);
+    for (const retired of ["Your installer measures the ceiling", "Free Insulation Measure-Up &amp; Eligibility Check", "Arrange my free measure-up &amp; eligibility check →", "Confirm your request on the next page. An installer from our panel will then contact you to arrange a time."]) expect(card).not.toContain(retired);
     const text = email.plainText;
     expect(text).toContain(`SAVE YOUR SPOT\n${SAVE_SPOT_COPY}\n`);
     expect(text).toContain(`Save my spot: ${campaign}`);
     expect(text).toContain("Demand is high. Installer availability is limited.");
-    expect(text).toContain("Confirm your request on the next page. An installer from our panel will then contact you to arrange a time.");
+    expect(text).toContain("We will be in touch to book your free Ready Check as soon as we can.");
+    expect(text).not.toContain("Confirm your request on the next page. An installer from our panel will then contact you to arrange a time.");
     expect(text).toContain("No payment required. No obligation to proceed with installation.");
     expect(text).not.toContain("Your installer measures the ceiling");
     const base = renderEstimateEmail(input);
