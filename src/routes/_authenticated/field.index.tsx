@@ -1,3 +1,4 @@
+import { InstallerFactsLine } from "@/components/portal/installer-job-facts";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -57,7 +58,7 @@ function MyWork() {
           <h2 className="mb-2 font-display text-lg font-extrabold">Your jobs <span className="text-sm font-semibold text-estimate-navy/60">{data.jobs.length}</span></h2>
           <div className="space-y-2">{data.jobs.map((j) => (
             <Link key={j.jobId} to="/field/$jobId" params={{ jobId: j.jobId }} className="flex items-center gap-3 rounded-[22px] bg-card p-3 shadow-sm">
-              <span className="min-w-0 flex-1"><span className="block font-bold">{j.jobNumber} · {j.owner ?? "Owner"}</span><span className="block truncate text-sm text-estimate-navy/70">{j.address}</span><span className="block text-xs font-semibold text-estimate-blue">{j.status}</span></span><ChevronRight className="h-5 w-5" />
+              <span className="min-w-0 flex-1"><span className="block font-bold">{j.jobNumber} · {j.owner ?? "Owner"}</span><span className="block truncate text-sm text-estimate-navy/70">{j.address}</span><span className="block text-xs font-semibold text-estimate-blue">{j.status}</span><span className="mt-1 block"><InstallerFactsLine facts={j.facts} /></span></span><ChevronRight className="h-5 w-5" />
             </Link>))}</div>
         </section>
       )}

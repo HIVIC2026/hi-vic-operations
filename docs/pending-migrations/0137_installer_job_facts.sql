@@ -1,0 +1,13 @@
+-- Installer-sourced (uploaded) jobs (Jo, 7 Oct 2026): the installer's own quoted price, what it includes,
+-- and whether the installer already did the site check / measure-up. Never HIV owner prices.
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS installer_site_check text;
+ALTER TABLE public.jobs DROP CONSTRAINT IF EXISTS jobs_installer_site_check_chk;
+ALTER TABLE public.jobs ADD CONSTRAINT jobs_installer_site_check_chk CHECK (installer_site_check IS NULL OR installer_site_check IN ('yes', 'no'));
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS installer_site_check_date date;
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS installer_quoted_price_inc_gst numeric(12,2);
+ALTER TABLE public.jobs DROP CONSTRAINT IF EXISTS jobs_installer_quoted_price_chk;
+ALTER TABLE public.jobs ADD CONSTRAINT jobs_installer_quoted_price_chk CHECK (installer_quoted_price_inc_gst IS NULL OR installer_quoted_price_inc_gst > 0);
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS installer_price_includes text;
+COMMENT ON COLUMN public.jobs.installer_site_check IS 'Installer-sourced jobs: yes = installer already did the site check/measure-up (skips the Ready Check); no = Ready Check path. Null = not an uploaded job.';
+COMMENT ON COLUMN public.jobs.installer_quoted_price_inc_gst IS 'Installer-sourced jobs: the installer''s own quoted price, exactly as supplied. Null = "Quote needed from installer". Never HIV owner prices.';
+COMMENT ON COLUMN public.jobs.installer_price_includes IS 'Free text from the installer''s file: what the quoted price includes (R-value/product, area, removal, extras).';

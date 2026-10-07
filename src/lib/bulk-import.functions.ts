@@ -88,14 +88,32 @@ export const confirmBulkBatch = createServerFn({ method: "POST" }).middleware([r
 
 const electricianPlan = z.object({ mode: z.enum(["mine", "hivic", "job_by_job"]), nomination_id: uuid.nullable().optional(), business_id: uuid.nullable().optional() });
 export const setBulkReviewPlan = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ batchId: uuid, batchPlan: electricianPlan, rows: z.array(z.object({ rowId: uuid, stage: z.enum(["not_visited", "visited", "quoted", "installed"]), plan: electricianPlan.nullable() })).max(5000) }).parse(d))
+  .inputValidator((d) => z.object({ batchId: uuid, batchPlan: electricianPlan, rows: z.array(z.object({ rowId: uuid, stage: z.enum(["not_visited", "visited", "quoted", "installed"]), plan: electricianPlan.nullable(),
+    siteCheck: z.enum(["yes", "no"]).nullable().optional(), siteCheckDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional() })).max(5000) }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: batch } = await admin.from("bulk_import_batches").select("business_id,status").eq("id", data.batchId).single();
     if (!batch || batch.status !== "analysed") throw new WorkflowError("This upload can no longer be changed.");
     const { data: isAdmin } = await admin.rpc("has_role", { _user_id: context.userId, _role: "admin" });
     if (!isAdmin) await requireMember(context.userId, batch.business_id, true);
     await admin.from("bulk_import_batches").update({ electrician_plan: data.batchPlan as unknown as Json }).eq("id", data.batchId);
-    for (const row of data.rows) await admin.from("bulk_import_rows").update({ import_stage: row.stage, electrician_plan: row.plan as unknown as Json }).eq("id", row.rowId).eq("batch_id", data.batchId);
+    const { stageForSiteCheck } = await import("./bulk-import.core");
+    const { data: existing } = await admin.from("bulk_import_rows").select("id, extracted, import_stage").eq("batch_id", data.batchId);
+    const byId = new Map((existing ?? []).map((r) => [r.id, r]));
+    for (const row of data.rows) {
+      const cur = byId.get(row.rowId);
+      if (!cur) continue;
+      const e = (cur.extracted ?? {}) as Record<string, unknown>;
+      // Site check answered on the review screen (Jo, 7 Oct): Yes skips the Ready Check, No goes to it.
+      const answered = row.siteCheck !== undefined && row.siteCheck !== (e["site_check"] ?? null);
+      const check = row.siteCheck !== undefined ? row.siteCheck : (e["site_check"] as "yes" | "no" | null) ?? null;
+      const date = check === "yes" ? (row.siteCheckDate !== undefined ? row.siteCheckDate : (e["site_check_date"] as string | null) ?? null) : null;
+      const priced = Number(e["price_inc_gst"] ?? 0) > 0;
+      const stage = row.stage === "installed" ? "installed" : stageForSiteCheck(check, priced, cur.import_stage as never);
+      await admin.from("bulk_import_rows").update({
+        import_stage: stage, electrician_plan: row.plan as unknown as Json,
+        extracted: { ...e, site_check: check, site_check_date: date, site_check_source: answered ? "asked" : e["site_check_source"] ?? null, lead_stage: stage } as unknown as Json,
+      }).eq("id", row.rowId).eq("batch_id", data.batchId);
+    }
     return { ok: true };
   });
 

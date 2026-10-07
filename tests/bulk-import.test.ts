@@ -83,9 +83,13 @@ describe("bulk import core rules", () => {
 import { leadStage, CONTACT_PERMISSION_WORDING } from "../src/lib/bulk-import.core";
 describe("lead stage", () => {
   test("contact details only → not visited", () => expect(leadStage({ full_name: "A", phone: "1" }, 0)).toBe("not_visited"));
-  test("measurements or photos → visited", () => {
-    expect(leadStage({ area_m2: 120 }, 0)).toBe("visited");
-    expect(leadStage({ full_name: "A" }, 2)).toBe("visited");
+  test("measurements or photos alone don't mean visited (site check unclear → asked)", () => {
+    expect(leadStage({ area_m2: 120 }, 0)).toBe("not_visited");
+    expect(leadStage({ full_name: "A" }, 2)).toBe("not_visited");
+  });
+  test("site check Yes → visited, No → not visited", () => {
+    expect(leadStage({ area_m2: 120, site_check: "yes" })).toBe("visited");
+    expect(leadStage({ site_check: "no" })).toBe("not_visited");
   });
   test("sentences only (insulation/access/roof/hazards text, no photos or measurements) → not visited", () => {
     expect(leadStage({ full_name: "A", existing_insulation: "old batts, patchy" }, 0)).toBe("not_visited");
@@ -135,5 +139,37 @@ describe("photos + one free-text PDF", () => {
   test("two customers: photos are not guessed", () => {
     const r = _link([{ full_name: "A" }, { full_name: "B" }], files);
     expect(r.every((x) => x.matched.length === 0)).toBe(true);
+  });
+});
+
+describe("site check + installer price (Jo, 7 Oct)", () => {
+  test("reads common site-check cells", async () => {
+    const { parseSiteCheck } = await import("../src/lib/bulk-import.core");
+    expect(parseSiteCheck("Y").check).toBe("yes");
+    expect(parseSiteCheck("Visited 3/10/26")).toEqual({ check: "yes", date: "2026-10-03" });
+    expect(parseSiteCheck("03/10/2026")).toEqual({ check: "yes", date: "2026-10-03" });
+    expect(parseSiteCheck("No").check).toBe("no");
+    expect(parseSiteCheck("not yet").check).toBe("no");
+    expect(parseSiteCheck("maybe?").check).toBeNull();
+    expect(parseSiteCheck("").check).toBeNull();
+  });
+  test("a quoted price means visited; area alone is unclear", async () => {
+    const { siteCheckFromFile, quoteNeeded } = await import("../src/lib/bulk-import.core");
+    expect(siteCheckFromFile({ price_inc_gst: 3200 }).check).toBe("yes");
+    expect(siteCheckFromFile({ area_m2: 120 }).check).toBeNull();
+    expect(quoteNeeded({ area_m2: 120 })).toBe(true);
+    expect(quoteNeeded({ price_inc_gst: 3200 })).toBe(false);
+  });
+  test("answered stage: Yes skips the Ready Check, No goes to it, installed stays installed", async () => {
+    const { stageForSiteCheck } = await import("../src/lib/bulk-import.core");
+    expect(stageForSiteCheck("yes", true)).toBe("quoted");
+    expect(stageForSiteCheck("yes", false)).toBe("visited");
+    expect(stageForSiteCheck("no", true)).toBe("not_visited");
+    expect(stageForSiteCheck(null, false, "installed")).toBe("installed");
+  });
+  test("bulk confirm never prices from HIV owner prices or the installer's rate card", () => {
+    const src = require("node:fs").readFileSync("src/lib/bulk-import.server.ts", "utf8") as string;
+    expect(src).not.toMatch(/r5_install_inc_gst_per_m2|rate_card_items/);
+    expect(src).toContain("installer_quoted_price_inc_gst: quoteNeeded(e) ? null");
   });
 });

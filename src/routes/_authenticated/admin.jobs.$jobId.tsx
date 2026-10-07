@@ -1,3 +1,4 @@
+import { OfficeInstallerFactsCard } from "@/components/portal/installer-job-facts";
 import { PaperworkStrip } from "@/components/portal/paperwork";
 import { OfficePrestartCard } from "@/components/portal/prestart";
 import { OfficeInstallHoldCard } from "@/components/portal/install-hold";
@@ -113,6 +114,7 @@ function JobDetail() {
         <RecordDisclosure {...g("people")} title="People, source & exceptions" summary={`Electrician ${job.electrician_name ?? "unassigned"} · Installer ${job.installer_name ?? "unassigned"} · last activity ${fmtDate(job.last_activity_at)}`}>
           <div className="grid gap-4 lg:grid-cols-2">
             <JobSource jobId={jobId} channel={job.channel} model={job.commercial_model} business={job.originating_business_name} />
+            {job.channel === "installer_sourced" && <OfficeInstallerFactsCard jobId={jobId} />}
             <JobCoverage jobId={jobId} />
             <Assignments jobId={jobId} />
             <OfficeInstallHoldCard jobId={jobId} />

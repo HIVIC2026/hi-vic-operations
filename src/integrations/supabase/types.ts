@@ -5198,6 +5198,10 @@ export type Database = {
           install_10day_flagged_at: string | null
           installation_completed_at: string | null
           installer_led: boolean
+          installer_price_includes: string | null
+          installer_quoted_price_inc_gst: number | null
+          installer_site_check: string | null
+          installer_site_check_date: string | null
           job_number: string
           last_activity_at: string
           life_support: boolean
@@ -5250,6 +5254,10 @@ export type Database = {
           install_10day_flagged_at?: string | null
           installation_completed_at?: string | null
           installer_led?: boolean
+          installer_price_includes?: string | null
+          installer_quoted_price_inc_gst?: number | null
+          installer_site_check?: string | null
+          installer_site_check_date?: string | null
           job_number?: string
           last_activity_at?: string
           life_support?: boolean
@@ -5302,6 +5310,10 @@ export type Database = {
           install_10day_flagged_at?: string | null
           installation_completed_at?: string | null
           installer_led?: boolean
+          installer_price_includes?: string | null
+          installer_quoted_price_inc_gst?: number | null
+          installer_site_check?: string | null
+          installer_site_check_date?: string | null
           job_number?: string
           last_activity_at?: string
           life_support?: boolean

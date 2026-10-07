@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { InstallerFactsLine } from "./installer-job-facts";
 import { nextStep } from "@/lib/nextstep.core";
 import { AlertTriangle, HeartPulse } from "lucide-react";
 import { fmtDateTime } from "@/lib/workflow";
@@ -23,6 +24,7 @@ export function StaffJobRow({ job, coverage, select }: { job: JobRow; coverage?:
       <div className="min-w-0 text-sm">
         <div className="flex items-start gap-1 font-medium">{stuck.length > 0 && <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />}<span className="break-words">{step.next}</span></div>
         {step.waitingOn && <div className="text-xs text-muted-foreground">Waiting on <span className="font-semibold text-foreground">{step.waitingOn}</span></div>}
+        <InstallerFactsLine facts={job.installer_facts} />
       </div>
       <div className="min-w-0 space-y-1 text-xs">
         <div className="flex flex-wrap gap-1">
