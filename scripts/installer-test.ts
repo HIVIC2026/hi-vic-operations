@@ -420,17 +420,17 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     c("customer found from the sentences", u.rows.length >= 1, String(u.rows.length));
     c("sentences only ('haven't been out yet') = Not visited", u.rows.every((r) => r.import_stage === "not_visited"), u.rows.map((r) => r.import_stage).join(", "));
   });
-  await step(steps, "C5", "C5 Photos only: never a dead end, held for checking, no guessed customer", async (c) => {
+  await step(steps, "C5", "C5 Photos only: never a dead end, Customer details needed, no guessed customer", async (c) => {
     const u = await upload(null, [{ name: "ceiling-1.jpg", mime: "image/jpeg" }, { name: "ceiling-2.jpg", mime: "image/jpeg" }]);
     c("no invented customer details", u.rows.every((r) => !r.extracted["email"] && !r.extracted["phone"]), `${u.rows.length} row(s)`);
     c("photos with no customer show 'Customer details needed'", u.rows.length > 0 && u.rows.every((r) => r.sort_reasons.some((x) => /^Customer details needed/.test(x))));
     c("photos only: rows found", u.rows.length > 0, "no row is made from photos alone (no customer) — the photos are kept for matching only");
-    c("Jo's rule 'photos mean Visited' — conflicts with the 7 Oct rule (blank site check = ask)", u.rows.length > 0 && u.rows.every((r) => r.import_stage === "visited"), "needs Jo's decision: photos alone currently mean 'please answer: site check done?'");
+    c("photos mean Visited (Jo, 7 Oct 5:45pm)", u.rows.length > 0 && u.rows.every((r) => r.import_stage === "visited"), "needs Jo's decision: photos alone currently mean 'please answer: site check done?'");
   });
   await step(steps, "C6", "C6 Messy file with missing columns", async (c) => {
     const u = await upload("messy.csv");
     c("rows read without crashing", u.rows.length >= 1, String(u.rows.length));
-    c("row with no contact/address held for checking with a reason", u.rows.filter((r) => !r.extracted["address_line"]).every((r) => r.sort_result === "office_review" && r.sort_reasons.length > 0));
+    c("row with no contact/address shows 'Customer details needed'", u.rows.filter((r) => !r.extracted["address_line"]).every((r) => r.sort_reasons.some((x) => /^Customer details needed/.test(x))));
   });
   await step(steps, "C7", "C7 Duplicate rows and an existing customer", async (c) => {
     const u = await upload("duplicates.csv");
