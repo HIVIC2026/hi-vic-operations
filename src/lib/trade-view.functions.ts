@@ -91,3 +91,7 @@ export const getTradeJobStatus = createServerFn({ method: "POST" }).middleware([
 export const askTradeReminder = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => (await import("./job-status.server")).tradeAskReminder(context.userId, data.jobId));
+
+export const addTradeInstaller = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ name: z.string().trim().min(2).max(120), email: z.string().trim().email().max(200), mobile: z.string().trim().max(30).optional().nullable(), ciiNumber: z.string().trim().min(2).max(60), issuer: z.string().trim().min(2).max(120) }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeAddInstaller(context.userId, data));

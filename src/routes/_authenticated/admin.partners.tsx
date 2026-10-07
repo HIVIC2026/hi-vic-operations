@@ -1,3 +1,4 @@
+import { nonEecWarning } from "@/lib/cii-issuer.core";
 import { toast } from "sonner";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -248,6 +249,7 @@ function WorkerCertifications({ applicationId, installers }: { applicationId: st
           <div key={email} className="mt-2 border-t pt-2">
             <div><b>{w.full_legal_name}</b> · {email}</div>
             <div className="text-xs text-muted-foreground">Applicant declared: {w.cii_holds === "held" ? `holds CII ${w.cii_certificate_number ?? ""}, ${w.cii_issuer ?? ""}, ${w.cii_issue_date ?? ""}${w.cii_level ? `, ${w.cii_level === "full" ? "Full" : "Provisional (no work until Full)"}` : ""}${w.cii_expiry ? `, expires ${w.cii_expiry}` : ""}` : w.cii_holds === "in_training" ? "training in progress" : w.cii_holds === "not_held" ? "not certified" : "not provided (older application)"}</div>
+            {nonEecWarning(w.cii_issuer) && <p data-non-eec className="mt-1 rounded bg-destructive/10 px-2 py-1 text-xs font-semibold text-destructive">{nonEecWarning(w.cii_issuer)} Verifying it will not unlock Approve unless the certificate you check is EEC.</p>}
             <div className="mt-1">{latest ? <Badge variant={latest.status === "verified" ? "default" : "destructive"}>{latest.status === "verified" ? "Office verified" : "Rejected"} {new Date(latest.recorded_at).toLocaleDateString("en-AU")}</Badge> : <Badge variant="outline">Not verified</Badge>}</div>
             {latest?.status === "verified" && (() => {
               const cur = (lv.data ?? []).find((x) => x.certification_id === latest.id);

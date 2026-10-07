@@ -19,6 +19,7 @@ export function TradePrestart({ jobId, kind, onStart, disabledReason }: { jobId:
         <p className="mt-1 text-sm text-sub">The onsite form tells you exactly what to shoot. We just need every one crystal clear.</p>
         <p className="mt-3 rounded-2xl bg-owner-house-pink p-3 text-sm text-estimate-navy"><strong>Why it matters:</strong> every photo and video is checked before the rebate is claimed. If one is blurry, dark or missing, the claim can be <strong>rejected by the regulator. That means no rebate for the job.</strong> At best, it's a trip back to redo it.</p>
         <div className="mt-3 grid grid-cols-2 gap-2">{tips.map((t) => <div key={t} className="rounded-2xl bg-paper border border-line p-3 text-sm font-bold">{t}</div>)}</div>
+        <p data-id-photo className="mt-3 rounded-2xl border border-line bg-paper p-3 text-sm"><strong>Every job: ID photo out the front.</strong> The certified installer must take a photo of themselves holding their ID, standing out the front of the house. Without it the job can't be claimed.</p>
         <p className="mt-3 text-sm font-bold text-owner-house-pink">Check each one before you move on. Blurry? Retake it on the spot.</p>
       </section>
       <section className="rounded-[18px] border border-line bg-paper p-[19px] shadow-card">
