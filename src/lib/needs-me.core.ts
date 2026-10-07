@@ -23,6 +23,20 @@ export type NeedsJob = {
   offerChoice?: { kind: "ready_check" | "piesa"; state: "choose" | "no_taker"; hours: number } | null;
 };
 export type PartnerItem = { key: string; title: string; why: string; dueAt: string | null; href: string };
+
+/** Office rows that only the retired "To action" list used to show (moved across 7 Oct): unconnected Mitti forms and staff waiting for approval.
+ *  TEST businesses (name starts "TEST" or "[TEST PARTNER]") are left out, like every other Needs me row. */
+export const MITTI_FORMS: [string, string][] = [
+  ["A1 Ready Check (installer's own customer)", "mitti_ready_check_priced_template_id"], ["A2 Ready Check (our lead)", "mitti_ready_check_template_id"],
+  ["B PIESA electrical safety check", "mitti_piesa_template_id"], ["C PIISA installer safety check", "mitti_piisa_template_id"],
+];
+const isTestBiz = (n: string | null | undefined) => /^\s*(\[TEST PARTNER\]|TEST\b)/i.test(n ?? "");
+export function movedFromTodo(f: { formIds: Record<string, string | null | undefined> | null; pendingWorkers: { id: string; full_legal_name: string | null; business: string | null }[] }): PartnerItem[] {
+  const out: PartnerItem[] = [];
+  for (const [name, col] of MITTI_FORMS) if (f.formIds && !f.formIds[col]) out.push({ key: `mitti-form:${col}`, title: `Onsite form not set up: ${name}`, why: "Connect the Mitti form in Compliance → Mitti forms. Trades see “Form being set up” until then.", dueAt: null, href: "/admin/compliance" });
+  for (const w of f.pendingWorkers) if (!isTestBiz(w.business)) out.push({ key: `worker:${w.id}`, title: `Approve worker – ${w.full_legal_name?.trim() || "name not given"}`, why: `${w.business ?? "A partner"} added them; they can't be sent jobs until approved.`, dueAt: null, href: "/admin/workers" });
+  return out;
+}
 export type Snooze = { jobId: string; ruleKey: string; until: string; count: number };
 export type NeedsItem = {
   key: string; jobId: string | null; jobNumber: string | null; suburb: string | null; what: string; why: string; rule: NeedsRule;
