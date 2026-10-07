@@ -20,8 +20,9 @@ export function afterPasswordPath(next: string | null): "/field/welcome" | "/por
 
 export type PortalRoleInput = { roles: string[]; hasBusiness: boolean };
 /** Role router used by /portal after sign-in. */
-export function portalDestination(me: PortalRoleInput): "/admin/needs-me" | "/field" | "/owner" | "no-access" {
-  if (me.roles.includes("admin")) return "/admin/needs-me";
+export function portalDestination(me: PortalRoleInput): "/admin/needs-me" | "/field" | "/owner" | "no-access" | "choose" {
+  const trade = me.roles.includes("installer") || me.roles.includes("electrician") || me.hasBusiness;
+  if (me.roles.includes("admin")) return trade ? "choose" : "/admin/needs-me";
   if (me.roles.includes("installer") || me.roles.includes("electrician")) return "/field";
   if (me.hasBusiness) return "/field";
   if (me.roles.includes("owner")) return "/owner";
