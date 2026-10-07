@@ -1,23 +1,31 @@
-// Office navigation (Jo, 7 Oct): exactly four headings — Needs me · Jobs · Partners · Money.
-// jobs.stage is the only status; eligibility is a filter on the Jobs board, never a menu item.
-// Old pages keep their URLs; retired list pages redirect to the Jobs board.
+// Office navigation map: every existing admin page lives under one top-bar heading as a tab.
+// Presentation only — routes are unchanged, so old links keep working.
 
-export type OfficeSection = "needs" | "jobs" | "partners" | "money" | "settings";
+export type OfficeSection = "needs" | "pipeline" | "partners" | "money" | "settings";
 import type { LinkProps } from "@tanstack/react-router";
 export type OfficeTab = { label: string; to: NonNullable<LinkProps["to"]>; search?: Record<string, string> };
 
-/** Campaign/list pages that aren't job stages: reachable from the avatar menu, not the top bar. */
-export const CAMPAIGN_LINKS: OfficeTab[] = [
-  { label: "Spot saved campaign", to: "/admin/launch-campaign" },
+export const ENQUIRY_TABS: OfficeTab[] = [
+  { label: "Spot saved", to: "/admin/launch-campaign" },
+  { label: "Likely eligible", to: "/admin", search: { tab: "enquiries" } },
   { label: "Hot leads", to: "/admin/hot-leads" },
   { label: "Campaign emails", to: "/admin/campaign-emails" },
   { label: "Email groups", to: "/admin/enquiry-groups" },
+  { label: "Needs video check", to: "/admin/list", search: { status: "enquiry.video_in" } },
   { label: "Calculator interest", to: "/admin/interests" },
+  { label: "Not eligible", to: "/admin", search: { tab: "ineligible" } },
 ];
 
 export const SECTION_TABS: Record<OfficeSection, OfficeTab[]> = {
-  needs: [],
-  jobs: [],
+  needs: [{ label: "Needs me", to: "/admin/needs-me" }, { label: "Today", to: "/admin/today" }, { label: "To action (old list)", to: "/admin/todo" }],
+  pipeline: [
+    { label: "Stages", to: "/admin/pipeline" },
+    { label: "Enquiries", to: "/admin", search: { tab: "enquiries" } },
+    { label: "Quotes to approve", to: "/admin", search: { tab: "quotes" } },
+    { label: "All live jobs", to: "/admin", search: { tab: "jobs" } },
+    { label: "AP sign-off", to: "/admin/ap-queue" },
+    { label: "Board", to: "/admin" },
+  ],
   partners: [
     { label: "Overview", to: "/admin/partners-overview" },
     { label: "Approved", to: "/admin/businesses" },
@@ -29,7 +37,6 @@ export const SECTION_TABS: Record<OfficeSection, OfficeTab[]> = {
   money: [
     { label: "Overview", to: "/admin/money" },
     { label: "Payouts", to: "/admin/money", search: { tab: "payouts" } },
-    { label: "AP sign-off", to: "/admin/ap-queue" },
     { label: "Prices", to: "/admin/pricing" },
     { label: "Electrician rates", to: "/admin/electrician-rates" },
     { label: "VEECs", to: "/admin/veec" },
@@ -43,28 +50,26 @@ export const SECTION_TABS: Record<OfficeSection, OfficeTab[]> = {
   ],
 };
 
+const ENQUIRY_PATHS = ["/admin/launch-campaign", "/admin/hot-leads", "/admin/campaign-emails", "/admin/enquiry-groups", "/admin/interests"];
+
 /** Which heading a page belongs to. */
-export function sectionFor(pathname: string, _search: Record<string, unknown> = {}): OfficeSection {
+export function sectionFor(pathname: string, search: Record<string, unknown> = {}): OfficeSection {
   const p = pathname.replace(/\/$/, "") || "/";
   if (["/admin/needs-me", "/admin/today", "/admin/todo"].includes(p)) return "needs";
   if (SECTION_TABS.partners.some((t) => t.to === p)) return "partners";
   if (SECTION_TABS.money.some((t) => t.to === p)) return "money";
   if (SECTION_TABS.settings.some((t) => t.to === p)) return "settings";
-  return "jobs";
+  void search;
+  return "pipeline";
 }
 
-/** Where a retired office list address now goes (old links and bookmarks). */
-export function retiredOfficeRedirect(pathname: string, search: Record<string, unknown>): { to: "/admin/jobs"; search: Record<string, string> } | null {
+/** True when the page is one of the Enquiries tabs (so the second tab row shows). */
+export function isEnquiryPage(pathname: string, search: Record<string, unknown> = {}): boolean {
   const p = pathname.replace(/\/$/, "");
-  if (p === "/admin/pipeline") return { to: "/admin/jobs", search: {} };
-  if (p === "/admin") {
-    const tab = search["tab"];
-    if (tab === "quotes") return null; // quote approvals page stays (linked from Needs me)
-    if (tab === "enquiries") return { to: "/admin/jobs", search: { elig: "likely" } };
-    if (tab === "ineligible") return { to: "/admin/jobs", search: { elig: "not" } };
-    return { to: "/admin/jobs", search: {} };
-  }
-  return null;
+  if (ENQUIRY_PATHS.includes(p)) return true;
+  if (p === "/admin") return search["tab"] === "enquiries" || search["tab"] === "ineligible";
+  if (p === "/admin/list") return String(search["status"] ?? "").startsWith("enquiry.");
+  return false;
 }
 
 export function tabActive(t: OfficeTab, pathname: string, search: Record<string, unknown>): boolean {

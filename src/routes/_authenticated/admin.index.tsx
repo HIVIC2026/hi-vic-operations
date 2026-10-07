@@ -1,5 +1,4 @@
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { retiredOfficeRedirect } from "@/lib/office-nav";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { InstallerFactsLine } from "@/components/portal/installer-job-facts";
 import { Badge } from "@/components/ui/badge";
 import { listInterests } from "@/lib/interest.functions";
@@ -40,7 +39,6 @@ const SECONDARY_VIEWS: { key: WorkView; label: string }[] = [{ key: "all", label
 export const Route = createFileRoute("/_authenticated/admin/")({
   head: () => ({ meta: [{ title: "Job Pipeline – Home Insulation Victoria Portal" }, { name: "description", content: "Home Insulation Victoria job pipeline and enquiry workspace." }, { property: "og:title", content: "Job Pipeline – Home Insulation Victoria Portal" }, { property: "og:description", content: "Home Insulation Victoria job pipeline and enquiry workspace." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   validateSearch: (s: Record<string, unknown>): { tab?: Tab } => (["board", "jobs", "quotes", "enquiries", "ineligible"].includes(s["tab"] as string) ? { tab: s["tab"] as Tab } : {}),
-  beforeLoad: ({ search }) => { const r = retiredOfficeRedirect("/admin", search as Record<string, unknown>); if (r) throw redirect({ to: r.to, search: r.search as never, replace: true }); },
   component: Pipeline,
 });
 

@@ -1,4 +1,4 @@
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/portal/AppShell";
@@ -7,7 +7,6 @@ import { getPipeline } from "@/lib/office.functions";
 export const Route = createFileRoute("/_authenticated/admin/pipeline")({
   head: () => ({ meta: [{ title: "Pipeline – Home Insulation Victoria" }, { name: "description", content: "Live jobs by stage and status, with late counts." }, { property: "og:title", content: "Pipeline – Home Insulation Victoria" }, { property: "og:description", content: "Live jobs by stage and status, with late counts." }] }),
   validateSearch: (s: Record<string, unknown>): { test?: boolean } => (s["test"] === true || s["test"] === "true" ? { test: true } : {}),
-  beforeLoad: ({ search }) => { throw redirect({ to: "/admin/jobs", search: (search.test ? { test: true } : {}) as never, replace: true }); },
   component: Pipeline,
 });
 
