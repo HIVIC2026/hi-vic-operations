@@ -27,9 +27,8 @@ export function renderStep3SaveSpot(f: SaveSpotFacts): EstimateEmail {
     estimatedTotal: f.estimatedTotal, veuDiscount: f.veuDiscount, grossProjectTotal: f.grossTotal, areaM2: f.areaM2,
     amountPayableNow: 0, estimatedRemainingBalance: f.estimatedTotal,
     firstName: f.firstName, address: f.address, reference: f.reference, existingInsulationPresent: f.existingInsulationPresent,
-    ...(f.installation === undefined ? {} : { installationPrice: f.installation }),
-    ...(f.assessmentFee === undefined ? {} : { assessmentFee: f.assessmentFee }),
-    ...(f.apFee === undefined ? {} : { apFee: f.apFee }),
+    assessmentFee: f.assessmentFee ?? 349, apFee: f.apFee ?? 349,
+    installationPrice: f.installation ?? f.grossTotal - (f.assessmentFee ?? 349) - (f.apFee ?? 349),
   });
 }
 
