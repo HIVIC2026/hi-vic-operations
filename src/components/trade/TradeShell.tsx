@@ -1,4 +1,5 @@
 // Phone-first trade frame (Jo-approved): logo + today's date, owner-page fonts/colours, bottom tabs.
+import * as React from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Briefcase, Building2, PlusCircle, Wallet } from "lucide-react";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
@@ -52,7 +53,18 @@ function TradeAvatar() {
   const { data } = useQuery({ queryKey: ["trade-avatar"], queryFn: async () => (await supabase.auth.getUser()).data.user, staleTime: 300_000 });
   const name = String((data?.user_metadata as { full_name?: string } | undefined)?.full_name ?? data?.email ?? "");
   const ini = name.replace(/[^A-Za-z\s@.]/g, "").split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("");
-  return <span aria-hidden className="ml-auto grid h-[35px] w-[35px] shrink-0 place-items-center rounded-full bg-pink text-xs font-bold text-ink">{ini || "·"}</span>;
+  const [open, setOpen] = React.useState(false);
+  // Everyone (business owner and staff) can sign out from the top-right circle on every trade page.
+  const signOut = async () => { await supabase.auth.signOut(); window.location.replace("/portal"); };
+  return (
+    <div className="relative ml-auto shrink-0">
+      <button type="button" aria-label="Account menu" aria-expanded={open} onClick={() => setOpen((o) => !o)} className="grid h-[35px] w-[35px] place-items-center rounded-full bg-pink text-xs font-bold text-ink">{ini || "·"}</button>
+      {open && <div className="absolute right-0 z-20 mt-2 w-48 rounded-[12px] border border-line bg-paper p-2 shadow-card">
+        {data?.email && <p className="truncate px-2 pb-2 text-xs text-sub">{data.email}</p>}
+        <button type="button" onClick={() => void signOut()} className="h-11 w-full rounded-[9px] px-2 text-left text-sm font-bold text-hiv-blue hover:bg-mist">Sign out</button>
+      </div>}
+    </div>
+  );
 }
 
 export function TradeTabBar({ installer, boss }: { installer: boolean; boss: boolean }) {

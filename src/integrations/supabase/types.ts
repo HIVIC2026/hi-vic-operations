@@ -7205,6 +7205,39 @@ export type Database = {
           },
         ]
       }
+      partner_login_links: {
+        Row: {
+          application_id: string | null
+          created_at: string
+          created_by: string | null
+          email: string
+          expires_at: string
+          id: string
+          token_hash: string
+          used_at: string | null
+        }
+        Insert: {
+          application_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          email: string
+          expires_at?: string
+          id?: string
+          token_hash: string
+          used_at?: string | null
+        }
+        Update: {
+          application_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string
+          expires_at?: string
+          id?: string
+          token_hash?: string
+          used_at?: string | null
+        }
+        Relationships: []
+      }
       partner_measurement_methods: {
         Row: {
           approval_reason: string | null
@@ -11553,6 +11586,13 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      claim_partner_login_link: {
+        Args: { _token_hash: string }
+        Returns: {
+          email: string
+          outcome: string
+        }[]
       }
       claim_post_intake_work: {
         Args: { _job?: string; _lease_seconds: number; _limit: number }

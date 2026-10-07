@@ -28,3 +28,16 @@ export function portalDestination(me: PortalRoleInput): "/admin/needs-me" | "/fi
   if (me.roles.includes("owner")) return "/owner";
   return "no-access";
 }
+
+/** Partner welcome/login links last 24 hours and work once (Jo, 7 Oct). They carry our own token; opening the link mints a fresh one-time set-password token. */
+export const PARTNER_LINK_HOURS = 24;
+export function partnerLoginUrl(token: string, base = SET_PASSWORD_BASE): string {
+  const u = new URL("/reset-password", base);
+  u.searchParams.set("link", token);
+  u.searchParams.set("next", "/field/welcome");
+  return u.toString();
+}
+export type PartnerLinkOutcome = "ok" | "used" | "expired" | "invalid";
+export function partnerLinkMessage(o: Exclude<PartnerLinkOutcome, "ok">): string {
+  return o === "used" ? "This link has already been used." : o === "expired" ? "This link has expired." : "This link isn't valid.";
+}
