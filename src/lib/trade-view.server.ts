@@ -345,7 +345,12 @@ export async function tradeAgreementPdf(userId: string) {
   const { textToPdf } = await import("./signed-pdf.server");
   const signed = new Date(a.signed_at).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" });
   const bytes = await textToPdf(`Home Insulation Victoria partner agreement v${a.version} - ${c.biz.name}`, `${a.body}\n\nSigned by ${a.signer_name} on ${signed} (Melbourne time).`);
-  return { fileName: `agreement-v${a.version}.pdf`, base64: Buffer.from(bytes).toString("base64") };
+  return { fileName: `agreement-v${a.version}.pdf`, base64: toB64(bytes) };
+}
+
+function toB64(u: Uint8Array): string {
+  let s = ""; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000));
+  return btoa(s);
 }
 
 export async function tradeChangeRequest(userId: string, kind: "details" | "rates" | "area" | "other", message: string) {
