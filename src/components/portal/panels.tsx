@@ -50,7 +50,7 @@ export function useJob(jobId: string) {
   });
 }
 
-export function BlockersPanel({ jobId, quietWhenClear = false }: { jobId: string; quietWhenClear?: boolean }) {
+export function BlockersPanel({ jobId, quietWhenClear = false, partner = false }: { jobId: string; quietWhenClear?: boolean; partner?: boolean }) {
   const fn = useServerFn(getJobBlockers);
   const { data } = useQuery({ queryKey: ["blockers", jobId], queryFn: () => fn({ data: { jobId } }) });
   if (!data) return null;
@@ -60,6 +60,13 @@ export function BlockersPanel({ jobId, quietWhenClear = false }: { jobId: string
         <CheckCircle2 className="h-4 w-4" /> {data.next ? `Nothing blocking the move to ${STAGE_LABEL[data.next]}` : "No further stage"}
       </div>
     );
+  if (partner) return (
+    <section className="rounded-[22px] bg-card p-5 shadow-sm">
+      <h2 className="font-display text-lg font-extrabold">Still needed before the next step</h2>
+      <p className="mt-1 text-sm text-estimate-navy/70">Some of these are for the owner or the office. We'll tell you when anything needs you.</p>
+      <ul className="mt-2 list-disc space-y-1 pl-5">{data.blockers.map((b) => <li key={b}>{b}</li>)}</ul>
+    </section>
+  );
   return (
     <div className="rounded-xl border border-danger/30 bg-danger-soft p-3 text-sm">
       <div className="mb-1 flex items-center gap-2 font-semibold text-danger">

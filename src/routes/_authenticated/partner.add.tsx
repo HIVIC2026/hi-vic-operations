@@ -4,8 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Plus, Trash2 } from "lucide-react";
-import { AppShell } from "@/components/portal/AppShell";
-import { TradeTabs } from "@/components/portal/trade-work";
+import { TradeShell } from "@/components/trade/TradeShell";
 import { supabase } from "@/integrations/supabase/client";
 import { confirmImport, createImport, myInstallerRateItems, partnerUploadUrl } from "@/lib/pilot.functions";
 import { addCustomerProblems, areaTotal, type A1Area } from "@/lib/add-customer.core";
@@ -79,11 +78,11 @@ function AddCustomer() {
     } catch (e) { setErrors([e instanceof Error ? e.message : "Something went wrong. Please try again."]); window.scrollTo({ top: 0 }); } finally { setBusy(false); }
   };
 
-  const card = "rounded-[22px] border bg-card p-4 shadow-sm";
+  const card = "rounded-[22px] bg-card p-5 shadow-sm";
   return (
-    <AppShell>
-      <div className="space-y-4 pb-24">
-        <div><h1 className="font-display text-2xl font-extrabold">Add your own customer</h1><p className="text-sm text-muted-foreground">Fill this in once. We never ask again for anything you put here.</p></div>
+    <TradeShell installer>
+      <div className="space-y-4">
+        <div><h1 className="font-display text-3xl font-extrabold">Add one job</h1><p className="mt-1 text-sm text-estimate-navy/70">Fill this in once. We never ask again for anything you put here.</p></div>
         {errors.length > 0 && <div role="alert" className="rounded-[22px] border border-danger/40 bg-danger-soft p-3 text-sm text-danger"><div className="font-semibold">Nearly there — please fix:</div><ul className="mt-1 list-disc pl-5">{errors.map((e) => <li key={e}>{e}</li>)}</ul></div>}
         <section className={card}>
           <h2 className="mb-3 font-display text-lg font-extrabold">1 · Owner and home</h2>
@@ -153,7 +152,6 @@ function AddCustomer() {
         {progress && <Button size="field" className="w-full" disabled={busy} onClick={submit}>{busy ? "Saving…" : progress === "not_visited" ? "Save customer" : "Check & send"}</Button>}
         <div className={card}><div className="font-semibold">Many at once</div><p className="text-sm text-muted-foreground">Got a list, a spreadsheet or a folder of photos?</p><Link to="/partner/bulk-import" className="mt-2 inline-block font-semibold text-primary underline">Upload many customers</Link></div>
       </div>
-      <TradeTabs installer />
-    </AppShell>
+    </TradeShell>
   );
 }

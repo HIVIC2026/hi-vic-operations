@@ -3,9 +3,9 @@ import { couldntGetInMessage, dayTile, distanceLine, expiryPill, goneIn, payPill
 
 describe("trade view presentation", () => {
   test("greeting and quiet week", () => {
-    expect(tradeGreeting("Jo", 3)).toEqual({ title: "G'day Jo", sub: "3 jobs this week. Let's go." });
-    expect(tradeGreeting("Jo", 1).sub).toBe("1 job this week. Let's go.");
-    expect(tradeGreeting(null, 0)).toEqual({ title: "G'day", sub: "Quiet week. Fresh jobs will pop up here." });
+    expect(tradeGreeting("Jo", 3)).toEqual({ title: "Hello Jo", sub: "3 jobs booked this week." });
+    expect(tradeGreeting("Jo", 1).sub).toBe("1 job booked this week.");
+    expect(tradeGreeting(null, 0)).toEqual({ title: "Hello", sub: "No jobs booked this week. New job offers will appear here." });
   });
   test("own-rate rough install value, rounded down, never guaranteed", () => {
     expect(roughInstallValue(27.5, 121)).toBe(3327);
@@ -16,8 +16,8 @@ describe("trade view presentation", () => {
   });
   test("countdown and distance", () => {
     const now = Date.parse("2026-10-06T00:00:00Z");
-    expect(goneIn("2026-10-06T03:20:00Z", now)).toBe("Gone in 3h 20m");
-    expect(goneIn("2026-10-06T00:40:00Z", now)).toBe("Gone in 40 min");
+    expect(goneIn("2026-10-06T03:20:00Z", now)).toBe("Closes in 3h 20m");
+    expect(goneIn("2026-10-06T00:40:00Z", now)).toBe("Closes in 40 min");
     expect(goneIn("2026-10-05T00:00:00Z", now)).toBe("Closing now");
     expect(distanceLine(14.4)).toBe("About 14 km away");
     expect(distanceLine(null)).toBe("Nearby");
@@ -38,10 +38,10 @@ describe("trade view presentation", () => {
     expect(prestartReady([true, true, true])).toBe(true);
   });
   test("couldn't get in and expiry", () => {
-    expect(couldntGetInMessage("No one home")).toBe("No worries. We'll sort it. No one home. We'll rebook with the owner and offer it back to you first.");
+    expect(couldntGetInMessage("No one home")).toBe("Thanks for letting us know. No one home. We'll rebook with the owner and offer it back to you first.");
     const now = new Date("2026-10-06T00:00:00Z");
     expect(expiryPill("2026-10-20", now)).toEqual({ label: "14 days", warn: true, days: 14 });
-    expect(expiryPill("2027-10-20", now).label).toBe("All good");
+    expect(expiryPill("2027-10-20", now).label).toBe("Current");
     expect(expiryPill("2026-10-01", now).label).toBe("Expired");
   });
   test("day tiles use the four 2-hour windows", () => {

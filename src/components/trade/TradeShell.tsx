@@ -12,7 +12,7 @@ export function TradeShell({ children, installer, boss = true, test = false }: {
         <span className="text-xs font-semibold text-estimate-navy/70">{today}</span>
       </header>
       {test && <p className="mx-auto max-w-md px-4"><span className="inline-block rounded-full bg-owner-house-pink px-3 py-1 text-[11px] font-bold uppercase tracking-wide">TEST account — practice jobs only</span></p>}
-      <main className="mx-auto max-w-md space-y-4 px-4 pb-28 pt-3">{children}</main>
+      <main className="trade-forms mx-auto max-w-md space-y-4 px-4 pb-28 pt-3">{children}</main>
       <TradeTabBar installer={installer} boss={boss} />
     </div>
   );
@@ -41,3 +41,16 @@ export const navyCard = "rounded-[22px] bg-estimate-navy p-5 text-estimate-canva
 export const greenBtn = "flex h-12 w-full items-center justify-center gap-2 rounded-full bg-estimate-green px-4 font-bold text-white disabled:bg-estimate-line disabled:text-estimate-navy/50";
 export const ghostBtn = "flex h-12 w-full items-center justify-center rounded-full border border-estimate-line bg-card px-4 font-bold text-estimate-navy";
 export const aud = (n: number | null | undefined) => (n == null ? "—" : `$${Math.floor(n).toLocaleString("en-AU")}`);
+
+/** Same frame as the trade screens, without the bottom menu (rate offer, set password). */
+export function TradePublicShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="estimate-brand min-h-screen bg-estimate-canvas font-sans text-estimate-navy">
+      <header className="mx-auto flex max-w-md items-center justify-between px-4 pb-2 pt-4">
+        <img src={logo.url} alt="Home Insulation Victoria" className="h-9 w-auto" />
+      </header>
+      <main className="trade-forms mx-auto max-w-md space-y-4 px-4 pb-12 pt-3">{children}</main>
+    </div>
+  );
+}
+export const inputCls = "h-12 w-full rounded-2xl border border-estimate-line bg-card px-4 text-base text-estimate-navy";

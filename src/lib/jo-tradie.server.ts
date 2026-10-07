@@ -114,9 +114,9 @@ export async function createJoTestJob(actorId: string) {
   if (ofe) throw new WorkflowError(ofe.message);
   const link = `${TEST_APP_BASE}/field/offer/${offer.id}`;
   const sent = await both({ jobId: job.id, jobSource: "qa_test", label: "offer", actorId },
-    `HIV: Fresh job in Fraser Rise, $200 in your pocket. First in, best dressed ⚡ ${link}`,
-    "Fresh job in Fraser Rise — $200",
-    simpleEmail("Fresh job in Fraser Rise", ["Safety check (PIESA) — $200 in your pocket.", "About 120 m² of ceiling. The owner has picked three times. First in, best dressed."], { label: "See the job", url: link }));
+    `HIV: New job in Fraser Rise, your rate $200. The first trade to accept gets the job. ${link}`,
+    "New job in Fraser Rise — $200",
+    simpleEmail("New job in Fraser Rise", ["Safety check (PIESA) — your rate $200.", "About 120 m² of ceiling. The owner has offered three times. The first trade to accept gets the job."], { label: "See the job", url: link }));
   return { jobId: job.id, jobNumber: job.job_number, offerId: offer.id, sent };
 }
 
@@ -165,7 +165,7 @@ export async function takeJoOffer(offerId: string, proposalId: string, userId: s
   await both({ jobId: o.job_id, jobSource: "qa_test", label: "booked", actorId: userId },
     `HIV: Locked in ✅ Safety check ${when(p!.starts_at)}, Fraser Rise. Details: ${link}`,
     "Locked in — safety check booked",
-    simpleEmail("It's yours — you're locked in", [`Safety check (PIESA) on ${when(p!.starts_at)} in Fraser Rise.`, "The owner's name, address and phone are on the job page. Add it to your calendar from there."], { label: "Open the job", url: link }));
+    simpleEmail("Job accepted — you're booked", [`Safety check (PIESA) on ${when(p!.starts_at)} in Fraser Rise.`, "The owner's name, address and phone are on the job page. Add it to your calendar from there."], { label: "Open the job", url: link }));
   return { ok: true, tooSlow: false };
 }
 

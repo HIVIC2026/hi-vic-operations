@@ -250,7 +250,7 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
 
 export async function tradeMoney(userId: string) {
   const c = await ctxOrThrow(userId);
-  if (!c.boss) throw new WorkflowError("Money is only shown to the business boss.");
+  if (!c.boss) throw new WorkflowError("Money is only shown to the business owner.");
   const rows = await tradeMoneyRows(c.biz.id, c.kind, c.isTest);
   const now = new Date(), m0 = new Date(now.getFullYear(), now.getMonth(), 1);
   const coming = rows.filter((r) => r.state.kind === "coming");
@@ -279,7 +279,7 @@ export async function tradeBusiness(userId: string) {
     licenceExpires: licence, liabilityExpires: liability, rate: rate ? Number((rate as { rate_inc_gst: number }).rate_inc_gst) : null,
     agreementSigned: !!agr?.signed_at, bankSaved: !!bank,
     team: [
-      ...(boss ?? []).filter((m) => m.member_role === "business_admin").map((m) => ({ id: null as string | null, name: (m.profiles as { full_name: string | null } | null)?.full_name ?? "Boss", role: "Boss", hasLogin: true })),
+      ...(boss ?? []).filter((m) => m.member_role === "business_admin").map((m) => ({ id: null as string | null, name: (m.profiles as { full_name: string | null } | null)?.full_name ?? "Business owner", role: "Business owner", hasLogin: true })),
       ...(workers ?? []).filter((w) => !(boss ?? []).some((m) => m.user_id === w.profile_id && m.member_role === "business_admin")).map((w) => ({ id: w.id as string | null, name: w.full_legal_name, role: w.trade_role === "installer" ? "Installer" : "Electrician", hasLogin: !!w.profile_id })),
     ],
   };

@@ -1669,3 +1669,12 @@ export const getInstallerJobFacts = createServerFn({ method: "POST" }).middlewar
     if (j.channel !== "installer_sourced") return null;
     return { site_check: j.installer_site_check as "yes" | "no" | null, site_check_date: j.installer_site_check_date, quoted_price_inc_gst: j.installer_quoted_price_inc_gst == null ? null : Number(j.installer_quoted_price_inc_gst), price_includes: j.installer_price_includes };
   });
+
+/** Partner job page: their own site check answer and quoted price (RLS: only jobs they can already see). */
+export const getMyInstallerJobFacts = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: j } = await context.supabase.from("jobs").select("channel, installer_site_check, installer_site_check_date, installer_quoted_price_inc_gst, installer_price_includes").eq("id", data.jobId).maybeSingle();
+    if (!j || j.channel !== "installer_sourced") return null;
+    return { site_check: j.installer_site_check as "yes" | "no" | null, site_check_date: j.installer_site_check_date, quoted_price_inc_gst: j.installer_quoted_price_inc_gst == null ? null : Number(j.installer_quoted_price_inc_gst), price_includes: j.installer_price_includes };
+  });

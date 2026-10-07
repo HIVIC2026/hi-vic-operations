@@ -8,7 +8,7 @@ import { getTradeHome } from "@/lib/trade-view.functions";
 import { dayTile, goneIn, tradeGreeting } from "@/lib/trade-view.core";
 
 export const Route = createFileRoute("/_authenticated/field/")({
-  head: () => ({ meta: [{ title: "My work – Home Insulation Victoria" }, { name: "description", content: "Fresh jobs, what needs you and what's coming up." }, { property: "og:title", content: "My work – Home Insulation Victoria" }, { property: "og:description", content: "Fresh jobs, what needs you and what's coming up." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
+  head: () => ({ meta: [{ title: "My work – Home Insulation Victoria" }, { name: "description", content: "New job offers, what needs you and what's coming up." }, { property: "og:title", content: "My work – Home Insulation Victoria" }, { property: "og:description", content: "New job offers, what needs you and what's coming up." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: MyWork,
 });
 
@@ -33,8 +33,8 @@ function MyWork() {
       {first && (
         <Link to="/field/offer/$offerId" params={{ offerId: first.id }} className="flex items-center gap-3 rounded-[22px] bg-estimate-navy p-4 text-estimate-canvas shadow-sm">
           <Zap className="h-6 w-6 shrink-0 text-owner-house-pink" />
-          <span className="min-w-0 flex-1"><span className="block font-display text-lg font-extrabold">{data.offers.length} fresh job{data.offers.length === 1 ? "" : "s"} up for grabs</span><span className="block truncate text-sm text-estimate-canvas/85">{first.suburb ?? "Victoria"}{installer ? " · Ready Check" : ""}{first.expiresAt ? ` · ${(goneIn(first.expiresAt) ?? "").toLowerCase()}` : ""}</span></span>
-          <span className="rounded-full bg-estimate-green px-4 py-2 text-sm font-bold text-white">Grab it</span>
+          <span className="min-w-0 flex-1"><span className="block font-display text-lg font-extrabold">{data.offers.length} new job offer{data.offers.length === 1 ? "" : "s"}</span><span className="block truncate text-sm text-estimate-canvas/85">{first.suburb ?? "Victoria"}{installer ? " · Ready Check" : ""}{first.expiresAt ? ` · ${(goneIn(first.expiresAt) ?? "").toLowerCase()}` : ""}</span></span>
+          <span className="rounded-full bg-estimate-green px-4 py-2 text-sm font-bold text-white">View</span>
         </Link>
       )}
       {data.yourMove.length > 0 && (

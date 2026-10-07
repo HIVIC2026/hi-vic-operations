@@ -1,11 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
-import { CUSTOMER_BRAND } from "@/lib/customer-quote-system";
+import { TradePublicShell, card, greenBtn, ghostBtn, inputCls } from "@/components/trade/TradeShell";
 import { acceptRateOffer, declineRateOffer, loadRateOffer } from "@/lib/rate-offer.functions";
 
 export const Route = createFileRoute("/rate-offer/$token")({
@@ -32,66 +28,69 @@ function RateOfferPage() {
   const o = q.data;
   const act = async (fn: () => Promise<unknown>) => { setBusy(true); setErr(null); try { await fn(); await q.refetch(); setMode("view"); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); } };
   return (
-    <div className="estimate-brand min-h-screen bg-estimate-canvas text-estimate-navy"><main className="mx-auto max-w-xl space-y-5 px-4 py-8">
-      <img src={CUSTOMER_BRAND.logoUrl} alt={CUSTOMER_BRAND.name} className="h-10 w-auto" />
-      <h1 className="font-display text-3xl font-extrabold text-foreground">Review our rate offer</h1>
-      {q.isLoading && <p className="text-muted-foreground">Loading…</p>}
-      {q.error && <p className="text-destructive">{(q.error as Error).message}</p>}
+    <TradePublicShell>
+      <h1 className="font-display text-3xl font-extrabold">Review our rate offer</h1>
+      {q.isLoading && <p className="text-sm">Loading…</p>}
+      {q.error && <p role="alert" className={card}>{(q.error as Error).message}</p>}
       {o && <>
-        <p className="text-foreground">Thanks for your application, {o.partner}. Here are your rates next to ours. All figures include GST.</p>
-        {o.status === "sent" && o.expires_at && <p className="text-xs text-muted-foreground">This link works until {new Date(o.expires_at).toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "long", year: "numeric" })}.</p>}
-        {o.note && <div className="rounded-2xl bg-secondary p-4 text-sm"><b>Note from our office:</b> {o.note}</div>}
-        <div className="rounded-[22px] border bg-white p-4">
-          <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 gap-y-2 text-sm">
-            <span className="text-xs text-muted-foreground">Rate</span><span className="text-xs text-muted-foreground">Yours</span><span className="text-xs text-muted-foreground">Our offer</span>
-            {o.items.map((i) => (
-              <div key={i.code} className="contents">
-                <span>{i.description}<span className="text-xs text-muted-foreground"> / {i.display_unit ?? i.unit}</span></span>
-                <span>{money(i.partner_inc_gst)}</span>
-                <span className={i.offer_inc_gst !== i.partner_inc_gst ? "font-bold text-primary" : "font-semibold"}>{money(i.offer_inc_gst)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-        {o.status === "accepted" && <p className="rounded-2xl bg-success-soft p-4 font-semibold text-success">You accepted these rates. Our office will finish setting you up.</p>}
-        {o.status === "declined" && <p className="rounded-2xl bg-muted p-4 font-semibold">You sent this back to us. Our office will be in touch.</p>}
-        {o.status === "superseded" && <p className="rounded-2xl bg-muted p-4">This offer has been replaced.</p>}
+        <p>Thanks for your application, {o.partner}. Here are the rates you proposed next to our offer. All figures include GST.</p>
+        {o.status === "sent" && o.expires_at && <p className="text-sm">This link works until {new Date(o.expires_at).toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "long", year: "numeric" })}.</p>}
+        {o.note && <section className={card}><p className="font-bold">Note from our office</p><p className="mt-1">{o.note}</p></section>}
+        <section className="overflow-hidden rounded-[22px] bg-card shadow-sm">
+          <table className="w-full text-left">
+            <thead className="bg-estimate-navy text-estimate-canvas"><tr><th scope="col" className="p-3 text-sm font-bold">Item</th><th scope="col" className="p-3 text-right text-sm font-bold">Your rate</th><th scope="col" className="p-3 text-right text-sm font-bold">Our offer</th></tr></thead>
+            <tbody className="divide-y divide-estimate-line">
+              {o.items.map((i) => (
+                <tr key={i.code}>
+                  <td className="p-3"><span className="block font-semibold">{i.description}</span><span className="block text-sm text-estimate-navy/70">per {i.display_unit ?? i.unit}</span></td>
+                  <td className="p-3 text-right">{money(i.partner_inc_gst)}</td>
+                  <td className={`p-3 text-right ${i.offer_inc_gst !== i.partner_inc_gst ? "font-extrabold text-estimate-blue" : "font-semibold"}`}>{money(i.offer_inc_gst)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+        {o.status === "accepted" && <section className="rounded-[22px] bg-estimate-green p-5 text-white"><p className="font-display text-2xl font-extrabold">Signed</p><p className="mt-1">You accepted these rates. Our office will finish setting you up.</p></section>}
+        {o.status === "declined" && <section className={card}><p className="font-bold">Sent back to the office</p><p className="mt-1">Our office will be in touch.</p></section>}
+        {o.status === "superseded" && <section className={card}><p className="font-bold">This offer has been replaced.</p></section>}
         {o.status === "sent" && mode === "view" && (
-          <div className="flex flex-col gap-3">
-            <Button className="h-12" onClick={() => setMode("accept")}>Accept these rates</Button>
-            <Button className="h-12" variant="outline" onClick={() => setMode("decline")}>Decline or propose new rates</Button>
+          <div className="space-y-3">
+            <button type="button" className={greenBtn} onClick={() => setMode("accept")}>Accept these rates</button>
+            <button type="button" className={ghostBtn} onClick={() => setMode("decline")}>Decline or propose new rates</button>
           </div>
         )}
         {o.status === "sent" && mode === "accept" && (
-          <div className="space-y-3 rounded-[22px] border bg-white p-4">
+          <section className={`${card} space-y-4`}>
             <h2 className="font-display text-xl font-extrabold">Sign to accept</h2>
-            <pre className="max-h-60 overflow-y-auto whitespace-pre-wrap rounded bg-muted p-3 text-xs">{o.text}</pre>
-            <label className="flex items-start gap-2 text-sm"><Checkbox checked={tick} onCheckedChange={(v) => setTick(v === true)} aria-label="I agree to these rates" /> <span>I agree that these rates replace the rates in our signed partner agreement, and all other terms stay the same.</span></label>
-            <Input className="h-12" placeholder="Your full name" aria-label="Your full name" value={name} onChange={(e) => setName(e.target.value)} />
-            <Input className="h-12" placeholder="Your position (e.g. Director)" aria-label="Your position" value={position} onChange={(e) => setPosition(e.target.value)} />
-            <label className="block text-sm font-semibold" htmlFor="ro-code">6-digit signing code</label>
-            <p className="text-xs text-muted-foreground">Ask our office for your code. It lasts 15 minutes.</p>
-            <Input id="ro-code" className="h-12 text-center font-mono text-lg tracking-widest" inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="000000" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} />
-            <Button className="h-12 w-full" disabled={busy || code.length !== 6 || !tick || name.trim().length < 2 || position.trim().length < 2}
-              onClick={() => act(() => acceptRateOffer({ data: { token, code, signer_name: name.trim(), signer_position: position.trim(), agreed: true, terms_sha256: o.sha256 } }))}>Sign and accept</Button>
-            <Button variant="ghost" className="w-full" onClick={() => setMode("view")}>Back</Button>
-          </div>
+            <div className="space-y-3 whitespace-pre-wrap text-base leading-relaxed">{o.text}</div>
+            <label className="flex items-start gap-3 rounded-2xl border border-estimate-line p-3"><input type="checkbox" className="mt-1 h-5 w-5" checked={tick} onChange={(e) => setTick(e.target.checked)} aria-label="I agree to these rates" /><span>I agree that these rates replace the rates in our signed partner agreement, and all other terms stay the same.</span></label>
+            <label className="block font-bold" htmlFor="ro-name">Your full name</label>
+            <input id="ro-name" className={inputCls} value={name} onChange={(e) => setName(e.target.value)} />
+            <label className="block font-bold" htmlFor="ro-pos">Your position</label>
+            <input id="ro-pos" className={inputCls} placeholder="e.g. Director" value={position} onChange={(e) => setPosition(e.target.value)} />
+            <label className="block font-bold" htmlFor="ro-code">6-digit signing code</label>
+            <p className="text-sm">Ask our office for your code. It lasts 15 minutes.</p>
+            <input id="ro-code" className={`${inputCls} text-center font-mono text-lg tracking-widest`} inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="000000" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} />
+            <button type="button" className={greenBtn} disabled={busy || code.length !== 6 || !tick || name.trim().length < 2 || position.trim().length < 2}
+              onClick={() => act(() => acceptRateOffer({ data: { token, code, signer_name: name.trim(), signer_position: position.trim(), agreed: true, terms_sha256: o.sha256 } }))}>Sign and accept</button>
+            <button type="button" className="w-full text-center text-sm font-bold text-estimate-blue" onClick={() => setMode("view")}>Back</button>
+          </section>
         )}
         {o.status === "sent" && mode === "decline" && (
-          <div className="space-y-3 rounded-[22px] border bg-white p-4">
+          <section className={`${card} space-y-3`}>
             <h2 className="font-display text-xl font-extrabold">Propose new rates</h2>
-            <p className="text-sm text-muted-foreground">Leave a rate blank to keep your original figure. Our office will review and reply.</p>
+            <p>Leave a rate blank to keep your original figure. Our office will review and reply.</p>
             {o.items.map((i) => (
-              <label key={i.code} className="flex items-center justify-between gap-3 text-sm"><span>{i.description}</span>
-                <Input className="h-12 w-28" type="number" min={0} step="0.01" aria-label={`Your new rate for ${i.description}`} value={proposed[i.code] ?? ""} onChange={(e) => setProposed((p) => ({ ...p, [i.code]: e.target.value }))} /></label>
+              <label key={i.code} className="flex items-center justify-between gap-3"><span>{i.description}</span>
+                <input className={`${inputCls} w-28`} type="number" min={0} step="0.01" aria-label={`Your new rate for ${i.description}`} value={proposed[i.code] ?? ""} onChange={(e) => setProposed((p) => ({ ...p, [i.code]: e.target.value }))} /></label>
             ))}
-            <Textarea rows={3} placeholder="Message to our office (optional)" aria-label="Message to our office" value={message} onChange={(e) => setMessage(e.target.value)} />
-            <Button className="h-12 w-full" disabled={busy} onClick={() => act(() => declineRateOffer({ data: { token, proposed: Object.fromEntries(Object.entries(proposed).filter(([, v]) => v.trim() !== "" && Number.isFinite(Number(v))).map(([k, v]) => [k, Number(v)])), message: message.trim() || undefined } }))}>Send back to the office</Button>
-            <Button variant="ghost" className="w-full" onClick={() => setMode("view")}>Back</Button>
-          </div>
+            <textarea rows={3} className="w-full rounded-2xl border border-estimate-line bg-card p-3 text-base" placeholder="Message to our office (optional)" aria-label="Message to our office" value={message} onChange={(e) => setMessage(e.target.value)} />
+            <button type="button" className={greenBtn} disabled={busy} onClick={() => act(() => declineRateOffer({ data: { token, proposed: Object.fromEntries(Object.entries(proposed).filter(([, v]) => v.trim() !== "" && Number.isFinite(Number(v))).map(([k, v]) => [k, Number(v)])), message: message.trim() || undefined } }))}>Send back to the office</button>
+            <button type="button" className="w-full text-center text-sm font-bold text-estimate-blue" onClick={() => setMode("view")}>Back</button>
+          </section>
         )}
-        {err && <p className="text-destructive">{err}</p>}
+        {err && <p role="alert" className="rounded-[22px] bg-owner-house-pink p-4 font-semibold">{err}</p>}
       </>}
-    </main></div>
+    </TradePublicShell>
   );
 }

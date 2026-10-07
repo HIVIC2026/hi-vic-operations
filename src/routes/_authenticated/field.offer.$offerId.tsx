@@ -8,7 +8,7 @@ import { getTradeOffer, replyTradeOffer, takeTradeTime } from "@/lib/trade-view.
 import { AREA_SOURCE_LABEL, INSULATION_LABEL, dayTile, distanceLine, goneIn, roughInstallValue, roughValueNote } from "@/lib/trade-view.core";
 
 export const Route = createFileRoute("/_authenticated/field/offer/$offerId")({
-  head: () => ({ meta: [{ title: "Fresh job – Home Insulation Victoria" }, { name: "description", content: "First in, best dressed. Tap a time the owner can do and it's yours." }, { property: "og:title", content: "Fresh job – Home Insulation Victoria" }, { property: "og:description", content: "First in, best dressed. Tap a time the owner can do and it's yours." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
+  head: () => ({ meta: [{ title: "New job – Home Insulation Victoria" }, { name: "description", content: "The first trade to accept gets the job. Choose one of the owner's times to accept." }, { property: "og:title", content: "New job – Home Insulation Victoria" }, { property: "og:description", content: "The first trade to accept gets the job. Choose one of the owner's times to accept." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
   component: OfferPage,
 });
 
@@ -43,12 +43,12 @@ function OfferPage() {
       <TradeShell installer={rc}>
         {took && <section className="rounded-[22px] bg-estimate-green p-5 text-white shadow-sm">
           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-estimate-green"><Check className="h-6 w-6" /></span>
-          <p className="mt-2 font-display text-[32px] font-extrabold leading-tight">It's yours!</p>
-          <p className="text-sm font-semibold">Oooft, that was fast clicking.</p>
+          <p className="mt-2 font-display text-[32px] font-extrabold leading-tight">Job accepted</p>
+          <p className="text-sm font-semibold">You have this job.</p>
           <p className="mt-2 text-sm font-bold">{t.day} · {t.window}</p>
         </section>}
         <section className="rounded-[22px] bg-estimate-navy p-5 text-estimate-canvas">
-          <span className="inline-block rounded-full bg-estimate-green px-3 py-1 text-xs font-bold text-white">Locked in</span>
+          <span className="inline-block rounded-full bg-estimate-green px-3 py-1 text-xs font-bold text-white">Booked</span>
           <h1 className="mt-3 font-display text-2xl font-extrabold">{what} · {t.day} · {t.window}</h1>
           <p className="mt-2 font-bold">{data.locked.owner}</p>
           <p className="text-sm text-estimate-canvas/85">{data.locked.address}</p>
@@ -58,14 +58,14 @@ function OfferPage() {
             <a className="flex h-12 flex-col items-center justify-center rounded-2xl bg-estimate-canvas font-bold text-estimate-navy" href={ics(`${what} – Home Insulation Victoria`, data.locked.start, data.locked.end, data.locked.address)} download="job.ics"><CalendarPlus className="h-4 w-4" />Calendar</a>
           </div>
         </section>
-        <p className="text-center text-sm">Nice one. The owner knows you're coming, and we'll ping you the day before.</p>
+        <p className="text-center text-sm">Booking confirmed. The owner has been told the time. The job page has the address and the owner's phone.</p>
         <Link to="/field/day/$jobId" params={{ jobId: data.jobId }} className={ghostBtn}>Open the job page</Link>
       </TradeShell>
     );
   }
   if (tooSlow || data.status !== "pending") return (
     <TradeShell installer={rc}>
-      <section className={`${card} text-center`}><h1 className="font-display text-xl font-extrabold">{mode === "declined" || data.status === "declined" ? "No worries" : "This job has been taken"}</h1><p className="mt-1 text-sm">{mode === "declined" || data.status === "declined" ? "We'll offer it to someone else." : "Someone else grabbed it first. More coming."}</p></section>
+      <section className={`${card} text-center`}><h1 className="font-display text-xl font-extrabold">{mode === "declined" || data.status === "declined" ? "Offer declined" : "This job has been taken"}</h1><p className="mt-1 text-sm">{mode === "declined" || data.status === "declined" ? "We'll offer it to someone else." : "Another trade accepted it first. This offer is now closed."}</p></section>
       <Link to="/field" className={ghostBtn}>Back to my work</Link>
     </TradeShell>
   );
@@ -73,7 +73,7 @@ function OfferPage() {
   return (
     <TradeShell installer={rc}>
       <section className="rounded-[22px] bg-estimate-navy p-5 text-estimate-canvas">
-        <div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-estimate-green px-3 py-1 text-xs font-bold text-white">Fresh job</span>{left && <span className="rounded-full bg-owner-house-pink px-3 py-1 text-xs font-bold text-estimate-navy">{left}</span>}</div>
+        <div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-estimate-green px-3 py-1 text-xs font-bold text-white">New job</span>{left && <span className="rounded-full bg-owner-house-pink px-3 py-1 text-xs font-bold text-estimate-navy">{left}</span>}</div>
         <h1 className="mt-3 flex items-center gap-2 font-display text-2xl font-extrabold"><Zap className="h-5 w-5 text-owner-house-pink" />{what} in {data.suburb ?? "Victoria"}</h1>
         <p className="text-sm text-estimate-canvas/85">{distanceLine(data.distanceKm)}</p>
         {rc ? (
@@ -87,7 +87,7 @@ function OfferPage() {
             <p className="mt-2 text-xs text-estimate-canvas/80">{roughValueNote(data.areaSource)}</p>
           </>
         ) : (
-          <><p className="mt-4 font-display text-4xl font-extrabold text-estimate-green">{data.pay != null ? aud(data.pay) : "Rate to confirm"}</p><p className="text-sm font-bold">in your pocket</p></>
+          <><p className="mt-4 font-display text-4xl font-extrabold text-estimate-green">{data.pay != null ? aud(data.pay) : "Rate to confirm"}</p><p className="text-sm font-bold">your rate for this job</p></>
         )}
       </section>
       {mode === "cant" ? (
@@ -101,8 +101,8 @@ function OfferPage() {
         <section className={card}><p className="font-bold">Thanks, we've got it.</p><p className="text-sm">We'll check with the owner and come back to you. The times below are still open if one works.</p></section>
       ) : null}
       <section className="space-y-2">
-        <p className="font-display text-lg font-extrabold">First in, best dressed</p>
-        <p className="text-sm">Tap a time the owner can do and it's yours.</p>
+        <p className="font-display text-lg font-extrabold">The first trade to accept gets the job</p>
+        <p className="text-sm">Choose one of the owner's times to accept the job.</p>
         <div className="grid grid-cols-2 gap-2">{data.windows.map((w) => { const t = dayTile(w.start); return (
           <button key={w.id} type="button" disabled={!!busy} onClick={() => tap(w.id, w.start)} className="flex min-h-20 flex-col items-center justify-center rounded-[18px] border-2 border-estimate-green bg-card p-3 font-bold"><span className="text-sm">{t.day}</span><span className="font-display text-lg font-extrabold">{busy === w.id ? "Booking…" : t.window}</span></button>); })}</div>
         <div className="flex justify-between px-1 pt-1 text-sm font-bold text-estimate-blue">

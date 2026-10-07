@@ -34,14 +34,28 @@ function Money() {
         <div className={card}><p className="text-xs font-bold uppercase tracking-wide">This month</p><p className="font-display text-2xl font-extrabold">{aud(data.month)}</p></div>
         <div className={card}><p className="text-xs font-bold uppercase tracking-wide">All time</p><p className="font-display text-2xl font-extrabold">{aud(data.allTime)}</p></div>
       </div>
-      <section>
-        <h2 className="mb-2 font-display text-lg font-extrabold">Jobs</h2>
-        {data.rows.length ? <ul className="divide-y divide-estimate-line overflow-hidden rounded-[22px] bg-card shadow-sm">{data.rows.map((r) => { const p = payPill(r.state); return (
-          <li key={r.jobId + r.what} className="flex items-center gap-3 p-4">
-            <span className="min-w-0 flex-1"><span className="block font-bold">{r.surname}, {r.suburb}</span><span className="block text-sm text-estimate-navy/70">{r.what}</span></span>
-            <span className="text-right"><span className="block font-bold">{aud(r.amount)}</span><span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-bold ${TONE[p.tone]}`}>{p.label}</span></span>
-          </li>); })}</ul> : <p className={`${card} text-sm`}>No finished jobs yet.</p>}
-      </section>
+      {([
+        ["checking", "Waiting for office sign-off", "The office checks the paperwork before a job is approved for payment."],
+        ["coming", "Approved – to be paid", "Paid within 7 days of office approval. Expected pay date shown on each job."],
+        ["paid", "Paid", "Money already sent to your account."],
+      ] as const).map(([k, title, note]) => {
+        const rows = data.rows.filter((r) => r.state.kind === k);
+        const total = rows.reduce((t, r) => t + (r.amount ?? 0), 0);
+        return (
+          <section key={k} aria-labelledby={`money-${k}`} className="space-y-2">
+            <div className="flex items-end justify-between gap-3 px-1">
+              <h2 id={`money-${k}`} className="font-display text-lg font-extrabold">{title}</h2>
+              <span className="font-display text-xl font-extrabold">{aud(total)}</span>
+            </div>
+            <p className="px-1 text-sm text-estimate-navy/70">{note}</p>
+            {rows.length ? <ul className="divide-y divide-estimate-line overflow-hidden rounded-[22px] bg-card shadow-sm">{rows.map((r) => { const p = payPill(r.state); return (
+              <li key={r.jobId + r.what} className="flex items-center gap-3 p-4">
+                <span className="min-w-0 flex-1"><span className="block font-bold">{r.surname}, {r.suburb}</span><span className="block text-sm text-estimate-navy/70">{r.jobNumber} · {r.what}</span></span>
+                <span className="text-right"><span className="block font-bold">{aud(r.amount)}</span><span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-bold ${TONE[p.tone]}`}>{r.state.kind === "coming" ? `Expected ${p.label.replace("Coming ", "")}` : r.state.kind === "checking" ? "Waiting" : p.label}</span></span>
+              </li>); })}</ul> : <p className={`${card} text-sm`}>None right now.</p>}
+          </section>
+        );
+      })}
       {data.rows.length > 0 && <a href={csv()} download="statement.csv" className="block text-center text-sm font-bold text-estimate-blue">Download statements ›</a>}
     </TradeShell>
   );

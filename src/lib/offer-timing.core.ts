@@ -38,6 +38,6 @@ export function offersWithNoTaker(rows: OfferRow[], hours: number, now: Date = n
 
 /** Statuses a losing trade sees after someone else accepted. */
 export function offerClosedMessage(status: string, declinedByMe: boolean): string {
-  if (declinedByMe || status === "declined") return "No worries";
+  if (declinedByMe || status === "declined") return "Offer declined";
   return "This job has been taken";
 }

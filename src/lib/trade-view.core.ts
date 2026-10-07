@@ -3,23 +3,23 @@
 
 export type TradeKind = "electrician" | "installer";
 
-/** "G'day Jo" + "{N} jobs this week. Let's go." with friendly quiet-week variation. */
+/** "Hello Jo" + "{N} jobs booked this week." with a quiet-week variation. */
 export function tradeGreeting(firstName: string | null, jobsThisWeek: number): { title: string; sub: string } {
-  const title = `G'day${firstName ? ` ${firstName}` : ""}`;
-  if (jobsThisWeek <= 0) return { title, sub: "Quiet week. Fresh jobs will pop up here." };
-  return { title, sub: `${jobsThisWeek} job${jobsThisWeek === 1 ? "" : "s"} this week. Let's go.` };
+  const title = `Hello${firstName ? ` ${firstName}` : ""}`;
+  if (jobsThisWeek <= 0) return { title, sub: "No jobs booked this week. New job offers will appear here." };
+  return { title, sub: `${jobsThisWeek} job${jobsThisWeek === 1 ? "" : "s"} booked this week.` };
 }
 
-/** Pink countdown pill: "Gone in 3h 20m". */
+/** Pink countdown pill: "Closes in 3h 20m". */
 export function goneIn(expiresAt: string | null, now = Date.now()): string | null {
   if (!expiresAt) return null;
   const ms = new Date(expiresAt).getTime() - now;
   if (ms <= 0) return "Closing now";
   const m = Math.round(ms / 60000);
-  if (m < 60) return `Gone in ${m} min`;
+  if (m < 60) return `Closes in ${m} min`;
   const h = Math.floor(m / 60), r = m % 60;
-  if (h < 48) return `Gone in ${h}h${r ? ` ${r}m` : ""}`;
-  return `Gone in ${Math.floor(h / 24)} days`;
+  if (h < 48) return `Closes in ${h}h${r ? ` ${r}m` : ""}`;
+  return `Closes in ${Math.floor(h / 24)} days`;
 }
 
 /** Distance line. Google Maps drive time is not connected yet, so postcode distance is shown honestly. */
@@ -89,16 +89,16 @@ export const START_LABEL: Record<DayKind, string> = { safety_check: "Start check
 /** Ready Check "Couldn't get in?" reasons (Jo-approved). */
 export const COULDNT_GET_IN = ["No one home", "Couldn't reach the manhole", "Not safe to go up", "Something else"] as const;
 export function couldntGetInMessage(reason: string): string {
-  return `No worries. We'll sort it. ${reason}. We'll rebook with the owner and offer it back to you first.`;
+  return `Thanks for letting us know. ${reason}. We'll rebook with the owner and offer it back to you first.`;
 }
 
-/** Paperwork pill: within 30 days → "{N} days"; expired → "Expired"; otherwise "All good". */
+/** Paperwork pill: within 30 days → "{N} days"; expired → "Expired"; otherwise "Current". */
 export function expiryPill(expiresOn: string | null, now = new Date()): { label: string; warn: boolean; days: number | null } {
   if (!expiresOn) return { label: "Add it", warn: true, days: null };
   const days = Math.ceil((new Date(`${expiresOn.slice(0, 10)}T00:00:00Z`).getTime() - Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())) / 86_400_000);
   if (days < 0) return { label: "Expired", warn: true, days };
   if (days <= 30) return { label: `${days} days`, warn: true, days };
-  return { label: "All good", warn: false, days };
+  return { label: "Current", warn: false, days };
 }
 
 /** Surname for "Safety check · {surname}". */

@@ -10,7 +10,7 @@ import { openFileViewer } from "@/components/portal/file-viewer";
 
 export const Route = createFileRoute("/_authenticated/field/business_/insurance")({
   head: () => ({ meta: [{ title: "Insurance & licences – Home Insulation Victoria" }, { name: "description", content: "Your insurance, licences and certificates on file." }, { property: "og:title", content: "Insurance & licences – Home Insulation Victoria" }, { property: "og:description", content: "Your insurance, licences and certificates on file." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
-  component: () => <BizPage title="Insurance & licences" intro="Keep these current so jobs keep coming.">{(d, refetch) => <Docs d={d} onDone={refetch} />}</BizPage>,
+  component: () => <BizPage title="Insurance & licences" intro="Keep these current to keep receiving job offers.">{(d, refetch) => <Docs d={d} onDone={refetch} />}</BizPage>,
 });
 
 const KINDS = [["public_liability_insurance", "Public liability"], ["workers_comp_insurance", "Workers comp"], ["electrical_licence", "Electrical licence"], ["installer_certification", "Installer certificate"], ["other", "Something else"]] as const;
