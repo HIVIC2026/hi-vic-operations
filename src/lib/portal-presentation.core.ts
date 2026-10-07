@@ -100,3 +100,31 @@ export function tradeBlockerLines(blockers: string[]): string[] {
   };
   return [...new Set(blockers.map(line))];
 }
+
+// ---- Compact eligibility card (Jo, 7 Oct): one row per check. Labels only — never decides eligibility. ----
+export type CheckMark = "pass" | "fail" | "confirm";
+export const CHECK_MARK_LABEL: Record<CheckMark, string> = { pass: "Pass", fail: "Fail", confirm: "Confirm onsite" };
+export const markOf = (result: string | null | undefined): CheckMark => result === "pass" ? "pass" : result === "fail" ? "fail" : "confirm";
+
+type OnsiteFacts = {
+  measure?: { areaM2: number | null } | null;
+  insulation?: { existing: string | null; rValue: number | null } | null;
+  priorActivity?: string | null;
+};
+/** What the Ready Check showed for each check. null = this check isn't recorded onsite. */
+export function onsiteMarkFor(key: string, e: OnsiteFacts | null | undefined, rLimit = 2): { mark: CheckMark; text: string } | null {
+  if (!e) return null;
+  if (key === "relevant_ceiling") return e.measure?.areaM2 ? { mark: "pass", text: `Measured ${e.measure.areaM2} m²` } : { mark: "confirm", text: "Not measured yet" };
+  if (key === "existing_insulation") {
+    const i = e.insulation;
+    if (!i?.existing || i.existing === "unknown") return { mark: "confirm", text: "Not recorded" };
+    if (i.existing === "none") return { mark: "pass", text: "None found" };
+    if (i.rValue == null) return { mark: "confirm", text: "Present, R-value not recorded" };
+    return i.rValue < rLimit ? { mark: "pass", text: `R${i.rValue}` } : { mark: "fail", text: `R${i.rValue} (R${rLimit} or more)` };
+  }
+  if (key === "previous_activity") {
+    if (!e.priorActivity) return { mark: "confirm", text: "Office check not done" };
+    return e.priorActivity === "same_area" ? { mark: "fail", text: "Previous Activity 48, same area" } : { mark: "pass", text: "None for this area" };
+  }
+  return null;
+}

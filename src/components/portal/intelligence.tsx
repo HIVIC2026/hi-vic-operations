@@ -9,72 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { fmtDateTime } from "@/lib/workflow";
-import { addEscConfig, approveEscConfig, getInstallReadiness, markIntelligenceReviewed, recordEscSubmissionFn, recordPiesaDelivery, regenerateEscNotificationFn, runPropertyIntelligenceFn, submitEscNotification } from "@/lib/portal.functions";
-
-const OUTCOME: Record<string, [string, "good" | "warn" | "bad"]> = {
-  likely_eligible: ["Likely eligible", "good"], needs_onsite_confirmation: ["Needs onsite confirmation", "warn"], does_not_appear_eligible: ["Does not appear eligible", "bad"], review_required: ["Review required", "warn"],
-};
-const STATUS_TONE = { pass: "good", review: "warn", fail: "bad", unknown: "neutral", info: "neutral" } as const;
-type FactRow = { id: string; fact_key: string; value: unknown; check_status: string; source_name: string; source_url: string | null; source_record_id: string | null; source_date: string | null; retrieved_at: string; confidence: string; evidence_kind: string; note: string | null; is_stale: boolean };
-
-const ROWS: { label: string; keys: string[] }[] = [
-  { label: "Address confirmed", keys: ["address_verified", "normalized_address", "in_victoria", "property_identifier"] },
-  { label: "Residential", keys: ["residential_likelihood", "planning_zone", "ncc_class_evidence", "multi_assessment_property"] },
-  { label: "Older than 5 years", keys: ["age_evidence"] },
-];
-const show = (v: unknown) => v == null ? "Unknown" : typeof v === "object" ? Object.entries(v as Record<string, unknown>).filter(([, x]) => x != null).map(([k, x]) => `${k.replace(/_/g, " ")}: ${String(x)}`).join(" · ") : String(v).replace(/_/g, " ");
-const worst = (fs: FactRow[]) => fs.some((f) => f.check_status === "fail") ? "fail" : fs.some((f) => f.check_status === "review") ? "review" : fs.some((f) => f.check_status === "pass") ? "pass" : "unknown";
-
-export function PropertyIntelligenceCard({ jobId }: { jobId: string }) {
-  const rerun = useAction(runPropertyIntelligenceFn);
-  const review = useAction(markIntelligenceReviewed);
-  const [note, setNote] = useState("");
-  const { data } = useQuery({
-    queryKey: ["intel", jobId],
-    queryFn: async () => {
-      const [run, facts] = await Promise.all([
-        supabase.from("property_intelligence_runs").select("*").eq("job_id", jobId).order("started_at", { ascending: false }).limit(1).maybeSingle(),
-        supabase.from("property_facts").select("*").eq("job_id", jobId).eq("is_current", true),
-      ]);
-      return { run: run.data, facts: (facts.data ?? []) as FactRow[] };
-    },
-  });
-  const run = data?.run;
-  const o = run?.result ? OUTCOME[run.result] : null;
-  return (
-    <Section title="Property Intelligence (evidence – Gate 1 decided by the single rules engine)" action={<Button size="sm" variant="outline" onClick={() => rerun({ jobId }, "Property intelligence re-run")}>Re-run property intelligence</Button>}>
-      {!run ? <p className="text-sm text-muted-foreground">Not run yet.</p> : (
-        <div className="space-y-3 text-sm">
-          <div className="flex flex-wrap items-center gap-2">
-            {o ? <Pill t={o[1]}>{o[0]}</Pill> : <Pill>{run.status}</Pill>}
-            {run.is_stale && <Pill t="bad">Stale – re-run required</Pill>}
-          </div>
-          <p className="rounded bg-accent px-2 py-1.5 font-medium text-accent-foreground">{run.next_action}</p>
-          {run.result_reason && <p className="text-xs text-muted-foreground">{run.result_reason}</p>}
-          <ul className="divide-y rounded border">
-            {ROWS.map((r) => {
-              const fs = data!.facts.filter((f) => r.keys.includes(f.fact_key));
-              const main = fs.find((f) => f.fact_key === r.keys[0]);
-              const st = worst(fs);
-              return (
-                <li key={r.label} className="flex items-center gap-2 px-2 py-1.5">
-                  <Pill t={STATUS_TONE[st as keyof typeof STATUS_TONE]} className="w-20 justify-center">{st.toUpperCase()}</Pill>
-                  <span className="w-40 shrink-0 font-medium">{r.label}</span>
-                  <span className="truncate">{show(main?.value)}</span>
-                </li>
-              );
-            })}
-          </ul>
-          <div>
-            <h3 className="mb-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">Must be confirmed onsite</h3>
-            <ul className="list-disc pl-5 text-xs"><li>Existing insulation type / R-value (&lt; R2.0; foil / uncompressed only)</li><li>All luminaires IC / IC-4</li><li>Electrical safety / PIESA</li><li>Measured relevant ceiling area (governs quote & VEEC)</li><li>Roof cavity or exposed roof above, and no storey above</li></ul>
-          </div>
-          <div className="flex gap-2"><Input placeholder="Review note (what you checked)" value={note} onChange={(e) => setNote(e.target.value)} /><Button size="sm" variant="outline" disabled={note.trim().length < 3} onClick={async () => { await review({ jobId, note }, "Review recorded"); setNote(""); }}>Review evidence</Button></div>
-        </div>
-      )}
-    </Section>
-  );
-}
+import { addEscConfig, approveEscConfig, getInstallReadiness, recordEscSubmissionFn, recordPiesaDelivery, regenerateEscNotificationFn, submitEscNotification } from "@/lib/portal.functions";
 
 export function EscInstallPanel({ jobId }: { jobId: string }) {
   const readiness = useServerFn(getInstallReadiness);

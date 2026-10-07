@@ -20,6 +20,14 @@
 - [x] Unused fonts removed
 - [ ] Screenshots of office counter-offer panel (needs office sign-in approval)
 
+
+## Office clean-up (Jo, 7 Oct 16:32 UTC) — after trade redesign
+- [x] A1 Remove Property Intelligence from UI/code paths (card, run fn, recoverStaleRuns, property_facts read, Research line, raw/snapshot dumps, "research" wording); tables stay, unread
+- [x] A2 DRY RUN (18 of 338 would change; CSV in Files office-redesign) — APPLY waits for Jo's OK — re-check of active jobs with current Gate 1 (owner answers only): counts by change, hot leads/saved spots affected; apply only on Jo's OK; send nothing
+- [x] B (built; screenshot blocked: no office sign-in) One compact eligibility card (6 checks: answer + Pass/Fail/Confirm onsite, life support flag, overall, "Change result" link; verified onsite result alongside after Ready Check) replacing Glance/Gate1Evidence/Form/IntakeSummary/Verified
+- [ ] C (not started; needs office sign-in for screenshots, 01-entire-portal.html not attached) Office phase 2 restyle (Needs me, Leads, Pipeline, job page, Partners, application review, Money, Settings); use 01-entire-portal.html if attached; visual only
+- [ ] Tests + journey; screenshots 390/1280 to Files office-redesign
+
 ## Next
 - [ ] Partner applications (Jo, 7 Oct; after automation settings): office view shows EVERY onboarding question + answer grouped by step (all of rec_onboarding_applications.data), bank masked to last 3, blanks "Not answered", Print / PDF; jobs-per-week (installer + electrician) and installers/crews (installer) for NEW applicants; existing show "Not asked (onboarded before this question)" — NO "One more question" task / no contact to onboarded partners incl. Deep (per earlier change; awaiting confirmation since resend asked for it); verify on Deep 52760973 + screenshot; send nothing.
 - [ ] Move real owner/partner emails from the Base44 delivery bridge to Resend (Lovable sends); keep sending OFF.

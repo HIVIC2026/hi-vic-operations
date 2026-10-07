@@ -26,7 +26,7 @@ import { MittiCard, PriceItemForm } from "@/components/portal/mitti";
 import { RequirementCards } from "@/components/portal/requirements";
 import { EscInstallPanel } from "@/components/portal/intelligence";
 import { PiisaPanel } from "@/components/portal/piisa-panel";
-import { Gate1EvidencePanel } from "@/components/portal/gate1";
+import { EligibilityCard } from "@/components/portal/eligibility-card";
 import { IntakeSummary } from "@/components/portal/intake";
 import { JobJourney } from "@/components/portal/journey";
 import { ClearTimeline } from "@/components/portal/waiting";
@@ -43,7 +43,7 @@ function SavedSpotNote({ jobId }: { jobId: string }) {
     </div>
   );
 }
-import { EligibilityGlance, JobIdentity, NextActionBand, PhaseStrip, RecordDisclosure, SubHeading, usePortalTargetNavigation, type RecordGroup } from "@/components/portal/job-workspace";
+import { JobIdentity, NextActionBand, PhaseStrip, RecordDisclosure, SubHeading, usePortalTargetNavigation, type RecordGroup } from "@/components/portal/job-workspace";
 import { AllDocuments, Correspondence, ExportJobPack, JobTimeline, RetentionCard, SectionDocuments } from "@/components/portal/jobfile";
 import type { PortalTarget } from "@/lib/portal-presentation.core";
 import { checkMittiAccess } from "@/lib/mitti-membership.functions";
@@ -106,7 +106,7 @@ function JobDetail() {
         <BlockersPanel jobId={jobId} />
         <div className="mt-3"><NextActionBand jobId={jobId} onOpenTarget={openTarget} /></div>
       </section>
-      <EligibilityGlance jobId={jobId} onOpen={openTarget} />
+      <EligibilityCard jobId={jobId} override={<EligibilityForm jobId={jobId} />} verifiedControls={<VerifiedEligibilityCard jobId={jobId} />} />
       <details className="mb-3 text-sm"><summary className="cursor-pointer font-semibold text-muted-foreground">Detailed journey</summary><PhaseStrip input={job} details={<JobJourney input={job} jobId={job.id} isTest={job.source === "qa_test"} />} /></details>
       <div className="mb-3 flex flex-wrap gap-1.5 text-xs text-muted-foreground">
         <SourceBadge channel={job.channel} business={job.originating_business_name} />{job.urgency && <UrgencyBadge urgency={job.urgency} days={job.days_remaining} />}
@@ -129,13 +129,13 @@ function JobDetail() {
       </div>
       <h2 className="mb-1 text-sm font-bold">Job records</h2>
       <div className="mb-6 rounded-md border bg-card">
-        <RecordDisclosure {...g("enquiry")} title="Enquiry" summary="Gate 1 evidence, estimate, eligibility decision, website intake and consent">
-          <div id="target-gate1-evidence" tabIndex={-1} className="scroll-mt-4 outline-none"><Gate1EvidencePanel jobId={jobId} /></div><AdminEstimateCard jobId={jobId} /><EligibilityForm jobId={jobId} />
-          <SubHeading>Website intake, consent and source audit</SubHeading>
+        <RecordDisclosure {...g("enquiry")} title="Enquiry" summary="Estimate, website intake and consent">
+          <AdminEstimateCard jobId={jobId} />
+          <SubHeading>Contact consent and photos</SubHeading>
           <div id="panel-intake-consent" className="scroll-mt-4"><IntakeSummary jobId={jobId} /></div><SectionDocuments jobId={jobId} categories={["Property"]} />
         </RecordDisclosure>
         <RecordDisclosure {...g("ready_check")} title="Ready Check" summary="Requirements, appointment, booking, Mitti and measure-up">
-          <RequirementCards jobId={jobId} isAdmin job={job} /><AppointmentPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="assessment" canBook={false} isAdmin /><AdminBookingOverride jobId={jobId} /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /><VerifiedEligibilityCard jobId={jobId} /><SectionDocuments jobId={jobId} categories={["Measure-up"]} />
+          <RequirementCards jobId={jobId} isAdmin job={job} /><AppointmentPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="assessment" canBook={false} isAdmin /><AdminBookingOverride jobId={jobId} /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /><SectionDocuments jobId={jobId} categories={["Measure-up"]} />
         </RecordDisclosure>
         <RecordDisclosure {...g("quote")} title="Quote" summary="Quotes, invoice & deposit, electronic signing">
           <div id="target-quotes" data-portal-focus="target" tabIndex={-1} className="scroll-mt-4 outline-none"><AdminQuotes jobId={jobId} /></div><InstallerQuoteDraftPanel jobId={jobId} /><InstallerLedInvoicePanel jobId={jobId} /><div id="panel-deposit-request" className="scroll-mt-4"><PaymentsPanel jobId={jobId} isAdmin /></div><OfficeInstalmentPlanCard jobId={jobId} /><SectionDocuments jobId={jobId} categories={["Quotes", "Payments"]} />
