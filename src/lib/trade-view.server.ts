@@ -321,7 +321,7 @@ export async function tradeBusinessFile(userId: string) {
     r.from("partner_change_requests").select("kind, message, created_at").eq("business_id", c.biz.id).eq("status", "open").order("created_at", { ascending: false }),
   ]);
   if (!b) throw new WorkflowError("Business not found.");
-  const cents = (n: number) => Math.floor(n * 100) / 100;
+  const cents = (n: number) => Math.round(n * 100) / 100; // display of stored ex-GST rate; avoids 29.99 for 30.00
   const rates = [
     ...((cards ?? []) as { rate_card_items: { description: string; unit: string; display_unit: string | null; unit_price_ex_gst: number; sort: number | null }[] }[])
       .flatMap((cd) => [...cd.rate_card_items].sort((a, z) => (a.sort ?? 0) - (z.sort ?? 0)).map((i) => ({ label: i.description, unit: i.display_unit ?? i.unit, inc_gst: cents(Number(i.unit_price_ex_gst) * 1.1) }))),
