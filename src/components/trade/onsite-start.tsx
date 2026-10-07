@@ -10,10 +10,11 @@ import { ElectricianPicker, inviteResultMessage } from "@/components/trade/job-i
 import { addBulkElectrician, bulkElectricianChoices } from "@/lib/bulk-import.functions";
 import { onsiteFormStatus, startOnsiteReadyCheck } from "@/lib/onsite-ready-check.functions";
 import { OWNER_CONTACT_PERMISSION, usualElectrician, type ElectricianPlan } from "@/lib/job-electrician.core";
+import { gateDoc } from "@/lib/owner-gates.core";
 import { PREPARING, START_BUTTON, addressFromReverse, onsiteProblems, type OnsiteInput, type OnsiteState } from "@/lib/onsite-ready-check.core";
 
 const DRAFT_KEY = "hiv-onsite-draft";
-const blank: OnsiteInput = { full_name: "", address_line: "", suburb: "", postcode: "", phone: "", email: "", contact_permission: false };
+const blank: OnsiteInput = { full_name: "", address_line: "", suburb: "", postcode: "", phone: "", email: "", contact_permission: false, consent_by: null };
 
 export function OnsiteStart({ businessId, onBack }: { businessId: string; onBack: () => void }) {
   const [v, setV] = useState<OnsiteInput>(blank);
@@ -29,8 +30,8 @@ export function OnsiteStart({ businessId, onBack }: { businessId: string; onBack
   useEffect(() => { if (plan || !el) return; const u = usualElectrician(el.approved); setPlan(u?.businessId ? { mode: "mine", business_id: u.businessId } : { mode: "hivic" }); }, [el, plan]);
 
   // Poor signal: what's typed is kept on the phone until the job is saved.
-  useEffect(() => { try { const d = localStorage.getItem(DRAFT_KEY); if (d) setV({ ...blank, ...JSON.parse(d), contact_permission: false }); } catch { /* ignore */ } }, []);
-  useEffect(() => { try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...v, contact_permission: false })); } catch { /* ignore */ } }, [v]);
+  useEffect(() => { try { const d = localStorage.getItem(DRAFT_KEY); if (d) setV({ ...blank, ...JSON.parse(d), contact_permission: false, consent_by: null }); } catch { /* ignore */ } }, []);
+  useEffect(() => { try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...v, contact_permission: false, consent_by: null })); } catch { /* ignore */ } }, [v]);
 
   const useLocation = () => {
     if (!navigator.geolocation) { setLoc("This phone can't share its location — type the address."); return; }
@@ -67,7 +68,12 @@ export function OnsiteStart({ businessId, onBack }: { businessId: string; onBack
         <div className="grid grid-cols-[1fr_7rem] gap-2">{field("suburb", "Suburb")}{field("postcode", "Postcode", { inputMode: "numeric", maxLength: 4 })}</div>
       </section>
       {plan && <ElectricianPicker value={plan} onChange={setPlan} approved={el?.approved ?? []} pending={el?.pending ?? []} onAdd={async (d) => { const r = await addEl({ data: { businessId, name: d.name, mobile: d.mobile, email: d.email, business: d.business } }); await refetch(); setPlan({ mode: "mine", ...(r.businessId ? { business_id: r.businessId } : { nomination_id: r.nominationId }) }); return { message: inviteResultMessage(r) }; }} />}
-      <label className="flex items-start gap-3 rounded-[18px] border border-line bg-paper p-4 text-sm" data-owner-consent><Checkbox className="mt-0.5" checked={v.contact_permission} onCheckedChange={(c) => setV((x) => ({ ...x, contact_permission: c === true }))} aria-label={OWNER_CONTACT_PERMISSION} /><span>{OWNER_CONTACT_PERMISSION}</span></label>
+      <section className="space-y-3 rounded-[18px] border border-line bg-paper p-4" data-owner-consent>
+        <h2 className="font-display text-lg font-bold">Owner consent</h2>
+        <p className="text-xs text-sub">Either one is fine. Hand the phone to the owner, or tick the second box yourself.</p>
+        <label className="flex items-start gap-3 text-sm" data-consent-owner><Checkbox className="mt-0.5" checked={v.consent_by === "owner"} onCheckedChange={(c) => setV((x) => ({ ...x, contact_permission: c === true, consent_by: c === true ? "owner" : null }))} aria-label="Owner: I agree" /><span><span className="font-bold">Owner: I agree.</span> {gateDoc("contact_privacy").body}</span></label>
+        <label className="flex items-start gap-3 text-sm" data-consent-installer><Checkbox className="mt-0.5" checked={v.consent_by === "installer"} onCheckedChange={(c) => setV((x) => ({ ...x, contact_permission: c === true, consent_by: c === true ? "installer" : null }))} aria-label={OWNER_CONTACT_PERMISSION} /><span><span className="font-bold">Installer:</span> {OWNER_CONTACT_PERMISSION}</span></label>
+      </section>
       {touched && problems.length > 0 && <ul className="space-y-1 text-sm text-danger" data-onsite-problems>{problems.map((p) => <li key={p}>{p}</li>)}</ul>}
       {err && <p className="text-sm text-danger">{err}</p>}
       <Button size="field" className="w-full" disabled={busy} onClick={async () => {
