@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { getCampaignEmailReview, saveCampaignEmailDraft } from "@/lib/campaign-emails.functions";
-import { renderLaunchCampaignEmail, type LaunchCopyField } from "@/lib/estimate-email";
+import { renderLaunchGroupEmail, type LaunchCopyField } from "@/lib/estimate-email";
 import { cn } from "@/lib/utils";
 
 const title = "Campaign emails – Home Insulation Victoria Operations";
@@ -133,7 +133,7 @@ const firstName = (n: string | null) => n?.trim().split(/\s+/)[0] ?? null;
 function render(group: Group, l: Lead, copy: Copy): { subject: string; previewText: string; html: string; defaults?: never } | { error: string } {
   try {
     const discount = Math.round(l.discount ?? 0), total = Math.round(l.price ?? 0);
-    return renderLaunchCampaignEmail({ group, campaignUrl: SAMPLE_URL, unsubscribeUrl: `https://estimate.homeinsulationvictoria.com.au/email/unsubscribe?t=${"U".repeat(43)}`, firstName: firstName(l.name), estimatedTotal: total, veuDiscount: discount, grossTotal: total + discount, areaM2: l.area, address: l.address, reference: l.jobNumber, copy });
+    return renderLaunchGroupEmail({ group, campaignUrl: SAMPLE_URL, unsubscribeUrl: `https://estimate.homeinsulationvictoria.com.au/email/unsubscribe?t=${"U".repeat(43)}`, firstName: firstName(l.name), estimatedTotal: total, veuDiscount: discount, grossTotal: total + discount, areaM2: l.area, address: l.address, reference: l.jobNumber, copy });
   } catch (e) { return { error: e instanceof Error ? e.message : "This lead can't be previewed" }; }
 }
 

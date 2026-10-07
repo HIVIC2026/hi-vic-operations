@@ -2,7 +2,7 @@
 // Usage: bun scripts/check-hot-lead-maths.ts   (read-only)
 import { supabaseAdmin as a } from "../src/integrations/supabase/client.server";
 import { loadHotLeads } from "../src/lib/hot-leads.server";
-import { renderLaunchCampaignEmail } from "../src/lib/estimate-email";
+import { renderLaunchGroupEmail } from "../src/lib/estimate-email";
 
 const GHG = { Mild: 0.00576, Cold: 0.00771, Hot: 0.00546 } as Record<string, number>;
 const REGIONAL = { Metropolitan: 0.98, Regional: 1.04 } as Record<string, number>;
@@ -21,7 +21,7 @@ for (const list of ["likely", "warm"] as const) {
     const total = Math.round((gross - discount) * 100) / 100;
     checked++;
     if (Math.abs((r.discount ?? -1) - discount) > 0.001 || Math.abs((r.price ?? -1) - total) > 0.001) bad.push(`${r.jobNumber}: list ${r.discount}/${r.price} vs ${discount}/${total}`);
-    const mail = renderLaunchCampaignEmail({ group: "likely", campaignUrl: `https://estimate.homeinsulationvictoria.com.au/estimate/${"A".repeat(43)}/campaign`, unsubscribeUrl: `https://estimate.homeinsulationvictoria.com.au/api/public/unsubscribe?t=${"U".repeat(43)}`, firstName: "X", estimatedTotal: r.price!, veuDiscount: r.discount!, grossTotal: r.price! + r.discount!, areaM2: r.area });
+    const mail = renderLaunchGroupEmail({ group: "likely", campaignUrl: `https://estimate.homeinsulationvictoria.com.au/estimate/${"A".repeat(43)}/campaign`, unsubscribeUrl: `https://estimate.homeinsulationvictoria.com.au/api/public/unsubscribe?t=${"U".repeat(43)}`, firstName: "X", estimatedTotal: r.price!, veuDiscount: r.discount!, grossTotal: r.price! + r.discount!, areaM2: r.area });
     for (const want of [money(discount), money(total), money(gross)]) if (!mail.plainText.includes(want) && !mail.html.includes(want)) bad.push(`${r.jobNumber}: email missing ${want}`);
   }
 }
