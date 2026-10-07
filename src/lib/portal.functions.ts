@@ -1316,6 +1316,12 @@ export const updatePartnerEnquiry = createServerFn({ method: "POST" }).middlewar
   .inputValidator((d) => z.object({ id: uuid, status: z.enum(["new", "contacted", "onboarding", "approved", "declined", "closed"]).optional(), internal_notes: z.string().max(5000).nullable().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
+    if (data.status === "approved") {
+      const { data: signed } = await admin.from("rec_onboarding_applications").select("id").eq("partner_enquiry_id", data.id).eq("status", "submitted").limit(1);
+      const { enquiryStatusBlocker } = await import("./test-approval.core");
+      const b = enquiryStatusBlocker({ status: data.status, hasSignedApplication: (signed ?? []).length > 0 });
+      if (b) throw new WorkflowError(b);
+    }
     const now = new Date().toISOString();
     const patch: import("@/integrations/supabase/types").TablesUpdate<"partner_enquiries"> = {};
     if (data.internal_notes !== undefined) patch.internal_notes = data.internal_notes;

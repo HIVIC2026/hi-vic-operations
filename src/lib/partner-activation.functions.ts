@@ -30,9 +30,15 @@ export const activatePartnerApplication = createServerFn({ method: "POST" }).mid
     if (app.status !== "submitted" || !app.partner_enquiry_id) throw new WorkflowError("A complete signed application is required.");
     if (app.test_mode) throw new WorkflowError("Test applications can never be approved as real partners.");
     const { data: testMark } = await admin.from("onboarding_test_marks").select("application_id").eq("application_id", app.id).maybeSingle();
-    if (testMark) throw new WorkflowError("This application is marked as a test and can never be approved as a real partner.");
     const type = app.partner_type as PartnerType;
     const application = app.data as RecData | InstData;
+    // Jo's own test applications (office test mark) are approved as TEST partners only, and only for her test address.
+    const isTest = !!testMark;
+    if (isTest) {
+      const { testApprovalBlocker } = await import("./test-approval.core");
+      const tb = testApprovalBlocker({ testMode: !!app.test_mode });
+      if (tb) throw new WorkflowError(tb);
+    }
     const certs = await loadCertifications(admin, app.id);
     // Mandatory qualification can never be overridden.
     const mandatory = mandatoryActivationBlockers(type, application, certs);
@@ -54,6 +60,13 @@ export const activatePartnerApplication = createServerFn({ method: "POST" }).mid
       (plan as unknown as { snapshot: Record<string, unknown> }).snapshot = { ...(plan as unknown as { snapshot: Record<string, unknown> }).snapshot, rates: plan.items, rate_offer_id: offer.offer.id, rate_offer_round: offer.offer.round, rate_source: "accepted_counter_offer" };
     }
     if (!plan.bank.account_name || !plan.bank.bsb || !plan.bank.account_number) throw new WorkflowError("Complete bank details are required in the signed onboarding application.");
+    if (isTest) {
+      // Never reconcile into a real business: fake 12-digit ABN on a business that is TEST-marked before approval.
+      const { prepareTestBusiness } = await import("./test-approval.server");
+      const { testBusinessName } = await import("./test-approval.core");
+      (plan as { abn: string | null }).abn = await prepareTestBusiness(app.id, plan.business.name, plan.business.business_type);
+      plan.business.name = testBusinessName(plan.business.name);
+    }
     const { data: rows, error: rpcError } = await admin.rpc("activate_partner_application", { _app_id: app.id, _actor: context.userId, _override: data.overrideReason ?? null, _plan: plan as unknown as Json } as never);
     if (rpcError?.message.includes("activate:no_verified_installer")) throw new WorkflowError("No installer on this application has a current office-verified CII certification (a later check may have rejected it). Nothing was approved.");
     if (rpcError) throw new WorkflowError(`Activation did not complete; nothing was approved. (${rpcError.message})`);
@@ -62,9 +75,19 @@ export const activatePartnerApplication = createServerFn({ method: "POST" }).mid
     const { loadProfileInputs, applyPartnerProfile, queueApprovalMessage } = await import("./partner-profile.server");
     const { buildPartnerProfile } = await import("./partner-profile.core");
     const inputs = await loadProfileInputs(admin, app.id);
-    await applyPartnerProfile(admin, r.business_id, buildPartnerProfile(inputs.meta, inputs.data, inputs.cii, inputs.existingCapabilities), context.userId);
+    const profile = buildPartnerProfile(inputs.meta, inputs.data, inputs.cii, inputs.existingCapabilities);
+    // TEST partners keep their fake 12-digit ABN so a real business with the typed ABN is never matched to them.
+    if (isTest) profile.business.abn = (plan as { abn: string | null }).abn;
+    await applyPartnerProfile(admin, r.business_id, profile, context.userId);
+    if (isTest) {
+      const d = application as { primary_contact_name?: string };
+      const { sendTestWelcome } = await import("./test-approval.server");
+      const w = await sendTestWelcome({ businessId: r.business_id, name: d.primary_contact_name ?? app.signer_name ?? null, role: type === "installer" ? "installer" : "electrician", actorId: context.userId, appId: app.id });
+      return { business_id: r.business_id, rate_card_id: r.rate_card_id, alreadyActivated: r.outcome === "already_activated", welcome: `TEST welcome email ${w.status === "sent" ? "sent" : `not sent (${w.detail})`} to ${w.to}` };
+    }
+    // Real partners: the approval message is queued for the office, never sent here (until Jo approves wording and turns sending on).
     await queueApprovalMessage(admin, r.business_id);
-    return { business_id: r.business_id, rate_card_id: r.rate_card_id, alreadyActivated: r.outcome === "already_activated" };
+    return { business_id: r.business_id, rate_card_id: r.rate_card_id, alreadyActivated: r.outcome === "already_activated", welcome: null as string | null };
   });
 
 /** Office records a CII certification check for one nominated installer. Append-only; latest decision wins. */
