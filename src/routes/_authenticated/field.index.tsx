@@ -29,7 +29,17 @@ function MyWork() {
   const shown = onlyChasing ? chasing : data.jobs;
   return (
     <TradeShell installer={installer} boss={data.boss} test={data.isTest}>
-      <div><h1 className="font-display text-[26px] font-bold leading-tight">{g.title}</h1><p className="text-sm">{g.sub}</p></div>
+      <div><h1 className="font-display text-[26px] font-bold leading-tight">{g.title}</h1><p className="text-sm text-sub">{g.sub}</p></div>
+      <div className="grid grid-cols-2 gap-2" data-work-tiles>
+        {([
+          ["Offers", data.offers.length, installer ? "Free Ready Check" : "Safety check"],
+          ["Needs me", data.yourMove.length, "Your next actions"],
+          ["Moving automatically", data.jobs.filter((j) => j.line?.who !== "You" && !data.yourMove.some((m) => m.jobId === j.jobId)).length, "No action needed now"],
+          ["Coming up", data.coming.length, "Booked visits"],
+        ] as [string, number, string][]).map(([k, n, s]) => (
+          <div key={k} className="rounded-[18px] border border-line bg-paper p-3.5"><p className="text-xs font-semibold text-estimate-navy">{k}</p><p className="mt-1 font-display text-2xl font-bold">{n}</p><p className="mt-1 text-[11px] text-sub">{s}</p></div>
+        ))}
+      </div>
       {installer && data.boss && (
         <div className="grid grid-cols-2 gap-2" data-upload-actions>
           <Link to="/partner/bulk-import" className={btnClass("primary")}><UploadCloud className="h-4 w-4" />Upload jobs</Link>

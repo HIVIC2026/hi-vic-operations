@@ -78,14 +78,14 @@ function Money() {
   };
   return shell(<>
     <div><h1 className="font-display text-[26px] font-bold leading-tight">Money</h1><p className="text-sm text-sub">{data.business}</p></div>
-    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-      <div className={card.replace("bg-paper", "bg-mint")}><p className="text-xs text-sub">Approved · to be paid</p><p className="font-display text-[25px] font-bold leading-none">{aud(comingTotal)}</p><p className="mt-1 text-xs text-sub">{data.next ? `Next payment ${day(data.next.on)}` : "Expected date shown per job"}</p></div>
-      <div className={card}><p className="text-xs text-sub">This month</p><p className="font-display text-[25px] font-bold leading-none">{aud(data.month)}</p></div>
-      <div className={card}><p className="text-xs text-sub">All time</p><p className="font-display text-[25px] font-bold leading-none">{aud(data.allTime)}</p></div>
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <div className={card.replace("bg-paper", "bg-mint")}><p className="text-xs font-semibold">Approved · to be paid</p><p className="mt-2 font-display text-[25px] font-bold leading-none">{aud(comingTotal)}</p><p className="mt-2 text-xs text-sub">{data.next ? `Next payment ${day(data.next.on)}` : "Expected date shown per job"}</p></div>
+      <div className={card}><p className="text-xs font-semibold">This month</p><p className="mt-2 font-display text-[25px] font-bold leading-none">{aud(data.month)}</p></div>
+      <div className={card}><p className="text-xs font-semibold">All time</p><p className="mt-2 font-display text-[25px] font-bold leading-none">{aud(data.allTime)}</p></div>
     </div>
-    <div role="tablist" aria-label="Payments" className="grid grid-cols-3 gap-1 rounded-[12px] border border-line bg-paper p-1">
+    <div role="tablist" aria-label="Payments" className="flex gap-1 border-b border-line pb-2">
       {TABS.map((x) => { const n = data.rows.filter((r) => r.state.kind === x.key).length; return (
-        <Link key={x.key} role="tab" aria-selected={tab === x.key} to="/field/money" search={{ tab: x.key }} className={`flex h-11 items-center justify-center rounded-[9px] px-1 text-center text-[13px] font-bold ${tab === x.key ? "bg-ink text-paper" : "text-ink"}`}>{x.label}{n ? ` (${n})` : ""}</Link>); })}
+        <Link key={x.key} role="tab" aria-selected={tab === x.key} to="/field/money" search={{ tab: x.key }} className={`flex min-h-11 items-center rounded-[10px] px-3 text-center text-sm font-semibold text-estimate-blue ${tab === x.key ? "bg-estimate-mist" : ""}`}>{x.label}{n ? ` (${n})` : ""}</Link>); })}
     </div>
     <section aria-labelledby="money-section" className="space-y-2">
       <div className="flex items-end justify-between gap-3 px-1"><h2 id="money-section" className="font-display text-lg font-bold">{t.title}</h2><span className="font-display text-xl font-bold">{aud(rows.reduce((s, r) => s + (r.amount ?? 0), 0))}</span></div>
