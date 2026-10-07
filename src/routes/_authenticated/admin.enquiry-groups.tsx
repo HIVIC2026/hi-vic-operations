@@ -88,7 +88,7 @@ function EnquiryGroups() {
           <h1 className="font-display text-2xl font-bold">Enquiry email groups</h1>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">Every website enquiry sits in exactly one group. Groups are for preparing emails only — they never change a job's stage, eligibility result or delivery status.</p>
         </div>
-        <Link to="/admin" search={{ tab: "enquiries" }} className="text-sm font-semibold text-primary underline">Back to Enquiries</Link>
+        <Link to="/admin/jobs" className="text-sm font-semibold text-primary underline">Back to Jobs</Link>
          <Link to="/admin/launch-campaign" className="text-sm font-semibold text-primary underline">Existing leads campaign</Link>
       </div>
       {isLoading ? <div role="status" className="rounded-md border bg-card p-8 text-center text-sm text-muted-foreground">Loading enquiries…</div>

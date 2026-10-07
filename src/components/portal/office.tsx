@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, LogOut, Search } from "lucide-react";
 import { getNeedsMe, getJobRightNow, searchOffice } from "@/lib/office.functions";
 import { needsMeTotal } from "@/lib/needs-me.core";
-import { ENQUIRY_TABS, SECTION_TABS, isEnquiryPage, sectionFor, tabActive, type OfficeSection, type OfficeTab } from "@/lib/office-nav";
+import { CAMPAIGN_LINKS, SECTION_TABS, sectionFor, tabActive, type OfficeSection, type OfficeTab } from "@/lib/office-nav";
 import { OFFICE_STAGES, timeLeft } from "@/lib/office-status.core";
 import { aud } from "@/lib/workflow";
 import { cn } from "@/lib/utils";
@@ -13,7 +13,7 @@ import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 
 const HEADINGS: { key: OfficeSection; label: string; to: OfficeTab["to"] }[] = [
   { key: "needs", label: "Needs me", to: "/admin/needs-me" },
-  { key: "pipeline", label: "Pipeline", to: "/admin/pipeline" },
+  { key: "jobs", label: "Jobs", to: "/admin/jobs" },
   { key: "partners", label: "Partners", to: "/admin/partners-overview" },
   { key: "money", label: "Money", to: "/admin/money" },
 ];
@@ -61,6 +61,8 @@ function AvatarMenu({ name, onSignOut }: { name: string; onSignOut: () => void }
         <div className="absolute right-0 top-11 z-50 w-64 rounded-[18px] border bg-card p-1 shadow-lg" onClick={() => setOpen(false)}>
           <p className="px-3 pb-1 pt-2 text-xs font-bold text-muted-foreground">Settings</p>
           {SECTION_TABS.settings.map((t) => <Link key={t.label} to={t.to} className={item}>{t.label}</Link>)}
+          <p className="px-3 pb-1 pt-3 text-xs font-bold text-muted-foreground">Campaigns and lists</p>
+          {CAMPAIGN_LINKS.map((t) => <Link key={t.label} to={t.to} search={(t.search ?? {}) as never} className={item}>{t.label}</Link>)}
           <p className="px-3 pb-1 pt-3 text-xs font-bold text-muted-foreground">Public forms</p>
           <a href="/calculator" target="_blank" rel="noopener" className={item}>Customer calculator</a>
           <a href="/electrician-onboarding" target="_blank" rel="noopener" className={item}>Electrician application form</a>
@@ -72,7 +74,7 @@ function AvatarMenu({ name, onSignOut }: { name: string; onSignOut: () => void }
   );
 }
 
-/** Office top bar: logo · Needs me (count) · Pipeline · Partners · Money · search · avatar. Tabs underneath. */
+/** Office top bar: logo · Needs me (count) · Jobs · Partners · Money · search · avatar. Tabs underneath. */
 export function OfficeTopBar({ name, onSignOut }: { name: string; onSignOut: () => void }) {
   const loc = useRouterState({ select: (s) => ({ pathname: s.location.pathname, search: s.location.search as Record<string, unknown> }) });
   const section = sectionFor(loc.pathname, loc.search);
@@ -93,14 +95,9 @@ export function OfficeTopBar({ name, onSignOut }: { name: string; onSignOut: () 
         </nav>
         <div className="order-2 ml-auto flex min-w-0 flex-1 items-center justify-end gap-2 md:order-none md:flex-none"><OfficeSearch /><AvatarMenu name={name} onSignOut={onSignOut} /></div>
       </div>
-      {section !== "needs" || tabs.length > 1 ? (
+      {tabs.length > 0 && (
         <div className="mx-auto flex max-w-[1800px] gap-1 overflow-x-auto px-4 pb-2 sm:px-7">
-          {tabs.map((t) => <TabLink key={t.label} t={t} active={tabActive(t, loc.pathname, loc.search) || (t.label === "Enquiries" && isEnquiryPage(loc.pathname, loc.search))} />)}
-        </div>
-      ) : null}
-      {isEnquiryPage(loc.pathname, loc.search) && (
-        <div className="mx-auto flex max-w-[1800px] gap-1 overflow-x-auto border-t bg-background/60 px-4 py-1.5 sm:px-7">
-          {ENQUIRY_TABS.map((t) => <TabLink key={t.label} t={t} small active={tabActive(t, loc.pathname, loc.search)} />)}
+          {tabs.map((t) => <TabLink key={t.label} t={t} active={tabActive(t, loc.pathname, loc.search)} />)}
         </div>
       )}
     </header>
