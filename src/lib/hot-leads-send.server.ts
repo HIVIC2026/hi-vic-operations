@@ -89,7 +89,7 @@ async function sendOne(jobId: string, actorId: string, realOn: boolean, testOpts
   const mail = sendGroup === "likely"
     ? (() => { const m = renderSaveSpotFromLikelyEmail({
         estimateUrl: `${base}/estimate/${link.token}`, outcome: "likely", apCount: 2, campaignUrl, campaignOptOutUrl: unsubscribeUrl,
-        estimatedTotal: price.total, veuDiscount: price.discount, grossProjectTotal: price.gross, areaM2: price.areaM2,
+        estimatedTotal: price.total, veuDiscount: price.discount, grossProjectTotal: price.gross, areaM2: price.areaM2, amountPayableNow: 0, estimatedRemainingBalance: price.total,
         firstName, address: fullAddress, reference: job.job_number, existingInsulationPresent: (price.insulation ?? est?.insulation_declared) === "present",
         ...(installation === undefined ? {} : { installationPrice: installation }),
         ...(assessmentFee === undefined ? {} : { assessmentFee }),
