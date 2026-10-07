@@ -8,6 +8,7 @@ import { CUSTOMER_BRAND, CUSTOMER_WHAT_COULD_CHANGE } from "./customer-quote-sys
 import { isWellFormedToken } from "./estimatelink.core";
 
 export type CustomerOutcome = "likely" | "onsite" | "ineligible";
+import { renderStep3SaveSpot } from "./step3-emails";
 export type EstimateEmailInput = {
   estimateUrl: string; outcome?: "likely" | "onsite"; estimatedTotal?: number | null;
   veuDiscount?: number | null; areaM2?: number | null; savingsPercent?: number | null;
@@ -442,15 +443,14 @@ export function campaignAmountImg(src: string, amount: string) {
 /** Save my spot for likely-eligible owners: ALWAYS the Jo-approved locked email (7 Oct 2026 12:52). Group B keeps its own renderer. */
 export function renderLaunchGroupEmail(input: LaunchCampaignEmailInput): EstimateEmail {
   if (input.group !== "likely") return renderLaunchCampaignEmail(input);
-  return renderSaveSpotFromLikelyEmail({
-    estimateUrl: input.campaignUrl.replace(/\/campaign$/, ""), outcome: "likely", apCount: 2,
-    campaignUrl: input.campaignUrl, campaignOptOutUrl: input.unsubscribeUrl,
-    estimatedTotal: input.estimatedTotal, veuDiscount: input.veuDiscount, grossProjectTotal: input.grossTotal, areaM2: input.areaM2,
-    amountPayableNow: 0, estimatedRemainingBalance: input.estimatedTotal,
+  return renderStep3SaveSpot({
+    estimateUrl: input.campaignUrl.replace(/\/campaign$/, ""), campaignUrl: input.campaignUrl, unsubscribeUrl: input.unsubscribeUrl,
+    estimatedTotal: input.estimatedTotal, veuDiscount: input.veuDiscount, grossTotal: input.grossTotal, areaM2: input.areaM2,
     firstName: input.firstName ?? null, address: input.address ?? null, reference: input.reference ?? null,
     existingInsulationPresent: input.insulation === "present",
-    assessmentFee: input.assessmentFee ?? 349, apFee: input.apFee ?? 349,
-    installationPrice: input.installation ?? input.grossTotal - (input.assessmentFee ?? 349) - (input.apFee ?? 349),
+    ...(input.installation === undefined ? {} : { installation: input.installation }),
+    ...(input.assessmentFee === undefined ? {} : { assessmentFee: input.assessmentFee }),
+    ...(input.apFee === undefined ? {} : { apFee: input.apFee }),
   });
 }
 
