@@ -275,13 +275,13 @@ type ImportStage = "not_visited" | "visited" | "quoted" | "installed";
 type ElectricianPlan = { mode?: "mine" | "hivic"; nomination_id?: string | null; business_id?: string | null };
 
 // Security review (Jo, 6 Oct): no upload ever lands at a quote-acceptance or complete stage.
-// "Quoted" rows start at the normal entry for visited work; the supplied price stays a DRAFT quote for office review.
+// "Quoted" rows start at the normal entry for visited work; the supplied price is office-only information (never an owner price).
 // "Installed" rows are history only — on hold, never complete, never claimable, never in payouts.
 export const INSTALLED_HISTORY_NOTE = "History: already installed before Home Insulation Victoria — not claimable. Office review only.";
 export const stagePlacement: Record<ImportStage, { stage: "ready_check_ready_to_schedule" | "ready_check_complete" | "on_hold"; next: string }> = {
   not_visited: { stage: "ready_check_ready_to_schedule", next: "Owner chooses Ready Check times" },
   visited: { stage: "ready_check_complete", next: "Office reviews the supplied measure-up and evidence" },
-  quoted: { stage: "ready_check_complete", next: "Office reviews the supplied measure-up and draft quote — it only goes to the owner through the usual gates" },
+  quoted: { stage: "ready_check_complete", next: "Office reviews the supplied measure-up — the owner is priced at Home Insulation Victoria prices, never the installer's quoted price" },
   installed: { stage: "on_hold", next: INSTALLED_HISTORY_NOTE },
 };
 
@@ -304,6 +304,8 @@ async function createBulkJob(e: BulkExtracted, batch: { id: string; business_id:
     owner_id: ownerId, property_id: prop.id, stage: placement.stage, source, business_unit: "hivic", installer_led: true,
     channel: "installer_sourced", originating_installer_business_id: batch.business_id, originating_installer_user_id: actorId,
     external_enquiry_id: `bulk:${rowId}`,
+    // Not visited yet: the list's ceiling size is only the estimate (a visited row's size is the supplied measure-up).
+    ...(importStage === "not_visited" && e.area_m2 && e.area_m2 > 0 ? { estimated_area_m2: e.area_m2 } : {}),
     next_action: placement.next,
   }).select("id, job_number").single();
   if (je || !job) throw new BulkImportError(je?.message ?? "Job could not be created.");
@@ -319,44 +321,6 @@ async function createBulkJob(e: BulkExtracted, batch: { id: string; business_id:
     });
   }
   return job;
-}
-
-async function draftQuoteFromImport(jobId: string, e: BulkExtracted, actorId: string, partnerBusinessId: string) {
-  if (!(e.price_inc_gst && e.price_inc_gst > 0) || !(e.area_m2 && e.area_m2 > 0)) return false;
-  const { data: job } = await admin.from("jobs").select("ap_fee_override_inc_gst, properties(postcode)").eq("id", jobId).single();
-  const postcode = String((job?.properties as { postcode: string | null } | null)?.postcode ?? "").trim();
-  const [{ data: loc }, { data: rs }] = await Promise.all([
-    admin.from("veu_location_variables").select("*").eq("postcode", postcode).maybeSingle(),
-    admin.from("retail_estimator_settings").select("ap_management_inc_gst, piesa_assessment_inc_gst, indicative_veec_value, minimum_customer_copayment_inc_gst").eq("is_current", true).maybeSingle(),
-  ]);
-  const veecValue = rs ? Number(rs.indicative_veec_value) : null;
-  const apFee = job?.ap_fee_override_inc_gst != null ? Number(job.ap_fee_override_inc_gst) : rs ? Number(rs.ap_management_inc_gst) : null;
-  const piesa = rs ? Number(rs.piesa_assessment_inc_gst) : null;
-  if (!loc || veecValue == null || apFee == null || !(piesa && piesa > 0)) return false; // office quotes manually
-  const rawDiscount = wholeVeecDiscount(e.area_m2, loc as unknown as LocationVariables, veecValue).raw;
-  const lines = [
-    { code: "INSTALLER_PRICE", description: "Insulation works by your installer", quantity: 1, unit: "flat", unit_price_inc_gst: e.price_inc_gst, line_total_inc_gst: e.price_inc_gst, is_other: false, explanation: null, sort: 0 },
-    { code: "PIESA", description: "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", quantity: 1, unit: "flat", unit_price_inc_gst: piesa, line_total_inc_gst: piesa, is_other: false, explanation: null, sort: 1 },
-    { code: "AP_FEE", description: "Home Insulation Victoria — Accredited Person fee", quantity: 1, unit: "flat", unit_price_inc_gst: apFee, line_total_inc_gst: apFee, is_other: false, explanation: null, sort: 2 },
-  ];
-  const subtotal = Math.round((e.price_inc_gst + piesa + apFee) * 100) / 100;
-  // Same guardrail as every other quote: the $200 minimum contribution (no maximum discount exists).
-  const rules = applyDiscountRules(rawDiscount, subtotal, loc ? (loc as unknown as LocationVariables).metropolitan_or_regional === "Metropolitan" : null, {
-    minimum_customer_copayment_inc_gst: rs ? Number(rs.minimum_customer_copayment_inc_gst) : 200,
-  });
-  const discount = Math.round(rules.discount * 100) / 100;
-  const customerTotal = Math.round((subtotal - discount) * 100) / 100;
-  const release = confirmedQuoteDecision({ estimateTotal: null, quoteTotal: customerTotal, tolerancePct: 15, hasUnratedExtras: false, externalSendingEnabled: false });
-  const { data: q, error } = await admin.from("quotes").insert({
-    job_id: jobId, kind: "installation", option_label: "Installer's quote (from bulk upload)", option_code: "INSTALLER_A1", status: "draft",
-    subtotal_inc_gst: subtotal, gst_amount: Math.round((subtotal - subtotal / 1.1) * 100) / 100,
-    veec_discount_inc_gst: discount, discount_note: discountNotes(rules).join(" ") || null, customer_total_inc_gst: customerTotal, created_by: actorId,
-    partner_business_id: partnerBusinessId, release_state: release.state, release_hold_reason: release.reason,
-  }).select("id").single();
-  if (error || !q) throw new BulkImportError(error?.message ?? "Quote could not be saved.");
-  const { error: ie } = await admin.from("quote_items").insert(lines.map((l) => ({ ...l, quote_id: q.id })));
-  if (ie) throw new BulkImportError(ie.message);
-  return true;
 }
 
 export async function confirmBatch(batchId: string, actorId: string, skipRowIds: string[]) {
@@ -393,7 +357,12 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
       const { data: prior } = await admin.from("jobs").select("id, job_number").eq("external_enquiry_id", `bulk:${row.id}`).maybeSingle();
       if (prior) { await admin.from("bulk_import_rows").update({ job_id: prior.id }).eq("id", row.id); alreadyTaken++; continue; }
       const job = await createBulkJob(e, batch, actorId, row.id, importStage);
-      const quoted = importStage === "quoted" ? await draftQuoteFromImport(job.id, e, actorId, batch.business_id).catch(() => false) : false;
+      // Jo (7 Oct): the owner ALWAYS pays HIV owner prices. An installer's quoted price stays on the upload row for the office
+      // only — never an owner quote. With a ceiling size the owner's estimate is priced now from HIV settings (hidden until Gate 1).
+      const quoted = false;
+      const ownerEstimate = e.area_m2 && e.area_m2 > 0
+        ? await (await import("./estimate.server")).refreshIndicativeEstimate(job.id, { officePricing: true }).then((v) => !!v.estimate).catch(() => false)
+        : false;
       const plan = ((row.electrician_plan ?? batch.electrician_plan ?? { mode: "hivic" }) as ElectricianPlan);
       if (plan.mode === "mine") {
         if (plan.business_id) {
@@ -411,7 +380,8 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
       ownerLinks.push({ jobNumber: job.job_number, owner: e.full_name ?? "Customer", path: `/eligibility/${ownerToken}` });
       await logEvent(job.id, actorId, "bulk_import_confirmed", `Job created from installer bulk upload (row ${row.row_index + 1})`, {
         batch_id: batchId, row_id: row.id, sort_result: row.sort_result,
-        missing_evidence: row.missing_evidence, draft_quote: quoted,
+        missing_evidence: row.missing_evidence, draft_quote: quoted, owner_estimate: ownerEstimate,
+        installer_quoted_price_inc_gst: e.price_inc_gst ?? null,
         import_stage: importStage, electrician_plan: plan,
       });
       await logEvent(job.id, permission.confirmed_by, "bulk_import_contact_permission", permission.wording, {
