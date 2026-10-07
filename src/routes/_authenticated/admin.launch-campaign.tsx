@@ -24,7 +24,7 @@ function LaunchCampaignOffice() {
   const [busy, setBusy] = useState<string | null>(null);
   const previewToken = "PREVIEW_ONLY_campaign_link_not_sent".padEnd(43, "X");
   const campaignUrl = `https://estimate.homeinsulationvictoria.com.au/estimate/${previewToken}/campaign`;
-  const unsubscribeUrl = `https://estimate.homeinsulationvictoria.com.au/email/unsubscribe?t=${"U".repeat(43)}`;
+  const unsubscribeUrl = `https://estimate.homeinsulationvictoria.com.au/api/public/unsubscribe?t=${"U".repeat(43)}`;
   const previews = [
     renderLaunchGroupEmail({ group: "likely", campaignUrl, unsubscribeUrl, firstName: "Sarah", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150, address: "14 Example Street, Ballarat VIC 3350", reference: "PREVIEW-A" }),
     renderLaunchGroupEmail({ group: "onsite", campaignUrl, unsubscribeUrl, firstName: "Michael", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150, address: "28 Sample Road, Bendigo VIC 3550", reference: "PREVIEW-B" }),

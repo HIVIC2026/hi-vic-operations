@@ -5,7 +5,7 @@ import { renderLaunchCampaignEmail, renderLaunchGroupEmail } from "../src/lib/es
 import { renderStep3SaveSpot } from "../src/lib/step3-emails";
 
 const campaignUrl = `https://estimate.homeinsulationvictoria.com.au/estimate/${"A".repeat(43)}/campaign`;
-const unsubscribeUrl = `https://estimate.homeinsulationvictoria.com.au/email/unsubscribe?t=${"U".repeat(43)}`;
+const unsubscribeUrl = `https://estimate.homeinsulationvictoria.com.au/api/public/unsubscribe?t=${"U".repeat(43)}`;
 const base = { campaignUrl, unsubscribeUrl, firstName: "Sarah", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150, address: "14 Example Street, Ballarat VIC 3350", reference: "HV-1" };
 
 function files(dir: string): string[] {
