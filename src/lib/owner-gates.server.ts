@@ -115,7 +115,7 @@ export async function ownerPaperworkToSign(jobId: string) {
 
 const ANSWERS: Partial<Record<GateDocKey, (a: Record<string, string>) => string | null>> = {
   details_confirmation: (a) => (["owner", "tenant", "buying", "other"].includes(a["role"] ?? "") ? null : "Tell us who owns the home."),
-  payment_terms: (a) => (["deposit", "full", "instalments"].includes(a["payment_option"] ?? "") ? null : "Choose how you'd like to pay."),
+  payment_terms: (a) => (["two_instalments", "pay_in_full"].includes(a["payment_option"] ?? "") ? null : "Choose how you'd like to pay."),
   life_support_answer: (a) => (["yes", "no"].includes(a["life_support"] ?? "") ? null : "Please answer the life support question."),
   tenancy_details: (a) => ((a["landlord_name"] ?? "").trim().length >= 2 && ((a["landlord_phone"] ?? "").trim().length >= 6 || /@/.test(a["landlord_email"] ?? "")) ? null : "Add your landlord or agent's name and phone or email."),
 };
