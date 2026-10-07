@@ -14,7 +14,7 @@ import { linkFiles, type LeadStage } from "./bulk-import.core";
 import { applyDiscountRules, discountNotes, wholeVeecDiscount } from "./estimate.core";
 import {
   customerDetailsReason, outsideVictoria, quotedGap, QUOTED_ANSWER_NEEDED, effectiveSiteCheck, cleanLead, gridToRecords, dedupeKey, parseSiteCheck, QUOTE_NEEDED_LABEL, quoteNeeded, siteCheckFromFile, siteCheckLabel, fileResults, findDuplicates, leadStage, type FileResult, LEAD_STAGE_LABEL, matchFiles, missingEvidence, normaliseAddress, sortJob,
-  type BulkExtracted, type BulkFile,
+  type BulkExtracted, type BulkFile, type FileMatch,
 } from "./bulk-import.core";
 
 export class BulkImportError extends Error {}

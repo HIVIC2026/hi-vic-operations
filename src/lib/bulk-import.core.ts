@@ -106,7 +106,7 @@ export type SortResult = "covers_ready_check" | "needs_visit" | "office_review";
 
 /** Exact wording of the one required tick before upload. */
 export const CONTACT_PERMISSION_WORDING =
-  "I confirm these customers are happy for Home Insulation Victoria to contact them.";
+  "The owner has given Home Insulation Victoria permission to contact them.";
 
 export type LeadStage = "not_visited" | "visited" | "quoted" | "installed";
 export const LEAD_STAGE_LABEL: Record<LeadStage, string> = {
