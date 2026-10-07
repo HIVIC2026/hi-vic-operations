@@ -1,0 +1,69 @@
+// Pure rules for the ONE real SMS sender (Jo, 7 Oct). No network, no database.
+import { normaliseAuMobile } from "./test-send.core";
+
+/** Every message type that may use the real sender. `wordingApproved=false` means it can never send yet. */
+export const SMS_MESSAGE_TYPES = {
+  spot_saved: { audience: "owner", label: "Spot saved confirmation", wordingApproved: true },
+  owner_code: { audience: "owner", label: "Owner 6-digit sign-in / signing code", wordingApproved: false },
+  ready_check_booking: { audience: "owner", label: "Ready Check booking confirmation", wordingApproved: false },
+  job_offer: { audience: "partner", label: "New job offer to a trade", wordingApproved: false },
+  daily_mitti: { audience: "partner", label: "Daily Mitti links (6:30am)", wordingApproved: true },
+  daily_mitti_update: { audience: "partner", label: "Daily Mitti links update (job added/moved/cancelled)", wordingApproved: true },
+} as const;
+export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
+
+/** Australian mobiles only, as +614XXXXXXXX. */
+export const toAuE164 = (raw: string | null | undefined) => normaliseAuMobile(raw);
+
+export type SmsGateInput = {
+  type: string;
+  to: string | null | undefined;
+  commsEnabled: boolean;
+  typeSwitchOn: boolean;
+  senderConfigured: boolean;
+  optedOut: boolean;
+  /** Owner: current contact consent. Partner: approved active partner. */
+  consent: boolean;
+  isTestRecord: boolean;
+};
+
+/** First reason a real text must NOT go, or null. Fails closed on anything unknown. */
+export function smsBlocker(x: SmsGateInput): string | null {
+  const t = SMS_MESSAGE_TYPES[x.type as SmsMessageType];
+  if (!t) return "Unknown message type";
+  if (x.isTestRecord) return "TEST record – use the test sender";
+  if (!t.wordingApproved) return "Wording not approved yet";
+  if (!x.commsEnabled) return "Customer communications are switched off";
+  if (!x.typeSwitchOn) return `"${t.label}" texts are switched off`;
+  if (!x.senderConfigured) return "No Australian sending number set up";
+  if (!toAuE164(x.to)) return "Not an Australian mobile number";
+  if (x.optedOut) return "This number replied STOP";
+  if (!x.consent) return t.audience === "owner" ? "No contact consent from the owner" : "Partner is not approved and active";
+  return null;
+}
+
+/** STOP / START keywords (Twilio standard set). */
+const STOP = new Set(["STOP", "STOPALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT", "OPTOUT", "OPT-OUT", "REVOKE"]);
+const START = new Set(["START", "UNSTOP", "YES", "OPTIN"]);
+export function stopKeyword(body: string | null | undefined): "stop" | "start" | null {
+  const w = String(body ?? "").trim().toUpperCase().replace(/[.!]+$/, "");
+  return STOP.has(w) ? "stop" : START.has(w) ? "start" : null;
+}
+
+/** Twilio message status → our log status. */
+export function mapTwilioStatus(s: string | null | undefined): "queued" | "sent" | "delivered" | "undelivered" | "failed" | null {
+  switch (s) {
+    case "accepted": case "queued": case "sending": case "scheduled": return "queued";
+    case "sent": return "sent";
+    case "delivered": return "delivered";
+    case "undelivered": return "undelivered";
+    case "failed": case "canceled": return "failed";
+    default: return null;
+  }
+}
+
+/** Opt-out footer for owner marketing-style texts is added only when missing. */
+export function withStopLine(body: string, audience: "owner" | "partner") {
+  if (audience !== "owner" || /\bSTOP\b/.test(body)) return body;
+  return `${body} Reply STOP to opt out.`;
+}
