@@ -2,7 +2,7 @@ import { InstallerFactsLine } from "@/components/portal/installer-job-facts";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronRight, PlusCircle, UploadCloud, Zap } from "lucide-react";
+import { ChevronRight, PlusCircle, UploadCloud } from "lucide-react";
 import { TradeShell, aud, card } from "@/components/trade/TradeShell";
 import { NowPanel, Pill, btnClass } from "@/components/portal/kit";
 import { getTradeHome } from "@/lib/trade-view.functions";
@@ -27,8 +27,8 @@ function MyWork() {
       <div><h1 className="font-display text-[26px] font-bold leading-tight">{g.title}</h1><p className="text-sm">{g.sub}</p></div>
       {installer && data.boss && (
         <div className="grid grid-cols-2 gap-2" data-upload-actions>
-          <Link to="/partner/bulk-import" className="flex h-14 items-center justify-center gap-2 rounded-[18px] bg-estimate-green px-3 font-bold text-white"><UploadCloud className="h-5 w-5" />Upload jobs</Link>
-          <Link to="/partner/import" className="flex h-14 items-center justify-center gap-2 rounded-[18px] border border-line bg-paper px-3 font-bold text-estimate-blue"><PlusCircle className="h-5 w-5" />Add one job</Link>
+          <Link to="/partner/bulk-import" className={btnClass("primary")}><UploadCloud className="h-4 w-4" />Upload jobs</Link>
+          <Link to="/partner/import" className={btnClass("secondary")}><PlusCircle className="h-4 w-4" />Add one job</Link>
         </div>
       )}
       {first ? (
