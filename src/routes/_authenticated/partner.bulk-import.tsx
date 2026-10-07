@@ -286,7 +286,7 @@ function BulkImportPage() {
     setRowChecks((old) => Object.fromEntries(rows.map((r) => [r.id, old[r.id] ?? { check: r.extracted.site_check ?? null, date: r.extracted.site_check_date ?? null }])));
   }, [review?.rows]);
 
-  const statusOf = (r: ReviewRow) => { const q = quotedSend(r.id); return rowStatusLine({ lead: leads[r.id] ?? r.extracted, consent: !!consent[r.id], quoted: rowQuoted[r.id]?.answer ?? null, quotedPrice: rowQuoted[r.id]?.answer === "yes" ? (q.quotedPrice ?? null) : null, siteCheck: rowChecks[r.id]?.check ?? null, installed: r.import_stage === "installed", duplicate: r.duplicate_note }); };
+  const statusOf = (r: ReviewRow) => { const q = quotedSend(r.id); return rowStatusLine({ lead: leads[r.id] ?? r.extracted, consent: !!consent[r.id], quoted: rowQuoted[r.id]?.confirmed ? rowQuoted[r.id]!.answer : null, quotedPrice: q.quotedPrice ?? null, siteCheck: rowChecks[r.id]?.check ?? null, installed: r.import_stage === "installed", duplicate: r.duplicate_note }); };
   const toAdd = rows.filter((r) => !skip.has(r.id) && !statusOf(r).excluded);
   const notReady = toAdd.filter((r) => !statusOf(r).ready || r.sort_result === "office_review");
   const anySaving = Object.values(saving).some(Boolean);
@@ -385,7 +385,7 @@ function BulkImportPage() {
           {(summary.rows ?? 0) > 0 && toAdd.length === 0 && rows.every((r) => statusOf(r).excluded || skip.has(r.id)) && <div className="rounded-[14px] border border-line bg-paper p-3 text-sm">Nothing from this upload can be added.<div className="mt-2"><SmallButton onClick={reset}>Upload something else</SmallButton></div></div>}
           {(summary.rows ?? 0) > 0 && toAdd.length > 0 && (
             <div className="sticky bottom-2 z-10 space-y-2 rounded-[18px] border border-line bg-paper p-3 shadow-card" data-confirm-bar>
-              {notReady.length > 0 ? <p className="text-sm"><b>Still missing:</b> {notReady.slice(0, 3).map((r) => `${(leads[r.id] ?? r.extracted).full_name ?? "Unnamed customer"} — ${r.sort_result === "office_review" && statusOf(r).ready ? "held for the office to check" : statusOf(r).text.replace(/^Needs: /, "")}`).join("; ")}{notReady.length > 3 ? ` and ${notReady.length - 3} more` : ""}. Or tap "Don't add" on that card.</p>
+              {notReady.length > 0 ? <p className="text-sm"><b>Still missing:</b> {notReady.slice(0, 3).map((r) => `${(leads[r.id] ?? r.extracted).full_name || "Unnamed customer"} — ${r.sort_result === "office_review" && statusOf(r).ready ? "held for the office to check" : statusOf(r).text.replace(/^Needs: /, "")}`).join("; ")}{notReady.length > 3 ? ` and ${notReady.length - 3} more` : ""}. Or tap "Don't add" on that card.</p>
                 : <p className="text-sm text-sub">Nothing is sent to any customer when you confirm.</p>}
               {batchPlan.mode === "mine" && !batchPlan.business_id && !batchPlan.nomination_id && <p className="text-sm text-danger">Choose your electrician first.</p>}
               <PrimaryButton disabled={busy || anySaving || toAdd.length === 0 || notReady.length > 0 || (batchPlan.mode === "mine" && !batchPlan.business_id && !batchPlan.nomination_id)} onClick={confirmAll}>{busy ? "Adding…" : anySaving ? "Saving…" : `Confirm ${toAdd.length} job${toAdd.length === 1 ? "" : "s"}`}</PrimaryButton>
