@@ -86,7 +86,7 @@ function RateOfferPage() {
               <label key={i.code} className="flex items-center justify-between gap-3"><span>{i.description}</span>
                 <input className={`${inputCls} w-28`} type="number" min={0} step="0.01" aria-label={`Your new rate for ${i.description}`} value={proposed[i.code] ?? ""} onChange={(e) => setProposed((p) => ({ ...p, [i.code]: e.target.value }))} /></label>
             ))}
-            <textarea rows={3} className="w-full rounded-2xl border border-estimate-line bg-card p-3 text-base" placeholder="Anything you want to tell our office" aria-label="Message to our office" value={message} onChange={(e) => setMessage(e.target.value)} />
+            <textarea rows={3} className="w-full rounded-2xl border border-estimate-line bg-paper p-3 text-base" placeholder="Anything you want to tell our office" aria-label="Message to our office" value={message} onChange={(e) => setMessage(e.target.value)} />
             <button type="button" className={greenBtn} disabled={busy} onClick={() => act(() => declineRateOffer({ data: { token, proposed: Object.fromEntries(Object.entries(proposed).filter(([, v]) => v.trim() !== "" && Number.isFinite(Number(v))).map(([k, v]) => [k, Number(v)])), message: message.trim() || undefined } }))}>Send back to the office</button>
             <button type="button" className="w-full text-center text-sm font-bold text-estimate-blue" onClick={() => setMode("view")}>Back</button>
           </section>

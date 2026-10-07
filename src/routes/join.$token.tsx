@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/trade/trade-ui";
 import { Input } from "@/components/ui/input";
 import { getWorkerInvite, submitWorkerInvite } from "@/lib/worker-invite.functions";
 import { workerDeclarations } from "@/lib/worker-invite.core";
@@ -44,9 +44,9 @@ function Join() {
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
 
   const wrap = (c: React.ReactNode) => <div className="estimate-brand min-h-screen bg-estimate-canvas px-4 py-8 text-estimate-navy"><main className="mx-auto max-w-xl rounded-[22px] border bg-white p-6 shadow-sm"><img src={logo.url} alt="Home Insulation Victoria" className="mb-4 h-10 w-auto" />{c}</main></div>;
-  if (!inv) return wrap(<p className="text-muted-foreground">Loading…</p>);
-  if (!inv.ok) return wrap(<><h1 className="mb-2 font-display text-2xl font-extrabold">Invite link problem</h1><p className="text-muted-foreground">{inv.message}</p></>);
-  if (done) return wrap(<><h1 className="mb-2 text-2xl font-bold">Thanks, {f.full_legal_name.split(" ")[0]} — you're registered.</h1><p className="text-muted-foreground">{inv.businessName} and Home Insulation Victoria will check your details. Once you're approved, the business owner can send you to jobs — you'll get a private link for each job.</p></>);
+  if (!inv) return wrap(<p className="text-sub">Loading…</p>);
+  if (!inv.ok) return wrap(<><h1 className="mb-2 font-display text-2xl font-extrabold">Invite link problem</h1><p className="text-sub">{inv.message}</p></>);
+  if (done) return wrap(<><h1 className="mb-2 text-2xl font-bold">Thanks, {f.full_legal_name.split(" ")[0]} — you're registered.</h1><p className="text-sub">{inv.businessName} and Home Insulation Victoria will check your details. Once you're approved, the business owner can send you to jobs — you'll get a private link for each job.</p></>);
 
   return wrap(<form onSubmit={async (e) => {
     e.preventDefault(); setBusy(true); setErrors([]);
@@ -58,7 +58,7 @@ function Join() {
   }}>
     {preview && <div role="status" className="mb-3 rounded-xl bg-secondary p-3 text-sm font-bold">Sample preview only — no data is saved and this invitation cannot be submitted.</div>}
     <h1 className="mb-1 text-2xl font-bold">You're joining {inv.businessName}</h1>
-    <p className="mb-5 text-sm text-muted-foreground">The business has already been set up with Home Insulation Victoria. We just need your own details and your sign-off — no ABN, insurance, rates or bank details.</p>
+    <p className="mb-5 text-sm text-sub">The business has already been set up with Home Insulation Victoria. We just need your own details and your sign-off — no ABN, insurance, rates or bank details.</p>
     {errors.length > 0 && <div className="mb-4 rounded-xl border border-danger bg-danger-soft p-3 text-sm text-danger">{errors.map((x) => <div key={x}>• {x}</div>)}</div>}
     <div className="grid gap-3">
       <label className="text-sm font-medium">Your full legal name<Input value={f.full_legal_name} onChange={set("full_legal_name")} className="mt-1 h-12" /></label>

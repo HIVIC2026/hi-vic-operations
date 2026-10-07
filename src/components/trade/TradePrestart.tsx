@@ -25,7 +25,7 @@ export function TradePrestart({ jobId, kind, onStart, disabledReason }: { jobId:
         <h2 className="font-display text-lg font-bold">Phone check ({n}/3)</h2>
         <div className="mt-3 space-y-2">{PRESTART_CHECKS.map((c, i) => (
           <button key={c.title} type="button" onClick={() => flip(i)} aria-pressed={!!ticks[i]} className="flex min-h-14 w-full items-center gap-3 rounded-[10px] bg-estimate-mist px-3 text-left">
-            <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 ${ticks[i] ? "border-estimate-green bg-estimate-green text-white" : "border-estimate-line bg-card"}`}>{ticks[i] && <Check className="h-4 w-4" />}</span>
+            <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 ${ticks[i] ? "border-estimate-green bg-estimate-green text-white" : "border-estimate-line bg-paper"}`}>{ticks[i] && <Check className="h-4 w-4" />}</span>
             <span><span className="block text-sm font-bold">{c.title}</span>{c.sub && <span className="block text-xs text-sub">{c.sub}</span>}</span>
           </button>))}</div>
       </section>
@@ -39,7 +39,7 @@ export function TradePrestart({ jobId, kind, onStart, disabledReason }: { jobId:
       </section>
       <div className="fixed inset-x-0 bottom-16 z-30 px-4 pb-[env(safe-area-inset-bottom)]"><div className="mx-auto max-w-md">
         <button type="button" className={greenBtn} disabled={!ready || !!disabledReason} onClick={onStart}><Zap className="h-5 w-5" />{ready ? START_LABEL[kind] : "Tick all 3 to start"}</button>
-        {ready && disabledReason && <p className="mt-1 rounded-xl bg-card p-2 text-center text-xs shadow-sm">{disabledReason}</p>}
+        {ready && disabledReason && <p className="mt-1 rounded-xl bg-paper p-2 text-center text-xs shadow-sm">{disabledReason}</p>}
       </div></div>
     </>
   );

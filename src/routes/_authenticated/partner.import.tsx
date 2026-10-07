@@ -136,11 +136,11 @@ function Review({ draft, onBack }: { draft: Draft; onBack: () => void }) {
     <div className="space-y-4">
       <Section title="We found these details – confirm"><div className="grid gap-2 sm:grid-cols-2">{found.length ? found.map(row) : <p className="text-sm text-estimate-navy/70">Nothing found automatically.</p>}</div></Section>
       <Section title="Check or fill in"><div className="grid gap-2 sm:grid-cols-2">{check.map(row)}</div></Section>
-      <details className="rounded-[22px] bg-card p-5 shadow-sm"><summary className="cursor-pointer text-sm font-medium">More details (if you have them)</summary><div className="mt-3 grid gap-2 sm:grid-cols-2">{rest.map(row)}</div></details>
+      <details className="rounded-[18px] border border-line bg-paper p-[19px] shadow-card"><summary className="cursor-pointer text-sm font-medium">More details (if you have them)</summary><div className="mt-3 grid gap-2 sm:grid-cols-2">{rest.map(row)}</div></details>
       <Section title="Your price and site check">
         <div className="space-y-3" data-installer-facts>
           <div>
-            <p className="text-sm font-bold">Have you already done the site check / measure-up?{!siteCheck && <span className="ml-1 text-destructive">Please answer</span>}</p>
+            <p className="text-sm font-bold">Have you already done the site check / measure-up?{!siteCheck && <span className="ml-1 text-danger">Please answer</span>}</p>
             <p className="text-xs text-estimate-navy/70">Yes skips our Ready Check. No means we book a Ready Check with the owner.</p>
             <div className="mt-2 grid grid-cols-2 gap-2">{(["yes", "no"] as const).map((v) => <Button key={v} type="button" size="field" variant={siteCheck === v ? "default" : "outline"} onClick={() => setSiteCheck(v)}>{v === "yes" ? "Yes" : "No"}</Button>)}</div>
             {siteCheck === "yes" && <label className="mt-2 block text-sm">Site check date (if known)<Input type="date" className="mt-1 h-12" value={siteDate} onChange={(e) => setSiteDate(e.target.value)} /></label>}

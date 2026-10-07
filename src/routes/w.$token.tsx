@@ -65,7 +65,7 @@ function WorkerJob() {
           <select className={`${inputCls} mb-2`} value={approved.code} onChange={(e) => setApproved((x) => ({ ...x, code: e.target.value, error: "", saved: "" }))}><option value="">Choose an approved item</option>{approvedRates.map((rate) => <option key={rate.code} value={rate.code}>{rate.description} · {rate.display_unit || rate.unit}</option>)}</select>
           <input className={`${inputCls} mb-2`} aria-label="Quantity" type="number" min="0.01" step="0.01" value={approved.quantity} onChange={(e) => setApproved((x) => ({ ...x, quantity: e.target.value, error: "", saved: "" }))} />
           <button type="button" className={greenBtn} disabled={!approved.code || !(Number(approved.quantity) > 0)} onClick={async () => { try { await addRate({ data: { token, rateCode: approved.code, quantity: Number(approved.quantity) } }); setApproved({ code: "", quantity: "1", error: "", saved: "Item added." }); void refetchRates(); } catch (e) { setApproved((x) => ({ ...x, error: e instanceof Error ? e.message : "Item could not be added.", saved: "" })); } }}>Add approved item</button>
-          {approved.error && <p role="alert" className="mt-2 text-sm text-destructive">{approved.error}</p>}
+          {approved.error && <p role="alert" className="mt-2 text-sm text-danger">{approved.error}</p>}
           {approved.saved && <p role="status" className="mt-2 text-sm text-success">{approved.saved}</p>}
         </div>
       )}
