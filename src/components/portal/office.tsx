@@ -13,13 +13,14 @@ import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 
 const HEADINGS: { key: OfficeSection; label: string; to: OfficeTab["to"] }[] = [
   { key: "needs", label: "Needs me", to: "/admin/needs-me" },
+  { key: "leads", label: "Leads", to: "/admin/launch-campaign" },
   { key: "pipeline", label: "Pipeline", to: "/admin/pipeline" },
   { key: "partners", label: "Partners", to: "/admin/partners-overview" },
   { key: "money", label: "Money", to: "/admin/money" },
 ];
 
 function TabLink({ t, active, small = false }: { t: OfficeTab; active: boolean; small?: boolean }) {
-  return <Link to={t.to} search={(t.search ?? {}) as never} className={cn("whitespace-nowrap rounded-full px-3 py-1.5 font-semibold transition-colors", small ? "text-xs" : "text-sm", active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-workspace-mist hover:text-foreground")}>{t.label}</Link>;
+  return <Link to={t.to} search={(t.search ?? {}) as never} aria-current={active ? "page" : undefined} className={cn("whitespace-nowrap rounded-[8px] border px-2.5 py-1 font-semibold transition-colors", small ? "text-xs" : "text-[13px]", active ? "border-line bg-paper text-ink shadow-card" : "border-transparent text-sub hover:text-ink")}>{t.label}</Link>;
 }
 
 function OfficeSearch() {
@@ -72,7 +73,8 @@ function AvatarMenu({ name, onSignOut }: { name: string; onSignOut: () => void }
   );
 }
 
-/** Office top bar: logo · Needs me (count) · Pipeline · Partners · Money · search · avatar. Tabs underneath. */
+/** Office frame (Jo approved 7 Oct): white top bar — brand · Needs me (count) · Leads · Pipeline · Partners · Money · search · initials.
+ *  A slim second row holds the current heading's pages plus Communications and Settings; phones get a bottom tab bar. */
 export function OfficeTopBar({ name, onSignOut }: { name: string; onSignOut: () => void }) {
   const loc = useRouterState({ select: (s) => ({ pathname: s.location.pathname, search: s.location.search as Record<string, unknown> }) });
   const section = sectionFor(loc.pathname, loc.search);
@@ -80,30 +82,46 @@ export function OfficeTopBar({ name, onSignOut }: { name: string; onSignOut: () 
   const { data } = useQuery({ queryKey: ["needs-me", false], queryFn: () => load({ data: {} }), refetchInterval: 120_000, staleTime: 60_000 });
   const count = data ? needsMeTotal(data.items) : undefined;
   const tabs = SECTION_TABS[section];
+  const settingsOn = section === "settings";
+  const commsOn = loc.pathname.replace(/\/$/, "") === "/admin/communications";
+  const countPill = (n: number) => <span className={cn("rounded-[18px] px-1.5 text-[11px] font-semibold", n ? "bg-pink text-rose" : "bg-mint text-hiv-green")}>{n}</span>;
   return (
-    <header className="sticky top-0 z-40 border-b bg-card/95 backdrop-blur">
-      <div className="mx-auto flex max-w-[1800px] flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2 sm:px-7">
-        <Link to="/admin/needs-me" className="shrink-0" aria-label="Home Insulation Victoria — Needs me"><img src={logo.url} alt="Home Insulation Victoria" className="h-9" /></Link>
-        <nav aria-label="Office" className="order-3 flex w-full gap-1 overflow-x-auto md:order-none md:w-auto">
+    <>
+      <header className="sticky top-0 z-40 border-b border-line bg-paper">
+        <div className="mx-auto grid max-w-[1180px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 px-4 py-2.5 sm:px-[26px]">
+          <Link to="/admin/needs-me" className="flex min-w-0 shrink-0 items-center gap-2" aria-label="Home Insulation Victoria — Needs me">
+            <img src={logo.url} alt="Home Insulation Victoria" className="h-9 w-auto shrink-0" />
+          </Link>
+          <nav aria-label="Office" className="hidden min-w-0 items-center gap-1 overflow-x-auto md:flex">
+            {HEADINGS.map((h) => (
+              <Link key={h.key} to={h.to} aria-current={section === h.key ? "page" : undefined} className={cn("flex items-center gap-1.5 whitespace-nowrap rounded-[10px] px-3 py-2 text-sm font-semibold", section === h.key ? "bg-mist text-ink" : "text-sub hover:text-ink")}>
+                {h.label}{h.key === "needs" && count != null && countPill(count)}
+              </Link>
+            ))}
+          </nav>
+          <div className="col-start-3 flex min-w-0 items-center justify-end gap-2"><div className="hidden lg:block lg:w-64"><OfficeSearch /></div><AvatarMenu name={name} onSignOut={onSignOut} /></div>
+        </div>
+        <div className="border-t border-line bg-canvas">
+          <div className="mx-auto flex max-w-[1180px] items-center gap-1 overflow-x-auto px-4 py-1.5 sm:px-[26px]">
+            {tabs.map((t) => <TabLink key={t.label} t={t} small active={tabActive(t, loc.pathname, loc.search) || (t.label === "Enquiries" && isEnquiryPage(loc.pathname, loc.search))} />)}
+            <span className="ml-auto flex shrink-0 gap-1 pl-3">
+              <TabLink t={{ label: "Communications", to: "/admin/communications" }} small active={commsOn} />
+              <TabLink t={{ label: "Settings", to: SECTION_TABS.settings[0]!.to }} small active={settingsOn && !commsOn} />
+            </span>
+          </div>
+        </div>
+        <div className="border-t border-line px-4 py-2 lg:hidden"><OfficeSearch /></div>
+      </header>
+      <nav aria-label="Office menu" className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-paper pb-[env(safe-area-inset-bottom)] md:hidden">
+        <div className="grid grid-cols-5">
           {HEADINGS.map((h) => (
-            <Link key={h.key} to={h.to} className={cn("flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-2 text-sm font-bold", section === h.key ? "bg-foreground text-background" : "text-foreground hover:bg-workspace-mist")}>
-              {h.label}{h.key === "needs" && count != null && <span className={cn("rounded-full px-1.5 text-xs", count ? "bg-workspace-blush-strong text-foreground" : "bg-workspace-mint text-foreground")}>{count}</span>}
+            <Link key={h.key} to={h.to} aria-current={section === h.key ? "page" : undefined} className={cn("flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold", section === h.key ? "text-hiv-blue" : "text-sub")}>
+              <span className="flex items-center gap-1">{h.label}</span>{h.key === "needs" && count != null ? countPill(count) : <span className="h-[15px]" />}
             </Link>
           ))}
-        </nav>
-        <div className="order-2 ml-auto flex min-w-0 flex-1 items-center justify-end gap-2 md:order-none md:flex-none"><OfficeSearch /><AvatarMenu name={name} onSignOut={onSignOut} /></div>
-      </div>
-      {section !== "needs" || tabs.length > 1 ? (
-        <div className="mx-auto flex max-w-[1800px] gap-1 overflow-x-auto px-4 pb-2 sm:px-7">
-          {tabs.map((t) => <TabLink key={t.label} t={t} active={tabActive(t, loc.pathname, loc.search) || (t.label === "Enquiries" && isEnquiryPage(loc.pathname, loc.search))} />)}
         </div>
-      ) : null}
-      {isEnquiryPage(loc.pathname, loc.search) && (
-        <div className="mx-auto flex max-w-[1800px] gap-1 overflow-x-auto border-t bg-background/60 px-4 py-1.5 sm:px-7">
-          {ENQUIRY_TABS.map((t) => <TabLink key={t.label} t={t} small active={tabActive(t, loc.pathname, loc.search)} />)}
-        </div>
-      )}
-    </header>
+      </nav>
+    </>
   );
 }
 

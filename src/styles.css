@@ -105,6 +105,23 @@
   --color-task-compliance-foreground: var(--task-compliance-foreground);
   --color-task-partners: var(--task-partners);
   --color-task-partners-foreground: var(--task-partners-foreground);
+  --color-ink: var(--hiv-ink);
+  --color-sub: var(--hiv-sub);
+  --color-hiv-blue: var(--hiv-blue);
+  --color-hiv-green: var(--hiv-green);
+  --color-line: var(--hiv-line);
+  --color-canvas: var(--hiv-canvas);
+  --color-paper: var(--hiv-paper);
+  --color-mist: var(--hiv-mist);
+  --color-mist-line: var(--hiv-mist-line);
+  --color-mint: var(--hiv-mint);
+  --color-pink: var(--hiv-pink);
+  --color-rose: var(--hiv-rose);
+  --color-table-head: var(--hiv-table-head);
+  --color-field-line: var(--hiv-field-line);
+  --color-action: var(--action);
+  --color-action-foreground: var(--action-foreground);
+  --shadow-card: 0 15px 35px -32px rgb(34 55 107 / 0.31);
   --font-sans: var(--app-font);
   --font-display: var(--app-font-display);
 }
@@ -178,6 +195,23 @@
 
 :root {
   --radius: 0.5rem;
+  /* Portal design tokens (Jo approved 7 Oct 2026). */
+  --hiv-ink: #22376b;
+  --hiv-sub: #65728d;
+  --hiv-blue: #3c51c4;
+  --hiv-green: #07864b;
+  --hiv-line: #e4e9f5;
+  --hiv-canvas: #fbfcfa;
+  --hiv-paper: #ffffff;
+  --hiv-mist: #f3f6ff;
+  --hiv-mist-line: #dce3f4;
+  --hiv-mint: #edfaf2;
+  --hiv-pink: #fdf2f6;
+  --hiv-rose: #a03963;
+  --hiv-table-head: #fafbfe;
+  --hiv-field-line: #dce2ef;
+  --action: var(--primary);
+  --action-foreground: var(--primary-foreground);
   /* Home Insulation Victoria brand palette: blue #3C51C4, green #07BF61/#52C875, navy #22376B, off-white #FBFCFA */
   --background: #fbfcfa;
   --foreground: #22376b;
@@ -244,22 +278,40 @@
 }
 
 .portal-theme {
-  --background: oklch(0.985 0.008 345);
-  --secondary: oklch(0.965 0.025 345);
-  --muted: oklch(0.972 0.02 88);
-  --accent: oklch(0.956 0.041 344);
-  --border: oklch(0.91 0.02 340);
-  --sidebar: oklch(0.992 0.008 345);
-  --sidebar-foreground: #22376b;
-  --sidebar-primary: #3c51c4;
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.956 0.041 344);
-  --sidebar-accent-foreground: #22376b;
-  --sidebar-border: oklch(0.91 0.02 340);
-  --sidebar-ring: #3c51c4;
+  --background: var(--hiv-canvas);
+  --foreground: var(--hiv-ink);
+  --card: var(--hiv-paper);
+  --card-foreground: var(--hiv-ink);
+  --primary: var(--hiv-blue);
+  --primary-foreground: #ffffff;
+  --action: var(--hiv-green);
+  --action-foreground: #ffffff;
+  --secondary: var(--hiv-mist);
+  --secondary-foreground: var(--hiv-ink);
+  --muted: var(--hiv-mist);
+  --muted-foreground: var(--hiv-sub);
+  --accent: var(--hiv-mist);
+  --accent-foreground: var(--hiv-ink);
+  --border: var(--hiv-line);
+  --input: var(--hiv-field-line);
+  --ring: var(--hiv-blue);
+  --success: var(--hiv-green);
+  --success-soft: var(--hiv-mint);
+  --info: var(--hiv-blue);
+  --info-soft: var(--hiv-mist);
+  --sidebar: #ffffff;
+  --sidebar-foreground: var(--hiv-ink);
+  --sidebar-primary: var(--hiv-blue);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--hiv-mist);
+  --sidebar-accent-foreground: var(--hiv-ink);
+  --sidebar-border: var(--hiv-line);
+  --sidebar-ring: var(--hiv-blue);
   --app-font: "Figtree", ui-sans-serif, system-ui, sans-serif;
   --app-font-display: "Outfit", "Figtree", ui-sans-serif, system-ui, sans-serif;
   font-family: var(--app-font);
+  font-size: 14px;
+  line-height: 1.45;
 }
 
 .dark {
@@ -358,3 +410,17 @@
 .estimate-brand .trade-forms [data-slot="card"] { border-radius: 22px; border-color: transparent; box-shadow: 0 1px 2px rgb(34 55 107 / 0.06); }
 .estimate-brand .trade-forms [data-slot="card-title"] { font-family: "Outfit", "Figtree", ui-sans-serif, system-ui, sans-serif; font-weight: 800; font-size: 1.125rem; }
 .estimate-brand .trade-forms [data-slot="input"], .estimate-brand .trade-forms [data-slot="select-trigger"] { min-height: 3rem; border-radius: 1rem; font-size: 1rem; }
+
+/* ---------- Portal redesign phase 1 (Jo approved 7 Oct 2026): shared defaults ---------- */
+@layer base {
+  .portal-theme h1 { font-size: 30px; line-height: 1.14; font-weight: 800; letter-spacing: -0.5px; }
+  .portal-theme h2 { font-size: 21px; line-height: 1.25; font-weight: 700; }
+  .portal-theme h3 { font-size: 16px; line-height: 1.3; font-weight: 600; }
+  .portal-theme a { color: inherit; }
+}
+/* shadcn building blocks inside the portal pick up the new card, button and field look. */
+.portal-theme [data-slot="card"] { border-radius: 18px; border-color: var(--hiv-line); background: var(--hiv-paper); box-shadow: var(--shadow-card); }
+.portal-theme [data-slot="button"] { border-radius: 10px; font-weight: 700; }
+.portal-theme [data-slot="button"][data-size="default"], .portal-theme [data-slot="button"][data-size="lg"] { min-height: 42px; font-size: 13px; }
+.portal-theme [data-slot="input"], .portal-theme [data-slot="textarea"], .portal-theme [data-slot="select-trigger"] { border-color: var(--hiv-field-line); border-radius: 9px; }
+.portal-theme [data-slot="input"] { min-height: 42px; padding: 11px 12px; }
