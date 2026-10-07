@@ -86,7 +86,7 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
   if (roles.includes("admin") && !(roles.includes("installer") || roles.includes("electrician"))) return (
     <div className="portal-theme min-h-screen bg-background">
       <OfficeTopBar name={me?.profile?.full_name ?? ""} onSignOut={() => void signOut()} />
-      <main className={`mx-auto w-full px-4 py-6 sm:px-7 lg:py-8 ${wide ? "max-w-[1800px]" : "max-w-5xl"}`}>{children}</main>
+      <main className={`mx-auto w-full px-4 pb-24 pt-6 sm:px-[26px] md:pb-10 lg:pt-[26px] ${wide ? "max-w-[1800px]" : "max-w-[1180px]"}`}>{children}</main>
     </div>
   );
   return (
@@ -112,7 +112,7 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
           </div>
           {mobileOpen && <div className="border-t border-sidebar-border px-3 pb-4"><nav className="flex max-h-[70vh] flex-col overflow-y-auto">{nav}</nav><Button variant="ghost" onClick={signOut} className="mt-3 w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"><LogOut /> Sign out</Button></div>}
         </header>
-        <main className={`mx-auto w-full px-4 py-6 sm:px-7 lg:py-8 ${wide ? "max-w-[1800px]" : "max-w-5xl"}`}>{children}</main>
+        <main className={`mx-auto w-full px-4 py-6 sm:px-[26px] lg:py-[26px] ${wide ? "max-w-[1800px]" : "max-w-[1180px]"}`}>{children}</main>
       </div>
     </div>
   );

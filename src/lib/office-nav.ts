@@ -1,7 +1,7 @@
 // Office navigation map: every existing admin page lives under one top-bar heading as a tab.
 // Presentation only — routes are unchanged, so old links keep working.
 
-export type OfficeSection = "needs" | "pipeline" | "partners" | "money" | "settings";
+export type OfficeSection = "needs" | "leads" | "pipeline" | "partners" | "money" | "settings";
 import type { LinkProps } from "@tanstack/react-router";
 export type OfficeTab = { label: string; to: NonNullable<LinkProps["to"]>; search?: Record<string, string> };
 
@@ -17,6 +17,7 @@ export const ENQUIRY_TABS: OfficeTab[] = [
 ];
 
 export const SECTION_TABS: Record<OfficeSection, OfficeTab[]> = {
+  leads: ENQUIRY_TABS,
   needs: [{ label: "Needs me", to: "/admin/needs-me" }, { label: "Today", to: "/admin/today" }, { label: "To action (old list)", to: "/admin/todo" }],
   pipeline: [
     { label: "Stages", to: "/admin/pipeline" },
@@ -56,6 +57,7 @@ const ENQUIRY_PATHS = ["/admin/launch-campaign", "/admin/hot-leads", "/admin/cam
 export function sectionFor(pathname: string, search: Record<string, unknown> = {}): OfficeSection {
   const p = pathname.replace(/\/$/, "") || "/";
   if (["/admin/needs-me", "/admin/today", "/admin/todo"].includes(p)) return "needs";
+  if (isEnquiryPage(p, search)) return "leads";
   if (SECTION_TABS.partners.some((t) => t.to === p)) return "partners";
   if (SECTION_TABS.money.some((t) => t.to === p)) return "money";
   if (SECTION_TABS.settings.some((t) => t.to === p)) return "settings";
