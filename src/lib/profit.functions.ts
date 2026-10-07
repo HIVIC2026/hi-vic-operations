@@ -162,8 +162,7 @@ export const getJobProfit = createServerFn({ method: "POST" }).middleware([requi
       hivJob,
       ...jobProfitBreakdown({
         hivJob, postcode: (job.properties as { postcode: string | null } | null)?.postcode ?? null,
-        // Before the measure-up is accepted: the installer's supplied measure-up, else the owner/list estimate.
-        estimateAreaM2: m.data && m.data.status !== "complete" && Number(m.data.measured_area_m2) > 0 ? Number(m.data.measured_area_m2) : job.estimated_area_m2 != null ? Number(job.estimated_area_m2) : null,
+        estimateAreaM2: job.estimated_area_m2 != null ? Number(job.estimated_area_m2) : null,
         measuredAreaM2: meas ? Number(meas.measured_area_m2) : null,
         removalM2: meas?.removal_required ? Number(meas.removal_m2 ?? 0) : 0,
         accessMultiplier: Number((ps.data.access_loadings as Record<string, number>)[meas?.access_difficulty ?? "easy"] ?? 1),

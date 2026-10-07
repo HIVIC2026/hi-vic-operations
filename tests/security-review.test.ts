@@ -24,7 +24,7 @@ describe("2. Bulk import owners", () => {
   });
   test("bulk import never reuses an existing owner", () => {
     const src = readFileSync("src/lib/bulk-import.server.ts", "utf8");
-    const fn = src.slice(src.indexOf("async function createBulkJob"), src.indexOf("export async function confirmBatch"));
+    const fn = src.slice(src.indexOf("async function createBulkJob"), src.indexOf("async function draftQuoteFromImport"));
     expect(fn).not.toMatch(/ownerId\s*=\s*existing/);
     expect(fn).toContain("possible_duplicate_owner");
     expect(src).not.toMatch(/\.ilike\("email", (?!exactLike)/);
