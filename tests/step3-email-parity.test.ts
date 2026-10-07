@@ -11,10 +11,10 @@ const files = (d: string): string[] => readdirSync(d).flatMap((f) => { const p =
 describe("Step 3 is the only Save my spot email", () => {
   test("campaign/launch preview path renders the same HTML as Step 3", () => {
     const step3 = renderStep3SaveSpot(S);
-    const viaCampaign = renderLaunchGroupEmail({ group: "likely", campaignUrl: S.campaignUrl, unsubscribeUrl: S.unsubscribeUrl, firstName: S.firstName, estimatedTotal: S.estimatedTotal, veuDiscount: S.veuDiscount, grossTotal: S.grossTotal, areaM2: S.areaM2, address: S.address, reference: S.reference, insulation: "none", installation: S.installation, assessmentFee: S.assessmentFee, apFee: S.apFee });
+    const viaCampaign = renderLaunchGroupEmail({ group: "likely", referralUrl: S.referralUrl, campaignUrl: S.campaignUrl, unsubscribeUrl: S.unsubscribeUrl, firstName: S.firstName, estimatedTotal: S.estimatedTotal, veuDiscount: S.veuDiscount, grossTotal: S.grossTotal, areaM2: S.areaM2, address: S.address, reference: S.reference, insulation: "none", installation: S.installation, assessmentFee: S.assessmentFee, apFee: S.apFee });
     expect(viaCampaign.html).toBe(step3.html);
     expect(viaCampaign.subject).toBe(step3.subject);
-    expect(viaCampaign.text).toBe(step3.text);
+    expect(viaCampaign.plainText).toBe(step3.plainText);
   });
   test("nothing else calls the Save my spot renderer directly", () => {
     const offenders = files("src").filter((f) => !/src\/lib\/(estimate-email|step3-emails)\.ts$/.test(f) && /renderSaveSpotFromLikelyEmail\(/.test(readFileSync(f, "utf8")));
@@ -23,7 +23,7 @@ describe("Step 3 is the only Save my spot email", () => {
   test("Step 3 page, real send and test button all use the Step 3 builder", () => {
     expect(readFileSync("src/routes/step3-email-preview.tsx", "utf8")).toContain("renderStep3SaveSpot(STEP3_SAVESPOT_SAMPLE)");
     const send = readFileSync("src/lib/hot-leads-send.server.ts", "utf8");
-    expect(send).toContain("renderStep3SaveSpot({");
+    expect(send).toContain("renderStep3SaveSpot)({");
     expect(readFileSync("src/lib/hot-leads.functions.ts", "utf8")).toContain("sendSaveMySpot([job.id]");
   });
   test("the campaign editor cannot change the locked Save my spot wording", () => {

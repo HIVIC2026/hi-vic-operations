@@ -375,6 +375,7 @@ export const V2_THEME = {
 } as const;
 
 export type LaunchCampaignEmailInput = {
+  referralUrl?: string | null;
   group: "likely" | "onsite";
   campaignUrl: string;
   unsubscribeUrl: string;
@@ -445,7 +446,7 @@ export function campaignAmountImg(src: string, amount: string) {
 export function renderLaunchGroupEmail(input: LaunchCampaignEmailInput): EstimateEmail {
   if (input.group !== "likely") return renderLaunchCampaignEmail(input);
   return renderStep3SaveSpot({
-    estimateUrl: input.campaignUrl.replace(/\/campaign$/, ""), campaignUrl: input.campaignUrl, unsubscribeUrl: input.unsubscribeUrl,
+    estimateUrl: input.campaignUrl.replace(/\/campaign$/, ""), campaignUrl: input.campaignUrl, unsubscribeUrl: input.unsubscribeUrl, referralUrl: input.referralUrl ?? null,
     estimatedTotal: input.estimatedTotal, veuDiscount: input.veuDiscount, grossTotal: input.grossTotal, areaM2: input.areaM2,
     firstName: input.firstName ?? null, address: input.address ?? null, reference: input.reference ?? null,
     existingInsulationPresent: input.insulation === "present",
