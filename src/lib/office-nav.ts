@@ -21,7 +21,6 @@ export const SECTION_TABS: Record<OfficeSection, OfficeTab[]> = {
   needs: [{ label: "Needs me", to: "/admin/needs-me" }, { label: "Today", to: "/admin/today" }],
   pipeline: [
     { label: "Stages", to: "/admin/pipeline" },
-    { label: "Enquiries", to: "/admin", search: { tab: "enquiries" } },
     { label: "Quotes to approve", to: "/admin", search: { tab: "quotes" } },
     { label: "All live jobs", to: "/admin", search: { tab: "jobs" } },
     { label: "AP sign-off", to: "/admin/ap-queue" },
@@ -46,7 +45,6 @@ export const SECTION_TABS: Record<OfficeSection, OfficeTab[]> = {
     { label: "Users", to: "/admin/users" },
     { label: "Compliance", to: "/admin/compliance" },
     { label: "Owner paperwork", to: "/admin/owner-paperwork" },
-    { label: "Communications", to: "/admin/communications" },
     { label: "Test centre", to: "/admin/test-centre" },
   ],
 };
