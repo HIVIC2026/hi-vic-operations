@@ -974,6 +974,13 @@
       "when": 1791335603806,
       "tag": "0138_partner_mitti_invited",
       "breakpoints": true
+    },
+    {
+      "idx": 139,
+      "version": "7",
+      "when": 1791336422387,
+      "tag": "0139_daily_mitti_text",
+      "breakpoints": true
     }
   ]
 }

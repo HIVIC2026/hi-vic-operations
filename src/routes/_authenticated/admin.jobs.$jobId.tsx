@@ -1,3 +1,4 @@
+import { TradeTextsCard } from "@/components/portal/trade-texts";
 import { OfficeInstallerFactsCard } from "@/components/portal/installer-job-facts";
 import { PaperworkStrip } from "@/components/portal/paperwork";
 import { OfficePrestartCard } from "@/components/portal/prestart";
@@ -119,6 +120,7 @@ function JobDetail() {
             <Assignments jobId={jobId} />
             <OfficeInstallHoldCard jobId={jobId} />
             <OfficePrestartCard jobId={jobId} />
+            <TradeTextsCard jobId={jobId} />
             <AdminPartnerPanel jobId={jobId} />
             <HoldControls jobId={jobId} stage={job.stage!} />
             <RetentionCard jobId={jobId} />

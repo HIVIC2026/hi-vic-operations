@@ -91,6 +91,14 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['prestart'] = "failed";
         }
         try {
+          // Daily Mitti links text: switch OFF by default; sends nothing unless ON and form IDs are set.
+          const { sweepDailyMittiTexts } = await import("@/lib/daily-mitti-text.server");
+          (out as Record<string, unknown>)['dailyMittiText'] = await sweepDailyMittiTexts();
+        } catch (e) {
+          console.error("allocation tick: daily mitti text failed", (e as Error).message);
+          out['ok'] = false;
+        }
+        try {
           const { sweepVisitReminders } = await import("@/lib/daily-brief.server");
           (out as Record<string, unknown>)['reminders'] = await sweepVisitReminders();
         } catch (e) {

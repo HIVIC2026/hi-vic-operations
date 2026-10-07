@@ -189,7 +189,11 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
     };
   });
   const changeReqs = opts.onlyIds ? [] : await all("partner change requests", (a, b) => (admin as unknown as { from: (t: string) => any }).from("partner_change_requests").select("id, kind, message, created_at, businesses(name)").eq("status", "open").range(a, b)); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const textFails = opts.onlyIds ? [] : await all("trade text failures", (a, b) => (admin as unknown as { from: (t: string) => any }).from("trade_text_log").select("id, detail, melbourne_date, businesses(name)").eq("status", "failed").is("acknowledged_at", null).range(a, b)); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const dts = opts.onlyIds ? null : await (await import("./daily-mitti-text.server")).dailyTextSettings();
   const partners: PartnerItem[] = [
+    ...(dts?.enabled && dts.missing.length ? [{ key: "dailytext:formids", title: "Daily Mitti links text is ON but not sending", why: `Missing: ${dts.missing.join(", ")}. Nothing is sent until these are set.`, dueAt: null, href: "/admin/settings" }] : []),
+    ...textFails.map((t) => ({ key: `text:${t["id"]}`, title: `Daily text to ${(t["businesses"] as { name?: string } | null)?.name ?? "a trade"} failed`, why: String(t["detail"] ?? "Twilio did not deliver it").slice(0, 140), dueAt: null, href: "/admin/partners" })),
     ...changeReqs.map((c) => ({ key: `chg:${c["id"]}`, title: `${(c["businesses"] as { name?: string } | null)?.name ?? "Partner"} asks to change ${c["kind"] === "rates" ? "their rates" : c["kind"] === "details" ? "their details" : c["kind"]}`, why: String(c["message"]).slice(0, 140), dueAt: null, href: "/admin/partners" })),
     ...apps.filter((a) => !String(a["source"] ?? "").endsWith("_test")).map((a) => ({ key: `app:${a["id"]}`, title: `New application: ${a["name"]}`, why: "Application ready to review", dueAt: null, href: "/admin/partners" })),
     ...creds.map((c) => ({ key: `cred:${c["id"]}`, title: `${(c["businesses"] as { name?: string } | null)?.name ?? "Partner"}: ${c["label"] ?? c["kind"]} expiring`, why: `Expires ${c["expires_at"]}`, dueAt: String(c["expires_at"]), href: "/admin/businesses" })),
