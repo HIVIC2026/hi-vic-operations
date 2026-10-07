@@ -62,8 +62,3 @@ export function mapTwilioStatus(s: string | null | undefined): "queued" | "sent"
   }
 }
 
-/** Opt-out footer for owner marketing-style texts is added only when missing. */
-export function withStopLine(body: string, audience: "owner" | "partner") {
-  if (audience !== "owner" || /\bSTOP\b/.test(body)) return body;
-  return `${body} Reply STOP to opt out.`;
-}
