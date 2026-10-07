@@ -5,7 +5,6 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { ACKNOWLEDGEMENTS, INSTALLER_AGREEMENT_VERSION, agreementText, type InstData } from "../src/lib/installer-onboarding.core";
 import { performInstallerSign, signedData } from "../src/lib/installer-sign.core";
 import { activationBlockers, latestCertifications, mandatoryActivationBlockers, planActivation, approvedRateItems } from "../src/lib/partner-activation.core";
-import { buildPartnerProfile } from "../src/lib/partner-profile.core";
 const REAL = "52760973-7685-4b3e-80b1-76b8e11da72f";
 const sha256 = async (s: string) => createHash("sha256").update(s).digest("hex");
 const out: string[] = []; const log = (s: string) => { out.push(s); console.log(s); };
@@ -46,6 +45,5 @@ const ws = (await t.db.query<Record<string, unknown>>(`SELECT full_legal_name, a
 log(`workers saved: ${JSON.stringify(ws)}`);
 const b = (await t.db.query<Record<string, unknown>>(`SELECT name, abn, legal_name, trading_name, declared_service_origin, declared_travel_radius_km FROM businesses WHERE id=$1`, [res.business_id])).rows[0];
 log(`business saved: ${JSON.stringify(b)}`);
-try { const p = buildPartnerProfile({} as never, d as never, certs as never, [] as never); log(`profile: ${JSON.stringify(p).slice(0, 900)}`); } catch (e) { log(`profile build error: ${(e as Error).message}`); }
 await Bun.write("/mnt/documents/reinsulate-dry-run/approval-practice.txt", out.join("\n") + "\n");
 process.exit(0);
