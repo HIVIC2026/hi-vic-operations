@@ -41,7 +41,6 @@ export function renderSpotSavedEmail(i: SpotSavedInput) {
   const rebate = wholeDollars(i.rebate);
   const name = i.firstName?.trim() || null;
   const subject = `Spot saved. Your ${rebate} rebate is waiting`;
-  const where = i.shortAddress ? ` at ${i.shortAddress}` : "";
   const p = (t: string, extra = "") => `<p style="margin:0 0 14px;${F}color:${INK};font-size:15px;line-height:1.6;${extra}">${t}</p>`;
   const T = V2_THEME, { INK: NAVY } = T.colors;
   const row = (inner: string, pad: string) => `<tr><td class="lx-pad" style="padding:${pad};${T.F}">${inner}</td></tr>`;
