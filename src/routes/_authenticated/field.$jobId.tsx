@@ -15,6 +15,14 @@ import { WorkerLinksPanel } from "@/components/portal/workers";
 import { OwnerEligibilityPanel } from "@/components/portal/owner-eligibility";
 import { BlockersPanel, BookingPanel, EvidencePanel, MessagesPanel, Section, useJob } from "@/components/portal/panels";
 import { MittiCard, MittiSyncedFields } from "@/components/portal/mitti";
+import { useServerFn } from "@tanstack/react-start";
+import { getMyMittiInvited } from "@/lib/trade-view.functions";
+
+/** Partners never see Mitti until the office ticks "Mitti account invited". */
+function useMittiInvited() {
+  const load = useServerFn(getMyMittiInvited);
+  return useQuery({ queryKey: ["mitti-invited"], queryFn: () => load() }).data?.invited === true;
+}
 import { MeasurementDetails, MeasurementReadOnly, useJobScope, useMeasurements } from "@/components/portal/requirements";
 import { useAction } from "@/hooks/use-me";
 import { InstallerFinalDeclaration } from "@/components/portal/assignment";
@@ -86,9 +94,10 @@ function MittiOnly({ jobId, which }: { jobId: string; which: "ready_check" | "pi
     ]);
     return which === "piesa" ? a?.external_mitti_id ?? null : (m?.external_source === "mitti" ? m.external_id : null) ?? a?.external_mitti_id ?? null;
   } });
+  const invited = useMittiInvited();
   return (
     <Section title={which === "piesa" ? "Safety check form" : "Ready Check form"}>
-      {data ? <><p className="mb-3 text-sm text-muted-foreground">Fill it in on site, in order. Your answers come back here automatically.</p><Button asChild size="field" className="w-full"><a href={`https://app.au.mitti.com/inspections/${data}`} target="_blank" rel="noreferrer">Open form in Mitti</a></Button><div className="mt-3"><MittiCard jobId={jobId} isAdmin={false} /></div></>
+      {data && invited ? <><p className="mb-3 text-sm text-muted-foreground">Fill it in on site, in order. Your answers come back here automatically.</p><Button asChild size="field" className="w-full"><a href={`https://app.au.mitti.com/inspections/${data}`} target="_blank" rel="noreferrer">Open form in Mitti</a></Button><div className="mt-3"><MittiCard jobId={jobId} isAdmin={false} /></div></>
         : <p className="text-sm font-medium">Form being set up — Home Insulation Victoria will send it before your visit.</p>}
     </Section>
   );
@@ -142,7 +151,7 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
       {a?.external_mitti_id && (assessing || locked) && (
         <>
           {measureBlock}
-          <MittiCard jobId={jobId} isAdmin={false} />
+          {mittiInvited && <MittiCard jobId={jobId} isAdmin={false} />}
           {<MittiSyncedFields a={a as unknown as Record<string, unknown>} />}
           {!locked && <EvidencePanel jobId={jobId} role="electrician" gates={["electrical"]} />}
           {!locked && <OtherItems jobId={jobId} editable />}
