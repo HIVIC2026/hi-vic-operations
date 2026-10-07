@@ -79,6 +79,9 @@ export async function tryTeamAssign(jobId: string, actorId: string | null): Prom
   if (stage !== "piesa_and_install_window_pending") return false; // legacy awaiting_electrician retired
   const { data: active } = await admin.from("job_assignments").select("id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).maybeSingle();
   if (active) return false;
+  // A job where the installer picked an electrician (or invited one) goes to that electrician as an offer, never auto-assigned.
+  const { count: chosen } = await admin.from("electrician_nominations").select("id", { count: "exact", head: true }).eq("job_id", jobId).is("ended_at", null);
+  if (chosen) return false;
   const { cands, site, installerBiz } = await electricianCandidates(jobId);
   const pick = await autoAssignTeamElectrician(admin as never, jobId, rankElectricians(cands, site), installerBiz);
   if (!pick) return false;

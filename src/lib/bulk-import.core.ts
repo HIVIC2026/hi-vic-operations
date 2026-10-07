@@ -106,7 +106,7 @@ export type SortResult = "covers_ready_check" | "needs_visit" | "office_review";
 
 /** Exact wording of the one required tick before upload. */
 export const CONTACT_PERMISSION_WORDING =
-  "I confirm these customers are happy for Home Insulation Victoria to contact them.";
+  "The owner has given Home Insulation Victoria permission to contact them.";
 
 export type LeadStage = "not_visited" | "visited" | "quoted" | "installed";
 export const LEAD_STAGE_LABEL: Record<LeadStage, string> = {
@@ -197,7 +197,7 @@ export function dedupeKey(e: BulkExtracted): string | null {
   return null;
 }
 
-export type FileMatch = { path: string; name: string; how: "folder" | "filename" | "gps" | "photo_text" | "only_lead" };
+export type FileMatch = { path: string; name: string; how: "folder" | "filename" | "gps" | "photo_text" | "only_lead" | "added" };
 
 /** Match files to a row by folder name, then filename, against the address tokens. */
 export function matchFiles(
@@ -348,7 +348,7 @@ export function fileResults(read: FileResult[], leads: BulkExtracted[], matches:
     if (fed.length) parts.push(fed.length === 1 ? `customer found: ${label(fed[0]!)}` : `${fed.length} customers found`);
     const g = hit.find((h) => h.x.how === "gps"), o = fed.length ? undefined : hit[0];
     if (g) parts.push(`matched by GPS to ${label(g.e)}`);
-    else if (o) parts.push(o.x.how === "only_lead" ? `attached to ${label(o.e)} (the only customer in this upload)` : `matched by ${({ folder: "folder name", filename: "file name", photo_text: "address written in the file", gps: "GPS", only_lead: "" } as const)[o.x.how]} to ${label(o.e)}`);
+    else if (o) parts.push(o.x.how === "only_lead" ? `attached to ${label(o.e)} (the only customer in this upload)` : `matched by ${({ folder: "folder name", filename: "file name", photo_text: "address written in the file", gps: "GPS", only_lead: "", added: "you" } as const)[o.x.how]} to ${label(o.e)}`);
     const used = fed.length > 0 || hit.length > 0;
     return { name: r.name, status: used ? r.status : "warn", message: used ? parts.join(" — ") : `${r.message} — not linked to any customer` };
   });
@@ -461,7 +461,7 @@ export const jobsFound = (n: number) => `${n} job${n === 1 ? "" : "s"} found`;
 
 /** Plain file note: "We attached Job Sheet.docx to this customer — is that right?" */
 export function attachedFilesNote(files: { name: string; how: string }[]): string | null {
-  const guessed = files.filter((f) => f.how !== "folder");
+  const guessed = files.filter((f) => f.how !== "folder" && f.how !== "added");
   if (!guessed.length) return null;
   const names = guessed.map((f) => f.name.split("/").pop()!);
   return `We attached ${names.length > 2 ? `${names.slice(0, 2).join(", ")} and ${names.length - 2} more` : names.join(" and ")} to this customer — is that right?`;

@@ -49,7 +49,9 @@ export async function recCandidatesFor(jobId: string): Promise<{ postcode: strin
       : Promise.resolve({ data: [] as { business_id: string | null; scheduled_start: string; scheduled_end: string | null; jobs: unknown }[] }),
   ]);
   const { data: inst } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
-  const preferred = new Set((prefs ?? [])
+  // The installer's choice on this job is offered first; otherwise their preferred electricians (Jo, 7 Oct).
+  const { firstOfferedElectrician } = await import("./job-electrician.core");
+  const preferred = firstOfferedElectrician(await (await import("./job-electrician.server")).jobChosenElectrician(jobId), (prefs ?? [])
     .filter((r) => r.installer_business_id === inst?.business_id).map((r) => r.electrician_business_id));
   const rel = await (await import("./visit-events.server")).reliabilityFor(ids);
   const { acceptanceWithCancellations } = await import("./visit-events.core");

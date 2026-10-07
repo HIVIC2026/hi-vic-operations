@@ -14,7 +14,7 @@ import { linkFiles, type LeadStage } from "./bulk-import.core";
 import { applyDiscountRules, discountNotes, wholeVeecDiscount } from "./estimate.core";
 import {
   customerDetailsReason, outsideVictoria, quotedGap, QUOTED_ANSWER_NEEDED, effectiveSiteCheck, cleanLead, gridToRecords, dedupeKey, parseSiteCheck, QUOTE_NEEDED_LABEL, quoteNeeded, siteCheckFromFile, siteCheckLabel, fileResults, findDuplicates, leadStage, type FileResult, LEAD_STAGE_LABEL, matchFiles, missingEvidence, normaliseAddress, sortJob,
-  type BulkExtracted, type BulkFile,
+  type BulkExtracted, type BulkFile, type FileMatch,
 } from "./bulk-import.core";
 
 export class BulkImportError extends Error {}
@@ -442,16 +442,7 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
       const job = await createBulkJob(e, batch, actorId, row.id, importStage);
       const quoted = importStage === "quoted" ? await draftQuoteFromImport(job.id, e, actorId, batch.business_id).catch(() => false) : false;
       const plan = ((row.electrician_plan ?? batch.electrician_plan ?? { mode: "hivic" }) as ElectricianPlan);
-      if (plan.mode === "mine") {
-        if (plan.business_id) {
-          const { data: member } = await admin.from("business_members").select("user_id").eq("business_id", plan.business_id).eq("active", true).limit(1).maybeSingle();
-          if (member) await admin.from("job_assignments").insert({ job_id: job.id, user_id: member.user_id, role: "electrician", business_id: plan.business_id, assigned_by: actorId });
-        } else if (plan.nomination_id) {
-          const { data: nomination } = await admin.from("electrician_nominations").select("contact_name,business_name,email,phone,licence_number,rec_number,nominated_for,status").eq("id", plan.nomination_id).eq("nominating_business_id", batch.business_id).maybeSingle();
-          if (nomination) await admin.from("electrician_nominations").insert({ ...nomination, job_id: job.id, nominated_by: actorId, nominating_business_id: batch.business_id, status: "invite_pending_comms" });
-          await admin.from("jobs").update({ electrician_choice: "nominated", next_action: `Waiting for ${nomination?.contact_name ?? "nominated electrician"} to sign up and be approved` }).eq("id", job.id);
-        }
-      } else await admin.from("jobs").update({ electrician_choice: "hivic_organise" }).eq("id", job.id);
+      await (await import("./job-electrician.server")).recordJobElectricianChoice(job.id, batch.business_id, plan as never, actorId);
       await admin.from("bulk_import_rows").update({ job_id: job.id }).eq("id", row.id);
       const ownerToken = newToken();
       await admin.from("owner_eligibility_links").insert({ job_id: job.id, business_id: batch.business_id, token_hash: await hashToken(ownerToken), created_by: actorId, expires_at: new Date(Date.now() + 30 * 86_400_000).toISOString() });
@@ -499,4 +490,30 @@ export async function setRowAddress(rowId: string, addr: { full_name?: string; e
   }).eq("id", rowId);
   if (error) throw new BulkImportError(error.message);
   return { batch_id: row.batch_id };
+}
+
+/** Installer attaches photos/files to one customer card (camera or files). Photos count as a visit, like upload matches. */
+export async function addRowFiles(rowId: string, businessId: string, files: { path: string; name: string; type: string }[]) {
+  const { data: row } = await admin.from("bulk_import_rows").select("matched_files, status, extracted, import_stage").eq("id", rowId).single();
+  if (!row || row.status !== "pending") throw new BulkImportError("This customer can no longer be changed.");
+  const { allowedUpload } = await import("./upload-safety.core"); const { verifyStoredUpload } = await import("./upload-safety.server");
+  for (const f of files) {
+    if (!f.path.startsWith(`partners/${businessId}/imports/`)) throw new BulkImportError("Invalid file path");
+    const m = allowedUpload(f.name, f.type, { imports: true }); if (!m) throw new BulkImportError(`${f.name}: that file type isn't accepted.`);
+    await verifyStoredUpload("job-files", f.path, m);
+  }
+  const have = (row.matched_files as unknown as FileMatch[]) ?? [];
+  const next = [...have, ...files.filter((f) => !have.some((h) => h.path === f.path)).map((f) => ({ path: f.path, name: f.name, how: "added" as const }))];
+  const photos = next.filter((m) => /\.(jpe?g|png|heic|heif|webp)$/i.test(m.name)).length;
+  const e = row.extracted as unknown as BulkExtracted;
+  const stage = row.import_stage === "installed" ? "installed" : leadStage(e, photos);
+  await admin.from("bulk_import_rows").update({ matched_files: next as unknown as Json, import_stage: stage, extracted: { ...e, lead_stage: stage } as unknown as Json }).eq("id", rowId);
+  return { files: next };
+}
+export async function removeRowFile(rowId: string, path: string) {
+  const { data: row } = await admin.from("bulk_import_rows").select("matched_files, status").eq("id", rowId).single();
+  if (!row || row.status !== "pending") throw new BulkImportError("This customer can no longer be changed.");
+  const next = ((row.matched_files as unknown as FileMatch[]) ?? []).filter((m) => m.path !== path);
+  await admin.from("bulk_import_rows").update({ matched_files: next as unknown as Json }).eq("id", rowId);
+  return { files: next };
 }

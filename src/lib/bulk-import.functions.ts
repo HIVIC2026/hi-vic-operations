@@ -137,7 +137,7 @@ export const bulkElectricianChoices = createServerFn({ method: "GET" }).middlewa
   });
 
 export const addBulkElectrician = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ businessId: uuid, name: z.string().trim().min(2).max(200), mobile: z.string().trim().min(8).max(40), email: z.string().trim().email().max(320).nullable().optional(), business: z.string().trim().max(200).nullable().optional() }).parse(d))
+  .inputValidator((d) => z.object({ businessId: uuid, name: z.string().trim().min(2).max(200), mobile: z.string().trim().min(8).max(40), email: z.string().trim().email("Add their email").max(320), business: z.string().trim().min(2, "Add their business").max(200), dryRun: z.boolean().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireMember(context.userId, data.businessId, true);
     const mobile = data.mobile.replace(/\D/g, "");
@@ -152,11 +152,13 @@ export const addBulkElectrician = createServerFn({ method: "POST" }).middleware(
     const { data: nomination, error } = await admin.from("electrician_nominations").insert({
       contact_name: data.name, phone: mobile, email: data.email ?? null, business_name: data.business ?? null,
       nominating_business_id: data.businessId, nominated_by: context.userId, nominated_for: "installer",
-      business_id: matched?.id ?? null, status: matched?.id ? "teamed" : "invite_pending_comms",
+      business_id: matched?.id ?? null, status: matched?.id ? "approved" : "invite_pending_comms",
       invite_token_hash: matched?.id ? null : await hashToken(invite), invite_expires_at: matched?.id ? null : new Date(Date.now() + 14 * 86_400_000).toISOString(),
     }).select("id").single();
     if (error || !nomination) throw new WorkflowError("That electrician could not be added.");
-    return { nominationId: nomination.id, businessId: matched?.id ?? null, name: data.name, status: matched?.id ? "Already signed up ✓" : `Waiting for ${data.name} to sign up` };
+    // Jo (7 Oct): email them the electrician application link straight away (manual partner email rule).
+    const sent = matched?.id ? null : await (await import("./job-electrician.server")).sendElectricianInvite({ actorId: context.userId, nominationId: nomination.id, installerBusinessId: data.businessId, inviteToken: invite, to: data.email, name: data.name, dryRun: data.dryRun === true });
+    return { nominationId: nomination.id, businessId: matched?.id ?? null, name: data.name, status: matched?.id ? "Already signed up ✓" : "Electrician invited – waiting to onboard", invite: sent ? { status: sent.status, to: sent.to } : null };
   });
 
 export const setBulkRowAddress = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -242,4 +244,28 @@ export const geocodeBulkPhotos = createServerFn({ method: "POST" }).middleware([
     await canUseBulkImport(context.userId, data.businessId, data.onBehalf);
     const { reverseGeocode } = await import("./bulk-import.server");
     return { addresses: await reverseGeocode(data.points) };
+  });
+
+async function rowBusiness(rowId: string, userId: string) {
+  const { data: row } = await admin.from("bulk_import_rows").select("batch_id").eq("id", rowId).single();
+  if (!row) throw new WorkflowError("Customer not found.");
+  const { data: batch } = await admin.from("bulk_import_batches").select("business_id").eq("id", row.batch_id).single();
+  if (!batch) throw new WorkflowError("Upload not found.");
+  const { data: isAdmin } = await admin.rpc("has_role", { _user_id: userId, _role: "admin" });
+  if (!isAdmin) await requireMember(userId, batch.business_id, true);
+  return batch.business_id;
+}
+export const addBulkRowFiles = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ rowId: uuid, files: z.array(z.object({ path: z.string().max(500), name: z.string().max(200), type: z.string().max(100) })).min(1).max(20) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const biz = await rowBusiness(data.rowId, context.userId);
+    const { addRowFiles } = await import("./bulk-import.server");
+    return addRowFiles(data.rowId, biz, data.files);
+  });
+export const removeBulkRowFile = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ rowId: uuid, path: z.string().max(500) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await rowBusiness(data.rowId, context.userId);
+    const { removeRowFile } = await import("./bulk-import.server");
+    return removeRowFile(data.rowId, data.path);
   });

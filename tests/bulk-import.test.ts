@@ -97,7 +97,7 @@ describe("lead stage", () => {
     expect(leadStage({ full_name: "A", access: "tight manhole in hallway", roof_type: "tile", hazards: "downlights" }, 0)).toBe("not_visited");
   });
   test("a quote means visited (Jo, 7 Oct 5:45pm)", () => expect(leadStage({ price_inc_gst: 4000 }, 0)).toBe("quoted"));
-  test("permission wording is exact", () => expect(CONTACT_PERMISSION_WORDING).toBe("I confirm these customers are happy for Home Insulation Victoria to contact them."));
+  test("permission wording is exact (Jo, 7 Oct)", () => expect(CONTACT_PERMISSION_WORDING).toBe("The owner has given Home Insulation Victoria permission to contact them."));
 });
 
 describe("bulk import — photos-only and per-file results (5 Oct fix)", () => {

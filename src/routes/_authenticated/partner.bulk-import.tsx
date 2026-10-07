@@ -2,15 +2,18 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { addBulkElectrician, bulkBatchReview, bulkElectricianChoices, bulkImportBusinesses, confirmBulkBatch, createBulkBatch, geocodeBulkPhotos, listBulkBatches, readBulkFile, setBulkReviewPlan, setBulkRowAddress } from "@/lib/bulk-import.functions";
+import { addBulkRowFiles, removeBulkRowFile, addBulkElectrician, bulkBatchReview, bulkElectricianChoices, bulkImportBusinesses, confirmBulkBatch, createBulkBatch, geocodeBulkPhotos, listBulkBatches, readBulkFile, setBulkReviewPlan, setBulkRowAddress } from "@/lib/bulk-import.functions";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { quotedGap, CONTACT_PERMISSION_WORDING, gridToRecords, QUOTE_NEEDED_LABEL, fieldProblems, rowStatusLine, jobsFound, attachedFilesNote, outsideVictoria, OUTSIDE_VIC_MESSAGE, type FileResult, type LeadStage, type SecondContact } from "@/lib/bulk-import.core";
 import { TradeShell } from "@/components/trade/TradeShell";
-import { Check, ChevronDown, Paperclip, UploadCloud, Zap } from "lucide-react";
+import { Check, ChevronDown, UploadCloud } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+import { AttachFiles, ElectricianPicker, inviteResultMessage, useUploadFiles } from "@/components/trade/job-intake";
+import { electricianPlanBlocker, usualElectrician } from "@/lib/job-electrician.core";
 
 export const Route = createFileRoute("/_authenticated/partner/bulk-import")({
   head: () => ({
@@ -30,7 +33,7 @@ type ManifestFile = { path: string; name: string; folder: string | null; type: s
 type ReviewRow = {
   id: string; row_index: number; status: string; duplicate_note: string | null;
   extracted: { full_name?: string | null; address_line?: string | null; suburb?: string | null; postcode?: string | null; area_m2?: number | null; price_inc_gst?: number | null; quoted_answer?: "yes" | "no" | null; lead_stage?: LeadStage; phone?: string | null; email?: string | null; price_includes?: string | null; site_check?: "yes" | "no" | null; site_check_date?: string | null; site_check_source?: "file" | "asked" | null; second_contact?: SecondContact | null; notes?: string | null; owner_consent?: unknown };
-  matched_files: { name: string; how: string }[]; sort_result: "covers_ready_check" | "needs_visit" | "office_review" | null;
+  matched_files: { path: string; name: string; how: string }[]; sort_result: "covers_ready_check" | "needs_visit" | "office_review" | null;
   sort_reasons: string[]; missing_evidence: string[];
   import_stage: LeadStage; electrician_plan: ElectricianPlan | null;
 };
@@ -268,6 +271,11 @@ function BulkImportPage() {
   const effectiveBiz = isAdmin ? businessId : (businessId || businesses[0]?.id || "");
   const { data: past, refetch: refreshPast } = useQuery({ queryKey: ["bulk-past", effectiveBiz], queryFn: () => getBatches({ data: effectiveBiz ? { businessId: effectiveBiz } : {} }), enabled: isAdmin || !!effectiveBiz });
   const { data: electricianData, refetch: refreshElectricians } = useQuery({ queryKey: ["bulk-electricians", effectiveBiz], queryFn: () => getElectricians({ data: { businessId: effectiveBiz } }), enabled: !!effectiveBiz });
+  // The installer's usual electrician is preselected (Jo, 7 Oct); each card can change it.
+  const planSeeded = useRef(false);
+  useEffect(() => { if (planSeeded.current || !electricianData) return; planSeeded.current = true; const u = usualElectrician(electricianData.approved); if (u?.businessId) setBatchPlan({ mode: "mine", business_id: u.businessId }); }, [electricianData]);
+  const planFor = (id: string): ElectricianPlan => rowPlans[id] ?? batchPlan;
+  const addNewElectrician = async (d: { name: string; business: string; mobile: string; email: string }) => { const made = await addElectrician({ data: { businessId: effectiveBiz, name: d.name, mobile: d.mobile, email: d.email, business: d.business } }); await refreshElectricians(); return { made, message: inviteResultMessage(made) }; };
 
   const { data: review } = useQuery({
     queryKey: ["bulk-review", batchId],
@@ -279,7 +287,7 @@ function BulkImportPage() {
   useEffect(() => {
     if (!rows.length) return;
     setRowStages((old) => Object.fromEntries(rows.map((r) => [r.id, old[r.id] ?? r.import_stage ?? r.extracted.lead_stage ?? "not_visited"])));
-    setRowPlans((old) => Object.fromEntries(rows.map((r) => [r.id, old[r.id] ?? r.electrician_plan ?? { mode: "hivic" }])));
+    setRowPlans((old) => Object.fromEntries(rows.filter((r) => old[r.id] || r.electrician_plan).map((r) => [r.id, old[r.id] ?? r.electrician_plan!])));
     setRowQuoted((old) => Object.fromEntries(rows.map((r) => [r.id, old[r.id] ?? (r.extracted.quoted_answer ? { answer: r.extracted.quoted_answer, price: r.extracted.price_inc_gst ? String(r.extracted.price_inc_gst) : "", confirmed: true } : r.extracted.price_inc_gst ? { answer: "yes", price: String(r.extracted.price_inc_gst), confirmed: false } : { answer: null, price: "", confirmed: false })])));
     setConsent((old) => Object.fromEntries(rows.map((r) => [r.id, old[r.id] ?? !!(r.extracted.owner_consent && typeof r.extracted.owner_consent === "object")])));
     setLeads((old) => Object.fromEntries(rows.map((r) => [r.id, old[r.id] ?? r.extracted])));
@@ -320,7 +328,7 @@ function BulkImportPage() {
     confirming.current = true;
     setBusy(true);
     try {
-      await savePlan({ data: { batchId, batchPlan, rows: rows.map((r) => ({ rowId: r.id, stage: rowStages[r.id] ?? "not_visited", siteCheck: rowChecks[r.id]?.check ?? null, ...quotedSend(r.id), siteCheckDate: rowChecks[r.id]?.check === "yes" ? rowChecks[r.id]?.date ?? null : null, consent: !!consent[r.id], plan: batchPlan.mode === "job_by_job" ? (rowPlans[r.id] ?? { mode: "hivic" }) : null })) } });
+      await savePlan({ data: { batchId, batchPlan, rows: rows.map((r) => ({ rowId: r.id, stage: rowStages[r.id] ?? "not_visited", siteCheck: rowChecks[r.id]?.check ?? null, ...quotedSend(r.id), siteCheckDate: rowChecks[r.id]?.check === "yes" ? rowChecks[r.id]?.date ?? null : null, consent: !!consent[r.id], plan: planFor(r.id) })) } });
       const res = await confirm({ data: { batchId, skipRowIds: [...skip, ...rows.filter((r) => statusOf(r).excluded).map((r) => r.id)] } });
       setDone(res);
       qc.invalidateQueries({ queryKey: ["bulk-review", batchId] });
@@ -368,7 +376,7 @@ function BulkImportPage() {
         <section className="space-y-3">
           <h2 className="font-display text-lg font-bold">{jobsFound(summary.rows ?? 0)}</h2>
           {(summary.rows ?? 0) === 0 && <div className="rounded-[14px] border border-line bg-paper p-4 text-sm">We couldn't find a customer in these files. Add a customer list, or name files by address (e.g. "14 Example St"), then upload again.<div className="mt-2"><SmallButton onClick={reset}>Upload again</SmallButton></div></div>}
-          {(summary.rows ?? 0) > 0 && <ElectricianChoice value={batchPlan} onChange={setBatchPlan} approved={electricianData?.approved ?? []} pending={electricianData?.pending ?? []} add={async () => { const made = await addElectrician({ data: { businessId: effectiveBiz, name: newElectrician.name, mobile: newElectrician.mobile, email: newElectrician.email || null, business: newElectrician.business || null } }); await refreshElectricians(); setBatchPlan({ mode: "mine", ...(made.businessId ? { business_id: made.businessId } : { nomination_id: made.nominationId }) }); setNewElectrician({ name: "", mobile: "", email: "", business: "" }); }} draft={newElectrician} setDraft={setNewElectrician} />}
+          {(summary.rows ?? 0) > 1 && <ElectricianPicker title="Electrician for every customer" value={batchPlan} onChange={(v) => { setBatchPlan(v); setRowPlans({}); }} approved={electricianData?.approved ?? []} pending={electricianData?.pending ?? []} onAdd={async (d) => { const { made, message } = await addNewElectrician(d); setBatchPlan({ mode: "mine", ...(made.businessId ? { business_id: made.businessId } : { nomination_id: made.nominationId }) }); setRowPlans({}); return { message }; }} />}
           {rows.length > 1 && (() => { const open = rows.filter((r) => !skip.has(r.id) && !statusOf(r).excluded && r.import_stage !== "installed"); return (
             <div className="flex flex-wrap items-center gap-2 text-sm" data-site-check-all><span className="text-sub">Site check for all:</span>{(["yes", "no"] as const).map((v) => <SmallButton key={v} onClick={() => { const nc = { ...rowChecks }; const ns = { ...rowStages }; for (const r of open) { nc[r.id] = { check: v, date: v === "yes" ? rowChecks[r.id]?.date ?? null : null }; ns[r.id] = v === "yes" ? (r.extracted.price_inc_gst ? "quoted" : "visited") : "not_visited"; } setRowChecks(nc); setRowStages(ns); }}>{v === "yes" ? "Yes to all" : "No to all"}</SmallButton>)}</div>); })()}
           <div className="grid gap-3">
@@ -378,7 +386,8 @@ function BulkImportPage() {
                 quoted={rowQuoted[r.id] ?? { answer: null, price: "", confirmed: false }} onQuoted={(q) => setRowQuoted({ ...rowQuoted, [r.id]: q })}
                 check={rowChecks[r.id] ?? { check: null, date: null }} onCheck={(v) => { setRowChecks({ ...rowChecks, [r.id]: v }); setRowStages({ ...rowStages, [r.id]: r.import_stage === "installed" ? "installed" : v.check === "yes" ? (r.extracted.price_inc_gst ? "quoted" : "visited") : "not_visited" }); }}
                 onLead={(l) => setLeads((o) => ({ ...o, [r.id]: l }))} onSaving={(v) => setSaving((o) => ({ ...o, [r.id]: v }))}
-                electrician={batchPlan.mode === "job_by_job" ? <ElectricianChoice compact value={rowPlans[r.id] ?? { mode: "hivic" }} onChange={(plan) => setRowPlans({ ...rowPlans, [r.id]: plan })} approved={electricianData?.approved ?? []} pending={electricianData?.pending ?? []} /> : null} />
+                businessId={effectiveBiz}
+                electrician={<ElectricianPicker compact note={(summary.rows ?? 0) <= 1} value={planFor(r.id)} onChange={(plan) => setRowPlans((o) => ({ ...o, [r.id]: plan }))} approved={electricianData?.approved ?? []} pending={electricianData?.pending ?? []} onAdd={async (d) => { const { made, message } = await addNewElectrician(d); setRowPlans((o) => ({ ...o, [r.id]: { mode: "mine", ...(made.businessId ? { business_id: made.businessId } : { nomination_id: made.nominationId }) } })); return { message }; }} />} />
             ))}
           </div>
           <FileResultList items={summary.file_results ?? localReads} />
@@ -387,8 +396,8 @@ function BulkImportPage() {
             <div className="sticky bottom-2 z-10 space-y-2 rounded-[18px] border border-line bg-paper p-3 shadow-card" data-confirm-bar>
               {notReady.length > 0 ? <p className="text-sm"><b>Still missing:</b> {notReady.slice(0, 3).map((r) => `${(leads[r.id] ?? r.extracted).full_name || "Unnamed customer"} — ${r.sort_result === "office_review" && statusOf(r).ready ? "held for the office to check" : statusOf(r).text.replace(/^Needs: /, "")}`).join("; ")}{notReady.length > 3 ? ` and ${notReady.length - 3} more` : ""}. Or tap "Don't add" on that card.</p>
                 : <p className="text-sm text-sub">Nothing is sent to any customer when you confirm.</p>}
-              {batchPlan.mode === "mine" && !batchPlan.business_id && !batchPlan.nomination_id && <p className="text-sm text-danger">Choose your electrician first.</p>}
-              <PrimaryButton disabled={busy || anySaving || toAdd.length === 0 || notReady.length > 0 || (batchPlan.mode === "mine" && !batchPlan.business_id && !batchPlan.nomination_id)} onClick={confirmAll}>{busy ? "Adding…" : anySaving ? "Saving…" : `Confirm ${toAdd.length} job${toAdd.length === 1 ? "" : "s"}`}</PrimaryButton>
+              {toAdd.some((r) => electricianPlanBlocker(planFor(r.id))) && <p className="text-sm text-danger">Choose the electrician on each customer marked "My electrician".</p>}
+              <PrimaryButton disabled={busy || anySaving || toAdd.length === 0 || notReady.length > 0 || toAdd.some((r) => !!electricianPlanBlocker(planFor(r.id)))} onClick={confirmAll}>{busy ? "Adding…" : anySaving ? "Saving…" : `Confirm ${toAdd.length} job${toAdd.length === 1 ? "" : "s"}`}</PrimaryButton>
             </div>
           )}
         </section>
@@ -434,10 +443,13 @@ function Field({ label, value, onChange, problem, ...p }: { label: string; value
 
 type Quoted = { answer: "yes" | "no" | null; price: string; confirmed: boolean };
 type CheckV = { check: "yes" | "no" | null; date: string | null };
-function CustomerCard({ row, status, skipped, onSkip, consent, onConsent, quoted, onQuoted, check, onCheck, onLead, onSaving, electrician }: {
+function CustomerCard({ row, status, skipped, onSkip, consent, onConsent, quoted, onQuoted, check, onCheck, onLead, onSaving, electrician, businessId }: {
   row: ReviewRow; status: { ready: boolean; text: string; excluded: boolean }; skipped: boolean; onSkip: (v: boolean) => void; consent: boolean; onConsent: (v: boolean) => void;
-  quoted: Quoted; onQuoted: (q: Quoted) => void; check: CheckV; onCheck: (v: CheckV) => void; onLead: (l: ReviewRow["extracted"]) => void; onSaving: (v: boolean) => void; electrician: React.ReactNode;
+  quoted: Quoted; onQuoted: (q: Quoted) => void; check: CheckV; onCheck: (v: CheckV) => void; onLead: (l: ReviewRow["extracted"]) => void; onSaving: (v: boolean) => void; electrician: React.ReactNode; businessId: string;
 }) {
+  const uploadFiles = useUploadFiles(businessId);
+  const addFiles = useServerFn(addBulkRowFiles), dropFile = useServerFn(removeBulkRowFile);
+  const [cardFiles, setCardFiles] = useState(row.matched_files);
   const qc = useQueryClient();
   const save = useServerFn(setBulkRowAddress);
   const x = row.extracted;
@@ -486,7 +498,7 @@ function CustomerCard({ row, status, skipped, onSkip, consent, onConsent, quoted
           <div className="grid grid-cols-[minmax(0,1fr)_6rem] gap-2"><Field label="Suburb" value={f.suburb} onChange={set("suburb")} problem={null} /><Field label="Postcode" value={f.postcode} onChange={set("postcode")} problem={null} inputMode="numeric" /></div>
         </div>
         {prob.address && <p className="-mt-1 text-xs text-danger">{prob.address}</p>}
-        {showSecond ? <div className="rounded-[12px] bg-mist p-2"><p className="mb-1 text-xs font-semibold text-sub">Second contact (optional)</p><div className="grid gap-2 sm:grid-cols-3"><Field label="Name" value={second.name ?? ""} onChange={setS("name")} /><Field label="Phone" value={second.phone ?? ""} onChange={setS("phone")} inputMode="tel" /><Field label="Email" value={second.email ?? ""} onChange={setS("email")} type="email" /></div></div>
+        {showSecond ? <div className="rounded-[12px] bg-mist p-2"><p className="mb-1 text-xs font-semibold text-sub">Second contact</p><div className="grid gap-2 sm:grid-cols-3"><Field label="Name" value={second.name ?? ""} onChange={setS("name")} /><Field label="Phone" value={second.phone ?? ""} onChange={setS("phone")} inputMode="tel" /><Field label="Email" value={second.email ?? ""} onChange={setS("email")} type="email" /></div></div>
           : <button type="button" className="text-xs font-semibold text-hiv-blue" onClick={() => setShowSecond(true)}>+ Add a second contact</button>}
         {saveState !== "idle" && <p className="text-xs text-sub">{saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : <span className="text-danger">Not saved: {saveErr}</span>}</p>}
         <label className="flex items-start gap-2 text-sm"><Checkbox checked={consent} onCheckedChange={(c) => onConsent(!!c)} aria-label="Owner consent" className="mt-0.5" /><span>{CONTACT_PERMISSION_WORDING}</span></label>
@@ -501,10 +513,10 @@ function CustomerCard({ row, status, skipped, onSkip, consent, onConsent, quoted
             {check.check === "yes" && <Field label="Site check date (if known)" type="date" value={check.date ?? ""} onChange={(v) => onCheck({ check: "yes", date: v || null })} />}
           </>}
         </div>
+        <AttachFiles businessId={businessId} files={cardFiles} onAdd={async (f) => { const up = await uploadFiles(f); const r = await addFiles({ data: { rowId: row.id, files: up.map((x) => ({ path: x.path, name: x.name, type: x.type ?? "" })) } }); setCardFiles(r.files as typeof cardFiles); if (!check.check && r.files.some((m) => /\.(jpe?g|png|heic|heif|webp)$/i.test(m.name))) onCheck({ check: "yes", date: check.date }); await qc.invalidateQueries({ queryKey: ["bulk-review"] }); }} onRemove={async (path) => { const r = await dropFile({ data: { rowId: row.id, path } }); setCardFiles(r.files as typeof cardFiles); }} />
         {electrician}
         <ul className="space-y-0.5 text-xs text-sub">
           <li>Ceiling size: {x.area_m2 ? `${x.area_m2} m²` : "not given"}</li>
-          <li className="flex items-center gap-1"><Paperclip className="h-3 w-3 shrink-0" />Files: {row.matched_files.length ? `${row.matched_files.length} attached` : "none"}</li>
           {fileNote && <li>{fileNote}</li>}
           {row.sort_result === "office_review" && <li className="font-semibold text-danger">Held for the office to check{(row.sort_reasons ?? []).filter((r) => !/^(Stage|Site check|Missing|Customer details|Phone|Email|Postcode|Measurements|Small items)/.test(r) && r !== QUOTE_NEEDED_LABEL && r !== OUTSIDE_VIC_MESSAGE).slice(0, 1).map((r) => `: ${r}`)}</li>}
         </ul>
@@ -514,27 +526,3 @@ function CustomerCard({ row, status, skipped, onSkip, consent, onConsent, quoted
   );
 }
 
-type Choice = { businessId?: string; nominationId?: string; name: string; status: string; primary?: boolean; business?: string | null };
-function ElectricianChoice({ value, onChange, approved, pending, compact = false, add, draft, setDraft }: { value: ElectricianPlan; onChange: (v: ElectricianPlan) => void; approved: Choice[]; pending: Choice[]; compact?: boolean; add?: () => Promise<void>; draft?: { name: string; mobile: string; email: string; business: string }; setDraft?: (v: { name: string; mobile: string; email: string; business: string }) => void }) {
-  const [adding, setAdding] = useState(false);
-  const options = [...approved.map((x) => ({ ...x, key: `b:${x.businessId}` })), ...pending.map((x) => ({ ...x, key: `n:${x.nominationId}` }))];
-  const selected = value.business_id ? `b:${value.business_id}` : value.nomination_id ? `n:${value.nomination_id}` : "";
-  const pickFirst = () => {
-    const first = options[0];
-    if (first?.businessId) onChange({ mode: "mine", business_id: first.businessId });
-    else if (first?.nominationId) onChange({ mode: "mine", nomination_id: first.nominationId });
-    else onChange({ mode: "mine" });
-  };
-  const opt = (on: boolean) => cn("min-h-9 rounded-[9px] px-2 py-1 text-xs font-semibold leading-tight", on ? "bg-hiv-blue text-primary-foreground" : "text-sub hover:text-ink");
-  return <div className={compact ? "rounded-[12px] bg-mist p-2" : "rounded-[18px] border border-line bg-paper p-3 shadow-card"} data-electrician-choice>
-    <div className="mb-2 flex items-center gap-1.5 text-sm font-semibold"><Zap className="h-4 w-4 text-hiv-blue"/>{compact ? "Electrician" : "Who does the electrical safety check?"}</div>
-    <div role="group" aria-label="Electrician" className={cn("grid gap-1 rounded-[11px] bg-mist p-1", compact ? "grid-cols-2" : "grid-cols-3")}>
-      <button type="button" aria-pressed={value.mode === "mine"} className={opt(value.mode === "mine")} onClick={pickFirst}>My electrician</button>
-      <button type="button" aria-pressed={value.mode === "hivic"} className={opt(value.mode === "hivic")} onClick={() => onChange({ mode: "hivic" })}>Home Insulation Victoria</button>
-      {!compact && <button type="button" aria-pressed={value.mode === "job_by_job"} className={opt(value.mode === "job_by_job")} onClick={() => onChange({ mode: "job_by_job" })}>Job by job</button>}
-    </div>
-    {value.mode === "mine" && <div className="mt-2 flex gap-2"><select aria-label="My electrician" className="h-9 min-w-0 flex-1 rounded-[9px] border border-line bg-paper px-2 text-sm" value={selected} onChange={(e) => { const [k,id] = e.target.value.split(":"); if (!id) return; onChange(k === "b" ? { mode: "mine", business_id: id } : { mode: "mine", nomination_id: id }); }}><option value="">Choose your electrician</option>{options.map((x) => <option key={x.key} value={x.key}>{x.name} · {x.status}</option>)}</select>{!compact && <SmallButton className="h-9" onClick={() => setAdding(!adding)}>+ Add</SmallButton>}</div>}
-    {adding && draft && setDraft && add && <div className="mt-2 grid gap-2 sm:grid-cols-2"><Field label="Name" value={draft.name} onChange={(v) => setDraft({ ...draft, name: v })}/><Field label="Mobile" value={draft.mobile} onChange={(v) => setDraft({ ...draft, mobile: v })} inputMode="tel"/><Field label="Business name (if any)" value={draft.business} onChange={(v) => setDraft({ ...draft, business: v })}/><Field label="Email (if you have it)" value={draft.email} onChange={(v) => setDraft({ ...draft, email: v })}/><PrimaryButton className="sm:col-span-2" disabled={draft.name.trim().length < 2 || draft.mobile.replace(/\D/g, "").length < 8} onClick={add}>Save electrician</PrimaryButton></div>}
-    {!compact && value.mode === "job_by_job" && <p className="mt-1.5 text-xs text-sub">Choose on each customer below.</p>}
-  </div>;
-}

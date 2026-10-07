@@ -10,6 +10,7 @@ import { ArrowLeft, Check, HeartPulse, Phone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { TradeShell } from "@/components/trade/TradeShell";
 import { NowPanel, btnClass } from "@/components/portal/kit";
+import { JobElectricianCard } from "@/components/trade/job-intake";
 
 /** Heading: street and suburb only (no state/postcode). */
 const streetAndSuburb = (a?: string | null) => (a ?? "").replace(/,?\s*(VIC|Victoria)\b.*$/i, "").replace(/\s+\d{4}\s*$/, "").trim();
@@ -73,6 +74,7 @@ function FieldJob() {
           {maps && job.owner_name && <a href={maps} target="_blank" rel="noreferrer" className={btnClass("secondary")}>Directions</a>}
         </div>} />
       {role === "installer" && <PartnerInstallerFactsCard jobId={jobId} />}
+      {role === "installer" && <JobElectricianCard jobId={jobId} />}
       <div><BlockersPanel jobId={jobId} quietWhenClear partner /></div>
       <div className="space-y-4">
         {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} expired={!!job.piesa_expired} />}
