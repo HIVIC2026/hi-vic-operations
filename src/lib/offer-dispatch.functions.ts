@@ -12,7 +12,7 @@ export const getDispatchSettings = createServerFn({ method: "GET" }).middleware(
   .handler(async ({ context }) => {
     await requireAdmin(context.supabase);
     const { dispatchMode } = await import("./offer-dispatch.server");
-    const { offerSuggestHours } = await import("./trade-view.server");
+    const { offerSuggestHours } = await import("./offer-dispatch.server");
     return { mode: await dispatchMode(), suggestHours: await offerSuggestHours() };
   });
 

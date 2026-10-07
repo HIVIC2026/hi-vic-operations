@@ -83,7 +83,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
       all("timed offers", (a, b) => admin.from("partner_offers").select("id, job_id, kind, status, offered_at").in("kind", ["ready_check", "piesa"]).in("job_id", tIds).range(a, b)),
       all("trade assignments", (a, b) => admin.from("job_assignments").select("job_id, role").eq("active", true).in("job_id", tIds).range(a, b)),
       (await import("./offer-dispatch.server")).dispatchMode(),
-      (await import("./trade-view.server")).offerSuggestHours(),
+      (await import("./offer-dispatch.server")).offerSuggestHours(),
     ]);
     const { officePicks, needsChooseTrades } = await import("./offer-dispatch.core");
     const { offersWithNoTaker } = await import("./offer-timing.core");

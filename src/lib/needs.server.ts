@@ -43,7 +43,7 @@ export async function loadNeedsHivic() {
   });
   const [{ data: tOff }, { offersWithNoTaker }, { offerSuggestHours }] = await Promise.all([
     admin.from("partner_offers").select("id, job_id, kind, status, offered_at").in("kind", ["ready_check", "piesa"]).gte("offered_at", new Date(Date.now() - 30 * 86_400_000).toISOString()),
-    import("./offer-timing.core"), import("./trade-view.server"),
+    import("./offer-timing.core"), import("./offer-dispatch.server"),
   ]);
   const offerNoTaker = offersWithNoTaker(tOff ?? [], await offerSuggestHours());
   // Office picks first: jobs ready for an offer with nothing out yet.
