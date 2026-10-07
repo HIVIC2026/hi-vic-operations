@@ -293,7 +293,7 @@ function PartnerLogin({ applicationId, defaultEmail, autoResult }: { application
   return (
     <div className="rounded border p-2" data-testid="partner-login">
       <div className="font-semibold">Login link</div>
-      <p className="text-xs text-muted-foreground">Emails a one-time link to set their password (works once, expires after 1 hour). Recorded on this record.</p>
+      <p className="text-xs text-muted-foreground">Emails a one-time link to set their password (works once, expires after 24 hours). Recorded on this record.</p>
       <div className="mt-2 flex flex-wrap gap-2">
         <input aria-label="Login email" className="h-9 min-w-0 flex-1 rounded border px-2" value={email} onChange={(e) => setEmail(e.target.value)} />
         <Button size="sm" disabled={busy} onClick={async () => { setBusy(true); const r = await send({ applicationId, email }); setBusy(false); if (r) { setLink(r.link); setResult(r.status === "sent" ? { ok: true, text: `Login link sent to ${r.to}` } : { ok: false, text: `Not sent: ${r.detail}` }); } }}>{busy ? "Sending…" : autoResult || result ? "Send a new login link" : "Send login link"}</Button>
