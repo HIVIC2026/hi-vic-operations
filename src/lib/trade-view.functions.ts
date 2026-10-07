@@ -58,3 +58,7 @@ export const sendTradeChangeRequest = createServerFn({ method: "POST" }).middlew
 export const testSetPasswordLink = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ base: z.string().url().max(200) }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeTestSetPasswordLink(context.userId, data.base));
+
+export const requestTeamLoginInvite = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ workerId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeRequestLoginInvite(context.userId, data.workerId));
