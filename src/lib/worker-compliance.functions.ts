@@ -15,15 +15,15 @@ async function canEditWorker(sb: { from: (t: string) => any }, userId: string, w
   const { data: w } = await admin.from("partner_workers").select(COLS).eq("id", workerId).is("removed_at", null).maybeSingle();
   if (!w) throw new Error("That team member wasn't found.");
   if (w.profile_id === userId) return { admin, w };
-  const { data: m } = await sb.from("business_members").select("business_id").eq("user_id", userId).eq("business_id", w.business_id).eq("active", true).maybeSingle();
-  if (!m) throw new Error("You can only update your own team.");
+  const { data: m } = await sb.from("business_members").select("business_id, member_role").eq("user_id", userId).eq("business_id", w.business_id).eq("active", true).maybeSingle();
+  if (!m || m.member_role !== "business_admin") throw new Error("Only the business owner can update other team members.");
   return { admin, w };
 }
 
 export const myTeamCompliance = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data: mem } = await context.supabase.from("business_members").select("business_id").eq("user_id", context.userId).eq("active", true);
-    const ids = (mem ?? []).map((m) => m.business_id);
+    const { data: mem } = await context.supabase.from("business_members").select("business_id, member_role").eq("user_id", context.userId).eq("active", true);
+    const ids = (mem ?? []).filter((m) => m.member_role === "business_admin").map((m) => m.business_id); // staff see only their own record
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const q = admin.from("partner_workers").select(COLS).is("removed_at", null);
     const { data } = ids.length ? await q.or(`business_id.in.(${ids.join(",")}),profile_id.eq.${context.userId}`) : await q.eq("profile_id", context.userId);
