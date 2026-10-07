@@ -148,7 +148,7 @@ export async function sendDailyTextTest(businessId: string, date: string) {
 }
 
 /** Office view: texts for a job or a partner. */
-export async function listTradeTexts(f: { jobId?: string; businessId?: string }) {
+export async function listTradeTexts(f: { jobId?: string | undefined; businessId?: string | undefined }) {
   let q = db.from("trade_text_log").select("id, kind, melbourne_date, status, detail, body, to_number, created_at, businesses(name)").order("created_at", { ascending: false }).limit(50);
   if (f.jobId) q = q.contains("job_ids", [f.jobId]);
   if (f.businessId) q = q.eq("business_id", f.businessId);
