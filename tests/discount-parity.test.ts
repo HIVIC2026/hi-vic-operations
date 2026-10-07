@@ -28,5 +28,6 @@ test("office and bulk builders use the shared whole-VEEC helper, not the flat pe
   const gen = q.slice(q.indexOf("export async function generateInstallerQuotes"), q.indexOf("export async function deriveRectificationItems"));
   expect(gen).toContain("wholeVeecDiscount(");
   expect(gen).not.toContain("veec_credit_per_m2_inc_gst");
-  expect(readFileSync(new URL("../src/lib/bulk-import.server.ts", import.meta.url), "utf8")).toContain("wholeVeecDiscount(");
+  // Bulk uploads no longer build owner quotes (Jo 7 Oct); their owner estimate uses the shared estimate path.
+  expect(readFileSync(new URL("../src/lib/bulk-import.server.ts", import.meta.url), "utf8")).toContain("refreshIndicativeEstimate(");
 });
