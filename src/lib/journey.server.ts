@@ -293,9 +293,9 @@ const s5: StepFn = async (ctx, r) => {
   const { data: q } = await admin.from("quotes").select("id, version, customer_total_inc_gst").eq("id", ctx.quoteId!).single();
   const total = `$${Number(q!.customer_total_inc_gst).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   check(r, "acceptance line shows the real version and inc-GST price", line!.text.includes(`version ${q!.version}, ${total} inc GST`) && !line!.text.includes("—"), line!.text.slice(0, 90));
-  if ((await stageOf(ctx)) !== "awaiting_quote_acceptance") {
+  if ((await stageOf(ctx)) === "ready_check_complete") {
     const { transition } = await import("./workflow.server");
-    await act(r, "quote released to the owner (awaiting acceptance)", () => transition(ctx.jobId!, "awaiting_quote_acceptance", ctx.actorId, "TEST journey: quote released"));
+    await act(r, "measured quote ready for the owner", () => transition(ctx.jobId!, "measured_estimate_ready", ctx.actorId, "TEST journey: measured quote ready"));
   }
   await ownerSignGates(ctx, r, ["B"]);
   const { respondToQuoteImpl } = await import("./portal.functions");
