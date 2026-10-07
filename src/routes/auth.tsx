@@ -30,8 +30,8 @@ function AuthPage() {
   const [sent, setSent] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => { if (data.session) navigate({ to: "/home" }); });
-    const { data } = supabase.auth.onAuthStateChange((e, s) => { if (s && e !== "PASSWORD_RECOVERY") navigate({ to: "/home" }); });
+    supabase.auth.getSession().then(({ data }) => { if (data.session) navigate({ to: "/portal" }); });
+    const { data } = supabase.auth.onAuthStateChange((e, s) => { if (s && e !== "PASSWORD_RECOVERY") navigate({ to: "/portal" }); });
     return () => data.subscription.unsubscribe();
   }, [navigate]);
 
@@ -47,7 +47,7 @@ function AuthPage() {
   const forgot = async () => {
     if (!needEmail()) return;
     setBusy(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/reset-password` });
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/reset-password?next=/portal` });
     setBusy(false);
     if (error) toast.error("We couldn't send the reset email. Please try again."); else setSent("We've emailed you a link to set a new password.");
   };

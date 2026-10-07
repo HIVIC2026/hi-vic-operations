@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { afterPasswordPath } from "@/lib/set-password-link.core";
 import { TradePublicShell, card, greenBtn, inputCls } from "@/components/trade/TradeShell";
 
 export const Route = createFileRoute("/reset-password")({
@@ -25,8 +26,9 @@ function ResetPassword() {
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     const th = q.get("token_hash");
-    if (th && q.get("type") === "recovery") {
-      void supabase.auth.verifyOtp({ token_hash: th, type: "recovery" }).then(({ data: v, error }) => {
+    const kind = q.get("type");
+    if (th && (kind === "recovery" || kind === "invite")) {
+      void supabase.auth.verifyOtp({ token_hash: th, type: kind }).then(({ data: v, error }) => {
         if (error || !v.session) { setFailed(true); return; }
         q.delete("token_hash"); q.delete("type");
         window.history.replaceState(null, "", `${window.location.pathname}?${q.toString()}`);
@@ -46,7 +48,7 @@ function ResetPassword() {
     setBusy(false);
     if (error) { toast.error("We couldn't save that password. Try a different one."); return; }
     toast.success("Password set — you're signed in.");
-    navigate({ to: (((n) => n === "/field/welcome" ? n : n === "/field/setup" || n === "/partner" ? "/field/welcome" : "/home")(new URLSearchParams(window.location.search).get("next"))) as never, replace: true });
+    navigate({ to: afterPasswordPath(new URLSearchParams(window.location.search).get("next")), replace: true });
   };
   return (
     <TradePublicShell>
