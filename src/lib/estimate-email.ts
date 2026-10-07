@@ -449,9 +449,8 @@ export function renderLaunchGroupEmail(input: LaunchCampaignEmailInput): Estimat
     amountPayableNow: 0, estimatedRemainingBalance: input.estimatedTotal,
     firstName: input.firstName ?? null, address: input.address ?? null, reference: input.reference ?? null,
     existingInsulationPresent: input.insulation === "present",
-    ...(input.installation === undefined ? {} : { installationPrice: input.installation }),
-    ...(input.assessmentFee === undefined ? {} : { assessmentFee: input.assessmentFee }),
-    ...(input.apFee === undefined ? {} : { apFee: input.apFee }),
+    assessmentFee: input.assessmentFee ?? 349, apFee: input.apFee ?? 349,
+    installationPrice: input.installation ?? input.grossTotal - (input.assessmentFee ?? 349) - (input.apFee ?? 349),
   });
 }
 

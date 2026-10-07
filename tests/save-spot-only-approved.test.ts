@@ -19,7 +19,7 @@ describe("Save my spot uses only the approved email (Jo, 7 Oct 12:52)", () => {
     const got = renderLaunchGroupEmail({ ...base, group: "likely" });
     const want = renderSaveSpotFromLikelyEmail({ estimateUrl: campaignUrl.replace(/\/campaign$/, ""), outcome: "likely", apCount: 2, campaignUrl, campaignOptOutUrl: unsubscribeUrl,
       estimatedTotal: 3379, veuDiscount: 1470, grossProjectTotal: 4849, areaM2: 150, amountPayableNow: 0, estimatedRemainingBalance: 3379,
-      firstName: "Sarah", address: base.address, reference: "HV-1", existingInsulationPresent: false });
+      firstName: "Sarah", address: base.address, reference: "HV-1", existingInsulationPresent: false, assessmentFee: 349, apFee: 349, installationPrice: 4151 });
     expect(got.html).toBe(want.html);
     expect(got.plainText).toBe(want.plainText);
   });
