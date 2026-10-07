@@ -24,7 +24,18 @@ function ResetPassword() {
   const [pw, setPw] = useState("");
   const [pw2, setPw2] = useState("");
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
   useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const th = q.get("token_hash");
+    if (th && q.get("type") === "recovery") {
+      void supabase.auth.verifyOtp({ token_hash: th, type: "recovery" }).then(({ data: v, error }) => {
+        if (error || !v.session) { setFailed(true); return; }
+        q.delete("token_hash"); q.delete("type");
+        window.history.replaceState(null, "", `${window.location.pathname}?${q.toString()}`);
+        setReady(true);
+      });
+    }
     const { data } = supabase.auth.onAuthStateChange((e, s) => { if (s && (e === "PASSWORD_RECOVERY" || e === "SIGNED_IN")) setReady(true); });
     supabase.auth.getSession().then(({ data: d }) => { if (d.session) setReady(true); });
     return () => data.subscription.unsubscribe();
@@ -45,7 +56,7 @@ function ResetPassword() {
       <div className="w-full max-w-sm rounded-[22px] border bg-card p-6 shadow-sm">
         <img src={logo.url} alt="Home Insulation Victoria" className="mx-auto h-14 w-auto" />
         <h1 className="mt-4 text-center font-display text-xl font-bold">Set your password</h1>
-        {!ready ? <p className="mt-4 text-center text-sm text-muted-foreground">Opening your secure link… If nothing happens, ask for a new link from the sign-in page.</p> : (
+        {failed ? <p role="alert" className="mt-4 text-center text-sm">This link has expired or was already used. Ask Home Insulation Victoria for a new one.</p> : !ready ? <p className="mt-4 text-center text-sm text-muted-foreground">Opening your secure link…</p> : (
           <form onSubmit={save} className="mt-4 space-y-3">
             <div><Label htmlFor="p1">New password</Label><Input id="p1" type="password" autoComplete="new-password" className="h-12" value={pw} onChange={(e) => setPw(e.target.value)} /></div>
             <div><Label htmlFor="p2">Type it again</Label><Input id="p2" type="password" autoComplete="new-password" className="h-12" value={pw2} onChange={(e) => setPw2(e.target.value)} /></div>

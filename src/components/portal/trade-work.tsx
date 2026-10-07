@@ -72,7 +72,7 @@ export function TradeTabs({ installer }: { installer: boolean }) {
       {tab("/field", "Work", Briefcase, path === "/field" || path.startsWith("/field/"))}
       {installer && boss && access?.installerBusinessAdmin !== false && tab("/partner/bulk-import", "Upload jobs", PlusCircle, path.startsWith("/partner/add") || path.startsWith("/partner/import") || path.startsWith("/partner/bulk"))}
       {boss && tab("/partner/payments", "Money", Wallet, path.startsWith("/partner/payments"))}
-      {boss && tab("/partner/profile", "My business", Building2, path.startsWith("/partner/profile") || path.startsWith("/partner/workers"))}
+      {boss && tab("/field/business", "My business", Building2, path.startsWith("/partner/profile") || path.startsWith("/partner/workers"))}
     </nav>
   );
 }

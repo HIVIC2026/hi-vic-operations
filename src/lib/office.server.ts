@@ -188,7 +188,9 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
       needs: { parked: status?.stage === "waiting_list", id, jobNumber, suburb: prop?.suburb ?? null, owner: null, stage, status, statusCount: status ? 1 : 0, lastActivityAt: s(j["last_activity_at"]), nextAction: s(j["next_action"]), installDeadline: facts.installDeadline ?? null, installStarted: installStarted.has(id) || !!facts.installedAt, holdRevisitAt: facts.holdRevisitAt ?? null, failures: fails.get(id) ?? [], tradeChoice: tradeChoice.get(id) ?? null, offerChoice: offerChoice.get(id) ?? null },
     };
   });
+  const changeReqs = opts.onlyIds ? [] : await all("partner change requests", (a, b) => (admin as unknown as { from: (t: string) => any }).from("partner_change_requests").select("id, kind, message, created_at, businesses(name)").eq("status", "open").range(a, b)); // eslint-disable-line @typescript-eslint/no-explicit-any
   const partners: PartnerItem[] = [
+    ...changeReqs.map((c) => ({ key: `chg:${c["id"]}`, title: `${(c["businesses"] as { name?: string } | null)?.name ?? "Partner"} asks to change ${c["kind"] === "rates" ? "their rates" : c["kind"] === "details" ? "their details" : c["kind"]}`, why: String(c["message"]).slice(0, 140), dueAt: null, href: "/admin/partners" })),
     ...apps.filter((a) => !String(a["source"] ?? "").endsWith("_test")).map((a) => ({ key: `app:${a["id"]}`, title: `New application: ${a["name"]}`, why: "Application ready to review", dueAt: null, href: "/admin/partners" })),
     ...creds.map((c) => ({ key: `cred:${c["id"]}`, title: `${(c["businesses"] as { name?: string } | null)?.name ?? "Partner"}: ${c["label"] ?? c["kind"]} expiring`, why: `Expires ${c["expires_at"]}`, dueAt: String(c["expires_at"]), href: "/admin/businesses" })),
   ];

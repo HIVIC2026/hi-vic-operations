@@ -28,7 +28,7 @@ function Welcome() {
     mitti: "Download Mitti and sign in with this email. Your forms open from each job page.",
     team: installer ? "Optional. Invite your installers so they see their jobs." : "Optional. Invite your sparkies so they see their jobs.",
   };
-  const link: Partial<Record<SetupKey, string>> = { bank: "/partner/profile", team: "/partner/workers" };
+  const link: Partial<Record<SetupKey, string>> = { bank: "/field/business/bank", team: "/field/business/team" };
   if (stage === "approved") return (
     <TradeShell installer={installer} boss>
       <section className="rounded-[22px] bg-estimate-green p-6 text-white"><p className="font-display text-3xl font-extrabold">You're approved</p><p className="mt-1 text-sm font-semibold">{data.business} is ready to take {installer ? "Ready Checks and installs" : "safety checks"} from Home Insulation Victoria.</p></section>

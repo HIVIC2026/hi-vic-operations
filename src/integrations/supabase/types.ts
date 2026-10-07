@@ -6961,6 +6961,53 @@ export type Database = {
           },
         ]
       }
+      partner_change_requests: {
+        Row: {
+          business_id: string
+          created_at: string
+          id: string
+          kind: string
+          message: string
+          office_note: string | null
+          requested_by: string
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          id?: string
+          kind: string
+          message: string
+          office_note?: string | null
+          requested_by: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          message?: string
+          office_note?: string | null
+          requested_by?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_change_requests_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       partner_enquiries: {
         Row: {
           approved_at: string | null
