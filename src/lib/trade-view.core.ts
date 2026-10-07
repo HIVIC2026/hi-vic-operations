@@ -10,16 +10,16 @@ export function tradeGreeting(firstName: string | null, jobsThisWeek: number): {
   return { title, sub: `${jobsThisWeek} job${jobsThisWeek === 1 ? "" : "s"} booked this week.` };
 }
 
-/** Pink countdown pill: "Gone in 3h 20m". */
+/** Pink countdown pill: "Closes in 3h 20m". */
 export function goneIn(expiresAt: string | null, now = Date.now()): string | null {
   if (!expiresAt) return null;
   const ms = new Date(expiresAt).getTime() - now;
   if (ms <= 0) return "Closing now";
   const m = Math.round(ms / 60000);
-  if (m < 60) return `Gone in ${m} min`;
+  if (m < 60) return `Closes in ${m} min`;
   const h = Math.floor(m / 60), r = m % 60;
-  if (h < 48) return `Gone in ${h}h${r ? ` ${r}m` : ""}`;
-  return `Gone in ${Math.floor(h / 24)} days`;
+  if (h < 48) return `Closes in ${h}h${r ? ` ${r}m` : ""}`;
+  return `Closes in ${Math.floor(h / 24)} days`;
 }
 
 /** Distance line. Google Maps drive time is not connected yet, so postcode distance is shown honestly. */

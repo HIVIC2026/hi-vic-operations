@@ -296,7 +296,7 @@ function BulkImportPage() {
       setLocalReads(reads);
       if (rawRows.length === 0 && documents.length === 0 && manifest.length === 0) { toast.error("None of these files could be read — see the list below."); return; }
       setProgress("Finding customers…");
-      const res = await createBatch({ data: { ...base, listFilename: `${extraFiles.length} files`, rawRows, documents, manifest, fileReads: reads, permissionConfirmed: true } });
+      const res = await createBatch({ data: { ...base, listFilename: `${extraFiles.length} file${extraFiles.length === 1 ? "" : "s"}`, rawRows, documents, manifest, fileReads: reads, permissionConfirmed: true } });
       setBatchId(res.batchId);
       if (res.summary.rows > 0) toast.success(`${res.summary.rows} jobs found — please review below.`);
       else toast.warning("No customers found yet — see what we read from each file below.");

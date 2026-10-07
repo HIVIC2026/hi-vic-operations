@@ -16,8 +16,8 @@ describe("trade view presentation", () => {
   });
   test("countdown and distance", () => {
     const now = Date.parse("2026-10-06T00:00:00Z");
-    expect(goneIn("2026-10-06T03:20:00Z", now)).toBe("Gone in 3h 20m");
-    expect(goneIn("2026-10-06T00:40:00Z", now)).toBe("Gone in 40 min");
+    expect(goneIn("2026-10-06T03:20:00Z", now)).toBe("Closes in 3h 20m");
+    expect(goneIn("2026-10-06T00:40:00Z", now)).toBe("Closes in 40 min");
     expect(goneIn("2026-10-05T00:00:00Z", now)).toBe("Closing now");
     expect(distanceLine(14.4)).toBe("About 14 km away");
     expect(distanceLine(null)).toBe("Nearby");

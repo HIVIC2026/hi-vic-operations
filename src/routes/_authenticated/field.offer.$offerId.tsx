@@ -44,7 +44,7 @@ function OfferPage() {
         {took && <section className="rounded-[22px] bg-estimate-green p-5 text-white shadow-sm">
           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-estimate-green"><Check className="h-6 w-6" /></span>
           <p className="mt-2 font-display text-[32px] font-extrabold leading-tight">Job accepted</p>
-          <p className="text-sm font-semibold">Oooft, that was fast clicking.</p>
+          <p className="text-sm font-semibold">You have this job.</p>
           <p className="mt-2 text-sm font-bold">{t.day} · {t.window}</p>
         </section>}
         <section className="rounded-[22px] bg-estimate-navy p-5 text-estimate-canvas">

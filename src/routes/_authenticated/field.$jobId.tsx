@@ -71,7 +71,7 @@ function FieldJob() {
         </div>
       </div>
       {role === "installer" && <PartnerInstallerFactsCard jobId={jobId} />}
-      <div><BlockersPanel jobId={jobId} quietWhenClear /></div>
+      <div><BlockersPanel jobId={jobId} quietWhenClear partner /></div>
       <div className="space-y-4">
         {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} expired={!!job.piesa_expired} />}
         {role === "installer" && <InstallerJourney jobId={jobId} />}
