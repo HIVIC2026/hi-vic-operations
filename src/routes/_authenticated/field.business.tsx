@@ -25,19 +25,19 @@ function Business() {
   const installer = data.kind === "installer";
   const lic = expiryPill(data.licenceExpires), liab = expiryPill(data.liabilityExpires);
   const alert = [!installer && lic.days != null && lic.days <= 30 ? { doc: "Your electrical licence", d: lic.days } : null, liab.days != null && liab.days <= 30 ? { doc: "Your public liability", d: liab.days } : null].filter(Boolean)[0] as { doc: string; d: number } | undefined;
-  const pill = (label: string, warn: boolean) => <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${warn ? "bg-owner-house-pink" : "bg-estimate-green-soft text-estimate-green"}`}>{label}</span>;
+  const pill = (label: string, warn: boolean) => <span className={`rounded-[18px] px-2.5 py-0.5 text-[11px] font-semibold ${warn ? "bg-owner-house-pink" : "bg-estimate-green-soft text-estimate-green"}`}>{label}</span>;
   const signOut = async () => { await qc.cancelQueries(); qc.clear(); await supabase.auth.signOut(); navigate({ to: "/auth", replace: true }); };
   return (
     <TradeShell installer={installer} boss={data.boss}>
-      <div><h1 className="font-display text-3xl font-extrabold">My business</h1><p className="text-sm">{data.name}</p></div>
+      <div><h1 className="font-display text-[26px] font-bold leading-tight">My business</h1><p className="text-sm">{data.name}</p></div>
       <section className={`${card} flex items-center justify-between gap-3`}>
-        <span><span className="block font-bold">Taking new jobs</span><span className="block text-sm text-estimate-navy/70">{data.taking ? "On. New job offers come straight to you." : "Paused, no new offers until you switch back on"}</span></span>
+        <span><span className="block font-bold">Taking new jobs</span><span className="block text-sm text-sub">{data.taking ? "On. New job offers come straight to you." : "Paused, no new offers until you switch back on"}</span></span>
         <button type="button" role="switch" aria-checked={data.taking} aria-label="Taking new jobs" disabled={busy || !data.boss} onClick={async () => { setBusy(true); try { await setTaking({ data: { taking: !data.taking } }); await refetch(); } finally { setBusy(false); } }} className={`relative h-8 w-14 shrink-0 rounded-full ${data.taking ? "bg-estimate-green" : "bg-estimate-line"}`}><span className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow transition-all ${data.taking ? "left-7" : "left-1"}`} /></button>
       </section>
-      {alert && <section className="rounded-[22px] bg-owner-house-pink p-5"><p className="font-bold">{alert.doc} runs out in {alert.d} days. Upload the renewed certificate to keep receiving job offers</p><Link to="/field/business/insurance" className="mt-3 flex h-12 w-full items-center justify-center rounded-full bg-estimate-navy font-bold text-estimate-canvas">Upload</Link></section>}
+      {alert && <section className="rounded-[18px] bg-owner-house-pink p-5"><p className="font-bold">{alert.doc} runs out in {alert.d} days. Upload the renewed certificate to keep receiving job offers</p><Link to="/field/business/insurance" className="mt-3 flex h-12 w-full items-center justify-center rounded-[10px] bg-estimate-navy font-bold text-estimate-canvas">Upload</Link></section>}
       <section>
-        <h2 className="mb-2 font-display text-lg font-extrabold">Your business file</h2>
-        <ul className="divide-y divide-estimate-line overflow-hidden rounded-[22px] bg-card shadow-sm">
+        <h2 className="mb-2 font-display text-lg font-bold">Your business file</h2>
+        <ul className="divide-y divide-line overflow-hidden rounded-[18px] border border-line bg-paper shadow-card">
           {([
             ["/field/business/details", "Business details", data.area],
             ["/field/business/insurance", "Insurance & licences", null, !installer ? lic : liab],
@@ -46,7 +46,7 @@ function Business() {
             ["/field/business/agreement", "Your agreement", data.agreementSigned ? "Signed" : "To sign"],
             ["/field/business/rates", "Your rates", installer || data.rate != null ? "Agreed" : "To confirm"],
           ] as [string, string, string | null, ReturnType<typeof expiryPill>?][]).map(([to, label, sub, p]) => (
-            <li key={to}><Link to={to as never} className="flex min-h-14 items-center justify-between gap-3 p-4"><span><span className="block font-bold">{label}</span>{sub && <span className="block text-sm text-estimate-navy/70">{sub}</span>}</span><span className="flex items-center gap-2">{p && pill(p.label, p.warn)}<ChevronRight className="h-5 w-5 text-estimate-navy/50" /></span></Link></li>
+            <li key={to}><Link to={to as never} className="flex min-h-14 items-center justify-between gap-3 p-4"><span><span className="block font-bold">{label}</span>{sub && <span className="block text-sm text-sub">{sub}</span>}</span><span className="flex items-center gap-2">{p && pill(p.label, p.warn)}<ChevronRight className="h-5 w-5 text-estimate-navy/50" /></span></Link></li>
           ))}
         </ul>
       </section>

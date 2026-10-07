@@ -72,7 +72,7 @@ function WorkerJob() {
       </div>
 
       <div className="mb-4 rounded-xl border bg-card p-4">
-        <h2 className="mb-1 font-semibold">Messages (optional)</h2>
+        <h2 className="mb-1 font-semibold">Messages</h2>
         <p className="mb-3 text-xs text-muted-foreground">You can call or text the owner directly, or message here. Your company and Home Insulation Victoria can see this conversation. Use these contact details only to arrange and complete this Home Insulation Victoria job. Do not use them for unrelated marketing or future work unless the owner separately agrees.</p>
         <div className="max-h-96 space-y-2 overflow-y-auto">
           {data.messages.map((m) => (

@@ -6,9 +6,9 @@ export const Route = createFileRoute("/_authenticated/field/business_/rates")({
   component: () => (
     <BizPage title="Your rates" intro="What we pay you, as agreed. Inc GST.">
       {(d, refetch) => (<>
-        {d.rates.length === 0 ? <p className="rounded-[22px] bg-card p-5 shadow-sm">Your rates are still being confirmed with the office.</p> : (
-          <ul className="divide-y divide-estimate-line overflow-hidden rounded-[22px] bg-card shadow-sm">
-            {d.rates.map((r, i) => <li key={r.label + i} className="flex items-center justify-between gap-3 p-4"><span className="font-bold">{r.label}</span><span className="shrink-0 text-right font-display font-extrabold">{aud2(r.inc_gst)}<span className="block text-xs font-semibold text-estimate-navy/60">per {r.unit.replace(/^per /, "")}</span></span></li>)}
+        {d.rates.length === 0 ? <p className="rounded-[18px] border border-line bg-paper p-[19px] shadow-card">Your rates are still being confirmed with the office.</p> : (
+          <ul className="divide-y divide-line overflow-hidden rounded-[18px] border border-line bg-paper shadow-card">
+            {d.rates.map((r, i) => <li key={r.label + i} className="flex items-center justify-between gap-3 p-4"><span className="font-bold">{r.label}</span><span className="shrink-0 text-right font-display font-extrabold">{aud2(r.inc_gst)}<span className="block text-xs font-semibold text-sub">per {r.unit.replace(/^per /, "")}</span></span></li>)}
           </ul>
         )}
         <AskToChange kind="rates" label="Request a rate change" placeholder="Which rate, and what you'd like it to be (inc GST)" open={d.openRequests} onSent={refetch} />

@@ -37,20 +37,20 @@ function Docs({ d, onDone }: { d: Parameters<Parameters<typeof BizPage>[0]["chil
     } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
   };
   return (<>
-    <ul className="divide-y divide-estimate-line overflow-hidden rounded-[22px] bg-card shadow-sm">
+    <ul className="divide-y divide-line overflow-hidden rounded-[18px] border border-line bg-paper shadow-card">
       {d.credentials.length === 0 && <li className="p-4 text-sm">Nothing on file yet.</li>}
       {d.credentials.map((c) => { const p = expiryPill(c.expires); return (
         <li key={c.id} className="flex items-center justify-between gap-3 p-4">
-          <span><span className="block font-bold capitalize">{c.label}</span><span className="block text-xs text-estimate-navy/70">{c.verified ? "Checked by the office" : "Waiting for the office to check"}</span></span>
+          <span><span className="block font-bold capitalize">{c.label}</span><span className="block text-xs text-sub">{c.verified ? "Checked by the office" : "Waiting for the office to check"}</span></span>
           <span className="flex shrink-0 flex-col items-end gap-1">
-            <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${p.warn ? "bg-owner-house-pink" : "bg-estimate-green-soft text-estimate-green"}`}>{p.label}</span>
+            <span className={`rounded-[18px] px-2.5 py-0.5 text-[11px] font-semibold ${p.warn ? "bg-owner-house-pink" : "bg-estimate-green-soft text-estimate-green"}`}>{p.label}</span>
             {c.hasFile && <button type="button" className="text-xs font-bold text-estimate-blue" onClick={async () => { const r = await open({ data: { businessId: d.businessId, path: c.path! } }); openFileViewer(r.url); }}>View</button>}
           </span>
         </li>
       ); })}
     </ul>
     {!show ? <button type="button" className={navyBtn} onClick={() => setShow(true)}>Upload a renewed certificate</button> : (
-      <div className="space-y-3 rounded-[22px] bg-card p-5 shadow-sm">
+      <div className="space-y-3 rounded-[18px] border border-line bg-paper p-[19px] shadow-card">
         <label className="block text-sm font-bold">Which one<select className={field} value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>{KINDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
         <label className="block text-sm font-bold">New expiry date<input type="date" className={field} value={expires} onChange={(e) => setExpires(e.target.value)} /></label>
         <label className="block text-sm font-bold">Certificate (PDF or photo)<input type="file" accept="application/pdf,image/*" className="mt-1 block w-full text-sm" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></label>

@@ -52,7 +52,7 @@ function ResetPassword() {
   };
   return (
     <TradePublicShell>
-      <h1 className="font-display text-3xl font-extrabold">Set your password</h1>
+      <h1 className="font-display text-[26px] font-bold leading-tight">Set your password</h1>
       {failed ? <p role="alert" className={card}>This link has expired or was already used. Ask Home Insulation Victoria for a new one.</p> : !ready ? <p className={card}>Opening your secure link…</p> : (
         <form onSubmit={save} className={`${card} space-y-3`}>
           <p>Choose a password of at least 8 characters. You'll use it with your email to sign in.</p>

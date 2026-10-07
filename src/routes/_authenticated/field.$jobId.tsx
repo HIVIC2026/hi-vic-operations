@@ -9,13 +9,17 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Check, HeartPulse, Phone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { TradeShell } from "@/components/trade/TradeShell";
+import { NowPanel, btnClass } from "@/components/portal/kit";
+
+/** Heading: street and suburb only (no state/postcode). */
+const streetAndSuburb = (a?: string | null) => (a ?? "").replace(/,?\s*(VIC|Victoria)\b.*$/i, "").replace(/\s+\d{4}\s*$/, "").trim();
 import { PartnerInstallerFactsCard } from "@/components/portal/installer-job-facts";
 import { tradeTask } from "@/lib/trade-work.core";
 import { ClearTimeline, WhoHasTheBall } from "@/components/portal/waiting";
 import { WorkerLinksPanel } from "@/components/portal/workers";
 import { OwnerEligibilityPanel } from "@/components/portal/owner-eligibility";
 import { BlockersPanel, BookingPanel, EvidencePanel, MessagesPanel, useJob } from "@/components/portal/panels";
-import { Button, Section } from "@/components/trade/trade-ui";
+import { Button, Section, YesNo } from "@/components/trade/trade-ui";
 import { MittiCard, MittiSyncedFields } from "@/components/portal/mitti";
 import { useServerFn } from "@tanstack/react-start";
 import { getMyMittiInvited } from "@/lib/trade-view.functions";
@@ -45,8 +49,8 @@ function FieldJob() {
   const { jobId } = Route.useParams();
   const { data: job, isError, error } = useJob(jobId);
   const { data: role } = useQuery({ queryKey: ["myrole", jobId], queryFn: async () => (await supabase.rpc("my_job_role", { _job: jobId })).data });
-  if (!job && isError) return <TradeShell installer={role !== "electrician"}><p className="rounded-[22px] border bg-card p-6 text-sm text-estimate-navy/70">{/TEST accounts/.test(String((error as Error)?.message)) ? "This TEST sign-in can only open active TEST jobs." : "This job isn't available to you. If it's a new offer, accept it from My work first."}</p><Link to="/field" className="mt-3 inline-block font-semibold text-primary underline">Back to My work</Link></TradeShell>;
-  if (!job) return <TradeShell installer={role !== "electrician"}><p className="text-estimate-navy/70">Loading…</p></TradeShell>;
+  if (!job && isError) return <TradeShell installer={role !== "electrician"}><p className="rounded-[18px] border bg-card p-6 text-sm text-sub">{/TEST accounts/.test(String((error as Error)?.message)) ? "This TEST sign-in can only open active TEST jobs." : "This job isn't available to you. If it's a new offer, accept it from My work first."}</p><Link to="/field" className="mt-3 inline-block font-semibold text-primary underline">Back to My work</Link></TradeShell>;
+  if (!job) return <TradeShell installer={role !== "electrician"}><p className="text-sub">Loading…</p></TradeShell>;
   const step = nextStep(job);
   const task = tradeTask({ stage: job.stage ?? "", bookings: [], blockers: [] });
   const maps = job.property_address ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(job.property_address)}` : null;
@@ -55,21 +59,19 @@ function FieldJob() {
     <TradeShell installer={role !== "electrician"}>
       <div className="space-y-4">
       <Link to="/field" className="inline-flex items-center gap-1 text-sm font-bold text-estimate-blue"><ArrowLeft className="h-4 w-4" />My work</Link>
-      <div className="rounded-[22px] bg-card p-5 shadow-sm">
-        <div className="text-xs font-semibold text-estimate-navy/70">{yourTurn ? "Your turn" : `Waiting on ${step.waitingOn ?? "Home Insulation Victoria"}`}</div>
-        <h1 className="font-display text-xl font-extrabold">{task.label}</h1>
-        {job.install_deadline && job.days_remaining != null && <p className="mt-1 text-sm">Install must start by <b>{new Date(job.install_deadline).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}</b> ({job.days_remaining} days left)</p>}
-        {job.life_support && <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-danger-soft px-2 py-0.5 text-xs font-semibold text-danger"><HeartPulse className="h-3 w-3" /> Life support at this property</p>}
-        <div className="mt-3 border-t pt-3 text-sm">
-          <div className="font-semibold">{job.property_address}</div>
-          {job.owner_name && <div className="text-estimate-navy/70">{job.owner_name}</div>}
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            {job.owner_phone && <a href={`tel:${job.owner_phone}`} className="flex h-12 items-center justify-center gap-1 rounded-full bg-estimate-green font-bold text-white"><Phone className="h-4 w-4" /> Call</a>}
-            {job.owner_phone && <a href={`sms:${job.owner_phone}`} className="flex h-12 items-center justify-center rounded-full border border-estimate-line bg-card font-bold">Text</a>}
-            {maps && job.owner_name && <a href={maps} target="_blank" rel="noreferrer" className="col-span-2 flex h-12 items-center justify-center rounded-full border border-estimate-line bg-card font-bold">Directions</a>}
-          </div>
-        </div>
+      <div className="min-w-0">
+        <h1 className="font-display text-[24px] font-bold leading-tight">{streetAndSuburb(job.property_address) || "Your job"}</h1>
+        {job.owner_name && <p className="text-sm text-sub">{job.owner_name}</p>}
       </div>
+      <NowPanel attention={yourTurn} eyebrow={yourTurn ? "Your turn" : `Waiting on ${step.waitingOn ?? "Home Insulation Victoria"}`} status={task.label}
+        due={job.install_deadline && job.days_remaining != null ? `${job.days_remaining} days left` : undefined}
+        next={job.install_deadline ? `Install must start by ${new Date(job.install_deadline).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}` : undefined}
+        pairs={job.life_support ? [{ label: "Note", value: <span className="inline-flex items-center gap-1 text-rose"><HeartPulse className="h-3 w-3" /> Life support at this property</span> }] : []}
+        action={<div className="flex flex-wrap gap-2">
+          {job.owner_phone && <a href={`tel:${job.owner_phone}`} className={btnClass("primary")}><Phone className="h-4 w-4" /> Call</a>}
+          {job.owner_phone && <a href={`sms:${job.owner_phone}`} className={btnClass("secondary")}>Text</a>}
+          {maps && job.owner_name && <a href={maps} target="_blank" rel="noreferrer" className={btnClass("secondary")}>Directions</a>}
+        </div>} />
       {role === "installer" && <PartnerInstallerFactsCard jobId={jobId} />}
       <div><BlockersPanel jobId={jobId} quietWhenClear partner /></div>
       <div className="space-y-4">
@@ -80,7 +82,7 @@ function FieldJob() {
         {role === "installer" && ["assessment_complete", "rectification_required", "awaiting_owner_rectification_approval", "ready_for_installer_quotes", "awaiting_quote_acceptance"].includes(job.stage!) && <PartnerProposalForm jobId={jobId} />}
         {(role === "electrician" || role === "installer") && ["ready_check_scheduled", "piesa_scheduled", "rectification_booked", "installation_booked"].includes(job.stage!) && <TradeVisitCard jobId={jobId} />}
         <VisitContactsCard jobId={jobId} />
-        <details className="rounded-[22px] bg-card p-5 shadow-sm"><summary className="cursor-pointer font-semibold">History, documents and messages</summary><div className="mt-3 space-y-4"><WhoHasTheBall jobId={jobId} /><ClearTimeline jobId={jobId} initial={5} /><OwnerEligibilityPanel jobId={jobId} /><WorkerLinksPanel jobId={jobId} /><MessagesPanel jobId={jobId} isAdmin={false} {...(role === "electrician" || role === "installer" ? { role } : {})} /></div></details>
+        <details className="rounded-[18px] border border-line bg-paper p-[19px] shadow-card"><summary className="cursor-pointer text-sm font-semibold text-hiv-blue">History, documents and messages</summary><div className="mt-3 space-y-4"><WhoHasTheBall jobId={jobId} /><ClearTimeline jobId={jobId} initial={5} /><OwnerEligibilityPanel jobId={jobId} /><WorkerLinksPanel jobId={jobId} /><MessagesPanel jobId={jobId} isAdmin={false} {...(role === "electrician" || role === "installer" ? { role } : {})} /></div></details>
       </div>
       </div>
     </TradeShell>
@@ -99,7 +101,7 @@ function MittiOnly({ jobId, which }: { jobId: string; which: "ready_check" | "pi
   const invited = useMittiInvited();
   return (
     <Section title={which === "piesa" ? "Safety check form" : "Ready Check form"}>
-      {data && invited ? <><p className="mb-3 text-sm text-estimate-navy/70">Fill it in on site, in order. Your answers come back here automatically.</p><Button asChild size="field" className="w-full"><a href={`https://app.au.mitti.com/inspections/${data}`} target="_blank" rel="noreferrer">Open form in Mitti</a></Button><div className="mt-3"><MittiCard jobId={jobId} isAdmin={false} /></div></>
+      {data && invited ? <><p className="mb-3 text-sm text-sub">Fill it in on site, in order. Your answers come back here automatically.</p><Button asChild size="field" className="w-full"><a href={`https://app.au.mitti.com/inspections/${data}`} target="_blank" rel="noreferrer">Open form in Mitti</a></Button><div className="mt-3"><MittiCard jobId={jobId} isAdmin={false} /></div></>
         : <p className="text-sm font-medium">Form being set up — Home Insulation Victoria will send it before your visit.</p>}
     </Section>
   );
@@ -131,7 +133,7 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
   };
   const num = (k: string) => (e: React.FocusEvent<HTMLInputElement>) => put(k, e.target.value === "" ? null : Number(e.target.value));
   const Yn = ({ k, label }: { k: string; label: string }) => (
-    <div><Label>{label}</Label><div className="mt-1 grid grid-cols-2 gap-2">{[true, false].map((v) => <Button key={String(v)} type="button" size="field" variant={f[k] === v ? "default" : "outline"} disabled={locked} onClick={() => put(k, v)}>{v ? "Yes" : "No"}</Button>)}</div></div>
+    <div className="flex items-center justify-between gap-3"><Label>{label}</Label><YesNo label={label} value={f[k] as boolean | null} disabled={locked} onChange={(v) => put(k, v)} /></div>
   );
   const Num = ({ k, label, step = "1" }: { k: string; label: string; step?: string }) => (
     <div><Label>{label}</Label><Input className="h-12 text-base" type="number" inputMode="decimal" step={step} defaultValue={(f[k] as number | null) ?? ""} key={String(f[k])} disabled={locked} onBlur={num(k)} /></div>
@@ -141,16 +143,16 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
   );
   const assessing = ["assessment_booking", "assessment_booked", "piesa_scheduled"].includes(stage) && !locked;
   const { data: scope } = useJobScope(jobId);
-  const measureBlock = !scope || !assessing ? null : scope.measurement.state === "accepted" ? <MeasurementReadOnly jobId={jobId} canFlag /> : <Section title="Installer eligibility measure-up"><p className="text-sm text-estimate-navy/70">This is not part of your PIESA visit. The assigned insulation installer completes the measure-up and eligibility evidence.</p></Section>;
+  const measureBlock = !scope || !assessing ? null : scope.measurement.state === "accepted" ? <MeasurementReadOnly jobId={jobId} canFlag /> : <Section title="Installer eligibility measure-up"><p className="text-sm text-sub">The installer does the measure-up, not you.</p></Section>;
 
   return (
     <>
       {["rectification_scheduling", "rectification_booked", "awaiting_deposit_payment"].includes(stage) && (
-        stage === "awaiting_deposit_payment" ? <Section title="Rectification booking"><p className="text-sm font-medium text-danger">Locked – awaiting the owner's approved payment option. Booking details will appear here once paid.</p></Section> : <BookingPanel jobId={jobId} kind="rectification" canBook />
+        stage === "awaiting_deposit_payment" ? <Section title="Rectification booking"><p className="text-sm font-medium text-rose">Waiting for the owner's payment. Booking opens once paid.</p></Section> : <BookingPanel jobId={jobId} kind="rectification" canBook />
       )}
       {stage === "rectification_booked" && <PiesaForm jobId={jobId} kind="post_rectification" title="Rectification complete – record PIESA sign-off" />}
       {expired && <PiesaForm jobId={jobId} kind="reassessment" title="PIESA window expired – record reassessment" />}
-      {scope && assessing && <div className="rounded-lg border border-primary/30 bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground">Your visit: {scope.label}</div>}
+      {scope && assessing && <div className="rounded-[13px] bg-mist px-4 py-2 text-sm font-semibold text-ink">Your visit: {scope.label}</div>}
       {a?.external_mitti_id && (assessing || locked) && (
         <>
           {measureBlock}
@@ -163,7 +165,7 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
         </>
       )}
       {!a?.external_mitti_id && assessing && <MittiOnly jobId={jobId} which="piesa" />}
-      {!a?.external_mitti_id && locked && <Section title="Safety check"><p className="text-sm text-estimate-navy/70">Safety check complete.</p></Section>}
+      {!a?.external_mitti_id && locked && <Section title="Safety check"><p className="text-sm text-sub">Safety check complete.</p></Section>}
     </>
   );
 }
@@ -179,7 +181,7 @@ function OtherItems({ jobId, editable }: { jobId: string; editable: boolean }) {
   return (
     <Section title="4 · Rectification items">
       {editable && approvedRates.length > 0 && <div className="mb-4 rounded-lg border p-3"><p className="mb-2 text-sm font-semibold">Add from your approved rate schedule</p><div className="grid gap-2 sm:grid-cols-[1fr_7rem_auto]"><select className="h-12 rounded-lg border bg-background px-3 text-sm" value={approved.code} onChange={(e) => setApproved((x) => ({ ...x, code: e.target.value }))}><option value="">Choose an item</option>{approvedRates.map((rate) => <option key={rate.code} value={rate.code}>{rate.description} · {rate.display_unit || rate.unit}</option>)}</select><Input className="h-12" type="number" min="0.01" step="0.01" aria-label="Quantity" value={approved.quantity} onChange={(e) => setApproved((x) => ({ ...x, quantity: e.target.value }))} /><Button disabled={!approved.code || !(Number(approved.quantity) > 0)} onClick={() => addApproved({ jobId, rateCode: approved.code, quantity: Number(approved.quantity) }, "Approved rectification item added")}>Add</Button></div></div>}
-      <p className="mb-2 text-xs text-estimate-navy/70">Standard items (downlights, RCDs, switchboard, fan clearances) are priced automatically from your answers above.</p>
+      <p className="mb-2 text-xs text-sub">Standard items are priced from your answers.</p>
       <ul className="mb-3 space-y-1 text-sm">
         {data?.map((i) => <li key={i.id} className="flex items-center justify-between gap-2"><span>{i.description} × {Number(i.quantity)}{i.is_other && ` @ ${aud(i.other_unit_price_inc_gst)}`}</span>{i.is_other && editable && <Button size="sm" variant="ghost" onClick={() => remove({ itemId: i.id })}>Remove</Button>}</li>)}
       </ul>
@@ -225,19 +227,19 @@ function InstallerFlow({ jobId, stage }: { jobId: string; stage: string }) {
   return (
     <>
       {measuring && <MittiOnly jobId={jobId} which="ready_check" />}
-      {!measuring && m && m.status !== "complete" && ["assessment_booking", "assessment_booked"].includes(stage) && <Section title="Your measure-up"><MeasurementDetails m={m} /><p className="mt-2 text-sm text-estimate-navy/70">Status: {m.status.replace("_", " ")} – Home Insulation Victoria will follow up.</p></Section>}
+      {!measuring && m && m.status !== "complete" && ["assessment_booking", "assessment_booked"].includes(stage) && <Section title="Your measure-up"><MeasurementDetails m={m} /><p className="mt-2 text-sm text-sub">Status: {m.status.replace("_", " ")} – Home Insulation Victoria will follow up.</p></Section>}
       {a && (
         <Section title="Site summary">
           <dl className="grid grid-cols-2 gap-1 text-sm">
-            <dt className="text-estimate-navy/70">Area</dt><dd>{Number(a.measured_area_m2)} m²</dd>
-            <dt className="text-estimate-navy/70">Removal</dt><dd>{a.removal_required ? `${a.removal_m2} m²` : "No"}</dd>
-            <dt className="text-estimate-navy/70">Access</dt><dd className="capitalize">{a.access_difficulty}</dd>
-            <dt className="text-estimate-navy/70">Downlights</dt><dd>{a.downlights_qty ?? "—"}</dd>
-            <dt className="text-estimate-navy/70">Hazards</dt><dd>{a.hazards ?? "None noted"}</dd>
+            <dt className="text-sub">Area</dt><dd>{Number(a.measured_area_m2)} m²</dd>
+            <dt className="text-sub">Removal</dt><dd>{a.removal_required ? `${a.removal_m2} m²` : "No"}</dd>
+            <dt className="text-sub">Access</dt><dd className="capitalize">{a.access_difficulty}</dd>
+            <dt className="text-sub">Downlights</dt><dd>{a.downlights_qty ?? "—"}</dd>
+            <dt className="text-sub">Hazards</dt><dd>{a.hazards ?? "None noted"}</dd>
           </dl>
         </Section>
       )}
-      {stage === "awaiting_deposit_payment" && <Section title="Installation booking"><p className="text-sm font-medium text-danger">Locked – awaiting the owner's approved payment option.</p></Section>}
+      {stage === "awaiting_deposit_payment" && <Section title="Installation booking"><p className="text-sm font-medium text-rose">Waiting for the owner's payment. Booking opens once paid.</p></Section>}
       {["installation_scheduling", "installation_booked"].includes(stage) && <BookingPanel jobId={jobId} kind="installation" canBook />}
       {a && ["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling"].includes(stage) && <Section title="Scope">
         <p className="text-sm">Install ceiling insulation to {Number(a.measured_area_m2)} m²{a.removal_required ? `, remove ${a.removal_m2} m² existing` : ""}. Access: {a.access_difficulty}.</p></Section>}

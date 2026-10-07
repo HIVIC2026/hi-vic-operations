@@ -82,7 +82,7 @@ export function TradeVisitCard({ jobId }: { jobId: string }) {
         : <p className="text-sm text-muted-foreground">Tap "I've arrived" when you get there (from 2 hours before). If there's no arrival or evidence 4 hours after the start, it's recorded as a no-show.</p>}
       {mode ? (
         <div className="mt-3 space-y-2">
-          <Input className="h-12" placeholder={mode === "cancel" ? "Reason for cancelling (required)" : "Note (optional)"} value={reason} onChange={(e) => setReason(e.target.value)} />
+          <Input className="h-12" placeholder={mode === "cancel" ? "Reason for cancelling (required)" : "Note"} value={reason} onChange={(e) => setReason(e.target.value)} />
           {mode === "cancel" && <p className="text-xs text-muted-foreground">Cancelling a booked visit counts against your reliability. The owner will be asked for new times.</p>}
           <div className="flex gap-2">
             <Button className="h-12" variant="destructive" disabled={busy || (mode === "cancel" && reason.trim().length < 5)} onClick={() => run(mode, mode === "cancel" ? "Visit cancelled" : "Recorded: owner not home")}>{mode === "cancel" ? "Cancel visit" : "Owner not home"}</Button>
