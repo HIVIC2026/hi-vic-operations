@@ -491,3 +491,29 @@ export async function setRowAddress(rowId: string, addr: { full_name?: string; e
   if (error) throw new BulkImportError(error.message);
   return { batch_id: row.batch_id };
 }
+
+/** Installer attaches photos/files to one customer card (camera or files). Photos count as a visit, like upload matches. */
+export async function addRowFiles(rowId: string, businessId: string, files: { path: string; name: string; type: string }[]) {
+  const { data: row } = await admin.from("bulk_import_rows").select("matched_files, status, extracted, import_stage").eq("id", rowId).single();
+  if (!row || row.status !== "pending") throw new BulkImportError("This customer can no longer be changed.");
+  const { allowedUpload } = await import("./upload-safety.core"); const { verifyStoredUpload } = await import("./upload-safety.server");
+  for (const f of files) {
+    if (!f.path.startsWith(`partners/${businessId}/imports/`)) throw new BulkImportError("Invalid file path");
+    const m = allowedUpload(f.name, f.type, { imports: true }); if (!m) throw new BulkImportError(`${f.name}: that file type isn't accepted.`);
+    await verifyStoredUpload("job-files", f.path, m);
+  }
+  const have = (row.matched_files as unknown as FileMatch[]) ?? [];
+  const next = [...have, ...files.filter((f) => !have.some((h) => h.path === f.path)).map((f) => ({ path: f.path, name: f.name, how: "added" as const }))];
+  const photos = next.filter((m) => /\.(jpe?g|png|heic|heif|webp)$/i.test(m.name)).length;
+  const e = row.extracted as unknown as BulkExtracted;
+  const stage = row.import_stage === "installed" ? "installed" : leadStage(e, photos);
+  await admin.from("bulk_import_rows").update({ matched_files: next as unknown as Json, import_stage: stage, extracted: { ...e, lead_stage: stage } as unknown as Json }).eq("id", rowId);
+  return { files: next };
+}
+export async function removeRowFile(rowId: string, path: string) {
+  const { data: row } = await admin.from("bulk_import_rows").select("matched_files, status").eq("id", rowId).single();
+  if (!row || row.status !== "pending") throw new BulkImportError("This customer can no longer be changed.");
+  const next = ((row.matched_files as unknown as FileMatch[]) ?? []).filter((m) => m.path !== path);
+  await admin.from("bulk_import_rows").update({ matched_files: next as unknown as Json }).eq("id", rowId);
+  return { files: next };
+}

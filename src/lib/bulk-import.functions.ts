@@ -245,3 +245,27 @@ export const geocodeBulkPhotos = createServerFn({ method: "POST" }).middleware([
     const { reverseGeocode } = await import("./bulk-import.server");
     return { addresses: await reverseGeocode(data.points) };
   });
+
+async function rowBusiness(rowId: string, userId: string) {
+  const { data: row } = await admin.from("bulk_import_rows").select("batch_id").eq("id", rowId).single();
+  if (!row) throw new WorkflowError("Customer not found.");
+  const { data: batch } = await admin.from("bulk_import_batches").select("business_id").eq("id", row.batch_id).single();
+  if (!batch) throw new WorkflowError("Upload not found.");
+  const { data: isAdmin } = await admin.rpc("has_role", { _user_id: userId, _role: "admin" });
+  if (!isAdmin) await requireMember(userId, batch.business_id, true);
+  return batch.business_id;
+}
+export const addBulkRowFiles = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ rowId: uuid, files: z.array(z.object({ path: z.string().max(500), name: z.string().max(200), type: z.string().max(100) })).min(1).max(20) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const biz = await rowBusiness(data.rowId, context.userId);
+    const { addRowFiles } = await import("./bulk-import.server");
+    return addRowFiles(data.rowId, biz, data.files);
+  });
+export const removeBulkRowFile = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ rowId: uuid, path: z.string().max(500) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await rowBusiness(data.rowId, context.userId);
+    const { removeRowFile } = await import("./bulk-import.server");
+    return removeRowFile(data.rowId, data.path);
+  });

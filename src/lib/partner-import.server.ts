@@ -8,7 +8,8 @@ import { requireApprovedPartner, requireMember } from "./pilot.server";
 
 export type CreateImportInput = { businessId: string; sourceSystem: "easymate" | "manual_import" | "csv" | "email"; text?: undefined | string; csv?: undefined | string; csvRow: number; sourceUrl?: undefined | string; externalRefs?: undefined | Record<string, string>; files: { path: string; name: string; type: string }[] };
 export type ConfirmImportInput = { importId: string; facts: Record<string, string | number | boolean | null>; progress?: undefined | "not_visited" | "measured" | "quoted"; occupancy?: undefined | "owner_occupied" | "rental"; details?: undefined | Record<string, unknown>;
-  installer?: undefined | { quoted?: undefined | "yes" | "no" | null; site_check: "yes" | "no"; site_check_date?: undefined | string | null; quoted_price_inc_gst?: undefined | number | null; price_includes?: undefined | string | null; contact_permission?: undefined | boolean } };
+  installer?: undefined | { quoted?: undefined | "yes" | "no" | null; site_check: "yes" | "no"; site_check_date?: undefined | string | null; quoted_price_inc_gst?: undefined | number | null; price_includes?: undefined | string | null; contact_permission?: undefined | boolean };
+  electrician?: undefined | { mode: "mine" | "hivic"; business_id?: undefined | string | null; nomination_id?: undefined | string | null } };
 
 export async function createImportFor(userId: string, data: CreateImportInput) {
   const context = { userId };
@@ -47,7 +48,8 @@ export async function confirmImportFor(userId: string, data: ConfirmImportInput)
   const qg = data.installer?.quoted === "yes" ? quotedGap("yes", data.installer.quoted_price_inc_gst) : null; // blank never blocks (Jo, 5:46pm)
   if (qg) blockers.push(qg);
   if (data.installer && data.installer.quoted === "no") data.installer.quoted_price_inc_gst = null; // "Quote needed from installer"
-  if (data.installer?.contact_permission !== true) blockers.push("Tick to confirm the owner agreed to Home Insulation Victoria contacting them");
+  if (data.installer?.contact_permission !== true) blockers.push("Tick to confirm the owner has given Home Insulation Victoria permission to contact them");
+  { const { electricianPlanBlocker } = await import("./job-electrician.core"); const eb = electricianPlanBlocker(data.electrician as never); if (eb) blockers.push(eb); }
   if (blockers.length) throw new WorkflowError(blockers.join(" • "));
   const area = Number(c.measured_area_m2);
   if (!Number.isFinite(area) || area <= 0 || area > 5000) throw new WorkflowError("Enter the ceiling area (m²) before confirming — every job needs an area estimate.");
@@ -79,6 +81,7 @@ export async function confirmImportFor(userId: string, data: ConfirmImportInput)
   await admin.from("jobs").update({ customer_relationship_owner: rel, source_system: imp.source_system, external_refs: refs as Json,
     ...(pilotInvoice ? { commercial_model: "hivic_invoices_owner" as const, commercial_model_set_by: context.userId, commercial_model_set_at: new Date().toISOString() } : {}) }).eq("id", res.job_id);
   await admin.from("job_assignments").insert({ job_id: res.job_id, user_id: context.userId, role: "installer", business_id: imp.business_id, assigned_by: context.userId, first_response_at: new Date().toISOString() });
+  await (await import("./job-electrician.server")).recordJobElectricianChoice(res.job_id, imp.business_id, (data.electrician ?? { mode: "hivic" }) as never, context.userId);
   const { data: ws } = await admin.from("workflow_settings").select("measurement_standard_approved").limit(1).maybeSingle();
   const { data: pm } = await admin.from("partner_measurement_methods").select("id").eq("business_id", imp.business_id).eq("status", "approved").order("approved_at", { ascending: false }).limit(1).maybeSingle();
   // "Not visited yet": the rough size is only the estimate; no measure-up is recorded and the Ready Check is next.
@@ -91,6 +94,31 @@ export async function confirmImportFor(userId: string, data: ConfirmImportInput)
   await admin.from("job_imports").update({ status: "confirmed", confirmed_facts: c as Json, confirmed_by: context.userId, confirmed_at: new Date().toISOString(), job_id: res.job_id, updated_at: new Date().toISOString() }).eq("id", imp.id);
   await logEvent(res.job_id, context.userId, "job_imported", `Imported from ${imp.source_system} by originating installer (confirmed by user)`, { import_id: imp.id, source_system: imp.source_system, external_refs: refs, relationship_owner: rel, measurement_imported: !!m, files: imp.files, progress: data.progress ?? null, ready_check_a1: data.details ?? null });
   if (pilotInvoice) await logEvent(res.job_id, context.userId, "commercial_model_set", "Pilot commercial route: full job invoiced by Home Insulation Victoria (split invoicing disabled)", { route: "hivic_full_invoice" });
-  await logEvent(res.job_id, userId, "installer_contact_permission", "Installer confirmed the owner agreed to Home Insulation Victoria contacting them", { import_id: data.importId, wording: (await import("./pilot.core")).ONE_JOB_PERMISSION_WORDING }, { internal: true });
+  await logEvent(res.job_id, userId, "installer_contact_permission", "Installer confirmed the owner agreed to Home Insulation Victoria contacting them", { import_id: data.importId, wording: (await import("./job-electrician.core")).OWNER_CONTACT_PERMISSION }, { internal: true });
   return { jobId: res.job_id, jobNumber: res.job_number };
+}
+
+/** Add photos/files to a draft import (business owner only). Paths must be this business's own uploads. */
+export async function addImportFilesFor(userId: string, importId: string, files: { path: string; name: string; type: string }[]) {
+  const { data: imp } = await admin.from("job_imports").select("business_id, status, files").eq("id", importId).single();
+  if (!imp || imp.status !== "draft") throw new WorkflowError("This job was already added or discarded.");
+  await requireMember(userId, imp.business_id, true);
+  const { allowedUpload } = await import("./upload-safety.core"); const { verifyStoredUpload } = await import("./upload-safety.server");
+  for (const f of files) {
+    if (!f.path.startsWith(`partners/${imp.business_id}/imports/`)) throw new WorkflowError("Invalid file path");
+    const m = allowedUpload(f.name, f.type, { imports: true }); if (!m) throw new WorkflowError(`${f.name}: that file type isn't accepted.`);
+    await verifyStoredUpload("job-files", f.path, m);
+  }
+  const have = (imp.files as { path: string }[] | null) ?? [];
+  const next = [...have, ...files.filter((f) => !have.some((h) => h.path === f.path))];
+  await admin.from("job_imports").update({ files: next as unknown as Json, updated_at: new Date().toISOString() }).eq("id", importId);
+  return { files: next as { path: string; name: string; type: string }[] };
+}
+export async function removeImportFileFor(userId: string, importId: string, path: string) {
+  const { data: imp } = await admin.from("job_imports").select("business_id, status, files").eq("id", importId).single();
+  if (!imp || imp.status !== "draft") throw new WorkflowError("This job was already added or discarded.");
+  await requireMember(userId, imp.business_id, true);
+  const next = ((imp.files as { path: string }[] | null) ?? []).filter((f) => f.path !== path);
+  await admin.from("job_imports").update({ files: next as unknown as Json, updated_at: new Date().toISOString() }).eq("id", importId);
+  return { files: next as { path: string; name: string; type: string }[] };
 }

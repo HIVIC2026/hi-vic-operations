@@ -297,10 +297,26 @@ export const confirmImport = createServerFn({ method: "POST" }).middleware([requ
       contact_permission: z.boolean().optional(),
       quoted: z.enum(["yes", "no"]).nullable().optional(),
     }).optional(),
+    electrician: z.object({ mode: z.enum(["mine", "hivic"]), business_id: uuid.nullish(), nomination_id: uuid.nullish() }).optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
     const { confirmImportFor } = await import("./partner-import.server");
     return confirmImportFor(context.userId, data);
+  });
+
+const importFile = z.object({ path: z.string().max(500), name: z.string().max(200), type: z.string().max(100) });
+export const addImportFiles = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ importId: uuid, files: z.array(importFile).min(1).max(20) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { addImportFilesFor } = await import("./partner-import.server");
+    return addImportFilesFor(context.userId, data.importId, data.files);
+  });
+
+export const removeImportFile = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ importId: uuid, path: z.string().max(500) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { removeImportFileFor } = await import("./partner-import.server");
+    return removeImportFileFor(context.userId, data.importId, data.path);
   });
 
 // ---------- Electrician selection ----------

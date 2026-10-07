@@ -197,7 +197,7 @@ export function dedupeKey(e: BulkExtracted): string | null {
   return null;
 }
 
-export type FileMatch = { path: string; name: string; how: "folder" | "filename" | "gps" | "photo_text" | "only_lead" };
+export type FileMatch = { path: string; name: string; how: "folder" | "filename" | "gps" | "photo_text" | "only_lead" | "added" };
 
 /** Match files to a row by folder name, then filename, against the address tokens. */
 export function matchFiles(
