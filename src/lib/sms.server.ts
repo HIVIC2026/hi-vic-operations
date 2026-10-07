@@ -1,4 +1,4 @@
-// The ONE real SMS sender (Jo, 7 Oct). OFF unless customer_comms_enabled AND the message type's own switch are on.
+// The ONE real SMS sender (Twilio AU1 direct, twilio-au1.server.ts) (Jo, 7 Oct). OFF unless customer_comms_enabled AND the message type's own switch are on.
 // TEST records never come here (they use test-send.server.ts, unchanged). Sends at most once per idempotency key,
 // never retries an ambiguous send, and logs delivery status against the job or partner.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
@@ -6,7 +6,6 @@ import { customerCommsEnabled, hasCurrentOwnerContactConsent } from "./comms.ser
 import { SMS_MESSAGE_TYPES, smsBlocker, toAuE164, type SmsMessageType } from "./sms.core";
 
 const db = admin as any;
-const GATEWAY = "https://connector-gateway.lovable.dev/twilio/Messages.json";
 const WEBHOOK_BASE = "https://estimate.homeinsulationvictoria.com.au";
 
 export type RealSmsInput = {
@@ -78,18 +77,18 @@ export async function sendRealSms(input: RealSmsInput): Promise<RealSmsResult> {
   if (error || !row) return { status: "already", detail: "Already handled for this key – not sent again", sid: null };
   if (blocked) { await logJob(input, to ?? String(input.to ?? ""), "blocked", blocked); return { status: "blocked", detail: blocked, sid: null }; }
 
-  const key = process.env["TWILIO_API_KEY"], gw = process.env["LOVABLE_API_KEY"], hook = process.env["SMS_WEBHOOK_TOKEN"];
+  const hook = process.env["SMS_WEBHOOK_TOKEN"];
+  const { au1Configured, au1SendMessage } = await import("./twilio-au1.server");
   let r: RealSmsResult;
-  if (!key || !gw) r = { status: "failed", detail: "Texting is not connected", sid: null };
+  if (!au1Configured()) r = { status: "failed", detail: "Twilio AU1 is not set up", sid: null };
   else {
     const params = new URLSearchParams({ To: to!, From: from!, Body: input.body });
     if (hook) params.set("StatusCallback", `${WEBHOOK_BASE}/api/public/twilio/status?t=${encodeURIComponent(hook)}`);
     try {
-      const res = await fetch(GATEWAY, { method: "POST", headers: { Authorization: `Bearer ${gw}`, "X-Connection-Api-Key": key, "Content-Type": "application/x-www-form-urlencoded" }, body: params });
-      const t = await res.text();
-      if (res.ok) r = { status: "sent", detail: "Twilio accepted", sid: (JSON.parse(t) as { sid?: string }).sid ?? null };
-      else if (res.status >= 500) r = { status: "sent_unknown", detail: `Twilio ${res.status} – may have sent, not retried: ${t.slice(0, 250)}`, sid: null };
-      else r = { status: "failed", detail: `Twilio ${res.status}: ${t.slice(0, 300)}`, sid: null };
+      const res = await au1SendMessage(params);
+      if (res.ok) r = { status: "sent", detail: "Twilio AU1 accepted", sid: (JSON.parse(res.text) as { sid?: string }).sid ?? null };
+      else if (res.status >= 500) r = { status: "sent_unknown", detail: `Twilio ${res.status} – may have sent, not retried: ${res.text.slice(0, 250)}`, sid: null };
+      else r = { status: "failed", detail: `Twilio ${res.status}: ${res.text.slice(0, 300)}`, sid: null };
     } catch (e) {
       r = { status: "sent_unknown", detail: `No answer from Twilio – may have sent, not retried: ${(e as Error).message}`, sid: null };
     }
