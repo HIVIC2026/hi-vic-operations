@@ -147,11 +147,9 @@ export const listCertificationLevels = createServerFn({ method: "POST" }).middle
     return rows ?? [];
   });
 
-/** Office creates the business boss's sign-in for an ACTIVATED partner. Sends nothing: returns a set-password link for the office to pass on. */
-export const createPartnerLogin = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ applicationId: uuid, email: z.string().trim().toLowerCase().email().max(320) }).parse(d))
-  .handler(async ({ data, context }) => {
-    await requireAdmin(context.supabase);
+type PartnerLoginInput = { applicationId: string; email: string };
+async function makePartnerLogin(sb: Parameters<typeof requireAdmin>[0], actorId: string, data: PartnerLoginInput): Promise<{ email: string; link: string; name: string | null; businessId: string }> {
+    await requireAdmin(sb);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { data: act } = await admin.from("partner_activations").select("business_id").eq("application_id", data.applicationId).maybeSingle();
     if (!act) throw new WorkflowError("Activate the partner first.");
@@ -174,16 +172,37 @@ export const createPartnerLogin = createServerFn({ method: "POST" }).middleware(
     const steps = [
       await admin.from("profiles").upsert({ id: uid, email: data.email, full_name: name, business_id: act.business_id }),
       await admin.from("user_roles").upsert({ user_id: uid, role }, { onConflict: "user_id,role" }),
-      await admin.from("business_members").upsert({ business_id: act.business_id, user_id: uid, member_role: "business_admin", active: true, added_by: context.userId }, { onConflict: "business_id,user_id" }),
-      await admin.from("partner_workers").update({ profile_id: uid, account_status: "linked", linked_by: context.userId, linked_at: new Date().toISOString() }).eq("business_id", act.business_id).ilike("email", data.email).is("profile_id", null),
+      await admin.from("business_members").upsert({ business_id: act.business_id, user_id: uid, member_role: "business_admin", active: true, added_by: actorId }, { onConflict: "business_id,user_id" }),
+      await admin.from("partner_workers").update({ profile_id: uid, account_status: "linked", linked_by: actorId, linked_at: new Date().toISOString() }).eq("business_id", act.business_id).ilike("email", data.email).is("profile_id", null),
     ];
     const bad = steps.find((s) => s.error);
     if (bad?.error) throw new WorkflowError(`Login made but linking failed: ${bad.error.message}`);
     // generateLink returns the link only; it never emails it.
     const link = await (await import("./set-password-link.server")).issueSetPasswordLink(data.email);
-    await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: "partner_login_created", summary: `Office created partner login ${data.email} (nothing sent)`, details: { business_id: act.business_id, user_id: uid, application_id: data.applicationId } });
-    return { email: data.email, link };
+    await admin.from("admin_config_events").insert({ actor_id: actorId, event_type: "partner_login_created", summary: `Office created partner login ${data.email} (nothing sent)`, details: { business_id: act.business_id, user_id: uid, application_id: data.applicationId } });
+    return { email: data.email, link, name, businessId: act.business_id };
+}
+
+/** Office creates the business boss's sign-in. Sends nothing: returns a set-password link for the office to pass on. */
+export const createPartnerLogin = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ applicationId: uuid, email: z.string().trim().toLowerCase().email().max(320) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const r = await makePartnerLogin(context.supabase, context.userId, data);
+    return { email: r.email, link: r.link };
   });
+
+/** Office approves → creates the login AND emails the one-time set-password link to the partner for real (Jo's manual partner email rule), recorded on their record. */
+export const sendPartnerLoginLink = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ applicationId: uuid, email: z.string().trim().toLowerCase().replace(/[.,;]+$/, "").email().max(320) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const r = await makePartnerLogin(context.supabase, context.userId, data);
+    const { sendOfficeEmail } = await import("./office-email.server");
+    const { partnerLoginEmail } = await import("./partner-login-email.core");
+    const m = partnerLoginEmail(r.name, r.link);
+    const res = await sendOfficeEmail({ actorId: context.userId, recipient: "partner", to: r.email, contactName: r.name, subject: m.subject, message: m.message, label: "partner_login_link", record: { applicationId: data.applicationId, businessId: r.businessId } });
+    return { ...res, link: r.link };
+  });
+
 
 /** Office: send a signed installer application back for changes, or decline it (Jo, 7 Oct). */
 export const decidePartnerApplication = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
