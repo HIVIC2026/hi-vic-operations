@@ -68,7 +68,7 @@ mock.module("../src/lib/intelligence.server", () => ({
   },
 }));
 const { autoDecideEligibility } = await import("../src/lib/eligibility.server");
-const { enqueueInitialGate1, processPostIntakeWork, recoverStaleRuns } = await import("../src/lib/postintake.server");
+const { enqueueInitialGate1, processPostIntakeWork } = await import("../src/lib/postintake.server");
 const { eligibilityFactsVersion, intelligenceNeeded, planEnqueue } = await import("../src/lib/postintake.core");
 
 const gate1Events = () => db["workflow_events"]!.filter((e) => e["event_type"] === "eligibility_auto_review" || e["event_type"] === "eligibility_auto_decided");
@@ -158,19 +158,6 @@ describe("processor", () => {
     const r = await processPostIntakeWork({ jobId: JOB });
     expect(r.results[0]!.status).toBe("complete"); expect(work()[0]!["attempts"]).toBe(2);
     expect(gate1Events()).toHaveLength(1);
-  });
-  test.skip("RETIRED property intelligence – 8: stale 'running' intelligence row is closed and the job re-queued through the processor", async () => {
-    reset(); intelMode = "ok";
-    db["property_intelligence_runs"]!.push({ id: "stuck", job_id: JOB, status: "running", started_at: new Date(Date.now() - 10 * 60_000).toISOString(), address_hash: "h", is_stale: false });
-    db["post_intake_work"]!.push({ id: "w-done", job_id: JOB, work_type: "initial_gate1", status: "complete", facts_version: "v1", attempts: 1, available_at: new Date(0).toISOString() });
-    expect(await recoverStaleRuns()).toBe(1);
-    expect(db["property_intelligence_runs"]!.find((r) => r["id"] === "stuck")!["status"]).toBe("error");
-    expect(work()[0]!["status"]).toBe("retry");
-    await processPostIntakeWork({ jobId: JOB });
-    expect(db["property_intelligence_runs"]!.filter((r) => r["status"] === "complete")).toHaveLength(1); // re-ran
-    expect(work()[0]!["status"]).toBe("complete");
-    // Fresh 'running' rows are not touched.
-    expect(intelligenceNeeded({ status: "running", address_hash: "h", is_stale: false, started_at: new Date().toISOString() }, "h", Date.now(), 90)).toBeNull();
   });
   test("9: admin decision is never overwritten", async () => {
     reset({ eligibility_decision_source: "admin", eligibility_outcome: "does_not_appear_eligible", next_action: "Admin note" }); intelMode = "ok";

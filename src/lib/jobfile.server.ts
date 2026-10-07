@@ -26,7 +26,7 @@ export async function loadSources(jobId: string): Promise<JobSources & { events:
     q(admin.from("owner_authorities").select("id, version, status, wording_version, requested_at, accepted_at, document_path, document_sha256").eq("job_id", jobId)),
     q(admin.from("esc_notifications").select("id, version, status, submission_method, submission_reference, sent_at, submitted_by, payload_version, payload_hash, created_at, due_by").eq("job_id", jobId)),
     q(admin.from("veec_lodgements").select("*").eq("job_id", jobId)),
-    q(admin.from("property_facts").select("id, fact_key, source_name, source_type, source_url, retrieved_at, is_current, is_stale, raw_hash, evidence_kind").eq("job_id", jobId)),
+    Promise.resolve([] as Record<string, unknown>[]), // property research retired (Jo, 7 Oct): old property_facts are never shown
     q(admin.from("declarations").select("*").eq("job_id", jobId)),
     q(admin.from("workflow_events").select("*").eq("job_id", jobId)),
     q(admin.from("messages").select("*").eq("job_id", jobId)),

@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
 import { getIntakeSummary } from "@/lib/portal.functions";
 import { Pill } from "./badges";
 import { openFileViewer } from "@/components/portal/file-viewer";
@@ -12,7 +11,6 @@ const when = (s: string | null | undefined) => (s ? new Date(s).toLocaleString("
 export function IntakeSummary({ jobId }: { jobId: string }) {
   const fn = useServerFn(getIntakeSummary);
   const { data, isLoading, error, refetch } = useQuery({ queryKey: ["intake_summary", jobId], queryFn: () => fn({ data: { jobId } }) });
-  const [showRaw, setShowRaw] = useState(false);
   if (isLoading) return <div className="rounded-md border p-4 text-sm text-muted-foreground">Loading intake and consent evidence…</div>;
   if (error || !data) return <section id="target-intake-consent" data-portal-focus="target" tabIndex={-1} className="scroll-mt-4 rounded-md border border-danger bg-danger-soft p-4 text-sm text-danger outline-none"><h3 className="font-semibold">Consent evidence unavailable</h3><p>Consent evidence could not be loaded. Treat consent as missing until it is checked.</p><button type="button" className="mt-2 font-semibold underline" onClick={() => void refetch()}>Try again</button></section>;
   const c = data.consent;
@@ -27,19 +25,10 @@ export function IntakeSummary({ jobId }: { jobId: string }) {
       </dl>
     </section>
   );
-  const rows: [string, string][] = [
-    ["Property type", data.declared?.property_type ?? "Not answered"],
-    ["Over 5 years old", yn(data.declared?.over_five_years)],
-    ["Life support", yn(data.lifeSupport)],
-    ["Estimated area", data.area != null ? `${data.area} m²` : "Unknown"],
-    ["State", data.state ?? "—"],
-  ];
-  if (data.declaredExtras?.existing_insulation) rows.splice(3, 0, ["Existing insulation", yn(data.declaredExtras.existing_insulation)]);
-  if (data.declaredExtras?.top_floor) rows.splice(4, 0, ["Top floor", yn(data.declaredExtras.top_floor)]);
   return (
     <section id="target-intake-consent" data-portal-focus="target" tabIndex={-1} className="scroll-mt-4 rounded-md border bg-card p-4 outline-none">
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <h3 className="font-semibold">Website intake</h3>
+        <h3 className="font-semibold">Contact and photos</h3>
         {data.reference && <span className="text-xs text-muted-foreground">Ref {data.reference}</span>}
         {c?.consent_status === "granted"
           ? <Pill t="good">Contact consent granted</Pill>
@@ -64,16 +53,6 @@ export function IntakeSummary({ jobId }: { jobId: string }) {
           <div>Preferred contact: {c?.contact_preference ?? "Not given"}</div>
         </div>
         <div className="space-y-1 text-sm">
-          <div className="text-xs font-medium uppercase text-muted-foreground">Owner declared (not verified)</div>
-          {rows.map(([k, v]) => <div key={k}>{k}: {v}</div>)}
-        </div>
-        <div className="space-y-1 text-sm">
-          <div className="text-xs font-medium uppercase text-muted-foreground">Website screening (information only)</div>
-          <div>{data.screening.outcome ? yn(data.screening.outcome) : "No result"}</div>
-          {data.screening.reasons && <div className="text-muted-foreground">{data.screening.reasons}</div>}
-          {data.research && <div className="text-muted-foreground">Research: {data.research.status ?? "—"}{data.research.first_appearance_year ? ` · first seen ${data.research.first_appearance_year}` : ""}{data.research.evidence_summary ? ` · ${data.research.evidence_summary}` : ""}</div>}
-        </div>
-        <div className="space-y-1 text-sm">
           <div className="text-xs font-medium uppercase text-muted-foreground">Photos & videos ({data.media.length})</div>
           {data.media.map((m) => (
             <div key={m.id}>{m.url ? <button type="button" className="text-primary underline" onClick={() => openFileViewer(m.url, m.name)}>{m.name}</button> : m.name}</div>
@@ -81,12 +60,6 @@ export function IntakeSummary({ jobId }: { jobId: string }) {
           {data.lastMediaFailure && <div className="text-destructive">{data.lastMediaFailure.summary} ({when(data.lastMediaFailure.created_at)})</div>}
         </div>
       </div>
-      {data.raw != null && (
-        <div className="mt-3">
-          <button className="text-xs text-muted-foreground underline" onClick={() => setShowRaw((s) => !s)}>{showRaw ? "Hide" : "Show"} full website snapshot (audit)</button>
-          {showRaw && <pre className="mt-2 max-h-80 overflow-auto rounded bg-muted p-2 text-xs">{JSON.stringify(data.raw, null, 2)}</pre>}
-        </div>
-      )}
     </section>
   );
 }

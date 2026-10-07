@@ -1240,7 +1240,7 @@ export const getGate1Evidence = createServerFn({ method: "POST" }).middleware([r
     return previewGate1(data.jobId);
   });
 
-/** Admin-only compact Base44 intake summary (raw snapshots available on request, never dumped by default). */
+/** Admin-only compact Base44 intake summary: owner answers, consent, photos. No research or raw snapshots. */
 export const getIntakeSummary = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
@@ -1264,18 +1264,16 @@ export const getIntakeSummary = createServerFn({ method: "POST" }).middleware([r
       declaredExtras: (await import("./enquiry.core")).declaredExtras(b44?.raw?.answers ?? null),
       // Preliminary website screening only – never the authoritative Step-2 category.
       screening: (() => { const prelim = job?.eligibility_decision_source !== "system" && job?.eligibility_decision_source !== "admin"; const raw = b44?.raw?.screening ?? null; return { outcome: prelim ? job?.eligibility_outcome ?? null : (typeof raw?.status === "string" ? raw.status : null), reasons: prelim ? job?.eligibility_reason ?? null : null, raw }; })(),
-      research: b44?.research ?? null, media: links, lastMediaFailure: fails?.[0] ?? null,
+      media: links, lastMediaFailure: fails?.[0] ?? null,
       postIntake: await (await import("./postintake.server")).postIntakeStatus(data.jobId),
-      raw: b44?.raw ?? null,
     })) as {
       reference: string | null; source: string | null; state: string | null; occupancy: string | null; lifeSupport: string | null; area: number | null;
       consent: { consent_status: string; consent_version: string | null; consented_at: string | null; age_confirmed: boolean | null; assistance: string | null; contact_preference: string | null; created_at: string } | null;
       declared: { property_type: string | null; over_five_years: string | null; previous_upgrade: string | null } | null;
       declaredExtras: { existing_insulation: string | null; top_floor: string | null };
       screening: { outcome: string | null; reasons: string | null; raw: Json };
-      research: { status: string | null; evidence_summary: string | null; first_appearance_year: number | null; premises_classification: string | null } | null;
       media: { id: string; name: string; mime: string | null; size: number | null; url: string | null }[];
-      lastMediaFailure: { created_at: string; summary: string } | null; raw: Json;
+      lastMediaFailure: { created_at: string; summary: string } | null;
       postIntake: { status: string; attempts: number; last_error: string | null; available_at: string; updated_at: string; completed_at: string | null; reason: string | null } | null;
     };
   });
@@ -1503,16 +1501,6 @@ export const approveComplianceTemplate = createServerFn({ method: "POST" }).midd
   });
 
 
-// ---------- Gate 1 Property Intelligence (information only) ----------
-export const runPropertyIntelligenceFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
-  .handler(async ({ data, context }) => {
-    await requireAdmin(context.supabase);
-    const { runPropertyIntelligence } = await import("./intelligence.server");
-    const r = await runPropertyIntelligence(data.jobId, context.userId, "admin_rerun");
-    return { status: r?.status ?? "error", outcome: r?.recommendation?.outcome ?? null };
-  });
-
 export const getProviderHealth = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
@@ -1553,14 +1541,6 @@ export const floorplanLink = createServerFn({ method: "POST" }).middleware([requ
     if (!fp?.storage_path || fp.storage_policy !== "store_permitted") throw new WorkflowError("This floor plan is not stored in the portal – the licence setting does not permit copying.");
     const { data: s } = await signFile("job-files", fp.storage_path, 300);
     return { url: s?.signedUrl ?? null };
-  });
-
-export const markIntelligenceReviewed = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid, note: z.string().trim().min(3).max(2000) }).parse(d))
-  .handler(async ({ data, context }) => {
-    await requireAdmin(context.supabase);
-    await logEvent(data.jobId, context.userId, "property_intelligence_reviewed", `Admin reviewed property evidence: ${data.note}`, {}, { internal: true });
-    return { ok: true };
   });
 
 // ---------- ESC pre-install notification + PIESA delivery ----------

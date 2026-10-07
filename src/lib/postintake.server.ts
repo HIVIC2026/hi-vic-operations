@@ -4,7 +4,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import type { TablesUpdate } from "@/integrations/supabase/types";
 import { addressHash, STALE_AFTER_DAYS } from "./intelligence.core";
-import { ACTIVE, LEASE_SECONDS, PROCESSING_NEXT_ACTION, WORK_TYPE, afterFailure, intelligenceNeeded, isAbandonedRun, planEnqueue, retryDelayMs, STALE_RUN_MS } from "./postintake.core";
+import { ACTIVE, LEASE_SECONDS, PROCESSING_NEXT_ACTION, WORK_TYPE, afterFailure, planEnqueue, retryDelayMs } from "./postintake.core";
 
 type Claimed = { id: string; job_id: string; attempts: number; locked_at: string; facts_version: string; reason: string | null };
 
@@ -32,27 +32,9 @@ export async function initialChecksPending(jobId: string): Promise<boolean> {
   return (data ?? []).length > 0;
 }
 
-/** Abandoned 'running' intelligence rows are closed as errors and their job is (re)queued through the processor. */
-export async function recoverStaleRuns(now = Date.now()) {
-  const cutoff = new Date(now - STALE_RUN_MS).toISOString();
-  const { data: runs } = await admin.from("property_intelligence_runs").select("id, job_id, status, started_at").eq("status", "running").lt("started_at", cutoff).limit(50);
-  let recovered = 0;
-  for (const r of runs ?? []) {
-    if (!isAbandonedRun(r, now)) continue;
-    const { data: upd } = await admin.from("property_intelligence_runs").update({ status: "error", error_summary: "Abandoned while running (request ended) – recovered by post-intake worker", completed_at: new Date(now).toISOString() }).eq("id", r.id).eq("status", "running").select("id");
-    if (!upd?.length) continue;
-    recovered++;
-    await logEvent(r.job_id, null, "property_intelligence_recovered", "Abandoned property intelligence run closed – initial checks re-queued", { run_id: r.id }, { internal: true });
-    const { data: w } = await admin.from("post_intake_work").select("id, status").eq("job_id", r.job_id).eq("work_type", WORK_TYPE).maybeSingle();
-    if (!w) await admin.from("post_intake_work").insert({ job_id: r.job_id, work_type: WORK_TYPE, facts_version: "recovered", reason: "abandoned intelligence run" });
-    else if (w.status === "complete" || w.status === "failed") await admin.from("post_intake_work").update({ status: "retry", available_at: new Date(now).toISOString(), attempts: 0, last_error: "abandoned intelligence run", completed_at: null }).eq("id", w.id);
-  }
-  return recovered;
-}
-
 /** Claim due items (SKIP LOCKED lease) and process them. Safe to call concurrently from many workers. */
 export async function processPostIntakeWork(opts: { jobId?: string; limit?: number } = {}) {
-  const recovered = await recoverStaleRuns();
+  const recovered = 0; // property intelligence retired: no runs to recover
   const { data, error } = await admin.rpc("claim_post_intake_work", { _limit: opts.limit ?? 5, _lease_seconds: LEASE_SECONDS, ...(opts.jobId ? { _job: opts.jobId } : {}) });
   if (error) throw new Error(error.message);
   const results: { id: string; job_id: string; status: string; error?: string }[] = [];
