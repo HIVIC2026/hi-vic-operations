@@ -20,7 +20,9 @@ export type SpotSavedInput = { firstName: string | null; rebate: number; suburb:
   /** Saved-spot snapshot: when present the email shows the same itemised breakdown as the likely-eligible email. */
   estimate?: { gross: number; customer: number; areaM2: number; address: string | null; calculatorUrl: string } | null };
 
-export const SPOT_SAVED_WAIT_TEXT = "Hundreds of homes have signed up since 1 October, and we book in order. It may be a while before it's your turn. We're teaming up with more installers and electricians across Victoria right now to get through it faster.";
+// Jo's "smart move" wording (7 Oct) replaces the old "waiting list is huge" message.
+export const SPOT_SAVED_BATCH_TEXT = "Demand is high and installer capacity is limited, so we're approving homes in batches, in the order spots were saved. You've locked in your place, so there's nothing more you need to do.";
+export const spotSavedTeamText = (suburb: string | null) => `We're teaming up with more installers and electricians across Victoria, and we'll text you as soon as one is free ${suburb?.trim() ? `in ${suburb.trim()}` : "near you"} to book your free Ready Check.`;
 
 /** "12 Smith St, Ballarat VIC 3350" -> { short: "12 Smith St, Ballarat", suburb: "Ballarat" } */
 export function addressBits(addressLine: string | null, suburb: string | null) {
@@ -31,12 +33,8 @@ export function addressBits(addressLine: string | null, suburb: string | null) {
 
 export function renderSpotSavedSms(i: SpotSavedInput) {
   const name = i.firstName?.trim() ? `, ${i.firstName.trim()}` : "";
-  return `Spot saved${name}! 🎉 Your ${wholeDollars(i.rebate)} rebate is waiting.
-
-Heads up: the waiting list is huge and we book in order, so it may be a while. We're teaming up with more installers and electricians across Victoria to speed it up. Your spot is held. We'll text you the moment an installer's free in ${i.suburb ?? "your area"}.
-
-Your job: ${i.myJobUrl}
-– Home Insulation Victoria`;
+  const where = i.suburb?.trim() ? ` in ${i.suburb.trim()}` : "";
+  return `Spot saved${name}! 🎉 Smart move: your ${wholeDollars(i.rebate)} rebate is waiting. Demand is high and capacity is limited, but your place in line is locked in. We'll text you as soon as an installer is free${where}. Your job: ${i.myJobUrl} – Home Insulation Victoria`;
 }
 
 export function renderSpotSavedEmail(i: SpotSavedInput) {
