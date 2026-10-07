@@ -995,6 +995,13 @@
       "when": 1791356865327,
       "tag": "0141_application_reviews",
       "breakpoints": true
+    },
+    {
+      "idx": 142,
+      "version": "7",
+      "when": 1791361563226,
+      "tag": "0142_installer_quoted",
+      "breakpoints": true
     }
   ]
 }

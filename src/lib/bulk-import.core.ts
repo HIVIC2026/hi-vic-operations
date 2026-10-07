@@ -87,13 +87,15 @@ export function siteCheckLabel(check: SiteCheck | null | undefined, date?: strin
   return "Site check: unclear — please answer Yes or No";
 }
 
-export type InstallerJobFacts = { site_check: SiteCheck | null; site_check_date: string | null; quoted_price_inc_gst: number | null; price_includes: string | null };
+export const QUOTED_ANSWER_NEEDED = "Quoted? – answer needed";
+export const QUOTED_QUESTION = "Have you quoted this customer?";
+export type InstallerJobFacts = { quoted?: "yes" | "no" | null; site_check: SiteCheck | null; site_check_date: string | null; quoted_price_inc_gst: number | null; price_includes: string | null };
 /** Short labels for office/partner lists (presentation only). */
 export function installerFactLabels(f: InstallerJobFacts): { siteCheck: string; price: string } {
   const d = f.site_check_date ? ` (${f.site_check_date.split("-").reverse().join("/")})` : "";
   return {
     siteCheck: f.site_check === "yes" ? `Site check done: Yes${d}` : f.site_check === "no" ? "Site check done: No — Ready Check" : "Site check: not recorded",
-    price: f.quoted_price_inc_gst ? `Installer's price $${Number(f.quoted_price_inc_gst).toLocaleString("en-AU")} inc GST` : QUOTE_NEEDED_LABEL,
+    price: f.quoted === null ? QUOTED_ANSWER_NEEDED : f.quoted === "no" ? QUOTE_NEEDED_LABEL : f.quoted_price_inc_gst ? `Installer's price $${Number(f.quoted_price_inc_gst).toLocaleString("en-AU")} inc GST` : QUOTE_NEEDED_LABEL,
   };
 }
 
@@ -135,6 +137,16 @@ export function quotedGap(answer: "yes" | "no" | null | undefined, price: number
 }
 /** Price to keep: Yes keeps the installer's price exactly (cents), No keeps none ("Quote needed from installer"). */
 export const quotedPrice = (answer: "yes" | "no", price: number | null | undefined) => answer === "yes" ? Math.round(Number(price) * 100) / 100 : null;
+/** Installer answers "Quoted?" later on the job page (Jo, 5:46pm). Answer once; Yes keeps the price exactly. */
+export function planQuotedAnswer(current: "yes" | "no" | null, answer: "yes" | "no", price: number | null | undefined, nextAction: string | null):
+  { error: string } | { patch: { installer_quoted: "yes" | "no"; installer_quoted_price_inc_gst: number | null; next_action: string | null } } {
+  if (current != null) return { error: "You've already answered this." };
+  const gap = quotedGap(answer, price);
+  if (gap) return { error: gap };
+  const base = (nextAction ?? "").split(" · ").filter((x) => x && x !== QUOTED_ANSWER_NEEDED && x !== QUOTE_NEEDED_LABEL);
+  if (answer === "no") base.push(QUOTE_NEEDED_LABEL);
+  return { patch: { installer_quoted: answer, installer_quoted_price_inc_gst: quotedPrice(answer, price), next_action: base.join(" · ") || null } };
+}
 export const CUSTOMER_DETAILS_NEEDED = "Customer details needed";
 export function customerDetailsGaps(e: BulkExtracted): string[] {
   const gaps: string[] = [];

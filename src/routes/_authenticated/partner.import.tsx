@@ -130,7 +130,7 @@ function Review({ draft, onBack }: { draft: Draft; onBack: () => void }) {
             {siteCheck === "yes" && <label className="mt-2 block text-sm">Site check date (if known)<Input type="date" className="mt-1 h-12" value={siteDate} onChange={(e) => setSiteDate(e.target.value)} /></label>}
           </div>
           <div>
-            <p className="text-sm font-bold">Quoted?{!quoted && <span className="ml-1 text-destructive">Please answer</span>}</p>
+            <p className="text-sm font-bold">Quoted?{!quoted && <span className="ml-1 text-xs font-normal text-estimate-navy/70">You can answer this later on the job page</span>}</p>
             <div className="mt-2 grid grid-cols-2 gap-2">{(["yes", "no"] as const).map((v) => <Button key={v} type="button" size="field" variant={quoted === v ? "default" : "outline"} onClick={() => { setQuoted(v); if (v === "no") setPrice(""); }}>{v === "yes" ? "Yes" : "No"}</Button>)}</div>
             {quoted === "no" && <p className="mt-2 text-xs font-semibold">Quote needed from installer</p>}
           </div>
@@ -142,7 +142,7 @@ function Review({ draft, onBack }: { draft: Draft; onBack: () => void }) {
       </Section>
       <label className="flex items-start gap-3 rounded-[18px] border border-estimate-line bg-card p-4 text-sm"><Checkbox className="mt-0.5" checked={permission} onCheckedChange={(c) => setPermission(c === true)} aria-label={ONE_JOB_PERMISSION_WORDING} /><span>{ONE_JOB_PERMISSION_WORDING}</span></label>
       <p className="text-xs text-estimate-navy/70">Confirming creates the job only — nothing is sent to the owner. Your price is used exactly as you give it.</p>
-      <Button size="field" className="w-full" disabled={!siteCheck || priceBad || !permission || !quoted || (quoted === "yes" && !priceNum)} onClick={async () => { const r = await confirm({ importId: draft.id, facts: out(), installer: { quoted, site_check: siteCheck!, site_check_date: siteCheck === "yes" && siteDate ? siteDate : null, quoted_price_inc_gst: priceNum, price_includes: includes.trim() || null, contact_permission: permission } }, "Job added"); if (r) navigate({ to: "/field/$jobId", params: { jobId: r.jobId } }); }}>Add this job</Button>
+      <Button size="field" className="w-full" disabled={!siteCheck || priceBad || !permission || (quoted === "yes" && !priceNum)} onClick={async () => { const r = await confirm({ importId: draft.id, facts: out(), installer: { quoted, site_check: siteCheck!, site_check_date: siteCheck === "yes" && siteDate ? siteDate : null, quoted_price_inc_gst: priceNum, price_includes: includes.trim() || null, contact_permission: permission } }, "Job added"); if (r) navigate({ to: "/field/$jobId", params: { jobId: r.jobId } }); }}>Add this job</Button>
       <div className="grid grid-cols-2 gap-2"><Button variant="outline" onClick={onBack}>Back</Button><Button variant="ghost" onClick={async () => { await discard({ importId: draft.id }, "Draft discarded"); onBack(); }}>Discard draft</Button></div>
     </div>
   );

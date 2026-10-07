@@ -400,7 +400,7 @@ function BulkImportPage() {
                     {r.extracted.price_inc_gst ? <p className="text-sm"><b>Price includes:</b> {r.extracted.price_includes ?? <span className="text-estimate-navy/70">not stated</span>}</p> : null}
                     {(() => { const q = rowQuoted[r.id] ?? { answer: null, price: "", confirmed: false }; const gap = quotedOpen(r.id); return (
                       <div className="rounded-lg border border-estimate-line p-3" data-quoted-picker>
-                        <p className="text-sm font-bold">Quoted?{gap && <span className="ml-1 text-destructive">{gap}</span>}</p>
+                        <p className="text-sm font-bold">Quoted?{gap && (q.confirmed && q.answer === "yes" ? <span className="ml-1 text-destructive">{gap}</span> : <span className="ml-1 text-xs font-normal text-estimate-navy/70">Leave blank to answer later on the job page</span>)}</p>
                         {q.answer === "yes" && !q.confirmed && <p className="text-xs text-estimate-navy/70">We found this price in your file. Check it, then tap Yes to confirm.</p>}
                         <div className="mt-2 grid grid-cols-2 gap-2">{(["yes", "no"] as const).map((v) => <Button key={v} type="button" size="field" variant={q.confirmed && q.answer === v ? "default" : "outline"} onClick={() => setRowQuoted({ ...rowQuoted, [r.id]: { ...q, answer: v, confirmed: true } })}>{v === "yes" ? "Yes" : "No"}</Button>)}</div>
                         {q.answer === "yes" && <label className="mt-2 block text-sm">Quoted price inc GST<Input className="mt-1 h-12" inputMode="decimal" value={q.price} onChange={(e) => setRowQuoted({ ...rowQuoted, [r.id]: { ...q, price: e.target.value } })} /></label>}
@@ -416,7 +416,7 @@ function BulkImportPage() {
             </div>
             <p className="text-sm text-estimate-navy/70">Confirming creates the jobs only — nothing is sent to any customer. If a price was included, a draft quote is prepared for office review using your price exactly as given. Jobs without a price are marked "Quote needed from installer".</p>
             {missingAddr > 0 && <p className="text-sm text-destructive">{missingAddr} customer{missingAddr > 1 ? "s need" : " needs"} details added (name, address, email and phone) — add them in the table above, or tick Skip.</p>}
-            <Button size="field" className="w-full" disabled={busy || summary.rows === 0 || missingAddr > 0 || rows.some((r) => !skip.has(r.id) && !r.duplicate_note && !!quotedOpen(r.id)) || rows.some((r) => !skip.has(r.id) && !r.duplicate_note && r.import_stage !== "installed" && !rowChecks[r.id]?.check) || rows.some((r) => r.sort_result === "office_review" && !skip.has(r.id))} onClick={confirmAll}>{busy ? "Adding…" : `Add ${rows.filter((r) => !skip.has(r.id) && !r.duplicate_note).length} jobs`}</Button>
+            <Button size="field" className="w-full" disabled={busy || summary.rows === 0 || missingAddr > 0 || rows.some((r) => !skip.has(r.id) && !r.duplicate_note && quotedSend(r.id).quoted === "yes" && !!quotedOpen(r.id)) || rows.some((r) => !skip.has(r.id) && !r.duplicate_note && r.import_stage !== "installed" && !rowChecks[r.id]?.check) || rows.some((r) => r.sort_result === "office_review" && !skip.has(r.id))} onClick={confirmAll}>{busy ? "Adding…" : `Add ${rows.filter((r) => !skip.has(r.id) && !r.duplicate_note).length} jobs`}</Button>
           </CardContent>
         </Card>
       )}

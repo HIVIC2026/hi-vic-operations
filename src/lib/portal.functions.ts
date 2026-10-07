@@ -1211,8 +1211,8 @@ export const getAdminPipeline = createServerFn({ method: "POST" }).middleware([r
   const now = new Date();
   const archivedQaIds = new Set((await admin.from("jobs").select("id").not("qa_archived_at", "is", null)).data?.map((j) => j.id) ?? []);
   // Installer-sourced jobs: site check done? and the installer's own price (Jo, 7 Oct).
-  const { data: facts } = await admin.from("jobs").select("id, installer_site_check, installer_site_check_date, installer_quoted_price_inc_gst, installer_price_includes").eq("channel", "installer_sourced");
-  const factBy = new Map((facts ?? []).map((f) => [f.id, { site_check: (f.installer_site_check as "yes" | "no" | null), site_check_date: f.installer_site_check_date, quoted_price_inc_gst: f.installer_quoted_price_inc_gst == null ? null : Number(f.installer_quoted_price_inc_gst), price_includes: f.installer_price_includes }]));
+  const { data: facts } = await admin.from("jobs").select("id, installer_quoted, installer_site_check, installer_site_check_date, installer_quoted_price_inc_gst, installer_price_includes").eq("channel", "installer_sourced");
+  const factBy = new Map((facts ?? []).map((f) => [f.id, { quoted: f.installer_quoted as "yes" | "no" | null, site_check: (f.installer_site_check as "yes" | "no" | null), site_check_date: f.installer_site_check_date, quoted_price_inc_gst: f.installer_quoted_price_inc_gst == null ? null : Number(f.installer_quoted_price_inc_gst), price_includes: f.installer_price_includes }]));
   return (data ?? []).filter((j) => j.id != null && !archivedQaIds.has(j.id)).map((j) => {
     const pays = (rc ?? []).filter((p) => p.job_id === j.id);
     const paid = pays.find((p) => p.status === "paid");
@@ -1674,17 +1674,35 @@ export const getInstallerJobFacts = createServerFn({ method: "POST" }).middlewar
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const { data: j, error } = await admin.from("jobs").select("channel, installer_site_check, installer_site_check_date, installer_quoted_price_inc_gst, installer_price_includes").eq("id", data.jobId).single();
+    const { data: j, error } = await admin.from("jobs").select("channel, installer_quoted, installer_site_check, installer_site_check_date, installer_quoted_price_inc_gst, installer_price_includes").eq("id", data.jobId).single();
     if (error || !j) throw new Error(`Could not load the installer's details: ${error?.message ?? "job not found"}`);
     if (j.channel !== "installer_sourced") return null;
-    return { site_check: j.installer_site_check as "yes" | "no" | null, site_check_date: j.installer_site_check_date, quoted_price_inc_gst: j.installer_quoted_price_inc_gst == null ? null : Number(j.installer_quoted_price_inc_gst), price_includes: j.installer_price_includes };
+    return { quoted: j.installer_quoted as "yes" | "no" | null, site_check: j.installer_site_check as "yes" | "no" | null, site_check_date: j.installer_site_check_date, quoted_price_inc_gst: j.installer_quoted_price_inc_gst == null ? null : Number(j.installer_quoted_price_inc_gst), price_includes: j.installer_price_includes };
+  });
+
+/** Partner job page: the installer answers "Quoted? Yes / No" (business owner of the originating installer only). */
+export const answerInstallerQuoted = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, answer: z.enum(["yes", "no"]), price: z.number().positive().max(1_000_000).nullable() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: j } = await admin.from("jobs").select("channel, originating_installer_business_id, installer_quoted, next_action").eq("id", data.jobId).maybeSingle();
+    if (!j || j.channel !== "installer_sourced" || !j.originating_installer_business_id) throw new WorkflowError("This job isn't one of your uploaded jobs.");
+    const { requireMember } = await import("./pilot.server");
+    await requireMember(context.userId, j.originating_installer_business_id, true);
+    const { planQuotedAnswer } = await import("./bulk-import.core");
+    const plan = planQuotedAnswer(j.installer_quoted as "yes" | "no" | null, data.answer, data.price, j.next_action);
+    if ("error" in plan) throw new WorkflowError(plan.error);
+    const { data: done, error } = await admin.from("jobs").update(plan.patch).eq("id", data.jobId).is("installer_quoted", null).select("id").maybeSingle();
+    if (error) throw new Error(`Could not save your answer: ${error.message}`);
+    if (!done) throw new WorkflowError("You've already answered this.");
+    await logEvent(data.jobId, context.userId, "installer_quoted_answer", data.answer === "yes" ? `Installer quoted $${plan.patch.installer_quoted_price_inc_gst} inc GST` : "Installer has not quoted — quote needed from installer", { answer: data.answer, price: plan.patch.installer_quoted_price_inc_gst });
+    return { ok: true };
   });
 
 /** Partner job page: their own site check answer and quoted price (RLS: only jobs they can already see). */
 export const getMyInstallerJobFacts = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: j } = await context.supabase.from("jobs").select("channel, installer_site_check, installer_site_check_date, installer_quoted_price_inc_gst, installer_price_includes").eq("id", data.jobId).maybeSingle();
+    const { data: j } = await context.supabase.from("jobs").select("channel, installer_quoted, installer_site_check, installer_site_check_date, installer_quoted_price_inc_gst, installer_price_includes").eq("id", data.jobId).maybeSingle();
     if (!j || j.channel !== "installer_sourced") return null;
-    return { site_check: j.installer_site_check as "yes" | "no" | null, site_check_date: j.installer_site_check_date, quoted_price_inc_gst: j.installer_quoted_price_inc_gst == null ? null : Number(j.installer_quoted_price_inc_gst), price_includes: j.installer_price_includes };
+    return { quoted: j.installer_quoted as "yes" | "no" | null, site_check: j.installer_site_check as "yes" | "no" | null, site_check_date: j.installer_site_check_date, quoted_price_inc_gst: j.installer_quoted_price_inc_gst == null ? null : Number(j.installer_quoted_price_inc_gst), price_includes: j.installer_price_includes };
   });

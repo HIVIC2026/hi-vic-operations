@@ -5259,6 +5259,7 @@ export type Database = {
           installation_completed_at: string | null
           installer_led: boolean
           installer_price_includes: string | null
+          installer_quoted: string | null
           installer_quoted_price_inc_gst: number | null
           installer_site_check: string | null
           installer_site_check_date: string | null
@@ -5315,6 +5316,7 @@ export type Database = {
           installation_completed_at?: string | null
           installer_led?: boolean
           installer_price_includes?: string | null
+          installer_quoted?: string | null
           installer_quoted_price_inc_gst?: number | null
           installer_site_check?: string | null
           installer_site_check_date?: string | null
@@ -5371,6 +5373,7 @@ export type Database = {
           installation_completed_at?: string | null
           installer_led?: boolean
           installer_price_includes?: string | null
+          installer_quoted?: string | null
           installer_quoted_price_inc_gst?: number | null
           installer_site_check?: string | null
           installer_site_check_date?: string | null
