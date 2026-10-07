@@ -216,7 +216,9 @@ export const saveAssessment = createServerFn({ method: "POST" }).middleware([req
 export const getJobScope = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireJobRole(context.supabase, data.jobId, ["admin", "electrician", "installer", "owner"]);
+    // No access (e.g. job reassigned, or a TEST account on a live job): no scope to show, not a server error.
+    try { await requireJobRole(context.supabase, data.jobId, ["admin", "electrician", "installer", "owner"]); }
+    catch (e) { if (e instanceof WorkflowError) return null; throw e; }
     const { jobScope } = await import("./requirements.server");
     const { measurementRow: _m, ...s } = await jobScope(data.jobId);
     return s;

@@ -2,6 +2,7 @@ import { Fragment, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getPartnerProfilePreview, markApplicationTest } from "@/lib/partner-profile.functions";
+import { getPartnerMittiInvited, setPartnerMittiInvited } from "@/lib/trade-view.functions";
 import { useAction } from "@/hooks/use-me";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,20 @@ function Section({ title, rows }: { title: string; rows: [string, React.ReactNod
       <div className="mb-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">{title}</div>
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-0.5 text-sm">{rows.map(([k, v]) => <Fragment key={k}><dt className="text-muted-foreground">{k}</dt><dd>{v ?? "—"}</dd></Fragment>)}</dl>
     </div>
+  );
+}
+
+/** Office-only: partners see Mitti instructions only once this is ticked. */
+function MittiInvitedToggle({ businessId }: { businessId: string }) {
+  const load = useServerFn(getPartnerMittiInvited);
+  const set = useAction(setPartnerMittiInvited);
+  const q = useQuery({ queryKey: ["mitti-invited-admin", businessId], queryFn: () => load({ data: { businessId } }) });
+  const on = q.data?.invited === true;
+  return (
+    <label className="flex items-center gap-2 border-t pt-2 text-sm">
+      <input type="checkbox" className="h-4 w-4" checked={on} disabled={q.isPending} onChange={async (e) => { await set({ businessId, invited: e.target.checked }, e.target.checked ? "Mitti account invited — partner will see Mitti instructions" : "Mitti hidden from this partner"); await q.refetch(); }} />
+      <span><span className="font-semibold">Mitti account invited</span> <span className="text-muted-foreground">(office only — until ticked, this partner never sees Mitti{on && q.data?.at ? `; ticked ${d(q.data.at)}` : ""})</span></span>
+    </label>
   );
 }
 
@@ -39,6 +54,7 @@ export function PartnerProfileCard({ applicationId }: { applicationId: string })
           {activatedBusinessId ? <Badge>Approved</Badge> : existingBusinessId ? <Badge variant="outline">Updates existing business (same ABN)</Badge> : <Badge variant="outline">New business on approval</Badge>}
         </div>
       </div>
+      {(activatedBusinessId ?? existingBusinessId) && <MittiInvitedToggle businessId={(activatedBusinessId ?? existingBusinessId) as string} />}
       {flags.length > 0 && (
         <div className="rounded-lg border border-warning/50 bg-warning-soft p-3">
           <div className="mb-1 text-sm font-semibold">Check before approving (doesn't block)</div>

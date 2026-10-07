@@ -100,7 +100,7 @@ export const JOURNEY: { key: JourneyStep; label: string }[] = [
 export function installerNextAction(s: { eligible: boolean | null; coverage: Coverage; electrician: ElectricianChoice | null; electricianApproved: boolean }): string {
   if (s.eligible === false || s.coverage.hardFail.length) return "Not eligible – no further action. The owner will receive the result email once the office approves it.";
   if (s.eligible == null) return "Waiting for the owner to complete their eligibility questions.";
-  if (s.coverage.status !== "complete") return s.coverage.status === "none" ? "Book your free Ready Check (Mitti form A)." : `Add the missing items: ${s.coverage.missing.slice(0, 3).join("; ")}${s.coverage.missing.length > 3 ? "…" : ""}`;
+  if (s.coverage.status !== "complete") return s.coverage.status === "none" ? "Book your free Ready Check." : `Add the missing items: ${s.coverage.missing.slice(0, 3).join("; ")}${s.coverage.missing.length > 3 ? "…" : ""}`;
   if (!s.electrician) return "Choose an electrician: add your own or request one of ours.";
   if (s.electrician !== "hivic_matched" && !s.electricianApproved) return "Your electrician must finish Home Insulation Victoria onboarding before they can be assigned.";
   return "Book the PIESA with the electrician in portal chat.";

@@ -83,7 +83,7 @@ export async function sendJoWelcome(actorId: string) {
     "You're approved — welcome aboard",
     simpleEmail("Welcome aboard, Jo", [
       `${JO_BUSINESS} is approved to take safety-check jobs from Home Insulation Victoria.`,
-      "Tap the button to set your password. Then a short checklist gets you ready for job alerts: check your details, rates and area, bank, job alerts and Mitti.",
+      "Tap the button to set your password. Then a short checklist gets you ready for job alerts: check your details, rates and area, bank and job alerts.",
       "Your work area: Fraser Rise VIC 3336, 50 km. Your safety check rate: $200.",
     ], { label: "Set up my account", url: link }));
 }

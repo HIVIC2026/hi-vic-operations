@@ -67,7 +67,7 @@ function WorkerJob() {
       <div className="mb-4 rounded-xl border bg-card p-4">
         <h2 className="mb-2 flex items-center gap-2 font-semibold"><ClipboardList className="h-4 w-4" /> Your form</h2>
         {data.mittiUrl
-          ? <><p className="mb-3 text-sm text-muted-foreground">Fill this in on site, in order — it collects every photo and reading needed so nothing is missed.</p><Button asChild className="h-12 w-full"><a href={data.mittiUrl} target="_blank" rel="noreferrer">Open the form in Mitti</a></Button></>
+          ? <><p className="mb-3 text-sm text-muted-foreground">Fill this in on site, in order — it collects every photo and reading needed so nothing is missed.</p><Button asChild className="h-12 w-full"><a href={data.mittiUrl} target="_blank" rel="noreferrer">Open the form</a></Button></>
           : <p className="text-sm text-muted-foreground">Your form isn't ready yet. Home Insulation Victoria will set it up before your visit.</p>}
       </div>
 

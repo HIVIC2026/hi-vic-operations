@@ -7,7 +7,7 @@ import { isTestPartner } from "./test-send.core";
 import { offerTiming } from "./offer-timing.core";
 import { COULDNT_GET_IN, payState, surname, type AreaSource, type InsulationNow, type TradeKind, SETUP_STEPS, type SetupKey } from "./trade-view.core";
 
-type Biz = { id: string; name: string; business_type: string | null; capabilities: string[] | null; base_suburb: string | null; coverage_radius_km: number | null; covers_all_victoria: boolean | null; accepting_new_jobs: boolean | null; onboarding_notes: string | null };
+type Biz = { id: string; name: string; business_type: string | null; capabilities: string[] | null; base_suburb: string | null; coverage_radius_km: number | null; covers_all_victoria: boolean | null; accepting_new_jobs: boolean | null; onboarding_notes: string | null; mitti_account_invited?: boolean | null };
 
 export async function tradeContext(userId: string) {
   const [{ data: mem }, { data: roles }, { data: prof }] = await Promise.all([
@@ -17,7 +17,7 @@ export async function tradeContext(userId: string) {
   ]);
   const m = (mem ?? [])[0];
   if (!m) return null;
-  const { data: b } = await admin.from("businesses").select("id, name, business_type, capabilities, base_suburb, coverage_radius_km, covers_all_victoria, accepting_new_jobs, onboarding_notes").eq("id", m.business_id).single();
+  const { data: b } = await admin.from("businesses").select("id, name, business_type, capabilities, base_suburb, coverage_radius_km, covers_all_victoria, accepting_new_jobs, onboarding_notes, mitti_account_invited").eq("id", m.business_id).single();
   if (!b) return null;
   const r = new Set((roles ?? []).map((x) => x.role as string));
   const kind: TradeKind = r.has("installer") && !r.has("electrician") ? "installer" : b.business_type === "eec_installer" && !r.has("electrician") ? "installer" : "electrician";
@@ -196,7 +196,9 @@ export async function tradeDay(jobId: string, userId: string) {
   return {
     kind: dayKind as "safety_check" | "ready_check" | "install", jobNumber: j?.job_number ?? null, owner: ow?.full_name ?? null, surname: surname(ow?.full_name), phone: ow?.phone ?? null,
     address: fullAddress(p?.address_line, p?.suburb, p?.postcode), start: b?.scheduled_start ?? null, end: b?.scheduled_end ?? null, outcome,
-    mittiReady: dayKind === "safety_check" ? !!ws?.mitti_piesa_template_id : false, mittiId: (dayKind === "ready_check" ? rc?.external_mitti_id : a?.external_mitti_id) ?? null,
+    // Mitti stays invisible to partners until the office ticks "Mitti account invited".
+    mittiInvited: c.biz.mitti_account_invited === true,
+    mittiReady: dayKind === "safety_check" ? !!ws?.mitti_piesa_template_id : false, mittiId: c.biz.mitti_account_invited === true ? (dayKind === "ready_check" ? rc?.external_mitti_id : a?.external_mitti_id) ?? null : null,
   };
 }
 
@@ -384,4 +386,18 @@ export async function tradeRequestLoginInvite(userId: string, workerId: string) 
   if (!w || w.business_id !== c.biz.id) throw new WorkflowError("Team member not found.");
   if (w.profile_id) return { ok: true, already: true };
   return { ...(await tradeChangeRequest(userId, "other", `Please send a login invite to ${w.full_legal_name} (team member ${w.id}).`)), already: false };
+}
+
+/** Whether the caller's business has been invited to Mitti by the office (false when unknown). */
+export async function tradeMittiInvited(userId: string) {
+  const c = await tradeContext(userId);
+  return { invited: c?.biz.mitti_account_invited === true };
+}
+
+/** Office only: tick/untick "Mitti account invited" for a partner. */
+export async function setMittiInvited(actorId: string, businessId: string, invited: boolean) {
+  const { error } = await admin.from("businesses").update({ mitti_account_invited: invited, mitti_account_invited_at: invited ? new Date().toISOString() : null, mitti_account_invited_by: invited ? actorId : null }).eq("id", businessId);
+  if (error) throw new WorkflowError(error.message);
+  await admin.from("admin_config_events").insert({ actor_id: actorId, event_type: "partner_mitti_invited", summary: `Mitti account invited ${invited ? "ticked" : "unticked"}`, details: { business_id: businessId, invited } });
+  return { ok: true };
 }
