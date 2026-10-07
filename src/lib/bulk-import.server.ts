@@ -13,7 +13,7 @@ import { hashToken, newToken } from "./worker-links.core";
 import { linkFiles, type LeadStage } from "./bulk-import.core";
 import { applyDiscountRules, discountNotes, wholeVeecDiscount } from "./estimate.core";
 import {
-  cleanLead, gridToRecords, dedupeKey, fileResults, findDuplicates, leadStage, type FileResult, LEAD_STAGE_LABEL, matchFiles, missingEvidence, normaliseAddress, sortJob,
+  cleanLead, gridToRecords, dedupeKey, parseSiteCheck, QUOTE_NEEDED_LABEL, quoteNeeded, siteCheckFromFile, siteCheckLabel, fileResults, findDuplicates, leadStage, type FileResult, LEAD_STAGE_LABEL, matchFiles, missingEvidence, normaliseAddress, sortJob,
   type BulkExtracted, type BulkFile,
 } from "./bulk-import.core";
 
@@ -90,7 +90,10 @@ area_m2 (number, ceiling/roof area in m2), existing_insulation (short text or "u
 access (short text about ceiling access/manhole or "unknown"),
 roof_type (short text, e.g. "tiled"/"tin", or "unknown"), hazards (short text or "unknown"),
 building_age (short text, e.g. "built 1978", or "unknown"), notes (anything else useful, short),
-price_inc_gst (number, the installer's quoted total price including GST if present),
+price_inc_gst (number, the installer's quoted total price including GST, exactly as given; null when there is no price — never work one out),
+price_includes (short free text: what the quoted price includes, e.g. R-value/product, area, removal, extras — from the price/quote column, notes or a quote document; null if not stated),
+site_check (text exactly as written in a "Visited"/"Measured"/"Site check done"/"Measure-up" column or note, e.g. "Y", "No", "Visited 3/10/26"; null when nothing says whether the site check was done — never guess from area or photos),
+site_check_date (the site check / measure-up date as YYYY-MM-DD if stated, else null),
 unsure (boolean), source_files (array of the uploaded file names/paths this lead was read from).
 If the same customer appears more than once in the list, return it once and add "Listed N times in the upload" to notes. Never invent values. If a column is ambiguous, put it in notes. Return [] only if there is truly no customer, contact, address or property detail anywhere.`;
 
@@ -133,7 +136,13 @@ export async function aiExtractRows(rawRows: Record<string, string>[], documents
       address_line: str("address_line"), suburb: str("suburb"), postcode: str("postcode"),
       area_m2: num("area_m2"), existing_insulation: str("existing_insulation"), access: str("access"),
       roof_type: str("roof_type"), hazards: str("hazards"), building_age: str("building_age"),
-      notes: str("notes"), price_inc_gst: num("price_inc_gst"),
+      notes: str("notes"), price_inc_gst: num("price_inc_gst"), price_includes: str("price_includes"),
+      ...(() => {
+        const sc = parseSiteCheck(o["site_check"]);
+        const date = (typeof o["site_check_date"] === "string" && /^\d{4}-\d{2}-\d{2}$/.test(o["site_check_date"] as string) ? o["site_check_date"] as string : null) ?? sc.date;
+        const check = sc.check ?? (date ? "yes" as const : null);
+        return { site_check: check, site_check_date: check === "yes" ? date : null, site_check_source: check ? "file" as const : null };
+      })(),
       unsure: o["unsure"] === true,
       source_files: Array.isArray(o["source_files"]) ? (o["source_files"] as unknown[]).filter((x): x is string => typeof x === "string").slice(0, 50) : [],
     } satisfies BulkExtracted;
@@ -235,12 +244,14 @@ export async function analyseBatch(batchId: string, actorId: string) {
     const duplicate = dupNotes.has(i);
     const { result, reasons } = sortJob(e, { matchConfidence: confidence, duplicate });
     const stage = leadStage(e, matched.length);
-    reasons.unshift(`Stage: ${LEAD_STAGE_LABEL[stage]}`);
+    const sc = siteCheckFromFile(e);
+    reasons.unshift(`Stage: ${LEAD_STAGE_LABEL[stage]}`, siteCheckLabel(sc.check, sc.date));
+    if (quoteNeeded(e)) reasons.push(QUOTE_NEEDED_LABEL);
     reasons.push(...cleaned[i]!.issues);
     if (matched.some((m) => m.how === "only_lead")) reasons.push("Photos attached because this is the only customer in the upload — please check");
     else if (matched.length > 0 && confidence === "low") reasons.push("Files matched by filename only — please check");
     return {
-      batch_id: batchId, row_index: i, extracted: { ...e, lead_stage: stage } as unknown as Json,
+      batch_id: batchId, row_index: i, extracted: { ...e, lead_stage: stage, site_check: sc.check, site_check_date: sc.date, site_check_source: sc.check ? "file" : null } as unknown as Json,
       import_stage: stage,
       matched_files: matched as unknown as Json, match_confidence: confidence,
       sort_result: result, sort_reasons: reasons as unknown as Json,
@@ -261,6 +272,8 @@ export async function analyseBatch(batchId: string, actorId: string) {
     not_visited: extracted.filter((e, i) => leadStage(e, (rows[i]!.matched_files as unknown[]).length) === "not_visited").length,
     visited: extracted.filter((e, i) => leadStage(e, (rows[i]!.matched_files as unknown[]).length) === "visited").length,
     visited_quoted: extracted.filter((e) => e.price_inc_gst && e.price_inc_gst > 0).length,
+    site_check_unclear: extracted.filter((e) => siteCheckFromFile(e).check == null).length,
+    quote_needed: extracted.filter((e) => quoteNeeded(e)).length,
     permission: stored.permission ?? null,
     file_results: fileResults(stored.file_reads ?? [], extracted, allMatches),
   };
@@ -304,19 +317,23 @@ async function createBulkJob(e: BulkExtracted, batch: { id: string; business_id:
     owner_id: ownerId, property_id: prop.id, stage: placement.stage, source, business_unit: "hivic", installer_led: true,
     channel: "installer_sourced", originating_installer_business_id: batch.business_id, originating_installer_user_id: actorId,
     external_enquiry_id: `bulk:${rowId}`,
-    next_action: placement.next,
+    // Jo (7 Oct): the installer's own price exactly as given (none = quote needed) and whether he already did the site check.
+    installer_site_check: siteCheckFromFile(e).check, installer_site_check_date: siteCheckFromFile(e).date,
+    installer_quoted_price_inc_gst: quoteNeeded(e) ? null : e.price_inc_gst, installer_price_includes: e.price_includes ?? null,
+    next_action: quoteNeeded(e) && importStage !== "installed" ? `${placement.next} · ${QUOTE_NEEDED_LABEL}` : placement.next,
   }).select("id, job_number").single();
   if (je || !job) throw new BulkImportError(je?.message ?? "Job could not be created.");
   if (sameEmail.length) await admin.from("workflow_events").insert({ job_id: job.id, actor_id: actorId, event_type: "possible_duplicate_owner", summary: "Possible duplicate owner (same email) — office to check", details: { note: "Bulk upload: this owner's email matches an existing owner. A new owner was created; office to check under Possible duplicates.", existing_owner_ids: sameEmail.map((o) => o.id), source: "bulk_import" } as unknown as Json });
   await admin.from("job_assignments").insert({ job_id: job.id, user_id: actorId, role: "installer", business_id: batch.business_id, assigned_by: actorId });
   if (importStage !== "not_visited" && e.area_m2 && e.area_m2 > 0) {
-    await admin.from("ceiling_measurements").insert({
+    const { error: me } = await admin.from("ceiling_measurements").insert({
       job_id: job.id, source_role: "installer", status: "needs_review", is_current: true,
       supplied_area_m2: e.area_m2, measured_area_m2: e.area_m2, measured_by_business_id: batch.business_id,
-      provenance: "partner_supplied", external_source: "bulk_import", external_id: rowId,
+      provenance: "installer_supplied_provisional", external_source: "bulk_import", external_id: rowId,
       raw_snapshot: { row_id: rowId, import_stage: importStage, supplied: e } as unknown as Json,
       review_flags: ["Imported installer measurement requires office acceptance"] as unknown as Json,
     });
+    if (me) throw new BulkImportError(`Measure-up could not be saved: ${me.message}`);
   }
   return job;
 }
@@ -335,7 +352,7 @@ async function draftQuoteFromImport(jobId: string, e: BulkExtracted, actorId: st
   if (!loc || veecValue == null || apFee == null || !(piesa && piesa > 0)) return false; // office quotes manually
   const rawDiscount = wholeVeecDiscount(e.area_m2, loc as unknown as LocationVariables, veecValue).raw;
   const lines = [
-    { code: "INSTALLER_PRICE", description: "Insulation works by your installer", quantity: 1, unit: "flat", unit_price_inc_gst: e.price_inc_gst, line_total_inc_gst: e.price_inc_gst, is_other: false, explanation: null, sort: 0 },
+    { code: "INSTALLER_PRICE", description: e.price_includes ? `Insulation works by your installer — includes: ${e.price_includes}`.slice(0, 500) : "Insulation works by your installer", quantity: 1, unit: "flat", unit_price_inc_gst: e.price_inc_gst, line_total_inc_gst: e.price_inc_gst, is_other: false, explanation: null, sort: 0 },
     { code: "PIESA", description: "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", quantity: 1, unit: "flat", unit_price_inc_gst: piesa, line_total_inc_gst: piesa, is_other: false, explanation: null, sort: 1 },
     { code: "AP_FEE", description: "Home Insulation Victoria — Accredited Person fee", quantity: 1, unit: "flat", unit_price_inc_gst: apFee, line_total_inc_gst: apFee, is_other: false, explanation: null, sort: 2 },
   ];
@@ -377,6 +394,11 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
     if (!e.address_line?.trim()) {
       failed++;
       await logPartner(null, actorId, "bulk_import_row_failed", `Row ${row.row_index + 1} has no address yet — add it in the review table, then confirm again`, { batch_id: batchId, row_id: row.id });
+      continue;
+    }
+    if (siteCheckFromFile(e).check == null && row.import_stage !== "installed") {
+      failed++;
+      await logPartner(null, actorId, "bulk_import_row_failed", `Row ${row.row_index + 1}: tell us whether you've already done the site check (Yes or No), then confirm again`, { batch_id: batchId, row_id: row.id });
       continue;
     }
     if (row.sort_result === "office_review") {
