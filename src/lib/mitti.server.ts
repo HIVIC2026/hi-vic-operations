@@ -285,6 +285,13 @@ export async function syncPendingMitti(actorId: string | null, call: MittiCall =
       results.push({ jobId, ok: false, message: e instanceof Error ? e.message : "error" });
     }
   }
+  // Installer declarations signed inside the Mitti PIISA.
+  const { data: pe } = await admin.from("workflow_events").select("job_id").eq("event_type", "mitti_piisa_audit_created");
+  const { syncPiisaDeclaration } = await import("./piisa-declaration.server");
+  for (const jobId of [...new Set((pe ?? []).map((e) => e.job_id as string))]) {
+    try { const r = await syncPiisaDeclaration(jobId, actorId, call); if (r.status !== "already") results.push({ jobId, ok: r.status === "saved" || r.status === "pending", message: r.message }); }
+    catch (e) { results.push({ jobId, ok: false, message: e instanceof Error ? e.message : "error" }); }
+  }
   return results;
 }
 
