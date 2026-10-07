@@ -47,9 +47,11 @@ export const prepareTradeLogin = createServerFn({ method: "POST" }).middleware([
       const kind = userId ? "recovery" : "invite";
       const { data: gl, error } = await admin.auth.admin.generateLink({ type: kind, email, options: { redirectTo, ...(kind === "invite" ? { data: { full_name: w.full_legal_name } } : {}) } } as never);
       if (error) throw new WorkflowError(`Link could not be made: ${error.message}`);
-      const g = gl as unknown as { user?: { id: string }; properties?: { action_link?: string } };
+      const g = gl as unknown as { user?: { id: string }; properties?: { hashed_token?: string } };
       userId = userId ?? g.user?.id ?? null;
-      link = g.properties?.action_link ?? null;
+      // Our own /reset-password link redeems the token itself, so it never falls back to the calculator home page.
+      const { setPasswordLink } = await import("./set-password-link.core");
+      link = g.properties?.hashed_token ? setPasswordLink(g.properties.hashed_token, "/portal", new URL(data.redirectTo).origin, kind) : null;
     }
     if (!userId) throw new WorkflowError("The account could not be created.");
 

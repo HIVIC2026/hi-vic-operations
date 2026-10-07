@@ -75,7 +75,7 @@ describe("Trade sign-in", () => {
     expect(grantedRole("electrician")).toBe("electrician");
   });
   test("sign-in page offers reset and email link, without the Operations label", () => {
-    const a = readFileSync("src/routes/auth.tsx", "utf8");
+    const a = readFileSync("src/components/portal/SignInCard.tsx", "utf8");
     expect(a).toContain("Forgot password?");
     expect(a).toContain("Email me a sign-in link");
     expect(a).toContain("shouldCreateUser: false");
