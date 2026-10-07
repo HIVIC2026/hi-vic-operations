@@ -519,10 +519,12 @@ export function renderSaveSpotFromLikelyEmail(input: EstimateEmailInput & { camp
   const card0 = base.html.match(/<table data-likely-next-step="true"[\s\S]*?No obligation to proceed with installation\.<\/p><\/td><\/tr><\/table>/)?.[0];
   if (!card0) throw new Error("Save-spot render: next-step card missing");
   let card = must(card0, "Free Insulation Measure-Up &amp; Eligibility Check", "Save your spot");
+  card = must(card, LIKELY_NEXT_STEP_INSTRUCTION, SAVE_SPOT_INSTRUCTION);
   card = must(card, "Arrange my free measure-up &amp; eligibility check →", "Save my spot →");
   card = must(card, /href="[^"]*"/, `href="${escape(input.campaignUrl)}"`);
   const html = base.html.replace(card0, () => card);
   let text = must(base.plainText, /FREE INSULATION MEASURE-UP & ELIGIBILITY CHECK\n/, "SAVE YOUR SPOT\n");
+  text = must(text, LIKELY_NEXT_STEP_INSTRUCTION, SAVE_SPOT_INSTRUCTION);
   text = must(text, /Arrange my free measure-up & eligibility check: .*/, `Save my spot: ${input.campaignUrl}`);
   return { subject: base.subject, previewText: base.previewText, html, plainText: text };
 }
