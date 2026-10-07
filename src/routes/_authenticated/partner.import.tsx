@@ -2,12 +2,15 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { TradeShell } from "@/components/trade/TradeShell";
 import { Button, Section } from "@/components/trade/trade-ui";
 import { useAction } from "@/hooks/use-me";
-import { confirmImport, createImport, discardImport, getPartnerProfile, partnerUploadUrl } from "@/lib/pilot.functions";
-import { ONE_JOB_PERMISSION_WORDING, parseCsv, reviewItems, type Extracted, type ImportField } from "@/lib/pilot.core";
+import { addImportFiles, confirmImport, createImport, discardImport, getPartnerProfile, removeImportFile } from "@/lib/pilot.functions";
+import { addBulkElectrician, bulkElectricianChoices } from "@/lib/bulk-import.functions";
+import { AttachFiles, ElectricianPicker, inviteResultMessage, useUploadFiles, type AttachedFile } from "@/components/trade/job-intake";
+import { OWNER_CONTACT_PERMISSION, electricianPlanBlocker, usualElectrician, visitedFromEvidence, type ElectricianPlan } from "@/lib/job-electrician.core";
+import { useEffect } from "react";
+import { parseCsv, reviewItems, type Extracted, type ImportField } from "@/lib/pilot.core";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -17,7 +20,7 @@ export const Route = createFileRoute("/_authenticated/partner/import")({
   component: ImportPage,
 });
 
-type Draft = { id: string; extracted: Extracted };
+type Draft = { id: string; extracted: Extracted; files: AttachedFile[]; businessId: string };
 
 function ImportPage() {
   const loadProfile = useServerFn(getPartnerProfile);
@@ -26,36 +29,31 @@ function ImportPage() {
   const businessId = (profile?.business as { id?: string } | undefined)?.id;
   return (
     <TradeShell installer>
-      <h1 className="font-display text-3xl font-extrabold">Add one job</h1>
-      <p className="text-sm text-estimate-navy/70">Paste, upload or export what you already have. We'll pull out the details and you just confirm them.</p>
-      {!businessId ? <p className="text-sm text-estimate-navy/70">Loading…</p> : draft ? <Review draft={draft} onBack={() => setDraft(null)} /> : <Source businessId={businessId} onDraft={setDraft} />}
+      <h1 className="font-display text-[26px] font-bold leading-tight">Add one job</h1>
+      <p className="text-sm text-sub">Paste or attach what you have. You just check the details.</p>
+      {!businessId ? <p className="text-sm text-estimate-navy/70">Loading…</p> : draft ? <Review key={draft.id} draft={draft} onBack={() => setDraft(null)} /> : <Source businessId={businessId} onDraft={setDraft} />}
     </TradeShell>
   );
 }
 
 function Source({ businessId, onDraft }: { businessId: string; onDraft: (d: Draft) => void }) {
   const create = useAction(createImport);
-  const upload = useServerFn(partnerUploadUrl);
+  const uploadFiles = useUploadFiles(businessId);
   const [text, setText] = useState("");
   const [csv, setCsv] = useState("");
   const [row, setRow] = useState(0);
   const [url, setUrl] = useState("");
   const [ref, setRef] = useState("");
   const [system, setSystem] = useState<"easymate" | "manual_import" | "email">("easymate");
-  const [files, setFiles] = useState<File[]>([]);
+  const [files, setFiles] = useState<AttachedFile[]>([]);
   const [busy, setBusy] = useState(false);
   const rows = csv ? parseCsv(csv) : [];
   const go = async () => {
     setBusy(true);
     try {
-      const uploaded: { path: string; name: string; type: string }[] = [];
-      for (const f of files) {
-        const { path, token } = await upload({ data: { businessId, folder: "imports", fileName: f.name } });
-        const { error } = await supabase.storage.from("job-files").uploadToSignedUrl(path, token, f, { contentType: f.type });
-        if (!error) uploaded.push({ path, name: f.name, type: f.type });
-      }
+      const uploaded = files.map((f) => ({ path: f.path, name: f.name, type: f.type ?? "" }));
       const r = await create({ businessId, sourceSystem: system, ...(text ? { text } : {}), ...(csv ? { csv, csvRow: row } : {}), ...(url ? { sourceUrl: url } : {}), ...(ref ? { externalRefs: { [system === "easymate" ? "easymate_ref" : "reference"]: ref } } : {}), files: uploaded });
-      if (r) onDraft(r);
+      if (r) onDraft({ ...r, files, businessId });
     } finally { setBusy(false); }
   };
   return (
@@ -75,9 +73,8 @@ function Source({ businessId, onDraft }: { businessId: string; onDraft: (d: Draf
         {rows.length > 1 && <select className="mt-2 h-12 w-full rounded border bg-background px-2" value={row} onChange={(e) => setRow(Number(e.target.value))}>{rows.map((r, i) => <option key={i} value={i}>{Object.values(r).slice(0, 3).join(" · ")}</option>)}</select>}
         {rows.length > 0 && <p className="mt-1 text-xs text-estimate-navy/70">{rows.length} row(s) found – one job per import.</p>}
       </Section>
-      <Section title="Attach quote, job sheet, measure-up or photos">
-        <Input type="file" multiple accept="application/pdf,image/*" onChange={(e) => setFiles([...(e.target.files ?? [])])} />
-        <p className="mt-1 text-xs text-estimate-navy/70">Files are kept with the job as source documents. Details inside PDFs and photos aren't read automatically yet – confirm them on the next screen.</p>
+      <Section title="Photos, quotes and job sheets">
+        <AttachFiles businessId={businessId} files={files} label="Attach to this job" onAdd={async (f) => { const up = await uploadFiles(f); setFiles((o) => [...o, ...up]); }} onRemove={async (path) => setFiles((o) => o.filter((x) => x.path !== path))} />
       </Section>
       <Button size="field" className="w-full" disabled={busy || (!text && !csv && !files.length && !ref)} onClick={go}>{busy ? "Reading…" : "Continue"}</Button>
     </div>
@@ -95,7 +92,15 @@ function Review({ draft, onBack }: { draft: Draft; onBack: () => void }) {
   const rest = items.filter((i) => !found.includes(i) && !check.includes(i));
   const numeric: ImportField[] = ["measured_area_m2", "removal_m2", "existing_r_value", "r_value"];
   // Same three facts as bulk upload (Jo, 7 Oct): his quoted price exactly as given, what it includes, site check Y/N.
-  const [siteCheck, setSiteCheck] = useState<"yes" | "no" | null>(null);
+  const [files, setFiles] = useState<AttachedFile[]>(draft.files);
+  const addFiles = useServerFn(addImportFiles), dropFile = useServerFn(removeImportFile), uploadFiles = useUploadFiles(draft.businessId);
+  const getElectricians = useServerFn(bulkElectricianChoices), addElectrician = useServerFn(addBulkElectrician);
+  const { data: el, refetch: refreshEl } = useQuery({ queryKey: ["bulk-electricians", draft.businessId], queryFn: () => getElectricians({ data: { businessId: draft.businessId } }) });
+  const [plan, setPlan] = useState<ElectricianPlan | null>(null);
+  useEffect(() => { if (plan || !el) return; const u = usualElectrician(el.approved); setPlan(u?.businessId ? { mode: "mine", business_id: u.businessId } : { mode: "hivic" }); }, [el, plan]);
+  // Photos or a measurement mean Visited: the site check answer starts at Yes (the installer can change it).
+  const visited = visitedFromEvidence({ files, measuredArea: draft.extracted.measured_area_m2?.value as number | null | undefined });
+  const [siteCheck, setSiteCheck] = useState<"yes" | "no" | null>(visited ? "yes" : null);
   const [permission, setPermission] = useState(false);
   const [siteDate, setSiteDate] = useState("");
   const [price, setPrice] = useState("");
@@ -140,9 +145,14 @@ function Review({ draft, onBack }: { draft: Draft; onBack: () => void }) {
             <Textarea rows={3} className="mt-1" value={includes} onChange={(e) => setIncludes(e.target.value)} /></label> : null}
         </div>
       </Section>
-      <label className="flex items-start gap-3 rounded-[18px] border border-estimate-line bg-card p-4 text-sm"><Checkbox className="mt-0.5" checked={permission} onCheckedChange={(c) => setPermission(c === true)} aria-label={ONE_JOB_PERMISSION_WORDING} /><span>{ONE_JOB_PERMISSION_WORDING}</span></label>
-      <p className="text-xs text-estimate-navy/70">Confirming creates the job only — nothing is sent to the owner. Your price is used exactly as you give it.</p>
-      <Button size="field" className="w-full" disabled={!siteCheck || priceBad || !permission || (quoted === "yes" && !priceNum)} onClick={async () => { const r = await confirm({ importId: draft.id, facts: out(), installer: { quoted, site_check: siteCheck!, site_check_date: siteCheck === "yes" && siteDate ? siteDate : null, quoted_price_inc_gst: priceNum, price_includes: includes.trim() || null, contact_permission: permission } }, "Job added"); if (r) navigate({ to: "/field/$jobId", params: { jobId: r.jobId } }); }}>Add this job</Button>
+      <Section title="Photos, quotes and job sheets">
+        <AttachFiles businessId={draft.businessId} files={files} label="Attached to this job" onAdd={async (f) => { const up = await uploadFiles(f); const r = await addFiles({ data: { importId: draft.id, files: up.map((x) => ({ path: x.path, name: x.name, type: x.type ?? "" })) } }); setFiles(r.files); if (!siteCheck && visitedFromEvidence({ files: r.files })) setSiteCheck("yes"); }} onRemove={async (path) => { const r = await dropFile({ data: { importId: draft.id, path } }); setFiles(r.files); }} />
+      </Section>
+      {plan && <ElectricianPicker value={plan} onChange={setPlan} approved={el?.approved ?? []} pending={el?.pending ?? []} onAdd={async (d) => { const r = await addElectrician({ data: { businessId: draft.businessId, name: d.name, mobile: d.mobile, email: d.email, business: d.business } }); await refreshEl(); setPlan({ mode: "mine", ...(r.businessId ? { business_id: r.businessId } : { nomination_id: r.nominationId }) }); return { message: inviteResultMessage(r) }; }} />}
+      <label className="flex items-start gap-3 rounded-[18px] border border-line bg-paper p-4 text-sm" data-owner-consent><Checkbox className="mt-0.5" checked={permission} onCheckedChange={(c) => setPermission(c === true)} aria-label={OWNER_CONTACT_PERMISSION} /><span>{OWNER_CONTACT_PERMISSION}</span></label>
+      {!permission && <p className="-mt-2 text-xs text-sub">Tick this to add the job.</p>}
+      <p className="text-xs text-sub">Nothing is sent to the owner when you add the job.</p>
+      <Button size="field" className="w-full" disabled={!siteCheck || priceBad || !permission || (quoted === "yes" && !priceNum) || !!electricianPlanBlocker(plan)} onClick={async () => { const r = await confirm({ importId: draft.id, facts: out(), installer: { quoted, site_check: siteCheck!, site_check_date: siteCheck === "yes" && siteDate ? siteDate : null, quoted_price_inc_gst: priceNum, price_includes: includes.trim() || null, contact_permission: permission }, electrician: plan && plan.mode === "mine" ? { mode: "mine", business_id: plan.business_id ?? null, nomination_id: plan.nomination_id ?? null } : { mode: "hivic" } }, "Job added"); if (r) navigate({ to: "/field/$jobId", params: { jobId: r.jobId } }); }}>Add this job</Button>
       <div className="grid grid-cols-2 gap-2"><Button variant="outline" onClick={onBack}>Back</Button><Button variant="ghost" onClick={async () => { await discard({ importId: draft.id }, "Draft discarded"); onBack(); }}>Discard draft</Button></div>
     </div>
   );
