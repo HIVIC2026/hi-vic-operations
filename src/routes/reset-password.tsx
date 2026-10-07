@@ -2,10 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
+import { TradePublicShell, card, greenBtn, inputCls } from "@/components/trade/TradeShell";
 
 export const Route = createFileRoute("/reset-password")({
   head: () => ({ meta: [
@@ -52,18 +49,18 @@ function ResetPassword() {
     navigate({ to: (((n) => n === "/field/welcome" ? n : n === "/field/setup" || n === "/partner" ? "/field/welcome" : "/home")(new URLSearchParams(window.location.search).get("next"))) as never, replace: true });
   };
   return (
-    <main className="portal-theme grid min-h-screen place-items-center bg-background px-4 py-12">
-      <div className="w-full max-w-sm rounded-[22px] border bg-card p-6 shadow-sm">
-        <img src={logo.url} alt="Home Insulation Victoria" className="mx-auto h-14 w-auto" />
-        <h1 className="mt-4 text-center font-display text-xl font-bold">Set your password</h1>
-        {failed ? <p role="alert" className="mt-4 text-center text-sm">This link has expired or was already used. Ask Home Insulation Victoria for a new one.</p> : !ready ? <p className="mt-4 text-center text-sm text-muted-foreground">Opening your secure link…</p> : (
-          <form onSubmit={save} className="mt-4 space-y-3">
-            <div><Label htmlFor="p1">New password</Label><Input id="p1" type="password" autoComplete="new-password" className="h-12" value={pw} onChange={(e) => setPw(e.target.value)} /></div>
-            <div><Label htmlFor="p2">Type it again</Label><Input id="p2" type="password" autoComplete="new-password" className="h-12" value={pw2} onChange={(e) => setPw2(e.target.value)} /></div>
-            <Button type="submit" size="field" className="w-full" disabled={busy}>Save and sign in</Button>
-          </form>
-        )}
-      </div>
-    </main>
+    <TradePublicShell>
+      <h1 className="font-display text-3xl font-extrabold">Set your password</h1>
+      {failed ? <p role="alert" className={card}>This link has expired or was already used. Ask Home Insulation Victoria for a new one.</p> : !ready ? <p className={card}>Opening your secure link…</p> : (
+        <form onSubmit={save} className={`${card} space-y-3`}>
+          <p>Choose a password of at least 8 characters. You'll use it with your email to sign in.</p>
+          <label htmlFor="p1" className="block font-bold">New password</label>
+          <input id="p1" type="password" autoComplete="new-password" className={inputCls} value={pw} onChange={(e) => setPw(e.target.value)} />
+          <label htmlFor="p2" className="block font-bold">Type it again</label>
+          <input id="p2" type="password" autoComplete="new-password" className={inputCls} value={pw2} onChange={(e) => setPw2(e.target.value)} />
+          <button type="submit" className={greenBtn} disabled={busy}>Save and sign in</button>
+        </form>
+      )}
+    </TradePublicShell>
   );
 }
