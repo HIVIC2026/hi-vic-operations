@@ -7,7 +7,7 @@ import { AppShell } from "@/components/portal/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getLaunchCampaignOffice, saveDesktopInsulationCheck } from "@/lib/launch-campaign.functions";
-import { renderLaunchCampaignEmail } from "@/lib/estimate-email";
+import { renderLaunchGroupEmail } from "@/lib/estimate-email";
 
 export const Route = createFileRoute("/_authenticated/admin/launch-campaign")({
   component: LaunchCampaignOffice,
@@ -26,8 +26,8 @@ function LaunchCampaignOffice() {
   const campaignUrl = `https://estimate.homeinsulationvictoria.com.au/estimate/${previewToken}/campaign`;
   const unsubscribeUrl = `https://estimate.homeinsulationvictoria.com.au/email/unsubscribe?t=${"U".repeat(43)}`;
   const previews = [
-    renderLaunchCampaignEmail({ group: "likely", campaignUrl, unsubscribeUrl, firstName: "Sarah", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150, address: "14 Example Street, Ballarat VIC 3350", reference: "PREVIEW-A" }),
-    renderLaunchCampaignEmail({ group: "onsite", campaignUrl, unsubscribeUrl, firstName: "Michael", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150, address: "28 Sample Road, Bendigo VIC 3550", reference: "PREVIEW-B" }),
+    renderLaunchGroupEmail({ group: "likely", campaignUrl, unsubscribeUrl, firstName: "Sarah", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150, address: "14 Example Street, Ballarat VIC 3350", reference: "PREVIEW-A" }),
+    renderLaunchGroupEmail({ group: "onsite", campaignUrl, unsubscribeUrl, firstName: "Michael", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150, address: "28 Sample Road, Bendigo VIC 3550", reference: "PREVIEW-B" }),
   ];
   const decide = async (id: string, outcome: "looks_eligible" | "not_eligible" | "needs_onsite_check") => {
     setBusy(id);

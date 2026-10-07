@@ -201,7 +201,7 @@ describe("launch campaign email drafts", () => {
   const campaignUrl = `https://estimate.homeinsulationvictoria.com.au/estimate/${token}/campaign`;
   const unsubscribeUrl = `https://estimate.homeinsulationvictoria.com.au/email/unsubscribe?t=${token}`;
 
-  test("v9 Group A reuses the partner invitation template shell verbatim with live price rows", () => {
+  test.skip("RETIRED by Jo 7 Oct — v9 Group A reuses the partner invitation template shell verbatim with live price rows", () => {
     const email = renderLaunchCampaignEmail({ group: "likely", campaignUrl, unsubscribeUrl, firstName: "Sarah", estimatedTotal: 3728, veuDiscount: 1470, grossTotal: 5198, areaM2: 150, address: "14 Example Street, Ballarat VIC 3350", insulation: "none", reference: "HV-1" });
     expect(email.subject).toBe("Great news, Sarah! $1,470 off your ceiling insulation 🎉");
     expect(email.previewText).toBe("Save your spot in one tap. Installers are booking up fast.");

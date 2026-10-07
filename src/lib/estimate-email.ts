@@ -439,7 +439,24 @@ export function campaignAmountImg(src: string, amount: string) {
   return `<img src="${escape(src)}" width="${amountArtWidth(amount)}" height="${AMOUNT_LH}" alt="${escape(amount)}" style="display:inline-block;width:${amountArtWidth(amount)}px;height:${AMOUNT_LH}px;border:0;vertical-align:middle;${FH}color:${INK};font-size:30px;line-height:${AMOUNT_LH}px;font-weight:800;">`;
 }
 
+/** Save my spot for likely-eligible owners: ALWAYS the Jo-approved locked email (7 Oct 2026 12:52). Group B keeps its own renderer. */
+export function renderLaunchGroupEmail(input: LaunchCampaignEmailInput): EstimateEmail {
+  if (input.group !== "likely") return renderLaunchCampaignEmail(input);
+  return renderSaveSpotFromLikelyEmail({
+    estimateUrl: input.campaignUrl.replace(/\/campaign$/, ""), outcome: "likely", apCount: 2,
+    campaignUrl: input.campaignUrl, campaignOptOutUrl: input.unsubscribeUrl,
+    estimatedTotal: input.estimatedTotal, veuDiscount: input.veuDiscount, grossProjectTotal: input.grossTotal, areaM2: input.areaM2,
+    amountPayableNow: 0, estimatedRemainingBalance: input.estimatedTotal,
+    firstName: input.firstName ?? null, address: input.address ?? null, reference: input.reference ?? null,
+    existingInsulationPresent: input.insulation === "present",
+    assessmentFee: input.assessmentFee ?? 349, apFee: input.apFee ?? 349,
+    installationPrice: input.installation ?? input.grossTotal - (input.assessmentFee ?? 349) - (input.apFee ?? 349),
+  });
+}
+
+/** Group B (onsite) campaign email only. The v9 likely-eligible Save my spot version is RETIRED (Jo, 7 Oct) and refuses to render. */
 export function renderLaunchCampaignEmail(input: LaunchCampaignEmailInput): EstimateEmail {
+  if (input.group === "likely") throw new Error("The old Save my spot email is retired. Use renderSaveSpotFromLikelyEmail.");
   // Jo-approved 6 Oct (v4): logo green #00BF63 for the caps line, headline amount and rebate row. Buttons keep the V2 theme green.
   const origins: readonly string[] = CAMPAIGN_LINK_ORIGINS;
   const campaign = new URL(input.campaignUrl);
