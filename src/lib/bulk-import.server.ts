@@ -7,11 +7,8 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
 import { logEvent } from "./workflow.server";
 import { logPartner } from "./pilot.server";
-import { type LocationVariables } from "./activity48.core";
-import { confirmedQuoteDecision } from "./quote-release.core";
 import { hashToken, newToken } from "./worker-links.core";
 import { linkFiles, type LeadStage } from "./bulk-import.core";
-import { applyDiscountRules, discountNotes, wholeVeecDiscount } from "./estimate.core";
 import {
   cleanLead, gridToRecords, dedupeKey, fileResults, findDuplicates, leadStage, type FileResult, LEAD_STAGE_LABEL, matchFiles, missingEvidence, normaliseAddress, sortJob,
   type BulkExtracted, type BulkFile,
