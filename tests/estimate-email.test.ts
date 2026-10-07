@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { renderEstimateEmail, renderIneligibleOutcomeEmail, renderLaunchCampaignEmail, likelySubjectLine } from "../src/lib/estimate-email";
+import { renderEstimateEmail, renderIneligibleOutcomeEmail, renderLaunchCampaignEmail, likelySubjectLine, renderSaveSpotFromLikelyEmail } from "../src/lib/estimate-email";
 import { withUnsubscribe } from "../src/lib/emailsafety.core";
 import { INSTALLER_INVITATION_HTML } from "../src/lib/installer-invitation.html";
 const CUSTOMER_VISUAL_SYSTEM_BORDER = "border:1px solid #D4DAF5";
