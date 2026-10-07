@@ -381,7 +381,11 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     const { data: rows } = await admin.from("bulk_import_rows").select("*").eq("batch_id", batch.id).order("row_index");
     return { batchId: batch.id, rawRows, rows: (rows ?? []) as { id: string; extracted: Record<string, unknown>; import_stage: string; sort_result: string; sort_reasons: string[]; duplicate_note: string | null; status: string; job_id: string | null }[] };
   };
-  const confirm = async (batchId: string) => { const r = await bi.confirmBatch(batchId, ownerId, []); const { data } = await admin.from("bulk_import_rows").select("job_id").eq("batch_id", batchId).not("job_id", "is", null); madeJobs.push(...(data ?? []).map((x) => x.job_id!)); return r; };
+  const confirm = async (batchId: string) => {
+    // The installer answers "Quoted?" on every row (Yes when the file has his price, otherwise No), as the review screen requires.
+    const { data: open } = await admin.from("bulk_import_rows").select("id, extracted").eq("batch_id", batchId).eq("status", "pending");
+    for (const o of open ?? []) { const e = o.extracted as Record<string, unknown>; await admin.from("bulk_import_rows").update({ extracted: { ...e, quoted_answer: Number(e["price_inc_gst"] ?? 0) > 0 ? "yes" : "no" } as never }).eq("id", o.id); }
+    const r = await bi.confirmBatch(batchId, ownerId, []); const { data } = await admin.from("bulk_import_rows").select("job_id").eq("batch_id", batchId).not("job_id", "is", null); madeJobs.push(...(data ?? []).map((x) => x.job_id!)); return r; };
   const jobsOk = async (c: (n: string, ok: boolean, d?: string) => void, ids: string[]) => {
     if (!ids.length) return;
     const { data } = await admin.from("jobs").select("id, source, originating_installer_business_id, installer_quoted_price_inc_gst").in("id", ids);
