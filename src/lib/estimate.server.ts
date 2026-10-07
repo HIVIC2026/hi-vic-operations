@@ -21,8 +21,13 @@ export async function currentRetailSettings(): Promise<RetailSettings | null> {
   return (data as unknown as RetailSettings) ?? null;
 }
 
-export async function refreshIndicativeEstimate(jobId: string): Promise<EstimateView> {
-  const { data: j } = await admin.from("jobs").select("eligibility_outcome, eligibility_decision_source, eligibility_review_required, estimated_area_m2, estimated_area_unknown, properties(postcode, enrichment)").eq("id", jobId).single();
+/**
+ * opts.officePricing (installer uploads only, Jo 7 Oct): price the owner's estimate straight away at HIV owner prices even
+ * before Gate 1 is recorded. The stored row keeps the undecided display mode, so customerView still withholds it — nothing
+ * reaches the owner until the normal gates allow. Never uses the installer's quoted price.
+ */
+export async function refreshIndicativeEstimate(jobId: string, opts: { officePricing?: boolean } = {}): Promise<EstimateView> {
+  const { data: j } = await admin.from("jobs").select("channel, eligibility_outcome, eligibility_decision_source, eligibility_review_required, estimated_area_m2, estimated_area_unknown, properties(postcode, enrichment)").eq("id", jobId).single();
   if (!j) throw new Error("Job not found");
   const p = j.properties as { postcode: string | null; enrichment: Record<string, unknown> | null } | null;
   const b44 = (p?.enrichment?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } };
@@ -39,7 +44,9 @@ export async function refreshIndicativeEstimate(jobId: string): Promise<Estimate
   const history = (hist ?? []).map((h) => ({ ...h, area_m2: Number(h.area_m2) }));
   const settings = await currentRetailSettings();
   const out = (x: Partial<EstimateView>): EstimateView => ({ reason: null, measureRequired: false, settings, estimate: null, history, ...base, ...x });
-  if (!customerCanSee(mode)) return out({ reason: mode === "withheld_review" ? "Estimate withheld — Gate 1 review required." : mode === "none_ineligible" ? "No estimate — Gate 1 outcome: does not appear eligible." : "Estimate withheld — no official Gate 1 decision recorded yet." });
+  // Installer-sourced jobs are always priced for the office at HIV owner prices (still hidden from the owner until Gate 1).
+  if (j.channel === "installer_sourced") opts = { ...opts, officePricing: true };
+  if (!customerCanSee(mode) && !(opts.officePricing && mode === "withheld_undecided")) return out({ reason: mode === "withheld_review" ? "Estimate withheld — Gate 1 review required." : mode === "none_ineligible" ? "No estimate — Gate 1 outcome: does not appear eligible." : "Estimate withheld — no official Gate 1 decision recorded yet." });
   if (!settings) return out({ reason: "Retail estimator settings are not configured." });
 
   const { data: locRow } = await admin.from("veu_location_variables").select("*").eq("postcode", String(p?.postcode ?? "").trim()).maybeSingle();
@@ -48,14 +55,18 @@ export async function refreshIndicativeEstimate(jobId: string): Promise<Estimate
   base.location = loc;
 
   const { data: m } = await admin.from("ceiling_measurements").select("id, verified_area_m2, measured_area_m2, status").eq("job_id", jobId).eq("is_current", true).eq("status", "complete").maybeSingle();
+  const { data: im } = m ? { data: null } : await admin.from("ceiling_measurements").select("id, measured_area_m2").eq("job_id", jobId).eq("is_current", true).eq("provenance", "installer_supplied_provisional").neq("status", "rejected").maybeSingle();
   const { data: ests } = await admin.from("property_area_estimates").select("id, tier, net_m2, created_at").eq("job_id", jobId).in("tier", TRUSTED_ESTIMATE_TIERS);
   const best = selectCurrentEstimate((ests ?? []).map((e) => ({ id: e.id, tier: e.tier as AreaTier, net_m2: e.net_m2 == null ? null : Number(e.net_m2), created_at: e.created_at })));
   const area = pickArea({
     measurement: m ? { id: m.id, m2: Number(m.verified_area_m2 ?? m.measured_area_m2) || null } : null,
+    installer: im ? { id: im.id, m2: Number(im.measured_area_m2) || null } : null,
     estimate: best ? { id: best.id!, m2: best.net_m2, tier: best.tier } : null,
     owner: j.estimated_area_unknown ? null : j.estimated_area_m2 == null ? null : Number(j.estimated_area_m2),
   });
   if (!area) return out({ measureRequired: true, reason: "We need a ceiling-area estimate before we can calculate indicative savings" });
+  // Office-only pricing needs a real ceiling size; without one the estimate waits for the Ready Check measure.
+  if (!customerCanSee(mode) && area.source === "typical_default") return out({ measureRequired: true, reason: "Waiting for a ceiling size (Ready Check measure) before pricing the owner's estimate" });
   const sig = estimateSignature({ mode, area, postcode: loc.postcode, insulation, settingsId: settings.id, settingsVersion: settings.version, veecValue: settings.indicative_veec_value, veecSource: `${settings.veec_value_source_url}|${settings.veec_value_checked_at}`, specVersion: A48_SPEC.version });
   const r = computeEstimate(area, loc, insulation, settings);
   const { data: cur } = await admin.from("indicative_estimates").select("id, input_signature, created_at, settings_version").eq("job_id", jobId).eq("status", "current").maybeSingle();

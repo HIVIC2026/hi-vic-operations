@@ -19,12 +19,12 @@ export function OfficeJobProfitCard({ jobId }: { jobId: string }) {
   const [sale, setSaleInput] = useState("");
   if (q.error) return <Section title="Profit (office only)"><p className="text-sm text-destructive">{(q.error as Error).message}</p></Section>;
   if (!q.data) return null;
-  const { expected: e, actual: a, hivJob } = q.data;
+  const { expected: e, actual: a } = q.data;
   const rows: [string, number | null, number | null][] = [
     ["Accredited Provider fee", e.apFeeInc, a.apFeeInc],
     [`VEEC spread (VEECs × (sale − buy price))`, e.veecSpread, a.veecSpread],
     ["PIESA markup (owner PIESA price − agreed rate)", e.piesaMarkupInc, a.piesaMarkupInc],
-    [hivJob ? "Installer markup (owner price − installer rate)" : "Installer markup (none on installer-supplied jobs)", e.installerMarkupInc, a.installerMarkupInc],
+    ["HIV margin on insulation (owner price − installer rate)", e.installerMarkupInc, a.installerMarkupInc],
   ];
   return (
     <Section title="Profit (office only)">
@@ -33,6 +33,7 @@ export function OfficeJobProfitCard({ jobId }: { jobId: string }) {
         <thead><tr className="text-left text-xs text-muted-foreground"><th className="py-1">Item (inc GST)</th><th className="text-right">Expected</th><th className="text-right">Actual</th></tr></thead>
         <tbody>
           {rows.map(([l, x, y]) => <tr key={l} className="border-t"><td className="py-1">{l}</td><td className="text-right">{money(x)}</td><td className="text-right">{money(y)}</td></tr>)}
+          <tr className="border-t bg-muted/40"><td className="py-1">Installer payout (est.) — agreed rate card × area</td><td className="text-right">{money(e.installerPayoutInc)}</td><td className="text-right">{money(a.installerPayoutInc)}</td></tr>
           <tr className="border-t font-semibold"><td className="py-1">Total inc GST</td><td className="text-right">{money(e.totalInc)}</td><td className="text-right">{money(a.totalInc)}</td></tr>
           <tr className="font-semibold"><td className="py-1">Total ex GST</td><td className="text-right">{money(e.totalEx)}</td><td className="text-right">{money(a.totalEx)}</td></tr>
         </tbody>
