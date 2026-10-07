@@ -319,7 +319,7 @@ async function createBulkJob(e: BulkExtracted, batch: { id: string; business_id:
     external_enquiry_id: `bulk:${rowId}`,
     // Jo (7 Oct): the installer's own price exactly as given (none = quote needed) and whether he already did the site check.
     installer_site_check: siteCheckFromFile(e).check, installer_site_check_date: siteCheckFromFile(e).date,
-    installer_quoted_price_inc_gst: quoteNeeded(e) ? null : e.price_inc_gst, installer_price_includes: e.price_includes ?? null,
+    installer_quoted_price_inc_gst: quoteNeeded(e) ? null : e.price_inc_gst ?? null, installer_price_includes: e.price_includes ?? null,
     next_action: quoteNeeded(e) && importStage !== "installed" ? `${placement.next} · ${QUOTE_NEEDED_LABEL}` : placement.next,
   }).select("id, job_number").single();
   if (je || !job) throw new BulkImportError(je?.message ?? "Job could not be created.");
