@@ -196,7 +196,8 @@ export const getWorkerJobView = createServerFn({ method: "POST" })
       admin.from("bookings").select("kind, scheduled_start, status").eq("job_id", l.job_id).in("status", ["proposed", "confirmed"]).order("scheduled_start"),
     ]);
     if (!j) throw new Error("This job is no longer available.");
-    const mittiId = w.trade_role === "electrician" ? a?.external_mitti_id : (m?.external_source === "mitti" ? m.external_id : null) ?? a?.external_mitti_id;
+    const { data: mb } = await admin.from("businesses").select("mitti_account_invited").eq("id", l.business_id).maybeSingle();
+    const mittiId = mb?.mitti_account_invited !== true ? null : w.trade_role === "electrician" ? a?.external_mitti_id : (m?.external_source === "mitti" ? m.external_id : null) ?? a?.external_mitti_id;
     // Approved direct-contact rule: owner name, phone and email for the active visit only.
     const { data: rels } = await admin.from("contact_releases").select("visit_kind, job_assignments!inner(business_id, active)").eq("job_id", l.job_id).is("revoked_at", null).eq("job_assignments.business_id", l.business_id);
     const { visitIsCurrent } = await import("./allocation.core");

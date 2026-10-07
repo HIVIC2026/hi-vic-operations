@@ -68,7 +68,6 @@ export const SETUP_STEPS = [
   { key: "rates", title: "Rates & area" },
   { key: "bank", title: "Bank details" },
   { key: "alerts", title: "Job alerts" },
-  { key: "mitti", title: "Mitti setup" },
   { key: "team", title: "Add your team", optional: true },
 ] as const;
 export type SetupKey = (typeof SETUP_STEPS)[number]["key"];
@@ -78,9 +77,9 @@ export function setupComplete(done: Partial<Record<SetupKey, boolean>>): boolean
 
 /** Before-you-start: Start stays grey until all three phone checks are ticked. */
 export const PRESTART_CHECKS = [
-  { title: "Location on for Mitti", sub: "So every photo is geotagged. Steps below." },
+  { title: "Location on for your camera", sub: "So every photo is geotagged." },
   { title: "Battery over 50%", sub: "Bring a power bank if you're low." },
-  { title: "Mitti open on this job", sub: "" },
+  { title: "Onsite form open on this job", sub: "" },
 ] as const;
 export function prestartReady(ticks: boolean[]): boolean { return PRESTART_CHECKS.every((_, i) => !!ticks[i]); }
 

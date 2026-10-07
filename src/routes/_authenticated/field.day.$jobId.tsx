@@ -9,7 +9,7 @@ import { getTradeDayView, tradeCouldntGetInFn } from "@/lib/trade-view.functions
 import { COULDNT_GET_IN, couldntGetInMessage, dayTile } from "@/lib/trade-view.core";
 
 export const Route = createFileRoute("/_authenticated/field/day/$jobId")({
-  head: () => ({ meta: [{ title: "Today's job – Home Insulation Victoria" }, { name: "description", content: "Before you start, then open the form in Mitti." }, { property: "og:title", content: "Today's job – Home Insulation Victoria" }, { property: "og:description", content: "Before you start, then open the form in Mitti." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
+  head: () => ({ meta: [{ title: "Today's job – Home Insulation Victoria" }, { name: "description", content: "Before you start, then open the onsite form." }, { property: "og:title", content: "Today's job – Home Insulation Victoria" }, { property: "og:description", content: "Before you start, then open the onsite form." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
   component: DayPage,
 });
 
@@ -50,13 +50,13 @@ function DayPage() {
           {o.kind === "quoted" && <Result tone="mint" title="Quote's in. Done and dusted." body="We'll send the owner your quote. When they say yes, the install comes straight back to you." />}
           {o.kind === "not_eligible" && <Result tone="blush" title="Not eligible this time." body="Thanks for checking. We'll let the owner know, so you don't have to." items={o.reason ? [o.reason] : []} />}
           {o.kind === "wrap" && <Result tone="mint" title="That's a wrap. Done and dusted." body="We'll check the photos and sign it off." />}
-          {o.kind === "missing" && <Result tone="blush" title={`Nearly there. ${o.items.length} photo${o.items.length === 1 ? "" : "s"} missing.`} body="Add these in Mitti and this page updates itself." items={o.items} />}
+          {o.kind === "missing" && <Result tone="blush" title={`Nearly there. ${o.items.length} photo${o.items.length === 1 ? "" : "s"} missing.`} body="Add these in the onsite form and this page updates itself." items={o.items} />}
           {o.kind === "couldnt_get_in" && <Result tone="blush" title="No worries. We'll sort it." body={couldntGetInMessage(o.reason)} />}
           {back}
         </>
       ) : started ? (
         <>
-          <section className={card}><h2 className="font-display text-xl font-extrabold">Over to Mitti</h2><p className="mt-1 text-sm">Submit the form and this page updates itself.</p>
+          <section className={card}><h2 className="font-display text-xl font-extrabold">Over to the onsite form</h2><p className="mt-1 text-sm">Submit the form and this page updates itself.</p>
             {data.mittiId && <a className={`${greenBtn} mt-4`} href={`https://app.au.mitti.com/inspections/${data.mittiId}`} target="_blank" rel="noreferrer">Open it in Mitti</a>}
           </section>
           {back}
@@ -72,10 +72,10 @@ function DayPage() {
         <>
           <section className={card}>
             <h2 className="font-display text-xl font-extrabold">Ready when you are</h2>
-            <p className="mt-1 text-sm">{data.kind === "safety_check" ? "Tap below to open the safety check in Mitti. We'll pick it up from there." : data.kind === "ready_check" ? "Tap below to open the Ready Check form in Mitti. Measure, photos and your quote all go in there." : "Tap below to open the install form in Mitti. PIISA, photos and bag labels are all in there."}</p>
+            <p className="mt-1 text-sm">{data.kind === "safety_check" ? "Tap below to open the safety check form. We'll pick it up from there." : data.kind === "ready_check" ? "Tap below to open the Ready Check form. Measure, photos and your quote all go in there." : "Tap below to open the install form. PIISA, photos and bag labels are all in there."}</p>
             {data.kind === "ready_check" && <button type="button" className={`${ghostBtn} mt-4`} onClick={() => setAsking(true)}>Couldn't get in?</button>}
           </section>
-          <TradePrestart jobId={jobId} kind={data.kind} onStart={() => setStarted(true)} disabledReason={data.kind === "safety_check" && !data.mittiReady && !data.mittiId ? "The office is still setting up the Mitti form. Your result will show here once it's in." : null} />
+          <TradePrestart jobId={jobId} kind={data.kind} onStart={() => setStarted(true)} disabledReason={data.kind === "safety_check" && !data.mittiReady && !data.mittiId ? "The office is still setting up the onsite form. Your result will show here once it's in." : null} />
         </>
       )}
     </TradeShell>

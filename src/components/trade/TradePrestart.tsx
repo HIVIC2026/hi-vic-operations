@@ -16,7 +16,7 @@ export function TradePrestart({ jobId, kind, onStart, disabledReason }: { jobId:
     <>
       <section className="rounded-[22px] bg-estimate-navy p-5 text-estimate-canvas">
         <h2 className="font-display text-xl font-extrabold">Sharp photos and videos, every time</h2>
-        <p className="mt-1 text-sm text-estimate-canvas/85">Mitti tells you exactly what to shoot. We just need every one crystal clear.</p>
+        <p className="mt-1 text-sm text-estimate-canvas/85">The onsite form tells you exactly what to shoot. We just need every one crystal clear.</p>
         <p className="mt-3 rounded-2xl bg-owner-house-pink p-3 text-sm text-estimate-navy"><strong>Why it matters:</strong> every photo and video is checked before the rebate is claimed. If one is blurry, dark or missing, the claim can be <strong>rejected by the regulator. That means no rebate for the job.</strong> At best, it's a trip back to redo it.</p>
         <div className="mt-3 grid grid-cols-2 gap-2">{tips.map((t) => <div key={t} className="rounded-2xl bg-estimate-canvas/10 p-3 text-sm font-bold">{t}</div>)}</div>
         <p className="mt-3 text-sm font-bold text-owner-house-pink">Check each one before you move on. Blurry? Retake it on the spot.</p>
@@ -30,9 +30,9 @@ export function TradePrestart({ jobId, kind, onStart, disabledReason }: { jobId:
           </button>))}</div>
       </section>
       <section className="space-y-3">
-        <h2 className="font-display text-lg font-extrabold">How to turn on location for Mitti</h2>
-        {[{ t: "iPhone", s: ["Open Settings", "Tap Privacy & Security", "Tap Location Services and make sure it's on", "Scroll down and tap Mitti", "Choose While Using the App", "Turn Precise Location on"] },
-          { t: "Android", s: ["Open Settings", "Tap Apps, then Mitti", "Tap Permissions, then Location", "Choose Allow only while using the app", "Turn Use precise location on"] }].map((x) => (
+        <h2 className="font-display text-lg font-extrabold">How to turn on location for your camera</h2>
+        {[{ t: "iPhone", s: ["Open Settings", "Tap Privacy & Security", "Tap Location Services and make sure it's on", "Scroll down and tap Camera", "Choose While Using the App", "Turn Precise Location on"] },
+          { t: "Android", s: ["Open Settings", "Tap Apps, then Camera", "Tap Permissions, then Location", "Choose Allow only while using the app", "Turn Use precise location on"] }].map((x) => (
           <div key={x.t} className="rounded-[22px] bg-card p-5 shadow-sm"><p className="font-bold">{x.t}</p><ol className="mt-2 space-y-1 text-sm">{x.s.map((s, i) => <li key={s}><span className="font-bold text-estimate-blue">{i + 1}</span>&nbsp; {s}</li>)}</ol></div>
         ))}
         <p className="text-center text-xs text-estimate-navy/70">You only need to do this once per phone.</p>

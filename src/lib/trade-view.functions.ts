@@ -62,3 +62,14 @@ export const testSetPasswordLink = createServerFn({ method: "POST" }).middleware
 export const requestTeamLoginInvite = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ workerId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeRequestLoginInvite(context.userId, data.workerId));
+
+export const getMyMittiInvited = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => (await import("./trade-view.server")).tradeMittiInvited(context.userId));
+
+export const setPartnerMittiInvited = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ businessId: z.string().uuid(), invited: z.boolean() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { requireAdmin } = await import("./workflow.server");
+    await requireAdmin(context.supabase);
+    return (await import("./trade-view.server")).setMittiInvited(context.userId, data.businessId, data.invited);
+  });
