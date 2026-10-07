@@ -57,10 +57,11 @@ function Result({ group, videoPriority, token, rebate, customer, suburb, home, r
   };
   return <section className="estimate-offset rounded-[22px] border border-estimate-blue-soft bg-white p-6 shadow-[0_18px_50px_rgba(34,55,107,0.09)] sm:p-8">
     <OwnerHouse level={1} size="sm" className="mx-auto" />
-    <h1 className="mt-4 text-center font-display text-3xl font-extrabold text-estimate-navy">Spot saved. Your <span className="text-estimate-logo-green">{$(rebate)}</span> rebate is waiting.</h1>
+    <h1 className="mt-4 text-center font-display text-3xl font-extrabold text-estimate-navy">Spot saved.</h1>
     <div className="mt-5 rounded-xl bg-estimate-heads-up p-4 text-estimate-navy">
       <p className="font-bold">Smart move{firstName ? `, ${firstName}` : ""}. Your spot is saved.</p>
-      <p className="mt-1 text-sm">Demand is high and installer capacity is limited, so we're approving homes in batches, in the order spots were saved. You've locked in your place, so there's nothing more you need to do.</p>
+      <p className="mt-0.5 font-bold text-estimate-logo-green">Your {$(rebate)} rebate is waiting.</p>
+      <p className="mt-2 text-sm">Demand is high and installer capacity is limited, so we're approving homes in batches, in the order spots were saved. You've locked in your place, so there's nothing more you need to do.</p>
       <p className="mt-2 text-sm">We're teaming up with more installers and electricians across Victoria, and we'll text you as soon as one is free {suburb ? `in ${suburb}` : "near you"} to book your free Ready Check.</p>
     </div>
     <dl className="mt-4 grid gap-2 rounded-xl border border-estimate-line p-4 text-sm text-estimate-navy">
