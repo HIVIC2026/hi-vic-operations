@@ -73,3 +73,13 @@ export const setPartnerMittiInvited = createServerFn({ method: "POST" }).middlew
     await requireAdmin(context.supabase);
     return (await import("./trade-view.server")).setMittiInvited(context.userId, data.businessId, data.invited);
   });
+
+export const getPartnerMittiInvited = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ businessId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { requireAdmin } = await import("./workflow.server");
+    await requireAdmin(context.supabase);
+    const { data: b, error } = await context.supabase.from("businesses").select("mitti_account_invited, mitti_account_invited_at").eq("id", data.businessId).maybeSingle();
+    if (error) throw new Error(error.message);
+    return { invited: b?.mitti_account_invited === true, at: b?.mitti_account_invited_at ?? null };
+  });
