@@ -60,7 +60,7 @@ function Source({ businessId, onDraft }: { businessId: string; onDraft: (d: Draf
   return (
     <div className="space-y-4">
       <Section title="Where is it from?">
-        <div className="grid grid-cols-3 gap-2">{([["easymate", "EasyMate"], ["email", "Forwarded email"], ["manual_import", "Other"]] as const).map(([k, l]) => <Button key={k} size="field" variant={system === k ? "default" : "outline"} onClick={() => setSystem(k)}>{l}</Button>)}</div>
+        <div className="grid grid-cols-3 gap-2 [&_button]:px-2">{([["easymate", "EasyMate"], ["email", "Email"], ["manual_import", "Other"]] as const).map(([k, l]) => <Button key={k} size="field" variant={system === k ? "default" : "outline"} onClick={() => setSystem(k)}>{l}</Button>)}</div>
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
           <Input className="h-12" placeholder="Your job / lead reference" value={ref} onChange={(e) => setRef(e.target.value)} />
           <Input className="h-12" placeholder="Link (ERA / job link – saved as a reference only)" value={url} onChange={(e) => setUrl(e.target.value)} />
