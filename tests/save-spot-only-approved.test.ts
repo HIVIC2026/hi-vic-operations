@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { renderLaunchCampaignEmail, renderLaunchGroupEmail, renderSaveSpotFromLikelyEmail } from "../src/lib/estimate-email";
+import { renderLaunchCampaignEmail, renderLaunchGroupEmail } from "../src/lib/estimate-email";
+import { renderStep3SaveSpot } from "../src/lib/step3-emails";
 
 const campaignUrl = `https://estimate.homeinsulationvictoria.com.au/estimate/${"A".repeat(43)}/campaign`;
 const unsubscribeUrl = `https://estimate.homeinsulationvictoria.com.au/email/unsubscribe?t=${"U".repeat(43)}`;
@@ -17,9 +18,8 @@ describe("Save my spot uses only the approved email (Jo, 7 Oct 12:52)", () => {
   });
   test("likely group renders exactly the approved email", () => {
     const got = renderLaunchGroupEmail({ ...base, group: "likely" });
-    const want = renderSaveSpotFromLikelyEmail({ estimateUrl: campaignUrl.replace(/\/campaign$/, ""), outcome: "likely", apCount: 2, campaignUrl, campaignOptOutUrl: unsubscribeUrl,
-      estimatedTotal: 3379, veuDiscount: 1470, grossProjectTotal: 4849, areaM2: 150, amountPayableNow: 0, estimatedRemainingBalance: 3379,
-      firstName: "Sarah", address: base.address, reference: "HV-1", existingInsulationPresent: false, assessmentFee: 349, apFee: 349, installationPrice: 4151 });
+    const want = renderStep3SaveSpot({ estimateUrl: campaignUrl.replace(/\/campaign$/, ""), campaignUrl, unsubscribeUrl,
+      estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150, firstName: "Sarah", address: base.address, reference: "HV-1", existingInsulationPresent: false });
     expect(got.html).toBe(want.html);
     expect(got.plainText).toBe(want.plainText);
   });
@@ -28,7 +28,7 @@ describe("Save my spot uses only the approved email (Jo, 7 Oct 12:52)", () => {
       if (f.endsWith("estimate-email.ts")) continue;
       const s = readFileSync(f, "utf8");
       if (f.endsWith("hot-leads-send.server.ts")) {
-        expect(s).toMatch(/sendGroup === "likely"\s*\?\s*\(\(\) => \{ const m = renderStep3SaveSpot/);
+        expect(s).toMatch(/sendGroup === "likely"\s*\?\s*\(\(\) => \{ const m = \(isTest && testOpts.variant === "likely_estimate" \? renderStep3Likely : renderStep3SaveSpot\)/);
         continue;
       }
       expect(s.includes("renderLaunchCampaignEmail(")).toBe(false);
