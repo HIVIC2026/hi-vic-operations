@@ -190,6 +190,7 @@ async function offerNextReadyCheckBatch(jobId: string, actorId: string | null, o
   const p = j?.properties as { suburb: string | null; postcode: string | null } | null;
   const summary = { job_number: j?.job_number ?? "", suburb: p?.suburb ?? null, postcode: p?.postcode ?? null, visit: "ready_check", unpaid_note: READY_CHECK_UNPAID_NOTE, ...(onlyBusiness ? { office_choice: true } : {}) };
   const expires = picks ? await (await import("./offer-dispatch.server")).chosenOfferExpiry() : offerExpiryBusinessHours(new Date(), businessHours);
+  await (await import("./offer-guard.server")).assertOfferPairsAllowed(jobId, batch.map((b) => b.business_id));
   const { error } = await admin.from("partner_offers").insert(batch.map((b) => ({ job_id: jobId, business_id: b.business_id, kind: "ready_check", batch: batchNo, summary: summary as unknown as Json, offered_by: actorId, expires_at: expires })));
   if (error) throw new Error(error.message);
   if (picks) await logEvent(jobId, actorId, "trade_chosen_by_office", `Office chose ${batch.map((b) => b.name ?? "an installer").join(", ")} for the Ready Check — offer sent only to ${batch.length === 1 ? "them" : `these ${batch.length}`}`, { kind: "ready_check", business_ids: batch.map((b) => b.business_id), business_names: batch.map((b) => b.name ?? null), business_id: batch[0]!.business_id, business_name: batch[0]!.name ?? null, expires_at: expires }, { internal: true });

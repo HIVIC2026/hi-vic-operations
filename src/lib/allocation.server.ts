@@ -159,6 +159,7 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
       return c;
     });
     const exp = await (await import("./offer-dispatch.server")).chosenOfferExpiry();
+    await (await import("./offer-guard.server")).assertOfferPairsAllowed(jobId, chosen.map((c) => c.business_id));
     const { error } = await admin.from("partner_offers").insert(chosen.map((c) => ({ ...row(c.business_id, true), expires_at: exp })));
     if (error) throw new Error(error.message);
     await logEvent(jobId, actorId, "trade_chosen_by_office", `Office chose ${chosen.map((c) => c.name).join(", ")} for the ${kind === "piesa" ? "PIESA" : "fix-up"} — offer sent only to ${chosen.length === 1 ? "them" : `these ${chosen.length}`}`, { kind, business_ids: chosen.map((c) => c.business_id), business_names: chosen.map((c) => c.name), business_id: chosen[0]?.business_id, business_name: chosen[0]?.name, expires_at: exp }, { internal: true });
@@ -178,6 +179,7 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
     await admin.from("jobs").update({ next_action: "Needs Home Insulation Victoria: no approved electrician coverage" }).eq("id", jobId);
     return { offered: 0, exhausted: true };
   }
+  await (await import("./offer-guard.server")).assertOfferPairsAllowed(jobId, batch.map((b) => b.business_id));
   const { error } = await admin.from("partner_offers").insert(batch.map((b) => row(b.business_id, false)));
   if (error) throw new Error(error.message);
   await logEvent(jobId, actorId, "rec_offers_made", `${kind === "piesa" ? "PIESA" : "Rectification"} offered to ${batch.length} approved electrician(s), batch ${batchNo}`, { kind, batch: batchNo, businesses: batch.map((b) => b.business_id), expires_at: expires }, { internal: true });

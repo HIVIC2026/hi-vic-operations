@@ -107,6 +107,7 @@ export async function createJoTestJob(actorId: string) {
   });
   const { error: we } = await admin.from("appointment_proposals").insert(slots as never);
   if (we) throw new WorkflowError(we.message);
+  await (await import("./offer-guard.server")).assertOfferPairsAllowed(job.id, [biz.id]);
   const { data: offer, error: ofe } = await admin.from("partner_offers").insert({
     job_id: job.id, business_id: biz.id, kind: "piesa", batch: 1, offered_by: actorId, expires_at: new Date(Date.now() + 4 * 3_600_000).toISOString(),
     summary: { job_number: job.job_number, suburb: "Fraser Rise", postcode: "3336", approx_area_m2: 120, access_summary: "Manhole in hallway", electrician_rate_inc_gst: 200, rate_to_confirm: false, test_staged: true, distance_km: 4 },
