@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { CONTACT_PERMISSION_WORDING, gridToRecords, LEAD_STAGE_LABEL, type FileResult, type LeadStage } from "@/lib/bulk-import.core";
+import { CONTACT_PERMISSION_WORDING, gridToRecords, QUOTE_NEEDED_LABEL, type FileResult, type LeadStage } from "@/lib/bulk-import.core";
 import { AppShell } from "@/components/portal/AppShell";
 import { TradeTabs } from "@/components/portal/trade-work";
 import { AlertCircle, CheckCircle2, ChevronDown, FileArchive, UploadCloud, Zap } from "lucide-react";
@@ -31,7 +31,7 @@ export const Route = createFileRoute("/_authenticated/partner/bulk-import")({
 type ManifestFile = { path: string; name: string; folder: string | null; type: string; gps_lat: number | null; gps_lng: number | null; taken_at: string | null; geo_address?: string | null };
 type ReviewRow = {
   id: string; row_index: number; status: string; duplicate_note: string | null;
-  extracted: { full_name?: string | null; address_line?: string | null; suburb?: string | null; postcode?: string | null; area_m2?: number | null; price_inc_gst?: number | null; lead_stage?: LeadStage; phone?: string | null; email?: string | null };
+  extracted: { full_name?: string | null; address_line?: string | null; suburb?: string | null; postcode?: string | null; area_m2?: number | null; price_inc_gst?: number | null; lead_stage?: LeadStage; phone?: string | null; email?: string | null; price_includes?: string | null; site_check?: "yes" | "no" | null; site_check_date?: string | null; site_check_source?: "file" | "asked" | null };
   matched_files: { name: string; how: string }[]; sort_result: "covers_ready_check" | "needs_visit" | "office_review" | null;
   sort_reasons: string[]; missing_evidence: string[];
   import_stage: LeadStage; electrician_plan: ElectricianPlan | null;
@@ -258,6 +258,8 @@ function BulkImportPage() {
   const [batchPlan, setBatchPlan] = useState<ElectricianPlan>({ mode: "hivic" });
   const [rowStages, setRowStages] = useState<Record<string, LeadStage>>({});
   const [rowPlans, setRowPlans] = useState<Record<string, ElectricianPlan>>({});
+  // Site check (Jo, 7 Oct): read from the file when it says so; otherwise the installer answers Yes/No per row.
+  const [rowChecks, setRowChecks] = useState<Record<string, { check: "yes" | "no" | null; date: string | null }>>({});
   const [newElectrician, setNewElectrician] = useState({ name: "", mobile: "", email: "", business: "" });
 
   const { data: bizData } = useQuery({ queryKey: ["bulk-biz"], queryFn: () => getBusinesses() });
@@ -274,11 +276,12 @@ function BulkImportPage() {
   });
   const rows = (review?.rows ?? []) as unknown as ReviewRow[];
   const missingAddr = rows.filter((r) => !r.duplicate_note && !skip.has(r.id) && !(r.extracted.address_line && r.extracted.postcode)).length;
-  const summary = review?.batch?.summary as { file_results?: FileResult[]; rows?: number; covers_ready_check?: number; needs_visit?: number; office_review?: number; duplicates?: number; not_visited?: number; visited?: number; visited_quoted?: number } | null;
+  const summary = review?.batch?.summary as { file_results?: FileResult[]; rows?: number; covers_ready_check?: number; needs_visit?: number; office_review?: number; duplicates?: number; not_visited?: number; visited?: number; visited_quoted?: number; quote_needed?: number; site_check_unclear?: number } | null;
   useEffect(() => {
     if (!rows.length) return;
     setRowStages((old) => Object.fromEntries(rows.map((r) => [r.id, old[r.id] ?? r.import_stage ?? r.extracted.lead_stage ?? "not_visited"])));
     setRowPlans((old) => Object.fromEntries(rows.map((r) => [r.id, old[r.id] ?? r.electrician_plan ?? { mode: "hivic" }])));
+    setRowChecks((old) => Object.fromEntries(rows.map((r) => [r.id, old[r.id] ?? { check: r.extracted.site_check ?? null, date: r.extracted.site_check_date ?? null }])));
   }, [review?.rows]);
 
   async function analyse() {
@@ -308,7 +311,7 @@ function BulkImportPage() {
     confirming.current = true;
     setBusy(true);
     try {
-      await savePlan({ data: { batchId, batchPlan, rows: rows.map((r) => ({ rowId: r.id, stage: rowStages[r.id] ?? "not_visited", plan: batchPlan.mode === "job_by_job" ? (rowPlans[r.id] ?? { mode: "hivic" }) : null })) } });
+      await savePlan({ data: { batchId, batchPlan, rows: rows.map((r) => ({ rowId: r.id, stage: rowStages[r.id] ?? "not_visited", siteCheck: rowChecks[r.id]?.check ?? null, siteCheckDate: rowChecks[r.id]?.check === "yes" ? rowChecks[r.id]?.date ?? null : null, plan: batchPlan.mode === "job_by_job" ? (rowPlans[r.id] ?? { mode: "hivic" }) : null })) } });
       const res = await confirm({ data: { batchId, skipRowIds: [...skip] } });
       setDone(res);
       qc.invalidateQueries({ queryKey: ["bulk-review", batchId] });
@@ -327,7 +330,8 @@ function BulkImportPage() {
           <summary className="cursor-pointer font-bold">How to set out your customer list</summary>
           <p className="mt-2">One row per customer. Column names can be your own (e.g. "Customer" or "Owner name", "Mobile" or "Phone"), and the address can be one column or split into street, suburb and postcode.</p>
           <p className="mt-2"><strong>Needed:</strong> customer name; mobile (or email); full address with suburb and postcode (include unit numbers, e.g. 3/12 Smith St).</p>
-          <p className="mt-1"><strong>Helpful:</strong> email; ceiling size in m²; existing insulation; roof type; ceiling access; quoted price inc GST; notes.</p>
+          <p className="mt-1"><strong>Needed, or tell us on the review screen:</strong> quoted price inc GST (your price, exactly as quoted — leave blank if you haven't quoted and we'll mark it "Quote needed"); site check done (Y/N) and the site check date if you know it.</p>
+          <p className="mt-1"><strong>Helpful:</strong> email; what the price includes (e.g. R5 batts 120 m², removal, extras); ceiling size in m²; existing insulation; roof type; ceiling access; notes.</p>
           <a href="/templates/customer-list-template.csv" download className="mt-3 inline-flex h-12 items-center rounded-full bg-estimate-green px-5 font-bold text-white">Download template (CSV)</a>
         </details>
       </div>
@@ -376,28 +380,37 @@ function BulkImportPage() {
               <Badge variant="default">{summary.covers_ready_check ?? 0} cover the Ready Check</Badge>
               <Badge variant="secondary">{summary.needs_visit ?? 0} need a visit</Badge>
               <Badge variant="destructive">{summary.office_review ?? 0} office review</Badge>
-              <Badge variant="outline">{summary.not_visited ?? 0} not visited · {summary.visited ?? 0} visited · {summary.visited_quoted ?? 0} quoted</Badge>
+              <Badge variant="outline">{summary.visited_quoted ?? 0} priced · {summary.quote_needed ?? 0} quote needed</Badge>
               {(summary.duplicates ?? 0) > 0 && <Badge variant="outline">{summary.duplicates} possible duplicates (skipped)</Badge>}
             </div>
             <ElectricianChoice value={batchPlan} onChange={setBatchPlan} approved={electricianData?.approved ?? []} pending={electricianData?.pending ?? []} add={async () => { const made = await addElectrician({ data: { businessId: effectiveBiz, name: newElectrician.name, mobile: newElectrician.mobile, email: newElectrician.email || null, business: newElectrician.business || null } }); await refreshElectricians(); setBatchPlan({ mode: "mine", ...(made.businessId ? { business_id: made.businessId } : { nomination_id: made.nominationId }) }); setNewElectrician({ name: "", mobile: "", email: "", business: "" }); }} draft={newElectrician} setDraft={setNewElectrician} />
             <p className="rounded-lg bg-workspace-mint p-3 text-sm">The owner gets a queued text/email link to choose times. Their electrician gets first choice and taps a time to take it. Nothing is sent while sending is off.</p>
+            {(() => { const open = rows.filter((r) => !skip.has(r.id) && !r.duplicate_note && r.import_stage !== "installed"); const unclear = open.filter((r) => !rowChecks[r.id]?.check).length; return (
+              <div className="rounded-[18px] border bg-card p-4" data-site-check-all>
+                <p className="font-semibold">Have you already done the site check / measure-up?</p>
+                <p className="text-sm text-muted-foreground">Yes skips our Ready Check. No means we book a Ready Check with the owner. {unclear ? <b className="text-destructive">{unclear} {unclear === 1 ? "job needs" : "jobs need"} an answer.</b> : "Every job has an answer."}</p>
+                <div className="mt-2 grid grid-cols-2 gap-2">{(["yes", "no"] as const).map((v) => <Button key={v} type="button" variant="outline" size="field" onClick={() => { const nc = { ...rowChecks }; const ns = { ...rowStages }; for (const r of open) { nc[r.id] = { check: v, date: v === "yes" ? rowChecks[r.id]?.date ?? null : null }; ns[r.id] = v === "yes" ? (r.extracted.price_inc_gst ? "quoted" : "visited") : "not_visited"; } setRowChecks(nc); setRowStages(ns); }}>{v === "yes" ? "Yes to all" : "No to all"}</Button>)}</div>
+                <p className="mt-1 text-xs text-muted-foreground">Apply to all — you can still change any job below.</p>
+              </div>); })()}
             <div className="grid gap-3">
               {rows.map((r) => (
                 <Card key={r.id} className={`rounded-[18px] ${r.sort_result === "office_review" ? "border-workspace-blush-strong" : ""}`}>
                   <CardContent className="space-y-3 p-4">
                     <div className="flex items-start justify-between gap-3"><div><div className="font-display text-lg font-bold">{r.extracted.full_name ?? "Unnamed customer"}</div><div className="text-sm text-muted-foreground">{r.extracted.phone ?? r.extracted.email ?? "Contact missing"}</div></div><Checkbox aria-label={`Skip ${r.extracted.full_name ?? "customer"}`} checked={skip.has(r.id) || !!r.duplicate_note} onCheckedChange={(c) => { const s = new Set(skip); if (c) s.add(r.id); else s.delete(r.id); setSkip(s); }} /></div>
                     <div className="text-sm">{r.extracted.address_line && r.extracted.postcode ? <>{r.extracted.address_line}, {[r.extracted.suburb, r.extracted.postcode].filter(Boolean).join(" ")}</> : <AddAddress row={r} onSaved={() => qc.invalidateQueries({ queryKey: ["bulk-review", batchId] })} />}</div>
-                    <div className="grid grid-cols-3 gap-2 text-center text-sm"><div className="rounded-lg bg-muted p-2"><b>{r.extracted.area_m2 ? `${r.extracted.area_m2} m²` : "—"}</b><span className="block text-xs text-muted-foreground">Area</span></div><div className="rounded-lg bg-muted p-2"><b>{r.extracted.price_inc_gst ? `$${r.extracted.price_inc_gst}` : "—"}</b><span className="block text-xs text-muted-foreground">Price</span></div><div className="rounded-lg bg-muted p-2"><b>{r.matched_files.length}</b><span className="block text-xs text-muted-foreground">Files</span></div></div>
-                    <label className="block text-sm font-semibold">Where is this job up to?<select className="mt-1 h-12 w-full rounded-md border bg-background px-3" value={rowStages[r.id] ?? "not_visited"} onChange={(e) => setRowStages({ ...rowStages, [r.id]: e.target.value as LeadStage })}>{Object.entries(LEAD_STAGE_LABEL).map(([v,l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+                    <div className="grid grid-cols-3 gap-2 text-center text-sm"><div className="rounded-lg bg-muted p-2"><b>{r.extracted.area_m2 ? `${r.extracted.area_m2} m²` : "—"}</b><span className="block text-xs text-muted-foreground">Area</span></div><div className={`rounded-lg p-2 ${r.extracted.price_inc_gst ? "bg-muted" : "bg-workspace-blush"}`}><b>{r.extracted.price_inc_gst ? `$${r.extracted.price_inc_gst.toLocaleString("en-AU")}` : "—"}</b><span className="block text-xs text-muted-foreground">{r.extracted.price_inc_gst ? "Your price inc GST" : QUOTE_NEEDED_LABEL}</span></div><div className="rounded-lg bg-muted p-2"><b>{r.matched_files.length}</b><span className="block text-xs text-muted-foreground">Files</span></div></div>
+                    {r.extracted.price_inc_gst ? <p className="text-sm"><b>Price includes:</b> {r.extracted.price_includes ?? <span className="text-muted-foreground">not stated</span>}</p> : null}
+                    <SiteCheckPicker value={rowChecks[r.id] ?? { check: null, date: null }} fromFile={r.extracted.site_check_source === "file" && r.extracted.site_check != null} installed={r.import_stage === "installed"}
+                      onChange={(v) => { setRowChecks({ ...rowChecks, [r.id]: v }); setRowStages({ ...rowStages, [r.id]: r.import_stage === "installed" ? "installed" : v.check === "yes" ? (r.extracted.price_inc_gst ? "quoted" : "visited") : "not_visited" }); }} />
                     {batchPlan.mode === "job_by_job" && <ElectricianChoice compact value={rowPlans[r.id] ?? { mode: "hivic" }} onChange={(plan) => setRowPlans({ ...rowPlans, [r.id]: plan })} approved={electricianData?.approved ?? []} pending={electricianData?.pending ?? []} />}
                     <div>{r.sort_result && SORT_LABEL[r.sort_result] && <Badge variant={SORT_LABEL[r.sort_result]!.variant}>{SORT_LABEL[r.sort_result]!.label}</Badge>}<ul className="mt-2 space-y-1 text-xs text-muted-foreground">{(r.sort_reasons ?? []).map((x, i) => <li key={i}>• {x}</li>)}{r.duplicate_note && <li className="font-semibold text-destructive">• {r.duplicate_note}</li>}</ul></div>
                   </CardContent>
                 </Card>
               ))}
             </div>
-            <p className="text-sm text-muted-foreground">Confirming creates the jobs only — nothing is sent to any customer. If a price was included, a draft quote is prepared for office review (installer's price + PIESA + AP fee − government discount, no markup).</p>
+            <p className="text-sm text-muted-foreground">Confirming creates the jobs only — nothing is sent to any customer. If a price was included, a draft quote is prepared for office review using your price exactly as given. Jobs without a price are marked "Quote needed from installer".</p>
             {missingAddr > 0 && <p className="text-sm text-destructive">{missingAddr} customer{missingAddr > 1 ? "s need" : " needs"} an address — add it in the table above, or tick Skip.</p>}
-            <Button size="field" className="w-full" disabled={busy || summary.rows === 0 || missingAddr > 0 || rows.some((r) => r.sort_result === "office_review" && !skip.has(r.id))} onClick={confirmAll}>{busy ? "Adding…" : `Add ${rows.filter((r) => !skip.has(r.id) && !r.duplicate_note).length} jobs`}</Button>
+            <Button size="field" className="w-full" disabled={busy || summary.rows === 0 || missingAddr > 0 || rows.some((r) => !skip.has(r.id) && !r.duplicate_note && r.import_stage !== "installed" && !rowChecks[r.id]?.check) || rows.some((r) => r.sort_result === "office_review" && !skip.has(r.id))} onClick={confirmAll}>{busy ? "Adding…" : `Add ${rows.filter((r) => !skip.has(r.id) && !r.duplicate_note).length} jobs`}</Button>
           </CardContent>
         </Card>
       )}
@@ -456,6 +469,17 @@ function AddAddress({ row, onSaved }: { row: ReviewRow; onSaved: () => void }) {
           catch (e) { toast.error((e as Error).message); }
           finally { setBusy(false); }
         }}>Save address</Button>
+    </div>
+  );
+}
+
+function SiteCheckPicker({ value, onChange, fromFile, installed }: { value: { check: "yes" | "no" | null; date: string | null }; onChange: (v: { check: "yes" | "no" | null; date: string | null }) => void; fromFile: boolean; installed: boolean }) {
+  if (installed) return <p className="text-sm font-semibold">Already installed — history only</p>;
+  return (
+    <div className={`rounded-lg p-3 ${value.check ? "bg-muted" : "border-2 border-destructive/40 bg-workspace-blush"}`} data-site-check>
+      <p className="text-sm font-semibold">Site check done? {value.check ? (fromFile ? <span className="font-normal text-muted-foreground">(read from your file)</span> : null) : <span className="text-destructive">Please answer</span>}</p>
+      <div className="mt-1 grid grid-cols-2 gap-2">{(["yes", "no"] as const).map((v) => <Button key={v} type="button" size="field" variant={value.check === v ? "default" : "outline"} onClick={() => onChange({ check: v, date: v === "yes" ? value.date : null })}>{v === "yes" ? "Yes" : "No"}</Button>)}</div>
+      {value.check === "yes" && <label className="mt-2 block text-sm">Site check date (if known)<Input type="date" className="mt-1 h-12" value={value.date ?? ""} onChange={(e) => onChange({ check: "yes", date: e.target.value || null })} /></label>}
     </div>
   );
 }
