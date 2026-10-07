@@ -1,4 +1,5 @@
 // Phone-first trade frame (Jo-approved): logo + today's date, owner-page fonts/colours, bottom tabs.
+import * as React from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Briefcase, Building2, PlusCircle, Wallet } from "lucide-react";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
