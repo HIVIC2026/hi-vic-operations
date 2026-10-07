@@ -107,6 +107,7 @@ function MittiOnly({ jobId, which }: { jobId: string; which: "ready_check" | "pi
 type A = Record<string, string | number | boolean | null>;
 
 function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: string; expired: boolean }) {
+  const mittiInvited = useMittiInvited();
   const save = useAction(saveAssessment);
   const complete = useAction(completeAssessment);
   const { data: a } = useQuery({ queryKey: ["assessment", jobId], queryFn: async () => (await supabase.from("assessments").select("*").eq("job_id", jobId).maybeSingle()).data });
