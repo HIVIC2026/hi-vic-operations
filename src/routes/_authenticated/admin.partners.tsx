@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import type { Tables } from "@/integrations/supabase/types";
 import { useServerFn } from "@tanstack/react-start";
 import { getAdminPartnerEnquiries } from "@/lib/admin-records.functions";
-import { activatePartnerApplication, createPartnerLogin, decidePartnerApplication, getApplicationReview, listCertificationLevels, listWorkerCertifications, recordCertificationLevel, recordWorkerCertification } from "@/lib/partner-activation.functions";
+import { listPartnerOfficeEmails, sendPartnerOfficeEmail, activatePartnerApplication, createPartnerLogin, decidePartnerApplication, getApplicationReview, listCertificationLevels, listWorkerCertifications, recordCertificationLevel, recordWorkerCertification } from "@/lib/partner-activation.functions";
 import type { InstData } from "@/lib/installer-onboarding.core";
 import { OnboardingDrafts } from "@/components/portal/onboarding-drafts";
 import { openFileViewer } from "@/components/portal/file-viewer";
@@ -159,6 +159,7 @@ function Detail({ row, onClose }: { row: Row; onClose: () => void }) {
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
           {f.map(([k, v]) => <Fragment key={k}><dt className="text-muted-foreground">{k}</dt><dd className="whitespace-pre-wrap">{v ?? "—"}</dd></Fragment>)}
         </dl>
+        <OfficeEmailBox enquiryId={row.id} to={row.email} />
         {(() => { const id = (row.raw_payload as { rec_onboarding_id?: string } | null)?.rec_onboarding_id; return id ? <><PartnerProfileCard applicationId={id} /><SignedRecAgreement id={id} /></> : null; })()}
         <div>
           <div className="mb-1 text-sm font-semibold">Status</div>
@@ -211,13 +212,13 @@ function ReviewDecision({ applicationId }: { applicationId: string }) {
   const [link, setLink] = useState<string | null>(null);
   const r = q.data;
   if (q.isLoading) return null;
-  if (r) return <div className="rounded-lg border bg-muted/40 p-3 text-sm" data-review-decision><b>{r.decision === "declined" ? "Declined" : "Sent back for changes"}</b> on {new Date(r.created_at).toLocaleString("en-AU")}{r.message ? <> — “{r.message}”</> : null}<div className="text-xs text-muted-foreground">Email: {r.email_status === "sent" ? "sent" : "not sent"}{r.email_detail ? ` (${r.email_detail})` : ""}</div>{r.decision === "changes_requested" && <div className="text-xs text-muted-foreground">The re-signed application will come back here for approval.</div>}{link && <div className="mt-1 break-all text-xs">TEST link: {link}</div>}</div>;
+  if (r) return <div className="rounded-lg border bg-muted/40 p-3 text-sm" data-review-decision><b>{r.decision === "declined" ? "Declined" : "Sent back for changes"}</b> on {new Date(r.created_at).toLocaleString("en-AU")}{r.message ? <> — “{r.message}”</> : null}<div className="text-xs text-muted-foreground">{r.email_status === "sent" ? (r.email_detail?.startsWith("Sent to") ? r.email_detail : "Email sent") : `Email not sent${r.email_detail ? `: ${r.email_detail}` : ""}`}</div>{r.decision === "changes_requested" && <div className="text-xs text-muted-foreground">The re-signed application will come back here for approval.</div>}{link && <div className="mt-1 break-all text-xs">TEST link: {link}</div>}</div>;
   return <div className="space-y-2 rounded-lg border p-3">
     <div className="flex flex-wrap gap-2"><Button size="sm" variant={mode === "changes_requested" ? "default" : "outline"} onClick={() => setMode("changes_requested")}>Send back for changes</Button><Button size="sm" variant={mode === "declined" ? "destructive" : "outline"} onClick={() => setMode("declined")}>Decline</Button></div>
     {mode && <>
       <label className="block text-sm font-medium">{mode === "changes_requested" ? "What should they check?" : "Reason (shown in the email; leave blank for none)"}<Textarea className="mt-1" rows={3} value={msg} onChange={(e) => setMsg(e.target.value)} placeholder={mode === "changes_requested" ? "e.g. Please check your batts removal rate." : ""} /></label>
-      <p className="text-xs text-muted-foreground">Email wording is a draft awaiting Jo's approval. TEST applications email Jo's test inbox only; real installers are not emailed yet.</p>
-      <Button size="sm" disabled={mode === "changes_requested" && msg.trim().length < 3} onClick={async () => { const res = await decide({ applicationId, decision: mode, message: msg.trim() || null }, mode === "declined" ? "Application declined" : "Sent back for changes"); if (res) { setLink(res.testLink); await q.refetch(); } }}>{mode === "declined" ? "Decline application" : "Send back"}</Button>
+      <p className="text-xs text-muted-foreground">This emails the applicant at the address on their application. Replies go to info@homeinsulationvictoria.com.au. Automatic test-run applications email Jo's test inbox only.</p>
+      <Button size="sm" disabled={mode === "changes_requested" && msg.trim().length < 3} onClick={async () => { const res = await decide({ applicationId, decision: mode, message: msg.trim() || null }, mode === "declined" ? "Application declined" : "Sent back for changes"); if (res) { setLink(res.testLink); window.alert(res.email.status === "sent" ? `${res.email.detail.startsWith("Sent to") ? res.email.detail : "Email sent"}.` : `Saved, but the email was not sent: ${res.email.detail}`); await q.refetch(); } }}>{mode === "declined" ? "Decline application" : "Send back"}</Button>
     </>}
   </div>;
 }
@@ -294,6 +295,37 @@ function PartnerLogin({ applicationId, defaultEmail }: { applicationId: string; 
         <Button size="sm" onClick={async () => { const r = await make({ applicationId, email }, "Login ready – nothing was sent"); if (r) setLink(r.link); }}>Create login for this partner</Button>
       </div>
       {link && <div className="mt-2 space-y-1"><p className="text-xs font-medium">Set-password link (copy and pass on):</p><textarea readOnly aria-label="Set-password link" className="w-full break-all rounded border p-2 text-xs" rows={3} value={link} onFocus={(e) => e.currentTarget.select()} /></div>}
+    </div>
+  );
+}
+
+/** Jo's own one-off email to this applicant or partner. Sends to the real address; recorded here with who and when. */
+function OfficeEmailBox({ enquiryId, to }: { enquiryId: string; to: string | null }) {
+  const send = useAction(sendPartnerOfficeEmail);
+  const list = useServerFn(listPartnerOfficeEmails);
+  const q = useQuery({ queryKey: ["office-emails", enquiryId], queryFn: () => list({ data: { enquiryId } }) });
+  const [open, setOpen] = useState(false);
+  const [subject, setSubject] = useState("");
+  const [msg, setMsg] = useState("");
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="rounded-lg border p-3" data-office-email>
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-sm font-semibold">Email {to ?? "this applicant"}</div>
+        {!open && <Button size="sm" variant="outline" onClick={() => { setOpen(true); setResult(null); }}>Write an email</Button>}
+      </div>
+      {open && <div className="mt-2 space-y-2">
+        <input aria-label="Subject" className="h-9 w-full rounded border px-2 text-sm" placeholder="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
+        <Textarea aria-label="Message" rows={5} value={msg} onChange={(e) => setMsg(e.target.value)} placeholder="Your message" />
+        <p className="text-xs text-muted-foreground">Sent from Home Insulation Victoria. Replies go to info@homeinsulationvictoria.com.au.</p>
+        <div className="flex gap-2">
+          <Button size="sm" disabled={busy || !msg.trim()} onClick={async () => { setBusy(true); const r = await send({ enquiryId, subject, message: msg }); setBusy(false); if (r) { setResult(r.status === "sent" ? { ok: true, text: `Sent to ${r.to}` } : { ok: false, text: `Not sent: ${r.detail}` }); if (r.status === "sent") { setOpen(false); setMsg(""); setSubject(""); } await q.refetch(); } }}>{busy ? "Sending…" : "Send email"}</Button>
+          <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+        </div>
+      </div>}
+      {result && <p role="status" className={`mt-2 rounded p-2 text-sm font-semibold ${result.ok ? "bg-success-soft text-success" : "bg-destructive/10 text-destructive"}`}>{result.text}</p>}
+      {(q.data ?? []).length > 0 && <ul className="mt-2 space-y-1 text-xs text-muted-foreground">{q.data!.map((e, i) => <li key={i}>{new Date(e.at).toLocaleString("en-AU")} · {e.by} · “{e.subject}” to {e.to} — {e.status === "sent" ? "sent" : `not sent (${e.detail})`}</li>)}</ul>}
     </div>
   );
 }
