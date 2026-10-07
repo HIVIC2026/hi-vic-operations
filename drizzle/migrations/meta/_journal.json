@@ -981,6 +981,13 @@
       "when": 1791336422387,
       "tag": "0139_daily_mitti_text",
       "breakpoints": true
+    },
+    {
+      "idx": 140,
+      "version": "7",
+      "when": 1791342929932,
+      "tag": "0140_real_sms_sender",
+      "breakpoints": true
     }
   ]
 }
