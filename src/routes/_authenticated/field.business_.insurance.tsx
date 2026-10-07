@@ -9,7 +9,7 @@ import { expiryPill } from "@/lib/trade-view.core";
 import { openFileViewer } from "@/components/portal/file-viewer";
 
 export const Route = createFileRoute("/_authenticated/field/business_/insurance")({
-  head: () => ({ meta: [{ title: "Insurance "T  licences – Home Insulation Victoria" }, { name: "description", content: "Your insurance, licences and certificates on file." }, { property: "og:title", content: "Insurance "T  licences – Home Insulation Victoria" }, { property: "og:description", content: "Your insurance, licences and certificates on file." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
+  head: () => ({ meta: [{ title: "Insurance & licences – Home Insulation Victoria" }, { property: "og:description", content: "Your insurance, licences and certificates on file." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
   component: () => <BizPage title="Insurance & licences" intro="Keep these current so jobs keep coming.">{(d, refetch) => <Docs d={d} onDone={refetch} />}</BizPage>,
 });
 
