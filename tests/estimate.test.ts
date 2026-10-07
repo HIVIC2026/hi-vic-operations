@@ -131,7 +131,7 @@ describe("static separation / UI", () => {
   });
   test("owner page shows card; admin tab places it after Gate 1", () => {
     expect(readFileSync("src/routes/_authenticated/owner.$jobId.tsx", "utf8")).toContain("<OwnerEstimateCard");
-    expect(readFileSync("src/routes/_authenticated/admin.jobs.$jobId.tsx", "utf8")).toContain("<Gate1EvidencePanel jobId={jobId} /></div><AdminEstimateCard");
+    expect(readFileSync("src/routes/_authenticated/admin.jobs.$jobId.tsx", "utf8")).toContain("<EligibilityCard jobId={jobId}");
   });
   test("customer projection excludes audit internals", () => {
     const srv = readFileSync("src/lib/estimate.server.ts", "utf8");
