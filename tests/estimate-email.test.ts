@@ -228,6 +228,8 @@ describe("launch campaign email drafts", () => {
 
 describe("Save your spot (likely eligible) duplicate", () => {
   const SAVE_SPOT_COPY = "We have been inundated with requests from homeowners all over Victoria. As one of only two Accredited Persons for this activity, and with limited capacity of suitably qualified installers, we need to take on approvals in batches. Save your spot to join the line and we will be in touch as soon as the next installer is available in your area.";
+  const LIKELY_HERO = "A more comfortable home could be closer than you think. We’ll coordinate the installer, electrical checks and paperwork.";
+  const SAVE_SPOT_HERO = "We organise everything for you: a certified installer, the licensed electrician’s safety check and all the rebate paperwork. No hunting for eligible trades, and no juggling multiple quotes and appointments. One team, one price, start to finish.";
   const campaign = "https://estimate.homeinsulationvictoria.com.au/campaign/" + "C".repeat(43);
   const input = { ...detailed, outcome: "likely" as const, firstName: "Alex", address: "30 Dash St, Fraser Rise VIC 3336" };
   test("pink box: heading, Jo's new paragraph and button only; small lines and the rest of the email unchanged", () => {
@@ -246,7 +248,13 @@ describe("Save your spot (likely eligible) duplicate", () => {
     const base = renderEstimateEmail(input);
     expect(email.subject).toBe(base.subject);
     expect(email.previewText).toBe(base.previewText);
-    expect(email.html.replace(card, "")).toBe(base.html.replace(/<table data-likely-next-step="true"[\s\S]*?No obligation to proceed with installation\.<\/p><\/td><\/tr><\/table>/, ""));
+    expect(email.html).toContain(SAVE_SPOT_HERO);
+    expect(email.html).not.toContain(LIKELY_HERO);
+    expect(text).toContain(SAVE_SPOT_HERO);
+    expect(text).not.toContain(LIKELY_HERO);
+    expect(base.html).toContain(LIKELY_HERO);
+    expect(base.plainText).toContain(LIKELY_HERO);
+    expect(email.html.replace(card, "")).toBe(base.html.replace(/<table data-likely-next-step="true"[\s\S]*?No obligation to proceed with installation\.<\/p><\/td><\/tr><\/table>/, "").replace(LIKELY_HERO, () => SAVE_SPOT_HERO));
   });
 });
 

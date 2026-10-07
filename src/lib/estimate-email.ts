@@ -34,6 +34,9 @@ const SAVE_SPOT_INSTRUCTION = "We have been inundated with requests from homeown
 /** The locked small line under the likely-email button; the Save your spot version swaps it for Jo's exact wording (7 Oct). */
 const LIKELY_SMALL_PRINT = "Confirm your request on the next page. An installer from our panel will then contact you to arrange a time.";
 const SAVE_SPOT_SMALL_PRINT = "We will be in touch to book your free Ready Check as soon as we can.";
+/** The locked likely-email hero closing sentence; the Save your spot version swaps it for Jo's exact wording (7 Oct, 03:24 UTC). */
+const LIKELY_HERO_SENTENCE = "A more comfortable home could be closer than you think. We’ll coordinate the installer, electrical checks and paperwork.";
+const SAVE_SPOT_HERO_SENTENCE = "We organise everything for you: a certified installer, the licensed electrician’s safety check and all the rebate paperwork. No hunting for eligible trades, and no juggling multiple quotes and appointments. One team, one price, start to finish.";
 /** Verified live brand logo (HTTP 200 image/png) used in every customer email. */
 const LOGO_URL = CUSTOMER_BRAND.logoUrl;
 const SITE = "https://homeinsulationvictoria.com.au";
@@ -519,8 +522,9 @@ export function renderInsulationVideoEmail(input: InsulationVideoEmailInput): Es
 }
 
 /** Save your spot (likely eligible). APPROVED by Jo Lowe, 7 Oct 2026 (12:52) — FINAL; replaces v9–v14. Do not change without Jo's approval.
- *  The locked likely email with ONLY four pink-box text swaps (heading, paragraph, button -> campaign link, small line) plus the footer's
- *  "Remove my enquiry" link filled with the owner's opt-out link. Used by the hot-leads campaign for likely-eligible owners. */
+ *  The locked likely email with ONLY four pink-box text swaps (heading, paragraph, button -> campaign link, small line), the hero closing
+ *  sentence swapped for Jo's wording (7 Oct, 03:24 UTC), plus the footer's "Remove my enquiry" link filled with the owner's opt-out link.
+ *  Used by the hot-leads campaign for likely-eligible owners. */
 export function renderSaveSpotFromLikelyEmail(input: EstimateEmailInput & { campaignUrl: string; campaignOptOutUrl?: string }): EstimateEmail {
   const base = renderV2QuoteEmail(input, "likely");
   const must = (s: string, from: string | RegExp, to: string) => { const out = s.replace(from, () => to); if (out === s) throw new Error(`Save-spot render: anchor missing (${String(from).slice(0, 40)})`); return out; };
@@ -532,8 +536,10 @@ export function renderSaveSpotFromLikelyEmail(input: EstimateEmailInput & { camp
   card = must(card, /href="[^"]*"/, `href="${escape(input.campaignUrl)}"`);
   card = must(card, LIKELY_SMALL_PRINT, SAVE_SPOT_SMALL_PRINT);
   let html = base.html.replace(card0, () => card);
+  html = must(html, LIKELY_HERO_SENTENCE, SAVE_SPOT_HERO_SENTENCE);
   if (input.campaignOptOutUrl) html = must(html, "<!--HIV_SECURE_UNSUBSCRIBE_LINK-->", `<a href="${escape(input.campaignOptOutUrl)}" style="color:#3C51C4;text-decoration:underline;">Remove my enquiry</a>`);
   let text = must(base.plainText, /FREE INSULATION MEASURE-UP & ELIGIBILITY CHECK\n/, "SAVE YOUR SPOT\n");
+  text = must(text, LIKELY_HERO_SENTENCE, SAVE_SPOT_HERO_SENTENCE);
   text = must(text, LIKELY_NEXT_STEP_INSTRUCTION, SAVE_SPOT_INSTRUCTION);
   text = must(text, /Arrange my free measure-up & eligibility check: .*/, `Save my spot: ${input.campaignUrl}`);
   text = must(text, LIKELY_SMALL_PRINT, SAVE_SPOT_SMALL_PRINT);
