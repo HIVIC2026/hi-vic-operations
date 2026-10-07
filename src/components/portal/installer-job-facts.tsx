@@ -51,12 +51,12 @@ export function PartnerInstallerFactsCard({ jobId }: { jobId: string }) {
     <>
     {f.quoted === null && <QuotedQuestion jobId={jobId} />}
     {f.quoted === "no" && <InstallerReadyCheckCard jobId={jobId} />}
-    <section className="rounded-[22px] bg-card p-5 shadow-sm" data-partner-installer-facts>
-      <h2 className="font-display text-lg font-extrabold">What you told us</h2>
-      <dl className="mt-2 divide-y divide-estimate-line">
-        <div className="py-2"><dt className="text-xs font-bold uppercase tracking-wide text-estimate-navy/60">Site check done</dt><dd className="font-semibold">{l.siteCheck.replace(/^Site check( done)?: /, "")}</dd></div>
-        <div className="py-2"><dt className="text-xs font-bold uppercase tracking-wide text-estimate-navy/60">Your quoted price</dt><dd className="font-semibold">{f.quoted_price_inc_gst ? `$${f.quoted_price_inc_gst.toLocaleString("en-AU")} inc GST` : l.price}</dd></div>
-        <div className="py-2"><dt className="text-xs font-bold uppercase tracking-wide text-estimate-navy/60">What the price includes</dt><dd className="font-semibold">{f.price_includes ?? "—"}</dd></div>
+    <section className="rounded-[18px] border border-line bg-paper p-[19px] shadow-card" data-partner-installer-facts>
+      <h2 className="font-display text-lg font-bold">What you told us</h2>
+      <dl className="mt-2 divide-y divide-line">
+        <div className="py-2"><dt className="text-xs font-bold uppercase tracking-wide text-sub">Site check done</dt><dd className="font-semibold">{l.siteCheck.replace(/^Site check( done)?: /, "")}</dd></div>
+        <div className="py-2"><dt className="text-xs font-bold uppercase tracking-wide text-sub">Your quoted price</dt><dd className="font-semibold">{f.quoted_price_inc_gst ? `$${f.quoted_price_inc_gst.toLocaleString("en-AU")} inc GST` : l.price}</dd></div>
+        <div className="py-2"><dt className="text-xs font-bold uppercase tracking-wide text-sub">What the price includes</dt><dd className="font-semibold">{f.price_includes ?? "—"}</dd></div>
       </dl>
     </section>
     </>
@@ -78,9 +78,9 @@ function QuotedQuestion({ jobId, priceOnly = false }: { jobId: string; priceOnly
     catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   };
   return (
-    <section className="rounded-[22px] border-2 border-warning bg-card p-5 shadow-sm" data-quoted-question>
-      <p className="text-xs font-bold uppercase tracking-wide text-estimate-navy/60">Next for you</p>
-      <h2 className="font-display text-lg font-extrabold">{QUOTED_QUESTION}</h2>
+    <section className="rounded-[18px] border-2 border-warning bg-card p-5 shadow-sm" data-quoted-question>
+      <p className="text-xs font-bold uppercase tracking-wide text-sub">Next for you</p>
+      <h2 className="font-display text-lg font-bold">{QUOTED_QUESTION}</h2>
       <div className="mt-3 grid grid-cols-2 gap-2">
         <Button size="field" variant={yes ? "default" : "outline"} disabled={busy} onClick={() => setYes(true)}>Yes</Button>
         {!priceOnly && <Button size="field" variant="outline" disabled={busy} onClick={() => send("no")}>No</Button>}
@@ -111,20 +111,20 @@ function InstallerReadyCheckCard({ jobId }: { jobId: string }) {
   if (s.action === "none") return <QuotedQuestion jobId={jobId} priceOnly />;
   const run = async (fn: () => Promise<unknown>) => { setBusy(true); setErr(""); try { await fn(); await qc.invalidateQueries(); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); } };
   return (
-    <section className="rounded-[22px] border-2 border-warning bg-card p-5 shadow-sm" data-installer-ready-check={s.action}>
-      <p className="text-xs font-bold uppercase tracking-wide text-estimate-navy/60">Next for you</p>
-      {s.action === "booked" ? <><h2 className="font-display text-lg font-extrabold">Ready Check booked</h2>{s.bookedAt && <p className="text-sm">{new Date(s.bookedAt).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</p>}</>
-      : s.action === "waiting_for_owner" ? <><h2 className="font-display text-lg font-extrabold">Waiting for the owner's times</h2><p className="text-sm">We've asked the owner to choose 3 to 5 times. You'll see them here.</p></>
-      : s.action === "pick_owner_time" ? <><h2 className="font-display text-lg font-extrabold">Tap a time to book the Ready Check</h2>
+    <section className="rounded-[18px] border-2 border-warning bg-card p-5 shadow-sm" data-installer-ready-check={s.action}>
+      <p className="text-xs font-bold uppercase tracking-wide text-sub">Next for you</p>
+      {s.action === "booked" ? <><h2 className="font-display text-lg font-bold">Ready Check booked</h2>{s.bookedAt && <p className="text-sm">{new Date(s.bookedAt).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</p>}</>
+      : s.action === "waiting_for_owner" ? <><h2 className="font-display text-lg font-bold">Waiting for the owner's times</h2><p className="text-sm">We've asked the owner to choose 3 to 5 times. You'll see them here.</p></>
+      : s.action === "pick_owner_time" ? <><h2 className="font-display text-lg font-bold">Tap a time to book the Ready Check</h2>
           <div className="mt-3 grid gap-2">{s.windows.map((w) => <Button key={w.id} size="field" variant="outline" disabled={busy} onClick={() => run(() => take({ data: { jobId, windowId: w.id } }))}>{formatPiesaWindow(w.starts_at, w.ends_at)}</Button>)}</div></>
-      : <><h2 className="font-display text-lg font-extrabold">Book a Ready Check</h2>
+      : <><h2 className="font-display text-lg font-bold">Book a Ready Check</h2>
           <div className="mt-3 grid gap-2">
             <Button size="field" variant={mine ? "default" : "outline"} disabled={busy} onClick={() => setMine(true)}>I'll book it with the owner</Button>
             <Button size="field" variant="outline" disabled={busy} onClick={() => run(() => ask({ data: { jobId } }))}>Ask the owner for times</Button>
           </div>
           {mine && <div className="mt-3 space-y-2">
             <label className="block text-sm font-bold">Date and time you agreed<Input type="datetime-local" className="mt-1 h-12" value={when} onChange={(e) => setWhen(e.target.value)} /></label>
-            <p className="text-xs text-estimate-navy/70">Nothing is sent to the owner.</p>
+            <p className="text-xs text-sub">Nothing is sent to the owner.</p>
             <Button size="field" className="w-full" disabled={busy || !when} onClick={() => run(() => book({ data: { jobId, startsAt: new Date(when).toISOString() } }))}>Book Ready Check</Button>
           </div>}</>}
       {err && <p className="mt-2 text-sm text-destructive">{err}</p>}

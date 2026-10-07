@@ -20,9 +20,9 @@ function Bank({ businessId }: { businessId: string }) {
   const [busy, setBusy] = useState(false);
   if (isLoading) return <p className="text-sm">Loading…</p>;
   return (<>
-    {data ? <Rows rows={[["Account name", data.account_name], ["BSB", data.bsb], ["Account number", data.account_number]]} /> : <p className="rounded-[22px] bg-card p-5 shadow-sm">No bank details yet. Add them so we can pay you.</p>}
+    {data ? <Rows rows={[["Account name", data.account_name], ["BSB", data.bsb], ["Account number", data.account_number]]} /> : <p className="rounded-[18px] border border-line bg-paper p-[19px] shadow-card">No bank details yet. Add them so we can pay you.</p>}
     {!edit ? <button type="button" className={navyBtn} onClick={() => setEdit(true)}>{data ? "Change bank details" : "Add bank details"}</button> : (
-      <form className="space-y-3 rounded-[22px] bg-card p-5 shadow-sm" onSubmit={async (e) => {
+      <form className="space-y-3 rounded-[18px] border border-line bg-paper p-[19px] shadow-card" onSubmit={async (e) => {
         e.preventDefault(); setBusy(true);
         try { await save({ data: { businessId, ...f, bsb: f.bsb.replace(/\s/g, ""), account_number: f.account_number.replace(/\s/g, "") } }); toast.success("Bank details saved. The office will check them before the next payment."); setEdit(false); setF({ account_name: "", bsb: "", account_number: "" }); await refetch(); }
         catch { toast.error("Check the BSB (6 digits) and account number (5–10 digits)."); } finally { setBusy(false); }

@@ -28,7 +28,7 @@ function Agreement() {
       {(d) => d.agreement ? (<>
         <Rows rows={[["Agreement", `Version ${d.agreement.version}`], ["Signed by", d.agreement.signer], ["Signed on", new Date(d.agreement.signedAt).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric", timeZone: "Australia/Melbourne" })]]} />
         <button type="button" className={greenBtn} disabled={busy} onClick={() => void open()}>{busy ? "Opening…" : "View the PDF"}</button>
-      </>) : <p className="rounded-[22px] bg-card p-5 shadow-sm">There's no signed agreement on file yet. The office will send it to you to sign.</p>}
+      </>) : <p className="rounded-[18px] border border-line bg-paper p-[19px] shadow-card">There's no signed agreement on file yet. The office will send it to you to sign.</p>}
     </BizPage>
   );
 }

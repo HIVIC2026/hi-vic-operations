@@ -25,7 +25,7 @@ export function BizPage({ title, intro, children }: { title: string; intro?: str
   return (
     <TradeShell installer={installer} boss={data?.boss}>
       <Link to="/field/business" className="inline-flex items-center gap-1 text-sm font-bold text-estimate-blue"><ChevronLeft className="h-4 w-4" />My business</Link>
-      <div><h1 className="font-display text-3xl font-extrabold">{title}</h1>{intro && <p className="mt-1 text-sm text-estimate-navy/70">{intro}</p>}</div>
+      <div><h1 className="font-display text-[26px] font-bold leading-tight">{title}</h1>{intro && <p className="mt-1 text-sm text-sub">{intro}</p>}</div>
       {error ? <p role="alert" className={card}>{(error as Error).message}</p> : !data ? <p className="text-sm">Loading…</p> : children(data, () => void refetch())}
     </TradeShell>
   );
@@ -33,8 +33,8 @@ export function BizPage({ title, intro, children }: { title: string; intro?: str
 
 export function Rows({ rows }: { rows: [string, React.ReactNode][] }) {
   return (
-    <dl className="divide-y divide-estimate-line overflow-hidden rounded-[22px] bg-card shadow-sm">
-      {rows.map(([k, v]) => <div key={k} className="p-4"><dt className="text-xs font-bold uppercase tracking-wide text-estimate-navy/60">{k}</dt><dd className="mt-0.5 font-semibold">{v ?? "—"}</dd></div>)}
+    <dl className="divide-y divide-line overflow-hidden rounded-[18px] border border-line bg-paper shadow-card">
+      {rows.map(([k, v]) => <div key={k} className="p-4"><dt className="text-xs font-bold uppercase tracking-wide text-sub">{k}</dt><dd className="mt-0.5 font-semibold">{v ?? "—"}</dd></div>)}
     </dl>
   );
 }
@@ -48,12 +48,12 @@ export function AskToChange({ kind, label, placeholder, open, onSent }: { kind: 
   const mine = open.filter((o) => o.kind === kind);
   return (
     <section className="space-y-3">
-      {mine.map((o) => <p key={o.created_at} className="rounded-[22px] bg-estimate-green-soft p-4 text-sm"><span className="block font-bold text-estimate-green">Sent to the office — we'll be in touch</span>{o.message}</p>)}
+      {mine.map((o) => <p key={o.created_at} className="rounded-[18px] bg-estimate-green-soft p-4 text-sm"><span className="block font-bold text-estimate-green">Sent to the office — we'll be in touch</span>{o.message}</p>)}
       {!show ? <button type="button" className={navyBtn} onClick={() => setShow(true)}>{label}</button> : (
         <div className={`${card} space-y-3`}>
           <label htmlFor={`ask-${kind}`} className="block font-bold">{label}</label>
           <textarea id={`ask-${kind}`} rows={4} className="w-full rounded-2xl border border-estimate-line bg-card p-3 text-base" placeholder={placeholder} value={msg} onChange={(e) => setMsg(e.target.value)} />
-          <p className="text-xs text-estimate-navy/70">This goes to the Home Insulation Victoria office. Nothing changes until we've agreed it with you.</p>
+          <p className="text-xs text-sub">This goes to the Home Insulation Victoria office. Nothing changes until we've agreed it with you.</p>
           <button type="button" className={greenBtn} disabled={busy || msg.trim().length < 3} onClick={async () => {
             setBusy(true);
             try { await send({ data: { kind, message: msg } }); toast.success("Sent to the office"); setMsg(""); setShow(false); onSent(); }

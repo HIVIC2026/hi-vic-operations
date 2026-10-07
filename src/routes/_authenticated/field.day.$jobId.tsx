@@ -33,13 +33,13 @@ function DayPage() {
   const back = <Link to="/field" className={ghostBtn}>Back to my work</Link>;
   return (
     <TradeShell installer={installer}>
-      <section className="rounded-[22px] bg-estimate-navy p-5 text-estimate-canvas">
+      <section className="rounded-[19px] border border-mist-line bg-mist p-5 text-ink md:p-[23px]">
         {t && <span className="inline-block rounded-full bg-owner-house-pink px-3 py-1 text-sm font-bold text-estimate-navy">{pill}</span>}
-        <h1 className="mt-3 font-display text-2xl font-extrabold">{WHAT[data.kind]} · {data.surname}</h1>
-        <p className="mt-1 text-sm text-estimate-canvas/85">{data.address}</p>
+        <h1 className="mt-3 font-display text-2xl font-bold">{WHAT[data.kind]} · {data.surname}</h1>
+        <p className="mt-1 text-sm text-sub">{data.address}</p>
         <div className="mt-4 grid grid-cols-2 gap-2">
-          <a className="flex h-12 items-center justify-center gap-2 rounded-full bg-estimate-canvas font-bold text-estimate-navy" href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(data.address)}`} target="_blank" rel="noreferrer"><MapPin className="h-5 w-5" />Directions</a>
-          {data.phone ? <a className="flex h-12 items-center justify-center gap-2 rounded-full bg-estimate-canvas font-bold text-estimate-navy" href={`tel:${data.phone}`}><Phone className="h-5 w-5" />Call owner</a> : <span />}
+          <a className="flex h-12 items-center justify-center gap-2 rounded-[10px] border border-line bg-paper font-bold text-hiv-blue" href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(data.address)}`} target="_blank" rel="noreferrer"><MapPin className="h-5 w-5" />Directions</a>
+          {data.phone ? <a className="flex h-12 items-center justify-center gap-2 rounded-[10px] border border-line bg-paper font-bold text-hiv-blue" href={`tel:${data.phone}`}><Phone className="h-5 w-5" />Call owner</a> : <span />}
         </div>
       </section>
 
@@ -56,14 +56,14 @@ function DayPage() {
         </>
       ) : started ? (
         <>
-          <section className={card}><h2 className="font-display text-xl font-extrabold">Over to the onsite form</h2><p className="mt-1 text-sm">Submit the form and this page updates itself.</p>
+          <section className={card}><h2 className="font-display text-xl font-bold">Over to the onsite form</h2><p className="mt-1 text-sm">Submit the form and this page updates itself.</p>
             {data.mittiId && <a className={`${greenBtn} mt-4`} href={`https://app.au.mitti.com/inspections/${data.mittiId}`} target="_blank" rel="noreferrer">Open it in Mitti</a>}
           </section>
           {back}
         </>
       ) : asking ? (
         <section className={card}>
-          <h2 className="font-display text-xl font-extrabold">Couldn't get in?</h2>
+          <h2 className="font-display text-xl font-bold">Couldn't get in?</h2>
           <p className="mt-1 text-sm">Pick what happened. We'll take it from here.</p>
           <div className="mt-3 space-y-2">{COULDNT_GET_IN.map((r) => <button key={r} type="button" disabled={busy} className={ghostBtn} onClick={async () => { setBusy(true); try { await cgi({ data: { jobId, reason: r } }); await refetch(); } finally { setBusy(false); setAsking(false); } }}>{r}</button>)}</div>
           <button type="button" className="mt-3 w-full text-center text-sm font-bold text-estimate-blue" onClick={() => setAsking(false)}>Go back</button>
@@ -71,7 +71,7 @@ function DayPage() {
       ) : (
         <>
           <section className={card}>
-            <h2 className="font-display text-xl font-extrabold">Ready when you are</h2>
+            <h2 className="font-display text-xl font-bold">Ready when you are</h2>
             <p className="mt-1 text-sm">{data.kind === "safety_check" ? "Tap below to open the safety check form. We'll pick it up from there." : data.kind === "ready_check" ? "Tap below to open the Ready Check form. Measure, photos and your quote all go in there." : "Tap below to open the install form. PIISA, photos and bag labels are all in there."}</p>
             {data.kind === "ready_check" && <button type="button" className={`${ghostBtn} mt-4`} onClick={() => setAsking(true)}>Couldn't get in?</button>}
           </section>
@@ -84,9 +84,9 @@ function DayPage() {
 
 function Result({ tone, title, body, items }: { tone: "mint" | "blush"; title: string; body: string; items?: string[] }) {
   return (
-    <section className={`rounded-[22px] p-5 ${tone === "mint" ? "bg-estimate-green-soft" : "bg-estimate-blush"}`}>
+    <section className={`rounded-[18px] p-5 ${tone === "mint" ? "bg-estimate-green-soft" : "bg-estimate-blush"}`}>
       {tone === "mint" && <span className="flex h-10 w-10 items-center justify-center rounded-full bg-estimate-green text-white"><Check className="h-6 w-6" /></span>}
-      <h2 className="mt-2 font-display text-xl font-extrabold">{title}</h2>
+      <h2 className="mt-2 font-display text-xl font-bold">{title}</h2>
       <p className="mt-1 text-sm">{body}</p>
       {!!items?.length && <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">{items.map((i) => <li key={i}>{i}</li>)}</ul>}
     </section>

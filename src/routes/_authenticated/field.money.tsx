@@ -24,15 +24,15 @@ function Money() {
   };
   return (
     <TradeShell installer={data.kind === "installer"} boss={data.boss}>
-      <h1 className="font-display text-3xl font-extrabold">Money</h1>
-      <section className="rounded-[22px] bg-estimate-green p-5 text-white shadow-sm">
+      <h1 className="font-display text-[26px] font-bold leading-tight">Money</h1>
+      <section className="rounded-[18px] bg-estimate-green p-5 text-white shadow-sm">
         <p className="text-sm font-bold">{data.next ? `Landing in your account ${day(data.next.on)}` : "Nothing landing just yet"}</p>
-        <p className="font-display text-4xl font-extrabold">{aud(data.next?.total ?? 0)}</p>
+        <p className="font-display text-[30px] font-bold">{aud(data.next?.total ?? 0)}</p>
         <p className="text-sm">{data.next ? `${data.next.jobs} job${data.next.jobs === 1 ? "" : "s"}` : "Jobs show here once they're signed off."}</p>
       </section>
       <div className="grid grid-cols-2 gap-2">
-        <div className={card}><p className="text-xs font-bold uppercase tracking-wide">This month</p><p className="font-display text-2xl font-extrabold">{aud(data.month)}</p></div>
-        <div className={card}><p className="text-xs font-bold uppercase tracking-wide">All time</p><p className="font-display text-2xl font-extrabold">{aud(data.allTime)}</p></div>
+        <div className={card}><p className="text-xs font-bold uppercase tracking-wide">This month</p><p className="font-display text-2xl font-bold">{aud(data.month)}</p></div>
+        <div className={card}><p className="text-xs font-bold uppercase tracking-wide">All time</p><p className="font-display text-2xl font-bold">{aud(data.allTime)}</p></div>
       </div>
       {([
         ["checking", "Waiting for office sign-off", "The office checks the paperwork before a job is approved for payment."],
@@ -44,13 +44,13 @@ function Money() {
         return (
           <section key={k} aria-labelledby={`money-${k}`} className="space-y-2">
             <div className="flex items-end justify-between gap-3 px-1">
-              <h2 id={`money-${k}`} className="font-display text-lg font-extrabold">{title}</h2>
-              <span className="font-display text-xl font-extrabold">{aud(total)}</span>
+              <h2 id={`money-${k}`} className="font-display text-lg font-bold">{title}</h2>
+              <span className="font-display text-xl font-bold">{aud(total)}</span>
             </div>
-            <p className="px-1 text-sm text-estimate-navy/70">{note}</p>
-            {rows.length ? <ul className="divide-y divide-estimate-line overflow-hidden rounded-[22px] bg-card shadow-sm">{rows.map((r) => { const p = payPill(r.state); return (
+            <p className="px-1 text-sm text-sub">{note}</p>
+            {rows.length ? <ul className="divide-y divide-line overflow-hidden rounded-[18px] border border-line bg-paper shadow-card">{rows.map((r) => { const p = payPill(r.state); return (
               <li key={r.jobId + r.what} className="flex items-center gap-3 p-4">
-                <span className="min-w-0 flex-1"><span className="block font-bold">{r.surname}, {r.suburb}</span><span className="block text-sm text-estimate-navy/70">{r.jobNumber} · {r.what}</span></span>
+                <span className="min-w-0 flex-1"><span className="block font-bold">{r.surname}, {r.suburb}</span><span className="block text-sm text-sub">{r.jobNumber} · {r.what}</span></span>
                 <span className="text-right"><span className="block font-bold">{aud(r.amount)}</span><span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-bold ${TONE[p.tone]}`}>{r.state.kind === "coming" ? `Expected ${p.label.replace("Coming ", "")}` : r.state.kind === "checking" ? "Waiting" : p.label}</span></span>
               </li>); })}</ul> : <p className={`${card} text-sm`}>None right now.</p>}
           </section>

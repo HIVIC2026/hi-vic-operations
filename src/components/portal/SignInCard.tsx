@@ -54,7 +54,7 @@ export function SignInCard() {
 
   return (
     <main className="portal-theme relative grid min-h-screen place-items-center overflow-hidden bg-background px-4 py-12 text-foreground">
-      <div className="w-full max-w-sm rounded-[22px] border bg-card p-6 shadow-sm">
+      <div className="w-full max-w-sm rounded-[18px] border bg-card p-6 shadow-sm">
         <div className="mb-6 border-b pb-5 text-center">
           <img src={logo.url} alt="Home Insulation Victoria" className="mx-auto h-14 w-auto" />
           <h1 className="mt-4 font-display text-xl font-bold">Home Insulation Victoria</h1>

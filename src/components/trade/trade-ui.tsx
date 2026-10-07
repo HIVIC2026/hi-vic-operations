@@ -6,13 +6,13 @@ import { Button as BaseButton } from "@/components/ui/button";
 const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
 
 export function Card({ className, ...p }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div {...p} className={cx("rounded-[22px] bg-card p-5 text-estimate-navy shadow-sm", className)} />;
+  return <div {...p} className={cx("rounded-[18px] bg-card p-5 text-estimate-navy shadow-sm", className)} />;
 }
 export function CardHeader({ className, ...p }: React.HTMLAttributes<HTMLDivElement>) {
   return <div {...p} className={cx("mb-3", className)} />;
 }
 export function CardTitle({ className, ...p }: React.HTMLAttributes<HTMLHeadingElement>) {
-  return <h2 {...p} className={cx("font-display text-xl font-extrabold", className)} />;
+  return <h2 {...p} className={cx("font-display text-xl font-bold", className)} />;
 }
 export function CardContent({ className, ...p }: React.HTMLAttributes<HTMLDivElement>) {
   return <div {...p} className={cx("space-y-3", className?.replace(/\bp-\d+\b/g, ""))} />;
@@ -21,8 +21,8 @@ export function CardContent({ className, ...p }: React.HTMLAttributes<HTMLDivEle
 /** Trade section card: bold heading, then content. */
 export function Section({ title, children, right, action }: { title: React.ReactNode; children: React.ReactNode; right?: React.ReactNode; action?: React.ReactNode }) {
   return (
-    <section className="rounded-[22px] bg-card p-5 text-estimate-navy shadow-sm">
-      <div className="mb-3 flex items-center justify-between gap-2"><h2 className="font-display text-lg font-extrabold">{title}</h2>{right ?? action}</div>
+    <section className="rounded-[18px] bg-card p-5 text-estimate-navy shadow-sm">
+      <div className="mb-3 flex items-center justify-between gap-2"><h2 className="font-display text-lg font-bold">{title}</h2>{right ?? action}</div>
       {children}
     </section>
   );
