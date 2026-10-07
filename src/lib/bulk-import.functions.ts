@@ -89,14 +89,15 @@ export const confirmBulkBatch = createServerFn({ method: "POST" }).middleware([r
 const electricianPlan = z.object({ mode: z.enum(["mine", "hivic", "job_by_job"]), nomination_id: uuid.nullable().optional(), business_id: uuid.nullable().optional() });
 export const setBulkReviewPlan = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ batchId: uuid, batchPlan: electricianPlan, rows: z.array(z.object({ rowId: uuid, stage: z.enum(["not_visited", "visited", "quoted", "installed"]), plan: electricianPlan.nullable(),
-    siteCheck: z.enum(["yes", "no"]).nullable().optional(), siteCheckDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional() })).max(5000) }).parse(d))
+    siteCheck: z.enum(["yes", "no"]).nullable().optional(), siteCheckDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+    quoted: z.enum(["yes", "no"]).nullable().optional(), quotedPrice: z.number().positive().max(1_000_000).nullable().optional() })).max(5000) }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: batch } = await admin.from("bulk_import_batches").select("business_id,status").eq("id", data.batchId).single();
     if (!batch || batch.status !== "analysed") throw new WorkflowError("This upload can no longer be changed.");
     const { data: isAdmin } = await admin.rpc("has_role", { _user_id: context.userId, _role: "admin" });
     if (!isAdmin) await requireMember(context.userId, batch.business_id, true);
     await admin.from("bulk_import_batches").update({ electrician_plan: data.batchPlan as unknown as Json }).eq("id", data.batchId);
-    const { stageForSiteCheck } = await import("./bulk-import.core");
+    const { stageForSiteCheck, quotedGap, quotedPrice } = await import("./bulk-import.core");
     const { data: existing } = await admin.from("bulk_import_rows").select("id, extracted, import_stage").eq("batch_id", data.batchId);
     const byId = new Map((existing ?? []).map((r) => [r.id, r]));
     for (const row of data.rows) {
@@ -107,6 +108,11 @@ export const setBulkReviewPlan = createServerFn({ method: "POST" }).middleware([
       const answered = row.siteCheck !== undefined && row.siteCheck !== (e["site_check"] ?? null);
       const check = row.siteCheck !== undefined ? row.siteCheck : (e["site_check"] as "yes" | "no" | null) ?? null;
       const date = check === "yes" ? (row.siteCheckDate !== undefined ? row.siteCheckDate : (e["site_check_date"] as string | null) ?? null) : null;
+      // "Quoted? Yes / No" (Jo, 7 Oct): only a complete answer is stored; Yes keeps the price exactly, No clears it.
+      const q = row.quoted !== undefined && row.quoted !== null && !quotedGap(row.quoted, row.quotedPrice) ? row.quoted : (e["quoted_answer"] as "yes" | "no" | null) ?? null;
+      if (row.quoted !== undefined && row.quoted !== null && q === row.quoted) e["price_inc_gst"] = quotedPrice(row.quoted, row.quotedPrice);
+      if (row.quoted === null) e["quoted_answer"] = null;
+      else e["quoted_answer"] = q;
       const priced = Number(e["price_inc_gst"] ?? 0) > 0;
       const stage = row.stage === "installed" ? "installed" : stageForSiteCheck(check, priced, cur.import_stage as never);
       await admin.from("bulk_import_rows").update({
