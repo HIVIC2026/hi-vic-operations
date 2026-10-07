@@ -43,6 +43,8 @@ export const createBulkBatch = createServerFn({ method: "POST" }).middleware([re
     permissionConfirmed: z.boolean().optional(),
     manifest: z.array(manifestFile).max(5000).default([]),
     fileReads: z.array(fileRead).max(5000).default([]),
+    // Leads the page already read chunk by chunk (big lists). Still cleaned and checked like any AI reading.
+    preExtracted: z.array(z.record(z.string(), z.unknown())).max(5000).optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
     await canUseBulkImport(context.userId, data.businessId, data.onBehalf);
@@ -51,6 +53,7 @@ export const createBulkBatch = createServerFn({ method: "POST" }).middleware([re
       list_filename: data.listFilename, file_manifest: data.manifest as unknown as Json,
       summary: {
         raw_rows: data.rawRows, documents: data.documents, file_reads: data.fileReads,
+        ...(data.preExtracted ? { pre_extracted: data.preExtracted } : {}),
         permission: data.permissionConfirmed ? { confirmed_by: context.userId, confirmed_at: new Date().toISOString(), wording: CONTACT_PERMISSION_WORDING } : null,
       } as unknown as Json,
     }).select("id").single();
@@ -221,6 +224,15 @@ export const bulkImportBusinesses = createServerFn({ method: "GET" }).middleware
   });
 
 /** AI reading of one uploaded PDF/photo (text or scanned) for the bulk upload. Nothing is stored or sent. */
+/** Reads one chunk (up to 40 rows) of a big customer list. The page calls this per chunk to show progress and retry. */
+export const readBulkRows = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ businessId: uuid, onBehalf: z.boolean().default(false), rows: z.array(rawRow).min(1).max(40) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await canUseBulkImport(context.userId, data.businessId, data.onBehalf);
+    const { aiExtractRows } = await import("./bulk-import.server");
+    return { leads: await aiExtractRows(data.rows) };
+  });
+
 export const readBulkFile = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
     businessId: uuid, onBehalf: z.boolean().default(false), name: z.string().min(1).max(1000),
