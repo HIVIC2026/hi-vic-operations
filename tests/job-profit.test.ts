@@ -24,9 +24,11 @@ describe("per-job profit", () => {
     const { expected: e } = jobProfitBreakdown({ ...base, measuredAreaM2: 120 });
     expect(e.areaBasis).toBe("measured"); expect(e.installerMarkupInc).toBe(Math.round((30 - 12.65) * 120 * 100) / 100);
   });
-  test("installer-supplied job: no installer markup; PIESA markup and AP fee still count", () => {
+  test("installer-supplied job: owner still pays HIV prices, so the markup counts; payout = agreed rate × area", () => {
     const { expected: e } = jobProfitBreakdown({ ...base, hivJob: false });
-    expect(e.installerMarkupInc).toBe(0); expect(e.piesaMarkupInc).toBe(99); expect(e.apFeeInc).toBe(349);
+    const h = jobProfitBreakdown(base).expected;
+    expect(e.installerMarkupInc).toBe(h.installerMarkupInc); expect(e.installerPayoutInc).not.toBeNull();
+    expect(e.piesaMarkupInc).toBe(99); expect(e.apFeeInc).toBe(349);
   });
   test("actual uses the real sale price and lodged VEECs", () => {
     const { actual: a } = jobProfitBreakdown({ ...base, lodgedVeecs: 20, saleVeecPrice: 90, acceptedQuoteMarkupInc: 2602.5 });
