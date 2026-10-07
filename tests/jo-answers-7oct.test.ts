@@ -26,7 +26,7 @@ describe("application send back / decline emails (DRAFT)", () => {
   test("send back needs a message; real send-backs are Jo's own office email (7 Oct)", () => {
     expect(reviewInputError("changes_requested", " ")).toBeTruthy();
     expect(reviewInputError("declined", "")).toBeNull();
-    expect(APPLICATION_REVIEW_WORDING_APPROVED).toBe(false);
+    expect(APPLICATION_REVIEW_WORDING_APPROVED).toBe(true);
     const src = readFileSync("src/lib/application-review.server.ts", "utf8");
     expect(src).toContain('sendOfficeEmail({ actorId, recipient: "applicant"');
     expect(src).toContain("sendTestEmail");
