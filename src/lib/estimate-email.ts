@@ -522,8 +522,9 @@ export function renderInsulationVideoEmail(input: InsulationVideoEmailInput): Es
 }
 
 /** Save your spot (likely eligible). APPROVED by Jo Lowe, 7 Oct 2026 (12:52) — FINAL; replaces v9–v14. Do not change without Jo's approval.
- *  The locked likely email with ONLY four pink-box text swaps (heading, paragraph, button -> campaign link, small line) plus the footer's
- *  "Remove my enquiry" link filled with the owner's opt-out link. Used by the hot-leads campaign for likely-eligible owners. */
+ *  The locked likely email with ONLY four pink-box text swaps (heading, paragraph, button -> campaign link, small line), the hero closing
+ *  sentence swapped for Jo's wording (7 Oct, 03:24 UTC), plus the footer's "Remove my enquiry" link filled with the owner's opt-out link.
+ *  Used by the hot-leads campaign for likely-eligible owners. */
 export function renderSaveSpotFromLikelyEmail(input: EstimateEmailInput & { campaignUrl: string; campaignOptOutUrl?: string }): EstimateEmail {
   const base = renderV2QuoteEmail(input, "likely");
   const must = (s: string, from: string | RegExp, to: string) => { const out = s.replace(from, () => to); if (out === s) throw new Error(`Save-spot render: anchor missing (${String(from).slice(0, 40)})`); return out; };
