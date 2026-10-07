@@ -86,3 +86,17 @@ export function supplementalEligibilityLabel(input: {
 export function filterVisibleJobs<T extends { stage?: S | null }, S extends string>(jobs: T[], phase: string, phaseFor: (stage: S | null | undefined) => string): T[] {
   return phase === "all" ? jobs : jobs.filter((job) => phaseFor(job.stage) === phase);
 }
+/** Trade job page (Jo, 7 Oct): office blocker wording → one plain line per kind of wait. Labels only; never decides anything. */
+export function tradeBlockerLines(blockers: string[]): string[] {
+  const line = (b: string): string => {
+    if (/measure-?up|measured|ceiling area|Ready Check/i.test(b)) return "Waiting for the office to check your measure-up";
+    if (/eligib/i.test(b)) return "Waiting for the office to confirm the owner is eligible";
+    if (/payment|deposit|invoice|paid/i.test(b)) return "Waiting for the owner's payment";
+    if (/PIESA|safety check|electric/i.test(b)) return "Waiting for the electrical safety check";
+    if (/quote/i.test(b)) return "Waiting for the quote to be approved";
+    if (/sign|accept|consent|paperwork|agreement|assignment/i.test(b)) return "Waiting for the owner's paperwork";
+    if (/evidence|photo|video|document/i.test(b)) return "Photos or documents still needed";
+    return "Waiting for the office";
+  };
+  return [...new Set(blockers.map(line))];
+}
