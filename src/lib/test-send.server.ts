@@ -33,15 +33,12 @@ export async function sendTestSms(ctx: Ctx, to: string, body: string): Promise<S
   if (blocked) r = { channel: "sms", to: norm, status: "blocked", detail: blocked };
   else {
     try {
-      const twilio = process.env["TWILIO_API_KEY"];
-      if (!twilio) throw new Error("Texting is not connected");
-      const res = await fetch("https://connector-gateway.lovable.dev/twilio/Messages.json", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${gw()}`, "X-Connection-Api-Key": twilio, "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ To: norm, From: process.env["TWILIO_FROM_NUMBER"] || "HIV", Body: body }),
-      });
-      const text = await res.text();
-      r = res.ok ? { channel: "sms", to: norm, status: "sent", detail: "Twilio accepted" } : { channel: "sms", to: norm, status: "failed", detail: `Twilio ${res.status}: ${text.slice(0, 300)}` };
+      const { au1SendMessage } = await import("./twilio-au1.server");
+      const from = process.env["TWILIO_FROM_NUMBER"];
+      if (!from) throw new Error("No Australian sending number set (TWILIO_FROM_NUMBER)");
+      const res = await au1SendMessage(new URLSearchParams({ To: norm, From: from, Body: body }));
+      const sid = res.ok ? (JSON.parse(res.text) as { sid?: string }).sid ?? "" : "";
+      r = res.ok ? { channel: "sms", to: norm, status: "sent", detail: `Twilio AU1 accepted ${sid}` } : { channel: "sms", to: norm, status: "failed", detail: `Twilio AU1 ${res.status}: ${res.text.slice(0, 300)}` };
     } catch (e) { r = { channel: "sms", to: norm, status: "failed", detail: (e as Error).message }; }
   }
   await record(ctx, r, null, body);
