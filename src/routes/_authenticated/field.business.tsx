@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
+import { ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { TradeShell, card } from "@/components/trade/TradeShell";
 import { getTradeBusiness, setTradeTaking } from "@/lib/trade-view.functions";
@@ -33,23 +34,23 @@ function Business() {
         <span><span className="block font-bold">Taking new jobs</span><span className="block text-sm text-estimate-navy/70">{data.taking ? "On. Fresh jobs come straight to you." : "Paused, no new offers until you switch back on"}</span></span>
         <button type="button" role="switch" aria-checked={data.taking} aria-label="Taking new jobs" disabled={busy || !data.boss} onClick={async () => { setBusy(true); try { await setTaking({ data: { taking: !data.taking } }); await refetch(); } finally { setBusy(false); } }} className={`relative h-8 w-14 shrink-0 rounded-full ${data.taking ? "bg-estimate-green" : "bg-estimate-line"}`}><span className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow transition-all ${data.taking ? "left-7" : "left-1"}`} /></button>
       </section>
-      {alert && <section className="rounded-[22px] bg-owner-house-pink p-5"><p className="font-bold">{alert.doc} runs out in {alert.d} days. Snap the new certificate so jobs keep coming</p><Link to="/partner/profile" className="mt-3 flex h-12 w-full items-center justify-center rounded-full bg-estimate-navy font-bold text-estimate-canvas">Upload</Link></section>}
+      {alert && <section className="rounded-[22px] bg-owner-house-pink p-5"><p className="font-bold">{alert.doc} runs out in {alert.d} days. Snap the new certificate so jobs keep coming</p><Link to="/field/business/insurance" className="mt-3 flex h-12 w-full items-center justify-center rounded-full bg-estimate-navy font-bold text-estimate-canvas">Upload</Link></section>}
       <section>
-        <h2 className="mb-2 font-display text-lg font-extrabold">Paperwork</h2>
+        <h2 className="mb-2 font-display text-lg font-extrabold">Your business file</h2>
         <ul className="divide-y divide-estimate-line overflow-hidden rounded-[22px] bg-card shadow-sm">
-          {!installer && <li className="flex items-center justify-between p-4"><span className="font-bold">Electrical licence</span>{pill(lic.label, lic.warn)}</li>}
-          <li className="flex items-center justify-between p-4"><span className="font-bold">Public liability</span>{pill(liab.label, liab.warn)}</li>
-          <li className="flex items-center justify-between p-4"><span className="font-bold">Your rates</span>{pill(installer || data.rate != null ? "Set" : "To confirm", !installer && data.rate == null)}</li>
-          <li className="flex items-center justify-between p-4"><span className="font-bold">Agreement</span>{pill(data.agreementSigned ? "Signed" : "To sign", !data.agreementSigned)}</li>
+          {([
+            ["/field/business/details", "Business details", data.area],
+            ["/field/business/insurance", "Insurance & licences", null, !installer ? lic : liab],
+            ["/field/business/team", "Team", `${data.team.length} ${data.team.length === 1 ? "person" : "people"}`],
+            ["/field/business/bank", "Bank details", data.bankSaved ? "Saved" : "Add where we pay you"],
+            ["/field/business/agreement", "Your agreement", data.agreementSigned ? "Signed" : "To sign"],
+            ["/field/business/rates", "Your rates", installer || data.rate != null ? "Agreed" : "To confirm"],
+          ] as [string, string, string | null, ReturnType<typeof expiryPill>?][]).map(([to, label, sub, p]) => (
+            <li key={to}><Link to={to as never} className="flex min-h-14 items-center justify-between gap-3 p-4"><span><span className="block font-bold">{label}</span>{sub && <span className="block text-sm text-estimate-navy/70">{sub}</span>}</span><span className="flex items-center gap-2">{p && pill(p.label, p.warn)}<ChevronRight className="h-5 w-5 text-estimate-navy/50" /></span></Link></li>
+          ))}
         </ul>
       </section>
-      <section className={card}><h2 className="font-display text-lg font-extrabold">Where you work</h2><p className="mt-1 text-sm">{data.area}</p><p className="mt-1 text-xs text-estimate-navy/70">This sets which fresh jobs you get. Ask us to change it.</p></section>
-      <section>
-        <h2 className="mb-2 font-display text-lg font-extrabold">The team</h2>
-        <ul className="divide-y divide-estimate-line overflow-hidden rounded-[22px] bg-card shadow-sm">{data.team.map((t, i) => <li key={t.name + i} className="flex items-center justify-between p-4"><span className="font-bold">{t.name}</span><span className="text-sm text-estimate-navy/70">{t.role}</span></li>)}</ul>
-        {data.boss && <Link to="/partner/workers" className="mt-2 block text-center text-sm font-bold text-estimate-blue">+ Add someone</Link>}
-      </section>
-      <p className="pt-2 text-center text-sm font-bold text-estimate-blue"><Link to="/partner/profile">Bank details</Link> · <Link to="/partner/profile">Your agreement</Link> · <button type="button" onClick={() => void signOut()}>Sign out</button></p>
+      <p className="pt-2 text-center text-sm font-bold text-estimate-blue"><button type="button" onClick={() => void signOut()}>Sign out</button></p>
     </TradeShell>
   );
 }

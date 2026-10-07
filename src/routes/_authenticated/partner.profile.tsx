@@ -1,15 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { AppShell } from "@/components/portal/AppShell";
-import { BusinessProfile } from "@/components/portal/business";
-import { TeamCompliancePrompts } from "@/components/portal/worker-compliance";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
+// The old long partner profile form is retired for partners (Jo, 7 Oct): My business has one clean page per section.
 export const Route = createFileRoute("/_authenticated/partner/profile")({
-  head: () => ({ meta: [{ title: "Business Profile – Home Insulation Victoria Partner Portal" }, { name: "description", content: "Your partner business file, team, documents and onboarding checklist." }, { property: "og:title", content: "Business Profile – Home Insulation Victoria Partner Portal" }, { property: "og:description", content: "Your partner business file, team, documents and onboarding checklist." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
-  component: () => (
-    <AppShell>
-      <Link to="/partner" className="mb-3 inline-block text-sm text-muted-foreground">← Partner dashboard</Link>
-      <TeamCompliancePrompts />
-      <BusinessProfile isHivicAdmin={false} />
-    </AppShell>
-  ),
+  beforeLoad: () => { throw redirect({ to: "/field/business", replace: true }); },
 });
