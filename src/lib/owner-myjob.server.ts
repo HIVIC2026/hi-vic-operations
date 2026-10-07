@@ -40,7 +40,7 @@ export async function resolveOwnerJob(token: unknown) {
     trade = { name, company: (b as { trading_name: string | null; name: string } | null)?.trading_name ?? (b as { name: string } | null)?.name ?? null, phone: p?.phone ?? null, initial: name.charAt(0).toUpperCase() };
   }
   const paid = (invoices ?? []).reduce((s, i) => s + n(i.total_paid ?? i.amount_paid), 0);
-  const quoteOpen = quote?.status === "issued" && stage === "awaiting_quote_acceptance" ? { expiresAt: quote.sent_at ? new Date(new Date(quote.sent_at).getTime() + 14 * 86400_000).toISOString() : null } : null;
+  const quoteOpen = quote?.status === "issued" && (stage === "awaiting_quote_acceptance" || stage === "measured_estimate_ready") ? { expiresAt: quote.sent_at ? new Date(new Date(quote.sent_at).getTime() + 14 * 86400_000).toISOString() : null } : null;
   const bookingOpen = ["measured_quote_accepted", "piesa_and_install_window_pending", "installation_scheduling"].includes(stage);
   const action = ownerAction({ stage, readyCheckRequested: !!rc?.accepted_at, visit: upcoming ? { kind: upcoming.kind, startsAt: upcoming.scheduled_start! } : null, quoteOpen, bookingOpen });
   const hero = ownerHero(stage, rebate);
