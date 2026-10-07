@@ -455,6 +455,11 @@ export async function cleanupJourney(ctx: JourneyCtx) {
       await admin.from("jobs").update({ qa_archived_at: now, stage: "cancelled", cancelled_reason: "TEST journey archived", next_action: "Archived TEST journey" }).eq("id", ctx.jobId).eq("source", "qa_test");
     }
   }
+  // Put the TEST businesses back exactly as they were before this run (TEST businesses only).
+  for (const b of (ctx.notes["biz_before"] as { id: string }[] | undefined) ?? []) {
+    const { id, ...orig } = b as { id: string } & Record<string, unknown>;
+    await admin.from("businesses").update(orig as never).eq("id", id).like("onboarding_notes", "%[TEST PARTNER]%");
+  }
   const files = (ctx.notes["uploaded"] as string[] | undefined) ?? [];
   if (files.length && ctx.jobId) await admin.storage.from("job-files").remove(files.filter((f) => f.startsWith(`${ctx.jobId}/journey/`)));
   if (ctx.calculatorInterestId) await admin.from("calculator_interests").delete().eq("id", ctx.calculatorInterestId).eq("email", ctx.ownerEmail);
@@ -491,6 +496,7 @@ async function ensureTestTrades(actorId: string, installerBiz: string, electrici
       if (error) throw new Error(`TEST certification level setup: ${error.message}`);
     }
   }
+  return before;
 }
 
 export async function newJourneyCtx(): Promise<JourneyCtx> {
@@ -498,8 +504,8 @@ export async function newJourneyCtx(): Promise<JourneyCtx> {
   const { data: actor } = await admin.from("profiles").select("id").eq("email", JOURNEY_ACTOR_EMAIL).single();
   const [installer, electrician] = await Promise.all([profileByEmail(TEST_INSTALLER_EMAIL), profileByEmail(TEST_ELECTRICIAN_EMAIL)]);
   const worker = await profileByEmail(TEST_WORKER_EMAIL).catch(() => null);
-  await ensureTestTrades(actor!.id, installer.business_id, electrician.business_id);
-  return { runId, startedAt: new Date().toISOString(), actorId: actor!.id, jobId: null, jobNumber: null, token: null, ownerEmail: `qa.journey.${runId}${TEST_DOMAIN}`, installer, electrician, worker, calculatorInterestId: null, quoteId: null, notes: {}, screens: [] };
+  const bizBefore = await ensureTestTrades(actor!.id, installer.business_id, electrician.business_id);
+  return { runId, startedAt: new Date().toISOString(), actorId: actor!.id, jobId: null, jobNumber: null, token: null, ownerEmail: `qa.journey.${runId}${TEST_DOMAIN}`, installer, electrician, worker, calculatorInterestId: null, quoteId: null, notes: { biz_before: bizBefore }, screens: [] };
 }
 
 /** Run every step in order; a failed step stops later dependent steps but 9 and 10 always run. */
