@@ -594,7 +594,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
   await step(steps, "C15", "C15 At the property now: Start Ready Check creates the job and opens (or explains) the Mitti form", async (c) => {
     const os = await import("../src/lib/onsite-ready-check.server");
     const offline = (async () => { throw new Error("Mitti could not be reached. Try again shortly."); }) as never; // never touches real Mitti
-    const r = await os.startOnsiteReadyCheckFor(ownerId, BIZ, { full_name: `TEST ${tag} Onsite`, address_line: `3 ${tag} Onsite Rd`, suburb: "Fraser Rise", postcode: "3336", phone: "0412 000 315", email: `qa.owner.${tag.toLowerCase()}.onsite@hivic-test.example`, contact_permission: true }, { mode: "hivic" }, offline);
+    const r = await os.startOnsiteReadyCheckFor(ownerId, BIZ, { full_name: `TEST ${tag} Onsite`, address_line: `3 ${tag} Onsite Rd`, suburb: "Fraser Rise", postcode: "3336", phone: "0412 000 315", email: `qa.owner.${tag.toLowerCase()}.onsite@hivic-test.example`, contact_permission: true, consent_by: "installer" }, { mode: "hivic" }, offline);
     const { data: j } = await admin.from("jobs").select("stage, source, channel, installer_site_check, installer_site_check_date, originating_installer_business_id").eq("id", r.jobId).single();
     c("job is installer-supplied TEST work for this installer", j?.channel === "installer_sourced" && j?.source === "qa_test" && j?.originating_installer_business_id === BIZ, `${j?.channel} ${j?.source}`);
     c("marked as visited today", j?.installer_site_check === "yes" && !!j?.installer_site_check_date, `${j?.installer_site_check} ${j?.installer_site_check_date}`);
