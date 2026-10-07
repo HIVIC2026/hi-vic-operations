@@ -37,7 +37,8 @@ const LIKELY_SMALL_PRINT = "Confirm your request on the next page. An installer 
 const SAVE_SPOT_SMALL_PRINT = "We will be in touch to book your free Ready Check as soon as we can.";
 /** The locked likely-email hero closing sentence; the Save your spot version swaps it for Jo's exact wording (7 Oct, 03:24 UTC). */
 const LIKELY_HERO_SENTENCE = "A more comfortable home could be closer than you think. We’ll coordinate the installer, electrical checks and paperwork.";
-const SAVE_SPOT_HERO_SENTENCE = "We organise everything for you: a certified installer, the licensed electrician’s safety check and all the rebate paperwork. No hunting for eligible trades, and no juggling multiple quotes and appointments. One team, one price, start to finish.";
+/** Retired from Save your spot (Jo, 7 Oct 17:27 UTC: only four pink-box swaps). Kept for reference only. */
+export const SAVE_SPOT_HERO_SENTENCE_RETIRED = "We organise everything for you: a certified installer, the licensed electrician’s safety check and all the rebate paperwork. No hunting for eligible trades, and no juggling multiple quotes and appointments. One team, one price, start to finish.";
 /** Verified live brand logo (HTTP 200 image/png) used in every customer email. */
 const LOGO_URL = CUSTOMER_BRAND.logoUrl;
 const SITE = "https://homeinsulationvictoria.com.au";
