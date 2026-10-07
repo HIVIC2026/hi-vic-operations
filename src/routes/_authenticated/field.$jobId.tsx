@@ -8,7 +8,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { ArrowLeft, Check, HeartPulse, Phone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { AppShell } from "@/components/portal/AppShell";
+import { TradeShell } from "@/components/trade/TradeShell";
+import { PartnerInstallerFactsCard } from "@/components/portal/installer-job-facts";
 import { tradeTask } from "@/lib/trade-work.core";
 import { ClearTimeline, WhoHasTheBall } from "@/components/portal/waiting";
 import { WorkerLinksPanel } from "@/components/portal/workers";
@@ -44,17 +45,17 @@ function FieldJob() {
   const { jobId } = Route.useParams();
   const { data: job, isError, error } = useJob(jobId);
   const { data: role } = useQuery({ queryKey: ["myrole", jobId], queryFn: async () => (await supabase.rpc("my_job_role", { _job: jobId })).data });
-  if (!job && isError) return <AppShell><p className="rounded-[22px] border bg-card p-6 text-sm text-muted-foreground">{/TEST accounts/.test(String((error as Error)?.message)) ? "This TEST sign-in can only open active TEST jobs." : "This job isn't available to you. If it's a new offer, accept it from My work first."}</p><Link to="/field" className="mt-3 inline-block font-semibold text-primary underline">Back to My work</Link></AppShell>;
-  if (!job) return <AppShell><p className="text-muted-foreground">Loading…</p></AppShell>;
+  if (!job && isError) return <TradeShell installer={role !== "electrician"}><p className="rounded-[22px] border bg-card p-6 text-sm text-muted-foreground">{/TEST accounts/.test(String((error as Error)?.message)) ? "This TEST sign-in can only open active TEST jobs." : "This job isn't available to you. If it's a new offer, accept it from My work first."}</p><Link to="/field" className="mt-3 inline-block font-semibold text-primary underline">Back to My work</Link></TradeShell>;
+  if (!job) return <TradeShell installer={role !== "electrician"}><p className="text-muted-foreground">Loading…</p></TradeShell>;
   const step = nextStep(job);
   const task = tradeTask({ stage: job.stage ?? "", bookings: [], blockers: [] });
   const maps = job.property_address ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(job.property_address)}` : null;
   const yourTurn = step.waitingOn === "Installer" || step.waitingOn === "Electrician" || task.bucket !== "waiting";
   return (
-    <AppShell>
-      <div className="pb-24">
-      <Link to="/field" className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground"><ArrowLeft className="h-4 w-4" /> My work</Link>
-      <div className="mb-4 rounded-[22px] border bg-card p-4 shadow-sm">
+    <TradeShell installer={role !== "electrician"}>
+      <div className="space-y-4">
+      <Link to="/field" className="inline-flex items-center gap-1 text-sm font-bold text-estimate-blue"><ArrowLeft className="h-4 w-4" />My work</Link>
+      <div className="rounded-[22px] bg-card p-5 shadow-sm">
         <div className="text-xs font-semibold text-muted-foreground">{yourTurn ? "Your turn" : `Waiting on ${step.waitingOn ?? "Home Insulation Victoria"}`}</div>
         <h1 className="font-display text-xl font-extrabold">{task.label}</h1>
         {job.install_deadline && job.days_remaining != null && <p className="mt-1 text-sm">Install must start by <b>{new Date(job.install_deadline).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}</b> ({job.days_remaining} days left)</p>}
@@ -69,7 +70,8 @@ function FieldJob() {
           </div>
         </div>
       </div>
-      <div className="mb-4"><BlockersPanel jobId={jobId} quietWhenClear /></div>
+      {role === "installer" && <PartnerInstallerFactsCard jobId={jobId} />}
+      <div><BlockersPanel jobId={jobId} quietWhenClear /></div>
       <div className="space-y-4">
         {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} expired={!!job.piesa_expired} />}
         {role === "installer" && <InstallerJourney jobId={jobId} />}
@@ -81,7 +83,7 @@ function FieldJob() {
         <details className="rounded-[22px] border bg-card p-4"><summary className="cursor-pointer font-semibold">History, documents and messages</summary><div className="mt-3 space-y-4"><WhoHasTheBall jobId={jobId} /><ClearTimeline jobId={jobId} initial={5} /><OwnerEligibilityPanel jobId={jobId} /><WorkerLinksPanel jobId={jobId} /><MessagesPanel jobId={jobId} isAdmin={false} {...(role === "electrician" || role === "installer" ? { role } : {})} /></div></details>
       </div>
       </div>
-    </AppShell>
+    </TradeShell>
   );
 }
 
