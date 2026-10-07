@@ -1,4 +1,6 @@
 import { OWNER_AGREED_TICK } from "@/lib/owner-confirm.core";
+import { OnsiteStart } from "@/components/trade/onsite-start";
+import { LATER_CHOICE, ONSITE_CHOICE } from "@/lib/onsite-ready-check.core";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -27,12 +29,19 @@ function ImportPage() {
   const loadProfile = useServerFn(getPartnerProfile);
   const { data: profile } = useQuery({ queryKey: ["partner-profile", "mine"], queryFn: () => loadProfile({ data: {} }) });
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [mode, setMode] = useState<"choose" | "onsite" | "later">("choose");
+  useEffect(() => { const m = new URLSearchParams(window.location.search).get("mode"); if (m === "later" || m === "onsite") setMode(m); }, []);
   const businessId = (profile?.business as { id?: string } | undefined)?.id;
   return (
     <TradeShell installer>
-      <h1 className="font-display text-[26px] font-bold leading-tight">Add one job</h1>
-      <p className="text-sm text-sub">Paste or attach what you have. You just check the details.</p>
-      {!businessId ? <p className="text-sm text-estimate-navy/70">Loading…</p> : draft ? <Review key={draft.id} draft={draft} onBack={() => setDraft(null)} /> : <Source businessId={businessId} onDraft={setDraft} />}
+      <h1 className="font-display text-[26px] font-bold leading-tight">{mode === "onsite" ? "Start a Ready Check" : "Add one job"}</h1>
+      {mode === "later" && <p className="text-sm text-sub">Paste or attach what you have. You just check the details.</p>}
+      {!businessId ? <p className="text-sm text-estimate-navy/70">Loading…</p> : mode === "choose" ? (
+        <div className="mt-4 grid gap-3" data-add-choice>
+          <Button size="field" className="h-auto w-full whitespace-normal py-4 text-left" onClick={() => setMode("onsite")}>{ONSITE_CHOICE}</Button>
+          <Button size="field" variant="outline" className="h-auto w-full whitespace-normal py-4 text-left" onClick={() => setMode("later")}>{LATER_CHOICE}</Button>
+        </div>
+      ) : mode === "onsite" ? <OnsiteStart businessId={businessId} onBack={() => setMode("choose")} /> : draft ? <Review key={draft.id} draft={draft} onBack={() => setDraft(null)} /> : <Source businessId={businessId} onDraft={setDraft} />}
     </TradeShell>
   );
 }
