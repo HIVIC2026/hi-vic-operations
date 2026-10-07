@@ -61,5 +61,5 @@ export function partnerWelcomeEmail(i: { firstName: string | null; businessName:
     { kind: "p", text: "Questions? Just reply to this email." },
     { kind: "sign", lines: ["Welcome aboard,", "Jo", "Home Insulation Victoria"] },
   ];
-  return { subject, ...partnerEmailLayout({ subject, blocks, preview: `${i.businessName} is now an approved Home Insulation Victoria partner.`, test: i.test }) };
+  return { subject, ...partnerEmailLayout({ subject, blocks, preview: `${i.businessName} is now an approved Home Insulation Victoria partner.`, test: i.test ?? true }) };
 }
