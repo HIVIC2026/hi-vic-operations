@@ -23,10 +23,10 @@ describe("trade view presentation", () => {
     expect(distanceLine(null)).toBe("Nearby");
   });
   test("money pills", () => {
-    expect(payPill(payState({ paidAt: null, apApprovedAt: null }))).toEqual({ label: "Being checked", tone: "blush" });
-    expect(payPill(payState({ paidAt: null, apApprovedAt: "2026-10-01T00:00:00Z" })).tone).toBe("blue");
-    expect(payPill(payState({ paidAt: null, apApprovedAt: "2026-10-01T00:00:00Z" })).label).toBe("Coming Thu 8 Oct");
-    expect(payPill(payState({ paidAt: "2026-10-02T01:00:00Z", apApprovedAt: "2026-10-01T00:00:00Z" })).label).toBe("Paid Fri 2 Oct");
+    expect(payPill(payState({ paidAt: null, apApprovedAt: null, installerSupplied: false }))).toEqual({ label: "Being checked", tone: "blush" });
+    expect(payPill(payState({ paidAt: null, apApprovedAt: "2026-10-01T00:00:00Z", installerSupplied: false })).tone).toBe("blue");
+    expect(payPill(payState({ paidAt: null, apApprovedAt: "2026-10-01T00:00:00Z", installerSupplied: false })).label).toBe("Coming Thu 8 Oct");
+    expect(payPill(payState({ paidAt: "2026-10-02T01:00:00Z", apApprovedAt: "2026-10-01T00:00:00Z", installerSupplied: false })).label).toBe("Paid Fri 2 Oct");
   });
   test("setup and before-you-start gating", () => {
     expect(setupComplete({ details: true, rates: true, bank: true, alerts: true })).toBe(true);
