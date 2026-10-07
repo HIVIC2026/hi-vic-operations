@@ -80,7 +80,7 @@ export async function switchJobToHivic(jobId: string, userId: string) {
   if (count) throw new WorkflowError("An electrician has already accepted this job. Ask Home Insulation Victoria to change it.");
   const now = new Date().toISOString();
   await admin.from("electrician_nominations").update({ ended_at: now, updated_at: now }).eq("job_id", jobId).is("ended_at", null);
-  await admin.from("jobs").update({ electrician_choice: "hivic_organise", next_action: null }).eq("id", jobId);
+  await admin.from("jobs").update({ electrician_choice: "hivic_organise", next_action: "Home Insulation Victoria is arranging the electrician" }).eq("id", jobId);
   await logEvent(jobId, userId, "electrician_choice_changed", "Installer switched to: Home Insulation Victoria arranges the electrician", {});
   return { ok: true };
 }
