@@ -194,11 +194,21 @@ export async function approvePaperwork(key: GateDocKey, version: string, actorId
   if (error) throw new WorkflowError(error.message.includes("duplicate") ? "Already approved." : error.message);
 }
 
+/** The ONE template approval, used by both Compliance templates and Owner paperwork. */
+export async function approveTemplateVersion(id: string, actorId: string) {
+  const { data: t } = await admin.from("compliance_templates").select("template_key").eq("id", id).single();
+  if (!t) throw new WorkflowError("Template not found");
+  await admin.from("compliance_templates").update({ is_active: false }).eq("template_key", t.template_key).eq("is_active", true);
+  const { error } = await admin.from("compliance_templates").update({ approved: true, approved_by: actorId, approved_at: new Date().toISOString(), is_active: true }).eq("id", id);
+  if (error) throw new WorkflowError(error.message);
+}
+
 /** Settings list: every owner document, its version, Draft/Approved and who approved it. */
 export async function paperworkCatalogue() {
+  const { templateDocState } = await import("./owner-paperwork.core");
   const [{ data: appr }, { data: tpl }, approved] = await Promise.all([
     admin.from("owner_paperwork_approvals").select("doc_key, doc_version, approved_by, approved_at"),
-    admin.from("compliance_templates").select("template_key, version, approved, approved_by, approved_at, is_active").in("template_key", ["customer_agreement", "consumer_rights", "esc_consent", "consumer_declaration", "installer_declaration"]).eq("is_active", true),
+    admin.from("compliance_templates").select("id, template_key, version, body, approved, approved_by, approved_at, is_active, created_at").in("template_key", ["customer_agreement", "consumer_rights", "esc_consent", "consumer_declaration", "installer_declaration"]),
     approvedVersions(),
   ]);
   const ids = [...new Set([...(appr ?? []).map((a) => a.approved_by), ...(tpl ?? []).map((t) => t.approved_by)].filter(Boolean) as string[])];
@@ -207,14 +217,12 @@ export async function paperworkCatalogue() {
   const TEMPLATE_GATE: Record<string, string> = { customer_agreement: "B", consumer_rights: "B", esc_consent: "C", consumer_declaration: "D", installer_declaration: "D" };
   const TEMPLATE_TITLE: Record<string, string> = { customer_agreement: "Customer agreement (HIV wording)", consumer_rights: "Consumer rights", esc_consent: "ESC information-sharing consent (Reg 23A)", consumer_declaration: "Official Activity 48 assignment form", installer_declaration: "Installer declaration (PIISA)" };
   const fromTemplates = Object.keys(TEMPLATE_GATE).map((k) => {
-    const rows = (tpl ?? []).filter((t) => t.template_key === k);
-    const a = rows.find((t) => t.approved);
-    const t = a ?? rows[0];
-    return { key: k, gate: TEMPLATE_GATE[k]!, title: TEMPLATE_TITLE[k]!, version: t?.version ?? "not loaded", status: a ? "Approved" : "Draft", approvedBy: who(a?.approved_by ?? null), approvedAt: a?.approved_at ?? null, managedIn: "Templates" };
+    const s = templateDocState((tpl ?? []) as never, k);
+    return { key: k, gate: TEMPLATE_GATE[k]!, title: TEMPLATE_TITLE[k]!, version: s.version, status: s.status, approvedBy: who(s.approvedBy), approvedAt: s.approvedAt, managedIn: "Templates", templateId: s.templateId, body: s.body };
   });
   const own = GATE_DOCS.map((d) => {
     const a = (appr ?? []).find((x) => x.doc_key === d.key && x.doc_version === d.version);
-    return { key: d.key, gate: d.gate, title: d.title, version: d.version, status: approved[d.key] ? "Approved" : (d.draftNote ?? "Draft"), approvedBy: approved[d.key] && d.approvalNote ? d.approvalNote : who(a?.approved_by ?? null), approvedAt: a?.approved_at ?? null, managedIn: "Here" };
+    return { key: d.key, gate: d.gate, title: d.title, version: d.version, status: approved[d.key] ? "Approved" : (d.draftNote ?? "Draft"), approvedBy: approved[d.key] && d.approvalNote ? d.approvalNote : who(a?.approved_by ?? null), approvedAt: a?.approved_at ?? null, managedIn: "Here", templateId: null, body: d.body };
   });
   return [...own, ...fromTemplates].sort((x, y) => x.gate.localeCompare(y.gate));
 }
