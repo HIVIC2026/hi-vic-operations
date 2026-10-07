@@ -83,3 +83,5 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [ ] Later: daily check + Today card
 
 - [x] Strict new-installer test (A application/approval, B installer views owner+staff, C uploads/add one job), 3 runs, report + screenshots in Files installer-test
+
+- [~] Restyle every installer and electrician page to match Jo's approved design (Home_Insulation_Victoria_Entire_Portal_Design.zip) — presentation only

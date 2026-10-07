@@ -1691,7 +1691,7 @@ export const answerInstallerQuoted = createServerFn({ method: "POST" }).middlewa
     const { planQuotedAnswer } = await import("./bulk-import.core");
     const plan = planQuotedAnswer(j.installer_quoted as "yes" | "no" | null, data.answer, data.price, j.next_action);
     if ("error" in plan) throw new WorkflowError(plan.error);
-    const { data: done, error } = await admin.from("jobs").update(plan.patch).eq("id", data.jobId).is("installer_quoted", null).select("id").maybeSingle();
+    const { data: done, error } = await admin.from("jobs").update(plan.patch).eq("id", data.jobId).or("installer_quoted.is.null,installer_quoted.eq.no").select("id").maybeSingle();
     if (error) throw new Error(`Could not save your answer: ${error.message}`);
     if (!done) throw new WorkflowError("You've already answered this.");
     await logEvent(data.jobId, context.userId, "installer_quoted_answer", data.answer === "yes" ? `Installer quoted $${plan.patch.installer_quoted_price_inc_gst} inc GST` : "Installer has not quoted — quote needed from installer", { answer: data.answer, price: plan.patch.installer_quoted_price_inc_gst });
