@@ -532,8 +532,10 @@ export function renderSaveSpotFromLikelyEmail(input: EstimateEmailInput & { camp
   card = must(card, /href="[^"]*"/, `href="${escape(input.campaignUrl)}"`);
   card = must(card, LIKELY_SMALL_PRINT, SAVE_SPOT_SMALL_PRINT);
   let html = base.html.replace(card0, () => card);
+  html = must(html, LIKELY_HERO_SENTENCE, SAVE_SPOT_HERO_SENTENCE);
   if (input.campaignOptOutUrl) html = must(html, "<!--HIV_SECURE_UNSUBSCRIBE_LINK-->", `<a href="${escape(input.campaignOptOutUrl)}" style="color:#3C51C4;text-decoration:underline;">Remove my enquiry</a>`);
   let text = must(base.plainText, /FREE INSULATION MEASURE-UP & ELIGIBILITY CHECK\n/, "SAVE YOUR SPOT\n");
+  text = must(text, LIKELY_HERO_SENTENCE, SAVE_SPOT_HERO_SENTENCE);
   text = must(text, LIKELY_NEXT_STEP_INSTRUCTION, SAVE_SPOT_INSTRUCTION);
   text = must(text, /Arrange my free measure-up & eligibility check: .*/, `Save my spot: ${input.campaignUrl}`);
   text = must(text, LIKELY_SMALL_PRINT, SAVE_SPOT_SMALL_PRINT);
