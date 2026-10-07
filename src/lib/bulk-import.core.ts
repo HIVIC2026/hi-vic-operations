@@ -140,7 +140,8 @@ export const quotedPrice = (answer: "yes" | "no", price: number | null | undefin
 /** Installer answers "Quoted?" later on the job page (Jo, 5:46pm). Answer once; Yes keeps the price exactly. */
 export function planQuotedAnswer(current: "yes" | "no" | null, answer: "yes" | "no", price: number | null | undefined, nextAction: string | null):
   { error: string } | { patch: { installer_quoted: "yes" | "no"; installer_quoted_price_inc_gst: number | null; next_action: string | null } } {
-  if (current != null) return { error: "You've already answered this." };
+  // No can later become Yes with a price (e.g. after the Ready Check, Jo 6pm); every other change is refused.
+  if (current === "yes" || (current === "no" && answer !== "yes")) return { error: "You've already answered this." };
   const gap = quotedGap(answer, price);
   if (gap) return { error: gap };
   const base = (nextAction ?? "").split(" · ").filter((x) => x && x !== QUOTED_ANSWER_NEEDED && x !== QUOTE_NEEDED_LABEL);

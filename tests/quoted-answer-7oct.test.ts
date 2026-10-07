@@ -36,6 +36,6 @@ describe("Quoted? left blank never blocks; answered later on the job page (Jo, 5
   });
   test("Yes without a price, or answering twice, is refused", () => {
     expect(planQuotedAnswer(null, "yes", null, null)).toEqual({ error: "Enter the quoted price inc GST" });
-    expect(planQuotedAnswer("no", "yes", 100, null)).toEqual({ error: "You've already answered this." });
+    expect(planQuotedAnswer("yes", "no", null, null)).toEqual({ error: "You've already answered this." });
   });
 });

@@ -34,7 +34,7 @@ async function step(steps: Step[], key: string, label: string, fn: (c: (name: st
   const s: Step = { key, label, passed: false, checks: [] };
   const c = (name: string, ok: boolean, detail?: string) => { s.checks.push(detail === undefined ? { name, ok } : { name, ok, detail }); };
   try { await fn(c); s.passed = s.checks.length > 0 && s.checks.every((x) => x.ok); if (!s.passed) s.error = s.checks.filter((x) => !x.ok).map((x) => `${x.name}${x.detail ? ` (${x.detail})` : ""}`).join("; ") || "no checks ran"; }
-  catch (e) { s.error = (e as Error).message; s.checks.push({ name: "step stopped", ok: false, detail: s.error }); }
+  catch (e) { s.error = (e as Error).message; if (process.env["IT_STACK"]) console.error(key, (e as Error).stack); s.checks.push({ name: "step stopped", ok: false, detail: s.error }); }
   steps.push(s); console.log(`${s.passed ? "PASS" : "FAIL"}  ${label}${s.passed ? "" : `  —  ${s.error}`}`);
   return s;
 }
@@ -481,6 +481,75 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     const twice = await pi.confirmImportFor(ownerId, { importId: imp.id, facts: {}, installer: { site_check: "yes" } }).then(() => "accepted", (e) => (e as Error).message);
     c("confirming again refused (no duplicate)", twice !== "accepted", twice);
   });
+  await step(steps, "C13", "C13 Not quoted: Book a Ready Check (book it myself / ask the owner), never offered to anyone else", async (c) => {
+    const pi = await import("../src/lib/partner-import.server");
+    const rc = await import("../src/lib/installer-ready-check.server");
+    const { writeFileSync } = await import("node:fs");
+    writeFileSync(`${fixtures}/rc-not-quoted.csv`, `Name,Address,Suburb,Postcode,Phone,Email,Site check done\nTEST ${tag} RC1,1 ${tag} Ready Rd,Fraser Rise,3336,0412${tag.slice(-4).replace(/\D/g, "7")}01,qa.owner.${tag.toLowerCase()}.rc1@hivic-test.example,No\nTEST ${tag} RC2,2 ${tag} Ready Rd,Fraser Rise,3336,0412${tag.slice(-4).replace(/\D/g, "7")}02,qa.owner.${tag.toLowerCase()}.rc2@hivic-test.example,No\n`);
+    const u = await upload("rc-not-quoted.csv");
+    for (const r of u.rows) await admin.from("bulk_import_rows").update({ extracted: { ...r.extracted, quoted_answer: "no" } as never }).eq("id", r.id); // installer answered Quoted? No
+    await bi.confirmBatch(u.batchId, ownerId, []);
+    const { data: made } = await admin.from("bulk_import_rows").select("job_id, extracted").eq("batch_id", u.batchId).not("job_id", "is", null).order("row_index");
+    // Ready Check jobs are checked inside C13 (the "ask the owner" one deliberately sends a TEST email).
+    c("both not-quoted customers confirmed", (made ?? []).length === 2, String(made?.length));
+    const mk = async (n: string) => (made ?? [])[Number(n) - 1]!.job_id!;
+    let where = "start";
+    try {
+      where = 'const j1 = await mk("1");';
+      const j1 = await mk("1");
+      where = 'const s1 = await rc.installerRcState(j1);';
+      const s1 = await rc.installerRcState(j1);
+      c("Quoted No + not visited shows 'Book a Ready Check'", s1?.action === "book", String(s1?.action));
+      where = 'const when = new Date(Date.now() + 3 * 86_400_000); when.set';
+      const when = new Date(Date.now() + 3 * 86_400_000); when.setUTCHours(0, 0, 0, 0);
+      // Existing rule: a Ready Check can't be booked until the owner signs paperwork A. These owners have no way to sign yet — Jo to decide.
+      where = 'const own = await rc.bookOwnReadyCheck(j1, ownerId, when.toI';
+      const own = await rc.bookOwnReadyCheck(j1, ownerId, when.toISOString()).then(() => "booked", (e) => (e as Error).message);
+      where = 'const { data: b1 } = await admin.from("jobs").select("stage,';
+      const { data: b1 } = await admin.from("jobs").select("stage, next_action").eq("id", j1).single();
+      c("I'll book it: held until the owner signs paperwork A (existing rule — needs Jo's decision for supplied customers)", own === "booked" ? b1?.stage === "ready_check_scheduled" && b1?.next_action === "Ready Check booked" : /paperwork A/.test(own) && b1?.stage === "ready_check_ready_to_schedule", own === "booked" ? `${b1?.stage} / ${b1?.next_action}` : own);
+      where = 'const { count: sent1 } = await admin.from("job_communication';
+      const { count: sent1 } = await admin.from("job_communications").select("id", { count: "exact", head: true }).eq("job_id", j1);
+      c("I'll book it: nothing sent to the owner", !sent1, String(sent1));
+      where = 'const j2 = await mk("2");';
+      const j2 = await mk("2");
+      where = 'const ask = await rc.askOwnerForReadyCheckTimes(j2, ownerId)';
+      const ask = await rc.askOwnerForReadyCheckTimes(j2, ownerId);
+      c("Ask the owner: email only to Jo's TEST inbox", /^TEST email (sent|blocked)/.test(ask.delivery), ask.delivery);
+      where = 'const { data: comm } = await admin.from("job_communications"';
+      const { data: comm } = await admin.from("job_communications").select("recipients, subject").eq("job_id", j2).order("created_at", { ascending: false }).limit(1).maybeSingle();
+      c("Ask the owner: message names the installer's business", !!comm && (comm.recipients as string[]).every((x) => x === "jolowexo@hotmail.com") && !/\[TEST PARTNER\]/.test(comm.subject ?? "") && (comm.subject ?? "").length > 20, `${comm?.recipients} / ${comm?.subject}`);
+      where = 'const token = (ask as { testLink?: string }).testLink!.split';
+      const token = (ask as { testLink?: string }).testLink!.split("/").pop()!;
+      where = 'const { allowedPiesaDays } = await import("../src/lib/piesa-';
+      const { allowedPiesaDays } = await import("../src/lib/piesa-windows.core");
+      where = 'const days = allowedPiesaDays().slice(1, 4);';
+      const days = allowedPiesaDays().slice(1, 4);
+      where = 'const { submitReadyCheckWindows } = await import("../src/lib';
+      const { submitReadyCheckWindows } = await import("../src/lib/readycheck-booking.server");
+      where = 'await submitReadyCheckWindows((await rc.jobForTimesToken(tok';
+      await submitReadyCheckWindows((await rc.jobForTimesToken(token))!, days.map((d) => ({ date: d, slot: "10-12" as const })));
+      where = 'const s2 = await rc.installerRcState(j2);';
+      const s2 = await rc.installerRcState(j2);
+      c("owner's 3 times show to the installer", s2?.action === "pick_owner_time" && s2.windows.length === 3, `${s2?.action} ${s2?.windows.length}`);
+      where = 'const { count: offers } = await admin.from("partner_offers")';
+      const { count: offers } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", j2);
+      c("never offered to any other trade (no offers at all)", !offers, String(offers));
+      where = 'const { assertOfferPairsAllowed } = await import("../src/lib';
+      const { assertOfferPairsAllowed } = await import("../src/lib/offer-guard.server");
+      where = 'const { data: other } = await admin.from("businesses").selec';
+      const { data: other } = await admin.from("businesses").select("id").ilike("onboarding_notes", "%[TEST PARTNER]%").neq("id", BIZ).limit(1).maybeSingle();
+      where = 'if (other) c("an offer to another TEST trade is refused", aw';
+      if (other) c("an offer to another TEST trade is refused", await assertOfferPairsAllowed(j2, [other.id], "ready_check").then(() => false, () => true));
+      where = 'const first = await rc.takeOwnerReadyCheckTime(j2, ownerId, ';
+      const first = await rc.takeOwnerReadyCheckTime(j2, ownerId, s2!.windows[0]!.id).then(() => "booked", (e) => (e as Error).message);
+      where = 'const { data: b2 } = await admin.from("jobs").select("stage"';
+      const { data: b2 } = await admin.from("jobs").select("stage").eq("id", j2).single();
+      c("installer taps a time: booked, or held until the owner signs paperwork A", first === "booked" ? b2?.stage === "ready_check_scheduled" : /paperwork A/.test(first), first === "booked" ? String(b2?.stage) : first);
+    
+    } catch (e) { c(`stopped at: ${where}`, false, (e as Error).message); }
+  });
+
   await step(steps, "C12", "C12 Results page and past uploads", async (c) => {
     const { data } = await admin.from("bulk_import_batches").select("id, status").eq("business_id", BIZ).neq("status", "discarded");
     c("this run's uploads listed in past uploads", (data ?? []).length >= 9, `${(data ?? []).length} listed`);

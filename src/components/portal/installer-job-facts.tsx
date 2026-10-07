@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useServerFn } from "@tanstack/react-start";
 import { answerInstallerQuoted, getInstallerJobFacts, getMyInstallerJobFacts } from "@/lib/portal.functions";
+import { askOwnerForReadyCheckTimesFn, bookOwnReadyCheckFn, getInstallerRcState, takeOwnerReadyCheckTimeFn } from "@/lib/installer-ready-check.functions";
+import { formatPiesaWindow } from "@/lib/piesa-windows.core";
 import { Section } from "./panels";
 import { QUOTED_QUESTION, installerFactLabels, type InstallerJobFacts } from "@/lib/bulk-import.core";
 
@@ -48,6 +50,7 @@ export function PartnerInstallerFactsCard({ jobId }: { jobId: string }) {
   return (
     <>
     {f.quoted === null && <QuotedQuestion jobId={jobId} />}
+    {f.quoted === "no" && <InstallerReadyCheckCard jobId={jobId} />}
     <section className="rounded-[22px] bg-card p-5 shadow-sm" data-partner-installer-facts>
       <h2 className="font-display text-lg font-extrabold">What you told us</h2>
       <dl className="mt-2 divide-y divide-estimate-line">
@@ -61,7 +64,7 @@ export function PartnerInstallerFactsCard({ jobId }: { jobId: string }) {
 }
 
 /** Next action for the installer when "Quoted?" was left blank at upload (Jo, 5:46pm). */
-function QuotedQuestion({ jobId }: { jobId: string }) {
+function QuotedQuestion({ jobId, priceOnly = false }: { jobId: string; priceOnly?: boolean }) {
   const qc = useQueryClient();
   const answer = useServerFn(answerInstallerQuoted);
   const [yes, setYes] = useState(false);
@@ -80,12 +83,50 @@ function QuotedQuestion({ jobId }: { jobId: string }) {
       <h2 className="font-display text-lg font-extrabold">{QUOTED_QUESTION}</h2>
       <div className="mt-3 grid grid-cols-2 gap-2">
         <Button size="field" variant={yes ? "default" : "outline"} disabled={busy} onClick={() => setYes(true)}>Yes</Button>
-        <Button size="field" variant="outline" disabled={busy} onClick={() => send("no")}>No</Button>
+        {!priceOnly && <Button size="field" variant="outline" disabled={busy} onClick={() => send("no")}>No</Button>}
       </div>
       {yes && <div className="mt-3 space-y-2">
         <label className="block text-sm font-bold">Your quoted price inc GST<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 3,450" value={price} onChange={(e) => setPrice(e.target.value)} /></label>
         <Button size="field" className="w-full" disabled={busy || !(Number.isFinite(n) && n > 0)} onClick={() => send("yes")}>Save price</Button>
       </div>}
+      {err && <p className="mt-2 text-sm text-destructive">{err}</p>}
+    </section>
+  );
+}
+
+/** Quoted = No: "Book a Ready Check" (Jo, 7 Oct 6pm). Only this installer ever gets the job. */
+function InstallerReadyCheckCard({ jobId }: { jobId: string }) {
+  const qc = useQueryClient();
+  const get = useServerFn(getInstallerRcState);
+  const book = useServerFn(bookOwnReadyCheckFn);
+  const ask = useServerFn(askOwnerForReadyCheckTimesFn);
+  const take = useServerFn(takeOwnerReadyCheckTimeFn);
+  const q = useQuery({ queryKey: ["installer-rc", jobId], queryFn: () => get({ data: { jobId } }) });
+  const [mine, setMine] = useState(false);
+  const [when, setWhen] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const s = q.data;
+  if (!s) return null;
+  if (s.action === "none") return <QuotedQuestion jobId={jobId} priceOnly />;
+  const run = async (fn: () => Promise<unknown>) => { setBusy(true); setErr(""); try { await fn(); await qc.invalidateQueries(); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); } };
+  return (
+    <section className="rounded-[22px] border-2 border-warning bg-card p-5 shadow-sm" data-installer-ready-check={s.action}>
+      <p className="text-xs font-bold uppercase tracking-wide text-estimate-navy/60">Next for you</p>
+      {s.action === "booked" ? <><h2 className="font-display text-lg font-extrabold">Ready Check booked</h2>{s.bookedAt && <p className="text-sm">{new Date(s.bookedAt).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</p>}</>
+      : s.action === "waiting_for_owner" ? <><h2 className="font-display text-lg font-extrabold">Waiting for the owner's times</h2><p className="text-sm">We've asked the owner to choose 3 to 5 times. You'll see them here.</p></>
+      : s.action === "pick_owner_time" ? <><h2 className="font-display text-lg font-extrabold">Tap a time to book the Ready Check</h2>
+          <div className="mt-3 grid gap-2">{s.windows.map((w) => <Button key={w.id} size="field" variant="outline" disabled={busy} onClick={() => run(() => take({ data: { jobId, windowId: w.id } }))}>{formatPiesaWindow(w.starts_at, w.ends_at)}</Button>)}</div></>
+      : <><h2 className="font-display text-lg font-extrabold">Book a Ready Check</h2>
+          <div className="mt-3 grid gap-2">
+            <Button size="field" variant={mine ? "default" : "outline"} disabled={busy} onClick={() => setMine(true)}>I'll book it with the owner</Button>
+            <Button size="field" variant="outline" disabled={busy} onClick={() => run(() => ask({ data: { jobId } }))}>Ask the owner for times</Button>
+          </div>
+          {mine && <div className="mt-3 space-y-2">
+            <label className="block text-sm font-bold">Date and time you agreed<Input type="datetime-local" className="mt-1 h-12" value={when} onChange={(e) => setWhen(e.target.value)} /></label>
+            <p className="text-xs text-estimate-navy/70">Nothing is sent to the owner.</p>
+            <Button size="field" className="w-full" disabled={busy || !when} onClick={() => run(() => book({ data: { jobId, startsAt: new Date(when).toISOString() } }))}>Book Ready Check</Button>
+          </div>}</>}
       {err && <p className="mt-2 text-sm text-destructive">{err}</p>}
     </section>
   );

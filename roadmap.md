@@ -83,3 +83,6 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [ ] Later: daily check + Today card
 
 - [x] Strict new-installer test (A application/approval, B installer views owner+staff, C uploads/add one job), 3 runs, report + screenshots in Files installer-test
+
+- [~] Trade pages to approved design: shared look done (menu, colours, fonts, cards, buttons, fields). Next: page-by-page layouts (address-only job titles, side "What happens next" panel, extra states).
+- [ ] Ready Check for installer-supplied customers: owner paperwork A has no signing path — waiting on Jo
