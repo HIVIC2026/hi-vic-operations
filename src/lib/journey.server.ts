@@ -297,6 +297,13 @@ const s5: StepFn = async (ctx, r) => {
     const { transition } = await import("./workflow.server");
     await act(r, "measured quote ready for the owner", () => transition(ctx.jobId!, "measured_estimate_ready", ctx.actorId, "TEST journey: measured quote ready"));
   }
+  { const { resolveOwnerJob } = await import("./owner-myjob.server"); const oc = await import("./owner-confirm.core");
+    const v = await resolveOwnerJob(ctx.token) as { agreed?: { agreed: boolean; installerName: string | null } } | null;
+    const { data: jj } = await admin.from("jobs").select("channel, external_refs").eq("id", ctx.jobId!).single();
+    const agreedExpected = jj?.channel === "installer_sourced" && (jj.external_refs as Record<string, unknown> | null)?.["owner_agreed_price"] === true;
+    check(r, `owner link titled "${agreedExpected ? oc.CONFIRM_JOB_TITLE : oc.CONFIRMED_QUOTE_TITLE}"`, oc.ownerPriceTitle(v?.agreed) === (agreedExpected ? oc.CONFIRM_JOB_TITLE : oc.CONFIRMED_QUOTE_TITLE), oc.ownerPriceTitle(v?.agreed));
+    if (agreedExpected) check(r, "price labelled As agreed with the installer business", !!oc.agreedWithLabel(v?.agreed), String(oc.agreedWithLabel(v?.agreed)));
+    ctx.screens.push({ step: "s5_owner_accept", persona: "owner_token", path: `/my-job/${ctx.token}?screen=quote`, mustSee: [oc.PIESA_FIXES_NOTE.slice(0, 60)] }); }
   await ownerSignGates(ctx, r, ["B"]);
   const { respondToQuoteImpl } = await import("./portal.functions");
   const { data: jo } = await admin.from("jobs").select("owner_id, owners(user_id)").eq("id", ctx.jobId!).single();

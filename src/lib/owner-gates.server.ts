@@ -139,7 +139,7 @@ export async function signGateDoc(i: SignInput) {
   const { vars, jobNumber, ownerId, money } = await jobVars(i.jobId);
   if (i.key === "payment_terms" && (!money || !["two_instalments", "pay_in_full"].includes(i.answers["payment_option"] ?? ""))) throw new WorkflowError("Choose how you'd like to pay the balance.");
   const text = fillTemplate(d.body, { ...vars, ...answerVars(i.answers, money) });
-  const signedText = `${d.title} (version ${d.version}${draft ? ", DRAFT" : ""})\n\n${text}\n\n[x] ${d.tick}\nSigned: ${i.signatoryName.trim()}`;
+  const signedText = `${d.title} (version ${d.version}${draft ? ", DRAFT" : ""})\n\n${text}\n\n[x] ${d.tick}\nSigned: ${i.signatoryName.trim()}${d.gate === "B" ? (await import("./owner-confirm.core")).signedSummaryNote() : ""}`;
   const { data: row, error } = await admin.from("owner_gate_signatures").insert({
     job_id: i.jobId, gate: d.gate, doc_key: d.key, doc_version: d.version, doc_draft: draft, signed_text: signedText, signed_text_sha256: await sha256(signedText),
     answers: i.answers, signatory_name: i.signatoryName.trim(), ticked: true, method: i.method, signed_by: i.signedBy,

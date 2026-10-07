@@ -295,6 +295,7 @@ export const confirmImport = createServerFn({ method: "POST" }).middleware([requ
       quoted_price_inc_gst: z.number().positive().max(1_000_000).nullish(),
       price_includes: z.string().trim().max(1000).nullish(),
       contact_permission: z.boolean().optional(),
+      owner_agreed: z.boolean().optional(),
       quoted: z.enum(["yes", "no"]).nullable().optional(),
     }).optional(),
     electrician: z.object({ mode: z.enum(["mine", "hivic"]), business_id: uuid.nullish(), nomination_id: uuid.nullish() }).optional(),

@@ -14,7 +14,7 @@ export async function resolveOwnerJob(token: unknown) {
   if (!l || !linkUsable(l)) return null;
   const jobId = l.job_id;
   const [{ data: j }, { data: quotes }, { data: bookings }, { data: invoices }, { data: est }, { data: rc }, { data: ws }] = await Promise.all([
-    admin.from("jobs").select("job_number, stage, owners(full_name), properties(address_line, suburb, state, postcode)").eq("id", jobId).single(),
+    admin.from("jobs").select("job_number, stage, channel, external_refs, owners(full_name), properties(address_line, suburb, state, postcode)").eq("id", jobId).single(),
     admin.from("quotes").select("id, kind, status, option_label, customer_total_inc_gst, veec_discount_inc_gst, subtotal_inc_gst, sent_at, accepted_at, version, quote_items(description, quantity, line_total_inc_gst, sort)").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted"]).order("created_at", { ascending: false }),
     admin.from("bookings").select("kind, status, scheduled_start, contractor_id, business_id").eq("job_id", jobId).in("status", ["confirmed", "completed"]).order("scheduled_start"),
     admin.from("invoices").select("total_paid, amount_paid").eq("job_id", jobId),
@@ -52,6 +52,13 @@ export async function resolveOwnerJob(token: unknown) {
     const state = i < hero.step || (i === 4 && stage === "complete") ? "done" : i === hero.step ? "now" : "later";
     return { label, state, at, mustBy: i === 3 && piesaDone ? new Date(new Date(piesaDone).getTime() + n(ws?.piesa_install_window_days ?? 30) * 86400_000).toISOString() : null };
   });
+  // Installer already quoted and the owner agreed (Jo, 7 Oct 9:25pm): same acceptance path, different title.
+  let agreed: { agreed: boolean; installerName: string | null } = { agreed: false, installerName: null };
+  if ((j as { channel?: string }).channel === "installer_sourced" && ((j as { external_refs?: Record<string, unknown> | null }).external_refs ?? {})["owner_agreed_price"] === true) {
+    const { data: a } = await admin.from("job_assignments").select("business_id, businesses(name, trading_name)").eq("job_id", jobId).eq("role", "installer").order("created_at").limit(1).maybeSingle();
+    const b = a?.businesses as { name: string; trading_name: string | null } | null;
+    agreed = { agreed: true, installerName: b?.trading_name || b?.name || null };
+  }
   const owner = j.owners as { full_name: string | null } | null;
   const total = quote ? n(quote.customer_total_inc_gst) : null;
   const limits = (ws?.office_time_limits ?? {}) as Record<string, unknown>;
@@ -59,7 +66,7 @@ export async function resolveOwnerJob(token: unknown) {
     jobNumber: j.job_number, firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null,
     address: formatPropertyAddress(j.properties as never) || null, stage, hero, action, trade: upcoming ? trade : null,
     visit: upcoming ? { kind: upcoming.kind, startsAt: upcoming.scheduled_start } : null, progress,
-    numbers: { rebate, cost: total, paid },
+    numbers: { rebate, cost: total, paid }, agreed,
     quote: quote ? { id: quote.id, status: quote.status, label: quote.option_label, total, rebate: n(quote.veec_discount_inc_gst), version: quote.version, lines: [...(quote.quote_items ?? [])].sort((a, b) => a.sort - b.sort).map((i) => ({ description: i.description, amount: n(i.line_total_inc_gst) })), split: total != null ? splitForOption(total, (await admin.from("workflow_settings").select("safety_check_payment_inc_gst").eq("id", 1).maybeSingle()).data?.safety_check_payment_inc_gst ?? null) : null } : null,
     consent: consent ? { scheduledStart: consent.scheduled_start } : null,
     spotSaved: isSpotSavedStage(stage, spot ?? null, !!upcoming || (bookings ?? []).some((b) => b.kind === "ready_check")) ? {
