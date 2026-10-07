@@ -328,9 +328,9 @@ async function sectionB(steps: Step[], screens: Screen[], ids: { owner: string; 
     c("Money loads for the owner", !!m);
     c("no row pays the installer $349", !m.rows.some((r) => Number(r.amount) === 349));
     const { payState } = await import("../src/lib/trade-view.core");
-    const s = payState({ paidAt: null, apApprovedAt: "2026-10-01T00:00:00Z", ownerPaidInFullAt: "2026-10-01T00:00:00Z" });
+    const s = payState({ paidAt: null, apApprovedAt: "2026-10-01T00:00:00Z", installerSupplied: true, ownerPaidInFullAt: "2026-10-01T00:00:00Z" });
     c("rule: 7 days after approval + owner paid in full", s.kind === "coming" && s.on.startsWith("2026-10-08"));
-    c("rule: nothing 'coming' until the owner has paid in full", payState({ paidAt: null, apApprovedAt: "2026-10-01T00:00:00Z", ownerPaidInFullAt: null }).kind === "checking");
+    c("rule: nothing 'coming' until the owner has paid in full", payState({ paidAt: null, apApprovedAt: "2026-10-01T00:00:00Z", installerSupplied: true, ownerPaidInFullAt: null }).kind === "checking");
     c(`live rows: ${m.rows.length}`, true, m.rows.length ? m.rows.map((r) => `${r.jobNumber} ${r.state.kind}`).join(", ") : "empty state");
   });
 }
