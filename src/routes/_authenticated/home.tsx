@@ -1,6 +1,6 @@
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useMe } from "@/hooks/use-me";
-import { NoAccess } from "@/components/portal/NoAccess";
+import { NoAccess, RoleChooser } from "@/components/portal/NoAccess";
 import { portalDestination } from "@/lib/set-password-link.core";
 
 export const Route = createFileRoute("/_authenticated/home")({
@@ -13,5 +13,6 @@ function Home() {
   if (isLoading || !me) return null;
   const to = portalDestination({ roles: me.roles, hasBusiness: !!me.profile?.business_id });
   if (to === "no-access") return <NoAccess email={me.user.email ?? ""} />;
+  if (to === "choose") return <RoleChooser email={me.user.email ?? ""} />;
   return <Navigate to={to} replace />;
 }

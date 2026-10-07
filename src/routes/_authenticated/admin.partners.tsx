@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import type { Tables } from "@/integrations/supabase/types";
 import { useServerFn } from "@tanstack/react-start";
 import { getAdminPartnerEnquiries } from "@/lib/admin-records.functions";
-import { getApprovalChecklist, listPartnerOfficeEmails, sendPartnerOfficeEmail, activatePartnerApplication, createPartnerLogin, decidePartnerApplication, getApplicationReview, listCertificationLevels, listWorkerCertifications, recordCertificationLevel, recordWorkerCertification } from "@/lib/partner-activation.functions";
+import { getApprovalChecklist, listPartnerOfficeEmails, sendPartnerOfficeEmail, activatePartnerApplication, createPartnerLogin, sendPartnerLoginLink, decidePartnerApplication, getApplicationReview, listCertificationLevels, listWorkerCertifications, recordCertificationLevel, recordWorkerCertification } from "@/lib/partner-activation.functions";
 import type { InstData } from "@/lib/installer-onboarding.core";
 import { OnboardingDrafts } from "@/components/portal/onboarding-drafts";
 import { openFileViewer } from "@/components/portal/file-viewer";
@@ -281,20 +281,26 @@ function WorkerCertifications({ applicationId, installers }: { applicationId: st
 }
 
 
-/** Office makes the partner boss's sign-in. Nothing is emailed or texted: the office copies the link and passes it on. */
-function PartnerLogin({ applicationId, defaultEmail }: { applicationId: string; defaultEmail: string }) {
+/** Partner login: email the one-time set-password link for real (recorded on the record), or copy it. */
+function PartnerLogin({ applicationId, defaultEmail, autoResult }: { applicationId: string; defaultEmail: string; autoResult?: { ok: boolean; text: string; link?: string } | null }) {
   const make = useAction(createPartnerLogin);
+  const send = useAction(sendPartnerLoginLink);
   const [email, setEmail] = useState(defaultEmail);
-  const [link, setLink] = useState<string | null>(null);
+  const [link, setLink] = useState<string | null>(autoResult?.link ?? null);
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(autoResult ?? null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (autoResult) { setResult(autoResult); if (autoResult.link) setLink(autoResult.link); } }, [autoResult]);
   return (
     <div className="rounded border p-2" data-testid="partner-login">
-      <div className="font-semibold">Next: send their login link</div>
-      <p className="text-xs text-muted-foreground">Makes the business boss's sign-in and a one-time set-password link. Emailing it to partners is off until Jo approves the welcome wording, so use "Copy link" and text or email it yourself.</p>
-      <div className="mt-2 flex gap-2">
-        <input aria-label="Login email" className="h-9 flex-1 rounded border px-2" value={email} onChange={(e) => setEmail(e.target.value)} />
-        <Button size="sm" onClick={async () => { const r = await make({ applicationId, email }, "Login link ready"); if (r) setLink(r.link); }}>Make login link</Button>
+      <div className="font-semibold">Login link</div>
+      <p className="text-xs text-muted-foreground">Emails a one-time link to set their password (works once, expires after 1 hour). Recorded on this record.</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <input aria-label="Login email" className="h-9 min-w-0 flex-1 rounded border px-2" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <Button size="sm" disabled={busy} onClick={async () => { setBusy(true); const r = await send({ applicationId, email }); setBusy(false); if (r) { setLink(r.link); setResult(r.status === "sent" ? { ok: true, text: `Login link sent to ${r.to}` } : { ok: false, text: `Not sent: ${r.detail}` }); } }}>{busy ? "Sending…" : autoResult || result ? "Send a new login link" : "Send login link"}</Button>
+        <Button size="sm" variant="outline" onClick={async () => { const r = await make({ applicationId, email }, "Login link ready"); if (r) { setLink(r.link); await navigator.clipboard.writeText(r.link).catch(() => {}); toast.success("New link copied"); } }}>Copy link</Button>
       </div>
-      {link && <div className="mt-2 space-y-2"><p className="text-xs font-medium">One-time set-password link (works once):</p><textarea readOnly aria-label="Set-password link" className="w-full break-all rounded border p-2 text-xs" rows={3} value={link} onFocus={(e) => e.currentTarget.select()} /><div className="flex flex-wrap gap-2"><Button size="sm" onClick={async () => { await navigator.clipboard.writeText(link); toast.success("Link copied"); }}>Copy link</Button><Button size="sm" variant="outline" disabled title="Sending to partners is off until Jo approves the welcome wording">Send login link (off for now)</Button></div></div>}
+      {result && <p role="status" className={`mt-2 rounded p-2 text-sm font-semibold ${result.ok ? "bg-success-soft text-success" : "bg-destructive/10 text-destructive"}`}>{result.text}</p>}
+      {link && <textarea readOnly aria-label="Set-password link" className="mt-2 w-full break-all rounded border p-2 text-xs" rows={2} value={link} onFocus={(e) => e.currentTarget.select()} />}
     </div>
   );
 }
@@ -335,6 +341,8 @@ function ApprovePartner({ applicationId }: { applicationId: string }) {
   const check = useServerFn(getApprovalChecklist);
   const rec = useServerFn(getRecOnboardingRecord);
   const activate = useAction(activatePartnerApplication);
+  const sendLogin = useAction(sendPartnerLoginLink);
+  const [autoLogin, setAutoLogin] = useState<{ ok: boolean; text: string; link?: string } | null>(null);
   const q = useQuery({ queryKey: ["approval-checklist", applicationId], queryFn: () => check({ data: { applicationId } }) });
   const r2 = useQuery({ queryKey: ["rec-onboarding", applicationId], queryFn: () => rec({ data: { id: applicationId } }) });
   const [override, setOverride] = useState("");
@@ -348,7 +356,7 @@ function ApprovePartner({ applicationId }: { applicationId: string }) {
     <div className="space-y-2 rounded-lg border-2 border-success p-3" data-approve>
       <p className="font-semibold text-success">Approved on {new Date(c.activatedAt!).toLocaleDateString("en-AU")}.</p>
       {msg && <p className="text-sm">{msg}</p>}
-      <PartnerLogin applicationId={applicationId} defaultEmail={c.loginEmail} />
+      <PartnerLogin applicationId={applicationId} defaultEmail={c.loginEmail} autoResult={autoLogin} />
     </div>
   );
   const ready = !c.hardBlocked && (!c.needsOverride || override.trim().length >= 10);
@@ -361,7 +369,7 @@ function ApprovePartner({ applicationId }: { applicationId: string }) {
       {c.needsOverride && <label className="block text-sm font-medium">Office override reason (needed for the items above)<Textarea className="mt-1" rows={2} value={override} onChange={(e) => setOverride(e.target.value)} placeholder="Why it's OK to approve anyway (at least 10 characters)" /></label>}
       <RateOfferPanel applicationId={applicationId} showActivate={false} onActivate={async () => {}} />
       <ReviewDecision applicationId={applicationId} />
-      <Button className="h-12 w-full text-base" disabled={!ready || busy} onClick={async () => { setBusy(true); const res = await activate({ applicationId, overrideReason: c.needsOverride ? override.trim() : undefined }, "Partner approved"); setBusy(false); if (res) setMsg("welcome" in res && res.welcome ? res.welcome : "Next: send them their login link below."); await q.refetch(); }}>{busy ? "Approving…" : "Approve"}</Button>
+      <Button className="h-12 w-full text-base" disabled={!ready || busy} onClick={async () => { setBusy(true); const res = await activate({ applicationId, overrideReason: c.needsOverride ? override.trim() : undefined }, "Partner approved"); setBusy(false); if (res) { setMsg("welcome" in res && res.welcome ? res.welcome : null); if (!("welcome" in res && res.welcome) && c.loginEmail) { const l = await sendLogin({ applicationId, email: c.loginEmail }); setAutoLogin(l ? (l.status === "sent" ? { ok: true, text: `Approved. Login link sent to ${l.to}.`, link: l.link } : { ok: false, text: `Approved, but the login email didn't send: ${l.detail}`, link: l.link }) : { ok: false, text: "Approved, but the login link couldn't be made. Use \"Send login link\" below." }); } } await q.refetch(); }}>{busy ? "Approving…" : "Approve"}</Button>
       {!ready && <p className="text-xs text-muted-foreground">Approve unlocks when the list above is done.</p>}
     </div>
   );
