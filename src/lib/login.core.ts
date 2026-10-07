@@ -18,7 +18,7 @@ export function normaliseLoginEmail(raw: string): EmailCheck {
   return { ok: true, email };
 }
 
-type AuthErr = { message?: string; code?: string; status?: number } | null | undefined;
+type AuthErr = { message?: string | undefined; code?: string | undefined; status?: number | undefined } | null | undefined;
 
 /** Plain-English message for a password sign-in failure. Never reveals whether an account exists. */
 export function signInErrorMessage(e: AuthErr): string {
