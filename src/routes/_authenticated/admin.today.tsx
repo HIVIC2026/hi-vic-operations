@@ -55,7 +55,7 @@ function TodayPage() {
               <NeedGroup title="Today" items={b.needs.today} tone="text-foreground" />
               <NeedGroup title="Soon" items={b.needs.soon} tone="text-muted-foreground" />
             </div>
-            <Link to="/admin/todo" className="text-sm font-semibold text-primary underline">Open the to-action list</Link>
+            <Link to="/admin/needs-me" className="text-sm font-semibold text-primary underline">Open Needs me</Link>
           </section>
           <section className="space-y-2">
             <h2 className="font-heading text-lg font-bold">At risk this week</h2>

@@ -18,7 +18,7 @@ export const ENQUIRY_TABS: OfficeTab[] = [
 
 export const SECTION_TABS: Record<OfficeSection, OfficeTab[]> = {
   leads: ENQUIRY_TABS,
-  needs: [{ label: "Needs me", to: "/admin/needs-me" }, { label: "Today", to: "/admin/today" }, { label: "To action (old list)", to: "/admin/todo" }],
+  needs: [{ label: "Needs me", to: "/admin/needs-me" }, { label: "Today", to: "/admin/today" }],
   pipeline: [
     { label: "Stages", to: "/admin/pipeline" },
     { label: "Enquiries", to: "/admin", search: { tab: "enquiries" } },
