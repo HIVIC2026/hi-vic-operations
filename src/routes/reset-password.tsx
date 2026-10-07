@@ -29,6 +29,9 @@ function ResetPassword() {
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     const th = q.get("token_hash");
+    const h = new URLSearchParams(window.location.hash.slice(1));
+    if (h.get("error") || q.get("error")) { setFailed(badLinkMessage({ code: h.get("error_code") ?? q.get("error_code") ?? "", message: h.get("error_description") ?? q.get("error_description") ?? "" })); return; }
+    const t = window.setTimeout(() => { void supabase.auth.getSession().then(({ data: d }) => { if (!d.session) setFailed((f) => f ?? "This link has expired or was already used."); }); }, 4000);
     const kind = q.get("type");
     if (th && (kind === "recovery" || kind === "invite")) {
       void supabase.auth.verifyOtp({ token_hash: th, type: kind }).then(({ data: v, error }) => {
@@ -40,7 +43,7 @@ function ResetPassword() {
     }
     const { data } = supabase.auth.onAuthStateChange((e, s) => { if (s && (e === "PASSWORD_RECOVERY" || e === "SIGNED_IN")) setReady(true); });
     supabase.auth.getSession().then(({ data: d }) => { if (d.session) setReady(true); });
-    return () => data.subscription.unsubscribe();
+    return () => { window.clearTimeout(t); data.subscription.unsubscribe(); };
   }, []);
   const resend = async (e: React.FormEvent) => {
     e.preventDefault();
