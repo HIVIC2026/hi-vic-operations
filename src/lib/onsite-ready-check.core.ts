@@ -10,7 +10,7 @@ export type OnsiteInput = {
   full_name: string; address_line: string; suburb: string; postcode: string; phone: string; email: string;
   contact_permission: boolean;
   /** Who gave Gate A consent on site (Jo, 8 Oct): the owner ticked on this phone, or the installer confirms the owner agreed. */
-  consent_by?: "owner" | "installer" | null;
+  consent_by?: "owner" | "installer" | null | undefined;
 };
 
 /** Jo 8 Oct: on-site Gate A clears when the owner ticks here OR the installer confirms consent. */
