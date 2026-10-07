@@ -8,7 +8,7 @@ import { getJobsBoard } from "@/lib/office.functions";
 import { BOARD_COLUMNS, ELIG_FILTERS, filterBoard, groupBoard, plainStage, type BoardJob, type EligFilter, type SourceFilter } from "@/lib/jobs-board.core";
 import { cn } from "@/lib/utils";
 
-type S = { elig?: EligFilter; src?: SourceFilter; test?: boolean };
+type S = { elig?: EligFilter | undefined; src?: SourceFilter | undefined; test?: boolean | undefined };
 
 export const Route = createFileRoute("/_authenticated/admin/jobs/")({
   head: () => ({ meta: [{ title: "Jobs – Home Insulation Victoria office" }, { name: "description", content: "Every job on one board, by stage." }, { property: "og:title", content: "Jobs – Home Insulation Victoria office" }, { property: "og:description", content: "Every job on one board, by stage." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
