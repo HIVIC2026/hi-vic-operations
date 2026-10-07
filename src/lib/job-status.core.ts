@@ -11,7 +11,7 @@ export type StatusFacts = {
   quoteSentAt: string | null; quoteAcceptedAt: string | null;
   safetyPaidAt: string | null; ownerTimesChosenAt: string | null;
   rectQuoteSentAt: string | null;
-  paidInFullAt: string | null;
+  paidInFullAt: string | null; firstHalfPaidAt?: string | null;
   apApprovedAt: string | null;
   payout: { kind: "coming"; on: string } | { kind: "checking" } | { kind: "paid"; on: string } | null;
   settings?: DueSettings | null;
@@ -60,7 +60,7 @@ export function jobStatusLine(f: StatusFacts): StatusLine {
   const office = (text: string, since: string | null): StatusLine => ({ text: `${text}${since ? ` · since ${fmtDay(since)}` : ""}`, who: "Home Insulation Victoria", since, waitingDays: days(since, f.now), tone: toneFor("Home Insulation Victoria", since, f.now, f.settings), money: null });
   const balance = (): string | null => {
     if (f.staff || f.paidInFullAt || !f.safetyPaidAt) return null;
-    return latest(f.bookings, "installation", "confirmed") ? "Final 50% due on install day" : "Balance: first 50% due when install is booked";
+    return latest(f.bookings, "installation", "confirmed") || f.firstHalfPaidAt ? "Final 50% due on install day" : "Balance: first 50% due when install is booked";
   };
   let out: StatusLine;
   switch (S) {
@@ -113,15 +113,12 @@ export function jobTimeline(f: StatusFacts): TimelineStep[] {
     { key: "safety_paid", label: f.staff ? "Safety check paid" : "$349 paid", done: f.safetyPaidAt, expected: null },
     { key: "safety_check", label: "Safety check", done: piesa?.start ?? null, expected: conf("assessment")?.start ?? null },
     { key: "fixes", label: "Electrical fixes (if any)", done: rect?.start ?? null, expected: conf("rectification")?.start ?? null, skip: !!piesa && !fixesNeeded },
-    { key: "first_half", label: f.staff ? "First payment at install booking" : "50% at install booking", done: f.paidInFullAt ?? (instBooked || inst ? instBooked?.start ?? inst?.start ?? null : null) && null, expected: null },
+    { key: "first_half", label: f.staff ? "First payment at install booking" : "50% at install booking", done: f.firstHalfPaidAt ?? f.paidInFullAt, expected: null },
     { key: "install", label: "Install", done: inst?.start ?? null, expected: instBooked?.start ?? null },
     { key: "final_half", label: f.staff ? "Final payment" : "Final 50%", done: f.paidInFullAt, expected: instBooked?.start ?? null },
     { key: "checked", label: "Checked by Home Insulation Victoria", done: f.apApprovedAt, expected: null },
     { key: "paid", label: "Paid to you", done: p?.kind === "paid" ? p.on : null, expected: p?.kind === "coming" ? p.on : null },
   ];
-  // First-half step is done once the owner paid in full, or the install got booked with the safety check paid (the first 50% is taken at booking).
-  raw[5]!.done = f.paidInFullAt ?? (f.safetyPaidAt && (instBooked || inst) ? null : null);
-  if (!raw[5]!.done && f.safetyPaidAt && (instBooked || inst)) raw[5]!.done = null;
   let nextGiven = false;
   return raw.map((r) => {
     if (r.skip) return { key: r.key, label: r.label, state: "skipped" as const, date: null, dateLabel: "Not needed" };
