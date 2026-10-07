@@ -59,7 +59,7 @@ export async function submitReadyCheckWindows(jobId: string, picks: Pick[], now 
   if (error) throw new Error(error.message);
   await logEvent(jobId, null, "ready_check_windows_chosen", `Owner chose ${picks.length} Ready Check times (round ${round})`, { round, count: picks.length });
   await admin.from("jobs").update({ next_action: "Waiting for an installer to take one of the owner's Ready Check times" }).eq("id", jobId);
-  if (job.stage === "ready_check_ready_to_schedule") { try { await startReadyCheckOffers(jobId, null); } catch { /* timer retries */ } }
+  if (job.stage === "ready_check_ready_to_schedule" && !(await (await import("./offer-dispatch.server")).jobOfficePicks(jobId))) { try { await startReadyCheckOffers(jobId, null); } catch { /* timer retries */ } }
   return { ok: true, round };
 }
 
@@ -151,18 +151,18 @@ export async function installerCandidatesFor(jobId: string) {
 }
 
 /** Start (or continue) Ready Check offers. Refuses unless the job is waiting for a Ready Check booking with open owner times. */
-export async function startReadyCheckOffers(jobId: string, actorId: string | null, onlyBusiness?: string) {
+export async function startReadyCheckOffers(jobId: string, actorId: string | null, onlyBusiness?: string | string[], opts: { adding?: boolean } = {}) {
   const [{ data: job }, inst, w, { count: open }] = await Promise.all([
     admin.from("jobs").select("stage").eq("id", jobId).single(), hasActiveInstaller(jobId), readyCheckWindowRound(jobId),
     admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", "ready_check").eq("status", "pending"),
   ]);
-  const b = readyCheckStartBlockers({ stage: job?.stage ?? "", hasInstaller: inst, openWindows: w.open.length, hasOpenOffers: !!open });
+  const b = readyCheckStartBlockers({ stage: job?.stage ?? "", hasInstaller: inst, openWindows: w.open.length, hasOpenOffers: !!open && !opts.adding });
   if (b.length) throw new WorkflowError(`Ready Check offers cannot start: ${b.join(" ")}`);
   await (await import("./owner-gates.server")).assertGateA(jobId, "Ready Check offers");
   return offerNextReadyCheckBatch(jobId, actorId, onlyBusiness);
 }
 
-async function offerNextReadyCheckBatch(jobId: string, actorId: string | null, onlyBusiness?: string) {
+async function offerNextReadyCheckBatch(jobId: string, actorId: string | null, onlyBusiness?: string | string[]) {
   const { businessHours, batchSize } = await settings();
   const [{ candidates }, w, { data: prior }, { data: j }] = await Promise.all([
     installerCandidatesFor(jobId), readyCheckWindowRound(jobId),
@@ -170,11 +170,14 @@ async function offerNextReadyCheckBatch(jobId: string, actorId: string | null, o
     admin.from("jobs").select("job_number, properties(suburb, postcode)").eq("id", jobId).single(),
   ]);
   let batch: { business_id: string; name?: string }[];
-  if (onlyBusiness) {
-    const c = candidates.find((x) => x.business_id === onlyBusiness);
-    if (!c) throw new WorkflowError("That installer isn't an approved installer for this job.");
-    if (c.blocker) throw new WorkflowError(`${c.name} can't take this Ready Check: ${c.blocker}`);
-    batch = [c];
+  const picks = onlyBusiness ? (Array.isArray(onlyBusiness) ? onlyBusiness : [onlyBusiness]) : null;
+  if (picks) {
+    batch = picks.map((id) => {
+      const c = candidates.find((x) => x.business_id === id);
+      if (!c) throw new WorkflowError("One of those installers isn't an approved installer for this job.");
+      if (c.blocker) throw new WorkflowError(`${c.name} can't take this Ready Check: ${c.blocker}`);
+      return c;
+    });
   } else {
     const inRound = (prior ?? []).filter((o) => !w.roundStart || o.offered_at >= w.roundStart);
     batch = nextInstallerBatch(candidates, new Set(inRound.map((o) => o.business_id)), batchSize);
@@ -186,10 +189,10 @@ async function offerNextReadyCheckBatch(jobId: string, actorId: string | null, o
   const batchNo = Math.max(0, ...(prior ?? []).map((o) => o.batch)) + 1;
   const p = j?.properties as { suburb: string | null; postcode: string | null } | null;
   const summary = { job_number: j?.job_number ?? "", suburb: p?.suburb ?? null, postcode: p?.postcode ?? null, visit: "ready_check", unpaid_note: READY_CHECK_UNPAID_NOTE, ...(onlyBusiness ? { office_choice: true } : {}) };
-  const expires = offerExpiryBusinessHours(new Date(), businessHours);
+  const expires = picks ? await (await import("./offer-dispatch.server")).chosenOfferExpiry() : offerExpiryBusinessHours(new Date(), businessHours);
   const { error } = await admin.from("partner_offers").insert(batch.map((b) => ({ job_id: jobId, business_id: b.business_id, kind: "ready_check", batch: batchNo, summary: summary as unknown as Json, offered_by: actorId, expires_at: expires })));
   if (error) throw new Error(error.message);
-  if (onlyBusiness) await logEvent(jobId, actorId, "trade_chosen_by_office", `Office chose ${batch[0]!.name ?? "an installer"} for the Ready Check — offer sent only to them`, { kind: "ready_check", business_id: onlyBusiness, business_name: batch[0]!.name ?? null, expires_at: expires }, { internal: true });
+  if (picks) await logEvent(jobId, actorId, "trade_chosen_by_office", `Office chose ${batch.map((b) => b.name ?? "an installer").join(", ")} for the Ready Check — offer sent only to ${batch.length === 1 ? "them" : `these ${batch.length}`}`, { kind: "ready_check", business_ids: batch.map((b) => b.business_id), business_names: batch.map((b) => b.name ?? null), business_id: batch[0]!.business_id, business_name: batch[0]!.name ?? null, expires_at: expires }, { internal: true });
   else await logEvent(jobId, actorId, "ready_check_offers_made", `Ready Check offered to ${batch.length} approved installer(s), batch ${batchNo}`, { batch: batchNo, businesses: batch.map((b) => b.business_id), expires_at: expires }, { internal: true });
   return { offered: batch.length, exhausted: false };
 }
@@ -231,6 +234,7 @@ async function refill(jobId: string, actorId: string | null) {
   if (open || inst) return;
   // Office-picked installer said no / ran out: wait for "Pick another" or "Send to all" in Needs me.
   if (await (await import("./allocation.server")).officePickUnanswered(jobId, "ready_check")) return;
+  if (await (await import("./offer-dispatch.server")).jobOfficePicks(jobId)) return; // office picks: Needs me shows "add more trades"
   const w = await readyCheckWindowRound(jobId);
   if (!w.open.length) { if (w.round > 0) await readyCheckNoTaker(jobId, actorId, w.round); return; }
   await offerNextReadyCheckBatch(jobId, actorId);

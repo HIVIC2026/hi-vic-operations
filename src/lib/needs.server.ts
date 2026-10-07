@@ -43,9 +43,28 @@ export async function loadNeedsHivic() {
   });
   const [{ data: tOff }, { offersWithNoTaker }, { offerSuggestHours }] = await Promise.all([
     admin.from("partner_offers").select("id, job_id, kind, status, offered_at").in("kind", ["ready_check", "piesa"]).gte("offered_at", new Date(Date.now() - 30 * 86_400_000).toISOString()),
-    import("./offer-timing.core"), import("./trade-view.server"),
+    import("./offer-timing.core"), import("./offer-dispatch.server"),
   ]);
   const offerNoTaker = offersWithNoTaker(tOff ?? [], await offerSuggestHours());
+  // Office picks first: jobs ready for an offer with nothing out yet.
+  const { officePicks, needsChooseTrades } = await import("./offer-dispatch.core");
+  const mode = await (await import("./offer-dispatch.server")).dispatchMode();
+  const ready = ok(jobs, "jobs").filter((j) => j.stage === "ready_check_ready_to_schedule" || j.stage === "piesa_and_install_window_pending");
+  const readyIds = ready.map((j) => j.id);
+  const [{ data: ovr }, { data: rcWin }, { data: trAsg }] = await Promise.all([
+    admin.from("jobs").select("id, offer_dispatch_override").in("id", readyIds.length ? readyIds : ["00000000-0000-0000-0000-000000000000"]),
+    admin.from("ready_check_windows").select("job_id, created_at").eq("status", "open").in("job_id", readyIds.length ? readyIds : ["00000000-0000-0000-0000-000000000000"]),
+    admin.from("job_assignments").select("job_id, role").eq("active", true).in("job_id", readyIds.length ? readyIds : ["00000000-0000-0000-0000-000000000000"]),
+  ]);
+  const ov = new Map((ovr ?? []).map((o) => [o.id, o.offer_dispatch_override]));
+  const chooseTrades = ready.flatMap((j) => {
+    const k = j.stage === "ready_check_ready_to_schedule" ? "ready_check" : "piesa";
+    const win = (rcWin ?? []).filter((w) => w.job_id === j.id);
+    const readyForOffer = k === "piesa" || win.length > 0;
+    const hasTrade = (trAsg ?? []).some((a) => a.job_id === j.id && a.role === (k === "piesa" ? "electrician" : "installer"));
+    const live = (tOff ?? []).filter((o) => o.job_id === j.id && o.kind === k && o.status !== "expired" && o.status !== "withdrawn").length;
+    return needsChooseTrades({ officePicks: officePicks(mode, ov.get(j.id) ?? null), readyForOffer, hasTrade, offersThisRound: live }) ? [{ job_id: j.id, kind: k, since: win.map((w) => w.created_at).sort()[0] ?? null }] : [];
+  });
   const { data: rcInst } = await admin.from("job_assignments").select("job_id").eq("role", "installer").eq("active", true);
   const withInst = new Set((rcInst ?? []).map((a) => a.job_id));
   const jobRows = ok(jobs, "jobs").filter((j) => j.source !== "qa_test");
@@ -79,6 +98,7 @@ export async function loadNeedsHivic() {
     prestart: await (await import("./prestart.server")).prestartNeeds(now).catch((e) => { console.error("pre-start needs failed", (e as Error).message); return undefined; }),
     visitFlags,
     offerNoTaker,
+    chooseTrades,
     readyCheckNoTaker: (rcEv ?? []).filter((e): e is { job_id: string; created_at: string } => !!e.job_id && !withInst.has(e.job_id)),
     installFlags: (instEv ?? []).filter((e) => !!e.job_id).map((e) => ({ job_id: e.job_id!, code: e.event_type as "install_ten_days_left" | "install_days_declined", created_at: e.created_at, detail: e.event_type === "install_ten_days_left" ? `Last day ${(e.details as { deadline?: string } | null)?.deadline ?? "?"}.` : undefined })),
   });

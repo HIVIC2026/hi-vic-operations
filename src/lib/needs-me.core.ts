@@ -19,6 +19,8 @@ export type NeedsJob = {
   parked?: boolean;
   /** Office-picked trade declined or ran out (latest offer of that kind). */
   tradeChoice?: { kind: "ready_check" | "piesa" | "rectification"; name: string | null; status: "declined" | "expired" } | null;
+  /** Office picks first: nothing sent yet ("choose"), or offered but nobody took it within the set hours ("no_taker"). */
+  offerChoice?: { kind: "ready_check" | "piesa"; state: "choose" | "no_taker"; hours: number } | null;
 };
 export type PartnerItem = { key: string; title: string; why: string; dueAt: string | null; href: string };
 export type Snooze = { jobId: string; ruleKey: string; until: string; count: number };
@@ -47,6 +49,10 @@ export function buildNeedsMe(i: { now: number; jobs: NeedsJob[]; partners: Partn
     if (!isMappedStage(j.stage) || !s || j.statusCount !== 1) reasons.push({ rule: "i_nothing_lost", why: !s ? `Stage "${j.stage}" has no status rule` : `Matched ${j.statusCount} statuses`, urgency: 100, action: "Fix status" });
     for (const f of j.failures) reasons.push({ rule: "e_failure", why: f, urgency: 95, action: "Fix it" });
     if (j.tradeChoice) reasons.push({ rule: "a_waiting_on_us", why: `${j.tradeChoice.name ?? "The trade you chose"} ${j.tradeChoice.status === "declined" ? "said no" : "didn't answer in time"}`, urgency: 88, action: "Pick another" });
+    const oc = j.offerChoice;
+    const ocWhat = oc?.kind === "piesa" ? "safety check" : "Ready Check";
+    if (oc?.state === "choose") reasons.push({ rule: "a_waiting_on_us", why: `Choose trades for this job — the ${ocWhat} offer hasn't gone out (Office picks first)`, urgency: 89, action: "Choose trades" });
+    if (oc?.state === "no_taker") reasons.push({ rule: "a_waiting_on_us", why: `${oc.hours}h and no one has taken the ${ocWhat} — add more trades (those already offered keep theirs)`, urgency: 89, action: "Add more trades" });
     const ended = s?.stage === "ended";
     if (s && !ended) {
       if (s.late) reasons.push({ rule: "b_over_limit", why: `Due ${s.dueAt!.slice(0, 10)} — ${timeLeft(s.dueAt, now)}`, urgency: 80 });
@@ -79,7 +85,7 @@ export function buildNeedsMe(i: { now: number; jobs: NeedsJob[]; partners: Partn
       why: [returning ? "Back from Later" : null, top.why, ...reasons.slice(1).map((r) => RULE_LABEL[r.rule])].filter(Boolean).join(" · "),
       rule: returning ? "h_snooze_return" : top.rule, dueAt: s?.dueAt ?? null, timeLeft: timeLeft(s?.dueAt ?? null, now),
       urgency: top.urgency + (returning ? 5 : 0), action: top.action ?? statusAction ?? "Open job", href: null, snoozeCount: sn?.count ?? 0,
-      ...(j.tradeChoice ? { choiceKind: j.tradeChoice.kind } : {}),
+      ...(j.tradeChoice ? { choiceKind: j.tradeChoice.kind } : j.offerChoice ? { choiceKind: j.offerChoice.kind } : {}),
     });
   }
   for (const p of i.partners) {

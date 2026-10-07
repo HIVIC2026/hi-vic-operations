@@ -10,6 +10,7 @@ import { getNeedsMe, snoozeNeedsItem } from "@/lib/office.functions";
 import { sendOfferToAll } from "@/lib/trade-choice.functions";
 import { RULE_LABEL, needsMeTotal, type NeedsItem } from "@/lib/needs-me.core";
 import { cn } from "@/lib/utils";
+import { DispatchModeSwitch } from "@/components/portal/dispatch-mode";
 
 export const Route = createFileRoute("/_authenticated/admin/needs-me")({
   head: () => ({ meta: [{ title: "Needs me – Home Insulation Victoria" }, { name: "description", content: "Every job that needs the office, most urgent first." }, { property: "og:title", content: "Needs me – Home Insulation Victoria" }, { property: "og:description", content: "Every job that needs the office, most urgent first." }] }),
@@ -73,6 +74,7 @@ function NeedsMe() {
         <div><h1 className="font-display text-3xl font-extrabold">Needs me</h1><p className="text-sm text-muted-foreground">{data ? `${needsMeTotal(data.items)} need you. ` : ""}Most urgent first. Every row says why it's here.</p></div>
         <Link to="/admin/needs-me" search={includeTest ? {} : { test: true }} className="text-sm font-semibold text-primary underline">{includeTest ? "Hide TEST jobs" : "Include TEST jobs"}</Link>
       </div>
+      <DispatchModeSwitch />
       {error ? <div role="alert" className="rounded-[22px] border border-danger/40 bg-danger-soft p-4 text-sm text-danger">Needs me couldn't load — this does NOT mean nothing needs you. {(error as Error).message} <button className="font-semibold underline" onClick={() => void refetch()}>Try again</button></div>
         : !data ? <p className="text-muted-foreground">Checking every job…</p>
         : <>

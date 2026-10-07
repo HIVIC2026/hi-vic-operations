@@ -5204,6 +5204,7 @@ export type Database = {
           life_support_status: string | null
           measure_up_responsibility: string
           next_action: string | null
+          offer_dispatch_override: string | null
           originating_installer_business_id: string | null
           originating_installer_user_id: string | null
           owner_id: string
@@ -5255,6 +5256,7 @@ export type Database = {
           life_support_status?: string | null
           measure_up_responsibility?: string
           next_action?: string | null
+          offer_dispatch_override?: string | null
           originating_installer_business_id?: string | null
           originating_installer_user_id?: string | null
           owner_id: string
@@ -5306,6 +5308,7 @@ export type Database = {
           life_support_status?: string | null
           measure_up_responsibility?: string
           next_action?: string | null
+          offer_dispatch_override?: string | null
           originating_installer_business_id?: string | null
           originating_installer_user_id?: string | null
           owner_id?: string
@@ -10697,6 +10700,7 @@ export type Database = {
           mitti_piisa_template_id: string | null
           mitti_ready_check_priced_template_id: string | null
           mitti_ready_check_template_id: string | null
+          offer_dispatch_mode: string
           offer_suggest_time_after_hours: number
           office_time_limits: Json
           owner_resign_after_install: boolean
@@ -10739,6 +10743,7 @@ export type Database = {
           mitti_piisa_template_id?: string | null
           mitti_ready_check_priced_template_id?: string | null
           mitti_ready_check_template_id?: string | null
+          offer_dispatch_mode?: string
           offer_suggest_time_after_hours?: number
           office_time_limits?: Json
           owner_resign_after_install?: boolean
@@ -10781,6 +10786,7 @@ export type Database = {
           mitti_piisa_template_id?: string | null
           mitti_ready_check_priced_template_id?: string | null
           mitti_ready_check_template_id?: string | null
+          offer_dispatch_mode?: string
           offer_suggest_time_after_hours?: number
           office_time_limits?: Json
           owner_resign_after_install?: boolean

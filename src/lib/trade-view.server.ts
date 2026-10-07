@@ -4,7 +4,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
 import { fullAddress } from "./address";
 import { isTestPartner } from "./test-send.core";
-import { offerTiming, suggestAfterHours } from "./offer-timing.core";
+import { offerTiming } from "./offer-timing.core";
 import { COULDNT_GET_IN, payState, surname, type AreaSource, type InsulationNow, type TradeKind, SETUP_STEPS, type SetupKey } from "./trade-view.core";
 
 type Biz = { id: string; name: string; business_type: string | null; capabilities: string[] | null; base_suburb: string | null; coverage_radius_km: number | null; covers_all_victoria: boolean | null; accepting_new_jobs: boolean | null; onboarding_notes: string | null };
@@ -142,11 +142,8 @@ export async function tradeTakeTime(offerId: string, windowId: string, userId: s
   return { tooSlow: false };
 }
 
-/** Hours before "Suggest another time" unlocks (workflow_settings, default 24). */
-export async function offerSuggestHours() {
-  const { data } = await admin.from("workflow_settings").select("offer_suggest_time_after_hours").eq("id", 1).maybeSingle();
-  return suggestAfterHours((data as { offer_suggest_time_after_hours?: number } | null)?.offer_suggest_time_after_hours);
-}
+export { offerSuggestHours } from "./offer-dispatch.server";
+import { offerSuggestHours } from "./offer-dispatch.server";
 
 /** "Not for me" (decline) or "Can't make these" (tell the office, keep the offer open for others). */
 export async function tradeOfferReply(offerId: string, userId: string, reply: "not_for_me" | "cant_make", note: string | null) {
