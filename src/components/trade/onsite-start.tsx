@@ -68,8 +68,8 @@ export function OnsiteStart({ businessId, onBack }: { businessId: string; onBack
       </section>
       {plan && <ElectricianPicker value={plan} onChange={setPlan} approved={el?.approved ?? []} pending={el?.pending ?? []} onAdd={async (d) => { const r = await addEl({ data: { businessId, name: d.name, mobile: d.mobile, email: d.email, business: d.business } }); await refetch(); setPlan({ mode: "mine", ...(r.businessId ? { business_id: r.businessId } : { nomination_id: r.nominationId }) }); return { message: inviteResultMessage(r) }; }} />}
       <label className="flex items-start gap-3 rounded-[18px] border border-line bg-paper p-4 text-sm" data-owner-consent><Checkbox className="mt-0.5" checked={v.contact_permission} onCheckedChange={(c) => setV((x) => ({ ...x, contact_permission: c === true }))} aria-label={OWNER_CONTACT_PERMISSION} /><span>{OWNER_CONTACT_PERMISSION}</span></label>
-      {touched && problems.length > 0 && <ul className="space-y-1 text-sm text-destructive" data-onsite-problems>{problems.map((p) => <li key={p}>{p}</li>)}</ul>}
-      {err && <p className="text-sm text-destructive">{err}</p>}
+      {touched && problems.length > 0 && <ul className="space-y-1 text-sm text-danger" data-onsite-problems>{problems.map((p) => <li key={p}>{p}</li>)}</ul>}
+      {err && <p className="text-sm text-danger">{err}</p>}
       <Button size="field" className="w-full" disabled={busy} onClick={async () => {
         setTouched(true); setErr(null);
         if (problems.length) return;
