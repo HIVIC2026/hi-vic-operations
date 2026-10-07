@@ -14,7 +14,7 @@ const r = real as { data: InstData; agreement_version: string; signed_at: string
 log(`LIVE record (read only): status=${r.status} test_mode=${r.test_mode} agreement=${r.agreement_version} signed=${r.signed_at}`);
 const { data: liveCerts } = await admin.from("partner_worker_certifications").select("worker_email,status").eq("application_id", REAL);
 log(`LIVE office CII checks recorded: ${JSON.stringify(liveCerts)}`);
-log(`LIVE blockers (no CII check): mandatory=${JSON.stringify(mandatoryActivationBlockers("installer", r.data, []))} other=${JSON.stringify(activationBlockers("installer", r.data, r.agreement_version, r.signed_at))}`);
+log(`LIVE blockers (no CII check): mandatory=${JSON.stringify(mandatoryActivationBlockers("installer", r.data, new Map()))} other=${JSON.stringify(activationBlockers("installer", r.data, r.agreement_version, r.signed_at))}`);
 // Practice copy: emails swapped to TEST addresses so nothing could ever reach Reinsulate.
 const d = JSON.parse(JSON.stringify(r.data)) as InstData;
 const swap = (e?: string | null) => e ? `test+${e.replace("@", ".at.")}@hivic.test` : e;
@@ -27,7 +27,7 @@ const a = await t.app(id);
 await performInstallerSign(a, { signer_name: "Sultan Sharma", signer_position: "Director", signer_email: d.business_email!, acknowledgements: Object.fromEntries(ACKNOWLEDGEMENTS.map((k) => [k.key, true])), agreement_version: INSTALLER_AGREEMENT_VERSION, expected_updated_at: a.updated_at, agreement_sha256: await sha256(agreementText(signedData(a as never))) } as never, { ip: "203.0.113.1", userAgent: "dry-run" }, t.deps());
 const bhav = d.installers!.find((i) => i.cii_certificate_number === "CII-027")!;
 log(`practice: agreement on practice copy = ${(await t.app(id)).agreement_version} (real = ${r.agreement_version})`);
-log(`practice: mandatory blockers BEFORE office CII check = ${JSON.stringify(mandatoryActivationBlockers("installer", d, []))}`);
+log(`practice: mandatory blockers BEFORE office CII check = ${JSON.stringify(mandatoryActivationBlockers("installer", d, new Map()))}`);
 await t.recordCert(id, bhav.email!, "verified", "CII-027");
 const certs = latestCertifications([{ id: "x", worker_email: bhav.email!, status: "verified", recorded_at: new Date().toISOString(), certificate_number: "CII-027" } as never]);
 log(`practice: mandatory blockers AFTER CII-027 verified = ${JSON.stringify(mandatoryActivationBlockers("installer", d, certs))}`);
