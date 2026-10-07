@@ -5,7 +5,7 @@ import { sendSaveSpotPreviewTest } from "@/lib/hot-leads.functions";
 import { renderFollowupEmail } from "@/lib/followup-email";
 import { renderCoverageUnavailableEmail } from "@/lib/coverage-email";
 import { renderEstimateEmail, renderIneligibleOutcomeEmail, PUBLIC_CALCULATOR_URL } from "@/lib/estimate-email";
-import { renderStep3SaveSpot, type SaveSpotFacts } from "@/lib/step3-emails";
+import { renderStep3SaveSpot, STEP3_SAVESPOT_SAMPLE } from "@/lib/step3-emails";
 import { withUnsubscribe } from "@/lib/emailsafety.core";
 import { ConfirmQuote } from "@/components/portal/estimate";
 import { EstimateHeader } from "@/components/portal/EstimateHeader";
@@ -50,13 +50,6 @@ const quote = {
   referralUrl,
   reference: "SAMPLE-1001",
 } as const;
-/** Sample facts for the Save my spot preview; tests render the same facts through every send path. */
-export const STEP3_SAVESPOT_SAMPLE: SaveSpotFacts = {
-  estimateUrl, campaignUrl: `${estimateUrl}/campaign`, unsubscribeUrl,
-  estimatedTotal: SAMPLE_CUSTOMER, veuDiscount: SAMPLE_DISCOUNT, grossTotal: SAMPLE_GROSS, areaM2: 150,
-  firstName: "Alex", address: "30 Dash St, Fraser Rise VIC 3336", reference: "SAMPLE-1001", existingInsulationPresent: false,
-  installation: SAMPLE_INSTALL, assessmentFee: PIESA_FEE, apFee: AP_FEE,
-};
 const samples = {
   likely: withUnsubscribe(renderEstimateEmail({
     ...quote,

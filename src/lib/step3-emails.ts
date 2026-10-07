@@ -32,3 +32,15 @@ export function renderStep3SaveSpot(f: SaveSpotFacts): EstimateEmail {
     ...(f.apFee === undefined ? {} : { apFee: f.apFee }),
   });
 }
+
+// Step 3 preview sample (postcode 3336, 150 m², standard access, settings v2). Same numbers the page shows.
+const SAMPLE_INSTALL = 4500, SAMPLE_DISCOUNT = 1481.76, PIESA_FEE = 349, AP_FEE = 349;
+const SAMPLE_GROSS = SAMPLE_INSTALL + PIESA_FEE + AP_FEE;
+const SAMPLE_ESTIMATE_URL = "https://estimate.homeinsulationvictoria.com.au/estimate/sample-secure-link";
+export const STEP3_SAVESPOT_SAMPLE: SaveSpotFacts = {
+  estimateUrl: SAMPLE_ESTIMATE_URL, campaignUrl: `${SAMPLE_ESTIMATE_URL}/campaign`,
+  unsubscribeUrl: `https://estimate.homeinsulationvictoria.com.au/api/public/unsubscribe?t=${"U".repeat(43)}`,
+  estimatedTotal: SAMPLE_GROSS - SAMPLE_DISCOUNT, veuDiscount: SAMPLE_DISCOUNT, grossTotal: SAMPLE_GROSS, areaM2: 150,
+  firstName: "Alex", address: "30 Dash St, Fraser Rise VIC 3336", reference: "SAMPLE-1001", existingInsulationPresent: false,
+  installation: SAMPLE_INSTALL, assessmentFee: PIESA_FEE, apFee: AP_FEE,
+};

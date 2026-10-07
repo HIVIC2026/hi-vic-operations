@@ -8,6 +8,7 @@ import { CUSTOMER_BRAND, CUSTOMER_WHAT_COULD_CHANGE } from "./customer-quote-sys
 import { isWellFormedToken } from "./estimatelink.core";
 
 export type CustomerOutcome = "likely" | "onsite" | "ineligible";
+import { renderStep3SaveSpot } from "./step3-emails";
 export type EstimateEmailInput = {
   estimateUrl: string; outcome?: "likely" | "onsite"; estimatedTotal?: number | null;
   veuDiscount?: number | null; areaM2?: number | null; savingsPercent?: number | null;
@@ -442,7 +443,6 @@ export function campaignAmountImg(src: string, amount: string) {
 /** Save my spot for likely-eligible owners: ALWAYS the Jo-approved locked email (7 Oct 2026 12:52). Group B keeps its own renderer. */
 export function renderLaunchGroupEmail(input: LaunchCampaignEmailInput): EstimateEmail {
   if (input.group !== "likely") return renderLaunchCampaignEmail(input);
-  const { renderStep3SaveSpot } = require("./step3-emails") as typeof import("./step3-emails");
   return renderStep3SaveSpot({
     estimateUrl: input.campaignUrl.replace(/\/campaign$/, ""), campaignUrl: input.campaignUrl, unsubscribeUrl: input.unsubscribeUrl,
     estimatedTotal: input.estimatedTotal, veuDiscount: input.veuDiscount, grossTotal: input.grossTotal, areaM2: input.areaM2,

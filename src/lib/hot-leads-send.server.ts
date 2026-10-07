@@ -2,7 +2,8 @@
 // and a once-per-home idempotency key. TEST (qa_test) jobs go only to Jo's allowlist via the test sender.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { LAUNCH_CAMPAIGN, LAUNCH_COPY_APPROVED, launchGroup, savedPriceFromEstimate } from "./launch-campaign.core";
-import { renderLaunchCampaignEmail, renderSaveSpotFromLikelyEmail } from "./estimate-email";
+import { renderLaunchCampaignEmail } from "./estimate-email";
+import { renderStep3SaveSpot } from "./step3-emails";
 import { CUSTOMER_BASE } from "./engagement.core";
 import { reservationAllowed, withUnsubscribe } from "./emailsafety.core";
 import { logEvent } from "./workflow.server";
@@ -87,11 +88,11 @@ async function sendOne(jobId: string, actorId: string, realOn: boolean, testOpts
   const firstName = owner?.full_name?.trim().split(/\s+/)[0] ?? null;
   // Likely-eligible owners get the Jo-APPROVED "Save your spot (likely eligible)" email (7 Oct 2026, FINAL).
   const mail = sendGroup === "likely"
-    ? (() => { const m = renderSaveSpotFromLikelyEmail({
-        estimateUrl: `${base}/estimate/${link.token}`, outcome: "likely", apCount: 2, campaignUrl, campaignOptOutUrl: unsubscribeUrl,
-        estimatedTotal: price.total, veuDiscount: price.discount, grossProjectTotal: price.gross, areaM2: price.areaM2, amountPayableNow: 0, estimatedRemainingBalance: price.total,
+    ? (() => { const m = renderStep3SaveSpot({
+        estimateUrl: `${base}/estimate/${link.token}`, campaignUrl, unsubscribeUrl,
+        estimatedTotal: price.total, veuDiscount: price.discount, grossTotal: price.gross, areaM2: price.areaM2,
         firstName, address: fullAddress, reference: job.job_number, existingInsulationPresent: (price.insulation ?? est?.insulation_declared) === "present",
-        ...(installation === undefined ? {} : { installationPrice: installation }),
+        ...(installation === undefined ? {} : { installation }),
         ...(assessmentFee === undefined ? {} : { assessmentFee }),
         ...(apFee === undefined ? {} : { apFee }),
       }); return { ...m, subject: isTest && testOpts.subjectPrefix ? `${testOpts.subjectPrefix} ${m.subject}` : m.subject }; })()
