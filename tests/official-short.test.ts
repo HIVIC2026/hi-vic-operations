@@ -22,7 +22,8 @@ describe("short onsite form", () => {
       const shorts = k === "piesa" ? SHORT_PIESA_FIELDS : SHORT_PIISA_FIELDS;
       const start = FORMS[k].fields.findIndex((f) => f.supplemental);
       expect(start).toBeGreaterThan(0);
-      expect(FORMS[k].fields.slice(0, start).map((f) => f.id)).toEqual(shorts.map((f) => f.id));
+      // PIISA also carries the installer declaration (decl.*) before the signature (Jo, 7 Oct).
+      expect(FORMS[k].fields.slice(0, start).map((f) => f.id).filter((id) => !id?.startsWith("decl."))).toEqual(shorts.map((f) => f.id));
       expect(FORMS[k].fields.slice(start).every((f) => f.supplemental)).toBe(true);
     }
   });
