@@ -61,7 +61,7 @@ export async function materialFacts(jobId: string, piesa: StoredCopy | null): Pr
   const [{ data: job }, { data: inst }, { data: book }, { data: m }] = await Promise.all([
     a.from("jobs").select("life_support").eq("id", jobId).single(),
     a.from("job_assignments").select("user_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle(),
-    a.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
+    a.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "installation").in("status", ["confirmed", "completed"]).order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
     a.from("ceiling_measurements").select("insulation_present").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
   ]);
   const installDate = book?.scheduled_start ? new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(new Date(book.scheduled_start)) : null;

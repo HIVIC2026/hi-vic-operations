@@ -38,7 +38,7 @@ function DayPage() {
         <h1 className="mt-3 font-display text-2xl font-bold">{WHAT[data.kind]} · {data.surname}</h1>
         <p className="mt-1 text-sm text-sub">{data.address}</p>
         <div className="mt-4 grid grid-cols-2 gap-2">
-          <a className="flex h-12 items-center justify-center gap-2 rounded-[10px] border border-line bg-paper font-bold text-hiv-blue" href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(data.address)}`} target="_blank" rel="noreferrer"><MapPin className="h-5 w-5" />Directions</a>
+          <a className="flex h-12 items-center justify-center gap-2 rounded-[10px] border border-line bg-paper font-bold text-hiv-blue" href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(data.address ?? "")}`} target="_blank" rel="noreferrer"><MapPin className="h-5 w-5" />Directions</a>
           {data.phone ? <a className="flex h-12 items-center justify-center gap-2 rounded-[10px] border border-line bg-paper font-bold text-hiv-blue" href={`tel:${data.phone}`}><Phone className="h-5 w-5" />Call owner</a> : <span />}
         </div>
       </section>

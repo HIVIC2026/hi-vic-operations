@@ -5,7 +5,7 @@ import { WorkflowError, logEvent } from "./workflow.server";
 import { fullAddress } from "./address";
 import { isTestPartner } from "./test-send.core";
 import { offerTiming } from "./offer-timing.core";
-import { COULDNT_GET_IN, payState, surname, type AreaSource, type InsulationNow, type TradeKind, SETUP_STEPS, type SetupKey } from "./trade-view.core";
+import { COULDNT_GET_IN, payState, surname, type AreaSource, type InsulationNow, type TradeKind, SETUP_STEPS, type SetupKey, tradeJobAllowed, contactVisible, type AccessAssignment } from "./trade-view.core";
 
 type Biz = { id: string; name: string; business_type: string | null; capabilities: string[] | null; base_suburb: string | null; coverage_radius_km: number | null; covers_all_victoria: boolean | null; accepting_new_jobs: boolean | null; onboarding_notes: string | null; mitti_account_invited?: boolean | null };
 
@@ -177,10 +177,16 @@ export async function tradeOfferReply(offerId: string, userId: string, reply: "n
 }
 
 /** Day page for any of the three visit kinds. */
-export async function tradeDay(jobId: string, userId: string) {
+/** The one server check for every trade job read: active assignment for this job AND this business (staff: assigned to them). */
+export async function requireTradeJob(userId: string, jobId: string) {
   const c = await ctxOrThrow(userId);
-  const { data: asg } = await assignmentQuery(c, userId).eq("job_id", jobId).limit(1).maybeSingle();
-  if (!asg) throw new WorkflowError("This job isn't assigned to you.");
+  const { data } = await admin.from("job_assignments").select("job_id, business_id, user_id, active").eq("job_id", jobId).eq("active", true);
+  if (!tradeJobAllowed({ signedIn: true, userId, businessId: c.biz.id, boss: c.boss, jobId, assignments: (data ?? []) as AccessAssignment[] })) throw new WorkflowError("This job isn't assigned to you.");
+  return c;
+}
+
+export async function tradeDay(jobId: string, userId: string) {
+  const c = await requireTradeJob(userId, jobId);
   const kinds = c.kind === "installer" ? ["installation", "ready_check"] : ["assessment", "rectification"];
   const [{ data: bks }, { data: j }, { data: a }, { data: rc }, { data: cm }, { data: q }, { data: miss }, { data: ws }, { data: fixes }] = await Promise.all([
     admin.from("bookings").select("kind, scheduled_start, scheduled_end, status").eq("job_id", jobId).in("kind", kinds as never).neq("status", "cancelled").order("scheduled_start", { ascending: false }),
@@ -194,6 +200,8 @@ export async function tradeDay(jobId: string, userId: string) {
     admin.from("rectification_items").select("description").eq("job_id", jobId).neq("status", "cancelled"),
   ]);
   const b = (bks ?? [])[0] ?? null;
+  const { data: mine } = await admin.from("bookings").select("status").eq("job_id", jobId).eq("business_id", c.biz.id).in("kind", kinds as never);
+  const showContact = contactVisible(mine ?? []);
   const dayKind = b?.kind === "installation" ? "install" : b?.kind === "ready_check" ? "ready_check" : "safety_check";
   const p = j?.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
   const ow = j?.owners as { full_name: string | null; phone: string | null } | null;
@@ -204,8 +212,8 @@ export async function tradeDay(jobId: string, userId: string) {
   else if (dayKind === "ready_check" && (rc?.status === "submitted" || j?.stage === "ready_check_complete" || j?.stage === "measured_estimate_ready" || j?.stage === "measured_quote_accepted")) outcome = j?.eligibility_outcome === "does_not_appear_eligible" ? { kind: "not_eligible", reason: "Existing insulation doesn't qualify for this rebate." } : q ? { kind: "quoted" } : { kind: "quoted" };
   else if (dayKind === "install" && ["evidence_outstanding", "ap_review", "ready_for_veec", "complete"].includes(j?.stage ?? "")) outcome = (miss ?? []).length ? { kind: "missing", items: (miss ?? []).map((m) => m.label) } : { kind: "wrap" };
   return {
-    kind: dayKind as "safety_check" | "ready_check" | "install", jobNumber: j?.job_number ?? null, owner: ow?.full_name ?? null, surname: surname(ow?.full_name), phone: ow?.phone ?? null,
-    address: fullAddress(p?.address_line, p?.suburb, p?.postcode), start: b?.scheduled_start ?? null, end: b?.scheduled_end ?? null, outcome,
+    kind: dayKind as "safety_check" | "ready_check" | "install", jobNumber: j?.job_number ?? null, owner: showContact ? ow?.full_name ?? null : null, surname: showContact ? surname(ow?.full_name) : null, phone: showContact ? ow?.phone ?? null : null,
+    address: showContact ? fullAddress(p?.address_line, p?.suburb, p?.postcode) : null, contactHidden: !showContact, start: b?.scheduled_start ?? null, end: b?.scheduled_end ?? null, outcome,
     // Mitti stays invisible to partners until the office ticks "Mitti account invited".
     mittiInvited: c.biz.mitti_account_invited === true,
     mittiReady: dayKind === "safety_check" ? !!ws?.mitti_piesa_template_id : false, mittiId: c.biz.mitti_account_invited === true ? (dayKind === "ready_check" ? rc?.external_mitti_id ?? (cm?.external_source === "mitti" ? cm.external_id : null) : a?.external_mitti_id) ?? null : null,

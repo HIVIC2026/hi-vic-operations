@@ -57,11 +57,8 @@ export function statusView(c: Ctx, f: StatusFacts) {
 }
 
 async function ownJobCtx(userId: string, jobId: string) {
-  const { ctxOrThrow, assignmentQuery } = await import("./trade-view.server");
-  const c = await ctxOrThrow(userId);
-  const { data: a } = await assignmentQuery(c, userId).eq("job_id", jobId);
-  if (!a?.length) throw new WorkflowError("This job isn't one of yours.");
-  return c;
+  const { requireTradeJob } = await import("./trade-view.server");
+  return requireTradeJob(userId, jobId);
 }
 
 /** Job page: status line, timeline, and how to chase. Owner contacts only for the installer's own customers. */
