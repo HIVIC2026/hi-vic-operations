@@ -455,7 +455,7 @@ function CustomerCard({ row, status, skipped, onSkip, consent, onConsent, quoted
     if (!complete) { onSaving(false); return; }
     onSaving(true); setSaveState("saving");
     const t = setTimeout(async () => {
-      try { await save({ data: { rowId: row.id, ...f, second_contact: second.name || second.phone || second.email ? second : null } }); setSaveState("saved"); setSaveErr(null); await qc.invalidateQueries({ queryKey: ["bulk-review", row.id] }); }
+      try { await save({ data: { rowId: row.id, ...f, second_contact: second.name || second.phone || second.email ? second : null } }); setSaveState("saved"); setSaveErr(null); await qc.invalidateQueries({ queryKey: ["bulk-review"] }); }
       catch (e) { setSaveState("error"); setSaveErr((e as Error).message); }
       finally { onSaving(false); }
     }, 700);
