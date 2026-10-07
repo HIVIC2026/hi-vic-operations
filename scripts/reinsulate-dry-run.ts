@@ -20,9 +20,11 @@ const d = JSON.parse(JSON.stringify(r.data)) as InstData;
 const swap = (e?: string | null) => e ? `test+${e.replace("@", ".at.")}@hivic.test` : e;
 d.business_email = swap(d.business_email) as never;
 d.installers = (d.installers ?? []).map((i) => ({ ...i, email: swap(i.email) })) as never;
+// Signing on the practice copy only: today's form also asks a PIISA question Deep's 6 Oct form did not have. Answer "no" (unknown) so the copy can be signed.
+const dSign = JSON.parse(JSON.stringify(d)); dSign.installers = dSign.installers.map((i: object) => ({ ...i, piisa_done: "no" }));
 const { installerDb } = await import("../tests/helpers/pglite-installer");
 const t = await installerDb();
-const id = await t.create(d);
+const id = await t.create(dSign);
 const a = await t.app(id);
 await performInstallerSign(a, { signer_name: "Sultan Sharma", signer_position: "Director", signer_email: d.business_email!, acknowledgements: Object.fromEntries(ACKNOWLEDGEMENTS.map((k) => [k.key, true])), agreement_version: INSTALLER_AGREEMENT_VERSION, expected_updated_at: a.updated_at, agreement_sha256: await sha256(agreementText(signedData(a as never))) } as never, { ip: "203.0.113.1", userAgent: "dry-run" }, t.deps());
 const bhav = d.installers!.find((i) => i.cii_certificate_number === "CII-027")!;
