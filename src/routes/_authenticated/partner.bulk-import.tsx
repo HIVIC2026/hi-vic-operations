@@ -248,6 +248,7 @@ function BulkImportPage() {
   const [consent, setConsent] = useState<Record<string, boolean>>({});
   const [leads, setLeads] = useState<Record<string, ReviewRow["extracted"]>>({});
   const [saving, setSaving] = useState<Record<string, boolean>>({});
+  const [showAllPast, setShowAllPast] = useState(false);
   const confirming = useRef(false);
   const [done, setDone] = useState<{ created: number; skipped: number; failed: number; alreadyTaken?: number; remaining?: number; ownerLinks: { jobNumber: string; owner: string; path: string }[] } | null>(null);
   const [batchPlan, setBatchPlan] = useState<ElectricianPlan>({ mode: "hivic" });
@@ -381,7 +382,8 @@ function BulkImportPage() {
             ))}
           </div>
           <FileResultList items={summary.file_results ?? localReads} />
-          {(summary.rows ?? 0) > 0 && (
+          {(summary.rows ?? 0) > 0 && toAdd.length === 0 && rows.every((r) => statusOf(r).excluded || skip.has(r.id)) && <div className="rounded-[14px] border border-line bg-paper p-3 text-sm">Nothing from this upload can be added.<div className="mt-2"><SmallButton onClick={reset}>Upload something else</SmallButton></div></div>}
+          {(summary.rows ?? 0) > 0 && toAdd.length > 0 && (
             <div className="sticky bottom-2 z-10 space-y-2 rounded-[18px] border border-line bg-paper p-3 shadow-card" data-confirm-bar>
               {notReady.length > 0 ? <p className="text-sm"><b>Still missing:</b> {notReady.slice(0, 3).map((r) => `${(leads[r.id] ?? r.extracted).full_name ?? "Unnamed customer"} — ${r.sort_result === "office_review" && statusOf(r).ready ? "held for the office to check" : statusOf(r).text.replace(/^Needs: /, "")}`).join("; ")}{notReady.length > 3 ? ` and ${notReady.length - 3} more` : ""}. Or tap "Don't add" on that card.</p>
                 : <p className="text-sm text-sub">Nothing is sent to any customer when you confirm.</p>}
@@ -403,7 +405,7 @@ function BulkImportPage() {
         </section>
       )}
 
-      <section className="space-y-2"><h2 className="font-display text-base font-bold">Past uploads</h2>{(past?.batches ?? []).length === 0 ? <p className="text-sm text-sub">No previous uploads yet.</p> : <div className="grid gap-2">{(past?.batches ?? []).map((b) => { const s = b.summary as { rows?: number } | null; return <button key={b.id} type="button" className="grid min-h-12 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-[14px] border border-line bg-paper px-3 py-2 text-left" onClick={() => { setDone(null); setBatchId(b.id); }}><span className="min-w-0"><b className="block truncate text-sm">{b.list_filename ?? "Upload"}</b><span className="block text-xs text-sub">{new Date(b.created_at).toLocaleDateString("en-AU")} · {jobsFound(s?.rows ?? 0).replace(" found", "")}</span></span><span className="flex items-center gap-1 text-xs font-semibold capitalize text-sub">{b.status}<ChevronDown className="h-4 w-4"/></span></button>; })}</div>}</section>
+      <section className="space-y-2"><h2 className="font-display text-base font-bold">Past uploads</h2>{(past?.batches ?? []).length === 0 ? <p className="text-sm text-sub">No previous uploads yet.</p> : <div className="grid gap-2">{(past?.batches ?? []).slice(0, showAllPast ? undefined : 5).map((b) => { const s = b.summary as { rows?: number } | null; return <button key={b.id} type="button" className="grid min-h-12 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-[14px] border border-line bg-paper px-3 py-2 text-left" onClick={() => { setDone(null); setBatchId(b.id); }}><span className="min-w-0"><b className="block truncate text-sm">{b.list_filename ?? "Upload"}</b><span className="block text-xs text-sub">{new Date(b.created_at).toLocaleDateString("en-AU")} · {jobsFound(s?.rows ?? 0).replace(" found", "")}</span></span><span className="flex items-center gap-1 text-xs font-semibold capitalize text-sub">{b.status}<ChevronDown className="h-4 w-4"/></span></button>; })}{!showAllPast && (past?.batches ?? []).length > 5 && <SmallButton onClick={() => setShowAllPast(true)}>Show all {(past?.batches ?? []).length}</SmallButton>}</div>}</section>
     </div>
     </TradeShell>
   );
@@ -411,7 +413,7 @@ function BulkImportPage() {
 
 function Steps({ step }: { step: number }) {
   const items = ["Upload", "Check customers", "Confirm"];
-  return <ol className="grid grid-cols-3 gap-1" aria-label="Steps">{items.map((t, i) => { const n = i + 1; return <li key={t} aria-current={n === step ? "step" : undefined} className={cn("flex min-w-0 items-center gap-1.5 rounded-[10px] px-2 py-1.5 text-xs font-semibold", n === step ? "bg-hiv-blue text-primary-foreground" : n < step ? "bg-success-soft text-success" : "bg-mist text-sub")}><span className="grid h-5 w-5 shrink-0 place-items-center rounded-full border border-current text-[11px]">{n < step ? <Check className="h-3 w-3" /> : n}</span><span className="truncate">{t}</span></li>; })}</ol>;
+  return <ol className="grid grid-cols-3 gap-1" aria-label="Steps">{items.map((t, i) => { const n = i + 1; return <li key={t} aria-current={n === step ? "step" : undefined} className={cn("flex min-w-0 items-center gap-1.5 rounded-[10px] px-2 py-1.5 text-xs font-semibold", n === step ? "bg-hiv-blue text-primary-foreground" : n < step ? "bg-success-soft text-success" : "bg-mist text-sub")}><span className="grid h-5 w-5 shrink-0 place-items-center rounded-full border border-current text-[11px]">{n < step ? <Check className="h-3 w-3" /> : n}</span><span className="leading-tight">{t}</span></li>; })}</ol>;
 }
 
 function PrimaryButton({ className, ...p }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
@@ -471,7 +473,7 @@ function CustomerCard({ row, status, skipped, onSkip, consent, onConsent, quoted
   return (
     <article className={cn("rounded-[18px] border border-line bg-paper p-4 shadow-card", grey && "bg-mist opacity-70")} data-customer-card>
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
-        <div className="min-w-0"><h3 className="truncate font-display text-base font-bold">{f.full_name || "Unnamed customer"}{second.name ? ` & ${second.name.split(/\s+/)[0]}` : ""}</h3>
+        <div className="min-w-0"><h3 className="break-words font-display text-base font-bold">{f.full_name || "Unnamed customer"}{second.name ? ` & ${second.name}` : ""}</h3>
           <p className={cn("mt-0.5 text-xs font-semibold", out ? "text-danger" : status.ready ? "text-success" : "text-sub")} data-row-status>{skipped ? "Not adding this one" : status.text}</p></div>
         {!out && <SmallButton onClick={() => onSkip(!skipped)}>{skipped ? "Add back" : "Don't add"}</SmallButton>}
       </div>
@@ -507,7 +509,7 @@ function CustomerCard({ row, status, skipped, onSkip, consent, onConsent, quoted
           {row.sort_result === "office_review" && <li className="font-semibold text-danger">Held for the office to check{(row.sort_reasons ?? []).filter((r) => !/^(Stage|Site check|Missing|Customer details|Phone|Email|Postcode|Measurements|Small items)/.test(r) && r !== QUOTE_NEEDED_LABEL && r !== OUTSIDE_VIC_MESSAGE).slice(0, 1).map((r) => `: ${r}`)}</li>}
         </ul>
       </div>}
-      {out && <p className="mt-2 text-sm">{f.address_line}{f.suburb ? `, ${f.suburb}` : ""} {f.postcode}{outsideVictoria(f.postcode) ? "" : ""}</p>}
+      {out && <div className="mt-2 space-y-0.5 text-sm"><p>{f.address_line}{f.suburb ? `, ${f.suburb}` : ""} {f.postcode}</p><p className="text-xs text-sub">{[f.phone, f.email].filter(Boolean).join(" · ")}</p>{(second.name || second.phone || second.email) && <p className="text-xs text-sub">Second contact: {[second.name, second.phone, second.email].filter(Boolean).join(" · ")}</p>}</div>}
     </article>
   );
 }
@@ -523,7 +525,7 @@ function ElectricianChoice({ value, onChange, approved, pending, compact = false
     else if (first?.nominationId) onChange({ mode: "mine", nomination_id: first.nominationId });
     else onChange({ mode: "mine" });
   };
-  const opt = (on: boolean) => cn("h-9 rounded-[9px] px-2 text-xs font-semibold", on ? "bg-hiv-blue text-primary-foreground" : "text-sub hover:text-ink");
+  const opt = (on: boolean) => cn("min-h-9 rounded-[9px] px-2 py-1 text-xs font-semibold leading-tight", on ? "bg-hiv-blue text-primary-foreground" : "text-sub hover:text-ink");
   return <div className={compact ? "rounded-[12px] bg-mist p-2" : "rounded-[18px] border border-line bg-paper p-3 shadow-card"} data-electrician-choice>
     <div className="mb-2 flex items-center gap-1.5 text-sm font-semibold"><Zap className="h-4 w-4 text-hiv-blue"/>{compact ? "Electrician" : "Who does the electrical safety check?"}</div>
     <div role="group" aria-label="Electrician" className={cn("grid gap-1 rounded-[11px] bg-mist p-1", compact ? "grid-cols-2" : "grid-cols-3")}>
