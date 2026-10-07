@@ -9,7 +9,14 @@ export const PREPARING = "Getting your form ready…";
 export type OnsiteInput = {
   full_name: string; address_line: string; suburb: string; postcode: string; phone: string; email: string;
   contact_permission: boolean;
+  /** Who gave Gate A consent on site (Jo, 8 Oct): the owner ticked on this phone, or the installer confirms the owner agreed. */
+  consent_by?: "owner" | "installer" | null | undefined;
 };
+
+/** Jo 8 Oct: on-site Gate A clears when the owner ticks here OR the installer confirms consent. */
+export const ONSITE_CONSENT_SOURCE = "onsite_ready_check";
+/** TEST jobs only: the Ready Check form goes to Jo's own Mitti account (Jo, 8 Oct). */
+export const TEST_MITTI_ASSIGNEE = "jo@actpropertyinspections.com.au";
 
 const digits = (s: string) => s.replace(/\D/g, "");
 
@@ -33,7 +40,7 @@ export function onsiteProblems(i: OnsiteInput): string[] {
   else if (!isAuMobile(i.phone)) out.push("Check the mobile — it should look like 0412 345 678");
   if (!i.email.trim()) out.push("Add the owner's email");
   else if (!isEmail(i.email)) out.push("Check the email address");
-  if (!i.contact_permission) out.push("Tick to confirm the owner has given Home Insulation Victoria permission to contact them");
+  if (!i.contact_permission || !i.consent_by) out.push("Get the owner's consent: the owner ticks it on your phone, or you tick to confirm they've agreed");
   return out;
 }
 
@@ -50,7 +57,7 @@ export function addressFromReverse(r: unknown): { address_line: string; suburb: 
 export const mittiFormUrl = (auditId: string) => `https://app.au.mitti.com/inspections/${auditId}`;
 
 export type OnsiteFacts = {
-  mittiInvited: boolean; templateSet: boolean; gateADone: boolean; booked: boolean;
+  mittiInvited: boolean; templateSet: boolean; autoSend?: boolean; gateADone: boolean; booked: boolean;
   auditId: string | null; lastError: string | null;
 };
 export type OnsiteState =
@@ -67,7 +74,7 @@ export const OWNER_PAPERWORK_FIRST = "The job is saved. Before the Ready Check c
 export function onsiteState(f: OnsiteFacts): OnsiteState {
   if (f.auditId && f.mittiInvited) return { kind: "open", url: mittiFormUrl(f.auditId) };
   if (!f.gateADone || !f.booked) return { kind: "owner_paperwork", message: OWNER_PAPERWORK_FIRST };
-  if (!f.mittiInvited || !f.templateSet) return { kind: "office", message: OFFICE_SETUP };
+  if (!f.mittiInvited || !f.templateSet || f.autoSend === false) return { kind: "office", message: OFFICE_SETUP };
   if (f.lastError) return { kind: "retry", message: plainMittiError(f.lastError) };
   return { kind: "preparing", message: PREPARING };
 }
