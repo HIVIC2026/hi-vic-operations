@@ -29,9 +29,7 @@
 - [ ] Tests + journey; screenshots 390/1280 to Files office-redesign
 
 ## Installer onboarding + view (Jo, 8 Oct 8:23am) — TOP
-- [x] EEC-only CII: form asks issuing body (must be EEC), office flags non-EEC, Approve blocks non-EEC
-- [x] My business → Team: add installer (name, EEC CII number, email); office verifies on Staff approvals; unverified can't be assigned
-- [x] ID-photo-out-front note on every day page; Mitti placeholder wording
+- [x] Undo unrequested EEC question/flag, add-installer, ID-photo note (correction 8 Oct); Mitti placeholder wording kept
 - [x] Installer test 32/32; screenshots in Files installer-view-final
 - [ ] Page-by-page restyle vs Jo's 6 Oct design file + measured <2s phone load per page
 - [ ] Live welcome email to a real installer (first one will be Cozy)
