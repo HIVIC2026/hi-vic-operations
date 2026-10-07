@@ -442,7 +442,7 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
       const job = await createBulkJob(e, batch, actorId, row.id, importStage);
       const quoted = importStage === "quoted" ? await draftQuoteFromImport(job.id, e, actorId, batch.business_id).catch(() => false) : false;
       const plan = ((row.electrician_plan ?? batch.electrician_plan ?? { mode: "hivic" }) as ElectricianPlan);
-      await (await import("./job-electrician.server")).recordJobElectricianChoice(job.id, batch.business_id, plan, actorId);
+      await (await import("./job-electrician.server")).recordJobElectricianChoice(job.id, batch.business_id, plan as never, actorId);
       await admin.from("bulk_import_rows").update({ job_id: job.id }).eq("id", row.id);
       const ownerToken = newToken();
       await admin.from("owner_eligibility_links").insert({ job_id: job.id, business_id: batch.business_id, token_hash: await hashToken(ownerToken), created_by: actorId, expires_at: new Date(Date.now() + 30 * 86_400_000).toISOString() });
