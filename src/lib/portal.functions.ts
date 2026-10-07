@@ -1557,11 +1557,7 @@ export const recordPiesaDelivery = createServerFn({ method: "POST" }).middleware
   .inputValidator((d) => z.object({ jobId: uuid, recipient: z.enum(["owner", "installer"]), deliveredAt: z.string().datetime({ offset: true }), method: z.enum(["portal", "email", "in_person", "post"]), documentId: uuid.optional(), notes: z.string().max(1000).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
-    if (new Date(data.deliveredAt).getTime() > Date.now() + 60_000) throw new WorkflowError("Delivery time cannot be in the future.");
-    const { data: cur } = await admin.from("piesa_records").select("id").eq("job_id", data.jobId).eq("is_current", true).maybeSingle();
-    if (!cur) throw new WorkflowError("No current PIESA record to deliver.");
-    await admin.from("piesa_deliveries").insert({ job_id: data.jobId, piesa_record_id: cur.id, recipient: data.recipient, delivered_at: data.deliveredAt, method: data.method, document_id: data.documentId ?? null, notes: data.notes ?? null, recorded_by: context.userId });
-    await logEvent(data.jobId, context.userId, "piesa_copy_delivered", `Signed PIESA copy delivered to ${data.recipient} (${data.method}) at ${data.deliveredAt}`, { piesa_record_id: cur.id });
+    await (await import("./job-records.server")).recordPiesaCopyDelivery({ ...data, actorId: context.userId });
     return { ok: true };
   });
 
@@ -1625,9 +1621,7 @@ export const recordComplianceItem = createServerFn({ method: "POST" }).middlewar
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     if (data.occurredAt > melbourneToday()) throw new WorkflowError("Date cannot be in the future.");
-    const { error } = await admin.from("job_compliance_records").insert({ job_id: data.jobId, record_key: data.key, occurred_at: `${data.occurredAt}T00:00:00Z`, reference: data.reference, notes: data.notes, recorded_by: context.userId });
-    if (error) throw new Error(error.message);
-    await logEvent(data.jobId, context.userId, "compliance_record", `Recorded: ${data.key.replace(/_/g, " ")}`, data, { internal: true });
+    await (await import("./job-records.server")).recordComplianceRecord({ ...data, actorId: context.userId });
     await autoAdvanceJob(data.jobId, context.userId, "compliance record");
     return { ok: true };
   });

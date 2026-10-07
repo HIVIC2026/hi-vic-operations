@@ -17,7 +17,7 @@ export async function currentConsent(jobId: string) {
 }
 
 async function currentFacts(jobId: string): Promise<{ facts: ConsentFacts | null; bookingId: string | null }> {
-  const { data: b } = await admin.from("bookings").select("id, scheduled_start, scheduled_end").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const { data: b } = await admin.from("bookings").select("id, scheduled_start, scheduled_end").eq("job_id", jobId).eq("kind", "installation").in("status", ["confirmed", "completed"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
   const { data: j } = await admin.from("jobs").select("owners(full_name, email, phone), properties(address_line, suburb, state, postcode)").eq("id", jobId).single();
   const o = j?.owners as { full_name: string | null; email: string | null; phone: string | null } | null;
   const p = j?.properties as { address_line: string; suburb: string | null; state: string; postcode: string | null } | null;
