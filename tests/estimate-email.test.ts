@@ -226,6 +226,29 @@ describe("launch campaign email drafts", () => {
 
 });
 
+describe("Save your spot (likely eligible) duplicate", () => {
+  const SAVE_SPOT_COPY = "We have been inundated with requests from homeowners all over Victoria. As one of only two Accredited Persons for this activity, and with limited capacity of suitably qualified installers, we need to take on approvals in batches. Save your spot to join the line and we will be in touch as soon as the next installer is available in your area.";
+  const campaign = "https://estimate.homeinsulationvictoria.com.au/campaign/" + "C".repeat(43);
+  const input = { ...detailed, outcome: "likely" as const, firstName: "Alex", address: "30 Dash St, Fraser Rise VIC 3336" };
+  test("pink box: heading, Jo's new paragraph and button only; small lines and the rest of the email unchanged", () => {
+    const email = renderSaveSpotFromLikelyEmail({ ...input, campaignUrl: campaign });
+    const card = email.html.match(/<table data-likely-next-step="true"[\s\S]*?No obligation to proceed with installation\.<\/p><\/td><\/tr><\/table>/)?.[0] ?? "";
+    for (const copy of ["Save your spot", SAVE_SPOT_COPY, "Save my spot →", `href="${campaign}"`, "Demand is high. Installer availability is limited.", "Confirm your request on the next page. An installer from our panel will then contact you to arrange a time.", "No payment required. No obligation to proceed with installation."]) expect(card).toContain(copy);
+    for (const retired of ["Your installer measures the ceiling", "Free Insulation Measure-Up &amp; Eligibility Check", "Arrange my free measure-up &amp; eligibility check →"]) expect(card).not.toContain(retired);
+    const text = email.plainText;
+    expect(text).toContain(`SAVE YOUR SPOT\n${SAVE_SPOT_COPY}\n`);
+    expect(text).toContain(`Save my spot: ${campaign}`);
+    expect(text).toContain("Demand is high. Installer availability is limited.");
+    expect(text).toContain("Confirm your request on the next page. An installer from our panel will then contact you to arrange a time.");
+    expect(text).toContain("No payment required. No obligation to proceed with installation.");
+    expect(text).not.toContain("Your installer measures the ceiling");
+    const base = renderEstimateEmail(input);
+    expect(email.subject).toBe(base.subject);
+    expect(email.previewText).toBe(base.previewText);
+    expect(email.html.replace(card, "")).toBe(base.html.replace(/<table data-likely-next-step="true"[\s\S]*?No obligation to proceed with installation\.<\/p><\/td><\/tr><\/table>/, ""));
+  });
+});
+
 describe("Group A header image", () => {
   test("renders a 1062px-wide (354 at 3x, phone-first) PNG for short, long and missing names", async () => {
     const { renderEmailHeroPng } = await import("../src/lib/email-hero.core");
