@@ -67,8 +67,17 @@ export const paperworkCatalogueFn = createServerFn({ method: "POST" }).middlewar
   .handler(async ({ context }) => {
     await (await import("./workflow.server")).requireAdmin(context.supabase as never);
     const { paperworkCatalogue } = await import("./owner-gates.server");
-    const { GATE_DOCS } = await import("./owner-gates.core");
-    return JSON.parse(JSON.stringify({ docs: await paperworkCatalogue(), bodies: Object.fromEntries(GATE_DOCS.map((d) => [d.key, d.body])) }));
+    const docs = await paperworkCatalogue();
+    return JSON.parse(JSON.stringify({ docs, bodies: Object.fromEntries(docs.map((d) => [d.key, d.body])) }));
+  });
+
+/** Approve a template-managed owner document from Owner paperwork — same record as Compliance templates. */
+export const approvePaperworkTemplateFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ id: z.string().uuid(), confirm: z.literal("APPROVE") }).parse(d))
+  .handler(async ({ data, context }) => {
+    await (await import("./workflow.server")).requireAdmin(context.supabase as never);
+    await (await import("./owner-gates.server")).approveTemplateVersion(data.id, context.userId);
+    return { ok: true };
   });
 
 export const approvePaperworkFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

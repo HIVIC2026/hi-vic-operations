@@ -1492,11 +1492,7 @@ export const approveComplianceTemplate = createServerFn({ method: "POST" }).midd
   .inputValidator((d) => z.object({ id: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const { data: t } = await admin.from("compliance_templates").select("template_key").eq("id", data.id).single();
-    if (!t) throw new WorkflowError("Template not found");
-    await admin.from("compliance_templates").update({ is_active: false }).eq("template_key", t.template_key).eq("is_active", true);
-    const { error } = await admin.from("compliance_templates").update({ approved: true, approved_by: context.userId, approved_at: new Date().toISOString(), is_active: true }).eq("id", data.id);
-    if (error) throw new WorkflowError(error.message);
+    await (await import("./owner-gates.server")).approveTemplateVersion(data.id, context.userId);
     return { ok: true };
   });
 

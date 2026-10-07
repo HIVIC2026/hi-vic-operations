@@ -74,7 +74,7 @@ function Compliance() {
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-4">
           {KEYS.map(([k, label]) => (
-            <section key={k} className="rounded-xl border bg-card p-4">
+            <section key={k} id={`tpl-${k}`} className="scroll-mt-24 rounded-xl border bg-card p-4">
               <h2 className="mb-2 font-semibold">{label}</h2>
               {data.filter((t) => t.template_key === k).length === 0 && <p className="text-sm text-danger">Not configured</p>}
               <ul className="space-y-2">{data.filter((t) => t.template_key === k).map((t) => (
