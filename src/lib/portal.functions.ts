@@ -646,8 +646,11 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
     }
     if (data.accept && !data.consent) throw new WorkflowError("Please confirm to proceed.");
     const stage = await getStage(q.job_id);
-    const expected: Stage = q.kind === "rectification" ? "awaiting_owner_rectification_approval" : "awaiting_quote_acceptance";
-    if (stage !== expected) throw new WorkflowError("This quote can't be actioned at the current stage.");
+    // Installation quotes: the Ready Check path (office-released measured quote at measured_estimate_ready, Jo 7 Oct)
+    // and the older awaiting_quote_acceptance path both accept. Every other guard below still applies to both.
+    const expected: Stage[] = q.kind === "rectification" ? ["awaiting_owner_rectification_approval"] : ["awaiting_quote_acceptance", "measured_estimate_ready"];
+    const measuredPath = q.kind === "installation" && stage === "measured_estimate_ready";
+    if (!expected.includes(stage)) throw new WorkflowError("This quote can't be actioned at the current stage.");
     if (!data.accept) {
       await admin.from("quotes").update({ status: "declined" }).eq("id", q.id);
       await logEvent(q.job_id, context.userId, "quote_declined", `${q.option_label} declined`, { reason: data.reason });
@@ -712,7 +715,14 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
     await admin.from("declarations").upsert({ job_id: q.job_id, kind: "owner_consent", declared_by: context.userId, statement: `Owner accepted ${q.option_label} (${q.customer_total_inc_gst} inc GST): approved payment option due now (minimum upfront deposit, paid in full, or active 3-instalment plan), balance due on installation day.` }, { onConflict: "job_id,kind" });
     await admin.from("compliance_checks").update({ status: "pass", checked_at: new Date().toISOString() }).eq("job_id", q.job_id).eq("check_key", "owner_consent");
     await logEvent(q.job_id, context.userId, ASSIGNMENT_EVENTS.QUOTE_ACCEPTED, `${q.option_label} accepted with signed Customer Agreement / Quote Acceptance`, { quote_id: q.id, total_inc_gst: q.customer_total_inc_gst });
-    await transition(q.job_id, "awaiting_deposit_payment", context.userId, "Owner accepted final installation quote – approved payment option duesit due");
+    if (measuredPath) {
+      // Ready Check path: next is the safety check payment, then the owner picks safety check times.
+      await transition(q.job_id, "measured_quote_accepted", context.userId, "Owner accepted the measured quote – safety check payment due next");
+      await createInvoiceForQuote(q.id, context.userId);
+      await autoAdvanceJob(q.job_id, context.userId, "measured quote accepted");
+      return { ok: true };
+    }
+    await transition(q.job_id, "awaiting_deposit_payment", context.userId, "Owner accepted final installation quote – approved payment option due");
     await createInvoiceForQuote(q.id, context.userId);
     await advanceAfterDeposit(q.job_id, context.userId);
     return { ok: true };
