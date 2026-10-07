@@ -289,6 +289,7 @@ function PartnerLogin({ applicationId, defaultEmail, autoResult }: { application
   const [link, setLink] = useState<string | null>(autoResult?.link ?? null);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(autoResult ?? null);
   const [busy, setBusy] = useState(false);
+  useEffect(() => { if (autoResult) { setResult(autoResult); if (autoResult.link) setLink(autoResult.link); } }, [autoResult]);
   return (
     <div className="rounded border p-2" data-testid="partner-login">
       <div className="font-semibold">Login link</div>
