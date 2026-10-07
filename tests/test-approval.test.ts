@@ -39,3 +39,20 @@ describe("approving Jo's own TEST application (7 Oct)", () => {
     expect(f.indexOf("if (isTest) {\n      const d")).toBeLessThan(f.indexOf("await queueApprovalMessage(admin, r.business_id);"));
   });
 });
+
+describe("one clear Approve (7 Oct)", () => {
+  const ui = readFileSync("src/routes/_authenticated/admin.partners.tsx", "utf8");
+  test("the status row can't mark an enquiry approved", () => {
+    expect(ui).toContain('PARTNER_STATUSES.filter((s) => s !== "approved")');
+  });
+  test("one Approve button, rate panel's own activate hidden, checklist first", () => {
+    expect(ui).toContain("showActivate={false}");
+    expect((ui.match(/onClick=\{onActivate\}/g) ?? []).length).toBe(0);
+    expect(ui).toContain("getApprovalChecklist");
+    expect(ui).toContain("Still to do before approving:");
+  });
+  test("after approval: login link with Copy link while sending is off", () => {
+    expect(ui).toContain("Copy link");
+    expect(ui).toContain("Send login link (off for now)");
+  });
+});

@@ -247,3 +247,35 @@ export const listPartnerOfficeEmails = createServerFn({ method: "POST" }).middle
     const who = new Map((ps ?? []).map((p) => [p.id, p.full_name || p.email]));
     return (rows ?? []).map((r) => { const d = r.details as { to: string; subject: string; status: string; detail: string; label: string }; return { at: r.created_at, by: who.get(r.actor_id ?? "") ?? "Office", to: d.to, subject: d.subject, status: d.status, detail: d.detail, label: d.label }; });
   });
+
+/** Office: what still stands between this signed application and "Approve" (same checks activation runs). */
+export const getApprovalChecklist = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ applicationId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const { data: app } = await admin.from("rec_onboarding_applications").select("*").eq("id", data.applicationId).maybeSingle();
+    if (!app) throw new WorkflowError("Application not found.");
+    const { data: act } = await admin.from("partner_activations").select("activated_at").eq("application_id", app.id).maybeSingle();
+    const { data: decided } = await admin.from("application_reviews" as never).select("decision").eq("application_id", app.id).maybeSingle();
+    const type = app.partner_type as PartnerType;
+    const application = app.data as RecData | InstData;
+    const certs = await loadCertifications(admin, app.id);
+    type Item = { key: string; label: string; kind: "cii" | "rates" | "override" | "fix"; workerEmail?: string };
+    const items: Item[] = [];
+    if (decided) items.push({ key: "decided", kind: "fix", label: (decided as { decision: string }).decision === "declined" ? "This application was declined." : "Sent back for changes: approve the re-signed one instead." });
+    if (app.test_mode) items.push({ key: "test", kind: "fix", label: "Automatic test-run applications can never be approved." });
+    if (app.status !== "submitted") items.push({ key: "unsigned", kind: "fix", label: "The application hasn't been signed yet." });
+    if (type === "installer") {
+      const ws = (application as InstData).installers ?? [];
+      if (!ws.some((w) => certs.get((w.email ?? "").trim().toLowerCase())?.status === "verified"))
+        for (const w of ws) items.push({ key: `cii:${w.email}`, kind: "cii", workerEmail: (w.email ?? "").trim().toLowerCase(), label: `Verify ${(w.full_legal_name ?? w.email ?? "installer").split(/\s+/)[0]}'s CII certificate${ws.length > 1 ? " (at least one installer)" : ""}` });
+    }
+    for (const b of activationBlockers(type, application, app.agreement_version, app.signed_at)) items.push({ key: `ov:${b}`, kind: "override", label: b });
+    const { offerState, offerActivationBlocker } = await import("./rate-offer.core");
+    const { data: offerRows } = await (admin as unknown as { from: (t: string) => any }).from("partner_rate_offers").select("id, round, status, items, note, gst_registered, created_at, responded_at, response").eq("application_id", app.id); // eslint-disable-line @typescript-eslint/no-explicit-any
+    const ob = offerActivationBlocker(offerState(offerRows ?? []));
+    if (ob) items.push({ key: "rates", kind: "rates", label: ob });
+    const d = application as { business_email?: string };
+    return { activated: !!act, activatedAt: act?.activated_at ?? null, items, needsOverride: items.some((i) => i.kind === "override"), hardBlocked: items.some((i) => i.kind !== "override"), loginEmail: d.business_email ?? "" };
+  });

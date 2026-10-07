@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useEffect, useRef, useState } from "react";
@@ -15,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import type { Tables } from "@/integrations/supabase/types";
 import { useServerFn } from "@tanstack/react-start";
 import { getAdminPartnerEnquiries } from "@/lib/admin-records.functions";
-import { listPartnerOfficeEmails, sendPartnerOfficeEmail, activatePartnerApplication, createPartnerLogin, decidePartnerApplication, getApplicationReview, listCertificationLevels, listWorkerCertifications, recordCertificationLevel, recordWorkerCertification } from "@/lib/partner-activation.functions";
+import { getApprovalChecklist, listPartnerOfficeEmails, sendPartnerOfficeEmail, activatePartnerApplication, createPartnerLogin, decidePartnerApplication, getApplicationReview, listCertificationLevels, listWorkerCertifications, recordCertificationLevel, recordWorkerCertification } from "@/lib/partner-activation.functions";
 import type { InstData } from "@/lib/installer-onboarding.core";
 import { OnboardingDrafts } from "@/components/portal/onboarding-drafts";
 import { openFileViewer } from "@/components/portal/file-viewer";
@@ -160,11 +161,11 @@ function Detail({ row, onClose }: { row: Row; onClose: () => void }) {
           {f.map(([k, v]) => <Fragment key={k}><dt className="text-muted-foreground">{k}</dt><dd className="whitespace-pre-wrap">{v ?? "—"}</dd></Fragment>)}
         </dl>
         <OfficeEmailBox enquiryId={row.id} to={row.email} />
-        {(() => { const id = (row.raw_payload as { rec_onboarding_id?: string } | null)?.rec_onboarding_id; return id ? <><PartnerProfileCard applicationId={id} /><SignedRecAgreement id={id} /></> : null; })()}
+        {(() => { const id = (row.raw_payload as { rec_onboarding_id?: string } | null)?.rec_onboarding_id; return id ? <><ApprovePartner applicationId={id} /><PartnerProfileCard applicationId={id} /><SignedRecAgreement id={id} /></> : null; })()}
         <div>
           <div className="mb-1 text-sm font-semibold">Status</div>
           <div className="flex flex-wrap gap-2">
-            {PARTNER_STATUSES.map((s) => <Button key={s} size="sm" variant={row.status === s ? "default" : "outline"} className="capitalize" onClick={() => save({ status: s }, `Marked ${s}`)}>{s}</Button>)}
+            {row.status === "approved" && <Badge>Approved partner</Badge>}{PARTNER_STATUSES.filter((s) => s !== "approved").map((s) => <Button key={s} size="sm" variant={row.status === s ? "default" : "outline"} className="capitalize" onClick={() => save({ status: s }, `Marked ${s}`)}>{s}</Button>)}
           </div>
         </div>
         <div>
@@ -193,8 +194,7 @@ function SignedRecAgreement({ id }: { id: string }) {
           <div>Version <b>{r.agreement_version}</b> · signed {r.signed_at ? new Date(r.signed_at).toLocaleString("en-AU") : "—"} by <b>{r.signer_name}</b> ({r.signer_position}, {r.signer_email})</div>
           <div className="break-all text-xs text-muted-foreground">SHA-256 {r.agreement_sha256} · IP {r.signed_ip ?? "—"}</div>
           {r.certificateUrl && <button type="button" className="text-primary underline" onClick={() => openFileViewer(r.certificateUrl, "Certificate of Currency")}>Open Certificate of Currency</button>}
-          {((r.data as InstData | null)?.installers ?? []).length > 0 && <WorkerCertifications applicationId={id} installers={(r.data as InstData).installers ?? []} />}
-          {r.activation ? <><p className="rounded bg-success-soft p-2 font-semibold text-success">Activated as an approved partner business on {new Date(r.activation.activated_at).toLocaleDateString("en-AU")}.</p><PartnerLogin applicationId={id} defaultEmail={(r.data as { business_email?: string } | null)?.business_email ?? ""} /></> : <div className="space-y-2"><ReviewDecision applicationId={id} /><p className="text-xs text-muted-foreground">Approval accepts the proposed supplier rates shown in the signed agreement and creates the partner file. It does not create worker logins.</p><RateOfferPanel applicationId={id} onActivate={async () => { const res = await activate({ applicationId: id }, "Partner activated"); if (res && "welcome" in res && res.welcome) window.alert(`Partner activated. ${res.welcome}`); await q.refetch(); }} /></div>}
+          {r.activation && <p className="rounded bg-success-soft p-2 font-semibold text-success">Activated as an approved partner business on {new Date(r.activation.activated_at).toLocaleDateString("en-AU")}.</p>}
           <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap rounded bg-muted p-3 text-xs">{r.agreement_text}</pre>
         </div>
       ))}
@@ -288,13 +288,13 @@ function PartnerLogin({ applicationId, defaultEmail }: { applicationId: string; 
   const [link, setLink] = useState<string | null>(null);
   return (
     <div className="rounded border p-2" data-testid="partner-login">
-      <div className="font-semibold">Partner login</div>
-      <p className="text-xs text-muted-foreground">Makes the business boss's sign-in and links it to this business. Sends no email or text. Copy the link and pass it on yourself. It works once.</p>
+      <div className="font-semibold">Next: send their login link</div>
+      <p className="text-xs text-muted-foreground">Makes the business boss's sign-in and a one-time set-password link. Emailing it to partners is off until Jo approves the welcome wording, so use "Copy link" and text or email it yourself.</p>
       <div className="mt-2 flex gap-2">
         <input aria-label="Login email" className="h-9 flex-1 rounded border px-2" value={email} onChange={(e) => setEmail(e.target.value)} />
-        <Button size="sm" onClick={async () => { const r = await make({ applicationId, email }, "Login ready – nothing was sent"); if (r) setLink(r.link); }}>Create login for this partner</Button>
+        <Button size="sm" onClick={async () => { const r = await make({ applicationId, email }, "Login link ready"); if (r) setLink(r.link); }}>Make login link</Button>
       </div>
-      {link && <div className="mt-2 space-y-1"><p className="text-xs font-medium">Set-password link (copy and pass on):</p><textarea readOnly aria-label="Set-password link" className="w-full break-all rounded border p-2 text-xs" rows={3} value={link} onFocus={(e) => e.currentTarget.select()} /></div>}
+      {link && <div className="mt-2 space-y-2"><p className="text-xs font-medium">One-time set-password link (works once):</p><textarea readOnly aria-label="Set-password link" className="w-full break-all rounded border p-2 text-xs" rows={3} value={link} onFocus={(e) => e.currentTarget.select()} /><div className="flex flex-wrap gap-2"><Button size="sm" onClick={async () => { await navigator.clipboard.writeText(link); toast.success("Link copied"); }}>Copy link</Button><Button size="sm" variant="outline" disabled title="Sending to partners is off until Jo approves the welcome wording">Send login link (off for now)</Button></div></div>}
     </div>
   );
 }
@@ -326,6 +326,43 @@ function OfficeEmailBox({ enquiryId, to }: { enquiryId: string; to: string | nul
       </div>}
       {result && <p role="status" className={`mt-2 rounded p-2 text-sm font-semibold ${result.ok ? "bg-success-soft text-success" : "bg-destructive/10 text-destructive"}`}>{result.text}</p>}
       {(q.data ?? []).length > 0 && <ul className="mt-2 space-y-1 text-xs text-muted-foreground">{q.data!.map((e, i) => <li key={i}>{new Date(e.at).toLocaleString("en-AU")} · {e.by} · “{e.subject}” to {e.to} — {e.status === "sent" ? "sent" : `not sent (${e.detail})`}</li>)}</ul>}
+    </div>
+  );
+}
+
+/** ONE clear Approve for a signed application: checklist of blockers (each fixable here), then activate, then the login link. */
+function ApprovePartner({ applicationId }: { applicationId: string }) {
+  const check = useServerFn(getApprovalChecklist);
+  const rec = useServerFn(getRecOnboardingRecord);
+  const activate = useAction(activatePartnerApplication);
+  const q = useQuery({ queryKey: ["approval-checklist", applicationId], queryFn: () => check({ data: { applicationId } }) });
+  const r2 = useQuery({ queryKey: ["rec-onboarding", applicationId], queryFn: () => rec({ data: { id: applicationId } }) });
+  const [override, setOverride] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const c = q.data;
+  if (q.isLoading) return <p className="text-sm text-muted-foreground">Loading approval…</p>;
+  if (q.error || !c) return <p className="text-sm text-destructive">{(q.error as Error)?.message ?? "Could not load the approval checklist."}</p>;
+  const installers = ((r2.data?.data as InstData | null)?.installers ?? []);
+  if (c.activated) return (
+    <div className="space-y-2 rounded-lg border-2 border-success p-3" data-approve>
+      <p className="font-semibold text-success">Approved on {new Date(c.activatedAt!).toLocaleDateString("en-AU")}.</p>
+      {msg && <p className="text-sm">{msg}</p>}
+      <PartnerLogin applicationId={applicationId} defaultEmail={c.loginEmail} />
+    </div>
+  );
+  const ready = !c.hardBlocked && (!c.needsOverride || override.trim().length >= 10);
+  const cii = c.items.filter((i) => i.kind === "cii");
+  return (
+    <div className="space-y-3 rounded-lg border-2 border-primary p-3" data-approve>
+      <div className="text-base font-semibold">Approve this partner</div>
+      {c.items.length === 0 ? <p className="text-sm text-success">Everything is ready.</p> : <div className="space-y-1 text-sm"><p className="font-medium">Still to do before approving:</p><ul className="list-disc space-y-1 pl-5">{c.items.map((i) => <li key={i.key}>{i.label}</li>)}</ul></div>}
+      {cii.length > 0 && installers.length > 0 && <WorkerCertifications applicationId={applicationId} installers={installers} />}
+      {c.needsOverride && <label className="block text-sm font-medium">Office override reason (needed for the items above)<Textarea className="mt-1" rows={2} value={override} onChange={(e) => setOverride(e.target.value)} placeholder="Why it's OK to approve anyway (at least 10 characters)" /></label>}
+      <RateOfferPanel applicationId={applicationId} showActivate={false} onActivate={async () => {}} />
+      <ReviewDecision applicationId={applicationId} />
+      <Button className="h-12 w-full text-base" disabled={!ready || busy} onClick={async () => { setBusy(true); const res = await activate({ applicationId, overrideReason: c.needsOverride ? override.trim() : undefined }, "Partner approved"); setBusy(false); if (res) setMsg("welcome" in res && res.welcome ? res.welcome : "Next: send them their login link below."); await q.refetch(); }}>{busy ? "Approving…" : "Approve"}</Button>
+      {!ready && <p className="text-xs text-muted-foreground">Approve unlocks when the list above is done.</p>}
     </div>
   );
 }
