@@ -41,7 +41,7 @@ export async function sendTestWelcome(p: { businessId: string; name: string | nu
   const c = testWelcomeCopy({ firstName: p.name?.split(/\s+/)[0] ?? null, businessName: biz.name, link, loginEmail: email });
   const mail = simpleEmail(c.heading, c.paragraphs, c.button);
   const r = await sendTestEmail({ jobId: null, jobSource: null, label: "partner_welcome", actorId: p.actorId, partnerIsTest: true } as never, TEST_ALLOWLIST.email[0], c.subject, mail.html, mail.text);
-  await admin.from("businesses").update({ approval_message_status: r.status === "sent" ? "sent_test" : "test_blocked", approval_message_queued_at: new Date().toISOString() } as never).eq("id", p.businessId);
+  await admin.from("businesses").update({ approval_message_status: r.status === "sent" ? "sent" : null, approval_message_queued_at: new Date().toISOString() } as never).eq("id", p.businessId);
   await admin.from("admin_config_events").insert({ actor_id: p.actorId, event_type: "test_partner_welcome", summary: `TEST partner welcome to ${TEST_ALLOWLIST.email[0]} (login ${email}): ${r.status}`, details: { business_id: p.businessId, application_id: p.appId, status: r.status, detail: r.detail } as never });
   return { ...r, link };
 }
