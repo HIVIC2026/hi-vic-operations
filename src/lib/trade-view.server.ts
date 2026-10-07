@@ -49,7 +49,7 @@ export async function tradeHome(userId: string) {
   const jobIds = [...new Set((asg ?? []).map((a) => a.job_id))];
   const none = ["00000000-0000-0000-0000-000000000000"];
   const [{ data: jobs }, { data: books }, { data: missing }] = await Promise.all([
-    admin.from("jobs").select("id, job_number, stage, source, qa_archived_at, owners(full_name), properties(address_line, suburb, postcode)").in("id", jobIds.length ? jobIds : none),
+    admin.from("jobs").select("id, job_number, stage, source, qa_archived_at, installer_site_check, installer_site_check_date, installer_quoted_price_inc_gst, installer_price_includes, owners(full_name), properties(address_line, suburb, postcode)").in("id", jobIds.length ? jobIds : none),
     admin.from("bookings").select("job_id, kind, status, scheduled_start, scheduled_end").in("job_id", jobIds.length ? jobIds : none).in("status", ["confirmed", "completed"]).order("scheduled_start"),
     admin.from("evidence_requirements").select("job_id").in("job_id", jobIds.length ? jobIds : none).eq("required", true).in("status", ["outstanding", "rejected"]),
   ]);
@@ -76,7 +76,9 @@ export async function tradeHome(userId: string) {
   const offerList = (offers ?? []).filter((o) => (c.kind === "installer" ? o.kind === "ready_check" || o.kind === "installer" : o.kind === "piesa" || o.kind === "rectification"))
     .map((o) => ({ id: o.id, kind: o.kind, suburb: (o.summary as { suburb?: string | null })?.suburb ?? null, expiresAt: o.expires_at }));
   const STATUS: Record<string, string> = { ready_check_ready_to_schedule: "Waiting for owner to pick Ready Check times", ready_check_complete: "Office checking your measure-up", on_hold: "On hold (office review)" };
-  const allJobs = live.map((j) => ({ jobId: j.id, jobNumber: j.job_number, status: STATUS[j.stage] ?? "In progress", ...label(j) }));
+  // Installer-sourced jobs: his own site-check answer and price (labels only; never HIV owner prices or margins).
+  const allJobs = live.map((j) => ({ jobId: j.id, jobNumber: j.job_number, status: STATUS[j.stage] ?? "In progress", ...label(j),
+    facts: j.installer_site_check || j.installer_quoted_price_inc_gst != null ? { site_check: j.installer_site_check as "yes" | "no" | null, site_check_date: j.installer_site_check_date, quoted_price_inc_gst: j.installer_quoted_price_inc_gst == null ? null : Number(j.installer_quoted_price_inc_gst), price_includes: j.installer_price_includes } : null }));
   return { kind: c.kind, boss: c.boss, business: c.biz.name, firstName: c.firstName, isTest: c.isTest, week, offers: offerList, yourMove, coming, jobs: allJobs, month: c.boss ? { jobs: month.length, earned: month.reduce((t, r) => t + (r.amount ?? 0), 0) } : null };
 }
 
