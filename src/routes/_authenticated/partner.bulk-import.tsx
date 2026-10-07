@@ -235,6 +235,9 @@ function BulkImportPage() {
   const getReview = useServerFn(bulkBatchReview);
   const confirm = useServerFn(confirmBulkBatch);
   const readFile = useServerFn(readBulkFile);
+  const readRows = useServerFn(readBulkRows);
+  const [failedChunks, setFailedChunks] = useState<{ from: number; to: number }[]>([]);
+  const pending = useRef<{ base: { businessId: string; onBehalf: boolean }; rawRows: Record<string, string>[]; documents: { name: string; text: string }[]; manifest: unknown[]; reads: unknown[]; leads: unknown[]; failed: RowChunk<Record<string, string>>[] } | null>(null);
   const geocode = useServerFn(geocodeBulkPhotos);
   const savePlan = useServerFn(setBulkReviewPlan);
   const getBatches = useServerFn(listBulkBatches);
@@ -301,6 +304,30 @@ function BulkImportPage() {
   const reset = () => { setBatchId(null); setDone(null); setExtraFiles([]); setSkip(new Set()); setLocalReads([]); setConsent({}); setLeads({}); };
   const step = done ? 3 : batchId ? 2 : 1;
 
+  async function finishBatch() {
+    const p = pending.current; if (!p) return;
+    setProgress("Finding customers…");
+    const res = await createBatch({ data: { ...p.base, listFilename: `${extraFiles.length} file${extraFiles.length === 1 ? "" : "s"}`, rawRows: p.rawRows, documents: p.documents, manifest: p.manifest as never, fileReads: p.reads as never, preExtracted: p.leads as never } });
+    pending.current = null; setFailedChunks([]);
+    setBatchId(res.batchId);
+    toast.success(res.summary.rows > 0 ? `${res.summary.rows} customer${res.summary.rows === 1 ? "" : "s"} found.` : "No customers found in this upload.");
+  }
+  async function retryFailed() {
+    const p = pending.current; if (!p) return;
+    setBusy(true);
+    try {
+      const total = p.failed.reduce((n, c) => n + c.rows.length, 0);
+      const r = await readInChunks(p.failed, async (c) => (await readRows({ data: { ...p.base, rows: c.rows } })).leads, { onDone: (n) => setProgress(readingProgress(total, n)) });
+      p.leads = [...p.leads, ...r.leads]; p.failed = r.failed;
+      if (r.failed.length) { setFailedChunks(r.failed.map(({ from, to }) => ({ from, to }))); toast.error("Some rows still couldn't be read."); return; }
+      await finishBatch();
+    } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); setProgress(""); }
+  }
+  async function continueWithout() {
+    setBusy(true);
+    try { await finishBatch(); } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); setProgress(""); }
+  }
+
   async function analyse() {
     if (extraFiles.length === 0 || !effectiveBiz) return;
     setBusy(true); setLocalReads([]);
@@ -313,6 +340,14 @@ function BulkImportPage() {
       });
       setLocalReads(reads);
       if (rawRows.length === 0 && documents.length === 0 && manifest.length === 0) { toast.error("None of these files could be read — see the list below."); return; }
+      if (rawRows.length > READ_CHUNK_ROWS) {
+        // Big list: read in small chunks with retries and live progress, so nothing hangs or fails as a whole.
+        setProgress(readingProgress(rawRows.length, 0));
+        const r = await readInChunks(chunkRows(rawRows), async (c) => (await readRows({ data: { ...base, rows: c.rows } })).leads, { onDone: (n) => setProgress(readingProgress(rawRows.length, n)) });
+        pending.current = { base, rawRows, documents, manifest, reads, leads: r.leads, failed: r.failed };
+        if (r.failed.length) { setFailedChunks(r.failed.map(({ from, to }) => ({ from, to }))); return; }
+        await finishBatch(); return;
+      }
       setProgress("Finding customers…");
       const res = await createBatch({ data: { ...base, listFilename: `${extraFiles.length} file${extraFiles.length === 1 ? "" : "s"}`, rawRows, documents, manifest, fileReads: reads } });
       setBatchId(res.batchId);
@@ -367,7 +402,17 @@ function BulkImportPage() {
             <input type="file" multiple className="sr-only" aria-label="Choose files" onChange={(e) => setExtraFiles([...(e.target.files ?? [])])} />
             {extraFiles.length > 0 && <span className="mt-2 block text-xs font-semibold">{extraFiles.length} file{extraFiles.length > 1 ? "s" : ""} chosen</span>}
           </label>
-          <PrimaryButton disabled={extraFiles.length === 0 || !effectiveBiz || busy} onClick={analyse}>{busy ? (progress || "Reading…") : "Read my files"}</PrimaryButton>
+          {failedChunks.length > 0 && (
+            <div role="alert" data-failed-rows className="rounded-[18px] border border-line bg-paper p-[19px] shadow-card text-sm">
+              <p className="font-bold text-danger">Some rows couldn't be read</p>
+              <p className="mt-1 text-sub">{failedChunks.map(rowRangeLabel).join(", ")}. Everything else was read and is kept.</p>
+              <div className="mt-3 grid gap-2 sm:flex">
+                <PrimaryButton disabled={busy} onClick={retryFailed}>{busy ? (progress || "Reading…") : "Try these rows again"}</PrimaryButton>
+                <button type="button" disabled={busy} onClick={continueWithout} className="h-12 rounded-[10px] border border-line bg-paper px-[15px] text-[13px] font-bold text-hiv-blue md:h-[42px]">Continue without them</button>
+              </div>
+            </div>
+          )}
+          <PrimaryButton disabled={extraFiles.length === 0 || !effectiveBiz || busy || failedChunks.length > 0} onClick={analyse}>{busy ? (progress || "Reading…") : "Read my files"}</PrimaryButton>
           <FileResultList items={localReads} />
         </section>
       )}

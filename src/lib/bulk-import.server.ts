@@ -10,7 +10,7 @@ import { logPartner } from "./pilot.server";
 import { type LocationVariables } from "./activity48.core";
 import { confirmedQuoteDecision } from "./quote-release.core";
 import { hashToken, newToken } from "./worker-links.core";
-import { linkFiles, type LeadStage } from "./bulk-import.core";
+import { linkFiles, chunkRows, readInChunks, READ_CHUNK_ROWS, type LeadStage } from "./bulk-import.core";
 import { applyDiscountRules, discountNotes, wholeVeecDiscount } from "./estimate.core";
 import {
   customerDetailsReason, outsideVictoria, quotedGap, QUOTED_ANSWER_NEEDED, effectiveSiteCheck, cleanLead, gridToRecords, dedupeKey, parseSiteCheck, QUOTE_NEEDED_LABEL, quoteNeeded, siteCheckFromFile, siteCheckLabel, fileResults, findDuplicates, leadStage, type FileResult, LEAD_STAGE_LABEL, matchFiles, missingEvidence, normaliseAddress, sortJob,
