@@ -84,6 +84,12 @@ import { Route as EstimateTokenVideoRouteImport } from './routes/estimate_.$toke
 import { Route as TETokenRouteImport } from './routes/t.e.$token'
 import { Route as TOFileRouteImport } from './routes/t.o.$file'
 import { Route as AuthenticatedAdminJobsJobIdRouteImport } from './routes/_authenticated/admin.jobs.$jobId'
+import { Route as AuthenticatedFieldBusinessAgreementRouteImport } from './routes/_authenticated/field.business_.agreement'
+import { Route as AuthenticatedFieldBusinessBankRouteImport } from './routes/_authenticated/field.business_.bank'
+import { Route as AuthenticatedFieldBusinessDetailsRouteImport } from './routes/_authenticated/field.business_.details'
+import { Route as AuthenticatedFieldBusinessInsuranceRouteImport } from './routes/_authenticated/field.business_.insurance'
+import { Route as AuthenticatedFieldBusinessRatesRouteImport } from './routes/_authenticated/field.business_.rates'
+import { Route as AuthenticatedFieldBusinessTeamRouteImport } from './routes/_authenticated/field.business_.team'
 import { Route as AuthenticatedFieldDayJobIdRouteImport } from './routes/_authenticated/field.day.$jobId'
 import { Route as AuthenticatedFieldOfferOfferIdRouteImport } from './routes/_authenticated/field.offer.$offerId'
 import { Route as ApiPublicHooksAllocationTickRouteImport } from './routes/api/public/hooks/allocation-tick'
@@ -496,6 +502,42 @@ const AuthenticatedAdminJobsJobIdRoute =
     path: '/jobs/$jobId',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedFieldBusinessAgreementRoute =
+  AuthenticatedFieldBusinessAgreementRouteImport.update({
+    id: '/business_/agreement',
+    path: '/business/agreement',
+    getParentRoute: () => AuthenticatedFieldRoute,
+  } as any)
+const AuthenticatedFieldBusinessBankRoute =
+  AuthenticatedFieldBusinessBankRouteImport.update({
+    id: '/business_/bank',
+    path: '/business/bank',
+    getParentRoute: () => AuthenticatedFieldRoute,
+  } as any)
+const AuthenticatedFieldBusinessDetailsRoute =
+  AuthenticatedFieldBusinessDetailsRouteImport.update({
+    id: '/business_/details',
+    path: '/business/details',
+    getParentRoute: () => AuthenticatedFieldRoute,
+  } as any)
+const AuthenticatedFieldBusinessInsuranceRoute =
+  AuthenticatedFieldBusinessInsuranceRouteImport.update({
+    id: '/business_/insurance',
+    path: '/business/insurance',
+    getParentRoute: () => AuthenticatedFieldRoute,
+  } as any)
+const AuthenticatedFieldBusinessRatesRoute =
+  AuthenticatedFieldBusinessRatesRouteImport.update({
+    id: '/business_/rates',
+    path: '/business/rates',
+    getParentRoute: () => AuthenticatedFieldRoute,
+  } as any)
+const AuthenticatedFieldBusinessTeamRoute =
+  AuthenticatedFieldBusinessTeamRouteImport.update({
+    id: '/business_/team',
+    path: '/business/team',
+    getParentRoute: () => AuthenticatedFieldRoute,
+  } as any)
 const AuthenticatedFieldDayJobIdRoute =
   AuthenticatedFieldDayJobIdRouteImport.update({
     id: '/day/$jobId',
@@ -620,6 +662,12 @@ export interface FileRoutesByFullPath {
   '/owner/': typeof AuthenticatedOwnerIndexRoute
   '/partner/': typeof AuthenticatedPartnerIndexRoute
   '/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
+  '/field/business/agreement': typeof AuthenticatedFieldBusinessAgreementRoute
+  '/field/business/bank': typeof AuthenticatedFieldBusinessBankRoute
+  '/field/business/details': typeof AuthenticatedFieldBusinessDetailsRoute
+  '/field/business/insurance': typeof AuthenticatedFieldBusinessInsuranceRoute
+  '/field/business/rates': typeof AuthenticatedFieldBusinessRatesRoute
+  '/field/business/team': typeof AuthenticatedFieldBusinessTeamRoute
   '/field/day/$jobId': typeof AuthenticatedFieldDayJobIdRoute
   '/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
@@ -700,6 +748,12 @@ export interface FileRoutesByTo {
   '/owner': typeof AuthenticatedOwnerIndexRoute
   '/partner': typeof AuthenticatedPartnerIndexRoute
   '/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
+  '/field/business/agreement': typeof AuthenticatedFieldBusinessAgreementRoute
+  '/field/business/bank': typeof AuthenticatedFieldBusinessBankRoute
+  '/field/business/details': typeof AuthenticatedFieldBusinessDetailsRoute
+  '/field/business/insurance': typeof AuthenticatedFieldBusinessInsuranceRoute
+  '/field/business/rates': typeof AuthenticatedFieldBusinessRatesRoute
+  '/field/business/team': typeof AuthenticatedFieldBusinessTeamRoute
   '/field/day/$jobId': typeof AuthenticatedFieldDayJobIdRoute
   '/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
@@ -786,6 +840,12 @@ export interface FileRoutesById {
   '/_authenticated/owner/': typeof AuthenticatedOwnerIndexRoute
   '/_authenticated/partner/': typeof AuthenticatedPartnerIndexRoute
   '/_authenticated/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
+  '/_authenticated/field/business_/agreement': typeof AuthenticatedFieldBusinessAgreementRoute
+  '/_authenticated/field/business_/bank': typeof AuthenticatedFieldBusinessBankRoute
+  '/_authenticated/field/business_/details': typeof AuthenticatedFieldBusinessDetailsRoute
+  '/_authenticated/field/business_/insurance': typeof AuthenticatedFieldBusinessInsuranceRoute
+  '/_authenticated/field/business_/rates': typeof AuthenticatedFieldBusinessRatesRoute
+  '/_authenticated/field/business_/team': typeof AuthenticatedFieldBusinessTeamRoute
   '/_authenticated/field/day/$jobId': typeof AuthenticatedFieldDayJobIdRoute
   '/_authenticated/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
@@ -872,6 +932,12 @@ export interface FileRouteTypes {
     | '/owner/'
     | '/partner/'
     | '/admin/jobs/$jobId'
+    | '/field/business/agreement'
+    | '/field/business/bank'
+    | '/field/business/details'
+    | '/field/business/insurance'
+    | '/field/business/rates'
+    | '/field/business/team'
     | '/field/day/$jobId'
     | '/field/offer/$offerId'
     | '/api/public/hooks/allocation-tick'
@@ -952,6 +1018,12 @@ export interface FileRouteTypes {
     | '/owner'
     | '/partner'
     | '/admin/jobs/$jobId'
+    | '/field/business/agreement'
+    | '/field/business/bank'
+    | '/field/business/details'
+    | '/field/business/insurance'
+    | '/field/business/rates'
+    | '/field/business/team'
     | '/field/day/$jobId'
     | '/field/offer/$offerId'
     | '/api/public/hooks/allocation-tick'
@@ -1037,6 +1109,12 @@ export interface FileRouteTypes {
     | '/_authenticated/owner/'
     | '/_authenticated/partner/'
     | '/_authenticated/admin/jobs/$jobId'
+    | '/_authenticated/field/business_/agreement'
+    | '/_authenticated/field/business_/bank'
+    | '/_authenticated/field/business_/details'
+    | '/_authenticated/field/business_/insurance'
+    | '/_authenticated/field/business_/rates'
+    | '/_authenticated/field/business_/team'
     | '/_authenticated/field/day/$jobId'
     | '/_authenticated/field/offer/$offerId'
     | '/api/public/hooks/allocation-tick'
@@ -1610,6 +1688,48 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminJobsJobIdRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/field/business_/agreement': {
+      id: '/_authenticated/field/business_/agreement'
+      path: '/business/agreement'
+      fullPath: '/field/business/agreement'
+      preLoaderRoute: typeof AuthenticatedFieldBusinessAgreementRouteImport
+      parentRoute: typeof AuthenticatedFieldRoute
+    }
+    '/_authenticated/field/business_/bank': {
+      id: '/_authenticated/field/business_/bank'
+      path: '/business/bank'
+      fullPath: '/field/business/bank'
+      preLoaderRoute: typeof AuthenticatedFieldBusinessBankRouteImport
+      parentRoute: typeof AuthenticatedFieldRoute
+    }
+    '/_authenticated/field/business_/details': {
+      id: '/_authenticated/field/business_/details'
+      path: '/business/details'
+      fullPath: '/field/business/details'
+      preLoaderRoute: typeof AuthenticatedFieldBusinessDetailsRouteImport
+      parentRoute: typeof AuthenticatedFieldRoute
+    }
+    '/_authenticated/field/business_/insurance': {
+      id: '/_authenticated/field/business_/insurance'
+      path: '/business/insurance'
+      fullPath: '/field/business/insurance'
+      preLoaderRoute: typeof AuthenticatedFieldBusinessInsuranceRouteImport
+      parentRoute: typeof AuthenticatedFieldRoute
+    }
+    '/_authenticated/field/business_/rates': {
+      id: '/_authenticated/field/business_/rates'
+      path: '/business/rates'
+      fullPath: '/field/business/rates'
+      preLoaderRoute: typeof AuthenticatedFieldBusinessRatesRouteImport
+      parentRoute: typeof AuthenticatedFieldRoute
+    }
+    '/_authenticated/field/business_/team': {
+      id: '/_authenticated/field/business_/team'
+      path: '/business/team'
+      fullPath: '/field/business/team'
+      preLoaderRoute: typeof AuthenticatedFieldBusinessTeamRouteImport
+      parentRoute: typeof AuthenticatedFieldRoute
+    }
     '/_authenticated/field/day/$jobId': {
       id: '/_authenticated/field/day/$jobId'
       path: '/day/$jobId'
@@ -1743,6 +1863,12 @@ interface AuthenticatedFieldRouteChildren {
   AuthenticatedFieldSetupRoute: typeof AuthenticatedFieldSetupRoute
   AuthenticatedFieldWelcomeRoute: typeof AuthenticatedFieldWelcomeRoute
   AuthenticatedFieldIndexRoute: typeof AuthenticatedFieldIndexRoute
+  AuthenticatedFieldBusinessAgreementRoute: typeof AuthenticatedFieldBusinessAgreementRoute
+  AuthenticatedFieldBusinessBankRoute: typeof AuthenticatedFieldBusinessBankRoute
+  AuthenticatedFieldBusinessDetailsRoute: typeof AuthenticatedFieldBusinessDetailsRoute
+  AuthenticatedFieldBusinessInsuranceRoute: typeof AuthenticatedFieldBusinessInsuranceRoute
+  AuthenticatedFieldBusinessRatesRoute: typeof AuthenticatedFieldBusinessRatesRoute
+  AuthenticatedFieldBusinessTeamRoute: typeof AuthenticatedFieldBusinessTeamRoute
   AuthenticatedFieldDayJobIdRoute: typeof AuthenticatedFieldDayJobIdRoute
   AuthenticatedFieldOfferOfferIdRoute: typeof AuthenticatedFieldOfferOfferIdRoute
 }
@@ -1754,6 +1880,15 @@ const AuthenticatedFieldRouteChildren: AuthenticatedFieldRouteChildren = {
   AuthenticatedFieldSetupRoute: AuthenticatedFieldSetupRoute,
   AuthenticatedFieldWelcomeRoute: AuthenticatedFieldWelcomeRoute,
   AuthenticatedFieldIndexRoute: AuthenticatedFieldIndexRoute,
+  AuthenticatedFieldBusinessAgreementRoute:
+    AuthenticatedFieldBusinessAgreementRoute,
+  AuthenticatedFieldBusinessBankRoute: AuthenticatedFieldBusinessBankRoute,
+  AuthenticatedFieldBusinessDetailsRoute:
+    AuthenticatedFieldBusinessDetailsRoute,
+  AuthenticatedFieldBusinessInsuranceRoute:
+    AuthenticatedFieldBusinessInsuranceRoute,
+  AuthenticatedFieldBusinessRatesRoute: AuthenticatedFieldBusinessRatesRoute,
+  AuthenticatedFieldBusinessTeamRoute: AuthenticatedFieldBusinessTeamRoute,
   AuthenticatedFieldDayJobIdRoute: AuthenticatedFieldDayJobIdRoute,
   AuthenticatedFieldOfferOfferIdRoute: AuthenticatedFieldOfferOfferIdRoute,
 }
