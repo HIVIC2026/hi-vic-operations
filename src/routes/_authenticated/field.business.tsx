@@ -25,7 +25,7 @@ function Business() {
   const installer = data.kind === "installer";
   const lic = expiryPill(data.licenceExpires), liab = expiryPill(data.liabilityExpires);
   const alert = [!installer && lic.days != null && lic.days <= 30 ? { doc: "Your electrical licence", d: lic.days } : null, liab.days != null && liab.days <= 30 ? { doc: "Your public liability", d: liab.days } : null].filter(Boolean)[0] as { doc: string; d: number } | undefined;
-  const pill = (label: string, warn: boolean) => <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${warn ? "bg-owner-house-pink" : "bg-estimate-green-soft text-estimate-green"}`}>{label}</span>;
+  const pill = (label: string, warn: boolean) => <span className={`rounded-[18px] px-2.5 py-0.5 text-[11px] font-semibold ${warn ? "bg-owner-house-pink" : "bg-estimate-green-soft text-estimate-green"}`}>{label}</span>;
   const signOut = async () => { await qc.cancelQueries(); qc.clear(); await supabase.auth.signOut(); navigate({ to: "/auth", replace: true }); };
   return (
     <TradeShell installer={installer} boss={data.boss}>

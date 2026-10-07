@@ -41,14 +41,14 @@ function OfferPage() {
     const t = dayTile(data.locked.start);
     return (
       <TradeShell installer={rc}>
-        {took && <section className="rounded-[18px] bg-estimate-green p-5 text-white shadow-sm">
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-estimate-green"><Check className="h-6 w-6" /></span>
+        {took && <section className="rounded-[19px] border border-line bg-mint p-5 text-ink md:p-[23px]">
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-action text-action-foreground"><Check className="h-6 w-6" /></span>
           <p className="mt-2 font-display text-[26px] font-bold leading-tight">Job accepted</p>
-          <p className="text-sm font-semibold">You have this job.</p>
+          
           <p className="mt-2 text-sm font-bold">{t.day} · {t.window}</p>
         </section>}
         <section className="rounded-[19px] border border-mist-line bg-mist p-5 text-ink md:p-[23px]">
-          <span className="inline-block rounded-full bg-estimate-green px-3 py-1 text-xs font-bold text-white">Booked</span>
+          <span className="inline-block rounded-[18px] bg-mint px-2.5 py-0.5 text-[11px] font-semibold text-hiv-green">Booked</span>
           <h1 className="mt-3 font-display text-2xl font-bold">{what} · {t.day} · {t.window}</h1>
           <p className="mt-2 font-bold">{data.locked.owner}</p>
           <p className="text-sm text-sub">{data.locked.address}</p>
@@ -58,7 +58,7 @@ function OfferPage() {
             <a className="flex h-12 flex-col items-center justify-center rounded-[10px] border border-line bg-paper font-bold text-hiv-blue" href={ics(`${what} – Home Insulation Victoria`, data.locked.start, data.locked.end, data.locked.address)} download="job.ics"><CalendarPlus className="h-4 w-4" />Calendar</a>
           </div>
         </section>
-        <p className="text-center text-sm">Booking confirmed. The owner has been told the time. The job page has the address and the owner's phone.</p>
+        <p className="text-center text-sm text-sub">The owner has been told the time.</p>
         <Link to="/field/day/$jobId" params={{ jobId: data.jobId }} className={ghostBtn}>Open the job page</Link>
       </TradeShell>
     );
@@ -73,7 +73,7 @@ function OfferPage() {
   return (
     <TradeShell installer={rc}>
       <section className="rounded-[19px] border border-mist-line bg-mist p-5 text-ink md:p-[23px]">
-        <div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-estimate-green px-3 py-1 text-xs font-bold text-white">New job</span>{left && <span className="rounded-full bg-owner-house-pink px-3 py-1 text-xs font-bold text-estimate-navy">{left}</span>}</div>
+        <div className="flex flex-wrap items-center gap-2"><span className="rounded-[18px] bg-mint px-2.5 py-0.5 text-[11px] font-semibold text-hiv-green">New job</span>{left && <span className="rounded-[18px] bg-pink px-2.5 py-0.5 text-[11px] font-semibold text-rose">{left}</span>}</div>
         <h1 className="mt-3 flex items-center gap-2 font-display text-2xl font-bold"><Zap className="h-5 w-5 text-owner-house-pink" />{what} in {data.suburb ?? "Victoria"}</h1>
         <p className="text-sm text-sub">{distanceLine(data.distanceKm)}</p>
         {rc ? (
@@ -101,8 +101,8 @@ function OfferPage() {
         <section className={card}><p className="font-bold">Thanks, we've got it.</p><p className="text-sm">We'll check with the owner and come back to you. The times below are still open if one works.</p></section>
       ) : null}
       <section className="space-y-2">
-        <p className="font-display text-lg font-bold">The first trade to accept gets the job</p>
-        <p className="text-sm">Choose one of the owner's times to accept the job.</p>
+        <p className="font-display text-base font-bold">Pick a time to accept</p>
+        <p className="text-sm text-sub">The first trade to accept gets the job.</p>
         <div className="grid grid-cols-2 gap-2">{data.windows.map((w) => { const t = dayTile(w.start); return (
           <button key={w.id} type="button" disabled={!!busy} onClick={() => tap(w.id, w.start)} className="flex min-h-20 flex-col items-center justify-center rounded-[18px] border border-line bg-paper hover:border-action p-3 font-bold"><span className="text-sm">{t.day}</span><span className="font-display text-lg font-bold">{busy === w.id ? "Booking…" : t.window}</span></button>); })}</div>
         <div className="flex justify-between px-1 pt-1 text-sm font-bold text-estimate-blue">
@@ -110,7 +110,7 @@ function OfferPage() {
           <button type="button" onClick={async () => { await reply({ data: { offerId, reply: "not_for_me", note: null } }); setMode("declined"); await refetch(); }}>Not for me</button>
         </div>
         {!data.canSuggest && <p className="pt-1 text-xs text-sub">Can't make these? If nobody takes it, you can suggest another time from {data.suggestUnlockLabel}.</p>}
-        <p className="pt-2 text-center text-xs text-sub">Address and owner details show once you take it.</p>
+        <p className="pt-2 text-center text-xs text-sub">Address shows once you accept.</p>
       </section>
     </TradeShell>
   );

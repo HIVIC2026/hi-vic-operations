@@ -43,7 +43,7 @@ function Docs({ d, onDone }: { d: Parameters<Parameters<typeof BizPage>[0]["chil
         <li key={c.id} className="flex items-center justify-between gap-3 p-4">
           <span><span className="block font-bold capitalize">{c.label}</span><span className="block text-xs text-sub">{c.verified ? "Checked by the office" : "Waiting for the office to check"}</span></span>
           <span className="flex shrink-0 flex-col items-end gap-1">
-            <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${p.warn ? "bg-owner-house-pink" : "bg-estimate-green-soft text-estimate-green"}`}>{p.label}</span>
+            <span className={`rounded-[18px] px-2.5 py-0.5 text-[11px] font-semibold ${p.warn ? "bg-owner-house-pink" : "bg-estimate-green-soft text-estimate-green"}`}>{p.label}</span>
             {c.hasFile && <button type="button" className="text-xs font-bold text-estimate-blue" onClick={async () => { const r = await open({ data: { businessId: d.businessId, path: c.path! } }); openFileViewer(r.url); }}>View</button>}
           </span>
         </li>

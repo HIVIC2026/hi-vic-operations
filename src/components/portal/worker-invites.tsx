@@ -34,7 +34,7 @@ export function WorkerInvites({ businessId, sample = false }: { businessId: stri
           {(["electrician", "installer"] as const).map((t) => <Button key={t} type="button" variant={f.trade === t ? "default" : "outline"} onClick={() => setF({ ...f, trade: t })}>{t === "electrician" ? "Electrician" : "Installer"}</Button>)}
         </div>
         <label className="text-sm font-medium">Their name<Input required value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} className="mt-1 h-12" /></label>
-        <label className="text-sm font-medium">Their mobile or email (optional)<Input value={f.contact} onChange={(e) => setF({ ...f, contact: e.target.value })} className="mt-1 h-12" /></label>
+        <label className="text-sm font-medium">Their mobile or email<Input value={f.contact} onChange={(e) => setF({ ...f, contact: e.target.value })} className="mt-1 h-12" /></label>
         <Button type="submit" size="field" disabled={busy || sample} className="sm:col-span-2">{sample ? "Preview only — invitations disabled" : busy ? "Creating…" : "Create invite link"}</Button>
       </form>
       {link && (

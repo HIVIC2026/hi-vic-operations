@@ -34,7 +34,7 @@ function DayPage() {
   return (
     <TradeShell installer={installer}>
       <section className="rounded-[19px] border border-mist-line bg-mist p-5 text-ink md:p-[23px]">
-        {t && <span className="inline-block rounded-full bg-owner-house-pink px-3 py-1 text-sm font-bold text-estimate-navy">{pill}</span>}
+        {t && <span className="inline-block rounded-[18px] bg-pink px-2.5 py-0.5 text-[11px] font-semibold text-rose">{pill}</span>}
         <h1 className="mt-3 font-display text-2xl font-bold">{WHAT[data.kind]} · {data.surname}</h1>
         <p className="mt-1 text-sm text-sub">{data.address}</p>
         <div className="mt-4 grid grid-cols-2 gap-2">

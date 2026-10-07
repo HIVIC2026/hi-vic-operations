@@ -10,7 +10,7 @@ export const Route = createFileRoute("/_authenticated/field/money")({
   component: Money,
 });
 
-const TONE = { blue: "bg-estimate-mist text-estimate-blue", blush: "bg-estimate-blush", mint: "bg-estimate-green-soft text-estimate-green" } as const;
+const TONE = { blue: "bg-mist text-hiv-blue", blush: "bg-pink text-rose", mint: "bg-mint text-hiv-green" } as const;
 
 function Money() {
   const load = useServerFn(getTradeMoneyView);
@@ -25,19 +25,19 @@ function Money() {
   return (
     <TradeShell installer={data.kind === "installer"} boss={data.boss}>
       <h1 className="font-display text-[26px] font-bold leading-tight">Money</h1>
-      <section className="rounded-[18px] bg-estimate-green p-5 text-white shadow-sm">
+      <section className="rounded-[19px] border border-line bg-mint p-5 text-ink md:p-[23px]">
         <p className="text-sm font-bold">{data.next ? `Landing in your account ${day(data.next.on)}` : "Nothing landing just yet"}</p>
         <p className="font-display text-[30px] font-bold">{aud(data.next?.total ?? 0)}</p>
         <p className="text-sm">{data.next ? `${data.next.jobs} job${data.next.jobs === 1 ? "" : "s"}` : "Jobs show here once they're signed off."}</p>
       </section>
       <div className="grid grid-cols-2 gap-2">
-        <div className={card}><p className="text-xs font-bold uppercase tracking-wide">This month</p><p className="font-display text-2xl font-bold">{aud(data.month)}</p></div>
-        <div className={card}><p className="text-xs font-bold uppercase tracking-wide">All time</p><p className="font-display text-2xl font-bold">{aud(data.allTime)}</p></div>
+        <div className={card}><p className="text-xs text-sub">This month</p><p className="font-display text-[25px] font-bold leading-none">{aud(data.month)}</p></div>
+        <div className={card}><p className="text-xs text-sub">All time</p><p className="font-display text-[25px] font-bold leading-none">{aud(data.allTime)}</p></div>
       </div>
       {([
-        ["checking", "Waiting for office sign-off", "The office checks the paperwork before a job is approved for payment."],
-        ["coming", "Approved – to be paid", "Paid within 7 days of office approval. Expected pay date shown on each job."],
-        ["paid", "Paid", "Money already sent to your account."],
+        ["checking", "Waiting for office sign-off", "The office checks the paperwork first."],
+        ["coming", "Approved – to be paid", "Paid within 7 days of approval."],
+        ["paid", "Paid", "Sent to your account."],
       ] as const).map(([k, title, note]) => {
         const rows = data.rows.filter((r) => r.state.kind === k);
         const total = rows.reduce((t, r) => t + (r.amount ?? 0), 0);
@@ -47,11 +47,11 @@ function Money() {
               <h2 id={`money-${k}`} className="font-display text-lg font-bold">{title}</h2>
               <span className="font-display text-xl font-bold">{aud(total)}</span>
             </div>
-            <p className="px-1 text-sm text-sub">{note}</p>
+            <p className="px-1 text-xs text-sub">{note}</p>
             {rows.length ? <ul className="divide-y divide-line overflow-hidden rounded-[18px] border border-line bg-paper shadow-card">{rows.map((r) => { const p = payPill(r.state); return (
               <li key={r.jobId + r.what} className="flex items-center gap-3 p-4">
                 <span className="min-w-0 flex-1"><span className="block font-bold">{r.surname}, {r.suburb}</span><span className="block text-sm text-sub">{r.jobNumber} · {r.what}</span></span>
-                <span className="text-right"><span className="block font-bold">{aud(r.amount)}</span><span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-bold ${TONE[p.tone]}`}>{r.state.kind === "coming" ? `Expected ${p.label.replace("Coming ", "")}` : r.state.kind === "checking" ? "Waiting" : p.label}</span></span>
+                <span className="text-right"><span className="block font-bold">{aud(r.amount)}</span><span className={`mt-1 inline-block rounded-[18px] px-2.5 py-0.5 text-[11px] font-semibold ${TONE[p.tone]}`}>{r.state.kind === "coming" ? `Expected ${p.label.replace("Coming ", "")}` : r.state.kind === "checking" ? "Waiting" : p.label}</span></span>
               </li>); })}</ul> : <p className={`${card} text-sm`}>None right now.</p>}
           </section>
         );
