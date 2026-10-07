@@ -1,3 +1,4 @@
+import { JOB_LIST_COLUMNS } from "@/lib/job-list-columns";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,7 +22,7 @@ function OwnerHome() {
       const { data: owner } = await supabase.from("owners").select("id").eq("user_id", uid);
       const ids = (owner ?? []).map((o) => o.id);
       if (!ids.length) return [];
-      return (await supabase.from("job_overview").select("*").in("owner_id", ids).not("stage", "eq", "cancelled").order("created_at", { ascending: false })).data ?? [];
+      return (await supabase.from("job_overview").select(JOB_LIST_COLUMNS).in("owner_id", ids).not("stage", "eq", "cancelled").order("created_at", { ascending: false })).data ?? [];
     },
   });
   if (!isLoading && jobs?.length === 1) return <Navigate to="/owner/$jobId" params={{ jobId: jobs[0]!.id! }} />;
