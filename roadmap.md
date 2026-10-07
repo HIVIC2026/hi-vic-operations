@@ -28,6 +28,14 @@
 - [ ] C (not started; needs office sign-in for screenshots, 01-entire-portal.html not attached) Office phase 2 restyle (Needs me, Leads, Pipeline, job page, Partners, application review, Money, Settings); use 01-entire-portal.html if attached; visual only
 - [ ] Tests + journey; screenshots 390/1280 to Files office-redesign
 
+## Installer onboarding + view (Jo, 8 Oct 8:23am) — TOP
+- [x] EEC-only CII: form asks issuing body (must be EEC), office flags non-EEC, Approve blocks non-EEC
+- [x] My business → Team: add installer (name, EEC CII number, email); office verifies on Staff approvals; unverified can't be assigned
+- [x] ID-photo-out-front note on every day page; Mitti placeholder wording
+- [x] Installer test 32/32; screenshots in Files installer-view-final
+- [ ] Page-by-page restyle vs Jo's 6 Oct design file + measured <2s phone load per page
+- [ ] Live welcome email to a real installer (first one will be Cozy)
+
 ## Next
 - [ ] Partner applications (Jo, 7 Oct; after automation settings): office view shows EVERY onboarding question + answer grouped by step (all of rec_onboarding_applications.data), bank masked to last 3, blanks "Not answered", Print / PDF; jobs-per-week (installer + electrician) and installers/crews (installer) for NEW applicants; existing show "Not asked (onboarded before this question)" — NO "One more question" task / no contact to onboarded partners incl. Deep (per earlier change; awaiting confirmation since resend asked for it); verify on Deep 52760973 + screenshot; send nothing.
 - [ ] Move real owner/partner emails from the Base44 delivery bridge to Resend (Lovable sends); keep sending OFF.
