@@ -86,7 +86,9 @@ export type ImportField = (typeof IMPORT_FIELDS)[number];
 export type Extracted = Partial<Record<ImportField, Fact>> & { quote_lines?: { description: string; amount: number | null }[] };
 
 /** Required to create a job; everything else is optional context. */
-export const REQUIRED_IMPORT_FIELDS: ImportField[] = ["full_name", "email", "address_line"];
+// Every customer needs name, full address, email and phone (Jo, 7 Oct) — plus the installer's contact-permission tick.
+export const REQUIRED_IMPORT_FIELDS: ImportField[] = ["full_name", "email", "phone", "address_line", "suburb", "postcode"];
+export const ONE_JOB_PERMISSION_WORDING = "I confirm this customer is happy for Home Insulation Victoria to contact them.";
 export const FIELD_LABEL: Record<ImportField, string> = {
   full_name: "Owner name", email: "Owner email", phone: "Owner phone", address_line: "Street address", suburb: "Suburb", postcode: "Postcode",
   external_reference: "Your job / lead reference", measured_area_m2: "Measured ceiling area (m²)", removal_required: "Removal required",

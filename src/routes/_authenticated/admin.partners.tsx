@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import type { Tables } from "@/integrations/supabase/types";
 import { useServerFn } from "@tanstack/react-start";
 import { getAdminPartnerEnquiries } from "@/lib/admin-records.functions";
-import { activatePartnerApplication, createPartnerLogin, listCertificationLevels, listWorkerCertifications, recordCertificationLevel, recordWorkerCertification } from "@/lib/partner-activation.functions";
+import { activatePartnerApplication, createPartnerLogin, decidePartnerApplication, getApplicationReview, listCertificationLevels, listWorkerCertifications, recordCertificationLevel, recordWorkerCertification } from "@/lib/partner-activation.functions";
 import type { InstData } from "@/lib/installer-onboarding.core";
 import { OnboardingDrafts } from "@/components/portal/onboarding-drafts";
 import { openFileViewer } from "@/components/portal/file-viewer";
@@ -193,7 +193,7 @@ function SignedRecAgreement({ id }: { id: string }) {
           <div className="break-all text-xs text-muted-foreground">SHA-256 {r.agreement_sha256} · IP {r.signed_ip ?? "—"}</div>
           {r.certificateUrl && <button type="button" className="text-primary underline" onClick={() => openFileViewer(r.certificateUrl, "Certificate of Currency")}>Open Certificate of Currency</button>}
           {((r.data as InstData | null)?.installers ?? []).length > 0 && <WorkerCertifications applicationId={id} installers={(r.data as InstData).installers ?? []} />}
-          {r.activation ? <><p className="rounded bg-success-soft p-2 font-semibold text-success">Activated as an approved partner business on {new Date(r.activation.activated_at).toLocaleDateString("en-AU")}.</p><PartnerLogin applicationId={id} defaultEmail={(r.data as { business_email?: string } | null)?.business_email ?? ""} /></> : <div className="space-y-2"><p className="text-xs text-muted-foreground">Approval accepts the proposed supplier rates shown in the signed agreement and creates the partner file. It does not create worker logins.</p><RateOfferPanel applicationId={id} onActivate={async () => { await activate({ applicationId: id }, "Partner activated"); await q.refetch(); }} /></div>}
+          {r.activation ? <><p className="rounded bg-success-soft p-2 font-semibold text-success">Activated as an approved partner business on {new Date(r.activation.activated_at).toLocaleDateString("en-AU")}.</p><PartnerLogin applicationId={id} defaultEmail={(r.data as { business_email?: string } | null)?.business_email ?? ""} /></> : <div className="space-y-2"><ReviewDecision applicationId={id} /><p className="text-xs text-muted-foreground">Approval accepts the proposed supplier rates shown in the signed agreement and creates the partner file. It does not create worker logins.</p><RateOfferPanel applicationId={id} onActivate={async () => { await activate({ applicationId: id }, "Partner activated"); await q.refetch(); }} /></div>}
           <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap rounded bg-muted p-3 text-xs">{r.agreement_text}</pre>
         </div>
       ))}
@@ -201,6 +201,26 @@ function SignedRecAgreement({ id }: { id: string }) {
   );
 }
 
+
+/** Office: "Send back for changes" or "Decline" a signed installer application (Jo, 7 Oct). Emails are DRAFT wording. */
+function ReviewDecision({ applicationId }: { applicationId: string }) {
+  const decide = useAction(decidePartnerApplication);
+  const q = useQuery({ queryKey: ["application-review", applicationId], queryFn: () => getApplicationReview({ data: { applicationId } }) });
+  const [mode, setMode] = useState<null | "changes_requested" | "declined">(null);
+  const [msg, setMsg] = useState("");
+  const [link, setLink] = useState<string | null>(null);
+  const r = q.data;
+  if (q.isLoading) return null;
+  if (r) return <div className="rounded-lg border bg-muted/40 p-3 text-sm" data-review-decision><b>{r.decision === "declined" ? "Declined" : "Sent back for changes"}</b> on {new Date(r.created_at).toLocaleString("en-AU")}{r.message ? <> — “{r.message}”</> : null}<div className="text-xs text-muted-foreground">Email: {r.email_status === "sent" ? "sent" : "not sent"}{r.email_detail ? ` (${r.email_detail})` : ""}</div>{r.decision === "changes_requested" && <div className="text-xs text-muted-foreground">The re-signed application will come back here for approval.</div>}{link && <div className="mt-1 break-all text-xs">TEST link: {link}</div>}</div>;
+  return <div className="space-y-2 rounded-lg border p-3">
+    <div className="flex flex-wrap gap-2"><Button size="sm" variant={mode === "changes_requested" ? "default" : "outline"} onClick={() => setMode("changes_requested")}>Send back for changes</Button><Button size="sm" variant={mode === "declined" ? "destructive" : "outline"} onClick={() => setMode("declined")}>Decline</Button></div>
+    {mode && <>
+      <label className="block text-sm font-medium">{mode === "changes_requested" ? "What should they check?" : "Reason (shown in the email; leave blank for none)"}<Textarea className="mt-1" rows={3} value={msg} onChange={(e) => setMsg(e.target.value)} placeholder={mode === "changes_requested" ? "e.g. Please check your batts removal rate." : ""} /></label>
+      <p className="text-xs text-muted-foreground">Email wording is a draft awaiting Jo's approval. TEST applications email Jo's test inbox only; real installers are not emailed yet.</p>
+      <Button size="sm" disabled={mode === "changes_requested" && msg.trim().length < 3} onClick={async () => { const res = await decide({ applicationId, decision: mode, message: msg.trim() || null }, mode === "declined" ? "Application declined" : "Sent back for changes"); if (res) { setLink(res.testLink); await q.refetch(); } }}>{mode === "declined" ? "Decline application" : "Send back"}</Button>
+    </>}
+  </div>;
+}
 
 /** Office CII verification per nominated installer. Self-declared answers are shown but never count. */
 function WorkerCertifications({ applicationId, installers }: { applicationId: string; installers: NonNullable<InstData["installers"]> }) {

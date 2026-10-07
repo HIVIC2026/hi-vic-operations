@@ -28,7 +28,10 @@ async function findApp(token: string) {
   const { data, error } = await db.from("rec_onboarding_applications").select("*").eq("resume_token_hash", await sha256(token)).eq("partner_type", "installer").maybeSingle();
   if (error) throw new Error("Could not load your application.");
   if (!data) throw new Error("This onboarding link is no longer valid. Please start again.");
-  return { db, app: data };
+  // Office send-back: the same link opens the reopened draft (answers kept); a decline is shown, never hidden.
+  const { resolveReviewedApp } = await import("./application-review.server");
+  const r = await resolveReviewedApp(data, async (id) => (await db.from("rec_onboarding_applications").select("*").eq("id", id).maybeSingle()).data);
+  return { db, app: r.app, review: r.review, officeMessage: r.officeMessage };
 }
 
 // Loose schema: drafts may be partial; strict checks happen in stepErrors on submit.
@@ -97,7 +100,7 @@ export const startInstallerOnboarding = createServerFn({ method: "POST" })
 
 export const loadInstallerOnboarding = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ token: tokenSchema }).parse(d))
-  .handler(async ({ data }) => publicView((await findApp(data.token)).app));
+  .handler(async ({ data }) => { const f = await findApp(data.token); return { ...publicView(f.app), review: f.review, office_message: f.officeMessage }; });
 
 export const saveInstallerOnboarding = createServerFn({ method: "POST" })
   .middleware([withStartLimitStatus])

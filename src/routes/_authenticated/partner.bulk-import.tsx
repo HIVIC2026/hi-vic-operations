@@ -7,7 +7,7 @@ import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@/compo
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { CONTACT_PERMISSION_WORDING, gridToRecords, QUOTE_NEEDED_LABEL, reviewRowNotes, type FileResult, type LeadStage } from "@/lib/bulk-import.core";
+import { customerDetailsGaps, CONTACT_PERMISSION_WORDING, gridToRecords, QUOTE_NEEDED_LABEL, reviewRowNotes, type FileResult, type LeadStage } from "@/lib/bulk-import.core";
 import { TradeShell } from "@/components/trade/TradeShell";
 import { AlertCircle, CheckCircle2, ChevronDown, FileArchive, UploadCloud, Zap } from "lucide-react";
 
@@ -267,7 +267,7 @@ function BulkImportPage() {
     enabled: !!batchId,
   });
   const rows = (review?.rows ?? []) as unknown as ReviewRow[];
-  const missingAddr = rows.filter((r) => !r.duplicate_note && !skip.has(r.id) && !(r.extracted.address_line && r.extracted.postcode)).length;
+  const missingAddr = rows.filter((r) => !r.duplicate_note && !skip.has(r.id) && customerDetailsGaps(r.extracted).length > 0).length;
   const summary = review?.batch?.summary as { file_results?: FileResult[]; rows?: number; covers_ready_check?: number; needs_visit?: number; office_review?: number; duplicates?: number; not_visited?: number; visited?: number; visited_quoted?: number; quote_needed?: number; site_check_unclear?: number } | null;
   useEffect(() => {
     if (!rows.length) return;
@@ -390,7 +390,7 @@ function BulkImportPage() {
                 <Card key={r.id} className={`rounded-[18px] border border-estimate-line ${r.sort_result === "office_review" ? "border-workspace-blush-strong" : ""}`}>
                   <CardContent className="space-y-3 p-4">
                     <div className="flex items-start justify-between gap-3"><div><div className="font-display text-lg font-bold">{r.extracted.full_name ?? "Unnamed customer"}</div><div className="text-sm text-estimate-navy/70">{r.extracted.phone ?? r.extracted.email ?? "Contact missing"}</div></div><Checkbox aria-label={`Skip ${r.extracted.full_name ?? "customer"}`} checked={skip.has(r.id) || !!r.duplicate_note} onCheckedChange={(c) => { const s = new Set(skip); if (c) s.add(r.id); else s.delete(r.id); setSkip(s); }} /></div>
-                    <div className="text-sm">{r.extracted.address_line && r.extracted.postcode ? <>{r.extracted.address_line}, {[r.extracted.suburb, r.extracted.postcode].filter(Boolean).join(" ")}</> : <AddAddress row={r} onSaved={() => qc.invalidateQueries({ queryKey: ["bulk-review", batchId] })} />}</div>
+                    <div className="text-sm">{customerDetailsGaps(r.extracted).length === 0 ? <>{r.extracted.address_line}, {[r.extracted.suburb, r.extracted.postcode].filter(Boolean).join(" ")}</> : <AddAddress row={r} onSaved={() => qc.invalidateQueries({ queryKey: ["bulk-review", batchId] })} />}</div>
                     <div className="grid grid-cols-3 gap-2 text-center text-sm"><div className="rounded-lg bg-estimate-canvas p-2"><b>{r.extracted.area_m2 ? `${r.extracted.area_m2} m²` : "—"}</b><span className="block text-xs text-estimate-navy/70">Area</span></div><div className={`rounded-lg p-2 ${r.extracted.price_inc_gst ? "bg-estimate-canvas" : "bg-workspace-blush"}`}><b>{r.extracted.price_inc_gst ? `$${r.extracted.price_inc_gst.toLocaleString("en-AU")}` : "—"}</b><span className="block text-xs text-estimate-navy/70">{r.extracted.price_inc_gst ? "Your price inc GST" : QUOTE_NEEDED_LABEL}</span></div><div className="rounded-lg bg-estimate-canvas p-2"><b>{r.matched_files.length}</b><span className="block text-xs text-estimate-navy/70">Files</span></div></div>
                     {r.extracted.price_inc_gst ? <p className="text-sm"><b>Price includes:</b> {r.extracted.price_includes ?? <span className="text-estimate-navy/70">not stated</span>}</p> : null}
                     <SiteCheckPicker value={rowChecks[r.id] ?? { check: null, date: null }} fromFile={r.extracted.site_check_source === "file" && r.extracted.site_check != null} installed={r.import_stage === "installed"}
@@ -402,7 +402,7 @@ function BulkImportPage() {
               ))}
             </div>
             <p className="text-sm text-estimate-navy/70">Confirming creates the jobs only — nothing is sent to any customer. If a price was included, a draft quote is prepared for office review using your price exactly as given. Jobs without a price are marked "Quote needed from installer".</p>
-            {missingAddr > 0 && <p className="text-sm text-destructive">{missingAddr} customer{missingAddr > 1 ? "s need" : " needs"} an address — add it in the table above, or tick Skip.</p>}
+            {missingAddr > 0 && <p className="text-sm text-destructive">{missingAddr} customer{missingAddr > 1 ? "s need" : " needs"} details added (name, address, email and phone) — add them in the table above, or tick Skip.</p>}
             <Button size="field" className="w-full" disabled={busy || summary.rows === 0 || missingAddr > 0 || rows.some((r) => !skip.has(r.id) && !r.duplicate_note && r.import_stage !== "installed" && !rowChecks[r.id]?.check) || rows.some((r) => r.sort_result === "office_review" && !skip.has(r.id))} onClick={confirmAll}>{busy ? "Adding…" : `Add ${rows.filter((r) => !skip.has(r.id) && !r.duplicate_note).length} jobs`}</Button>
           </CardContent>
         </Card>
@@ -440,27 +440,39 @@ function ElectricianChoice({ value, onChange, approved, pending, compact = false
   return <div className={compact ? "rounded-lg bg-estimate-canvas p-3" : "rounded-[18px] border border-estimate-line bg-card p-4"}><div className="mb-2 flex items-center gap-2"><Zap className="h-4 w-4 text-primary"/><b>{compact ? "Safety check" : "Who does the electrical safety check?"}</b></div><div className="grid gap-2 sm:grid-cols-3"><Button type="button" variant={value.mode === "mine" ? "default" : "outline"} onClick={pickFirst}>Use my electrician{compact ? "" : " for all"}</Button><Button type="button" variant={value.mode === "hivic" ? "default" : "outline"} onClick={() => onChange({ mode: "hivic" })}>Use Home Insulation Victoria{compact ? "" : " electricians for all"}</Button>{!compact && <Button type="button" variant={value.mode === "job_by_job" ? "default" : "outline"} onClick={() => onChange({ mode: "job_by_job" })}>Choose job by job</Button>}</div>{value.mode === "mine" && <div className="mt-3"><select aria-label="My electrician" className="h-12 w-full rounded-md border bg-background px-3" value={selected} onChange={(e) => { const [k,id] = e.target.value.split(":"); if (!id) return; onChange(k === "b" ? { mode: "mine", business_id: id } : { mode: "mine", nomination_id: id }); }}><option value="">Choose your electrician</option>{options.map((x) => <option key={x.key} value={x.key}>{x.name} · {x.status}</option>)}</select>{!compact && <Button type="button" variant="ghost" className="mt-1" onClick={() => setAdding(!adding)}>+ Add electrician</Button>}</div>}{adding && draft && setDraft && add && <div className="mt-3 grid gap-2 rounded-lg bg-estimate-canvas p-3 sm:grid-cols-2"><Input placeholder="Name" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })}/><Input placeholder="Mobile" value={draft.mobile} onChange={(e) => setDraft({ ...draft, mobile: e.target.value })}/><Input placeholder="Business name (if any)" value={draft.business} onChange={(e) => setDraft({ ...draft, business: e.target.value })}/><Input placeholder="Email (if you have it)" value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })}/><Button className="sm:col-span-2" disabled={draft.name.trim().length < 2 || draft.mobile.replace(/\D/g, "").length < 8} onClick={add}>Save electrician</Button></div>}{value.mode === "mine" && selected && <p className="mt-2 flex items-center gap-1 text-xs text-estimate-navy/70"><CheckCircle2 className="h-3.5 w-3.5"/>They get first choice. There is no automatic fallback or reassignment.</p>}{value.mode === "mine" && !selected && <p className="mt-2 flex items-center gap-1 text-xs text-destructive"><AlertCircle className="h-3.5 w-3.5"/>Choose or add an electrician before adding jobs.</p>}</div>;
 }
 
+/** "Customer details needed": the installer adds whatever is missing (name, full address, email, phone) before Confirm. */
 function AddAddress({ row, onSaved }: { row: ReviewRow; onSaved: () => void }) {
   const save = useServerFn(setBulkRowAddress);
-  const [line, setLine] = useState(row.extracted.address_line ?? "");
-  const [suburb, setSuburb] = useState(row.extracted.suburb ?? "");
-  const [pc, setPc] = useState(row.extracted.postcode ?? "");
+  const x = row.extracted;
+  const [name, setName] = useState(x.full_name ?? "");
+  const [email, setEmail] = useState(x.email ?? "");
+  const [phone, setPhone] = useState(x.phone ?? "");
+  const [line, setLine] = useState(x.address_line ?? "");
+  const [suburb, setSuburb] = useState(x.suburb ?? "");
+  const [pc, setPc] = useState(x.postcode ?? "");
   const [busy, setBusy] = useState(false);
+  const gaps = customerDetailsGaps({ full_name: name, email, phone, address_line: line, suburb, postcode: pc });
   return (
-    <div className="space-y-1">
-      <p className="text-xs font-medium text-destructive">No address found — please add it</p>
+    <div className="space-y-1" data-customer-details-needed>
+      <p className="text-xs font-semibold text-destructive">Customer details needed — please add the {customerDetailsGaps(x).join(", ")}</p>
+      <Input aria-label="Customer name" placeholder="Customer name" value={name} onChange={(e) => setName(e.target.value)} />
+      <div className="flex gap-1">
+        <Input aria-label="Email" placeholder="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <Input aria-label="Phone" placeholder="Phone" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+      </div>
       <Input aria-label="Street address" placeholder="Street address" value={line} onChange={(e) => setLine(e.target.value)} />
       <div className="flex gap-1">
         <Input aria-label="Suburb" placeholder="Suburb" value={suburb} onChange={(e) => setSuburb(e.target.value)} />
         <Input aria-label="Postcode" placeholder="Postcode" className="w-24" inputMode="numeric" value={pc} onChange={(e) => setPc(e.target.value)} />
       </div>
-      <Button size="sm" variant="outline" disabled={busy || line.trim().length < 3 || !/^3\d{3}$/.test(pc.trim())}
+      {gaps.length > 0 && <p className="text-xs text-estimate-navy/70">Still needed: {gaps.join(", ")}</p>}
+      <Button size="sm" variant="outline" disabled={busy || gaps.length > 0 || !/^3\d{3}$/.test(pc.trim())}
         onClick={async () => {
           setBusy(true);
-          try { await save({ data: { rowId: row.id, address_line: line, suburb: suburb || null, postcode: pc } }); toast.success("Address added"); onSaved(); }
+          try { await save({ data: { rowId: row.id, full_name: name, email, phone, address_line: line, suburb, postcode: pc } }); toast.success("Customer details saved"); onSaved(); }
           catch (e) { toast.error((e as Error).message); }
           finally { setBusy(false); }
-        }}>Save address</Button>
+        }}>Save customer details</Button>
     </div>
   );
 }

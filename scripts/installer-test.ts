@@ -135,7 +135,7 @@ const PAGE_FIELDS: Record<string, (keyof InstData)[]> = {
 };
 const PDF = Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n");
 
-async function sectionA(steps: Step[], tag: string, screens: Screen[], ctx: { appId?: string; enquiryId?: string; data?: InstData }) {
+async function sectionA(steps: Step[], tag: string, screens: Screen[], ctx: { appId?: string; enquiryId?: string; data?: InstData; extraAppIds?: string[] }) {
   await step(steps, "A1", "A1 Fill in all 9 application pages, upload insurance, sign", async (c) => {
     const full = application(tag);
     const token = randomBytes(32).toString("base64url");
@@ -258,14 +258,43 @@ async function sectionA(steps: Step[], tag: string, screens: Screen[], ctx: { ap
     void isAllowlisted;
   });
 
-  await step(steps, "A5", "A5 Office request changes / decline, and what the installer sees", async (c) => {
+  await step(steps, "A5", "A5 Office send back for changes / decline, and what the installer sees", async (c) => {
     if (!ctx.enquiryId) throw new Fail("no signed application (A1 failed)");
-    const src = readFileSync(new URL("../src/lib/portal.functions.ts", import.meta.url), "utf8") + readFileSync(new URL("../src/lib/partner-activation.functions.ts", import.meta.url), "utf8");
-    c("office can request changes on a signed application", /request_?changes|changes_requested/i.test(src), "no request-changes action exists — needs Jo's decision on how it should work");
-    await admin.from("partner_enquiries").update({ status: "declined", declined_at: new Date().toISOString() }).eq("id", ctx.enquiryId);
-    const { data: a } = await admin.from("rec_onboarding_applications").select("status").eq("id", ctx.appId!).single();
-    c("office decline is recorded", true);
-    c("installer is told about the decline", a?.status !== "submitted", "the installer's link still shows 'submitted' and no message is queued — needs Jo's wording and decision");
+    const rv = await import("../src/lib/application-review.server");
+    const load = async (id: string) => (await admin.from("rec_onboarding_applications").select("*").eq("id", id).maybeSingle()).data as never;
+    const ACTOR = await userId(JOURNEY_ACTOR_EMAIL);
+    const back = await rv.decideApplication(ACTOR, ctx.appId!, "changes_requested", "Please check your batts removal rate.");
+    c("send back: email goes to the TEST inbox only", back.email.status === "sent", `${back.email.status}: ${back.email.detail}`);
+    const orig = await load(ctx.appId!) as { status: string; data: unknown };
+    c("send back: the signed original stays signed and untouched", orig.status === "submitted");
+    const seen = await rv.resolveReviewedApp(orig as never, load);
+    const draft = seen.app as { id: string; status: string; data: unknown; updated_at: string };
+    c("send back: the existing link opens a draft with every answer kept", draft.status === "draft" && JSON.stringify(draft.data) === JSON.stringify(orig.data));
+    c("send back: the office message shows at the top", seen.officeMessage === "Please check your batts removal rate.", String(seen.officeMessage));
+    const { data: enq } = await admin.from("partner_enquiries").select("status").eq("id", ctx.enquiryId).single();
+    c("send back: original leaves the approval queue", (enq as { status: string }).status === "closed");
+    const text = agreementText(signedData(draft as never));
+    await performInstallerSign(draft as never, {
+      signer_name: ctx.data!.primary_contact_name!, signer_position: "Director", signer_email: ctx.data!.business_email!, acknowledgements: Object.fromEntries(ACKNOWLEDGEMENTS.map((k) => [k.key, true])),
+      agreement_version: INSTALLER_AGREEMENT_VERSION, expected_updated_at: draft.updated_at, agreement_sha256: await sha256(text),
+    } as never, { ip: "203.0.113.9", userAgent: "installer-test" }, {
+      sha256, signAtomic: async (x) => {
+        const { data: rows, error: se } = await admin.rpc("sign_installer_application" as never, { _app_id: x.appId, _expected_updated_at: x.expectedUpdatedAt, _agreement_sha256: x.agreementSha256, _enquiry: x.enquiry, _signed: x.signed, _nominations: x.nominations } as never);
+        if (se) throw new Error(se.message);
+        return (rows as unknown as { outcome: "signed"; partner_enquiry_id: string; signed_at: string }[])[0]!;
+      },
+    });
+    const resigned = await load(draft.id) as { status: string; agreement_version: string; partner_enquiry_id: string | null };
+    c("re-signed on the latest agreement and back in office review", resigned.status === "submitted" && resigned.agreement_version === INSTALLER_AGREEMENT_VERSION && !!resigned.partner_enquiry_id, `${resigned.status} ${resigned.agreement_version}`);
+    const dec = await rv.decideApplication(ACTOR, draft.id, "declined", "");
+    c("decline: email goes to the TEST inbox only", dec.email.status === "sent", `${dec.email.status}: ${dec.email.detail}`);
+    const after = await rv.resolveReviewedApp(orig as never, load);
+    c("decline: the installer's link shows the decline", after.review === "declined");
+    const act = await import("../src/lib/partner-activation.functions");
+    void act;
+    const { data: blocked } = await admin.from("application_reviews" as never).select("decision").eq("application_id", draft.id).maybeSingle();
+    c("decline: approval is then refused", (blocked as { decision: string } | null)?.decision === "declined");
+    ctx.extraAppIds = [...(ctx.extraAppIds ?? []), draft.id];
   });
 }
 
@@ -367,7 +396,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     c("quoted price kept exactly ($2511.00)", Number(byName("Owner 1")?.extracted["price_inc_gst"]) === 2511, String(byName("Owner 1")?.extracted["price_inc_gst"]));
     c("site check Yes + quote = Visited/quoted", byName("Owner 1")?.import_stage === "quoted", byName("Owner 1")?.import_stage);
     c("site check No = Not visited", byName("Owner 2")?.import_stage === "not_visited", byName("Owner 2")?.import_stage);
-    c("blank site check is asked, never assumed Yes", byName("Owner 3")?.extracted["site_check"] == null && byName("Owner 3")?.import_stage === "not_visited", `${byName("Owner 3")?.extracted["site_check"]}/${byName("Owner 3")?.import_stage}`);
+    c("blank site check with a quote = Visited (Jo, 7 Oct 5:45pm)", ["visited", "quoted"].includes(String(byName("Owner 3")?.import_stage)) === !!byName("Owner 3")?.extracted["price_inc_gst"], `${byName("Owner 3")?.extracted["site_check"]}/${byName("Owner 3")?.import_stage}`);
     await confirm(u.batchId);
     const again = await confirm(u.batchId).then(() => "ok", (e) => (e as Error).message);
     const { data: rows } = await admin.from("bulk_import_rows").select("job_id").eq("batch_id", u.batchId).not("job_id", "is", null);
@@ -391,17 +420,17 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     c("customer found from the sentences", u.rows.length >= 1, String(u.rows.length));
     c("sentences only ('haven't been out yet') = Not visited", u.rows.every((r) => r.import_stage === "not_visited"), u.rows.map((r) => r.import_stage).join(", "));
   });
-  await step(steps, "C5", "C5 Photos only: never a dead end, held for checking, no guessed customer", async (c) => {
+  await step(steps, "C5", "C5 Photos only: never a dead end, Customer details needed, no guessed customer", async (c) => {
     const u = await upload(null, [{ name: "ceiling-1.jpg", mime: "image/jpeg" }, { name: "ceiling-2.jpg", mime: "image/jpeg" }]);
     c("no invented customer details", u.rows.every((r) => !r.extracted["email"] && !r.extracted["phone"]), `${u.rows.length} row(s)`);
-    c("anything found is held for the office", u.rows.every((r) => r.sort_result === "office_review"));
+    c("photos with no customer show 'Customer details needed'", u.rows.length > 0 && u.rows.every((r) => r.sort_reasons.some((x) => /^Customer details needed/.test(x))));
     c("photos only: rows found", u.rows.length > 0, "no row is made from photos alone (no customer) — the photos are kept for matching only");
-    c("Jo's rule 'photos mean Visited' — conflicts with the 7 Oct rule (blank site check = ask)", u.rows.length > 0 && u.rows.every((r) => r.import_stage === "visited"), "needs Jo's decision: photos alone currently mean 'please answer: site check done?'");
+    c("photos mean Visited (Jo, 7 Oct 5:45pm)", u.rows.length > 0 && u.rows.every((r) => r.import_stage === "visited"), "needs Jo's decision: photos alone currently mean 'please answer: site check done?'");
   });
   await step(steps, "C6", "C6 Messy file with missing columns", async (c) => {
     const u = await upload("messy.csv");
     c("rows read without crashing", u.rows.length >= 1, String(u.rows.length));
-    c("row with no contact/address held for checking with a reason", u.rows.filter((r) => !r.extracted["address_line"]).every((r) => r.sort_result === "office_review" && r.sort_reasons.length > 0));
+    c("row with no contact/address shows 'Customer details needed'", u.rows.filter((r) => !r.extracted["address_line"]).every((r) => r.sort_reasons.some((x) => /^Customer details needed/.test(x))));
   });
   await step(steps, "C7", "C7 Duplicate rows and an existing customer", async (c) => {
     const u = await upload("duplicates.csv");
@@ -419,7 +448,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
   await step(steps, "C9", "C9 Missing address: fix the row before Confirm", async (c) => {
     const u = await upload("missing-address.csv");
     const r = u.rows[0];
-    c("held with 'No address found'", !!r && r.sort_reasons.some((x) => /No address/.test(x)));
+    c("shows 'Customer details needed' for the address", !!r && r.sort_reasons.some((x) => /^Customer details needed.*address/.test(x)));
     if (!r) return;
     await bi.setRowAddress(r.id, { address_line: "41 Fixed St", suburb: "Fraser Rise", postcode: "3336" } as never, ownerId as never);
     const { data: fixed } = await admin.from("bulk_import_rows").select("extracted, sort_result").eq("id", r.id).single();
@@ -439,7 +468,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     c("draft created", !!imp.id);
     const bad = await pi.confirmImportFor(ownerId, { importId: imp.id, facts: { full_name: `TEST ${tag} Single`, email: "", phone: "", address_line: "", measured_area_m2: 100 }, installer: { site_check: "yes" } }).then(() => "accepted", (e) => (e as Error).message);
     c("missing address/contact refused with a clear message", bad !== "accepted" && bad.length > 10, bad);
-    const r = await pi.confirmImportFor(ownerId, { importId: imp.id, facts: { full_name: `TEST ${tag} Single`, email: `qa.owner.${tag.toLowerCase()}.single@hivic-test.example`, phone: "0412999001", address_line: "9 One Job Rd", suburb: "Fraser Rise", postcode: "3336", measured_area_m2: 104 }, installer: { site_check: "yes", site_check_date: "2026-10-02", quoted_price_inc_gst: 2987.65, price_includes: "R5 batts 104 m²" } });
+    const r = await pi.confirmImportFor(ownerId, { importId: imp.id, facts: { full_name: `TEST ${tag} Single`, email: `qa.owner.${tag.toLowerCase()}.single@hivic-test.example`, phone: "0412999001", address_line: "9 One Job Rd", suburb: "Fraser Rise", postcode: "3336", measured_area_m2: 104 }, installer: { contact_permission: true, site_check: "yes", site_check_date: "2026-10-02", quoted_price_inc_gst: 2987.65, price_includes: "R5 batts 104 m²" } });
     madeJobs.push(r.jobId);
     const { data: j } = await admin.from("jobs").select("installer_quoted_price_inc_gst, installer_site_check, source").eq("id", r.jobId).single();
     c("quoted price kept exactly ($2987.65)", Number(j?.installer_quoted_price_inc_gst) === 2987.65, String(j?.installer_quoted_price_inc_gst));
@@ -466,7 +495,7 @@ for (let run = 1; run <= RUNS; run++) {
   const outDir = `${root}/run-${run}`; mkdirSync(`${outDir}/screens`, { recursive: true });
   console.log(`\n=== Run ${run} (${tag}) ===`);
   const snap = await snapshot();
-  const steps: Step[] = []; const screens: Screen[] = []; const ctx: { appId?: string; enquiryId?: string; data?: InstData } = {};
+  const steps: Step[] = []; const screens: Screen[] = []; const ctx: { appId?: string; enquiryId?: string; data?: InstData; extraAppIds?: string[] } = {};
   try {
     await sectionA(steps, tag, screens, ctx);
     await sectionB(steps, screens, { owner: ownerId, staff: staffId });

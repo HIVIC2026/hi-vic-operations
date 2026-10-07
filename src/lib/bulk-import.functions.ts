@@ -155,8 +155,11 @@ export const addBulkElectrician = createServerFn({ method: "POST" }).middleware(
 export const setBulkRowAddress = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
     rowId: uuid,
+    full_name: z.string().trim().min(2, "Enter the customer's name").max(200),
+    email: z.string().trim().toLowerCase().email("Enter a valid email").max(320),
+    phone: z.string().trim().min(8, "Enter a phone number").max(30),
     address_line: z.string().trim().min(3).max(200),
-    suburb: z.string().trim().max(100).nullable(),
+    suburb: z.string().trim().min(2, "Enter the suburb").max(100),
     postcode: z.string().trim().regex(/^3\d{3}$/, "Enter a 4-digit Victorian postcode"),
   }).parse(d))
   .handler(async ({ data, context }) => {
@@ -167,7 +170,7 @@ export const setBulkRowAddress = createServerFn({ method: "POST" }).middleware([
     const { data: isAdmin } = await admin.rpc("has_role", { _user_id: context.userId, _role: "admin" });
     if (!isAdmin) await requireMember(context.userId, batch.business_id, true);
     const { setRowAddress } = await import("./bulk-import.server");
-    return setRowAddress(data.rowId, { address_line: data.address_line, suburb: data.suburb || null, postcode: data.postcode });
+    return setRowAddress(data.rowId, { full_name: data.full_name, email: data.email, phone: data.phone, address_line: data.address_line, suburb: data.suburb, postcode: data.postcode });
   });
 
 export const listBulkBatches = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
