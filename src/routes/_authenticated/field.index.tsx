@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ChevronRight, PlusCircle, UploadCloud, Zap } from "lucide-react";
 import { TradeShell, aud, card } from "@/components/trade/TradeShell";
+import { NowPanel, Pill, btnClass } from "@/components/portal/kit";
 import { getTradeHome } from "@/lib/trade-view.functions";
 import { dayTile, goneIn, tradeGreeting } from "@/lib/trade-view.core";
 
@@ -30,23 +31,24 @@ function MyWork() {
           <Link to="/partner/import" className="flex h-14 items-center justify-center gap-2 rounded-[18px] border border-line bg-paper px-3 font-bold text-estimate-blue"><PlusCircle className="h-5 w-5" />Add one job</Link>
         </div>
       )}
-      {first && (
-        <Link to="/field/offer/$offerId" params={{ offerId: first.id }} className="flex items-center gap-3 rounded-[18px] bg-estimate-navy p-4 text-estimate-canvas shadow-sm">
-          <Zap className="h-6 w-6 shrink-0 text-owner-house-pink" />
-          <span className="min-w-0 flex-1"><span className="block font-display text-lg font-bold">{data.offers.length} new job offer{data.offers.length === 1 ? "" : "s"}</span><span className="block truncate text-sm text-sub">{first.suburb ?? "Victoria"}{installer ? " · Ready Check" : ""}{first.expiresAt ? ` · ${(goneIn(first.expiresAt) ?? "").toLowerCase()}` : ""}</span></span>
-          <span className="rounded-full bg-estimate-green px-4 py-2 text-sm font-bold text-white">View</span>
-        </Link>
-      )}
+      {first ? (
+        <NowPanel attention eyebrow={`${data.offers.length} new job offer${data.offers.length === 1 ? "" : "s"}`} due={first.expiresAt ? goneIn(first.expiresAt) : undefined}
+          status={`${installer ? "Ready Check" : "Safety check"} in ${first.suburb ?? "Victoria"}`}
+          action={<Link to="/field/offer/$offerId" params={{ offerId: first.id }} className={btnClass("primary", "w-full md:w-auto")}>View offer</Link>} />
+      ) : data.yourMove[0] ? (
+        <NowPanel eyebrow="Your next step" status={data.yourMove[0].title} next={data.yourMove[0].detail}
+          action={<Link to="/field/$jobId" params={{ jobId: data.yourMove[0].jobId }} className={btnClass("primary", "w-full md:w-auto")}>Open job</Link>} />
+      ) : null}
       {data.yourMove.length > 0 && (
         <section>
-          <h2 className="mb-2 flex items-center gap-2 font-display text-lg font-bold">Your move <span className="rounded-full bg-owner-house-pink px-2 text-sm">{data.yourMove.length}</span></h2>
+          <h2 className="mb-2 flex items-center gap-2 font-display text-base font-bold">Your move <Pill tone="rose">{data.yourMove.length}</Pill></h2>
           <div className="space-y-2">{data.yourMove.map((m) => (
             <Link key={m.jobId + m.title} to="/field/$jobId" params={{ jobId: m.jobId }} className="flex items-center gap-3 rounded-[18px] border border-line bg-paper hover:border-action p-4"><span className="min-w-0 flex-1"><span className="block font-bold">{m.title}</span><span className="block truncate text-sm text-sub">{m.detail}</span></span><ChevronRight className="h-5 w-5" /></Link>
           ))}</div>
         </section>
       )}
       <section>
-        <h2 className="mb-2 font-display text-lg font-bold">Coming up</h2>
+        <h2 className="mb-2 font-display text-base font-bold">Coming up</h2>
         {data.coming.length ? <div className="space-y-2">{data.coming.map((b) => { const t = dayTile(b.start); return (
           <Link key={b.jobId + b.start} to="/field/day/$jobId" params={{ jobId: b.jobId }} className="flex items-center gap-3 rounded-[14px] border border-line bg-paper p-3">
             <span className="flex w-20 shrink-0 flex-col items-center rounded-2xl bg-estimate-mist py-2"><span className="text-xs font-bold">{t.day}</span><span className="text-xs">{t.window}</span></span>
@@ -55,14 +57,14 @@ function MyWork() {
       </section>
       {data.jobs.length > 0 && (
         <section data-your-jobs>
-          <h2 className="mb-2 font-display text-lg font-bold">Your jobs <span className="text-sm font-semibold text-sub">{data.jobs.length}</span></h2>
+          <h2 className="mb-2 font-display text-base font-bold">Your jobs <span className="text-sm font-semibold text-sub">{data.jobs.length}</span></h2>
           <div className="space-y-2">{data.jobs.map((j) => (
             <Link key={j.jobId} to="/field/$jobId" params={{ jobId: j.jobId }} className="flex items-center gap-3 rounded-[14px] border border-line bg-paper p-3">
-              <span className="min-w-0 flex-1"><span className="block font-bold">{j.jobNumber} · {j.owner ?? "Owner"}</span><span className="block truncate text-sm text-sub">{j.address}</span><span className="block text-xs font-semibold text-estimate-blue">{j.status}</span><span className="mt-1 block"><InstallerFactsLine facts={j.facts} /></span></span><ChevronRight className="h-5 w-5" />
+              <span className="min-w-0 flex-1"><span className="block font-bold">{j.jobNumber} · {j.owner ?? "Owner"}</span><span className="block truncate text-sm text-sub">{j.address}</span><span className="mt-1 block"><Pill>{j.status}</Pill></span><span className="mt-1 block"><InstallerFactsLine facts={j.facts} /></span></span><ChevronRight className="h-5 w-5" />
             </Link>))}</div>
         </section>
       )}
-      {data.month && <section className="flex items-center justify-between rounded-[18px] bg-estimate-green-soft p-4">
+      {data.month && <section className="flex items-center justify-between rounded-[18px] border border-line bg-mint p-4">
         <span><span className="block text-xs font-bold uppercase tracking-wide">This month</span><span className="font-bold">{data.month.jobs} {installer ? `install${data.month.jobs === 1 ? "" : "s"}` : `job${data.month.jobs === 1 ? "" : "s"}`} done</span></span>
         <span className="font-display text-2xl font-bold">{aud(data.month.earned)}</span>
       </section>}
