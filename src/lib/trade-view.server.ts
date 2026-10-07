@@ -182,11 +182,12 @@ export async function tradeDay(jobId: string, userId: string) {
   const { data: asg } = await assignmentQuery(c, userId).eq("job_id", jobId).limit(1).maybeSingle();
   if (!asg) throw new WorkflowError("This job isn't assigned to you.");
   const kinds = c.kind === "installer" ? ["installation", "ready_check"] : ["assessment", "rectification"];
-  const [{ data: bks }, { data: j }, { data: a }, { data: rc }, { data: q }, { data: miss }, { data: ws }, { data: fixes }] = await Promise.all([
+  const [{ data: bks }, { data: j }, { data: a }, { data: rc }, { data: cm }, { data: q }, { data: miss }, { data: ws }, { data: fixes }] = await Promise.all([
     admin.from("bookings").select("kind, scheduled_start, scheduled_end, status").eq("job_id", jobId).in("kind", kinds as never).neq("status", "cancelled").order("scheduled_start", { ascending: false }),
     admin.from("jobs").select("job_number, stage, eligibility_outcome, owners(full_name, phone), properties(address_line, suburb, postcode)").eq("id", jobId).single(),
     admin.from("assessments").select("status, piesa_outcome, external_mitti_id").eq("job_id", jobId).maybeSingle(),
     admin.from("ready_checks").select("status, submitted_at, external_mitti_id").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("ceiling_measurements").select("external_source, external_id").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
     admin.from("quotes").select("id").eq("job_id", jobId).eq("kind", "installation").limit(1).maybeSingle(),
     admin.from("evidence_requirements").select("label").eq("job_id", jobId).eq("required", true).in("status", ["outstanding", "rejected"]),
     admin.from("workflow_settings").select("mitti_piesa_template_id").eq("id", 1).maybeSingle(),
@@ -207,7 +208,7 @@ export async function tradeDay(jobId: string, userId: string) {
     address: fullAddress(p?.address_line, p?.suburb, p?.postcode), start: b?.scheduled_start ?? null, end: b?.scheduled_end ?? null, outcome,
     // Mitti stays invisible to partners until the office ticks "Mitti account invited".
     mittiInvited: c.biz.mitti_account_invited === true,
-    mittiReady: dayKind === "safety_check" ? !!ws?.mitti_piesa_template_id : false, mittiId: c.biz.mitti_account_invited === true ? (dayKind === "ready_check" ? rc?.external_mitti_id : a?.external_mitti_id) ?? null : null,
+    mittiReady: dayKind === "safety_check" ? !!ws?.mitti_piesa_template_id : false, mittiId: c.biz.mitti_account_invited === true ? (dayKind === "ready_check" ? rc?.external_mitti_id ?? (cm?.external_source === "mitti" ? cm.external_id : null) : a?.external_mitti_id) ?? null : null,
   };
 }
 
