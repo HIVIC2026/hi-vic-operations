@@ -25,6 +25,8 @@ export const activatePartnerApplication = createServerFn({ method: "POST" }).mid
     if (error || !app) throw new WorkflowError("Application not found.");
     const { data: existing } = await admin.from("partner_activations").select("business_id, rate_card_id").eq("application_id", data.applicationId).maybeSingle();
     if (existing) return { ...existing, alreadyActivated: true as const };
+    const { data: decided } = await admin.from("application_reviews" as never).select("decision").eq("application_id", data.applicationId).maybeSingle();
+    if (decided) throw new WorkflowError((decided as { decision: string }).decision === "declined" ? "This application was declined." : "This application was sent back for changes — approve the re-signed one instead.");
     if (app.status !== "submitted" || !app.partner_enquiry_id) throw new WorkflowError("A complete signed application is required.");
     if (app.test_mode) throw new WorkflowError("Test applications can never be approved as real partners.");
     const { data: testMark } = await admin.from("onboarding_test_marks").select("application_id").eq("application_id", app.id).maybeSingle();
@@ -158,4 +160,23 @@ export const createPartnerLogin = createServerFn({ method: "POST" }).middleware(
     const link = await (await import("./set-password-link.server")).issueSetPasswordLink(data.email);
     await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: "partner_login_created", summary: `Office created partner login ${data.email} (nothing sent)`, details: { business_id: act.business_id, user_id: uid, application_id: data.applicationId } });
     return { email: data.email, link };
+  });
+
+/** Office: send a signed installer application back for changes, or decline it (Jo, 7 Oct). */
+export const decidePartnerApplication = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ applicationId: uuid, decision: z.enum(["changes_requested", "declined"]), message: z.string().max(2000).nullable() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { decideApplication } = await import("./application-review.server");
+    return decideApplication(context.userId, data.applicationId, data.decision, data.message);
+  });
+
+/** Office: the recorded decision (if any) for one application. */
+export const getApplicationReview = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ applicationId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const { data: r } = await admin.from("application_reviews" as never).select("decision,message,email_status,email_detail,created_at,reopened_application_id").eq("application_id", data.applicationId).maybeSingle();
+    return (r as { decision: string; message: string | null; email_status: string; email_detail: string | null; created_at: string; reopened_application_id: string | null } | null) ?? null;
   });

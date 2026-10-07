@@ -7,9 +7,10 @@ import { TradeShell } from "@/components/trade/TradeShell";
 import { Button, Section } from "@/components/trade/trade-ui";
 import { useAction } from "@/hooks/use-me";
 import { confirmImport, createImport, discardImport, getPartnerProfile, partnerUploadUrl } from "@/lib/pilot.functions";
-import { parseCsv, reviewItems, type Extracted, type ImportField } from "@/lib/pilot.core";
+import { ONE_JOB_PERMISSION_WORDING, parseCsv, reviewItems, type Extracted, type ImportField } from "@/lib/pilot.core";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export const Route = createFileRoute("/_authenticated/partner/import")({
   head: () => ({ meta: [{ title: "Import Existing Job – Home Insulation Victoria Partner Portal" }, { name: "description", content: "Bring an existing customer job into Home Insulation Victoria without retyping it." }, { property: "og:title", content: "Import Existing Job – Home Insulation Victoria Partner Portal" }, { property: "og:description", content: "Bring an existing customer job into Home Insulation Victoria without retyping it." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -95,6 +96,7 @@ function Review({ draft, onBack }: { draft: Draft; onBack: () => void }) {
   const numeric: ImportField[] = ["measured_area_m2", "removal_m2", "existing_r_value", "r_value"];
   // Same three facts as bulk upload (Jo, 7 Oct): his quoted price exactly as given, what it includes, site check Y/N.
   const [siteCheck, setSiteCheck] = useState<"yes" | "no" | null>(null);
+  const [permission, setPermission] = useState(false);
   const [siteDate, setSiteDate] = useState("");
   const [price, setPrice] = useState("");
   const [includes, setIncludes] = useState("");
@@ -132,8 +134,9 @@ function Review({ draft, onBack }: { draft: Draft; onBack: () => void }) {
             <Textarea rows={3} className="mt-1" value={includes} onChange={(e) => setIncludes(e.target.value)} /></label> : null}
         </div>
       </Section>
+      <label className="flex items-start gap-3 rounded-[18px] border border-estimate-line bg-card p-4 text-sm"><Checkbox className="mt-0.5" checked={permission} onCheckedChange={(c) => setPermission(c === true)} aria-label={ONE_JOB_PERMISSION_WORDING} /><span>{ONE_JOB_PERMISSION_WORDING}</span></label>
       <p className="text-xs text-estimate-navy/70">Confirming creates the job only — nothing is sent to the owner. Your price is used exactly as you give it.</p>
-      <Button size="field" className="w-full" disabled={!siteCheck || priceBad} onClick={async () => { const r = await confirm({ importId: draft.id, facts: out(), installer: { site_check: siteCheck!, site_check_date: siteCheck === "yes" && siteDate ? siteDate : null, quoted_price_inc_gst: priceNum, price_includes: includes.trim() || null } }, "Job added"); if (r) navigate({ to: "/field/$jobId", params: { jobId: r.jobId } }); }}>Add this job</Button>
+      <Button size="field" className="w-full" disabled={!siteCheck || priceBad || !permission} onClick={async () => { const r = await confirm({ importId: draft.id, facts: out(), installer: { site_check: siteCheck!, site_check_date: siteCheck === "yes" && siteDate ? siteDate : null, quoted_price_inc_gst: priceNum, price_includes: includes.trim() || null, contact_permission: permission } }, "Job added"); if (r) navigate({ to: "/field/$jobId", params: { jobId: r.jobId } }); }}>Add this job</Button>
       <div className="grid grid-cols-2 gap-2"><Button variant="outline" onClick={onBack}>Back</Button><Button variant="ghost" onClick={async () => { await discard({ importId: draft.id }, "Draft discarded"); onBack(); }}>Discard draft</Button></div>
     </div>
   );

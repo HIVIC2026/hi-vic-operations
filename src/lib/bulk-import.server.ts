@@ -13,7 +13,7 @@ import { hashToken, newToken } from "./worker-links.core";
 import { linkFiles, type LeadStage } from "./bulk-import.core";
 import { applyDiscountRules, discountNotes, wholeVeecDiscount } from "./estimate.core";
 import {
-  cleanLead, gridToRecords, dedupeKey, parseSiteCheck, QUOTE_NEEDED_LABEL, quoteNeeded, siteCheckFromFile, siteCheckLabel, fileResults, findDuplicates, leadStage, type FileResult, LEAD_STAGE_LABEL, matchFiles, missingEvidence, normaliseAddress, sortJob,
+  customerDetailsReason, effectiveSiteCheck, cleanLead, gridToRecords, dedupeKey, parseSiteCheck, QUOTE_NEEDED_LABEL, quoteNeeded, siteCheckFromFile, siteCheckLabel, fileResults, findDuplicates, leadStage, type FileResult, LEAD_STAGE_LABEL, matchFiles, missingEvidence, normaliseAddress, sortJob,
   type BulkExtracted, type BulkFile,
 } from "./bulk-import.core";
 
@@ -230,7 +230,9 @@ export async function analyseBatch(batchId: string, actorId: string) {
   const rawRows = stored.raw_rows ?? [];
   const documents = stored.documents ?? [];
   // Never a dead end: with no list, leads still come from file/folder names, photo/PDF text and photo GPS.
-  const cleaned = (await aiExtractRows(rawRows, documents, manifest.map((f) => ({ name: f.path, folder: f.folder ?? null, geo_address: f.geo_address ?? null })))).map(cleanLead);
+  const cleaned0 = (await aiExtractRows(rawRows, documents, manifest.map((f) => ({ name: f.path, folder: f.folder ?? null, geo_address: f.geo_address ?? null })))).map(cleanLead);
+  // Photos with no customer details still make one row ("Customer details needed") so the installer can fill it in.
+  const cleaned = cleaned0.length || !manifest.length ? cleaned0 : [cleanLead<BulkExtracted>({ full_name: null, email: null, phone: null, address_line: null, suburb: null, postcode: null })];
   const extracted = cleaned.map((c) => c.lead);
   const existing = await existingPortalKeys();
   const dupNotes = findDuplicates(extracted, existing);
@@ -244,8 +246,9 @@ export async function analyseBatch(batchId: string, actorId: string) {
     const duplicate = dupNotes.has(i);
     const { result, reasons } = sortJob(e, { matchConfidence: confidence, duplicate });
     const stage = leadStage(e, matched.length);
-    const sc = siteCheckFromFile(e);
+    const sc = effectiveSiteCheck(e, matched.length);
     reasons.unshift(`Stage: ${LEAD_STAGE_LABEL[stage]}`, siteCheckLabel(sc.check, sc.date));
+    const gapReason = customerDetailsReason(e); if (gapReason) reasons.push(gapReason);
     if (quoteNeeded(e)) reasons.push(QUOTE_NEEDED_LABEL);
     reasons.push(...cleaned[i]!.issues);
     if (matched.some((m) => m.how === "only_lead")) reasons.push("Photos attached because this is the only customer in the upload — please check");
@@ -391,9 +394,10 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
       continue;
     }
     const e = row.extracted as unknown as BulkExtracted;
-    if (!e.address_line?.trim()) {
+    const gap = customerDetailsReason(e);
+    if (gap) {
       failed++;
-      await logPartner(null, actorId, "bulk_import_row_failed", `Row ${row.row_index + 1} has no address yet — add it in the review table, then confirm again`, { batch_id: batchId, row_id: row.id });
+      await logPartner(null, actorId, "bulk_import_row_failed", `Row ${row.row_index + 1}: ${gap} in the review table, then confirm again`, { batch_id: batchId, row_id: row.id });
       continue;
     }
     if (siteCheckFromFile(e).check == null && row.import_stage !== "installed") {
@@ -456,16 +460,18 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
 }
 
 /** Office/installer adds the missing address to a review row; the row is re-sorted (never auto-confirmed). */
-export async function setRowAddress(rowId: string, addr: { address_line: string; suburb: string | null; postcode: string | null }) {
+export async function setRowAddress(rowId: string, addr: { full_name?: string; email?: string; phone?: string; address_line: string; suburb: string | null; postcode: string | null }) {
   const { data: row } = await admin.from("bulk_import_rows").select("*").eq("id", rowId).single();
   if (!row || row.status !== "pending") throw new BulkImportError("This row can no longer be changed.");
-  const e = { ...(row.extracted as unknown as BulkExtracted), ...addr };
+  const { lead: e, issues } = cleanLead({ ...(row.extracted as unknown as BulkExtracted), ...addr });
+  if (customerDetailsReason(e)) throw new BulkImportError(`${customerDetailsReason(e)}.`);
+  if (issues.length) throw new BulkImportError(issues[0]!);
   const existing = await existingPortalKeys();
   const dn = findDuplicates([e], existing); const duplicate = dn.has(0);
   const { result, reasons } = sortJob(e, { matchConfidence: (row.match_confidence ?? "none") as "high" | "low" | "none", duplicate });
   const stage = (e as { lead_stage?: LeadStage }).lead_stage;
   if (stage) reasons.unshift(`Stage: ${LEAD_STAGE_LABEL[stage]}`);
-  reasons.push("Address added by hand in the review table");
+  reasons.push("Customer details added by hand in the review table");
   const { error } = await admin.from("bulk_import_rows").update({
     extracted: e as unknown as Json, sort_result: result, sort_reasons: reasons as unknown as Json,
     duplicate_note: dn.get(0) ?? null,

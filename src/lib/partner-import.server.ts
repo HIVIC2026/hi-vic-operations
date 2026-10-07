@@ -8,7 +8,7 @@ import { requireApprovedPartner, requireMember } from "./pilot.server";
 
 export type CreateImportInput = { businessId: string; sourceSystem: "easymate" | "manual_import" | "csv" | "email"; text?: undefined | string; csv?: undefined | string; csvRow: number; sourceUrl?: undefined | string; externalRefs?: undefined | Record<string, string>; files: { path: string; name: string; type: string }[] };
 export type ConfirmImportInput = { importId: string; facts: Record<string, string | number | boolean | null>; progress?: undefined | "not_visited" | "measured" | "quoted"; occupancy?: undefined | "owner_occupied" | "rental"; details?: undefined | Record<string, unknown>;
-  installer?: undefined | { site_check: "yes" | "no"; site_check_date?: undefined | string | null; quoted_price_inc_gst?: undefined | number | null; price_includes?: undefined | string | null } };
+  installer?: undefined | { site_check: "yes" | "no"; site_check_date?: undefined | string | null; quoted_price_inc_gst?: undefined | number | null; price_includes?: undefined | string | null; contact_permission?: undefined | boolean } };
 
 export async function createImportFor(userId: string, data: CreateImportInput) {
   const context = { userId };
@@ -43,6 +43,7 @@ export async function confirmImportFor(userId: string, data: ConfirmImportInput)
   if (!isInstaller) throw new WorkflowError("Only installer team members can confirm imported jobs.");
   const c = data.facts as ConfirmedFacts;
   const blockers = confirmBlockers(c);
+  if (data.installer?.contact_permission !== true) blockers.push("Tick to confirm the owner agreed to Home Insulation Victoria contacting them");
   if (blockers.length) throw new WorkflowError(blockers.join(" • "));
   const area = Number(c.measured_area_m2);
   if (!Number.isFinite(area) || area <= 0 || area > 5000) throw new WorkflowError("Enter the ceiling area (m²) before confirming — every job needs an area estimate.");
@@ -85,5 +86,6 @@ export async function confirmImportFor(userId: string, data: ConfirmImportInput)
   await admin.from("job_imports").update({ status: "confirmed", confirmed_facts: c as Json, confirmed_by: context.userId, confirmed_at: new Date().toISOString(), job_id: res.job_id, updated_at: new Date().toISOString() }).eq("id", imp.id);
   await logEvent(res.job_id, context.userId, "job_imported", `Imported from ${imp.source_system} by originating installer (confirmed by user)`, { import_id: imp.id, source_system: imp.source_system, external_refs: refs, relationship_owner: rel, measurement_imported: !!m, files: imp.files, progress: data.progress ?? null, ready_check_a1: data.details ?? null });
   if (pilotInvoice) await logEvent(res.job_id, context.userId, "commercial_model_set", "Pilot commercial route: full job invoiced by Home Insulation Victoria (split invoicing disabled)", { route: "hivic_full_invoice" });
+  await logEvent(res.job_id, userId, "installer_contact_permission", "Installer confirmed the owner agreed to Home Insulation Victoria contacting them", { import_id: data.importId, wording: (await import("./pilot.core")).ONE_JOB_PERMISSION_WORDING }, { internal: true });
   return { jobId: res.job_id, jobNumber: res.job_number };
 }

@@ -294,6 +294,7 @@ export const confirmImport = createServerFn({ method: "POST" }).middleware([requ
       site_check_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
       quoted_price_inc_gst: z.number().positive().max(1_000_000).nullish(),
       price_includes: z.string().trim().max(1000).nullish(),
+      contact_permission: z.boolean().optional(),
     }).optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {

@@ -41,6 +41,57 @@ export type Database = {
         }
         Relationships: []
       }
+      application_reviews: {
+        Row: {
+          application_id: string
+          created_at: string
+          created_by: string
+          decision: string
+          email_detail: string | null
+          email_status: string
+          id: string
+          message: string | null
+          reopened_application_id: string | null
+        }
+        Insert: {
+          application_id: string
+          created_at?: string
+          created_by: string
+          decision: string
+          email_detail?: string | null
+          email_status?: string
+          id?: string
+          message?: string | null
+          reopened_application_id?: string | null
+        }
+        Update: {
+          application_id?: string
+          created_at?: string
+          created_by?: string
+          decision?: string
+          email_detail?: string | null
+          email_status?: string
+          id?: string
+          message?: string | null
+          reopened_application_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_reviews_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "rec_onboarding_applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "application_reviews_reopened_application_id_fkey"
+            columns: ["reopened_application_id"]
+            isOneToOne: true
+            referencedRelation: "rec_onboarding_applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       appointment_proposals: {
         Row: {
           assignment_id: string | null

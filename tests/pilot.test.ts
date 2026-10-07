@@ -51,9 +51,9 @@ describe("import", () => {
   });
   test("missing required facts are flagged and block confirmation", () => {
     const x = extractFromText("hello, please quote this");
-    expect(reviewItems(x).filter((i) => i.flagged).map((i) => i.key)).toEqual(["full_name", "email", "address_line"]);
-    expect(confirmBlockers({})).toHaveLength(3);
-    expect(confirmBlockers({ full_name: "A", email: "bad", address_line: "1 St" })).toEqual(["Owner email looks invalid"]);
+    expect(reviewItems(x).filter((i) => i.flagged).map((i) => i.key)).toEqual(["full_name", "email", "phone", "address_line", "suburb", "postcode"]);
+    expect(confirmBlockers({})).toHaveLength(6);
+    expect(confirmBlockers({ full_name: "A", email: "bad", phone: "0412345678", address_line: "1 St", suburb: "Ballarat", postcode: "3350" })).toEqual(["Owner email looks invalid"]);
   });
   test("CSV export maps columns; conflicting sources become uncertain rather than overwritten", () => {
     const rows = parseCsv('customer_name,email,address,suburb,postcode,ceiling_area\n"Smith, Jane",jane@example.com,12 Example St,Brunswick,3056,120\n');

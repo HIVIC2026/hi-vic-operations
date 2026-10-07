@@ -172,6 +172,8 @@ function InstallerOnboarding() {
   const [d, setD] = useState<InstData>({});
   const [step, setStep] = useState<StepKey>("about");
   const [status, setStatus] = useState<"draft" | "submitted">("draft");
+  const [review, setReview] = useState<"with_office" | "changes_requested" | "declined">("with_office");
+  const [officeMessage, setOfficeMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [addressPending, setAddressPending] = useState(false);
   const navigationLock = useRef(false);
@@ -206,12 +208,16 @@ function InstallerOnboarding() {
       setLoaded(true); return;
     }
     if (new URLSearchParams(window.location.search).get("reset") === "1") { localStorage.removeItem(TOKEN_KEY); setLoaded(true); return; }
+    // "Update my application" email link: adopt its token, then drop it from the address bar.
+    const resume = new URLSearchParams(window.location.search).get("resume");
+    if (resume && /^[A-Za-z0-9_-]{20,100}$/.test(resume)) { localStorage.setItem(TOKEN_KEY, resume); window.history.replaceState(null, "", window.location.pathname); }
     const t = localStorage.getItem(TOKEN_KEY);
     if (!t) { setLoaded(true); return; }
     loadInstallerOnboarding({ data: { token: t } }).then((r) => {
       setResumeState("ok"); setError(null); resumeLoadFailed.current = false;
       revision.current = r.updated_at; setToken(t); setD(r.data as InstData); setStatus(r.status as "draft" | "submitted"); setStarted(true);
       setIsTest(!!r.test_mode); setTestMode(!!r.relaxed);
+      setReview(r.review ?? "with_office"); setOfficeMessage(r.office_message ?? null);
       const first = firstIncompleteStep(r.data as InstData);
       setStep(r.status === "submitted" ? "review" : (first ?? visiblePageForStep(r.step_key)));
     }).catch((e) => {
@@ -341,6 +347,15 @@ function InstallerOnboarding() {
     </div>,
   );
 
+  if (status === "submitted" && review === "declined") return shell(
+    <div style={card} data-application-declined>
+      {previewBanner}
+      <h1 style={{ fontSize: 26, fontWeight: 800, margin: "0 0 8px", color: NAVY }}>Your application</h1>
+      <p style={{ color: MUTED, lineHeight: 1.6 }}>Thank you for applying to work with Home Insulation Victoria. Unfortunately we're unable to approve your application at this time. We've emailed you at {d.business_email || "your email"}.</p>
+      <p style={{ color: MUTED, lineHeight: 1.6 }}>If your circumstances change, you're welcome to apply again.</p>
+    </div>,
+  );
+
   if (status === "submitted") return shell(
     <div style={card}>
       {previewBanner}
@@ -365,6 +380,7 @@ function InstallerOnboarding() {
   return shell(
     <div>
       {previewBanner}
+      {officeMessage && status === "draft" && <div data-office-message style={{ ...warn, fontWeight: 600 }}><b style={{ display: "block", marginBottom: 4 }}>A quick change is needed before we can approve your application</b>{officeMessage}<span style={{ display: "block", marginTop: 6, fontWeight: 400 }}>Your answers are saved. Update what's needed, then sign again on the last page.</span></div>}
       {isTest && !sampleMode && <div style={{ ...warn, fontWeight: 700 }}>Test mode — staff test link. This application is marked as a test and won't count as a real applicant.</div>}
       <div style={{ fontSize: 14, fontWeight: 700, color: MUTED }}>Step {idx + 1} of {steps.length} · <span style={{ color: NAVY }}>{steps[idx]?.title}</span></div>
       <div role="progressbar" aria-valuemin={1} aria-valuemax={steps.length} aria-valuenow={idx + 1} aria-label="Progress" style={{ height: 4, borderRadius: 99, background: LINE, overflow: "hidden", margin: "10px 0 18px" }}>

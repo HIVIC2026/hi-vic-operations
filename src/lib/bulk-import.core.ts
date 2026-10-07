@@ -109,13 +109,36 @@ export const LEAD_STAGE_LABEL: Record<LeadStage, string> = {
   installed: "Installed",
 };
 
-/** The lead's stage follows the site check (Jo, 7 Oct): Yes → visited (quoted when priced) and skips the Ready Check;
- * No or unclear → not visited (unclear rows must be answered on the review screen before Confirm).
- * Area or photos alone never mean visited. `matchedFileCount` kept for call-site compatibility. */
-export function leadStage(e: BulkExtracted, _matchedFileCount = 0): LeadStage {
-  if (siteCheckFromFile(e).check !== "yes") return "not_visited";
+/** Visited rule (Jo, 7 Oct 5:45pm): photos, measurements or a quote mean Visited; sentences only mean Not visited.
+ * An explicit "No" from the installer stays Not visited. */
+export function hasVisitEvidence(e: BulkExtracted, matchedFileCount = 0): boolean {
+  return (e.price_inc_gst ?? 0) > 0 || (e.area_m2 ?? 0) > 0 || matchedFileCount > 0;
+}
+export function effectiveSiteCheck(e: BulkExtracted, matchedFileCount = 0): { check: SiteCheck | null; date: string | null } {
+  const sc = siteCheckFromFile(e);
+  if (sc.check) return sc;
+  return hasVisitEvidence(e, matchedFileCount) ? { check: "yes", date: null } : sc;
+}
+export function leadStage(e: BulkExtracted, matchedFileCount = 0): LeadStage {
+  if (effectiveSiteCheck(e, matchedFileCount).check !== "yes") return "not_visited";
   return e.price_inc_gst && e.price_inc_gst > 0 ? "quoted" : "visited";
 }
+
+/** Every customer needs name, full address, email and phone (Jo, 7 Oct) plus the installer's contact-permission tick. */
+export const CUSTOMER_DETAILS_NEEDED = "Customer details needed";
+export function customerDetailsGaps(e: BulkExtracted): string[] {
+  const gaps: string[] = [];
+  if (!e.full_name?.trim()) gaps.push("name");
+  if (!e.address_line?.trim() || !e.suburb?.trim() || !/^\d{4}$/.test((e.postcode ?? "").trim())) gaps.push("full address (street, suburb, postcode)");
+  if (!e.email?.trim() || !EMAIL_RE.test(e.email.trim())) gaps.push("email");
+  if (!normaliseAuPhone(e.phone).phone) gaps.push("phone number");
+  return gaps;
+}
+export function customerDetailsReason(e: BulkExtracted): string | null {
+  const g = customerDetailsGaps(e);
+  return g.length ? `${CUSTOMER_DETAILS_NEEDED}: please add the ${g.join(", ")}` : null;
+}
+
 /** Stage from a (possibly answered) site check; an explicit "installed" history row stays installed. */
 export function stageForSiteCheck(check: SiteCheck | null, priced: boolean, current?: LeadStage | null): LeadStage {
   if (current === "installed") return "installed";
@@ -249,9 +272,7 @@ export function sortJob(
   opts: { matchConfidence: "high" | "low" | "none"; duplicate: boolean },
 ): { result: SortResult; reasons: string[] } {
   const reasons: string[] = [];
-  if (!e.address_line || !e.postcode) reasons.push("No address found — please add it in the review table");
   if (opts.duplicate) reasons.push("Looks like a job that already exists in the portal");
-  if (!e.full_name && !e.phone && !e.email) reasons.push("No customer name or contact details");
   if (e.unsure) reasons.push("Found from notes, file names, photo text or photo location — please check");
   if (reasons.length > 0) return { result: "office_review", reasons };
 
@@ -371,8 +392,6 @@ export function cleanLead<T extends BulkExtracted>(e: T): { lead: T; issues: str
   if (e.postcode && (!pc || pc.length !== 4)) issues.push(`Postcode "${e.postcode}" isn't 4 digits — please check`);
   else if (pc && !/^3\d{3}$/.test(pc) && !/^8\d{3}$/.test(pc)) issues.push(`Postcode ${pc} is outside Victoria — please check`);
   if (e.area_m2 != null && (e.area_m2 < 10 || e.area_m2 > 1000)) issues.push(`Ceiling size ${e.area_m2} m² looks unusual — please check`);
-  if (!e.full_name) issues.push("No customer name found");
-  if (!p.phone && !email) issues.push("No phone or email found");
   return { lead: { ...e, phone: p.phone, email: email && EMAIL_RE.test(email) ? email : e.email ?? null, postcode: pc && pc.length === 4 ? pc : e.postcode ?? null }, issues };
 }
 
@@ -382,6 +401,7 @@ export function reviewRowNotes(sort: SortResult | null, reasons: string[], check
   const noise = (r: string) => /^Stage: /.test(r) || /^Site check/.test(r) || r === QUOTE_NEEDED_LABEL || /^Missing: /.test(r) || /^Measurements, existing insulation/.test(r) || /^Small items for the install-day list/.test(r);
   const notes = reasons.filter((r) => !noise(r));
   if (sort === "office_review") return { tag: "Held for the office to check", tone: "alert", notes };
+  if (reasons.some((r) => r.startsWith(CUSTOMER_DETAILS_NEEDED))) return { tag: CUSTOMER_DETAILS_NEEDED, tone: "alert", notes };
   if (installed) return { tag: "Already installed — history only", tone: "info", notes };
   if (check === "yes") return { tag: "Site check done — no Ready Check needed", tone: "ok", notes };
   if (check === "no") return { tag: "Ready Check to be booked with the owner", tone: "info", notes };

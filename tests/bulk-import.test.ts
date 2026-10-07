@@ -58,9 +58,10 @@ describe("bulk import core rules", () => {
     expect(r.reasons[0]).not.toContain("existing insulation");
   });
 
-  test("office review when no address, no contact, or duplicate", () => {
-    expect(sortJob({ ...full, address_line: null }, { matchConfidence: "none", duplicate: false }).result).toBe("office_review");
-    expect(sortJob({ ...full, full_name: null, phone: null }, { matchConfidence: "none", duplicate: false }).result).toBe("office_review");
+  test("duplicates go to office review; missing customer details are the installer's to fix (Jo, 7 Oct 5:45pm)", async () => {
+    const { customerDetailsReason } = await import("../src/lib/bulk-import.core");
+    expect(sortJob({ ...full, address_line: null }, { matchConfidence: "none", duplicate: false }).result).not.toBe("office_review");
+    expect(customerDetailsReason({ ...full, address_line: null })).toContain("Customer details needed");
     expect(sortJob(full, { matchConfidence: "high", duplicate: true }).result).toBe("office_review");
   });
 
@@ -83,9 +84,9 @@ describe("bulk import core rules", () => {
 import { leadStage, CONTACT_PERMISSION_WORDING } from "../src/lib/bulk-import.core";
 describe("lead stage", () => {
   test("contact details only → not visited", () => expect(leadStage({ full_name: "A", phone: "1" }, 0)).toBe("not_visited"));
-  test("measurements or photos alone don't mean visited (site check unclear → asked)", () => {
-    expect(leadStage({ area_m2: 120 }, 0)).toBe("not_visited");
-    expect(leadStage({ full_name: "A" }, 2)).toBe("not_visited");
+  test("measurements or photos mean visited (Jo, 7 Oct 5:45pm)", () => {
+    expect(leadStage({ area_m2: 120 }, 0)).toBe("visited");
+    expect(leadStage({ full_name: "A" }, 2)).toBe("visited");
   });
   test("site check Yes → visited, No → not visited", () => {
     expect(leadStage({ area_m2: 120, site_check: "yes" })).toBe("visited");
@@ -95,7 +96,7 @@ describe("lead stage", () => {
     expect(leadStage({ full_name: "A", existing_insulation: "old batts, patchy" }, 0)).toBe("not_visited");
     expect(leadStage({ full_name: "A", access: "tight manhole in hallway", roof_type: "tile", hazards: "downlights" }, 0)).toBe("not_visited");
   });
-  test("price alone (blank site check) → not visited; asked on review", () => expect(leadStage({ price_inc_gst: 4000 }, 0)).toBe("not_visited"));
+  test("a quote means visited (Jo, 7 Oct 5:45pm)", () => expect(leadStage({ price_inc_gst: 4000 }, 0)).toBe("quoted"));
   test("permission wording is exact", () => expect(CONTACT_PERMISSION_WORDING).toBe("I confirm these customers are happy for Home Insulation Victoria to contact them."));
 });
 
@@ -131,10 +132,9 @@ describe("photos + one free-text PDF", () => {
     const [r] = _link([{ full_name: "Mary Smith", phone: "0412345678", source_files: ["notes.pdf"] }], files);
     expect(r!.matched.map((m) => m.how).sort()).toEqual(["only_lead", "only_lead", "photo_text"]);
   });
-  test("no address → office review asking for it", () => {
-    const { result, reasons } = sortJob({ full_name: "Mary Smith", unsure: true }, { matchConfidence: "low", duplicate: false });
-    expect(result).toBe("office_review");
-    expect(reasons.join(" ")).toContain("please add it");
+  test("no address → customer details needed, installer adds it", async () => {
+    const { customerDetailsReason } = await import("../src/lib/bulk-import.core");
+    expect(customerDetailsReason({ full_name: "Mary Smith", unsure: true })).toContain("please add the");
   });
   test("two customers: photos are not guessed", () => {
     const r = _link([{ full_name: "A" }, { full_name: "B" }], files);

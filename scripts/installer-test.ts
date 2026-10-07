@@ -135,7 +135,7 @@ const PAGE_FIELDS: Record<string, (keyof InstData)[]> = {
 };
 const PDF = Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n");
 
-async function sectionA(steps: Step[], tag: string, screens: Screen[], ctx: { appId?: string; enquiryId?: string; data?: InstData }) {
+async function sectionA(steps: Step[], tag: string, screens: Screen[], ctx: { appId?: string; enquiryId?: string; data?: InstData; extraAppIds?: string[] }) {
   await step(steps, "A1", "A1 Fill in all 9 application pages, upload insurance, sign", async (c) => {
     const full = application(tag);
     const token = randomBytes(32).toString("base64url");
@@ -258,14 +258,43 @@ async function sectionA(steps: Step[], tag: string, screens: Screen[], ctx: { ap
     void isAllowlisted;
   });
 
-  await step(steps, "A5", "A5 Office request changes / decline, and what the installer sees", async (c) => {
+  await step(steps, "A5", "A5 Office send back for changes / decline, and what the installer sees", async (c) => {
     if (!ctx.enquiryId) throw new Fail("no signed application (A1 failed)");
-    const src = readFileSync(new URL("../src/lib/portal.functions.ts", import.meta.url), "utf8") + readFileSync(new URL("../src/lib/partner-activation.functions.ts", import.meta.url), "utf8");
-    c("office can request changes on a signed application", /request_?changes|changes_requested/i.test(src), "no request-changes action exists — needs Jo's decision on how it should work");
-    await admin.from("partner_enquiries").update({ status: "declined", declined_at: new Date().toISOString() }).eq("id", ctx.enquiryId);
-    const { data: a } = await admin.from("rec_onboarding_applications").select("status").eq("id", ctx.appId!).single();
-    c("office decline is recorded", true);
-    c("installer is told about the decline", a?.status !== "submitted", "the installer's link still shows 'submitted' and no message is queued — needs Jo's wording and decision");
+    const rv = await import("../src/lib/application-review.server");
+    const load = async (id: string) => (await admin.from("rec_onboarding_applications").select("*").eq("id", id).maybeSingle()).data as never;
+    const ACTOR = await userId(JOURNEY_ACTOR_EMAIL);
+    const back = await rv.decideApplication(ACTOR, ctx.appId!, "changes_requested", "Please check your batts removal rate.");
+    c("send back: email goes to the TEST inbox only", back.email.status === "sent", `${back.email.status}: ${back.email.detail}`);
+    const orig = await load(ctx.appId!) as { status: string; data: unknown };
+    c("send back: the signed original stays signed and untouched", orig.status === "submitted");
+    const seen = await rv.resolveReviewedApp(orig as never, load);
+    const draft = seen.app as { id: string; status: string; data: unknown; updated_at: string };
+    c("send back: the existing link opens a draft with every answer kept", draft.status === "draft" && JSON.stringify(draft.data) === JSON.stringify(orig.data));
+    c("send back: the office message shows at the top", seen.officeMessage === "Please check your batts removal rate.", String(seen.officeMessage));
+    const { data: enq } = await admin.from("partner_enquiries").select("status").eq("id", ctx.enquiryId).single();
+    c("send back: original leaves the approval queue", (enq as { status: string }).status === "closed");
+    const text = agreementText(signedData(draft as never));
+    await performInstallerSign(draft as never, {
+      signer_name: ctx.data!.primary_contact_name!, signer_position: "Director", signer_email: ctx.data!.business_email!, acknowledgements: Object.fromEntries(ACKNOWLEDGEMENTS.map((k) => [k.key, true])),
+      agreement_version: INSTALLER_AGREEMENT_VERSION, expected_updated_at: draft.updated_at, agreement_sha256: await sha256(text),
+    } as never, { ip: "203.0.113.9", userAgent: "installer-test" }, {
+      sha256, signAtomic: async (x) => {
+        const { data: rows, error: se } = await admin.rpc("sign_installer_application" as never, { _app_id: x.appId, _expected_updated_at: x.expectedUpdatedAt, _agreement_sha256: x.agreementSha256, _enquiry: x.enquiry, _signed: x.signed, _nominations: x.nominations } as never);
+        if (se) throw new Error(se.message);
+        return (rows as unknown as { outcome: "signed"; partner_enquiry_id: string; signed_at: string }[])[0]!;
+      },
+    });
+    const resigned = await load(draft.id) as { status: string; agreement_version: string; partner_enquiry_id: string | null };
+    c("re-signed on the latest agreement and back in office review", resigned.status === "submitted" && resigned.agreement_version === INSTALLER_AGREEMENT_VERSION && !!resigned.partner_enquiry_id, `${resigned.status} ${resigned.agreement_version}`);
+    const dec = await rv.decideApplication(ACTOR, draft.id, "declined", "");
+    c("decline: email goes to the TEST inbox only", dec.email.status === "sent", `${dec.email.status}: ${dec.email.detail}`);
+    const after = await rv.resolveReviewedApp(orig as never, load);
+    c("decline: the installer's link shows the decline", after.review === "declined");
+    const act = await import("../src/lib/partner-activation.functions");
+    void act;
+    const { data: blocked } = await admin.from("application_reviews" as never).select("decision").eq("application_id", draft.id).maybeSingle();
+    c("decline: approval is then refused", (blocked as { decision: string } | null)?.decision === "declined");
+    ctx.extraAppIds = [...(ctx.extraAppIds ?? []), draft.id];
   });
 }
 
@@ -466,7 +495,7 @@ for (let run = 1; run <= RUNS; run++) {
   const outDir = `${root}/run-${run}`; mkdirSync(`${outDir}/screens`, { recursive: true });
   console.log(`\n=== Run ${run} (${tag}) ===`);
   const snap = await snapshot();
-  const steps: Step[] = []; const screens: Screen[] = []; const ctx: { appId?: string; enquiryId?: string; data?: InstData } = {};
+  const steps: Step[] = []; const screens: Screen[] = []; const ctx: { appId?: string; enquiryId?: string; data?: InstData; extraAppIds?: string[] } = {};
   try {
     await sectionA(steps, tag, screens, ctx);
     await sectionB(steps, screens, { owner: ownerId, staff: staffId });
