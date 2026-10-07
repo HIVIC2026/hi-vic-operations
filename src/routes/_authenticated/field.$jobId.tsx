@@ -106,7 +106,7 @@ function MittiOnly({ jobId, which }: { jobId: string; which: "ready_check" | "pi
   return (
     <Section title={which === "piesa" ? "Safety check form" : "Ready Check form"}>
       {data && invited ? <><p className="mb-3 text-sm text-sub">Fill it in on site, in order. Your answers come back here automatically.</p><Button asChild size="field" className="w-full"><a href={`https://app.au.mitti.com/inspections/${data}`} target="_blank" rel="noreferrer">Open form in Mitti</a></Button><div className="mt-3"><MittiCard jobId={jobId} isAdmin={false} /></div></>
-        : <p className="text-sm font-medium">Form being set up — Home Insulation Victoria will send it before your visit.</p>}
+        : <p className="text-sm font-medium">Form opens in Mitti — coming soon.</p>}
     </Section>
   );
 }

@@ -1,3 +1,4 @@
+import { nonEecWarning } from "@/lib/cii-issuer.core";
 import { BLUE, GREEN, NAVY, MUTED, Check } from "@/components/rec/rec-ui";
 import { WorkerStop } from "@/components/portal/worker-stop";
 import { createFileRoute } from "@tanstack/react-router";
@@ -642,7 +643,8 @@ function InstallersStep({ d, up, errFor, token, setError, preview, revision, onU
           <Field label="EEC Certified Insulation Installer (CII)?" required htmlFor={`installer-${i}-cii`} error={errFor(`installer-${i}-cii`)}><div id={`installer-${i}-cii`} tabIndex={-1}><Choice options={WORKER_CII.map((c) => ({ v: c.v as string, l: c.l }))} value={x.cii_holds ?? null} onChange={(v) => set(i, { cii_holds: v as "held" | "in_training" | "not_held" })} /></div></Field>
           {x.cii_holds === "held" && <>
             <Field label="Certificate or ID number" required htmlFor={`installer-${i}-cii-number`} error={errFor(`installer-${i}-cii-number`)}><input id={`installer-${i}-cii-number`} style={input} value={x.cii_certificate_number ?? ""} onChange={(e) => set(i, { cii_certificate_number: e.target.value })} /></Field>
-            <Field label="Issued by" required htmlFor={`installer-${i}-cii-issuer`} error={errFor(`installer-${i}-cii-issuer`)}><input id={`installer-${i}-cii-issuer`} style={input} placeholder="e.g. Energy Efficiency Council Victoria" value={x.cii_issuer ?? ""} onChange={(e) => set(i, { cii_issuer: e.target.value })} /></Field>
+            <Field label="Which body issued the certificate?" required hint="It must be the Energy Efficiency Council (EEC). Certificates from other bodies are not accepted." htmlFor={`installer-${i}-cii-issuer`} error={errFor(`installer-${i}-cii-issuer`)}><input id={`installer-${i}-cii-issuer`} style={input} placeholder="Energy Efficiency Council (EEC)" value={x.cii_issuer ?? ""} onChange={(e) => set(i, { cii_issuer: e.target.value })} /></Field>
+            {nonEecWarning(x.cii_issuer) && <p style={warn}>This doesn't look like an EEC certificate. Only EEC Certified Insulation Installer certificates are accepted, so this person can't be assigned to jobs with it.</p>}
             <Field label="Full or Provisional" required htmlFor={`installer-${i}-cii-level`} error={errFor(`installer-${i}-cii-level`)}><div id={`installer-${i}-cii-level`} tabIndex={-1}><Choice options={[{ v: "full", l: "Full" }, { v: "provisional", l: "Provisional" }]} value={x.cii_level ?? null} onChange={(v) => set(i, { cii_level: v as "full" | "provisional" })} /></div></Field>
             {x.cii_level === "provisional" && <p style={warn}>Provisional: this person can't receive work until they hold a Full certification.</p>}
             <Field label="Expiry date" required hint="For example 05/10/2028, or pick from the calendar" htmlFor={`installer-${i}-cii-expiry`} error={errFor(`installer-${i}-cii-expiry`)}><DateBox id={`installer-${i}-cii-expiry`} value={x.cii_expiry} onChange={(v) => set(i, { cii_expiry: v })} /></Field>

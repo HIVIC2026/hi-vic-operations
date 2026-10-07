@@ -11,7 +11,7 @@ const uuid = z.string().uuid();
 
 type AdminDb = typeof import("@/integrations/supabase/client.server").supabaseAdmin;
 async function loadCertifications(admin: AdminDb, applicationId: string) {
-  const { data, error } = await admin.from("partner_worker_certifications").select("id, worker_email, status, recorded_at, certificate_number").eq("application_id", applicationId);
+  const { data, error } = await admin.from("partner_worker_certifications").select("id, worker_email, status, recorded_at, certificate_number, issuer").eq("application_id", applicationId);
   if (error) throw new WorkflowError("Could not load certification checks.");
   return latestCertifications((data ?? []) as CertVerification[]);
 }
