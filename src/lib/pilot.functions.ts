@@ -327,6 +327,16 @@ export const confirmImport = createServerFn({ method: "POST" }).middleware([requ
     const refs = { ...(imp.external_refs as Record<string, unknown>), ...(s("external_reference") ? { reference: s("external_reference") } : {}), ...(imp.source_url ? { source_url: imp.source_url } : {}), import_id: imp.id };
     const rel = relationshipOwnerFor("installer_sourced", biz.default_comms_owner);
     const pilotInvoice = biz.commercial_route === "hivic_full_invoice";
+    // Jo (7 Oct): record whether the installer already did the site check, and his own quoted price + what it includes.
+    const det = (data.details ?? {}) as { total_inc_gst?: unknown; price_lines?: { description?: string | null; qty?: number }[] };
+    const quotedTotal = data.progress === "quoted" && Number(det.total_inc_gst) > 0 ? Math.round(Number(det.total_inc_gst) * 100) / 100 : null;
+    const includes = quotedTotal ? (det.price_lines ?? []).map((l) => [l.description, l.qty ? `× ${l.qty}` : null].filter(Boolean).join(" ")).filter(Boolean).join("; ").slice(0, 1000) || null : null;
+    const onDate = typeof c.measured_on === "string" && /^\d{4}-\d{2}-\d{2}$/.test(c.measured_on) ? c.measured_on : null;
+    await admin.from("jobs").update({
+      installer_site_check: data.progress ? (data.progress === "not_visited" ? "no" : "yes") : null,
+      installer_site_check_date: data.progress && data.progress !== "not_visited" ? onDate : null,
+      installer_quoted_price_inc_gst: quotedTotal, installer_price_includes: includes,
+    }).eq("id", res.job_id);
     await admin.from("jobs").update({ customer_relationship_owner: rel, source_system: imp.source_system, external_refs: refs as Json,
       ...(pilotInvoice ? { commercial_model: "hivic_invoices_owner" as const, commercial_model_set_by: context.userId, commercial_model_set_at: new Date().toISOString() } : {}) }).eq("id", res.job_id);
     await admin.from("job_assignments").insert({ job_id: res.job_id, user_id: context.userId, role: "installer", business_id: imp.business_id, assigned_by: context.userId, first_response_at: new Date().toISOString() });
