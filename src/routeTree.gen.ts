@@ -83,6 +83,7 @@ import { Route as EstimateTokenCampaignRouteImport } from './routes/estimate_.$t
 import { Route as EstimateTokenVideoRouteImport } from './routes/estimate_.$token.video'
 import { Route as TETokenRouteImport } from './routes/t.e.$token'
 import { Route as TOFileRouteImport } from './routes/t.o.$file'
+import { Route as AuthenticatedAdminJobsIndexRouteImport } from './routes/_authenticated/admin.jobs.index'
 import { Route as AuthenticatedAdminJobsJobIdRouteImport } from './routes/_authenticated/admin.jobs.$jobId'
 import { Route as AuthenticatedFieldBusinessAgreementRouteImport } from './routes/_authenticated/field.business_.agreement'
 import { Route as AuthenticatedFieldBusinessBankRouteImport } from './routes/_authenticated/field.business_.bank'
@@ -496,6 +497,12 @@ const TOFileRoute = TOFileRouteImport.update({
   path: '/t/o/$file',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAdminJobsIndexRoute =
+  AuthenticatedAdminJobsIndexRouteImport.update({
+    id: '/jobs/',
+    path: '/jobs/',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminJobsJobIdRoute =
   AuthenticatedAdminJobsJobIdRouteImport.update({
     id: '/jobs/$jobId',
@@ -675,6 +682,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
   '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
+  '/admin/jobs/': typeof AuthenticatedAdminJobsIndexRoute
   '/api/public/email-art/$token/$file': typeof ApiPublicEmailArtTokenFileRoute
 }
 export interface FileRoutesByTo {
@@ -761,6 +769,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
   '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
+  '/admin/jobs': typeof AuthenticatedAdminJobsIndexRoute
   '/api/public/email-art/$token/$file': typeof ApiPublicEmailArtTokenFileRoute
 }
 export interface FileRoutesById {
@@ -853,6 +862,7 @@ export interface FileRoutesById {
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
   '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
+  '/_authenticated/admin/jobs/': typeof AuthenticatedAdminJobsIndexRoute
   '/api/public/email-art/$token/$file': typeof ApiPublicEmailArtTokenFileRoute
 }
 export interface FileRouteTypes {
@@ -945,6 +955,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/post-intake'
     | '/api/public/referrals/record-submission'
     | '/api/public/referrals/track-click'
+    | '/admin/jobs/'
     | '/api/public/email-art/$token/$file'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -1031,6 +1042,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/post-intake'
     | '/api/public/referrals/record-submission'
     | '/api/public/referrals/track-click'
+    | '/admin/jobs'
     | '/api/public/email-art/$token/$file'
   id:
     | '__root__'
@@ -1122,6 +1134,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/post-intake'
     | '/api/public/referrals/record-submission'
     | '/api/public/referrals/track-click'
+    | '/_authenticated/admin/jobs/'
     | '/api/public/email-art/$token/$file'
   fileRoutesById: FileRoutesById
 }
@@ -1681,6 +1694,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TOFileRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/admin/jobs/': {
+      id: '/_authenticated/admin/jobs/'
+      path: '/jobs'
+      fullPath: '/admin/jobs/'
+      preLoaderRoute: typeof AuthenticatedAdminJobsIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/jobs/$jobId': {
       id: '/_authenticated/admin/jobs/$jobId'
       path: '/jobs/$jobId'
@@ -1818,6 +1838,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminWorkersRoute: typeof AuthenticatedAdminWorkersRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminJobsJobIdRoute: typeof AuthenticatedAdminJobsJobIdRoute
+  AuthenticatedAdminJobsIndexRoute: typeof AuthenticatedAdminJobsIndexRoute
 }
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
@@ -1851,6 +1872,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminWorkersRoute: AuthenticatedAdminWorkersRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   AuthenticatedAdminJobsJobIdRoute: AuthenticatedAdminJobsJobIdRoute,
+  AuthenticatedAdminJobsIndexRoute: AuthenticatedAdminJobsIndexRoute,
 }
 
 const AuthenticatedAdminRouteWithChildren =
