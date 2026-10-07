@@ -24,7 +24,7 @@ const { installerDb } = await import("../tests/helpers/pglite-installer");
 const t = await installerDb();
 const id = await t.create(d);
 const a = await t.app(id);
-await performInstallerSign(a, { signer_name: "Sultan Sharma", signer_position: "Director", signer_email: d.business_email!, acknowledgements: Object.fromEntries(ACKNOWLEDGEMENTS.map((k) => [k.key, true])), agreement_version: INSTALLER_AGREEMENT_VERSION, expected_updated_at: a.updated_at, agreement_sha256: await sha256(agreementText(signedData(a as never))) } as never, { ip: "203.0.113.1", userAgent: "dry-run" }, t.signDeps as never);
+await performInstallerSign(a, { signer_name: "Sultan Sharma", signer_position: "Director", signer_email: d.business_email!, acknowledgements: Object.fromEntries(ACKNOWLEDGEMENTS.map((k) => [k.key, true])), agreement_version: INSTALLER_AGREEMENT_VERSION, expected_updated_at: a.updated_at, agreement_sha256: await sha256(agreementText(signedData(a as never))) } as never, { ip: "203.0.113.1", userAgent: "dry-run" }, t.deps());
 const bhav = d.installers!.find((i) => i.cii_certificate_number === "CII-027")!;
 log(`practice: agreement on practice copy = ${(await t.app(id)).agreement_version} (real = ${r.agreement_version})`);
 log(`practice: mandatory blockers BEFORE office CII check = ${JSON.stringify(mandatoryActivationBlockers("installer", d, []))}`);
