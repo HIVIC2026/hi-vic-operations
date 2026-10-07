@@ -377,8 +377,19 @@ const s7: StepFn = async (ctx, r) => {
   await act(r, "installer takes the install day", () => idays.installerTakeDay(ctx.jobId!, p!.id, ctx.installer.id));
   check(r, "job is installation booked", (await stageOf(ctx)) === "installation_booked", await stageOf(ctx) ?? "");
   for (const c of ["product_evidence", "installation_progress", "completed_installation", "post_install_video", "final_zone_plan"]) await uploadEvidence(ctx, c, ctx.installer.id, "installation");
+  // Before the install day, the same real paths the office, electrician and owner use (no check bypassed):
+  {
+    const cs = await import("./consent.server");
+    const rec = await import("./job-records.server");
+    const now = new Date().toISOString();
+    await act(r, "owner signs the ESC information-sharing consent for the booked day", () => cs.signOwnerConsent({ jobId: ctx.jobId!, actorId: ctx.actorId, input: { signatoryName: "Test Journey", authorityType: "owner", accept: true, signatureName: "Test Journey" }, ip: "127.0.0.1", userAgent: "journey-test" }));
+    await act(r, "AP representative confirms the ESC consent", () => cs.confirmApConsent({ jobId: ctx.jobId!, actorId: ctx.actorId, apRepName: "TEST AP representative", purposeExplained: true, ip: "127.0.0.1", userAgent: "journey-test" }));
+    await act(r, "ESC pre-install notice prepared for the booked day", async () => { await (await import("./esc.server")).regenerateEscNotification(ctx.jobId!, ctx.actorId); });
+    for (const to of ["owner", "installer"] as const) await act(r, `signed PIESA copy recorded as given to the ${to}`, () => rec.recordPiesaCopyDelivery({ jobId: ctx.jobId!, recipient: to, deliveredAt: now, method: "portal", actorId: ctx.actorId }));
+    await act(r, "office records pre-install consumer documents given", () => rec.recordComplianceRecord({ jobId: ctx.jobId!, key: "pre_install_consumer_docs", occurredAt: melbourneDate(0), reference: "TEST journey", notes: null, actorId: ctx.actorId }));
+  }
+  await ownerSignGates(ctx, r, ["C"]); // owner confirms receipt of the safety check copy (real secure-link path)
   await admin.from("bookings").update({ status: "completed" }).eq("job_id", ctx.jobId!).eq("kind", "installation").eq("status", "confirmed");
-  await ownerSignGates(ctx, r, ["C"]); // owner signs ESC information-sharing consent before install completes (real secure-link path)
   await act(r, "install done → evidence outstanding", () => transition(ctx.jobId!, "evidence_outstanding", ctx.actorId, "TEST journey: install done"));
   // Installer declaration comes back inside the Mitti PIISA (simulated; TEST job only).
   {
@@ -394,6 +405,10 @@ const s7: StepFn = async (ctx, r) => {
     check(r, "PIISA without signed declaration shows Missing evidence", unsigned.status === "missing", unsigned.message);
     const signed = await syncPiisaDeclaration(ctx.jobId!, ctx.actorId, async () => pd.simulatedPiisaAudit({ auditId, templateId: tpl, jobNumber: jn!.job_number, signed: true }), { testTemplateId: tpl });
     check(r, "signed PIISA declaration saved as the job's record", signed.status === "saved", signed.message);
+  }
+  {
+    const rec = await import("./job-records.server");
+    for (const key of ["installer_safety_assessment", "completion_consumer_docs"] as const) await act(r, `office records ${key.replace(/_/g, " ")}`, () => rec.recordComplianceRecord({ jobId: ctx.jobId!, key, occurredAt: melbourneDate(0), reference: "TEST journey", notes: null, actorId: ctx.actorId }));
   }
   await act(r, "evidence complete → AP review", () => transition(ctx.jobId!, "ap_review", ctx.actorId, "TEST journey: evidence uploaded"));
   ctx.screens.push({ step: "s7_install", persona: "installer", path: `/field/day/${ctx.jobId}` });
@@ -439,7 +454,21 @@ async function visibility(ctx: JourneyCtx, r: StepResult) {
   }
   if (ctx.jobId) {
     let txt = ""; try { txt = JSON.stringify(await tv.tradeDay(ctx.jobId, ctx.electrician.id)); } catch { txt = ""; }
-    check(r, "electrician not on the job can't open its day page", !/Journey Test Street/.test(txt) && !txt.includes(ctx.ownerEmail));
+    check(r, "electrician whose visit is done no longer sees owner details", !/Journey Test Street/.test(txt) && !txt.includes(ctx.ownerEmail));
+    const refused = async (f: () => Promise<unknown>) => { try { await f(); return false; } catch { return true; } };
+    const js = await import("./job-status.server");
+    if (ctx.worker) {
+      check(r, "staff not assigned to the job can't open its day page", await refused(() => tv.tradeDay(ctx.jobId!, ctx.worker!.id)));
+      check(r, "staff not assigned to the job can't open its job page", await refused(() => js.tradeJobStatus(ctx.worker!.id, ctx.jobId!)));
+    }
+    const { data: el } = await admin.from("job_assignments").select("id").eq("job_id", ctx.jobId).eq("role", "electrician").eq("active", true).maybeSingle();
+    if (el) {
+      await admin.from("job_assignments").update({ active: false, ended_at: new Date().toISOString(), end_reason: "TEST journey: access check" }).eq("id", el.id);
+      const ended = await refused(() => tv.tradeDay(ctx.jobId!, ctx.electrician.id));
+      const endedJob = await refused(() => js.tradeJobStatus(ctx.electrician.id, ctx.jobId!));
+      await admin.from("job_assignments").update({ active: true, ended_at: null, end_reason: null }).eq("id", el.id);
+      check(r, "electrician whose assignment ended is refused (day page and job page)", ended && endedJob);
+    }
     // Reassigned trade: end the installer's assignment, confirm owner details disappear, then restore it.
     const { data: asg } = await admin.from("job_assignments").select("id").eq("job_id", ctx.jobId).eq("role", "installer").eq("active", true).maybeSingle();
     if (asg && offerId) {
