@@ -257,7 +257,8 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
     const sum = (of?.summary ?? {}) as { electrician_rate_inc_gst?: number; installer_pay_inc_gst?: number; fixes_pay_inc_gst?: number };
     const amount = Number((pe?.details as { amount?: number })?.amount ?? (b.kind === "assessment" ? sum.electrician_rate_inc_gst : b.kind === "rectification" ? sum.fixes_pay_inc_gst : sum.installer_pay_inc_gst) ?? 0) || null;
     const state = payState({ paidAt: pe?.created_at ?? null, apApprovedAt: (ap ?? []).find((x) => x.job_id === b.job_id)?.created_at ?? null, installerSupplied: (b.jobs as { channel?: string }).channel === "installer_sourced", ownerPaidInFullAt: paidInFull(b.job_id) });
-    return { jobId: b.job_id, jobNumber: j.job_number, surname: surname(j.owners?.full_name), suburb: j.properties?.suburb ?? null, what: VISIT[b.kind] ?? "Job", amount, state, doneAt: b.scheduled_start };
+    const approvedAt = (ap ?? []).find((x) => x.job_id === b.job_id)?.created_at ?? null;
+    return { jobId: b.job_id, jobNumber: j.job_number, surname: surname(j.owners?.full_name), suburb: j.properties?.suburb ?? null, what: VISIT[b.kind] ?? "Job", kind: b.kind, amount, state, doneAt: b.scheduled_start, approvedAt };
   });
 }
 
@@ -270,7 +271,10 @@ export async function tradeMoney(userId: string) {
   const next = coming.map((r) => (r.state as { on: string }).on).sort()[0] ?? null;
   const nextRows = next ? coming.filter((r) => (r.state as { on: string }).on.slice(0, 10) === next.slice(0, 10)) : [];
   const sum = (xs: typeof rows) => xs.reduce((t, r) => t + (r.amount ?? 0), 0);
-  return { kind: c.kind, boss: c.boss, next: next ? { on: next, total: sum(nextRows), jobs: nextRows.length } : null, month: sum(rows.filter((r) => r.doneAt && new Date(r.doneAt) >= m0)), allTime: sum(rows), rows };
+  // Only the last 3 digits of the saved account: enough to recognise it, never the full number.
+  const { data: bank } = await admin.from("business_bank_details").select("account_number").eq("business_id", c.biz.id).maybeSingle();
+  const digits = String(bank?.account_number ?? "").replace(/\D/g, "");
+  return { kind: c.kind, boss: c.boss, business: c.biz.name, bankEnding: digits.length >= 3 ? digits.slice(-3) : null, next: next ? { on: next, total: sum(nextRows), jobs: nextRows.length } : null, month: sum(rows.filter((r) => r.doneAt && new Date(r.doneAt) >= m0)), allTime: sum(rows), rows };
 }
 
 export async function tradeBusiness(userId: string) {

@@ -157,7 +157,7 @@ export const addBulkElectrician = createServerFn({ method: "POST" }).middleware(
     }).select("id").single();
     if (error || !nomination) throw new WorkflowError("That electrician could not be added.");
     // Jo (7 Oct): email them the electrician application link straight away (manual partner email rule).
-    const sent = matched?.id ? null : await (await import("./job-electrician.server")).sendElectricianInvite({ actorId: context.userId, nominationId: nomination.id, installerBusinessId: data.businessId, inviteToken: invite, to: data.email, name: data.name, dryRun: data.dryRun === true });
+    const sent = matched?.id ? null : await (await import("./job-electrician-invite.server")).sendElectricianInvite({ actorId: context.userId, nominationId: nomination.id, installerBusinessId: data.businessId, inviteToken: invite, to: data.email, name: data.name, dryRun: data.dryRun === true });
     return { nominationId: nomination.id, businessId: matched?.id ?? null, name: data.name, status: matched?.id ? "Already signed up ✓" : "Electrician invited – waiting to onboard", invite: sent ? { status: sent.status, to: sent.to } : null };
   });
 

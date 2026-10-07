@@ -33,6 +33,7 @@ function RateOfferPage() {
       {q.isLoading && <p className="text-sm">Loading…</p>}
       {q.error && <p role="alert" className={card}>{(q.error as Error).message}</p>}
       {o && <>
+        <div className="flex flex-wrap items-center gap-2"><p className="text-sm text-sub">{o.partner}</p><span className="rounded-[18px] bg-mist px-2.5 py-0.5 text-[11px] font-semibold text-hiv-blue">All prices inc GST</span></div>
         <p>Thanks for your application, {o.partner}. Here are the rates you proposed next to our offer. All figures include GST.</p>
         {o.status === "sent" && o.expires_at && <p className="text-sm">This link works until {new Date(o.expires_at).toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "long", year: "numeric" })}.</p>}
         {o.note && <section className={card}><p className="font-bold">Note from our office</p><p className="mt-1">{o.note}</p></section>}
@@ -49,10 +50,11 @@ function RateOfferPage() {
               ))}
             </tbody>
           </table>
+          <p className="border-t border-line p-3 text-xs text-sub">The matching rates in your agreement change only when the offer is accepted.</p>
         </section>
-        {o.status === "accepted" && <section className="rounded-[18px] bg-estimate-green p-5 text-white"><p className="font-display text-2xl font-bold">Signed</p><p className="mt-1">You accepted these rates. Our office will finish setting you up.</p></section>}
-        {o.status === "declined" && <section className={card}><p className="font-bold">Sent back to the office</p><p className="mt-1">Our office will be in touch.</p></section>}
-        {o.status === "superseded" && <section className={card}><p className="font-bold">This offer has been replaced.</p></section>}
+        {o.status === "accepted" && <section className="rounded-[18px] border border-line bg-mint p-5 text-ink" data-rate-receipt><p className="font-display text-2xl font-bold">Your rate update is signed.</p><p className="mt-1">The accepted rates and signature record stay attached to your participation agreement.</p></section>}
+        {o.status === "declined" && <section className="rounded-[18px] border border-line bg-mist p-5 text-ink" data-rate-receipt><p className="font-display text-2xl font-bold">Your response is with the office.</p><p className="mt-1">Your proposed changes have been recorded. Current agreed rates stay in place while the office reviews them.</p></section>}
+        {o.status === "superseded" && <section className="rounded-[18px] border border-rose bg-pink p-5 text-ink" data-rate-receipt><p className="font-display text-2xl font-bold">This offer has been replaced.</p><p className="mt-1">Open the latest rate-offer link from Home Insulation Victoria.</p></section>}
         {o.status === "sent" && mode === "view" && (
           <div className="space-y-3">
             <button type="button" className={greenBtn} onClick={() => setMode("accept")}>Accept these rates</button>
@@ -61,7 +63,7 @@ function RateOfferPage() {
         )}
         {o.status === "sent" && mode === "accept" && (
           <section className={`${card} space-y-4`}>
-            <h2 className="font-display text-xl font-bold">Sign to accept</h2>
+            <h2 className="font-display text-xl font-bold">Sign the rate update</h2>
             <div className="space-y-3 whitespace-pre-wrap text-base leading-relaxed">{o.text}</div>
             <label className="flex items-start gap-3 rounded-2xl border border-estimate-line p-3"><input type="checkbox" className="mt-1 h-5 w-5" checked={tick} onChange={(e) => setTick(e.target.checked)} aria-label="I agree to these rates" /><span>I agree that these rates replace the rates in our signed partner agreement, and all other terms stay the same.</span></label>
             <label className="block font-bold" htmlFor="ro-name">Your full name</label>
@@ -78,7 +80,7 @@ function RateOfferPage() {
         )}
         {o.status === "sent" && mode === "decline" && (
           <section className={`${card} space-y-3`}>
-            <h2 className="font-display text-xl font-bold">Propose new rates</h2>
+            <h2 className="font-display text-xl font-bold">Propose different rates</h2>
             <p>Leave a rate blank to keep your original figure. Our office will review and reply.</p>
             {o.items.map((i) => (
               <label key={i.code} className="flex items-center justify-between gap-3"><span>{i.description}</span>

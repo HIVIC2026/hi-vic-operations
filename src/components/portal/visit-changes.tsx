@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Section } from "./panels";
+import { card, greenBtn, ghostBtn, inputCls } from "@/components/trade/TradeShell";
 
 const when = (iso: string) => new Date(iso).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 const LATE = "This visit is less than 24 hours away. Changing it now counts as a missed visit: you get one free rebooking, after that our office will call you.";
@@ -65,7 +66,7 @@ export function ReadyCheckVisitChange({ token }: { token: string }) {
   );
 }
 
-/** Booked trade: large onsite buttons. */
+/** Booked trade: large onsite buttons (trade design: card, green action, plain secondary). */
 export function TradeVisitCard({ jobId }: { jobId: string }) {
   const get = useServerFn(getVisitChangeState);
   const act = useAction(tradeVisitAction);
@@ -76,26 +77,30 @@ export function TradeVisitCard({ jobId }: { jobId: string }) {
   if (!data) return null;
   const run = async (action: "arrived" | "owner_not_home" | "cancel", msg: string) => { setBusy(true); await act({ jobId, action, ...(reason.trim() ? { reason: reason.trim() } : {}) }, msg); setBusy(false); setMode(null); setReason(""); };
   return (
-    <Section title={`Booked ${data.label}: ${when(data.starts_at)}`}>
-      {data.arrived ? <p className="text-sm">Arrival recorded.</p> : data.canArrive
-        ? <Button className="h-12 w-full" disabled={busy} onClick={() => run("arrived", "Arrival recorded")}>I've arrived</Button>
-        : <p className="text-sm text-muted-foreground">Tap "I've arrived" when you get there (from 2 hours before). If there's no arrival or evidence 4 hours after the start, it's recorded as a no-show.</p>}
+    <section className={`${card} space-y-3`} data-visit-changes>
+      <div className="flex items-start justify-between gap-3">
+        <div><p className="text-xs font-bold uppercase tracking-wide text-sub">Booked {data.label}</p><h2 className="font-display text-xl font-bold leading-tight">{when(data.starts_at)}</h2></div>
+        {data.arrived && <span className="shrink-0 rounded-[18px] bg-mint px-2.5 py-0.5 text-[11px] font-semibold text-hiv-green">Arrived</span>}
+      </div>
+      {data.arrived ? <p className="text-sm text-sub">Arrival recorded.</p> : data.canArrive
+        ? <button type="button" className={greenBtn} disabled={busy} onClick={() => run("arrived", "Arrival recorded")}>I've arrived</button>
+        : <p className="text-sm text-sub">Tap "I've arrived" when you get there (from 2 hours before). If there's no arrival or evidence 4 hours after the start, it's recorded as a no-show.</p>}
       {mode ? (
-        <div className="mt-3 space-y-2">
-          <Input className="h-12" placeholder={mode === "cancel" ? "Reason for cancelling (required)" : "Note"} value={reason} onChange={(e) => setReason(e.target.value)} />
-          {mode === "cancel" && <p className="text-xs text-muted-foreground">Cancelling a booked visit counts against your reliability. The owner will be asked for new times.</p>}
-          <div className="flex gap-2">
-            <Button className="h-12" variant="destructive" disabled={busy || (mode === "cancel" && reason.trim().length < 5)} onClick={() => run(mode, mode === "cancel" ? "Visit cancelled" : "Recorded: owner not home")}>{mode === "cancel" ? "Cancel visit" : "Owner not home"}</Button>
-            <Button className="h-12" variant="outline" onClick={() => setMode(null)}>Back</Button>
+        <div className="space-y-2 border-t border-line pt-3">
+          <input className={inputCls} aria-label={mode === "cancel" ? "Reason for cancelling" : "Note"} placeholder={mode === "cancel" ? "Reason for cancelling (required)" : "Note"} value={reason} onChange={(e) => setReason(e.target.value)} />
+          {mode === "cancel" && <p className="text-xs text-sub">Cancelling a booked visit counts against your reliability. The owner will be asked for new times.</p>}
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" className={`${ghostBtn} border-rose text-rose`} disabled={busy || (mode === "cancel" && reason.trim().length < 5)} onClick={() => run(mode, mode === "cancel" ? "Visit cancelled" : "Recorded: owner not home")}>{mode === "cancel" ? "Cancel visit" : "Owner not home"}</button>
+            <button type="button" className={ghostBtn} onClick={() => setMode(null)}>Back</button>
           </div>
         </div>
-      ) : (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {data.canMarkNotHome && <Button className="h-12" variant="outline" onClick={() => setMode("owner_not_home")}>Owner not home</Button>}
-          {!data.started && <Button className="h-12" variant="ghost" onClick={() => setMode("cancel")}>I can't make it</Button>}
+      ) : (data.canMarkNotHome || !data.started) && (
+        <div className="grid grid-cols-2 gap-2">
+          {data.canMarkNotHome && <button type="button" className={ghostBtn} onClick={() => setMode("owner_not_home")}>Owner not home</button>}
+          {!data.started && <button type="button" className={ghostBtn} onClick={() => setMode("cancel")}>I can't make it</button>}
         </div>
       )}
-    </Section>
+    </section>
   );
 }
 

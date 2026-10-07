@@ -2,8 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { Check, MapPin, Phone } from "lucide-react";
-import { TradeShell, card, ghostBtn, greenBtn } from "@/components/trade/TradeShell";
+import { ArrowUpRight, Check, MapPin, Phone } from "lucide-react";
+import { TradeShell, card, navyCard, ghostBtn, greenBtn } from "@/components/trade/TradeShell";
 import { TradePrestart } from "@/components/trade/TradePrestart";
 import { getTradeDayView, tradeCouldntGetInFn } from "@/lib/trade-view.functions";
 import { COULDNT_GET_IN, couldntGetInMessage, dayTile } from "@/lib/trade-view.core";
@@ -56,9 +56,25 @@ function DayPage() {
         </>
       ) : started ? (
         <>
-          <section className={card}><h2 className="font-display text-xl font-bold">Over to the onsite form</h2><p className="mt-1 text-sm">Submit the form and this page updates itself.</p>
-            {data.mittiId && <a className={`${greenBtn} mt-4`} href={`https://app.au.mitti.com/inspections/${data.mittiId}`} target="_blank" rel="noreferrer">Open it in Mitti</a>}
-          </section>
+          {data.mittiId ? (
+            <div className="grid gap-3 md:grid-cols-[1.4fr_1fr]" data-mitti-handoff>
+              <section className={navyCard}>
+                <p className="text-xs font-bold uppercase tracking-wide opacity-80">{data.kind === "safety_check" ? "Safety check" : data.kind === "ready_check" ? "Ready Check" : "Install"} · Mitti</p>
+                <h2 className="mt-1 font-display text-xl font-bold">Over to your onsite form</h2>
+                <p className="mt-1 text-sm opacity-90">Complete it onsite, in order. Your answers and required evidence come back to this job, and this page updates itself.</p>
+                <a className={`${greenBtn} mt-4`} href={`https://app.au.mitti.com/inspections/${data.mittiId}`} target="_blank" rel="noreferrer">Open form in Mitti<ArrowUpRight className="h-4 w-4" /></a>
+              </section>
+              <aside className={card}>
+                <h3 className="font-display text-base font-bold">What comes back here</h3>
+                <ul className="mt-2 space-y-2 text-sm">{["Submitted form and result", data.kind === "safety_check" ? "Electrical findings" : "Measurements", "Required photo and document status", "The next step for this job"].map((t) => <li key={t} className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-hiv-green" />{t}</li>)}</ul>
+              </aside>
+            </div>
+          ) : (
+            <section className={`${card} border-rose bg-pink`} data-mitti-setup>
+              <h2 className="font-display text-xl font-bold">Your form is being set up.</h2>
+              <p className="mt-1 text-sm">Home Insulation Victoria is preparing the onsite form. It will appear on this job when ready.</p>
+            </section>
+          )}
           {back}
         </>
       ) : asking ? (

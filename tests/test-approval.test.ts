@@ -53,6 +53,6 @@ describe("one clear Approve (7 Oct)", () => {
   });
   test("after approval: login link with Copy link while sending is off", () => {
     expect(ui).toContain("Copy link");
-    expect(ui).toContain("Send login link (off for now)");
+    expect(ui).toContain("Send login link"); // Jo 7 Oct login rule: partner login links really send (manual partner email).
   });
 });
