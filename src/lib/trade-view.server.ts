@@ -362,3 +362,16 @@ export async function tradeChangeRequest(userId: string, kind: "details" | "rate
   await admin.from("admin_config_events").insert({ actor_id: userId, event_type: "partner_change_requested", summary: `${c.biz.name} asked to change ${kind}`, details: { business_id: c.biz.id, kind } });
   return { ok: true };
 }
+
+/** TEST partners only: re-issue the caller's own set-password link through the same path the office uses, for walkthroughs. Sends nothing. */
+export async function tradeTestSetPasswordLink(userId: string, base: string) {
+  const c = await ctxOrThrow(userId);
+  if (!c.isTest) throw new WorkflowError("Only for TEST partners.");
+  const allowed = ["http://localhost:8080", "https://id-preview--fb35adfe-10bf-4d4c-987d-28567ca1ddeb.lovable.app"];
+  if (!allowed.includes(base)) throw new WorkflowError("Not an allowed preview address.");
+  const email = c.profile?.email;
+  if (!email) throw new WorkflowError("No email on this sign-in.");
+  const { issueSetPasswordLink } = await import("./set-password-link.server");
+  await admin.from("admin_config_events").insert({ actor_id: userId, event_type: "test_partner_set_password_link", summary: `TEST partner set-password link issued (nothing sent)`, details: { business_id: c.biz.id } });
+  return { link: await issueSetPasswordLink(email, base) };
+}

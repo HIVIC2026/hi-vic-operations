@@ -155,9 +155,7 @@ export const createPartnerLogin = createServerFn({ method: "POST" }).middleware(
     const bad = steps.find((s) => s.error);
     if (bad?.error) throw new WorkflowError(`Login made but linking failed: ${bad.error.message}`);
     // generateLink returns the link only; it never emails it.
-    const { data: link, error: le } = await admin.auth.admin.generateLink({ type: "recovery", email: data.email });
-    if (le || !link.properties?.hashed_token) throw new WorkflowError(`Login linked, but the set-password link failed: ${le?.message}`);
-    const { setPasswordLink } = await import("./set-password-link.core");
+    const link = await (await import("./set-password-link.server")).issueSetPasswordLink(data.email);
     await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: "partner_login_created", summary: `Office created partner login ${data.email} (nothing sent)`, details: { business_id: act.business_id, user_id: uid, application_id: data.applicationId } });
-    return { email: data.email, link: setPasswordLink(link.properties.hashed_token, "/partner") };
+    return { email: data.email, link };
   });
