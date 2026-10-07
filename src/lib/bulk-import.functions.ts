@@ -176,17 +176,17 @@ export const listBulkBatches = createServerFn({ method: "GET" }).middleware([req
     const { data: isAdmin } = await admin.rpc("has_role", { _user_id: context.userId, _role: "admin" });
     if (data.businessId) {
       if (!isAdmin) await requireMember(context.userId, data.businessId, true);
-      const { data: rows } = await admin.from("bulk_import_batches").select("id, status, list_filename, summary, created_at, on_behalf").eq("business_id", data.businessId).order("created_at", { ascending: false }).limit(50);
+      const { data: rows } = await admin.from("bulk_import_batches").select("id, status, list_filename, summary, created_at, on_behalf").eq("business_id", data.businessId).neq("status", "discarded").order("created_at", { ascending: false }).limit(50);
       return { batches: rows ?? [], isAdmin: !!isAdmin };
     }
     if (isAdmin) {
-      const { data: rows } = await admin.from("bulk_import_batches").select("id, business_id, status, list_filename, summary, created_at, on_behalf, businesses(name)").order("created_at", { ascending: false }).limit(50);
+      const { data: rows } = await admin.from("bulk_import_batches").select("id, business_id, status, list_filename, summary, created_at, on_behalf, businesses(name)").neq("status", "discarded").order("created_at", { ascending: false }).limit(50);
       return { batches: rows ?? [], isAdmin: true };
     }
     const biz = await myBusinesses(context.userId);
     const ids = [...biz.keys()];
     if (ids.length === 0) return { batches: [], isAdmin: false };
-    const { data: rows } = await admin.from("bulk_import_batches").select("id, business_id, status, list_filename, summary, created_at, on_behalf").in("business_id", ids).order("created_at", { ascending: false }).limit(50);
+    const { data: rows } = await admin.from("bulk_import_batches").select("id, business_id, status, list_filename, summary, created_at, on_behalf").in("business_id", ids).neq("status", "discarded").order("created_at", { ascending: false }).limit(50);
     return { batches: rows ?? [], isAdmin: false };
   });
 

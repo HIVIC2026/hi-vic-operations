@@ -95,7 +95,7 @@ describe("lead stage", () => {
     expect(leadStage({ full_name: "A", existing_insulation: "old batts, patchy" }, 0)).toBe("not_visited");
     expect(leadStage({ full_name: "A", access: "tight manhole in hallway", roof_type: "tile", hazards: "downlights" }, 0)).toBe("not_visited");
   });
-  test("price found → quoted", () => expect(leadStage({ price_inc_gst: 4000 }, 0)).toBe("quoted"));
+  test("price alone (blank site check) → not visited; asked on review", () => expect(leadStage({ price_inc_gst: 4000 }, 0)).toBe("not_visited"));
   test("permission wording is exact", () => expect(CONTACT_PERMISSION_WORDING).toBe("I confirm these customers are happy for Home Insulation Victoria to contact them."));
 });
 
@@ -153,9 +153,9 @@ describe("site check + installer price (Jo, 7 Oct)", () => {
     expect(parseSiteCheck("maybe?").check).toBeNull();
     expect(parseSiteCheck("").check).toBeNull();
   });
-  test("a quoted price means visited; area alone is unclear", async () => {
+  test("blank site check stays unclear even with a quoted price (Jo, 7 Oct)", async () => {
     const { siteCheckFromFile, quoteNeeded } = await import("../src/lib/bulk-import.core");
-    expect(siteCheckFromFile({ price_inc_gst: 3200 }).check).toBe("yes");
+    expect(siteCheckFromFile({ price_inc_gst: 3200 }).check).toBeNull();
     expect(siteCheckFromFile({ area_m2: 120 }).check).toBeNull();
     expect(quoteNeeded({ area_m2: 120 })).toBe(true);
     expect(quoteNeeded({ price_inc_gst: 3200 })).toBe(false);

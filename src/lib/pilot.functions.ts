@@ -305,6 +305,13 @@ export const confirmImport = createServerFn({ method: "POST" }).middleware([requ
     progress: z.enum(["not_visited", "measured", "quoted"]).optional(),
     occupancy: z.enum(["owner_occupied", "rental"]).optional(),
     details: z.record(z.string(), z.unknown()).refine((v) => JSON.stringify(v).length < 60_000, "Too much detail").optional(),
+    // Add one job (Jo, 7 Oct): same three facts as bulk upload — his quoted price exactly as given, what it includes, site check Y/N.
+    installer: z.object({
+      site_check: z.enum(["yes", "no"]),
+      site_check_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
+      quoted_price_inc_gst: z.number().positive().max(1_000_000).nullish(),
+      price_includes: z.string().trim().max(1000).nullish(),
+    }).optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: imp } = await admin.from("job_imports").select("*").eq("id", data.importId).single();
@@ -332,7 +339,12 @@ export const confirmImport = createServerFn({ method: "POST" }).middleware([requ
     const quotedTotal = data.progress === "quoted" && Number(det.total_inc_gst) > 0 ? Math.round(Number(det.total_inc_gst) * 100) / 100 : null;
     const includes = quotedTotal ? (det.price_lines ?? []).map((l) => [l.description, l.qty ? `× ${l.qty}` : null].filter(Boolean).join(" ")).filter(Boolean).join("; ").slice(0, 1000) || null : null;
     const onDate = typeof c.measured_on === "string" && /^\d{4}-\d{2}-\d{2}$/.test(c.measured_on) ? c.measured_on : null;
-    await admin.from("jobs").update({
+    const inst = data.installer;
+    await admin.from("jobs").update(inst ? {
+      installer_site_check: inst.site_check,
+      installer_site_check_date: inst.site_check === "yes" ? inst.site_check_date ?? null : null,
+      installer_quoted_price_inc_gst: inst.quoted_price_inc_gst ?? null, installer_price_includes: inst.quoted_price_inc_gst ? inst.price_includes || null : null,
+    } : {
       installer_site_check: data.progress ? (data.progress === "not_visited" ? "no" : "yes") : null,
       installer_site_check_date: data.progress && data.progress !== "not_visited" ? onDate : null,
       installer_quoted_price_inc_gst: quotedTotal, installer_price_includes: includes,
@@ -343,7 +355,7 @@ export const confirmImport = createServerFn({ method: "POST" }).middleware([requ
     const { data: ws } = await admin.from("workflow_settings").select("measurement_standard_approved").limit(1).maybeSingle();
     const { data: pm } = await admin.from("partner_measurement_methods").select("id").eq("business_id", imp.business_id).eq("status", "approved").order("approved_at", { ascending: false }).limit(1).maybeSingle();
     // "Not visited yet": the rough size is only the estimate; no measure-up is recorded and the Ready Check is next.
-    const m = data.progress === "not_visited" ? null : planImportedMeasurement(c, imp.id, { businessId: imp.business_id, standardApproved: !!ws?.measurement_standard_approved && !!pm });
+    const m = data.progress === "not_visited" || data.installer?.site_check === "no" ? null : planImportedMeasurement(c, imp.id, { businessId: imp.business_id, standardApproved: !!ws?.measurement_standard_approved && !!pm });
     if (m) {
       await admin.from("ceiling_measurements").update({ is_current: false }).eq("job_id", res.job_id).eq("is_current", true);
       await admin.from("ceiling_measurements").insert({ ...m, supplied_snapshot: m.supplied_snapshot as unknown as Json, partner_method_id: pm?.id ?? null, review_flags: m.review_flags as unknown as Json, job_id: res.job_id, is_current: true, created_by: context.userId, raw_snapshot: { import_id: imp.id, confirmed: c, extracted: imp.extracted, progress: data.progress ?? null, ready_check_a1: data.details ?? null } as unknown as Json });

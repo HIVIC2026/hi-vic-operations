@@ -3,13 +3,11 @@ import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addBulkElectrician, bulkBatchReview, bulkElectricianChoices, bulkImportBusinesses, confirmBulkBatch, createBulkBatch, geocodeBulkPhotos, listBulkBatches, readBulkFile, setBulkReviewPlan, setBulkRowAddress } from "@/lib/bulk-import.functions";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@/components/trade/trade-ui";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { CONTACT_PERMISSION_WORDING, gridToRecords, QUOTE_NEEDED_LABEL, type FileResult, type LeadStage } from "@/lib/bulk-import.core";
+import { CONTACT_PERMISSION_WORDING, gridToRecords, QUOTE_NEEDED_LABEL, reviewRowNotes, type FileResult, type LeadStage } from "@/lib/bulk-import.core";
 import { TradeShell } from "@/components/trade/TradeShell";
 import { AlertCircle, CheckCircle2, ChevronDown, FileArchive, UploadCloud, Zap } from "lucide-react";
 
@@ -37,11 +35,6 @@ type ReviewRow = {
 };
 type ElectricianPlan = { mode: "mine" | "hivic" | "job_by_job"; nomination_id?: string | null; business_id?: string | null };
 
-const SORT_LABEL: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  covers_ready_check: { label: "Covers the Ready Check — no visit needed", variant: "default" },
-  needs_visit: { label: "Needs a visit", variant: "secondary" },
-  office_review: { label: "Office review", variant: "destructive" },
-};
 
 const LIST_RE = /\.(csv|xlsx|xls|ods)$/i;
 const TEXT_RE = /\.(txt|eml|md|html?|json|msg|rtf)$/i;
@@ -216,7 +209,7 @@ function guessType(name: string): string {
   return "application/octet-stream";
 }
 
-const STATUS_STYLE: Record<FileResult["status"], string> = { ok: "text-foreground", warn: "text-muted-foreground", error: "text-destructive" };
+const STATUS_STYLE: Record<FileResult["status"], string> = { ok: "text-foreground", warn: "text-estimate-navy/70", error: "text-destructive" };
 function FileResultList({ items }: { items: FileResult[] }) {
   if (!items.length) return null;
   return (
@@ -335,7 +328,7 @@ function BulkImportPage() {
       </div>
 
       {!batchId && (
-        <Card className="rounded-[22px] border-border shadow-sm">
+        <Card>
           <CardHeader><CardTitle>1. Upload</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             {isAdmin && (
@@ -350,15 +343,15 @@ function BulkImportPage() {
             <label className="block space-y-3 rounded-[18px] border-2 border-dashed border-primary/35 bg-workspace-mist p-8 text-center">
               <UploadCloud className="mx-auto h-9 w-9 text-primary" />
               <span className="block font-display text-lg font-bold">Choose files or a ZIP</span>
-              <span className="block text-sm text-muted-foreground">Excel, CSV, PDF, Word, email, text and large photo batches</span>
+              <span className="block text-sm text-estimate-navy/70">Excel, CSV, PDF, Word, email, text and large photo batches</span>
               <input type="file" multiple className="mx-auto block" onChange={(e) => setExtraFiles([...(e.target.files ?? [])])} />
-              {extraFiles.length > 0 && <span className="block text-xs text-muted-foreground">{extraFiles.length} file{extraFiles.length > 1 ? "s" : ""} ready</span>}
+              {extraFiles.length > 0 && <span className="block text-xs text-estimate-navy/70">{extraFiles.length} file{extraFiles.length > 1 ? "s" : ""} ready</span>}
             </label>
             <label className="flex items-start gap-2 text-sm">
               <Checkbox checked={permission} onCheckedChange={(c) => setPermission(!!c)} />
               <span>{CONTACT_PERMISSION_WORDING}</span>
             </label>
-            <p className="text-sm text-muted-foreground">Photos are used for matching and sorting only — they never count as official evidence. Any official evidence still missing is recorded and collected on install day.</p>
+            <p className="text-sm text-estimate-navy/70">Photos are used for matching and sorting only — they never count as official evidence. Any official evidence still missing is recorded and collected on install day.</p>
             <Button size="field" className="w-full" disabled={extraFiles.length === 0 || !effectiveBiz || !permission || busy} onClick={analyse}>{busy ? (progress || "Reading…") : "Read my files"}</Button>
             <FileResultList items={localReads} />
           </CardContent>
@@ -366,7 +359,7 @@ function BulkImportPage() {
       )}
 
       {batchId && summary && !done && (
-        <Card className="rounded-[22px] border-border shadow-sm">
+        <Card>
           <CardHeader>
             <CardTitle>2. Review — {summary.rows} jobs found</CardTitle>
           </CardHeader>
@@ -374,39 +367,41 @@ function BulkImportPage() {
             {summary.rows === 0 && <p className="text-sm">No customers were found in these files. Check the list below, then add a customer list, or name folders/files by address (e.g. "14 Example St"), and upload again.</p>}
             {summary.rows === 0 && <Button variant="outline" onClick={() => { setBatchId(null); setExtraFiles([]); setPermission(false); setLocalReads([]); }}>Upload again</Button>}
             <FileResultList items={summary.file_results ?? localReads} />
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="default">{summary.covers_ready_check ?? 0} cover the Ready Check</Badge>
-              <Badge variant="secondary">{summary.needs_visit ?? 0} need a visit</Badge>
-              <Badge variant="destructive">{summary.office_review ?? 0} office review</Badge>
+            {(() => { const open = rows.filter((r) => !r.duplicate_note && !skip.has(r.id)); const yes = open.filter((r) => rowChecks[r.id]?.check === "yes").length; const no = open.filter((r) => rowChecks[r.id]?.check === "no").length; const held = open.filter((r) => r.sort_result === "office_review").length; return (
+            <div className="flex flex-wrap gap-2" data-review-summary>
+              <Badge variant="ok">{yes} site check done</Badge>
+              <Badge variant="info">{no} Ready Check needed</Badge>
+              {open.length - yes - no > 0 && <Badge variant="alert">{open.length - yes - no} need a site check answer</Badge>}
+              {held > 0 && <Badge variant="alert">{held} held for the office</Badge>}
               <Badge variant="outline">{summary.visited_quoted ?? 0} priced · {summary.quote_needed ?? 0} quote needed</Badge>
               {(summary.duplicates ?? 0) > 0 && <Badge variant="outline">{summary.duplicates} possible duplicates (skipped)</Badge>}
-            </div>
+            </div>); })()}
             <ElectricianChoice value={batchPlan} onChange={setBatchPlan} approved={electricianData?.approved ?? []} pending={electricianData?.pending ?? []} add={async () => { const made = await addElectrician({ data: { businessId: effectiveBiz, name: newElectrician.name, mobile: newElectrician.mobile, email: newElectrician.email || null, business: newElectrician.business || null } }); await refreshElectricians(); setBatchPlan({ mode: "mine", ...(made.businessId ? { business_id: made.businessId } : { nomination_id: made.nominationId }) }); setNewElectrician({ name: "", mobile: "", email: "", business: "" }); }} draft={newElectrician} setDraft={setNewElectrician} />
             <p className="rounded-lg bg-workspace-mint p-3 text-sm">The owner gets a queued text/email link to choose times. Their electrician gets first choice and taps a time to take it. Nothing is sent while sending is off.</p>
             {(() => { const open = rows.filter((r) => !skip.has(r.id) && !r.duplicate_note && r.import_stage !== "installed"); const unclear = open.filter((r) => !rowChecks[r.id]?.check).length; return (
-              <div className="rounded-[18px] border bg-card p-4" data-site-check-all>
+              <div className="rounded-[18px] border border-estimate-line bg-card p-4" data-site-check-all>
                 <p className="font-semibold">Have you already done the site check / measure-up?</p>
-                <p className="text-sm text-muted-foreground">Yes skips our Ready Check. No means we book a Ready Check with the owner. {unclear ? <b className="text-destructive">{unclear} {unclear === 1 ? "job needs" : "jobs need"} an answer.</b> : "Every job has an answer."}</p>
+                <p className="text-sm text-estimate-navy/70">Yes skips our Ready Check. No means we book a Ready Check with the owner. {unclear ? <b className="text-destructive">{unclear} {unclear === 1 ? "job needs" : "jobs need"} an answer.</b> : "Every job has an answer."}</p>
                 <div className="mt-2 grid grid-cols-2 gap-2">{(["yes", "no"] as const).map((v) => <Button key={v} type="button" variant="outline" size="field" onClick={() => { const nc = { ...rowChecks }; const ns = { ...rowStages }; for (const r of open) { nc[r.id] = { check: v, date: v === "yes" ? rowChecks[r.id]?.date ?? null : null }; ns[r.id] = v === "yes" ? (r.extracted.price_inc_gst ? "quoted" : "visited") : "not_visited"; } setRowChecks(nc); setRowStages(ns); }}>{v === "yes" ? "Yes to all" : "No to all"}</Button>)}</div>
-                <p className="mt-1 text-xs text-muted-foreground">Apply to all — you can still change any job below.</p>
+                <p className="mt-1 text-xs text-estimate-navy/70">Apply to all — you can still change any job below.</p>
               </div>); })()}
             <div className="grid gap-3">
               {rows.map((r) => (
-                <Card key={r.id} className={`rounded-[18px] ${r.sort_result === "office_review" ? "border-workspace-blush-strong" : ""}`}>
+                <Card key={r.id} className={`rounded-[18px] border border-estimate-line ${r.sort_result === "office_review" ? "border-workspace-blush-strong" : ""}`}>
                   <CardContent className="space-y-3 p-4">
-                    <div className="flex items-start justify-between gap-3"><div><div className="font-display text-lg font-bold">{r.extracted.full_name ?? "Unnamed customer"}</div><div className="text-sm text-muted-foreground">{r.extracted.phone ?? r.extracted.email ?? "Contact missing"}</div></div><Checkbox aria-label={`Skip ${r.extracted.full_name ?? "customer"}`} checked={skip.has(r.id) || !!r.duplicate_note} onCheckedChange={(c) => { const s = new Set(skip); if (c) s.add(r.id); else s.delete(r.id); setSkip(s); }} /></div>
+                    <div className="flex items-start justify-between gap-3"><div><div className="font-display text-lg font-bold">{r.extracted.full_name ?? "Unnamed customer"}</div><div className="text-sm text-estimate-navy/70">{r.extracted.phone ?? r.extracted.email ?? "Contact missing"}</div></div><Checkbox aria-label={`Skip ${r.extracted.full_name ?? "customer"}`} checked={skip.has(r.id) || !!r.duplicate_note} onCheckedChange={(c) => { const s = new Set(skip); if (c) s.add(r.id); else s.delete(r.id); setSkip(s); }} /></div>
                     <div className="text-sm">{r.extracted.address_line && r.extracted.postcode ? <>{r.extracted.address_line}, {[r.extracted.suburb, r.extracted.postcode].filter(Boolean).join(" ")}</> : <AddAddress row={r} onSaved={() => qc.invalidateQueries({ queryKey: ["bulk-review", batchId] })} />}</div>
-                    <div className="grid grid-cols-3 gap-2 text-center text-sm"><div className="rounded-lg bg-muted p-2"><b>{r.extracted.area_m2 ? `${r.extracted.area_m2} m²` : "—"}</b><span className="block text-xs text-muted-foreground">Area</span></div><div className={`rounded-lg p-2 ${r.extracted.price_inc_gst ? "bg-muted" : "bg-workspace-blush"}`}><b>{r.extracted.price_inc_gst ? `$${r.extracted.price_inc_gst.toLocaleString("en-AU")}` : "—"}</b><span className="block text-xs text-muted-foreground">{r.extracted.price_inc_gst ? "Your price inc GST" : QUOTE_NEEDED_LABEL}</span></div><div className="rounded-lg bg-muted p-2"><b>{r.matched_files.length}</b><span className="block text-xs text-muted-foreground">Files</span></div></div>
-                    {r.extracted.price_inc_gst ? <p className="text-sm"><b>Price includes:</b> {r.extracted.price_includes ?? <span className="text-muted-foreground">not stated</span>}</p> : null}
+                    <div className="grid grid-cols-3 gap-2 text-center text-sm"><div className="rounded-lg bg-estimate-canvas p-2"><b>{r.extracted.area_m2 ? `${r.extracted.area_m2} m²` : "—"}</b><span className="block text-xs text-estimate-navy/70">Area</span></div><div className={`rounded-lg p-2 ${r.extracted.price_inc_gst ? "bg-estimate-canvas" : "bg-workspace-blush"}`}><b>{r.extracted.price_inc_gst ? `$${r.extracted.price_inc_gst.toLocaleString("en-AU")}` : "—"}</b><span className="block text-xs text-estimate-navy/70">{r.extracted.price_inc_gst ? "Your price inc GST" : QUOTE_NEEDED_LABEL}</span></div><div className="rounded-lg bg-estimate-canvas p-2"><b>{r.matched_files.length}</b><span className="block text-xs text-estimate-navy/70">Files</span></div></div>
+                    {r.extracted.price_inc_gst ? <p className="text-sm"><b>Price includes:</b> {r.extracted.price_includes ?? <span className="text-estimate-navy/70">not stated</span>}</p> : null}
                     <SiteCheckPicker value={rowChecks[r.id] ?? { check: null, date: null }} fromFile={r.extracted.site_check_source === "file" && r.extracted.site_check != null} installed={r.import_stage === "installed"}
                       onChange={(v) => { setRowChecks({ ...rowChecks, [r.id]: v }); setRowStages({ ...rowStages, [r.id]: r.import_stage === "installed" ? "installed" : v.check === "yes" ? (r.extracted.price_inc_gst ? "quoted" : "visited") : "not_visited" }); }} />
                     {batchPlan.mode === "job_by_job" && <ElectricianChoice compact value={rowPlans[r.id] ?? { mode: "hivic" }} onChange={(plan) => setRowPlans({ ...rowPlans, [r.id]: plan })} approved={electricianData?.approved ?? []} pending={electricianData?.pending ?? []} />}
-                    <div>{r.sort_result && SORT_LABEL[r.sort_result] && <Badge variant={SORT_LABEL[r.sort_result]!.variant}>{SORT_LABEL[r.sort_result]!.label}</Badge>}<ul className="mt-2 space-y-1 text-xs text-muted-foreground">{(r.sort_reasons ?? []).map((x, i) => <li key={i}>• {x}</li>)}{r.duplicate_note && <li className="font-semibold text-destructive">• {r.duplicate_note}</li>}</ul></div>
+                    <div>{(() => { const n = reviewRowNotes(r.sort_result, r.sort_reasons ?? [], rowChecks[r.id]?.check ?? null, r.import_stage === "installed"); return <><Badge variant={n.tone}>{n.tag}</Badge><ul className="mt-2 space-y-1 text-xs text-estimate-navy/70">{n.notes.map((x, i) => <li key={i}>• {x}</li>)}</ul></>; })()}<ul className="space-y-1 text-xs">{r.duplicate_note && <li className="font-semibold text-destructive">• {r.duplicate_note}</li>}</ul></div>
                   </CardContent>
                 </Card>
               ))}
             </div>
-            <p className="text-sm text-muted-foreground">Confirming creates the jobs only — nothing is sent to any customer. If a price was included, a draft quote is prepared for office review using your price exactly as given. Jobs without a price are marked "Quote needed from installer".</p>
+            <p className="text-sm text-estimate-navy/70">Confirming creates the jobs only — nothing is sent to any customer. If a price was included, a draft quote is prepared for office review using your price exactly as given. Jobs without a price are marked "Quote needed from installer".</p>
             {missingAddr > 0 && <p className="text-sm text-destructive">{missingAddr} customer{missingAddr > 1 ? "s need" : " needs"} an address — add it in the table above, or tick Skip.</p>}
             <Button size="field" className="w-full" disabled={busy || summary.rows === 0 || missingAddr > 0 || rows.some((r) => !skip.has(r.id) && !r.duplicate_note && r.import_stage !== "installed" && !rowChecks[r.id]?.check) || rows.some((r) => r.sort_result === "office_review" && !skip.has(r.id))} onClick={confirmAll}>{busy ? "Adding…" : `Add ${rows.filter((r) => !skip.has(r.id) && !r.duplicate_note).length} jobs`}</Button>
           </CardContent>
@@ -418,14 +413,14 @@ function BulkImportPage() {
           <CardHeader><CardTitle>Done</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             <p>{done.created} jobs created{done.skipped ? `, ${done.skipped} skipped` : ""}{done.failed ? `, ${done.failed} could not be imported yet` : ""}.</p>{done.remaining ? <p className="text-sm font-semibold">{done.remaining} still to fix — this upload stays open. Fix them in Past uploads, then confirm again; jobs already added are never added twice.</p> : null}
-            <p className="text-sm text-muted-foreground">Nothing has been sent to any customer. The office can see each job in the pipeline.</p>
-            {!!done.ownerLinks.length && <details className="rounded-lg border p-3"><summary className="cursor-pointer font-semibold">Queued owner confirmation links</summary><div className="mt-2 space-y-2">{done.ownerLinks.map((l) => <div key={l.path} className="rounded bg-muted p-2 text-sm"><b>{l.jobNumber} · {l.owner}</b><div className="break-all text-muted-foreground">{l.path}</div></div>)}</div></details>}
+            <p className="text-sm text-estimate-navy/70">Nothing has been sent to any customer. The office can see each job in the pipeline.</p>
+            {!!done.ownerLinks.length && <details className="rounded-lg border p-3"><summary className="cursor-pointer font-semibold">Queued owner confirmation links</summary><div className="mt-2 space-y-2">{done.ownerLinks.map((l) => <div key={l.path} className="rounded bg-estimate-canvas p-2 text-sm"><b>{l.jobNumber} · {l.owner}</b><div className="break-all text-estimate-navy/70">{l.path}</div></div>)}</div></details>}
             <Button variant="outline" onClick={() => { setBatchId(null); setDone(null); setExtraFiles([]); setPermission(false); setSkip(new Set()); setLocalReads([]); }}>Upload another batch</Button>
           </CardContent>
         </Card>
       )}
 
-      <section className="space-y-3"><div className="flex items-center gap-2"><h2 className="font-display text-lg font-extrabold">Past uploads</h2></div>{(past?.batches ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No previous uploads yet.</p> : <div className="grid gap-2">{(past?.batches ?? []).map((b) => { const s = b.summary as { rows?: number } | null; return <button key={b.id} type="button" className="flex min-h-14 w-full items-center justify-between rounded-[18px] bg-card p-4 text-left shadow-sm" onClick={() => setBatchId(b.id)}><span><b>{b.list_filename ?? "Bulk upload"}</b><span className="block text-xs text-muted-foreground">{new Date(b.created_at).toLocaleDateString("en-AU")} · {s?.rows ?? 0} jobs</span></span><span className="flex items-center gap-1 text-sm font-semibold capitalize">{b.status}<ChevronDown className="h-4 w-4"/></span></button>; })}</div>}</section>
+      <section className="space-y-3"><div className="flex items-center gap-2"><h2 className="font-display text-lg font-extrabold">Past uploads</h2></div>{(past?.batches ?? []).length === 0 ? <p className="text-sm text-estimate-navy/70">No previous uploads yet.</p> : <div className="grid gap-2">{(past?.batches ?? []).map((b) => { const s = b.summary as { rows?: number } | null; return <button key={b.id} type="button" className="flex min-h-14 w-full items-center justify-between rounded-[18px] bg-card p-4 text-left shadow-sm" onClick={() => setBatchId(b.id)}><span><b>{b.list_filename ?? "Bulk upload"}</b><span className="block text-xs text-estimate-navy/70">{new Date(b.created_at).toLocaleDateString("en-AU")} · {s?.rows ?? 0} jobs</span></span><span className="flex items-center gap-1 text-sm font-semibold capitalize">{b.status}<ChevronDown className="h-4 w-4"/></span></button>; })}</div>}</section>
     </div>
     </TradeShell>
   );
@@ -442,7 +437,7 @@ function ElectricianChoice({ value, onChange, approved, pending, compact = false
     else if (first?.nominationId) onChange({ mode: "mine", nomination_id: first.nominationId });
     else onChange({ mode: "mine" });
   };
-  return <div className={compact ? "rounded-lg bg-muted p-3" : "rounded-[18px] border bg-card p-4"}><div className="mb-2 flex items-center gap-2"><Zap className="h-4 w-4 text-primary"/><b>{compact ? "Safety check" : "Who does the electrical safety check?"}</b></div><div className="grid gap-2 sm:grid-cols-3"><Button type="button" variant={value.mode === "mine" ? "default" : "outline"} onClick={pickFirst}>Use my electrician{compact ? "" : " for all"}</Button><Button type="button" variant={value.mode === "hivic" ? "default" : "outline"} onClick={() => onChange({ mode: "hivic" })}>Use Home Insulation Victoria{compact ? "" : " electricians for all"}</Button>{!compact && <Button type="button" variant={value.mode === "job_by_job" ? "default" : "outline"} onClick={() => onChange({ mode: "job_by_job" })}>Choose job by job</Button>}</div>{value.mode === "mine" && <div className="mt-3"><select aria-label="My electrician" className="h-12 w-full rounded-md border bg-background px-3" value={selected} onChange={(e) => { const [k,id] = e.target.value.split(":"); if (!id) return; onChange(k === "b" ? { mode: "mine", business_id: id } : { mode: "mine", nomination_id: id }); }}><option value="">Choose your electrician</option>{options.map((x) => <option key={x.key} value={x.key}>{x.name} · {x.status}</option>)}</select>{!compact && <Button type="button" variant="ghost" className="mt-1" onClick={() => setAdding(!adding)}>+ Add electrician</Button>}</div>}{adding && draft && setDraft && add && <div className="mt-3 grid gap-2 rounded-lg bg-muted p-3 sm:grid-cols-2"><Input placeholder="Name" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })}/><Input placeholder="Mobile" value={draft.mobile} onChange={(e) => setDraft({ ...draft, mobile: e.target.value })}/><Input placeholder="Business (optional)" value={draft.business} onChange={(e) => setDraft({ ...draft, business: e.target.value })}/><Input placeholder="Email (optional)" value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })}/><Button className="sm:col-span-2" disabled={draft.name.trim().length < 2 || draft.mobile.replace(/\D/g, "").length < 8} onClick={add}>Save electrician</Button></div>}{value.mode === "mine" && selected && <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground"><CheckCircle2 className="h-3.5 w-3.5"/>They get first choice. There is no automatic fallback or reassignment.</p>}{value.mode === "mine" && !selected && <p className="mt-2 flex items-center gap-1 text-xs text-destructive"><AlertCircle className="h-3.5 w-3.5"/>Choose or add an electrician before adding jobs.</p>}</div>;
+  return <div className={compact ? "rounded-lg bg-estimate-canvas p-3" : "rounded-[18px] border border-estimate-line bg-card p-4"}><div className="mb-2 flex items-center gap-2"><Zap className="h-4 w-4 text-primary"/><b>{compact ? "Safety check" : "Who does the electrical safety check?"}</b></div><div className="grid gap-2 sm:grid-cols-3"><Button type="button" variant={value.mode === "mine" ? "default" : "outline"} onClick={pickFirst}>Use my electrician{compact ? "" : " for all"}</Button><Button type="button" variant={value.mode === "hivic" ? "default" : "outline"} onClick={() => onChange({ mode: "hivic" })}>Use Home Insulation Victoria{compact ? "" : " electricians for all"}</Button>{!compact && <Button type="button" variant={value.mode === "job_by_job" ? "default" : "outline"} onClick={() => onChange({ mode: "job_by_job" })}>Choose job by job</Button>}</div>{value.mode === "mine" && <div className="mt-3"><select aria-label="My electrician" className="h-12 w-full rounded-md border bg-background px-3" value={selected} onChange={(e) => { const [k,id] = e.target.value.split(":"); if (!id) return; onChange(k === "b" ? { mode: "mine", business_id: id } : { mode: "mine", nomination_id: id }); }}><option value="">Choose your electrician</option>{options.map((x) => <option key={x.key} value={x.key}>{x.name} · {x.status}</option>)}</select>{!compact && <Button type="button" variant="ghost" className="mt-1" onClick={() => setAdding(!adding)}>+ Add electrician</Button>}</div>}{adding && draft && setDraft && add && <div className="mt-3 grid gap-2 rounded-lg bg-estimate-canvas p-3 sm:grid-cols-2"><Input placeholder="Name" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })}/><Input placeholder="Mobile" value={draft.mobile} onChange={(e) => setDraft({ ...draft, mobile: e.target.value })}/><Input placeholder="Business (optional)" value={draft.business} onChange={(e) => setDraft({ ...draft, business: e.target.value })}/><Input placeholder="Email (optional)" value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })}/><Button className="sm:col-span-2" disabled={draft.name.trim().length < 2 || draft.mobile.replace(/\D/g, "").length < 8} onClick={add}>Save electrician</Button></div>}{value.mode === "mine" && selected && <p className="mt-2 flex items-center gap-1 text-xs text-estimate-navy/70"><CheckCircle2 className="h-3.5 w-3.5"/>They get first choice. There is no automatic fallback or reassignment.</p>}{value.mode === "mine" && !selected && <p className="mt-2 flex items-center gap-1 text-xs text-destructive"><AlertCircle className="h-3.5 w-3.5"/>Choose or add an electrician before adding jobs.</p>}</div>;
 }
 
 function AddAddress({ row, onSaved }: { row: ReviewRow; onSaved: () => void }) {
@@ -473,8 +468,8 @@ function AddAddress({ row, onSaved }: { row: ReviewRow; onSaved: () => void }) {
 function SiteCheckPicker({ value, onChange, fromFile, installed }: { value: { check: "yes" | "no" | null; date: string | null }; onChange: (v: { check: "yes" | "no" | null; date: string | null }) => void; fromFile: boolean; installed: boolean }) {
   if (installed) return <p className="text-sm font-semibold">Already installed — history only</p>;
   return (
-    <div className={`rounded-lg p-3 ${value.check ? "bg-muted" : "border-2 border-destructive/40 bg-workspace-blush"}`} data-site-check>
-      <p className="text-sm font-semibold">Site check done? {value.check ? (fromFile ? <span className="font-normal text-muted-foreground">(read from your file)</span> : null) : <span className="text-destructive">Please answer</span>}</p>
+    <div className={`rounded-lg p-3 ${value.check ? "bg-estimate-canvas" : "border-2 border-destructive/40 bg-workspace-blush"}`} data-site-check>
+      <p className="text-sm font-semibold">Site check done? {value.check ? (fromFile ? <span className="font-normal text-estimate-navy/70">(read from your file)</span> : null) : <span className="text-destructive">Please answer</span>}</p>
       <div className="mt-1 grid grid-cols-2 gap-2">{(["yes", "no"] as const).map((v) => <Button key={v} type="button" size="field" variant={value.check === v ? "default" : "outline"} onClick={() => onChange({ check: v, date: v === "yes" ? value.date : null })}>{v === "yes" ? "Yes" : "No"}</Button>)}</div>
       {value.check === "yes" && <label className="mt-2 block text-sm">Site check date (if known)<Input type="date" className="mt-1 h-12" value={value.date ?? ""} onChange={(e) => onChange({ check: "yes", date: e.target.value || null })} /></label>}
     </div>

@@ -4,11 +4,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { TradeShell } from "@/components/trade/TradeShell";
-import { Section } from "@/components/portal/panels";
+import { Button, Section } from "@/components/trade/trade-ui";
 import { useAction } from "@/hooks/use-me";
 import { confirmImport, createImport, discardImport, getPartnerProfile, partnerUploadUrl } from "@/lib/pilot.functions";
 import { parseCsv, reviewItems, type Extracted, type ImportField } from "@/lib/pilot.core";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -28,7 +27,7 @@ function ImportPage() {
     <TradeShell installer>
       <h1 className="font-display text-3xl font-extrabold">Add one job</h1>
       <p className="text-sm text-estimate-navy/70">Paste, upload or export what you already have. We'll pull out the details and you just confirm them.</p>
-      {!businessId ? <p className="text-sm text-muted-foreground">Loading…</p> : draft ? <Review draft={draft} onBack={() => setDraft(null)} /> : <Source businessId={businessId} onDraft={setDraft} />}
+      {!businessId ? <p className="text-sm text-estimate-navy/70">Loading…</p> : draft ? <Review draft={draft} onBack={() => setDraft(null)} /> : <Source businessId={businessId} onDraft={setDraft} />}
     </TradeShell>
   );
 }
@@ -61,7 +60,7 @@ function Source({ businessId, onDraft }: { businessId: string; onDraft: (d: Draf
   return (
     <div className="space-y-4">
       <Section title="Where is it from?">
-        <div className="grid grid-cols-3 gap-2">{([["easymate", "EasyMate"], ["email", "Forwarded email"], ["manual_import", "Other"]] as const).map(([k, l]) => <Button key={k} size="field" variant={system === k ? "default" : "outline"} onClick={() => setSystem(k)}>{l}</Button>)}</div>
+        <div className="grid grid-cols-3 gap-2 [&_button]:px-2">{([["easymate", "EasyMate"], ["email", "Email"], ["manual_import", "Other"]] as const).map(([k, l]) => <Button key={k} size="field" variant={system === k ? "default" : "outline"} onClick={() => setSystem(k)}>{l}</Button>)}</div>
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
           <Input className="h-12" placeholder="Your job / lead reference" value={ref} onChange={(e) => setRef(e.target.value)} />
           <Input className="h-12" placeholder="Link (ERA / job link – saved as a reference only)" value={url} onChange={(e) => setUrl(e.target.value)} />
@@ -73,11 +72,11 @@ function Source({ businessId, onDraft }: { businessId: string; onDraft: (d: Draf
       <Section title="Or upload a CSV export">
         <Input type="file" accept=".csv,text/csv" onChange={async (e) => { const f = e.target.files?.[0]; setCsv(f ? await f.text() : ""); setRow(0); }} />
         {rows.length > 1 && <select className="mt-2 h-12 w-full rounded border bg-background px-2" value={row} onChange={(e) => setRow(Number(e.target.value))}>{rows.map((r, i) => <option key={i} value={i}>{Object.values(r).slice(0, 3).join(" · ")}</option>)}</select>}
-        {rows.length > 0 && <p className="mt-1 text-xs text-muted-foreground">{rows.length} row(s) found – one job per import.</p>}
+        {rows.length > 0 && <p className="mt-1 text-xs text-estimate-navy/70">{rows.length} row(s) found – one job per import.</p>}
       </Section>
       <Section title="Attach quote, job sheet, measure-up or photos">
         <Input type="file" multiple accept="application/pdf,image/*" onChange={(e) => setFiles([...(e.target.files ?? [])])} />
-        <p className="mt-1 text-xs text-muted-foreground">Files are kept with the job as source documents. Details inside PDFs and photos aren't read automatically yet – confirm them on the next screen.</p>
+        <p className="mt-1 text-xs text-estimate-navy/70">Files are kept with the job as source documents. Details inside PDFs and photos aren't read automatically yet – confirm them on the next screen.</p>
       </Section>
       <Button size="field" className="w-full" disabled={busy || (!text && !csv && !files.length && !ref)} onClick={go}>{busy ? "Reading…" : "Continue"}</Button>
     </div>
@@ -94,6 +93,13 @@ function Review({ draft, onBack }: { draft: Draft; onBack: () => void }) {
   const check = items.filter((i) => i.flagged || (i.value == null && ["phone", "suburb", "postcode", "measured_area_m2"].includes(i.key)));
   const rest = items.filter((i) => !found.includes(i) && !check.includes(i));
   const numeric: ImportField[] = ["measured_area_m2", "removal_m2", "existing_r_value", "r_value"];
+  // Same three facts as bulk upload (Jo, 7 Oct): his quoted price exactly as given, what it includes, site check Y/N.
+  const [siteCheck, setSiteCheck] = useState<"yes" | "no" | null>(null);
+  const [siteDate, setSiteDate] = useState("");
+  const [price, setPrice] = useState("");
+  const [includes, setIncludes] = useState("");
+  const priceNum = price.trim() ? Number(price.replace(/[$,\s]/g, "")) : null;
+  const priceBad = priceNum != null && !(Number.isFinite(priceNum) && priceNum > 0);
   const out = () => Object.fromEntries(items.map((i) => {
     const v = vals[i.key]?.trim() ?? "";
     if (!v) return [i.key, null];
@@ -103,18 +109,31 @@ function Review({ draft, onBack }: { draft: Draft; onBack: () => void }) {
   }));
   const row = (i: (typeof items)[number]) => (
     <label key={i.key} className="block text-sm">
-      <span className="text-muted-foreground">{i.label}{i.required ? " *" : ""}{i.confidence === "uncertain" && <span className="ml-1 text-warning">please check</span>}</span>
+      <span className="text-estimate-navy/70">{i.label}{i.required ? " *" : ""}{i.confidence === "uncertain" && <span className="ml-1 text-warning">please check</span>}</span>
       <Input className={`h-12 ${i.flagged ? "border-warning" : ""}`} value={vals[i.key] ?? ""} onChange={(e) => setVals({ ...vals, [i.key]: e.target.value })} />
     </label>
   );
   return (
     <div className="space-y-4">
-      <Section title="We found these details – confirm"><div className="grid gap-2 sm:grid-cols-2">{found.length ? found.map(row) : <p className="text-sm text-muted-foreground">Nothing found automatically.</p>}</div></Section>
+      <Section title="We found these details – confirm"><div className="grid gap-2 sm:grid-cols-2">{found.length ? found.map(row) : <p className="text-sm text-estimate-navy/70">Nothing found automatically.</p>}</div></Section>
       <Section title="Check or fill in"><div className="grid gap-2 sm:grid-cols-2">{check.map(row)}</div></Section>
-      <details className="rounded-xl border bg-card p-4"><summary className="cursor-pointer text-sm font-medium">Other optional details</summary><div className="mt-3 grid gap-2 sm:grid-cols-2">{rest.map(row)}</div></details>
-      {draft.extracted.quote_lines?.length ? <Section title="Existing quote lines (kept as source context)">{draft.extracted.quote_lines.map((l, i) => <div key={i} className="text-sm">{l.description} – ${l.amount}</div>)}</Section> : null}
-      <p className="text-xs text-muted-foreground">A measured area you enter becomes your measure-up for Home Insulation Victoria to review. If it's accepted, the electrician only does the electrical check.</p>
-      <Button size="field" className="w-full" onClick={async () => { const r = await confirm({ importId: draft.id, facts: out() }, "Home Insulation Victoria job created"); if (r) navigate({ to: "/field/$jobId", params: { jobId: r.jobId } }); }}>Confirm & create Home Insulation Victoria job</Button>
+      <details className="rounded-[22px] bg-card p-5 shadow-sm"><summary className="cursor-pointer text-sm font-medium">Other optional details</summary><div className="mt-3 grid gap-2 sm:grid-cols-2">{rest.map(row)}</div></details>
+      <Section title="Your price and site check">
+        <div className="space-y-3" data-installer-facts>
+          <div>
+            <p className="text-sm font-bold">Have you already done the site check / measure-up?{!siteCheck && <span className="ml-1 text-destructive">Please answer</span>}</p>
+            <p className="text-xs text-estimate-navy/70">Yes skips our Ready Check. No means we book a Ready Check with the owner.</p>
+            <div className="mt-2 grid grid-cols-2 gap-2">{(["yes", "no"] as const).map((v) => <Button key={v} type="button" size="field" variant={siteCheck === v ? "default" : "outline"} onClick={() => setSiteCheck(v)}>{v === "yes" ? "Yes" : "No"}</Button>)}</div>
+            {siteCheck === "yes" && <label className="mt-2 block text-sm">Site check date (if known)<Input type="date" className="mt-1 h-12" value={siteDate} onChange={(e) => setSiteDate(e.target.value)} /></label>}
+          </div>
+          <label className="block text-sm"><span className="font-bold">Your quoted price inc GST</span><span className="block text-xs text-estimate-navy/70">Exactly as you quoted the owner. Leave blank if you haven't quoted yet — we'll mark it "Quote needed from installer".</span>
+            <Input className={`mt-1 h-12 ${priceBad ? "border-destructive" : ""}`} inputMode="decimal" placeholder="e.g. 3,450" value={price} onChange={(e) => setPrice(e.target.value)} /></label>
+          {priceNum ? <label className="block text-sm"><span className="font-bold">What the price includes</span><span className="block text-xs text-estimate-navy/70">e.g. R5 batts 120 m², removal of old insulation, tile lift</span>
+            <Textarea rows={3} className="mt-1" value={includes} onChange={(e) => setIncludes(e.target.value)} /></label> : null}
+        </div>
+      </Section>
+      <p className="text-xs text-estimate-navy/70">Confirming creates the job only — nothing is sent to the owner. Your price is used exactly as you give it.</p>
+      <Button size="field" className="w-full" disabled={!siteCheck || priceBad} onClick={async () => { const r = await confirm({ importId: draft.id, facts: out(), installer: { site_check: siteCheck!, site_check_date: siteCheck === "yes" && siteDate ? siteDate : null, quoted_price_inc_gst: priceNum, price_includes: includes.trim() || null } }, "Job added"); if (r) navigate({ to: "/field/$jobId", params: { jobId: r.jobId } }); }}>Add this job</Button>
       <div className="grid grid-cols-2 gap-2"><Button variant="outline" onClick={onBack}>Back</Button><Button variant="ghost" onClick={async () => { await discard({ importId: draft.id }, "Draft discarded"); onBack(); }}>Discard draft</Button></div>
     </div>
   );

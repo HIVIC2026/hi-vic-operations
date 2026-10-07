@@ -71,8 +71,7 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
       )}
       {(roles.includes("electrician") || roles.includes("installer")) && !roles.includes("admin") && <>
         <Link to="/field" className={link} activeProps={active} onClick={() => setMobileOpen(false)}>My work</Link>
-        {access?.installerBusinessAdmin && <Link to="/partner/add" className={link} activeProps={active} onClick={() => setMobileOpen(false)}>Add job</Link>}
-        {access?.businessAdmin && <Link to="/partner/payments" className={link} activeProps={active} onClick={() => setMobileOpen(false)}>Payments</Link>}
+        {access?.installerBusinessAdmin && <Link to="/partner/import" className={link} activeProps={active} onClick={() => setMobileOpen(false)}>Add one job</Link>}
         {access?.businessAdmin && <Link to="/field/business" className={link} activeProps={active} onClick={() => setMobileOpen(false)}>Business</Link>}
       </>}
       {roles.includes("owner") && <Link to="/owner" className={link} activeProps={active}>My home</Link>}
