@@ -86,3 +86,4 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 
 - [~] Trade pages to approved design: shared look done (menu, colours, fonts, cards, buttons, fields). Next: page-by-page layouts (address-only job titles, side "What happens next" panel, extra states).
 - [ ] Ready Check for installer-supplied customers: owner paperwork A has no signing path — waiting on Jo
+- [x] Design v2 zip: identical to the approved design already applied (no changes)

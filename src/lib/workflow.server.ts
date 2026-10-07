@@ -141,10 +141,11 @@ export async function currentApprovedQuote(jobId: string) {
 
 /** Approved payment-option gate (pure rule: evaluatePaymentGate). Route-aware; flag OFF blocks with "payment rule pending activation". */
 export async function paymentGate(jobId: string) {
-  const { evaluatePaymentGate, paymentRouteFor } = await import("./payment-gate.core");
-  const [enabled, quote, { data: job }] = await Promise.all([
+  const { evaluatePaymentGate, paymentRouteFor, paymentGateEnabledFor } = await import("./payment-gate.core");
+  const [globalEnabled, quote, { data: job }] = await Promise.all([
     paymentGateEnabled(), currentApprovedQuote(jobId), admin.from("jobs").select("channel, source, qa_archived_at").eq("id", jobId).single(),
   ]);
+  const enabled = paymentGateEnabledFor({ globalEnabled, jobSource: job?.source, qaArchived: !!job?.qa_archived_at });
   // TEST journeys only: the latest audited simulated payment (never consulted for real jobs).
   const { data: sim } = quote && job?.source === "qa_test" && !job.qa_archived_at
     ? await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "qa_payment_simulated").order("created_at", { ascending: false }).limit(1).maybeSingle()
