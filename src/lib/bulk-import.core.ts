@@ -496,3 +496,31 @@ export function reviewRowNotes(sort: SortResult | null, reasons: string[], check
   if (check === "no") return { tag: "Ready Check to be booked with the owner", tone: "info", notes };
   return { tag: "Please answer: site check done?", tone: "alert", notes };
 }
+
+// ---------- large uploads (Jo, 7 Oct): read big lists in small chunks, retry, report which rows failed ----------
+export const READ_CHUNK_ROWS = 25;
+export type RowChunk<T> = { from: number; to: number; rows: T[] }; // from/to are 1-based row numbers in the file
+export function chunkRows<T>(rows: T[], size = READ_CHUNK_ROWS): RowChunk<T>[] {
+  const out: RowChunk<T>[] = [];
+  for (let i = 0; i < rows.length; i += size) out.push({ from: i + 1, to: Math.min(rows.length, i + size), rows: rows.slice(i, i + size) });
+  return out;
+}
+export const rowRangeLabel = (c: { from: number; to: number }) => (c.from === c.to ? `Row ${c.from}` : `Rows ${c.from}–${c.to}`);
+export const readingProgress = (total: number, done: number) => `Reading ${total} customer${total === 1 ? "" : "s"}… ${done} done`;
+/** Runs every chunk (a few at a time), retrying each failed chunk. Never throws: returns what was read and which chunks failed. */
+export async function readInChunks<T, R>(chunks: RowChunk<T>[], read: (c: RowChunk<T>) => Promise<R[]>, opts: { tries?: number; parallel?: number; onDone?: (rowsDone: number) => void; wait?: (ms: number) => Promise<void> } = {}) {
+  const tries = opts.tries ?? 3, wait = opts.wait ?? ((ms) => new Promise<void>((r) => setTimeout(r, ms)));
+  const results: (R[] | null)[] = chunks.map(() => null);
+  let next = 0, rowsDone = 0;
+  async function worker() {
+    while (next < chunks.length) {
+      const i = next++, c = chunks[i]!;
+      for (let t = 1; t <= tries && !results[i]; t++) {
+        try { results[i] = await read(c); } catch { if (t < tries) await wait(1500 * t); }
+      }
+      if (results[i]) { rowsDone += c.rows.length; opts.onDone?.(rowsDone); }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(opts.parallel ?? 3, chunks.length) }, worker));
+  return { leads: results.flatMap((r) => r ?? []), failed: chunks.filter((_, i) => !results[i]), rowsDone };
+}

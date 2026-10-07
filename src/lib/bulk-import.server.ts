@@ -121,6 +121,7 @@ export async function aiExtractRows(rawRows: Record<string, string>[], documents
       { role: "user", content: JSON.stringify({ rows: rawRows, documents: documents.map((d) => ({ name: d.name, text: d.text.slice(0, 20_000) })), files: files.slice(0, 1500) }).slice(0, 180_000) },
     ],
     providerOptions: AI_OPTIONS,
+    abortSignal: AbortSignal.timeout(rawRows.length > 40 ? 300_000 : 120_000),
   });
   const text = await result.text;
   const jsonText = text.replace(/^```(?:json)?/m, "").replace(/```$/m, "").trim();
@@ -219,6 +220,13 @@ async function existingPortalKeys(): Promise<Set<string>> {
   return keys;
 }
 
+/** Server-side fallback for big lists: same chunks and retries as the page. Throws only if nothing could be read. */
+export async function readRowsInChunks(rawRows: Record<string, string>[]): Promise<BulkExtracted[]> {
+  const res = await readInChunks(chunkRows(rawRows), (c) => aiExtractRows(c.rows), { parallel: 4 });
+  if (!res.leads.length && res.failed.length) throw new BulkImportError("This list couldn't be read. Try again in a minute.");
+  return res.leads;
+}
+
 export async function analyseBatch(batchId: string, actorId: string) {
   const { data: batch } = await admin.from("bulk_import_batches").select("*").eq("id", batchId).single();
   if (!batch || batch.status !== "draft") throw new BulkImportError("This upload was already analysed or confirmed.");
@@ -230,7 +238,13 @@ export async function analyseBatch(batchId: string, actorId: string) {
   const rawRows = stored.raw_rows ?? [];
   const documents = stored.documents ?? [];
   // Never a dead end: with no list, leads still come from file/folder names, photo/PDF text and photo GPS.
-  const cleaned0 = (await aiExtractRows(rawRows, documents, manifest.map((f) => ({ name: f.path, folder: f.folder ?? null, geo_address: f.geo_address ?? null })))).map(cleanLead);
+  const fileRefs = manifest.map((f) => ({ name: f.path, folder: f.folder ?? null, geo_address: f.geo_address ?? null }));
+  const pre = (batch.summary as { pre_extracted?: BulkExtracted[] } | null)?.pre_extracted;
+  // Big lists are read in chunks first (by the page, or here) so one slow reply can't fail the whole upload.
+  const fromRows = pre ?? (rawRows.length > READ_CHUNK_ROWS ? await readRowsInChunks(rawRows) : null);
+  const cleaned0 = (fromRows
+    ? [...fromRows, ...(documents.length || fileRefs.length ? await aiExtractRows([], documents, fileRefs) : [])]
+    : await aiExtractRows(rawRows, documents, fileRefs)).map(cleanLead);
   // Photos with no customer details still make one row ("Customer details needed") so the installer can fill it in.
   const cleaned = cleaned0.length || !manifest.length ? cleaned0 : [cleanLead<BulkExtracted>({ full_name: null, email: null, phone: null, address_line: null, suburb: null, postcode: null })];
   const extracted = cleaned.map((c) => c.lead);
