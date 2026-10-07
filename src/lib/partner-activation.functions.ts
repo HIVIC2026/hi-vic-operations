@@ -156,7 +156,7 @@ async function makePartnerLogin(sb: Parameters<typeof requireAdmin>[0], actorId:
     const { data: app } = await admin.from("rec_onboarding_applications").select("partner_type, test_mode, data").eq("id", data.applicationId).single();
     if (!app || app.test_mode) throw new WorkflowError("Not available for test applications.");
     const d = app.data as { business_email?: string; installers?: { email?: string; full_legal_name?: string }[]; primary_contact_name?: string };
-    const allowed = [d.business_email, ...(d.installers ?? []).map((w) => w.email)].filter(Boolean).map((e) => e!.trim().toLowerCase());
+    const allowed = [d.business_email, ...(d.installers ?? []).map((w) => w.email)].filter(Boolean).map((e) => e!.trim().replace(/[.,;]+$/, "").toLowerCase());
     if (!allowed.includes(data.email)) throw new WorkflowError("Use the business email or a nominated worker's email from the signed application.");
     const role = app.partner_type === "installer" ? "installer" : "electrician";
     const name = (d.installers ?? []).find((w) => w.email?.trim().toLowerCase() === data.email)?.full_legal_name ?? d.primary_contact_name ?? null;
