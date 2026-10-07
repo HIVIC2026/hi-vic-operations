@@ -44,7 +44,7 @@ export async function confirmImportFor(userId: string, data: ConfirmImportInput)
   const c = data.facts as ConfirmedFacts;
   const blockers = confirmBlockers(c);
   const { quotedGap } = await import("./bulk-import.core");
-  const qg = quotedGap(data.installer?.quoted, data.installer?.quoted_price_inc_gst);
+  const qg = data.installer?.quoted === "yes" ? quotedGap("yes", data.installer.quoted_price_inc_gst) : null; // blank never blocks (Jo, 5:46pm)
   if (qg) blockers.push(qg);
   if (data.installer && data.installer.quoted === "no") data.installer.quoted_price_inc_gst = null; // "Quote needed from installer"
   if (data.installer?.contact_permission !== true) blockers.push("Tick to confirm the owner agreed to Home Insulation Victoria contacting them");
@@ -69,7 +69,8 @@ export async function confirmImportFor(userId: string, data: ConfirmImportInput)
   await admin.from("jobs").update(inst ? {
     installer_site_check: inst.site_check,
     installer_site_check_date: inst.site_check === "yes" ? inst.site_check_date ?? null : null,
-    installer_quoted_price_inc_gst: inst.quoted_price_inc_gst ?? null, installer_price_includes: inst.quoted_price_inc_gst ? inst.price_includes || null : null,
+    installer_quoted: inst.quoted ?? null,
+    installer_quoted_price_inc_gst: inst.quoted === "yes" ? inst.quoted_price_inc_gst ?? null : null, installer_price_includes: inst.quoted === "yes" && inst.quoted_price_inc_gst ? inst.price_includes || null : null,
   } : {
     installer_site_check: data.progress ? (data.progress === "not_visited" ? "no" : "yes") : null,
     installer_site_check_date: data.progress && data.progress !== "not_visited" ? onDate : null,

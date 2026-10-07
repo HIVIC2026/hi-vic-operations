@@ -170,6 +170,6 @@ describe("site check + installer price (Jo, 7 Oct)", () => {
   test("bulk confirm never prices from HIV owner prices or the installer's rate card", () => {
     const src = require("node:fs").readFileSync("src/lib/bulk-import.server.ts", "utf8") as string;
     expect(src).not.toMatch(/r5_install_inc_gst_per_m2|rate_card_items/);
-    expect(src).toContain("installer_quoted_price_inc_gst: quoteNeeded(e) ? null");
+    expect(src).toContain(`installer_quoted_price_inc_gst: e.quoted_answer === "yes" ? e.price_inc_gst ?? null : null`);
   });
 });

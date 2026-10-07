@@ -1,8 +1,11 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useServerFn } from "@tanstack/react-start";
-import { getInstallerJobFacts, getMyInstallerJobFacts } from "@/lib/portal.functions";
+import { answerInstallerQuoted, getInstallerJobFacts, getMyInstallerJobFacts } from "@/lib/portal.functions";
 import { Section } from "./panels";
-import { installerFactLabels, type InstallerJobFacts } from "@/lib/bulk-import.core";
+import { QUOTED_QUESTION, installerFactLabels, type InstallerJobFacts } from "@/lib/bulk-import.core";
 
 /** Installer-sourced jobs: site check done? and the installer's own price (or "Quote needed from installer"). */
 export function InstallerFactsLine({ facts }: { facts: InstallerJobFacts | null | undefined }) {
@@ -43,6 +46,8 @@ export function PartnerInstallerFactsCard({ jobId }: { jobId: string }) {
   if (!f) return null;
   const l = installerFactLabels(f);
   return (
+    <>
+    {f.quoted === null && <QuotedQuestion jobId={jobId} />}
     <section className="rounded-[22px] bg-card p-5 shadow-sm" data-partner-installer-facts>
       <h2 className="font-display text-lg font-extrabold">What you told us</h2>
       <dl className="mt-2 divide-y divide-estimate-line">
@@ -50,6 +55,38 @@ export function PartnerInstallerFactsCard({ jobId }: { jobId: string }) {
         <div className="py-2"><dt className="text-xs font-bold uppercase tracking-wide text-estimate-navy/60">Your quoted price</dt><dd className="font-semibold">{f.quoted_price_inc_gst ? `$${f.quoted_price_inc_gst.toLocaleString("en-AU")} inc GST` : l.price}</dd></div>
         <div className="py-2"><dt className="text-xs font-bold uppercase tracking-wide text-estimate-navy/60">What the price includes</dt><dd className="font-semibold">{f.price_includes ?? "—"}</dd></div>
       </dl>
+    </section>
+    </>
+  );
+}
+
+/** Next action for the installer when "Quoted?" was left blank at upload (Jo, 5:46pm). */
+function QuotedQuestion({ jobId }: { jobId: string }) {
+  const qc = useQueryClient();
+  const answer = useServerFn(answerInstallerQuoted);
+  const [yes, setYes] = useState(false);
+  const [price, setPrice] = useState("");
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const n = Number(price.replace(/[$,\s]/g, ""));
+  const send = async (a: "yes" | "no") => {
+    setBusy(true); setErr("");
+    try { await answer({ data: { jobId, answer: a, price: a === "yes" ? n : null } }); await qc.invalidateQueries(); }
+    catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+  };
+  return (
+    <section className="rounded-[22px] border-2 border-warning bg-card p-5 shadow-sm" data-quoted-question>
+      <p className="text-xs font-bold uppercase tracking-wide text-estimate-navy/60">Next for you</p>
+      <h2 className="font-display text-lg font-extrabold">{QUOTED_QUESTION}</h2>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <Button size="field" variant={yes ? "default" : "outline"} disabled={busy} onClick={() => setYes(true)}>Yes</Button>
+        <Button size="field" variant="outline" disabled={busy} onClick={() => send("no")}>No</Button>
+      </div>
+      {yes && <div className="mt-3 space-y-2">
+        <label className="block text-sm font-bold">Your quoted price inc GST<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 3,450" value={price} onChange={(e) => setPrice(e.target.value)} /></label>
+        <Button size="field" className="w-full" disabled={busy || !(Number.isFinite(n) && n > 0)} onClick={() => send("yes")}>Save price</Button>
+      </div>}
+      {err && <p className="mt-2 text-sm text-destructive">{err}</p>}
     </section>
   );
 }

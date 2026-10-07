@@ -13,7 +13,7 @@ import { hashToken, newToken } from "./worker-links.core";
 import { linkFiles, type LeadStage } from "./bulk-import.core";
 import { applyDiscountRules, discountNotes, wholeVeecDiscount } from "./estimate.core";
 import {
-  customerDetailsReason, quotedGap, effectiveSiteCheck, cleanLead, gridToRecords, dedupeKey, parseSiteCheck, QUOTE_NEEDED_LABEL, quoteNeeded, siteCheckFromFile, siteCheckLabel, fileResults, findDuplicates, leadStage, type FileResult, LEAD_STAGE_LABEL, matchFiles, missingEvidence, normaliseAddress, sortJob,
+  customerDetailsReason, quotedGap, QUOTED_ANSWER_NEEDED, effectiveSiteCheck, cleanLead, gridToRecords, dedupeKey, parseSiteCheck, QUOTE_NEEDED_LABEL, quoteNeeded, siteCheckFromFile, siteCheckLabel, fileResults, findDuplicates, leadStage, type FileResult, LEAD_STAGE_LABEL, matchFiles, missingEvidence, normaliseAddress, sortJob,
   type BulkExtracted, type BulkFile,
 } from "./bulk-import.core";
 
@@ -323,8 +323,9 @@ async function createBulkJob(e: BulkExtracted, batch: { id: string; business_id:
     external_enquiry_id: `bulk:${rowId}`,
     // Jo (7 Oct): the installer's own price exactly as given (none = quote needed) and whether he already did the site check.
     installer_site_check: siteCheckFromFile(e).check, installer_site_check_date: siteCheckFromFile(e).date,
-    installer_quoted_price_inc_gst: quoteNeeded(e) ? null : e.price_inc_gst ?? null, installer_price_includes: e.price_includes ?? null,
-    next_action: quoteNeeded(e) && importStage !== "installed" ? `${placement.next} · ${QUOTE_NEEDED_LABEL}` : placement.next,
+    installer_quoted: e.quoted_answer ?? null,
+    installer_quoted_price_inc_gst: e.quoted_answer === "yes" ? e.price_inc_gst ?? null : null, installer_price_includes: e.quoted_answer === "yes" ? e.price_includes ?? null : null,
+    next_action: importStage === "installed" ? placement.next : e.quoted_answer == null ? `${placement.next} · ${QUOTED_ANSWER_NEEDED}` : e.quoted_answer === "no" ? `${placement.next} · ${QUOTE_NEEDED_LABEL}` : placement.next,
   }).select("id, job_number").single();
   if (je || !job) throw new BulkImportError(je?.message ?? "Job could not be created.");
   if (sameEmail.length) await admin.from("workflow_events").insert({ job_id: job.id, actor_id: actorId, event_type: "possible_duplicate_owner", summary: "Possible duplicate owner (same email) — office to check", details: { note: "Bulk upload: this owner's email matches an existing owner. A new owner was created; office to check under Possible duplicates.", existing_owner_ids: sameEmail.map((o) => o.id), source: "bulk_import" } as unknown as Json });
@@ -401,7 +402,8 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
       await logPartner(null, actorId, "bulk_import_row_failed", `Row ${row.row_index + 1}: ${gap} in the review table, then confirm again`, { batch_id: batchId, row_id: row.id });
       continue;
     }
-    const qg = quotedGap(e.quoted_answer, e.price_inc_gst);
+    // Quoted? never blocks (Jo, 5:46pm): blank = confirm anyway, job shows "Quoted? – answer needed". Only Yes-without-price stops a row.
+    const qg = e.quoted_answer === "yes" ? quotedGap(e.quoted_answer, e.price_inc_gst) : null;
     if (qg) {
       failed++;
       await logPartner(null, actorId, "bulk_import_row_failed", `Row ${row.row_index + 1}: ${qg} in the review table, then confirm again`, { batch_id: batchId, row_id: row.id });
