@@ -27,7 +27,7 @@ export async function currentRetailSettings(): Promise<RetailSettings | null> {
  * reaches the owner until the normal gates allow. Never uses the installer's quoted price.
  */
 export async function refreshIndicativeEstimate(jobId: string, opts: { officePricing?: boolean } = {}): Promise<EstimateView> {
-  const { data: j } = await admin.from("jobs").select("eligibility_outcome, eligibility_decision_source, eligibility_review_required, estimated_area_m2, estimated_area_unknown, properties(postcode, enrichment)").eq("id", jobId).single();
+  const { data: j } = await admin.from("jobs").select("channel, eligibility_outcome, eligibility_decision_source, eligibility_review_required, estimated_area_m2, estimated_area_unknown, properties(postcode, enrichment)").eq("id", jobId).single();
   if (!j) throw new Error("Job not found");
   const p = j.properties as { postcode: string | null; enrichment: Record<string, unknown> | null } | null;
   const b44 = (p?.enrichment?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } };
@@ -44,6 +44,8 @@ export async function refreshIndicativeEstimate(jobId: string, opts: { officePri
   const history = (hist ?? []).map((h) => ({ ...h, area_m2: Number(h.area_m2) }));
   const settings = await currentRetailSettings();
   const out = (x: Partial<EstimateView>): EstimateView => ({ reason: null, measureRequired: false, settings, estimate: null, history, ...base, ...x });
+  // Installer-sourced jobs are always priced for the office at HIV owner prices (still hidden from the owner until Gate 1).
+  if (j.channel === "installer_sourced") opts = { ...opts, officePricing: true };
   if (!customerCanSee(mode) && !(opts.officePricing && mode === "withheld_undecided")) return out({ reason: mode === "withheld_review" ? "Estimate withheld — Gate 1 review required." : mode === "none_ineligible" ? "No estimate — Gate 1 outcome: does not appear eligible." : "Estimate withheld — no official Gate 1 decision recorded yet." });
   if (!settings) return out({ reason: "Retail estimator settings are not configured." });
 
@@ -53,7 +55,7 @@ export async function refreshIndicativeEstimate(jobId: string, opts: { officePri
   base.location = loc;
 
   const { data: m } = await admin.from("ceiling_measurements").select("id, verified_area_m2, measured_area_m2, status").eq("job_id", jobId).eq("is_current", true).eq("status", "complete").maybeSingle();
-  const { data: im } = m ? { data: null } : await admin.from("ceiling_measurements").select("id, measured_area_m2").eq("job_id", jobId).eq("is_current", true).eq("provenance", "partner_supplied").neq("status", "rejected").maybeSingle();
+  const { data: im } = m ? { data: null } : await admin.from("ceiling_measurements").select("id, measured_area_m2").eq("job_id", jobId).eq("is_current", true).in("provenance", ["partner_supplied", "installer_supplied_provisional"]).neq("status", "rejected").maybeSingle();
   const { data: ests } = await admin.from("property_area_estimates").select("id, tier, net_m2, created_at").eq("job_id", jobId).in("tier", TRUSTED_ESTIMATE_TIERS);
   const best = selectCurrentEstimate((ests ?? []).map((e) => ({ id: e.id, tier: e.tier as AreaTier, net_m2: e.net_m2 == null ? null : Number(e.net_m2), created_at: e.created_at })));
   const area = pickArea({
