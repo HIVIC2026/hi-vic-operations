@@ -49,8 +49,8 @@ export function Btn({ tone = "primary", className, ...p }: React.ButtonHTMLAttri
 }
 
 /* ---------- Pills ---------- */
-export type PillTone = "plain" | "green" | "rose";
-const PILL: Record<PillTone, string> = { plain: "bg-mist text-hiv-blue", green: "bg-mint text-hiv-green", rose: "bg-pink text-rose" };
+export type PillTone = "plain" | "green" | "rose" | "amber";
+const PILL: Record<PillTone, string> = { plain: "bg-mist text-hiv-blue", green: "bg-mint text-hiv-green", rose: "bg-pink text-rose", amber: "bg-warning-soft text-foreground" };
 /** Green = moving or done, rose = needs attention, plain = waiting. */
 export function Pill({ tone = "plain", children, className }: { tone?: PillTone; children: ReactNode; className?: string }) {
   return <span className={cn("inline-flex items-center whitespace-nowrap rounded-[18px] px-2.5 py-0.5 text-[11px] font-semibold", PILL[tone], className)}>{children}</span>;

@@ -5,6 +5,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { ChevronRight, PlusCircle, UploadCloud } from "lucide-react";
 import { TradeShell, aud, card } from "@/components/trade/TradeShell";
 import { NowPanel, Pill, btnClass } from "@/components/portal/kit";
+import { useState } from "react";
+import { StatusLineView } from "@/components/trade/job-status";
 import { getTradeHome } from "@/lib/trade-view.functions";
 import { dayTile, goneIn, tradeGreeting } from "@/lib/trade-view.core";
 
@@ -15,6 +17,7 @@ export const Route = createFileRoute("/_authenticated/field/")({
 
 function MyWork() {
   const load = useServerFn(getTradeHome);
+  const [onlyChasing, setOnlyChasing] = useState(false);
   const { data, error, refetch } = useQuery({ queryKey: ["trade-home"], queryFn: () => load(), refetchInterval: 60_000 });
   if (error) return <TradeShell installer={false}><div role="alert" className={card}><p className="text-sm">Your work couldn't load. Check your signal and try again.</p><button className="mt-3 font-bold text-estimate-blue" onClick={() => refetch()}>Try again</button></div></TradeShell>;
   if (data === undefined) return <TradeShell installer={false}><p className="text-sm">Loading your work…</p></TradeShell>;
@@ -22,6 +25,8 @@ function MyWork() {
   const installer = data.kind === "installer";
   const g = tradeGreeting(data.firstName, data.week);
   const first = data.offers[0];
+  const chasing = data.jobs.filter((j) => j.line && j.line.tone !== "ok");
+  const shown = onlyChasing ? chasing : data.jobs;
   return (
     <TradeShell installer={installer} boss={data.boss} test={data.isTest}>
       <div><h1 className="font-display text-[26px] font-bold leading-tight">{g.title}</h1><p className="text-sm">{g.sub}</p></div>
@@ -57,10 +62,12 @@ function MyWork() {
       </section>
       {data.jobs.length > 0 && (
         <section data-your-jobs>
-          <h2 className="mb-2 font-display text-base font-bold">Your jobs <span className="text-sm font-semibold text-sub">{data.jobs.length}</span></h2>
-          <div className="space-y-2">{data.jobs.map((j) => (
+          <div className="mb-2 flex items-center justify-between gap-2"><h2 className="font-display text-base font-bold">Your jobs <span className="text-sm font-semibold text-sub">{data.jobs.length}</span></h2>
+            <div className="flex gap-1" role="group" aria-label="Filter jobs"><button className={btnClass(onlyChasing ? "secondary" : "primary", "min-h-[34px] px-3")} aria-pressed={!onlyChasing} onClick={() => setOnlyChasing(false)}>All</button><button data-needs-chasing className={btnClass(onlyChasing ? "primary" : "secondary", "min-h-[34px] px-3")} aria-pressed={onlyChasing} onClick={() => setOnlyChasing(true)}>Needs chasing{chasing.length ? ` (${chasing.length})` : ""}</button></div></div>
+          {onlyChasing && !shown.length && <p className={`${card} text-sm`}>Nothing needs chasing right now.</p>}
+          <div className="space-y-2">{shown.map((j) => (
             <Link key={j.jobId} to="/field/$jobId" params={{ jobId: j.jobId }} className="flex items-center gap-3 rounded-[14px] border border-line bg-paper p-3">
-              <span className="min-w-0 flex-1"><span className="block font-bold">{j.jobNumber} · {j.owner ?? "Owner"}</span><span className="block truncate text-sm text-sub">{j.address}</span><span className="mt-1 block"><Pill>{j.status}</Pill></span><span className="mt-1 block"><InstallerFactsLine facts={j.facts} /></span></span><ChevronRight className="h-5 w-5" />
+              <span className="min-w-0 flex-1"><span className="block font-bold">{j.jobNumber} · {j.owner ?? "Owner"}</span><span className="block truncate text-sm text-sub">{j.address}</span><span className="mt-1 block">{j.line ? <StatusLineView line={j.line} compact /> : <Pill>{j.status}</Pill>}</span><span className="mt-1 block"><InstallerFactsLine facts={j.facts} /></span></span><ChevronRight className="h-5 w-5" />
             </Link>))}</div>
         </section>
       )}
