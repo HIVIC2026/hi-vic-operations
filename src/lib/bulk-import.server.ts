@@ -309,13 +309,15 @@ async function createBulkJob(e: BulkExtracted, batch: { id: string; business_id:
   if (sameEmail.length) await admin.from("workflow_events").insert({ job_id: job.id, actor_id: actorId, event_type: "possible_duplicate_owner", summary: "Possible duplicate owner (same email) — office to check", details: { note: "Bulk upload: this owner's email matches an existing owner. A new owner was created; office to check under Possible duplicates.", existing_owner_ids: sameEmail.map((o) => o.id), source: "bulk_import" } as unknown as Json });
   await admin.from("job_assignments").insert({ job_id: job.id, user_id: actorId, role: "installer", business_id: batch.business_id, assigned_by: actorId });
   if (importStage !== "not_visited" && e.area_m2 && e.area_m2 > 0) {
-    await admin.from("ceiling_measurements").insert({
+    const { error: me } = await admin.from("ceiling_measurements").insert({
       job_id: job.id, source_role: "installer", status: "needs_review", is_current: true,
       supplied_area_m2: e.area_m2, measured_area_m2: e.area_m2, measured_by_business_id: batch.business_id,
-      provenance: "partner_supplied", external_source: "bulk_import", external_id: rowId,
+      // Must match the table's allowed values; "partner_supplied" was rejected, silently losing every uploaded measure-up.
+      provenance: "installer_supplied_provisional", external_source: "bulk_import", external_id: rowId,
       raw_snapshot: { row_id: rowId, import_stage: importStage, supplied: e } as unknown as Json,
       review_flags: ["Imported installer measurement requires office acceptance"] as unknown as Json,
     });
+    if (me) throw new BulkImportError(`Measure-up could not be saved: ${me.message}`);
   }
   return job;
 }

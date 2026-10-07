@@ -55,7 +55,7 @@ export async function refreshIndicativeEstimate(jobId: string, opts: { officePri
   base.location = loc;
 
   const { data: m } = await admin.from("ceiling_measurements").select("id, verified_area_m2, measured_area_m2, status").eq("job_id", jobId).eq("is_current", true).eq("status", "complete").maybeSingle();
-  const { data: im } = m ? { data: null } : await admin.from("ceiling_measurements").select("id, measured_area_m2").eq("job_id", jobId).eq("is_current", true).in("provenance", ["partner_supplied", "installer_supplied_provisional"]).neq("status", "rejected").maybeSingle();
+  const { data: im } = m ? { data: null } : await admin.from("ceiling_measurements").select("id, measured_area_m2").eq("job_id", jobId).eq("is_current", true).eq("provenance", "installer_supplied_provisional").neq("status", "rejected").maybeSingle();
   const { data: ests } = await admin.from("property_area_estimates").select("id, tier, net_m2, created_at").eq("job_id", jobId).in("tier", TRUSTED_ESTIMATE_TIERS);
   const best = selectCurrentEstimate((ests ?? []).map((e) => ({ id: e.id, tier: e.tier as AreaTier, net_m2: e.net_m2 == null ? null : Number(e.net_m2), created_at: e.created_at })));
   const area = pickArea({
@@ -65,6 +65,8 @@ export async function refreshIndicativeEstimate(jobId: string, opts: { officePri
     owner: j.estimated_area_unknown ? null : j.estimated_area_m2 == null ? null : Number(j.estimated_area_m2),
   });
   if (!area) return out({ measureRequired: true, reason: "We need a ceiling-area estimate before we can calculate indicative savings" });
+  // Office-only pricing needs a real ceiling size; without one the estimate waits for the Ready Check measure.
+  if (!customerCanSee(mode) && area.source === "typical_default") return out({ measureRequired: true, reason: "Waiting for a ceiling size (Ready Check measure) before pricing the owner's estimate" });
   const sig = estimateSignature({ mode, area, postcode: loc.postcode, insulation, settingsId: settings.id, settingsVersion: settings.version, veecValue: settings.indicative_veec_value, veecSource: `${settings.veec_value_source_url}|${settings.veec_value_checked_at}`, specVersion: A48_SPEC.version });
   const r = computeEstimate(area, loc, insulation, settings);
   const { data: cur } = await admin.from("indicative_estimates").select("id, input_signature, created_at, settings_version").eq("job_id", jobId).eq("status", "current").maybeSingle();

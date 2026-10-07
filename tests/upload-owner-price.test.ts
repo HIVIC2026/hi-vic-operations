@@ -15,5 +15,10 @@ describe("Uploaded jobs: owner always pays HIV owner prices (Jo 7 Oct)", () => {
     expect(src).not.toContain("INSTALLER_PRICE");
     expect(src).not.toMatch(/from\("quotes"\)\.insert/);
     expect(src).toContain("refreshIndicativeEstimate(job.id, { officePricing: true })");
+    expect(src).toContain('provenance: "installer_supplied_provisional"');
+  });
+  test("office-only pricing never uses the typical default area", () => {
+    const src = readFileSync("src/lib/estimate.server.ts", "utf8");
+    expect(src).toContain('!customerCanSee(mode) && area.source === "typical_default"');
   });
 });
