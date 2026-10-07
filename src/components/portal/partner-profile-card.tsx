@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getPartnerProfilePreview, markApplicationTest } from "@/lib/partner-profile.functions";
 import { getPartnerMittiInvited, setPartnerMittiInvited } from "@/lib/trade-view.functions";
+import { TradeTextsCard } from "@/components/portal/trade-texts";
 import { useAction } from "@/hooks/use-me";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -55,6 +56,7 @@ export function PartnerProfileCard({ applicationId }: { applicationId: string })
         </div>
       </div>
       {(activatedBusinessId ?? existingBusinessId) && <MittiInvitedToggle businessId={(activatedBusinessId ?? existingBusinessId) as string} />}
+      {(activatedBusinessId ?? existingBusinessId) && <TradeTextsCard businessId={(activatedBusinessId ?? existingBusinessId) as string} />}
       {flags.length > 0 && (
         <div className="rounded-lg border border-warning/50 bg-warning-soft p-3">
           <div className="mb-1 text-sm font-semibold">Check before approving (doesn't block)</div>
