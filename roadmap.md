@@ -119,8 +119,8 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [ ] Journey step 9: unassigned electrician can open another job's day page — access leak to fix
 
 ## Overnight follow-ups (Jo, 18:14 UTC)
-- [ ] Full suite: fix 5 failing checks
-- [ ] Restore TEST businesses; installer-test cleanup on timeout/crash; split screenshots; re-run
-- [ ] Finish trade redesign: Money detail/tabs, visit-changes card, Mitti pages, sign-in/set-password/rate-offer/staff link; screenshots 390/1280
-- [ ] Consent wording exact on customer cards
+- [x] Full suite: fix 5 failing checks
+- [x] Restore TEST businesses; cleanup on timeout/crash; split screenshots; re-run (READY)
+- [x] Finish trade redesign pages (open: in-visit card + Mitti hand-off screenshots need a started TEST visit)
+- [x] Consent wording exact on customer cards
 - [x] PIESA booking unpaired (done 17:50)
