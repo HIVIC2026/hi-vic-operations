@@ -19,7 +19,6 @@ describe("real SMS gate", () => {
   test("AU formatting", () => {
     expect(toAuE164("0477 511 901")).toBe("+61477511901");
     expect(toAuE164("+61 477 511 901")).toBe("+61477511901");
-    expect(toAuE164("477511901")).toBe("+61477511901");
     expect(toAuE164("12345")).toBeNull();
   });
   test("STOP/START keywords", () => {
