@@ -123,6 +123,13 @@ async function sendOne(jobId: string, actorId: string, realOn: boolean, testOpts
     ...(assessmentFee === undefined ? {} : { assessmentFee }),
     ...(apFee === undefined ? {} : { apFee }),
   }), unsubscribeUrl);
+  if (mode === "preview") return { ...r("sent", "Preview only — not sent"), preview: { to, subject: mail.subject, html: mail.html } };
+  if (mode === "test_to_jo") {
+    const subject = `[TEST of ${job.job_number}] ${mail.subject}`;
+    const t = await resendSend(JO_TEST_INBOX, subject, mail.html, mail.plainText, `save-spot-test:${jobId}:${Date.now()}`, null);
+    await admin.from("admin_config_events").insert({ actor_id: actorId, event_type: "save_my_spot_test_to_jo", summary: `Test of ${job.job_number} Save my spot email to ${JO_TEST_INBOX}: ${t.ok ? "sent" : "failed"}`, details: { job_id: jobId, detail: t.detail } as never });
+    return r(t.ok ? "sent" : "failed", t.ok ? `Test sent to ${JO_TEST_INBOX}` : t.detail);
+  }
   const finish = async (status: string, provider: string, error: string | null) => {
     await admin.from("customer_email_sends").update({ status, provider, error, sent_at: status === "sent" ? new Date().toISOString() : null }).eq("id", sendId!);
   };
@@ -134,21 +141,34 @@ async function sendOne(jobId: string, actorId: string, realOn: boolean, testOpts
       await finish("sent", "resend_test", null);
       if (t.detail) testSendIds.set(jobId, t.detail);
     } else {
-      const { configuredDeliveryAdapter } = await import("./delivery.server");
-      const adapter = await configuredDeliveryAdapter();
-      if (!adapter) { await finish("failed", "none", "Email delivery not configured"); return r("blocked", "Email delivery is not set up."); }
-      const d = await adapter.deliver({ to, subject: mail.subject, html: mail.html, text: mail.plainText, idempotencyKey: key, purpose: LAUNCH_CAMPAIGN });
-      await finish("sent", adapter.provider, null);
+      // This one approved campaign sends through the email service directly (the Base44 bridge stays off).
+      const d = await resendSend(to, mail.subject, mail.html, mail.plainText, key, unsubscribeUrl);
+      if (!d.ok) { await finish("failed", "resend", d.detail); return r("failed", d.detail); }
+      await finish("sent", "resend", null);
       const { recordCommunication } = await import("./comms.server");
-      await recordCommunication({ jobId, direction: "outbound", channel: "email", recipients: [to], subject: mail.subject, body: mail.plainText, provider: adapter.provider, providerMessageId: d.providerMessageId, visibility: "customer", sourceEvent: LAUNCH_CAMPAIGN, sourceReference: key, createdBy: actorId } as never);
+      await recordCommunication({ jobId, direction: "outbound", channel: "email", recipients: [to], subject: mail.subject, body: mail.plainText, provider: "resend", providerMessageId: d.id, visibility: "customer", sourceEvent: LAUNCH_CAMPAIGN, sourceReference: key, createdBy: actorId } as never).catch(() => null);
     }
   } catch (e) {
-    const { statusAfterDeliveryError } = await import("./delivery.core");
-    await finish(isTest ? "failed" : statusAfterDeliveryError(e), isTest ? "resend_test" : "bridge", (e as Error).message.slice(0, 300));
+    await finish("failed", isTest ? "resend_test" : "resend", (e as Error).message.slice(0, 300));
     return r("failed", (e as Error).message);
   }
   await logEvent(jobId, actorId, "save_my_spot_email_sent", `Save my spot email sent from Hot leads${isTest ? " (TEST, allowlist only)" : ""}`, { campaign: LAUNCH_CAMPAIGN, to_test: isTest }, { internal: true }).catch(() => null);
   return r("sent", isTest ? "Sent to Jo's test inbox" : "Sent");
+}
+
+const CAMPAIGN_FROM = "Home Insulation Victoria <jobs@homeinsulationvictoria.com.au>";
+async function resendSend(to: string, subject: string, html: string, text: string, idem: string, unsubscribeUrl: string | null): Promise<{ ok: boolean; id: string | null; detail: string }> {
+  const key = process.env["RESEND_API_KEY"], gw = process.env["LOVABLE_API_KEY"];
+  if (!key || !gw) return { ok: false, id: null, detail: "Email is not connected" };
+  const res = await fetch("https://connector-gateway.lovable.dev/resend/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${gw}`, "X-Connection-Api-Key": key, "Content-Type": "application/json", "Idempotency-Key": idem.slice(0, 250) },
+    body: JSON.stringify({ from: CAMPAIGN_FROM, to: [to], reply_to: "info@homeinsulationvictoria.com.au", subject, html, text, ...(unsubscribeUrl ? { headers: { "List-Unsubscribe": `<${unsubscribeUrl}>` } } : {}) }),
+  });
+  const t = await res.text();
+  if (!res.ok) return { ok: false, id: null, detail: `Email service error ${res.status}: ${t.slice(0, 200)}` };
+  let id: string | null = null; try { id = (JSON.parse(t) as { id?: string }).id ?? null; } catch { /* ignore */ }
+  return { ok: true, id, detail: "Accepted" };
 }
 
 /** Office edits an owner email (Jo-approved fixes only). Audited with a reason. */
