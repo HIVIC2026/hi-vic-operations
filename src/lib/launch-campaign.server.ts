@@ -50,7 +50,9 @@ export async function campaignPage(token: unknown, testMode = false) {
   const p = savedPriceFromEstimate(est ?? null);
   const veecValue = Number(cfg?.indicative_veec_value) || 70;
   const pricing = p && p.areaM2 ? { gross: p.gross, discount: p.discount, total: p.total, areaM2: p.areaM2, assessmentFee: Number(cfg?.piesa_assessment_inc_gst ?? 349), apFee: Number(cfg?.ap_management_inc_gst ?? 349), ratePerM2: Number(cfg?.r5_install_inc_gst_per_m2 ?? 30), installation: p.gross - Number(cfg?.piesa_assessment_inc_gst ?? 349) - Number(cfg?.ap_management_inc_gst ?? 349), veecs: Math.round(p.discount / veecValue), veecValue, address, insulation: p.insulation ?? est?.insulation_declared ?? null } : null;
-  return estimate ? JSON.stringify({ group: c.group, estimate, pricing, response: response ?? null, bookingAvailable: !!property?.postcode && (availability?.ready_check_available_postcodes ?? []).includes(property.postcode), owner: { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null }, home: { suburb: property?.suburb ?? null, short: [property?.address_line, property?.suburb].filter(Boolean).join(", ") || null }, initialValues: { address, areaM2: c.job.estimated_area_m2 == null ? null : Number(c.job.estimated_area_m2), insulation } }) : null;
+  const { referralUrlForJob } = await import("./referral.server");
+  const referralUrl = await referralUrlForJob(c.job.id);
+  return estimate ? JSON.stringify({ group: c.group, estimate, pricing, response: response ?? null, referralUrl, bookingAvailable: !!property?.postcode && (availability?.ready_check_available_postcodes ?? []).includes(property.postcode), owner: { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null }, home: { suburb: property?.suburb ?? null, short: [property?.address_line, property?.suburb].filter(Boolean).join(", ") || null }, initialValues: { address, areaM2: c.job.estimated_area_m2 == null ? null : Number(c.job.estimated_area_m2), insulation } }) : null;
 }
 
 export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; insulation: "none" | "present" | "unknown" | null } | null) {
@@ -202,10 +204,11 @@ export async function queueSpotSavedConfirmations(jobId: string, token: string) 
   const { renderSpotSavedEmail, renderSpotSavedSms, addressBits } = await import("./spot-saved-messages.core");
   const { testSendBlocker } = await import("./test-send.core");
   const { unsubscribeUrlForJob } = await import("./emailsafety.server");
+  const { referralUrlForJob } = await import("./referral.server");
   const owner = job.owners as { full_name: string | null; phone: string | null; email: string | null } | null;
   const prop = job.properties as { address_line: string | null; suburb: string | null } | null;
   const bits = addressBits(prop?.address_line ?? null, prop?.suburb ?? null);
-  const input = { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null, rebate: Number(r?.saved_veu_discount ?? 0), suburb: bits.suburb, shortAddress: bits.short, myJobUrl: `${OWNER_BASE}/my-job/${token}`, optOutUrl: await unsubscribeUrlForJob(jobId), estimate: r?.saved_gross_total ? { gross: Number(r.saved_gross_total), customer: Number(r.saved_total), areaM2: Number(r.saved_area_m2), address: bits.short ? `${bits.short} VIC${(prop as { postcode?: string | null } | null)?.postcode ? ` ${(prop as { postcode?: string | null }).postcode}` : ""}` : null, calculatorUrl: `${OWNER_BASE}/estimate/${token}/calculator` } : null };
+  const input = { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null, rebate: Number(r?.saved_veu_discount ?? 0), suburb: bits.suburb, shortAddress: bits.short, myJobUrl: `${OWNER_BASE}/my-job/${token}`, optOutUrl: await unsubscribeUrlForJob(jobId), referralUrl: await referralUrlForJob(jobId), estimate: r?.saved_gross_total ? { gross: Number(r.saved_gross_total), customer: Number(r.saved_total), areaM2: Number(r.saved_area_m2), address: bits.short ? `${bits.short} VIC${(prop as { postcode?: string | null } | null)?.postcode ? ` ${(prop as { postcode?: string | null }).postcode}` : ""}` : null, calculatorUrl: `${OWNER_BASE}/estimate/${token}/calculator` } : null };
   const sms = renderSpotSavedSms(input);
   const email = renderSpotSavedEmail(input);
   const now = new Date().toISOString();
