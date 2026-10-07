@@ -365,9 +365,9 @@ function BulkImportPage() {
 
       {step === 2 && summary && (
         <section className="space-y-3">
-          <h2 className="font-display text-lg font-bold">{jobsFound(summary.rows)}</h2>
-          {summary.rows === 0 && <div className="rounded-[14px] border border-line bg-paper p-4 text-sm">We couldn't find a customer in these files. Add a customer list, or name files by address (e.g. "14 Example St"), then upload again.<div className="mt-2"><SmallButton onClick={reset}>Upload again</SmallButton></div></div>}
-          {summary.rows > 0 && <ElectricianChoice value={batchPlan} onChange={setBatchPlan} approved={electricianData?.approved ?? []} pending={electricianData?.pending ?? []} add={async () => { const made = await addElectrician({ data: { businessId: effectiveBiz, name: newElectrician.name, mobile: newElectrician.mobile, email: newElectrician.email || null, business: newElectrician.business || null } }); await refreshElectricians(); setBatchPlan({ mode: "mine", ...(made.businessId ? { business_id: made.businessId } : { nomination_id: made.nominationId }) }); setNewElectrician({ name: "", mobile: "", email: "", business: "" }); }} draft={newElectrician} setDraft={setNewElectrician} />}
+          <h2 className="font-display text-lg font-bold">{jobsFound(summary.rows ?? 0)}</h2>
+          {(summary.rows ?? 0) === 0 && <div className="rounded-[14px] border border-line bg-paper p-4 text-sm">We couldn't find a customer in these files. Add a customer list, or name files by address (e.g. "14 Example St"), then upload again.<div className="mt-2"><SmallButton onClick={reset}>Upload again</SmallButton></div></div>}
+          {(summary.rows ?? 0) > 0 && <ElectricianChoice value={batchPlan} onChange={setBatchPlan} approved={electricianData?.approved ?? []} pending={electricianData?.pending ?? []} add={async () => { const made = await addElectrician({ data: { businessId: effectiveBiz, name: newElectrician.name, mobile: newElectrician.mobile, email: newElectrician.email || null, business: newElectrician.business || null } }); await refreshElectricians(); setBatchPlan({ mode: "mine", ...(made.businessId ? { business_id: made.businessId } : { nomination_id: made.nominationId }) }); setNewElectrician({ name: "", mobile: "", email: "", business: "" }); }} draft={newElectrician} setDraft={setNewElectrician} />}
           {rows.length > 1 && (() => { const open = rows.filter((r) => !skip.has(r.id) && !statusOf(r).excluded && r.import_stage !== "installed"); return (
             <div className="flex flex-wrap items-center gap-2 text-sm" data-site-check-all><span className="text-sub">Site check for all:</span>{(["yes", "no"] as const).map((v) => <SmallButton key={v} onClick={() => { const nc = { ...rowChecks }; const ns = { ...rowStages }; for (const r of open) { nc[r.id] = { check: v, date: v === "yes" ? rowChecks[r.id]?.date ?? null : null }; ns[r.id] = v === "yes" ? (r.extracted.price_inc_gst ? "quoted" : "visited") : "not_visited"; } setRowChecks(nc); setRowStages(ns); }}>{v === "yes" ? "Yes to all" : "No to all"}</SmallButton>)}</div>); })()}
           <div className="grid gap-3">
@@ -381,7 +381,7 @@ function BulkImportPage() {
             ))}
           </div>
           <FileResultList items={summary.file_results ?? localReads} />
-          {summary.rows > 0 && (
+          {(summary.rows ?? 0) > 0 && (
             <div className="sticky bottom-2 z-10 space-y-2 rounded-[18px] border border-line bg-paper p-3 shadow-card" data-confirm-bar>
               {notReady.length > 0 ? <p className="text-sm"><b>Still missing:</b> {notReady.slice(0, 3).map((r) => `${(leads[r.id] ?? r.extracted).full_name ?? "Unnamed customer"} — ${r.sort_result === "office_review" && statusOf(r).ready ? "held for the office to check" : statusOf(r).text.replace(/^Needs: /, "")}`).join("; ")}{notReady.length > 3 ? ` and ${notReady.length - 3} more` : ""}. Or tap "Don't add" on that card.</p>
                 : <p className="text-sm text-sub">Nothing is sent to any customer when you confirm.</p>}
