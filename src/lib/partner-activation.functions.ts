@@ -193,7 +193,7 @@ export const createPartnerLogin = createServerFn({ method: "POST" }).middleware(
 
 /** Office approves → creates the login AND emails the one-time set-password link to the partner for real (Jo's manual partner email rule), recorded on their record. */
 export const sendPartnerLoginLink = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ applicationId: uuid, email: z.string().trim().toLowerCase().replace(/[.,;]+$/, "").email().max(320) }).parse(d))
+  .inputValidator((d) => z.object({ applicationId: uuid, email: z.string().trim().toLowerCase().transform((e) => e.replace(/[.,;]+$/, "")).pipe(z.string().email().max(320)) }).parse(d))
   .handler(async ({ data, context }) => {
     const r = await makePartnerLogin(context.supabase, context.userId, data);
     const { sendOfficeEmail } = await import("./office-email.server");
