@@ -28,7 +28,7 @@ describe("Save my spot uses only the approved email (Jo, 7 Oct 12:52)", () => {
       if (f.endsWith("estimate-email.ts")) continue;
       const s = readFileSync(f, "utf8");
       if (f.endsWith("hot-leads-send.server.ts")) {
-        expect(s).toMatch(/sendGroup === "likely"\s*\?\s*\(\(\) => \{ const m = renderSaveSpotFromLikelyEmail/);
+        expect(s).toMatch(/sendGroup === "likely"\s*\?\s*\(\(\) => \{ const m = renderStep3SaveSpot/);
         continue;
       }
       expect(s.includes("renderLaunchCampaignEmail(")).toBe(false);
