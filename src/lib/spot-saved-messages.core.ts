@@ -1,4 +1,7 @@
-// Jo-approved "Spot saved" confirmation (text + email), sent once when an owner first saves their spot.
+// "Spot saved" confirmation (text + email), sent once when an owner first saves their spot.
+// Wording APPROVED by Jo Lowe, 7 Oct 2026: "Smart move, {FirstName}. Your spot is saved." heading with
+// "Your {rebate} rebate is waiting." directly under it, the demand/capacity paragraphs, and the
+// "Have a friend who needs a spot saved?" referral card. Do not change without Jo's approval.
 // PURE: no I/O. No phone number or "call us" anywhere.
 import { CUSTOMER_BRAND } from "./customer-quote-system";
 import { applyCampaignFonts, campaignArtImg, campaignButton, PRIVACY_URL, V2_THEME } from "./estimate-email";
@@ -53,8 +56,10 @@ export function renderSpotSavedEmail(i: SpotSavedInput) {
   const jobUrl = new URL(i.myJobUrl); const token = jobUrl.pathname.split("/")[2] ?? "";
   const art = campaignArtImg(emailArtUrl(jobUrl.origin, token, "spot"), headlinePlain);
   const smartMove = `Smart move${name ? `, ${esc(name)}` : ""}. Your spot is saved.`;
+  const rebateLine = `Your ${rebate} rebate is waiting.`;
   const hero = ""
-    + p(smartMove, "font-weight:800;margin-bottom:6px;")
+    + p(smartMove, "font-weight:800;margin-bottom:2px;")
+    + p(rebateLine, "font-weight:700;margin-bottom:10px;")
     + p(esc(SPOT_SAVED_BATCH_TEXT))
     + p(esc(spotSavedTeamText(i.suburb)))
     + campaignButton(i.myJobUrl, "See my job →")
@@ -71,6 +76,6 @@ export function renderSpotSavedEmail(i: SpotSavedInput) {
   const footer = `<p style="margin:0 0 5px;${T.F}color:${NAVY};font-size:14px;line-height:1.4;font-weight:800;text-align:center;">Home Insulation Victoria</p><p style="margin:0 0 9px;${T.F}color:#5A6785;font-size:12px;line-height:1.5;text-align:center;">DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.</p><p style="margin:0;${T.F}font-size:12px;line-height:1.5;text-align:center;">${link(`${PRIVACY_URL}`, "Privacy")}&nbsp;·&nbsp;${link(i.myJobUrl, "See my job")}&nbsp;·&nbsp;${link(i.optOutUrl, "Remove my enquiry")}</p>`;
   const html = T.shell(`${art}${row(hero, "0 36px 24px")}${est ? row(savings, "0 28px 22px") : ""}${referral}${T.footerRow(footer)}`, subject, null);
   void LOGO_GREEN; void CUSTOMER_BRAND;
-  const text = [subject, "", "YOU'RE ON THE LIST", `Spot saved${name ? `, ${name}` : ""}. Your ${rebate} rebate is waiting.`, smartMove.replace(/<[^>]+>/g, ""), "", SPOT_SAVED_BATCH_TEXT, "", spotSavedTeamText(i.suburb), "", `See my job: ${i.myJobUrl}`, "No payment · no obligation", ...(est ? ["", `Price before discount: $${est.gross.toLocaleString("en-AU")}`, `VEU discount (${veecs} VEECs × $70): −${rebate}`, `You pay about: $${est.customer.toLocaleString("en-AU")}`, `Try a different size: ${est.calculatorUrl}`] : []), ...(i.referralUrl ? ["", "HAVE A FRIEND WHO NEEDS A SPOT SAVED?", "Send them our free eligibility checker. It takes a minute.", `Send to a friend: ${i.referralUrl}`] : []), "", "DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.", `Privacy: ${PRIVACY_URL}`, `Remove my enquiry: ${i.optOutUrl}`].join("\n");
+  const text = [subject, "", "YOU'RE ON THE LIST", `Spot saved${name ? `, ${name}` : ""}. Your ${rebate} rebate is waiting.`, smartMove.replace(/<[^>]+>/g, ""), rebateLine, "", SPOT_SAVED_BATCH_TEXT, "", spotSavedTeamText(i.suburb), "", `See my job: ${i.myJobUrl}`, "No payment · no obligation", ...(est ? ["", `Price before discount: $${est.gross.toLocaleString("en-AU")}`, `VEU discount (${veecs} VEECs × $70): −${rebate}`, `You pay about: $${est.customer.toLocaleString("en-AU")}`, `Try a different size: ${est.calculatorUrl}`] : []), ...(i.referralUrl ? ["", "HAVE A FRIEND WHO NEEDS A SPOT SAVED?", "Send them our free eligibility checker. It takes a minute.", `Send to a friend: ${i.referralUrl}`] : []), "", "DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.", `Privacy: ${PRIVACY_URL}`, `Remove my enquiry: ${i.optOutUrl}`].join("\n");
   return { subject, html: applyCampaignFonts(html), text };
 }
