@@ -226,10 +226,15 @@ export async function joDay(jobId: string, userId: string) {
 export async function tradeMoney(userId: string) {
   const ids = [...(await membership(userId))];
   if (!ids.length) return { rows: [], upcoming: 0, month: 0, allTime: 0 };
-  const { data } = await admin.from("partner_offers").select("job_id, summary, responded_at, jobs!inner(job_number, stage, properties(suburb))").in("business_id", ids).eq("status", "accepted").order("responded_at", { ascending: false });
+  const { data } = await admin.from("partner_offers").select("job_id, summary, responded_at, jobs!inner(job_number, stage, channel, electrician_choice, properties(suburb))").in("business_id", ids).eq("status", "accepted").order("responded_at", { ascending: false });
+  // Owner-direct (installer's own electrician) work is invoiced to the owner, never an HIV payout. Accepted HIV quotes with a PIESA line stay payable.
+  const { electricalBillingSource } = await import("./installer-led.core");
+  const jids = [...new Set((data ?? []).map((o) => o.job_id))];
+  const { data: accQ } = jids.length ? await admin.from("quotes").select("job_id, quote_items(code)").in("job_id", jids).eq("status", "accepted") : { data: [] as { job_id: string; quote_items: { code: string | null }[] }[] };
+  const withLine = (id: string) => { const q = (accQ ?? []).filter((x) => x.job_id === id); return q.length ? q.some((x) => ((x.quote_items as { code: string | null }[] | null) ?? []).some((i) => i.code === "PIESA")) : null; };
   const done = new Set(["piesa_complete", "installation_scheduling", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec", "complete"]);
   const m0 = new Date(); m0.setDate(1);
-  const rows = (data ?? []).map((o) => {
+  const rows = (data ?? []).filter((o) => { const j = o.jobs as { channel: string | null; electrician_choice: string | null }; return electricalBillingSource({ channel: j.channel, choice: j.electrician_choice, committedLineOnAcceptedQuote: withLine(o.job_id), hivPaidAt: null }) === "hivic"; }).map((o) => {
     const j = o.jobs as { job_number: string; stage: string; properties: { suburb: string | null } | null };
     const amount = Number((o.summary as { electrician_rate_inc_gst?: number })?.electrician_rate_inc_gst ?? 0);
     const status = done.has(j.stage) ? "Waiting for office sign-off" : "Booked — do the check first";
