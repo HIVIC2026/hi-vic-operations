@@ -67,7 +67,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     if (!(await hasCurrentOwnerContactConsent(jobId))) return r("skipped", "No current contact consent.");
   }
   const group = launchGroup(job.eligibility_outcome, price.insulation) ?? "likely";
-  if (group !== "likely" && !isTest) return r("blocked", "Only the approved Group A email can be sent from this list.");
+  if (group !== "likely" && !isTest && !testOpts.automaticInsulation) return r("blocked", "Only the approved Group A email can be sent from this list.");
 
   // Once per home, ever: the idempotency key is the job, not the batch.
   const sendGroup = isTest || testOpts.automaticInsulation ? (testOpts.group ?? group) : "likely";

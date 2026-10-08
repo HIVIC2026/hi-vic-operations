@@ -114,7 +114,7 @@ export async function loadEnquiryGroups() {
   });
   const primary = primaryByContact(rows);
   for (const r of rows) {
-    r.isPrimaryForContact = primary.has(r.id);
+    r.isPrimaryForContact = contactKey(r.email, r.propKey) === null || primary.has(r.id);
     if (r.status === "needs_attention") {
       r.attentionReason = !r.isPrimaryForContact ? "Duplicate enquiry for the same contact and property"
         : r.lastEmail?.status === "failed" ? `Email failed: ${r.lastEmail.error ?? "delivery error"}`
@@ -122,6 +122,8 @@ export async function loadEnquiryGroups() {
         : r.bounced ? "Email bounced or was suppressed"
         : r.consent !== "granted" ? "Contact consent is missing or withdrawn"
         : !r.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(r.email) ? "Missing or invalid email"
+        : r.group === "insulation_check" ? "Insulation email awaits final visual approval"
+        : r.otherReason === "not_eligible" ? "Ineligible email has not sent"
         : r.reason;
     }
   }
