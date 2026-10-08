@@ -16,6 +16,7 @@ import { addBulkElectrician, bulkElectricianChoices, readBulkFile } from "@/lib/
 import { getMyIntakeReadyCheck } from "@/lib/installer-quote.functions";
 import { READY_CHECK_CONTACT_PERMISSION, electricianPlanBlocker, usualElectrician, type ElectricianPlan } from "@/lib/job-electrician.core";
 import type { OnsiteInput } from "@/lib/onsite-ready-check.core";
+import type { IntakeApi } from "./intake-preview-adapter";
 import type { Extracted } from "@/lib/pilot.core";
 import { ADD_JOB_STEPS, BUSY_LABEL, blankCustomer, customerProblems, nextStep, prevStep, restoreCustomer, saveErrorMessage, type AddJobStep } from "@/lib/add-job-flow.core";
 import { COORDINATION_CHOICES, COORDINATION_VERSION, SELF_MANAGED_ACK, VEEC_NOTE, coordinationProblems, type Coordination, EVIDENCE_ACK, EXISTING_INSULATION_CHOICES, INTAKE_RULESET_VERSION, intakeProblems, multiCustomerAmbiguity, parseIntakeAmount, prefillFromExtracted, intakeConfirmFacts, type ExistingInsulation } from "@/lib/installer-intake.core";
@@ -26,7 +27,8 @@ const resumeKey = (userId: string, businessId: string) => `hiv-intake:${userId}:
 const LEGACY_KEYS = (businessId: string) => ["hiv-intake-draft", `hiv-intake-draft:${businessId}`, `hiv-intake-draft-id:${businessId}`];
 type Details = { area: string; amount: string; includes: string; proposedR: string; insulation: ExistingInsulation | null };
 
-export function InstallerIntakeFlow({ businessId }: { businessId: string }) {
+/** `preview` swaps every server/storage call for a local adapter (no auth, saving or sending). */
+export function InstallerIntakeFlow({ businessId, preview }: { businessId: string; preview?: IntakeApi }) {
   const [step, setStep] = useState<AddJobStep>("customer");
   const [customer, setCustomer] = useState<OnsiteInput>(blankCustomer());
   const [d, setD] = useState<Details>({ area: "", amount: "", includes: "", proposedR: "", insulation: null });
@@ -44,16 +46,18 @@ export function InstallerIntakeFlow({ businessId }: { businessId: string }) {
   const problemsRef = useRef<HTMLUListElement>(null);
   const inFlight = useRef(false);
 
-  const getEl = useServerFn(bulkElectricianChoices), addEl = useServerFn(addBulkElectrician);
-  const { data: el, refetch } = useQuery({ queryKey: ["bulk-electricians", businessId], queryFn: () => getEl({ data: { businessId } }) });
+  const realGetEl = useServerFn(bulkElectricianChoices), realAddEl = useServerFn(addBulkElectrician);
+  const getEl = (preview?.getEl ?? realGetEl) as typeof realGetEl, addEl = (preview?.addEl ?? realAddEl) as typeof realAddEl;
+  const { data: el, refetch } = useQuery({ queryKey: ["bulk-electricians", businessId, !!preview], queryFn: () => getEl({ data: { businessId } }) });
   const [plan, setPlan] = useState<ElectricianPlan | null>(null);
   useEffect(() => { if (plan || !el) return; const u = usualElectrician(el.approved); setPlan(u?.businessId ? { mode: "mine", business_id: u.businessId } : { mode: "hivic" }); }, [el, plan]);
 
   // Typed details survive refresh/poor signal; consent and the acknowledgements are never restored.
   const [userId, setUserId] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
-  const loadDraft = useServerFn(getImportDraft);
-  useEffect(() => { let live = true; supabase.auth.getUser().then(({ data }) => { if (live) setUserId(data.user?.id ?? null); if (live && !data.user) setHydrated(true); }); return () => { live = false; }; }, []);
+  const realLoadDraft = useServerFn(getImportDraft);
+  const loadDraft = (preview?.loadDraft ?? realLoadDraft) as typeof realLoadDraft;
+  useEffect(() => { if (preview) { setHydrated(true); return; } let live = true; supabase.auth.getUser().then(({ data }) => { if (live) setUserId(data.user?.id ?? null); if (live && !data.user) setHydrated(true); }); return () => { live = false; }; }, []);
   useEffect(() => {
     if (!userId) return;
     let live = true;
@@ -87,11 +91,14 @@ export function InstallerIntakeFlow({ businessId }: { businessId: string }) {
   useEffect(() => { if (shown.length) problemsRef.current?.focus(); }, [shown]);
   useEffect(() => { setShown([]); }, [customer, d, ack, coord, selfAck]);
 
-  const create = useServerFn(createImport), confirm = useServerFn(confirmImport);
-  const addFiles = useServerFn(addImportFiles), dropFile = useServerFn(removeImportFile), readFile = useServerFn(readBulkFile);
-  const uploadFiles = useUploadFiles(businessId);
+  const rCreate = useServerFn(createImport), rConfirm = useServerFn(confirmImport);
+  const rAddFiles = useServerFn(addImportFiles), rDropFile = useServerFn(removeImportFile), rReadFile = useServerFn(readBulkFile);
+  const rUploadFiles = useUploadFiles(businessId);
+  const create = (preview?.create ?? rCreate) as typeof rCreate, confirm = (preview?.confirm ?? rConfirm) as typeof rConfirm;
+  const addFiles = (preview?.addFiles ?? rAddFiles) as typeof rAddFiles, dropFile = (preview?.dropFile ?? rDropFile) as typeof rDropFile;
+  const readFile = (preview?.readFile ?? rReadFile) as typeof rReadFile, uploadFiles = preview?.uploadFiles ?? rUploadFiles;
 
-  if (saved) return <Received saved={saved} />;
+  if (saved) return <Received saved={saved} preview={!!preview} />;
 
   const problems = (): string[] => {
     if (step === "customer") return customerProblems(customer);
@@ -240,9 +247,16 @@ function Summary({ title, rows, onEdit }: { title: string; rows: string[]; onEdi
   </div>;
 }
 
-function Received({ saved }: { saved: { jobId: string; jobNumber: string | null; insulation: ExistingInsulation } }) {
+function Received({ saved, preview = false }: { saved: { jobId: string; jobNumber: string | null; insulation: ExistingInsulation }; preview?: boolean }) {
   const get = useServerFn(getMyIntakeReadyCheck);
-  const { data } = useQuery({ queryKey: ["intake-rc", saved.jobId], queryFn: () => get({ data: { jobId: saved.jobId } }), retry: false });
+  const { data } = useQuery({ queryKey: ["intake-rc", saved.jobId], queryFn: () => get({ data: { jobId: saved.jobId } }), retry: false, enabled: !preview });
+  if (preview) return (
+    <section className="mt-4 space-y-3 rounded-[18px] border border-line bg-paper p-5" data-saved data-intake-received data-preview-received>
+      <p className="text-xs font-bold uppercase tracking-wide text-sub">Preview only</p>
+      <h2 className="font-display text-xl font-bold">This is where the installer would see "Job received"</h2>
+      <p className="text-sm">Nothing was saved or sent. No job was created and nobody was contacted.</p>
+    </section>
+  );
   return (
     <section className="mt-4 space-y-3 rounded-[18px] border border-line bg-paper p-5" data-saved data-intake-received>
       <p className="text-xs font-bold uppercase tracking-wide text-sub">{saved.jobNumber ?? "Job"} received</p>
