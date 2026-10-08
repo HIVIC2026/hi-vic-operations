@@ -84,3 +84,20 @@ test("direct audit safety parse counts additional crew and recognizes current si
   expect(parseA3Answers(a).answers["p7.products"]).toBeUndefined();
   expect(resolvePiisaNativeVersion(a3Template([OPT_OTHER])).version).toBe("a3-published-choice");
 });
+
+test("published required and conditional crew structure changes cannot activate", () => {
+  const change = (kind: "required" | "condition") => {
+    const copy = structuredClone(published) as unknown as Record<string, unknown>;
+    let changed = false;
+    const walk = (value: unknown) => {
+      if (Array.isArray(value)) { value.forEach(walk); return; }
+      if (!value || typeof value !== "object" || changed) return;
+      const o = value as Record<string, unknown>;
+      if (kind === "required" && "is_mandatory" in o) { o["is_mandatory"] = !o["is_mandatory"]; changed = true; return; }
+      if (kind === "condition" && "logicfield" in o) { o["logicfield"] = {}; changed = true; return; }
+      Object.values(o).forEach(walk);
+    }; walk(copy); expect(changed).toBe(true); return copy;
+  };
+  expect(resolvePiisaNativeVersion(change("required")).active).toBe(false);
+  expect(resolvePiisaNativeVersion(change("condition")).active).toBe(false);
+});
