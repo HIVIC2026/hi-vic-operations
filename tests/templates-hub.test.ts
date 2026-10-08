@@ -43,6 +43,14 @@ describe("Template selection", () => {
     expect(rec.approval).toBe("Not recorded");
     expect(TEMPLATE_ENTRIES.find((e) => e.id === "email:save_my_spot_no_size")!.approval).toMatch(/no stored approval/);
     expect(TEMPLATE_ENTRIES.find((e) => e.id === "email:insulation_details")!.approval).toMatch(/not approved/);
+    for (const entry of entriesFor("mitti")) expect(entry.approval).toBe("Not recorded");
+  });
+  test("email inventory distinguishes exact builders, stored reviews and original tool", () => {
+    const emails = entriesFor("email");
+    expect(emails.length).toBe(19);
+    expect(emails.filter((e) => e.view.kind === "review_only").map((e) => e.reviewKey)).toEqual(["measured_quote", "booking_consent", "pre_install_pack", "assignment_signing", "completion_pack"]);
+    expect(emails.filter((e) => ["sample_email", "partner_invitation", "partner_email", "plain_email"].includes(e.view.kind)).length).toBe(13);
+    expect(emails.filter((e) => e.view.kind === "open_original").length).toBe(1);
   });
 });
 
@@ -64,6 +72,22 @@ describe("Render parity — hub shows the exact existing HTML", () => {
     const card = readFileSync("src/components/portal/mitti-forms.tsx", "utf8");
     expect(card.match(/connect\(\{/g)?.length).toBe(1);
     expect(card).toContain("onClick={async () => {");
+    expect(card).toContain('const displayedId = draft ?? connected ?? "";');
+    expect(card).toContain("value={displayedId}");
+    expect(card).toContain("templateId: displayedId.trim()");
+  });
+  test("hub read endpoints check admin access before reading stored content", () => {
+    for (const [file, name] of [
+      ["src/lib/customer-communications.functions.ts", "listCustomerCommunicationTemplates"],
+      ["src/lib/mitti-forms.functions.ts", "getMittiForms"],
+      ["src/lib/portal.functions.ts", "listComplianceTemplates"],
+      ["src/lib/owner-gates.functions.ts", "paperworkCatalogueFn"],
+    ]) {
+      const source = readFileSync(file, "utf8").split(`export const ${name} =`)[1]?.split("export const ")[0];
+      expect(source).toContain("middleware([requireSupabaseAuth])");
+      expect(source).toContain("requireAdmin(context.supabase");
+      expect(source).not.toMatch(/\.insert\(|\.update\(|\.delete\(|realMittiCall/);
+    }
   });
   test("templates route lives under the admin-only layout", () => {
     expect(readFileSync("src/routes/_authenticated/admin.templates.tsx", "utf8")).toContain('createFileRoute("/_authenticated/admin/templates")');
