@@ -98,7 +98,7 @@ export function JobIdentity({ jobId, job, onOpen }: { jobId: string; job: JobRow
   if (job.payment_status && !job.deposit_cleared && ["deposit_due", "invoice_created", "overdue"].includes(job.payment_status)) warnings.push({ t: "bad", text: "Approved payment option not yet verified" });
   const showReady = ["installation_scheduling", "installation_booked", "evidence_outstanding"].includes(job.stage ?? "");
   return (
-    <header className="mb-3 rounded-md border bg-card px-4 py-3">
+    <header className="mb-3 border-b border-line py-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-muted-foreground">
         <span className="text-primary">{job.job_number}</span>
         {job.source === "qa_test" && <span className="rounded bg-muted px-1.5 py-0.5 font-bold uppercase">Test job</span>}
@@ -107,8 +107,8 @@ export function JobIdentity({ jobId, job, onOpen }: { jobId: string; job: JobRow
       <h1 className="mt-0.5 break-words text-xl font-bold leading-tight sm:text-2xl">{job.property_address}</h1>
       <dl className="mt-2 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2 lg:grid-cols-4">
         <div className="min-w-0"><dt className="text-xs text-muted-foreground">Owner</dt><dd className="break-words font-medium">{job.owner_name ?? "—"}</dd></div>
-        <div className="min-w-0"><dt className="text-xs text-muted-foreground">Phone (staff only)</dt><dd className="break-words">{job.owner_phone ?? "—"}</dd></div>
-        <div className="min-w-0"><dt className="text-xs text-muted-foreground">Email (staff only)</dt><dd className="break-all">{job.owner_email ?? "—"}</dd></div>
+        <div className="min-w-0"><dt className="text-xs text-muted-foreground">Phone (staff only)</dt><dd className="break-words">{job.owner_phone ? <a className="text-primary underline" href={`tel:${job.owner_phone}`}>{job.owner_phone}</a> : "—"}</dd></div>
+        <div className="min-w-0"><dt className="text-xs text-muted-foreground">Email (staff only)</dt><dd className="break-all">{job.owner_email ? <a className="text-primary underline" href={`mailto:${job.owner_email}`}>{job.owner_email}</a> : "—"}</dd></div>
         <div className="min-w-0"><dt className="text-xs text-muted-foreground">Contact consent</dt><dd>
           {intake.isPending ? <span className="text-muted-foreground">Checking…</span>
             : intake.error ? <span role="alert" className="text-danger">Couldn't load consent — treat as missing</span>

@@ -1,4 +1,4 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, useRouter, type ErrorComponentProps } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/portal/AppShell";
 import { OperationsPreviewView } from "@/components/portal/OperationsPreview";
@@ -8,14 +8,14 @@ import type { OperationsFilter } from "@/lib/operations-filter.core";
 
 export const Route = createFileRoute("/_authenticated/admin/operations")({
   validateSearch: (s: Record<string, unknown>): OperationsFilter => ({
-    category: typeof s.category === "string" ? s.category : "overview",
-    process: typeof s.process === "string" ? s.process : null,
-    party: typeof s.party === "string" ? s.party : null,
-    source: typeof s.source === "string" ? s.source : "all",
-    eligibility: typeof s.eligibility === "string" ? s.eligibility : "all",
-    flag: typeof s.flag === "string" ? s.flag : null,
-    q: typeof s.q === "string" ? s.q : "",
-    page: typeof s.page === "number" && Number.isFinite(s.page) ? Math.max(1, Math.floor(s.page)) : 1,
+    category: typeof s["category"] === "string" ? s["category"] : "overview",
+    process: typeof s["process"] === "string" ? s["process"] : null,
+    party: typeof s["party"] === "string" ? s["party"] : null,
+    source: typeof s["source"] === "string" ? s["source"] : "all",
+    eligibility: typeof s["eligibility"] === "string" ? s["eligibility"] : "all",
+    flag: typeof s["flag"] === "string" ? s["flag"] : null,
+    q: typeof s["q"] === "string" ? s["q"] : "",
+    page: typeof s["page"] === "number" && Number.isFinite(s["page"]) ? Math.max(1, Math.floor(s["page"])) : 1,
   }),
   loader: ({ context }) => context.queryClient.ensureQueryData(operationsOptions),
   head: () => ({ meta: [
@@ -31,7 +31,7 @@ export const Route = createFileRoute("/_authenticated/admin/operations")({
   errorComponent: OperationsError,
   notFoundComponent: () => <p className="portal-theme p-7 text-ink">Office operations unavailable.</p>,
 });
-function OperationsError({ error }: { error: Error }) {
+function OperationsError({ error }: ErrorComponentProps) {
   const router = useRouter();
   return <AppShell><h1 className="font-display text-xl font-bold">Office records could not load</h1><p role="alert" className="my-3 text-rose">{error.message}</p><p className="mb-3 text-sm text-sub">Counts are unavailable, not zero.</p><Button variant="outline" onClick={() => void router.invalidate()}>Retry read</Button></AppShell>;
 }
@@ -39,5 +39,5 @@ function OperationsPage() {
   const query = useSuspenseQuery(operationsOptions);
   const filters = Route.useSearch();
   const navigate = Route.useNavigate();
-  return <AppShell wide><OperationsPreviewView embedded data={query.data} refreshing={query.isFetching} refresh={() => void query.refetch()} readError={query.error?.message} filters={filters} onFiltersChange={next => void navigate({ search: next, resetScroll: false })} /></AppShell>;
+  return <AppShell wide><OperationsPreviewView embedded data={query.data} refreshing={query.isFetching} refresh={() => void query.refetch()} {...(query.error ? { readError: query.error.message } : {})} filters={filters} onFiltersChange={next => void navigate({ search: next, resetScroll: false })} /></AppShell>;
 }

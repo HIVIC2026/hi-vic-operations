@@ -1,6 +1,5 @@
 import { TradeTextsCard } from "@/components/portal/trade-texts";
 import { OfficeInstallerFactsCard } from "@/components/portal/installer-job-facts";
-import { PaperworkStrip } from "@/components/portal/paperwork";
 import { OfficePrestartCard } from "@/components/portal/prestart";
 import { OfficeInstallHoldCard } from "@/components/portal/install-hold";
 import { OfficeAllocationPanel } from "@/components/portal/allocation";
@@ -16,7 +15,6 @@ import { parseJobSection } from "@/lib/allocation.core";
 import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
-import { JobRightNow } from "@/components/portal/office";
 import { Pill, SourceBadge, UrgencyBadge } from "@/components/portal/badges";
 import { AdminAssignmentPanel } from "@/components/portal/assignment";
 import { WorkerLinksPanel } from "@/components/portal/workers";
@@ -28,22 +26,9 @@ import { EscInstallPanel } from "@/components/portal/intelligence";
 import { PiisaPanel } from "@/components/portal/piisa-panel";
 import { EligibilityCard } from "@/components/portal/eligibility-card";
 import { IntakeSummary } from "@/components/portal/intake";
-import { JobJourney } from "@/components/portal/journey";
 import { ClearTimeline } from "@/components/portal/waiting";
-import { getSavedSpot } from "@/lib/launch-campaign.functions";
-
-function SavedSpotNote({ jobId }: { jobId: string }) {
-  const { data } = useQuery({ queryKey: ["saved-spot", jobId], queryFn: () => getSavedSpot({ data: { jobId } }) });
-  if (!data) return null;
-  return (
-    <div className="mb-4 rounded-2xl border bg-card p-4 text-sm">
-      <p className="font-semibold">{data.video ? "Spot saved · video sent" : "Spot saved, needs an installer"}</p>
-      {data.label && <p className="mt-1">{data.label}</p>}
-      {data.changeNote && <p className="mt-1 font-semibold text-destructive">{data.changeNote}</p>}
-    </div>
-  );
-}
-import { JobIdentity, NextActionBand, PhaseStrip, RecordDisclosure, SubHeading, usePortalTargetNavigation, type RecordGroup } from "@/components/portal/job-workspace";
+import { CompactJobStatus } from "@/components/portal/CompactJobStatus";
+import { JobIdentity, RecordDisclosure, SubHeading, usePortalTargetNavigation, type RecordGroup } from "@/components/portal/job-workspace";
 import { AllDocuments, Correspondence, ExportJobPack, JobTimeline, RetentionCard, SectionDocuments } from "@/components/portal/jobfile";
 import type { PortalTarget } from "@/lib/portal-presentation.core";
 import { checkMittiAccess } from "@/lib/mitti-membership.functions";
@@ -70,7 +55,7 @@ import { OfficeJobProfitCard } from "@/components/portal/job-profit";
 import { melbourneToday } from "@/lib/melbourne-time.core";
 
 export const Route = createFileRoute("/_authenticated/admin/jobs/$jobId")({
-  head: () => ({ meta: [{ title: "Job – Home Insulation Victoria Portal" }, { name: "description", content: "Job detail and workflow." }, { property: "og:title", content: "Job – Home Insulation Victoria Portal" }, { property: "og:description", content: "Job detail and workflow." }] }),
+  head: () => ({ meta: [{ title: "Job – Home Insulation Victoria Portal" }, { name: "description", content: "Job detail and workflow." }, { property: "og:title", content: "Job – Home Insulation Victoria Portal" }, { property: "og:description", content: "Job detail and workflow." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   validateSearch: (s: Record<string, unknown>): { section?: RecordGroup } => { const v = parseJobSection(s['section']); return v ? { section: v } : {}; },
   component: JobDetail,
 });
@@ -78,6 +63,7 @@ export const Route = createFileRoute("/_authenticated/admin/jobs/$jobId")({
 function JobDetail() {
   const { jobId } = Route.useParams();
   const { data: job, error, refetch } = useJob(jobId);
+  const [updating, setUpdating] = useState(false);
   const [open, setOpen] = useState<Set<RecordGroup>>(new Set());
   const toggle = (g: RecordGroup) => setOpen((s) => { const n = new Set(s); if (n.has(g)) n.delete(g); else n.add(g); return n; });
   const ensureOpen = useCallback((group: RecordGroup) => setOpen((current) => new Set(current).add(group)), []);
@@ -95,24 +81,23 @@ function JobDetail() {
   return (
     <AppShell wide>
       <div className="mx-auto max-w-5xl">
-      <Link to="/admin/needs-me" className="mb-2 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Needs me</Link>
+      <Link to="/admin/operations" className="mb-2 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Overview</Link>
       <JobIdentity jobId={jobId} job={job} onOpen={openTarget} />
-      <PaperworkStrip jobId={jobId} />
-      <SavedSpotNote jobId={jobId} />
-      <JobRightNow jobId={jobId} people={{ owner: job.owner_name ?? null, ownerPhone: job.owner_phone ?? null, ownerEmail: job.owner_email ?? null, installer: job.installer_name ?? null, electrician: job.electrician_name ?? null }} />
-      <ChooseTradePanel jobId={jobId} />
-      <section className="mb-4 rounded-[22px] border bg-card p-5 shadow-sm" aria-label="Done when">
-        <h2 className="mb-2 text-xs font-bold text-muted-foreground">Done when — these must pass to move on</h2>
-        <BlockersPanel jobId={jobId} />
-        <div className="mt-3"><NextActionBand jobId={jobId} onOpenTarget={openTarget} /></div>
-      </section>
-      <EligibilityCard jobId={jobId} override={<EligibilityForm jobId={jobId} />} verifiedControls={<VerifiedEligibilityCard jobId={jobId} />} />
-      <details className="mb-3 text-sm"><summary className="cursor-pointer font-semibold text-muted-foreground">Detailed journey</summary><PhaseStrip input={job} details={<JobJourney input={job} jobId={job.id} isTest={job.source === "qa_test"} />} /></details>
+      <CompactJobStatus jobId={jobId} onOpen={openTarget} />
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-bold">Current blockers</h2><Button size="sm" onClick={() => setUpdating(!updating)} aria-expanded={updating} aria-controls="job-update-controls">Update job</Button></div>
+      <BlockersPanel jobId={jobId} />
+      {updating && <section id="job-update-controls" aria-label="Guarded job controls" className="my-3 border-y border-line py-3">
+        <h2 className="text-sm font-bold">Existing guarded controls</h2>
+        <p className="my-2 text-sm text-sub">Eligibility correction, hold, resume and cancellation use the existing audited actions. A manual Check ↔ Save spot move is not available: saving a spot is an owner response, not a stage switch.</p>
+        <EligibilityForm jobId={jobId} /><HoldControls jobId={jobId} stage={job.stage ?? ""} />
+        <div className="mt-2 flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => openTarget("ready-check")}>Ready Check controls</Button><Button size="sm" variant="outline" onClick={() => openTarget("quotes")}>Quote controls</Button><Button size="sm" variant="outline" onClick={() => openTarget("ap-evidence")}>AP controls</Button></div>
+      </section>}
+      <details className="my-3 text-sm"><summary className="cursor-pointer font-semibold text-sub">Eligibility evidence & verified decision</summary><EligibilityCard jobId={jobId} override={<EligibilityForm jobId={jobId} />} verifiedControls={<VerifiedEligibilityCard jobId={jobId} />} /></details>
       <div className="mb-3 flex flex-wrap gap-1.5 text-xs text-muted-foreground">
         <SourceBadge channel={job.channel} business={job.originating_business_name} />{job.urgency && <UrgencyBadge urgency={job.urgency} days={job.days_remaining} />}
       </div>
       <div className="mb-3 rounded-md border bg-card">
-        <RecordDisclosure {...g("people")} title="People, source & exceptions" summary={`Electrician ${job.electrician_name ?? "unassigned"} · Installer ${job.installer_name ?? "unassigned"} · last activity ${fmtDate(job.last_activity_at)}`}>
+        <RecordDisclosure {...g("people")} title="Contacts, source & exceptions" summary={`Electrician ${job.electrician_name ?? "unassigned"} · Installer ${job.installer_name ?? "unassigned"} · last activity ${fmtDate(job.last_activity_at)}`}>
           <div className="grid gap-4 lg:grid-cols-2">
             <JobSource jobId={jobId} channel={job.channel} model={job.commercial_model} business={job.originating_business_name} />
             {job.channel === "installer_sourced" && <OfficeInstallerFactsCard jobId={jobId} />}
@@ -122,12 +107,13 @@ function JobDetail() {
             <OfficePrestartCard jobId={jobId} />
             <TradeTextsCard jobId={jobId} />
             <AdminPartnerPanel jobId={jobId} />
-            <HoldControls jobId={jobId} stage={job.stage!} />
+            
             <RetentionCard jobId={jobId} />
           </div>
         </RecordDisclosure>
       </div>
-      <h2 className="mb-1 text-sm font-bold">Job records</h2>
+      <div className="mb-3 flex flex-wrap gap-2" aria-label="Job record shortcuts"><Button variant="outline" size="sm" onClick={() => openTarget("quotes")}>Quotes & payments</Button><Button variant="outline" size="sm" onClick={() => openTarget("documents")}>Forms & evidence</Button><Button variant="outline" size="sm" onClick={() => openTarget("correspondence")}>Communications</Button><Button variant="outline" size="sm" onClick={() => openTarget("history")}>History</Button></div>
+      <h2 className="mb-1 text-sm font-bold">Forms & evidence</h2>
       <div className="mb-6 rounded-md border bg-card">
         <RecordDisclosure {...g("enquiry")} title="Enquiry" summary="Estimate, website intake and consent">
           <AdminEstimateCard jobId={jobId} />
@@ -135,9 +121,9 @@ function JobDetail() {
           <div id="panel-intake-consent" className="scroll-mt-4"><IntakeSummary jobId={jobId} /></div><SectionDocuments jobId={jobId} categories={["Property"]} />
         </RecordDisclosure>
         <RecordDisclosure {...g("ready_check")} title="Ready Check" summary="Requirements, appointment, booking, Mitti and measure-up">
-          <RequirementCards jobId={jobId} isAdmin job={job} /><AppointmentPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="assessment" canBook={false} isAdmin /><AdminBookingOverride jobId={jobId} /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /><SectionDocuments jobId={jobId} categories={["Measure-up"]} />
+          <ChooseTradePanel jobId={jobId} /><RequirementCards jobId={jobId} isAdmin job={job} /><AppointmentPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="assessment" canBook={false} isAdmin /><AdminBookingOverride jobId={jobId} /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /><SectionDocuments jobId={jobId} categories={["Measure-up"]} />
         </RecordDisclosure>
-        <RecordDisclosure {...g("quote")} title="Quote" summary="Quotes, invoice & deposit, electronic signing">
+        <RecordDisclosure {...g("quote")} title="Quotes & payments" summary="Exact quotes, payment mirror, signing and source-specific invoice controls">
           <div id="target-quotes" data-portal-focus="target" tabIndex={-1} className="scroll-mt-4 outline-none"><AdminQuotes jobId={jobId} /></div><InstallerQuoteDraftPanel jobId={jobId} /><InstallerLedInvoicePanel jobId={jobId} /><div id="panel-deposit-request" className="scroll-mt-4"><PaymentsPanel jobId={jobId} isAdmin /></div><OfficeInstalmentPlanCard jobId={jobId} /><SectionDocuments jobId={jobId} categories={["Quotes", "Payments"]} />
           <SubHeading>Electronic signing</SubHeading>
           <div id="target-electronic-signing" tabIndex={-1} className="scroll-mt-4 outline-none"><AdminAssignmentPanel jobId={jobId} /></div><SectionDocuments jobId={jobId} categories={["Customer / Consent"]} />
