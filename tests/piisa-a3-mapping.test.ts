@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { buildOfficialPrefill } from "../src/lib/mitti.core";
-import { A3_ALIASES, A3_MEDIA_IDS, A3_NATIVE_IDS, a3MediaCounts, PIISA_A3_MAPPING, a3EvidenceBlockers, a3EvidenceRequired, a3MissingFields, a3Occurrence, a3Signature, crewPrefill, crewSelectionProblems, mergeTreatment, parseA3Answers, readyCheckPartPrefill } from "../src/lib/piisa-a3.core";
+import { A3_ALIASES, A3_MEDIA_IDS, A3_MEDIA_LABELS, A3_NATIVE_IDS, a3MediaCounts, PIISA_A3_MAPPING, a3EvidenceBlockers, a3EvidenceRequired, a3MissingFields, a3Occurrence, a3Signature, crewPrefill, crewSelectionProblems, mergeTreatment, parseA3Answers, readyCheckPartPrefill } from "../src/lib/piisa-a3.core";
 import { OFFICIAL_ITEMS } from "../src/lib/official-forms.core";
 import { piisaPrefill, seedAnswers } from "../src/lib/official-prefill.core";
 
@@ -8,7 +8,7 @@ const it = (label: string, id: string, extra: Record<string, unknown> = {}) => (
 const fullTemplate = () => {
   const items: unknown[] = [];
   for (const [id, nids] of Object.entries(A3_NATIVE_IDS)) nids.forEach((nid) => items.push(it(A3_ALIASES[id]?.[0] ?? (id === "p8.declaration" ? "I acknowledge" : "Life support document"), nid)));
-  for (const nid of Object.values(A3_MEDIA_IDS)) items.push(it("media", nid!, { type: "media" }));
+  for (const [k, nid] of Object.entries(A3_MEDIA_IDS)) items.push(it((A3_MEDIA_LABELS as Record<string, string>)[k] ?? "media", nid, { type: "media" }));
   return { items };
 };
 
