@@ -1,6 +1,7 @@
 export const LAUNCH_CAMPAIGN = "existing_leads_launch_v1" as const;
 export const LAUNCH_BATCH_SIZE = 50;
-export const LAUNCH_COPY_APPROVED = false;
+// Jo approved the Save my spot email + landing copy (8 Oct 2026): real enquiry links must work.
+export const LAUNCH_COPY_APPROVED = true;
 
 export type LaunchGroup = "likely" | "onsite";
 export type DeskCheckOutcome = "looks_eligible" | "not_eligible" | "needs_onsite_check";
