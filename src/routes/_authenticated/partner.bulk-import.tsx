@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { loadAccess, userIdOf } from "@/lib/route-guards";
+import { legacyBulkImportRedirect, loadAccess, userIdOf } from "@/lib/route-guards";
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -19,7 +19,8 @@ import { electricianPlanBlocker, usualElectrician } from "@/lib/job-electrician.
 export const Route = createFileRoute("/_authenticated/partner/bulk-import")({
   beforeLoad: async ({ context }) => {
     // Installer bookmarks must use the current three-choice flow; office keeps historic batch tools.
-    if (!(await loadAccess(userIdOf(context))).admin) throw redirect({ to: "/partner/import", replace: true });
+    const to = legacyBulkImportRedirect(await loadAccess(userIdOf(context)));
+    if (to) throw redirect({ to, replace: true });
   },
   head: () => ({
     meta: [
