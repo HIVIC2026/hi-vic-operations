@@ -22,7 +22,7 @@ export type OperationInput = {
 export type AutomationControl = { label: string; state: "Enabled" | "Paused" | "Unknown"; detail: string };
 export type OperationRow = OperationInput & {
   bucket: OperationBucket; process: string; eligibilityLabel: string; eligibilityGroup: string;
-  savedSpot: boolean; mediaState: string; communication: CommunicationFact | null;
+  savedSpot: boolean; spotSavedOpen: boolean; mediaToReview: boolean; mediaState: string; communication: CommunicationFact | null;
   communicationLabel: string; tasks: OperationTask[]; nextAction: string;
   issues: string[]; onHold: boolean; overdue: boolean; blocked: boolean;
 };
@@ -158,7 +158,8 @@ export function classifyOperation(input: OperationInput, now: number): Operation
   for (const [action, c] of currentActions) if (["failed", "bounced", "undelivered"].includes(c.status)) add("Office", `Customer ${action} ${c.status}`, null, true);
   for (const failure of input.failures) add("Office", failure, null, true);
   if (issues.length) { bucket = "Needs classification"; process = "Needs classification"; tasks.length = 0; add("Office", issues.join("; "), null, true); }
-  return { ...input, bucket, process, savedSpot, onHold, eligibilityLabel, eligibilityGroup, mediaState, communication, communicationLabel: commLabel, tasks, nextAction: tasks.map((t) => t.label).join(" · ") || "No outstanding task recorded", issues, overdue: tasks.some((t) => t.overdue), blocked: tasks.some((t) => t.blocked) };
+  const open = bucket === "Leads" || bucket === "Needs classification";
+  return { ...input, bucket, process, savedSpot, spotSavedOpen: savedSpot && open, mediaToReview: input.mediaCount > 0 && !input.mediaReview && bucket !== "Closed jobs", onHold, eligibilityLabel, eligibilityGroup, mediaState, communication, communicationLabel: commLabel, tasks, nextAction: tasks.map((t) => t.label).join(" · ") || "No outstanding task recorded", issues, overdue: tasks.some((t) => t.overdue), blocked: tasks.some((t) => t.blocked) };
 }
 export function buildOperationsPreview(inputs: OperationInput[], controls: AutomationControl[], now: number) {
   const scoped = inputs.filter((r) => r.source !== "qa_test" && r.businessUnit === "hivic");
@@ -167,7 +168,7 @@ export function buildOperationsPreview(inputs: OperationInput[], controls: Autom
   for (const row of scoped) { if (byId.has(row.id)) duplicateIds.add(row.id); else byId.set(row.id, row); }
   const rows = [...byId.values()].map((r) => {
     const out = classifyOperation(r, now);
-    if (duplicateIds.has(r.id)) { out.bucket = "Needs classification"; out.process = "Needs classification"; out.issues.push("Duplicate job ID in read results"); out.tasks.push({ party: "Office", label: "Reconcile duplicate read rows", blocked: true }); out.blocked = true; }
+    if (duplicateIds.has(r.id)) { out.spotSavedOpen = out.savedSpot; out.bucket = "Needs classification"; out.process = "Needs classification"; out.issues.push("Duplicate job ID in read results"); out.tasks.push({ party: "Office", label: "Reconcile duplicate read rows", blocked: true }); out.blocked = true; }
     return out;
   });
   const buckets: OperationBucket[] = ["Leads", "Active jobs", "Closed jobs", "Needs classification"];
@@ -176,6 +177,8 @@ export function buildOperationsPreview(inputs: OperationInput[], controls: Autom
     const match = rows.filter((r) => r.bucket === bucket && r.process === process);
     return { bucket, process, total: match.length, tasks: match.reduce((n, r) => n + r.tasks.length, 0), parties: PARTIES.map((party) => ({ party, jobs: match.filter((r) => r.tasks.some((t) => t.party === party)).length, tasks: match.reduce((n, r) => n + r.tasks.filter((t) => t.party === party).length, 0) })), blocked: match.filter((r) => r.blocked).length, overdue: match.filter((r) => r.overdue).length };
   }).filter((s) => s.total > 0));
-  return { rows, controls, totals, stages, loadedAt: new Date(now).toISOString(), reconciliation: { uniqueJobs: rows.length, bucketSum: Object.values(totals).reduce((a, b) => a + b, 0), stageSum: stages.reduce((a, b) => a + b.total, 0), duplicateIds: [...duplicateIds], excluded: inputs.length - scoped.length } };
+  /** Cross-cutting filters: a job can be in one stage and still be flagged here; never added to stage totals. */
+  const flags = { spotSaved: rows.filter((r) => r.spotSavedOpen).length, mediaToReview: rows.filter((r) => r.mediaToReview).length };
+  return { rows, controls, totals, stages, flags, loadedAt: new Date(now).toISOString(), reconciliation: { uniqueJobs: rows.length, bucketSum: Object.values(totals).reduce((a, b) => a + b, 0), stageSum: stages.reduce((a, b) => a + b.total, 0), duplicateIds: [...duplicateIds], excluded: inputs.length - scoped.length } };
 }
 export type OperationsPreview = ReturnType<typeof buildOperationsPreview>;

@@ -17,6 +17,7 @@ const HEADINGS: { key: OfficeSection; label: string; to: OfficeTab["to"] }[] = [
   { key: "pipeline", label: "Pipeline", to: "/admin/pipeline" },
   { key: "partners", label: "Partners", to: "/admin/partners-overview" },
   { key: "money", label: "Money", to: "/admin/money" },
+  { key: "templates", label: "Templates", to: "/admin/templates" },
 ];
 
 function TabLink({ t, active, small = false }: { t: OfficeTab; active: boolean; small?: boolean }) {
@@ -113,7 +114,7 @@ export function OfficeTopBar({ name, onSignOut }: { name: string; onSignOut: () 
         <div className="border-t border-line px-4 py-2 lg:hidden"><OfficeSearch /></div>
       </header>
       <nav aria-label="Office menu" className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-paper pb-[env(safe-area-inset-bottom)] md:hidden">
-        <div className="grid grid-cols-5">
+        <div className="grid grid-cols-6">
           {HEADINGS.map((h) => (
             <Link key={h.key} to={h.to} aria-current={section === h.key ? "page" : undefined} className={cn("flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold", section === h.key ? "text-hiv-blue" : "text-sub")}>
               <span className="flex items-center gap-1">{h.label}</span>{h.key === "needs" && count != null ? countPill(count) : <span className="h-[15px]" />}

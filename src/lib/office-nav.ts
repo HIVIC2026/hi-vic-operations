@@ -1,7 +1,7 @@
 // Office navigation map: every existing admin page lives under one top-bar heading as a tab.
 // Presentation only — routes are unchanged, so old links keep working.
 
-export type OfficeSection = "needs" | "leads" | "pipeline" | "partners" | "money" | "settings";
+export type OfficeSection = "needs" | "leads" | "pipeline" | "partners" | "money" | "templates" | "settings";
 import type { LinkProps } from "@tanstack/react-router";
 export type OfficeTab = { label: string; to: NonNullable<LinkProps["to"]>; search?: Record<string, string> };
 
@@ -36,6 +36,11 @@ export const SECTION_TABS: Record<OfficeSection, OfficeTab[]> = {
     { label: "Electrician rates", to: "/admin/electrician-rates" },
     { label: "VEECs", to: "/admin/veec" },
   ],
+  templates: [
+    { label: "Email", to: "/admin/templates", search: { cat: "email" } },
+    { label: "Mitti", to: "/admin/templates", search: { cat: "mitti" } },
+    { label: "Compliance", to: "/admin/templates", search: { cat: "compliance" } },
+  ],
   settings: [
     { label: "Users", to: "/admin/users" },
     { label: "Compliance", to: "/admin/compliance" },
@@ -53,6 +58,7 @@ export function sectionFor(pathname: string, search: Record<string, unknown> = {
   if (isEnquiryPage(p, search)) return "leads";
   if (SECTION_TABS.partners.some((t) => t.to === p)) return "partners";
   if (SECTION_TABS.money.some((t) => t.to === p)) return "money";
+  if (p === "/admin/templates") return "templates";
   if (SECTION_TABS.settings.some((t) => t.to === p)) return "settings";
   void search;
   return "pipeline";
@@ -71,7 +77,7 @@ export function tabActive(t: OfficeTab, pathname: string, search: Record<string,
   const p = pathname.replace(/\/$/, "") || "/";
   if (t.to !== p) return false;
   const want = t.search ?? {};
-  const keys = new Set([...Object.keys(want), ...Object.keys(search).filter((k) => k === "tab" || k === "status")]);
+  const keys = new Set([...Object.keys(want), ...Object.keys(search).filter((k) => k === "tab" || k === "status" || k === "cat")]);
   for (const k of keys) if ((want[k] ?? undefined) !== (search[k] ?? undefined)) return false;
   return true;
 }

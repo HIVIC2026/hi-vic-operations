@@ -54,6 +54,7 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
           <Link to="/admin/veec" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><Calculator className="h-4 w-4" /> VEECs</Link>
           <div className={group}>Settings</div>
           <Link to="/admin/compliance" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><FileCheck2 className="h-4 w-4" /> Compliance</Link>
+          <Link to="/admin/templates" search={{ cat: "email" }} className={link} activeProps={active} onClick={() => setMobileOpen(false)}><FileCheck2 className="h-4 w-4" /> Templates</Link>
           <Link to="/admin/communications" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><MailCheck className="h-4 w-4" /> Customer communications</Link>
           <Link to="/admin/test-centre" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><FlaskConical className="h-4 w-4" /> Test Centre</Link>
           <a href="/calculator" target="_blank" rel="noopener" className={link}>
