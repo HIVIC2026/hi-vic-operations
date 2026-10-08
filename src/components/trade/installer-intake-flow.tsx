@@ -18,7 +18,6 @@ import { getMyIntakeReadyCheck } from "@/lib/installer-quote.functions";
 import { electricianPlanBlocker, usualElectrician, type ElectricianPlan } from "@/lib/job-electrician.core";
 import type { OnsiteInput } from "@/lib/onsite-ready-check.core";
 import type { IntakeApi } from "./intake-preview-adapter";
-import type { Extracted } from "@/lib/pilot.core";
 import { BUSY_LABEL, blankCustomer, customerProblems, restoreCustomer, saveErrorMessage } from "@/lib/add-job-flow.core";
 import { ELECTRICIAN_PAYER_CHOICES, FEE_AWARENESS_VERSION, INSTALLER_CONTACT_PERMISSION, MEASURED_QUOTED_CHOICES, MEASURED_QUOTED_QUESTION, NOT_MEASURED_NOTE, ORGANISE_QUESTION, feeAwarenessText, intakeNextAction, type ElectricianPayer } from "@/lib/installer-intake.core";
 
@@ -27,8 +26,8 @@ const ADD_JOB_STEPS: { key: AddJobStep; label: string }[] = [
   { key: "customer", label: "Customer" }, { key: "organise", label: "Organise" }, { key: "job", label: "Job" }, { key: "review", label: "Review & submit" },
 ];
 const ORDER = ADD_JOB_STEPS.map((s) => s.key);
-const nextStep = (s: AddJobStep): AddJobStep => ORDER[Math.min(ORDER.indexOf(s) + 1, ORDER.length - 1)]!;
-const prevStep = (s: AddJobStep): AddJobStep | null => (ORDER.indexOf(s) > 0 ? ORDER[ORDER.indexOf(s) - 1]! : null);
+const nextStep = (s: AddJobStep): AddJobStep => ORDER[Math.min(ORDER.indexOf(s) + 1, ORDER.length - 1)] ?? s;
+const prevStep = (s: AddJobStep): AddJobStep | null => (ORDER.indexOf(s) > 0 ? ORDER[ORDER.indexOf(s) - 1] ?? null : null);
 import { COORDINATION_CHOICES, COORDINATION_VERSION, SELF_MANAGED_ACK, VEEC_NOTE, coordinationProblems, type Coordination, EVIDENCE_ACK, EXISTING_INSULATION_CHOICES, INTAKE_RULESET_VERSION, intakeProblems, multiCustomerAmbiguity, prefillFromExtracted, intakeConfirmFacts, type ExistingInsulation, QUOTE_STATUS_CHOICES, JOB_DETAILS_LEAD, intakeArea, intakeQuotePayload, type QuoteStatus } from "@/lib/installer-intake.core";
 
 // Resume after refresh: scoped to the signed-in USER and business (never shared between people or businesses).
@@ -46,7 +45,14 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
   const [coord, setCoord] = useState<Coordination | null>(null);
   const [selfAck, setSelfAck] = useState(false);
   const [files, setFiles] = useState<AttachedFile[]>([]);
-  const [fileText, setFileText] = useState("");
+  const [fileTexts, setFileTexts] = useState<Record<string, string>>({});
+  const fileText = Object.values(fileTexts).join("\n");
+  const [derived, setDerived] = useState<Record<string, { path: string; value: string }>>({});
+  const typed = useRef(new Set<string>());
+  const stored = useRef(new WeakMap<File, AttachedFile>());
+  const [fileBusy, setFileBusy] = useState(false);
+  const fileFlight = useRef(false);
+  const fileBusyChange = (value: boolean) => { fileFlight.current = value; setFileBusy(value); };
   const [fileNote, setFileNote] = useState<string | null>(null);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [shown, setShown] = useState<string[]>([]);
@@ -70,9 +76,11 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
   // Typed details survive refresh/poor signal; consent and the acknowledgements are never restored.
   const [userId, setUserId] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [restoreError, setRestoreError] = useState(false);
+  const [restoreAttempt, setRestoreAttempt] = useState(0);
   const realLoadDraft = useServerFn(getImportDraft);
   const loadDraft = (preview?.loadDraft ?? realLoadDraft) as typeof realLoadDraft;
-  useEffect(() => { if (preview) { setHydrated(true); return; } let live = true; supabase.auth.getUser().then(({ data }) => { if (live) setUserId(data.user?.id ?? null); if (live && !data.user) setHydrated(true); }); return () => { live = false; }; }, []);
+  useEffect(() => { if (preview) { setHydrated(true); return; } let live = true; supabase.auth.getUser().then(({ data }) => { if (live) setUserId(data.user?.id ?? null); if (live && !data.user) setHydrated(true); }).catch(() => { if (live) setRestoreError(true); }); return () => { live = false; }; }, [restoreAttempt]);
   useEffect(() => {
     if (!userId) return;
     let live = true;
@@ -81,30 +89,30 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         for (const k of LEGACY_KEYS(businessId)) { localStorage.removeItem(k); sessionStorage.removeItem(k); }
         const raw = localStorage.getItem(resumeKey(userId, businessId));
         if (raw) {
-          const r = JSON.parse(raw) as { customer?: unknown; d?: Details; coord?: Coordination | null; draftId?: string | null; step?: AddJobStep; fileText?: string; payer?: ElectricianPayer | null; plan?: ElectricianPlan | null };
+          const r = JSON.parse(raw) as { customer?: unknown; d?: Details; coord?: Coordination | null; draftId?: string | null; step?: AddJobStep; fileTexts?: Record<string, string>; derived?: Record<string, { path: string; value: string }>; typed?: string[]; payer?: ElectricianPayer | null; plan?: ElectricianPlan | null };
           if (r.customer) setCustomer(restoreCustomer(r.customer as never));
           if (r.d) setD({ area: r.d.area ?? "", amount: r.d.amount ?? "", includes: r.d.includes ?? "", proposedR: r.d.proposedR ?? "", insulation: r.d.insulation ?? null, quoteStatus: r.d.quoteStatus ?? null });
           if (r.coord) setCoord(r.coord);
           if (r.payer) setPayer(r.payer);
           if (r.plan) setPlan(r.plan);
-          if (r.fileText) setFileText(r.fileText);
+          typed.current = new Set(r.typed ?? Object.keys(r.d ?? {}));
           if (r.step && r.step !== "review" && ORDER.includes(r.step)) setStep(r.step);
           if (r.draftId) {
             const srv = await loadDraft({ data: { importId: r.draftId, businessId } });
             if (!live) return;
             if (srv.status === "confirmed" && srv.jobId) { localStorage.removeItem(resumeKey(userId, businessId)); setSaved({ jobId: srv.jobId, jobNumber: srv.jobNumber, insulation: r.d?.insulation ?? "unknown" }); }
-            else if (srv.status === "draft") { setDraftId(r.draftId); setFiles(srv.files); if (srv.files.length) setFileNote("Your attached files were kept."); }
+            else if (srv.status === "draft") { setDraftId(r.draftId); setFiles(srv.files); setFileTexts(Object.fromEntries(Object.entries(r.fileTexts ?? {}).filter(([path]) => srv.files.some((f) => f.path === path)))); setDerived(r.derived ?? {}); if (srv.files.length) setFileNote("Your attached files were kept."); }
           }
         }
-      } catch { /* a failed restore leaves a blank form; nothing is lost on the server */ }
+      } catch { if (live) setRestoreError(true); return; }
       if (live) setHydrated(true);
     })();
     return () => { live = false; };
-  }, [userId, businessId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [userId, businessId, restoreAttempt]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!userId || !hydrated) return;
-    try { localStorage.setItem(resumeKey(userId, businessId), JSON.stringify({ customer: { ...customer, contact_permission: false, consent_by: null }, d, coord, payer, plan, draftId, step, fileText: fileText.slice(0, 100_000) })); } catch { /* ignore */ }
-  }, [customer, d, coord, payer, plan, draftId, step, fileText, userId, hydrated, businessId]);
+    try { localStorage.setItem(resumeKey(userId, businessId), JSON.stringify({ customer: { ...customer, contact_permission: false, consent_by: null }, d, coord, payer, plan, draftId, step, fileTexts, derived, typed: [...typed.current] })); } catch { /* ignore */ }
+  }, [customer, d, coord, payer, plan, draftId, step, fileTexts, derived, userId, hydrated, businessId]);
   useEffect(() => { if (shown.length) problemsRef.current?.focus(); }, [shown]);
   useEffect(() => { setShown([]); }, [customer, d, ack, coord, selfAck, payer, plan]);
   useEffect(() => { setFeeAck(false); }, [payer]); // a declaration is for ONE electrician arrangement
@@ -117,6 +125,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
   const readFile = (preview?.readFile ?? rReadFile) as typeof rReadFile, uploadFiles = preview?.uploadFiles ?? rUploadFiles;
 
   if (saved) return <Received saved={saved} preview={!!preview} />;
+  if (!hydrated) return <div role="status" className="mt-3 space-y-2"><p>{restoreError ? "Your saved details could not load. Try again before continuing." : "Loading your saved details…"}</p>{restoreError && <Button onClick={() => { setRestoreError(false); setRestoreAttempt((n) => n + 1); }}>Retry</Button>}</div>;
 
   const problems = (): string[] => {
     const c = customerProblems(customer);
@@ -136,25 +145,26 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
     const r = await create({ data: { businessId, sourceSystem: "manual_import", ...(text ? { text } : {}), files: [...files, ...extra].map((f) => ({ path: f.path, name: f.name, type: f.type ?? "" })) } });
     setDraftId(r.id);
     if (userId) try { const k = resumeKey(userId, businessId); const cur = JSON.parse(localStorage.getItem(k) ?? "{}"); localStorage.setItem(k, JSON.stringify({ ...cur, draftId: r.id })); } catch { /* ignore */ }
-    const pre = prefillFromExtracted(r.extracted as Extracted, fileText);
-    setD((o) => ({ ...o, area: o.area || pre.area, amount: o.amount || pre.amount, includes: o.includes || pre.includes, proposedR: o.proposedR || pre.proposedR }));
+
     return r.id;
   };
 
   const forward = async () => {
+    if (!hydrated || busy || fileFlight.current) return;
     const p = problems(); setShown(p); setErr(null);
     if (p.length) return;
     setStep(nextStep(step));
   };
-  const back = () => { setShown([]); setErr(null); const p = prevStep(step); if (p) setStep(p); };
+  const back = () => { if (busy || fileFlight.current) return; setShown([]); setErr(null); const p = prevStep(step); if (p) setStep(p); };
 
   const submit = async () => {
-    if (busy || inFlight.current) return; // double tap
+    if (!hydrated || busy || fileFlight.current || inFlight.current) return; // double tap
     const p = problems(); setShown(p); setErr(null);
     if (p.length) return;
     inFlight.current = true; setBusy(true);
     try {
       const id = await ensureDraft();
+      if (files.length) await addFiles({ data: { importId: id, files: files.map((f) => ({ ...f, type: f.type ?? "" })) } });
       const q = intakeQuotePayload({ quoteStatus: d.quoteStatus ?? null, amount: d.amount, includes: d.includes, proposedR: d.proposedR });
       const facts = intakeConfirmFacts(customer, intakeArea(d.area), q.proposed_r_value); // r_value = PROPOSED product R; no area -> null, never 0
       const res = await confirm({ data: { importId: id, facts, installer: {
@@ -212,38 +222,53 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
           {d.quoteStatus === "not_quoted" && <p className="mt-2 text-sm text-sub" data-not-measured-note>{NOT_MEASURED_NOTE}</p>}
         </fieldset>
         {d.quoteStatus === "have_quote" && <div className="space-y-4" data-measured-branch>
-        <label className="block text-sm font-bold">Measured ceiling area (m²)<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 120" value={d.area} onChange={(e) => setD({ ...d, area: e.target.value })} /></label>
+        <label className="block text-sm font-bold">Measured ceiling area (m²)<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 120" value={d.area} onChange={(e) => { typed.current.add("area"); setD({ ...d, area: e.target.value }); }} /></label>
         <fieldset data-existing-insulation><legend className="text-sm font-bold">Existing insulation</legend>
           <div className="mt-2 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Existing insulation">
             {EXISTING_INSULATION_CHOICES.map((c) => <Button key={c.value} size="field" role="radio" aria-checked={d.insulation === c.value} variant={d.insulation === c.value ? "default" : "outline"} className="h-auto min-h-12 whitespace-normal px-1 text-xs leading-tight" onClick={() => setD({ ...d, insulation: c.value })}>{c.label}</Button>)}
           </div>
           {d.insulation === "unknown" && <p className="mt-1 text-xs text-sub">You can submit. The owner quote waits until the existing insulation is confirmed as none or below R2.0.</p>}
         </fieldset>
-        <AttachFiles businessId={businessId} files={files} label="Upload your quote" onAdd={async (picked) => {
-          const up = await uploadFiles(picked);
-          if (draftId) { const r = await addFiles({ data: { importId: draftId, files: up.map((x) => ({ path: x.path, name: x.name, type: x.type ?? "" })) } }); setFiles(r.files); setFileNote("Attached to this job."); }
-          else { setFiles((o) => [...o, ...up]); try { await ensureDraft(up, ""); } catch { setFileNote("Attached here — it will be saved to the job when you submit."); } }
-          // Read the new file too (also after the draft exists) — prefill only fills empty boxes.
-          const f = picked[0];
-          if (f && picked.length === 1 && ["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(f.type) && f.size <= 10_000_000) {
-            const bytes = new Uint8Array(await f.arrayBuffer()); let raw = ""; for (let i = 0; i < bytes.length; i += 0x8000) raw += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-            const r = await readFile({ data: { businessId, onBehalf: false, name: f.name, mime: f.type as "application/pdf" | "image/jpeg" | "image/png" | "image/webp", base64: btoa(raw) } });
-            if (r.text) {
-              setFileText(r.text);
-              if (multiCustomerAmbiguity(r.text)) { setFileNote("This file names more than one customer. Upload one customer's quote per job."); return; }
-              // Preview what was found; the draft (created on submit) keeps the original file and text.
-              const { extractFromText } = await import("@/lib/pilot.core");
-              const pre = prefillFromExtracted(extractFromText(r.text), r.text);
-              setD((o) => ({ ...o, area: o.area || pre.area, amount: o.amount || pre.amount, includes: o.includes || pre.includes, proposedR: o.proposedR || pre.proposedR }));
-              setFileNote(pre.area || pre.amount || pre.includes ? "Details found in your quote are filled in below — check them." : "Attached. Nothing could be read clearly — fill in the boxes below.");
-            } else setFileNote("Attached. Nothing could be read clearly — fill in the boxes below.");
-          } else setFileNote("Attached.");
-        }} onRemove={async (path) => { if (draftId) { const r = await dropFile({ data: { importId: draftId, path } }); setFiles(r.files); } else setFiles((o) => o.filter((x) => x.path !== path)); setFileNote(null); }} />
+        <AttachFiles businessId={businessId} files={files} disabled={busy} onBusyChange={fileBusyChange} label="Upload your quote" onAdd={async (picked) => {
+          const failures: string[] = [];
+          for (const f of picked) {
+            let ref = stored.current.get(f);
+            try {
+              if (!ref) { const up = await uploadFiles([f]); ref = up[0]; if (!ref) throw new Error("No stored file returned"); stored.current.set(f, ref); }
+            } catch { failures.push(`${f.name} did not upload. Choose only this file to retry.`); continue; }
+            const attached = ref;
+            setFiles((old) => old.some((x) => x.path === attached.path) ? old : [...old, attached]);
+            try {
+              if (draftId) { const r = await addFiles({ data: { importId: draftId, files: [{ ...attached, type: attached.type ?? "" }] } }); setFiles((old) => [...old.filter((x) => !r.files.some((y) => y.path === x.path)), ...r.files]); }
+              else await ensureDraft([attached], "");
+            } catch { failures.push(`${f.name} uploaded and is kept here, but its job attachment could not be confirmed. Submit will retry attaching it without uploading again.`); }
+            setFileNote("File uploaded. Checking optional quote details…");
+            try {
+              if (["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(f.type) && f.size <= 10_000_000) {
+                const bytes = new Uint8Array(await f.arrayBuffer()); let raw = ""; for (let i = 0; i < bytes.length; i += 0x8000) raw += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+                const r = await readFile({ data: { businessId, onBehalf: false, name: f.name, mime: f.type as "application/pdf" | "image/jpeg" | "image/png" | "image/webp", base64: btoa(raw) } });
+                setFileTexts((old) => ({ ...old, [attached.path]: r.text ?? "" }));
+                if (r.text && !multiCustomerAmbiguity(r.text)) {
+                  const { extractFromText } = await import("@/lib/pilot.core");
+                  const pre = prefillFromExtracted(extractFromText(r.text), r.text);
+                  setD((old) => { const next = { ...old }; for (const key of ["area", "amount", "includes", "proposedR"] as const) if (!old[key] && pre[key] && !typed.current.has(key)) { next[key] = pre[key]; setDerived((o) => ({ ...o, [key]: { path: attached.path, value: pre[key] } })); } return next; });
+                  setFileNote("File attached. Any details found are provisional — check them below.");
+                } else setFileNote(r.text ? "This file names more than one customer. Remove it and attach one customer's quote." : "File attached. No details could be read clearly; you can enter them or leave the price for office review.");
+              } else setFileNote("File attached.");
+            } catch { setFileNote("File uploaded and kept. The optional quote read failed; you can enter details or leave the price for office review. Do not upload it again."); }
+          }
+          if (failures.length) throw new Error(failures.join(" "));
+        }} onRemove={async (path) => {
+          if (draftId) { const r = await dropFile({ data: { importId: draftId, path } }); setFiles(r.files); } else setFiles((old) => old.filter((x) => x.path !== path));
+          setFileTexts((old) => Object.fromEntries(Object.entries(old).filter(([key]) => key !== path)));
+          setD((old) => { const next = { ...old }; for (const key of ["area", "amount", "includes", "proposedR"] as const) if (derived[key]?.path === path && !typed.current.has(key) && next[key] === derived[key]?.value) next[key] = ""; return next; });
+          setDerived((old) => Object.fromEntries(Object.entries(old).filter(([, value]) => value.path !== path))); setFileNote("File removed. Details you entered were kept.");
+        }} />
         {fileNote && <p className="text-xs text-sub" data-file-note>{fileNote}</p>}
         <p className="text-xs text-sub">No quote file? Enter the amount and what it includes.</p>
-        <label className="block text-sm font-bold">Your quote inc GST<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 3,450" value={d.amount} onChange={(e) => setD({ ...d, amount: e.target.value })} /></label>
-        <label className="block text-sm font-bold">What the quote includes<Textarea className="mt-1" rows={3} maxLength={1000} value={d.includes} onChange={(e) => setD({ ...d, includes: e.target.value })} /></label>
-        <label className="block text-sm font-bold">Proposed product R-rating<span className="block text-xs font-normal text-sub">Optional, e.g. R5.0</span><Input className="mt-1 h-12" inputMode="decimal" value={d.proposedR} onChange={(e) => setD({ ...d, proposedR: e.target.value })} /></label>
+        <label className="block text-sm font-bold">Your quote inc GST<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 3,450" value={d.amount} onChange={(e) => { typed.current.add("amount"); setD({ ...d, amount: e.target.value }); }} /></label>
+        <label className="block text-sm font-bold">What the quote includes<Textarea className="mt-1" rows={3} maxLength={1000} value={d.includes} onChange={(e) => { typed.current.add("includes"); setD({ ...d, includes: e.target.value }); }} /></label>
+        <label className="block text-sm font-bold">Proposed product R-rating<span className="block text-xs font-normal text-sub">Optional, e.g. R5.0</span><Input className="mt-1 h-12" inputMode="decimal" value={d.proposedR} onChange={(e) => { typed.current.add("proposedR"); setD({ ...d, proposedR: e.target.value }); }} /></label>
         </div>}
         <fieldset data-electrician-payer><legend className="text-sm font-bold">Electrician (PIESA)</legend>
           <div className="mt-2 grid gap-2" role="radiogroup" aria-label="Electrician">
@@ -258,9 +283,9 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
 
       {step === "review" && <section className="space-y-3 rounded-[18px] border border-line bg-paper p-4" data-step-review>
         <h2 className="font-display text-lg font-bold">Review & submit</h2>
-        <Summary title="Customer" onEdit={() => setStep("customer")} rows={[customer.full_name, [customer.address_line, customer.suburb, customer.postcode].filter(Boolean).join(", "), customer.phone, customer.email, "Permission to contact given"]} />
-        <Summary title="Organise" onEdit={() => setStep("organise")} rows={[coord === "self_managed" ? "I’ll manage the job myself (responsibility acknowledged)" : "Home Insulation Victoria manages the process"]} />
-        <Summary title="Job" onEdit={() => setStep("job")} rows={[
+        <Summary title="Customer" disabled={busy || fileBusy} onEdit={() => setStep("customer")} rows={[customer.full_name, [customer.address_line, customer.suburb, customer.postcode].filter(Boolean).join(", "), customer.phone, customer.email, "Permission to contact given"]} />
+        <Summary title="Organise" disabled={busy || fileBusy} onEdit={() => setStep("organise")} rows={[coord === "self_managed" ? "I’ll manage the job myself (responsibility acknowledged)" : "Home Insulation Victoria manages the process"]} />
+        <Summary title="Job" disabled={busy || fileBusy} onEdit={() => setStep("job")} rows={[
           d.quoteStatus === "not_quoted" ? "Not measured or quoted yet" : intakeArea(d.area) ? `Ceiling ${d.area} m²` : "Ceiling area: not measured yet", `Existing insulation: ${EXISTING_INSULATION_CHOICES.find((c) => c.value === (d.insulation ?? "unknown"))?.label ?? "Not yet confirmed"}`,
           ...(d.quoteStatus === "not_quoted" ? ["Quote: not quoted yet"] : [d.amount ? `Quote $${d.amount.replace(/^\$/, "")} inc GST` : "Quote amount from your uploaded file", d.includes ? `Includes: ${d.includes}` : "", d.proposedR ? `Proposed product ${/^r/i.test(d.proposedR) ? d.proposedR : `R${d.proposedR}`}` : ""]),
           `${files.length} file${files.length === 1 ? "" : "s"} attached`, `Electrician: ${elName}`, ...(d.quoteStatus === "have_quote" ? [feeAck && feeText ? "Owner fees advised (declared)" : "Owner fees: not declared yet — owner quote waits"] : []),
@@ -274,17 +299,17 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
 
       <div className="space-y-2">
         {step === "review"
-          ? <Button size="field" className="w-full" disabled={busy} aria-busy={busy} onClick={submit}>{busy ? BUSY_LABEL : "Submit job"}</Button>
-          : <Button size="field" className="w-full" disabled={busy} onClick={forward}>Next</Button>}
-        {step !== "customer" && <Button size="field" variant="outline" className="w-full" disabled={busy} onClick={back}>Back</Button>}
+          ? <Button size="field" className="w-full" disabled={busy || fileBusy} aria-busy={busy} onClick={submit}>{busy ? BUSY_LABEL : "Submit job"}</Button>
+          : <Button size="field" className="w-full" disabled={busy || fileBusy} onClick={forward}>Next</Button>}
+        {step !== "customer" && <Button size="field" variant="outline" className="w-full" disabled={busy || fileBusy} onClick={back}>Back</Button>}
       </div>
     </div>
   );
 }
 
-function Summary({ title, rows, onEdit }: { title: string; rows: string[]; onEdit: () => void }) {
+function Summary({ title, rows, onEdit, disabled }: { title: string; rows: string[]; onEdit: () => void; disabled: boolean }) {
   return <div className="rounded-[12px] bg-mist p-3" data-summary={title}>
-    <div className="flex items-center justify-between gap-2"><p className="text-xs font-bold uppercase tracking-wide text-sub">{title}</p><button type="button" onClick={onEdit} className="h-10 rounded-[9px] px-3 text-sm font-bold text-hiv-blue underline" aria-label={`Edit ${title.toLowerCase()}`}>Edit</button></div>
+    <div className="flex items-center justify-between gap-2"><p className="text-xs font-bold uppercase tracking-wide text-sub">{title}</p><Button variant="ghost" disabled={disabled} type="button" onClick={onEdit} className="h-10 rounded-[9px] px-3 text-sm font-bold text-hiv-blue underline" aria-label={`Edit ${title.toLowerCase()}`}>Edit</Button></div>
     <ul className="mt-1 space-y-0.5 text-sm">{rows.filter(Boolean).map((r, i) => <li key={i} className="break-words">{r}</li>)}</ul>
   </div>;
 }
