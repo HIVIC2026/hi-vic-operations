@@ -1,4 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Final save QA (Jo 8 Oct 21:29 UTC)
+- [x] Stable editor/refetch preservation, save/file locks with partial successes, original removal hidden; Ready Check lock/retry and phone tab offset. 11 sealed phone/desktop checks passed; 43 focused tests, 0 failed, 65 assertions; preview build OK. Actual TEST owner: one qa_test job, details/Ready Check saved/reopened, Saved feedback and exact-byte private View/Download passed; zero overflow/page errors/outbound records; new TEST job archived, history retained. No real Mitti/signatures/approvals/publication. Root review required. See docs/FINAL_SAVE_QA_8OCT.md.
 ## Upload QA supplement (Jo 8 Oct 21:05 UTC)
 - [x] Serialized upload/read/remove and parent navigation; per-file partial successes retained, optional read failure honest, restore blocks typing, removed extraction cleared while typed fields stay, business-load Retry added. Seven sealed race groups pass on desktop and phone; 56 focused tests pass; preview build OK. No live actions. Reproduce with tests/installer-intake-races.vite.mjs + tests/installer-intake-races.browser.py.
 ## Installer morning QA (Jo 8 Oct 20:37 UTC)

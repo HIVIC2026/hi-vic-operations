@@ -16,18 +16,19 @@ const opt = (o: string) => OPTION_LABEL[o] ?? o.charAt(0).toUpperCase() + o.slic
 export function ReadyCheckDraft({ jobId, evidence = true }: { jobId: string; evidence?: boolean }) {
   const qc = useQueryClient();
   const load = useServerFn(getReadyCheckDraft), save = useServerFn(saveReadyCheckDraft);
-  const { data, isError, error } = useQuery({ queryKey: ["rc-draft", jobId], queryFn: () => load({ data: { jobId } }) });
+  const { data, isError, error, refetch, isFetching } = useQuery({ queryKey: ["rc-draft", jobId], queryFn: () => load({ data: { jobId } }), retry: false });
   const [v, setV] = useState<RcDraftValues>({});
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  useEffect(() => { if (data && !dirty) setV(data.values); }, [data, dirty]);
+  useEffect(() => { if (data && !dirty && !busy) setV(data.values); }, [data, dirty, busy]);
 
-  if (isError) return <Section title="Ready Check"><p className="text-sm" role="alert">Couldn't load the Ready Check: {(error as Error).message}</p></Section>;
+  if (isError && !data) return <Section title="Ready Check"><p className="text-sm" role="alert">Couldn't load the Ready Check: {(error as Error).message}</p><Button variant="outline" disabled={isFetching} onClick={() => void refetch()}>Retry</Button></Section>;
   if (!data) return <Section title="Ready Check"><p className="text-sm text-sub">Loading…</p></Section>;
   const locked = data.status === "submitted";
   const set = (k: string, x: string) => { setV((o) => ({ ...o, [k]: x })); setDirty(true); setMsg(null); };
   const onSave = async () => {
+    if (busy || locked || !dirty) return;
     setBusy(true); setMsg(null);
     try { const r = await save({ data: { jobId, values: v } }); qc.setQueryData(["rc-draft", jobId], r); setDirty(false); setMsg({ ok: true, text: "Saved. You can come back and finish it any time — nothing has been submitted." }); }
     catch (e) { setMsg({ ok: false, text: (e as Error).message || "Couldn't save — check your signal and try again." }); }
@@ -60,19 +61,20 @@ export function ReadyCheckDraft({ jobId, evidence = true }: { jobId: string; evi
                 {data.prefilled.includes(f.key) && v[f.key] === data.values[f.key] && <span className="block text-xs font-normal text-sub">From the job details — check it</span>}
                 {f.key === "measure.eligible_area_m2" && data.suppliedAreaHint != null && <span className="block text-xs font-normal text-sub">Your quote said {data.suppliedAreaHint} m² — enter what you measure</span>}
                 {f.kind === "enum" || f.kind === "boolean"
-                  ? <select className="mt-1 h-12 w-full rounded-[10px] border border-line bg-paper px-3 text-base font-normal" disabled={locked} value={v[f.key] ?? ""} onChange={(e) => set(f.key, e.target.value)} aria-label={f.label}>
+                  ? <select className="mt-1 h-12 w-full rounded-[10px] border border-line bg-paper px-3 text-base font-normal" disabled={locked || busy} value={v[f.key] ?? ""} onChange={(e) => set(f.key, e.target.value)} aria-label={f.label}>
                       <option value="">Not recorded yet</option>
                       {(f.kind === "boolean" ? ["yes", "no"] : f.options ?? []).map((o) => <option key={o} value={o}>{opt(o)}</option>)}
                     </select>
-                  : <Input className="mt-1 h-12 text-base font-normal" disabled={locked} aria-label={f.label} type={f.kind === "datetime" ? "datetime-local" : "text"} inputMode={f.kind === "number" ? "decimal" : f.kind === "integer" ? "numeric" : undefined} value={v[f.key] ?? ""} onChange={(e) => set(f.key, e.target.value)} />}
+                  : <Input className="mt-1 h-12 text-base font-normal" disabled={locked || busy} aria-label={f.label} type={f.kind === "datetime" ? "datetime-local" : "text"} inputMode={f.kind === "number" ? "decimal" : f.kind === "integer" ? "numeric" : undefined} value={v[f.key] ?? ""} onChange={(e) => set(f.key, e.target.value)} />}
               </label>
             ))}
           </div>
         </Section>
       ))}
       {evidence && <EvidencePanel jobId={jobId} role="measure" gates={["assessment"]} />}
+      {isError && <p role="alert">Couldn't refresh the Ready Check. Your answers are kept. <Button variant="outline" disabled={isFetching || busy} onClick={() => void refetch()}>Retry</Button></p>}
       {msg && <p role="status" className={`rounded-[12px] border border-line bg-paper p-3 text-sm ${msg.ok ? "" : "text-danger"}`} data-rc-save-msg>{msg.text}</p>}
-      {!locked && <div className="sticky bottom-3 z-10"><Button size="field" className="w-full" disabled={busy || !dirty} aria-busy={busy} onClick={onSave}>{busy ? "Saving…" : dirty ? "Save Ready Check" : "Saved"}</Button></div>}
+      {!locked && <div className="sticky bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-10 md:bottom-3"><Button size="field" className="w-full" disabled={busy || !dirty} aria-busy={busy} onClick={onSave}>{busy ? "Saving…" : dirty ? "Save Ready Check" : "Saved"}</Button></div>}
     </div>
   );
 }
