@@ -1,4 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Group B four alternatives (Jo 8 Oct 22:41 UTC)
+- [x] Four alternatives/shared invitation, typed audited declarations, historic event compatibility, stored-path retry/review recovery. Group B send approval remains false; no Group A/installer edits.
+- [x] 75 tests/318 assertions; sealed browser confirms four choices, explicit declaration confirmation, received states, invalid upload Retry, video safety and phone layout; build OK 22:45:30 UTC. No real customer writes/sends/publication. Real storage and office persistence end-to-end remain unverified (sealed checks, not live writes).
 ## Urgent live Add job failure (Jo 8 Oct 22:22 UTC)
 - [x] Recovered original partial TEST import on published app as HV-2111 without duplication; status-0 request confirmed, exact transport cause unproven. Interrupted-message/Retry check passed; original exact-attempt fence preserved.
 - [x] Proposed R5.0/R6.0/R7.0/Other + structured included removal saved/read back on actual TEST job; $0/$500/No checks preserve $3,450 total. 35 focused tests/108 assertions passed; phone/desktop no overflow/errors.
