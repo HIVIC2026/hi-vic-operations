@@ -322,6 +322,9 @@ export const confirmImport = createServerFn({ method: "POST" }).middleware([requ
         version: z.string().max(60),
         coordination: z.enum(["hivic_managed", "self_managed"]),
         self_managed_ack: z.boolean(),
+        measured_required: z.boolean().optional(),
+        electrician_payer: z.enum(["hivic", "own", "undecided"]).optional(),
+        fee_awareness: z.object({ declared: z.boolean(), payer: z.enum(["hivic", "own", "undecided"]), text: z.string().max(400), version: z.string().max(80) }).optional(),
         // Before visit / before quote (Jo, 8 Oct): optional on older clients = "have_quote" (previous behaviour).
         quote_status: z.enum(["not_quoted", "have_quote"]).optional(),
       }).optional(),

@@ -9,7 +9,7 @@ import { requireApprovedPartner, requireMember } from "./pilot.server";
 export type CreateImportInput = { businessId: string; sourceSystem: "easymate" | "manual_import" | "csv" | "email"; text?: undefined | string; csv?: undefined | string; csvRow: number; sourceUrl?: undefined | string; externalRefs?: undefined | Record<string, string>; files: { path: string; name: string; type: string }[] };
 export type ConfirmImportInput = { importId: string; facts: Record<string, string | number | boolean | null>; progress?: undefined | "not_visited" | "measured" | "quoted"; occupancy?: undefined | "owner_occupied" | "rental"; details?: undefined | Record<string, unknown>;
   installer?: undefined | { quoted?: undefined | "yes" | "no" | null; site_check: "yes" | "no"; site_check_date?: undefined | string | null; quoted_price_inc_gst?: undefined | number | null; price_includes?: undefined | string | null; contact_permission?: undefined | boolean; fee_awareness?: undefined | boolean; existing_below_r2?: undefined | boolean; owner_agreed?: undefined | boolean;
-    intake?: undefined | { existing_insulation: "none" | "below_r2" | "unknown"; evidence_ack: boolean; proposed_r_value?: undefined | number | null; version: string; coordination: "hivic_managed" | "self_managed"; self_managed_ack: boolean; quote_status?: undefined | "not_quoted" | "have_quote" } };
+    intake?: undefined | { existing_insulation: "none" | "below_r2" | "unknown"; evidence_ack: boolean; proposed_r_value?: undefined | number | null; version: string; coordination: "hivic_managed" | "self_managed"; self_managed_ack: boolean; quote_status?: undefined | "not_quoted" | "have_quote"; measured_required?: undefined | boolean; electrician_payer?: undefined | "hivic" | "own" | "undecided"; fee_awareness?: undefined | { declared: boolean; payer: "hivic" | "own" | "undecided"; text: string; version: string } } };
   electrician?: undefined | { mode: "mine" | "hivic" | "later"; business_id?: undefined | string | null; nomination_id?: undefined | string | null } };
 
 export async function createImportFor(userId: string, data: CreateImportInput) {
@@ -114,6 +114,22 @@ export async function confirmClaimed(userId: string, data: ConfirmImportInput, i
       else if (data.installer) data.installer.quoted = "yes";
     }
     { const { coordinationProblems } = await import("./installer-intake.core"); blockers.push(...coordinationProblems(intake.coordination, intake.self_managed_ack)); }
+    // Jo, 9 Oct: "Yes, measured and quoted" requires the measured area and existing insulation; "No" saves nulls.
+    if (intake.measured_required && qs === "have_quote") {
+      if (c.measured_area_m2 == null) blockers.push("Enter the measured ceiling area (m²)");
+      if (!intake.existing_insulation || intake.existing_insulation === "unknown") { /* "Not yet confirmed" is a valid answer */ }
+    }
+    // Electrician payer must agree with the electrician plan; a fee declaration must use the exact wording for that payer.
+    if (intake.electrician_payer) {
+      const mode = (data.electrician as { mode?: string } | undefined)?.mode ?? "hivic";
+      const expect = intake.electrician_payer === "hivic" ? "hivic" : intake.electrician_payer === "own" ? "mine" : "later";
+      if (mode !== expect) blockers.push("The electrician choice doesn't match — choose it again");
+    }
+    if (intake.fee_awareness?.declared) {
+      const { feeAwarenessText } = await import("./installer-intake.core");
+      const want = feeAwarenessText(intake.fee_awareness.payer);
+      if (!want || intake.fee_awareness.text !== want || intake.fee_awareness.payer !== intake.electrician_payer) blockers.push("The owner fee confirmation doesn't match the electrician choice — tick it again");
+    }
     if (intake.evidence_ack !== true) blockers.push("Tick that all required evidence must be supplied and accepted before the rebate");
     if (typeof imp.raw_text === "string") { const { multiCustomerAmbiguity } = await import("./installer-intake.core"); if (multiCustomerAmbiguity(imp.raw_text)) blockers.push("The uploaded file names more than one customer — upload one customer's quote per job"); }
   } else {
@@ -188,11 +204,12 @@ export async function confirmClaimed(userId: string, data: ConfirmImportInput, i
   if (intake) {
     // A real owner_contact_consents row (the event alone is not consent). Idempotent per import.
     const { READY_CHECK_CONTACT_PERMISSION } = await import("./job-electrician.core");
+    const { INSTALLER_CONTACT_PERMISSION } = await import("./installer-intake.core");
     const { data: job } = await admin.from("jobs").select("owner_id").eq("id", res.job_id).single();
     const key = `installer_import:${imp.id}`;
     const { data: have } = await admin.from("owner_contact_consents").select("id").eq("job_id", res.job_id).eq("consent_key", key).maybeSingle();
     if (!have && job?.owner_id) {
-      const text = READY_CHECK_CONTACT_PERMISSION;
+      const text = intake.electrician_payer ? INSTALLER_CONTACT_PERMISSION : READY_CHECK_CONTACT_PERMISSION; // exact label the installer ticked
       const sha256 = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)))].map((x) => x.toString(16).padStart(2, "0")).join("");
       // Dedicated truthful source: remote permission-to-contact only. Never "onsite_ready_check", which owner-gates
       // treats as signed onsite paperwork (Gate A); owner approvals/tenancy/life-support/authority stay required.
@@ -204,6 +221,8 @@ export async function confirmClaimed(userId: string, data: ConfirmImportInput, i
     if (intake.existing_insulation === "below_r2") await once("installer_existing_insulation_below_r2", async () => logEvent(res.job_id, userId, "installer_existing_insulation_below_r2", "Installer confirmed any existing insulation is below R2.0", { import_id: data.importId, confirmed_at: new Date().toISOString(), version: intake.version }, { internal: true }));
     { const ic = await import("./installer-intake.core");
       await once("installer_coordination_chosen", async () => logEvent(res.job_id, userId, "installer_coordination_chosen", intake.coordination === "self_managed" ? "Installer will organise the job themselves (AP checks, notices, evidence review and final approval still apply)" : "Home Insulation Victoria manages the process through the normal workflow", { import_id: data.importId, coordination: intake.coordination, version: ic.COORDINATION_VERSION, chosen_at: new Date().toISOString(), self_managed_ack: intake.coordination === "self_managed" ? { wording: ic.SELF_MANAGED_ACK, acknowledged: true } : null }, { internal: true })); }
+    if (intake.fee_awareness?.declared) await once("installer_owner_fee_awareness", async () => logEvent(res.job_id, userId, "installer_owner_fee_awareness", intake.fee_awareness!.payer === "own" ? "Installer declared the owner was advised of the $349 AP management fee and that their own electrician invoices them separately" : "Installer declared the owner was advised of the $349 PIESA fee and $349 AP management fee", { import_id: data.importId, by: "installer", source: "installer_add_job", payer: intake.fee_awareness!.payer, wording: intake.fee_awareness!.text, version: intake.fee_awareness!.version, confirmed_at: new Date().toISOString(), not_owner_paperwork: true }, { internal: true }));
+    if (intake.electrician_payer) await once("installer_electrician_payer", async () => logEvent(res.job_id, userId, "installer_electrician_payer", intake.electrician_payer === "own" ? "Installer will use their own electrician — electrician invoices the owner directly; Home Insulation Victoria's $349 PIESA fee excluded (provisional arrangement; office verifies electrician, PIESA, conditions, evidence and notices)" : intake.electrician_payer === "hivic" ? "Home Insulation Victoria arranges the electrician ($349 PIESA fee on the owner quote)" : "Electrician to be arranged — owner quote held until the electrician cost is known", { import_id: data.importId, payer: intake.electrician_payer }, { internal: true }));
     await once("installer_evidence_acknowledged", async () => logEvent(res.job_id, userId, "installer_evidence_acknowledged", "Installer acknowledged all required Ready Check and installation evidence must be supplied and accepted before the rebate", { import_id: data.importId, wording: (await import("./installer-intake.core")).EVIDENCE_ACK, version: intake.version, proposed_r_value: intake.proposed_r_value ?? null, acknowledged_at: new Date().toISOString() }, { internal: true }));
   } else {
     await logEvent(res.job_id, userId, "installer_owner_fee_awareness", "Installer confirmed the owner is aware that the full quote will include the rebate, Home Insulation Victoria AP management fee and electrician PIESA fee", { import_id: data.importId, wording: (await import("./owner-confirm.core")).OWNER_FEE_AWARENESS_TICK, confirmed_at: new Date().toISOString() }, { internal: true });

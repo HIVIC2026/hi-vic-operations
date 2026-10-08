@@ -63,13 +63,13 @@ export async function intakeSendBlockers(jobId: string): Promise<string[]> {
 export async function installerIntakeState(jobId: string) {
   const { data: co } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "installer_coordination_chosen").order("created_at", { ascending: false }).limit(1).maybeSingle();
   const coordination = ((co?.details as { coordination?: string } | null)?.coordination ?? null) as "hivic_managed" | "self_managed" | null;
-  const [{ data: job, error }, ins, { data: m }, decision, { data: consent }, { count: fee }, { data: ev }] = await Promise.all([
-    admin.from("jobs").select("channel, installer_quoted_price_inc_gst, installer_price_includes").eq("id", jobId).single(),
+  const [{ data: job, error }, ins, { data: m }, decision, { data: consent }, { count: fee, data: feeRows }, { data: ev }] = await Promise.all([
+    admin.from("jobs").select("channel, installer_quoted_price_inc_gst, installer_price_includes, electrician_choice").eq("id", jobId).single(),
     latestInsulation(jobId),
     admin.from("ceiling_measurements").select("measured_area_m2, verified_area_m2, supplied_area_m2, provenance, existing_r_value").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
     commercialEligibility(jobId),
     admin.from("owner_contact_consents").select("consent_status").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "installer_owner_fee_awareness"),
+    admin.from("workflow_events").select("details", { count: "exact" }).eq("job_id", jobId).eq("event_type", "installer_owner_fee_awareness").order("created_at", { ascending: false }).limit(1),
     admin.from("evidence_requirements").select("category, label, required, status, gate").eq("job_id", jobId).eq("gate", "assessment"), // Ready Check items only — later PIESA/install/AP evidence has its own lists
   ]);
   if (error) throw new WorkflowError(error.message);
@@ -77,14 +77,17 @@ export async function installerIntakeState(jobId: string) {
   const measuredR = m?.existing_r_value == null ? null : Number(m.existing_r_value);
   const officeEligibility = decision;
   const readiness = installerQuoteReadiness({ channel: job.channel, officeEligibility, insulation: ins.value, measuredR, areaM2: area, installerQuoteIncGst: job.installer_quoted_price_inc_gst == null ? null : Number(job.installer_quoted_price_inc_gst), includes: job.installer_price_includes ?? null });
-  const release = installerQuoteReleaseBlockers({ consentStatus: consent?.consent_status ?? null, feeAwarenessRecorded: (fee ?? 0) > 0 });
+  const { payerFromChoice } = await import("./installer-intake.core");
+  const electricianPayer = payerFromChoice(job.electrician_choice);
+  const feeRow = (feeRows ?? [])[0]?.details as { payer?: "hivic" | "own" | "undecided" } | null | undefined;
+  const release = installerQuoteReleaseBlockers({ consentStatus: consent?.consent_status ?? null, feeAwarenessRecorded: (fee ?? 0) > 0, feeAwarenessPayer: feeRow?.payer ?? null, electricianPayer });
   const rc = readyCheckOutstanding((ev ?? []).map((r) => ({ category: r.category, label: r.label, blocking: r.required, status: r.status })) as EvidenceItem[]);
   return {
     coordination, coordinationNext: (await import("./installer-intake.core")).coordinationNextAction(coordination),
     channel: job.channel, insulation: ins.value, insulationSource: ins.source, areaM2: area, areaProvenance: scope.provenance,
     proposedR: await latestProposedR(jobId), reconfirmationRequired: await reconfirmationOpen(jobId), measuredR,
     quoteIncGst: job.installer_quoted_price_inc_gst == null ? null : Number(job.installer_quoted_price_inc_gst), includes: job.installer_price_includes,
-    officeEligibility, readiness, releaseBlockers: release,
+    officeEligibility, readiness, releaseBlockers: release, electricianPayer, feeAwarenessPayer: feeRow?.payer ?? null, feeAwarenessRecorded: (fee ?? 0) > 0,
     readyCheck: { outstandingCount: rc.count, outstanding: rc.outstanding.map((i) => ({ label: i.label, status: i.status })) },
   };
 }
@@ -170,6 +173,8 @@ export type InstallerIntakeUpdate = {
   quoteIncGst: number | null; includes: string | null; proposedR: number | null;
   files: { path: string; name: string; type: string }[];
   electrician?: { mode: "mine"; business_id?: string | null; nomination_id?: string | null } | undefined;
+  /** Installer declares (later, on the same job) the owner was advised of the fees for the CURRENT electrician payer. */
+  feeAwareness?: { payer: "hivic" | "own"; text: string } | undefined;
 };
 
 /**
@@ -218,6 +223,15 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
     const { recordJobElectricianChoice } = await import("./job-electrician.server");
     electrician = (await recordJobElectricianChoice(jobId, businessId, p.electrician as never, actorId)).choice ?? null;
   }
+  let feeRecorded = false;
+  if (p.feeAwareness) {
+    const { feeAwarenessText, payerFromChoice, FEE_AWARENESS_VERSION } = await import("./installer-intake.core");
+    const { data: j2 } = await admin.from("jobs").select("electrician_choice").eq("id", jobId).single();
+    const payer = payerFromChoice(j2?.electrician_choice);
+    if (payer !== p.feeAwareness.payer || p.feeAwareness.text !== feeAwarenessText(payer)) throw new WorkflowError("The fee confirmation doesn't match this job's electrician arrangement — refresh and tick it again.");
+    await logEvent(jobId, actorId, "installer_owner_fee_awareness", payer === "own" ? "Installer declared the owner was advised of the $349 AP management fee and that their own electrician invoices them separately" : "Installer declared the owner was advised of the $349 PIESA fee and $349 AP management fee", { by: "installer", source: "installer_job_page", payer, wording: p.feeAwareness.text, version: FEE_AWARENESS_VERSION, confirmed_at: new Date().toISOString(), not_owner_paperwork: true }, { internal: true });
+    feeRecorded = true;
+  }
   const material = ch.area !== undefined || !!ch.quote || ch.proposedR !== undefined || ch.insulation !== undefined;
   let quotes: { id: string; action: string }[] = [];
   if (material) {
@@ -226,5 +240,5 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
     if (ch.insulation !== undefined) await logEvent(jobId, actorId, "installer_intake_corrected", `Installer updated existing insulation to ${ch.insulation === "none" ? "none" : ch.insulation === "below_r2" ? "confirmed below R2.0" : "not yet confirmed"}`, { ...details, insulation: ch.insulation }, { internal: true });
     else await logEvent(jobId, actorId, "installer_intake_updated", "Installer updated job details", details, { internal: true });
   }
-  return { changed: material || p.files.length > 0 || !!electrician, quotes: quotes.length, state: await installerIntakeState(jobId) };
+  return { changed: material || p.files.length > 0 || !!electrician || feeRecorded, quotes: quotes.length, state: await installerIntakeState(jobId) };
 }
