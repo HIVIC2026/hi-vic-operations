@@ -21,5 +21,7 @@ export const getReadyCheckDraft = named("getReadyCheckDraft");
 export const saveReadyCheckDraft = named("saveReadyCheckDraft");
 export const getMyIntakeJob = named("getMyIntakeJob");
 export const saveMyIntakeJob = named("saveMyIntakeJob");
+export const getMyIntakeProgress = named("getMyIntakeProgress");
+export const getInstallerJourney = named("getInstallerJourney");
 export const partnerFileUrl = named("partnerFileUrl");
 export const partnerUploadUrl = named("partnerUploadUrl");
