@@ -560,8 +560,7 @@ export function missingKnownFields(skipped: string[]): string[] {
  * Stable item ids are added once read from the live template definition (getTemplateDefinition). */
 export const PIISA_A3_TEMPLATE_ID = "template_f6a2597479164eb181453eb335ce5125";
 export const PIISA_A3_MAPPING: NativeMapping = {
-  "p1.address": { labels: ["Property address", "Address of the premises"] },
-  "p2.leadName": { labels: ["Lead installer name", "Your name"] },
+  "p2.lead": { labels: ["Lead installer name", "Your name"] },
   "p2.leadEec": { labels: ["Lead installer EEC number", "Your EEC certification number"] },
   "p6.height": { labels: ["Existing insulation depth (mm)", "Average depth of existing insulation (mm)"] },
   "p6.rValue": { labels: ["Existing insulation R-value (if known)"] },
