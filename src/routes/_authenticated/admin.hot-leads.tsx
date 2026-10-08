@@ -8,7 +8,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { editHotLeadEmail, getHotLeads, getPossibleDuplicates, previewHotLeadEmail, sendHotLeadTestToJo, sendHotLeadsBatch } from "@/lib/hot-leads.functions";
-import { HOT_STATUS_LABEL, hotSelectionBlocker } from "@/lib/hot-leads.core";
+import { hotSelectionBlocker } from "@/lib/hot-leads.core";
 
 const title = "Hot leads – Home Insulation Victoria Operations";
 const description = "Office-only Save my spot list: preliminary prices, local trades and send status for eligible website leads.";
