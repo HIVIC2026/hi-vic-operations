@@ -1,6 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## PIISA corrections (Jo 8 Oct 20:20 UTC)
-- [ ] 20:27 replace all proposed AP evidence consequences with Jo's exact ESC may-reject reminder; preserve other PIISA changes and verify focused checks.
+- [x] 20:27 replaced proposed AP evidence consequences with Jo's exact ESC may-reject reminder throughout PIISA media, consent and prestart instructions; focused PIISA checks pass, native readback remains separate.
 - [x] 20:24 expanded PIISA evidence/consent requests and STOP actions; stable IDs/conditions/safety preserved; 107 focused tests pass, latest harness build OK. Native edit/readback still pending.
 - [x] Update STOP actions, crew portal wording, product-photo prestart phase and completed-video instruction; preserve native IDs and official output.
 - [x] 91 focused tests / 273 assertions pass; staged photo, fail-closed schema, scoped crew and structured actual-product safeguards checked; latest preview build/type check OK.

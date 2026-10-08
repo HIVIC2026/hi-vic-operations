@@ -6,7 +6,7 @@ Portal-only changes; no native edits, sends, real audits/signatures, worker appr
 - Portal own-company staff picker/autofill retained; manual entry labelled “Enter installer details” with full legal name and Certified Insulation Installer (CII) certification number. Entered workers still need office verification.
 - Native direct crew fields are **pending concrete edited schema**. The observed four outer IDs and existing name/certificate children remain unchanged. Prefill refuses an unconfirmed text conversion or missing certificate field; final signed-copy mapping also checks the current native definition.
 - Product photo `0a587e0e-9787-464e-be40-7cdd2c636b87` is required before installation, with real geotag/capture metadata and before-start timing. It appears once, not again in the after-work checklist. Native relocation itself remains Jo's separate edit.
-- Completed video `86b3772c-6227-4b6f-8011-b7ed288e734e` retains its mapping; instruction covers all ceiling areas, coverage and clearances and explains Home Insulation Victoria evidence review without an automatic ESC rejection claim.
+- Completed video `86b3772c-6227-4b6f-8011-b7ed288e734e` retains its mapping; instruction covers all ceiling areas, coverage and clearances and uses Jo's superseding 20:27 exact ESC may-reject reminder, as recorded in `PIISA_FULL_EVIDENCE_INSTRUCTIONS.md`.
 - Planned accepted-quote products are a reminder, never automatically populated as actual installed products. Original official Part 7 output and required-product validation retained. A product photo alone supplies no structured brand/model/R-value.
 
 ## Pending native/data work
