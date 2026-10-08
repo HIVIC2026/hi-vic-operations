@@ -1,5 +1,17 @@
 # PIISA single-name readback — 8 October 2026
 
+## Final restored signature — 22:02 UTC request
+
+Fresh GET through the existing integration confirms revision `19-a7ea04e7fa3b45b18937ee1d09b8d129`: restored `83caffa2-e9c8-4315-885f-5337a4389372` is mandatory signature immediately after declaration `3efc235d-da8e-46a5-b3f0-8c6a8c23e3e9` in Part 8. Items/conditions match the final grouping readback; response-set collection ordering alone differs. The new stored readback pins current activation as `a3-restored-signature-2026-10-08`; all unknown structures fail closed. Earlier hold notes below are superseded.
+
+Only `78e550a4-1c8b-4b59-be77-64a5c09ba848` remains a date question, after address in Title Page. Expected completion, standalone signer/signing date and preparer/conducted fields remain absent. Crew/conditional certificates precede installer photo in AP Before Work. Part 7 product photo and human-reviewed same-audit structured output are retained.
+
+Restored signature image, personal lead match and capture timestamp are required; audit/installation/completion dates never substitute. Legacy `805138fa-827e-4e25-8ca5-3871eeda1202` audits remain readable from their own field. A blank restored field cannot borrow legacy media even if both IDs occur. Expected completion derives from immutable captured signing day in Australia/Sydney; actual completion remains separate. Native installation date prefill stays editable; no signature/name/expected-date prefill is sent. No unsupported API writes enabled.
+
+Tests use synthetic audit responses only, not physical-device evidence or real signatures. No native write, audit creation/signing, approval, communication or portal publication.
+
+Final checks: 159 tests passed, zero failed, 860 assertions across 14 isolated files (restored/native version, personal signature, captured date, declaration, products/sync, historical mapping/published audit shape, STOP/evidence/prestart, official prefill/forms). Preview harness build OK. Actual new-version signed audit and live official output were not exercised under the no-audit/signing restriction; no separate manual build/typecheck claimed.
+
 Read-only existing Mitti integration returned published revision `19-a7ea04e7fa3b45b18937ee1d09b8d129`, modified `2026-10-08T21:44:57.954Z`.
 
 - The four duplicate signer/date/preparer/conducted metadata questions are absent.

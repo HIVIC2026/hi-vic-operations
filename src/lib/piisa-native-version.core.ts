@@ -1,14 +1,11 @@
 // Published revision 18 read through the existing Mitti GET integration, 8 Oct 2026.
 // The complete answer/condition/page structure is pinned; any structural change fails closed.
-import published from "./piisa-direct-published.data.json";
-import finalPublished from "./piisa-single-name-published.data.json";
-import finalGrouping from "./piisa-final-grouping-published.data.json";
+import restoredPublished from "./piisa-restored-signature-published.data.json";
 import { flatten, norm, type NativeMapping } from "./mitti.core";
 import { A3_CREW_NAME_IDS, A3_CREW_OTHER_FIELDS, A3_NATIVE_IDS, PIISA_A3_MAPPING, a3MissingFields, type StaffOption, type CrewSelection, crewSelectionProblems, crewPrefill, type CrewChoice } from "./piisa-a3.core";
 
-export const PIISA_DIRECT_VERSION = "a3-direct-crew-products-review-2026-10-08";
+export const PIISA_DIRECT_VERSION = "a3-restored-signature-2026-10-08";
 export const PIISA_DIRECT_SIGNATURE_ID = "83caffa2-e9c8-4315-885f-5337a4389372";
-export const PIISA_SIGNATURE_RESTORATION_HOLD = "Native signature restoration is pending; direct PIISA activation is paused until the restored signature's final published definition is read back and verified.";
 
 export function directCrewLabels(row: number) {
   const prefix = row === 0 ? "Lead installer" : `Additional installer ${row}`;
@@ -45,13 +42,13 @@ export function stagedDirectSchemaProblems(template: unknown): string[] {
     }
   });
   const fingerprint = nativeDefinitionFingerprint(publishedStructure(template));
-  if (![published, finalPublished, finalGrouping].some((definition) => fingerprint === nativeDefinitionFingerprint(publishedStructure(definition)))) problems.push("The published PIISA types, conditions, labels or page order differ from verified revision 18 or 19.");
+  if (fingerprint !== nativeDefinitionFingerprint(publishedStructure(restoredPublished))) problems.push("The published PIISA types, conditions, labels or page order differ from verified revision 19 restored signature.");
   return problems;
 }
 
 export function resolvePiisaNativeVersion(template: unknown) {
   if (!flatten(template).some((e) => e.id === PIISA_DIRECT_SIGNATURE_ID) && !a3MissingFields(template).length) return { version: "a3-published-choice", active: true, mapping: PIISA_A3_MAPPING, problems: [] };
-  const problems = [...stagedDirectSchemaProblems(template), PIISA_SIGNATURE_RESTORATION_HOLD];
+  const problems = stagedDirectSchemaProblems(template);
   const approved = !problems.length;
   return { version: PIISA_DIRECT_VERSION, active: approved && !problems.length, mapping: approved && !problems.length ? directMapping() : null,
     problems: [...problems, ...(!approved ? ["Final published direct-field definition has not been verified; mapping activation is paused."] : [])] };

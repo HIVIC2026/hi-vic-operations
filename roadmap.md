@@ -1,9 +1,11 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Final restored signature (Jo 8 Oct 22:02 UTC)
+- [x] Fresh GET confirms required restored 83c signature after declaration, sole Title Page installation date and unchanged crew conditions. Activated pinned restored version; 159 isolated tests/860 assertions pass across 14 files, preview build OK. Historical 805 readable, blank restored field cannot borrow old media; captured Sydney expected day and no signature prefill tested. No external writes/publication; actual new signed audit not exercised.
 ## Evidence persistence reliability (Jo 8 Oct 21:55 UTC)
 - [x] File/status errors now reject confirmation; path-derived primary key plus legacy lookup prevents duplicate files on retry/concurrent calls/downstream failure. Existing reviews retained on retry. Upload location is labelled device_at_upload, original captured_at left null. 105 isolated tests/394 assertions passed; practice PostgreSQL helper checks passed; preview build OK. Existing TEST PDF private view/download verified phone/desktop without new live mutations. Cleanup readback: earlier save fixture archived, evidence fixture retained unverified, zero outbox. See docs/EVIDENCE_PERSISTENCE_QA_8OCT.md; no publication.
 ## Native signature restoration hold (Jo 8 Oct 21:54 UTC)
 - [x] Pause direct schema activation even for previously registered definitions; legacy audit readers and signer-name match retained. Unsupported signature-name prefill/update stays off; mandatory built-in Full name limitation explained.
-- [ ] Await restored blank signature's final published readback; no assumed replacement ID. No native write, audit creation, signing, communication or portal publication.
+- [x] Superseded by 22:02 restored-signature readback; observed 83caffa2, no guessed replacement.
 ## Approved date removal and signature capability (Jo 8 Oct 21:51 UTC)
 - [x] Remove completion question requirement; derive official expected date from captured PIISA signing day in Australia/Sydney, never actual work completion or installation fallback. Current verified revision 19 is compatible; any subsequent native structure remains fail-closed until readback registration.
 - [x] Documented API prefill excludes signature type; responses.name being readable does not establish name-only writes/drawing preservation. No speculative signature mutation or dynamic autofill enabled.
