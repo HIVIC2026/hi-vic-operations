@@ -2,6 +2,7 @@
 // One short intake; owner eligibility is checked by Home Insulation Victoria after contact; full Ready Check
 // evidence is deferrable to install day but is ALWAYS required (and verified) before the rebate.
 
+import { parseProposedR } from "./intake-quote-details.core";
 export const INTAKE_RULESET_VERSION = "installer-intake-2026-10-08";
 
 export type ExistingInsulation = "none" | "below_r2" | "unknown";
@@ -56,7 +57,7 @@ export function intakeProblems(i: IntakeInput): string[] {
     if (amount != null && (Number.isNaN(amount) || amount <= 0 || amount > 1_000_000)) out.push("Check the quote amount inc GST");
     else if (!manual && i.quoteFileCount === 0) out.push("Upload your quote or enter the quote amount inc GST");
     if (manual && !i.includes.trim()) out.push("Tell us what the quote includes");
-    const r = num(i.proposedR);
+    const r = parseProposedR(i.proposedR);
     if (r != null && (Number.isNaN(r) || r <= 0 || r > 10)) out.push("Check the proposed product R-rating");
   }
   if (!i.evidenceAck) out.push("Tick that all required evidence must be supplied and accepted before the rebate");
@@ -75,7 +76,7 @@ export function intakeArea(s: string): number | null {
 export function intakeQuotePayload(i: { quoteStatus: QuoteStatus | null; amount: string; includes: string; proposedR: string }) {
   if (i.quoteStatus !== "have_quote") return { quoted: i.quoteStatus === "not_quoted" ? "no" as const : null, quoted_price_inc_gst: null, price_includes: null, proposed_r_value: null };
   const a = num(i.amount); const amount = a != null && !Number.isNaN(a) && a > 0 ? a : null;
-  const r = num(i.proposedR); const proposed = r != null && !Number.isNaN(r) && r > 0 && r <= 10 ? r : null;
+  const r = parseProposedR(i.proposedR); const proposed = r != null && !Number.isNaN(r) && r > 0 && r <= 10 ? r : null;
   return { quoted: amount ? "yes" as const : null, quoted_price_inc_gst: amount, price_includes: amount ? i.includes.trim() || null : null, proposed_r_value: proposed };
 }
 

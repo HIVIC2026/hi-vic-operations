@@ -62,6 +62,7 @@ export const NEUTRAL_SAVE_ERROR = "Job not added. Please contact the office for 
 export function saveErrorMessage(msg: string | null | undefined): string {
   const m = msg ?? "";
   if (/already on another customer record|owners_email_uq|duplicate key|Contact the office/i.test(m)) return NEUTRAL_SAVE_ERROR;
+  if (/load failed|failed to fetch|network|timeout|fetch failed/i.test(m)) return "The save confirmation was interrupted. Your details are kept; tap Retry submission to finish the same job. Do not add it again.";
   if (!m) return "No signal — your details are kept. Tap again when you have signal.";
   return m;
 }
