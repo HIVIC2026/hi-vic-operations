@@ -117,7 +117,13 @@ const READY_CHECK_FIELDS: FormField[] = [
       { label: "Explain the method", type: "text", required: true, when: "Scaled from floor plan or Other", aliases: ["Tell us how you measured it"], perArea: true, source: "portal – provenance" },
       { label: "Upgrade area diagram or floor plan", type: "media", required: true, perArea: true, aliases: ["Upload your area sketch or floor plan."], source: `${G} Table 4 – required regulator evidence: sketch of each area with its length and width; draw it in the form, photograph a paper sketch, mark up a plan photo, or upload a plan` },
       { label: "Was the ceiling or roof built or replaced in the last 5 years?", type: "choice", required: true, choices: ["Yes", "No", "Not sure"], types: ["text"], source: `${G} eligibility` },
-      // 6. Finish
+      // 6. Extras (Jo 8 Oct 2026): the installer reports anything beyond the agreed install and removal rates
+      // (e.g. tile lift, metal-sheet access, difficult access). The office prices these into the measured quote;
+      // the installer never enters a price here.
+      { label: "Are any extras needed beyond the standard install and removal?", type: "choice", required: true, choices: ["Yes", "No"], source: "portal – quoting: extras the office must price (Jo 8 Oct 2026)" },
+      { label: "Describe each extra and why it is needed", type: "text", required: true, when: "Yes", source: "portal – quoting: extras detail for the office" },
+      { label: "Photos of each extra", type: "media", required: true, when: "Yes", source: "portal – quoting: extras evidence" },
+      // 7. Finish
       { label: "Anything else the office should know?", type: "text", required: false, source: "portal" },
       { label: "I confirm this information is accurate", type: "signature", required: true, aliases: ["I confirm the information, measurements, photos and quote provided in this Ready Check are accurate to the best of my knowledge.", "I confirm the information, measurements and photos provided in this Ready Check are accurate to the best of my knowledge."], source: `${G} – installer confirmation` },
 ];
@@ -262,6 +268,7 @@ export function mittiAiPrompt(key: FormKey): string {
     perPriceLine.length ? `- Put these fields in a repeatable section called "Quoted price line": ${perPriceLine.map((x) => `"${x.label}"`).join(", ")}.` : "",
     key === "ready_check_priced" ? `- Price section: ONE multiple-choice question where the installer ticks everything included ("What's included in your quote?" with the options: "R5.0 ceiling insulation - supply & install" / "Removal of existing insulation" / "Other"), then ONE total price "Total quoted price (inc GST)". Do NOT add a price box per item and do NOT repeat the price section. All prices incl GST.` : "",
     key === "ready_check" || key === "ready_check_priced" ? `- For "Upgrade area diagram or floor plan": allow the installer to DRAW the diagram inside the form (sketch/drawing input), photograph a paper sketch, or upload a plan. Help text: "Rough is fine. Draw the house shape, split it into the areas you measured, write the length and width on each, take a photo, done."` : "",
+    key === "ready_check" || key === "ready_check_priced" ? `- Extras section: "Are any extras needed beyond the standard install and removal?" is a Yes/No question. When Yes, show and require "Describe each extra and why it is needed" and "Photos of each extra" (Mitti logic on the Yes answer). Help text on the Yes/No: "Anything beyond your agreed install and removal rates - for example tile lift, metal-sheet access or difficult access. The office prices these; do not add a price here."` : "",
     rowGroups.length ? `- Build each repeating table (${rowGroups.join(", ")}) as a repeatable section with exactly the listed columns, limited to the listed number of rows.` : "",
     key === "piesa" ? "- Section C fields are completed after rectification and are shown only when the B1 answer is \"Electrical rectification work is required before insulation is installed or upgraded.\"" : "",
     key === "piesa" || key === "piisa" ? "- If \"Is anyone at this property dependent on life support?\" is Yes, the consent/medical-plan question and attachment are required; if neither was received, the assessment must not proceed (add an instruction saying: STOP – do not start the assessment. Call the Home Insulation Victoria office.)." : "",
