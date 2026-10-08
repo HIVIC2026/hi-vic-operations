@@ -30,9 +30,11 @@ export async function maybeAutoRouteLeadEmail(jobId: string): Promise<LeadEmailR
       return { route: route.email, sent: result?.outcome === "sent", reason: result?.detail ?? "No send result" };
     }
     if (route.email === "request_insulation") {
-      const { INSULATION_DETAILS_REAL_SEND_APPROVED } = await import("./hot-leads.core");
-      if (!INSULATION_DETAILS_REAL_SEND_APPROVED) return { route: route.email, sent: false, reason: "Insulation email awaits final visual approval" };
-      return { route: route.email, sent: false, reason: "Insulation sender is not enabled" };
+      const { syncStep3 } = await import("./estimatelink.server");
+      await syncStep3(jobId, null);
+      const { sendAutomaticInsulationDetails } = await import("./hot-leads-send.server");
+      const result = await sendAutomaticInsulationDetails(jobId);
+      return { route: route.email, sent: result.outcome === "sent", reason: result.detail };
     }
     const { sendPreliminaryIneligibleEmail } = await import("./followups.server");
     const result = await sendPreliminaryIneligibleEmail(jobId, null);

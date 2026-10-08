@@ -57,10 +57,10 @@ async function processItem(item: Claimed) {
     // Step 3 preparation after the official Gate 1 decision, BEFORE completing. A failure retries the item; Gate 1 is never rolled back.
     const { syncStep3 } = await import("./estimatelink.server");
     await syncStep3(item.job_id, null);
-    const { maybeAutoRouteLeadEmail } = await import("./lead-email-routing.server");
-    await maybeAutoRouteLeadEmail(item.job_id); // one automatic route; best-effort and idempotent
     const { error: ce } = await mine({ status: "complete", completed_at: new Date().toISOString(), locked_at: null, lease_expires_at: null, last_error: null });
     if (ce) throw new Error(ce.message);
+    const { maybeAutoRouteLeadEmail } = await import("./lead-email-routing.server");
+    await maybeAutoRouteLeadEmail(item.job_id); // one automatic route; best-effort and idempotent
     const { autoAdvanceJob } = await import("./autoadvance.server");
     await autoAdvanceJob(item.job_id, null, "initial checks complete");
     return { id: item.id, job_id: item.job_id, status: "complete" };
