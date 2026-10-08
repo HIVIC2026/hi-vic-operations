@@ -33,9 +33,12 @@ export async function captureStatus(token: unknown) {
   if (r.state !== "ok") return { state: r.state };
   if (!r.link || !r.job) return { state: "invalid" as const };
   const media = await groupBMediaForJob(r.link.job_id);
+  const { data: reviews, error: reviewError } = await admin.from("customer_engagement_events").select("metadata").eq("job_id", r.link.job_id).eq("event_type", "intake_media_reviewed").order("occurred_at", { ascending: false }).limit(1);
+  if (reviewError) throw new Error("Evidence review check unavailable. Please try again.");
+  const mediaReview = (reviews?.[0]?.metadata as { outcome?: string } | null)?.outcome ?? null;
   const files = await existing(r.link.job_id);
   const suburb = (r.job.properties as { suburb: string | null } | null)?.suburb ?? null;
-  return { state: "ok" as const, suburb, reference: r.job.job_number, originalMedia: media, received: files.length, remaining: Math.max(0, CAPTURE_MAX_FILES - files.length) };
+  return { state: "ok" as const, suburb, reference: r.job.job_number, originalMedia: media, mediaReview, received: files.length, remaining: Math.max(0, CAPTURE_MAX_FILES - files.length) };
 }
 
 export async function startCapture(token: unknown, f: { fileName: string; mime: string; size: number }) {
