@@ -87,5 +87,7 @@ export const getMyIntakeReadyCheck = createServerFn({ method: "POST" }).middlewa
     if (error || !ok) throw new Error("Not your job.");
     const { installerIntakeState } = await import("./installer-intake.server");
     const s = await installerIntakeState(data.jobId);
-    return { coordination: s.coordination, readyCheck: s.readyCheck, quoteHeldFor: s.readiness.blockers.filter((b) => /insulation|eligib/i.test(b)) };
+    const { loadRcDraft } = await import("./ready-check-draft.server");
+    const d = await loadRcDraft(data.jobId);
+    return { coordination: s.coordination, readyCheck: { outstandingCount: d.progress.outstandingCount, outstanding: [] as { label: string; status: string }[] }, quoteHeldFor: s.readiness.blockers.filter((b) => /insulation|eligib/i.test(b)) };
   });
