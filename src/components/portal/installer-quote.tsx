@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { getInstallerQuoteDraft, sendInstallerQuote } from "@/lib/installer-quote.functions";
+import { getInstallerIntake, getInstallerQuoteDraft, officeIntakeAction, sendInstallerQuote } from "@/lib/installer-quote.functions";
 import { Button } from "@/components/ui/button";
 
 const money = (n: number) => `$${n.toFixed(2)}`;
@@ -65,6 +65,53 @@ export function InstallerQuoteDraftPanel({ jobId }: { jobId: string }) {
           )}
         </>
       )}
+    </section>
+  );
+}
+
+/** Admin: review the installer's short intake — owner eligibility, insulation, quote inputs, fee awareness, prepare quote. */
+export function InstallerIntakeReviewPanel({ jobId }: { jobId: string }) {
+  const load = useServerFn(getInstallerIntake);
+  const act = useServerFn(officeIntakeAction);
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ["installer-intake", jobId], queryFn: () => load({ data: { jobId } }) });
+  const [reason, setReason] = useState("");
+  const [ins, setIns] = useState<"" | "none" | "below_r2" | "unknown">("");
+  const [amount, setAmount] = useState("");
+  const [busy, setBusy] = useState(false);
+  if (q.isLoading || q.error || !q.data || q.data.channel !== "installer_sourced") return null;
+  const s = q.data;
+  const run = async (data: Record<string, unknown>) => {
+    setBusy(true);
+    try { await act({ data: data as never }); await qc.invalidateQueries({ queryKey: ["installer-intake", jobId] }); await qc.invalidateQueries({ queryKey: ["installer-quote-draft", jobId] }); toast.success("Saved"); setReason(""); }
+    catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
+  };
+  const label = { none: "None", below_r2: "Confirmed below R2", unknown: "Not yet confirmed" } as const;
+  return (
+    <section className="space-y-3 rounded-lg border p-4" data-installer-intake-review>
+      <h3 className="font-semibold">Installer intake</h3>
+      <ul className="text-sm space-y-0.5">
+        <li>Owner eligibility (office): <b>{s.officeEligibility === "eligible" ? "Checked — eligible" : s.officeEligibility === "declined" ? "Not eligible" : "Not checked yet"}</b></li>
+        <li>Existing insulation: <b>{s.insulation ? label[s.insulation] : "Not recorded"}</b>{s.insulationSource === "installer_intake_corrected" ? " (office corrected)" : " (installer declaration, unverified)"}</li>
+        <li>Ceiling area: {s.areaM2 ?? "—"} m² · Installer quote: {s.quoteIncGst != null ? money(s.quoteIncGst) + " inc GST" : "not entered (check uploaded file)"}</li>
+        <li>Includes: {s.includes ?? "—"}</li>
+        <li>Ready Check: {s.readyCheck.outstandingCount} item{s.readyCheck.outstandingCount === 1 ? "" : "s"} outstanding (not needed for the quote; needed before the rebate)</li>
+      </ul>
+      {s.readiness.blockers.length > 0 && <div className="text-sm"><p className="font-medium">Quote not ready:</p><ul className="list-disc pl-5">{s.readiness.blockers.map((b) => <li key={b}>{b}</li>)}</ul></div>}
+      {s.releaseBlockers.length > 0 && <div className="text-sm"><p className="font-medium">Before sending:</p><ul className="list-disc pl-5">{s.releaseBlockers.map((b) => <li key={b}>{b}</li>)}</ul></div>}
+      <label className="block text-sm">Note / reason (required)<textarea className="mt-1 w-full rounded border p-2 text-sm" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} /></label>
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" disabled={busy || !reason.trim()} onClick={() => run({ action: "eligibility", jobId, outcome: "eligible", reason })}>Owner eligible</Button>
+        <Button size="sm" variant="outline" disabled={busy || !reason.trim()} onClick={() => run({ action: "eligibility", jobId, outcome: "not_eligible", reason })}>Not eligible</Button>
+        <Button size="sm" variant="outline" disabled={busy || !reason.trim()} onClick={() => run({ action: "fee_awareness", jobId, note: reason })}>Owner told about fees</Button>
+      </div>
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="text-sm">Insulation<select className="ml-1 h-9 rounded border px-2" value={ins} onChange={(e) => setIns(e.target.value as typeof ins)}><option value="">No change</option><option value="none">None</option><option value="below_r2">Confirmed below R2</option><option value="unknown">Not yet confirmed</option></select></label>
+        <label className="text-sm">Quote inc GST<input className="ml-1 h-9 w-28 rounded border px-2" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
+        <Button size="sm" variant="outline" disabled={busy || !reason.trim() || (!ins && !amount)} onClick={() => run({ action: "correct", jobId, reason, ...(ins ? { insulation: ins } : {}), ...(amount && Number(amount.replace(/[$,]/g, "")) > 0 ? { quoteIncGst: Number(amount.replace(/[$,]/g, "")) } : {}) })}>Save correction</Button>
+      </div>
+      <p className="text-xs text-muted-foreground">A correction withdraws unsent draft quotes and needs the eligibility check again.</p>
+      <Button size="sm" disabled={busy || !s.readiness.ready} onClick={() => run({ action: "draft_quote", jobId })}>Prepare owner quote (draft, not sent)</Button>
     </section>
   );
 }

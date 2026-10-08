@@ -27,7 +27,4 @@
 - The new-installer test (`bun run installer-test --runs 3`) drives the portal's own server steps plus `e2e/journey/shoot.py`, uses only TEST logins/businesses, snapshots and restores the TEST business each run, and writes reports/screens to Files `installer-test/`. Why: Jo approves real installers from a repeatable, strict check.
 
 - Office operations categories and compact job status reuse the operations read classifier and one shared Query cache; legacy preview remains direct-link. Why: unique counts and factual precedence must agree without navigation polling.
-- Installer Add job and onsite entry share CustomerFields; optional imports use existing guarded confirmation. Why: one address/contact/permission form without duplicate questions.
-- Later installer jobs reuse onsite intake access/consent checks and confirmBooking; supplied measurements stay unverified audit facts and no Mitti form is created at intake. Why: adding an appointment must not bypass booking or evidence gates.
-- Installer Add job uses one shared flow (`add-job-flow.tsx` + pure `add-job-flow.core.ts`) over the existing guarded save handlers; no per-mode forms. Why: customer asked once, one draft, truthful save results.
-- Legacy installer bulk-import bookmarks redirect to the shared Add job flow; office-only historical batch tools remain reachable. Why: obsolete quoted/visited questions must not reappear for installers while batch history is preserved.
+- Installer Add job is one intake (`installer-intake-flow.tsx`) on shared CustomerFields and the guarded import handlers; legacy add/bulk bookmarks redirect there (office keeps batch history). Why: one form, no duplicate or obsolete questions.

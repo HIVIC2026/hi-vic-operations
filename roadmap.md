@@ -228,3 +228,4 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Installer Add job: one Customer -> Job details -> Review & save flow (8 Oct, preview)
 - [ ] Installer job page: remove contradictory timelines / "coming soon" form wording (next)
 - [ ] Real signed-in installer save + Mitti form check (needs a usable TEST installer session)
+- [ ] 12:25 Installer intake follow-ups: TEST installer browser click-through; job-page Ready Check outstanding list + resume; wire installDayBlockers into PIISA/works tools.

@@ -142,13 +142,18 @@ export type PiesaRequestFacts = {
   verifiedEligible: boolean;
   currentQuoteApproved: boolean;
   payment: PaymentGateResult;
+  /** Installer-supplied intake route (Jo, 8 Oct 2026): office-checked eligibility + qualifying insulation + measured
+   * scope + installer quote. Replaces only the Ready Check/verified-eligibility pair; quote approval and payment stay. */
+  installerIntakeQualified?: boolean;
 };
 
 /** PIESA can be requested only when all four approved conditions hold. */
 export function piesaRequestBlockers(f: PiesaRequestFacts): string[] {
   const out: string[] = [];
-  if (!f.readyCheckComplete) out.push("Ready Check not complete.");
-  if (!f.verifiedEligible) out.push("Verified eligibility has not been recorded as eligible.");
+  if (f.installerIntakeQualified !== true) {
+    if (!f.readyCheckComplete) out.push("Ready Check not complete.");
+    if (!f.verifiedEligible) out.push("Verified eligibility has not been recorded as eligible.");
+  }
   if (!f.currentQuoteApproved)
     out.push("Owner has not approved the current confirmed insulation quote version.");
   if (!f.payment.cleared) out.push(f.payment.blocker);

@@ -50,7 +50,7 @@ import { Label } from "@/components/ui/label";
 import { getAdminAssignments, getAdminJobEligibility } from "@/lib/admin-records.functions";
 import { getJobCoverage, sendNoCoverageEmail } from "@/lib/coverage.functions";
 import { InstallerLedInvoicePanel } from "@/components/portal/installer-invoice";
-import { InstallerQuoteDraftPanel } from "@/components/portal/installer-quote";
+import { InstallerIntakeReviewPanel, InstallerQuoteDraftPanel } from "@/components/portal/installer-quote";
 import { AdminVisitHistory } from "@/components/portal/visit-changes";
 import { OfficeJobProfitCard } from "@/components/portal/job-profit";
 import { melbourneToday } from "@/lib/melbourne-time.core";
@@ -126,7 +126,7 @@ function JobDetail() {
           <ChooseTradePanel jobId={jobId} /><RequirementCards jobId={jobId} isAdmin job={job} /><AppointmentPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="assessment" canBook={false} isAdmin /><AdminBookingOverride jobId={jobId} /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /><SectionDocuments jobId={jobId} categories={["Measure-up"]} />
         </RecordDisclosure>
         <RecordDisclosure {...g("quote")} title="Quotes & payments" summary="Exact quotes, payment mirror, signing and source-specific invoice controls">
-          <div id="target-quotes" data-portal-focus="target" tabIndex={-1} className="scroll-mt-4 outline-none"><AdminQuotes jobId={jobId} /></div><InstallerQuoteDraftPanel jobId={jobId} /><InstallerLedInvoicePanel jobId={jobId} /><div id="panel-deposit-request" className="scroll-mt-4"><PaymentsPanel jobId={jobId} isAdmin /></div><OfficeInstalmentPlanCard jobId={jobId} /><SectionDocuments jobId={jobId} categories={["Quotes", "Payments"]} />
+          <div id="target-quotes" data-portal-focus="target" tabIndex={-1} className="scroll-mt-4 outline-none"><AdminQuotes jobId={jobId} /></div><InstallerIntakeReviewPanel jobId={jobId} /><InstallerQuoteDraftPanel jobId={jobId} /><InstallerLedInvoicePanel jobId={jobId} /><div id="panel-deposit-request" className="scroll-mt-4"><PaymentsPanel jobId={jobId} isAdmin /></div><OfficeInstalmentPlanCard jobId={jobId} /><SectionDocuments jobId={jobId} categories={["Quotes", "Payments"]} />
           <SubHeading>Electronic signing</SubHeading>
           <div id="target-electronic-signing" tabIndex={-1} className="scroll-mt-4 outline-none"><AdminAssignmentPanel jobId={jobId} /></div><SectionDocuments jobId={jobId} categories={["Customer / Consent"]} />
         </RecordDisclosure>

@@ -181,3 +181,6 @@ This is the only current implementation register. `docs/HIV_WORKFLOW_SOURCE_OF_T
 - Visit day page: installer-sourced Ready Check without a form gets "Get my Ready Check form", using the existing guarded `onsiteFormStatus` (no new backend).
 - Existing: "Sent to Home Insulation Victoria — nobody has been contacted yet".
 - Follow-up gaps: no automatic owner outreach for installer-sourced quotes (office does it; homeowner email automation stays locked); installer "quote accepted" notice is queued (`owner-quote-accepted-v1`) but only delivered when partner notifications are switched on; no phone/Google/Outlook calendar sync; Mitti exact-email membership still required.
+
+## 8 Oct 2026 — Installer single intake (preview, not published)
+One Add a job intake for installer customers; office intake review panel on the job page; auto-drafted installer quotes are now always held drafts (never marked sent); intake-route PIESA deferral; rebate gate requires verified evidence. No migration. Pending: actual TEST-installer click-through, Ready Check save/resume on the installer job page, install-day order enforcement wired into PIISA tools.

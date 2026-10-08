@@ -307,6 +307,13 @@ export const confirmImport = createServerFn({ method: "POST" }).middleware([requ
       existing_below_r2: z.boolean().optional(),
       owner_agreed: z.boolean().optional(),
       quoted: z.enum(["yes", "no"]).nullable().optional(),
+      // Approved single intake (Jo, 8 Oct 2026).
+      intake: z.object({
+        existing_insulation: z.enum(["none", "below_r2", "unknown"]),
+        evidence_ack: z.boolean(),
+        proposed_r_value: z.number().positive().max(10).nullish(),
+        version: z.string().max(60),
+      }).optional(),
     }).optional(),
     electrician: z.object({ mode: z.enum(["mine", "hivic"]), business_id: uuid.nullish(), nomination_id: uuid.nullish() }).optional(),
   }).parse(d))
