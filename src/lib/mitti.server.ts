@@ -46,6 +46,18 @@ export const realMittiCall: MittiCall = async (method, path, body) => {
   return t ? JSON.parse(t) : {};
 };
 
+/** Binary media download (supported audit media route). Used only to store the PIISA signature image itself. */
+export type MittiMediaFetch = (auditId: string, mediaId: string) => Promise<{ bytes: Uint8Array; contentType: string }>;
+export const realMittiMedia: MittiMediaFetch = async (auditId, mediaId) => {
+  const token = process.env["MITTI_API_TOKEN"];
+  if (!token) throw new MittiError("Mitti is not configured. Add the MITTI_API_TOKEN secret.");
+  const res = await fetch(`${MITTI_BASE_URL}/audits/${encodeURIComponent(auditId)}/media/${encodeURIComponent(mediaId)}`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => null);
+  if (!res || !res.ok) throw new MittiError(`Mitti signature image could not be downloaded (${res?.status ?? "network"}).`);
+  const contentType = res.headers.get("content-type") ?? "";
+  if (!/^image\//.test(contentType)) throw new MittiError("Mitti returned something that is not an image for the signature.");
+  return { bytes: new Uint8Array(await res.arrayBuffer()), contentType };
+};
+
 const wrap = (e: unknown) => (e instanceof MittiError ? new WorkflowError(e.message) : e);
 
 export const MEASUREUP_TEMPLATE_MISSING = "Measure-up-only Mitti template is not configured. An admin must add the measure-up template ID in workflow settings before a measure-up-only Mitti audit can be sent.";

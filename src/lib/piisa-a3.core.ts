@@ -101,15 +101,32 @@ export const A3_NATIVE_IDS: Record<string, string[]> = {
   "p8.name": ["f7032d72-4135-4165-bd50-32d84a66d085"],
   "p8.date": ["cda99bb8-8865-46a1-928a-2267175a1e2a"],
 };
-/** A3 evidence media items -> native item id (draft-observed). Electrician photo had no ID supplied: not mapped. */
-export const A3_MEDIA_IDS: Partial<Record<A3EvidenceKey, string>> = {
+/** A3 evidence media items -> native item id. All seven READ FROM THE EDITOR DOM (electrician photo: Jo, 8 Oct 2026). */
+export const A3_MEDIA_IDS: Record<A3EvidenceKey, string> = {
   installer_photos: "06598474-e46a-4bba-8c9d-d1be2c9993e1",
+  electrician_photo: "1b6461ce-2181-4c4e-b7e8-d53a5e093e75", // "Electrician photo — onsite today (geotagged)", branch attendance = Yes
   isolation_photo: "3d8347ae-ed16-4e93-be18-4ecada390a7a",
   before_video: "49c8ef21-dd6a-41e0-a4ae-acb0c53e7ada",
   product_photos: "0a587e0e-9787-464e-be40-7cdd2c636b87",
   completed_video: "86b3772c-6227-4b6f-8011-b7ed288e734e",
   final_plan: "344e863b-3af3-44f5-b1b8-966941f0e667",
 };
+/** Native media labels as observed (verification only; the stable ID owns the mapping). */
+export const A3_MEDIA_LABELS: Partial<Record<A3EvidenceKey, string>> = { electrician_photo: "Electrician photo — onsite today (geotagged)" };
+
+/** CONTROLLED label suffixes added in the editor on the SAME stable IDs (Jo, 8 Oct 2026). Only these exact additions pass. */
+export const A3_ALIAS_SUFFIXES: Record<string, string[]> = {
+  "p5.electricianPresent": ["Choose N/A only when attendance is not required by the PIESA or solar shutdown instructions."],
+  "p4.instructions": ["If No, an electrician must isolate the supply, lock out, tag and confirm electrical safety before work starts."],
+  "p4.isolator": ["If No, get electrical review before proceeding."],
+  "p6.treatment": ["Foil-backed or electrically conductive insulation must be removed."],
+  "p6.suitable": ["If No, remove it before laying new insulation."],
+};
+/** Exact accepted native labels for an official item: base alias, or base alias + one controlled suffix. */
+export function a3AcceptedLabels(id: string): string[] {
+  const base = A3_ALIASES[id] ?? [];
+  return base.flatMap((a) => [norm(a), ...(A3_ALIAS_SUFFIXES[id] ?? []).map((x) => norm(`${a} ${x}`))]);
+}
 
 /** NativeMapping for buildOfficialPrefill: per-row stable IDs; labels kept only for verification. */
 export const PIISA_A3_MAPPING: NativeMapping = Object.fromEntries(Object.keys(A3_NATIVE_IDS).map((k) => [k, { itemIds: A3_NATIVE_IDS[k]!, labels: A3_ALIASES[k] ?? [], byRow: true }]));
@@ -126,7 +143,7 @@ export function a3Occurrence(itemId: string, row = 0): number {
 export function a3Entry(entries: Entry[], itemId: string, row = 0): Entry | undefined {
   const nid = A3_NATIVE_IDS[itemId]?.[row];
   if (nid) return entries.find((e) => String(e.id) === nid);
-  const labels = (A3_ALIASES[itemId] ?? []).map(norm);
+  const labels = a3AcceptedLabels(itemId);
   if (!labels.length) return undefined;
   return entries.filter((e) => labels.includes(e.norm))[a3Occurrence(itemId, row)];
 }
@@ -144,23 +161,57 @@ export function a3MissingFields(template: unknown): string[] {
       if (!e) { out.push(name); continue; }
       // Definition must agree with the observed draft: a known ID carrying a different question is a mismatch.
       const al = A3_ALIASES[id];
-      // Stable IDs own the mapping: an added warning suffix on the same question is accepted; a different question is not.
-      if (al?.length && !al.map(norm).some((a) => e.norm === a || e.norm.startsWith(`${a} `))) out.push(`${name} — ID ${e.id} now reads "${e.label}"`);
+      // Stable IDs own the mapping; only the exact alias or exact alias + controlled suffix passes. Anything else fails closed.
+      if (al?.length && !a3AcceptedLabels(id).includes(e.norm)) out.push(`${name} — ID ${e.id} now reads "${e.label}"`);
     }
   }
-  for (const [k, nid] of Object.entries(A3_MEDIA_IDS)) if (!entries.some((e) => String(e.id) === nid)) out.push(`${A3_EVIDENCE_LABELS[k as A3EvidenceKey]} (media)`);
+  for (const [k, nid] of Object.entries(A3_MEDIA_IDS)) {
+    const e = entries.find((x) => String(x.id) === nid);
+    const lbl = A3_MEDIA_LABELS[k as A3EvidenceKey];
+    if (!e) out.push(`${A3_EVIDENCE_LABELS[k as A3EvidenceKey]} (media)`);
+    else if (lbl && e.norm !== norm(lbl)) out.push(`${A3_EVIDENCE_LABELS[k as A3EvidenceKey]} (media) — ID ${nid} now reads "${e.label}"`);
+  }
   return out;
 }
 
-/** Media item ids that hold each evidence type on a completed audit (for evidence sync). */
-export function a3MediaCounts(audit: unknown): { key: A3EvidenceKey; count: number }[] {
+/** One media file on the audit with ONLY the metadata Mitti actually returned. Unknown stays null (never faked). */
+export type A3MediaFile = { mediaId: string | null; capturedAt: string | null; lat: number | null; lng: number | null };
+const num = (v: unknown) => { const x = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v) : NaN; return Number.isFinite(x) ? x : null; };
+function mediaFile(m: Any): A3MediaFile {
+  const loc = m?.location ?? m?.geo ?? m?.metadata?.location ?? null;
+  const coords = Array.isArray(loc?.geometry?.coordinates) ? loc.geometry.coordinates : null;
+  let lat = num(loc?.lat ?? loc?.latitude ?? m?.lat ?? m?.latitude ?? (coords ? coords[1] : undefined));
+  let lng = num(loc?.lng ?? loc?.lon ?? loc?.longitude ?? m?.lng ?? m?.longitude ?? (coords ? coords[0] : undefined));
+  if (lat == null || lng == null || Math.abs(lat) > 90 || Math.abs(lng) > 180 || (lat === 0 && lng === 0)) { lat = null; lng = null; }
+  const ts = [m?.captured_at, m?.date_taken, m?.metadata?.captured_at, m?.date_created, m?.timestamp].find((t) => typeof t === "string" && !Number.isNaN(Date.parse(t))) as string | undefined;
+  const id = m?.media_id ?? m?.id ?? null;
+  return { mediaId: id == null ? null : String(id), capturedAt: ts ?? null, lat, lng };
+}
+function itemsById(audit: unknown): Map<string, Any> {
   const byId = new Map<string, Any>();
   const walk = (x: unknown) => { if (Array.isArray(x)) x.forEach(walk); else if (x && typeof x === "object") { const o = x as Any; const id = o.item_id ?? o.id; if (id != null && "label" in o) byId.set(String(id), o); for (const v of Object.values(o)) if (typeof v === "object") walk(v); } };
   walk(audit);
-  return (Object.entries(A3_MEDIA_IDS) as [A3EvidenceKey, string][]).map(([key, nid]) => {
+  return byId;
+}
+/** Every A3 media item on an audit (in-progress or completed) with per-file metadata. */
+export function a3MediaFiles(audit: unknown): Record<A3EvidenceKey, A3MediaFile[]> {
+  const byId = itemsById(audit);
+  return Object.fromEntries((Object.entries(A3_MEDIA_IDS) as [A3EvidenceKey, string][]).map(([key, nid]) => {
     const o = byId.get(nid); const media = o?.media ?? o?.responses?.media ?? o?.responses?.attachments ?? [];
-    return { key, count: Array.isArray(media) ? media.length : 0 };
+    return [key, Array.isArray(media) ? media.map(mediaFile) : []];
+  })) as Record<A3EvidenceKey, A3MediaFile[]>;
+}
+/** Files -> A3Media summary. Geotagged/timestamped only when actually recorded; anything missing is counted for review. */
+export function a3MediaSummary(files: Record<A3EvidenceKey, A3MediaFile[]>): A3Media[] {
+  return (Object.keys(A3_MEDIA_IDS) as A3EvidenceKey[]).map((key) => {
+    const fs = files[key] ?? [];
+    const times = fs.map((f) => f.capturedAt).filter((t): t is string => !!t).sort();
+    return { key, count: fs.length, geotagged: fs.filter((f) => f.lat != null).length, timed: times.length, capturedAt: times.length ? times[times.length - 1]! : null };
   });
+}
+/** Back-compatible counts. */
+export function a3MediaCounts(audit: unknown): { key: A3EvidenceKey; count: number }[] {
+  return a3MediaSummary(a3MediaFiles(audit)).map(({ key, count }) => ({ key, count }));
 }
 
 /** "Removed" / "Topped up" / "Both" (or a multi-select) -> the official ticks. Unknown text = null (never guessed). */
@@ -348,7 +399,11 @@ export type A3EvidenceCtx = {
   /** Life-support consent/plan already on file (reused, never uploaded twice). */
   lifeSupportConsentOnFile: boolean;
 };
-export type A3Media = { key: A3EvidenceKey; count: number; geotagged: number; capturedAt?: string | null };
+/** capturedAt = LATEST recorded capture time; timed = files with a recorded time (undefined = legacy, treated as all). */
+export type A3Media = { key: A3EvidenceKey; count: number; geotagged: number; timed?: number; capturedAt?: string | null };
+/** Before-work media are checked at prestart; after-work media only at completion (never block the prestart check). */
+export const A3_PRESTART_KEYS: A3EvidenceKey[] = ["installer_photos", "electrician_photo", "isolation_photo", "before_video"];
+export const A3_AFTER_KEYS: A3EvidenceKey[] = ["product_photos", "completed_video", "final_plan"];
 
 /** Required A3 evidence. The old ID-holding / 360° / ruler extras are NOT in this path (no official basis). */
 export function a3EvidenceRequired(answers: OfficialAnswers, ctx: A3EvidenceCtx): { key: A3EvidenceKey; min: number; label: string }[] {
@@ -366,15 +421,90 @@ export function a3EvidenceRequired(answers: OfficialAnswers, ctx: A3EvidenceCtx)
   return req.map((r) => ({ ...r, label: A3_EVIDENCE_LABELS[r.key] }));
 }
 
-export function a3EvidenceBlockers(answers: OfficialAnswers, ctx: A3EvidenceCtx, media: A3Media[], workStartAt?: string | null): string[] {
+function evidenceBlockers(keys: A3EvidenceKey[], answers: OfficialAnswers, ctx: A3EvidenceCtx, media: A3Media[], workStartAt?: string | null): string[] {
   const b: string[] = [];
   const by = new Map(media.map((m) => [m.key, m]));
-  for (const r of a3EvidenceRequired(answers, ctx)) {
+  for (const r of a3EvidenceRequired(answers, ctx).filter((x) => keys.includes(x.key))) {
     const m = by.get(r.key);
     if (!m || m.count < r.min) { b.push(`${r.label}: ${m?.count ?? 0} of ${r.min}`); continue; }
-    if (GEOTAG.includes(r.key) && m.geotagged < r.min) b.push(`${r.label}: location missing on ${r.min - m.geotagged}`);
+    if (GEOTAG.includes(r.key) && m.geotagged < r.min) b.push(`${r.label}: location not recorded on ${r.min - m.geotagged} — office review`);
+    if (m.timed != null && m.timed < m.count) b.push(`${r.label}: capture time not recorded on ${m.count - m.timed} — office review`);
     if ((r.key === "isolation_photo" || r.key === "before_video") && workStartAt && m.capturedAt && Date.parse(m.capturedAt) > Date.parse(workStartAt)) b.push(`${r.label}: must be taken before work starts`);
   }
+  return b;
+}
+/** Prestart: before-work evidence + life support only. After-work media are never required here. */
+export function a3PrestartBlockers(answers: OfficialAnswers, ctx: A3EvidenceCtx, media: A3Media[], workStartAt?: string | null): string[] {
+  const b = evidenceBlockers(A3_PRESTART_KEYS, answers, ctx, media, workStartAt);
   if (answers["lifeSupport"] === "Yes" && !ctx.lifeSupportConsentOnFile) b.push("Life support: written consent or medical plan must be on file before work");
   return b;
+}
+/** Completion: after-work evidence only (prestart is checked separately against its own snapshot). */
+export function a3CompletionBlockers(answers: OfficialAnswers, ctx: A3EvidenceCtx, media: A3Media[]): string[] {
+  return evidenceBlockers(A3_AFTER_KEYS, answers, ctx, media);
+}
+export function a3EvidenceBlockers(answers: OfficialAnswers, ctx: A3EvidenceCtx, media: A3Media[], workStartAt?: string | null): string[] {
+  return [...a3PrestartBlockers(answers, ctx, media, workStartAt), ...a3CompletionBlockers(answers, ctx, media)];
+}
+
+/** Checklist rows for the job page/AP: every A3 item with its real state. */
+export type A3ChecklistRow = { key: A3EvidenceKey; label: string; phase: "before" | "after"; required: number; count: number; state: "not_required" | "missing" | "review" | "met" };
+export function a3EvidenceChecklist(answers: OfficialAnswers, ctx: A3EvidenceCtx, media: A3Media[]): A3ChecklistRow[] {
+  const req = new Map(a3EvidenceRequired(answers, ctx).map((r) => [r.key, r.min]));
+  const by = new Map(media.map((m) => [m.key, m]));
+  return (Object.keys(A3_EVIDENCE_LABELS) as A3EvidenceKey[]).map((key) => {
+    const m = by.get(key); const min = req.get(key) ?? 0; const count = m?.count ?? 0;
+    const phase = A3_PRESTART_KEYS.includes(key) ? "before" as const : "after" as const;
+    if (!min) return { key, label: A3_EVIDENCE_LABELS[key], phase, required: 0, count, state: "not_required" as const };
+    if (count < min) return { key, label: A3_EVIDENCE_LABELS[key], phase, required: min, count, state: "missing" as const };
+    const review = (GEOTAG.includes(key) && (m?.geotagged ?? 0) < min) || (m?.timed != null && m.timed < count);
+    return { key, label: A3_EVIDENCE_LABELS[key], phase, required: min, count, state: review ? "review" as const : "met" as const };
+  });
+}
+
+// ---------- prestart snapshot ----------
+export type A3PrestartSnapshot = {
+  audit_id: string; captured_from: "in_progress_audit" | "completed_audit"; answers: OfficialAnswers; crew: { name: string; eec: string | null }[];
+  signature: { media_id: string; item_id: string | null; signer_name: string | null; signed_at: string };
+  media: Record<A3EvidenceKey, A3MediaFile[]>; blockers: string[];
+};
+/** Builds the immutable prestart snapshot from the CURRENT audit. Signature time = the signature's own timestamp only. */
+export function a3PrestartSnapshot(auditId: string, audit: unknown, ctx: A3EvidenceCtx, opts: { completed: boolean }): { ok: true; snapshot: A3PrestartSnapshot } | { ok: false; reason: string } {
+  const sig = a3Signature(audit);
+  if (!sig.present || !sig.mediaId) return { ok: false, reason: "The installer has not signed the PIISA yet (no signature image)." };
+  if (!sig.signedAt) return { ok: false, reason: "The PIISA signature has no time recorded, so it can't be used." };
+  const { answers, crew } = parseA3Answers(audit);
+  const files = a3MediaFiles(audit);
+  const prestartFiles = Object.fromEntries(Object.entries(files).map(([k, v]) => [k, A3_PRESTART_KEYS.includes(k as A3EvidenceKey) ? v : []])) as Record<A3EvidenceKey, A3MediaFile[]>;
+  const blockers = a3PrestartBlockers(answers, { ...ctx, crewCount: Math.max(ctx.crewCount, 1 + crew.length) }, a3MediaSummary(prestartFiles), sig.signedAt);
+  return { ok: true, snapshot: { audit_id: auditId, captured_from: opts.completed ? "completed_audit" : "in_progress_audit", answers, crew, signature: { media_id: sig.mediaId, item_id: sig.itemId, signer_name: sig.name, signed_at: sig.signedAt }, media: prestartFiles, blockers } };
+}
+
+// ---------- crew resolution against CURRENT verified staff ----------
+/** Composite label a native staff dropdown shows: exact "Name — EEC <no> — <Business>". Built from records, never parsed by regex. */
+export const staffCompositeLabel = (s: StaffOption, business: string) => `${s.name} — EEC ${s.eec ?? ""} — ${business}`;
+/**
+ * Each crew value from the audit (plain name, or a native composite label) must equal a CURRENT approved staff member with
+ * a verified EEC whose number matches. Stale, mismatched or "Other" entries block AP approval — never trusted by pattern.
+ */
+export function a3CrewResolution(crew: { name: string; eec: string | null }[], staff: StaffOption[], business: string): { resolved: string[]; blockers: string[] } {
+  const resolved: string[] = [], blockers: string[] = [];
+  const ok = staff.filter((s) => s.approved !== false && s.eecVerified && s.eec);
+  for (const c of crew) {
+    const raw = c.name.trim();
+    const hit = ok.find((s) => raw === staffCompositeLabel(s, business)) ?? ok.find((s) => norm(s.name) === norm(raw));
+    if (!hit) { blockers.push(`${raw}: not a current verified installer of ${business} — office review before AP approval`); continue; }
+    if (c.eec && norm(c.eec) !== norm(hit.eec!)) { blockers.push(`${hit.name}: EEC on the form (${c.eec}) does not match the verified record (${hit.eec})`); continue; }
+    resolved.push(hit.workerId);
+  }
+  return { resolved, blockers };
+}
+
+/** AP gate from the stored A3 evidence record (non-A3 declarations have none and are unaffected). Review/missing block. */
+export function a3EvidenceGate(official: unknown): string[] {
+  const ev = (official as { a3_evidence?: { checklist?: A3ChecklistRow[]; prestart_blockers?: string[]; completion_blockers?: string[]; crew_blockers?: string[]; prestart_captured_from?: string } } | null)?.a3_evidence;
+  if (!ev) return [];
+  const out = [...(ev.prestart_blockers ?? []).map((b) => `PIISA start-of-work: ${b}`), ...(ev.completion_blockers ?? []).map((b) => `PIISA evidence: ${b}`), ...(ev.crew_blockers ?? []).map((b) => `PIISA crew: ${b}`)];
+  if (ev.prestart_captured_from === "completed_audit") out.push("PIISA start-of-work check was only captured after the form was completed — office review");
+  return out;
 }
