@@ -1,4 +1,6 @@
 # Roadmap (preview only, nothing sent, no publish, no real jobs)
+- [ ] Jo 09:29 explicitly requests switching Mitti access on for the installer business behind HV-2010; use existing guarded office control only, no unrelated settings or integration actions.
+- [ ] Jo 09:28: review contradictory Ready Check instructions and payment checklist shown in screenshots; preserve workflow/access guards.
 - [x] Jo 09:25: SELECT-only diagnosis confirms saved/confirmed Ready Check, configured template and auto-send on, but business mitti_account_invited=false and no audit. No integration action/settings change.
 - [ ] Mitti opening blocked until office confirms the business's actual invitation through existing guarded setup; never enable merely to hide the blocker.
 - [x] Jo 09:24: red duplicate-email warning replaced by neutral unsuccessful-save/help status; customer access protection unchanged. 23 tests/41 assertions, harness build OK.
