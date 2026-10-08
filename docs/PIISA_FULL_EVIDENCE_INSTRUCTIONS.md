@@ -1,6 +1,10 @@
 # PIISA instruction supplement — Jo, 8 Oct 2026 20:24 UTC
 
-## Superseding reminder — Jo, 20:27 UTC
+## Latest superseding reminder — published-template follow-up
+
+Current portal instructions use Jo’s exact short eight sentences and the suffix “Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).” The revision-18 native definition was read back successfully; see `PIISA_DIRECT_SCHEMA_STAGED.md`. The following notes describe historical preparation, not current activation status.
+
+## Historical reminder — Jo, 20:27 UTC
 
 Superseded by Jo at 20:30 UTC: every photo/video/evidence instruction, including consent, uses exactly “Please ensure the evidence is clear and shows all required details. Unclear or incomplete evidence may result in the Essential Services Commission (ESC) rejecting the VEEC submission.” All seven media labels and the consent instruction now use Jo's exact 20:30 sentences. No extra factual prompts are added. Before video covers every upgraded ceiling area and existing insulation; after video covers every insulated area, coverage, depth and waste removal; final plan shows total installed m² and products. Stable IDs and current published-schema mapping are unchanged, including structured Part 7 requirements.
 

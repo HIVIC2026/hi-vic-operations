@@ -9,8 +9,7 @@ import { logEvent } from "./workflow.server";
 export type PiisaDeclSync = { status: "saved" | "already" | "pending" | "missing" | "no_form" | "error"; message: string };
 
 export async function syncPiisaDeclaration(jobId: string, actorId: string | null, call?: MittiCall, opts: { testTemplateId?: string; fetchMedia?: import("./mitti.server").MittiMediaFetch } = {}): Promise<PiisaDeclSync> {
-  const { data: existing } = await admin.from("installer_declarations").select("id").eq("job_id", jobId).eq("status", "signed").maybeSingle();
-  if (existing) return { status: "already", message: "Declaration already saved." };
+  const { data: existing } = await admin.from("installer_declarations").select("id,snapshot").eq("job_id", jobId).eq("status", "signed").maybeSingle();
   const { data: job } = await admin.from("jobs").select("job_number, source").eq("id", jobId).single();
   if (!job) return { status: "error", message: "Job not found." };
   const { data: ev } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_piisa_audit_created").order("created_at", { ascending: false }).limit(1).maybeSingle();
@@ -29,17 +28,52 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
   const { PIISA_A3_TEMPLATE_ID: A3_TPL } = await import("./piisa-a3.core");
   const isA3 = expectedTpl === A3_TPL;
   const fetchMedia = opts.fetchMedia ?? (isA3 ? (await import("./mitti.server")).realMittiMedia : undefined);
+  if (existing) {
+    const saved = existing.snapshot as { official?: { a3_evidence?: { actual_product_answers?: unknown } } } | null;
+    if (saved?.official?.a3_evidence?.actual_product_answers && fetchMedia) {
+      const products = await import("./piisa-products.server");
+      const problems = await products.syncNativeProductEvidence(jobId, auditId, audit, fetchMedia);
+      const reviewed = await products.verifiedInstalledProductAnswers(jobId);
+      if (problems.length || reviewed.blockers.length || JSON.stringify(reviewed.answers) !== JSON.stringify(saved.official.a3_evidence.actual_product_answers)) return { status: "error", message: "Product label evidence changed or needs review; the historical signed PIISA was not altered." };
+    }
+    return { status: "already", message: "Declaration already saved." };
+  }
   // A3: the signed start-of-work check is captured from the CURRENT audit BEFORE completion (after-work media not needed).
   let prestart: import("./piisa-prestart.server").StoredPrestart | null = null;
   if (isA3) {
     const { capturePiisaPrestart } = await import("./piisa-prestart.server");
-    const pr = await capturePiisaPrestart(jobId, actorId, auditId, audit, fetchMedia!);
+    if (!fetchMedia) return { status: "error", message: "The original PIISA media could not be read." };
+    const pr = await capturePiisaPrestart(jobId, actorId, auditId, audit, fetchMedia);
     if (pr.status === "error") return { status: "error", message: pr.message };
     prestart = pr.prestart ?? null;
     if (!p.completed) return { status: "pending", message: prestart ? `PIISA start-of-work check captured; final completion not done in Mitti yet.` : `PIISA not completed in Mitti yet. ${pr.message}` };
   }
   if (!p.completed) return { status: "pending", message: "PIISA not completed in Mitti yet." };
-  const r = declarationFromPiisa(p.snapshot);
+  const native = await import("./piisa-native-version.core");
+  const direct = isA3 && native.isDirectPiisaAudit(audit);
+  let actualProducts: Awaited<ReturnType<typeof import("./piisa-products.server").verifiedInstalledProductAnswers>> | null = null;
+  let directCrew: ReturnType<typeof native.resolveDirectCrew> | null = null;
+  let r = declarationFromPiisa(p.snapshot);
+  if (direct) {
+    const tplDef = await mittiApi(realCall).getTemplateDefinition(expectedTpl);
+    const version = native.resolvePiisaNativeVersion(tplDef);
+    if (!version.active || version.version !== native.PIISA_DIRECT_VERSION) return { status: "error", message: `PIISA mapping needs review: ${version.problems.join(" • ")}` };
+    const { loadCrew } = await import("./piisa-a3.server");
+    directCrew = native.resolveDirectCrew(audit, (await loadCrew(jobId)).staff);
+    if (directCrew.blockers.length) return { status: "missing", message: directCrew.blockers.join(" • ") };
+    const products = await import("./piisa-products.server");
+    if (!fetchMedia) return { status: "error", message: "Original product label photos could not be read." };
+    const photoProblems = await products.syncNativeProductEvidence(jobId, auditId, audit, fetchMedia);
+    if (photoProblems.length) return { status: "missing", message: photoProblems.join(" • ") };
+    actualProducts = await products.verifiedInstalledProductAnswers(jobId);
+    if (actualProducts.blockers.length) return { status: "missing", message: actualProducts.blockers.join(" • ") };
+    const { flatten } = await import("./mitti.core");
+    const { a3Signature, A3_NATIVE_IDS } = await import("./piisa-a3.core");
+    const sig = a3Signature(audit);
+    const tick = flatten(audit).find((e) => e.id === A3_NATIVE_IDS["p8.declaration"]?.[0])?.value;
+    const { declarationFromDirectPiisa } = await import("./piisa-declaration.core");
+    r = declarationFromDirectPiisa({ tick, product: actualProducts.answers["p7.products"] ?? null, areaM2: actualProducts.installedAreaM2, name: directCrew.answers["p2.lead"] ?? null, signature: sig.mediaId, signedAt: sig.signedAt });
+  }
   if (!r.ok) {
     await logEvent(jobId, actorId, "installer_declaration_missing", `${MISSING_INSTALLER_DECLARATION} – the completed PIISA has no signed declaration (${r.missing.join(", ")})`, { audit_id: auditId, missing: r.missing });
     return { status: "missing", message: `${MISSING_INSTALLER_DECLARATION} (${r.missing.join(", ")})` };
@@ -74,10 +108,11 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
     const { data: bizB } = asgB?.business_id ? await admin.from("businesses").select("name").eq("id", asgB.business_id).maybeSingle() : { data: null };
     const tplDef = await mittiApi(realCall).getTemplateDefinition(expectedTpl).catch(() => null);
     if (!tplDef) return { status: "error", message: "The current PIISA field structure could not be checked. No signed official copy saved." };
-    const mappingProblems = coreC.a3MissingFields(tplDef);
+    // Old audits keep their own historical schema; current master cannot reinterpret old response fields.
+    const mappingProblems = direct ? native.resolvePiisaNativeVersion(tplDef).problems : [];
     if (mappingProblems.length) return { status: "error", message: `The PIISA field structure has changed and needs confirmed mapping: ${mappingProblems.join(" • ")}. No signed official copy saved.` };
-    const crewRes = coreC.a3ResolveCrewChoices(coreC.a3CrewChoices(audit), tplDef, asgB?.business_id ? await cs(asgB.business_id) : [], bizB?.name ?? "");
-    Object.assign(answers, crewRes.answers);
+    const crewRes = directCrew ?? coreC.a3ResolveCrewChoices(coreC.a3CrewChoices(audit), audit, asgB?.business_id ? await cs(asgB.business_id) : [], bizB?.name ?? "");
+    Object.assign(answers, crewRes.answers, actualProducts?.answers ?? {});
     crewBlockers = [...crewRes.blockers, ...crewRes.needsVerification];
     // Signature date in Melbourne from the signature's own timestamp (prestart snapshot kept independently of AP completion).
     const sigDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(new Date(signedAt));
@@ -92,6 +127,7 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
     const copyId = await storeSignedCopy({ jobId, key: "piisa", answers: answers as never, signer: { userId: asg.user_id, name: sig.name ?? String(answers["p8.name"] ?? ""), role: "installer" }, enteredDate: sigDate, jobFacts: facts as unknown as Record<string, string>, acknowledgementIds: [], signature: `mitti:${auditId}` });
     const { renderOfficialDocx } = await import("./official-docx.server");
     const r = renderOfficialDocx("piisa", answers as never);
+    if (direct && (!r.filled.includes("p7.products") || r.missed.includes("p7.products"))) return { status: "error", message: "Verified actual products could not be placed in the original Part 7. No final declaration saved." };
     const path = `jobs/${jobId}/official/piisa-${auditId}.docx`;
     const up = await admin.storage.from("job-files").upload(path, r.bytes, { contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", upsert: false });
     if (up.error && !/exists/i.test(up.error.message)) return { status: "error", message: `Official PIISA document could not be stored: ${up.error.message}` };
@@ -115,6 +151,8 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
       prestart_captured_from: prestart!.snapshot.captured_from,
       completion_blockers: core.a3CompletionBlockers(answers as never, ctx, media),
       crew_blockers: crewBlockers,
+      native_version: direct ? native.PIISA_DIRECT_VERSION : "a3-published-choice",
+      actual_product_answers: actualProducts?.answers ?? null,
     };
     official = { answers: { ...answers, signed_copy_id: copyId }, docx: { path, sha256: r.sha256, missed: r.missed }, signature_attachment: { ...att, record_path: sidecar }, a3_evidence };
     await logEvent(jobId, actorId, "piisa_a3_evidence_synced", "PIISA evidence checklist read from the completed form", a3_evidence as unknown as Record<string, unknown>, { internal: true });

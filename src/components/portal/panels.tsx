@@ -114,6 +114,7 @@ function EvidenceRow({ req, canUpload, isAdmin }: { req: Req; canUpload: boolean
   const [busy, setBusy] = useState(false);
   const [products, setProducts] = useState([{ brand: "", model: "", rValue: "" }]);
   const productReview = isAdmin && req.category === "product_evidence";
+  const [installedArea, setInstalledArea] = useState("");
   const reqUpload = useAction(requestEvidenceUpload);
   const confirm = useAction(confirmEvidenceUpload);
   const verify = useAction(verifyEvidence);
@@ -152,6 +153,7 @@ function EvidenceRow({ req, canUpload, isAdmin }: { req: Req; canUpload: boolean
         {products.map((p, index) => <div key={index} className="grid gap-2 sm:grid-cols-3">
           {(["brand", "model", "rValue"] as const).map((key) => <Input key={key} aria-label={`Product ${index + 1} ${key === "rValue" ? "R-value" : key}`} placeholder={key === "rValue" ? "R-value" : key === "brand" ? "Brand" : "Model"} type={key === "rValue" ? "number" : "text"} value={p[key]} onChange={(event) => setProducts((rows) => rows.map((row, i) => i === index ? { ...row, [key]: event.target.value } : row))} />)}
         </div>)}
+        <Input aria-label="Installed area confirmed from final roof-space plan" placeholder="Installed area from final plan (m²)" type="number" value={installedArea} onChange={(event) => setInstalledArea(event.target.value)} />
         <Button variant="outline" size="sm" disabled={products.length >= 20} onClick={() => setProducts((rows) => [...rows, { brand: "", model: "", rValue: "" }])}>Add product</Button>
       </div>}
       <div className="mt-2 flex flex-wrap gap-2">
@@ -165,7 +167,7 @@ function EvidenceRow({ req, canUpload, isAdmin }: { req: Req; canUpload: boolean
         )}
         {isAdmin && req.status === "uploaded" && (
           <>
-            <Button size="sm" disabled={productReview && products.some((p) => !p.brand.trim() || !p.model.trim() || !(Number(p.rValue) > 0))} onClick={() => verify({ requirementId: req.id, status: "verified", ...(productReview ? { actualProducts: products.map((p) => ({ brand: p.brand, model: p.model, rValue: Number(p.rValue) })) } : {}) }, "Verified")}>Verify</Button>
+            <Button size="sm" disabled={productReview && products.some((p) => !p.brand.trim() || !p.model.trim() || !(Number(p.rValue) > 0))} onClick={() => verify({ requirementId: req.id, status: "verified", ...(productReview ? { ...(installedArea ? { installedAreaM2: Number(installedArea) } : {}), actualProducts: products.map((p) => ({ brand: p.brand, model: p.model, rValue: Number(p.rValue) })) } : {}) }, "Verified")}>Verify</Button>
             <Button size="sm" variant="outline" onClick={() => { const n = prompt("Reason for rejection"); if (n) verify({ requirementId: req.id, status: "rejected", notes: n }, "Rejected"); }}>Reject</Button>
           </>
         )}

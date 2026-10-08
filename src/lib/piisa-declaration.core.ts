@@ -60,3 +60,15 @@ export function simulatedPiisaAudit(o: { auditId: string; templateId: string; jo
     header_items: [t("Job Reference ID", o.jobNumber)], items,
   };
 }
+
+/** Published direct form has no duplicate name/product/area questions. Only verified job facts may supply them. */
+export function declarationFromDirectPiisa(input: { tick: unknown; product: string | null; areaM2: number | null; name: string | null; signature: string | null; signedAt: string | null }): { ok: true; decl: PiisaDeclaration } | { ok: false; missing: string[] } {
+  const missing: string[] = [];
+  if (!ticked(input.tick == null ? null : String(input.tick))) missing.push("declaration not ticked");
+  if (!input.signature || !input.signedAt || !Number.isFinite(Date.parse(input.signedAt))) missing.push("installer signature and its own time");
+  if (!input.name?.trim()) missing.push("verified lead installer");
+  if (!input.product?.trim()) missing.push("reviewed actual installed products");
+  if (input.areaM2 == null || !Number.isFinite(input.areaM2) || input.areaM2 <= 0) missing.push("accepted installed area");
+  if (missing.length || !input.product || !input.name || !input.signature || !input.signedAt || input.areaM2 == null) return { ok: false, missing };
+  return { ok: true, decl: { product: input.product, rValue: null, areaM2: input.areaM2, signatureName: input.name, signature: input.signature, signedOn: new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(new Date(input.signedAt)) } };
+}

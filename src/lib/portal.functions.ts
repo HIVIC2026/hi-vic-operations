@@ -970,7 +970,7 @@ export const getEvidenceUrl = createServerFn({ method: "POST" }).middleware([req
   });
 
 export const verifyEvidence = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ requirementId: uuid, status: z.enum(["verified", "rejected", "not_required", "outstanding"]), notes: z.string().max(2000).optional(), actualProducts: z.array(z.object({ brand: z.string().trim().min(1).max(200), model: z.string().trim().min(1).max(200), rValue: z.number().positive().finite() })).min(1).max(20).optional() }).parse(d))
+  .inputValidator((d) => z.object({ requirementId: uuid, status: z.enum(["verified", "rejected", "not_required", "outstanding"]), notes: z.string().max(2000).optional(), installedAreaM2: z.number().positive().finite().optional(), actualProducts: z.array(z.object({ brand: z.string().trim().min(1).max(200), model: z.string().trim().min(1).max(200), rValue: z.number().positive().finite() })).min(1).max(20).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const { data: req } = await admin.from("evidence_requirements").select("job_id,label,category").eq("id", data.requirementId).single();
@@ -982,7 +982,7 @@ export const verifyEvidence = createServerFn({ method: "POST" }).middleware([req
       const { data: files, error } = await admin.from("evidence_files").select("id,job_id,requirement_id,mime_type,uploaded_at,storage_path").eq("job_id", req.job_id).eq("requirement_id", data.requirementId);
       if (error) throw new Error(error.message);
       const { prepareProductReview } = await import("./piisa-products.core");
-      notes = JSON.stringify(prepareProductReview({ jobId: req.job_id, requirementId: data.requirementId, products: data.actualProducts, files: files ?? [], actor: context.userId, at }));
+      notes = JSON.stringify(prepareProductReview({ jobId: req.job_id, requirementId: data.requirementId, products: data.actualProducts, installedAreaM2: data.installedAreaM2, files: files ?? [], actor: context.userId, at }));
     }
     const { error: reviewError } = await admin.from("evidence_requirements").update({ status: data.status, required: data.status === "not_required" ? false : true, verified_by: context.userId, verified_at: at, notes }).eq("id", data.requirementId);
     if (reviewError) throw new Error(reviewError.message);
