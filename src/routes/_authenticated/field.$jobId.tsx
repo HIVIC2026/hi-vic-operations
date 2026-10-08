@@ -25,6 +25,7 @@ import { Button, Section, YesNo } from "@/components/trade/trade-ui";
 import { MittiCard, MittiSyncedFields } from "@/components/portal/mitti";
 import { useServerFn } from "@tanstack/react-start";
 import { getMyMittiInvited } from "@/lib/trade-view.functions";
+import { getMyIntakeProgress } from "@/lib/installer-quote.functions";
 
 /** Partners never see Mitti until the office ticks "Mitti account invited". */
 function useMittiInvited() {
@@ -46,7 +47,7 @@ import { Label } from "@/components/ui/label";
 import { melbourneToday } from "@/lib/melbourne-time.core";
 
 export const Route = createFileRoute("/_authenticated/field/$jobId")({
-  head: () => ({ meta: [{ title: "Job – Home Insulation Victoria Field" }, { name: "description", content: "Onsite job workflow." }, { property: "og:title", content: "Job – Home Insulation Victoria Field" }, { property: "og:description", content: "Onsite job workflow." }] }),
+  head: () => ({ meta: [{ title: "Job – Home Insulation Victoria Field" }, { name: "description", content: "Onsite job workflow." }, { property: "og:title", content: "Job – Home Insulation Victoria Field" }, { property: "og:description", content: "Onsite job workflow." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: FieldJob,
 });
 
@@ -54,6 +55,8 @@ function FieldJob() {
   const { jobId } = Route.useParams();
   const { data: job, isError, error } = useJob(jobId);
   const { data: role } = useQuery({ queryKey: ["myrole", jobId], queryFn: async () => (await supabase.rpc("my_job_role", { _job: jobId })).data });
+  const loadProgress = useServerFn(getMyIntakeProgress);
+  const { data: intake } = useQuery({ queryKey: ["intake-progress", jobId], queryFn: () => loadProgress({ data: { jobId } }), enabled: role === "installer", retry: false });
   if (!job && isError) return <TradeShell installer={role !== "electrician"}><p className="rounded-[18px] border bg-paper p-6 text-sm text-sub">{/TEST accounts/.test(String((error as Error)?.message)) ? "This TEST sign-in can only open active TEST jobs." : "This job isn't available to you. If it's a new offer, accept it from My work first."}</p><Link to="/field" className="mt-3 inline-block font-bold text-hiv-blue underline">Back to My work</Link></TradeShell>;
   if (!job) return <TradeShell installer={role !== "electrician"}><p className="text-sub">Loading…</p></TradeShell>;
   const step = nextStep(job);
@@ -78,8 +81,8 @@ function FieldJob() {
           {job.owner_phone && <a href={`sms:${job.owner_phone}`} className={btnClass("secondary")}>Text</a>}
           {maps && job.owner_name && <a href={maps} target="_blank" rel="noreferrer" className={btnClass("secondary")}>Directions</a>}
         </div>} />
-      <JobStatusCard jobId={jobId} />
-      {role === "installer" && <PartnerInstallerFactsCard jobId={jobId} />}
+      {(role === "electrician" || intake?.applies === false) && <JobStatusCard jobId={jobId} />}
+      {role === "installer" && intake?.applies === false && <PartnerInstallerFactsCard jobId={jobId} />}
       {role === "installer" && <JobElectricianCard jobId={jobId} />}
       <div><BlockersPanel jobId={jobId} quietWhenClear partner /></div>
       <div className="space-y-4">

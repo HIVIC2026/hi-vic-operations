@@ -97,7 +97,7 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
           {qs === "not_quoted" && (facts.quoteIncGst != null || facts.includes) && <p className="mt-1 text-xs text-sub" data-quote-clear-note>Saving "Not quoted yet" removes the quote amount and inclusions saved earlier. Uploaded files are kept as originals.</p>}
         </fieldset>
         {qs === "have_quote" && <>
-          <AttachFiles businessId={businessId} files={allFiles} label="Upload your quote" onAdd={async (picked) => { const up = await upload(picked); setNewFiles((o) => [...o, ...up]); }} onRemove={async (path) => setNewFiles((o) => o.filter((f) => f.path !== path))} />
+          <AttachFiles businessId={businessId} files={allFiles} label="Upload your quote" canRemove={(path) => newFiles.some((f) => f.path === path)} onAdd={async (picked) => { const up = await upload(picked); setNewFiles((o) => [...o, ...up]); }} onRemove={async (path) => setNewFiles((o) => o.filter((f) => f.path !== path))} />
           <p className="text-xs text-sub">No quote file? Enter the amount and what it includes.</p>
           <label className="block text-sm font-bold">Your quote inc GST<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 3,450" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
           <label className="block text-sm font-bold">What the quote includes<Textarea className="mt-1" rows={3} maxLength={1000} value={includes} onChange={(e) => setIncludes(e.target.value)} /></label>

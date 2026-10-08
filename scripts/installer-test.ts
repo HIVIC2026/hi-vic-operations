@@ -16,6 +16,8 @@ import { JOURNEY_ACTOR_EMAIL } from "../src/lib/journey.server";
 
 const RUNS = Number(process.argv[process.argv.indexOf("--runs") + 1]) || 1;
 const noBrowser = process.argv.includes("--no-browser");
+// Morning operational QA: never run onboarding signing/approval/email steps or mint an office session.
+const installerAppOnly = process.argv.includes("--installer-app-only");
 const BIZ = "17793408-bf5c-4ddd-9bec-64199f64f9fb"; // [TEST PARTNER] Reinsulate
 const OWNER_EMAIL = "deep-test@hivic.test";
 const STAFF_EMAIL = "qa.staff.reinsulate@hivic-test.example";
@@ -720,13 +722,13 @@ for (let run = 1; run <= RUNS; run++) {
   const snap = await snapshot(); saveSnap(snap); active = snap;
   const steps: Step[] = []; const screens: Screen[] = []; const ctx: { appId?: string; enquiryId?: string; data?: InstData; extraAppIds?: string[] } = {};
   try {
-    await sectionA(steps, tag, screens, ctx);
+    if (!installerAppOnly) await sectionA(steps, tag, screens, ctx);
     await sectionB(steps, screens, { owner: ownerId, staff: staffId });
     const fx = `/tmp/installer-test/${tag}`;
     spawnSync("python3", [new URL("../e2e/installer-test/fixtures.py", import.meta.url).pathname, fx, tag], { encoding: "utf8" });
     await sectionC(steps, tag, ownerId, fx, screens);
     if (!noBrowser) {
-      const sessions: Record<string, unknown> = { office: await sessionFor(JOURNEY_ACTOR_EMAIL), owner: await sessionFor(OWNER_EMAIL), staff: await sessionFor(STAFF_EMAIL) };
+      const sessions: Record<string, unknown> = { ...(!installerAppOnly ? { office: await sessionFor(JOURNEY_ACTOR_EMAIL) } : {}), owner: await sessionFor(OWNER_EMAIL), staff: await sessionFor(STAFF_EMAIL) };
       // Screenshots run in small batches, each with its own time limit, so one slow page can't stop the whole step.
       const browser: { step: string; ok: boolean; detail: string; shots: string[] }[] = [];
       const CHUNK = 4;
@@ -758,11 +760,11 @@ for (let run = 1; run <= RUNS; run++) {
 }
 const keys = [...new Set(allRuns.flatMap((r) => r.steps.map((s) => s.key)))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 const ready = allRuns.every((r) => r.steps.every((s) => s.passed));
-const verdict = ready ? "READY FOR REAL INSTALLERS" : "NOT READY";
+const verdict = ready ? "CHECKED TEST FLOWS PASSED — UNTESTED FLOWS REMAIN" : "NOT READY";
 const md = [`# New-installer test — ${new Date().toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })}`, "", `**${verdict}** (${RUNS} run${RUNS > 1 ? "s" : ""})`, "", "| Step | " + allRuns.map((r) => `Run ${r.run}`).join(" | ") + " |", "|---|" + allRuns.map(() => "---").join("|") + "|",
   ...keys.map((k) => { const label = allRuns.flatMap((r) => r.steps).find((s) => s.key === k)!.label; return `| ${label} | ${allRuns.map((r) => { const s = r.steps.find((x) => x.key === k); return s ? (s.passed ? "PASS" : "FAIL") : "-"; }).join(" | ")} |`; }), "",
   ...allRuns.flatMap((r) => [`## Run ${r.run}`, ...r.steps.flatMap((s) => [`### ${s.passed ? "PASS" : "FAIL"} — ${s.label}`, ...s.checks.map((c) => `- ${c.ok ? "ok" : "FAILED"} — ${c.name}${c.detail ? ` (${c.detail})` : ""}`)]), ""])].join("\n");
 writeFileSync(`${root}/report.md`, md);
 console.log(`\n${verdict}\nReport: ${root}/report.md`);
 void copyFileSync;
-process.exit(0);
+process.exit(ready ? 0 : 1);

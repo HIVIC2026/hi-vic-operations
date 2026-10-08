@@ -10,7 +10,8 @@ export function InstallerProgressCard({ jobId }: { jobId: string }) {
   const load = useServerFn(getMyIntakeProgress);
   const { data, isError, isPending } = useQuery({ queryKey: ["intake-progress", jobId], queryFn: () => load({ data: { jobId } }), retry: false });
   if (isPending) return null;
-  if (isError || !data || !data.applies) return <InstallerJourney jobId={jobId} />;
+  if (isError || !data) return <p role="alert" className="text-sm text-sub">Couldn't load current job progress. Please refresh to try again.</p>;
+  if (!data.applies) return <InstallerJourney jobId={jobId} />;
   return <ProgressView steps={data.steps} next={data.next} />;
 }
 

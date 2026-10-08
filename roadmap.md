@@ -1,4 +1,8 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Installer morning QA (Jo 8 Oct 20:37 UTC)
+- [ ] Run strict three-run existing TEST installer operational checks with snapshot restoration; exclude onboarding signing/approvals/sends and office sessions.
+- [ ] Signed-in phone/desktop interactions: Add job branches, back/retry/resume, later editor, real private file previews and navigation; report unavailable bulk UI and Ready Check blockers without bypass.
+- [ ] Fix observed bugs narrowly, verify focused persistence/security checks and automatic production checks, record cleanup/version/untested actions. Preserve concurrent native work and activation switches.
 ## PIISA corrections (Jo 8 Oct 20:20 UTC)
 - [x] 20:33 prepared dormant direct crew resolver; old mapping/audit parser unchanged. Read-only database schema confirms no structured verified product source; existing office evidence Verify now records actual brand/model/R with photo fingerprint/reviewer/time. 57 focused checks pass; preview build OK.
 - [ ] Activate successor only after Jo's final published definition readback validates types/conditions/page placement; connect reviewed actual products to native-label source and declaration/official rendering before retiring typed product mapping. No duplicate installer product question added.

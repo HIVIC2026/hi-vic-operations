@@ -8,6 +8,7 @@ import { getJobElectrician, switchJobElectricianToHivic } from "@/lib/job-electr
 import { SAFETY_CHECK_NOTE, jobElectricianLabel, newElectricianProblems, usualElectrician, type ElectricianPlan } from "@/lib/job-electrician.core";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { openFileViewer } from "@/components/portal/file-viewer";
 
 export type AttachedFile = { path: string; name: string; type?: string | null };
 const isImage = (f: { name: string; type?: string | null }) => /^image\//.test(f.type ?? "") || /\.(jpe?g|png|heic|heif|webp)$/i.test(f.name);
@@ -35,9 +36,15 @@ function Thumb({ f, businessId }: { f: AttachedFile; businessId: string }) {
 }
 
 /** "Take photo" (phone camera) + "Choose files", with small previews and a remove button on each. */
-export function AttachFiles({ businessId, files, onAdd, onRemove, label = "Photos and files" }: { businessId: string; files: AttachedFile[]; onAdd: (f: File[]) => Promise<void>; onRemove: (path: string) => Promise<void>; label?: string }) {
+export function AttachFiles({ businessId, files, onAdd, onRemove, canRemove = () => true, label = "Photos and files" }: { businessId: string; files: AttachedFile[]; onAdd: (f: File[]) => Promise<void>; onRemove: (path: string) => Promise<void>; canRemove?: (path: string) => boolean; label?: string }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const sign = useServerFn(partnerFileUrl);
+  const view = async (f: AttachedFile) => {
+    setErr(null);
+    try { const r = await sign({ data: { businessId, path: f.path } }); openFileViewer(r.url, f.name); }
+    catch (e) { setErr(e instanceof Error ? e.message : "Couldn't open this file. Try again."); }
+  };
   const cam = useRef<HTMLInputElement>(null), pick = useRef<HTMLInputElement>(null);
   const add = async (list: FileList | null) => {
     const f = [...(list ?? [])]; if (!f.length) return;
@@ -58,9 +65,9 @@ export function AttachFiles({ businessId, files, onAdd, onRemove, label = "Photo
       {err && <p className="text-xs text-danger">{err}</p>}
       {files.length > 0 && <ul className="flex flex-wrap gap-2">{files.map((f) => (
         <li key={f.path} className="relative w-20">
-          <div className="grid h-16 w-20 place-items-center overflow-hidden rounded-[10px] border border-line bg-mist"><Thumb f={f} businessId={businessId} /></div>
+          <Button type="button" variant="outline" aria-label={`Open ${f.name}`} onClick={() => view(f)} className="grid h-16 w-20 place-items-center overflow-hidden rounded-[10px] border border-line bg-mist p-0"><Thumb f={f} businessId={businessId} /></Button>
           <span className="mt-0.5 block truncate text-[10px] text-sub">{f.name.split("/").pop()}</span>
-          <button type="button" aria-label={`Remove ${f.name}`} onClick={() => onRemove(f.path)} className="absolute -right-1.5 -top-1.5 grid h-6 w-6 place-items-center rounded-full border border-line bg-paper text-ink shadow-card"><X className="h-3 w-3" /></button>
+          {canRemove(f.path) && <Button type="button" variant="outline" size="icon" aria-label={`Remove ${f.name}`} disabled={busy} onClick={async () => { setBusy(true); setErr(null); try { await onRemove(f.path); } catch (e) { setErr(e instanceof Error ? e.message : "Couldn't remove this file. Try again."); } finally { setBusy(false); } }} className="absolute -right-1.5 -top-1.5 h-6 w-6 rounded-full border border-line bg-paper text-ink shadow-card"><X className="h-3 w-3" /></Button>}
         </li>))}</ul>}
     </div>
   );
