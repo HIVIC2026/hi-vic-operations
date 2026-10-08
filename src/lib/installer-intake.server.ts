@@ -63,13 +63,13 @@ export async function intakeSendBlockers(jobId: string): Promise<string[]> {
 export async function installerIntakeState(jobId: string) {
   const { data: co } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "installer_coordination_chosen").order("created_at", { ascending: false }).limit(1).maybeSingle();
   const coordination = ((co?.details as { coordination?: string } | null)?.coordination ?? null) as "hivic_managed" | "self_managed" | null;
-  const [{ data: job, error }, ins, { data: m }, decision, { data: consent }, { count: fee }, { data: ev }] = await Promise.all([
-    admin.from("jobs").select("channel, installer_quoted_price_inc_gst, installer_price_includes").eq("id", jobId).single(),
+  const [{ data: job, error }, ins, { data: m }, decision, { data: consent }, { count: fee, data: feeRows }, { data: ev }] = await Promise.all([
+    admin.from("jobs").select("channel, installer_quoted_price_inc_gst, installer_price_includes, electrician_choice").eq("id", jobId).single(),
     latestInsulation(jobId),
     admin.from("ceiling_measurements").select("measured_area_m2, verified_area_m2, supplied_area_m2, provenance, existing_r_value").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
     commercialEligibility(jobId),
     admin.from("owner_contact_consents").select("consent_status").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "installer_owner_fee_awareness"),
+    admin.from("workflow_events").select("details", { count: "exact" }).eq("job_id", jobId).eq("event_type", "installer_owner_fee_awareness").order("created_at", { ascending: false }).limit(1),
     admin.from("evidence_requirements").select("category, label, required, status, gate").eq("job_id", jobId).eq("gate", "assessment"), // Ready Check items only — later PIESA/install/AP evidence has its own lists
   ]);
   if (error) throw new WorkflowError(error.message);
@@ -77,14 +77,17 @@ export async function installerIntakeState(jobId: string) {
   const measuredR = m?.existing_r_value == null ? null : Number(m.existing_r_value);
   const officeEligibility = decision;
   const readiness = installerQuoteReadiness({ channel: job.channel, officeEligibility, insulation: ins.value, measuredR, areaM2: area, installerQuoteIncGst: job.installer_quoted_price_inc_gst == null ? null : Number(job.installer_quoted_price_inc_gst), includes: job.installer_price_includes ?? null });
-  const release = installerQuoteReleaseBlockers({ consentStatus: consent?.consent_status ?? null, feeAwarenessRecorded: (fee ?? 0) > 0 });
+  const { payerFromChoice } = await import("./installer-intake.core");
+  const electricianPayer = payerFromChoice(job.electrician_choice);
+  const feeRow = (feeRows ?? [])[0]?.details as { payer?: "hivic" | "own" | "undecided" } | null | undefined;
+  const release = installerQuoteReleaseBlockers({ consentStatus: consent?.consent_status ?? null, feeAwarenessRecorded: (fee ?? 0) > 0, feeAwarenessPayer: feeRow?.payer ?? null, electricianPayer });
   const rc = readyCheckOutstanding((ev ?? []).map((r) => ({ category: r.category, label: r.label, blocking: r.required, status: r.status })) as EvidenceItem[]);
   return {
     coordination, coordinationNext: (await import("./installer-intake.core")).coordinationNextAction(coordination),
     channel: job.channel, insulation: ins.value, insulationSource: ins.source, areaM2: area, areaProvenance: scope.provenance,
     proposedR: await latestProposedR(jobId), reconfirmationRequired: await reconfirmationOpen(jobId), measuredR,
     quoteIncGst: job.installer_quoted_price_inc_gst == null ? null : Number(job.installer_quoted_price_inc_gst), includes: job.installer_price_includes,
-    officeEligibility, readiness, releaseBlockers: release,
+    officeEligibility, readiness, releaseBlockers: release, electricianPayer, feeAwarenessPayer: feeRow?.payer ?? null, feeAwarenessRecorded: (fee ?? 0) > 0,
     readyCheck: { outstandingCount: rc.count, outstanding: rc.outstanding.map((i) => ({ label: i.label, status: i.status })) },
   };
 }

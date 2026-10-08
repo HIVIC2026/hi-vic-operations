@@ -5,12 +5,19 @@ import { MIN_CUSTOMER_CONTRIBUTION_INC_GST, applyDiscountRules, discountNotes } 
 
 export type ElectricianChoice = "installer_own" | "hivic_matched" | "installer_own_hivic_books";
 
-/** Owner charge is the standard PIESA price from settings (retail_estimator_settings.piesa_assessment_inc_gst) for every approved electrician choice; an own REC's agreed rate is an internal supplier cost only. */
-export function piesaChargeIncGst(choice: ElectricianChoice | null, standardPiesaIncGst: number | null): number | null {
+/**
+ * Owner PIESA charge on Home Insulation Victoria's quote. HIV-arranged electrician (hivic_matched / hivic_organise /
+ * installer_own_hivic_books) = standard settings price. Installer's OWN electrician (installer_own / preferred /
+ * nominated) invoices the owner directly (Jo, 9 Oct 2026 — provisional arrangement pending regulator confirmation):
+ * HIV's PIESA fee is EXCLUDED (0, no line), never a blocker. Undecided = null (quote held).
+ */
+export function piesaChargeIncGst(choice: ElectricianChoice | string | null, standardPiesaIncGst: number | null): number | null {
+  if (isDirectBilledElectrician(choice)) return 0;
   if (!(standardPiesaIncGst != null && standardPiesaIncGst > 0)) return null;
-  if (choice === "hivic_matched" || choice === "installer_own" || choice === "installer_own_hivic_books") return standardPiesaIncGst;
+  if (choice === "hivic_matched" || choice === "hivic_organise" || choice === "installer_own_hivic_books") return standardPiesaIncGst;
   return null;
 }
+export const isDirectBilledElectrician = (choice: string | null | undefined) => choice === "installer_own" || choice === "preferred" || choice === "nominated";
 
 export type OwnerPriceInput = { installerQuoteIncGst: number; piesaIncGst: number | null; rectificationIncGst: number; apFeeIncGst: number | null; veecDiscountIncGst: number };
 /** Owner's co-branded invoice: installer quote + PIESA + rectification + AP fee − VEU discount. The discount is reduced if needed so the owner always pays at least the $200 minimum contribution (official VEU rule). */
@@ -214,7 +221,7 @@ export function buildInstallerQuoteDraft(i: {
     const inc = p.included.map((x) => (x === "Other" && p.otherDescription ? `Other: ${p.otherDescription}` : x));
     lines.push({ code: "INSTALLER_PRICE", description: `Insulation works by your installer — includes: ${inc.join(", ")}`, quantity: 1, unit: "flat", unit_price_inc_gst: p.totalIncGst, line_total_inc_gst: p.totalIncGst, is_other: false, explanation: inc.join("\n"), sort: 0 });
   }
-  if (i.piesaIncGst != null) lines.push({ code: "PIESA", description: "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", quantity: 1, unit: "flat", unit_price_inc_gst: i.piesaIncGst, line_total_inc_gst: i.piesaIncGst, is_other: false, explanation: null, sort: 1 });
+  if (i.piesaIncGst != null && i.piesaIncGst > 0) lines.push({ code: "PIESA", description: "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", quantity: 1, unit: "flat", unit_price_inc_gst: i.piesaIncGst, line_total_inc_gst: i.piesaIncGst, is_other: false, explanation: null, sort: 1 });
   if (i.apFeeIncGst != null && i.apFeeIncGst > 0) lines.push({ code: "AP_FEE", description: "Home Insulation Victoria — Accredited Person fee", quantity: 1, unit: "flat", unit_price_inc_gst: i.apFeeIncGst, line_total_inc_gst: i.apFeeIncGst, is_other: false, explanation: null, sort: 2 });
   return { ready: blockers.length === 0, blockers, lines, subtotal: owner.total, discount: owner.discount, afterDiscount: owner.afterDiscount, discountNote: discountNotes(rules).join(" ") || null };
 }
