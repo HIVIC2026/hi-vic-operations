@@ -55,6 +55,8 @@ export type EnquiryGroupRow = EnquiryClass & {
   status: EnquiryStatus; attentionReason: string | null; outcomeAt: string | null;
   /** Homeowner photos/videos attached to the website enquiry (intake_media), and whether the office has reviewed them. */
   mediaCount: number; mediaChecked: boolean;
+  /** Latest office photo/video review outcome, if any. below_r2/over_r2 are final; unclear keeps the lead in the review list. */
+  mediaOutcome: MediaReviewOutcome | null;
 };
 
 export async function loadEnquiryGroups() {
@@ -76,13 +78,18 @@ export async function loadEnquiryGroups() {
     admin.from("customer_delivery_settings").select("jobs_created_after").eq("id", 1).maybeSingle(),
     byJobs(ids, (c, f, t) => admin.from("lead_campaign_responses").select("job_id, spot_saved_at").in("job_id", c).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("documents").select("job_id").in("job_id", c).eq("kind", "intake_media").range(f, t)),
-    byJobs(ids, (c, f, t) => admin.from("customer_engagement_events").select("job_id").in("job_id", c).eq("event_type", "intake_media_reviewed").range(f, t)),
+    byJobs(ids, (c, f, t) => admin.from("customer_engagement_events").select("job_id, occurred_at, metadata").in("job_id", c).eq("event_type", "intake_media_reviewed").order("occurred_at").range(f, t)),
   ]);
   const savedSet = new Set(responses.filter((r) => r.spot_saved_at).map((r) => r.job_id));
   const deliveryCfg = must(cfg, "Delivery settings");
   const group = <T extends { job_id: string | null }>(rows: T[]) => { const m = new Map<string, T[]>(); for (const r of rows) if (r.job_id) m.set(r.job_id, [...(m.get(r.job_id) ?? []), r]); return m; };
   const mBy = group(meas), eBy = group(ests), dBy = group(docs), sBy = group(sends), cBy = group(consents), mediaBy = group(media);
-  const checkedSet = new Set(reviewed.map((r) => r.job_id));
+  // Latest office review outcome per job; below_r2/over_r2 are final, unclear keeps the lead in the review list.
+  const outcomeBy = new Map<string, MediaReviewOutcome>();
+  for (const r of reviewed) {
+    const o = (r.metadata as { outcome?: string } | null)?.outcome;
+    if (o && MEDIA_OUTCOMES.includes(o as MediaReviewOutcome)) outcomeBy.set(r.job_id, o as MediaReviewOutcome);
+  }
   const workSet = new Set(work.map((w) => w.job_id)), optSet = new Set(optouts.filter((o) => o.opted_out_at).map((o) => o.job_id)), bounceSet = new Set(events.map((e) => e.job_id));
 
   const rows: (EnquiryGroupRow & { propKey: string })[] = jobs.map((j) => {
