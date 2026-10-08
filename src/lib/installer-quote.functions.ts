@@ -154,7 +154,7 @@ export const getMyIntakeProgress = createServerFn({ method: "POST" }).middleware
     const id = data.jobId;
     const [s, { data: job }, { data: qs }, { data: pr }, { data: bks }, { data: ev }, { data: ap }, { data: veec }, { data: dl }] = await Promise.all([
       m.installerIntakeState(id),
-      admin.from("jobs").select("stage, installer_quoted").eq("id", id).single(),
+      admin.from("jobs").select("stage, installer_quoted, installation_completed_at").eq("id", id).single(),
       admin.from("quotes").select("status, created_at, release_state, release_hold_reason, sent_at").eq("job_id", id).eq("kind", "installation"),
       admin.from("piesa_records").select("outcome, signed_off_by, created_at").eq("job_id", id).eq("is_current", true).limit(1).maybeSingle(),
       admin.from("bookings").select("kind, status, scheduled_start, created_at").eq("job_id", id).neq("status", "cancelled").order("created_at", { ascending: false }),
@@ -167,7 +167,7 @@ export const getMyIntakeProgress = createServerFn({ method: "POST" }).middleware
     const { evidenceApplicability } = await import("./operations-preview.core");
     const stage = job?.stage ?? "";
     const book = (k: string) => (bks ?? []).find((b) => b.kind === k) ?? null;
-    const inst = book("installation"); const installedAt = (bks ?? []).find((b) => b.kind === "installation" && b.status === "completed")?.scheduled_start ?? null;
+    const inst = book("installation"); const installedAt = job?.installation_completed_at ?? (bks ?? []).find((b) => b.kind === "installation" && b.status === "completed")?.scheduled_start ?? null;
     const piesaDone = pr?.outcome === "pass" && !!pr.signed_off_by;
     const facts = { id, stage, createdAt: "", lastActivityAt: null, enteredStageAt: null, installedAt, installBookingAt: inst?.scheduled_start ?? null,
       elecBookingAt: book("assessment")?.scheduled_start ?? null, rcBookingAt: book("ready_check")?.scheduled_start ?? null,
