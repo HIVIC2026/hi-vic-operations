@@ -15,6 +15,7 @@
 - Ask in a short, fixed order: property address; owner name, email and phone; use Home Insulation Victoria's electrician or the installer's electrician; the installer's quoted price inc GST and exactly what it includes; owner contact permission; owner awareness of the added Home Insulation Victoria and electrician fees; measured ceiling area; how it was measured; removal required and removal area; and confirmation that any existing insulation is below R2.
 - Keep upload as an optional helper inside Add job. It fills those same fields from one customer's file, then the installer checks every answer. If a file contains more than one customer, stop rather than guessing or creating multiple jobs.
 - Use plain labels rather than the current “Quoted?” and “Site check?” branches. The completed facts go to office review; no Ready Check booking is created for an already measured job.
+- Display a clear source label everywhere installers scan or open work: **Installer customer** on their supplied jobs and **Home Insulation Victoria customer** on our leads. Show the same label in Add job confirmation, My work, jobs and job detail, backed by permanent job attribution rather than editable text.
 
 ## 2. Clear owner fee awareness
 - Show the installer what Home Insulation Victoria will issue: installation price, rebate, AP management fee, separate PIESA fee and final owner total, all inc GST.

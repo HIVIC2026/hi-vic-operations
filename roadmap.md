@@ -2,6 +2,7 @@
 
 ## Current priority — both quote handoffs (Jo, 8 Oct 00:49 UTC)
 - [ ] Replace installer bulk intake with one clear Add job path only; keep existing historical bulk imports readable.
+- [ ] Label every trade job clearly as “Installer customer” or “Home Insulation Victoria customer” across Add job, My work, jobs and job details.
 - [ ] Ask the agreed single-job questions: property/owner, electrician choice, owner price/scope, contact and fee awareness, measurement method/area, removal, and below-R2 confirmation.
 - [ ] Audit installer-supplied and Home Insulation Victoria-sourced paths from intake/Ready Check to owner approval and guarded next steps.
 - [ ] Verify the single-job upload button, information extraction, confirmation and private file attachment; repair failures within this flow.
