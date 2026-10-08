@@ -5,7 +5,7 @@ import { sendSaveSpotPreviewTest } from "@/lib/hot-leads.functions";
 import { renderFollowupEmail } from "@/lib/followup-email";
 import { renderCoverageUnavailableEmail } from "@/lib/coverage-email";
 import { renderEstimateEmail, renderIneligibleOutcomeEmail, PUBLIC_CALCULATOR_URL } from "@/lib/estimate-email";
-import { renderStep3SaveSpot, saveSpotDifferences, STEP3_SAVESPOT_SAMPLE } from "@/lib/step3-emails";
+import { renderStep3SaveSpot, renderStep3SaveSpotNoSize, saveSpotDifferences, STEP3_SAVESPOT_SAMPLE } from "@/lib/step3-emails";
 import { withUnsubscribe } from "@/lib/emailsafety.core";
 import { ConfirmQuote } from "@/components/portal/estimate";
 import { EstimateHeader } from "@/components/portal/EstimateHeader";
@@ -59,6 +59,7 @@ const samples = {
   }), unsubscribeUrl),
   // APPROVED by Jo Lowe, 7 Oct 2026 — FINAL Save your spot email.
   savespot: renderStep3SaveSpot(STEP3_SAVESPOT_SAMPLE),
+  savespotNoSize: renderStep3SaveSpotNoSize(STEP3_SAVESPOT_SAMPLE),
   onsite: withUnsubscribe(renderEstimateEmail({
     ...quote,
     outcome: "onsite",
@@ -72,7 +73,7 @@ const samples = {
   reminder3: withUnsubscribe(renderFollowupEmail({ kind: "estimate_unopened_3d", estimateUrl, referralUrl }), unsubscribeUrl),
   coverage: withUnsubscribe(renderCoverageUnavailableEmail({ firstName: "Alex", suburb: "Fraser Rise", postcode: "3336", missing: ["installer"], reference: "SAMPLE-1001" }), unsubscribeUrl),
 };
-const OUTCOME_LABELS = { likely: "Likely eligible", savespot: "Save your spot", onsite: "Needs onsite confirmation", ineligible: "Does not appear eligible", reminder3: "Reminder: 3 days, unopened", coverage: "Service availability update" } as const;
+const OUTCOME_LABELS = { likely: "Likely eligible", savespot: "Save your spot", savespotNoSize: "Save your spot — no ceiling size", onsite: "Needs onsite confirmation", ineligible: "Does not appear eligible", reminder3: "Reminder: 3 days, unopened", coverage: "Service availability update" } as const;
 
 export const Route = createFileRoute("/step3-email-preview")({
   headers: () => ({ "Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow" }),

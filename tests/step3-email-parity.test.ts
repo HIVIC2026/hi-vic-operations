@@ -3,7 +3,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { renderStep3SaveSpot, STEP3_SAVESPOT_SAMPLE as S } from "../src/lib/step3-emails";
+import { renderStep3SaveSpot, renderStep3SaveSpotNoSize, STEP3_SAVESPOT_SAMPLE as S } from "../src/lib/step3-emails";
 import { renderLaunchGroupEmail } from "../src/lib/estimate-email";
 
 const files = (d: string): string[] => readdirSync(d).flatMap((f) => { const p = join(d, f); return statSync(p).isDirectory() ? files(p) : /\.tsx?$/.test(p) ? [p] : []; });
@@ -50,3 +50,14 @@ describe("Save your spot = Step 3 likely email + four swaps only", () => {
     expect(saveSpotDifferences(S).length).toBe(4);
   });
 });
+
+ test("missing-size email uses an explicit average and preserves the approved email", () => {
+ const email = renderStep3SaveSpotNoSize(S);
+ const note = "You didn’t provide a ceiling size, so we’ve used an average size of 150 m² for this preliminary estimate.";
+ expect(email.html).toContain(note);
+ expect(email.plainText).toContain(note);
+ expect(email.html).toContain("Want to explore a different ceiling size?");
+ expect(email.html).toContain(`href="${S.campaignUrl}"`);
+ expect(email.subject).toBe(renderStep3SaveSpot(S).subject);
+ expect(renderStep3SaveSpot(S).html).not.toContain(note);
+ });
