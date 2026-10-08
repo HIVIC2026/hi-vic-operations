@@ -80,6 +80,8 @@ export async function loadEnquiryGroups() {
     byJobs(ids, (c, f, t) => admin.from("documents").select("job_id").in("job_id", c).eq("kind", "intake_media").range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("customer_engagement_events").select("job_id, occurred_at, metadata").in("job_id", c).eq("event_type", "intake_media_reviewed").order("occurred_at").range(f, t)),
   ]);
+  const removedRows = await byJobs(ids, (c, f, t) => admin.from("workflow_events").select("job_id").in("job_id", c).eq("event_type", "lead_removed").range(f, t));
+  const removedSet = new Set(removedRows.map((r) => r.job_id));
   const savedSet = new Set(responses.filter((r) => r.spot_saved_at).map((r) => r.job_id));
   const deliveryCfg = must(cfg, "Delivery settings");
   const group = <T extends { job_id: string | null }>(rows: T[]) => { const m = new Map<string, T[]>(); for (const r of rows) if (r.job_id) m.set(r.job_id, [...(m.get(r.job_id) ?? []), r]); return m; };
@@ -127,6 +129,7 @@ export async function loadEnquiryGroups() {
         });
       })(), attentionReason: null, outcomeAt: j.eligibility_set_at ?? null,
       mediaCount: (mediaBy.get(j.id) ?? []).length, mediaChecked: mediaOutcome === "below_r2" || mediaOutcome === "over_r2", mediaOutcome,
+      removed: removedSet.has(j.id),
     };
   });
   const primary = primaryByContact(rows);
@@ -270,4 +273,19 @@ export async function reviewLeadMedia(jobId: string, outcome: MediaReviewOutcome
   });
   if (ins.error) throw new Error(`Review could not be saved: ${ins.error.message}`);
   return { ok: true as const, outcome };
+}
+
+/** Office removes fake/junk leads (Jo, 8 Oct): job is cancelled, permanently noted, and shown only under "Removed". */
+export async function removeLeads(jobIds: string[], reason: string, by: string | null) {
+  const { logEvent } = await import("./workflow.server");
+  let removed = 0;
+  for (const id of jobIds) {
+    const { data: j } = await admin.from("jobs").select("id, stage, source, channel").eq("id", id).maybeSingle();
+    if (!j || j.source !== WEBSITE_SOURCE || j.channel !== WEBSITE_CHANNEL) continue;
+    const { error } = await admin.from("jobs").update({ stage: "cancelled", prior_stage: j.stage, hold_reason: `Removed by office: ${reason}` }).eq("id", id);
+    if (error) throw new Error(`Could not remove a lead: ${error.message}`);
+    await logEvent(id, by, "lead_removed", `Lead removed by office: ${reason}`, { reason }, { from: j.stage, to: "cancelled" } as never);
+    removed++;
+  }
+  return { removed };
 }
