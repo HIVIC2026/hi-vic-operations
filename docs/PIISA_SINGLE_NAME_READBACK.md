@@ -15,6 +15,12 @@ Expected completion date `84a8b69b-efd5-4830-9da7-66958cbfdb6e` is absent from t
 
 No native write, portal publication, real audit creation/signing, worker approval or communication performed. Captured signature tests are synthetic; no real signed audit tested.
 
+## Final grouping refresh following Jo's 21:48 UTC instruction
+
+Read-only GET returned the same published revision 19 and modification timestamp. Installation date is immediately after property address; lead name/certificate and all three additional installer sections precede the installer photo on AP Evidence – Before Work. All conditional certificates remain mandatory only under a nonblank additional name. AP/company fields remain intact and all eight concise evidence instructions match the approved wording.
+
+Registered the fresh response separately. API response-set collection order differed, but IDs/content and all items/conditions were unchanged; fingerprints now sort only response-set collections by ID, preserving page/item and nested condition order. Expected completion is still absent. Activation remains paused pending Jo's retention decision/native restoration; no completion or signing date is invented. Existing same-audit product review and personal-signature safeguards remain intact.
+
 ## Checks
 
 Nine isolated focused test files: 90 passed, 0 failed, 303 assertions. Personal signature, native version, declaration, actual products, product sync/Part 7, evidence, historical mapping, STOP gates and prefill checked. Latest preview harness build OK; no manual production build performed.

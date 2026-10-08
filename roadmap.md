@@ -1,4 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Final published native grouping (Jo 8 Oct 21:48 UTC)
+- [x] Refreshed actual Mitti GET definition: same revision 19, date after address, direct crew and nonblank certificate branches before photo; concise evidence labels already exact. Registered latest readback; response-set collection ordering normalized without relaxing item/condition order.
+- [ ] Activation still blocked: expected completion 84a8b69b-efd5-4830-9da7-66958cbfdb6e remains absent in actual published readback; awaiting Jo's retention decision/native restoration. No invented field, audit, send, approval or publication.
 ## PIISA single-name/date layout (Jo 8 Oct 21:43 UTC)
 - [x] Read actual published revision 19 (modified 21:44:57 UTC): removed duplicate metadata, installation date in Title Page, eight crew fields and three conditional certificates before installer photo confirmed. Registered actual readback; personal lead attribution and captured signing date safeguards tested; no external writes.
 - [ ] Latest activation blocked: expected completion date 84a8b69b-efd5-4830-9da7-66958cbfdb6e is absent from actual published revision 19 despite Jo's retained-field requirement. Restore that native field then refetch/validate the complete published definition; no guessed fingerprint.

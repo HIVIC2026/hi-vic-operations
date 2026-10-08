@@ -12,7 +12,7 @@
 - `docs/HIV_WORKFLOW_SOURCE_OF_TRUTH.md` + `src/config/workflow-decisions.ts` override older prompts/comments/labels; run `bun scripts/scan-retired-terms.ts` before workflow work. Pending DB changes live in `docs/pending-migrations/` and are proven on PGlite (`tests/helpers/pglite-*.ts`) before any live run. Why: stop retired rules returning and keep untested SQL off the live database.
 # Project rules
 - PIISA schema/prefill/copy changes require observed IDs and current-definition validation; media is not structured product data. Why: protect crew/statutory output.
-- PIISA maps registered whole definitions; audits retain crew/signature schema. Lead signatures use captured attribution/time. Product review needs same-audit photo fingerprints and human-confirmed area, never quote defaults. Why: history/fail closed.
+- PIISA pins whole definitions (response sets sorted by ID, page/condition order fixed); audits keep crew/signature schema and capture attribution/time. Products need same-audit photo review, not quote defaults. Why: history/fail closed.
 - Emails reuse Step 3; no drift.
 - Staff portal presentation-only derivations and exact disclosure targets live in pure `src/lib/portal-presentation.core.ts`; they may label existing facts but never decide workflow or eligibility. Why: focused UI tests must not duplicate or alter domain rules.
 - Domain, workflow, payment, compliance and integration rules live in `src/lib/AGENTS.md`; read it before changing `src/lib`. Why: keeps this file small.
