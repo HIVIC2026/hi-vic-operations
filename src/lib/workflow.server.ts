@@ -331,6 +331,7 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
       ]);
       blockers.push(...installDayBlockers({ initialConditionCaptured: (before ?? []).some((r) => r.status === "uploaded" || r.status === "verified"), prestartComplete: ps?.passed === true }, "piisa_or_works"));
     }
+  }
   if (PIESA_WINDOW_STAGES.includes(to) && piesa?.piesa_expired) {
     blockers.push(
       `PIESA 30-day window expired on ${piesa.install_deadline}. Electrician must record a reassessment before progressing.`,
