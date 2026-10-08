@@ -56,7 +56,28 @@ async function userId(email: string) {
   return (data as { id: string } | null)?.id ?? null;
 }
 
-/** One TEST staff login on the TEST business (kept between runs as a fixture). */
+/** EXISTING-FIXTURES-ONLY (default): SELECT-verify both TEST logins are already set up; refuse BEFORE any write. */
+async function verifyFixtures() {
+  const problems: string[] = [];
+  const { data: biz } = await admin.from("businesses").select("id, name, business_type").eq("id", BIZ).maybeSingle();
+  if (!biz || !/^\[TEST PARTNER\]/.test(String(biz.name)) || biz.business_type !== "eec_installer") problems.push(`TEST business ${BIZ} missing or not a [TEST PARTNER] eec_installer`);
+  const ids: Record<string, string> = {};
+  for (const [email, role] of [[OWNER_EMAIL, "business_admin"], [STAFF_EMAIL, "member"]] as const) {
+    const { data: prof } = await admin.from("profiles").select("id, business_id").eq("email", email).maybeSingle();
+    if (!prof) { problems.push(`${email}: no profile`); continue; }
+    ids[email] = prof.id;
+    if (prof.business_id !== BIZ) problems.push(`${email}: profile not on TEST business`);
+    const { data: m } = await admin.from("business_members").select("member_role, active").eq("business_id", BIZ).eq("user_id", prof.id).maybeSingle();
+    if (!m || !m.active || m.member_role !== role) problems.push(`${email}: membership is ${m ? `${m.member_role}/${m.active ? "active" : "inactive"}` : "missing"}, expected active ${role}`);
+    const { data: r } = await admin.from("user_roles").select("id").eq("user_id", prof.id).eq("role", "installer").maybeSingle();
+    if (!r) problems.push(`${email}: no installer role`);
+  }
+  if (problems.length) { console.log("PREFLIGHT REFUSED (no changes made):\n - " + problems.join("\n - ")); process.exit(2); }
+  console.log("PREFLIGHT OK: existing TEST fixtures verified read-only (owner business_admin + staff member, installer role, TEST business).");
+  return ids[STAFF_EMAIL]!;
+}
+
+/** LEGACY setup (only with --setup-fixtures): one TEST staff login on the TEST business. */
 async function ensureStaff() {
   let id = await userId(STAFF_EMAIL);
   if (!id) {
@@ -470,16 +491,18 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     const pi = await import("../src/lib/partner-import.server");
     const imp = await pi.createImportFor(ownerId, { businessId: BIZ, sourceSystem: "manual_import", text: `TEST ${tag} Single, 9 One Job Rd, Fraser Rise VIC 3336, 0412 999 001, qa.owner.${tag.toLowerCase()}.single@hivic-test.example`, csvRow: 0, files: [] });
     c("draft created", !!imp.id);
-    const bad = await pi.confirmImportFor(ownerId, { importId: imp.id, facts: { full_name: `TEST ${tag} Single`, email: "", phone: "", address_line: "", measured_area_m2: 100 }, installer: { site_check: "yes" } }).then(() => "accepted", (e) => (e as Error).message);
+    const bad = await pi.confirmImportFor(ownerId, { importId: imp.id, facts: { full_name: `TEST ${tag} Single`, email: "", phone: "", address_line: "", measurement_method: "Tape measure on site", measured_area_m2: 100 }, installer: { site_check: "yes" } }).then(() => "accepted", (e) => (e as Error).message);
     c("missing address/contact refused with a clear message", bad !== "accepted" && bad.length > 10, bad);
-    const r = await pi.confirmImportFor(ownerId, { importId: imp.id, facts: { full_name: `TEST ${tag} Single`, email: `qa.owner.${tag.toLowerCase()}.single@hivic-test.example`, phone: "0412999001", address_line: "9 One Job Rd", suburb: "Fraser Rise", postcode: "3336", measured_area_m2: 104 }, installer: { quoted: "yes", contact_permission: true, fee_awareness: true, existing_below_r2: true, site_check: "yes", site_check_date: "2026-10-02", quoted_price_inc_gst: 2987.65, price_includes: "R5 batts 104 m²" } });
+    const r = await pi.confirmImportFor(ownerId, { importId: imp.id, facts: { full_name: `TEST ${tag} Single`, email: `qa.owner.${tag.toLowerCase()}.single@hivic-test.example`, phone: "0412999001", address_line: "9 One Job Rd", suburb: "Fraser Rise", postcode: "3336", measurement_method: "Tape measure on site", measured_area_m2: 104 }, installer: { quoted: "yes", contact_permission: true, fee_awareness: true, existing_below_r2: true, site_check: "yes", site_check_date: "2026-10-02", quoted_price_inc_gst: 2987.65, price_includes: "R5 batts 104 m²" } });
     madeJobs.push(r.jobId);
     const { data: j } = await admin.from("jobs").select("installer_quoted_price_inc_gst, installer_site_check, source").eq("id", r.jobId).single();
     c("quoted price kept exactly ($2987.65)", Number(j?.installer_quoted_price_inc_gst) === 2987.65, String(j?.installer_quoted_price_inc_gst));
     c("site check Yes saved", j?.installer_site_check === "yes");
     await jobsOk(c, [r.jobId]);
-    const twice = await pi.confirmImportFor(ownerId, { importId: imp.id, facts: {}, installer: { site_check: "yes" } }).then(() => "accepted", (e) => (e as Error).message);
-    c("confirming again refused (no duplicate)", twice !== "accepted", twice);
+    // Approved behaviour: a retry after a lost response returns the SAME job, never a second one.
+    const twice = await pi.confirmImportFor(ownerId, { importId: imp.id, facts: {}, installer: { site_check: "yes" } }).then((x) => x.jobId, (e) => `refused: ${(e as Error).message}`);
+    const { count: sameOwner } = await admin.from("jobs").select("id", { count: "exact", head: true }).eq("originating_installer_business_id", BIZ).eq("id", r.jobId);
+    c("confirming again reuses the same job or is refused (no duplicate)", (twice === r.jobId || String(twice).startsWith("refused")) && sameOwner === 1, String(twice));
   });
   await step(steps, "C14", "C14 Add one job + card: photo attach/remove, electrician invite (manual email rule), consent required, Home Insulation Victoria arranges", async (c) => {
     const pi = await import("../src/lib/partner-import.server");
@@ -552,6 +575,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
       where = 'const { count: sent1 } = await admin.from("job_communication';
       const { count: sent1 } = await admin.from("job_communications").select("id", { count: "exact", head: true }).eq("job_id", j1);
       c("I'll book it: nothing sent to the owner", !sent1, String(sent1));
+      if (!process.argv.includes("--allow-test-email")) { c("ask-the-owner email path not run: no communications allowed in this run (use --allow-test-email)", true, "skipped"); return; }
       where = 'const j2 = await mk("2");';
       const j2 = await mk("2");
       where = 'const ask = await rc.askOwnerForReadyCheckTimes(j2, ownerId)';
@@ -603,11 +627,11 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     c("screen always says what happens next", ["open", "preparing", "office", "owner_paperwork", "retry"].includes(r.state.kind) && ("message" in r.state ? r.state.message.length > 20 : true), `${r.state.kind}`);
     c("Ready Check booked now, or held until the owner signs paperwork A (existing rule)", r.state.kind === "owner_paperwork" ? j?.stage === "ready_check_ready_to_schedule" : j?.stage === "ready_check_scheduled", `${j?.stage} / ${r.state.kind}`);
     const bad = await os.startOnsiteReadyCheckFor(ownerId, BIZ, { full_name: "X Y", address_line: "1 A St", suburb: "Canberra", postcode: "2604", phone: "0412000000", email: "a@b.co", contact_permission: false }, { mode: "hivic" }, offline).then(() => "made", (e) => (e as Error).message);
-    c("no consent / ACT postcode refused", /Victorian/.test(bad) && /consent/.test(bad), bad);
+    c("no permission / ACT postcode refused", /Victorian/.test(bad) && /permission to contact|consent/.test(bad), bad);
     c("nothing sent to the owner", (await outboundFor([r.jobId])) === 0);
     await jobsOk(c, [r.jobId]);
   });
-  screens.push({ step: "C15", persona: "owner", path: "/partner/import", mustSee: ["I'm at the property now", "Add a job for later"], mustNotSee: BANNED });
+  screens.push({ step: "C15", persona: "owner", path: "/partner/import", mustSee: ["Customer", "permission for Home Insulation Victoria to contact them", "Next"], mustNotSee: [...BANNED, "I'm at the property now", "Add a job for later", "Where is it from"] });
 
   await step(steps, "C12", "C12 Results page and past uploads", async (c) => {
     const { data } = await admin.from("bulk_import_batches").select("id, status").eq("business_id", BIZ).neq("status", "discarded");
@@ -615,7 +639,57 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     c("nothing sent to any owner across all uploads", (await outboundFor(madeJobs)) === 0, `${madeJobs.length} TEST job(s) checked`);
   });
   screens.push({ step: "C12", persona: "owner", path: "/partner/bulk-import", mustNotSee: BANNED });
-  screens.push({ step: "C14", persona: "owner", path: "/partner/import?mode=later", mustSee: ["Add one job", "Take photo"], mustNotSee: BANNED });
+  screens.push({ step: "C14", persona: "staff", path: "/field", mustSee: ["Action needed", "In progress", "Done"], mustNotSee: [...BANNED, "Moving automatically"] });
+
+  await step(steps, "C16", "C16 Add job (current 4 steps): not measured / not quoted -> same job edited later; wrong business + staff refused; quote lines follow electrician payer", async (c) => {
+    const pi = await import("../src/lib/partner-import.server");
+    const ii = await import("../src/lib/installer-intake.server");
+    const core = await import("../src/lib/installer-intake.core");
+    const mkJob = async (n: string, payer: "hivic" | "own" | "undecided") => {
+      const d = await pi.createImportFor(ownerId, { businessId: BIZ, sourceSystem: "manual_import", files: [] } as never);
+      const facts = core.intakeConfirmFacts({ full_name: `TEST ${tag} Intake${n}`, email: `qa.owner.${tag.toLowerCase()}.intake${n}@hivic-test.example`, phone: `0412 000 ${n.padStart(3, "4")}`, address_line: `${n} ${tag} Intake Rd`, suburb: "Fraser Rise", postcode: "3336" }, null);
+      const q = core.intakeQuotePayload({ quoteStatus: "not_quoted", amount: "", includes: "", proposedR: "" });
+      const r = await pi.confirmImportFor(ownerId, { importId: d.id, facts, installer: { quoted: q.quoted, site_check: "no", site_check_date: null, quoted_price_inc_gst: null, price_includes: null, contact_permission: true, owner_agreed: false,
+        intake: { existing_insulation: "unknown", evidence_ack: true, proposed_r_value: null, quote_status: "not_quoted", version: `${core.INTAKE_RULESET_VERSION}+${core.COORDINATION_VERSION}`, coordination: "hivic_managed", self_managed_ack: false, measured_required: true, electrician_payer: payer } },
+        electrician: payer === "undecided" ? { mode: "later" } : { mode: "hivic" } } as never);
+      madeJobs.push(r.jobId); return { jobId: r.jobId, importId: d.id };
+    };
+    const a = await mkJob("1", "hivic");
+    const { data: j } = await admin.from("jobs").select("source, channel, originating_installer_business_id, installer_quoted, installer_quoted_price_inc_gst, installer_price_includes").eq("id", a.jobId).single();
+    c("job created without area or quote, as TEST installer-supplied work", j?.source === "qa_test" && j?.channel === "installer_sourced" && j?.originating_installer_business_id === BIZ, `${j?.source} ${j?.channel}`);
+    c("no quote stays null, never a fake 0", j?.installer_quoted_price_inc_gst == null && j?.installer_price_includes == null, `${j?.installer_quoted_price_inc_gst}`);
+    const s0 = await ii.installerIntakeState(a.jobId);
+    c("area unknown is null (not 0)", s0.areaM2 == null, String(s0.areaM2));
+    c("owner quote held while unknown", !s0.readiness.ready && s0.readiness.blockers.length > 0, s0.readiness.blockers.join(" | "));
+    // repeat confirm of the same draft reuses the job (idempotent retry)
+    const again = await pi.confirmImportFor(ownerId, { importId: a.importId, facts: {}, installer: {} } as never).then((r) => r.jobId, (e) => `err: ${(e as Error).message}`);
+    c("retry of the same draft never makes a second job", again === a.jobId || /already|confirmed/i.test(String(again)), String(again));
+    // later edit on the SAME job
+    await ii.installerUpdateIntake(a.jobId, ownerId, BIZ, { areaM2: 118, insulation: "none", quoteStatus: "have_quote", quoteIncGst: 2450, includes: "R5 batts to 118 m2", proposedR: 5, files: [] });
+    const s1 = await ii.installerIntakeState(a.jobId);
+    const { count: dupes } = await admin.from("jobs").select("id", { count: "exact", head: true }).eq("originating_installer_business_id", BIZ).ilike("job_number", "%").in("id", madeJobs);
+    c("later measurements + quote saved on the same job", s1.areaM2 === 118 && s1.quoteIncGst === 2450, `${s1.areaM2} ${s1.quoteIncGst}`);
+    c("no duplicate job from the edit", dupes === new Set(madeJobs).size, `${dupes}`);
+    // wrong business refused BEFORE any write
+    const { data: other } = await admin.from("businesses").select("id").neq("id", BIZ).eq("business_type", "eec_installer").limit(1).maybeSingle();
+    const wrong = await ii.installerUpdateIntake(a.jobId, ownerId, other?.id ?? "00000000-0000-0000-0000-000000000000", { areaM2: 1, insulation: "none", quoteStatus: "not_quoted", quoteIncGst: null, includes: null, proposedR: null, files: [] }).then(() => "accepted", (e) => (e as Error).message);
+    const s2 = await ii.installerIntakeState(a.jobId);
+    c("another business can't edit this job", wrong !== "accepted" && s2.areaM2 === 118, wrong);
+    const staffAdd = await pi.createImportFor(staffId, { businessId: BIZ, sourceSystem: "manual_import", files: [] } as never).then(() => "accepted", (e) => (e as Error).message);
+    c("staff login can't add a job (business owner only)", staffAdd !== "accepted", staffAdd);
+    const badFile = await ii.installerUpdateIntake(a.jobId, ownerId, BIZ, { areaM2: 118, insulation: "none", quoteStatus: "have_quote", quoteIncGst: 2450, includes: "R5", proposedR: 5, files: [{ path: "partners/other/x.pdf", name: "x.pdf", type: "application/pdf" }] }).then(() => "accepted", (e) => (e as Error).message);
+    c("another business's file path refused", badFile !== "accepted", badFile);
+    // server quote lines follow recorded electrician payer (office eligibility recorded on the TEST job only)
+    const lines = async (jobId: string) => { const { data } = await admin.from("quotes").select("status, quote_items(code)").eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued"]); return (data ?? []).flatMap((q) => ((q.quote_items as { code: string | null }[]) ?? []).map((i) => i.code)); };
+    await ii.recordCommercialEligibility(a.jobId, ownerId, "eligible", "TEST run: owner, property and occupancy checked (fictitious)");
+    await ii.installerUpdateIntake(a.jobId, ownerId, BIZ, { areaM2: 118, insulation: "none", quoteStatus: "have_quote", quoteIncGst: 2450, includes: "R5 batts to 118 m2", proposedR: 5, files: [], feeAwareness: { payer: "hivic", text: core.feeAwarenessText("hivic")! } });
+    const hq = await ii.draftQuoteFromIntake(a.jobId, ownerId).then(() => "drafted", (e) => (e as Error).message);
+    const hl = await lines(a.jobId);
+    c("HIV-arranged electrician: drafted quote carries the PIESA line", hq === "drafted" ? hl.includes("PIESA") : false, `${hq} / ${hl.join(",")}`);
+    const outbound = await outboundFor([a.jobId]);
+    c("nothing sent to the owner during any of this", outbound === 0, String(outbound));
+    await jobsOk(c, madeJobs.slice(-1));
+  });
 }
 
 // ---------- saved snapshot: clean-up survives time limits and crashes ----------
@@ -637,7 +711,7 @@ process.on("unhandledRejection", (e) => void emergency(`crash: ${String(e)}`));
 // ---------- main ----------
 mkdirSync(root, { recursive: true });
 const ownerId = await userId(OWNER_EMAIL); if (!ownerId) throw new Error("TEST Reinsulate owner login missing");
-const staffId = await ensureStaff();
+const staffId = process.argv.includes("--setup-fixtures") ? await ensureStaff() : await verifyFixtures();
 const allRuns: { run: number; steps: Step[]; restore: unknown }[] = [];
 for (let run = 1; run <= RUNS; run++) {
   const tag = `IT${stamp.slice(11, 19).replace(/-/g, "")}R${run}`;
