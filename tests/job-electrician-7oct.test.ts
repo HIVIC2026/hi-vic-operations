@@ -39,7 +39,7 @@ describe("Jo 7 Oct: Add one job + each Upload jobs card", () => {
   test("sent or ambiguous electrician invitation must not send again", () => {
     expect(existingElectricianInviteBlocker({ status: "invited", sentAt: "2026-10-08", attempted: true })).toContain("already been sent");
     expect(existingElectricianInviteBlocker({ status: "invite_pending_comms", sentAt: null, attempted: true })).toContain("office check");
-    expect(existingElectricianInviteBlocker({ status: "invite_sending", sentAt: null, attempted: false })).toContain("office check");
+    expect(existingElectricianInviteBlocker({ status: "invite_pending_comms", sentAt: null, issuedAt: "2026-10-08T09:00:00Z", attempted: false })).toContain("office check");
   });
   test("job label: invited until approved", () => {
     expect(jobElectricianLabel({ choice: "nominated", invitedName: "Sam" })).toBe(ELECTRICIAN_INVITED_LABEL);

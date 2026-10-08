@@ -11,9 +11,9 @@ export const ELECTRICIAN_INVITED_LABEL = "Electrician invited – waiting to onb
 export const HIV_ARRANGES_LABEL = "Home Insulation Victoria arranges";
 
 /** Never repeat a sent or uncertain attempt. Only a nomination with no delivery attempt can issue its first invitation. */
-export function existingElectricianInviteBlocker(x: { status: string; sentAt: string | null; attempted: boolean }): string | null {
+export function existingElectricianInviteBlocker(x: { status: string; sentAt: string | null; attempted: boolean; issuedAt?: string | null }): string | null {
   if (x.sentAt || x.status === "invited") return "The invitation has already been sent. Waiting for the electrician to sign up.";
-  if (x.attempted || x.status !== "invite_pending_comms") return "This electrician is already added, but invitation delivery needs an office check before another send.";
+  if (x.attempted || x.issuedAt || x.status !== "invite_pending_comms") return "This electrician is already added, but invitation delivery needs an office check before another send.";
   return null;
 }
 
