@@ -26,3 +26,13 @@ The runner does not schedule itself. External schedulers (morning, midday, late 
 - FAILED (data, not code — not changed): office Operations shows a job named "HI VIC FINAL LOCK QA" (HV-1048); Partners shows business "DC Construction Solutions (HI VIC)".
 - FAILED (live log): 8 `existing_leads_launch_v1` sends on 8 Oct 05:14–05:15 UTC were refused by the email service (422, example.com recipient on base44 jobs).
 - NOT_RUN: the four coverage gaps above.
+
+## Automatic repair procedure (Jo 8 Oct 23:58 UTC: "And fix automatically")
+A scheduled session runs the command, then at most **2 repair cycles**:
+1. Read `latest.json` and `/mnt/documents/portal-qa/fix-log.json` (runner adds `detected`, counts repeats, prints `ALERT repeated failures`).
+2. Repair only reproducible ordinary bugs: broken buttons/saves/uploads/validation, regressions, phone layout, wording that differs from approved wording. Never change eligibility, rebate, compliance, prices, rates, payment or access rules, and never edit live customer/trade/business records — mark those `blocked` with the reason for Jo.
+3. Re-run the failed route plus related tests (`bun run portal-qa -- --label retest`); set `fixed` → `retested` only with a PASS row and screenshot. Record revision before/after for rollback.
+4. Publish only if the change set contains nothing but the verified repair; otherwise leave it in preview and mark `blocked: unrelated unfinished edits in preview`. Mark `deployed` only after a `--base https://hi-vic-operations.lovable.app` run passes.
+5. After two failed cycles stop, set `blocked`, and alert Jo with route and step.
+
+Current release state: the preview holds unfinished unpublished work, so repairs cannot yet be published in isolation — each one stays in preview and is reported as a deployment blocker.
