@@ -81,9 +81,9 @@ export function InstallerIntakeReviewPanel({ jobId }: { jobId: string }) {
   const [busy, setBusy] = useState(false);
   if (q.isLoading || q.error || !q.data || q.data.channel !== "installer_sourced") return null;
   const s = q.data;
-  const run = async (data: Parameters<typeof act>[0]["data"]) => {
+  const run = async (data: Record<string, unknown>) => {
     setBusy(true);
-    try { await act({ data }); await qc.invalidateQueries({ queryKey: ["installer-intake", jobId] }); await qc.invalidateQueries({ queryKey: ["installer-quote-draft", jobId] }); toast.success("Saved"); setReason(""); }
+    try { await act({ data: data as never }); await qc.invalidateQueries({ queryKey: ["installer-intake", jobId] }); await qc.invalidateQueries({ queryKey: ["installer-quote-draft", jobId] }); toast.success("Saved"); setReason(""); }
     catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
   };
   const label = { none: "None", below_r2: "Confirmed below R2", unknown: "Not yet confirmed" } as const;
