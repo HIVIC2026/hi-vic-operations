@@ -165,3 +165,5 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Save my spot link "isn't available" (Jo 8 Oct 02:29): LAUNCH_COPY_APPROVED was false so real campaign pages returned null. Set true (Jo approved copy); HV-1109 verified loading; live links need publish
 - [x] Hot leads columns: Email sent / Spot saved / Unactioned enquiry (Jo 8 Oct)
 - [x] One automated Leads screen/router; Group B real sending awaits Jo's visual approval
+- [x] Re-checked 338 out-of-date screenings against current rules (333 refreshed, 5 held jobs left for Jo: HV-1100, HV-1090, HV-1119, HV-1341, HV-1404); unsure-insulation owners now in insulation-details group
+- [ ] Send waiting emails (41 Save my spot, 497 insulation details, 9 ineligible) — waiting on Jo's go-ahead / Group B approval
