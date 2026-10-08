@@ -340,6 +340,11 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string, call
   if (!userId) throw new WorkflowError(`The assigned installer (${email}) was not found in Mitti. Invite them with that exact email, then retry.`);
   const prevId = (prev?.details as { audit_id?: string } | null)?.audit_id;
   if (prevId) {
+    const previous = await api.getAudit(prevId);
+    const parsed = (await import("./mitti.core")).parseAudit(previous);
+    if (parsed.templateId !== MITTI_PIISA_TEMPLATE_ID || parsed.jobNumber?.trim() !== job.job_number.trim()) throw new WorkflowError("Stored PIISA does not match this job/template; office review is required.");
+    const { ensurePiisaAp } = await import("./piisa-ap.core");
+    await ensurePiisaAp(previous, (items) => api.updateAuditText(prevId, items), () => api.getAudit(prevId));
     await api.shareAudit(prevId, String(userId)); await api.setAuditOwner(prevId, String(userId));
     await logEvent(jobId, actorId, "mitti_piisa_audit_reshared", `Installer safety form re-shared with ${email}`, { audit_id: prevId });
     return { auditId: prevId, reused: true, skipped: [] as string[] };
@@ -349,7 +354,8 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string, call
   const isA3 = MITTI_PIISA_TEMPLATE_ID === PIISA_A3_TEMPLATE_ID;
   type Pre = { itemId: string; label: string; kind: string; value: string; occurrence: number; row: number };
   const toPre = (itemId: string, value: string, row = 0): Pre => {
-    const it = items.find((i) => i.id === itemId)!;
+    const it = items.find((i) => i.id === itemId);
+    if (!it) throw new WorkflowError(`Unknown official prefill field: ${itemId}`);
     const occurrence = isA3 ? a3.a3Occurrence(itemId, row) : items.filter((i) => i.label === it.label && items.indexOf(i) < items.indexOf(it)).length + row;
     return { itemId, label: it.label, kind: it.kind, value, occurrence, row };
   };
@@ -380,6 +386,11 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string, call
   if (direct) for (const key of [...preMap.keys()]) if (/^(p7\.products|completionDate|p8\.name|p8\.date|p2\.lead|p2\.leadEec|p2\.addName|p2\.addEec)#/.test(key)) preMap.delete(key);
   const pre = [...preMap.values()];
   const p = buildOfficialPrefill(template, pre, resolved?.mapping ?? {});
+  const ap = await import("./piisa-ap.core");
+  if (isA3) {
+    const apPayload = [...p.header_items, ...p.items].find((item) => item.item_id === ap.PIISA_AP_ID);
+    if (!apPayload || JSON.stringify(apPayload.responses) !== JSON.stringify(ap.piisaApItem().responses)) throw new WorkflowError("Authoritative Accredited Person prefill is missing; form was not created.");
+  }
   if (isA3) {
     const { loadCrew, assignedInstallerBusiness } = await import("./piisa-a3.server");
     const { staff, selection } = await loadCrew(jobId);
@@ -402,6 +413,9 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string, call
   const audit = (await api.createAudit({ template_id: MITTI_PIISA_TEMPLATE_ID, header_items: p.header_items, items: p.items })) as { audit_id?: string; id?: string };
   const auditId = audit?.audit_id ?? audit?.id;
   if (!auditId) throw new WorkflowError("Mitti did not return an audit ID.");
+  // Store identity before readback so a failed response check cannot cause duplicate creation on retry.
+  await logEvent(jobId, actorId, "mitti_piisa_audit_created", "PIISA created; prefill verification pending", { audit_id: String(auditId), template: MITTI_PIISA_TEMPLATE_ID, native_version: resolved?.version ?? null });
+  if (isA3) ap.assertPiisaAp(await api.getAudit(String(auditId)));
   await api.shareAudit(String(auditId), String(userId)); await api.setAuditOwner(String(auditId), String(userId));
   await logEvent(jobId, actorId, "mitti_piisa_audit_created", `Installer safety form sent to ${email} with ${p.count} pre-filled answers`, { audit_id: String(auditId), prefill_count: p.count, skipped: p.skipped, template: MITTI_PIISA_TEMPLATE_ID, prefill_notes: prefillNotes, native_version: resolved?.version ?? null });
   return { auditId: String(auditId), reused: false, skipped: p.skipped };

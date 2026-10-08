@@ -13,6 +13,7 @@
 # Project rules
 - PIISA schema/prefill/copy changes require observed IDs and current-definition validation; media is not structured product data. Why: protect crew/statutory output.
 - PIISA pins read-back definitions; signatures use audit-owned IDs, never historic fallback. Expected day uses capture; products/post-work use same-audit review before output. Why: no inferred facts.
+- PIISA AP uses authoritative config and readback before sharing; blank repair requires observed unsigned capture fields. Why: no installer substitution or signed-history mutation.
 - Emails reuse Step 3; no drift.
 - Staff portal presentation-only derivations and exact disclosure targets live in pure `src/lib/portal-presentation.core.ts`; they may label existing facts but never decide workflow or eligibility. Why: focused UI tests must not duplicate or alter domain rules.
 - Domain, workflow, payment, compliance and integration rules live in `src/lib/AGENTS.md`; read it before changing `src/lib`. Why: keeps this file small.

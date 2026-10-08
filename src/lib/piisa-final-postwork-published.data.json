@@ -1508,21 +1508,55 @@
     ],
     "response_sets": [
       {
-        "id": "2bbd309e-e554-4bcc-8097-3b16a91f1ca4",
+        "id": "51fa2a5b-f63a-49f3-a13f-780d24ffaf10",
         "responses": [
           {
-            "id": "32fb374f-7262-4164-a1f5-60873ead1a24",
-            "label": "Yes",
+            "id": "a89f30c3-5d63-4f2a-bfd5-8c3b47d0e7c2",
+            "label": "Yes – received Consent",
             "score": 1,
+            "color": "129,181,50",
+            "score_enabled": true
+          },
+          {
+            "id": "b28a4f72-bb0d-4d68-bed1-f94b410e657a",
+            "label": "Yes – received Medical Plan",
+            "score": 1,
+            "color": "129,181,50",
+            "score_enabled": true
+          },
+          {
+            "id": "4e804291-96d2-4ae9-86e8-0d98ef08d8c2",
+            "label": "No",
+            "score": 0,
+            "color": "198,0,34",
+            "score_enabled": true
+          }
+        ],
+        "is_grs": false
+      },
+      {
+        "id": "d743f356-a147-472c-a790-0c46a187de92",
+        "responses": [
+          {
+            "id": "6bb1beb4-494e-4a17-bff7-bed8a6fcd3d0",
+            "label": "Compliant",
+            "score": 1,
+            "color": "19,133,95",
+            "score_enabled": true
+          },
+          {
+            "id": "6bb1beb4-494e-4a17-bff7-bed8a6fcd3d1",
+            "label": "Non-Compliant",
+            "score": 0,
             "color": "198,0,34",
             "score_enabled": true
           },
           {
-            "id": "20a5c14b-c8a8-4ce0-806d-55c52519120b",
-            "label": "No",
+            "id": "6bb1beb4-494e-4a17-bff7-bed8a6fcd3d2",
+            "label": "N/A",
             "score": 1,
-            "color": "129,181,50",
-            "score_enabled": true
+            "color": "112,112,112",
+            "score_enabled": false
           }
         ],
         "is_grs": false
@@ -1557,113 +1591,6 @@
             "score": 1,
             "color": "112,112,112",
             "score_enabled": false
-          }
-        ],
-        "is_grs": false
-      },
-      {
-        "id": "7cd85ccf-158e-407f-8cdd-a6034cd550c5",
-        "responses": [
-          {
-            "id": "726f8dda-2683-43a4-a96c-ec0438ff7401",
-            "label": "Yes",
-            "score": 1,
-            "color": "129,181,50",
-            "score_enabled": true
-          },
-          {
-            "id": "9fa7c129-1cb2-49e6-adda-77abf99cc0b2",
-            "label": "No",
-            "score": 0,
-            "color": "198,0,34",
-            "score_enabled": true
-          }
-        ],
-        "is_grs": false
-      },
-      {
-        "id": "b52a8b4c-048b-4f7d-99b9-c6b9680be5ed",
-        "responses": [
-          {
-            "id": "2a2b8507-c53d-4d0e-83ec-164cb179b6a0",
-            "label": "Pass",
-            "score": 1,
-            "color": "19,133,95",
-            "score_enabled": true
-          },
-          {
-            "id": "2a2b8507-c53d-4d0e-83ec-164cb179b6a1",
-            "label": "Fail",
-            "score": 0,
-            "color": "198,0,34",
-            "score_enabled": true
-          },
-          {
-            "id": "2a2b8507-c53d-4d0e-83ec-164cb179b6a2",
-            "label": "N/A",
-            "score": 1,
-            "color": "112,112,112",
-            "score_enabled": false
-          }
-        ],
-        "is_grs": false
-      },
-      {
-        "id": "161cca97-d091-4c37-a304-14718bc08437",
-        "responses": [
-          {
-            "id": "47fcff61-fa7e-42df-bf23-6f2dccd14449",
-            "label": "Yes",
-            "score": 1,
-            "color": "0,68,163",
-            "score_enabled": true
-          },
-          {
-            "id": "0f1e3b32-a276-42e1-a5b3-7d9d7b5e21d3",
-            "label": "No",
-            "score": 1,
-            "color": "129,181,50",
-            "score_enabled": true
-          }
-        ],
-        "is_grs": false
-      },
-      {
-        "id": "4fe1175e-502f-428d-8bd8-28c07f46eb2d",
-        "responses": [
-          {
-            "id": "8e9ba585-c0da-416a-90ab-d3cb09029b32",
-            "label": "Other",
-            "score": 1,
-            "color": "0,68,163",
-            "score_enabled": true
-          }
-        ],
-        "is_grs": false
-      },
-      {
-        "id": "51fa2a5b-f63a-49f3-a13f-780d24ffaf10",
-        "responses": [
-          {
-            "id": "a89f30c3-5d63-4f2a-bfd5-8c3b47d0e7c2",
-            "label": "Yes – received Consent",
-            "score": 1,
-            "color": "129,181,50",
-            "score_enabled": true
-          },
-          {
-            "id": "b28a4f72-bb0d-4d68-bed1-f94b410e657a",
-            "label": "Yes – received Medical Plan",
-            "score": 1,
-            "color": "129,181,50",
-            "score_enabled": true
-          },
-          {
-            "id": "4e804291-96d2-4ae9-86e8-0d98ef08d8c2",
-            "label": "No",
-            "score": 0,
-            "color": "198,0,34",
-            "score_enabled": true
           }
         ],
         "is_grs": false
@@ -1716,6 +1643,53 @@
         "is_grs": false
       },
       {
+        "id": "7cd85ccf-158e-407f-8cdd-a6034cd550c5",
+        "responses": [
+          {
+            "id": "726f8dda-2683-43a4-a96c-ec0438ff7401",
+            "label": "Yes",
+            "score": 1,
+            "color": "129,181,50",
+            "score_enabled": true
+          },
+          {
+            "id": "9fa7c129-1cb2-49e6-adda-77abf99cc0b2",
+            "label": "No",
+            "score": 0,
+            "color": "198,0,34",
+            "score_enabled": true
+          }
+        ],
+        "is_grs": false
+      },
+      {
+        "id": "b52a8b4c-048b-4f7d-99b9-c6b9680be5ed",
+        "responses": [
+          {
+            "id": "2a2b8507-c53d-4d0e-83ec-164cb179b6a0",
+            "label": "Pass",
+            "score": 1,
+            "color": "19,133,95",
+            "score_enabled": true
+          },
+          {
+            "id": "2a2b8507-c53d-4d0e-83ec-164cb179b6a1",
+            "label": "Fail",
+            "score": 0,
+            "color": "198,0,34",
+            "score_enabled": true
+          },
+          {
+            "id": "2a2b8507-c53d-4d0e-83ec-164cb179b6a2",
+            "label": "N/A",
+            "score": 1,
+            "color": "112,112,112",
+            "score_enabled": false
+          }
+        ],
+        "is_grs": false
+      },
+      {
         "id": "c6c011ed-4ade-460d-a04b-da730834b667",
         "responses": [
           {
@@ -1743,28 +1717,54 @@
         "is_grs": false
       },
       {
-        "id": "d743f356-a147-472c-a790-0c46a187de92",
+        "id": "161cca97-d091-4c37-a304-14718bc08437",
         "responses": [
           {
-            "id": "6bb1beb4-494e-4a17-bff7-bed8a6fcd3d0",
-            "label": "Compliant",
+            "id": "47fcff61-fa7e-42df-bf23-6f2dccd14449",
+            "label": "Yes",
             "score": 1,
-            "color": "19,133,95",
+            "color": "0,68,163",
             "score_enabled": true
           },
           {
-            "id": "6bb1beb4-494e-4a17-bff7-bed8a6fcd3d1",
-            "label": "Non-Compliant",
-            "score": 0,
+            "id": "0f1e3b32-a276-42e1-a5b3-7d9d7b5e21d3",
+            "label": "No",
+            "score": 1,
+            "color": "129,181,50",
+            "score_enabled": true
+          }
+        ],
+        "is_grs": false
+      },
+      {
+        "id": "2bbd309e-e554-4bcc-8097-3b16a91f1ca4",
+        "responses": [
+          {
+            "id": "32fb374f-7262-4164-a1f5-60873ead1a24",
+            "label": "Yes",
+            "score": 1,
             "color": "198,0,34",
             "score_enabled": true
           },
           {
-            "id": "6bb1beb4-494e-4a17-bff7-bed8a6fcd3d2",
-            "label": "N/A",
+            "id": "20a5c14b-c8a8-4ce0-806d-55c52519120b",
+            "label": "No",
             "score": 1,
-            "color": "112,112,112",
-            "score_enabled": false
+            "color": "129,181,50",
+            "score_enabled": true
+          }
+        ],
+        "is_grs": false
+      },
+      {
+        "id": "4fe1175e-502f-428d-8bd8-28c07f46eb2d",
+        "responses": [
+          {
+            "id": "8e9ba585-c0da-416a-90ab-d3cb09029b32",
+            "label": "Other",
+            "score": 1,
+            "color": "0,68,163",
+            "score_enabled": true
           }
         ],
         "is_grs": false

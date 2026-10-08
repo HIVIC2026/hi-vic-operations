@@ -31,6 +31,8 @@ export function mittiApi(call: MittiCall) {
     setAuditOwner: (auditId: string, userId: string) =>
       call("PUT", `/inspections/v1/inspections/${encodeURIComponent(auditId)}/owner`, { owner_id: userId }),
     getAudit: (auditId: string) => call("GET", `/audits/${encodeURIComponent(auditId)}`) as Promise<Any>,
+    /** Documented partial text update; omitted responses (including signatures) are untouched. */
+    updateAuditText: (auditId: string, items: { item_id: string; type: string; responses: { text: string } }[]) => call("PUT", `/audits/${encodeURIComponent(auditId)}`, { items }),
     /** Mitti's own finished PDF report (with its photos): request, then poll until a download link is ready. */
     requestReport: (auditId: string) => call("POST", `/audits/${encodeURIComponent(auditId)}/report`, { format: "PDF" }) as Promise<Any>,
     getReport: (auditId: string, messageId: string) => call("GET", `/audits/${encodeURIComponent(auditId)}/report/${encodeURIComponent(messageId)}`) as Promise<Any>,
