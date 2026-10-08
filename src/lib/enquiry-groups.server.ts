@@ -76,6 +76,7 @@ export async function loadEnquiryGroups() {
     byJobs(ids, (c, f, t) => admin.from("documents").select("job_id").in("job_id", c).eq("kind", "intake_media").range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("customer_engagement_events").select("job_id").in("job_id", c).eq("event_type", "intake_media_reviewed").range(f, t)),
   ]);
+  const [media, reviewed] = [mediaRows, reviewedRows];
   const savedSet = new Set(responses.filter((r) => r.spot_saved_at).map((r) => r.job_id));
   const mediaBy = group(media);
   const checkedSet = new Set(reviewed.map((r) => r.job_id));
