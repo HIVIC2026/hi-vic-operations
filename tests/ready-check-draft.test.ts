@@ -8,12 +8,12 @@ describe("portal Ready Check draft", () => {
     expect(Object.values(obs).every((v) => v === null)).toBe(true);
   });
   test("a bad number is refused, not coerced", () => {
-    expect(toObservations({ "electrical.downlights_count": "six" }).problems.length).toBe(1);
+    expect(toObservations({ "elec.downlight_count": "six" }).problems.length).toBe(1);
   });
   test("saved answers round-trip", () => {
-    const { obs } = toObservations({ "measurement.eligible_area_m2": "117.5", "insulation.existing": "present" });
+    const { obs } = toObservations({ "measure.eligible_area_m2": "117.5", "insulation.existing": "present" });
     const v = fromObservations(obs);
-    expect(v["measurement.eligible_area_m2"]).toBe("117.5");
+    expect(v["measure.eligible_area_m2"]).toBe("117.5");
     expect(v["insulation.existing"]).toBe("present");
   });
   test("installer 'not yet confirmed' insulation is not prefilled", () => {
