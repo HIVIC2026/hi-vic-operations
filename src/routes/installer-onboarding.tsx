@@ -603,7 +603,7 @@ function DateBox({ id, value, onChange }: { id: string; value?: string | null | 
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild><Button type="button" variant="outline" size="icon" className="h-12 w-12 shrink-0" aria-label="Pick from calendar"><CalendarIcon /></Button></PopoverTrigger>
         <PopoverContent align="end" className="w-auto p-0 pointer-events-auto">
-          <Calendar mode="single" selected={selected} defaultMonth={selected} captionLayout="dropdown" startMonth={new Date(2000, 0)} endMonth={new Date(2100, 11)} className="p-3 pointer-events-auto" onSelect={(date) => {
+          <Calendar mode="single" selected={selected} {...(selected ? { defaultMonth: selected } : {})} captionLayout="dropdown" startMonth={new Date(2000, 0)} endMonth={new Date(2100, 11)} className="p-3 pointer-events-auto" onSelect={(date) => {
             if (!date) return;
             setDraft(null); onChange(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`); setOpen(false);
           }} />
