@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { ELECTRICIAN_INVITED_LABEL, OWNER_CONTACT_PERMISSION, SAFETY_CHECK_NOTE, electricianInviteEmail, electricianPlanBlocker, firstOfferedElectrician, jobElectricianLabel, newElectricianProblems, usualElectrician, visitedFromEvidence } from "../src/lib/job-electrician.core";
+import { ELECTRICIAN_INVITED_LABEL, OWNER_CONTACT_PERMISSION, SAFETY_CHECK_NOTE, existingElectricianInviteBlocker, electricianInviteEmail, electricianPlanBlocker, firstOfferedElectrician, jobElectricianLabel, newElectricianProblems, usualElectrician, visitedFromEvidence } from "../src/lib/job-electrician.core";
 import { officeEmailBlocker, officeEmailTo } from "../src/lib/office-email.core";
 import { CONTACT_PERMISSION_WORDING } from "../src/lib/bulk-import.core";
 import { ONE_JOB_PERMISSION_WORDING } from "../src/lib/pilot.core";
@@ -15,7 +15,7 @@ describe("Jo 7 Oct: Add one job + each Upload jobs card", () => {
     expect(ONE_JOB_PERMISSION_WORDING).toBe(OWNER_CONTACT_PERMISSION);
   });
   test("safety check note is Jo's approved wording, shown under the choice", () => {
-    expect(SAFETY_CHECK_NOTE).toBe("Once the owner accepts the quote and pays the $349 safety check, they'll choose 3 days and times that suit them. These go to your electrician to accept, and the booking updates in the job automatically so everyone can see it.");
+    expect(SAFETY_CHECK_NOTE).toBe("Once the owner accepts the quote and pays the $349 safety check, they'll choose 3 days and times that suit them. These go to the electrician to accept, and the booking updates in the job automatically so everyone can see it.");
     expect(read("src/components/trade/job-intake.tsx")).toContain("{SAFETY_CHECK_NOTE}");
   });
   test("My electrician needs a pick; Home Insulation Victoria arranges never blocks", () => {
@@ -32,6 +32,14 @@ describe("Jo 7 Oct: Add one job + each Upload jobs card", () => {
   test("new electrician needs name, business, mobile and email", () => {
     expect(newElectricianProblems({ name: "", business: "", mobile: "1", email: "x" })).toEqual(["Add their name", "Add their business", "Add their mobile", "Add their email"]);
     expect(newElectricianProblems({ name: "Sam Spark", business: "Spark Co", mobile: "0400 000 000", email: "sam@spark.com.au" })).toEqual([]);
+  });
+  test("unsent electrician nomination may issue its first invitation", () => {
+    expect(existingElectricianInviteBlocker({ status: "invite_pending_comms", sentAt: null, attempted: false })).toBeNull();
+  });
+  test("sent or ambiguous electrician invitation must not send again", () => {
+    expect(existingElectricianInviteBlocker({ status: "invited", sentAt: "2026-10-08", attempted: true })).toContain("already been sent");
+    expect(existingElectricianInviteBlocker({ status: "invite_pending_comms", sentAt: null, attempted: true })).toContain("office check");
+    expect(existingElectricianInviteBlocker({ status: "invite_sending", sentAt: null, attempted: false })).toContain("office check");
   });
   test("job label: invited until approved", () => {
     expect(jobElectricianLabel({ choice: "nominated", invitedName: "Sam" })).toBe(ELECTRICIAN_INVITED_LABEL);
