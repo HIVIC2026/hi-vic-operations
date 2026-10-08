@@ -1,0 +1,90 @@
+{
+ "audit_id": "audit_13d9af92b03a437bb355fea8b3f6fd69",
+ "template_id": "template_f6a2597479164eb181453eb335ce5125",
+ "audit_data": {
+  "date_completed": null
+ },
+ "header_items": [],
+ "items": [
+  {
+   "parent_id": "d310537d-74e0-4e31-a440-23bd90fb746b",
+   "item_id": "06598474-e46a-4bba-8c9d-d1be2c9993e1",
+   "label": "Installer photos \u2014 every installer onsite today (geotagged)",
+   "type": "media",
+   "options": {
+    "is_mandatory": true
+   },
+   "responses": {},
+   "media": [
+    {
+     "date_created": "2026-10-08T14:06:44Z",
+     "file_ext": "jpg",
+     "label": "original.jpg",
+     "media_id": "73993639-fe41-4054-9add-7e48d488d989",
+     "href": "https://api.au.safetyculture.com/audits/audit_13d9af92b03a437bb355fea8b3f6fd69/media/73993639-fe41-4054-9add-7e48d488d989"
+    }
+   ]
+  },
+  {
+   "parent_id": "d310537d-74e0-4e31-a440-23bd90fb746b",
+   "item_id": "3d8347ae-ed16-4e93-be18-4ecada390a7a",
+   "label": "Power isolation photo \u2014 isolated, locked out and tagged before work (geotagged)",
+   "type": "media",
+   "options": {
+    "is_mandatory": true
+   },
+   "responses": {},
+   "media": [
+    {
+     "date_created": "2026-10-08T14:06:53Z",
+     "file_ext": "jpg",
+     "label": "original.jpg",
+     "media_id": "401ae245-f649-4b31-be82-4cb57deeeba4",
+     "href": "https://api.au.safetyculture.com/audits/audit_13d9af92b03a437bb355fea8b3f6fd69/media/401ae245-f649-4b31-be82-4cb57deeeba4"
+    }
+   ]
+  },
+  {
+   "parent_id": "d310537d-74e0-4e31-a440-23bd90fb746b",
+   "item_id": "49c8ef21-dd6a-41e0-a4ae-acb0c53e7ada",
+   "label": "Before-work video \u2014 all ceiling areas and existing insulation",
+   "type": "media",
+   "options": {
+    "is_mandatory": true
+   }
+  },
+  {
+   "parent_id": "a77e94c0-d9ba-48a4-b923-276396fc5a81",
+   "item_id": "e377bcdb-0ba0-46d3-82f6-5d84519b55c4",
+   "label": "Lead installer",
+   "type": "question",
+   "scoring": {
+    "score": 0,
+    "max_score": 0,
+    "score_percentage": 0
+   },
+   "options": {
+    "weighting": 0,
+    "response_set": "4fe1175e-502f-428d-8bd8-28c07f46eb2d",
+    "failed_responses": [],
+    "is_mandatory": true
+   },
+   "responses": {
+    "selected": [],
+    "failed": false
+   },
+   "children": [
+    "3832cb5d-43fe-4339-8b2c-3dfed24be027"
+   ]
+  },
+  {
+   "parent_id": "ae1442f8-e913-4072-9c0d-21e2a4e12651",
+   "item_id": "805138fa-827e-4e25-8ca5-3871eeda1202",
+   "label": "Signature",
+   "type": "signature",
+   "options": {
+    "is_mandatory": true
+   }
+  }
+ ]
+}
