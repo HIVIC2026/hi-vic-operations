@@ -1,4 +1,9 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Urgent live Add job failure (Jo 8 Oct 22:22 UTC)
+- [ ] Diagnose deployed TEST Submit “Load failed” using actual logs/network; preserve entered data and same-import retry; verify TEST submit/save/reopen without sends.
+- [ ] Add proposed installed R5.0/R6.0/R7.0/Other input and structured quote-included removal yes/no/unknown, area and inc-GST charge; validate and preserve legacy jobs without double counting.
+- [ ] Archive focused QA and report exact revision/readiness; no publishing before root review.
+- [ ] Requested Dad inspection text: blocked until Dad’s identity/mobile and intended inspection/job are established.
 ## First-page Accredited Person (Jo 8 Oct 22:18 UTC)
 - [x] Actual GET confirms preserved required AP text field immediately after installation date. Pin updated; fixed legal entity sent and read back before share. Only observed unsigned blank AP can receive documented partial text repair; wrong/unknown/signed records held for office. No actual audits created or changed.
 ## Final native post-work requirements (Jo 8 Oct 22:13 UTC)
