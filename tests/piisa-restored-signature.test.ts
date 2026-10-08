@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import definition from "../src/lib/piisa-restored-signature-published.data.json";
+import definition from "../src/lib/piisa-final-postwork-published.data.json";
 import { resolvePiisaNativeVersion, stagedDirectCrewPrefill } from "../src/lib/piisa-native-version.core";
 import { a3Signature, a3PrestartSnapshot, parseA3Answers, A3_CREW_OTHER_FIELDS } from "../src/lib/piisa-a3.core";
 import { buildOfficialPrefill } from "../src/lib/mitti.core";

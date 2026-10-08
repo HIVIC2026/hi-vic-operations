@@ -29,7 +29,14 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
   const { PIISA_A3_TEMPLATE_ID: A3_TPL } = await import("./piisa-a3.core");
   const isA3 = expectedTpl === A3_TPL;
   const fetchMedia = opts.fetchMedia ?? (isA3 ? (await import("./mitti.server")).realMittiMedia : undefined);
+  const finalPostworkVersion = "a3-final-postwork-2026-10-08";
+  const auditOwnedFinalPostwork = isA3 && ((ev?.details as { native_version?: string } | null)?.native_version === finalPostworkVersion || (await import("./mitti.core")).flatten(audit).some((e) => e.id === "d11eaa63-198b-471f-b57c-d3717bce551c"));
   if (existing) {
+    if (auditOwnedFinalPostwork) {
+      if (!fetchMedia) return { status: "error", message: "The original after-work evidence could not be read; the historical signed PIISA was not altered." };
+      const problems = await (await import("./piisa-postwork.server")).syncVerifiedPiisaPostwork(jobId, auditId, audit, fetchMedia);
+      if (problems.length) return { status: "error", message: problems.join(" • ") + " The historical signed PIISA was not altered." };
+    }
     const saved = existing.snapshot as { official?: { a3_evidence?: { actual_product_answers?: unknown } } } | null;
     if (saved?.official?.a3_evidence?.actual_product_answers && fetchMedia) {
       const products = await import("./piisa-products.server");
@@ -52,6 +59,7 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
   if (!p.completed) return { status: "pending", message: "PIISA not completed in Mitti yet." };
   const native = await import("./piisa-native-version.core");
   const direct = isA3 && native.isDirectPiisaAudit(audit);
+  const finalPostwork = direct && auditOwnedFinalPostwork;
   let actualProducts: Awaited<ReturnType<typeof import("./piisa-products.server").verifiedInstalledProductAnswers>> | null = null;
   let directCrew: ReturnType<typeof native.resolveDirectCrew> | null = null;
   let r = declarationFromPiisa(p.snapshot);
@@ -59,6 +67,15 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
     const tplDef = await mittiApi(realCall).getTemplateDefinition(expectedTpl);
     const version = native.resolvePiisaNativeVersion(tplDef);
     if (!version.active || version.version !== native.PIISA_DIRECT_VERSION) return { status: "error", message: `PIISA mapping needs review: ${version.problems.join(" • ")}` };
+    if (finalPostwork) {
+      const postwork = await import("./piisa-postwork.server");
+      if (!fetchMedia) return { status: "error", message: "The original after-work evidence could not be read." };
+      const postworkProblems = await postwork.syncVerifiedPiisaPostwork(jobId, auditId, audit, fetchMedia);
+      if (postworkProblems.length) return { status: "pending", message: postworkProblems.join(" • ") };
+      const core = await import("./piisa-a3.core");
+      const completionProblems = core.a3CompletionBlockers({}, { ...(await (await import("./piisa-prestart.server")).a3Ctx(jobId, audit)), mandatoryCurrentPostwork: true }, core.a3MediaSummary(core.a3MediaFiles(audit)));
+      if (completionProblems.length) return { status: "pending", message: completionProblems.join(" • ") };
+    }
     const { loadCrew } = await import("./piisa-a3.server");
     directCrew = native.resolveDirectCrew(audit, (await loadCrew(jobId)).staff);
     if (directCrew.blockers.length) return { status: "missing", message: directCrew.blockers.join(" • ") };
@@ -152,7 +169,7 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
     // Evidence checklist from the actual audit media metadata; crew resolved against CURRENT verified staff.
     const core = await import("./piisa-a3.core");
     const { a3Ctx } = await import("./piisa-prestart.server");
-    const ctx = { ...(await a3Ctx(jobId, audit)), crewCount: coreC.a3CrewChoices(audit).filter((c) => c.kind !== "none").length || 1 };
+    const ctx = { ...(await a3Ctx(jobId, audit)), mandatoryCurrentPostwork: finalPostwork, crewCount: coreC.a3CrewChoices(audit).filter((c) => c.kind !== "none").length || 1 };
     const media = core.a3MediaSummary(core.a3MediaFiles(audit));
     const a3_evidence = {
       checklist: core.a3EvidenceChecklist(answers as never, ctx, media),

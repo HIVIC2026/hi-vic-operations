@@ -488,6 +488,8 @@ export type A3EvidenceCtx = {
   electricianRequiredAtStart: boolean; // signed PIESA attendance OR Part 4 instructions = No
   /** A valid existing plan whose area/products match what was installed (reused; no new upload needed). */
   existingPlanMatchesInstall: boolean;
+  /** Current published form requires an attachment on this audit, never a historical plan substitute. */
+  mandatoryCurrentPostwork?: boolean;
   /** Life-support consent/plan already on file (reused, never uploaded twice). */
   lifeSupportConsentOnFile: boolean;
 };
@@ -508,7 +510,7 @@ export function a3EvidenceRequired(answers: OfficialAnswers, ctx: A3EvidenceCtx)
     { key: "before_video", min: 1 },
     { key: "product_photos", min: 1 },
     { key: "completed_video", min: 1 },
-    ...(ctx.existingPlanMatchesInstall ? [] : [{ key: "final_plan" as const, min: 1 }]),
+    ...(ctx.existingPlanMatchesInstall && !ctx.mandatoryCurrentPostwork ? [] : [{ key: "final_plan" as const, min: 1 }]),
   ];
   return req.map((r) => ({ ...r, label: A3_EVIDENCE_LABELS[r.key] }));
 }

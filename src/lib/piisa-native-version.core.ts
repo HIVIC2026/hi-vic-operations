@@ -1,10 +1,10 @@
 // Published revision 18 read through the existing Mitti GET integration, 8 Oct 2026.
 // The complete answer/condition/page structure is pinned; any structural change fails closed.
-import restoredPublished from "./piisa-restored-signature-published.data.json";
+import restoredPublished from "./piisa-final-postwork-published.data.json";
 import { flatten, norm, type NativeMapping } from "./mitti.core";
 import { A3_CREW_NAME_IDS, A3_CREW_OTHER_FIELDS, A3_NATIVE_IDS, PIISA_A3_MAPPING, a3MissingFields, type StaffOption, type CrewSelection, crewSelectionProblems, crewPrefill, type CrewChoice } from "./piisa-a3.core";
 
-export const PIISA_DIRECT_VERSION = "a3-restored-signature-2026-10-08";
+export const PIISA_DIRECT_VERSION = "a3-final-postwork-2026-10-08";
 export const PIISA_DIRECT_SIGNATURE_ID = "83caffa2-e9c8-4315-885f-5337a4389372";
 
 export function directCrewLabels(row: number) {
@@ -42,7 +42,7 @@ export function stagedDirectSchemaProblems(template: unknown): string[] {
     }
   });
   const fingerprint = nativeDefinitionFingerprint(publishedStructure(template));
-  if (fingerprint !== nativeDefinitionFingerprint(publishedStructure(restoredPublished))) problems.push("The published PIISA types, conditions, labels or page order differ from verified revision 19 restored signature.");
+  if (fingerprint !== nativeDefinitionFingerprint(publishedStructure(restoredPublished))) problems.push("The published PIISA types, conditions, labels or page order differ from verified revision 19 final mandatory post-work evidence.");
   return problems;
 }
 
