@@ -166,7 +166,7 @@ export function InstallerIntakeFlow({ businessId }: { businessId: string }) {
         <label className="block text-sm font-bold">Ceiling area (m²)<Input className="mt-1 h-12" inputMode="decimal" value={d.area} onChange={(e) => setD({ ...d, area: e.target.value })} /></label>
         <fieldset data-existing-insulation><legend className="text-sm font-bold">Existing insulation</legend>
           <div className="mt-2 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Existing insulation">
-            {EXISTING_INSULATION_CHOICES.map((c) => <Button key={c.value} size="field" role="radio" aria-checked={d.insulation === c.value} variant={d.insulation === c.value ? "default" : "outline"} className="px-1 text-xs leading-tight" onClick={() => setD({ ...d, insulation: c.value })}>{c.label}</Button>)}
+            {EXISTING_INSULATION_CHOICES.map((c) => <Button key={c.value} size="field" role="radio" aria-checked={d.insulation === c.value} variant={d.insulation === c.value ? "default" : "outline"} className="h-auto min-h-12 whitespace-normal px-1 text-xs leading-tight" onClick={() => setD({ ...d, insulation: c.value })}>{c.label}</Button>)}
           </div>
           {d.insulation === "unknown" && <p className="mt-1 text-xs text-sub">You can submit. The owner quote waits until the existing insulation is confirmed as none or below R2.0.</p>}
         </fieldset>
