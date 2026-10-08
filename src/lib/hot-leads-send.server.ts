@@ -9,6 +9,7 @@ import { reservationAllowed, withUnsubscribe } from "./emailsafety.core";
 import { groupBMediaForJob } from "./group-b-media.server";
 import { groupBInvitationBlocker } from "./group-b-media.core";
 import { logEvent } from "./workflow.server";
+import { removalFromScenario } from "./estimate-removal.core";
 
 export const HOT_SEND_BATCH = 10;
 /** Last TEST send detail per job (Resend id), for reporting. */
@@ -39,13 +40,28 @@ export async function sendSaveMySpot(jobIds: string[], actorId: string | null, t
   return out;
 }
 
-async function sendOne(jobId: string, actorId: string | null, realOn: boolean, testOpts: TestSendOptions): Promise<HotSendResult> {
+/** One office-triggered follow-up; never available to initial campaigns or automation. */
+export async function sendExistingInsulationSaveSpot(jobId: string, actorId: string, preview = false): Promise<HotSendResult> {
+  return sendOne(jobId, actorId, false, { mode: preview ? "preview" : "send" }, true);
+}
+
+async function followupAllowed(token: string) {
+  const { campaignLink, campaignPermission } = await import("./launch-campaign.server");
+  const c = await campaignLink(token);
+  if (!c || c.group !== "onsite" || !c.criteriaPassed || (!c.ownerQualified && c.mediaReview !== "below_r2")) return false;
+  const { data: response, error } = await admin.from("lead_campaign_responses").select("desk_check_status").eq("job_id", c.job.id).maybeSingle();
+  return !error && campaignPermission(c, response?.desk_check_status);
+}
+
+async function sendOne(jobId: string, actorId: string | null, realOn: boolean, testOpts: TestSendOptions, followup = false): Promise<HotSendResult> {
   const mode = testOpts.mode ?? "send";
   const { data: job } = await admin.from("jobs").select("id, job_number, source, stage, eligibility_outcome, owners(full_name, email), properties(address_line, suburb, postcode)").eq("id", jobId).maybeSingle();
   if (!job) return { jobId, jobNumber: null, outcome: "failed", detail: "Job not found" };
   const r = (outcome: HotSendResult["outcome"], detail: string): HotSendResult => ({ jobId, jobNumber: job.job_number, outcome, detail });
   const isTest = job.source === "qa_test";
-  if (mode === "send" && !isTest && !realOn) return r("blocked", "Sending is switched off.");
+  if (mode === "send" && !isTest && !followup && !realOn) return r("blocked", "Sending is switched off.");
+  if (followup && !["base44", "qa_test"].includes(job.source)) return r("blocked", "Follow-up is only for website homeowner enquiries.");
+  if (followup && mode === "send" && !(await (await import("./comms.server")).customerCommsEnabled())) return r("blocked", "Customer emails are switched off — nothing sent.");
   if (["cancelled", "complete"].includes(job.stage)) return r("skipped", "Job is closed.");
   const owner = job.owners as { full_name: string | null; email: string | null } | null;
   const to = owner?.email?.trim().toLowerCase();
@@ -61,6 +77,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   if (!link?.token) return r("skipped", "No secure estimate link yet.");
   const price = savedPriceFromEstimate(est ?? null);
   if (!price || !price.areaM2) return r("skipped", "No current preliminary price.");
+  if (followup && (price.insulation !== "present" || !(await followupAllowed(link.token)))) return r("blocked", "A qualifying declaration or approved below-R2 review and current existing-insulation estimate are required.");
   const { discountIsWholeVeecs } = await import("./estimate.core");
   const { data: cfg } = await admin.from("retail_estimator_settings").select("indicative_veec_value").eq("is_current", true).maybeSingle();
   if (!discountIsWholeVeecs(price.discount, price.total, Number(cfg?.indicative_veec_value))) return r("blocked", "Discount is not a whole number of VEECs. Recalculate the estimate first.");
@@ -69,17 +86,17 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     if (!(await hasCurrentOwnerContactConsent(jobId))) return r("skipped", "No current contact consent.");
   }
   const group = launchGroup(job.eligibility_outcome, price.insulation) ?? "likely";
-  if (group !== "likely" && !isTest && !testOpts.automaticInsulation) return r("blocked", "Only the approved Group A email can be sent from this list.");
+  if (group !== "likely" && !isTest && !testOpts.automaticInsulation && !followup) return r("blocked", "Only the approved Group A email can be sent from this list.");
 
   // Once per home, ever: the idempotency key is the job, not the batch.
-  const sendGroup = isTest || testOpts.automaticInsulation ? (testOpts.group ?? group) : "likely";
-  if (sendGroup === "onsite") {
+  const sendGroup = followup ? "likely" : isTest || testOpts.automaticInsulation ? (testOpts.group ?? group) : "likely";
+  if (sendGroup === "onsite" && !followup) {
     const blocker = groupBInvitationBlocker(await groupBMediaForJob(jobId));
     if (blocker) return r("blocked", blocker);
     const { INSULATION_DETAILS_REAL_SEND_APPROVED } = await import("./hot-leads.core");
     if (!isTest && mode === "send" && !INSULATION_DETAILS_REAL_SEND_APPROVED) return r("blocked", "Insulation email awaits final visual approval");
   }
-  const key = `${LAUNCH_CAMPAIGN}:${sendGroup === "onsite" ? "insulation_details" : "save_my_spot"}:${jobId}${isTest && testOpts.subjectPrefix ? `:preview-test:${testOpts.variant ?? "savespot"}:${Date.now()}` : ""}`;
+  const key = `${LAUNCH_CAMPAIGN}:${followup ? "existing_insulation_save_spot" : sendGroup === "onsite" ? "insulation_details" : "save_my_spot"}:${jobId}${isTest && testOpts.subjectPrefix ? `:preview-test:${testOpts.variant ?? "savespot"}:${Date.now()}` : ""}`;
   const { data: ex } = await admin.from("customer_email_sends").select("id, status").eq("idempotency_key", key).maybeSingle();
   if (mode === "send" && ex && !reservationAllowed(ex)) return r("skipped", "Already sent to this home.");
   let sendId = ex?.id ?? null;
@@ -119,6 +136,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
         estimateUrl: `${base}/estimate/${linkToken}`, campaignUrl, unsubscribeUrl, referralUrl,
         estimatedTotal: price.total, veuDiscount: price.discount, grossTotal: price.gross, areaM2: price.areaM2,
         firstName, address: fullAddress, reference: job.job_number, existingInsulationPresent: (price.insulation ?? est?.insulation_declared) === "present",
+        ...(followup ? { removal: removalFromScenario(Array.isArray(est?.scenarios) ? est.scenarios[0] : null) } : {}),
         ...(installation === undefined ? {} : { installation }),
         ...(assessmentFee === undefined ? {} : { assessmentFee }),
         ...(apFee === undefined ? {} : { apFee }),
@@ -139,8 +157,14 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     return r(t.ok ? "sent" : "failed", t.ok ? `Test sent to ${JO_TEST_INBOX}` : t.detail);
   }
   const finish = async (status: string, provider: string, error: string | null) => {
-    await admin.from("customer_email_sends").update({ status, provider, error, sent_at: status === "sent" ? new Date().toISOString() : null }).eq("id", sendId!);
+    if (!sendId) throw new Error("Email reservation is missing — nothing sent.");
+    const { error: writeError } = await admin.from("customer_email_sends").update({ status, provider, error, sent_at: status === "sent" ? new Date().toISOString() : null }).eq("id", sendId);
+    if (writeError) throw new Error("Could not record email outcome; check delivery history before retrying.");
   };
+  if (followup && (!(await followupAllowed(link.token)) || !(await (await import("./comms.server")).customerCommsEnabled()) || !(await (await import("./comms.server")).hasCurrentOwnerContactConsent(jobId)))) {
+    await finish("failed", "not_sent", "Follow-up permission changed; nothing sent.");
+    return r("blocked", "Follow-up permission changed; nothing sent.");
+  }
   if (sendGroup === "onsite") {
     const blocker = groupBInvitationBlocker(await groupBMediaForJob(jobId));
     if (blocker) { await finish("failed", "not_sent", blocker); return r("blocked", blocker); }
@@ -164,7 +188,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     await finish("failed", isTest ? "resend_test" : "resend", (e as Error).message.slice(0, 300));
     return r("failed", (e as Error).message);
   }
-  await logEvent(jobId, actorId, "save_my_spot_email_sent", `Save my spot email sent from Hot leads${isTest ? " (TEST, allowlist only)" : ""}`, { campaign: LAUNCH_CAMPAIGN, to_test: isTest }, { internal: true }).catch(() => null);
+  await logEvent(jobId, actorId, "save_my_spot_email_sent", `Save my spot email sent${followup ? " after preliminary existing-insulation qualification" : " from Hot leads"}${isTest ? " (TEST, allowlist only)" : ""}`, { campaign: LAUNCH_CAMPAIGN, to_test: isTest, existing_insulation_followup: followup }, { internal: true }).catch(() => null);
   return r("sent", isTest ? "Sent to Jo's test inbox" : "Sent");
 }
 

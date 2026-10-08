@@ -149,7 +149,7 @@ export function QuoteCardReadyCheckClose({ href, onSelect, inert = false }: { hr
   </div>;
 }
 
-function PriceResult({ est, area, fees, settings, insulation, onReadyCheck }: { est: Est; area: number; fees: NonNullable<CustomerData["fees"]>; settings: RetailSettings | undefined; insulation?: string | null; onReadyCheck?: () => void }) {
+function PriceResult({ est, area, fees, settings, insulation, onReadyCheck }: { est: Est; area: number; fees: NonNullable<CustomerData["fees"]>; settings: RetailSettings | undefined; insulation: string | null | undefined; onReadyCheck?: () => void }) {
   const primary = est.scenarios.find((s) => s.key === "can_remain") ?? est.scenarios[0];
   if (!primary) return null;
   const standard = primary.by_access.standard;
