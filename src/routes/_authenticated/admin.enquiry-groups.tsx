@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { getEnquiryGroups, prepareEnquiryEmailsFn } from "@/lib/enquiry-groups.functions";
-import { GROUP_ACTION, GROUP_LABEL, GROUP_ORDER, OTHER_LABEL, OTHER_ORDER, ASSUMED_REFERENCE_AREA_M2, type EnquiryGroup, type OtherReason } from "@/lib/enquiry-groups.core";
+import { GROUP_ACTION, GROUP_LABEL, GROUP_ORDER, OTHER_LABEL, OTHER_ORDER, ASSUMED_REFERENCE_AREA_M2, STATUS_ORDER, STATUS_LABEL, type EnquiryGroup, type EnquiryStatus, type OtherReason } from "@/lib/enquiry-groups.core";
 
 export const Route = createFileRoute("/_authenticated/admin/enquiry-groups")({
   head: () => ({
@@ -41,6 +41,7 @@ function EnquiryGroups() {
   const load = useServerFn(getEnquiryGroups);
   const prepare = useServerFn(prepareEnquiryEmailsFn);
   const { data, isLoading, isError, error, refetch } = useQuery({ queryKey: ["enquiry_groups"], queryFn: () => load({ data: {} }) });
+  const [status, setStatus] = useState<EnquiryStatus | null>("spot_saved");
   const [group, setGroup] = useState<EnquiryGroup>("likely_size");
   const [reason, setReason] = useState<OtherReason | null>(null);
   const [q, setQ] = useState("");
@@ -52,7 +53,14 @@ function EnquiryGroups() {
   const [assumed, setAssumed] = useState<string>(String(ASSUMED_REFERENCE_AREA_M2));
   const [viewing, setViewing] = useState<{ id: string; html: string; subject: string } | null>(null);
 
-  const rows = data?.rows ?? [];
+  const allRows = data?.rows ?? [];
+  const statusCounts = useMemo(() => {
+    const c = Object.fromEntries(STATUS_ORDER.map((g) => [g, 0])) as Record<EnquiryStatus, number>;
+    for (const r of allRows) c[r.status]++;
+    return c;
+  }, [allRows]);
+  // Email-preparation groups only cover people who have not been emailed yet.
+  const rows = useMemo(() => allRows.filter((r) => r.status === "not_emailed"), [allRows]);
   const counts = useMemo(() => {
     const c = Object.fromEntries(GROUP_ORDER.map((g) => [g, 0])) as Record<EnquiryGroup, number>;
     const o = Object.fromEntries(OTHER_ORDER.map((g) => [g, 0])) as Record<OtherReason, number>;
@@ -61,18 +69,20 @@ function EnquiryGroups() {
   }, [rows]);
   const matching = useMemo(() => {
     const s = q.trim().toLowerCase();
-    return rows.filter((r) => r.group === group && (group !== "other" || !reason || r.otherReason === reason) && (!videoOnly || r.videoState === "received")
+    const base = status ? allRows.filter((r) => r.status === status) : rows.filter((r) => r.group === group && (group !== "other" || !reason || r.otherReason === reason) && (!videoOnly || r.videoState === "received"));
+    return base.filter((r) => true
       && (!s || [r.name, r.email, r.address, r.jobNumber, r.reason].some((v) => v?.toLowerCase().includes(s))))
       .sort((a, b) => (a.videoState === b.videoState ? 0 : a.videoState === "received" ? -1 : 1));
-  }, [rows, group, reason, q, videoOnly]);
+  }, [allRows, rows, status, group, reason, q, videoOnly]);
   useEffect(() => { const ids = new Set(matching.map((r) => r.id)); setSel((s) => { const n = new Set([...s].filter((id) => ids.has(id))); return n.size === s.size ? s : n; }); }, [matching]);
   const pageRows = matching.slice(page * PAGE, page * PAGE + PAGE);
   const pages = Math.max(1, Math.ceil(matching.length / PAGE));
   useEffect(() => { if (page > pages - 1) setPage(pages - 1); }, [page, pages]);
-  const pick = (g: EnquiryGroup, r: OtherReason | null = null) => { setGroup(g); setReason(r); setVideoOnly(false); setPage(0); setSel(new Set()); };
+  const pickStatus = (st: EnquiryStatus) => { setStatus(st); setPage(0); setSel(new Set()); };
+  const pick = (g: EnquiryGroup, r: OtherReason | null = null) => { setStatus(null); setGroup(g); setReason(r); setVideoOnly(false); setPage(0); setSel(new Set()); };
   const toggle = (id: string) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const allMatchingSelected = matching.length > 0 && matching.every((r) => sel.has(r.id));
-  const canPrepare = sel.size > 0 && (group !== "other" || !!reason);
+  const canPrepare = !status && sel.size > 0 && (group !== "other" || !!reason);
 
   const runPrepare = async () => {
     setBusy(true);
@@ -97,9 +107,20 @@ function EnquiryGroups() {
         <p data-testid="scope" className="mb-3 text-xs text-muted-foreground">
           Showing all {data!.scope.total} records: {data!.scope.websiteJobs} website enquiries + {data!.scope.calculatorListed} calculator registrations ({data!.scope.calculatorMatched} matched to the same contact and property, not listed twice). Not included: {data!.scope.installerSourced} installer-sourced, {data!.scope.otherSources} staff-entered/other, {data!.scope.testHidden} TEST.
         </p>
+        <h2 className="mb-2 font-display text-lg font-bold">Where every enquiry is up to</h2>
+        <p className="mb-2 text-xs text-muted-foreground">Each enquiry is in exactly one of these. Total {allRows.length}.</p>
+        <div role="tablist" aria-label="Enquiry status" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {STATUS_ORDER.map((st) => (
+            <button key={st} role="tab" aria-selected={status === st} onClick={() => pickStatus(st)} className={`rounded-lg border p-4 text-left transition ${status === st ? "border-primary bg-primary/5 ring-2 ring-primary/30" : "bg-card hover:bg-muted/40"}`}>
+              <span className="block font-display text-3xl font-bold">{statusCounts[st]}</span>
+              <span className="block text-sm font-semibold">{STATUS_LABEL[st]}</span>
+            </button>
+          ))}
+        </div>
+        <h2 className="mb-2 mt-6 font-display text-lg font-bold">Prepare emails – not emailed yet only</h2>
         <div role="tablist" aria-label="Email groups" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {GROUP_ORDER.map((g, i) => (
-            <button key={g} role="tab" aria-selected={group === g} onClick={() => pick(g)} className={`rounded-lg border p-4 text-left transition ${group === g ? "border-primary bg-primary/5 ring-2 ring-primary/30" : "bg-card hover:bg-muted/40"}`}>
+            <button key={g} role="tab" aria-selected={!status && group === g} onClick={() => pick(g)} className={`rounded-lg border p-4 text-left transition ${!status && group === g ? "border-primary bg-primary/5 ring-2 ring-primary/30" : "bg-card hover:bg-muted/40"}`}>
               <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{i + 1}</span>
               <span className="block font-display text-3xl font-bold">{counts.c[g]}</span>
               <span className="block text-sm font-semibold">{GROUP_LABEL[g]}</span>
@@ -107,36 +128,37 @@ function EnquiryGroups() {
             </button>
           ))}
         </div>
-        {group === "other" && (
+        {!status && group === "other" && (
           <div className="mt-3 flex flex-wrap gap-2" aria-label="Reasons">
             <button onClick={() => pick("other", null)} className={`rounded-full border px-3 py-1 text-xs font-semibold ${!reason ? "border-primary bg-primary text-primary-foreground" : "bg-card"}`}>All ({counts.c.other})</button>
             {OTHER_ORDER.map((o) => <button key={o} onClick={() => pick("other", o)} className={`rounded-full border px-3 py-1 text-xs font-semibold ${reason === o ? "border-primary bg-primary text-primary-foreground" : "bg-card"}`}>{OTHER_LABEL[o]} ({counts.o[o]})</button>)}
           </div>
         )}
-        {group === "likely_no_size" && <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-warning/40 bg-warning/5 p-3 text-xs"><label htmlFor="assumed" className="font-semibold">Assumed area for this batch (m²)</label><Input id="assumed" type="number" min={20} max={1000} value={assumed} onChange={(e) => setAssumed(e.target.value)} className="h-8 w-24" /><span>Default {ASSUMED_REFERENCE_AREA_M2} m² is the existing estimator setting (typical home). Used only in these drafts and shown as "Assumed area" – never saved as the owner's or a measured size.</span></div>}
-        {group === "insulation_check" && <div className="mt-3 flex flex-wrap items-center gap-3 rounded-md border bg-card p-3 text-xs"><label className="flex items-center gap-2 font-semibold"><Checkbox checked={videoOnly} onCheckedChange={(v) => { setVideoOnly(!!v); setPage(0); }} /> Video received – priority review only ({rows.filter((r) => r.group === "insulation_check" && r.videoState === "received").length})</label><span className="text-muted-foreground">Videos sort first. A video never confirms eligibility or replaces the free Ready Check.</span></div>}
+        {!status && group === "likely_no_size" && <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-warning/40 bg-warning/5 p-3 text-xs"><label htmlFor="assumed" className="font-semibold">Assumed area for this batch (m²)</label><Input id="assumed" type="number" min={20} max={1000} value={assumed} onChange={(e) => setAssumed(e.target.value)} className="h-8 w-24" /><span>Default {ASSUMED_REFERENCE_AREA_M2} m² is the existing estimator setting (typical home). Used only in these drafts and shown as "Assumed area" – never saved as the owner's or a measured size.</span></div>}
+        {!status && group === "insulation_check" && <div className="mt-3 flex flex-wrap items-center gap-3 rounded-md border bg-card p-3 text-xs"><label className="flex items-center gap-2 font-semibold"><Checkbox checked={videoOnly} onCheckedChange={(v) => { setVideoOnly(!!v); setPage(0); }} /> Video received – priority review only ({rows.filter((r) => r.group === "insulation_check" && r.videoState === "received").length})</label><span className="text-muted-foreground">Videos sort first. A video never confirms eligibility or replaces the free Ready Check.</span></div>}
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <Input aria-label="Search" placeholder="Search name, email, address, job…" value={q} onChange={(e) => { setQ(e.target.value); setPage(0); setSel(new Set()); }} className="max-w-sm" />
           <span className="text-sm text-muted-foreground">{matching.length} matching · <strong data-testid="selected-count">{sel.size} selected</strong></span>
           <Button variant="outline" size="sm" onClick={() => setSel(allMatchingSelected ? new Set() : new Set(matching.map((r) => r.id)))}>{allMatchingSelected ? "Clear selection" : `Select all ${matching.length} matching`}</Button>
           <Button size="sm" disabled={!canPrepare || busy} onClick={runPrepare}>{busy ? "Preparing…" : "Prepare email"}</Button>
-          {group === "other" && !reason && <span className="text-xs text-muted-foreground">Pick a reason to prepare an email.</span>}
+          {!status && group === "other" && !reason && <span className="text-xs text-muted-foreground">Pick a reason to prepare an email.</span>}
         </div>
 
         <div className="mt-3 overflow-x-auto rounded-md border bg-card">
           <table className="w-full min-w-[960px] text-sm">
             <thead className="bg-muted/40 text-left text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
               <tr><th className="w-10 p-2"><Checkbox aria-label="Select page" checked={pageRows.length > 0 && pageRows.every((r) => sel.has(r.id))} onCheckedChange={(v) => setSel((s) => { const n = new Set(s); for (const r of pageRows) v ? n.add(r.id) : n.delete(r.id); return n; })} /></th>
-                <th className="p-2">Name</th><th className="p-2">Address</th><th className="p-2">Group / reason</th><th className="p-2">Ceiling m²</th><th className="p-2">Video</th><th className="p-2">Last email</th><th className="p-2">Next action</th></tr>
+                <th className="p-2">Name</th><th className="p-2">Address</th><th className="p-2">Status</th><th className="p-2">Group / reason</th><th className="p-2">Ceiling m²</th><th className="p-2">Video</th><th className="p-2">Last email</th><th className="p-2">Next action</th></tr>
             </thead>
             <tbody className="divide-y">
-              {pageRows.length === 0 && <tr><td colSpan={8} className="p-6 text-center text-muted-foreground">No enquiries in this group.</td></tr>}
+              {pageRows.length === 0 && <tr><td colSpan={9} className="p-6 text-center text-muted-foreground">No enquiries here.</td></tr>}
               {pageRows.map((r) => (
                 <tr key={r.id} className="align-top hover:bg-muted/30">
                   <td className="p-2"><Checkbox aria-label={`Select ${r.name ?? "enquiry"}`} checked={sel.has(r.id)} onCheckedChange={() => toggle(r.id)} /></td>
                   <td className="p-2"><div className="font-semibold">{r.kind === "job" ? <Link to="/admin/jobs/$jobId" params={{ jobId: r.id }} className="hover:underline">{r.name ?? "—"}</Link> : r.name ?? "—"}</div><div className="text-xs text-muted-foreground">{r.kind === "calculator" ? "Calculator registration" : r.jobNumber}{r.duplicate ? " · repeat enquiry (same contact + property)" : ""}</div></td>
                   <td className="p-2 text-xs">{r.address ?? "—"}</td>
+                  <td className="p-2 text-xs font-semibold">{STATUS_LABEL[r.status]}</td>
                   <td className="p-2"><div className="text-xs font-semibold">{r.otherReason ? OTHER_LABEL[r.otherReason] : GROUP_LABEL[r.group]}</div><div className="text-xs text-muted-foreground">{r.reason}</div></td>
                   <td className="p-2 text-xs">{r.area.m2 != null ? `${r.area.m2} m²` : "—"}<div className="text-muted-foreground">{r.areaLabel}</div></td>
                   <td className="p-2 text-xs">{r.videoState === "received" ? <span className="font-semibold text-success">Video received – priority review</span> : "None"}</td>

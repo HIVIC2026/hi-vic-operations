@@ -198,3 +198,27 @@ export function primaryByContact(rows: { id: string; email: string | null; propK
   }
   return new Set([...best.values()].map((v) => v.id));
 }
+
+// ---------- One office status per enquiry (Jo, 8 Oct 2026) ----------
+// Presentation only: reads what actually happened (emails sent, spot saved, recorded eligibility). Never changes a job.
+export type EnquiryStatus = "spot_saved" | "offered_spot" | "insulation_requested" | "ineligible" | "not_emailed";
+export const STATUS_ORDER: EnquiryStatus[] = ["spot_saved", "offered_spot", "insulation_requested", "ineligible", "not_emailed"];
+export const STATUS_LABEL: Record<EnquiryStatus, string> = {
+  spot_saved: "Spot saved",
+  offered_spot: "Email sent – offering spot",
+  insulation_requested: "Email sent – insulation details needed",
+  ineligible: "Ineligible",
+  not_emailed: "Not emailed yet",
+};
+/** Exactly one status. Precedence: spot saved > ineligible > insulation email sent > spot offer sent > not emailed. */
+export function enquiryStatus(x: {
+  spotSaved: boolean; ineligible: boolean; campaignSent: boolean; insulationEmailSent: boolean;
+  /** Which version the campaign email was for this owner: "likely" = Save my spot offer, "onsite" = insulation details request. */
+  campaignGroup: "likely" | "onsite" | null;
+}): EnquiryStatus {
+  if (x.spotSaved) return "spot_saved";
+  if (x.ineligible) return "ineligible";
+  if (x.insulationEmailSent || (x.campaignSent && x.campaignGroup === "onsite")) return "insulation_requested";
+  if (x.campaignSent) return "offered_spot";
+  return "not_emailed";
+}
