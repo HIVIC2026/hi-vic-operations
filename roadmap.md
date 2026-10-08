@@ -1,4 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## PIISA single-name/date layout (Jo 8 Oct 21:43 UTC)
+- [x] Read actual published revision 19 (modified 21:44:57 UTC): removed duplicate metadata, installation date in Title Page, eight crew fields and three conditional certificates before installer photo confirmed. Registered actual readback; personal lead attribution and captured signing date safeguards tested; no external writes.
+- [ ] Latest activation blocked: expected completion date 84a8b69b-efd5-4830-9da7-66958cbfdb6e is absent from actual published revision 19 despite Jo's retained-field requirement. Restore that native field then refetch/validate the complete published definition; no guessed fingerprint.
 ## Evidence upload QA (Jo 8 Oct 21:36 UTC)
 - [x] Shared upload/open/read failures and explicit retries, same-file reset, confirmed-only success; retained stored-file confirmation retry avoids reupload. Product controls/gates unchanged. 10 sealed evidence + 11 save phone/desktop groups, 53 focused tests passed; preview build OK. Actual unarchived TEST HV-1785 measurement PDF: controlled storage failure → same-file retry → confirmed, private open/exact-byte download; saved uploaded/unverified, null GPS, stage unchanged and zero outbox records. TEST file/history retained; no approval/sign/send/publish. See docs/EVIDENCE_UPLOAD_QA_8OCT.md.
 ## Final save QA (Jo 8 Oct 21:29 UTC)

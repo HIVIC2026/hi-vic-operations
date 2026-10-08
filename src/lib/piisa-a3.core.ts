@@ -297,8 +297,21 @@ export function a3Signature(audit: unknown): { name: string | null; signedAt: st
   const pick = (x: Any): string | null => typeof x === "string" ? (/^[0-9a-f-]{16,}$/i.test(x.trim()) || /^https:\/\//.test(x.trim()) ? x.trim() : null) : x && typeof x === "object" ? pick(Array.isArray(x) ? x[0] : (x.media_id ?? x.id ?? x.href)) : null;
   const mediaId = pick(m);
   const present = !!mediaId;
-  const ts = [r.timestamp, r.signed_at, r.datetime].find((t) => typeof t === "string" && !Number.isNaN(Date.parse(t))) as string | undefined;
-  return { name: typeof r.name === "string" && r.name.trim() ? r.name.trim() : null, signedAt: ts ?? null, present, mediaId, itemId: sig ? String(sig.item_id ?? sig.id) : null };
+  const captured = m && typeof m === "object" && !Array.isArray(m) ? m : {};
+  const ts = [r.timestamp, r.signed_at, r.datetime, captured.timestamp, captured.signed_at, captured.metadata?.signed_at].find((t) => typeof t === "string" && !Number.isNaN(Date.parse(t))) as string | undefined;
+  const name = r.name ?? captured.name ?? captured.metadata?.signer_name;
+  return { name: typeof name === "string" && name.trim() ? name.trim() : null, signedAt: ts ?? null, present, mediaId, itemId: sig ? String(sig.item_id ?? sig.id) : null };
+}
+
+/** Personal attribution comes from captured signature metadata, never the business account or an inferred typed name. */
+export function directLeadSignatureProblem(audit: unknown, leadName: string | null): string | null {
+  const sig = a3Signature(audit);
+  if (!sig.present || !sig.signedAt) return "The lead installer's actual signature image and capture timestamp are required.";
+  if (!leadName || !sig.name || norm(sig.name) !== norm(leadName)) return "The captured signature must identify the lead installer personally; signing on behalf is not accepted. Office must verify missing signer attribution.";
+  const item = itemsById(audit).get(sig.itemId ?? "");
+  const response = item?.responses;
+  if ([response, response?.signature, response?.image, response?.media].some((v) => v && typeof v === "object" && (v.on_behalf === true || v.signed_on_behalf === true || v.metadata?.on_behalf === true))) return "The lead installer must sign personally, not on behalf of someone else.";
+  return null;
 }
 
 /** Explicit linked signature attachment for the signed official DOCX (the Word form keeps its blank signature line). */
@@ -610,6 +623,11 @@ export function a3PrestartSnapshot(auditId: string, audit: unknown, ctx: A3Evide
   const sig = a3Signature(audit);
   if (!sig.present || !sig.mediaId) return { ok: false, reason: "The installer has not signed the PIISA yet (no signature image)." };
   if (!sig.signedAt) return { ok: false, reason: "The PIISA signature has no time recorded, so it can't be used." };
+  if (a3AuditUsesDirectCrew(audit)) {
+    const lead = flatten(audit).find((e) => e.id === A3_CREW_OTHER_FIELDS[0]?.name)?.value ?? null;
+    const problem = directLeadSignatureProblem(audit, lead);
+    if (problem) return { ok: false, reason: problem };
+  }
   const { answers, crew } = parseA3Answers(audit);
   const files = a3MediaFiles(audit);
   const prestartFiles = Object.fromEntries(Object.entries(files).map(([k, v]) => [k, A3_PRESTART_KEYS.includes(k as A3EvidenceKey) ? v : []])) as Record<A3EvidenceKey, A3MediaFile[]>;

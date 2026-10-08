@@ -61,6 +61,9 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
     const { loadCrew } = await import("./piisa-a3.server");
     directCrew = native.resolveDirectCrew(audit, (await loadCrew(jobId)).staff);
     if (directCrew.blockers.length) return { status: "missing", message: directCrew.blockers.join(" • ") };
+    const { directLeadSignatureProblem } = await import("./piisa-a3.core");
+    const signerProblem = directLeadSignatureProblem(audit, directCrew.answers["p2.lead"] ?? null);
+    if (signerProblem) return { status: "missing", message: signerProblem };
     const products = await import("./piisa-products.server");
     if (!fetchMedia) return { status: "error", message: "Original product label photos could not be read." };
     const photoProblems = await products.syncNativeProductEvidence(jobId, auditId, audit, fetchMedia);
@@ -124,7 +127,7 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
     const { storeSignedCopy, currentCopy, materialFacts } = await import("./official-forms.server");
     const piesa = (await currentCopy(jobId, "piesa")).copy;
     const { facts } = await materialFacts(jobId, piesa);
-    const copyId = await storeSignedCopy({ jobId, key: "piisa", answers: answers as never, signer: { userId: asg.user_id, name: sig.name ?? String(answers["p8.name"] ?? ""), role: "installer" }, enteredDate: sigDate, jobFacts: facts as unknown as Record<string, string>, acknowledgementIds: [], signature: `mitti:${auditId}` });
+    const copyId = await storeSignedCopy({ jobId, key: "piisa", answers: answers as never, signer: { userId: asg.user_id, name: direct ? String(answers["p2.lead"] ?? "") : sig.name ?? String(answers["p8.name"] ?? ""), role: "installer" }, enteredDate: sigDate, jobFacts: facts as unknown as Record<string, string>, acknowledgementIds: [], signature: `mitti:${auditId}` });
     const { renderOfficialDocx } = await import("./official-docx.server");
     const r = renderOfficialDocx("piisa", answers as never);
     if (direct && (!r.filled.includes("p7.products") || r.missed.includes("p7.products"))) return { status: "error", message: "Verified actual products could not be placed in the original Part 7. No final declaration saved." };
@@ -134,7 +137,7 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
     // The Word form keeps its blank signature line; the signature is an explicit linked attachment record next to it.
     const { createHash } = await import("node:crypto");
     const docSha = createHash("sha256").update(r.bytes).digest("hex");
-    const base = signatureAttachment(auditId, { ...sig, signedAt }, { path, sha256: docSha });
+    const base = signatureAttachment(auditId, { ...sig, name: direct ? String(answers["p2.lead"] ?? "") : sig.name, signedAt }, { path, sha256: docSha });
     const att = base && prestart ? { ...base, image_path: prestart.signature_image.image_path, image_sha256: prestart.signature_image.image_sha256, image_content_type: prestart.signature_image.content_type } : null;
     if (!att) return { status: "missing", message: "The PIISA signature image or its time is missing, so it can't be used." };
     const sidecar = `jobs/${jobId}/official/piisa-${auditId}.signature.json`;
