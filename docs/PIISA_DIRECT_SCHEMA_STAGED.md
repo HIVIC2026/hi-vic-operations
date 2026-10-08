@@ -11,4 +11,4 @@ Read-only GET through the existing Mitti integration confirmed master `template_
 
 No real audit creation, signing, worker approval, communications, database migration or portal publication performed. Only isolated mocked persistence tests run.
 
-Validation: 124 focused checks pass in ten isolated files, including real-original Word Part 7 rendering and mocked same-audit photo idempotence/invalidation. Latest preview build OK. An inadvertently broad test runner was stopped at timeout; it reported unrelated pre-existing failures and is not claimed passed.
+Validation: 125 focused checks pass in ten isolated files, including real-original Word Part 7 rendering and mocked same-audit photo idempotence/invalidation. Latest preview build OK. An inadvertently broad test runner was stopped at timeout; it reported unrelated pre-existing failures and is not claimed passed.
