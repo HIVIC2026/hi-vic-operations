@@ -40,7 +40,10 @@ export function planStep(stage: Stage, f: AdvanceFacts): Step {
     case "new_enquiry":
     case "eligibility_review":
       if (!f.eligibilityConfirmed) return stop("Home Insulation Victoria must confirm Gate 1 eligibility");
-      return f.measureUpAccepted ? t("ready_check_complete", "Eligibility confirmed – accepted measure-up already on file, no Ready Check needed") : t("ready_check_ready_to_schedule", "Eligibility confirmed – free installer Ready Check next");
+      // Jo, 8 Oct: the Ready Check comes only AFTER the owner saves their spot.
+      return f.measureUpAccepted ? t("ready_check_complete", "Eligibility confirmed – accepted measure-up already on file, no Ready Check needed") : t("preliminary_estimate_ready", "Eligibility passed – waiting for the owner to save their spot");
+    case "preliminary_estimate_ready":
+      return f.measureUpAccepted ? t("ready_check_complete", "Accepted measure-up on file – Ready Check not needed") : stop("Waiting for the owner to save their spot");
     case "ready_check_ready_to_schedule":
       return f.measureUpAccepted ? t("ready_check_complete", "Accepted measure-up on file – Ready Check not needed") : stop("Home Insulation Victoria must assign an installer for the free Ready Check");
     case "awaiting_electrician":

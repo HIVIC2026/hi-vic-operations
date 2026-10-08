@@ -40,7 +40,7 @@ export async function loadHotLeads(group: HotList = "likely") {
   for (let offset = 0; ; offset += 500) {
     let q = admin.from("jobs").select("id,job_number,created_at,source,stage,eligibility_outcome,eligibility_review_required,estimated_area_m2,owners(full_name,email),properties(address_line,suburb,postcode),indicative_estimates(id,status,created_at,area_m2,area_source,insulation_declared,applied_discount,scenarios)");
     if (group === "test") q = q.eq("source", "qa_test").not("stage", "in", "(cancelled,complete)");
-    else q = q.eq("source", "base44").eq("channel", "hivic_sourced").in("eligibility_outcome", group === "likely" ? ["likely_eligible"] : group === "warm" ? ["needs_onsite_confirmation"] : ["likely_eligible", "needs_onsite_confirmation"]).eq("stage", "ready_check_ready_to_schedule").eq("eligibility_review_required", false);
+    else q = q.eq("source", "base44").eq("channel", "hivic_sourced").in("eligibility_outcome", group === "likely" ? ["likely_eligible"] : group === "warm" ? ["needs_onsite_confirmation"] : ["likely_eligible", "needs_onsite_confirmation"]).in("stage", ["preliminary_estimate_ready", "ready_check_ready_to_schedule"]).eq("eligibility_review_required", false);
     const page = need(await q.order("created_at", { ascending: false }).range(offset, offset + 499), "Jobs");
     jobs.push(...(page ?? []));
     if (!page || page.length < 500) break;
