@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
-import { mapTwilioStatus, smsBlocker, stopKeyword, toAuE164 } from "../src/lib/sms.core";
+import { mapTwilioStatus, smsBlocker, stopKeyword, toAuE164, brandSmsBody, SMS_BRAND_PREFIX } from "../src/lib/sms.core";
 
 const ok = { type: "spot_saved", to: "0477 511 901", commsEnabled: true, typeSwitchOn: true, senderConfigured: true, optedOut: false, consent: true, isTestRecord: false };
 
@@ -32,6 +32,20 @@ describe("real SMS gate", () => {
     expect(mapTwilioStatus("undelivered")).toBe("undelivered");
     expect(mapTwilioStatus("queued")).toBe("queued");
     expect(mapTwilioStatus("weird")).toBeNull();
+  });
+});
+
+describe("brand prefix on every text (Jo, 8 Oct)", () => {
+  test("plain body gets the brand line", () => {
+    expect(brandSmsBody("Your measure-up is booked for Friday 8am.")).toBe("Home Insulation Victoria: Your measure-up is booked for Friday 8am.");
+  });
+  test("never doubles the prefix", () => {
+    expect(brandSmsBody(SMS_BRAND_PREFIX + "Hello")).toBe(SMS_BRAND_PREFIX + "Hello");
+    expect(brandSmsBody(brandSmsBody("Hello"))).toBe(brandSmsBody("Hello"));
+  });
+  test("brand line uses the visible brand, never a retired name", () => {
+    expect(SMS_BRAND_PREFIX).toBe("Home Insulation Victoria: ");
+    expect(SMS_BRAND_PREFIX).not.toMatch(/HI ?VIC/i);
   });
 });
 
