@@ -5,6 +5,7 @@ import { normaliseInsulation } from "./eligibility.core";
 import { isWellFormedToken, LINK_PURPOSE, linkUsable } from "./estimatelink.core";
 import { LAUNCH_BATCH_SIZE, LAUNCH_CAMPAIGN, LAUNCH_COPY_APPROVED, campaignSaveAllowed, deskCheckReasonError, launchGroup, ownerCalculatorChangeNote, savedPriceFromCalculator, savedPriceFromEstimate, savedPriceLabel, type DeskCheckOutcome } from "./launch-campaign.core";
 import { logEvent } from "./workflow.server";
+import { groupBMediaForJob } from "./group-b-media.server";
 import { whatIfEstimate } from "./estimate.core";
 import { INSULATION_REVIEW_OPTIONS, declarationCriteriaPassed, qualifyingDeclaration, insulationDeclarationRecord, type InsulationDeclaration } from "./insulation-review.core";
 
@@ -38,7 +39,18 @@ export async function campaignLink(token: unknown) {
     if (eventsError) throw new Error("We couldn't check your declaration. Please try again.");
     ownerQualified = criteriaPassed && qualifyingDeclaration(events ?? []);
   }
-  return { link, job, group, ownerQualified, criteriaPassed };
+  const media = group === "onsite" ? await groupBMediaForJob(job.id) : null;
+  const { data: mediaReviews, error: mediaReviewError } = group === "onsite" ? await admin.from("customer_engagement_events").select("metadata").eq("job_id", job.id).eq("event_type", "intake_media_reviewed").order("occurred_at", { ascending: false }).limit(1) : { data: [], error: null };
+  if (mediaReviewError) throw new Error("We couldn't check your evidence review. Please try again.");
+  const mediaReview = (mediaReviews?.[0]?.metadata as { outcome?: string } | null)?.outcome ?? null;
+  return { link, job, group, ownerQualified, criteriaPassed, media, mediaReview };
+}
+
+function campaignPermission(c: NonNullable<Awaited<ReturnType<typeof campaignLink>>>, deskStatus: string | null | undefined) {
+  if (["not_eligible", "needs_onsite_check"].includes(deskStatus ?? "") || c.mediaReview === "over_r2" || c.mediaReview === "unclear") return false;
+  if (c.mediaReview === "below_r2" && c.criteriaPassed) return true;
+  if (c.media?.excluded) return deskStatus === "looks_eligible" && c.criteriaPassed;
+  return campaignSaveAllowed(c.group, deskStatus, c.ownerQualified);
 }
 
 export async function campaignPage(token: unknown, testMode = false) {
@@ -65,14 +77,14 @@ export async function campaignPage(token: unknown, testMode = false) {
   const pricing = p && p.areaM2 ? { gross: p.gross, discount: p.discount, total: p.total, areaM2: p.areaM2, assessmentFee: Number(cfg?.piesa_assessment_inc_gst ?? 349), apFee: Number(cfg?.ap_management_inc_gst ?? 349), ratePerM2: Number(cfg?.r5_install_inc_gst_per_m2 ?? 30), installation: p.gross - Number(cfg?.piesa_assessment_inc_gst ?? 349) - Number(cfg?.ap_management_inc_gst ?? 349), veecs: Math.round(p.discount / veecValue), veecValue, address, insulation: p.insulation ?? est?.insulation_declared ?? null } : null;
   const { referralUrlForJob } = await import("./referral.server");
   const referralUrl = await referralUrlForJob(c.job.id);
-  return estimate ? JSON.stringify({ group: c.group, saveAllowed: campaignSaveAllowed(c.group, response?.desk_check_status, c.ownerQualified), ownerQualified: c.ownerQualified, estimate, pricing, response: response ?? null, referralUrl, bookingAvailable: !!property?.postcode && (availability?.ready_check_available_postcodes ?? []).includes(property.postcode), owner: { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null }, home: { suburb: property?.suburb ?? null, short: [property?.address_line, property?.suburb].filter(Boolean).join(", ") || null }, initialValues: { address, areaM2: c.job.estimated_area_m2 == null ? null : Number(c.job.estimated_area_m2), insulation } }) : null;
+  return estimate ? JSON.stringify({ group: c.group, saveAllowed: campaignPermission(c, response?.desk_check_status), media: c.media, mediaReview: c.mediaReview, ownerQualified: c.ownerQualified, estimate, pricing, response: response ?? null, referralUrl, bookingAvailable: !!property?.postcode && (availability?.ready_check_available_postcodes ?? []).includes(property.postcode), owner: { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null }, home: { suburb: property?.suburb ?? null, short: [property?.address_line, property?.suburb].filter(Boolean).join(", ") || null }, initialValues: { address, areaM2: c.job.estimated_area_m2 == null ? null : Number(c.job.estimated_area_m2), insulation } }) : null;
 }
 
 export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; insulation: "none" | "present" | "unknown" | null } | null) {
   const c = await campaignLink(token);
   if (!c) throw new Error("This link is no longer available.");
   const { data: review, error: reviewError } = await admin.from("lead_campaign_responses").select("desk_check_status").eq("job_id", c.job.id).maybeSingle();
-  if (reviewError || !campaignSaveAllowed(c.group, review?.desk_check_status, c.ownerQualified)) throw new Error("Our office needs to check your insulation before offering Save my spot.");
+  if (reviewError || !campaignPermission(c, review?.desk_check_status)) throw new Error("Our office needs to check your insulation before offering Save my spot.");
   const now = new Date().toISOString();
   const { data: est } = await admin.from("indicative_estimates").select("id, area_m2, insulation_declared, scenarios").eq("job_id", c.job.id).eq("status", "current").maybeSingle();
   let price = savedPriceFromEstimate(est ?? null);
@@ -101,7 +113,7 @@ export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; 
   let firstSave = !ins.error && (ins.data?.length ?? 0) > 0;
   if (!firstSave) {
     let query = admin.from("lead_campaign_responses").update({ spot_saved_at: now, updated_at: now, ...snapshot }).eq("job_id", c.job.id).is("opted_out_at", null).is("spot_saved_at", null);
-    if (c.group === "onsite") query = c.ownerQualified ? query.in("desk_check_status", ["not_needed", "pending", "looks_eligible"]) : query.eq("desk_check_status", "looks_eligible");
+    if (c.group === "onsite" && c.mediaReview !== "below_r2") query = c.ownerQualified ? query.in("desk_check_status", ["not_needed", "pending", "looks_eligible"]) : query.eq("desk_check_status", "looks_eligible");
     const upd = await query.select("id");
     firstSave = !upd.error && (upd.data?.length ?? 0) > 0;
   }
@@ -176,6 +188,7 @@ export async function recordInsulationDeclaration(token: unknown, declarationTyp
   const type = declarationType ?? "below_r2";
   const record = insulationDeclarationRecord(type, confirmed);
   const c = await campaignLink(token);
+  if (c?.media?.excluded) throw new Error(c.media.received ? "We already have your enquiry photos/video. They are with our office for review." : "We are checking your original enquiry uploads. Please contact our office.");
   if (!c || c.group !== "onsite" || !c.criteriaPassed) throw new Error("The other initial checks must pass before you can save a spot. Please contact our office.");
   if (!["new_enquiry", "eligibility_review", "preliminary_estimate_ready", "ready_check_ready_to_schedule"].includes(c.job.stage)) throw new Error("This enquiry has already moved on. Please contact our office.");
   const { data: existing, error: readError } = await admin.from("lead_campaign_responses").select("id, opted_out_at, desk_check_status, desk_checked_at").eq("job_id", c.job.id).maybeSingle();

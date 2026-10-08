@@ -6,6 +6,8 @@ import { renderLaunchCampaignEmail } from "./estimate-email";
 import { renderStep3Likely, renderStep3SaveSpot } from "./step3-emails";
 import { CUSTOMER_BASE } from "./engagement.core";
 import { reservationAllowed, withUnsubscribe } from "./emailsafety.core";
+import { groupBMediaForJob } from "./group-b-media.server";
+import { groupBInvitationBlocker } from "./group-b-media.core";
 import { logEvent } from "./workflow.server";
 
 export const HOT_SEND_BATCH = 10;
@@ -71,6 +73,12 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
 
   // Once per home, ever: the idempotency key is the job, not the batch.
   const sendGroup = isTest || testOpts.automaticInsulation ? (testOpts.group ?? group) : "likely";
+  if (sendGroup === "onsite") {
+    const blocker = groupBInvitationBlocker(await groupBMediaForJob(jobId));
+    if (blocker) return r("blocked", blocker);
+    const { INSULATION_DETAILS_REAL_SEND_APPROVED } = await import("./hot-leads.core");
+    if (!isTest && mode === "send" && !INSULATION_DETAILS_REAL_SEND_APPROVED) return r("blocked", "Insulation email awaits final visual approval");
+  }
   const key = `${LAUNCH_CAMPAIGN}:${sendGroup === "onsite" ? "insulation_details" : "save_my_spot"}:${jobId}${isTest && testOpts.subjectPrefix ? `:preview-test:${testOpts.variant ?? "savespot"}:${Date.now()}` : ""}`;
   const { data: ex } = await admin.from("customer_email_sends").select("id, status").eq("idempotency_key", key).maybeSingle();
   if (mode === "send" && ex && !reservationAllowed(ex)) return r("skipped", "Already sent to this home.");
@@ -133,6 +141,10 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   const finish = async (status: string, provider: string, error: string | null) => {
     await admin.from("customer_email_sends").update({ status, provider, error, sent_at: status === "sent" ? new Date().toISOString() : null }).eq("id", sendId!);
   };
+  if (sendGroup === "onsite") {
+    const blocker = groupBInvitationBlocker(await groupBMediaForJob(jobId));
+    if (blocker) { await finish("failed", "not_sent", blocker); return r("blocked", blocker); }
+  }
   try {
     if (isTest) {
       const { sendTestEmail } = await import("./test-send.server");
@@ -170,6 +182,8 @@ export async function maybeAutoSendSaveSpot(jobId: string): Promise<void> {
 }
 
 export async function sendAutomaticInsulationDetails(jobId: string): Promise<HotSendResult> {
+  const blocker = groupBInvitationBlocker(await groupBMediaForJob(jobId));
+  if (blocker) return { jobId, jobNumber: null, outcome: "blocked", detail: blocker };
   const { INSULATION_DETAILS_REAL_SEND_APPROVED } = await import("./hot-leads.core");
   if (!INSULATION_DETAILS_REAL_SEND_APPROVED) return { jobId, jobNumber: null, outcome: "blocked", detail: "Insulation email awaits final visual approval" };
   return sendOne(jobId, null, true, { group: "onsite", automaticInsulation: true });

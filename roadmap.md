@@ -1,5 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Group B four alternatives (Jo 8 Oct 22:41 UTC)
+- [x] Jo 22:54 exclusion: shared original-media/pending-reference guards across send/reminder/link/office paths, repeat-sync preservation, private evidence links and received states. 35 focused tests and desktop/phone checks pass; Group B sending OFF, no publication. Matching initial Group B enquiries: 71 actual-media exclusions + 469 uncertain legacy records held; zero confirmed media-free. See docs/GROUP_B_ORIGINAL_MEDIA_EXCLUSION_QA.md.
+- [ ] Confirm legacy original-upload manifests from authoritative Base44 records before future Group B delivery: old raw snapshots/sync logs omitted attachment identities. No absence inferred from media-choice; all uncertain records held safely.
 ### Jo 22:47 correction — supersedes declaration review stop
 - [x] Qualifying audited owner Yes opens/saves existing spot server-side; media remains review-only; retain existing-insulation prices and final verification.
 - [x] 17 actual campaign-handler practice-database tests/68 assertions and 75 regression tests/318 assertions pass; sealed desktop/phone both Yes→campaign→saved, No/unsure, upload Retry and video safety pass with zero page errors/overflow. Hosted persistence, real storage and guarded stage transition remain unverified; no live sends/publication. See docs/GROUP_B_DECLARATION_CORRECTION_QA.md.
