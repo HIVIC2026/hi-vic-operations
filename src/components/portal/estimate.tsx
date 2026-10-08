@@ -12,6 +12,7 @@ import type { LocationVariables } from "@/lib/activity48.core";
 import { CUSTOMER_APPROVAL_REASSURANCE, CUSTOMER_READY_CHECK_PAGE, CUSTOMER_QUOTE_LABELS, CUSTOMER_READY_CHECK, CUSTOMER_READY_CHECK_EMAIL_ACTION, CUSTOMER_WHAT_COULD_CHANGE, customerQuoteRows, discountAmount } from "@/lib/customer-quote-system";
 import { READY_CHECK_BOOKING_SUCCESS, type ReadyCheckAcceptanceState } from "@/lib/readycheck.core";
 import { Pill } from "./badges";
+import { removalFromScenario, removalNote } from "@/lib/estimate-removal.core";
 
 export const HEADLINE = { likely: "Your home has passed our initial eligibility checks.", onsite: "Your home looks likely to qualify." } as const;
 const ELIGIBILITY_COPY = {
@@ -148,14 +149,16 @@ export function QuoteCardReadyCheckClose({ href, onSelect, inert = false }: { hr
   </div>;
 }
 
-function PriceResult({ est, area, fees, settings, onReadyCheck }: { est: Est; area: number; fees: NonNullable<CustomerData["fees"]>; settings: RetailSettings | undefined; onReadyCheck?: () => void }) {
+function PriceResult({ est, area, fees, settings, insulation, onReadyCheck }: { est: Est; area: number; fees: NonNullable<CustomerData["fees"]>; settings: RetailSettings | undefined; insulation: string | null | undefined; onReadyCheck?: () => void }) {
   const primary = est.scenarios.find((s) => s.key === "can_remain") ?? est.scenarios[0];
   if (!primary) return null;
   const standard = primary.by_access.standard;
+  const removal = removalFromScenario(primary);
   return <section className="estimate-quote-card px-5 py-7 sm:px-8 sm:py-9" aria-label="Your estimated home upgrade">
     <p className="text-xs font-semibold uppercase tracking-wider text-estimate-green">Your estimated home upgrade</p>
     <p className="mt-3 text-sm leading-relaxed text-estimate-navy/80">Based on an estimated {area} m² ceiling area{est.scenarios.some((s) => s.key === "full_removal") ? ", assuming your existing insulation can remain" : ""}.</p>
-    <div className="mt-4"><QuoteBreakdown rows={customerQuoteRows({ piesa: fees.piesa, installation: standard.installation, apManagement: fees.ap })} gross={standard.pre_discount_total} discount={standard.applied_discount} final={standard.estimated_customer_total} ids={{ final: "total-can_remain" }} /></div>
+    <div className="mt-4"><QuoteBreakdown rows={[...customerQuoteRows({ piesa: fees.piesa, installation: standard.installation, apManagement: fees.ap }), ...(removal.kind === "included" ? [{ key: "removal", label: "Removal of existing insulation (inc GST)", amount: removal.amount }] : [])]} gross={standard.pre_discount_total} discount={standard.applied_discount} final={standard.estimated_customer_total} ids={{ final: "total-can_remain" }} /></div>
+    {(insulation === "present" || est.scenarios.some((s) => s.key === "full_removal")) && <p className="mt-4 text-sm font-bold leading-relaxed">{removalNote(removal)}</p>}
     {settings && <p className="mt-3 text-xs leading-relaxed text-estimate-navy/75">Estimated discount: {dollars(standard.applied_discount)} — confirmed after your assessment.</p>}
     {standard.copayment_capped && <p className="mt-3 text-sm">Discount reduced so the minimum $200 customer contribution applies.</p>}
     <QuoteCardReadyCheckClose href="#confirm" {...(onReadyCheck ? { onSelect: onReadyCheck } : {})} />
@@ -242,7 +245,7 @@ export function CustomerEstimate({ data, publicPage = false, onReadyCheck }: { d
        </div>
       {data.rolloutHold && <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">Assessments for private homes open from 1 October 2026. This is a scheduling hold only, not an eligibility result.</p>}
       {!fees ? <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">Your estimate is being prepared.</p> : <>
-         {data.estimate ? <PriceResult est={data.estimate} area={data.estimate.area.m2} fees={fees} settings={data.calc?.settings} {...(onReadyCheck ? { onReadyCheck } : {})} /> : <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">{data.postcodeUnlisted ? "We can't calculate a VEU discount for this postcode yet because it isn't in the official VEU location list. We'll confirm your pricing directly." : "Your estimate is being prepared."}</p>}
+         {data.estimate ? <PriceResult est={data.estimate} area={data.estimate.area.m2} fees={fees} settings={data.calc?.settings} insulation={data.calc?.insulation} {...(onReadyCheck ? { onReadyCheck } : {})} /> : <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">{data.postcodeUnlisted ? "We can't calculate a VEU discount for this postcode yet because it isn't in the official VEU location list. We'll confirm your pricing directly." : "Your estimate is being prepared."}</p>}
          {data.estimate && <><RemovalNote est={data.estimate} /><HouseholdBenefits /><PriceProtection settings={data.calc?.settings} fees={fees} /><ManagedProcess /></>}
         {data.calc && <details className="group border-b border-estimate-blue/20 pb-5 text-sm"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-bold text-estimate-blue focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">How is the VEU discount estimated? <ChevronDown aria-hidden="true" className="size-5 shrink-0 transition-transform group-open:rotate-180" /></summary><p className="mt-4 leading-relaxed">We use the official Activity 48 postcode/climate calculation and a {dollars(data.calc.settings.indicative_veec_value)} consumer benchmark calibrated to the Victorian Government&apos;s published example. Final certificate values can change. This is not the live VEEC market price.</p>{data.calc.settings.veec_value_source_url?.startsWith("https://") && <a className="mt-2 inline-block font-bold text-estimate-blue underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" href={data.calc.settings.veec_value_source_url} target="_blank" rel="noopener noreferrer">View the published example <span aria-hidden="true">↗</span></a>}</details>}
       </>}

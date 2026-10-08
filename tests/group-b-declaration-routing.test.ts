@@ -12,7 +12,7 @@ CREATE TABLE owner_contact_consents(job_id uuid, consent_status text, created_at
 CREATE TABLE customer_email_optouts(job_id uuid, opted_out_at timestamptz);
 CREATE TABLE post_intake_work(id uuid DEFAULT gen_random_uuid(), job_id uuid, status text);
 CREATE TABLE workflow_events(id uuid DEFAULT gen_random_uuid(), job_id uuid, event_type text, summary text, details jsonb, created_at timestamptz DEFAULT now());
-CREATE TABLE indicative_estimates(id uuid DEFAULT gen_random_uuid(), job_id uuid, status text, area_m2 numeric, insulation_declared text, scenarios jsonb);
+CREATE TABLE indicative_estimates(id uuid DEFAULT gen_random_uuid(), job_id uuid, status text, area_m2 numeric, insulation_declared text, scenarios jsonb, snapshot jsonb);
 CREATE TABLE documents(job_id uuid, kind text, mime_type text, storage_path text, source_system text, external_id text);
 CREATE TABLE evidence_files(job_id uuid, mime_type text, storage_path text);
 CREATE TABLE customer_engagement_events(job_id uuid, event_type text, metadata jsonb, occurred_at timestamptz DEFAULT now());

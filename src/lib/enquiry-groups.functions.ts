@@ -61,3 +61,12 @@ export const removeLeadsFn = createServerFn({ method: "POST" }).middleware([requ
     const { removeLeads } = await import("./enquiry-groups.server");
     return removeLeads(data.ids, data.reason, context.userId ?? null);
   });
+
+/** Explicit one-owner action, not Group B invitation or automatic sending. */
+export const existingInsulationSaveSpotFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), preview: z.boolean().default(false) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { sendExistingInsulationSaveSpot } = await import("./hot-leads-send.server");
+    return sendExistingInsulationSaveSpot(data.jobId, context.userId, data.preview);
+  });

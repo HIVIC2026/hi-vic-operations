@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { AppShell } from "@/components/portal/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getEnquiryGroups, getLeadMedia, removeLeadsFn, reviewLeadMediaFn } from "@/lib/enquiry-groups.functions";
+import { getEnquiryGroups, getLeadMedia, removeLeadsFn, reviewLeadMediaFn, existingInsulationSaveSpotFn } from "@/lib/enquiry-groups.functions";
 import { MEDIA_OUTCOME_LABEL, STATUS_LABEL, STATUS_ORDER, type EnquiryStatus, type MediaReviewOutcome } from "@/lib/enquiry-groups.core";
 
 export const Route = createFileRoute("/_authenticated/admin/enquiry-groups")({
@@ -23,6 +23,24 @@ type Data = Awaited<ReturnType<typeof getEnquiryGroups>>;
 type Row = Data["rows"][number];
 const PAGE = 50;
 const when = (value: string | null | undefined) => value ? new Date(value).toLocaleString("en-AU", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "—";
+
+function ExistingInsulationFollowup({ jobId, onDone }: { jobId: string; onDone: () => void }) {
+  const action = useServerFn(existingInsulationSaveSpotFn);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ subject: string; html: string } | null>(null);
+  const run = async (previewOnly: boolean) => {
+    setBusy(true); setMessage(null);
+    try {
+      const r = await action({ data: { jobId, preview: previewOnly } });
+      setMessage(r.detail);
+      if (r.preview) setPreview(r.preview);
+      if (!previewOnly && r.outcome === "sent") onDone();
+    } catch (e) { setMessage(e instanceof Error ? e.message : "Could not prepare the follow-up. Try again."); }
+    finally { setBusy(false); }
+  };
+  return <div className="space-y-2"><p className="text-xs text-muted-foreground">Preliminary only. The free Ready Check confirms insulation, eligibility and price.</p><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={busy} onClick={() => run(true)}>Preview Save your spot</Button><Button size="sm" disabled={busy} onClick={() => run(false)}>Send Save your spot</Button></div>{message && <p role="status" className="text-sm">{message}</p>}{preview && <><p className="text-sm font-semibold">{preview.subject}</p><iframe title="Existing-insulation Save your spot email" sandbox="" srcDoc={preview.html} className="h-[650px] w-full border" /></>}</div>;
+}
 
 function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
   const loadMedia = useServerFn(getLeadMedia);
@@ -113,7 +131,7 @@ function LeadsPage() {
             <Button size="sm" variant="outline" onClick={() => setOpenId(openId === row.id ? null : row.id)}>{openId === row.id ? "Hide photos" : `View ${row.mediaCount} photo${row.mediaCount === 1 ? "" : "s"}/video`}</Button>
             {openId === row.id && <MediaReview row={row} onDone={() => refetch()} />}
           </div>
-        ) : tab === "removed" ? "Removed by office" : row.status === "needs_attention" ? row.attentionReason ?? row.reason : row.status === "spot_saved" ? "Continue from the saved-spot queue" : row.status === "ineligible" ? "No action unless the owner replies" : "Waiting for the homeowner"}</td></tr>)}
+        ) : tab === "removed" ? "Removed by office" : row.mediaOutcome === "below_r2" && row.status !== "spot_saved" && row.status !== "ineligible" ? <ExistingInsulationFollowup jobId={row.id} onDone={() => refetch()} /> : row.status === "needs_attention" ? row.attentionReason ?? row.reason : row.status === "spot_saved" ? "Continue from the saved-spot queue" : row.status === "ineligible" ? "No action unless the owner replies" : "Waiting for the homeowner"}</td></tr>)}
       </tbody></table></div>
       <div className="flex items-center justify-end gap-2"><Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((value) => value - 1)}>Previous</Button><span className="text-sm">Page {Math.min(page, pages - 1) + 1} of {pages}</span><Button variant="outline" size="sm" disabled={page + 1 >= pages} onClick={() => setPage((value) => value + 1)}>Next</Button></div>
     </>}
