@@ -33,9 +33,10 @@ describe("original-condition evidence applicability (final verified gate)", () =
 
 describe("work-start lock uses the live original-condition answers", () => {
   test("PIISA send / install evidence refused while original-condition answers are missing", async () => {
-    mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: () => { throw new Error("must not reach the booking snapshot"); } } }));
-    mock.module("@/lib/ready-check-draft.server", () => ({ rcWorksBlockers: async () => ["Existing insulation", "Removal required"] }));
+    const real = await import("../src/lib/ready-check-draft.server");
+    let block = true; // scoped: other test files sharing this process see the real behaviour afterwards
+    mock.module("@/lib/ready-check-draft.server", () => ({ ...real, rcWorksBlockers: async (id: string) => (block ? ["Existing insulation", "Removal required"] : real.rcWorksBlockers(id)) }));
     const { requirePrestartClear } = await import("../src/lib/prestart.server");
-    await expect(requirePrestartClear("job-1")).rejects.toThrow("record the original ceiling condition");
+    try { await expect(requirePrestartClear("job-1")).rejects.toThrow("record the original ceiling condition"); } finally { block = false; }
   });
 });
