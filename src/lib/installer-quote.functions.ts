@@ -124,7 +124,7 @@ export const getMyIntakeJob = createServerFn({ method: "POST" }).middleware([req
     ]);
     const payerLock = await m.intakePayerLock(data.jobId, s.electricianPayer, context.userId, biz);
     const quoteAnswer = (await m.intakeQuoteAnswers([data.jobId])).get(data.jobId) ?? null;
-    return { applies: true as const, businessId: biz, areaM2: s.areaM2, areaProvenance: s.areaProvenance, insulation: s.insulation, quoted: (job?.installer_quoted ?? null) as "yes" | "no" | null, quoteAnswer, quoteIncGst: s.quoteIncGst, includes: s.includes, proposedR: s.proposedR, files: ((imp?.files as { path: string; name: string; type: string }[] | null) ?? []), electricianChosen: s.electricianPayer !== "undecided", payerEditable: !payerLock, payerLockReason: payerLock ?? (s.electricianPayer === "own" ? "Your electrician is already chosen — ask the office to change it." : null), quoteHeld: [...s.readiness.blockers, ...s.releaseBlockers.filter((b) => !/contact consent/.test(b))], electricianPayer: s.electricianPayer, feeAwarenessCurrent: s.feeAwarenessRecorded && (s.feeAwarenessPayer ?? "hivic") === s.electricianPayer };
+    return { applies: true as const, businessId: biz, areaM2: s.areaM2, areaProvenance: s.areaProvenance, insulation: s.insulation, quoted: (job?.installer_quoted ?? null) as "yes" | "no" | null, quoteAnswer, quoteIncGst: s.quoteIncGst, includes: s.includes, proposedR: s.proposedR, removalQuote: s.removalQuote, files: ((imp?.files as { path: string; name: string; type: string }[] | null) ?? []), electricianChosen: s.electricianPayer !== "undecided", payerEditable: !payerLock, payerLockReason: payerLock ?? (s.electricianPayer === "own" ? "Your electrician is already chosen — ask the office to change it." : null), quoteHeld: [...s.readiness.blockers, ...s.releaseBlockers.filter((b) => !/contact consent/.test(b))], electricianPayer: s.electricianPayer, feeAwarenessCurrent: s.feeAwarenessRecorded && (s.feeAwarenessPayer ?? "hivic") === s.electricianPayer };
   });
 
 export const saveMyIntakeJob = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -134,6 +134,7 @@ export const saveMyIntakeJob = createServerFn({ method: "POST" }).middleware([re
     files: z.array(z.object({ path: z.string().max(500), name: z.string().max(200), type: z.string().max(100) })).max(20),
     electrician: z.object({ mode: z.literal("mine"), business_id: z.string().uuid().nullish(), nomination_id: z.string().uuid().nullish() }).optional(),
     electricianPayer: z.enum(["hivic", "own", "undecided"]).optional(),
+    removalQuote: z.object({ answer: z.enum(["yes", "no", "unknown"]), areaM2: z.number().positive().max(5000).nullable(), chargeIncGst: z.number().min(0).max(1_000_000).nullable() }).optional(),
     feeAwareness: z.object({ payer: z.enum(["hivic", "own"]), text: z.string().max(400) }).optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {

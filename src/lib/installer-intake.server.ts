@@ -1,4 +1,5 @@
 // Installer-supplied intake persistence/read model (Jo, 8 Oct 2026). Server-only; callers authorise first.
+import { readRemoval, removalProblems, removalSummary, type RemovalQuote } from "./intake-quote-details.core";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
 import { intakeScopeArea, staleQuoteAction, installerQuoteReadiness, installerQuoteReleaseBlockers, insulationQualifies, readyCheckOutstanding, type EvidenceItem, type ExistingInsulation } from "./installer-intake.core";
@@ -95,12 +96,16 @@ export async function installerIntakeState(jobId: string) {
       wording: typeof d["wording"] === "string" ? d["wording"] : null, version: typeof d["version"] === "string" ? d["version"] : null, source: typeof d["source"] === "string" ? d["source"] : null,
       note: typeof d["note"] === "string" ? d["note"] : null, current: feeCurrent, coversCurrentPayer: (fp ?? "hivic") === electricianPayer };
   }
+  const { data: removalEvent, error: removalError } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "installer_quote_removal_declared").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (removalError) throw new WorkflowError("The quote removal details could not load. Please retry.");
+  const removalQuote = readRemoval((removalEvent?.details as { removal_quote?: unknown } | null)?.removal_quote);
   const release = installerQuoteReleaseBlockers({ consentStatus: consent?.consent_status ?? null, feeAwarenessRecorded: feeCurrent, feeAwarenessPayer: feeRow?.payer ?? null, electricianPayer });
+  if (removalQuote) release.push(...(removalQuote.answer === "unknown" ? ["Confirm whether the installer quote includes removal before release"] : removalProblems(removalQuote, ins.value, area, job.installer_quoted_price_inc_gst == null ? null : Number(job.installer_quoted_price_inc_gst))));
   const rc = readyCheckOutstanding((ev ?? []).map((r) => ({ category: r.category, label: r.label, blocking: r.required, status: r.status })) as EvidenceItem[]);
   return {
     coordination, coordinationNext: (await import("./installer-intake.core")).coordinationNextAction(coordination),
     channel: job.channel, insulation: ins.value, insulationSource: ins.source, areaM2: area, areaProvenance: scope.provenance,
-    proposedR: await latestProposedR(jobId), reconfirmationRequired: await reconfirmationOpen(jobId), measuredR,
+    removalQuote, proposedR: await latestProposedR(jobId), reconfirmationRequired: await reconfirmationOpen(jobId), measuredR,
     quoteIncGst: job.installer_quoted_price_inc_gst == null ? null : Number(job.installer_quoted_price_inc_gst), includes: job.installer_price_includes,
     officeEligibility, readiness, releaseBlockers: release, electricianPayer, feeAwarenessPayer: feeRow?.payer ?? null, feeAwarenessRecorded: feeCurrent, feeRecord,
     readyCheck: { outstandingCount: rc.count, outstanding: rc.outstanding.map((i) => ({ label: i.label, status: i.status })) },
@@ -192,6 +197,7 @@ async function staleIntakeQuotes(jobId: string, actorId: string) {
 export type InstallerIntakeUpdate = {
   areaM2: number | null; insulation: ExistingInsulation; quoteStatus: "not_quoted" | "have_quote";
   quoteIncGst: number | null; includes: string | null; proposedR: number | null;
+  removalQuote?: RemovalQuote;
   files: { path: string; name: string; type: string }[];
   electrician?: { mode: "mine"; business_id?: string | null; nomination_id?: string | null } | undefined;
   /** Who arranges/pays the electrician: HIV ($349 on quote) / own (direct billing, needs `electrician`) / to be arranged. */
@@ -214,6 +220,9 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
   if (!(await isIntakeJob(jobId))) throw new WorkflowError("This job wasn't added through Add job.");
   for (const f of p.files) if (!f.path.startsWith(`partners/${businessId}/`)) throw new WorkflowError("That file isn't one of your uploads.");
   const st = await installerIntakeState(jobId);
+  const nextRemoval = p.removalQuote === undefined ? st.removalQuote : p.quoteStatus === "not_quoted" ? { answer: "unknown" as const, areaM2: null, chargeIncGst: null } : readRemoval(p.removalQuote);
+  if (nextRemoval) { const problems = removalProblems(nextRemoval, p.insulation, p.areaM2 ?? st.areaM2, p.quoteIncGst); if (problems.length) throw new WorkflowError(problems.join(" • ")); }
+  const removalChanged = p.removalQuote !== undefined && JSON.stringify(nextRemoval) !== JSON.stringify(st.removalQuote);
   // ---- Validate the electrician/payer change and fee declaration BEFORE any write (no misleading partial saves). ----
   const { planPayerChange } = await import("./installer-intake.core");
   const requestedPayer = p.electricianPayer ?? (p.electrician && (p.electrician.business_id || p.electrician.nomination_id) && st.electricianPayer !== "own" ? "own" : undefined);
@@ -279,8 +288,9 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
     await logEvent(jobId, actorId, "installer_owner_fee_awareness", payer === "own" ? "Installer declared the owner was advised of the $349 AP management fee and that their own electrician invoices them separately" : "Installer declared the owner was advised of the $349 PIESA fee and $349 AP management fee", { by: "installer", source: "installer_job_page", payer, wording: p.feeAwareness.text, version: FEE_AWARENESS_VERSION, confirmed_at: new Date().toISOString(), not_owner_paperwork: true }, { internal: true });
     feeRecorded = true;
   }
+  if (removalChanged && nextRemoval) await logEvent(jobId, actorId, "installer_quote_removal_declared", removalSummary(nextRemoval), { removal_quote: nextRemoval, source: "installer_edit", verified: false, included_in_total: true }, { internal: true });
   // A payer change is material: it changes the owner quote's lines (HIV PIESA line on/off).
-  const material = ch.area !== undefined || !!ch.quote || ch.proposedR !== undefined || ch.insulation !== undefined || pc.change;
+  const material = ch.area !== undefined || !!ch.quote || ch.proposedR !== undefined || ch.insulation !== undefined || pc.change || removalChanged;
   let quotes: { id: string; action: string }[] = [];
   if (material) {
     quotes = await staleIntakeQuotes(jobId, actorId);
