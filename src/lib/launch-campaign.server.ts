@@ -169,7 +169,7 @@ export async function recordInsulationDeclaration(token: unknown, declarationTyp
   if (readError || existing?.opted_out_at) throw new Error("This insulation review is not available.");
   const { data: recorded, error: eventError } = await admin.from("workflow_events").select("id").eq("job_id", c.job.id).eq("event_type", record.eventType).limit(1).maybeSingle();
   if (eventError) throw new Error("We couldn't check your submission. Please try again.");
-  if (!recorded) await logEvent(c.job.id, null, record.eventType, record.reviewReason, { declaration: record.declaration, basis: record.basis, declaration_type: declarationType ?? "below_r2" }, { internal: true });
+  if (!recorded) await logEvent(c.job.id, null, record.eventType, declarationType == null ? "Owner declared: I confirm this is below R2 — office review required (not verified eligibility)" : record.reviewReason, declarationType == null ? { declaration: record.declaration, basis: record.basis } : { declaration: record.declaration, basis: record.basis, declaration_type: declarationType }, { internal: true });
   if (!existing) {
     const { error } = await admin.from("lead_campaign_responses").upsert({ job_id: c.job.id, estimate_link_id: c.link.id, campaign: LAUNCH_CAMPAIGN, desk_check_status: "pending", desk_check_reason: record.reviewReason, updated_at: new Date().toISOString() }, { onConflict: "job_id", ignoreDuplicates: true });
     if (error) throw new Error("We couldn't submit your insulation for review. Please try again.");
