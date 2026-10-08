@@ -110,6 +110,19 @@ export const A3_MEDIA_IDS: Record<A3EvidenceKey, string> = {
 };
 /** Native media labels as observed (verification only; the stable ID owns the mapping). */
 export const A3_MEDIA_LABELS: Partial<Record<A3EvidenceKey, string>> = { electrician_photo: "Electrician photo — onsite today (geotagged)" };
+/** Recorded prior labels plus Jo's approved full instructions; never accept an arbitrary relabel on a stable ID. */
+const A3_PREVIOUS_MEDIA_LABELS: Record<A3EvidenceKey, string> = {
+  installer_photos: "Installer photos — every installer onsite today (geotagged)",
+  electrician_photo: "Electrician photo — onsite today (geotagged)",
+  isolation_photo: "Power isolation photo — isolated, locked out and tagged before work (geotagged)",
+  before_video: "Before-work video — all ceiling areas and existing insulation",
+  product_photos: "Installed product photos — brand, model and R-value (geotagged)",
+  completed_video: "Completed-work video — coverage, depth and all waste removed",
+  final_plan: "Final installation plan — actual installed area (m²) and products",
+};
+export function a3AcceptedMediaLabels(key: A3EvidenceKey): string[] {
+  return [A3_PREVIOUS_MEDIA_LABELS[key], A3_EVIDENCE_LABELS[key], ...(A3_MEDIA_LABELS[key] ? [A3_MEDIA_LABELS[key]] : [])].map(norm);
+}
 
 /** CONTROLLED label suffixes added in the editor on the SAME stable IDs (Jo, 8 Oct 2026). Only these exact additions pass. */
 export const A3_ALIAS_SUFFIXES: Record<string, string[]> = {
@@ -184,9 +197,8 @@ export function a3MissingFields(template: unknown): string[] {
   out.push(...a3CrewSchemaProblems(template));
   for (const [k, nid] of Object.entries(A3_MEDIA_IDS)) {
     const e = entries.find((x) => String(x.id) === nid);
-    const lbl = A3_MEDIA_LABELS[k as A3EvidenceKey];
     if (!e) out.push(`${A3_EVIDENCE_LABELS[k as A3EvidenceKey]} (media)`);
-    else if (lbl && e.norm !== norm(lbl) && e.norm !== norm(A3_EVIDENCE_LABELS[k as A3EvidenceKey])) out.push(`${A3_EVIDENCE_LABELS[k as A3EvidenceKey]} (media) — ID ${nid} now reads "${e.label}"`);
+    else if (!a3AcceptedMediaLabels(k as A3EvidenceKey).includes(e.norm) && e.norm !== norm(k)) out.push(`${A3_EVIDENCE_LABELS[k as A3EvidenceKey]} (media) — ID ${nid} now reads "${e.label}"`);
   }
   return out;
 }
