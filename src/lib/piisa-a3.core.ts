@@ -20,7 +20,7 @@ export const A3_ALIASES: Record<string, string[]> = {
   "p1.powerInformed": ["Has the household or tenant been told the power will be off during installation?"],
   lifeSupport: ["Does anyone at this property rely on life support?"],
   lifeSupportConsent: ["Have you received written consent or a medical plan before starting this assessment?"],
-  lifeSupportAttachment: ["Please attach the occupant’s written life support consent or medical plan, showing all pages, the person’s details and the consent or medical instructions. Please ensure the photos and videos are clear and show all required details. Unclear or incomplete evidence may result in the Essential Services Commission (ESC) rejecting the VEEC submission.", "Written consent or medical plan (kept as an attachment to this assessment)"],
+  lifeSupportAttachment: ["Please upload the written consent or medical plan received for the resident who relies on life support. Make sure every page is readable and complete. Please ensure the evidence is clear and shows all required details. Unclear or incomplete evidence may result in the Essential Services Commission (ESC) rejecting the VEEC submission.", "Written consent or medical plan (kept as an attachment to this assessment)"],
   "p2.ap": ["Accredited person (AP)"],
   "p2.company": ["Installer company"],
   "p2.lead": ["Lead installer"],
@@ -454,15 +454,15 @@ export function crewPrefill(sel: CrewSelection, staff: StaffOption[]): { itemId:
 
 // ---------- AP evidence for the A3 path ----------
 export type A3EvidenceKey = "installer_photos" | "electrician_photo" | "isolation_photo" | "before_video" | "product_photos" | "completed_video" | "final_plan";
-export const A3_EVIDENCE_QUALITY = "Please ensure the photos and videos are clear and show all required details. Unclear or incomplete evidence may result in the Essential Services Commission (ESC) rejecting the VEEC submission.";
+export const A3_EVIDENCE_QUALITY = "Please ensure the evidence is clear and shows all required details. Unclear or incomplete evidence may result in the Essential Services Commission (ESC) rejecting the VEEC submission.";
 export const A3_EVIDENCE_LABELS: Record<A3EvidenceKey, string> = {
-  installer_photos: `Please take a clear, geotagged photo of each installer working onsite today, showing their face clearly so every member of the installation crew can be identified. If you also take a group photo, please make sure every installer is clearly visible. ${A3_EVIDENCE_QUALITY}`,
-  electrician_photo: `Please take a clear, geotagged photo of the attending electrician onsite today, showing their face clearly so the electrician attending the start of the installation can be identified. ${A3_EVIDENCE_QUALITY}`,
-  isolation_photo: `Before work starts, please take a clear, geotagged photo showing the power isolation points, locks and tags used to isolate the main and any alternative power supplies. ${A3_EVIDENCE_QUALITY}`,
-  before_video: `Please record a clear video showing all ceiling areas before installation, including the existing insulation or bare ceiling, the condition of the ceiling space, electrical cables, lights, other fittings and the areas where insulation will be installed. ${A3_EVIDENCE_QUALITY}`,
-  product_photos: `Before installing, please take a clear, geotagged photo of each insulation product label showing the brand, model and R-value. ${A3_EVIDENCE_QUALITY}`,
-  completed_video: `Please record a clear video showing the completed installation in all ceiling areas, including insulation coverage and depth, clearances around lights, fittings and other hazards, and the removal of installation waste. ${A3_EVIDENCE_QUALITY}`,
-  final_plan: `Please attach the final ceiling installation plan showing every installed area, the actual installed area in square metres and the products used in each area. If you photograph the plan, please show the entire plan with all measurements, labels and product details readable. ${A3_EVIDENCE_QUALITY}`,
+  installer_photos: `Please take a clear, geotagged photo of every installer working at this property today. Make sure each person is clearly visible. ${A3_EVIDENCE_QUALITY}`,
+  electrician_photo: `Please take a clear, geotagged photo of the electrician attending this property today. Make sure the electrician is clearly visible. ${A3_EVIDENCE_QUALITY}`,
+  isolation_photo: `Before work starts, please take a clear, geotagged photo showing that the power supply has been isolated, locked out and tagged. Make sure the lock and tag are clearly visible. ${A3_EVIDENCE_QUALITY}`,
+  before_video: `Before installing the insulation, please record a clear video showing every ceiling area that will be upgraded and any existing insulation. Move slowly and use enough light so the condition of the ceiling space can be clearly seen. ${A3_EVIDENCE_QUALITY}`,
+  product_photos: `Before installing the insulation, please take a clear, geotagged photo of each product label. Make sure the brand, model and R-value are clearly readable. ${A3_EVIDENCE_QUALITY}`,
+  completed_video: `After completing the installation, please record a clear video of every insulated ceiling area. Show the insulation coverage and depth, and show that all waste has been removed from the roof space. Move slowly and use enough light so the completed work can be clearly seen. ${A3_EVIDENCE_QUALITY}`,
+  final_plan: `Please upload the final diagram or floor plan of the insulated roof space. Clearly show the total area installed in square metres and the insulation products used. ${A3_EVIDENCE_QUALITY}`,
 };
 const GEOTAG: A3EvidenceKey[] = ["installer_photos", "electrician_photo", "isolation_photo", "product_photos"];
 

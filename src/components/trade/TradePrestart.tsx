@@ -22,7 +22,7 @@ export function TradePrestart({ jobId, kind, channel, onStart, disabledReason }:
       <section className="rounded-[19px] border border-mist-line bg-mist p-5 text-ink md:p-[23px]">
         <h2 className="font-display text-xl font-bold">Sharp photos and videos, every time</h2>
         <p className="mt-1 text-sm text-sub">The onsite form tells you exactly what to shoot. We just need every one crystal clear.</p>
-        <p className="mt-3 rounded-2xl bg-owner-house-pink p-3 text-sm text-estimate-navy"><strong>Why it matters:</strong> Please ensure the photos and videos are clear and show all required details. Unclear or incomplete evidence may result in the Essential Services Commission (ESC) rejecting the VEEC submission.</p>
+        <p className="mt-3 rounded-2xl bg-owner-house-pink p-3 text-sm text-estimate-navy"><strong>Why it matters:</strong> Please ensure the evidence is clear and shows all required details. Unclear or incomplete evidence may result in the Essential Services Commission (ESC) rejecting the VEEC submission.</p>
         <div className="mt-3 grid grid-cols-2 gap-2">{tips.map((t) => <div key={t} className="rounded-2xl bg-paper border border-line p-3 text-sm font-bold">{t}</div>)}</div>
         <p className="mt-3 text-sm font-bold text-owner-house-pink">Check each one before you move on. Blurry? Retake it on the spot.</p>
       </section>
