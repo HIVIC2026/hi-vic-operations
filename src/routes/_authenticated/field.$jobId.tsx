@@ -36,7 +36,7 @@ import { useAction } from "@/hooks/use-me";
 import { InstallerFinalDeclaration } from "@/components/portal/assignment";
 import { JobStatusCard } from "@/components/trade/job-status";
 import { SourceBadge } from "@/components/portal/badges";
-import { InstallerJourney } from "@/components/portal/installer-journey";
+import { InstallerProgressCard } from "@/components/trade/intake-progress";
 import { ReadyCheckDraft } from "@/components/trade/ReadyCheckDraft";
 import { addApprovedRectItem, addOtherRectItem, completeAssessment, completeInstallation, getAssignedRecRates, recordPiesa, removeRectItem, saveAssessment, submitForApReview } from "@/lib/portal.functions";
 import { aud } from "@/lib/workflow";
@@ -84,7 +84,7 @@ function FieldJob() {
       <div><BlockersPanel jobId={jobId} quietWhenClear partner /></div>
       <div className="space-y-4">
         {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} expired={!!job.piesa_expired} />}
-        {role === "installer" && <InstallerJourney jobId={jobId} />}
+        {role === "installer" && <InstallerProgressCard jobId={jobId} />}
         {role === "installer" && job.channel === "installer_sourced" && <MyIntakeDetailsCard jobId={jobId} />}
         {role === "installer" && job.channel === "installer_sourced" && <ReadyCheckDraft jobId={jobId} />}
         {role === "installer" && ["piesa_and_install_window_pending"].includes(job.stage!) && !job.electrician_name && <ElectricianChoicePanel jobId={jobId} />}
