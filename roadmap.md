@@ -1,4 +1,5 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+- [ ] 11:26 Add job correction: optional previous price agreement; audit legacy entry paths; sealed phone/desktop checks and TEST read-only entry verification; compare published version without publishing.
 - [x] Jo 09:37 explicitly authorised creating HV-2010's missing form. One existing admin-guarded createMittiAssessment call attempted using the approved TEST office session; Mitti user lookup rejected the assigned installer as not found. No audit created, no linkage recorded, no retry or invitation sent.
 - [x] Jo 09:33 faster-process question answered: one-time installer Mitti setup followed by direct job-form access is the intended simplification; no integration automation authorised or changed.
 - [x] 09:33 runtime recheck: public home/sign-in/sample onboarding and authenticated office Overview/Templates/Leads rendered; zero page exceptions, all request failures navigation cancellations. Current module crash not reproduced; no recovery/router changes.
