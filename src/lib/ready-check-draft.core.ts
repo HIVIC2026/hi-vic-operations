@@ -11,7 +11,7 @@ export const RC_ORIGINAL_CONDITION_KEYS = RC_DRAFT_FIELDS.filter((f) => f.requir
 /** Ready Check evidence = the job's assessment-gate requirements only; electrical/installation items have their own lists. */
 export const RC_EVIDENCE_GATE = "assessment";
 
-export type RcEvidence = { label: string; gate: string; required: boolean; status: string };
+export type RcEvidence = { label: string; gate: string; required: boolean; status: string; category?: string | null };
 export type RcDraftValues = Record<string, string>; // what the form holds; "" = unknown (never guessed)
 
 /** Typed form strings -> canonical observations. Blank stays null (unknown). Bad numbers are reported, not coerced. */
@@ -54,7 +54,9 @@ export type RcProgress = {
 
 export function rcProgress(obs: Observations, evidence: RcEvidence[]): RcProgress {
   const missingAnswers = RC_DRAFT_FIELDS.filter((f) => f.required && obs[f.key] == null).map((f) => f.label);
-  const ev = evidence.filter((e) => e.gate === RC_EVIDENCE_GATE && e.required && e.status !== "not_required");
+  // Empty ceiling: the existing R-value item does not apply (never ask for a fabricated photo/value).
+  const na = obs["insulation.existing"] === "none" ? "existing_insulation_r_value" : null;
+  const ev = evidence.filter((e) => e.gate === RC_EVIDENCE_GATE && e.required && e.status !== "not_required" && !(na && e.category === na));
   const missing = ev.filter((e) => e.status === "outstanding").map((e) => e.label);
   const rejected = ev.filter((e) => e.status === "rejected").map((e) => e.label);
   const awaitingReview = ev.filter((e) => e.status === "uploaded").map((e) => e.label);

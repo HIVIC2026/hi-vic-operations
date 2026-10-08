@@ -21,7 +21,7 @@ async function observations(rcId: string): Promise<Observations> {
 }
 
 async function rcEvidence(jobId: string): Promise<RcEvidence[]> {
-  const { data, error } = await admin.from("evidence_requirements").select("label, gate, required, status").eq("job_id", jobId).order("sort");
+  const { data, error } = await admin.from("evidence_requirements").select("label, gate, required, status, category").eq("job_id", jobId).order("sort");
   if (error) throw new WorkflowError(error.message);
   return (data ?? []) as RcEvidence[];
 }
@@ -74,4 +74,12 @@ export async function rcWorksBlockers(jobId: string): Promise<string[]> {
   if (!(await isIntakeJob(jobId))) return [];
   const rc = await latestRc(jobId);
   return rcProgress(rc ? await observations(rc.id) : {}, []).worksBlockers;
+}
+
+/** The canonical Ready Check answer for existing insulation (latest non-superseded Ready Check), or null if not recorded. */
+export async function rcObservedInsulation(jobId: string): Promise<string | null> {
+  const rc = await latestRc(jobId);
+  if (!rc) return null;
+  const v = (await observations(rc.id))["insulation.existing"];
+  return typeof v === "string" ? v : null;
 }

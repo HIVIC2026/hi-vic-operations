@@ -88,8 +88,10 @@ export function readyCheckOutstanding(items: EvidenceItem[]): { outstanding: Evi
  * declaration), no rejected item may remain, and a human AP approval must exist. Declarations such as
  * "below R2 confirmed" never substitute for photo evidence here.
  */
-export function rebateEvidenceBlockers(x: { items: EvidenceItem[]; apApprovedBy: string | null; requiredCategories?: readonly string[] }): string[] {
+export function rebateEvidenceBlockers(x: { items: EvidenceItem[]; apApprovedBy: string | null; requiredCategories?: readonly string[]; notApplicableCategories?: readonly string[] }): string[] {
   const b: string[] = [];
+  const na = new Set(x.notApplicableCategories ?? []);
+  x = { ...x, items: x.items.filter((i) => !(i.category && na.has(i.category))) };
   if (x.items.length === 0) b.push("No evidence requirements recorded for this job");
   for (const c of x.requiredCategories ?? []) {
     const it = x.items.filter((i) => i.category === c);
@@ -213,6 +215,20 @@ export function staleQuoteAction(status: string): "supersede" | "withdraw" | "re
 
 /** Final-gate evidence the installer intake route must ALWAYS have as real verified media (declarations never count). */
 export const INTAKE_REQUIRED_MEDIA = ["before_ceiling_space", "existing_insulation_r_value"] as const;
+export const EXISTING_R_CATEGORY = "existing_insulation_r_value";
+
+/**
+ * Original-condition media that actually APPLIES, from the canonical Ready Check answer `insulation.existing`
+ * (none | present | unknown; "present" covers mixed ceilings where any area has existing insulation).
+ * - none: the before-ceiling-space media shows the empty ceiling; no existing R-value item is applicable (never fabricated).
+ * - present (incl. mixed): before-ceiling media AND verified existing R-value/depth media.
+ * - unknown / not recorded: fail closed — both stay required and a blocker says the answer is missing.
+ */
+export function intakeOriginalConditionMedia(existing: string | null | undefined): { required: string[]; notApplicable: string[]; blocker: string | null } {
+  if (existing === "none") return { required: ["before_ceiling_space"], notApplicable: [EXISTING_R_CATEGORY], blocker: null };
+  if (existing === "present") return { required: [...INTAKE_REQUIRED_MEDIA], notApplicable: [], blocker: null };
+  return { required: [...INTAKE_REQUIRED_MEDIA], notApplicable: [], blocker: "Existing insulation (none / present) is not recorded in the Ready Check" };
+}
 
 // ---- Who will organise this job? (Jo, 8 Oct 2026). Coordination responsibility only — never waives any gate. ----
 export type Coordination = "hivic_managed" | "self_managed";
