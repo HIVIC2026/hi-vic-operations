@@ -1,4 +1,3 @@
-import { INSULATION_REVIEW_INVITATION } from "./insulation-review.core";
 import { AMOUNT_LH, HEADER_ART_W, HEADING_ART, amountArtWidth, emailArtUrl } from "./email-art.core";
 import { READY_CHECK_FEE } from "./readycheck.core";
 /** Pure customer outcome email renderers: no data access, delivery, or side effects. */
@@ -470,7 +469,7 @@ export function renderLaunchCampaignEmail(input: LaunchCampaignEmailInput): Esti
     ...(input.assessmentFee === undefined ? {} : { assessmentFee: input.assessmentFee }),
     ...(input.apFee === undefined ? {} : { apFee: input.apFee }),
   });
-  const instruction = INSULATION_REVIEW_INVITATION;
+  const instruction = "Demand is high and installer capacity is limited. Your enquiry is behind eligible homes while we check your existing insulation. To JUMP THE QUEUE, send manhole video/photos or select ‘I confirm this is below R2’. Our office will assess it. If it appears below R2 and your home qualifies, we’ll move you into the eligible queue so you can save your spot.";
   const small = "Office review first. No payment. No obligation.";
   const intro = "your home could qualify for a VEU ceiling insulation rebate, subject to checking the existing insulation.";
   const replace = (value: string) => value
