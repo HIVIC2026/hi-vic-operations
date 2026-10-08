@@ -69,7 +69,7 @@ export async function installerIntakeState(jobId: string) {
     admin.from("ceiling_measurements").select("measured_area_m2, verified_area_m2, supplied_area_m2, provenance, existing_r_value").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
     commercialEligibility(jobId),
     admin.from("owner_contact_consents").select("consent_status").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    admin.from("workflow_events").select("details", { count: "exact" }).eq("job_id", jobId).eq("event_type", "installer_owner_fee_awareness").order("created_at", { ascending: false }).limit(1),
+    admin.from("workflow_events").select("details, created_at", { count: "exact" }).eq("job_id", jobId).eq("event_type", "installer_owner_fee_awareness").order("created_at", { ascending: false }).limit(1),
     admin.from("evidence_requirements").select("category, label, required, status, gate").eq("job_id", jobId).eq("gate", "assessment"), // Ready Check items only — later PIESA/install/AP evidence has its own lists
   ]);
   if (error) throw new WorkflowError(error.message);
@@ -80,14 +80,18 @@ export async function installerIntakeState(jobId: string) {
   const { payerFromChoice } = await import("./installer-intake.core");
   const electricianPayer = payerFromChoice(job.electrician_choice);
   const feeRow = (feeRows ?? [])[0]?.details as { payer?: "hivic" | "own" | "undecided" } | null | undefined;
-  const release = installerQuoteReleaseBlockers({ consentStatus: consent?.consent_status ?? null, feeAwarenessRecorded: (fee ?? 0) > 0, feeAwarenessPayer: feeRow?.payer ?? null, electricianPayer });
+  // A declaration made before the latest electrician-arrangement change no longer counts (material change).
+  const { data: lastChange } = await admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "installer_electrician_payer_changed").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const feeAt = (feeRows ?? [])[0]?.created_at ?? null;
+  const feeCurrent = (fee ?? 0) > 0 && !(lastChange && feeAt && feeAt < lastChange.created_at);
+  const release = installerQuoteReleaseBlockers({ consentStatus: consent?.consent_status ?? null, feeAwarenessRecorded: feeCurrent, feeAwarenessPayer: feeRow?.payer ?? null, electricianPayer });
   const rc = readyCheckOutstanding((ev ?? []).map((r) => ({ category: r.category, label: r.label, blocking: r.required, status: r.status })) as EvidenceItem[]);
   return {
     coordination, coordinationNext: (await import("./installer-intake.core")).coordinationNextAction(coordination),
     channel: job.channel, insulation: ins.value, insulationSource: ins.source, areaM2: area, areaProvenance: scope.provenance,
     proposedR: await latestProposedR(jobId), reconfirmationRequired: await reconfirmationOpen(jobId), measuredR,
     quoteIncGst: job.installer_quoted_price_inc_gst == null ? null : Number(job.installer_quoted_price_inc_gst), includes: job.installer_price_includes,
-    officeEligibility, readiness, releaseBlockers: release, electricianPayer, feeAwarenessPayer: feeRow?.payer ?? null, feeAwarenessRecorded: (fee ?? 0) > 0,
+    officeEligibility, readiness, releaseBlockers: release, electricianPayer, feeAwarenessPayer: feeRow?.payer ?? null, feeAwarenessRecorded: feeCurrent,
     readyCheck: { outstandingCount: rc.count, outstanding: rc.outstanding.map((i) => ({ label: i.label, status: i.status })) },
   };
 }
