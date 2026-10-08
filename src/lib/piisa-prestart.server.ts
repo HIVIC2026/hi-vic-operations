@@ -25,7 +25,12 @@ export async function a3Ctx(jobId: string, audit: unknown): Promise<A3EvidenceCt
   const { flatten } = await import("./mitti.core");
   const ls = flatten(audit).find((e) => e.id === A3_NATIVE_IDS["lifeSupportAttachment"]![0]);
   const { data: lsDoc } = await admin.from("documents").select("id").eq("job_id", jobId).ilike("kind", "%life_support%").limit(1);
-  return { crewCount: 1, electricianRequiredAtStart: false, existingPlanMatchesInstall: ok("final_zone_plan"), lifeSupportConsentOnFile: !!ls?.value || (lsDoc ?? []).length > 0 };
+  // Signed PIESA B1 "rectification not possible" means an electrician must attend the start (official B1 wording).
+  const { currentCopy } = await import("./official-forms.server");
+  const { answersFromDocument, B1_OPTIONS } = await import("./official-forms.core");
+  const pe = await currentCopy(jobId, "piesa");
+  const b1 = pe.copy ? (answersFromDocument(pe.copy.snapshot.document) as Record<string, unknown>)["b1"] : null;
+  return { crewCount: 1, electricianRequiredAtStart: b1 === B1_OPTIONS[2], existingPlanMatchesInstall: ok("final_zone_plan"), lifeSupportConsentOnFile: !!ls?.value || (lsDoc ?? []).length > 0 };
 }
 
 export async function storeSignatureImage(jobId: string, auditId: string, sig: A3PrestartSnapshot["signature"], fetchMedia: MittiMediaFetch): Promise<StoredSignature> {

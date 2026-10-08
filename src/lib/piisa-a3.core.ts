@@ -495,9 +495,65 @@ function evidenceBlockers(keys: A3EvidenceKey[], answers: OfficialAnswers, ctx: 
   return b;
 }
 /** Prestart: before-work evidence + life support only. After-work media are never required here. */
+/** STOP-WORK rules (Jo's PIISA review, 8 Oct 2026). Presence questions answered No (solar, recessed lights, existing
+ * insulation) are factual and green. Every other safety "No" is a hard stop, never just a score. Follow-up questions
+ * apply only when their trigger is actually Yes. Unanswered applicable questions also block (never assumed). */
+export function a3StopWork(answers: OfficialAnswers, ctx: Pick<A3EvidenceCtx, "electricianRequiredAtStart" | "lifeSupportConsentOnFile">): string[] {
+  const a = (id: string) => { const v = answers[id]; return typeof v === "string" ? v : null; };
+  const out: string[] = [];
+  const need = (id: string, label: string, stop: string) => {
+    const v = a(id);
+    if (v == null) out.push(`${label}: not answered`);
+    else if (v === "No") out.push(stop);
+  };
+  need("p1.powerInformed", "Power-off notice", "STOP WORK — tell the household the power will be off before you continue.");
+  const ls = a("lifeSupport");
+  if (ls == null) out.push("Life support: not answered");
+  else if (ls === "Yes") {
+    const c = a("lifeSupportConsent");
+    if (c == null) out.push("Life support: consent or medical plan not answered — STOP WORK. NO INSTALL TODAY.");
+    else if (/^no\b/i.test(c.trim())) out.push("STOP WORK. NO INSTALL TODAY — no written consent or medical plan for life support.");
+    else if (!ctx.lifeSupportConsentOnFile) out.push("STOP WORK. NO INSTALL TODAY — life support consent or medical plan is not attached.");
+  }
+  need("p3.swms", "SWMS", "STOP AND COMPLETE the SWMS before work starts.");
+  need("p3.table1", "Table 1 hazards", "STOP — consider and control all Table 1 hazards before you continue.");
+  need("p3.isolated", "Power isolation", "STOP — isolate, lock out and tag all power supplies before you continue.");
+  const solar = a("p4.present");
+  if (solar == null) out.push("Solar/battery/other supply: not answered");
+  else if (solar === "Yes") {
+    need("p4.instructions", "Shutdown instructions", "STOP — safe shutdown, isolation and restart instructions are needed for every supply.");
+    need("p4.isolator", "Ground-level isolator", "STOP — the AC/DC isolator must be accessible, working and safe to isolate.");
+  }
+  need("p5.reviewed", "PIESA review", "STOP AND CONFIRM SAFE TO START — the lead installer must review the PIESA.");
+  const required = ctx.electricianRequiredAtStart || a("p4.instructions") === "No";
+  const el = a("p5.electricianPresent");
+  if (el == null) out.push("Electrician attendance: not answered");
+  else if (el === "No") out.push("STOP WORK. NO INSTALL TODAY — the required electrician is not onsite.");
+  else if (el === "N/A" && required) out.push("STOP WORK. NO INSTALL TODAY — the PIESA or shutdown requirement needs an electrician, so N/A is not valid.");
+  const rec = a("p5.recessed");
+  if (rec == null) out.push("Recessed lights: not answered");
+  else if (rec === "Yes") {
+    need("p5.icConfirmed", "IC-rated lights", "STOP — the PIESA must confirm all ceiling lights are IC-rated.");
+    need("p5.safeToCover", "Safe to cover", "STOP — recessed lights must be safe to cover with insulation.");
+  }
+  need("p5.rcd", "RCD protection", "STOP — all ceiling mains cables need RCD protection.");
+  need("p5.tps", "TPS cables", "STOP — all ceiling mains cables must be TPS or equivalent.");
+  need("p5.basic", "Basic protection", "STOP — all ceiling mains cables must meet Basic Protection.");
+  need("p5.noAccess", "No ceiling access since PIESA", "STOP — confirm nobody has accessed or worked in the ceiling since the PIESA.");
+  const ins = a("p6.present");
+  if (ins == null) out.push("Existing insulation: not answered");
+  else if (ins === "Yes") {
+    const t = answers["p6.treatment"]; const ticks = Array.isArray(t) ? t : [];
+    if (!ticks.length) out.push("Existing insulation: removed or topped up not answered");
+    const suit = a("p6.suitable");
+    if (suit == null) out.push("Existing insulation suitability: not answered");
+    else if (suit === "No" && ticks.includes("Topped Up")) out.push("STOP — unsuitable existing insulation can't be kept or topped up; remove it first.");
+  }
+  return out;
+}
 export function a3PrestartBlockers(answers: OfficialAnswers, ctx: A3EvidenceCtx, media: A3Media[], workStartAt?: string | null): string[] {
   const b = evidenceBlockers(A3_PRESTART_KEYS, answers, ctx, media, workStartAt);
-  if (answers["lifeSupport"] === "Yes" && !ctx.lifeSupportConsentOnFile) b.push("Life support: written consent or medical plan must be on file before work");
+  b.push(...a3StopWork(answers, ctx));
   return b;
 }
 /** Completion: after-work evidence only (prestart is checked separately against its own snapshot). */
@@ -632,8 +688,9 @@ export function a3RosterStatus(template: unknown, staff: StaffOption[], business
   const missingOptions: string[] = [];
   for (const s of ok) { const o = optionForStaff(opts, s, business); if (o) matched.add(o.id); else missingOptions.push(s.name); }
   const staleOptions = opts.filter((o) => o.id !== A3_CREW_OTHER_OPTION && !matched.has(o.id)).map((o) => o.label);
-  const alert = missingOptions.length || staleOptions.length
-    ? `Mitti crew list is out of date for ${business}${missingOptions.length ? ` — not listed: ${missingOptions.join(", ")} (filled in under Other)` : ""}${staleOptions.length ? ` — options not matching a current verified installer of this company: ${staleOptions.length}` : ""}. Update the Mitti crew list.`
+  // Named choices on the SHARED template would expose one company's staff to every other company: privacy alert.
+  const alert = staleOptions.length || opts.some((o) => o.id !== A3_CREW_OTHER_OPTION)
+    ? `Privacy: the shared Mitti safety form lists ${opts.filter((o) => o.id !== A3_CREW_OTHER_OPTION).length} named crew choice(s). Remove them — crew is filled in under Other from ${business}'s own verified records.`
     : null;
   return { missingOptions, staleOptions, alert };
 }
@@ -660,8 +717,10 @@ export function a3CrewNativeItems(template: unknown, sel: CrewSelection, staff: 
     if ("workerId" in pick) {
       const s = byId.get(pick.workerId);
       if (!s || !s.eecVerified || !s.eec) { problems.push(`Crew row ${row + 1}: not a verified installer`); return; }
-      const o = optionForStaff(opts, s, business);
-      if (o) choose(o); else { seedOther(s.name, s.eec); notes.push(`${s.name} is not in the Mitti crew list yet — filled in under Other.`); }
+      // PRIVACY (Jo 8 Oct 2026): the A3 template is shared by every company, so it must hold no named staff. Known,
+      // verified staff of the ASSIGNED company always go in as Other + their recorded name/certificate (never retyped),
+      // and a named option is never selected even if one appears in the shared list.
+      seedOther(s.name, s.eec);
     } else seedOther(pick.other.name.trim(), pick.other.eec.trim());
   });
   return { items, notes, problems };
