@@ -1,8 +1,9 @@
 # Roadmap (preview only, nothing sent, no publish, no real jobs)
 ## Phase 3 actual office screens (Jo, 8 Oct 08:35 UTC)
-- [ ] Primary navigation and canonical operations categories; preserve legacy tools and Leads scope.
-- [ ] Compact actual job screen using the shared classifier and existing guarded controls.
-- [ ] Focused tests, typecheck, desktop/phone and supported TEST read-only verification; document rollback and gaps.
+- [x] Primary navigation and canonical operations categories; preserve legacy tools and Leads scope.
+- [x] Compact actual job screen using shared classifier and existing audited controls; manual Check ↔ Save spot gap explicitly shown, no new transition.
+- [x] 127 focused tests/532 assertions, tsgo/build, desktop/phone fixtures and actual TEST admin read-only verification; seven stage clicks and combined flags/source/eligibility/search passed. Snapshot 712 unique; rollback/gaps documented.
+- [ ] Fresh phase-3 non-office browser/RPC denial — blocked by supported TEST installer mint returning approval unavailable; attempted once, unchanged guards source-checked, phase-2 runtime denial preserved as historical evidence.
 ## Installer Availability wording (Jo, 8 Oct 08:34 UTC)
 - [x] Removed “About 1 minute” from Availability only; desktop/phone actual sample checks and build OK. Buttons/save behaviour unchanged; no application saved.
 ## Authorised authenticated verification (Jo, 8 Oct 08:22 UTC)
