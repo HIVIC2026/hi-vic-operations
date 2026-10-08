@@ -4,7 +4,7 @@
 - [x] Proposed R5.0/R6.0/R7.0/Other + structured included removal saved/read back on actual TEST job; $0/$500/No checks preserve $3,450 total. 35 focused tests/108 assertions passed; phone/desktop no overflow/errors.
 - [x] Extra QA jobs archived (history retained); proof in docs/URGENT_INTAKE_QA_8OCT.md. Harness compile OK; no separate production bundle or publication. Root review still required.
 - [ ] Conditional publication approved by Jo 22:37 UTC only after root diff review and final harness checks pass; same repair, no duplicate task. Fresh isolated checks: 48 tests/123 assertions passed; original import confirmed on original job. Exact disconnect cause remains unproven.
-- [ ] Final root-requested polish: repeated Yes preserves removal values; clearer total label/helper on both screens. Verify focused regression and latest harness compile; root handles publication.
+- [x] Final root-requested polish: repeated Yes retains 120 m²/$500; Yes→No clears; total label/helper updated on both screens. 22 focused tests/53 assertions passed; harness build OK 22:40:57 UTC. Code revision `8ad13f2d13cacfae039c23c9179bb1ca13b3e973`; root handles publication. Transport/cancellation cause remains unknown; recovery verified, not all network failures eliminated.
 - [ ] Requested Dad inspection text: blocked until Dad’s identity/mobile and intended inspection/job are established.
 ## First-page Accredited Person (Jo 8 Oct 22:18 UTC)
 - [x] Actual GET confirms preserved required AP text field immediately after installation date. Pin updated; fixed legal entity sent and read back before share. Only observed unsigned blank AP can receive documented partial text repair; wrong/unknown/signed records held for office. No actual audits created or changed.
