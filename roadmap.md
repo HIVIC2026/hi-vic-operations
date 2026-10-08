@@ -1,4 +1,14 @@
 # Roadmap (preview only, nothing sent, no publish, no real jobs)
+## Installer Add job and insurance repairs (Jo, 8 Oct 09:00 UTC)
+- [x] Removed confusing Team invitation explanation; optional staff access unchanged.
+- [x] Invite validation visibly explains missing details; existing never-attempted invitation can issue once using recorded timestamp claim. Sent/uncertain attempts require office check. No sends tested.
+- [x] Appointment explanation says “the electrician”.
+- [x] Have you quoted Yes/No; Yes collects area/method/amount/inclusions; No offers Ready Check or returning after visiting (no draft/job submitted by return-later choice).
+- [x] Separate customer/address/permission fields with optional single file; source/paste/CSV controls removed, internal attribution preserved.
+- [x] Address suggestions populate street/suburb/postcode; corrected postcode clears Victoria rejection. Same-business linked owner email can be reused safely; unrelated/orphan owner remains blocked for office review.
+- [x] Insurance uses the correct private bucket for recorded onboarding certificates with membership checks and visible errors.
+- [x] 66 focused tests/152 assertions; isolated 1280/430 address and invite-validation/viewer checks, no overflow/errors; harness build OK, retired scan 0 customer-visible.
+- [ ] Actual installer Start/insurance signed-file/invite delivery: not tested with a usable installer business; submissions/sends prohibited. Orphan customer recovery needs office review, never automatic cross-business merge.
 ## Phase 3 actual office screens (Jo, 8 Oct 08:35 UTC)
 - [x] Primary navigation and canonical operations categories; preserve legacy tools and Leads scope.
 - [x] Compact actual job screen using shared classifier and existing audited controls; manual Check ↔ Save spot gap explicitly shown, no new transition.

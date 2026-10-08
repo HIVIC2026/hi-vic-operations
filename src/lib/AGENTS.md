@@ -1,6 +1,8 @@
 # Server/domain rules (src/lib)
 
 ## Architecture rules
+- Installer duplicate-email recovery may reuse an owner only through an existing installer-sourced job of the same originating business, without updating that owner; other matches stop for office review. Why: recover same-business submissions without global owner merges or customer-data disclosure.
+- Partner file reads use membership checks and exact business credential linkage for onboarding storage paths; new uploads stay business-prefix scoped. Why: existing onboarding certificates live in partner-files, not job-files.
 - Office operations and compact job presentation use the admin-only SELECT-only `operations-preview.core.ts` read model; the original preview remains direct-link, and no workflow guard may import this classifier. Why: agreed phase-3 navigation shares factual counts without operational changes.
 - All admin reads/writes use authenticated server functions with explicit errors; non-admin reads stay RLS-scoped. Why: no false-empty records or weak access.
 - Stage-entry guards (Owner Authority, PIESA window, approved payment option, evidence, compliance) live only in `stageEntryBlockers`; authority rules live in `authority.server.ts`. Why: rules change centrally.
@@ -163,3 +165,5 @@ Locked rules:
 - Sign-in wording, email tidy-up and safe return paths live in pure `src/lib/login.core.ts`; every sign-in surface (/auth, /portal, /reset-password) uses it and returns only to portal paths via `?next=`. Why: one consistent, non-revealing login that never lands on the calculator.
 - Partner welcome/login emails carry our own 24-hour single-use token (`partner_login_links`, claimed via `claim_partner_login_link`), which mints a fresh built-in set-password token on open. Why: the built-in token lasts 1 hour and trades often open emails the next day.
 - Office Templates hub (`/admin/templates`) only lists existing renderers/registers from `template-catalog.ts` and reuses existing guarded actions; it never stores wording or adds mutation endpoints. Why: one source per template, no duplicate copies.
+- Installer customer creation reuses an owner only through a same-business installer-sourced job; insurance links verify membership and recorded onboarding path before choosing the private bucket. Why: email conflicts and migrated certificates must not expose another partner's records.
+- Electrician invitations use the existing manual sender; an existing nomination may issue its first invitation only with no recorded attempt and an atomic link-issued timestamp claim, never repeat an uncertain delivery. Why: added does not mean sent, and retries must not duplicate emails.

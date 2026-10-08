@@ -144,10 +144,24 @@ export const addBulkElectrician = createServerFn({ method: "POST" }).middleware(
   .handler(async ({ data, context }) => {
     await requireMember(context.userId, data.businessId, true);
     const mobile = data.mobile.replace(/\D/g, "");
-    let ownQuery = admin.from("electrician_nominations").select("id,contact_name,business_id,status").eq("nominating_business_id", data.businessId).is("job_id", null).is("ended_at", null);
+    let ownQuery = admin.from("electrician_nominations").select("id,contact_name,business_id,status,invite_sent_at,invite_link_issued_at,email").eq("nominating_business_id", data.businessId).is("job_id", null).is("ended_at", null);
     ownQuery = data.email ? ownQuery.or(`phone.eq.${mobile},email.ilike.${data.email.replace(/[%_,]/g, "")}`) : ownQuery.eq("phone", mobile);
-    const { data: own } = await ownQuery.order("created_at", { ascending: false }).limit(1).maybeSingle();
-    if (own) return { nominationId: own.id, businessId: own.business_id, name: own.contact_name, status: own.business_id ? "Already signed up ✓" : `Waiting for ${own.contact_name} to sign up` };
+    const { data: own, error: ownError } = await ownQuery.order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (ownError) throw new WorkflowError("Couldn't check the electrician. Your details are still here; please try again.");
+    if (own) {
+      if (own.business_id) return { nominationId: own.id, businessId: own.business_id, name: own.contact_name, status: "Already signed up ✓" };
+      const { data: attempts, error: attemptError } = await admin.from("admin_config_events").select("id").eq("event_type", "office_manual_email").contains("details", { nominationId: own.id, label: "electrician_invite" }).limit(1);
+      if (attemptError) throw new WorkflowError("Invitation delivery could not be checked. Nothing was sent.");
+      const { existingElectricianInviteBlocker } = await import("./job-electrician.core");
+      const blocked = existingElectricianInviteBlocker({ status: own.status, sentAt: own.invite_sent_at, issuedAt: own.invite_link_issued_at, attempted: !!attempts?.length });
+      if (blocked) throw new WorkflowError(blocked);
+      if (own.email?.trim().toLowerCase() !== data.email.trim().toLowerCase()) throw new WorkflowError("This mobile is already linked to different electrician details. Ask the office to check them; nothing was sent.");
+      const invite = newToken();
+      const { data: claimed, error: claimError } = await admin.from("electrician_nominations").update({ invite_link_issued_at: new Date().toISOString(), invite_token_hash: await hashToken(invite), invite_expires_at: new Date(Date.now() + 14 * 86_400_000).toISOString() }).eq("id", own.id).eq("nominating_business_id", data.businessId).eq("status", "invite_pending_comms").is("invite_sent_at", null).is("invite_link_issued_at", null).select("id").maybeSingle();
+      if (claimError || !claimed) throw new WorkflowError("Invitation is being checked or sent. Ask the office to check delivery before trying again.");
+      const sent = await (await import("./job-electrician-invite.server")).sendElectricianInvite({ actorId: context.userId, nominationId: own.id, installerBusinessId: data.businessId, inviteToken: invite, to: data.email, name: own.contact_name, dryRun: data.dryRun === true });
+      return { nominationId: own.id, businessId: null, name: own.contact_name, status: sent.status === "sent" ? "Electrician invited – waiting to onboard" : "Electrician added – invitation delivery not confirmed", invite: { status: sent.status, to: sent.to } };
+    }
     let matchQuery = admin.from("businesses").select("id").eq("onboarding_status", "approved");
     matchQuery = data.email ? matchQuery.or(`phone.eq.${mobile},email.ilike.${data.email.replace(/[%_,]/g, "")}`) : matchQuery.eq("phone", mobile);
     const { data: matched } = await matchQuery.limit(1).maybeSingle();
@@ -155,13 +169,13 @@ export const addBulkElectrician = createServerFn({ method: "POST" }).middleware(
     const { data: nomination, error } = await admin.from("electrician_nominations").insert({
       contact_name: data.name, phone: mobile, email: data.email ?? null, business_name: data.business ?? null,
       nominating_business_id: data.businessId, nominated_by: context.userId, nominated_for: "installer",
-      business_id: matched?.id ?? null, status: matched?.id ? "approved" : "invite_pending_comms",
+      business_id: matched?.id ?? null, status: matched?.id ? "approved" : "invite_pending_comms", invite_link_issued_at: matched?.id ? null : new Date().toISOString(),
       invite_token_hash: matched?.id ? null : await hashToken(invite), invite_expires_at: matched?.id ? null : new Date(Date.now() + 14 * 86_400_000).toISOString(),
     }).select("id").single();
     if (error || !nomination) throw new WorkflowError("That electrician could not be added.");
     // Jo (7 Oct): email them the electrician application link straight away (manual partner email rule).
     const sent = matched?.id ? null : await (await import("./job-electrician-invite.server")).sendElectricianInvite({ actorId: context.userId, nominationId: nomination.id, installerBusinessId: data.businessId, inviteToken: invite, to: data.email, name: data.name, dryRun: data.dryRun === true });
-    return { nominationId: nomination.id, businessId: matched?.id ?? null, name: data.name, status: matched?.id ? "Already signed up ✓" : "Electrician invited – waiting to onboard", invite: sent ? { status: sent.status, to: sent.to } : null };
+    return { nominationId: nomination.id, businessId: matched?.id ?? null, name: data.name, status: matched?.id ? "Already signed up ✓" : sent?.status === "sent" ? "Electrician invited – waiting to onboard" : "Electrician added – invitation delivery not confirmed", invite: sent ? { status: sent.status, to: sent.to } : null };
   });
 
 export const setBulkRowAddress = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

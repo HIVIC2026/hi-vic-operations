@@ -7,6 +7,7 @@ import { partnerFileUrl, partnerUploadUrl } from "@/lib/pilot.functions";
 import { getJobElectrician, switchJobElectricianToHivic } from "@/lib/job-electrician.functions";
 import { SAFETY_CHECK_NOTE, jobElectricianLabel, newElectricianProblems, usualElectrician, type ElectricianPlan } from "@/lib/job-electrician.core";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 export type AttachedFile = { path: string; name: string; type?: string | null };
 const isImage = (f: { name: string; type?: string | null }) => /^image\//.test(f.type ?? "") || /\.(jpe?g|png|heic|heif|webp)$/i.test(f.name);
@@ -77,6 +78,7 @@ export function ElectricianPicker({ value, onChange, approved, pending, onAdd, c
   const [d, setD] = useState<NewElectrician>({ name: "", business: "", mobile: "", email: "" });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [attempted, setAttempted] = useState(false);
   const options = [...approved.map((x) => ({ ...x, key: `b:${x.businessId}` })), ...pending.map((x) => ({ ...x, key: `n:${x.nominationId}` }))];
   const selected = value.business_id ? `b:${value.business_id}` : value.nomination_id ? `n:${value.nomination_id}` : "";
   const pickMine = () => {
@@ -101,18 +103,18 @@ export function ElectricianPicker({ value, onChange, approved, pending, onAdd, c
           {options.map((x) => <option key={x.key} value={x.key}>{x.name}{x.nominationId ? " · invited" : ""}</option>)}
         </select>
       )}
-      {invitedPick && <p className="text-xs font-semibold text-rose">Electrician invited – waiting to onboard</p>}
-      {onAdd && !adding && <button type="button" className="text-xs font-semibold text-hiv-blue" onClick={() => setAdding(true)}>+ Add another electrician</button>}
+      {invitedPick && <p className="text-xs font-semibold text-rose">{pending.find((x) => x.nominationId === value.nomination_id)?.status === "invited" ? "Electrician invited – waiting to onboard" : "Electrician added – invitation delivery not confirmed"}</p>}
+      {onAdd && !adding && <Button type="button" variant="link" className="h-12 px-0 text-xs" onClick={() => { setAttempted(false); setAdding(true); }}>+ Add another electrician</Button>}
       {onAdd && adding && (
         <div className="grid gap-2 rounded-[12px] bg-mist p-2 sm:grid-cols-2" data-add-electrician>
           {([["name", "Name", "text"], ["business", "Business", "text"], ["mobile", "Mobile", "tel"], ["email", "Email", "email"]] as const).map(([k, l, t]) => (
             <label key={k} className="block text-xs"><span className="font-semibold text-sub">{l}</span><input aria-label={`Electrician ${l.toLowerCase()}`} type={t} inputMode={t === "tel" ? "tel" : undefined} value={d[k]} onChange={(e) => setD({ ...d, [k]: e.target.value })} className="mt-0.5 h-10 w-full rounded-[10px] border border-line bg-paper px-2.5 text-sm" /></label>
           ))}
           <div className="flex items-center gap-2 sm:col-span-2">
-            <button type="button" disabled={busy || problems.length > 0} onClick={async () => { setBusy(true); setMsg(null); try { const r = await onAdd(d); setMsg(r.message); setAdding(false); setD({ name: "", business: "", mobile: "", email: "" }); } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); } }} className="h-9 rounded-[10px] bg-action px-3 text-xs font-bold text-action-foreground disabled:opacity-45">{busy ? "Sending…" : "Send them the invite"}</button>
-            <button type="button" className="text-xs font-semibold text-sub" onClick={() => setAdding(false)}>Cancel</button>
+            <Button type="button" disabled={busy} onClick={async () => { setAttempted(true); if (problems.length) return; setBusy(true); setMsg(null); try { const r = await onAdd(d); setMsg(r.message); setAdding(false); setD({ name: "", business: "", mobile: "", email: "" }); } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); } }} className="h-12 text-xs">{busy ? "Sending…" : "Send them the invite"}</Button>
+            <Button type="button" variant="ghost" disabled={busy} className="h-12 text-xs" onClick={() => setAdding(false)}>Cancel</Button>
           </div>
-          {problems.length > 0 && (d.name || d.business || d.mobile || d.email) && <p className="text-xs text-sub sm:col-span-2">{problems.join(" · ")}</p>}
+          {problems.length > 0 && (attempted || d.name || d.business || d.mobile || d.email) && <p role="alert" className="text-xs text-danger sm:col-span-2">{problems.join(" · ")}</p>}
         </div>
       )}
       {msg && <p className="text-xs font-semibold" role="status">{msg}</p>}

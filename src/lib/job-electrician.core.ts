@@ -5,10 +5,17 @@ export const OWNER_CONTACT_PERMISSION = "The owner has given Home Insulation Vic
 
 /** Note under the electrician choice (wording approved by Jo, 7 Oct 2026). */
 export const SAFETY_CHECK_NOTE =
-  "Once the owner accepts the quote and pays the $349 safety check, they'll choose 3 days and times that suit them. These go to your electrician to accept, and the booking updates in the job automatically so everyone can see it.";
+  "Once the owner accepts the quote and pays the $349 safety check, they'll choose 3 days and times that suit them. These go to the electrician to accept, and the booking updates in the job automatically so everyone can see it.";
 
 export const ELECTRICIAN_INVITED_LABEL = "Electrician invited – waiting to onboard";
 export const HIV_ARRANGES_LABEL = "Home Insulation Victoria arranges";
+
+/** Never repeat a sent or uncertain attempt. Only a nomination with no delivery attempt can issue its first invitation. */
+export function existingElectricianInviteBlocker(x: { status: string; sentAt: string | null; attempted: boolean; issuedAt?: string | null }): string | null {
+  if (x.sentAt || x.status === "invited") return "The invitation has already been sent. Waiting for the electrician to sign up.";
+  if (x.attempted || x.issuedAt || x.status !== "invite_pending_comms") return "This electrician is already added, but invitation delivery needs an office check before another send.";
+  return null;
+}
 
 export type ElectricianPlan = { mode: "mine" | "hivic" | "job_by_job"; nomination_id?: string | null; business_id?: string | null };
 

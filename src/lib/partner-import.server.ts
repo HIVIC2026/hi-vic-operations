@@ -44,6 +44,8 @@ export async function confirmImportFor(userId: string, data: ConfirmImportInput)
   if (!isInstaller) throw new WorkflowError("Only installer team members can confirm imported jobs.");
   const c = data.facts as ConfirmedFacts;
   const blockers = confirmBlockers(c);
+  const { quotedIntakeProblems } = await import("./installer-quote-intake.core");
+  blockers.push(...quotedIntakeProblems({ quoted: data.installer?.quoted, area: c.measured_area_m2, method: c.measurement_method, amount: data.installer?.quoted_price_inc_gst, includes: data.installer?.price_includes }));
   const { quotedGap } = await import("./bulk-import.core");
   const qg = data.installer?.quoted === "yes" ? quotedGap("yes", data.installer.quoted_price_inc_gst) : null; // blank never blocks (Jo, 5:46pm)
   if (qg) blockers.push(qg);

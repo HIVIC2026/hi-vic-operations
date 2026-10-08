@@ -321,8 +321,8 @@ async function createBulkJob(e: BulkExtracted, batch: { id: string; business_id:
   // Security review (Jo, 6 Oct): an installer upload NEVER reuses an existing owner. A new owner is always created;
   // an exact (case-insensitive) email match is only flagged for the office under Possible duplicates.
   const email = e.email?.trim().toLowerCase() || null;
-  const { data: created, error: oe } = await admin.from("owners").insert({ full_name: e.full_name ?? "Unknown", email, phone: e.phone ?? null }).select("id").single();
-  if (oe || !created) throw new BulkImportError(oe?.message ?? "Owner could not be created.");
+  const { createInstallerOwner } = await import("./installer-owner.server");
+  const created = await createInstallerOwner(admin, batch.business_id, { full_name: e.full_name ?? "Unknown", email, phone: e.phone ?? null });
   const ownerId = created.id;
   const sameEmail = email ? (await admin.from("owners").select("id").ilike("email", exactLike(email)).neq("id", ownerId).limit(5)).data ?? [] : [];
   const { data: prop, error: pe } = await admin.from("properties").insert({
