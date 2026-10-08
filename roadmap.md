@@ -1,6 +1,8 @@
 # Roadmap (preview only, nothing sent, no publish, no real jobs)
+- [x] Jo 09:29: switched Mitti access on only for the installer business behind HV-2010 via existing admin-guarded setPartnerMittiInvited; authenticated read-back confirmed true and recorded timestamp. No invitation/form creation/integration call/publish.
+- [x] Jo 09:28: reviewed screenshots and actual job source; generic next-action text ignores form access, and timeline contains mockup payment wording. No workflow rewrite; correction remains separate from the requested access switch.
 - [x] Jo 09:25: SELECT-only diagnosis confirms saved/confirmed Ready Check, configured template and auto-send on, but business mitti_account_invited=false and no audit. No integration action/settings change.
-- [ ] Mitti opening blocked until office confirms the business's actual invitation through existing guarded setup; never enable merely to hide the blocker.
+- [ ] HV-2010 still has no linked onsite form; access is now enabled by Jo's explicit instruction, but actual form creation/opening remains unverified and was not invoked.
 - [x] Jo 09:24: red duplicate-email warning replaced by neutral unsuccessful-save/help status; customer access protection unchanged. 23 tests/41 assertions, harness build OK.
 ## Add job choices (Jo 8 Oct 09:21 UTC)
 - [x] Separate later Ready Check entry with customer details, appointment and optional manual measurements from existing quote/measurement entry; retain guarded booking and provisional data.
