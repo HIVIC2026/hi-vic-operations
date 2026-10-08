@@ -43,7 +43,7 @@ type Details = { area: string; amount: string; includes: string; proposedR: stri
 export function InstallerIntakeFlow({ businessId, preview }: { businessId: string; preview?: IntakeApi }) {
   const [step, setStep] = useState<AddJobStep>("customer");
   const [customer, setCustomer] = useState<OnsiteInput>(() => ({ ...blankCustomer(), ...(preview?.sampleCustomer ?? {}), contact_permission: false, consent_by: null }));
-  const [d, setD] = useState<Details>({ area: "", amount: "", includes: "", proposedR: "", insulation: null });
+  const [d, setD] = useState<Details>({ area: "", amount: "", includes: "", proposedR: "", insulation: null, removal: blankRemoval() });
   const [ack, setAck] = useState(false);
   const [coord, setCoord] = useState<Coordination | null>(null);
   const [selfAck, setSelfAck] = useState(false);
@@ -96,7 +96,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         if (raw) {
           const r = JSON.parse(raw) as { customer?: unknown; d?: Details; coord?: Coordination | null; draftId?: string | null; step?: AddJobStep; fileTexts?: Record<string, string>; derived?: Record<string, { path: string; value: string }>; typed?: string[]; payer?: ElectricianPayer | null; plan?: ElectricianPlan | null };
           if (r.customer) setCustomer(restoreCustomer(r.customer as never));
-          if (r.d) setD({ area: r.d.area ?? "", amount: r.d.amount ?? "", includes: r.d.includes ?? "", proposedR: r.d.proposedR ?? "", insulation: r.d.insulation ?? null, quoteStatus: r.d.quoteStatus ?? null, removal: r.d.removal ?? blankRemoval() });
+          if (r.d) setD({ area: r.d.area ?? "", amount: r.d.amount ?? "", includes: r.d.includes ?? "", proposedR: r.d.proposedR ?? "", insulation: r.d.insulation ?? null, quoteStatus: r.d.quoteStatus ?? null, ...(r.d.removal ? { removal: r.d.removal } : {}) });
           if (r.coord) setCoord(r.coord);
           if (r.payer) setPayer(r.payer);
           if (r.plan) setPlan(r.plan);
@@ -179,7 +179,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         price_includes: q.price_includes,
         contact_permission: customer.contact_permission, owner_agreed: false,
         intake: { existing_insulation: d.insulation ?? "unknown", evidence_ack: ack, proposed_r_value: q.proposed_r_value, quote_status: d.quoteStatus, version: `${INTAKE_RULESET_VERSION}+${COORDINATION_VERSION}`, coordination: coord, self_managed_ack: coord === "self_managed" && selfAck,
-          measured_required: true, electrician_payer: payer, removal_quote: removalPayload(d.removal ?? blankRemoval(), d.quoteStatus === "have_quote"),
+          measured_required: true, electrician_payer: payer, ...(d.removal ? { removal_quote: removalPayload(d.removal, d.quoteStatus === "have_quote") } : {}),
           ...(d.quoteStatus === "have_quote" && feeAck && feeText ? { fee_awareness: { declared: true, payer: payer, text: feeText, version: FEE_AWARENESS_VERSION } } : {}) },
       }, electrician: payer === "undecided" ? { mode: "later" } : payer === "own" && plan?.mode === "mine" ? { mode: "mine", business_id: plan.business_id ?? null, nomination_id: plan.nomination_id ?? null } : { mode: "hivic" } } as never });
       try { if (userId) localStorage.removeItem(resumeKey(userId, businessId)); } catch { /* ignore */ }
