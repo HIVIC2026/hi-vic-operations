@@ -9,11 +9,11 @@ export const PREPARING = "Getting your form ready…";
 export type OnsiteInput = {
   full_name: string; address_line: string; suburb: string; postcode: string; phone: string; email: string;
   contact_permission: boolean;
-  /** Who gave Gate A consent on site (Jo, 8 Oct): the owner ticked on this phone, or the installer confirms the owner agreed. */
+  /** The installer confirms Gate A consent on site. */
   consent_by?: "owner" | "installer" | null | undefined;
 };
 
-/** Jo 8 Oct: on-site Gate A clears when the owner ticks here OR the installer confirms consent. */
+/** On-site Gate A clears when the installer confirms consent. */
 export const ONSITE_CONSENT_SOURCE = "onsite_ready_check";
 /** TEST jobs only: the Ready Check form goes to Jo's own Mitti account (Jo, 8 Oct). */
 export const TEST_MITTI_ASSIGNEE = "jo@actpropertyinspections.com.au";
@@ -40,7 +40,7 @@ export function onsiteProblems(i: OnsiteInput): string[] {
   else if (!isAuMobile(i.phone)) out.push("Check the mobile — it should look like 0412 345 678");
   if (!i.email.trim()) out.push("Add the owner's email");
   else if (!isEmail(i.email)) out.push("Check the email address");
-  if (!i.contact_permission || !i.consent_by) out.push("Get the owner's consent: the owner ticks it on your phone, or you tick to confirm they've agreed");
+  if (!i.contact_permission || i.consent_by !== "installer") out.push("Confirm the owner has given Home Insulation Victoria permission to contact them");
   return out;
 }
 

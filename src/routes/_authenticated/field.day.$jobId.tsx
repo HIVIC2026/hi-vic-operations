@@ -91,7 +91,7 @@ function DayPage() {
             <p className="mt-1 text-sm">{data.kind === "safety_check" ? "Tap below to open the safety check form. We'll pick it up from there." : data.kind === "ready_check" ? "Tap below to open the Ready Check form. Measure, photos and your quote all go in there." : "Tap below to open the install form. PIISA, photos and bag labels are all in there."}</p>
             {data.kind === "ready_check" && <button type="button" className={`${ghostBtn} mt-4`} onClick={() => setAsking(true)}>Couldn't get in?</button>}
           </section>
-          <TradePrestart jobId={jobId} kind={data.kind} onStart={() => setStarted(true)} disabledReason={data.kind === "safety_check" && !data.mittiReady && !data.mittiId ? "The office is still setting up the onsite form. Your result will show here once it's in." : null} />
+          <TradePrestart jobId={jobId} kind={data.kind} channel={data.channel} onStart={() => setStarted(true)} disabledReason={data.kind === "safety_check" && !data.mittiReady && !data.mittiId ? "The office is still setting up the onsite form. Your result will show here once it's in." : null} />
         </>
       )}
     </TradeShell>
