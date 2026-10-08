@@ -112,7 +112,7 @@ export const A3_MEDIA_IDS: Partial<Record<A3EvidenceKey, string>> = {
 };
 
 /** NativeMapping for buildOfficialPrefill: per-row stable IDs; labels kept only for verification. */
-export const PIISA_A3_MAPPING: NativeMapping = Object.fromEntries(Object.keys(A3_NATIVE_IDS).map((k) => [k, { itemIds: A3_NATIVE_IDS[k], labels: A3_ALIASES[k], byRow: true }]));
+export const PIISA_A3_MAPPING: NativeMapping = Object.fromEntries(Object.keys(A3_NATIVE_IDS).map((k) => [k, { itemIds: A3_NATIVE_IDS[k]!, labels: A3_ALIASES[k] ?? [], byRow: true }]));
 const ROWS = (id: string) => A3_NATIVE_IDS[id]?.length ?? 1;
 
 /** Native occurrence of an official item: EEC rows share one label with the lead's EEC field. */
