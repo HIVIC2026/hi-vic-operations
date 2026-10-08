@@ -168,3 +168,11 @@ This is the only current implementation register. `docs/HIV_WORKFLOW_SOURCE_OF_T
 - Verified: `tests/add-job-flow.test.ts` (12) + affected intake/electrician/owner-confirm tests (60 total pass); tsgo exit 0; retired-term scan 0 customer-visible. Isolated fixture `tests/add-job-flow.browser.html` (all server calls stubbed, external network blocked) at 375/390/430/1280: hints + focus, consent required, values/consent carried through Edit and Back, double-tap = one save call, one draft, duplicate message, open/preparing/unavailable form, blocked later appointment, no overflow, no page errors. Full-suite run shows 72 failures in practice-database/email files that pass when run alone (parallel timing), not this change.
 - NOT verified: real signed-in installer save, real booking, real Mitti form creation, real upload/extraction, real invite delivery. Job page timeline contradictions (eligibility done vs waiting owner, form "coming soon") remain separate work.
 - Rollback: restore `partner.import.tsx`, `customer-fields.tsx`, the two deleted components and the `job-intake.tsx` add-button condition from 9eed1235; remove `add-job-flow.*`, the `booking` field, fixture/stub aliases and three test path edits.
+
+## Add job next steps (Jo, 8 Oct 10:14 UTC) — preview only
+- Each choice, the review and the result screen show what happens next (Jo's wording, `MODE_CHOICES`/`outcomeFor` in `add-job-flow.core.ts`).
+- Onsite: success only when the form is actually open (auto-opens); otherwise "Getting your form ready…" (polls) or "Job saved — form not ready yet" with the real reason and who it waits on.
+- Later: "Visit booked" + Upcoming visits only when the booking is confirmed; otherwise "visit not confirmed yet".
+- Visit day page: installer-sourced Ready Check without a form gets "Get my Ready Check form", using the existing guarded `onsiteFormStatus` (no new backend).
+- Existing: "Sent to Home Insulation Victoria — nobody has been contacted yet".
+- Follow-up gaps: no automatic owner outreach for installer-sourced quotes (office does it; homeowner email automation stays locked); installer "quote accepted" notice is queued (`owner-quote-accepted-v1`) but only delivered when partner notifications are switched on; no phone/Google/Outlook calendar sync; Mitti exact-email membership still required.

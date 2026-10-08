@@ -19,7 +19,7 @@ import { SAFETY_CHECK_NOTE, electricianPlanBlocker, usualElectrician, type Elect
 import { reviewItems, type Extracted, type ImportField } from "@/lib/pilot.core";
 import {
   ADD_JOB_STEPS, BUSY_LABEL, blankCustomer, bookingLabel, customerProblems, existingDetailsProblems, existingReviewProblems, formLabel,
-  laterDetailsProblems, laterPayload, nextStep, parseAmount, prevStep, restoreCustomer, saveErrorMessage, submitLabel,
+  laterDetailsProblems, laterPayload, nextStep, nextStepText, outcomeFor, parseAmount, prevStep, restoreCustomer, saveErrorMessage, submitLabel,
   type AddJobMode, type AddJobStep, type BookingOutcome, type ExistingDetails, type LaterDetails,
 } from "@/lib/add-job-flow.core";
 
@@ -216,7 +216,7 @@ export function AddJobFlow({ businessId, initialMode, onExit }: { businessId: st
           <p className="text-xs text-sub" data-safety-check-note>{SAFETY_CHECK_NOTE}</p>
           <p className="text-xs text-sub">Nothing is sent when you add the job. Next, Home Insulation Victoria checks eligibility, adds the rebate, AP management fee and $349 electrician PIESA fee, then sends the full quote to the owner for approval. We let you know when it is accepted.</p>
         </div>}
-        {mode !== "existing" && <p className="text-xs text-sub">Nothing is sent to the owner. Saving the job does not confirm a booking or open the form by itself — you'll see both on the next screen.</p>}
+        <div className="rounded-[12px] border border-line p-3" data-next-step><p className="text-xs font-bold uppercase tracking-wide text-sub">What happens next</p><p className="mt-1 text-sm">{nextStepText(mode)}</p></div>
       </section>}
 
       {shown.length > 0 && <ul ref={problemsRef} tabIndex={-1} role="alert" className="space-y-1 rounded-[12px] border border-danger/40 bg-paper p-3 text-sm text-danger outline-none" data-step-problems>{shown.map((p) => <li key={p}>{p}</li>)}</ul>}
@@ -273,22 +273,26 @@ function SavedResult({ saved }: { saved: Saved }) {
   const [state, setState] = useState<OnsiteState | undefined>(saved.state);
   const [tries, setTries] = useState(0);
   const status = useServerFn(onsiteFormStatus);
+  const opened = useRef(false);
   useEffect(() => {
-    if (saved.mode !== "onsite" || !state || (state.kind !== "preparing" && state.kind !== "retry") || tries >= 30) return;
+    if (saved.mode !== "onsite" || !state) return;
+    if (state.kind === "open") { if (!opened.current) { opened.current = true; window.location.href = state.url; } return; }
+    if ((state.kind !== "preparing" && state.kind !== "retry") || tries >= 30) return;
     const t = setTimeout(async () => { try { setState(await status({ data: { jobId: saved.jobId, retry: false } })); } catch { /* keep */ } setTries((n) => n + 1); }, 4000);
     return () => clearTimeout(t);
   }, [state, tries, saved, status]);
-  const booking = saved.mode === "existing" ? null : bookingLabel(saved.booking);
+  const o = outcomeFor(saved.mode, { booking: saved.booking, state });
   const form = saved.mode === "onsite" && state ? formLabel(state) : null;
   return (
-    <section className="mt-4 space-y-3 rounded-[18px] border border-line bg-paper p-5" data-saved data-onsite-state={state?.kind ?? "none"}>
+    <section className={`mt-4 space-y-3 rounded-[18px] border p-5 ${o.tone === "blocked" ? "border-rose bg-pink" : "border-line bg-paper"}`} data-saved data-outcome={o.tone} data-onsite-state={state?.kind ?? "none"}>
       <p className="text-xs font-bold uppercase tracking-wide text-sub">{saved.jobNumber ?? "Job"} saved</p>
-      <h2 className="font-display text-xl font-bold">Job saved</h2>
-      {booking && <p className="text-sm" data-booking-outcome>{booking}</p>}
-      {form && <div className="rounded-[12px] bg-mist p-3" data-form-state={form.label}><p className="text-sm font-bold">{form.label}</p>{form.detail && <p className="text-sm text-sub">{form.detail}</p>}</div>}
+      <h2 className="font-display text-xl font-bold" data-outcome-heading>{o.heading}</h2>
+      <p className="text-sm" data-outcome-body>{o.body}</p>
+      {o.waitingOn && <p className="text-sm font-semibold" data-waiting-on>Waiting on: {o.waitingOn}</p>}
+      {form && <p className="sr-only" data-form-state={form.label}>{form.label}</p>}
       {state?.kind === "open" && <a className="inline-flex h-12 w-full items-center justify-center rounded-full bg-primary font-bold text-primary-foreground" href={state.url}>Open Ready Check form</a>}
       {state?.kind === "retry" && <Button size="field" className="w-full" onClick={async () => { try { setState(await status({ data: { jobId: saved.jobId, retry: true } })); } catch { /* keep */ } setTries(0); }}>Try again</Button>}
-      {saved.mode === "existing" && <p className="text-sm text-sub">Home Insulation Victoria checks eligibility, then sends the full quote to the owner.</p>}
+      {saved.mode === "later" && saved.booking === "confirmed" && <Link to="/field" className="inline-flex h-12 w-full items-center justify-center rounded-full border border-line font-bold">Go to My work</Link>}
       <Link to="/field/$jobId" params={{ jobId: saved.jobId }} className="block text-center text-sm font-bold underline">Go to the job</Link>
     </section>
   );
