@@ -169,5 +169,6 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [ ] Send waiting emails (41 Save my spot, 497 insulation details, 9 ineligible) — waiting on Jo's go-ahead / Group B approval
 
 ## 8 Oct (Jo)
+- [x] Isolated phase-1 operations preview: read-only classifier, protected direct-link UI, mock tests, phone/desktop checks and rollback documentation; no sends/writes/publish; real-record verification intentionally excluded
 - [x] No enquiry shows as waiting for a Ready Check until its spot is saved
 - [x] Leads screen: tick fake/junk leads and Remove them (own "Removed" category, out of every list)
