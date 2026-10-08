@@ -18,8 +18,8 @@ export const takeMeOffList = createServerFn({ method: "POST" }).middleware([with
   .handler(async ({ data }) => (await import("./launch-campaign.server")).optOutCampaign(data.token));
 
 export const submitInsulationDeclaration = createServerFn({ method: "POST" }).middleware([withRequestMeta])
-  .inputValidator((d) => z.object({ token, confirmed: z.literal(true) }).parse(d))
-  .handler(async ({ data }) => (await import("./launch-campaign.server")).recordInsulationDeclaration(data.token));
+  .inputValidator((d) => z.object({ token, confirmed: z.literal(true), declaration: z.enum(["loose_fill_only", "below_r2"]).optional() }).parse(d))
+  .handler(async ({ data }) => (await import("./launch-campaign.server")).recordInsulationDeclaration(data.token, data.declaration, data.confirmed));
 
 export const getLaunchCampaignOffice = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {

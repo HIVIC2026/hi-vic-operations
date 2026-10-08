@@ -6,6 +6,7 @@ import { isWellFormedToken, LINK_PURPOSE, linkUsable } from "./estimatelink.core
 import { LAUNCH_BATCH_SIZE, LAUNCH_CAMPAIGN, LAUNCH_COPY_APPROVED, campaignSaveAllowed, deskCheckReasonError, launchGroup, ownerCalculatorChangeNote, savedPriceFromCalculator, savedPriceFromEstimate, savedPriceLabel, type DeskCheckOutcome } from "./launch-campaign.core";
 import { logEvent } from "./workflow.server";
 import { whatIfEstimate } from "./estimate.core";
+import { insulationDeclarationRecord, type InsulationDeclaration } from "./insulation-review.core";
 
 export async function campaignLink(token: unknown) {
   if (!isWellFormedToken(token)) return null;
@@ -158,19 +159,22 @@ export async function markCampaignMediaReceived(jobId: string, linkId: string) {
   if (result.error) throw new Error("Your file was received but the office review could not be queued. Please try again.");
 }
 
-export async function recordInsulationDeclaration(token: unknown) {
+export async function recordInsulationDeclaration(token: unknown, declarationType?: InsulationDeclaration, confirmed: boolean = true) {
+  const record = declarationType == null
+    ? { ...insulationDeclarationRecord("below_r2", confirmed), declaration: "I confirm this is below R2", reviewReason: "Owner declared — review required: I confirm this is below R2 (not verified)" }
+    : insulationDeclarationRecord(declarationType, confirmed);
   const c = await campaignLink(token);
   if (!c || c.group !== "onsite") throw new Error("This insulation review link is not available.");
   const { data: existing, error: readError } = await admin.from("lead_campaign_responses").select("id, opted_out_at").eq("job_id", c.job.id).maybeSingle();
   if (readError || existing?.opted_out_at) throw new Error("This insulation review is not available.");
-  const { data: recorded, error: eventError } = await admin.from("workflow_events").select("id").eq("job_id", c.job.id).eq("event_type", "owner_insulation_below_r2_declared").limit(1).maybeSingle();
+  const { data: recorded, error: eventError } = await admin.from("workflow_events").select("id").eq("job_id", c.job.id).eq("event_type", record.eventType).limit(1).maybeSingle();
   if (eventError) throw new Error("We couldn't check your submission. Please try again.");
-  if (!recorded) await logEvent(c.job.id, null, "owner_insulation_below_r2_declared", "Owner declared: I confirm this is below R2 — office review required (not verified eligibility)", { declaration: "I confirm this is below R2", basis: "owner_declared" }, { internal: true });
+  if (!recorded) await logEvent(c.job.id, null, record.eventType, record.reviewReason, { declaration: record.declaration, basis: record.basis, declaration_type: declarationType ?? "below_r2" }, { internal: true });
   if (!existing) {
-    const { error } = await admin.from("lead_campaign_responses").upsert({ job_id: c.job.id, estimate_link_id: c.link.id, campaign: LAUNCH_CAMPAIGN, desk_check_status: "pending", desk_check_reason: "Owner declaration: I confirm this is below R2 (not verified)", updated_at: new Date().toISOString() }, { onConflict: "job_id", ignoreDuplicates: true });
+    const { error } = await admin.from("lead_campaign_responses").upsert({ job_id: c.job.id, estimate_link_id: c.link.id, campaign: LAUNCH_CAMPAIGN, desk_check_status: "pending", desk_check_reason: record.reviewReason, updated_at: new Date().toISOString() }, { onConflict: "job_id", ignoreDuplicates: true });
     if (error) throw new Error("We couldn't submit your insulation for review. Please try again.");
   } else {
-    const { error } = await admin.from("lead_campaign_responses").update({ desk_check_status: "pending", desk_check_reason: "Owner declaration: I confirm this is below R2 (not verified)", updated_at: new Date().toISOString() }).eq("job_id", c.job.id).eq("desk_check_status", "not_needed").is("opted_out_at", null);
+    const { error } = await admin.from("lead_campaign_responses").update({ desk_check_status: "pending", desk_check_reason: record.reviewReason, updated_at: new Date().toISOString() }).eq("job_id", c.job.id).is("opted_out_at", null);
     if (error) throw new Error("We couldn't submit your insulation for review. Please try again.");
   }
   return { ok: true as const };
