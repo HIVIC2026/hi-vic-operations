@@ -55,14 +55,21 @@ const directAudit = () => ({ items: [
   { item_id: A3_CREW_OTHER_FIELDS[0]?.eec, label: "Lead installer — CII certification number (issued by the EEC)", responses: { text: "CII-123" } },
   { item_id: PIISA_DIRECT_SIGNATURE_ID, label: "Signature", responses: { signature: { media_id: "sig", timestamp: "2026-10-08T08:00:00Z" } } },
 ] });
-test("actual revision 18 lacks Jo's retained completion field and pauses latest activation", () => {
+test("registered revision 18 retains direct schema compatibility without repeated date prefills", () => {
   const r = resolvePiisaNativeVersion(published);
-  expect(r.active).toBe(false); expect(r.version).toBe(PIISA_DIRECT_VERSION);
-  expect(r.mapping).toBeNull();
-  expect(r.problems.join()).toContain("84a8b69b-efd5-4830-9da7-66958cbfdb6e");
+  expect(r.active).toBe(true); expect(r.version).toBe(PIISA_DIRECT_VERSION);
+  expect(r.problems).toEqual([]);
   for (const id of ["p7.products", "completionDate", "p8.name", "p8.date"]) expect(r.mapping?.[id]).toBeUndefined();
   const crew = stagedDirectCrewPrefill({ lead: "ours", additional: [] }, staff);
   expect(crew.items.map((i) => i.item_id)).toEqual(["9e1a8b94-d3fc-492e-bb33-57b6bd4e85a8", "6fea5874-992b-476b-8f09-839abaa2d049"]);
+});
+
+test("reintroducing removed expected completion question blocks current activation", () => {
+  const copy = structuredClone(finalGrouping);
+  copy.template.items.push({ id: "84a8b69b-efd5-4830-9da7-66958cbfdb6e", label: "Expected completion date", children: [] } as typeof copy.template.items[number]);
+  const r = resolvePiisaNativeVersion(copy);
+  expect(r.active).toBe(false);
+  expect(r.problems.join()).toContain("84a8b69b-efd5-4830-9da7-66958cbfdb6e");
 });
 test("any changed required flag, condition or page order pauses current mapping", () => {
   for (const mutate of [(t: typeof published) => { t.template.items.reverse(); }, (t: typeof published) => { t.template.items[0] = { ...t.template.items[0], label: "Changed" } as typeof t.template.items[0]; }]) {
@@ -103,10 +110,10 @@ test("published required and conditional crew structure changes cannot activate"
   expect(resolvePiisaNativeVersion(change("condition")).active).toBe(false);
 });
 
-test("actual final revision 19 is registered but absent completion field blocks activation", () => {
+test("actual final revision 19 activates after approved removal of duplicate completion question", () => {
   const r = resolvePiisaNativeVersion(finalPublished);
-  expect(r.active).toBe(false);
-  expect(r.problems.some((p) => p.includes("84a8b69b-efd5-4830-9da7-66958cbfdb6e"))).toBe(true);
+  expect(r.active).toBe(true);
+  expect(r.mapping?.completionDate).toBeUndefined();
   expect(r.problems.some((p) => p.includes("differ from verified"))).toBe(false);
 });
 test("final published definition removed four duplicate signer and metadata inputs", () => {
@@ -115,10 +122,10 @@ test("final published definition removed four duplicate signer and metadata inpu
   expect(ids.has("78e550a4-1c8b-4b59-be77-64a5c09ba848")).toBe(true);
 });
 
-test("latest actual readback stays paused for absent completion, not unordered response sets", () => {
+test("latest actual readback activates without completion prompt, independent of response-set ordering", () => {
   const r = resolvePiisaNativeVersion(finalGrouping);
-  expect(r.active).toBe(false);
-  expect(r.problems.some((p) => p.includes("84a8b69b-efd5-4830-9da7-66958cbfdb6e"))).toBe(true);
+  expect(r.active).toBe(true);
+  expect(r.mapping?.completionDate).toBeUndefined();
   expect(r.problems.some((p) => p.includes("differ from verified"))).toBe(false);
   const reordered = structuredClone(finalGrouping);
   reordered.template.response_sets.reverse();
