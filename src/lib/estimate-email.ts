@@ -3,6 +3,7 @@ import { READY_CHECK_FEE } from "./readycheck.core";
 /** Pure customer outcome email renderers: no data access, delivery, or side effects. */
 import { CUSTOMER_BRAND, CUSTOMER_WHAT_COULD_CHANGE } from "./customer-quote-system";
 import { isWellFormedToken } from "./estimatelink.core";
+import { EXISTING_PRELIMINARY, removalNote, type EstimateRemoval } from "./estimate-removal.core";
 
 export type CustomerOutcome = "likely" | "onsite" | "ineligible";
 import { renderStep3SaveSpot } from "./step3-emails";
@@ -15,6 +16,8 @@ export type EstimateEmailInput = {
   reasons?: string[] | null; apCount?: number | null; reference?: string | null;
   firstName?: string | null; address?: string | null;
   existingInsulationPresent?: boolean;
+  /** Follow-up only: initial Group B invitation never opts in. */
+  saveSpotRemoval?: EstimateRemoval;
   /** True when the ceiling size is the typical-home default rather than a declared/measured figure. */
   areaIsTypical?: boolean;
   trackingClickUrl?: string | null; trackingPixelUrl?: string | null; referralUrl?: string | null;
@@ -125,7 +128,8 @@ function validateQuoteInput(input: EstimateEmailInput) {
   const closeEnough = (a: number, b: number) => Math.abs(Math.round(a * 100) - Math.round(b * 100)) <= 1;
   if (hasBreakdown) {
     if (!closeEnough(payableNow, READY_CHECK_FEE)) throw new Error("The amount payable now must be $0 because the Home Insulation Ready Check is free.");
-    if (!closeEnough(installation + assessment + apFee, gross)) throw new Error("Quote line items must reconcile to the gross project total.");
+    const removal = input.saveSpotRemoval?.kind === "included" ? input.saveSpotRemoval.amount : 0;
+    if (!closeEnough(installation + assessment + apFee + removal, gross)) throw new Error("Quote line items must reconcile to the gross project total.");
     if (!closeEnough(gross - discount, customer)) throw new Error("Gross project total less VEU discount must equal the estimated customer price.");
     if (!closeEnough(customer - payableNow, remaining)) throw new Error("Estimated customer price less the amount payable now must equal the remaining balance.");
     if (rate != null && (!Number.isFinite(rate) || rate < 0)) throw new Error("The installation rate must be a finite non-negative value.");
@@ -203,6 +207,7 @@ type V2SavingsInput = {
   calculatorUrl?: string;
   /** Campaign emails only: adds price-before-discount, VEEC discount and you-pay rows under the itemised list. Absent = locked likely output unchanged. */
   totals?: { veecs: number; veecValue: number };
+  removal?: EstimateRemoval;
 };
 
 /** The approved estimate/savings module, shared byte-for-byte by eligible-outcome and launch-campaign emails. */
@@ -214,6 +219,7 @@ function v2SavingsModule(input: V2SavingsInput) {
   const rows = [
     { title: "Free Insulation Measure-Up & Eligibility Check", description: "We measure your ceiling, assess whether any existing insulation can stay or needs removal, and confirm eligibility and the job scope.", amount: `<span style="color:${GREEN};font-weight:800;">FREE</span>`, plain: ": FREE" },
     { title: "R5.0 ceiling insulation — supply & install", description: "Fitted by a pre-vetted Certified Insulation Installer (CII) from our panel.", amount: input.hasBreakdown ? escape(money(input.installation)) : "", plain: input.hasBreakdown ? `: ${money(input.installation)}` : "" },
+    ...(input.removal?.kind === "included" ? [{ title: "Removal of existing insulation", description: `${number(input.removal.areaM2)} m² included in this estimate; scope confirmed at your free Ready Check.`, amount: escape(money(input.removal.amount)), plain: `: ${money(input.removal.amount)} inc GST` }] : []),
     { title: "Electrical safety assessment (PIESA)", description: "A mandatory check by a pre-vetted REC electrician, close to installation.", amount: input.hasBreakdown ? escape(money(input.assessment)) : "", plain: input.hasBreakdown ? `: ${money(input.assessment)}` : "" },
     { title: "Accredited Person (AP) management", description: "Our accreditation gives you access to the VEU rebate. We handle compliance, paperwork and your claim.", amount: input.hasBreakdown ? escape(money(input.apFee)) : "", plain: input.hasBreakdown ? `: ${money(input.apFee)}` : "" },
   ];
@@ -225,7 +231,8 @@ function v2SavingsModule(input: V2SavingsInput) {
   const includes = `<table data-likely-itemised="true" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${WHITE}" style="width:100%;margin-top:14px;border-collapse:separate;background-color:${WHITE};border-radius:14px;"><tr><td style="padding:15px 16px;${F}"><p style="margin:0 0 6px;${FH}color:${INK};font-size:14px;line-height:1.3;font-weight:800;">What this includes</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;">${items}${input.totals ? totalRows(input) : ""}</table>${apTrust}</td></tr></table>`;
   const calc = `<p data-likely-calculator="true" style="margin:12px 0 0;${F}color:${INK};font-size:14px;line-height:1.5;text-align:center;">Want to explore a different ceiling size? <a href="${escape(input.calculatorUrl ?? PUBLIC_CALCULATOR_URL)}" style="color:${BLUE};font-weight:800;text-decoration:underline;white-space:nowrap;">Open&nbsp;the&nbsp;calculator&nbsp;→</a></p>`;
   const html = `<table data-likely-savings="true" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${MIST}" style="width:100%;border-collapse:separate;background-color:${MIST};border-radius:22px;"><tr><td class="lx-result-pad" style="padding:22px 20px;${F}"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${MINT}" style="width:100%;border-collapse:separate;background-color:${MINT};border:2px solid ${GREEN};border-radius:18px;"><tr><td align="center" style="padding:18px 12px;${F}"><p style="margin:0;${F}color:${INK};font-size:10px;line-height:1.3;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;">${input.rebateLabel}</p><p class="lx-saving" style="margin:5px 0 0;${FH}color:${GREEN};font-size:38px;line-height:42px;mso-line-height-rule:exactly;font-weight:800;letter-spacing:0;">You could save ${escape(money(input.discount))}</p></td></tr></table><div style="text-align:center;padding:18px 0 12px;"><p style="margin:0;${F}color:${INK};font-size:10px;line-height:1.3;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;">${input.costLabel}</p><p class="lx-cost" style="margin:5px 0 0;${FH}color:${BLUE};font-size:46px;line-height:50px;mso-line-height-rule:exactly;font-weight:800;letter-spacing:0;">${escape(money(input.customer))}</p><p style="margin:4px 0 0;${F}color:${INK};font-size:12px;line-height:1.4;font-weight:700;">incl. GST · before rebate ${escape(money(input.gross))}</p><p style="margin:8px auto 0;max-width:390px;${F}color:${INK};font-size:11px;line-height:1.5;">${input.qualifier}</p></div><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;border-top:1px solid ${LINE};">${summary}</table>${calc}${includes}</td></tr></table>`;
-  return { html: html.replace('<p data-likely-calculator="true"', `${assumedAreaNote}<p data-likely-calculator="true"`), rows, apCountText };
+  const removal = input.removal ? `<p data-removal-clarification="true" style="margin:12px auto 0;max-width:440px;${F}color:${INK};font-size:14px;line-height:1.5;font-weight:700;">${escape(removalNote(input.removal))}</p><p style="margin:8px auto 0;max-width:440px;${F}color:${INK};font-size:13px;line-height:1.5;">${escape(EXISTING_PRELIMINARY)}</p>` : "";
+  return { html: html.replace(`<p style="margin:8px auto 0;max-width:390px;`, `${removal}<p style="margin:8px auto 0;max-width:390px;`).replace('<p data-likely-calculator="true"', `${assumedAreaNote}<p data-likely-calculator="true"`), rows, apCountText };
 }
 
 /** Campaign-only totals under the itemised list, styled like the itemised rows. */
@@ -279,7 +286,7 @@ function renderV2QuoteEmail(input: EstimateEmailInput, kind: "likely" | "onsite"
     : likelyHero;
 
   // 3. Savings module (echoes the standalone calculator) with the single inclusions breakdown
-  const savingsModule = v2SavingsModule({ address, area, ...(input.areaIsTypical == null ? {} : { areaIsTypical: input.areaIsTypical }), discount, customer, gross: hasBreakdown ? gross : packagePrice, rebateLabel, costLabel, qualifier, hasBreakdown, installation, assessment, apFee, ...(input.apCount === undefined ? {} : { apCount: input.apCount }) });
+  const savingsModule = v2SavingsModule({ address, area, ...(input.areaIsTypical == null ? {} : { areaIsTypical: input.areaIsTypical }), discount, customer, gross: hasBreakdown ? gross : packagePrice, rebateLabel, costLabel, qualifier, hasBreakdown, installation, assessment, apFee, ...(input.apCount === undefined ? {} : { apCount: input.apCount }), ...(input.saveSpotRemoval ? { removal: input.saveSpotRemoval } : {}) });
   const savings = savingsModule.html;
   const { rows, apCountText } = savingsModule;
 
@@ -310,6 +317,7 @@ function renderV2QuoteEmail(input: EstimateEmailInput, kind: "likely" | "onsite"
     `${rebateLabel}: You could save ${money(discount)}`,
     `${costLabel}: ${money(customer)}`,
     `incl. GST · before rebate ${money(hasBreakdown ? gross : packagePrice)}`,
+    ...(input.saveSpotRemoval ? [removalNote(input.saveSpotRemoval), EXISTING_PRELIMINARY] : []),
     qualifier,
     ...(address ? [`Property: ${address}`] : []),
     `Ceiling: ${number(area)} m²${input.areaIsTypical ? " (typical-home assumption)" : ""}`,

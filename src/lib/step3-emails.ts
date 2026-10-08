@@ -4,6 +4,7 @@
 // anywhere else (guarded by tests/step3-email-parity.test.ts).
 import { renderEstimateEmail, renderSaveSpotFromLikelyEmail, type EstimateEmail } from "./estimate-email";
 import { withUnsubscribe } from "./emailsafety.core";
+import type { EstimateRemoval } from "./estimate-removal.core";
 
 export type SaveSpotFacts = {
   estimateUrl: string;
@@ -18,6 +19,7 @@ export type SaveSpotFacts = {
   address: string | null;
   reference: string | null;
   existingInsulationPresent: boolean;
+  removal?: EstimateRemoval;
   referralUrl?: string | null;
   installation?: number;
   assessmentFee?: number;
@@ -43,7 +45,7 @@ export function renderStep3Likely(f: SaveSpotFacts): EstimateEmail {
 
 /** Save your spot = the Step 3 likely email for the same facts with ONLY the four pink-box swaps. */
 export function renderStep3SaveSpot(f: SaveSpotFacts): EstimateEmail {
-  return withUnsubscribe(renderSaveSpotFromLikelyEmail({ ...likelyInput(f), campaignUrl: f.campaignUrl }), f.unsubscribeUrl);
+  return withUnsubscribe(renderSaveSpotFromLikelyEmail({ ...likelyInput(f), campaignUrl: f.campaignUrl, ...(f.removal && f.existingInsulationPresent ? { saveSpotRemoval: f.removal } : {}) }), f.unsubscribeUrl);
 }
 
 /** Missing-size template only. Supplied prices/rebate must be calculated for the assumed area; never changes owner answers or sends. */

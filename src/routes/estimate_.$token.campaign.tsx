@@ -8,6 +8,7 @@ import { OwnerHouse } from "@/components/owner/OwnerHouse";
 import { Button } from "@/components/ui/button";
 import { getLaunchCampaignPage, saveMySpot, takeMeOffList } from "@/lib/launch-campaign.functions";
 import type { InsulationDeclared } from "@/lib/estimate.core";
+import { EXISTING_PRELIMINARY, removalNote, type EstimateRemoval } from "@/lib/estimate-removal.core";
 
 export const Route = createFileRoute("/estimate_/$token/campaign")({
   ssr: false,
@@ -82,7 +83,7 @@ function Result({ group, videoPriority, token, rebate, customer, suburb, home, r
   </section>;
 }
 
-type Pricing = { gross: number; discount: number; total: number; areaM2: number; assessmentFee: number; apFee: number; ratePerM2: number; installation: number; veecs: number; veecValue: number; address: string | null; insulation: InsulationDeclared | null };
+type Pricing = { gross: number; discount: number; total: number; areaM2: number; assessmentFee: number; apFee: number; ratePerM2: number; installation: number; veecs: number; veecValue: number; address: string | null; insulation: InsulationDeclared | null; removal?: EstimateRemoval };
 const money = (n: number) => `$${Math.floor(Number(n)).toLocaleString("en-AU")}`;
 
 /** v8 (Jo, 6 Oct): Jo's approved Group A design lives here, where Outfit/Figtree load. The short email only links here. */
@@ -91,7 +92,7 @@ function CampaignDesign({ saveAllowed, ownerQualified, reviewStatus, group, toke
   const rebate = money(p.discount);
   const saveBtn = <Button type="button" disabled={!!busy} onClick={onSave} className="h-14 w-full rounded-xl bg-estimate-green font-display text-lg font-bold text-estimate-white hover:bg-estimate-accent">{busy === "save" ? "Saving…" : "Save my spot →"}</Button>;
   const videoBtn = <Button asChild className="h-14 w-full rounded-xl bg-estimate-green font-display text-lg font-bold text-estimate-white hover:bg-estimate-accent"><Link to="/estimate/$token/video" params={{ token }}>Send my insulation details →</Link></Button>;
-  const removal = p.insulation === "none" ? "Doesn't include removing old insulation (you told us there isn't any)." : "This price excludes existing insulation removal — it may be able to stay. If removal is needed, we’ll confirm the cost before you proceed.";
+  const removal = p.insulation === "none" ? "Doesn't include removing old insulation (you told us there isn't any)." : removalNote(p.removal ?? { kind: "unknown" });
   const row = (l: string, v: string, cls = "") => <div className={`flex justify-between gap-3 py-1.5 text-sm ${cls}`}><span>{l}</span><span>{v}</span></div>;
   const gets: [string, string][] = [["Free Ready Check", "We measure your roof space and confirm the job."], ["R5.0 ceiling insulation", "Supplied and fitted by a certified installer."], ["Electrical safety check", "By a licensed electrician, as the rules require."], ["Rebate paperwork, done for you", "We handle the forms and the claim."]];
   return <div className="mx-auto max-w-[560px] px-4 pt-5 text-estimate-navy">
@@ -114,11 +115,13 @@ function CampaignDesign({ saveAllowed, ownerQualified, reviewStatus, group, toke
         {row(`Installation (${p.areaM2} m² × ${money(p.ratePerM2)})`, money(p.installation))}
         {row("Electrical safety check (PIESA)", money(p.assessmentFee))}
         {row("Accredited Person fee", money(p.apFee))}
+        {p.removal?.kind === "included" && row(`Removal of existing insulation (${p.removal.areaM2} m², inc GST)`, money(p.removal.amount))}
         {row("Normal price", money(p.gross), "border-t border-estimate-line font-bold")}
         {row(`Your rebate (${p.veecs} VEECs × ${money(p.veecValue)})`, `−${rebate}`, "font-extrabold text-estimate-logo-green")}
         <div className="flex items-end justify-between gap-3 border-t border-estimate-line pt-3"><span className="text-sm font-extrabold">You pay about</span><span className="font-display text-[34px] font-extrabold leading-none">{money(p.total)}</span></div>
       </div>
-      <p className="mt-3 text-xs leading-relaxed text-estimate-navy/75">Based on {p.address ? `${p.address} and ` : ""}a {p.areaM2} m² ceiling. {removal} <Link to="/estimate/$token/calculator" params={{ token }} className="font-bold text-estimate-blue">Try a different size →</Link></p>
+      {p.insulation !== "none" && <><p className="mt-3 text-sm font-bold leading-relaxed">{removal}</p><p className="mt-3 text-sm leading-relaxed">{EXISTING_PRELIMINARY}</p></>}
+      <p className="mt-3 text-xs leading-relaxed text-estimate-navy/75">Based on {p.address ? `${p.address} and ` : ""}a {p.areaM2} m² ceiling. {p.insulation === "none" ? removal : ""} <Link to="/estimate/$token/calculator" params={{ token }} className="font-bold text-estimate-blue">Try a different size →</Link></p>
       <h2 className="mt-5 font-display text-[11px] font-extrabold uppercase tracking-[0.13em]">What you get</h2>
       <ul className="mt-2 space-y-2">{gets.map(([t, d]) => <li key={t} className="text-[13.5px] leading-snug"><span className="font-extrabold text-estimate-logo-green">✓</span>&nbsp; <strong>{t}</strong><br /><span className="text-estimate-navy/75">{d}</span></li>)}</ul>
     </section>
