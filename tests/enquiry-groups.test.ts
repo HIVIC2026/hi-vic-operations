@@ -159,7 +159,7 @@ describe("one automatic email route", () => {
 });
 
 describe("office photo/video review outcomes (Jo, 8 Oct)", () => {
-  const audit = { ruleset_version: "x", rules: [
+  const audit = { ruleset_version: GATE1_RULESET_VERSION, rules: [
     { key: "location", result: "pass" }, { key: "residential", result: "pass" }, { key: "ceiling_age", result: "pass" },
     { key: "previous_activity", result: "pass" }, { key: "roof_access", result: "pass" }, { key: "existing_insulation", result: "onsite" },
   ] };
