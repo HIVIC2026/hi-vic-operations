@@ -27,13 +27,13 @@ export const A3_ALIASES: Record<string, string[]> = {
   // Certificate numbers are no longer standalone native questions: known crew choices embed them; "Other" branches
   // carry their own required name + certificate fields (A3_CREW_OTHER_FIELDS). Official p2.leadEec/p2.addEec are
   // derived from the resolved choice, never from a native text box.
-  "p3.swms": ["Has the SWMS been completed for this job and all risks identified?"],
-  "p3.table1": ["Have all Table 1 hazards been considered and controlled in the SWMS?"],
+  "p3.swms": ["Has the Safe Work Method Statement (SWMS) been completed for this job and all risks identified?", "Has the SWMS been completed for this job and all risks identified?"],
+  "p3.table1": ["Have all Table 1 hazards been assessed and controlled in the SWMS?", "Have all Table 1 hazards been considered and controlled in the SWMS?"],
   "p3.isolated": ["Have the main and any alternative power supplies been isolated, locked out and tagged, and the roof cavity confirmed electrically safe to enter?"],
   "p4.present": ["Is there solar, a battery or another power supply, such as a generator?"],
   "p4.instructions": ["Are safe shutdown, isolation and restart instructions available for every alternative power supply?"],
   "p4.isolator": ["Is the ground-level AC/DC isolator accessible, working and safe to isolate?"],
-  "p5.reviewed": ["Has the lead installer reviewed the PIESA and confirmed the site is safe to start work?"],
+  "p5.reviewed": ["Has the lead installer read the electrical safety assessment (PIESA) and confirmed it is safe to start work?", "Has the lead installer reviewed the PIESA and confirmed the site is safe to start work?"],
   "p5.electricianPresent": ["If the PIESA requires an electrician at the start, has the electrician attended?"],
   "p5.recessed": ["Are there recessed lights in the ceiling?"],
   "p5.count": ["How many recessed lights are there?"],
@@ -42,7 +42,7 @@ export const A3_ALIASES: Record<string, string[]> = {
   "p5.rcd": ["Does the PIESA confirm all mains cables in the ceiling have RCD protection where required?"],
   "p5.tps": ["Does the PIESA confirm all mains cables in the ceiling are TPS or an equivalent cable type?"],
   "p5.basic": ["Does the PIESA confirm all mains cables in the ceiling meet Basic Protection Requirements?"],
-  "p5.noAccess": ["Has the owner or occupier confirmed no one has accessed or worked in the ceiling since the PIESA?"],
+  "p5.noAccess": ["Has the owner or occupier confirmed that nobody has entered or worked in the ceiling since the PIESA?", "Has the owner or occupier confirmed no one has accessed or worked in the ceiling since the PIESA?"],
   "p6.present": ["Is there existing insulation in the ceiling?"],
   "p6.height": ["What is the average depth of the existing insulation (mm)?"],
   "p6.rValue": ["What is the existing insulation R-value, if known?"],
@@ -495,6 +495,10 @@ function evidenceBlockers(keys: A3EvidenceKey[], answers: OfficialAnswers, ctx: 
   return b;
 }
 /** Prestart: before-work evidence + life support only. After-work media are never required here. */
+/** Prominent banner heading (Jo, 9 Oct 2026). No calendar delay: work may proceed only once the unmet prerequisite is
+ * actually corrected and safety clearance reconfirmed. Banners are instructions, never proof of clearance. */
+export const STOP_BANNER = "🛑 STOP WORK — INSTALLATION CANNOT PROCEED.";
+export const stopMsg = (action: string) => `${STOP_BANNER} ${action}`;
 /** STOP-WORK rules (Jo's PIISA review, 8 Oct 2026). Presence questions answered No (solar, recessed lights, existing
  * insulation) are factual and green. Every other safety "No" is a hard stop, never just a score. Follow-up questions
  * apply only when their trigger is actually Yes. Unanswered applicable questions also block (never assumed). */
@@ -506,40 +510,40 @@ export function a3StopWork(answers: OfficialAnswers, ctx: Pick<A3EvidenceCtx, "e
     if (v == null) out.push(`${label}: not answered`);
     else if (v === "No") out.push(stop);
   };
-  need("p1.powerInformed", "Power-off notice", "STOP WORK — tell the household the power will be off before you continue.");
+  need("p1.powerInformed", "Power-off notice", stopMsg("Tell the household the power will be off before you continue."));
   const ls = a("lifeSupport");
   if (ls == null) out.push("Life support: not answered");
   else if (ls === "Yes") {
     const c = a("lifeSupportConsent");
-    if (c == null) out.push("Life support: consent or medical plan not answered — STOP WORK. NO INSTALL TODAY.");
-    else if (/^no\b/i.test(c.trim())) out.push("STOP WORK. NO INSTALL TODAY — no written consent or medical plan for life support.");
-    else if (!ctx.lifeSupportConsentOnFile) out.push("STOP WORK. NO INSTALL TODAY — life support consent or medical plan is not attached.");
+    if (c == null) out.push("Life support: consent or medical plan not answered — " + stopMsg("Record written consent or the medical plan before work starts."));
+    else if (/^no\b/i.test(c.trim())) out.push(stopMsg("Obtain the occupant’s written consent or medical plan for life support and attach it, then reconfirm it is safe to start."));
+    else if (!ctx.lifeSupportConsentOnFile) out.push(stopMsg("Attach the life support consent or medical plan, then reconfirm it is safe to start."));
   }
-  need("p3.swms", "SWMS", "STOP AND COMPLETE the SWMS before work starts.");
-  need("p3.table1", "Table 1 hazards", "STOP — consider and control all Table 1 hazards before you continue.");
-  need("p3.isolated", "Power isolation", "STOP — isolate, lock out and tag all power supplies before you continue.");
+  need("p3.swms", "SWMS", stopMsg("Complete the SWMS before work starts."));
+  need("p3.table1", "Table 1 hazards", stopMsg("Consider and control all Table 1 hazards before you continue."));
+  need("p3.isolated", "Power isolation", stopMsg("Isolate, lock out and tag all power supplies before you continue."));
   const solar = a("p4.present");
   if (solar == null) out.push("Solar/battery/other supply: not answered");
   else if (solar === "Yes") {
-    need("p4.instructions", "Shutdown instructions", "STOP — safe shutdown, isolation and restart instructions are needed for every supply.");
-    need("p4.isolator", "Ground-level isolator", "STOP — the AC/DC isolator must be accessible, working and safe to isolate.");
+    need("p4.instructions", "Shutdown instructions", stopMsg("Safe shutdown, isolation and restart instructions are needed for every supply."));
+    need("p4.isolator", "Ground-level isolator", stopMsg("The AC/DC isolator must be accessible, working and safe to isolate."));
   }
-  need("p5.reviewed", "PIESA review", "STOP AND CONFIRM SAFE TO START — the lead installer must review the PIESA.");
+  need("p5.reviewed", "PIESA review", stopMsg("The lead installer must read the PIESA and confirm it is safe to start work."));
   const required = ctx.electricianRequiredAtStart || a("p4.instructions") === "No";
   const el = a("p5.electricianPresent");
   if (el == null) out.push("Electrician attendance: not answered");
-  else if (el === "No") out.push("STOP WORK. NO INSTALL TODAY — the required electrician is not onsite.");
-  else if (el === "N/A" && required) out.push("STOP WORK. NO INSTALL TODAY — the PIESA or shutdown requirement needs an electrician, so N/A is not valid.");
+  else if (el === "No") out.push(stopMsg("Get the required electrician onsite, then reconfirm it is safe to start."));
+  else if (el === "N/A" && required) out.push(stopMsg("The PIESA or shutdown requirement needs an electrician, so N/A is not valid."));
   const rec = a("p5.recessed");
   if (rec == null) out.push("Recessed lights: not answered");
   else if (rec === "Yes") {
-    need("p5.icConfirmed", "IC-rated lights", "STOP — the PIESA must confirm all ceiling lights are IC-rated.");
-    need("p5.safeToCover", "Safe to cover", "STOP — recessed lights must be safe to cover with insulation.");
+    need("p5.icConfirmed", "IC-rated lights", stopMsg("The PIESA must confirm all ceiling lights are IC-rated."));
+    need("p5.safeToCover", "Safe to cover", stopMsg("Recessed lights must be safe to cover with insulation."));
   }
-  need("p5.rcd", "RCD protection", "STOP — all ceiling mains cables need RCD protection.");
-  need("p5.tps", "TPS cables", "STOP — all ceiling mains cables must be TPS or equivalent.");
-  need("p5.basic", "Basic protection", "STOP — all ceiling mains cables must meet Basic Protection.");
-  need("p5.noAccess", "No ceiling access since PIESA", "STOP — confirm nobody has accessed or worked in the ceiling since the PIESA.");
+  need("p5.rcd", "RCD protection", stopMsg("All ceiling mains cables need RCD protection."));
+  need("p5.tps", "TPS cables", stopMsg("All ceiling mains cables must be TPS or equivalent."));
+  need("p5.basic", "Basic protection", stopMsg("All ceiling mains cables must meet Basic Protection."));
+  need("p5.noAccess", "No ceiling access since PIESA", stopMsg("Confirm nobody has accessed or worked in the ceiling since the PIESA."));
   const ins = a("p6.present");
   if (ins == null) out.push("Existing insulation: not answered");
   else if (ins === "Yes") {
@@ -547,7 +551,7 @@ export function a3StopWork(answers: OfficialAnswers, ctx: Pick<A3EvidenceCtx, "e
     if (!ticks.length) out.push("Existing insulation: removed or topped up not answered");
     const suit = a("p6.suitable");
     if (suit == null) out.push("Existing insulation suitability: not answered");
-    else if (suit === "No" && ticks.includes("Topped Up")) out.push("STOP — unsuitable existing insulation can't be kept or topped up; remove it first.");
+    else if (suit === "No" && ticks.includes("Topped Up")) out.push(stopMsg("Unsuitable existing insulation can't be kept or topped up; remove it first."));
   }
   return out;
 }
@@ -716,7 +720,7 @@ export function a3CrewNativeItems(template: unknown, sel: CrewSelection, staff: 
     };
     if ("workerId" in pick) {
       const s = byId.get(pick.workerId);
-      if (!s || !s.eecVerified || !s.eec) { problems.push(`Crew row ${row + 1}: not a verified installer`); return; }
+      if (!s || !s.eecVerified || !s.eec || s.approved === false) { problems.push(`Crew row ${row + 1}: not a verified, approved installer of this company`); return; }
       // PRIVACY (Jo 8 Oct 2026): the A3 template is shared by every company, so it must hold no named staff. Known,
       // verified staff of the ASSIGNED company always go in as Other + their recorded name/certificate (never retyped),
       // and a named option is never selected even if one appears in the shared list.
