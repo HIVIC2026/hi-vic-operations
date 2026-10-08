@@ -1,10 +1,11 @@
-# Roadmap (preview only, nothing sent, no publish, no real jobs)
+# Roadmap (preview only; external actions only where Jo explicitly authorises them)
+- [x] Jo 09:37 explicitly authorised creating HV-2010's missing form. One existing admin-guarded createMittiAssessment call attempted using the approved TEST office session; Mitti user lookup rejected the assigned installer as not found. No audit created, no linkage recorded, no retry or invitation sent.
 - [x] Jo 09:33 faster-process question answered: one-time installer Mitti setup followed by direct job-form access is the intended simplification; no integration automation authorised or changed.
 - [x] 09:33 runtime recheck: public home/sign-in/sample onboarding and authenticated office Overview/Templates/Leads rendered; zero page exceptions, all request failures navigation cancellations. Current module crash not reproduced; no recovery/router changes.
 - [x] Jo 09:29: switched Mitti access on only for the installer business behind HV-2010 via existing admin-guarded setPartnerMittiInvited; authenticated read-back confirmed true and recorded timestamp. No invitation/form creation/integration call/publish.
 - [x] Jo 09:28: reviewed screenshots and actual job source; generic next-action text ignores form access, and timeline contains mockup payment wording. No workflow rewrite; correction remains separate from the requested access switch.
 - [x] Jo 09:25: SELECT-only diagnosis confirms saved/confirmed Ready Check, configured template and auto-send on, but business mitti_account_invited=false and no audit. No integration action/settings change.
-- [ ] HV-2010 still has no linked onsite form; access is now enabled by Jo's explicit instruction, but actual form creation/opening remains unverified and was not invoked.
+- [ ] HV-2010 form creation blocked: the assigned installer's exact portal email is not found in Mitti. Actual Mitti membership must be established/confirmed before another attempt; portal access alone is insufficient. No account substitute or access bypass permitted.
 - [x] Jo 09:24: red duplicate-email warning replaced by neutral unsuccessful-save/help status; customer access protection unchanged. 23 tests/41 assertions, harness build OK.
 ## Add job choices (Jo 8 Oct 09:21 UTC)
 - [x] Separate later Ready Check entry with customer details, appointment and optional manual measurements from existing quote/measurement entry; retain guarded booking and provisional data.
