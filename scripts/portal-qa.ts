@@ -135,7 +135,21 @@ for (const [a, why] of [
 // ---- results ----
 const counts = results.reduce((m, r) => ({ ...m, [r.status]: (m[r.status] ?? 0) + 1 }), {} as Record<string, number>);
 const overall: Status = results.some((r) => r.status === "failed") ? "failed" : results.every((r) => r.status === "passed") ? "passed" : "blocked";
-const prev = existsSync(`${ROOT}/latest.json`) ? JSON.parse(readFileSync(`${ROOT}/latest.json`, "utf8")) as { last_successful_run?: string | null } : {};
+const prev = existsSync(`${ROOT}/latest.json`) ? JSON.parse(readFileSync(`${ROOT}/latest.json`, "utf8")) as { last_successful_run?: string | null; results?: Result[] } : {};
+// Fix log: one entry per failing route/action; status detected -> fixed -> retested -> deployed | blocked.
+// The runner only ever adds/updates "detected" + repeat counts; repairs are recorded by the repairing session.
+const FIXLOG = `${ROOT}/fix-log.json`;
+type Fix = { key: string; status: string; first_seen: string; last_seen: string; repeats: number; detail: string; notes?: string[] };
+const fixes: Fix[] = existsSync(FIXLOG) ? JSON.parse(readFileSync(FIXLOG, "utf8")) : [];
+for (const r of results.filter((x) => x.status === "failed")) {
+  const key = `${r.area} | ${r.route_or_action.replace(/ \((phone|desktop)\)$/, "")}`;
+  const f = fixes.find((x) => x.key === key);
+  if (!f) fixes.push({ key, status: "detected", first_seen: env.started_at, last_seen: env.started_at, repeats: 1, detail: r.detail });
+  else if (f.last_seen !== env.started_at) { f.last_seen = env.started_at; f.repeats++; f.detail = r.detail; if (f.status !== "blocked") f.status = f.status === "detected" ? "detected" : "regressed"; }
+}
+writeFileSync(FIXLOG, JSON.stringify(fixes, null, 2));
+const repeated = fixes.filter((f) => f.last_seen === env.started_at && f.repeats >= 2);
+if (repeated.length) console.log(`\nALERT repeated failures (tell Jo):\n${repeated.map((f) => ` - ${f.key} ×${f.repeats}: ${f.detail}`).join("\n")}`);
 const doc = { ...env, finished_at: new Date().toISOString(), overall, counts, last_successful_run: overall === "passed" ? env.started_at : prev.last_successful_run ?? null, out_dir: OUT, results };
 writeFileSync(`${OUT}/results.json`, JSON.stringify(doc, null, 2));
 writeFileSync(`${ROOT}/latest.json`, JSON.stringify(doc, null, 2));
