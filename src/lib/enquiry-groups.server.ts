@@ -12,6 +12,7 @@ import { renderEstimateEmail, renderIneligibleOutcomeEmail, renderInsulationVide
 import { CUSTOMER_BASE } from "./engagement.core";
 import type { LocationVariables } from "./activity48.core";
 import { homeownerVideoCount } from "./owner-capture.core";
+import { signFile } from "./file-links.server";
 import { formatPropertyAddress } from "./address";
 import { LAUNCH_CAMPAIGN } from "./launch-campaign.core";
 import {
@@ -50,6 +51,8 @@ export type EnquiryGroupRow = EnquiryClass & {
   lastEmail: { purpose: string; status: string; at: string | null; error: string | null } | null;
   consent: string | null; optedOut: boolean; bounced: boolean; source: string | null; isPrimaryForContact: boolean; sentPurposes: string[];
   status: EnquiryStatus; attentionReason: string | null; outcomeAt: string | null;
+  /** Homeowner photos/videos attached to the website enquiry (intake_media), and whether the office has reviewed them. */
+  mediaCount: number; mediaChecked: boolean;
 };
 
 export async function loadEnquiryGroups() {
