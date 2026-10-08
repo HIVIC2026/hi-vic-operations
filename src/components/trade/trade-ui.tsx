@@ -41,9 +41,9 @@ export function Badge({ variant = "default", className, ...p }: React.HTMLAttrib
 
 /** Pill buttons in the trade colours: default = green, outline = white with a line, ghost = text. */
 export const Button = React.forwardRef<HTMLButtonElement, React.ComponentProps<typeof BaseButton>>(function Button({ variant = "default", className, ...p }, ref) {
-  const look = variant === "default" ? "rounded-[10px] bg-action text-[13px] font-bold text-action-foreground hover:bg-action/90"
-    : variant === "outline" ? "rounded-[10px] border border-line bg-paper text-[13px] font-bold text-hiv-blue hover:bg-mist"
-    : variant === "ghost" ? "rounded-[10px] text-[13px] font-bold text-hiv-blue" : "rounded-[10px]";
+  const look = variant === "default" ? "rounded-[10px] bg-action text-[13px] font-bold text-action-foreground hover:bg-action/90 hover:text-action-foreground"
+    : variant === "outline" ? "rounded-[10px] border border-line bg-paper text-[13px] font-bold text-hiv-blue hover:bg-mist hover:text-hiv-blue"
+    : variant === "ghost" ? "rounded-[10px] text-[13px] font-bold text-hiv-blue hover:text-hiv-blue" : "rounded-[10px]";
   return <BaseButton ref={ref} variant={variant === "default" || variant === "outline" || variant === "ghost" ? "ghost" : variant} {...p} className={cx(look, className)} />;
 });
 

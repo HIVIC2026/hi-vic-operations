@@ -252,7 +252,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
             </button>)}
           </div>
         </fieldset>
-        {payer === "own" && plan && <ElectricianPicker value={plan} onChange={(n) => { setPlan(n); if (n.mode !== "mine") setPayer("hivic"); }} note={false} approved={el?.approved ?? []} pending={el?.pending ?? []} onAdd={async (x) => { const r = await addEl({ data: { businessId, name: x.name, mobile: x.mobile, email: x.email, business: x.business } }); await refetch(); setPlan({ mode: "mine", ...(r.businessId ? { business_id: r.businessId } : { nomination_id: r.nominationId }) }); return { message: inviteResultMessage(r) }; }} />}
+        {payer === "own" && plan && <ElectricianPicker ownOnly value={plan} onChange={(n) => { setPlan(n); if (n.mode !== "mine") setPayer("hivic"); }} note={false} approved={el?.approved ?? []} pending={el?.pending ?? []} onAdd={async (x) => { const r = await addEl({ data: { businessId, name: x.name, mobile: x.mobile, email: x.email, business: x.business } }); await refetch(); setPlan({ mode: "mine", ...(r.businessId ? { business_id: r.businessId } : { nomination_id: r.nominationId }) }); return { message: inviteResultMessage(r) }; }} />}
         {d.quoteStatus === "have_quote" && feeText && <label className="flex items-start gap-3 text-sm" data-fee-ack><Checkbox className="mt-0.5" checked={feeAck} onCheckedChange={(c) => setFeeAck(c === true)} aria-label={feeText} /><span>{feeText}<span className="block text-xs text-sub">Not ticked? You can still submit — the owner quote waits until this is recorded.</span></span></label>}
       </section>}
 

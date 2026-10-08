@@ -121,7 +121,8 @@ export function installerQuoteReleaseBlockers(r: { consentStatus: string | null;
   if (r.consentStatus !== "granted") b.push("No current owner contact consent on record");
   if (r.electricianPayer === "undecided") b.push("Electrician not decided yet — the owner's electrician cost must be known and disclosed before the quote");
   if (!r.feeAwarenessRecorded) b.push("Owner fee awareness not recorded yet");
-  else if (r.electricianPayer && r.electricianPayer !== "undecided" && r.feeAwarenessPayer && r.feeAwarenessPayer !== r.electricianPayer) b.push("Owner fee awareness was given for a different electrician arrangement — record it again for the current one");
+  // Legacy office records (no payer) used the HIV PIESA + AP wording: they never clear an own-electrician (direct billing) job.
+  else if (r.electricianPayer && r.electricianPayer !== "undecided" && (r.feeAwarenessPayer ?? "hivic") !== r.electricianPayer) b.push("Owner fee awareness was given for a different electrician arrangement — record it again for the current one");
   return b;
 }
 
@@ -358,4 +359,17 @@ export function pickIntakeChanges(cur: IntakeCurrent, next: { areaM2: number | n
   if (pr != null && !(pr > 0 && pr <= 10)) throw new Error("Check the proposed product R-rating");
   if (pr !== cur.proposedR) out.proposedR = pr;
   return out;
+}
+
+/**
+ * Installer changes who arranges/pays the electrician on their own job (before any electrician has accepted).
+ * Validated BEFORE any write: a fee declaration sent with the change must match the NEW payer and its exact wording.
+ */
+export function planPayerChange(x: { currentPayer: ElectricianPayer; requested: ElectricianPayer | undefined; electricianAccepted: boolean; fee?: { payer: ElectricianPayer; text: string } | undefined }):
+  { ok: true; change: boolean; nextPayer: ElectricianPayer } | { ok: false; error: string } {
+  const change = x.requested !== undefined && x.requested !== x.currentPayer;
+  if (change && x.electricianAccepted) return { ok: false, error: "An electrician has already accepted this job. Ask Home Insulation Victoria to change it." };
+  const nextPayer = change ? x.requested! : x.currentPayer;
+  if (x.fee && (x.fee.payer !== nextPayer || x.fee.text !== feeAwarenessText(nextPayer))) return { ok: false, error: "The fee confirmation doesn't match the electrician arrangement you chose — tick it again." };
+  return { ok: true, change, nextPayer };
 }

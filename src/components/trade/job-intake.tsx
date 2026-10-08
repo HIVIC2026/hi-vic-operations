@@ -70,9 +70,11 @@ export type ElectricianOption = { businessId?: string; nominationId?: string; na
 export type NewElectrician = { name: string; business: string; mobile: string; email: string };
 
 /** "Your electrician or ours?" — My electrician (usual one preselected) / + Add another electrician / Home Insulation Victoria arranges. */
-export function ElectricianPicker({ value, onChange, approved, pending, onAdd, compact = false, note = true, title = "Your electrician or ours?" }: {
+export function ElectricianPicker({ value, onChange, approved, pending, onAdd, compact = false, note = true, title = "Your electrician or ours?", ownOnly = false }: {
   value: ElectricianPlan; onChange: (v: ElectricianPlan) => void; approved: ElectricianOption[]; pending: ElectricianOption[];
   onAdd?: (d: NewElectrician) => Promise<{ message: string }>; compact?: boolean; note?: boolean; title?: string;
+  /** Own-electrician picker only (approved / invited / add) — used beneath a separate who-arranges choice. */
+  ownOnly?: boolean;
 }) {
   const [adding, setAdding] = useState(false);
   const [d, setD] = useState<NewElectrician>({ name: "", business: "", mobile: "", email: "" });
@@ -92,11 +94,11 @@ export function ElectricianPicker({ value, onChange, approved, pending, onAdd, c
   const invitedPick = value.mode === "mine" && value.nomination_id && !value.business_id;
   return (
     <div className={compact ? "space-y-2 rounded-[12px] bg-mist/60 p-2" : "space-y-2 rounded-[18px] border border-line bg-paper p-3 shadow-card"} data-electrician-choice>
-      <div className="flex items-center gap-1.5 text-sm font-semibold"><Zap className="h-4 w-4 text-hiv-blue" />{title}</div>
+      {!ownOnly && <><div className="flex items-center gap-1.5 text-sm font-semibold"><Zap className="h-4 w-4 text-hiv-blue" />{title}</div>
       <div role="group" aria-label="Electrician" className="grid grid-cols-2 gap-1 rounded-[11px] bg-mist p-1">
         <button type="button" aria-pressed={value.mode === "mine"} className={opt(value.mode === "mine")} onClick={pickMine}>My electrician</button>
         <button type="button" aria-pressed={value.mode !== "mine"} className={opt(value.mode !== "mine")} onClick={() => { setAdding(false); onChange({ mode: "hivic" }); }}>Home Insulation Victoria arranges</button>
-      </div>
+      </div></>}
       {value.mode === "mine" && (
         <select aria-label="My electrician" className="h-9 w-full rounded-[9px] border border-line bg-paper px-2 text-sm" value={selected} onChange={(e) => { const [k, id] = e.target.value.split(":"); if (!id) return; onChange(k === "b" ? { mode: "mine", business_id: id } : { mode: "mine", nomination_id: id }); }}>
           <option value="">Choose your electrician</option>

@@ -69,7 +69,7 @@ export async function installerIntakeState(jobId: string) {
     admin.from("ceiling_measurements").select("measured_area_m2, verified_area_m2, supplied_area_m2, provenance, existing_r_value").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
     commercialEligibility(jobId),
     admin.from("owner_contact_consents").select("consent_status").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    admin.from("workflow_events").select("details", { count: "exact" }).eq("job_id", jobId).eq("event_type", "installer_owner_fee_awareness").order("created_at", { ascending: false }).limit(1),
+    admin.from("workflow_events").select("details, created_at, actor_id", { count: "exact" }).eq("job_id", jobId).eq("event_type", "installer_owner_fee_awareness").order("created_at", { ascending: false }).limit(1),
     admin.from("evidence_requirements").select("category, label, required, status, gate").eq("job_id", jobId).eq("gate", "assessment"), // Ready Check items only — later PIESA/install/AP evidence has its own lists
   ]);
   if (error) throw new WorkflowError(error.message);
@@ -80,14 +80,29 @@ export async function installerIntakeState(jobId: string) {
   const { payerFromChoice } = await import("./installer-intake.core");
   const electricianPayer = payerFromChoice(job.electrician_choice);
   const feeRow = (feeRows ?? [])[0]?.details as { payer?: "hivic" | "own" | "undecided" } | null | undefined;
-  const release = installerQuoteReleaseBlockers({ consentStatus: consent?.consent_status ?? null, feeAwarenessRecorded: (fee ?? 0) > 0, feeAwarenessPayer: feeRow?.payer ?? null, electricianPayer });
+  // A declaration made before the latest electrician-arrangement change no longer counts (material change).
+  const { data: lastChange } = await admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "installer_electrician_payer_changed").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const feeAt = (feeRows ?? [])[0]?.created_at ?? null;
+  const feeCurrent = (fee ?? 0) > 0 && !(lastChange && feeAt && feeAt < lastChange.created_at);
+  // Office-reviewable record of the latest owner fee declaration (who/when/payer/exact wording/version/source).
+  const feeLatest = (feeRows ?? [])[0] as { details: Record<string, unknown> | null; created_at: string; actor_id: string | null } | undefined;
+  let feeRecord: null | { by: string; actorName: string | null; at: string; payer: "hivic" | "own" | null; wording: string | null; version: string | null; source: string | null; note: string | null; current: boolean; coversCurrentPayer: boolean } = null;
+  if (feeLatest) {
+    const d = feeLatest.details ?? {};
+    const { data: who } = feeLatest.actor_id ? await admin.from("profiles").select("full_name, email").eq("id", feeLatest.actor_id).maybeSingle() : { data: null };
+    const fp = (d["payer"] === "hivic" || d["payer"] === "own") ? d["payer"] as "hivic" | "own" : null;
+    feeRecord = { by: String(d["by"] ?? "unknown"), actorName: who?.full_name || who?.email || null, at: String(d["confirmed_at"] ?? feeLatest.created_at), payer: fp,
+      wording: typeof d["wording"] === "string" ? d["wording"] : null, version: typeof d["version"] === "string" ? d["version"] : null, source: typeof d["source"] === "string" ? d["source"] : null,
+      note: typeof d["note"] === "string" ? d["note"] : null, current: feeCurrent, coversCurrentPayer: (fp ?? "hivic") === electricianPayer };
+  }
+  const release = installerQuoteReleaseBlockers({ consentStatus: consent?.consent_status ?? null, feeAwarenessRecorded: feeCurrent, feeAwarenessPayer: feeRow?.payer ?? null, electricianPayer });
   const rc = readyCheckOutstanding((ev ?? []).map((r) => ({ category: r.category, label: r.label, blocking: r.required, status: r.status })) as EvidenceItem[]);
   return {
     coordination, coordinationNext: (await import("./installer-intake.core")).coordinationNextAction(coordination),
     channel: job.channel, insulation: ins.value, insulationSource: ins.source, areaM2: area, areaProvenance: scope.provenance,
     proposedR: await latestProposedR(jobId), reconfirmationRequired: await reconfirmationOpen(jobId), measuredR,
     quoteIncGst: job.installer_quoted_price_inc_gst == null ? null : Number(job.installer_quoted_price_inc_gst), includes: job.installer_price_includes,
-    officeEligibility, readiness, releaseBlockers: release, electricianPayer, feeAwarenessPayer: feeRow?.payer ?? null, feeAwarenessRecorded: (fee ?? 0) > 0,
+    officeEligibility, readiness, releaseBlockers: release, electricianPayer, feeAwarenessPayer: feeRow?.payer ?? null, feeAwarenessRecorded: feeCurrent, feeRecord,
     readyCheck: { outstandingCount: rc.count, outstanding: rc.outstanding.map((i) => ({ label: i.label, status: i.status })) },
   };
 }
@@ -140,8 +155,14 @@ export async function correctInstallerIntake(jobId: string, actorId: string, p: 
 
 export async function recordOfficeFeeAwareness(jobId: string, actorId: string, note: string) {
   if (!note.trim()) throw new WorkflowError("Say how the owner was told about the fees.");
-  const { OWNER_FEE_AWARENESS_TICK } = await import("./owner-confirm.core");
-  await logEvent(jobId, actorId, "installer_owner_fee_awareness", "Office recorded that the owner is aware of the AP management and PIESA fees", { by: "office", note: note.trim(), wording: OWNER_FEE_AWARENESS_TICK, confirmed_at: new Date().toISOString() }, { internal: true });
+  // Explicit payer + exact wording for the CURRENT electrician arrangement (never a generic record that could clear
+  // an own-electrician job with the HIV PIESA wording).
+  const st = await installerIntakeState(jobId);
+  const { feeAwarenessText, FEE_AWARENESS_VERSION } = await import("./installer-intake.core");
+  const payer = st.electricianPayer;
+  const wording = feeAwarenessText(payer);
+  if (!wording || payer === "undecided") throw new WorkflowError("Record who arranges the electrician first — the owner's fees depend on it.");
+  await logEvent(jobId, actorId, "installer_owner_fee_awareness", payer === "own" ? "Office recorded that the owner was advised of the $349 AP management fee and that their own electrician invoices them separately" : "Office recorded that the owner was advised of the $349 PIESA fee and $349 AP management fee", { by: "office", source: "office_job_page", payer, wording, version: FEE_AWARENESS_VERSION, note: note.trim(), confirmed_at: new Date().toISOString(), not_owner_paperwork: true }, { internal: true });
 }
 
 /** Office "Prepare owner quote" from the intake facts. Always a held draft; dedups on identical figures. */
@@ -173,6 +194,8 @@ export type InstallerIntakeUpdate = {
   quoteIncGst: number | null; includes: string | null; proposedR: number | null;
   files: { path: string; name: string; type: string }[];
   electrician?: { mode: "mine"; business_id?: string | null; nomination_id?: string | null } | undefined;
+  /** Who arranges/pays the electrician: HIV ($349 on quote) / own (direct billing, needs `electrician`) / to be arranged. */
+  electricianPayer?: "hivic" | "own" | "undecided" | undefined;
   /** Installer declares (later, on the same job) the owner was advised of the fees for the CURRENT electrician payer. */
   feeAwareness?: { payer: "hivic" | "own"; text: string } | undefined;
 };
@@ -191,6 +214,23 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
   if (!(await isIntakeJob(jobId))) throw new WorkflowError("This job wasn't added through Add job.");
   for (const f of p.files) if (!f.path.startsWith(`partners/${businessId}/`)) throw new WorkflowError("That file isn't one of your uploads.");
   const st = await installerIntakeState(jobId);
+  // ---- Validate the electrician/payer change and fee declaration BEFORE any write (no misleading partial saves). ----
+  const { planPayerChange } = await import("./installer-intake.core");
+  const requestedPayer = p.electricianPayer ?? (p.electrician && (p.electrician.business_id || p.electrician.nomination_id) && st.electricianPayer !== "own" ? "own" : undefined);
+  const { count: elAccepted } = await admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true);
+  const pc = planPayerChange({ currentPayer: st.electricianPayer, requested: requestedPayer, electricianAccepted: (elAccepted ?? 0) > 0, fee: p.feeAwareness });
+  if (!pc.ok) throw new WorkflowError(pc.error);
+  if (pc.change) {
+    if (st.electricianPayer === "own") throw new WorkflowError("Your electrician is already chosen — ask the office to change it.");
+    if (pc.nextPayer === "own") {
+      const e = p.electrician;
+      if (!e || !(e.business_id || e.nomination_id)) throw new WorkflowError("Choose your electrician.");
+      if (e.business_id) { const { data: rel } = await admin.from("partner_relationships").select("electrician_business_id").eq("installer_business_id", businessId).eq("electrician_business_id", e.business_id).eq("active", true).maybeSingle(); if (!rel) throw new WorkflowError("That electrician isn't one of your approved electricians."); }
+      else { const { data: n } = await admin.from("electrician_nominations").select("id").eq("id", e.nomination_id!).eq("nominating_business_id", businessId).maybeSingle(); if (!n) throw new WorkflowError("That electrician couldn't be found. Add them again."); }
+    }
+    const { data: acc } = await admin.from("quotes").select("id").eq("job_id", jobId).eq("kind", "installation").eq("status", "accepted");
+    if (acc?.length) { const { count: inv } = await admin.from("invoices").select("id", { count: "exact", head: true }).in("quote_id", acc.map((q) => q.id)); if (inv) throw new WorkflowError("The owner's invoice has already been raised — ask Home Insulation Victoria to change the electrician arrangement."); }
+  }
   const { data: m } = await admin.from("ceiling_measurements").select("id, provenance, supplied_area_m2").eq("job_id", jobId).eq("is_current", true).maybeSingle();
   const ch = pickIntakeChanges({
     areaM2: m?.supplied_area_m2 == null ? (st.areaM2 ?? null) : Number(m.supplied_area_m2), insulation: st.insulation, quoted: (job.installer_quoted ?? null) as "yes" | "no" | null,
@@ -218,21 +258,28 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
     if (add.length) await logEvent(jobId, actorId, "installer_quote_file_added", `Installer added ${add.length} file${add.length === 1 ? "" : "s"} (originals kept)`, { files: add }, { internal: true });
   }
   let electrician: string | null = null;
-  if (p.electrician && (p.electrician.business_id || p.electrician.nomination_id)) {
-    if (job.electrician_choice && job.electrician_choice !== "hivic_organise") throw new WorkflowError("An electrician is already chosen — ask the office to change it.");
-    const { recordJobElectricianChoice } = await import("./job-electrician.server");
-    electrician = (await recordJobElectricianChoice(jobId, businessId, p.electrician as never, actorId)).choice ?? null;
+  if (pc.change) {
+    const now = new Date().toISOString();
+    if (pc.nextPayer === "own") electrician = (await (await import("./job-electrician.server")).recordJobElectricianChoice(jobId, businessId, p.electrician as never, actorId)).choice ?? null;
+    else if (pc.nextPayer === "hivic") { await (await import("./job-electrician.server")).switchJobToHivic(jobId, actorId); electrician = "hivic_organise"; }
+    else {
+      await admin.from("electrician_nominations").update({ ended_at: now, updated_at: now }).eq("job_id", jobId).is("ended_at", null);
+      const { error: e } = await admin.from("jobs").update({ electrician_choice: null, next_action: "Electrician to be arranged" }).eq("id", jobId);
+      if (e) throw new WorkflowError(e.message);
+      electrician = "undecided";
+    }
+    await logEvent(jobId, actorId, "installer_electrician_payer_changed", `Installer changed the electrician arrangement: ${st.electricianPayer} → ${pc.nextPayer}`, { from: st.electricianPayer, to: pc.nextPayer, choice: electrician }, { internal: true });
+    if (st.feeAwarenessRecorded && !p.feeAwareness) await logEvent(jobId, actorId, "installer_owner_fee_awareness_invalidated", "Earlier owner fee declaration no longer covers the new electrician arrangement — a new declaration is needed", { previous_payer: st.feeAwarenessPayer, new_payer: pc.nextPayer }, { internal: true });
   }
   let feeRecorded = false;
   if (p.feeAwareness) {
-    const { feeAwarenessText, payerFromChoice, FEE_AWARENESS_VERSION } = await import("./installer-intake.core");
-    const { data: j2 } = await admin.from("jobs").select("electrician_choice").eq("id", jobId).single();
-    const payer = payerFromChoice(j2?.electrician_choice);
-    if (payer !== p.feeAwareness.payer || p.feeAwareness.text !== feeAwarenessText(payer)) throw new WorkflowError("The fee confirmation doesn't match this job's electrician arrangement — refresh and tick it again.");
+    const { FEE_AWARENESS_VERSION } = await import("./installer-intake.core");
+    const payer = pc.nextPayer;
     await logEvent(jobId, actorId, "installer_owner_fee_awareness", payer === "own" ? "Installer declared the owner was advised of the $349 AP management fee and that their own electrician invoices them separately" : "Installer declared the owner was advised of the $349 PIESA fee and $349 AP management fee", { by: "installer", source: "installer_job_page", payer, wording: p.feeAwareness.text, version: FEE_AWARENESS_VERSION, confirmed_at: new Date().toISOString(), not_owner_paperwork: true }, { internal: true });
     feeRecorded = true;
   }
-  const material = ch.area !== undefined || !!ch.quote || ch.proposedR !== undefined || ch.insulation !== undefined;
+  // A payer change is material: it changes the owner quote's lines (HIV PIESA line on/off).
+  const material = ch.area !== undefined || !!ch.quote || ch.proposedR !== undefined || ch.insulation !== undefined || pc.change;
   let quotes: { id: string; action: string }[] = [];
   if (material) {
     quotes = await staleIntakeQuotes(jobId, actorId);
@@ -240,5 +287,7 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
     if (ch.insulation !== undefined) await logEvent(jobId, actorId, "installer_intake_corrected", `Installer updated existing insulation to ${ch.insulation === "none" ? "none" : ch.insulation === "below_r2" ? "confirmed below R2.0" : "not yet confirmed"}`, { ...details, insulation: ch.insulation }, { internal: true });
     else await logEvent(jobId, actorId, "installer_intake_updated", "Installer updated job details", details, { internal: true });
   }
+  // Payer change: prepare a fresh held draft at the current lines when the commercial facts are ready (never sent here).
+  if (pc.change) { const s2 = await installerIntakeState(jobId); if (s2.readiness.ready && pc.nextPayer !== "undecided") await draftQuoteFromIntake(jobId, actorId).catch(() => null); }
   return { changed: material || p.files.length > 0 || !!electrician || feeRecorded, quotes: quotes.length, state: await installerIntakeState(jobId) };
 }

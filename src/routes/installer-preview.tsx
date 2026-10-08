@@ -35,7 +35,7 @@ function InstallerPreview() {
           <h2 className="mt-8 font-display text-xl font-bold">Sample received job (not quoted yet)</h2>
           <p className="text-sm text-sub">How the installer adds measurements and a quote later, on the same job. Sample only — nothing is saved.</p>
           <div className="mt-3" data-preview-editor><IntakeDetailsEditor preview businessId={PREVIEW_BUSINESS_ID} upload={api.uploadFiles}
-            facts={{ areaM2: null, insulation: "unknown", quoted: "no", quoteIncGst: null, includes: null, proposedR: null, files: [], electricianChosen: false, quoteHeld: ["Ceiling area not measured yet", "No installer quote yet", "Existing insulation not yet confirmed"] }}
+            facts={{ areaM2: null, insulation: "unknown", quoted: "no", quoteIncGst: null, includes: null, proposedR: null, files: [], electricianChosen: false, payerEditable: true, electricianPayer: "undecided", quoteHeld: ["Ceiling area not measured yet", "No installer quote yet", "Existing insulation not yet confirmed"] }}
             electricians={{ approved: [{ businessId: "preview-electrician", name: "Sample Electrical (sample)" }], pending: [] }}
             onSave={async () => ({ quoteHeld: [] })} /></div>
         </div>

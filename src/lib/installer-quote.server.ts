@@ -4,16 +4,20 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { type LocationVariables } from "./activity48.core";
 import { wholeVeecDiscount } from "./estimate.core";
-import { buildInstallerQuoteDraft, quotedPriceFromEntries } from "./installer-led.core";
+import { buildInstallerQuoteDraft, quotedPriceFromEntries, piesaChargeIncGst, isDirectBilledElectrician } from "./installer-led.core";
+import { installerQuoteReleaseBlockers, payerFromChoice } from "./installer-intake.core";
 import { installerPriceRangeReason } from "./quote-release.core";
 
 export const INSTALLER_QUOTE_CODE = "INSTALLER_A1";
+export const OWN_REC_QUOTE_NOTE = "Your electrician's safety check (PIESA) is not included in this total — your electrician invoices you for it separately at the price you agreed with them.";
+export const quoteLineSignature = (lines: { code: string | null; line_total_inc_gst: number | string | null }[]) =>
+  lines.map((l) => `${l.code}:${Number(l.line_total_inc_gst)}`).sort().join("|");
 
 export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: string | null, entries: { label: string; value: string | null }[], auditId: string, intakePrice?: { totalIncGst: number; includes: string; areaM2?: number }) {
-  const { data: job } = await admin.from("jobs").select("channel, ap_fee_override_inc_gst, properties(postcode)").eq("id", jobId).single();
+  const { data: job } = await admin.from("jobs").select("channel, ap_fee_override_inc_gst, electrician_choice, properties(postcode)").eq("id", jobId).single();
   if (!job || job.channel !== "installer_sourced") return null;
   // Fee awareness is an office quote-SEND prerequisite (Jo, 8 Oct 2026): the draft is still prepared, but held.
-  const { data: feeConfirmation } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "installer_owner_fee_awareness").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const { data: feeConfirmation } = await admin.from("workflow_events").select("id, details").eq("job_id", jobId).eq("event_type", "installer_owner_fee_awareness").order("created_at", { ascending: false }).limit(1).maybeSingle();
   const { data: open } = await admin.from("quotes").select("id, status, subtotal_inc_gst, veec_discount_inc_gst, option_code").eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]);
   // A sent quote is never touched. An ACCEPTED quote is never changed either, but when its facts were corrected
   // (reconfirmation open) a replacement draft may be prepared so the owner can reconfirm at the corrected figures.
@@ -33,12 +37,17 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   const apFee = job.ap_fee_override_inc_gst != null ? Number(job.ap_fee_override_inc_gst) : rs ? Number(rs.ap_management_inc_gst) : null;
   const draft = buildInstallerQuoteDraft({
     price: intakePrice ? { ok: true, issues: [], price: { included: [intakePrice.includes], otherDescription: "", totalIncGst: Math.round(intakePrice.totalIncGst * 100) / 100, agreedWithOwner: false } } : quotedPriceFromEntries(entries, m?.removal_required ?? null), measuredM2: m2, wholeVeec,
-    piesaIncGst: rs ? Number(rs.piesa_assessment_inc_gst) : null, apFeeIncGst: apFee,
+    // CURRENT recorded payer (Jo, 9 Oct 2026): own electrician = no HIV PIESA line; HIV = standard; undecided = held.
+    piesaIncGst: piesaChargeIncGst(job.electrician_choice ?? null, rs ? Number(rs.piesa_assessment_inc_gst) : null), apFeeIncGst: apFee,
     caps: {
       metropolitan: loc ? (loc as unknown as LocationVariables).metropolitan_or_regional === "Metropolitan" : null,
       minCopay: rs ? Number(rs.minimum_customer_copayment_inc_gst) : 200,
     },
   });
+  const payer = payerFromChoice(job.electrician_choice);
+  if (payer === "undecided") draft.blockers.unshift("Electrician not decided yet — the owner's electrician cost must be known before the quote");
+  if (payer === "undecided") draft.ready = false;
+  if (isDirectBilledElectrician(job.electrician_choice)) draft.discountNote = [OWN_REC_QUOTE_NOTE, draft.discountNote].filter(Boolean).join(" ");
   if (!draft.ready) {
     await logEvent(jobId, actorId, "installer_quote_held", "Owner quote not drafted — needs office review", { audit_id: auditId, blockers: draft.blockers });
     return draft;
@@ -47,9 +56,16 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   const rangeReason = installerPriceRangeReason(installerPrice != null && m2 ? installerPrice / m2 : null, workflow?.installer_quote_min_inc_gst_per_m2 == null ? null : Number(workflow.installer_quote_min_inc_gst_per_m2), workflow?.installer_quote_max_inc_gst_per_m2 == null ? null : Number(workflow.installer_quote_max_inc_gst_per_m2));
   // Honest status: the automatic step only ever creates a DRAFT held for office review. Nothing is issued,
   // marked sent or released here; the office sends via sendInstallerQuote, which checks consent/fees/switches.
-  const holdReason = [rangeReason, feeConfirmation ? null : "Owner fee awareness not recorded yet", "Waiting for office review before sending"].filter(Boolean).join(" · ");
+  const holdReason = [rangeReason, ...installerQuoteReleaseBlockers({ consentStatus: "granted", feeAwarenessRecorded: !!feeConfirmation, feeAwarenessPayer: ((feeConfirmation?.details as { payer?: "hivic" | "own" } | null)?.payer ?? null), electricianPayer: payer }), "Waiting for office review before sending"].filter(Boolean).join(" · ");
   void workflow?.auto_send_quote;
-  const same = (open ?? []).find((q) => q.option_code === INSTALLER_QUOTE_CODE && Number(q.subtotal_inc_gst) === draft.subtotal && Number(q.veec_discount_inc_gst) === draft.discount);
+  // Dedup only on identical figures AND identical lines (a payer change can keep totals but change scope/lines).
+  const sig = quoteLineSignature(draft.lines);
+  let same: { id: string } | undefined;
+  for (const q of open ?? []) {
+    if (q.status !== "draft" || q.option_code !== INSTALLER_QUOTE_CODE || Number(q.subtotal_inc_gst) !== draft.subtotal || Number(q.veec_discount_inc_gst) !== draft.discount) continue;
+    const { data: items } = await admin.from("quote_items").select("code, line_total_inc_gst").eq("quote_id", q.id);
+    if (quoteLineSignature(items ?? []) === sig) { same = q; break; }
+  }
   if (same) return draft; // dedup: same figures never create a second quote or audit row
   await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "installation").eq("status", "draft");
   const { data: q, error } = await admin.from("quotes").insert({
