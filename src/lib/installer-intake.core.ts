@@ -88,9 +88,14 @@ export function readyCheckOutstanding(items: EvidenceItem[]): { outstanding: Evi
  * declaration), no rejected item may remain, and a human AP approval must exist. Declarations such as
  * "below R2 confirmed" never substitute for photo evidence here.
  */
-export function rebateEvidenceBlockers(x: { items: EvidenceItem[]; apApprovedBy: string | null }): string[] {
+export function rebateEvidenceBlockers(x: { items: EvidenceItem[]; apApprovedBy: string | null; requiredCategories?: readonly string[] }): string[] {
   const b: string[] = [];
   if (x.items.length === 0) b.push("No evidence requirements recorded for this job");
+  for (const c of x.requiredCategories ?? []) {
+    const it = x.items.filter((i) => i.category === c);
+    if (!it.length) b.push(`${c.replace(/_/g, " ")}: no evidence requirement recorded`);
+    else if (!it.some((i) => i.status === "verified")) b.push(`${c.replace(/_/g, " ")}: photo/video evidence not verified (a declaration does not count)`);
+  }
   for (const i of x.items) {
     if (!i.blocking || i.status === "not_required" || i.status === "verified") continue;
     b.push(i.status === "rejected" ? `${i.label}: rejected — re-upload needed` : i.status === "uploaded" ? `${i.label}: uploaded, not yet verified` : `${i.label}: missing`);
@@ -111,20 +116,92 @@ export function installDayBlockers(x: { initialConditionCaptured: boolean; prest
 export const intakeKey = (businessId: string, email: string, address: string) =>
   `${businessId}:${email.trim().toLowerCase()}:${address.trim().toLowerCase().replace(/\s+/g, " ")}`;
 
-/** An uploaded file that names more than one customer is rejected: one job = one customer. */
+/**
+ * An uploaded file that genuinely covers more than one customer is rejected (one job = one customer).
+ * Email count alone is NOT a signal: a normal quote carries the contractor's email and the customer's.
+ * Signals: two or more different labelled customer names, or two or more different labelled site addresses,
+ * or a table/CSV with several data rows that each carry their own email address.
+ */
 export function multiCustomerAmbiguity(text: string): boolean {
-  const emails = new Set((text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) ?? []).map((e) => e.toLowerCase()));
-  return emails.size > 1;
+  const norm = (v: string) => v.trim().toLowerCase().replace(/\s+/g, " ").replace(/[.,]+$/, "");
+  const labelled = (re: RegExp) => new Set([...text.matchAll(re)].map((m) => norm(m[1] ?? "")).filter((v) => v.length > 2));
+  const names = labelled(/^\s*(?:customer|client|home ?owner|owner)(?: name)?\s*[:\-]\s*(.+)$/gim);
+  const sites = labelled(/^\s*(?:site|property|install(?:ation)?|job) address\s*[:\-]\s*(.+)$/gim);
+  if (names.size > 1 || sites.size > 1) return true;
+  const lines = text.split(/\r?\n/);
+  const header = lines.findIndex((l) => /,/.test(l) && /e-?mail/i.test(l));
+  if (header >= 0) {
+    const rowEmails = new Set(lines.slice(header + 1).map((l) => l.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0]?.toLowerCase()).filter(Boolean));
+    if (rowEmails.size > 1) return true;
+  }
+  return false;
 }
 
-/** Prefill from the extracted file: only values the reader actually found; nothing invented. */
-export function prefillFromExtracted(x: { measured_area_m2?: { value: unknown; confidence: string } | undefined; r_value?: { value: unknown; confidence: string } | undefined; product?: { value: unknown; confidence: string } | undefined; quote_lines?: { description: string; amount: number | null }[] | undefined }) {
+/**
+ * Prefill from the extracted file: only values the reader actually found; nothing invented.
+ * The PROPOSED product R-rating is filled ONLY from an explicit "proposed/new product R-value" label in the text —
+ * a bare "R5" or a generic r_value is never taken as the proposal and is never existing insulation.
+ */
+export function prefillFromExtracted(x: { measured_area_m2?: { value: unknown; confidence: string } | undefined; product?: { value: unknown; confidence: string } | undefined; quote_lines?: { description: string; amount: number | null }[] | undefined }, text?: string) {
   const found = (f?: { value: unknown; confidence: string }) => (f && f.confidence === "found" && f.value != null && String(f.value).trim() ? String(f.value) : "");
   const lines = (x.quote_lines ?? []).filter((l) => l.amount != null && l.amount > 0);
   const total = lines.length === 1 ? String(lines[0]!.amount) : ""; // several lines = ambiguous total, confirm manually
-  return { area: found(x.measured_area_m2), proposedR: found(x.r_value), includes: [found(x.product), ...lines.map((l) => l.description)].filter(Boolean).join("; ").slice(0, 1000), amount: total };
+  const pr = text?.match(/(?:proposed|new)\s+(?:product\s+)?r[- ]?(?:value|rating)\s*[:\-]\s*R?\s*(\d+(?:\.\d+)?)/i)?.[1] ?? "";
+  return { area: found(x.measured_area_m2), proposedR: pr, includes: [found(x.product), ...lines.map((l) => l.description)].filter(Boolean).join("; ").slice(0, 1000), amount: total };
 }
 
+/**
+ * Facts sent to confirmImport. Never carries r_value / existing_r_value: the proposed product rating travels only
+ * in intake.proposed_r_value, so it can never become the EXISTING insulation value on the measurement.
+ */
+export function intakeConfirmFacts(c: { full_name: string; email: string; phone: string; address_line: string; suburb: string; postcode: string }, areaM2: number): Record<string, string | number | null> {
+  return { full_name: c.full_name.trim(), email: c.email.trim(), phone: c.phone.trim(), address_line: c.address_line.trim(), suburb: c.suburb.trim(), postcode: c.postcode.trim(),
+    measured_area_m2: areaM2, measurement_method: "Installer supplied (unverified)" };
+}
+
+/** Server-side strip: whatever a client sends, intake submissions never store a proposed or existing R-value as fact. */
+export function stripIntakeRValues<T extends Record<string, unknown>>(facts: T): T {
+  const o = { ...facts }; delete o.r_value; delete o.existing_r_value; return o;
+}
+
+/**
+ * Usable scope for an installer-supplied OWNER QUOTE: verified, then measured, then the installer-supplied provisional
+ * figure. Provisional stays labelled provisional; it is never marked complete/accepted and never used for the rebate.
+ */
+export function intakeScopeArea(m: { verified_area_m2?: unknown; measured_area_m2?: unknown; supplied_area_m2?: unknown; provenance?: string | null } | null): { areaM2: number | null; provenance: "verified" | "measured" | "installer_provisional" | null } {
+  const n = (v: unknown) => { const x = v == null ? NaN : Number(v); return Number.isFinite(x) && x > 0 ? x : null; };
+  if (!m) return { areaM2: null, provenance: null };
+  if (n(m.verified_area_m2)) return { areaM2: n(m.verified_area_m2), provenance: "verified" };
+  if (n(m.measured_area_m2)) return { areaM2: n(m.measured_area_m2), provenance: "measured" };
+  if (n(m.supplied_area_m2) && m.provenance === "installer_supplied_provisional") return { areaM2: n(m.supplied_area_m2), provenance: "installer_provisional" };
+  return { areaM2: null, provenance: null };
+}
+
+/**
+ * Race-safe submission claim on a draft import. confirmed_by + confirmed_at act as the claim while status stays draft;
+ * status becomes confirmed only after EVERY step succeeded. A stale claim (crashed request) may be taken over.
+ */
+export const CLAIM_STALE_MS = 120_000;
+export type ImportClaimState = { status: string; confirmedBy: string | null; confirmedAt: string | null; jobId: string | null };
+export function importClaimDecision(s: ImportClaimState, userId: string, nowMs: number): "claim" | "resume" | "done" | "busy" | "refuse" {
+  if (s.status === "confirmed") return s.confirmedBy === userId && s.jobId ? "done" : "refuse";
+  if (s.status !== "draft") return "refuse";
+  if (!s.confirmedBy) return "claim";
+  const age = s.confirmedAt ? nowMs - Date.parse(s.confirmedAt) : Infinity;
+  if (s.confirmedBy === userId) return s.jobId || age >= CLAIM_STALE_MS ? "resume" : "busy";
+  return age >= CLAIM_STALE_MS ? "claim" : "busy";
+}
+
+/** What a material intake correction does to an existing quote. Accepted prices are never changed unilaterally. */
+export function staleQuoteAction(status: string): "supersede" | "withdraw" | "reconfirm" | "keep" {
+  if (status === "draft") return "supersede";
+  if (status === "issued") return "withdraw";
+  if (status === "accepted") return "reconfirm";
+  return "keep";
+}
+
+/** Final-gate evidence the installer intake route must ALWAYS have as real verified media (declarations never count). */
+export const INTAKE_REQUIRED_MEDIA = ["before_ceiling_space", "existing_insulation_r_value"] as const;
 
 // ---- Who will organise this job? (Jo, 8 Oct 2026). Coordination responsibility only — never waives any gate. ----
 export type Coordination = "hivic_managed" | "self_managed";

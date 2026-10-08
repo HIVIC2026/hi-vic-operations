@@ -17,9 +17,10 @@ import { READY_CHECK_CONTACT_PERMISSION, electricianPlanBlocker, usualElectricia
 import type { OnsiteInput } from "@/lib/onsite-ready-check.core";
 import type { Extracted } from "@/lib/pilot.core";
 import { ADD_JOB_STEPS, BUSY_LABEL, blankCustomer, customerProblems, nextStep, prevStep, restoreCustomer, saveErrorMessage, type AddJobStep } from "@/lib/add-job-flow.core";
-import { COORDINATION_CHOICES, COORDINATION_VERSION, SELF_MANAGED_ACK, VEEC_NOTE, coordinationProblems, type Coordination, EVIDENCE_ACK, EXISTING_INSULATION_CHOICES, INTAKE_RULESET_VERSION, intakeProblems, multiCustomerAmbiguity, parseIntakeAmount, prefillFromExtracted, type ExistingInsulation } from "@/lib/installer-intake.core";
+import { COORDINATION_CHOICES, COORDINATION_VERSION, SELF_MANAGED_ACK, VEEC_NOTE, coordinationProblems, type Coordination, EVIDENCE_ACK, EXISTING_INSULATION_CHOICES, INTAKE_RULESET_VERSION, intakeProblems, multiCustomerAmbiguity, parseIntakeAmount, prefillFromExtracted, intakeConfirmFacts, type ExistingInsulation } from "@/lib/installer-intake.core";
 
-const DRAFT_KEY = "hiv-intake-draft";
+const draftKey = (businessId: string) => `hiv-intake-draft:${businessId}`; // per business, never global
+const draftIdKey = (businessId: string) => `hiv-intake-draft-id:${businessId}`;
 type Details = { area: string; amount: string; includes: string; proposedR: string; insulation: ExistingInsulation | null };
 
 export function InstallerIntakeFlow({ businessId }: { businessId: string }) {
@@ -46,8 +47,8 @@ export function InstallerIntakeFlow({ businessId }: { businessId: string }) {
   useEffect(() => { if (plan || !el) return; const u = usualElectrician(el.approved); setPlan(u?.businessId ? { mode: "mine", business_id: u.businessId } : { mode: "hivic" }); }, [el, plan]);
 
   // Typed details survive poor signal; consent and the evidence acknowledgment are never restored.
-  useEffect(() => { try { const s = localStorage.getItem(DRAFT_KEY); if (s) setCustomer(restoreCustomer(JSON.parse(s))); } catch { /* ignore */ } }, []);
-  useEffect(() => { try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...customer, contact_permission: false, consent_by: null })); } catch { /* ignore */ } }, [customer]);
+  useEffect(() => { try { localStorage.removeItem("hiv-intake-draft"); const s = localStorage.getItem(draftKey(businessId)); if (s) setCustomer(restoreCustomer(JSON.parse(s))); const id = sessionStorage.getItem(draftIdKey(businessId)); if (id) setDraftId(id); } catch { /* ignore */ } }, [businessId]);
+  useEffect(() => { try { localStorage.setItem(draftKey(businessId), JSON.stringify({ ...customer, contact_permission: false, consent_by: null })); } catch { /* ignore */ } }, [customer, businessId]);
   useEffect(() => { if (shown.length) problemsRef.current?.focus(); }, [shown]);
   useEffect(() => { setShown([]); }, [customer, d, ack, coord, selfAck]);
 
@@ -69,8 +70,8 @@ export function InstallerIntakeFlow({ businessId }: { businessId: string }) {
   const ensureDraft = async () => {
     if (draftId) return draftId; // one draft only, even after Back or a retry
     const r = await create({ data: { businessId, sourceSystem: "manual_import", ...(fileText ? { text: fileText } : {}), files: files.map((f) => ({ path: f.path, name: f.name, type: f.type ?? "" })) } });
-    setDraftId(r.id);
-    const pre = prefillFromExtracted(r.extracted as Extracted);
+    setDraftId(r.id); try { sessionStorage.setItem(draftIdKey(businessId), r.id); } catch { /* ignore */ }
+    const pre = prefillFromExtracted(r.extracted as Extracted, fileText);
     setD((o) => ({ area: o.area || pre.area, amount: o.amount || pre.amount, includes: o.includes || pre.includes, proposedR: o.proposedR || pre.proposedR, insulation: o.insulation }));
     return r.id;
   };
@@ -91,17 +92,14 @@ export function InstallerIntakeFlow({ businessId }: { businessId: string }) {
       const id = await ensureDraft();
       const amount = parseIntakeAmount(d.amount);
       const r = Number(d.proposedR.replace(/[Rr\s]/g, ""));
-      const facts: Record<string, string | number | boolean | null> = {
-        full_name: customer.full_name.trim(), email: customer.email.trim(), phone: customer.phone.trim(), address_line: customer.address_line.trim(), suburb: customer.suburb.trim(), postcode: customer.postcode.trim(),
-        measured_area_m2: Number(d.area), measurement_method: "Installer supplied (unverified)", r_value: d.proposedR.trim() && Number.isFinite(r) ? r : null,
-      };
+      const facts = intakeConfirmFacts(customer, Number(d.area)); // proposed R travels only as intake.proposed_r_value
       const hasAmount = amount != null && !Number.isNaN(amount) && amount > 0;
       const res = await confirm({ data: { importId: id, facts, installer: {
         quoted: hasAmount ? "yes" : "no", site_check: "yes", site_check_date: null, quoted_price_inc_gst: hasAmount ? amount : null, price_includes: d.includes.trim() || null,
         contact_permission: customer.contact_permission, owner_agreed: false,
         intake: { existing_insulation: d.insulation!, evidence_ack: ack, proposed_r_value: d.proposedR.trim() && Number.isFinite(r) ? r : null, version: `${INTAKE_RULESET_VERSION}+${COORDINATION_VERSION}`, coordination: coord!, self_managed_ack: coord === "self_managed" && selfAck },
       }, electrician: plan?.mode === "mine" ? { mode: "mine", business_id: plan.business_id ?? null, nomination_id: plan.nomination_id ?? null } : { mode: "hivic" } } as never });
-      try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+      try { localStorage.removeItem(draftKey(businessId)); sessionStorage.removeItem(draftIdKey(businessId)); } catch { /* ignore */ }
       setSaved({ jobId: res.jobId, jobNumber: res.jobNumber ?? null, insulation: d.insulation! });
     } catch (e) { setErr(saveErrorMessage(e instanceof Error ? e.message : null)); }
     finally { setBusy(false); inFlight.current = false; }
@@ -137,8 +135,9 @@ export function InstallerIntakeFlow({ businessId }: { businessId: string }) {
         </fieldset>
         <AttachFiles businessId={businessId} files={files} label="Upload your quote" onAdd={async (picked) => {
           const up = await uploadFiles(picked);
-          if (draftId) { const r = await addFiles({ data: { importId: draftId, files: up.map((x) => ({ path: x.path, name: x.name, type: x.type ?? "" })) } }); setFiles(r.files); setFileNote("Attached to this job."); return; }
-          setFiles((o) => [...o, ...up]);
+          if (draftId) { const r = await addFiles({ data: { importId: draftId, files: up.map((x) => ({ path: x.path, name: x.name, type: x.type ?? "" })) } }); setFiles(r.files); setFileNote("Attached to this job."); }
+          else setFiles((o) => [...o, ...up]);
+          // Read the new file too (also after the draft exists) — prefill only fills empty boxes.
           const f = picked[0];
           if (f && picked.length === 1 && ["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(f.type) && f.size <= 10_000_000) {
             const bytes = new Uint8Array(await f.arrayBuffer()); let raw = ""; for (let i = 0; i < bytes.length; i += 0x8000) raw += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
@@ -148,7 +147,7 @@ export function InstallerIntakeFlow({ businessId }: { businessId: string }) {
               if (multiCustomerAmbiguity(r.text)) { setFileNote("This file names more than one customer. Upload one customer's quote per job."); return; }
               // Preview what was found; the draft (created on submit) keeps the original file and text.
               const { extractFromText } = await import("@/lib/pilot.core");
-              const pre = prefillFromExtracted(extractFromText(r.text));
+              const pre = prefillFromExtracted(extractFromText(r.text), r.text);
               setD((o) => ({ ...o, area: o.area || pre.area, amount: o.amount || pre.amount, includes: o.includes || pre.includes, proposedR: o.proposedR || pre.proposedR }));
               setFileNote(pre.area || pre.amount || pre.includes ? "Details found in your quote are filled in below — check them." : "Attached. Nothing could be read clearly — fill in the boxes below.");
             } else setFileNote("Attached. Nothing could be read clearly — fill in the boxes below.");

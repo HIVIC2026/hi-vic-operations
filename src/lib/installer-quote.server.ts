@@ -9,7 +9,7 @@ import { installerPriceRangeReason } from "./quote-release.core";
 
 export const INSTALLER_QUOTE_CODE = "INSTALLER_A1";
 
-export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: string | null, entries: { label: string; value: string | null }[], auditId: string, intakePrice?: { totalIncGst: number; includes: string }) {
+export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: string | null, entries: { label: string; value: string | null }[], auditId: string, intakePrice?: { totalIncGst: number; includes: string; areaM2?: number }) {
   const { data: job } = await admin.from("jobs").select("channel, ap_fee_override_inc_gst, properties(postcode)").eq("id", jobId).single();
   if (!job || job.channel !== "installer_sourced") return null;
   // Fee awareness is an office quote-SEND prerequisite (Jo, 8 Oct 2026): the draft is still prepared, but held.
@@ -18,7 +18,7 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   if ((open ?? []).some((q) => q.status !== "draft")) return null; // a sent/accepted quote is never touched
 
   const { data: m } = await admin.from("ceiling_measurements").select("measured_area_m2, verified_area_m2, removal_required").eq("job_id", jobId).eq("is_current", true).maybeSingle();
-  const m2 = m ? Number(m.verified_area_m2 ?? m.measured_area_m2) || null : null;
+  const m2 = (m ? Number(m.verified_area_m2 ?? m.measured_area_m2) || null : null) ?? intakePrice?.areaM2 ?? null; // intake: provisional installer scope
   const postcode = String((job.properties as { postcode: string | null } | null)?.postcode ?? "").trim();
   const [{ data: loc }, { data: rs }, { data: workflow }] = await Promise.all([
     admin.from("veu_location_variables").select("*").eq("postcode", postcode).maybeSingle(),

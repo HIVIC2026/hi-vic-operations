@@ -37,22 +37,20 @@ export const sendInstallerQuote = createServerFn({ method: "POST" }).middleware(
     if (!q || q.option_code !== "INSTALLER_A1") throw new WorkflowError("Quote not found.");
     if (q.status !== "draft") throw new WorkflowError("This quote has already been sent.");
     { // Approved intake jobs: readiness + a real consent row + fee awareness before release (event alone is not consent).
-      const { count } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", data.jobId).eq("event_type", "installer_evidence_acknowledged");
-      if (count) {
-        const { installerIntakeState } = await import("./installer-intake.server");
-        const st = await installerIntakeState(data.jobId);
-        const b = [...st.readiness.blockers, ...st.releaseBlockers];
-        if (b.length) throw new WorkflowError(b.join(" • "));
-      }
+      const { intakeSendBlockers } = await import("./installer-intake.server");
+      const b = await intakeSendBlockers(data.jobId);
+      if (b.length) throw new WorkflowError(b.join(" • "));
     }
     await applyCobrand(data.jobId);
     const { customerDeliveryState } = await import("./comms.server");
     const delivery = await customerDeliveryState(data.jobId);
-    const released = delivery === "ready_to_send";
-    const { error } = await admin.from("quotes").update({ status: "issued", sent_at: released ? new Date().toISOString() : null, release_state: released ? "released" : "queued", release_hold_reason: null }).eq("id", q.id).eq("status", "draft");
+    // Office approval only QUEUES the quote. Release (sent_at) happens solely in releaseQueuedQuotes, which re-checks
+    // the launch switches and, for intake jobs, readiness/consent/fees again. "ready_to_send" is not a send.
+    const { data: upd, error } = await admin.from("quotes").update({ status: "issued", sent_at: null, release_state: "queued", release_hold_reason: null, office_reviewed_at: new Date().toISOString(), office_reviewed_by: context.userId }).eq("id", q.id).eq("status", "draft").select("id").maybeSingle();
     if (error) throw new Error(error.message);
-    await logEvent(data.jobId, context.userId, released ? "installer_quote_released" : "installer_quote_queued", released ? "Office released the co-branded owner quote" : "Office approved the co-branded owner quote — queued behind the launch switches", { quote_id: q.id, email_delivery: delivery });
-    return { delivery };
+    if (!upd) throw new WorkflowError("This quote has already been sent.");
+    await logEvent(data.jobId, context.userId, "installer_quote_queued", "Office approved the co-branded owner quote — queued; it goes to the owner only when the launch switches allow", { quote_id: q.id, email_delivery: delivery });
+    return { delivery, queued: true };
   });
 
 // ---- Approved installer intake (Jo, 8 Oct 2026): office review of the short intake. Admin only. ----
@@ -67,7 +65,7 @@ export const getInstallerIntake = createServerFn({ method: "POST" }).middleware(
 export const officeIntakeAction = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.discriminatedUnion("action", [
     z.object({ action: z.literal("eligibility"), jobId: z.string().uuid(), outcome: z.enum(["eligible", "not_eligible"]), reason: z.string().trim().min(1).max(1000) }),
-    z.object({ action: z.literal("correct"), jobId: z.string().uuid(), insulation: z.enum(["none", "below_r2", "unknown"]).optional(), quoteIncGst: z.number().positive().max(1_000_000).nullable().optional(), includes: z.string().trim().max(1000).nullable().optional(), reason: z.string().trim().min(1).max(1000) }),
+    z.object({ action: z.literal("correct"), jobId: z.string().uuid(), insulation: z.enum(["none", "below_r2", "unknown"]).optional(), quoteIncGst: z.number().positive().max(1_000_000).nullable().optional(), includes: z.string().trim().max(1000).nullable().optional(), areaM2: z.number().positive().max(5000).optional(), proposedR: z.number().positive().max(10).nullable().optional(), reason: z.string().trim().min(1).max(1000) }),
     z.object({ action: z.literal("fee_awareness"), jobId: z.string().uuid(), note: z.string().trim().min(1).max(1000) }),
     z.object({ action: z.literal("draft_quote"), jobId: z.string().uuid() }),
   ]).parse(d))
@@ -75,7 +73,7 @@ export const officeIntakeAction = createServerFn({ method: "POST" }).middleware(
     await requireAdmin(context.supabase);
     const m = await import("./installer-intake.server");
     if (data.action === "eligibility") await m.recordCommercialEligibility(data.jobId, context.userId, data.outcome, data.reason);
-    else if (data.action === "correct") await m.correctInstallerIntake(data.jobId, context.userId, { insulation: data.insulation, quoteIncGst: data.quoteIncGst, includes: data.includes, reason: data.reason });
+    else if (data.action === "correct") await m.correctInstallerIntake(data.jobId, context.userId, { insulation: data.insulation, quoteIncGst: data.quoteIncGst, includes: data.includes, areaM2: data.areaM2, proposedR: data.proposedR, reason: data.reason });
     else if (data.action === "fee_awareness") await m.recordOfficeFeeAwareness(data.jobId, context.userId, data.note);
     else await m.draftQuoteFromIntake(data.jobId, context.userId);
     return m.installerIntakeState(data.jobId);

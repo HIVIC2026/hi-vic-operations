@@ -35,21 +35,47 @@ export async function createImportFor(userId: string, data: CreateImportInput) {
   return { id: row.id, extracted };
 }
 
+async function loadImport(id: string) { const { data } = await admin.from("job_imports").select("*").eq("id", id).single(); return data; }
+
 export async function confirmImportFor(userId: string, data: ConfirmImportInput) {
-  const context = { userId, supabase: admin };
-  const { data: imp } = await admin.from("job_imports").select("*").eq("id", data.importId).single();
-  // Double tap / retry after a lost response: the same confirmed import returns the same job — never a second job.
-  if (imp && imp.status === "confirmed" && imp.job_id && imp.confirmed_by === userId) {
-    await requireMember(userId, imp.business_id, true);
-    const { data: j } = await admin.from("jobs").select("job_number").eq("id", imp.job_id).maybeSingle();
-    return { jobId: imp.job_id as string, jobNumber: (j?.job_number as string | null) ?? null, reused: true };
+  const { data: imp0 } = await admin.from("job_imports").select("*").eq("id", data.importId).single();
+  if (!imp0) throw new WorkflowError("This import was not found.");
+  await requireMember(userId, imp0.business_id, true);
+  // Race-safe claim (compare-and-swap on confirmed_by/confirmed_at while status stays draft). Status becomes
+  // confirmed only after EVERY step below succeeded, so a crashed/partial attempt is resumed, never silently left.
+  const { importClaimDecision } = await import("./installer-intake.core");
+  const decision = importClaimDecision({ status: imp0.status, confirmedBy: imp0.confirmed_by, confirmedAt: imp0.confirmed_at, jobId: imp0.job_id }, userId, Date.now());
+  if (decision === "done") {
+    const { data: j } = await admin.from("jobs").select("job_number").eq("id", imp0.job_id!).maybeSingle();
+    return { jobId: imp0.job_id as string, jobNumber: (j?.job_number as string | null) ?? null, reused: true };
   }
-  if (!imp || imp.status !== "draft") throw new WorkflowError("This import was already confirmed or discarded.");
+  if (decision === "refuse") throw new WorkflowError("This import was already confirmed or discarded.");
+  if (decision === "busy") throw new WorkflowError("This job is already being saved — wait a moment and try again.");
+  if (decision === "claim") {
+    let q = admin.from("job_imports").update({ confirmed_by: userId, confirmed_at: new Date().toISOString() }).eq("id", imp0.id).eq("status", "draft");
+    q = imp0.confirmed_at ? q.eq("confirmed_at", imp0.confirmed_at) : q.is("confirmed_by", null);
+    const { data: won, error: ce } = await q.select("id").maybeSingle();
+    if (ce) throw new WorkflowError(ce.message);
+    if (!won) throw new WorkflowError("This job is already being saved — wait a moment and try again.");
+  } else {
+    // resume: refresh the claim time so a parallel tab sees it as busy
+    await admin.from("job_imports").update({ confirmed_at: new Date().toISOString() }).eq("id", imp0.id).eq("status", "draft").eq("confirmed_by", userId);
+  }
+  const imp = imp0;
+  const resumeJobId = imp0.job_id as string | null;
+  const release = async () => { await admin.from("job_imports").update({ confirmed_by: null, confirmed_at: null }).eq("id", imp.id).eq("status", "draft").eq("confirmed_by", userId).is("job_id", null); };
+  try {
+  return await confirmClaimed(userId, data, imp, resumeJobId);
+  } catch (e) { await release(); throw e; }
+}
+
+async function confirmClaimed(userId: string, data: ConfirmImportInput, imp: NonNullable<Awaited<ReturnType<typeof loadImport>>>, resumeJobId: string | null) {
+  const context = { userId, supabase: admin };
   await requireMember(context.userId, imp.business_id, true); // business owner only (staff are refused, like createImport)
   const biz = await requireApprovedPartner(imp.business_id);
   const { data: isInstaller } = await context.supabase.rpc("has_role", { _user_id: context.userId, _role: "installer" });
   if (!isInstaller) throw new WorkflowError("Only installer team members can confirm imported jobs.");
-  const c = data.facts as ConfirmedFacts;
+  const c = (data.installer?.intake ? (await import("./installer-intake.core")).stripIntakeRValues(data.facts) : data.facts) as ConfirmedFacts;
   const blockers = confirmBlockers(c);
   const intake = data.installer?.intake;
   const files0 = (imp.files as unknown[] | null) ?? [];
@@ -84,10 +110,13 @@ export async function confirmImportFor(userId: string, data: ConfirmImportInput)
   if (!Number.isFinite(area) || area <= 0 || area > 5000) throw new WorkflowError("Enter the ceiling area (m²) before confirming — every job needs an area estimate.");
   const { upsertEnquiry } = await import("./enquiry.server");
   const s = (k: keyof ConfirmedFacts) => (c[k] == null || c[k] === "" ? null : String(c[k]));
-  const res = await upsertEnquiry({
+  const res = resumeJobId ? await (async () => { const { data: j } = await admin.from("jobs").select("job_number").eq("id", resumeJobId).single(); return { job_id: resumeJobId, job_number: j?.job_number as string }; })() : await upsertEnquiry({
     full_name: s("full_name")!, email: s("email")!, phone: s("phone"), address_line: s("address_line")!, suburb: s("suburb"), postcode: s("postcode"),
     estimated_area_m2: area, ...(data.occupancy ? { occupancy: data.occupancy } : {}),
   }, await (await import("./pilot.server")).intakeSourceFor(context.userId, imp.business_id, "installer_import"), context.userId, { channel: "installer_sourced", businessId: imp.business_id, userId: context.userId });
+  if (!resumeJobId) { const { error: le } = await admin.from("job_imports").update({ job_id: res.job_id }).eq("id", imp.id).eq("confirmed_by", userId); if (le) throw new WorkflowError(le.message); }
+  const chk = (r: { error: { message: string } | null }, what: string) => { if (r.error) throw new WorkflowError(`${what}: ${r.error.message}`); };
+  const once = async (type: string, fn: () => Promise<unknown>) => { const { count } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", res.job_id).eq("event_type", type).contains("details", { import_id: imp.id }); if (!count) await fn(); };
   const refs = { ...(imp.external_refs as Record<string, unknown>), ...(s("external_reference") ? { reference: s("external_reference") } : {}), ...(imp.source_url ? { source_url: imp.source_url } : {}), import_id: imp.id, ...(data.installer?.owner_agreed && data.installer.quoted === "yes" ? { owner_agreed_price: true } : {}) };
   const rel = relationshipOwnerFor("installer_sourced", biz.default_comms_owner);
   const pilotInvoice = biz.commercial_route === "hivic_full_invoice";
@@ -97,7 +126,7 @@ export async function confirmImportFor(userId: string, data: ConfirmImportInput)
   const includes = quotedTotal ? (det.price_lines ?? []).map((l) => [l.description, l.qty ? `× ${l.qty}` : null].filter(Boolean).join(" ")).filter(Boolean).join("; ").slice(0, 1000) || null : null;
   const onDate = typeof c.measured_on === "string" && /^\d{4}-\d{2}-\d{2}$/.test(c.measured_on) ? c.measured_on : null;
   const inst = data.installer;
-  await admin.from("jobs").update(inst ? {
+  chk(await admin.from("jobs").update(inst ? {
     installer_site_check: inst.site_check,
     installer_site_check_date: inst.site_check === "yes" ? inst.site_check_date ?? null : null,
     installer_quoted: inst.quoted ?? null,
@@ -106,25 +135,28 @@ export async function confirmImportFor(userId: string, data: ConfirmImportInput)
     installer_site_check: data.progress ? (data.progress === "not_visited" ? "no" : "yes") : null,
     installer_site_check_date: data.progress && data.progress !== "not_visited" ? onDate : null,
     installer_quoted_price_inc_gst: quotedTotal, installer_price_includes: includes,
-  }).eq("id", res.job_id);
-  await admin.from("jobs").update({ customer_relationship_owner: rel, source_system: imp.source_system, external_refs: refs as Json,
-    ...(pilotInvoice ? { commercial_model: "hivic_invoices_owner" as const, commercial_model_set_by: context.userId, commercial_model_set_at: new Date().toISOString() } : {}) }).eq("id", res.job_id);
-  await admin.from("job_assignments").insert({ job_id: res.job_id, user_id: context.userId, role: "installer", business_id: imp.business_id, assigned_by: context.userId, first_response_at: new Date().toISOString() });
-  await (await import("./job-electrician.server")).recordJobElectricianChoice(res.job_id, imp.business_id, (data.electrician ?? { mode: "hivic" }) as never, context.userId);
+  }).eq("id", res.job_id), "Job details");
+  chk(await admin.from("jobs").update({ customer_relationship_owner: rel, source_system: imp.source_system, external_refs: refs as Json,
+    ...(pilotInvoice ? { commercial_model: "hivic_invoices_owner" as const, commercial_model_set_by: context.userId, commercial_model_set_at: new Date().toISOString() } : {}) }).eq("id", res.job_id), "Job source");
+  { const { data: ha } = await admin.from("job_assignments").select("id").eq("job_id", res.job_id).eq("role", "installer").eq("business_id", imp.business_id).limit(1).maybeSingle();
+    if (!ha) chk(await admin.from("job_assignments").insert({ job_id: res.job_id, user_id: context.userId, role: "installer", business_id: imp.business_id, assigned_by: context.userId, first_response_at: new Date().toISOString() }), "Installer assignment");
+    else if (!resumeJobId) throw new WorkflowError("This job already has an installer assignment."); }
+  if (!resumeJobId || !(await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", res.job_id).ilike("event_type", "%electrician%")).count)
+    await (await import("./job-electrician.server")).recordJobElectricianChoice(res.job_id, imp.business_id, (data.electrician ?? { mode: "hivic" }) as never, context.userId);
   const { data: ws } = await admin.from("workflow_settings").select("measurement_standard_approved").limit(1).maybeSingle();
   const { data: pm } = await admin.from("partner_measurement_methods").select("id").eq("business_id", imp.business_id).eq("status", "approved").order("approved_at", { ascending: false }).limit(1).maybeSingle();
   // "Not visited yet": the rough size is only the estimate; no measure-up is recorded and the Ready Check is next.
   const m = data.progress === "not_visited" || data.installer?.site_check === "no" ? null : planImportedMeasurement(c, imp.id, { businessId: imp.business_id, standardApproved: !!ws?.measurement_standard_approved && !!pm });
-  if (m) {
-    await admin.from("ceiling_measurements").update({ is_current: false }).eq("job_id", res.job_id).eq("is_current", true);
-    await admin.from("ceiling_measurements").insert({ ...m, supplied_snapshot: m.supplied_snapshot as unknown as Json, partner_method_id: pm?.id ?? null, review_flags: m.review_flags as unknown as Json, job_id: res.job_id, is_current: true, created_by: context.userId, raw_snapshot: { import_id: imp.id, confirmed: c, extracted: imp.extracted, progress: data.progress ?? null, ready_check_a1: data.details ?? null } as unknown as Json });
-    await admin.from("jobs").update({ measure_up_responsibility: "installer" }).eq("id", res.job_id);
+  const { count: haveM } = m ? await admin.from("ceiling_measurements").select("id", { count: "exact", head: true }).eq("job_id", res.job_id).eq("external_id", imp.id) : { count: 0 };
+  if (m && !haveM) {
+    chk(await admin.from("ceiling_measurements").update({ is_current: false }).eq("job_id", res.job_id).eq("is_current", true), "Measurement");
+    chk(await admin.from("ceiling_measurements").insert({ ...m, supplied_snapshot: m.supplied_snapshot as unknown as Json, partner_method_id: pm?.id ?? null, review_flags: m.review_flags as unknown as Json, job_id: res.job_id, is_current: true, created_by: context.userId, raw_snapshot: { import_id: imp.id, confirmed: c, extracted: imp.extracted, progress: data.progress ?? null, ready_check_a1: data.details ?? null } as unknown as Json }), "Measurement");
+    chk(await admin.from("jobs").update({ measure_up_responsibility: "installer" }).eq("id", res.job_id), "Measurement");
   }
-  await admin.from("job_imports").update({ status: "confirmed", confirmed_facts: c as Json, confirmed_by: context.userId, confirmed_at: new Date().toISOString(), job_id: res.job_id, updated_at: new Date().toISOString() }).eq("id", imp.id);
-  await logEvent(res.job_id, context.userId, "job_imported", `Imported from ${imp.source_system} by originating installer (confirmed by user)`, { import_id: imp.id, source_system: imp.source_system, external_refs: refs, relationship_owner: rel, measurement_imported: !!m, files: imp.files, progress: data.progress ?? null, ready_check_a1: data.details ?? null });
+  await once("job_imported", () => logEvent(res.job_id, context.userId, "job_imported", `Imported from ${imp.source_system} by originating installer (confirmed by user)`, { import_id: imp.id, source_system: imp.source_system, external_refs: refs, relationship_owner: rel, measurement_imported: !!m, files: imp.files, progress: data.progress ?? null, ready_check_a1: data.details ?? null }));
   if (data.installer?.owner_agreed && data.installer.quoted === "yes") await logEvent(res.job_id, context.userId, "installer_owner_agreed_price", `Installer says the owner agreed to their price ($${data.installer.quoted_price_inc_gst} inc GST); goes through office review as normal`, { import_id: imp.id, price_inc_gst: data.installer.quoted_price_inc_gst }, { internal: true });
-  if (pilotInvoice) await logEvent(res.job_id, context.userId, "commercial_model_set", "Pilot commercial route: full job invoiced by Home Insulation Victoria (split invoicing disabled)", { route: "hivic_full_invoice" });
-  await logEvent(res.job_id, userId, "installer_contact_permission", "Installer confirmed the owner agreed to Home Insulation Victoria contacting them", { import_id: data.importId, wording: (await import("./job-electrician.core")).OWNER_CONTACT_PERMISSION }, { internal: true });
+  if (pilotInvoice && !resumeJobId) await logEvent(res.job_id, context.userId, "commercial_model_set", "Pilot commercial route: full job invoiced by Home Insulation Victoria (split invoicing disabled)", { route: "hivic_full_invoice" });
+  await once("installer_contact_permission", () => logEvent(res.job_id, userId, "installer_contact_permission", "Installer confirmed the owner agreed to Home Insulation Victoria contacting them", { import_id: data.importId, wording: (await import("./job-electrician.core")).OWNER_CONTACT_PERMISSION }, { internal: true }));
   if (intake) {
     // A real owner_contact_consents row (the event alone is not consent). Idempotent per import.
     const { READY_CHECK_CONTACT_PERMISSION } = await import("./job-electrician.core");
@@ -138,27 +170,33 @@ export async function confirmImportFor(userId: string, data: ConfirmImportInput)
       const { error: ce } = await admin.from("owner_contact_consents").insert({ job_id: res.job_id, owner_id: job.owner_id, source: ONSITE_CONSENT_SOURCE, consent_key: key, consent_status: "granted", contact_consent: true, consented_at: new Date().toISOString(), snapshot: { by: "installer", text, recorded_by: userId, intake_version: intake.version } as unknown as Json, sha256 });
       if (ce) throw new WorkflowError(`Consent could not be saved: ${ce.message}`);
     }
-    await logEvent(res.job_id, userId, "installer_existing_insulation_declared", `Installer declared existing insulation: ${intake.existing_insulation === "none" ? "none" : intake.existing_insulation === "below_r2" ? "confirmed below R2.0" : "not yet confirmed"}`, { import_id: data.importId, value: intake.existing_insulation, version: intake.version, declared_at: new Date().toISOString(), verified: false }, { internal: true });
-    if (intake.existing_insulation === "below_r2") await logEvent(res.job_id, userId, "installer_existing_insulation_below_r2", "Installer confirmed any existing insulation is below R2.0", { import_id: data.importId, confirmed_at: new Date().toISOString(), version: intake.version }, { internal: true });
+    await once("installer_existing_insulation_declared", () => logEvent(res.job_id, userId, "installer_existing_insulation_declared", `Installer declared existing insulation: ${intake.existing_insulation === "none" ? "none" : intake.existing_insulation === "below_r2" ? "confirmed below R2.0" : "not yet confirmed"}`, { import_id: data.importId, value: intake.existing_insulation, version: intake.version, declared_at: new Date().toISOString(), verified: false }, { internal: true }));
+    if (intake.existing_insulation === "below_r2") await once("installer_existing_insulation_below_r2", () => logEvent(res.job_id, userId, "installer_existing_insulation_below_r2", "Installer confirmed any existing insulation is below R2.0", { import_id: data.importId, confirmed_at: new Date().toISOString(), version: intake.version }, { internal: true }));
     { const ic = await import("./installer-intake.core");
-      await logEvent(res.job_id, userId, "installer_coordination_chosen", intake.coordination === "self_managed" ? "Installer will organise the job themselves (AP checks, notices, evidence review and final approval still apply)" : "Home Insulation Victoria manages the process through the normal workflow", { import_id: data.importId, coordination: intake.coordination, version: ic.COORDINATION_VERSION, chosen_at: new Date().toISOString(), self_managed_ack: intake.coordination === "self_managed" ? { wording: ic.SELF_MANAGED_ACK, acknowledged: true } : null }, { internal: true }); }
-    await logEvent(res.job_id, userId, "installer_evidence_acknowledged", "Installer acknowledged all required Ready Check and installation evidence must be supplied and accepted before the rebate", { import_id: data.importId, wording: (await import("./installer-intake.core")).EVIDENCE_ACK, version: intake.version, proposed_r_value: intake.proposed_r_value ?? null, acknowledged_at: new Date().toISOString() }, { internal: true });
+      await once("installer_coordination_chosen", () => logEvent(res.job_id, userId, "installer_coordination_chosen", intake.coordination === "self_managed" ? "Installer will organise the job themselves (AP checks, notices, evidence review and final approval still apply)" : "Home Insulation Victoria manages the process through the normal workflow", { import_id: data.importId, coordination: intake.coordination, version: ic.COORDINATION_VERSION, chosen_at: new Date().toISOString(), self_managed_ack: intake.coordination === "self_managed" ? { wording: ic.SELF_MANAGED_ACK, acknowledged: true } : null }, { internal: true })); }
+    await once("installer_evidence_acknowledged", () => logEvent(res.job_id, userId, "installer_evidence_acknowledged", "Installer acknowledged all required Ready Check and installation evidence must be supplied and accepted before the rebate", { import_id: data.importId, wording: (await import("./installer-intake.core")).EVIDENCE_ACK, version: intake.version, proposed_r_value: intake.proposed_r_value ?? null, acknowledged_at: new Date().toISOString() }, { internal: true }));
   } else {
     await logEvent(res.job_id, userId, "installer_owner_fee_awareness", "Installer confirmed the owner is aware that the full quote will include the rebate, Home Insulation Victoria AP management fee and electrician PIESA fee", { import_id: data.importId, wording: (await import("./owner-confirm.core")).OWNER_FEE_AWARENESS_TICK, confirmed_at: new Date().toISOString() }, { internal: true });
     await logEvent(res.job_id, userId, "installer_existing_insulation_below_r2", "Installer confirmed any existing insulation is below R2.0", { import_id: data.importId, confirmed_at: new Date().toISOString() }, { internal: true });
   }
   const importFiles = (imp.files as { path: string; name: string; type: string }[] | null) ?? [];
-  if (importFiles.length) {
-    const { error: de } = await admin.from("documents").insert(importFiles.map((f) => ({ job_id: res.job_id, kind: "installer_import", title: f.name, original_name: f.name, mime_type: f.type || null, storage_path: f.path, source_system: imp.source_system, uploaded_by: context.userId })));
+  const { data: haveDocs } = await admin.from("documents").select("storage_path").eq("job_id", res.job_id).eq("kind", "installer_import");
+  const docPaths = new Set((haveDocs ?? []).map((d) => d.storage_path));
+  const newFiles = importFiles.filter((f) => !docPaths.has(f.path));
+  if (newFiles.length) {
+    const { error: de } = await admin.from("documents").insert(newFiles.map((f) => ({ job_id: res.job_id, kind: "installer_import", title: f.name, original_name: f.name, mime_type: f.type || null, storage_path: f.path, source_system: imp.source_system, uploaded_by: context.userId })));
     if (de) throw new WorkflowError(`Uploaded files could not be attached to the job: ${de.message}`);
   }
+  // Every step succeeded: only now is the import confirmed.
+  chk(await admin.from("job_imports").update({ status: "confirmed", confirmed_facts: c as Json, confirmed_by: context.userId, confirmed_at: new Date().toISOString(), job_id: res.job_id, updated_at: new Date().toISOString() }).eq("id", imp.id).eq("status", "draft").eq("confirmed_by", context.userId), "Confirming the job");
   return { jobId: res.job_id, jobNumber: res.job_number };
 }
 
 /** Add photos/files to a draft import (business owner only). Paths must be this business's own uploads. */
 export async function addImportFilesFor(userId: string, importId: string, files: { path: string; name: string; type: string }[]) {
-  const { data: imp } = await admin.from("job_imports").select("business_id, status, files").eq("id", importId).single();
+  const { data: imp } = await admin.from("job_imports").select("business_id, status, files, confirmed_by").eq("id", importId).single();
   if (!imp || imp.status !== "draft") throw new WorkflowError("This job was already added or discarded.");
+  if ((imp as { confirmed_by?: string | null }).confirmed_by) throw new WorkflowError("This job is being saved — files can't change now.");
   await requireMember(userId, imp.business_id, true);
   const { allowedUpload } = await import("./upload-safety.core"); const { verifyStoredUpload } = await import("./upload-safety.server");
   for (const f of files) {
@@ -172,8 +210,9 @@ export async function addImportFilesFor(userId: string, importId: string, files:
   return { files: next as { path: string; name: string; type: string }[] };
 }
 export async function removeImportFileFor(userId: string, importId: string, path: string) {
-  const { data: imp } = await admin.from("job_imports").select("business_id, status, files").eq("id", importId).single();
+  const { data: imp } = await admin.from("job_imports").select("business_id, status, files, confirmed_by").eq("id", importId).single();
   if (!imp || imp.status !== "draft") throw new WorkflowError("This job was already added or discarded.");
+  if ((imp as { confirmed_by?: string | null }).confirmed_by) throw new WorkflowError("This job is being saved — files can't change now.");
   await requireMember(userId, imp.business_id, true);
   const next = ((imp.files as { path: string }[] | null) ?? []).filter((f) => f.path !== path);
   await admin.from("job_imports").update({ files: next as unknown as Json, updated_at: new Date().toISOString() }).eq("id", importId);
