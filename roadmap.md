@@ -1,4 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Existing-insulation Save your spot follow-up (Jo 8 Oct 23:11 UTC)
+- [ ] Trace office below-R2 review/send and owner declaration path; clarify removal next to email/page price using actual snapshot inclusion only, preserving initial Group B/no-insulation output and pricing/locks.
+- [ ] Test exclusion/inclusion, locked email parity and actual office handler without sending; verify preview and report queued/active truthfully.
 ## Group B four alternatives (Jo 8 Oct 22:41 UTC)
 - [x] Jo 23:07 FINAL scope: Group B email source restored byte-for-byte to pre-four-options revision; original output parity checked. Page/routing/exclusion only; earlier approved email, other campaigns/global switches unchanged. 46 focused tests/170 assertions + sealed desktop/phone checks pass; expanded email suite has one pre-existing preview-source assertion failure (sample constants moved). See docs/GROUP_B_FINAL_SCOPE_8OCT.md. No sends/publication.
 - [x] Jo 22:54 exclusion: shared original-media/pending-reference guards across send/reminder/link/office paths, repeat-sync preservation, private evidence links and received states. 35 focused tests and desktop/phone checks pass; Group B sending OFF, no publication. Matching initial Group B enquiries: 71 actual-media exclusions + 469 uncertain legacy records held; zero confirmed media-free. See docs/GROUP_B_ORIGINAL_MEDIA_EXCLUSION_QA.md.
