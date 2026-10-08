@@ -161,7 +161,7 @@ export function intakeConfirmFacts(c: { full_name: string; email: string; phone:
 
 /** Server-side strip: whatever a client sends, intake submissions never store a proposed or existing R-value as fact. */
 export function stripIntakeRValues<T extends Record<string, unknown>>(facts: T): T {
-  const o = { ...facts }; delete o.r_value; delete o.existing_r_value; return o;
+  const o = { ...facts }; delete o["r_value"]; delete o["existing_r_value"]; return o;
 }
 
 /**
