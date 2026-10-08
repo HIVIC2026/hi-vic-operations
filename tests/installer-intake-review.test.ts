@@ -1,17 +1,28 @@
 // Review defects 1–10 (Jo, 8 Oct 2026): pure-rule regressions for the installer intake.
 import { describe, expect, test } from "bun:test";
-import { CLAIM_STALE_MS, INTAKE_REQUIRED_MEDIA, importClaimDecision, installerQuoteReadiness, intakeConfirmFacts, intakeScopeArea, multiCustomerAmbiguity, prefillFromExtracted, rebateEvidenceBlockers, staleQuoteAction, stripIntakeRValues } from "../src/lib/installer-intake.core";
-import { planImportedMeasurement } from "../src/lib/pilot.core";
+import { INSTALLER_INTAKE_CONSENT_SOURCE, CLAIM_STALE_MS, INTAKE_REQUIRED_MEDIA, importClaimDecision, installerQuoteReadiness, intakeConfirmFacts, intakeScopeArea, multiCustomerAmbiguity, prefillFromExtracted, rebateEvidenceBlockers, staleQuoteAction, stripIntakeRValues } from "../src/lib/installer-intake.core";
+import { extractFromText, planImportedMeasurement } from "../src/lib/pilot.core";
+import { ONSITE_CONSENT_SOURCE } from "../src/lib/onsite-ready-check.core";
+import { readFileSync } from "node:fs";
 
 const cust = { full_name: "Jane Smith", email: "jane@example.com", phone: "0400000000", address_line: "1 Main St", suburb: "Ballarat", postcode: "3350" };
 
 describe("1. proposed product R never becomes existing insulation", () => {
-  test("confirm facts carry no r_value / existing_r_value", () => {
-    const f = intakeConfirmFacts(cust, 120);
-    expect("r_value" in f).toBe(false); expect("existing_r_value" in f).toBe(false);
+  test("confirm facts: r_value is the PROPOSED R (established meaning); existing_r_value never sent", () => {
+    const f = intakeConfirmFacts(cust, 120, 5);
+    expect(f.r_value).toBe(5); expect("existing_r_value" in f).toBe(false);
+    expect(planImportedMeasurement(f as never, "imp-0", {})?.existing_r_value).toBeNull();
+  });
+  test("extractor: existing R-value is never captured as the proposal, even if 'proposed' appears elsewhere", () => {
+    const e = extractFromText("Proposed works: top-up\nExisting R-value: 1.5\nProduct: Earthwool");
+    expect(e.r_value?.value ?? null).toBeNull();
+    expect(e.existing_r_value?.value).toBe(1.5);
+    const p = extractFromText("Existing R-value: 1.5\nProposed R-value: R5.0");
+    expect(p.r_value?.value).toBe(5); expect(p.r_value?.confidence).toBe("found"); expect(p.existing_r_value?.value).toBe(1.5);
+    expect(extractFromText("R-value: 4").r_value?.confidence).toBe("uncertain");
   });
   test("server strip removes them even if a client sends them; imported measurement has no existing R", () => {
-    const f = stripIntakeRValues({ ...intakeConfirmFacts(cust, 120), r_value: 5, existing_r_value: 5 });
+    const f = stripIntakeRValues({ ...intakeConfirmFacts(cust, 120, 5), existing_r_value: 5 });
     const m = planImportedMeasurement(f as never, "imp-1", {});
     expect(m?.existing_r_value).toBeNull();
     expect(m?.insulation_present).toBeNull();
@@ -86,5 +97,19 @@ describe("10. stale quotes after a material correction", () => {
     expect(staleQuoteAction("issued")).toBe("withdraw");
     expect(staleQuoteAction("accepted")).toBe("reconfirm");
     expect(staleQuoteAction("declined")).toBe("keep");
+  });
+});
+
+describe("consent source and visit provenance", () => {
+  test("remote intake consent has its own source, never onsite_ready_check", () => {
+    expect(INSTALLER_INTAKE_CONSENT_SOURCE).not.toBe(ONSITE_CONSENT_SOURCE);
+    const src = readFileSync("src/lib/partner-import.server.ts", "utf8");
+    expect(src).not.toContain("source: ONSITE_CONSENT_SOURCE");
+    expect(src).toContain("source: INSTALLER_INTAKE_CONSENT_SOURCE");
+  });
+  test("intake records visit as unknown, not an assumed site check", () => {
+    const src = readFileSync("src/lib/partner-import.server.ts", "utf8");
+    expect(src).toContain("installer_site_check: intake ? null : inst.site_check");
+    expect(readFileSync("src/components/trade/installer-intake-flow.tsx", "utf8")).not.toContain('site_check: "yes"');
   });
 });
