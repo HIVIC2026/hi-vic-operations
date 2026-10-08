@@ -28,7 +28,7 @@ function likelyInput(f: SaveSpotFacts) {
   return {
     estimateUrl: f.estimateUrl, outcome: "likely" as const, apCount: 2, referralUrl: f.referralUrl ?? null,
     estimatedTotal: f.estimatedTotal, veuDiscount: f.veuDiscount, grossProjectTotal: f.grossTotal, areaM2: f.areaM2,
-    areaIsTypical: f.areaIsTypical,
+    ...(f.areaIsTypical === undefined ? {} : { areaIsTypical: f.areaIsTypical }),
     amountPayableNow: 0, estimatedRemainingBalance: f.estimatedTotal,
     firstName: f.firstName, address: f.address, reference: f.reference, existingInsulationPresent: f.existingInsulationPresent,
     assessmentFee: f.assessmentFee ?? 349, apFee: f.apFee ?? 349,
