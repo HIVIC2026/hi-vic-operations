@@ -13,9 +13,10 @@ import { CUSTOMER_BASE } from "./engagement.core";
 import type { LocationVariables } from "./activity48.core";
 import { homeownerVideoCount } from "./owner-capture.core";
 import { formatPropertyAddress } from "./address";
+import { LAUNCH_CAMPAIGN } from "./launch-campaign.core";
 import {
-  classifyEnquiry, contactExclusion, primaryByContact, propertyKey, contactKey, sendHolds, templateFor, AREA_LABEL, ASSUMED_REFERENCE_AREA_M2,
-  type EnquiryClass, type EnquiryGroup, type OtherReason, type StoredAudit,
+  classifyEnquiry, enquiryStatus, contactExclusion, primaryByContact, propertyKey, contactKey, sendHolds, templateFor, AREA_LABEL, ASSUMED_REFERENCE_AREA_M2,
+  type EnquiryClass, type EnquiryStatus, type EnquiryGroup, type OtherReason, type StoredAudit,
 } from "./enquiry-groups.core";
 
 const PAGE = 1000;
@@ -48,6 +49,7 @@ export type EnquiryGroupRow = EnquiryClass & {
   createdAt: string; stage: string | null; areaLabel: string; declaredInsulation: "none" | "present" | "unknown" | null; hardFailures: string[];
   lastEmail: { purpose: string; status: string; at: string | null; error: string | null } | null;
   consent: string | null; optedOut: boolean; bounced: boolean; source: string | null; isPrimaryForContact: boolean; sentPurposes: string[];
+  status: EnquiryStatus;
 };
 
 export async function loadEnquiryGroups() {
@@ -56,18 +58,20 @@ export async function loadEnquiryGroups() {
     .eq("source", WEBSITE_SOURCE).eq("channel", WEBSITE_CHANNEL).order("created_at", { ascending: true }).order("id").range(f, t));
   const outside = await all((f, t) => admin.from("jobs").select("source, channel").or(`source.neq.${WEBSITE_SOURCE},channel.neq.${WEBSITE_CHANNEL}`).range(f, t));
   const ids = jobs.map((j) => j.id);
-  const [meas, ests, docs, work, sends, consents, optouts, events, interests, cfg] = await Promise.all([
+  const [meas, ests, docs, work, sends, consents, optouts, events, interests, cfg, responses] = await Promise.all([
     byJobs(ids, (c, f, t) => admin.from("ceiling_measurements").select("job_id, verified_area_m2, measured_area_m2").in("job_id", c).eq("is_current", true).eq("status", "complete").range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("property_area_estimates").select("id, job_id, tier, net_m2, created_at").in("job_id", c).in("tier", TRUSTED_ESTIMATE_TIERS).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("documents").select("job_id, kind, mime_type, storage_path").in("job_id", c).like("mime_type", "video/%").range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("post_intake_work").select("job_id").in("job_id", c).in("status", ["queued", "processing", "retry"]).range(f, t)),
-    byJobs(ids, (c, f, t) => admin.from("customer_email_sends").select("job_id, purpose, status, sent_at, created_at, error").in("job_id", c).order("created_at", { ascending: true }).range(f, t)),
+    byJobs(ids, (c, f, t) => admin.from("customer_email_sends").select("job_id, purpose, status, sent_at, created_at, error, idempotency_key").in("job_id", c).order("created_at", { ascending: true }).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("owner_contact_consents").select("job_id, consent_status, created_at").in("job_id", c).order("created_at", { ascending: true }).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("customer_email_optouts").select("job_id, opted_out_at").in("job_id", c).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("customer_engagement_events").select("job_id").in("job_id", c).in("event_type", SUPPRESSING_EVENTS).range(f, t)),
     all((f, t) => admin.from("calculator_interests").select("id, created_at, full_name, email, address_line, suburb, postcode, ceiling_m2, insulation_declared, status").order("created_at").range(f, t)),
     admin.from("customer_delivery_settings").select("jobs_created_after").eq("id", 1).maybeSingle(),
+    byJobs(ids, (c, f, t) => admin.from("lead_campaign_responses").select("job_id, spot_saved_at").in("job_id", c).range(f, t)),
   ]);
+  const savedSet = new Set(responses.filter((r) => r.spot_saved_at).map((r) => r.job_id));
   const deliveryCfg = must(cfg, "Delivery settings");
   const group = <T extends { job_id: string | null }>(rows: T[]) => { const m = new Map<string, T[]>(); for (const r of rows) if (r.job_id) m.set(r.job_id, [...(m.get(r.job_id) ?? []), r]); return m; };
   const mBy = group(meas), eBy = group(ests), dBy = group(docs), sBy = group(sends), cBy = group(consents);
@@ -96,6 +100,15 @@ export async function loadEnquiryGroups() {
       lastEmail: last ? { purpose: last.purpose, status: last.status, at: last.sent_at ?? last.created_at, error: last.error } : null,
       consent: cBy.get(j.id)?.slice(-1)[0]?.consent_status ?? null, optedOut: optSet.has(j.id), bounced: bounceSet.has(j.id), source: j.source,
       isPrimaryForContact: false, sentPurposes: [...new Set(js.filter((s) => SENT.includes(s.status)).map((s) => s.purpose))],
+      status: (() => {
+        const sent = js.filter((s) => SENT.includes(s.status));
+        const camp = sent.filter((s) => s.purpose === LAUNCH_CAMPAIGN);
+        return enquiryStatus({
+          spotSaved: savedSet.has(j.id), ineligible: c.otherReason === "not_eligible",
+          campaignSent: camp.length > 0, insulationEmailSent: sent.some((s) => s.purpose === "insulation_video_request"),
+          campaignGroup: camp.length ? (camp.some((s) => /:b(:|$)/.test(s.idempotency_key ?? "")) ? "onsite" : "likely") : null,
+        });
+      })(),
     };
   });
   const primary = primaryByContact(rows);
