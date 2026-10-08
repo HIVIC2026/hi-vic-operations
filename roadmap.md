@@ -1,4 +1,8 @@
 # Roadmap (preview only, nothing sent, no publish, no real jobs)
+## Add job choices (Jo 8 Oct 09:21 UTC)
+- [x] Separate later Ready Check entry with customer details, appointment and optional manual measurements from existing quote/measurement entry; retain guarded booking and provisional data.
+- [x] 31 focused tests/57 assertions and harness build OK; no real submissions, sends or integrations.
+- [ ] Actual later-job saving/booking and new-screen phone browser checks remain unverified; no live mutation performed.
 ## Installer Add job and insurance repairs (Jo, 8 Oct 09:00 UTC)
 - [x] Removed confusing Team invitation explanation; optional staff access unchanged.
 - [x] Invite validation visibly explains missing details; existing never-attempted invitation can issue once using recorded timestamp claim. Sent/uncertain attempts require office check. No sends tested.
