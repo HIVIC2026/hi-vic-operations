@@ -1,0 +1,112 @@
+// Supplying installer completes a BEFORE-QUOTE job later, through the real installerUpdateIntake on PGlite (Jo, 8 Oct).
+import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { PGlite } from "@electric-sql/pglite";
+import { postgrestShim } from "./helpers/pglite-postgrest-shim";
+import { intakeArea, intakeProblems, intakeQuotePayload, pickIntakeChanges } from "../src/lib/installer-intake.core";
+
+const db = new PGlite();
+await db.exec(`
+CREATE TABLE jobs (id uuid primary key, channel text, originating_installer_business_id uuid, installer_quoted text, installer_quoted_price_inc_gst numeric,
+  installer_price_includes text, electrician_choice text, estimated_area_m2 numeric, estimated_area_unknown boolean, measure_up_responsibility text);
+CREATE TABLE workflow_events (id uuid primary key default gen_random_uuid(), job_id uuid, actor_id uuid, event_type text, summary text, details jsonb, created_at timestamptz default clock_timestamp());
+CREATE TABLE ceiling_measurements (id uuid primary key default gen_random_uuid(), job_id uuid, is_current boolean, created_by uuid, raw_snapshot jsonb,
+  source_role text, external_source text, external_id text, provenance text, measured_area_m2 numeric, removal_required boolean, removal_m2 numeric, existing_r_value numeric,
+  insulation_present boolean, supplied_area_m2 numeric, supplied_removal_m2 numeric, supplied_snapshot jsonb, measurement_method text, measurement_purpose text,
+  measured_by_name text, measured_by_role text, measured_by_business_id uuid, measured_on date, gross_area_m2 numeric, excluded_area_m2 numeric, confidence text,
+  review_flags jsonb, evidence_notes text, status text, verified_area_m2 numeric);
+CREATE TABLE job_imports (id uuid primary key default gen_random_uuid(), job_id uuid, business_id uuid, files jsonb, created_at timestamptz default now());
+CREATE TABLE quotes (id uuid primary key default gen_random_uuid(), job_id uuid, kind text, status text, release_state text, release_hold_reason text);
+CREATE TABLE owner_contact_consents (id uuid primary key default gen_random_uuid(), job_id uuid, consent_status text, created_at timestamptz default now());
+CREATE TABLE evidence_requirements (id uuid primary key default gen_random_uuid(), job_id uuid, category text, label text, required boolean, status text, gate text);`);
+mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: postgrestShim(db) }));
+mock.module("../src/lib/workflow.server", () => ({
+  WorkflowError: class WorkflowError extends Error {},
+  logEvent: async (job: string, actor: string | null, type: string, summary: string, details?: unknown) => { await db.query("insert into workflow_events (job_id, actor_id, event_type, summary, details) values ($1,$2,$3,$4,$5)", [job, actor, type, summary, JSON.stringify(details ?? {})]); },
+}));
+const { installerUpdateIntake } = await import("../src/lib/installer-intake.server");
+
+const JOB = "00000000-0000-0000-0000-00000000e001", BIZ = "00000000-0000-0000-0000-00000000b001", OTHER = "00000000-0000-0000-0000-00000000b002", U = "00000000-0000-0000-0000-00000000c001";
+const base = { areaM2: null, insulation: "unknown" as const, quoteStatus: "not_quoted" as const, quoteIncGst: null, includes: null, proposedR: null, files: [] };
+const job = async () => (await db.query<Record<string, unknown>>("select * from jobs where id=$1", [JOB])).rows[0]!;
+const ms = async () => (await db.query<Record<string, unknown>>("select * from ceiling_measurements where job_id=$1", [JOB])).rows;
+const evs = async () => (await db.query<{ event_type: string }>("select event_type from workflow_events where job_id=$1 order by created_at", [JOB])).rows.map((r) => r.event_type);
+
+beforeEach(async () => {
+  await db.exec("delete from jobs; delete from workflow_events; delete from ceiling_measurements; delete from job_imports; delete from quotes;");
+  // State as saved by a BEFORE VISIT + NO AREA + NOT QUOTED submit: null facts, quoted 'no'.
+  await db.query("insert into jobs (id, channel, originating_installer_business_id, installer_quoted, estimated_area_unknown) values ($1,'installer_sourced',$2,'no',true)", [JOB, BIZ]);
+  await db.query("insert into workflow_events (job_id, event_type, details) values ($1,'installer_evidence_acknowledged','{\"proposed_r_value\":null}'),($1,'installer_existing_insulation_declared','{\"existing_insulation\":\"unknown\"}')", [JOB]);
+  await db.query("insert into job_imports (job_id, business_id, files) values ($1,$2,'[]')", [JOB, BIZ]);
+});
+
+describe("BEFORE QUOTE job creation payload", () => {
+  test("not quoted + no area submits null facts, never zero or quoted:'yes'", () => {
+    expect(intakeProblems({ area: "", amount: "", includes: "", proposedR: "", insulation: null, quoteStatus: "not_quoted", quoteFileCount: 0, evidenceAck: true })).toEqual([]);
+    expect(intakeArea("")).toBeNull();
+    expect(intakeQuotePayload({ quoteStatus: "not_quoted", amount: "3450", includes: "batts", proposedR: "5" })).toEqual({ quoted: "no", quoted_price_inc_gst: null, price_includes: null, proposed_r_value: null });
+  });
+  test("invalid entered values are rejected", () => {
+    const p = intakeProblems({ area: "0", amount: "-5", includes: "", proposedR: "", insulation: null, quoteStatus: "have_quote", quoteFileCount: 0, evidenceAck: true });
+    expect(p.some((x) => /ceiling area/.test(x))).toBe(true);
+    expect(p.some((x) => /quote amount/.test(x))).toBe(true);
+  });
+  test("file-only quote keeps quoted unknown (no invented amount)", () => {
+    expect(intakeQuotePayload({ quoteStatus: "have_quote", amount: "", includes: "", proposedR: "" }).quoted).toBeNull();
+  });
+});
+
+describe("installer edits the same received job (persistence boundary)", () => {
+  test("adds area + manual quote later on the SAME job; provisional measurement only", async () => {
+    await installerUpdateIntake(JOB, U, BIZ, { ...base, areaM2: 142, insulation: "none", quoteStatus: "have_quote", quoteIncGst: 3450, includes: "R5.0 batts supply and install", proposedR: 5 });
+    const j = await job();
+    expect(Number(j.installer_quoted_price_inc_gst)).toBe(3450);
+    expect(j.installer_quoted).toBe("yes");
+    expect(Number(j.estimated_area_m2)).toBe(142);
+    const m = await ms();
+    expect(m.length).toBe(1);
+    expect(m[0]!.provenance).toBe("installer_supplied_provisional");
+    expect(Number(m[0]!.supplied_area_m2)).toBe(142);
+    expect(await evs()).toContain("installer_intake_corrected"); // insulation changed unknown -> none
+    expect((await db.query("select count(*)::int n from jobs")).rows[0]).toEqual({ n: 1 });
+  });
+
+  test("quote upload only: file appended to original import, quoted stays unknown", async () => {
+    const f = { path: `partners/${BIZ}/imports/q.pdf`, name: "q.pdf", type: "application/pdf" };
+    await installerUpdateIntake(JOB, U, BIZ, { ...base, quoteStatus: "have_quote", files: [f] });
+    const imp = (await db.query<{ files: unknown[] }>("select files from job_imports where job_id=$1", [JOB])).rows[0]!;
+    expect(imp.files).toEqual([f]);
+    expect((await job()).installer_quoted).toBeNull();
+    expect(await evs()).toContain("installer_quote_file_added");
+  });
+
+  test("unknown insulation still saves an area and stays unknown", async () => {
+    await installerUpdateIntake(JOB, U, BIZ, { ...base, areaM2: 90 });
+    expect(Number((await job()).estimated_area_m2)).toBe(90);
+    expect(await evs()).not.toContain("installer_intake_corrected");
+  });
+
+  test("another business's files or another installer are refused", async () => {
+    await expect(installerUpdateIntake(JOB, U, OTHER, base)).rejects.toThrow("supplied this job");
+    await expect(installerUpdateIntake(JOB, U, BIZ, { ...base, files: [{ path: `partners/${OTHER}/imports/x.pdf`, name: "x", type: "" }] })).rejects.toThrow("isn't one of your uploads");
+  });
+
+  test("an already accepted office measurement can't be overwritten by the installer", async () => {
+    await db.query("insert into ceiling_measurements (job_id, is_current, provenance, supplied_area_m2) values ($1,true,'electrician_measured',100)", [JOB]);
+    await expect(installerUpdateIntake(JOB, U, BIZ, { ...base, areaM2: 150 })).rejects.toThrow("already been measured");
+  });
+
+  test("no change = no stale quotes; a material change flags an accepted quote for owner reconfirmation", async () => {
+    await db.query("insert into quotes (job_id, kind, status) values ($1,'installation','accepted')", [JOB]);
+    await installerUpdateIntake(JOB, U, BIZ, base);
+    expect(await evs()).not.toContain("installer_quote_reconfirmation_required");
+    await installerUpdateIntake(JOB, U, BIZ, { ...base, quoteStatus: "have_quote", quoteIncGst: 4000, includes: "R6 batts" });
+    expect(await evs()).toContain("installer_quote_reconfirmation_required");
+    expect((await db.query<{ status: string }>("select status from quotes where job_id=$1", [JOB])).rows[0]!.status).toBe("accepted");
+  });
+
+  test("switching back to Not quoted yet clears stale quote facts to null", () => {
+    const ch = pickIntakeChanges({ areaM2: 100, insulation: "none", quoted: "yes", quoteIncGst: 3000, includes: "x", proposedR: 5 }, { ...base, insulation: "none", files: [] });
+    expect(ch.quote).toEqual({ quoted: "no", quoteIncGst: null, includes: null });
+    expect(ch.area).toBeUndefined(); // blank area never clears a known area
+  });
+});

@@ -322,9 +322,11 @@ export const confirmImport = createServerFn({ method: "POST" }).middleware([requ
         version: z.string().max(60),
         coordination: z.enum(["hivic_managed", "self_managed"]),
         self_managed_ack: z.boolean(),
+        // Before visit / before quote (Jo, 8 Oct): optional on older clients = "have_quote" (previous behaviour).
+        quote_status: z.enum(["not_quoted", "have_quote"]).optional(),
       }).optional(),
     }).optional(),
-    electrician: z.object({ mode: z.enum(["mine", "hivic"]), business_id: uuid.nullish(), nomination_id: uuid.nullish() }).optional(),
+    electrician: z.object({ mode: z.enum(["mine", "hivic", "later"]), business_id: uuid.nullish(), nomination_id: uuid.nullish() }).optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
     const { confirmImportFor } = await import("./partner-import.server");

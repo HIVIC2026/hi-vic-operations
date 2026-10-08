@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { TradeShell } from "@/components/trade/TradeShell";
 import { NowPanel, btnClass } from "@/components/portal/kit";
 import { JobElectricianCard } from "@/components/trade/job-intake";
+import { MyIntakeDetailsCard } from "@/components/trade/intake-details-editor";
 
 /** Heading: street and suburb only (no state/postcode). */
 const streetAndSuburb = (a?: string | null) => (a ?? "").replace(/,?\s*(VIC|Victoria)\b.*$/i, "").replace(/\s+\d{4}\s*$/, "").trim();
@@ -84,6 +85,7 @@ function FieldJob() {
       <div className="space-y-4">
         {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} expired={!!job.piesa_expired} />}
         {role === "installer" && <InstallerJourney jobId={jobId} />}
+        {role === "installer" && job.channel === "installer_sourced" && <MyIntakeDetailsCard jobId={jobId} />}
         {role === "installer" && job.channel === "installer_sourced" && <ReadyCheckDraft jobId={jobId} />}
         {role === "installer" && ["piesa_and_install_window_pending"].includes(job.stage!) && !job.electrician_name && <ElectricianChoicePanel jobId={jobId} />}
         {role === "installer" && <InstallerFlow jobId={jobId} stage={job.stage!} />}

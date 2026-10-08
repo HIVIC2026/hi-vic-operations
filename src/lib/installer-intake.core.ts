@@ -14,29 +14,62 @@ export const EXISTING_INSULATION_CHOICES: { value: ExistingInsulation; label: st
 export const EVIDENCE_ACK =
   "All required Ready Check and installation evidence must be supplied and accepted before this job can receive the rebate.";
 
+/** Quote status on Add job (Jo, 8 Oct): a job can be registered BEFORE a visit and BEFORE any quote. */
+export type QuoteStatus = "not_quoted" | "have_quote";
+export const QUOTE_STATUS_CHOICES: { value: QuoteStatus; label: string }[] = [
+  { value: "not_quoted", label: "Not quoted yet" },
+  { value: "have_quote", label: "I have a quote" },
+];
+export const JOB_DETAILS_LEAD = "Add what you know. You can complete the measurements, quote and Ready Check later.";
+
 export type IntakeInput = {
   area: string; amount: string; includes: string; proposedR: string;
   insulation: ExistingInsulation | null; quoteFileCount: number; evidenceAck: boolean;
+  /** null = not chosen yet. Omitted (legacy callers) = "have_quote". */
+  quoteStatus?: QuoteStatus | null;
 };
 
 const num = (s: string) => { const t = s.trim(); if (!t) return null; const n = Number(t.replace(/[$,\sRr]/g, "")); return Number.isFinite(n) ? n : NaN; };
 export const parseIntakeAmount = num;
 
-/** Problems on the intake job-details step. A quote upload OR a manual amount + inclusions is required. */
+/**
+ * Problems for JOB CREATION (and later installer edits). Area, quote, inclusions, product and insulation are all optional;
+ * anything that IS entered must be valid. "I have a quote" needs an upload OR a manual amount + what it includes.
+ * Owner quote readiness is a separate, stricter check (installerQuoteReadiness).
+ */
 export function intakeProblems(i: IntakeInput): string[] {
   const out: string[] = [];
   const area = num(i.area);
-  if (area == null || Number.isNaN(area) || area <= 0 || area > 5000) out.push("Enter the ceiling area (m²)");
-  if (!i.insulation) out.push("Choose the existing insulation");
-  const amount = num(i.amount);
-  const manual = amount != null && !Number.isNaN(amount) && amount > 0;
-  if (amount != null && (Number.isNaN(amount) || amount <= 0)) out.push("Check the quote amount inc GST");
-  if (!manual && i.quoteFileCount === 0) out.push("Upload your quote or enter the quote amount inc GST");
-  if (manual && !i.includes.trim()) out.push("Tell us what the quote includes");
-  const r = num(i.proposedR);
-  if (r != null && (Number.isNaN(r) || r <= 0 || r > 10)) out.push("Check the proposed product R-rating");
+  if (area != null && (Number.isNaN(area) || area <= 0 || area > 5000)) out.push("Check the ceiling area (m²) — or leave it as not measured yet");
+  const qs = i.quoteStatus === undefined ? "have_quote" : i.quoteStatus;
+  if (!qs) out.push("Choose the quote status");
+  if (qs === "have_quote") {
+    const amount = num(i.amount);
+    const manual = amount != null && !Number.isNaN(amount) && amount > 0;
+    if (amount != null && (Number.isNaN(amount) || amount <= 0 || amount > 1_000_000)) out.push("Check the quote amount inc GST");
+    else if (!manual && i.quoteFileCount === 0) out.push("Upload your quote or enter the quote amount inc GST");
+    if (manual && !i.includes.trim()) out.push("Tell us what the quote includes");
+    const r = num(i.proposedR);
+    if (r != null && (Number.isNaN(r) || r <= 0 || r > 10)) out.push("Check the proposed product R-rating");
+  }
   if (!i.evidenceAck) out.push("Tick that all required evidence must be supplied and accepted before the rebate");
   return out;
+}
+
+/** Area as entered: a positive number, or null when not measured yet. Never Number("") = 0. */
+export function intakeArea(s: string): number | null {
+  const a = num(s); return a != null && !Number.isNaN(a) && a > 0 && a <= 5000 ? a : null;
+}
+
+/**
+ * Quote facts actually sent. Not quoted = all null (never zero/fake). A quote file without a typed amount is
+ * "have quote, amount from file" — quoted stays null (the DB requires a positive amount for quoted = yes).
+ */
+export function intakeQuotePayload(i: { quoteStatus: QuoteStatus | null; amount: string; includes: string; proposedR: string }) {
+  if (i.quoteStatus !== "have_quote") return { quoted: i.quoteStatus === "not_quoted" ? "no" as const : null, quoted_price_inc_gst: null, price_includes: null, proposed_r_value: null };
+  const a = num(i.amount); const amount = a != null && !Number.isNaN(a) && a > 0 ? a : null;
+  const r = num(i.proposedR); const proposed = r != null && !Number.isNaN(r) && r > 0 && r <= 10 ? r : null;
+  return { quoted: amount ? "yes" as const : null, quoted_price_inc_gst: amount, price_includes: amount ? i.includes.trim() || null : null, proposed_r_value: proposed };
 }
 
 /** Only None or below R2 qualify. R2.0 exactly or more never qualifies; unknown holds the quote. */
@@ -52,6 +85,8 @@ export type QuoteReadinessFacts = {
   measuredR?: number | null;
   areaM2: number | null;
   installerQuoteIncGst: number | null;
+  /** What the quote includes (scope). Checked when provided by the caller. */
+  includes?: string | null;
 };
 
 /** Owner quote readiness for installer-supplied jobs. Ready Check media is NOT a prerequisite here. */
@@ -64,6 +99,7 @@ export function installerQuoteReadiness(f: QuoteReadinessFacts): { ready: boolea
   else if (f.insulation === "unknown" || !f.insulation) b.push("Existing insulation not confirmed (must be none or below R2.0)");
   if (!(f.areaM2 && f.areaM2 > 0)) b.push("Measured ceiling area is missing");
   if (!(f.installerQuoteIncGst && f.installerQuoteIncGst > 0)) b.push("Installer quote amount is missing");
+  else if (f.includes !== undefined && !f.includes?.trim()) b.push("What the installer quote includes is missing");
   return { ready: b.length === 0, blockers: b };
 }
 
@@ -156,9 +192,10 @@ export function prefillFromExtracted(x: { measured_area_m2?: { value: unknown; c
  * Facts sent to confirmImport. r_value is the established PROPOSED product R (pilot.core); existing_r_value is never
  * sent, so the proposal can never become the existing insulation value on the measurement.
  */
-export function intakeConfirmFacts(c: { full_name: string; email: string; phone: string; address_line: string; suburb: string; postcode: string }, areaM2: number, proposedR: number | null = null): Record<string, string | number | null> {
+export function intakeConfirmFacts(c: { full_name: string; email: string; phone: string; address_line: string; suburb: string; postcode: string }, areaM2: number | null, proposedR: number | null = null): Record<string, string | number | null> {
+  const area = areaM2 != null && Number.isFinite(areaM2) && areaM2 > 0 ? areaM2 : null; // not measured = null, never 0
   return { full_name: c.full_name.trim(), email: c.email.trim(), phone: c.phone.trim(), address_line: c.address_line.trim(), suburb: c.suburb.trim(), postcode: c.postcode.trim(),
-    measured_area_m2: areaM2, measurement_method: "Installer supplied (unverified)", r_value: proposedR };
+    measured_area_m2: area, measurement_method: area == null ? null : "Installer supplied (unverified)", r_value: proposedR };
 }
 
 /**
@@ -251,4 +288,28 @@ export function coordinationNextAction(c: Coordination | null): string {
   if (c === "self_managed") return "Installer organises bookings — check eligibility, then review the installer's recorded bookings and evidence as they arrive.";
   if (c === "hivic_managed") return "Home Insulation Victoria organises — check eligibility, then arrange bookings through the normal workflow.";
   return "Coordination not recorded — confirm with the installer.";
+}
+
+export type IntakeCurrent = { areaM2: number | null; insulation: ExistingInsulation | null; quoted: "yes" | "no" | null; quoteIncGst: number | null; includes: string | null; proposedR: number | null };
+/**
+ * Material changes only (pure). Blank area keeps the known area (never cleared to 0). "Not quoted yet" clears stale
+ * quote facts to null honestly; "I have a quote" with a file but no amount keeps quoted unknown.
+ */
+export function pickIntakeChanges(cur: IntakeCurrent, next: { areaM2: number | null; insulation: ExistingInsulation; quoteStatus: QuoteStatus; quoteIncGst: number | null; includes: string | null; proposedR: number | null; files: unknown[] }) {
+  const out: { area?: number; insulation?: ExistingInsulation; proposedR?: number | null; quote?: { quoted: "yes" | "no" | null; quoteIncGst: number | null; includes: string | null } } = {};
+  if (next.areaM2 != null) { if (!(next.areaM2 > 0 && next.areaM2 <= 5000)) throw new Error("Check the ceiling area (m²)"); if (next.areaM2 !== cur.areaM2) out.area = next.areaM2; }
+  if (next.insulation !== (cur.insulation ?? "unknown")) out.insulation = next.insulation;
+  const q = next.quoteStatus === "not_quoted" ? { quoted: "no" as const, quoteIncGst: null, includes: null }
+    : next.quoteIncGst != null ? { quoted: "yes" as const, quoteIncGst: next.quoteIncGst, includes: next.includes?.trim() || null }
+    : { quoted: null, quoteIncGst: null, includes: null };
+  if (next.quoteStatus === "have_quote") {
+    if (next.quoteIncGst != null && !(next.quoteIncGst > 0 && next.quoteIncGst <= 1_000_000)) throw new Error("Check the quote amount inc GST");
+    if (next.quoteIncGst != null && !q.includes) throw new Error("Tell us what the quote includes");
+    if (next.quoteIncGst == null && !next.files.length && cur.quoteIncGst == null && cur.quoted !== "yes") { /* file may already be on the job */ }
+  }
+  if (q.quoted !== cur.quoted || q.quoteIncGst !== cur.quoteIncGst || q.includes !== (cur.includes ?? null)) out.quote = q;
+  const pr = next.quoteStatus === "not_quoted" ? null : next.proposedR;
+  if (pr != null && !(pr > 0 && pr <= 10)) throw new Error("Check the proposed product R-rating");
+  if (pr !== cur.proposedR) out.proposedR = pr;
+  return out;
 }
