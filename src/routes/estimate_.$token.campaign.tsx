@@ -1,3 +1,4 @@
+import { INSULATION_REVIEW_INVITATION } from "@/lib/insulation-review.core";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -103,7 +104,7 @@ function CampaignDesign({ reviewStatus, group, token, name, suburb, p, busy, err
       <p className="mt-4 text-[15px] leading-relaxed">Your {suburb ? `${suburb} ` : ""}home {onsite ? "could be eligible" : "looks eligible"} for the Victorian Energy Upgrades rebate. That means you pay about <strong>{money(p.total)}</strong> instead of {money(p.gross)}, and enjoy lower power bills for years to come.</p>
       <p className="mt-3 text-sm font-extrabold">{onsite ? "Your enquiry is currently behind homes whose eligibility we can already confirm. Help us check your insulation so you could move up and save your spot." : "Hundreds of homes have enquired since 1 October. Spots go in order."}</p>
       <div className="mt-5">{onsite ? videoBtn : saveBtn}</div>
-      {onsite ? <p className="mt-3 text-center text-sm">Upload a manhole video or pictures, or confirm it is below R2. Office checks first.</p> : <p className="mt-3 text-center text-sm">Free · no payment · no obligation</p>}
+      {onsite ? <p className="mt-3 text-center text-sm">Choose one way to share your insulation details. Office checks first.</p> : <p className="mt-3 text-center text-sm">Free · no payment · no obligation</p>}
       {error && <p role="alert" className="mt-2 text-center text-sm text-danger">{error}</p>}
     </section>
     <section data-campaign-estimate className="mt-7 rounded-[22px] bg-estimate-mist p-5">
@@ -122,7 +123,7 @@ function CampaignDesign({ reviewStatus, group, token, name, suburb, p, busy, err
     </section>
     <section className="mt-5 rounded-[22px] bg-estimate-blush p-5">
       <h2 className="font-display text-[23px] font-extrabold leading-tight">{onsite ? "Want to jump the queue?" : "Hold your place in line"}</h2>
-      {onsite ? <><p className="mt-3 text-sm leading-relaxed">Demand is high and installer capacity is limited. Your enquiry is behind eligible homes while we check your existing insulation. Send manhole video/photos or select “I confirm this is below R2”. If our office assesses it as appearing below R2 and your home qualifies, we’ll move you into the eligible queue so you can save your spot.</p><p className="mt-2 text-xs">Only if you can do it safely. Please don’t climb into or walk through the roof space.</p><div className="mt-4">{videoBtn}</div><p className="mt-3 text-center text-sm">{reviewStatus === "pending" ? "Your insulation details are awaiting office review." : reviewStatus === "not_eligible" ? "Our office has assessed your insulation as not eligible. Please contact us with any questions." : reviewStatus === "needs_onsite_check" ? "An onsite check is needed before we can offer Save my spot." : "Office review first. No payment. No obligation."}</p></>
+      {onsite ? <><p className="mt-3 text-sm leading-relaxed">{INSULATION_REVIEW_INVITATION}</p><p className="mt-2 text-xs">Only if you can do it safely. Please don’t climb into or walk through the roof space.</p><div className="mt-4">{videoBtn}</div><p className="mt-3 text-center text-sm">{reviewStatus === "pending" ? "Your insulation details are awaiting office review." : reviewStatus === "not_eligible" ? "Our office has assessed your insulation as not eligible. Please contact us with any questions." : reviewStatus === "needs_onsite_check" ? "An onsite check is needed before we can offer Save my spot." : "Office review first. No payment. No obligation."}</p></>
         : <><p className="mt-3 text-sm leading-relaxed">One tap and you're in. We'll be in touch to book your free Ready Check as soon as an installer is free near you.</p><div className="mt-4">{saveBtn}</div></>}
     </section>
     <p className="mt-5 text-xs leading-relaxed text-estimate-navy/70">Estimate only. Your price can change if your ceiling is a different size, old insulation needs removing, access is tricky, or the electrician finds something to fix. We never add work or cost without showing you first and getting your OK.</p>

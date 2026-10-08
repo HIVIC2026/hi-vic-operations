@@ -15,7 +15,7 @@
 - PIISA pins read-back definitions; signatures use audit-owned IDs, never historic fallback. Expected day uses capture; products/post-work use same-audit review before output. Why: no inferred facts.
 - PIISA AP uses authoritative config and readback before sharing; blank repair requires observed unsigned capture fields. Why: no installer substitution or signed-history mutation.
 - Emails reuse Step 3; no drift.
-- Staff portal presentation-only derivations and exact disclosure targets live in pure `src/lib/portal-presentation.core.ts`; they may label existing facts but never decide workflow or eligibility. Why: focused UI tests must not duplicate or alter domain rules.
+- Staff labels/disclosure targets use pure `src/lib/portal-presentation.core.ts`, never workflow or eligibility decisions. Why: presentation must not duplicate domain rules.
 - Domain, workflow, payment, compliance and integration rules live in `src/lib/AGENTS.md`; read it before changing `src/lib`. Why: keeps this file small.
 - Server functions are literal `createServerFn(...).middleware(...).inputValidator(...).handler(...)` chains; never import `@tanstack/react-start/server` in `*.functions.ts`. Why: factories/that import break the client bundle.
 - Pure rules in `*.core.ts` (tested via `bun test ./tests/`), persistence in `*.server.ts`, RPC in `*.functions.ts`. Why: testable, central guards.
@@ -33,4 +33,5 @@
 - Intake pages share progress reads without error fallbacks; successful installer saves invalidate job-keyed readers and trade-home through job-cache; evidence retains all-reader invalidation. Why: next actions stay current without remounting editors.
 - Evidence confirmation uses the guarded persistence helper with stored-path-derived primary keys and legacy path lookup; it checks both writes before success and never labels upload location/time as original capture. Why: retries and downstream failures must not duplicate files or invent evidence provenance.
 - Installer QA: `--installer-app-only`, no signing/office. Why: bounded.
-- Intake serializes files, preserves partial uploads/provenance; editors keep job identity, lock pending inputs and preserve dirty drafts on read errors. Why: safe retries/saves.
+- Intake serializes files, keeps partial uploads/provenance, locks pending inputs and protects dirty drafts. Why: safe retries.
+- Group B uses `insulation-review.core.ts` and owner-capture; declarations need office review. Why: no inferred eligibility.

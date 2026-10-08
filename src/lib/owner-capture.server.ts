@@ -78,8 +78,9 @@ export async function finishCapture(token: unknown, x: { path: string; fileName:
       device_reported_modified_at: x.deviceModifiedAt && Number.isFinite(x.deviceModifiedAt) ? new Date(x.deviceModifiedAt).toISOString() : null,
       location: "not captured",
     }, { internal: true });
-    const { markCampaignMediaReceived } = await import("./launch-campaign.server");
-    await markCampaignMediaReceived(jobId, r.link!.id);
   }
+  // Retry office review even for an already recorded stored file.
+  const { markCampaignMediaReceived } = await import("./launch-campaign.server");
+  await markCampaignMediaReceived(jobId, r.link!.id);
   return { recorded: true, duplicate };
 }
