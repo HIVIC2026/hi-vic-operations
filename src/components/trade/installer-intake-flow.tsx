@@ -274,7 +274,8 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         }} />
         {fileNote && <p className="text-xs text-sub" data-file-note>{fileNote}</p>}
         <p className="text-xs text-sub">No quote file? Enter the amount and what it includes.</p>
-        <label className="block text-sm font-bold">Your quote inc GST<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 3,450" value={d.amount} onChange={(e) => { typed.current.add("amount"); setD({ ...d, amount: e.target.value }); }} /></label>
+        <label className="block text-sm font-bold">Total installer quote inc GST<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 3,450" value={d.amount} onChange={(e) => { typed.current.add("amount"); setD({ ...d, amount: e.target.value }); }} /></label>
+        <p className="text-xs text-sub">Include any removal charge in this total.</p>
         <label className="block text-sm font-bold">What the quote includes<Textarea className="mt-1" rows={3} maxLength={1000} value={d.includes} onChange={(e) => { typed.current.add("includes"); setD({ ...d, includes: e.target.value }); }} /></label>
         <ProposedRField value={d.proposedR} disabled={busy || fileBusy} onChange={(v) => { typed.current.add("proposedR"); setD({ ...d, proposedR: v }); }} />
         <RemovalQuoteFields value={d.removal ?? blankRemoval()} disabled={busy || fileBusy} onChange={(removal) => setD({ ...d, removal })} />

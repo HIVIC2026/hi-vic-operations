@@ -125,7 +125,8 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
             if (failed.length) throw new Error(`${failed.join(", ")} didn't upload. Other uploaded files have been kept. Retry only the missing files.`);
           }} onRemove={async (path) => setNewFiles((o) => o.filter((f) => f.path !== path))} />
           <p className="text-xs text-sub">No quote file? Enter the amount and what it includes.</p>
-          <label className="block text-sm font-bold">Your quote inc GST<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 3,450" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
+          <label className="block text-sm font-bold">Total installer quote inc GST<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 3,450" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
+          <p className="text-xs text-sub">Include any removal charge in this total.</p>
           <label className="block text-sm font-bold">What the quote includes<Textarea className="mt-1" rows={3} maxLength={1000} value={includes} onChange={(e) => setIncludes(e.target.value)} /></label>
           <ProposedRField value={proposedR} disabled={busy || fileBusy} onChange={setProposedR} />
           <RemovalQuoteFields value={removal} disabled={busy || fileBusy} onChange={setRemoval} />
