@@ -17,7 +17,7 @@ import type { ElectricianPlan } from "@/lib/job-electrician.core";
 export type IntakeJobFacts = {
   areaM2: number | null; insulation: ExistingInsulation | null; quoted: "yes" | "no" | null; quoteAnswer?: QuoteStatus | null; quoteIncGst: number | null;
   includes: string | null; proposedR: number | null; files: AttachedFile[]; electricianChosen: boolean; quoteHeld: string[];
-  electricianPayer?: ElectricianPayer; feeAwarenessCurrent?: boolean; payerEditable?: boolean;
+  electricianPayer?: ElectricianPayer; feeAwarenessCurrent?: boolean; payerEditable?: boolean; payerLockReason?: string | null;
 };
 export type IntakeSave = {
   areaM2: number | null; insulation: ExistingInsulation; quoteStatus: QuoteStatus; quoteIncGst: number | null; includes: string | null;
@@ -110,7 +110,7 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
           </div>
           {payer === "own" && electricians && <div className="mt-2"><ElectricianPicker ownOnly value={plan?.mode === "mine" ? plan : { mode: "mine" }} onChange={(n) => setPlan(n)} note={false} approved={electricians.approved as never} pending={electricians.pending as never} /></div>}
         </fieldset>}
-        {!facts.payerEditable && <p className="text-sm" data-editor-payer-fixed>Electrician: {currentPayer === "own" ? "your own electrician (invoices the owner directly)" : currentPayer === "hivic" ? "Home Insulation Victoria arranges" : "to be arranged"}. Ask the office to change it.</p>}
+        {!facts.payerEditable && <p className="text-sm" data-editor-payer-fixed>Electrician: {currentPayer === "own" ? "your own electrician (invoices the owner directly)" : currentPayer === "hivic" ? "Home Insulation Victoria arranges" : "to be arranged"}. {facts.payerLockReason ?? "Ask Home Insulation Victoria to change it."}</p>}
         {feeText && <label className="flex items-start gap-3 text-sm" data-editor-fee-ack><Checkbox className="mt-0.5" checked={feeTick} onCheckedChange={(c) => setFeeTick(c === true)} aria-label={feeText} /><span>{feeText}<span className="block text-xs text-sub">Optional now — the owner quote waits until this is recorded.</span></span></label>}
         {problems.length > 0 && <ul role="alert" className="space-y-1 rounded-[12px] border border-danger/40 p-3 text-sm text-danger" data-editor-problems>{problems.map((p) => <li key={p}>{p}</li>)}</ul>}
         {msg && <p role="status" className="text-sm" data-editor-msg>{msg}</p>}

@@ -221,14 +221,13 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
   const pc = planPayerChange({ currentPayer: st.electricianPayer, requested: requestedPayer, electricianAccepted: (elAccepted ?? 0) > 0, fee: p.feeAwareness });
   if (!pc.ok) throw new WorkflowError(pc.error);
   if (pc.change) {
-    if (st.electricianPayer === "own") throw new WorkflowError("Your electrician is already chosen — ask the office to change it.");
     if (pc.nextPayer === "own") {
       const e = p.electrician;
       if (!e || !(e.business_id || e.nomination_id)) throw new WorkflowError("Choose your electrician.");
       if (e.business_id) { const { data: rel } = await admin.from("partner_relationships").select("electrician_business_id").eq("installer_business_id", businessId).eq("electrician_business_id", e.business_id).eq("active", true).maybeSingle(); if (!rel) throw new WorkflowError("That electrician isn't one of your approved electricians."); }
       else { const { data: n } = await admin.from("electrician_nominations").select("id").eq("id", e.nomination_id!).eq("nominating_business_id", businessId).maybeSingle(); if (!n) throw new WorkflowError("That electrician couldn't be found. Add them again."); }
     }
-    const lock = await (await import("./job-electrician.server")).payerChangeBlocker(jobId);
+    const lock = await intakePayerLock(jobId, st.electricianPayer, actorId, businessId);
     if (lock) throw new WorkflowError(lock);
   }
   const { data: m } = await admin.from("ceiling_measurements").select("id, provenance, supplied_area_m2").eq("job_id", jobId).eq("is_current", true).maybeSingle();
@@ -305,4 +304,20 @@ export async function intakeQuoteAnswers(jobIds: string[]): Promise<Map<string, 
   ]);
   for (const j of jobs ?? []) out.set(j.id, resolveQuoteAnswer((ev ?? []).filter((e) => e.job_id === j.id).map((e) => ({ answer: (e.details as { answer?: unknown } | null)?.answer, at: e.created_at })), j.installer_quoted));
   return out;
+}
+
+/**
+ * The one lock for an Add job electrician arrangement (editor DTO and save both use it). Shared payerChangeBlocker
+ * (accepted electrician / raised invoice) plus: an own-electrician choice stays committed once the owner has accepted
+ * a quote, and only the business admin may correct an own choice. Current payer alone is never a lock.
+ */
+export async function intakePayerLock(jobId: string, currentPayer: string, userId: string, businessId: string): Promise<string | null> {
+  const base = await (await import("./job-electrician.server")).payerChangeBlocker(jobId);
+  if (base) return base;
+  if (currentPayer !== "own") return null;
+  const { count: acc } = await admin.from("quotes").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", "installation").eq("status", "accepted");
+  if (acc) return "The owner has accepted a quote with your own electrician. To change it, email Home Insulation Victoria at info@homeinsulationvictoria.com.au.";
+  const { data: mem } = await admin.from("business_members").select("member_role").eq("business_id", businessId).eq("user_id", userId).eq("active", true).maybeSingle();
+  if (mem?.member_role !== "business_admin") return "Only your business owner can change your own electrician.";
+  return null;
 }
