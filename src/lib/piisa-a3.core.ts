@@ -3,8 +3,9 @@ type Any = any;
 // A3 - PIISA + AP Evidence (native Mitti template template_f6a2597479164eb181453eb335ce5125). Pure rules only.
 // Native labels are plain-language aliases OBSERVED in the Mitti editor (Jo, 8 Oct 2026) mapped onto the ACTUAL official
 // PIISA item IDs in official-forms.core. The official DOCX wording is never changed. Repeated native labels are resolved
-// by OCCURRENCE (form order), never "first match wins". No native item IDs are recorded here: the live published
-// definition is still an empty draft, so stable IDs must be added once Jo publishes it (do not invent them).
+// by OCCURRENCE (form order), never "first match wins". Stable native item IDs below were READ FROM THE RENDERED
+// EDITOR DOM of the draft (Jo, 8 Oct 2026 12:57 UTC) — draft-observed until the published API definition agrees;
+// any disagreement fails closed (a3MissingFields).
 import { flatten, norm, type Entry, type NativeMapping } from "./mitti.core";
 import type { OfficialAnswers } from "./official-forms.core";
 
@@ -55,8 +56,64 @@ export const A3_ALIASES: Record<string, string[]> = {
   "p8.date": ["Date"],
 };
 
-/** NativeMapping for buildOfficialPrefill. Callers pass occurrence = a3Occurrence(itemId, row). */
-export const PIISA_A3_MAPPING: NativeMapping = Object.fromEntries(Object.entries(A3_ALIASES).map(([k, labels]) => [k, { labels }]));
+/** official item id -> native item id per ROW (index = row). Draft-observed in the editor DOM; never guessed. */
+export const A3_NATIVE_IDS: Record<string, string[]> = {
+  jobRef: ["d76e6595-b1b0-4022-ab5d-d73423e6393b"],
+  address: ["a9e7dadc-b6ad-45a1-84db-79e4a88b63cd"],
+  startDate: ["78e550a4-1c8b-4b59-be77-64a5c09ba848"],
+  completionDate: ["84a8b69b-efd5-4830-9da7-66958cbfdb6e"],
+  "p1.powerInformed": ["66768b5a-a5d4-491c-829a-096ce58fed8b"],
+  lifeSupport: ["3075146f-44dc-411f-a438-dabb289dc539"],
+  lifeSupportConsent: ["6bd6569f-bc6d-4019-ba28-68410328bf67"],
+  lifeSupportAttachment: ["1c606c49-4c47-41e9-b351-fa15972fbbe9"],
+  "p2.installDate": ["747968d6-030d-46ca-a82a-4482cad9e81f"],
+  "p2.ap": ["b7212b10-067a-4fd8-8f6a-90efd2db8389"],
+  "p2.company": ["dc12088c-8316-461e-91e2-53b1db0dc558"],
+  "p2.lead": ["e377bcdb-0ba0-46d3-82f6-5d84519b55c4"],
+  "p2.leadEec": ["647221f2-f74c-4da1-a8be-e44a20f0b08b"],
+  "p2.addName": ["4bea475f-516e-46a2-8922-e85896c68402", "726f9e46-8308-449e-822f-2280cd7affa7", "c0c2178e-e872-4c70-a260-78aecde3d01e"],
+  "p2.addEec": ["24e41e61-a490-4bdc-bd34-002fb6ae1089", "65d9d9d5-b87e-4d81-b92a-fa877e5a4f98", "3681131a-dee1-429a-ba34-6e066ef07152"],
+  "p3.swms": ["1be8ebff-a754-4a2a-83f0-9561708ffb85"],
+  "p3.table1": ["ac43a81a-7576-4b2e-885c-389585fbded5"],
+  "p3.isolated": ["d2bb79c9-6307-4283-950b-c808315d1998"],
+  "p4.present": ["7a6f8dd0-9aae-472d-83a2-6f63f0c51b77"],
+  "p4.instructions": ["d4298abc-7302-4555-a15b-ef4dc83e75e3"],
+  "p4.isolator": ["e840fc02-6eea-415f-94dd-e5a5073845e5"],
+  "p5.reviewed": ["1c9258de-d3a0-4dd4-a372-388bf725b2af"],
+  "p5.electricianPresent": ["dc75c06c-662e-4c16-9f74-b2f0816cccbd"],
+  "p5.recessed": ["d0369395-a471-4c27-a8b8-809c406206a9"],
+  "p5.count": ["72eae2fe-ae1a-42e7-ac3f-e2c8a59a9a3f"],
+  "p5.icConfirmed": ["0f7e9415-4649-4e8b-8519-6a31f4f18fea"],
+  "p5.safeToCover": ["2d8bd875-09a8-4c8c-a3a7-f83b21231415"],
+  "p5.rcd": ["7b0fee21-26b7-47dc-aa33-79d3224dd22e"],
+  "p5.tps": ["930883db-4608-4cff-8955-7b48e2b42149"],
+  "p5.basic": ["e38b971b-9088-4dfa-b127-ace3ed7e4213"],
+  "p5.noAccess": ["ad9e1f51-6957-44cc-aaa1-1c41306b6f24"],
+  "p6.present": ["f03e5612-b32b-4b4c-9784-27ee05b620d1"],
+  "p6.height": ["14ea4360-9c22-45b8-ac90-768704ecdc07"],
+  "p6.rValue": ["b3105b42-8545-432e-80cf-31f95a6a6174"],
+  "p6.treatment": ["8dadd5c5-e8d7-431e-b65a-a5dc4d174864"],
+  "p6.reason": ["01ccb26c-acea-488e-add5-da9d6169979f"],
+  "p6.suitable": ["99f56c12-846d-4bac-bf89-d095e2cf16fe"],
+  "p7.products": ["5426daa7-060d-43ac-b180-e698e27eac98"],
+  "p8.declaration": ["3efc235d-da8e-46a5-b3f0-8c6a8c23e3e9"],
+  "p8.signature": ["805138fa-827e-4e25-8ca5-3871eeda1202"],
+  "p8.name": ["f7032d72-4135-4165-bd50-32d84a66d085"],
+  "p8.date": ["cda99bb8-8865-46a1-928a-2267175a1e2a"],
+};
+/** A3 evidence media items -> native item id (draft-observed). Electrician photo had no ID supplied: not mapped. */
+export const A3_MEDIA_IDS: Partial<Record<A3EvidenceKey, string>> = {
+  installer_photos: "06598474-e46a-4bba-8c9d-d1be2c9993e1",
+  isolation_photo: "3d8347ae-ed16-4e93-be18-4ecada390a7a",
+  before_video: "49c8ef21-dd6a-41e0-a4ae-acb0c53e7ada",
+  product_photos: "0a587e0e-9787-464e-be40-7cdd2c636b87",
+  completed_video: "86b3772c-6227-4b6f-8011-b7ed288e734e",
+  final_plan: "344e863b-3af3-44f5-b1b8-966941f0e667",
+};
+
+/** NativeMapping for buildOfficialPrefill: per-row stable IDs; labels kept only for verification. */
+export const PIISA_A3_MAPPING: NativeMapping = Object.fromEntries(Object.keys(A3_NATIVE_IDS).map((k) => [k, { itemIds: A3_NATIVE_IDS[k], labels: A3_ALIASES[k], byRow: true }]));
+const ROWS = (id: string) => A3_NATIVE_IDS[id]?.length ?? 1;
 
 /** Native occurrence of an official item: EEC rows share one label with the lead's EEC field. */
 export function a3Occurrence(itemId: string, row = 0): number {
@@ -67,6 +124,8 @@ export function a3Occurrence(itemId: string, row = 0): number {
 
 /** Entry for an official item at its native occurrence (form order). Missing = undefined, never a neighbour's field. */
 export function a3Entry(entries: Entry[], itemId: string, row = 0): Entry | undefined {
+  const nid = A3_NATIVE_IDS[itemId]?.[row];
+  if (nid) return entries.find((e) => String(e.id) === nid);
   const labels = (A3_ALIASES[itemId] ?? []).map(norm);
   if (!labels.length) return undefined;
   return entries.filter((e) => labels.includes(e.norm))[a3Occurrence(itemId, row)];
@@ -76,11 +135,31 @@ export function a3Entry(entries: Entry[], itemId: string, row = 0): Entry | unde
 export function a3MissingFields(template: unknown): string[] {
   const entries = flatten(template);
   const out: string[] = [];
-  for (const id of Object.keys(A3_ALIASES)) {
-    const rows = id === "p2.addName" || id === "p2.addEec" ? 3 : 1;
-    for (let r = 0; r < rows; r++) if (!a3Entry(entries, id, r)) out.push(rows > 1 ? `${A3_ALIASES[id]![0]} (row ${r + 1})` : A3_ALIASES[id]![0]!);
+  const ids = new Set([...Object.keys(A3_NATIVE_IDS), ...Object.keys(A3_ALIASES)]);
+  for (const id of ids) {
+    const rows = ROWS(id);
+    for (let r = 0; r < rows; r++) {
+      const name = `${A3_ALIASES[id]?.[0] ?? id}${rows > 1 ? ` (row ${r + 1})` : ""}`;
+      const e = a3Entry(entries, id, r);
+      if (!e) { out.push(name); continue; }
+      // Definition must agree with the observed draft: a known ID carrying a different question is a mismatch.
+      const al = A3_ALIASES[id];
+      if (al?.length && !al.map(norm).includes(e.norm)) out.push(`${name} — ID ${e.id} now reads "${e.label}"`);
+    }
   }
+  for (const [k, nid] of Object.entries(A3_MEDIA_IDS)) if (!entries.some((e) => String(e.id) === nid)) out.push(`${A3_EVIDENCE_LABELS[k as A3EvidenceKey]} (media)`);
   return out;
+}
+
+/** Media item ids that hold each evidence type on a completed audit (for evidence sync). */
+export function a3MediaCounts(audit: unknown): { key: A3EvidenceKey; count: number }[] {
+  const entries = flatten(audit) as (Entry & { raw?: Any })[];
+  return (Object.entries(A3_MEDIA_IDS) as [A3EvidenceKey, string][]).map(([key, nid]) => {
+    const e = entries.find((x) => String(x.id) === nid) as Any;
+    const r = e?.raw?.responses ?? e?.responses ?? {};
+    const media = (e?.raw?.media ?? r.media ?? r.attachments ?? []) as unknown[];
+    return { key, count: Array.isArray(media) ? media.length : 0 };
+  });
 }
 
 /** "Removed" / "Topped up" / "Both" (or a multi-select) -> the official ticks. Unknown text = null (never guessed). */
@@ -102,6 +181,7 @@ export function parseA3Answers(audit: unknown): { answers: OfficialAnswers; crew
   const answers: OfficialAnswers = {};
   for (const id of Object.keys(A3_ALIASES)) {
     if (id === "p2.addName" || id === "p2.addEec" || id === "p8.signature") continue;
+    if (id === "p8.declaration") continue;
     const v = a3Entry(entries, id)?.value ?? null;
     if (v == null) continue;
     if (id === "p6.treatment") { const t = mergeTreatment(v); if (t) answers[id] = t; continue; }
@@ -122,7 +202,7 @@ export function a3Signature(audit: unknown): { name: string | null; signedAt: st
   const all: Any[] = [];
   const walk = (x: unknown) => { if (Array.isArray(x)) x.forEach(walk); else if (x && typeof x === "object") { const o = x as Any; if ("label" in o) all.push(o); for (const v of Object.values(o)) if (typeof v === "object") walk(v); } };
   walk([(root as Any)?.header_items, (root as Any)?.items]);
-  const sig = all.filter((o) => norm(o.label) === norm("Signature"))[0];
+  const sig = all.find((o) => String(o.item_id ?? o.id) === A3_NATIVE_IDS["p8.signature"]![0]) ?? all.filter((o) => norm(o.label) === norm("Signature"))[0];
   const r = (sig?.responses ?? {}) as Any;
   const present = !!(r.image ?? r.media ?? r.media_id ?? r.signature ?? r.name);
   const ts = [r.timestamp, r.signed_at, r.datetime].find((t) => typeof t === "string" && !Number.isNaN(Date.parse(t))) as string | undefined;

@@ -339,7 +339,7 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string, call
   const toPre = (itemId: string, value: string, row = 0): Pre => {
     const it = items.find((i) => i.id === itemId)!;
     const occurrence = isA3 ? a3.a3Occurrence(itemId, row) : items.filter((i) => i.label === it.label && items.indexOf(i) < items.indexOf(it)).length + row;
-    return { itemId, label: it.label, kind: it.kind, value, occurrence };
+    return { itemId, label: it.label, kind: it.kind, value, occurrence, row };
   };
   const preMap = new Map<string, Pre>();
   for (const h of hints) if (h.mode === "prefill" && h.value != null) preMap.set(`${h.itemId}#0`, toPre(h.itemId, h.value));
