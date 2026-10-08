@@ -36,8 +36,10 @@ function Thumb({ f, businessId }: { f: AttachedFile; businessId: string }) {
 }
 
 /** "Take photo" (phone camera) + "Choose files", with small previews and a remove button on each. */
-export function AttachFiles({ businessId, files, onAdd, onRemove, canRemove = () => true, label = "Photos and files" }: { businessId: string; files: AttachedFile[]; onAdd: (f: File[]) => Promise<void>; onRemove: (path: string) => Promise<void>; canRemove?: (path: string) => boolean; label?: string }) {
-  const [busy, setBusy] = useState(false);
+export function AttachFiles({ businessId, files, onAdd, onRemove, canRemove = () => true, disabled = false, onBusyChange, label = "Photos and files" }: { businessId: string; files: AttachedFile[]; onAdd: (f: File[]) => Promise<void>; onRemove: (path: string) => Promise<void>; canRemove?: (path: string) => boolean; disabled?: boolean; onBusyChange?: (busy: boolean) => void; label?: string }) {
+  const [operation, setOperation] = useState<"adding" | "removing" | null>(null);
+  const locked = useRef(false);
+  const busy = operation !== null;
   const [err, setErr] = useState<string | null>(null);
   const sign = useServerFn(partnerFileUrl);
   const view = async (f: AttachedFile) => {
@@ -46,28 +48,34 @@ export function AttachFiles({ businessId, files, onAdd, onRemove, canRemove = ()
     catch (e) { setErr(e instanceof Error ? e.message : "Couldn't open this file. Try again."); }
   };
   const cam = useRef<HTMLInputElement>(null), pick = useRef<HTMLInputElement>(null);
+  const mutate = async (kind: "adding" | "removing", action: () => Promise<void>) => {
+    if (locked.current || disabled) return;
+    locked.current = true; setOperation(kind); onBusyChange?.(true); setErr(null);
+    try { await action(); } catch (e) { setErr(e instanceof Error ? e.message : "Couldn't save the file change. Try again."); }
+    finally { locked.current = false; setOperation(null); onBusyChange?.(false); }
+  };
   const add = async (list: FileList | null) => {
     const f = [...(list ?? [])]; if (!f.length) return;
-    setBusy(true); setErr(null);
-    try { await onAdd(f); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); if (cam.current) cam.current.value = ""; if (pick.current) pick.current.value = ""; }
+    await mutate("adding", () => onAdd(f));
+    if (cam.current) cam.current.value = ""; if (pick.current) pick.current.value = "";
   };
   return (
     <div className="space-y-2" data-attach-files>
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2"><span className="flex items-center gap-1.5 text-sm font-semibold"><Paperclip className="h-4 w-4 text-hiv-blue" />{label}</span>
         <div className="flex gap-1.5">
-          <button type="button" disabled={busy} onClick={() => cam.current?.click()} className="inline-flex h-8 items-center gap-1 rounded-[9px] border border-line bg-paper px-2.5 text-xs font-semibold text-hiv-blue disabled:opacity-50"><Camera className="h-3.5 w-3.5" />Take photo</button>
-          <button type="button" disabled={busy} onClick={() => pick.current?.click()} className="inline-flex h-8 items-center gap-1 rounded-[9px] border border-line bg-paper px-2.5 text-xs font-semibold text-hiv-blue disabled:opacity-50">Choose files</button>
+          <Button type="button" variant="outline" disabled={busy || disabled} onClick={() => cam.current?.click()} className="h-8 rounded-[9px] px-2.5 text-xs font-semibold text-hiv-blue"><Camera className="h-3.5 w-3.5" />Take photo</Button>
+          <Button type="button" variant="outline" disabled={busy || disabled} onClick={() => pick.current?.click()} className="h-8 rounded-[9px] px-2.5 text-xs font-semibold text-hiv-blue">Choose files</Button>
         </div>
       </div>
-      <input ref={cam} type="file" accept="image/*" capture="environment" className="sr-only" aria-label="Take photo" onChange={(e) => add(e.target.files)} />
-      <input ref={pick} type="file" multiple accept="image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx,.csv,.eml,.msg" className="sr-only" aria-label="Choose files" onChange={(e) => add(e.target.files)} />
-      {busy && <p className="text-xs text-sub">Uploading…</p>}
-      {err && <p className="text-xs text-danger">{err}</p>}
+      <input ref={cam} disabled={busy || disabled} type="file" accept="image/*" capture="environment" className="sr-only" aria-label="Take photo" onChange={(e) => add(e.target.files)} />
+      <input ref={pick} disabled={busy || disabled} type="file" multiple accept="image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx,.csv,.eml,.msg" className="sr-only" aria-label="Choose files" onChange={(e) => add(e.target.files)} />
+      {busy && <p role="status" className="text-xs text-sub">{operation === "removing" ? "Removing file…" : "Saving and checking files…"}</p>}
+      {err && <p role="alert" className="text-xs text-danger">{err}</p>}
       {files.length > 0 && <ul className="flex flex-wrap gap-2">{files.map((f) => (
         <li key={f.path} className="relative w-20">
           <Button type="button" variant="outline" aria-label={`Open ${f.name}`} onClick={() => view(f)} className="grid h-16 w-20 place-items-center overflow-hidden rounded-[10px] border border-line bg-mist p-0"><Thumb f={f} businessId={businessId} /></Button>
           <span className="mt-0.5 block truncate text-[10px] text-sub">{f.name.split("/").pop()}</span>
-          {canRemove(f.path) && <Button type="button" variant="outline" size="icon" aria-label={`Remove ${f.name}`} disabled={busy} onClick={async () => { setBusy(true); setErr(null); try { await onRemove(f.path); } catch (e) { setErr(e instanceof Error ? e.message : "Couldn't remove this file. Try again."); } finally { setBusy(false); } }} className="absolute -right-1.5 -top-1.5 h-6 w-6 rounded-full border border-line bg-paper text-ink shadow-card"><X className="h-3 w-3" /></Button>}
+          {canRemove(f.path) && <Button type="button" variant="outline" size="icon" aria-label={`Remove ${f.name}`} disabled={busy || disabled} onClick={() => mutate("removing", () => onRemove(f.path))} className="absolute -right-1.5 -top-1.5 h-6 w-6 rounded-full border border-line bg-paper text-ink shadow-card"><X className="h-3 w-3" /></Button>}
         </li>))}</ul>}
     </div>
   );
