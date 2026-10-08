@@ -68,6 +68,8 @@ export function evidenceApplicability(gate: string | null | undefined, f: JobFac
   const reached = (stage: string) => modernAt && at >= STAGE_ORDER.findIndex(s => s === stage);
   const afterInstall = ["evidence_outstanding", "ap_review", "ready_for_veec", "complete"].includes(f.stage);
   if (f.installedAt || afterInstall) return "current";
+  // Installation entry is downstream of both assessment and electrical guards.
+  if (["installation_scheduling", "installation_booked"].includes(f.stage) && gate !== "installation") return "current";
   const visitDue = (date: string | null | undefined) => validTime(date) && Date.parse(date ?? "") <= now;
   if (gate === "assessment" && (f.rcSubmittedAt || reached("ready_check_complete") || visitDue(f.rcBookingAt))) return "current";
   if (gate === "electrical" && (f.piesa?.completedAt || reached("piesa_complete") || visitDue(f.elecBookingAt))) return "current";

@@ -101,6 +101,14 @@ describe("isolated operations presentation", () => {
     expect(r.evidence).toHaveLength(2);
     expect(classifyOperation(fixture("unknown-gate", { evidence: [{ label: "Unknown", gate: "new_gate", status: "outstanding" }] }), now).bucket).toBe("Needs classification");
   });
+  test("legacy stage order alone is not PIESA completion proof; installation guards establish prior gates", () => {
+    const f = fixture("legacy", { actualHandoff: true, evidence: [{ label: "PIESA", gate: "electrical", status: "outstanding" }] });
+    f.facts.stage = "awaiting_electrician";
+    expect(classifyOperation(f, now).bucket).toBe("Needs classification");
+    f.facts.stage = "installation_scheduling";
+    expect(classifyOperation(f, now).bucket).toBe("Active jobs");
+    expect(classifyOperation(f, now).tasks.some(t => t.label === "PIESA: not received")).toBe(true);
+  });
   test("unrelated/manual and ambiguous legacy campaign emails never prove photos or estimate contact", () => {
     for (const purpose of ["followup", "email", "existing_leads_launch_v1", "area_unavailable"]) {
       const r = classifyOperation(fixture(purpose, { communications: [sent(purpose)] }), now);
