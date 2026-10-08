@@ -94,8 +94,9 @@ export function piisaPrefill(ctx: OfficialPrefillContext): PrefillHint[] {
   const ls = lifeSupport(ctx, "installer");
   return [
     jobRef(ctx), address(ctx), installDate("startDate", ctx),
-    // Predicted completion is blank unless a real expected completion date is on record (never the start date).
-    hint("completionDate", "prefill", isDate(ctx.predictedCompletionDate ?? null) ? ctx.predictedCompletionDate! : null, "portal_record", "Booked installation", isDate(ctx.predictedCompletionDate ?? null) ? "From the booked installation end date." : "No expected completion date on record — the installer enters it."), ls,
+    // Jo 8 Oct 2026: expected completion defaults to the SAME DAY as the start date (editable). A real recorded end date wins.
+    hint("completionDate", "prefill", isDate(ctx.predictedCompletionDate ?? null) ? ctx.predictedCompletionDate! : isDate(ctx.installDate) ? ctx.installDate : null, "portal_record", "Booked installation",
+      isDate(ctx.predictedCompletionDate ?? null) ? "From the booked installation end date." : isDate(ctx.installDate) ? "Same day as the start date — the installer can change it." : "No start date on record — the installer enters it."), ls,
     hint("lifeSupportAttachment", "prefill", blankTo(ctx.piesaLifeSupportAttachment), "signed_piesa", "Signed PIESA attachment",
       blankTo(ctx.piesaLifeSupportAttachment) ? "Attached from the signed PIESA on this job — the installer must still check it." : "No consent or medical plan is attached to the signed PIESA — the installer must attach one if life support applies."),
     installDate("p2.installDate", ctx),
