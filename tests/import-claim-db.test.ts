@@ -16,7 +16,7 @@ const { confirmImportFor, linkImportJob, finalizeImport } = await import("../src
 const IMP = "00000000-0000-0000-0000-0000000000a1", BIZ = "00000000-0000-0000-0000-0000000000b1";
 const U = "00000000-0000-0000-0000-0000000000c1", JOB = "00000000-0000-0000-0000-0000000000d1";
 const input = (area = "118") => ({ importId: IMP, facts: { full_name: "TEST Owner", measured_area_m2: area } });
-const row = async () => (await db.query<{ confirmed_by: string | null; confirmed_at: string | null; job_id: string | null; status: string }>("select * from job_imports where id=$1", [IMP])).rows[0]!;
+const row = async () => { const r = (await db.query<{ confirmed_by: string | null; confirmed_at: Date | null; job_id: string | null; status: string }>("select * from job_imports where id=$1", [IMP])).rows[0]!; return { ...r, confirmed_at: r.confirmed_at ? new Date(r.confirmed_at).toISOString() : null }; };
 const gate = () => { let open!: () => void; const p = new Promise<void>((r) => (open = r)); return { p, open }; };
 
 beforeEach(async () => {
@@ -59,8 +59,10 @@ describe("import submission claim (persistence boundary)", () => {
 
   test("two simultaneous first submits: exactly one claims", async () => {
     const g = gate(); let runs = 0;
-    const res = await Promise.allSettled([0, 1].map(() => confirmImportFor(U, input() as never, (async () => { runs++; await g.p; return { jobId: JOB, jobNumber: null }; }) as never)));
+    const calls = [0, 1].map(() => confirmImportFor(U, input() as never, (async () => { runs++; await g.p; return { jobId: JOB, jobNumber: null }; }) as never));
+    await Promise.race(calls.map((c) => c.catch(() => {})));
     g.open();
+    const res = await Promise.allSettled(calls);
     expect(res.filter((r) => r.status === "rejected").length).toBe(1);
     expect(runs).toBe(1);
   });
