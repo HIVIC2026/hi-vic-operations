@@ -30,3 +30,5 @@
 
 - Office operations categories and compact job status reuse the operations read classifier and one shared Query cache; legacy preview remains direct-link. Why: unique counts and factual precedence must agree without navigation polling.
 - Installer Add job is one intake (`installer-intake-flow.tsx`) on shared CustomerFields and the guarded import handlers; legacy add/bulk bookmarks redirect there (office keeps batch history). Why: one form, no duplicate or obsolete questions.
+- Intake pages share progress reads, never legacy fallback on errors; private attachments use the signed viewer and no local-only original removal. Why: truthful progress and durable file controls.
+- Installer QA uses `--installer-app-only` to skip signing/review and office sessions. Why: bounded checks must exclude approvals and sends.
