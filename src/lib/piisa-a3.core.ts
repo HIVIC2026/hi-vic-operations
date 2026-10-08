@@ -289,7 +289,9 @@ export function a3Signature(audit: unknown): { name: string | null; signedAt: st
   const all: Any[] = [];
   const walk = (x: unknown) => { if (Array.isArray(x)) x.forEach(walk); else if (x && typeof x === "object") { const o = x as Any; if ("label" in o) all.push(o); for (const v of Object.values(o)) if (typeof v === "object") walk(v); } };
   walk([(root as Any)?.header_items, (root as Any)?.items]);
-  const signatureId = a3AuditUsesDirectCrew(audit) ? A3_DIRECT_SIGNATURE_ID : A3_NATIVE_IDS["p8.signature"]?.[0];
+  // Audit-owned IDs only: a blank restored signature never falls back to historical media.
+  const signatureId = all.some((o) => String(o.item_id ?? o.id) === A3_DIRECT_SIGNATURE_ID)
+    ? A3_DIRECT_SIGNATURE_ID : A3_NATIVE_IDS["p8.signature"]?.[0];
   const sig = all.find((o) => String(o.item_id ?? o.id) === signatureId);
   const r = (sig?.responses ?? {}) as Any;
   // A real signature is an IMAGE reference. Plain text (e.g. a literal "signature-image-ref" or a typed name) is not one.
