@@ -120,7 +120,7 @@ export const getMyIntakeJob = createServerFn({ method: "POST" }).middleware([req
       admin.from("job_imports").select("files").eq("job_id", data.jobId).eq("business_id", biz).order("created_at", { ascending: true }).limit(1).maybeSingle(),
       admin.from("jobs").select("installer_quoted, electrician_choice").eq("id", data.jobId).single(),
     ]);
-    return { applies: true as const, businessId: biz, areaM2: s.areaM2, areaProvenance: s.areaProvenance, insulation: s.insulation, quoted: (job?.installer_quoted ?? null) as "yes" | "no" | null, quoteIncGst: s.quoteIncGst, includes: s.includes, proposedR: s.proposedR, files: ((imp?.files as { path: string; name: string; type: string }[] | null) ?? []), electricianChosen: !!job?.electrician_choice && job.electrician_choice !== "hivic_organise", quoteHeld: s.readiness.blockers };
+    return { applies: true as const, businessId: biz, areaM2: s.areaM2, areaProvenance: s.areaProvenance, insulation: s.insulation, quoted: (job?.installer_quoted ?? null) as "yes" | "no" | null, quoteIncGst: s.quoteIncGst, includes: s.includes, proposedR: s.proposedR, files: ((imp?.files as { path: string; name: string; type: string }[] | null) ?? []), electricianChosen: !!job?.electrician_choice && job.electrician_choice !== "hivic_organise", quoteHeld: [...s.readiness.blockers, ...s.releaseBlockers.filter((b) => !/contact consent/.test(b))], electricianPayer: s.electricianPayer, feeAwarenessCurrent: s.feeAwarenessRecorded && (!s.feeAwarenessPayer || s.feeAwarenessPayer === s.electricianPayer) };
   });
 
 export const saveMyIntakeJob = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -129,11 +129,12 @@ export const saveMyIntakeJob = createServerFn({ method: "POST" }).middleware([re
     quoteStatus: z.enum(["not_quoted", "have_quote"]), quoteIncGst: z.number().positive().max(1_000_000).nullable(), includes: z.string().trim().max(1000).nullable(), proposedR: z.number().positive().max(10).nullable(),
     files: z.array(z.object({ path: z.string().max(500), name: z.string().max(200), type: z.string().max(100) })).max(20),
     electrician: z.object({ mode: z.literal("mine"), business_id: z.string().uuid().nullish(), nomination_id: z.string().uuid().nullish() }).optional(),
+    feeAwareness: z.object({ payer: z.enum(["hivic", "own"]), text: z.string().max(400) }).optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
     const biz = await requireSupplyingInstaller(context.supabase as never, context.userId, data.jobId);
     const { installerUpdateIntake } = await import("./installer-intake.server");
     const { jobId, ...p } = data;
-    try { const r = await installerUpdateIntake(jobId, context.userId, biz, p as never); return { changed: r.changed, quoteHeld: r.state.readiness.blockers }; }
+    try { const r = await installerUpdateIntake(jobId, context.userId, biz, p as never); return { changed: r.changed, quoteHeld: [...r.state.readiness.blockers, ...r.state.releaseBlockers.filter((b) => !/contact consent/.test(b))] }; }
     catch (e) { throw new Error(e instanceof Error ? e.message : "Couldn't save."); }
   });

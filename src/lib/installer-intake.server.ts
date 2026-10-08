@@ -173,6 +173,8 @@ export type InstallerIntakeUpdate = {
   quoteIncGst: number | null; includes: string | null; proposedR: number | null;
   files: { path: string; name: string; type: string }[];
   electrician?: { mode: "mine"; business_id?: string | null; nomination_id?: string | null } | undefined;
+  /** Installer declares (later, on the same job) the owner was advised of the fees for the CURRENT electrician payer. */
+  feeAwareness?: { payer: "hivic" | "own"; text: string } | undefined;
 };
 
 /**
@@ -221,6 +223,15 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
     const { recordJobElectricianChoice } = await import("./job-electrician.server");
     electrician = (await recordJobElectricianChoice(jobId, businessId, p.electrician as never, actorId)).choice ?? null;
   }
+  let feeRecorded = false;
+  if (p.feeAwareness) {
+    const { feeAwarenessText, payerFromChoice, FEE_AWARENESS_VERSION } = await import("./installer-intake.core");
+    const { data: j2 } = await admin.from("jobs").select("electrician_choice").eq("id", jobId).single();
+    const payer = payerFromChoice(j2?.electrician_choice);
+    if (payer !== p.feeAwareness.payer || p.feeAwareness.text !== feeAwarenessText(payer)) throw new WorkflowError("The fee confirmation doesn't match this job's electrician arrangement — refresh and tick it again.");
+    await logEvent(jobId, actorId, "installer_owner_fee_awareness", payer === "own" ? "Installer declared the owner was advised of the $349 AP management fee and that their own electrician invoices them separately" : "Installer declared the owner was advised of the $349 PIESA fee and $349 AP management fee", { by: "installer", source: "installer_job_page", payer, wording: p.feeAwareness.text, version: FEE_AWARENESS_VERSION, confirmed_at: new Date().toISOString(), not_owner_paperwork: true }, { internal: true });
+    feeRecorded = true;
+  }
   const material = ch.area !== undefined || !!ch.quote || ch.proposedR !== undefined || ch.insulation !== undefined;
   let quotes: { id: string; action: string }[] = [];
   if (material) {
@@ -229,5 +240,5 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
     if (ch.insulation !== undefined) await logEvent(jobId, actorId, "installer_intake_corrected", `Installer updated existing insulation to ${ch.insulation === "none" ? "none" : ch.insulation === "below_r2" ? "confirmed below R2.0" : "not yet confirmed"}`, { ...details, insulation: ch.insulation }, { internal: true });
     else await logEvent(jobId, actorId, "installer_intake_updated", "Installer updated job details", details, { internal: true });
   }
-  return { changed: material || p.files.length > 0 || !!electrician, quotes: quotes.length, state: await installerIntakeState(jobId) };
+  return { changed: material || p.files.length > 0 || !!electrician || feeRecorded, quotes: quotes.length, state: await installerIntakeState(jobId) };
 }

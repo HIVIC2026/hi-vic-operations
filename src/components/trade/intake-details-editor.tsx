@@ -9,16 +9,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { AttachFiles, ElectricianPicker, useUploadFiles, type AttachedFile } from "./job-intake";
 import { getMyIntakeJob, saveMyIntakeJob } from "@/lib/installer-quote.functions";
 import { bulkElectricianChoices } from "@/lib/bulk-import.functions";
+import { feeAwarenessText, type ElectricianPayer } from "@/lib/installer-intake.core";
+import { Checkbox } from "@/components/ui/checkbox";
 import { EXISTING_INSULATION_CHOICES, JOB_DETAILS_LEAD, QUOTE_STATUS_CHOICES, intakeArea, intakeProblems, intakeQuotePayload, type ExistingInsulation, type QuoteStatus } from "@/lib/installer-intake.core";
 import type { ElectricianPlan } from "@/lib/job-electrician.core";
 
 export type IntakeJobFacts = {
   areaM2: number | null; insulation: ExistingInsulation | null; quoted: "yes" | "no" | null; quoteIncGst: number | null;
   includes: string | null; proposedR: number | null; files: AttachedFile[]; electricianChosen: boolean; quoteHeld: string[];
+  electricianPayer?: ElectricianPayer; feeAwarenessCurrent?: boolean;
 };
 export type IntakeSave = {
   areaM2: number | null; insulation: ExistingInsulation; quoteStatus: QuoteStatus; quoteIncGst: number | null; includes: string | null;
   proposedR: number | null; files: AttachedFile[]; electrician?: { mode: "mine"; business_id?: string | null; nomination_id?: string | null };
+  feeAwareness?: { payer: "hivic" | "own"; text: string };
 };
 type ElChoices = { approved: { businessId?: string; nominationId?: string; name: string }[]; pending: { businessId?: string; nominationId?: string; name: string }[] };
 
@@ -36,6 +40,8 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
   const [proposedR, setProposedR] = useState(facts.proposedR == null ? "" : String(facts.proposedR));
   const [newFiles, setNewFiles] = useState<AttachedFile[]>([]);
   const [plan, setPlan] = useState<ElectricianPlan | null>(null);
+  const [feeTick, setFeeTick] = useState(false);
+  const feeText = facts.feeAwarenessCurrent ? null : feeAwarenessText(facts.electricianPayer ?? null);
   const [problems, setProblems] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -50,8 +56,9 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
     setBusy(true);
     try {
       const r = await onSave({ areaM2: intakeArea(area), insulation: ins, quoteStatus: qs!, quoteIncGst: q.quoted_price_inc_gst, includes: q.price_includes, proposedR: q.proposed_r_value, files: newFiles,
+        ...(feeTick && feeText && (facts.electricianPayer === "hivic" || facts.electricianPayer === "own") ? { feeAwareness: { payer: facts.electricianPayer, text: feeText } } : {}),
         ...(plan?.mode === "mine" && (plan.business_id || plan.nomination_id) ? { electrician: { mode: "mine" as const, business_id: plan.business_id ?? null, nomination_id: plan.nomination_id ?? null } } : {}) });
-      setNewFiles([]);
+      setNewFiles([]); if (feeTick) setFeeTick(false);
       setMsg(preview ? "Preview only — nothing was saved." : r.quoteHeld.length ? "Saved. The owner quote is still on hold until the remaining items are ready." : "Saved.");
     } catch (e) { setMsg(e instanceof Error ? e.message : "Couldn't save. Try again."); }
     finally { setBusy(false); }
@@ -90,6 +97,7 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
         </>}
         {!facts.electricianChosen && electricians && <div><p className="text-sm font-bold">Electrician</p><p className="text-xs text-sub">Optional. Choosing one doesn't book anyone.</p>
           <ElectricianPicker value={plan ?? { mode: "hivic" }} onChange={setPlan} note={false} approved={electricians.approved as never} pending={electricians.pending as never} /></div>}
+        {feeText && <label className="flex items-start gap-3 text-sm" data-editor-fee-ack><Checkbox className="mt-0.5" checked={feeTick} onCheckedChange={(c) => setFeeTick(c === true)} aria-label={feeText} /><span>{feeText}<span className="block text-xs text-sub">Optional now — the owner quote waits until this is recorded.</span></span></label>}
         {problems.length > 0 && <ul role="alert" className="space-y-1 rounded-[12px] border border-danger/40 p-3 text-sm text-danger" data-editor-problems>{problems.map((p) => <li key={p}>{p}</li>)}</ul>}
         {msg && <p role="status" className="text-sm" data-editor-msg>{msg}</p>}
         <Button size="field" className="w-full" disabled={busy} aria-busy={busy} onClick={save}>{busy ? "Saving…" : "Save details"}</Button>
