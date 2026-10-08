@@ -15,7 +15,7 @@ export const getEnquiryGroups = createServerFn({ method: "POST" }).middleware([r
         group: x.group, otherReason: x.otherReason, reason: x.reason, area: x.area, areaLabel: x.areaLabel, videoState: x.videoState, nextAction: x.nextAction, lastEmail: x.lastEmail,
         duplicate: x.kind === "job" && !x.isPrimaryForContact, status: x.status,
         attentionReason: x.attentionReason ?? (x.status === "needs_attention" ? x.reason : null), outcomeAt: x.outcomeAt,
-        mediaCount: x.mediaCount, mediaChecked: x.mediaChecked, mediaOutcome: x.mediaOutcome,
+        mediaCount: x.mediaCount, mediaChecked: x.mediaChecked, mediaOutcome: x.mediaOutcome, removed: !!x.removed,
       })),
       scope: r.scope,
     };
@@ -52,4 +52,12 @@ export const reviewLeadMediaFn = createServerFn({ method: "POST" }).middleware([
     await requireAdmin(context.supabase);
     const { reviewLeadMedia } = await import("./enquiry-groups.server");
     return reviewLeadMedia(data.jobId, data.outcome, context.userId ?? null);
+  });
+
+export const removeLeadsFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ ids: z.array(z.string().uuid()).min(1).max(500), reason: z.string().trim().min(2).max(200) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { removeLeads } = await import("./enquiry-groups.server");
+    return removeLeads(data.ids, data.reason, context.userId ?? null);
   });

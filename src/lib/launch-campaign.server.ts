@@ -96,6 +96,15 @@ export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; 
   if (!row?.spot_saved_at) throw new Error("We couldn't save your place. Please try again.");
   if (firstSave) await logEvent(c.job.id, null, "campaign_spot_saved", price ? `Owner saved a place for a free Ready Check at $${Math.floor(price.total)} (rebate $${Math.floor(price.discount)})` : "Owner saved a place for a free Ready Check", { campaign: LAUNCH_CAMPAIGN, ...snapshot }, { internal: true });
   if (firstSave) await queueSpotSavedConfirmations(c.job.id, String(token));
+  // Spot saved → only now does the job move on to the free Ready Check (Jo, 8 Oct).
+  {
+    const { data: j } = await admin.from("jobs").select("stage").eq("id", c.job.id).maybeSingle();
+    if (j && ["preliminary_estimate_ready", "new_enquiry", "eligibility_review"].includes(j.stage)) {
+      const { transition } = await import("./workflow.server");
+      if (j.stage !== "preliminary_estimate_ready") await transition(c.job.id, "preliminary_estimate_ready", null, "Eligibility passed – owner saved their spot").catch(() => null);
+      await transition(c.job.id, "ready_check_ready_to_schedule", null, "Owner saved their spot – free Ready Check next").catch(() => null);
+    }
+  }
   return { ok: true as const };
 }
 

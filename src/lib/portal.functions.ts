@@ -73,7 +73,7 @@ export const setEligibility = createServerFn({ method: "POST" }).middleware([req
       if (stage === "new_enquiry") await transition(data.jobId, "eligibility_review", context.userId, "Eligibility set – held until general rollout starts 1 Oct 2026", {}, { nextAction: "Hold until general rollout starts 1 Oct 2026, then assign installer for the free Ready Check" });
       await logEvent(data.jobId, context.userId, "gate1_rollout_hold", "Assessment dispatch held: general rollout starts 1 Oct 2026", { flags: gate.flags }, { internal: true });
     } else if (data.outcome !== "does_not_appear_eligible" && (stage === "new_enquiry" || stage === "eligibility_review")) {
-      await transition(data.jobId, "ready_check_ready_to_schedule", context.userId, "Eligibility passed – free installer Ready Check next", {}, { nextAction: data.nextAction });
+      await transition(data.jobId, "preliminary_estimate_ready", context.userId, "Eligibility passed – waiting for the owner to save their spot", {}, { nextAction: data.nextAction });
       // Owner Authority is no longer requested before assessment; acceptance happens at quote acceptance.
     } else if (stage === "new_enquiry") {
       await transition(data.jobId, "eligibility_review", context.userId, "Moved to eligibility review", {}, { nextAction: data.nextAction });
