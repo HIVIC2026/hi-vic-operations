@@ -107,10 +107,22 @@ export async function recordSmsStatus(sid: string, status: string, errorCode: st
 }
 
 /** Inbound STOP / START reply. */
-export async function recordInboundReply(from: string, body: string) {
+export async function recordInboundReply(from: string, body: string, sid?: string | null) {
   const { stopKeyword } = await import("./sms.core");
   const phone = toAuE164(from);
   const k = stopKeyword(body);
+  // Every reply (including STOP/START) is saved on the job of the latest text we sent that number (Jo, 8 Oct). Internal only.
+  if (phone) {
+    const { data: last } = await db.from("sms_messages").select("job_id").eq("to_number", phone).not("job_id", "is", null).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (last?.job_id) {
+      const dup = sid ? (await db.from("job_communications").select("id").eq("provider_message_id", sid).maybeSingle()).data : null;
+      if (!dup) await db.from("job_communications").insert({
+        job_id: last.job_id, direction: "inbound", channel: "sms", recipients: [], body: body.slice(0, 1600), provider: "twilio",
+        provider_message_id: sid ?? null, received_at: new Date().toISOString(), delivery_status: "received", visibility: "internal",
+        sender_text: phone, source_event: "sms:reply",
+      }).then(() => null, () => null);
+    }
+  }
   if (!phone || !k) return k;
   const now = new Date().toISOString();
   if (k === "stop") await db.from("sms_optouts").upsert({ phone, opted_out_at: now, opted_in_at: null, source: "stop_reply", last_message: body.slice(0, 160) });

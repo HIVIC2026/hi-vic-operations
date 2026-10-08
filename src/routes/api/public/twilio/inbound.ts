@@ -12,7 +12,7 @@ export const Route = createFileRoute("/api/public/twilio/inbound")({
         const from = f.get("From"), body = f.get("Body");
         if (from) {
           const { recordInboundReply } = await import("@/lib/sms.server");
-          await recordInboundReply(from, body ?? "");
+          await recordInboundReply(from, body ?? "", f.get("MessageSid"));
         }
         return new Response("<Response/>", { headers: { "Content-Type": "text/xml" } });
       },
