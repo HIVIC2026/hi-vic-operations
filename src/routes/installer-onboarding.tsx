@@ -157,7 +157,7 @@ const PAGE_INTRO: Partial<Record<StepKey, string>> = {
   installers: "Everyone who installs on our jobs. About 2 minutes per person.",
   electrician: "The electrician you work with, if any. About 1 minute.",
   services: "How you'd like to work with us, and where. About 2 minutes.",
-  availability: "When you usually work. About 1 minute.",
+  availability: "When you usually work.",
   install_pricing: "Your prices for our jobs. About 3 minutes.",
   bank: "Where we pay you. About 1 minute.",
   review: "Read the agreement, then sign. About 5 minutes.",

@@ -1,7 +1,9 @@
 # Roadmap (preview only, nothing sent, no publish, no real jobs)
+## Installer Availability wording (Jo, 8 Oct 08:34 UTC)
+- [x] Removed “About 1 minute” from Availability only; desktop/phone actual sample checks and build OK. Buttons/save behaviour unchanged; no application saved.
 ## Authorised authenticated verification (Jo, 8 Oct 08:22 UTC)
 - [x] Read current root/scoped rules; preserve concurrent onboarding fixes; standalone tsgo passed and 48 focused regressions passed.
-- [ ] TEST admin authenticated operations/Templates reads, reconciliation and filters; TEST non-admin page/RPC denial — blocked by supported session tool: explicit-user mint says approval unavailable in this context despite Jo's authorisation. No existing session/test password available; no credentials reset.
+- [x] TEST admin authenticated operations/Templates reads, reconciliation and filters; TEST installer page/RPC denial — verified 8 Oct 08:27–08:33 UTC using supported authorised sessions. Latest snapshot: 711 unique = 674 Leads + 1 Active + 23 Closed + 13 Needs classification; every stage and source/eligibility/search/flag filter checked. All five admin reads denied to installer; signed-out pages redirect. No records/settings changed.
 ## Installer onboarding repairs (Jo, 8 Oct 08:17 UTC)
 - [x] Replaced hidden native date picker with interactive calendar; typing, date selection and retained date checked on sample onboarding at desktop/phone widths. No real application saved.
 - [x] Back saves before changing page and shows saving on Back rather than replacing continue text; sample Back/continue checked, 45 onboarding/revision regressions passed, app check OK. Real-session save timing remains unverified.
