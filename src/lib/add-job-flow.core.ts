@@ -87,7 +87,7 @@ export function bookingLabel(b: BookingOutcome): string | null {
 
 /** Entry choices and their next-step promise (Jo, 8 Oct 10:14 UTC). Shown on the choice, the review and the outcome. */
 export const MODE_CHOICES: { mode: AddJobMode; title: string; next: string }[] = [
-  { mode: "onsite", title: "I'm at the property now", next: "Add the customer and open your Mitti Ready Check form straight away. Complete it while you’re onsite." },
+  { mode: "onsite", title: "I'm at the property now", next: "Add the customer and we’ll prepare your Mitti Ready Check form. It usually takes about 90 seconds and opens automatically when ready." },
   { mode: "later", title: "A job for later", next: "Enter your visit date and time. Once confirmed, it appears in Upcoming visits under My work. On the day, open the job and complete the Ready Check form." },
   { mode: "existing", title: "A job I’ve already visited", next: "Send us the job details and your quote. We’ll contact the owner for the eligibility check and quote approval, then let you know when they accept." },
 ];
@@ -103,6 +103,6 @@ export function outcomeFor(mode: AddJobMode, r: { booking?: BookingOutcome; stat
   }
   const s = r.state;
   if (s?.kind === "open") return { tone: "success", heading: "Your Ready Check form is ready", body: "Opening it now. Complete it while you're onsite.", waitingOn: null };
-  if (s?.kind === "preparing") return { tone: "waiting", heading: "Getting your form ready…", body: "It opens by itself as soon as it's ready. Stay on this screen.", waitingOn: null };
+  if (s?.kind === "preparing") return { tone: "waiting", heading: "Job saved — preparing your Ready Check form…", body: "It usually takes about 90 seconds and opens automatically when ready. You can stay on this screen.", waitingOn: null };
   return { tone: "blocked", heading: "Job saved — form not ready yet", body: `${s?.message ?? "The form couldn't be prepared."} You don't need to add the job again.`, waitingOn: s?.kind === "owner_paperwork" ? "The owner" : s?.kind === "retry" && /signal|answering/i.test(s.message) ? null : "Home Insulation Victoria" };
 }

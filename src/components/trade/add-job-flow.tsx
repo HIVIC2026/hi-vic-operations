@@ -277,7 +277,7 @@ function SavedResult({ saved }: { saved: Saved }) {
   useEffect(() => {
     if (saved.mode !== "onsite" || !state) return;
     if (state.kind === "open") { if (!opened.current) { opened.current = true; window.location.href = state.url; } return; }
-    if ((state.kind !== "preparing" && state.kind !== "retry") || tries >= 30) return;
+    if (state.kind !== "preparing" || tries >= 60) return;
     const t = setTimeout(async () => { try { setState(await status({ data: { jobId: saved.jobId, retry: false } })); } catch { /* keep */ } setTries((n) => n + 1); }, 4000);
     return () => clearTimeout(t);
   }, [state, tries, saved, status]);
