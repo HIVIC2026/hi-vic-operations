@@ -156,6 +156,19 @@ async function sendOne(jobId: string, actorId: string, realOn: boolean, testOpts
   return r("sent", isTest ? "Sent to Jo's test inbox" : "Sent");
 }
 
+/** Automatic send after an official Gate 1 decision + Step 3 prep (Jo, 8 Oct 2026): real jobs only —
+ *  sendOne re-checks likely-eligible + no insulation + size entered, consent, opt-out and once-per-home.
+ *  TEST (qa_test) jobs never auto-email. Best-effort: never throws, never blocks intake. */
+export async function maybeAutoSendSaveSpot(jobId: string): Promise<void> {
+  try {
+    const { data: job } = await admin.from("jobs").select("source").eq("id", jobId).maybeSingle();
+    if (!job || job.source === "qa_test") return;
+    await sendSaveMySpot([jobId], null);
+  } catch (e) {
+    console.warn("auto save-my-spot send failed (ignored)", (e as Error).message.slice(0, 200));
+  }
+}
+
 const CAMPAIGN_FROM = "Home Insulation Victoria <jobs@homeinsulationvictoria.com.au>";
 async function resendSend(to: string, subject: string, html: string, text: string, idem: string, unsubscribeUrl: string | null): Promise<{ ok: boolean; id: string | null; detail: string }> {
   const key = process.env["RESEND_API_KEY"], gw = process.env["LOVABLE_API_KEY"];
