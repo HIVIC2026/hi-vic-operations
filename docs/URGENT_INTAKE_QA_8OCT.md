@@ -7,6 +7,13 @@ Using the existing authorized TEST session, the original import was retried with
 
 The existing compare-and-swap claim and exact-attempt fence are retained. Older resumed drafts omit new removal fields until edited, so original partial-save retries still match. Interrupted browser errors now explain that details are kept and offer Retry submission; no silent retry is introduced.
 
+## Consolidated confirmation — 22:37 UTC
+Jo's “Ok fix” and conditional release approval belong to this same repair, not a second redesign. Read-only readback confirms the original import was finalized on its original job at 22:29:20.894 UTC. The separate 22:24:11 import `046ca953-5cfc-4303-abbb-97284157b357` was the recorded HV-2112 reproduction, not the recovered original.
+
+The final original event was evidence acknowledgement at 22:20:51.324 UTC. Confirmation follows the documents lookup; retained records cannot distinguish an interruption at that lookup from final confirmation or response delivery. No exact timeout/disconnect cause is asserted, and no speculative cancellation patch was added.
+
+Fresh focused checks: 37 pure/input/claim tests passed; the 11 persistence tests passed when run independently (48 total, 123 assertions). A combined run hit a PGlite WASM null-reference runner error; the isolated rerun passed. Diff whitespace check passed. Reviewed revision: `4be2376776c19b0394a04c26f744a6e3127a8736`. Publication is authorized only after focused actual TEST/harness checks and root diff review pass; root approval remains outstanding. No additional login provisioning or live mutations were performed during this confirmation.
+
 ## Implemented files
 - `src/lib/intake-quote-details.core.ts`: proposed R parsing and provisional quoted-removal validation/readback.
 - `src/components/trade/intake-quote-fields.tsx`: shared R5.0/R6.0/R7.0/Other and quote-removal fields.
