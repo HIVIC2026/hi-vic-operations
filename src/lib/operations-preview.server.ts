@@ -6,7 +6,7 @@ import { formatPropertyAddress } from './address';
 import { insulationOnly, type StoredAudit } from './enquiry-groups.core';
 import { verificationStale, type StoredVerification } from './verified-eligibility.core';
 import { SAVE_SPOT_REAL_SEND_APPROVED, INSULATION_DETAILS_REAL_SEND_APPROVED } from './hot-leads.core';
-import { buildOperationsPreview, type OperationInput, type AutomationControl } from './operations-preview.core';
+import { buildOperationsPreview, sendingControlState, type OperationInput, type AutomationControl } from './operations-preview.core';
 import { officePicks } from './offer-dispatch.core';
 type Row = Record<string, unknown>;
 type Result = PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>;
@@ -26,7 +26,7 @@ const related = (v: unknown): Row => obj(Array.isArray(v) ? v[0] : v);
 export async function loadOperationsPreview(admin: SupabaseClient<Database>) {
   const jobs = await all('jobs', (a, b) => admin.from('jobs')
     .select('id, job_number, stage, source, business_unit, channel, offer_dispatch_override, commercial_model, originating_installer_business_id, created_at, last_activity_at, hold_reason, hold_revisit_at, cancelled_reason, installation_completed_at, eligibility_outcome, eligibility_reason, eligibility_decision_source, eligibility_review_required, eligibility_decision_rules, owners(full_name), properties(address_line, suburb, state, postcode, enrichment)')
-    .eq('business_unit', 'hivic').neq('source', 'qa_test').order('id').range(a, b));
+    .eq('business_unit', 'hivic').or('source.is.null,source.neq.qa_test').order('id').range(a, b));
   const ids = jobs.map(j => String(j['id']));
   async function byJobs(label: string, q: (ids: string[], a: number, b: number) => Result) {
     const rows: Row[] = [];
@@ -40,13 +40,13 @@ export async function loadOperationsPreview(admin: SupabaseClient<Database>) {
     byJobs('Ready Check records', (c,a,b) => admin.from('ready_checks').select('id, job_id, version, attended_at, submitted_at').in('job_id',c).order('version').order('id').range(a,b)),
     byJobs('measurements', (c,a,b) => admin.from('ceiling_measurements').select('job_id, accepted_by, accepted_at, status, measured_area_m2').in('job_id',c).eq('is_current',true).order('id').range(a,b)),
     byJobs('evidence requirements', (c,a,b) => admin.from('evidence_requirements').select('job_id, label, status, responsible_role, gate').in('job_id',c).eq('required',true).order('sort').order('id').range(a,b)),
-    byJobs('email proof', (c,a,b) => admin.from('customer_email_sends').select('job_id, purpose, status, sent_at, created_at, error').in('job_id',c).order('created_at').order('id').range(a,b)),
+    byJobs('email proof', (c,a,b) => admin.from('customer_email_sends').select('job_id, purpose, idempotency_key, status, sent_at, created_at, error').in('job_id',c).order('created_at').order('id').range(a,b)),
     byJobs('message proof', (c,a,b) => admin.from('job_communications').select('job_id, channel, delivery_status, sent_at, created_at').in('job_id',c).eq('direction','outbound').order('created_at').order('id').range(a,b)),
     byJobs('intake media metadata', (c,a,b) => admin.from('documents').select('job_id').in('job_id',c).eq('kind','intake_media').order('id').range(a,b)),
     byJobs('media reviews', (c,a,b) => admin.from('customer_engagement_events').select('job_id, metadata').in('job_id',c).eq('event_type','intake_media_reviewed').order('occurred_at').order('id').range(a,b)),
     byJobs('verified eligibility', (c,a,b) => admin.from('eligibility_verifications').select('job_id, outcome, ready_check_ref, ready_check_version').in('job_id',c).eq('is_current',true).order('id').range(a,b)),
-    byJobs('quotes', (c,a,b) => admin.from('quotes').select('job_id, status, release_state, release_hold_reason, sent_at, accepted_at').in('job_id',c).eq('kind','installation').neq('status','superseded').order('created_at').order('id').range(a,b)),
-    byJobs('payment mirror', (c,a,b) => admin.from('invoice_status').select('job_id, deposit_cleared, effective_status').in('job_id',c).order('job_id').range(a,b)),
+    byJobs('quotes', (c,a,b) => admin.from('quotes').select('job_id, status, release_state, release_hold_reason, sent_at, accepted_at').in('job_id',c).eq('kind','installation').in('status',['issued','accepted']).order('created_at').order('id').range(a,b)),
+    byJobs('payment mirror', (c,a,b) => admin.from('invoice_status').select('job_id, deposit_cleared, effective_status, deposit_due_date').in('job_id',c).order('job_id').range(a,b)),
     byJobs('PIESA deadlines', (c,a,b) => admin.from('job_piesa_deadlines').select('job_id, install_deadline').in('job_id',c).order('job_id').range(a,b)),
     byJobs('stage timestamps', (c,a,b) => admin.from('workflow_events').select('job_id, to_stage, created_at').in('job_id',c).eq('event_type','stage_changed').order('created_at').order('id').range(a,b)),
     byJobs('operational handoff records', (c,a,b) => admin.from('ready_check_acceptances').select('job_id').in('job_id',c).order('id').range(a,b)),
@@ -60,7 +60,7 @@ export async function loadOperationsPreview(admin: SupabaseClient<Database>) {
     byJobs('failed external actions', (c,a,b) => admin.from('external_action_outbox').select('job_id, action_type, last_error_code').in('job_id',c).eq('status','failed').order('id').range(a,b)),
     byJobs('invoice errors', (c,a,b) => admin.from('invoices').select('job_id, last_sync_error').in('job_id',c).not('last_sync_error','is',null).order('id').range(a,b)),
     byJobs('PIESA facts', (c,a,b) => admin.from('piesa_records').select('job_id, outcome, completed_date, section_c_signed_at').in('job_id',c).eq('is_current',true).order('id').range(a,b)),
-    byJobs('rectification quotes', (c,a,b) => admin.from('quotes').select('job_id, status, release_state, sent_at').in('job_id',c).eq('kind','rectification').neq('status','superseded').order('created_at').order('id').range(a,b)),
+    byJobs('rectification quotes', (c,a,b) => admin.from('quotes').select('job_id, status, release_state, sent_at').in('job_id',c).eq('kind','rectification').in('status',['issued','accepted']).order('created_at').order('id').range(a,b)),
     byJobs('owner time windows', (c,a,b) => admin.from('ready_check_windows').select('job_id, status').in('job_id',c).eq('status','open').order('id').range(a,b)),
     byJobs('proposed appointments', (c,a,b) => admin.from('appointment_proposals').select('job_id, kind, created_at').in('job_id',c).eq('status','proposed').order('created_at').order('id').range(a,b)),
   ]);
@@ -92,14 +92,13 @@ export async function loadOperationsPreview(admin: SupabaseClient<Database>) {
     }
     const at=(kind:string)=>text(mine(2,id).filter(b=>b['kind']===kind&&['confirmed','completed'].includes(String(b['status']))).at(-1)?.['scheduled_start']);
     const offered=(kind:string)=>text(mine(1,id).filter(o=>o['kind']===kind).at(-1)?.['offered_at']);
-    const proof=[...mine(6,id).map(r=>({purpose:String(r['purpose']),status:String(r['status']),at:text(r['sent_at']),error:text(r['error']),order:String(r['created_at'])})),...mine(7,id).map(r=>({purpose:String(r['channel']),status:String(r['delivery_status']),at:text(r['sent_at']),order:String(r['created_at'])}))].sort((a,b)=>a.order.localeCompare(b.order));
-    for (const r of proof) if (['failed','bounced','undelivered'].includes(r.status)) failures.push(`Customer ${r.purpose} ${r.status}`);
+    const proof=[...mine(6,id).map(r=>({purpose:String(r['purpose']),status:String(r['status']),at:text(r['sent_at']),actionKey:text(r['idempotency_key']),recordedAt:text(r['created_at']),error:text(r['error']),order:String(r['created_at'])})),...mine(7,id).map(r=>({purpose:String(r['channel']),status:String(r['delivery_status']),at:text(r['sent_at']),recordedAt:text(r['created_at']),order:String(r['created_at'])}))].sort((a,b)=>a.order.localeCompare(b.order));
     return {id,jobNumber:String(j['job_number']),owner:text(related(j['owners'])['full_name']),address:formatPropertyAddress(prop)||null,source:text(j['source']),channel:text(j['channel']),businessUnit:text(j['business_unit']),
       originatingInstaller:text(origins.find(o=>o['id']===j['originating_installer_business_id'])?.['name'])??text(j['originating_installer_business_id']),
       assignedInstaller:mine(16,id).map(a=>text(related(a['businesses'])['name'])??`Assigned installer ${text(a['user_id'])??'(name unavailable)'}`).join(', ')||null,
-      eligibility:text(j['eligibility_outcome']),eligibilityReason:text(j['eligibility_reason'])??text(j['hold_reason']),verifiedEligibility:stale?'stale':text(v['outcome']),insulation,mediaCount:mine(8,id).length,mediaReview,
+      eligibility:text(j['eligibility_outcome']),eligibilityReason:text(j['eligibility_reason'])??text(j['hold_reason']),verifiedEligibility:stale?'stale':text(v['outcome']),insulation,insulationOnlyPassed:insulationOnly(j['eligibility_decision_rules'] as StoredAudit,insulation).ok,paymentDueAt:text(payment['deposit_due_date']),mediaCount:mine(8,id).length,mediaReview,
       actualHandoff:mine(15,id).length>0||mine(1,id).length>0||mine(2,id).length>0||!!rc['attended_at']||!!rc['submitted_at']||mine(4,id).some(m=>!!m['accepted_by']),
-      evidence:mine(5,id).map(e=>({label:String(e['label']),status:String(e['status']),role:text(e['responsible_role'])})),communications:proof,failures,
+      evidence:mine(5,id).map(e=>({label:String(e['label']),status:String(e['status']),role:text(e['responsible_role']),gate:text(e['gate'])})),communications:proof,failures,
       facts:{id,stage,createdAt:String(j['created_at']),lastActivityAt:text(j['last_activity_at']),enteredStageAt:text(mine(14,id).filter(e=>e['to_stage']===stage).at(-1)?.['created_at']),holdRevisitAt:text(j['hold_revisit_at']),cancelledReason:text(j['cancelled_reason']),
         campaign:Object.keys(camp).length?{spotSavedAt:text(camp['spot_saved_at']),optedOutAt:text(camp['opted_out_at']),videoRequested:!!camp['video_requested'],mediaReceivedAt:text(camp['media_received_at']),deskCheckStatus:text(camp['desk_check_status']),queuePriority:text(camp['queue_priority']),createdAt:String(camp['created_at'])}:null,
         rcOfferAt:offered('ready_check'),rcBookingAt:at('ready_check'),rcSubmittedAt:text(rc['submitted_at']),rcAccepted:mine(15,id).length>0,
@@ -117,7 +116,7 @@ export async function loadOperationsPreview(admin: SupabaseClient<Database>) {
     control('Customer messages',c?.customer_comms_enabled,'Global permission only; consent and sending rules still apply.'),
     control('Customer delivery adapter',delivery.data?.enabled,'Setting only; connection health not tested.'),
     control('Save my spot',c && delivery.data ? SAVE_SPOT_REAL_SEND_APPROVED && c.customer_comms_enabled && delivery.data.enabled : null,'Approved path; global controls, estimate, consent, coverage and duplicate guards still apply.'),
-    control('Insulation-details email',INSULATION_DETAILS_REAL_SEND_APPROVED,'Final visual approval controls real sending.'),
+    {label:'Insulation-details email',state:c && delivery.data ? sendingControlState(INSULATION_DETAILS_REAL_SEND_APPROVED,c.customer_comms_enabled,delivery.data.enabled) : 'Unknown',detail:'Requires final approval, global customer messages permission and delivery adapter permission.'},
     control('Quotes',c?c.auto_send_quote&&c.customer_comms_enabled:null,'Requires release rules and customer messages permission.'),
     control('Mitti',c?.auto_send_mitti,'Setting only; forms and connection not tested.'),
     control('Installer offers',c?c.auto_send_installer&&!officePicks(c.offer_dispatch_mode,null):null,'Office-picks mode or disabled switch pauses automatic offers.'),

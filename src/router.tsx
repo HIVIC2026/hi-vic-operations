@@ -6,8 +6,6 @@ import { routeTree } from "./routeTree.gen";
 // Reload once (guarded per 30s) so the tab picks up the current version instead of going blank.
 const STALE_KEY = "hiv-stale-reload-at";
 const HARD_KEY = "hiv-stale-hard-at";
-// Storage may be blocked in an embedded preview. Keep the same retry bounds in memory.
-const reloadStamps = new Map<string, number>();
 
 export const isStaleChunkError = (e: unknown) =>
   /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module/i.test(
@@ -16,17 +14,15 @@ export const isStaleChunkError = (e: unknown) =>
 
 function lastReload(key: string): number {
   try {
-    return Math.max(Number(sessionStorage.getItem(key) ?? 0) || 0, reloadStamps.get(key) ?? 0);
+    return Number(sessionStorage.getItem(key) ?? 0);
   } catch {
-    return reloadStamps.get(key) ?? 0;
+    return 0;
   }
 }
 
 function stamp(key: string) {
-  const at = Date.now();
-  reloadStamps.set(key, at);
   try {
-    sessionStorage.setItem(key, String(at));
+    sessionStorage.setItem(key, String(Date.now()));
   } catch {
     /* storage blocked: still recover */
   }
@@ -78,10 +74,7 @@ if (typeof window !== "undefined") {
   window.addEventListener(
     "error",
     (ev) => {
-      // Resource errors carry no ErrorEvent.message: the failed module is on target.
-      // Ignore images/fonts and recover only external module-script downloads.
-      const failedModuleScript = ev.target instanceof HTMLScriptElement && ev.target.type === "module" && !!ev.target.src;
-      if (failedModuleScript || isStaleChunkError(ev.message || ev.error)) reloadForNewVersion();
+      if (isStaleChunkError(ev.message)) reloadForNewVersion();
     },
     true,
   );
