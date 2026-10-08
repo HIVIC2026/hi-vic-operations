@@ -1,0 +1,19 @@
+import asyncio,os
+from playwright.async_api import async_playwright
+async def main():
+ async with async_playwright() as pw:
+  b=await pw.chromium.launch(headless=True)
+  for width,height in [(1280,1800),(390,844)]:
+   c=await b.new_context(viewport={'width':1280,'height':1800});p=await c.new_page();await p.set_viewport_size({'width':width,'height':height});errors=[];p.on('pageerror',lambda e:errors.append(str(e)))
+   await p.goto(os.environ.get('SAVE_TEST_URL','http://localhost:8092/tests/save-feedback.browser.html'));await p.get_by_role('button',name='Add or update details').click();a=p.locator('[data-intake-editor] input').first
+   await a.fill('118');await p.evaluate('window.__refetchDetails()');await p.wait_for_timeout(120);assert await a.input_value()=='118';assert await p.get_by_role('button',name='Remove original.pdf').count()==0
+   await p.get_by_role('button',name='Save details',exact=True).click();assert await a.is_disabled();await p.locator('[data-editor-msg]').filter(has_text='Saved.').wait_for();assert await a.input_value()=='118';print('PASS',width,'details refetch/save lock/feedback/immutable original')
+   await p.get_by_label('Choose files',exact=True).set_input_files({'name':'extra.pdf','mimeType':'application/pdf','buffer':b'TEST'});await p.wait_for_timeout(100);assert await a.is_disabled();assert await p.get_by_role('button',name='Saving files…',exact=True).is_disabled();await p.get_by_role('button',name='Remove extra.pdf').wait_for();await p.wait_for_function('!document.querySelector("[data-intake-editor] fieldset").disabled');print('PASS',width,'file mutation locks editor')
+   r=p.get_by_role('textbox',name='Measured eligible ceiling area (m²)',exact=True);await r.fill('117.5');await p.get_by_role('button',name='Save Ready Check',exact=True).click();assert await r.is_disabled();await p.locator('[data-rc-save-msg]').filter(has_text='Saved.').wait_for();assert await r.input_value()=='117.5';print('PASS',width,'ready save locks inputs and keeps response')
+   await r.fill('118.5');await p.evaluate('window.__saveFails=true');await p.get_by_role('button',name='Save Ready Check',exact=True).click();await p.locator('[data-rc-save-msg]').filter(has_text='TEST save failure').wait_for();assert await r.input_value()=='118.5';await p.evaluate('window.__saveFails=false');await p.get_by_role('button',name='Save Ready Check',exact=True).click();await p.locator('[data-rc-save-msg]').filter(has_text='Saved.').wait_for();await p.reload();await p.get_by_role('button',name='Add or update details').click();assert await a.input_value()=='118';assert await r.input_value()=='118.5';print('PASS',width,'retry/reopen durable values')
+   await r.fill('120');await p.evaluate('window.__loadFails=true;window.__retryReady()');await p.get_by_role('alert').filter(has_text="Couldn't refresh").wait_for();assert await r.input_value()=='120';await p.evaluate('window.__loadFails=false');await p.get_by_role('button',name='Retry',exact=True).click();await p.wait_for_timeout(150);assert await r.input_value()=='120';print('PASS',width,'refresh error retry preserves dirty input')
+   if width==390:
+    await p.evaluate('window.scrollTo(0,800)');assert await p.evaluate('()=>document.querySelector("[data-rc-draft] .sticky").getBoundingClientRect().bottom < document.querySelector("nav").getBoundingClientRect().top');await p.screenshot(path='/tmp/browser/final-save/after-phone.png');print('PASS phone Save above tabs')
+   assert not errors,errors;await c.close()
+  await b.close()
+asyncio.run(main())
