@@ -1,6 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Evidence persistence reliability (Jo 8 Oct 21:55 UTC)
-- [ ] Surface file/status persistence errors; deterministic stored-path identity and existing-path read prevent duplicate confirmations, including downstream failures. Preserve review, role/prestart/location guards and truthful upload-only location provenance. Run injected helper regressions and final preview checks; no publication.
+- [x] File/status errors now reject confirmation; path-derived primary key plus legacy lookup prevents duplicate files on retry/concurrent calls/downstream failure. Existing reviews retained on retry. Upload location is labelled device_at_upload, original captured_at left null. 105 isolated tests/394 assertions passed; practice PostgreSQL helper checks passed; preview build OK. Existing TEST PDF private view/download verified phone/desktop without new live mutations. Cleanup readback: earlier save fixture archived, evidence fixture retained unverified, zero outbox. See docs/EVIDENCE_PERSISTENCE_QA_8OCT.md; no publication.
 ## Native signature restoration hold (Jo 8 Oct 21:54 UTC)
 - [x] Pause direct schema activation even for previously registered definitions; legacy audit readers and signer-name match retained. Unsupported signature-name prefill/update stays off; mandatory built-in Full name limitation explained.
 - [ ] Await restored blank signature's final published readback; no assumed replacement ID. No native write, audit creation, signing, communication or portal publication.
