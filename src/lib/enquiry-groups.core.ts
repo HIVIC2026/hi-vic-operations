@@ -74,17 +74,18 @@ export function realArea(a: EnquiryInput["area"]): { m2: number | null; source: 
 }
 
 /** Every non-insulation preliminary gate that must be POSITIVELY represented, with the allowed results. */
+// Current simple Gate 1 ruleset has no separate "relevant ceiling" rule; it is not required here.
 export const REQUIRED_GATES: Record<string, string[]> = {
-  location: ["pass"], residential: ["pass"], ceiling_age: ["pass"], previous_activity: ["pass"], relevant_ceiling: ["pass", "info"], roof_access: ["pass", "info"],
+  location: ["pass"], residential: ["pass"], ceiling_age: ["pass"], previous_activity: ["pass"], roof_access: ["pass", "info"],
 };
-const INFO_ONLY = new Set(["life_support", "occupancy", "area", "preliminary", "rollout"]);
+const INFO_ONLY = new Set(["life_support", "occupancy", "area", "preliminary", "rollout", "relevant_ceiling"]);
 
-/** Group 3 test: canonical declared "present" insulation is the ONLY open item; every other required gate passed. */
+/** Insulation-details group: existing insulation (present OR unsure) is the ONLY open item; every other required gate passed. */
 export function insulationOnly(audit: StoredAudit, declared: EnquiryInput["declaredInsulation"]): { ok: true } | { ok: false; why: string; missing: boolean } {
   const rules = Array.isArray(audit?.rules) ? audit!.rules! : [];
   if (!rules.length) return { ok: false, why: "Screening reasons were not recorded", missing: false };
   const canonical = normaliseInsulation(declared ?? null);
-  if (canonical !== "present") return { ok: false, why: canonical === "none" ? "Owner declared no insulation – screening disagrees" : "Existing insulation answer unknown – ask the owner", missing: canonical !== "none" };
+  if (canonical === "none") return { ok: false, why: "Owner declared no insulation – screening disagrees", missing: false };
   const ins = rules.find((r) => r.key === "existing_insulation");
   if (!ins || ins.result !== "onsite") return { ok: false, why: "Existing-insulation check not recorded as open", missing: false };
   for (const [k, allowed] of Object.entries(REQUIRED_GATES)) {
