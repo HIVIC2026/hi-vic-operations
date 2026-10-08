@@ -14,6 +14,8 @@ export default defineConfig({ root, plugins: [react(), tailwindcss()], resolve: 
   { find: "@/lib/admin-records.functions", replacement: fileURLToPath(new URL("./tests/portal-browser-admin-records-stub.ts", import.meta.url)) },
   { find: "@/lib/pilot.functions", replacement: fileURLToPath(new URL("./tests/installer-intake-functions-stub.ts", import.meta.url)) },
   { find: "@/lib/bulk-import.functions", replacement: fileURLToPath(new URL("./tests/installer-intake-functions-stub.ts", import.meta.url)) },
+  { find: "@/lib/installer-quote.functions", replacement: fileURLToPath(new URL("./tests/installer-intake-functions-stub.ts", import.meta.url)) },
+  { find: "@/lib/ready-check-draft.functions", replacement: fileURLToPath(new URL("./tests/installer-intake-functions-stub.ts", import.meta.url)) },
   { find: "@/lib/onsite-ready-check.functions", replacement: fileURLToPath(new URL("./tests/installer-intake-functions-stub.ts", import.meta.url)) },
   { find: "@/lib/job-electrician.functions", replacement: fileURLToPath(new URL("./tests/installer-intake-functions-stub.ts", import.meta.url)) },
   { find: "@/integrations/supabase/client", replacement: fileURLToPath(new URL("./tests/portal-browser-supabase-stub.ts", import.meta.url)) },

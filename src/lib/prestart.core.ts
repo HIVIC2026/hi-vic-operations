@@ -46,6 +46,7 @@ export type PrestartFacts = {
   lead: LeadCert;
   consentBlockers: string[];
   piesaCompletedAt: string | null;
+  readyCheckWorksBlockers?: string[] | undefined; // installer-intake jobs: original-condition answers not yet recorded
 };
 
 /** Every failed pre-start condition, in plain words. Empty = cleared to start. */
@@ -65,6 +66,7 @@ export function prestartFailures(f: PrestartFacts): string[] {
   for (const c of f.consentBlockers) out.push(`Owner consent: ${c}`);
   if (!f.piesaCompletedAt) out.push("PIESA completion date is missing.");
   else if (day > addDays(f.piesaCompletedAt.slice(0, 10), PIISA_FROM_PIESA_DAYS)) out.push("The installer safety form (PIISA) can only be done within 30 days of the PIESA.");
+  for (const b of f.readyCheckWorksBlockers ?? []) out.push(`Ready Check original condition not recorded: ${b}.`);
   return out;
 }
 

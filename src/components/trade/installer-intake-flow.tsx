@@ -10,7 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CustomerFields } from "./customer-fields";
 import { AttachFiles, ElectricianPicker, inviteResultMessage, useUploadFiles, type AttachedFile } from "./job-intake";
-import { addImportFiles, confirmImport, createImport, removeImportFile } from "@/lib/pilot.functions";
+import { addImportFiles, confirmImport, createImport, getImportDraft, removeImportFile } from "@/lib/pilot.functions";
+import { supabase } from "@/integrations/supabase/client";
 import { addBulkElectrician, bulkElectricianChoices, readBulkFile } from "@/lib/bulk-import.functions";
 import { getMyIntakeReadyCheck } from "@/lib/installer-quote.functions";
 import { READY_CHECK_CONTACT_PERMISSION, electricianPlanBlocker, usualElectrician, type ElectricianPlan } from "@/lib/job-electrician.core";
@@ -19,8 +20,10 @@ import type { Extracted } from "@/lib/pilot.core";
 import { ADD_JOB_STEPS, BUSY_LABEL, blankCustomer, customerProblems, nextStep, prevStep, restoreCustomer, saveErrorMessage, type AddJobStep } from "@/lib/add-job-flow.core";
 import { COORDINATION_CHOICES, COORDINATION_VERSION, SELF_MANAGED_ACK, VEEC_NOTE, coordinationProblems, type Coordination, EVIDENCE_ACK, EXISTING_INSULATION_CHOICES, INTAKE_RULESET_VERSION, intakeProblems, multiCustomerAmbiguity, parseIntakeAmount, prefillFromExtracted, intakeConfirmFacts, type ExistingInsulation } from "@/lib/installer-intake.core";
 
-const draftKey = (businessId: string) => `hiv-intake-draft:${businessId}`; // per business, never global
-const draftIdKey = (businessId: string) => `hiv-intake-draft-id:${businessId}`;
+// Resume after refresh: scoped to the signed-in USER and business (never shared between people or businesses).
+// The server owns the draft id's files; consent and both acknowledgements are never stored or restored.
+const resumeKey = (userId: string, businessId: string) => `hiv-intake:${userId}:${businessId}`;
+const LEGACY_KEYS = (businessId: string) => ["hiv-intake-draft", `hiv-intake-draft:${businessId}`, `hiv-intake-draft-id:${businessId}`];
 type Details = { area: string; amount: string; includes: string; proposedR: string; insulation: ExistingInsulation | null };
 
 export function InstallerIntakeFlow({ businessId }: { businessId: string }) {
@@ -46,9 +49,41 @@ export function InstallerIntakeFlow({ businessId }: { businessId: string }) {
   const [plan, setPlan] = useState<ElectricianPlan | null>(null);
   useEffect(() => { if (plan || !el) return; const u = usualElectrician(el.approved); setPlan(u?.businessId ? { mode: "mine", business_id: u.businessId } : { mode: "hivic" }); }, [el, plan]);
 
-  // Typed details survive poor signal; consent and the evidence acknowledgment are never restored.
-  useEffect(() => { try { localStorage.removeItem("hiv-intake-draft"); const s = localStorage.getItem(draftKey(businessId)); if (s) setCustomer(restoreCustomer(JSON.parse(s))); const id = sessionStorage.getItem(draftIdKey(businessId)); if (id) setDraftId(id); } catch { /* ignore */ } }, [businessId]);
-  useEffect(() => { try { localStorage.setItem(draftKey(businessId), JSON.stringify({ ...customer, contact_permission: false, consent_by: null })); } catch { /* ignore */ } }, [customer, businessId]);
+  // Typed details survive refresh/poor signal; consent and the acknowledgements are never restored.
+  const [userId, setUserId] = useState<string | null>(null);
+  const [hydrated, setHydrated] = useState(false);
+  const loadDraft = useServerFn(getImportDraft);
+  useEffect(() => { let live = true; supabase.auth.getUser().then(({ data }) => { if (live) setUserId(data.user?.id ?? null); if (live && !data.user) setHydrated(true); }); return () => { live = false; }; }, []);
+  useEffect(() => {
+    if (!userId) return;
+    let live = true;
+    (async () => {
+      try {
+        for (const k of LEGACY_KEYS(businessId)) { localStorage.removeItem(k); sessionStorage.removeItem(k); }
+        const raw = localStorage.getItem(resumeKey(userId, businessId));
+        if (raw) {
+          const r = JSON.parse(raw) as { customer?: unknown; d?: Details; coord?: Coordination | null; draftId?: string | null; step?: AddJobStep; fileText?: string };
+          if (r.customer) setCustomer(restoreCustomer(r.customer as never));
+          if (r.d) setD({ area: r.d.area ?? "", amount: r.d.amount ?? "", includes: r.d.includes ?? "", proposedR: r.d.proposedR ?? "", insulation: r.d.insulation ?? null });
+          if (r.coord) setCoord(r.coord);
+          if (r.fileText) setFileText(r.fileText);
+          if (r.step && r.step !== "review") setStep(r.step);
+          if (r.draftId) {
+            const srv = await loadDraft({ data: { importId: r.draftId, businessId } });
+            if (!live) return;
+            if (srv.status === "confirmed" && srv.jobId) { localStorage.removeItem(resumeKey(userId, businessId)); setSaved({ jobId: srv.jobId, jobNumber: srv.jobNumber, insulation: r.d?.insulation ?? "unknown" }); }
+            else if (srv.status === "draft") { setDraftId(r.draftId); setFiles(srv.files); if (srv.files.length) setFileNote("Your attached files were kept."); }
+          }
+        }
+      } catch { /* a failed restore leaves a blank form; nothing is lost on the server */ }
+      if (live) setHydrated(true);
+    })();
+    return () => { live = false; };
+  }, [userId, businessId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!userId || !hydrated) return;
+    try { localStorage.setItem(resumeKey(userId, businessId), JSON.stringify({ customer: { ...customer, contact_permission: false, consent_by: null }, d, coord, draftId, step, fileText: fileText.slice(0, 100_000) })); } catch { /* ignore */ }
+  }, [customer, d, coord, draftId, step, fileText, userId, hydrated, businessId]);
   useEffect(() => { if (shown.length) problemsRef.current?.focus(); }, [shown]);
   useEffect(() => { setShown([]); }, [customer, d, ack, coord, selfAck]);
 
@@ -67,10 +102,11 @@ export function InstallerIntakeFlow({ businessId }: { businessId: string }) {
     return step === "details" ? p.filter((x) => !/evidence must be supplied/.test(x)) : p;
   };
 
-  const ensureDraft = async () => {
-    if (draftId) return draftId; // one draft only, even after Back or a retry
-    const r = await create({ data: { businessId, sourceSystem: "manual_import", ...(fileText ? { text: fileText } : {}), files: files.map((f) => ({ path: f.path, name: f.name, type: f.type ?? "" })) } });
-    setDraftId(r.id); try { sessionStorage.setItem(draftIdKey(businessId), r.id); } catch { /* ignore */ }
+  const ensureDraft = async (extra: AttachedFile[] = [], text = fileText) => {
+    if (draftId) return draftId; // one draft only, even after Back, a refresh or a retry
+    const r = await create({ data: { businessId, sourceSystem: "manual_import", ...(text ? { text } : {}), files: [...files, ...extra].map((f) => ({ path: f.path, name: f.name, type: f.type ?? "" })) } });
+    setDraftId(r.id);
+    if (userId) try { const k = resumeKey(userId, businessId); const cur = JSON.parse(localStorage.getItem(k) ?? "{}"); localStorage.setItem(k, JSON.stringify({ ...cur, draftId: r.id })); } catch { /* ignore */ }
     const pre = prefillFromExtracted(r.extracted as Extracted, fileText);
     setD((o) => ({ area: o.area || pre.area, amount: o.amount || pre.amount, includes: o.includes || pre.includes, proposedR: o.proposedR || pre.proposedR, insulation: o.insulation }));
     return r.id;
@@ -95,11 +131,12 @@ export function InstallerIntakeFlow({ businessId }: { businessId: string }) {
       const facts = intakeConfirmFacts(customer, Number(d.area), d.proposedR.trim() && Number.isFinite(r) ? r : null); // r_value = PROPOSED product R
       const hasAmount = amount != null && !Number.isNaN(amount) && amount > 0;
       const res = await confirm({ data: { importId: id, facts, installer: {
-        quoted: hasAmount ? "yes" : "no", site_check: "no", site_check_date: null, // visit not asked here; server records it as unknown quoted_price_inc_gst: hasAmount ? amount : null, price_includes: d.includes.trim() || null,
+        quoted: hasAmount ? "yes" : "no", site_check: "no", site_check_date: null, // visit not asked here; server records it as unknown
+        quoted_price_inc_gst: hasAmount ? amount : null, price_includes: d.includes.trim() || null,
         contact_permission: customer.contact_permission, owner_agreed: false,
         intake: { existing_insulation: d.insulation!, evidence_ack: ack, proposed_r_value: d.proposedR.trim() && Number.isFinite(r) ? r : null, version: `${INTAKE_RULESET_VERSION}+${COORDINATION_VERSION}`, coordination: coord!, self_managed_ack: coord === "self_managed" && selfAck },
       }, electrician: plan?.mode === "mine" ? { mode: "mine", business_id: plan.business_id ?? null, nomination_id: plan.nomination_id ?? null } : { mode: "hivic" } } as never });
-      try { localStorage.removeItem(draftKey(businessId)); sessionStorage.removeItem(draftIdKey(businessId)); } catch { /* ignore */ }
+      try { if (userId) localStorage.removeItem(resumeKey(userId, businessId)); } catch { /* ignore */ }
       setSaved({ jobId: res.jobId, jobNumber: res.jobNumber ?? null, insulation: d.insulation! });
     } catch (e) { setErr(saveErrorMessage(e instanceof Error ? e.message : null)); }
     finally { setBusy(false); inFlight.current = false; }
@@ -129,14 +166,14 @@ export function InstallerIntakeFlow({ businessId }: { businessId: string }) {
         <label className="block text-sm font-bold">Ceiling area (m²)<Input className="mt-1 h-12" inputMode="decimal" value={d.area} onChange={(e) => setD({ ...d, area: e.target.value })} /></label>
         <fieldset data-existing-insulation><legend className="text-sm font-bold">Existing insulation</legend>
           <div className="mt-2 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Existing insulation">
-            {EXISTING_INSULATION_CHOICES.map((c) => <Button key={c.value} size="field" role="radio" aria-checked={d.insulation === c.value} variant={d.insulation === c.value ? "default" : "outline"} className="px-1 text-xs leading-tight" onClick={() => setD({ ...d, insulation: c.value })}>{c.label}</Button>)}
+            {EXISTING_INSULATION_CHOICES.map((c) => <Button key={c.value} size="field" role="radio" aria-checked={d.insulation === c.value} variant={d.insulation === c.value ? "default" : "outline"} className="h-auto min-h-12 whitespace-normal px-1 text-xs leading-tight" onClick={() => setD({ ...d, insulation: c.value })}>{c.label}</Button>)}
           </div>
           {d.insulation === "unknown" && <p className="mt-1 text-xs text-sub">You can submit. The owner quote waits until the existing insulation is confirmed as none or below R2.0.</p>}
         </fieldset>
         <AttachFiles businessId={businessId} files={files} label="Upload your quote" onAdd={async (picked) => {
           const up = await uploadFiles(picked);
           if (draftId) { const r = await addFiles({ data: { importId: draftId, files: up.map((x) => ({ path: x.path, name: x.name, type: x.type ?? "" })) } }); setFiles(r.files); setFileNote("Attached to this job."); }
-          else setFiles((o) => [...o, ...up]);
+          else { setFiles((o) => [...o, ...up]); try { await ensureDraft(up, ""); } catch { setFileNote("Attached here — it will be saved to the job when you submit."); } }
           // Read the new file too (also after the draft exists) — prefill only fills empty boxes.
           const f = picked[0];
           if (f && picked.length === 1 && ["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(f.type) && f.size <= 10_000_000) {

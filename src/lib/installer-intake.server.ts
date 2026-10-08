@@ -70,7 +70,7 @@ export async function installerIntakeState(jobId: string) {
     commercialEligibility(jobId),
     admin.from("owner_contact_consents").select("consent_status").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "installer_owner_fee_awareness"),
-    admin.from("evidence_requirements").select("category, label, required, status").eq("job_id", jobId),
+    admin.from("evidence_requirements").select("category, label, required, status, gate").eq("job_id", jobId).eq("gate", "assessment"), // Ready Check items only — later PIESA/install/AP evidence has its own lists
   ]);
   if (error) throw new WorkflowError(error.message);
   const scope = intakeScopeArea(m ?? null); const area = scope.areaM2;

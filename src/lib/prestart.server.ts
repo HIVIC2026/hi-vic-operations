@@ -47,6 +47,7 @@ export async function prestartFacts(jobId: string, start: string) {
   return {
     start, clearance: { cleared: clearance.cleared, blocker: clearance.blocker }, deadline, esc: current,
     lead: await leadInstallerCert(jobId), consentBlockers: consentValidityBlockers(consent as never, start), piesaCompletedAt: cf.piesaCompletedAt,
+    readyCheckWorksBlockers: await (await import("./ready-check-draft.server")).rcWorksBlockers(jobId),
   };
 }
 
