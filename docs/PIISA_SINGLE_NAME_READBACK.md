@@ -17,4 +17,4 @@ No native write, portal publication, real audit creation/signing, worker approva
 
 ## Checks
 
-Nine isolated focused test files: personal signature, native version, declaration, actual products, product sync/Part 7, evidence, historical mapping, STOP gates and prefill. Final results recorded after execution; no manual production build performed (preview harness checks compilation).
+Nine isolated focused test files: 90 passed, 0 failed, 303 assertions. Personal signature, native version, declaration, actual products, product sync/Part 7, evidence, historical mapping, STOP gates and prefill checked. Latest preview harness build OK; no manual production build performed.
