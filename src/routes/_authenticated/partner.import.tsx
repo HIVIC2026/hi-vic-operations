@@ -9,7 +9,7 @@ import { TradeShell } from "@/components/trade/TradeShell";
 import { Button, Section } from "@/components/trade/trade-ui";
 import { useAction } from "@/hooks/use-me";
 import { addImportFiles, confirmImport, createImport, discardImport, getPartnerProfile, removeImportFile } from "@/lib/pilot.functions";
-import { addBulkElectrician, bulkElectricianChoices } from "@/lib/bulk-import.functions";
+import { addBulkElectrician, bulkElectricianChoices, readBulkFile } from "@/lib/bulk-import.functions";
 import { AttachFiles, ElectricianPicker, inviteResultMessage, useUploadFiles, type AttachedFile } from "@/components/trade/job-intake";
 import { OWNER_CONTACT_PERMISSION, electricianPlanBlocker, usualElectrician, visitedFromEvidence, type ElectricianPlan } from "@/lib/job-electrician.core";
 import { useEffect } from "react";
@@ -49,6 +49,7 @@ function ImportPage() {
 function Source({ businessId, onDraft }: { businessId: string; onDraft: (d: Draft) => void }) {
   const create = useAction(createImport);
   const uploadFiles = useUploadFiles(businessId);
+  const readFile = useServerFn(readBulkFile);
   const [text, setText] = useState("");
   const [csv, setCsv] = useState("");
   const [row, setRow] = useState(0);
@@ -57,6 +58,7 @@ function Source({ businessId, onDraft }: { businessId: string; onDraft: (d: Draf
   const [system, setSystem] = useState<"easymate" | "manual_import" | "email">("easymate");
   const [files, setFiles] = useState<AttachedFile[]>([]);
   const [busy, setBusy] = useState(false);
+  const [fileNote, setFileNote] = useState<string | null>(null);
   const rows = csv ? parseCsv(csv) : [];
   const go = async () => {
     setBusy(true);
@@ -84,7 +86,18 @@ function Source({ businessId, onDraft }: { businessId: string; onDraft: (d: Draf
         {rows.length > 0 && <p className="mt-1 text-xs text-estimate-navy/70">{rows.length} row(s) found – one job per import.</p>}
       </Section>
       <Section title="Photos, quotes and job sheets">
-        <AttachFiles businessId={businessId} files={files} label="Attach to this job" onAdd={async (f) => { const up = await uploadFiles(f); setFiles((o) => [...o, ...up]); }} onRemove={async (path) => setFiles((o) => o.filter((x) => x.path !== path))} />
+        <AttachFiles businessId={businessId} files={files} label="Upload one customer file" onAdd={async (picked) => {
+          if (files.length || picked.length !== 1) throw new Error("Upload one file for this customer at a time.");
+          const f = picked[0]; if (!f) return;
+          const up = await uploadFiles([f]); setFiles(up);
+          if (["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(f.type) && f.size <= 10_000_000) {
+            const bytes = new Uint8Array(await f.arrayBuffer()); let raw = ""; for (let i = 0; i < bytes.length; i += 0x8000) raw += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+            const r = await readFile({ data: { businessId, onBehalf: false, name: f.name, mime: f.type as "application/pdf" | "image/jpeg" | "image/png" | "image/webp", base64: btoa(raw) } });
+            if (r.text) { setText((old) => [old, r.text].filter(Boolean).join("\n")); setFileNote("Details found. Check every field on the next screen."); }
+            else setFileNote(r.description ? `No customer details found: ${r.description}` : "No customer details were found. You can still enter them yourself.");
+          } else setFileNote("This file is attached to the job. Enter its customer details yourself.");
+        }} onRemove={async (path) => { setFiles((o) => o.filter((x) => x.path !== path)); setFileNote(null); }} />
+        {fileNote && <p className="mt-2 text-xs text-sub">{fileNote}</p>}
       </Section>
       <Button size="field" className="w-full" disabled={busy || (!text && !csv && !files.length && !ref)} onClick={go}>{busy ? "Reading…" : "Continue"}</Button>
     </div>

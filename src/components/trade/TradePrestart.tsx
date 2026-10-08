@@ -6,7 +6,7 @@ import { greenBtn } from "./TradeShell";
 import { Checkbox } from "@/components/ui/checkbox";
 import { HIVIC_READY_CHECK_PRICING_TICK } from "@/lib/owner-confirm.core";
 
-export function TradePrestart({ jobId, kind, channel, onStart, disabledReason }: { jobId: string; kind: DayKind; channel?: string | null; onStart: () => void; disabledReason?: string | null }) {
+export function TradePrestart({ jobId, kind, channel, onStart, disabledReason }: { jobId: string; kind: DayKind; channel?: string | null; onStart: () => void | Promise<void>; disabledReason?: string | null }) {
   const key = `hiv-prestart-${jobId}`;
   const [ticks, setTicks] = useState<boolean[]>([false, false, false]);
   const [pricingConfirmed, setPricingConfirmed] = useState(false);

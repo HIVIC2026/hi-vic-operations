@@ -249,6 +249,18 @@ export async function tradeCouldntGetIn(jobId: string, reason: string, userId: s
   return { ok: true };
 }
 
+/** Required acknowledgement before an installer starts a Ready Check on a Home Insulation Victoria customer. */
+export async function confirmHivicReadyCheckPricing(jobId: string, userId: string) {
+  await requireTradeJob(userId, jobId);
+  const { data: job } = await admin.from("jobs").select("channel").eq("id", jobId).maybeSingle();
+  if (!job || job.channel !== "hivic_sourced") throw new WorkflowError("This confirmation only applies to Home Insulation Victoria customers.");
+  const { data: booking } = await admin.from("bookings").select("id").eq("job_id", jobId).eq("kind", "ready_check").eq("status", "confirmed").limit(1).maybeSingle();
+  if (!booking) throw new WorkflowError("A confirmed Ready Check is required.");
+  const { HIVIC_READY_CHECK_PRICING_TICK } = await import("./owner-confirm.core");
+  await logEvent(jobId, userId, "installer_hivic_pricing_acknowledged", "Installer confirmed Home Insulation Victoria controls all owner pricing discussions", { wording: HIVIC_READY_CHECK_PRICING_TICK, booking_id: booking.id, confirmed_at: new Date().toISOString() }, { internal: true });
+  return { ok: true };
+}
+
 /** Money rows: own pay only. Paid = office marked paid; Coming = 7 days after AP approval; else Being checked. */
 async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean) {
   const mine = kind === "installer" ? ["ready_check", "installation"] : ["assessment", "rectification"];
