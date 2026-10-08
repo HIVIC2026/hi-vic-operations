@@ -550,6 +550,8 @@ export function buildOfficialPrefill(template: Any, items: (OfficialPrefillItem 
       const whole = choiceOption(template, e.id, f.value);
       const parts = whole ? [whole] : f.value.split(/\s*,\s*/).filter(Boolean).map((v) => choiceOption(template, e.id, v));
       if (!parts.length || parts.some((o) => !o)) { skipped.push(`${f.itemId} (no "${f.value}" option)`); continue; }
+      // A native "question" is single choice: two known answers can't both go in, so the installer picks on site.
+      if (parts.length > 1 && e.type === "question") { skipped.push(`${f.itemId} (single choice on the Mitti form — installer chooses on site)`); continue; }
       type = "question"; responses = { selected: parts };
     } else responses = { text: f.value };
     const list = e.header ? header_items : rows;
@@ -557,7 +559,10 @@ export function buildOfficialPrefill(template: Any, items: (OfficialPrefillItem 
     // Two seeds for the same multi-select item merge into ONE response (never overwrite or duplicate).
     if (prior && type === "question" && prior.type === "question") {
       const ids = new Set(prior.responses.selected.map((o: Any) => o.id));
-      for (const o of responses.selected) if (!ids.has(o.id)) prior.responses.selected.push(o);
+      const extra = responses.selected.filter((o: Any) => !ids.has(o.id));
+      // Single-choice native question: a second, different answer can't be added — drop the seed, installer picks on site.
+      if (extra.length && e.type === "question") { list.splice(list.indexOf(prior), 1); skipped.push(`${f.itemId} (single choice on the Mitti form — installer chooses on site)`); continue; }
+      prior.responses.selected.push(...extra);
       continue;
     }
     list.push({ item_id: e.id, label: e.label, type, responses });
@@ -567,7 +572,7 @@ export function buildOfficialPrefill(template: Any, items: (OfficialPrefillItem 
 
 /** Known PIISA fields that are prefilled. A known field missing from the native template is a visible failure, never a silent skip. */
 export function missingKnownFields(skipped: string[]): string[] {
-  return skipped.filter((x) => !/attachment — shown in the portal/.test(x));
+  return skipped.filter((x) => !/attachment — shown in the portal|single choice on the Mitti form/.test(x));
 }
 
 /** A3 template id + mapping now live in piisa-a3.core.ts (observed native aliases, occurrence-aware). */

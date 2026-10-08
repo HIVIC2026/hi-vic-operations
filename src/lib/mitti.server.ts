@@ -370,6 +370,7 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string, call
     const rc = a3.readyCheckPartPrefill(await readyCheckAreas(jobId));
     for (const [id, v] of Object.entries(rc.values)) if (!preMap.has(`${id}#0`)) preMap.set(`${id}#0`, toPre(id, v));
     prefillNotes.push(...rc.notes);
+    for (const id of a3.A3_NOT_ON_NATIVE) preMap.delete(`${id}#0`);
   }
   const pre = [...preMap.values()];
   const template = await api.getTemplateDefinition(MITTI_PIISA_TEMPLATE_ID);
@@ -390,6 +391,7 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string, call
     const roster = a3.a3RosterStatus(template, staff, bname);
     if (roster.alert) { prefillNotes.push(roster.alert); await logEvent(jobId, actorId, "mitti_crew_roster_stale", roster.alert, { missing: roster.missingOptions, stale_count: roster.staleOptions.length }, { internal: true }); }
   }
+  for (const s of p.skipped) if (/single choice on the Mitti form/.test(s)) prefillNotes.push(`Removed and topped up are both recorded, but Mitti's question takes one answer — the installer chooses on site.`);
   const missing = missingKnownFields(p.skipped);
   if (missing.length) throw new WorkflowError(`The Mitti PIISA form is missing known fields, so it was not created: ${missing.join("; ")}`);
   // Validate returned prefill: every value we sent must be on the payload, at its own field.

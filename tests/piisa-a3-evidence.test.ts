@@ -9,7 +9,7 @@ const tpl = (relabel: Record<string, string> = {}, mediaLabel?: string) => {
   if (mediaLabel) t.items.find((x) => x.item_id === A3_MEDIA_IDS.electrician_photo)!.label = mediaLabel;
   return t;
 };
-const geo = (n: number, t = "2026-10-09T00:05:00Z") => Array.from({ length: n }, (_, i) => ({ media_id: `m${i}`, date_created: t, location: { geometry: { coordinates: [145.0, -37.8] } } }));
+const geo = (n: number, t = "2026-10-09T00:05:00Z") => Array.from({ length: n }, (_, i) => ({ media_id: `m${i}`, captured_at: t, location: { geometry: { coordinates: [145.0, -37.8] } } }));
 const SIG = "0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b";
 const ctx = { crewCount: 1, electricianRequiredAtStart: false, existingPlanMatchesInstall: false, lifeSupportConsentOnFile: false };
 

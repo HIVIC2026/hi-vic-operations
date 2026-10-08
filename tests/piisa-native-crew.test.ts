@@ -82,15 +82,18 @@ describe("completed audit crew resolved against CURRENT records", () => {
 
 describe("multi-select seed merges into ONE response", () => {
   const pre = (value: string) => ({ itemId: "p6.treatment", label: "x", kind: "choice", value, occurrence: 0, row: 0 });
-  test("Removed + Topped up -> one item with both real option ids", () => {
+  // Published form (read 8 Oct 2026): this item is a single-choice "question", so both answers can't be written.
+  test("Removed + Topped up on the single-choice question -> not written, visible single-choice note", () => {
     const p = buildOfficialPrefill(a3Template(), [pre(readyCheckPartPrefill([{ present: true, removal: true }, { present: true, removal: false }]).values["p6.treatment"]!)] as never, PIISA_A3_MAPPING);
-    expect(p.skipped).toEqual([]);
-    expect(p.items).toEqual([{ item_id: A3_NATIVE_IDS["p6.treatment"]![0], label: expect.any(String), type: "question", responses: { selected: [{ id: "t-rem", label: "Removed" }, { id: "t-top", label: "Topped up" }] } }]);
+    expect(p.items).toEqual([]);
+    expect(p.skipped[0]).toContain("single choice on the Mitti form");
   });
-  test("two separate seeds for the same item merge (no overwrite, no duplicate)", () => {
-    const p = buildOfficialPrefill(a3Template(), [pre("Removed"), pre("Topped up"), pre("Removed")] as never, PIISA_A3_MAPPING);
-    expect(p.items.length).toBe(1);
-    expect(p.items[0].responses.selected.map((o: { id: string }) => o.id)).toEqual(["t-rem", "t-top"]);
+  test("two different separate seeds on the single-choice question -> dropped, never overwritten silently", () => {
+    const p = buildOfficialPrefill(a3Template(), [pre("Removed"), pre("Topped up")] as never, PIISA_A3_MAPPING);
+    expect(p.items.length).toBe(0);
+    expect(p.skipped[0]).toContain("single choice");
+    const same = buildOfficialPrefill(a3Template(), [pre("Removed"), pre("Removed")] as never, PIISA_A3_MAPPING);
+    expect(same.items[0].responses.selected.map((o: { id: string }) => o.id)).toEqual(["t-rem"]);
   });
   test("an unknown option in a multi seed skips visibly", () => {
     expect(buildOfficialPrefill(a3Template(), [pre("Removed, Burnt")] as never, PIISA_A3_MAPPING).skipped[0]).toContain("no \"Removed, Burnt\" option");
