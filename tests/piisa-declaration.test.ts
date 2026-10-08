@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { declarationFromPiisa, MISSING_INSTALLER_DECLARATION, simulatedPiisaAudit, DECL_TICK, DECL_AREA } from "../src/lib/piisa-declaration.core";
+import { declarationFromDirectPiisa, declarationFromPiisa, MISSING_INSTALLER_DECLARATION, simulatedPiisaAudit, DECL_TICK, DECL_AREA } from "../src/lib/piisa-declaration.core";
 import { parseAudit } from "../src/lib/mitti.core";
 import { FORMS } from "../src/lib/mitti-forms.core";
 
@@ -32,4 +32,11 @@ describe("installer declaration inside the Mitti PIISA", () => {
     expect(readFileSync("src/lib/portal.functions.ts", "utf8")).toContain("signed in the Mitti installer safety form (PIISA), not in the portal");
     expect(readFileSync("src/components/portal/assignment.tsx", "utf8")).not.toContain("Sign declaration</Button>");
   });
+});
+
+test("current direct declaration requires reviewed actual products, final area and signature's own time", () => {
+  const facts = { tick: "Yes", product: "Actual Brand | Actual Model | R5", areaM2: 118, name: "Our Installer", signature: "sig", signedAt: "2026-10-08T08:00:00Z" };
+  const r = declarationFromDirectPiisa(facts);
+  expect(r.ok).toBe(true); if (r.ok) expect(r.decl.areaM2).toBe(118);
+  for (const change of [{ product: null }, { areaM2: null }, { signature: null }, { signedAt: null }, { tick: "No" }]) expect(declarationFromDirectPiisa({ ...facts, ...change }).ok).toBe(false);
 });

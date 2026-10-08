@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { prepareProductReview, reviewedProductAnswers } from "../src/lib/piisa-products.core";
+import { prepareProductReview, reviewedProductAnswers, reviewedInstalledArea } from "../src/lib/piisa-products.core";
 const file = { id: "photo", job_id: "job", requirement_id: "req", mime_type: "image/jpeg", uploaded_at: "2026-10-08T20:00:00Z", storage_path: "job/product_evidence/photo.jpg" };
 const products = [{ brand: "Actual Brand", model: "Actual Model", rValue: 5 }];
 const review = prepareProductReview({ jobId: "job", requirementId: "req", products, files: [file], actor: "office", at: "2026-10-08T20:33:00Z" });
@@ -27,4 +27,10 @@ describe("actual products from human photo review", () => {
     expect(() => prepareProductReview({ jobId: "job", requirementId: "req", products: [], files: [file], actor: "office", at: review.reviewedAt })).toThrow();
     expect(() => prepareProductReview({ jobId: "job", requirementId: "req", products: [{ brand: "", model: "", rValue: 0 }], files: [file], actor: "office", at: review.reviewedAt })).toThrow();
   });
+});
+test("installed area requires a current human review; measure-up or product photo alone is not area proof", () => {
+  expect(reviewedInstalledArea(input)).toBeNull();
+  const r = prepareProductReview({ jobId: "job", requirementId: "req", products, installedAreaM2: 118, files: [file], actor: "office", at: review.reviewedAt });
+  expect(reviewedInstalledArea({ ...input, notes: JSON.stringify(r) })).toBe(118);
+  expect(reviewedInstalledArea({ ...input, notes: JSON.stringify(r), files: [{ ...file, storage_path: "changed" }] })).toBeNull();
 });

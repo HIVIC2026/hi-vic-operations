@@ -20,7 +20,7 @@ export const A3_ALIASES: Record<string, string[]> = {
   "p1.powerInformed": ["Has the household or tenant been told the power will be off during installation?"],
   lifeSupport: ["Does anyone at this property rely on life support?"],
   lifeSupportConsent: ["Have you received written consent or a medical plan before starting this assessment?"],
-  lifeSupportAttachment: ["Please upload the written consent or medical plan received for the resident who relies on life support. Make sure every page is readable and complete. Please ensure the evidence is clear and shows all required details. Unclear or incomplete evidence may result in the Essential Services Commission (ESC) rejecting the VEEC submission.", "Written consent or medical plan (kept as an attachment to this assessment)"],
+  lifeSupportAttachment: ["Please upload the written consent or medical plan with every page clearly readable. Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).", "Written consent or medical plan (kept as an attachment to this assessment)"],
   "p2.ap": ["Accredited person (AP)"],
   "p2.company": ["Installer company"],
   "p2.lead": ["Lead installer"],
@@ -146,6 +146,7 @@ export const A3_NOT_ON_NATIVE = ["p2.installDate"] as const;
 /** Retired standalone certificate items. Must NOT be required or written. */
 export const A3_RETIRED_CREW_CERT_IDS = ["647221f2-f74c-4da1-a8be-e44a20f0b08b", "24e41e61-a490-4bdc-bd34-002fb6ae1089", "65d9d9d5-b87e-4d81-b92a-fa877e5a4f98", "3681131a-dee1-429a-ba34-6e066ef07152"] as const;
 /** The four crew name items are SINGLE CHOICE on this response set. Options are read from the template at runtime. */
+export const A3_DIRECT_SIGNATURE_ID = "83caffa2-e9c8-4315-885f-5337a4389372";
 export const A3_CREW_RESPONSE_SET = "4fe1175e-502f-428d-8bd8-28c07f46eb2d";
 export const A3_CREW_OTHER_OPTION = "8e9ba585-c0da-416a-90ab-d3cb09029b32";
 /** Crew row 0 = lead, 1..3 = additional installer rows. */
@@ -288,7 +289,8 @@ export function a3Signature(audit: unknown): { name: string | null; signedAt: st
   const all: Any[] = [];
   const walk = (x: unknown) => { if (Array.isArray(x)) x.forEach(walk); else if (x && typeof x === "object") { const o = x as Any; if ("label" in o) all.push(o); for (const v of Object.values(o)) if (typeof v === "object") walk(v); } };
   walk([(root as Any)?.header_items, (root as Any)?.items]);
-  const sig = all.find((o) => String(o.item_id ?? o.id) === A3_NATIVE_IDS["p8.signature"]![0]) ?? all.filter((o) => norm(o.label) === norm("Signature"))[0];
+  const signatureId = a3AuditUsesDirectCrew(audit) ? A3_DIRECT_SIGNATURE_ID : A3_NATIVE_IDS["p8.signature"]?.[0];
+  const sig = all.find((o) => String(o.item_id ?? o.id) === signatureId);
   const r = (sig?.responses ?? {}) as Any;
   // A real signature is an IMAGE reference. Plain text (e.g. a literal "signature-image-ref" or a typed name) is not one.
   const m = r.image ?? r.media ?? r.media_id ?? r.signature;
@@ -454,15 +456,15 @@ export function crewPrefill(sel: CrewSelection, staff: StaffOption[]): { itemId:
 
 // ---------- AP evidence for the A3 path ----------
 export type A3EvidenceKey = "installer_photos" | "electrician_photo" | "isolation_photo" | "before_video" | "product_photos" | "completed_video" | "final_plan";
-export const A3_EVIDENCE_QUALITY = "Please ensure the evidence is clear and shows all required details. Unclear or incomplete evidence may result in the Essential Services Commission (ESC) rejecting the VEEC submission.";
+export const A3_EVIDENCE_QUALITY = "Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).";
 export const A3_EVIDENCE_LABELS: Record<A3EvidenceKey, string> = {
-  installer_photos: `Please take a clear, geotagged photo of every installer working at this property today. Make sure each person is clearly visible. ${A3_EVIDENCE_QUALITY}`,
-  electrician_photo: `Please take a clear, geotagged photo of the electrician attending this property today. Make sure the electrician is clearly visible. ${A3_EVIDENCE_QUALITY}`,
-  isolation_photo: `Before work starts, please take a clear, geotagged photo showing that the power supply has been isolated, locked out and tagged. Make sure the lock and tag are clearly visible. ${A3_EVIDENCE_QUALITY}`,
-  before_video: `Before installing the insulation, please record a clear video showing every ceiling area that will be upgraded and any existing insulation. Move slowly and use enough light so the condition of the ceiling space can be clearly seen. ${A3_EVIDENCE_QUALITY}`,
-  product_photos: `Before installing the insulation, please take a clear, geotagged photo of each product label. Make sure the brand, model and R-value are clearly readable. ${A3_EVIDENCE_QUALITY}`,
-  completed_video: `After completing the installation, please record a clear video of every insulated ceiling area. Show the insulation coverage and depth, and show that all waste has been removed from the roof space. Move slowly and use enough light so the completed work can be clearly seen. ${A3_EVIDENCE_QUALITY}`,
-  final_plan: `Please upload the final diagram or floor plan of the insulated roof space. Clearly show the total area installed in square metres and the insulation products used. ${A3_EVIDENCE_QUALITY}`,
+  installer_photos: `Please take a clear, geotagged photo of every installer at this property. ${A3_EVIDENCE_QUALITY}`,
+  electrician_photo: `Please take a clear, geotagged photo of the electrician attending this property. ${A3_EVIDENCE_QUALITY}`,
+  isolation_photo: `Before work starts, please take a clear, geotagged photo showing the power isolated, locked out and tagged. ${A3_EVIDENCE_QUALITY}`,
+  before_video: `Before installation, please record a clear video of every ceiling area being upgraded, including any existing insulation. ${A3_EVIDENCE_QUALITY}`,
+  product_photos: `Before installation, please take a clear, geotagged photo of each product label showing the brand, model and R-value. ${A3_EVIDENCE_QUALITY}`,
+  completed_video: `After installation, please record a clear video showing all insulated areas, coverage, depth and removal of waste. ${A3_EVIDENCE_QUALITY}`,
+  final_plan: `Please upload a clear final roof-space plan showing the installed area in m² and the products used. ${A3_EVIDENCE_QUALITY}`,
 };
 const GEOTAG: A3EvidenceKey[] = ["installer_photos", "electrician_photo", "isolation_photo", "product_photos"];
 
@@ -680,9 +682,17 @@ export function a3CrewSchemaProblems(template: unknown): string[] {
 }
 /** What each crew row holds on an audit: a selected option id (+ its label), Other with its branch fields, or nothing. */
 export type CrewChoice = { row: number; kind: "none" } | { row: number; kind: "option"; optionId: string; optionLabel: string | null } | { row: number; kind: "other"; name: string | null; eec: string | null };
+export function a3AuditUsesDirectCrew(audit: unknown): boolean {
+  const items = allItems(audit);
+  return items.has(A3_DIRECT_SIGNATURE_ID) && !A3_CREW_NAME_IDS.some((id) => items.has(id));
+}
 export function a3CrewChoices(audit: unknown): CrewChoice[] {
   const items = allItems(audit);
   const txt = (id: string) => { const r = items.get(id)?.responses ?? {}; const v = r.text ?? r.value; return typeof v === "string" && v.trim() ? v.trim() : null; };
+  if (a3AuditUsesDirectCrew(audit)) return A3_CREW_OTHER_FIELDS.map((pair, row): CrewChoice => {
+    const name = txt(pair.name), eec = txt(pair.eec);
+    return name || eec ? { row, kind: "other", name, eec } : { row, kind: "none" };
+  });
   return A3_CREW_NAME_IDS.map((id, row): CrewChoice => {
     const sel = items.get(id)?.responses?.selected;
     const s = Array.isArray(sel) ? sel[0] : null;

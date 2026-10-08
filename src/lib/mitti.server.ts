@@ -372,23 +372,26 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string, call
     prefillNotes.push(...rc.notes);
     for (const id of a3.A3_NOT_ON_NATIVE) preMap.delete(`${id}#0`);
   }
-  const pre = [...preMap.values()];
   const template = await api.getTemplateDefinition(MITTI_PIISA_TEMPLATE_ID);
-  if (isA3) {
-    const miss = a3.a3MissingFields(template);
-    if (miss.length) throw new WorkflowError(`The A3 Mitti form is missing ${miss.length} expected field(s) (publish the native draft first): ${miss.slice(0, 8).join("; ")}${miss.length > 8 ? "…" : ""}`);
-  }
-  const p = buildOfficialPrefill(template, pre, isA3 ? a3.PIISA_A3_MAPPING : {});
+  const native = await import("./piisa-native-version.core");
+  const resolved = isA3 ? native.resolvePiisaNativeVersion(template) : null;
+  if (resolved && (!resolved.active || !resolved.mapping)) throw new WorkflowError(`The PIISA mapping needs review: ${resolved.problems.join("; ")}`);
+  const direct = resolved?.version === native.PIISA_DIRECT_VERSION;
+  if (direct) for (const key of [...preMap.keys()]) if (/^(p7\.products|completionDate|p8\.name|p8\.date|p2\.lead|p2\.leadEec|p2\.addName|p2\.addEec)#/.test(key)) preMap.delete(key);
+  const pre = [...preMap.values()];
+  const p = buildOfficialPrefill(template, pre, resolved?.mapping ?? {});
   if (isA3) {
     const { loadCrew, assignedInstallerBusiness } = await import("./piisa-a3.server");
     const { staff, selection } = await loadCrew(jobId);
     const { data: biz } = await admin.from("businesses").select("name").eq("id", await assignedInstallerBusiness(jobId)).maybeSingle();
     const bname = biz?.name ?? "";
-    const crew = a3.a3CrewNativeItems(template, selection!, staff, bname);
+    if (!selection) throw new WorkflowError("Choose the install crew before sending the safety form.");
+    const prepared = direct ? native.stagedDirectCrewPrefill(selection, staff) : null;
+    const crew = prepared ? { items: prepared.items, problems: [...prepared.problems, ...prepared.needsVerification], notes: [] as string[] } : a3.a3CrewNativeItems(template, selection, staff, bname);
     if (crew.problems.length) throw new WorkflowError(`Crew could not be filled in on the Mitti form: ${crew.problems.join("; ")}`);
     p.items.push(...crew.items); p.count += crew.items.length;
     prefillNotes.push(...crew.notes);
-    const roster = a3.a3RosterStatus(template, staff, bname);
+    const roster = direct ? { alert: null, missingOptions: [], staleOptions: [] } : a3.a3RosterStatus(template, staff, bname);
     if (roster.alert) { prefillNotes.push(roster.alert); await logEvent(jobId, actorId, "mitti_crew_shared_names", roster.alert, { missing: roster.missingOptions, stale_count: roster.staleOptions.length }, { internal: true }); }
   }
   for (const s of p.skipped) if (/single choice on the Mitti form/.test(s)) prefillNotes.push(`Removed and topped up are both recorded, but Mitti's question takes one answer — the installer chooses on site.`);
@@ -400,6 +403,6 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string, call
   const auditId = audit?.audit_id ?? audit?.id;
   if (!auditId) throw new WorkflowError("Mitti did not return an audit ID.");
   await api.shareAudit(String(auditId), String(userId)); await api.setAuditOwner(String(auditId), String(userId));
-  await logEvent(jobId, actorId, "mitti_piisa_audit_created", `Installer safety form sent to ${email} with ${p.count} pre-filled answers`, { audit_id: String(auditId), prefill_count: p.count, skipped: p.skipped, template: MITTI_PIISA_TEMPLATE_ID, prefill_notes: prefillNotes });
+  await logEvent(jobId, actorId, "mitti_piisa_audit_created", `Installer safety form sent to ${email} with ${p.count} pre-filled answers`, { audit_id: String(auditId), prefill_count: p.count, skipped: p.skipped, template: MITTI_PIISA_TEMPLATE_ID, prefill_notes: prefillNotes, native_version: resolved?.version ?? null });
   return { auditId: String(auditId), reused: false, skipped: p.skipped };
 }

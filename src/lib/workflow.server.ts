@@ -298,7 +298,13 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
     if (!decl) blockers.push((await import("./piisa-declaration.core")).MISSING_INSTALLER_DECLARATION);
     else {
       const { a3EvidenceGate } = await import("./piisa-a3.core");
-      blockers.push(...a3EvidenceGate((decl.snapshot as { official?: unknown } | null)?.official));
+      const official = (decl.snapshot as { official?: { a3_evidence?: { actual_product_answers?: unknown } } } | null)?.official;
+      blockers.push(...a3EvidenceGate(official));
+      if (official?.a3_evidence?.actual_product_answers) {
+        const currentProducts = await (await import("./piisa-products.server")).verifiedInstalledProductAnswers(jobId);
+        blockers.push(...currentProducts.blockers);
+        if (JSON.stringify(currentProducts.answers) !== JSON.stringify(official.a3_evidence.actual_product_answers)) blockers.push("Actual products changed after the signed PIISA; office review required.");
+      }
     }
   }
   if (to === "ready_for_veec") {
