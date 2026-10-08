@@ -27,15 +27,16 @@ export function PiisaCrewPicker({ jobId }: { jobId: string }) {
       <p className="mt-1 text-xs text-sub" data-native-lookup-note>{A3_NATIVE_CREW_LOOKUP.note}</p>
       {!data.staff.some(ready) && <p className="mt-2 text-sm font-semibold" data-no-staff>No approved installer with a checked EEC certificate is on your staff list yet, You can enter the lead installer under Other; the office must check them before work starts.</p>}
       <label className="mt-3 block text-sm font-bold">Lead installer
-        <select className={`${sel} mt-1`} value={typeof lead === "string" ? lead : lead ? "other" : ""} onChange={(e) => setLead(e.target.value === "other" ? { other: { name: "", eec: "" } } : e.target.value || null)}>
+        <select aria-label="Lead installer" className={`${sel} mt-1`} value={typeof lead === "string" ? lead : lead ? "other" : ""} onChange={(e) => setLead(e.target.value === "other" ? { other: { name: "", eec: "" } } : e.target.value || null)}>
           <option value="">Choose</option>
           {data.staff.map((s) => <option key={s.workerId} value={s.workerId} disabled={!ready(s)}>{s.name}{tag(s)}</option>)}
           <option value="other">Other</option>
         </select>
       </label>
+      {typeof lead === "string" && (() => { const s0 = data.staff.find((x) => x.workerId === lead); return s0 ? <p className="mt-2 text-sm" data-lead-cert>{s0.name} · EEC {s0.eecVerified && s0.eec ? `${s0.eec} (checked certificate on file)` : "not verified"}</p> : null; })()}
       {typeof lead === "object" && lead !== null && <div className="mt-2 grid grid-cols-2 gap-2" data-lead-other>
-        <input className={sel} placeholder="Full name" value={lead.other.name} onChange={(e) => setLead({ other: { ...lead.other, name: e.target.value } })} />
-        <input className={sel} placeholder="EEC certificate number" value={lead.other.eec} onChange={(e) => setLead({ other: { ...lead.other, eec: e.target.value } })} />
+        <input className={sel} aria-label="Lead installer full legal name" placeholder="Full legal name" value={lead.other.name} onChange={(e) => setLead({ other: { ...lead.other, name: e.target.value } })} />
+        <input className={sel} aria-label="Lead installer EEC certificate number" placeholder="EEC certificate number" value={lead.other.eec} onChange={(e) => setLead({ other: { ...lead.other, eec: e.target.value } })} />
       </div>}
       {extra.map((a, i) => (
         <div key={i} className="mt-3 space-y-2">
@@ -43,6 +44,7 @@ export function PiisaCrewPicker({ jobId }: { jobId: string }) {
             {data.staff.map((s) => <option key={s.workerId} value={s.workerId} disabled={!ready(s)}>{s.name}{tag(s)}</option>)}
             <option value="other">Other</option>
           </select>
+          {"workerId" in a && (() => { const s0 = data.staff.find((x) => x.workerId === a.workerId); return s0 ? <p className="text-sm" data-extra-cert>EEC {s0.eecVerified && s0.eec ? `${s0.eec} (checked certificate on file)` : "not verified"}</p> : null; })()}
           {"other" in a && <div className="grid grid-cols-2 gap-2">
             <input className={sel} placeholder="Full name" value={a.other.name} onChange={(e) => setExtra(extra.map((x, j) => j === i ? { other: { ...a.other, name: e.target.value } } : x))} />
             <input className={sel} placeholder="EEC certificate number" value={a.other.eec} onChange={(e) => setExtra(extra.map((x, j) => j === i ? { other: { ...a.other, eec: e.target.value } } : x))} />
