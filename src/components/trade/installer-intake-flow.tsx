@@ -165,7 +165,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
 
       {step === "customer" && <section className="space-y-3 rounded-[18px] border border-line bg-paper p-4" data-step-customer>
         <h2 className="font-display text-lg font-bold">Customer</h2>
-        <CustomerFields value={customer} consentLabel={READY_CHECK_CONTACT_PERMISSION} onChange={(n) => { setCustomer(n); setErr(null); }} />
+        <CustomerFields offline={!!preview} value={customer} consentLabel={READY_CHECK_CONTACT_PERMISSION} onChange={(n) => { setCustomer(n); setErr(null); }} />
       </section>}
 
       {step === "details" && <section className="space-y-4 rounded-[18px] border border-line bg-paper p-4" data-step-details>

@@ -12,7 +12,7 @@ async def main():
         await pg.goto(f"{BASE}/installer-preview", wait_until="networkidle")
         assert await pg.get_by_text("Preview only — sample job, nothing is saved or sent").is_visible()
         await pg.screenshot(path="/tmp/browser/ip1.png")
-        await pg.get_by_role("checkbox").first.check()
+        await pg.get_by_role("checkbox").first.click()
         await pg.get_by_role("button", name="Next").click()
         await pg.get_by_label("Ceiling area (m²)").fill("120")
         await pg.get_by_role("radio", name="None").click()
