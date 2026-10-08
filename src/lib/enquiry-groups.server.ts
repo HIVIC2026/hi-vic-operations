@@ -113,7 +113,18 @@ export async function loadEnquiryGroups() {
     };
   });
   const primary = primaryByContact(rows);
-  for (const r of rows) r.isPrimaryForContact = primary.has(r.id);
+  for (const r of rows) {
+    r.isPrimaryForContact = primary.has(r.id);
+    if (r.status === "needs_attention") {
+      r.attentionReason = !r.isPrimaryForContact ? "Duplicate enquiry for the same contact and property"
+        : r.lastEmail?.status === "failed" ? `Email failed: ${r.lastEmail.error ?? "delivery error"}`
+        : r.optedOut ? "Owner opted out"
+        : r.bounced ? "Email bounced or was suppressed"
+        : r.consent !== "granted" ? "Contact consent is missing or withdrawn"
+        : !r.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(r.email) ? "Missing or invalid email"
+        : r.reason;
+    }
+  }
 
   // Calculator registrations: merged only when the SAME contact registered for the SAME property; otherwise listed.
   const jobContacts = new Set(rows.map((r) => contactKey(r.email, r.propKey)).filter(Boolean));
@@ -121,14 +132,15 @@ export async function loadEnquiryGroups() {
   for (const i of interests) {
     const pk = propertyKey(i.address_line, i.postcode);
     if (jobContacts.has(contactKey(i.email, pk))) { calculatorMatched++; continue; }
-    const c = classifyEnquiry({ kind: "calculator", stage: null, outcome: null, decisionSource: null, reviewRequired: false, audit: null, intakeWorkActive: false, area: { declared: Number(i.ceiling_m2) }, videoCount: 0, calculatorStatus: i.status });
-    rows.push({ ...c, id: i.id, kind: "calculator", jobNumber: null, reference: null, name: i.full_name, email: i.email, address: [i.address_line, i.suburb, i.postcode].filter(Boolean).join(", "), postcode: i.postcode, propKey: pk, createdAt: i.created_at, stage: null, areaLabel: AREA_LABEL[c.area.source], declaredInsulation: normaliseInsulation(i.insulation_declared), hardFailures: [], lastEmail: null, consent: null, optedOut: false, bounced: false, source: "calculator", isPrimaryForContact: true, sentPurposes: [], status: "needs_attention", attentionReason: "Calculator registration is not a completed website enquiry", outcomeAt: null });
+    void i;
   }
+  const visibleRows = rows.filter((r) => r.kind === "job" && r.isPrimaryForContact);
   const bySource = (pred: (o: { source: string; channel: string }) => boolean) => outside.filter(pred).length;
   return {
-    rows,
+    rows: visibleRows,
     scope: {
-      websiteJobs: jobs.length, calculatorRegistrations: interests.length, calculatorMatched, calculatorListed: interests.length - calculatorMatched, total: rows.length,
+      websiteJobs: jobs.length, calculatorRegistrations: interests.length, calculatorMatched, calculatorListed: interests.length - calculatorMatched, total: visibleRows.length,
+      duplicateWebsiteEnquiries: rows.length - visibleRows.length,
       testHidden: bySource((o) => o.source === "qa_test"), installerSourced: bySource((o) => o.source !== "qa_test" && o.channel === "installer_sourced"),
       otherSources: bySource((o) => o.source !== "qa_test" && o.channel !== "installer_sourced"),
     },
