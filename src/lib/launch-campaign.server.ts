@@ -150,7 +150,7 @@ export async function markCampaignMediaReceived(jobId: string, linkId: string) {
 
 export async function launchCampaignOffice() {
   const [{ data: rows, error }, { data: sends }, { data: events }] = await Promise.all([
-    admin.from("lead_campaign_responses").select("id, job_id, spot_saved_at, opted_out_at, media_received_at, desk_check_status, desk_check_reason, queue_priority, queue_rank, saved_total, saved_veu_discount, saved_estimate_id, created_at, jobs(job_number, owners(full_name), properties(address_line, suburb, postcode), indicative_estimates(id, status, area_m2, insulation_declared, scenarios))").order("queue_rank", { ascending: false }).order("spot_saved_at", { ascending: true, nullsFirst: false }),
+    admin.from("lead_campaign_responses").select("id, job_id, spot_saved_at, opted_out_at, media_received_at, desk_check_status, desk_check_reason, queue_priority, queue_rank, saved_total, saved_veu_discount, saved_estimate_id, created_at, jobs!inner(job_number, source, owners(full_name), properties(address_line, suburb, postcode), indicative_estimates(id, status, area_m2, insulation_declared, scenarios))").neq("jobs.source", "qa_test").order("queue_rank", { ascending: false }).order("spot_saved_at", { ascending: true, nullsFirst: false }),
     admin.from("customer_email_sends").select("status").eq("purpose", LAUNCH_CAMPAIGN),
     admin.from("customer_engagement_events").select("event_type").eq("source", "launch_campaign"),
   ]);
