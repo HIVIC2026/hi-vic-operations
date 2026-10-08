@@ -21,7 +21,7 @@ async function latestInsulation(jobId: string): Promise<{ value: ExistingInsulat
  * contact. Separate from the post-Ready-Check verified eligibility (which still needs full evidence). Any later
  * intake correction makes an earlier decision stale (unresolved) until the office decides again.
  */
-async function commercialEligibility(jobId: string): Promise<"eligible" | "declined" | "unresolved"> {
+export async function commercialEligibility(jobId: string): Promise<"eligible" | "declined" | "unresolved"> {
   const { data } = await admin.from("workflow_events").select("event_type, details").eq("job_id", jobId).in("event_type", ["installer_commercial_eligibility", "installer_intake_corrected"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (!data || data.event_type !== "installer_commercial_eligibility") return "unresolved";
   const o = (data.details as { outcome?: string } | null)?.outcome;
