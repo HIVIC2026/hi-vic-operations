@@ -144,7 +144,8 @@ export function a3MissingFields(template: unknown): string[] {
       if (!e) { out.push(name); continue; }
       // Definition must agree with the observed draft: a known ID carrying a different question is a mismatch.
       const al = A3_ALIASES[id];
-      if (al?.length && !al.map(norm).includes(e.norm)) out.push(`${name} — ID ${e.id} now reads "${e.label}"`);
+      // Stable IDs own the mapping: an added warning suffix on the same question is accepted; a different question is not.
+      if (al?.length && !al.map(norm).some((a) => e.norm === a || e.norm.startsWith(`${a} `))) out.push(`${name} — ID ${e.id} now reads "${e.label}"`);
     }
   }
   for (const [k, nid] of Object.entries(A3_MEDIA_IDS)) if (!entries.some((e) => String(e.id) === nid)) out.push(`${A3_EVIDENCE_LABELS[k as A3EvidenceKey]} (media)`);
@@ -197,16 +198,27 @@ export function parseA3Answers(audit: unknown): { answers: OfficialAnswers; crew
 }
 
 /** The installer's signature must carry its OWN timestamp. The audit's modified/completed time is never used. */
-export function a3Signature(audit: unknown): { name: string | null; signedAt: string | null; present: boolean } {
+export function a3Signature(audit: unknown): { name: string | null; signedAt: string | null; present: boolean; mediaId: string | null; itemId: string | null } {
   const root = (audit as { template?: unknown })?.template ?? audit;
   const all: Any[] = [];
   const walk = (x: unknown) => { if (Array.isArray(x)) x.forEach(walk); else if (x && typeof x === "object") { const o = x as Any; if ("label" in o) all.push(o); for (const v of Object.values(o)) if (typeof v === "object") walk(v); } };
   walk([(root as Any)?.header_items, (root as Any)?.items]);
   const sig = all.find((o) => String(o.item_id ?? o.id) === A3_NATIVE_IDS["p8.signature"]![0]) ?? all.filter((o) => norm(o.label) === norm("Signature"))[0];
   const r = (sig?.responses ?? {}) as Any;
-  const present = !!(r.image ?? r.media ?? r.media_id ?? r.signature ?? r.name);
+  // A real signature is an IMAGE reference. Plain text (e.g. a literal "signature-image-ref" or a typed name) is not one.
+  const m = r.image ?? r.media ?? r.media_id ?? r.signature;
+  const pick = (x: Any): string | null => typeof x === "string" ? (/^[0-9a-f-]{16,}$/i.test(x.trim()) || /^https:\/\//.test(x.trim()) ? x.trim() : null) : x && typeof x === "object" ? pick(Array.isArray(x) ? x[0] : (x.media_id ?? x.id ?? x.href)) : null;
+  const mediaId = pick(m);
+  const present = !!mediaId;
   const ts = [r.timestamp, r.signed_at, r.datetime].find((t) => typeof t === "string" && !Number.isNaN(Date.parse(t))) as string | undefined;
-  return { name: typeof r.name === "string" && r.name.trim() ? r.name.trim() : null, signedAt: ts ?? null, present };
+  return { name: typeof r.name === "string" && r.name.trim() ? r.name.trim() : null, signedAt: ts ?? null, present, mediaId, itemId: sig ? String(sig.item_id ?? sig.id) : null };
+}
+
+/** Explicit linked signature attachment for the signed official DOCX (the Word form keeps its blank signature line). */
+export type SignatureAttachment = { source: "mitti_signature"; audit_id: string; item_id: string | null; media_id: string; signer_name: string | null; signed_at: string; docx_path: string; docx_sha256: string };
+export function signatureAttachment(auditId: string, sig: ReturnType<typeof a3Signature>, docx: { path: string; sha256: string }): SignatureAttachment | null {
+  if (!sig.present || !sig.mediaId || !sig.signedAt || Number.isNaN(Date.parse(sig.signedAt))) return null;
+  return { source: "mitti_signature", audit_id: auditId, item_id: sig.itemId, media_id: sig.mediaId, signer_name: sig.name, signed_at: sig.signedAt, docx_path: docx.path, docx_sha256: docx.sha256 };
 }
 
 // ---------- Ready Check -> Part 6 prefill (multi-area aware) ----------
@@ -235,7 +247,33 @@ export function readyCheckPartPrefill(areas: RcArea[]): { values: Record<string,
 }
 
 // ---------- crew ----------
-export type StaffOption = { workerId: string; name: string; eec: string | null; eecVerified: boolean };
+export type StaffOption = {
+  workerId: string; name: string; eec: string | null; eecVerified: boolean;
+  /** Worker approved by the office. Unapproved workers are shown but can't go on the form (gate unchanged). */
+  approved?: boolean;
+  issuer?: string | null; certificationId?: string | null;
+  /** Recorded level/expiry only — null when not recorded; never invented. */
+  level?: string | null; expiresOn?: string | null;
+};
+
+/** The native A3 crew name boxes are plain text in Mitti; a native staff dropdown was attempted and did NOT save. */
+export const A3_NATIVE_CREW_LOOKUP = { available: false, note: "Mitti's safety form has plain text boxes for installer names. The portal fills those boxes from this list — Mitti has no staff dropdown of its own." } as const;
+
+type WorkerRow = { id: string; full_legal_name: string; approval_status: string | null; removed_at: string | null; trade_role: string | null; licence_expires_on?: string | null; certification: unknown };
+type CertRow = { id: string; status: string | null; certificate_number: string | null; issuer: string | null; worker_id?: string | null };
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const certificationRef = (c: unknown): string | null => { const v = (c as { verification_id?: unknown } | null)?.verification_id; return typeof v === "string" && UUID.test(v) ? v : null; };
+
+/** Roster from RECORDED facts: EEC verified only through a linked verified certification row (declared text never counts). */
+export function staffFromRecords(workers: WorkerRow[], certs: CertRow[]): StaffOption[] {
+  const byId = new Map(certs.map((c) => [c.id, c]));
+  return workers.filter((w) => !w.removed_at && w.trade_role === "installer").map((w) => {
+    const ref = certificationRef(w.certification);
+    const c = ref ? byId.get(ref) : undefined;
+    const ok = !!c && c.status === "verified" && !!c.certificate_number?.trim() && (!c.worker_id || c.worker_id === w.id);
+    return { workerId: w.id, name: w.full_legal_name.trim(), eec: ok ? c!.certificate_number!.trim() : null, eecVerified: ok, approved: w.approval_status === "approved", issuer: ok ? c!.issuer?.trim() || null : null, certificationId: ok ? c!.id : null, level: null, expiresOn: w.licence_expires_on ?? null };
+  }).sort((a, b) => a.name.localeCompare(b.name));
+}
 export type CrewPick = { workerId: string } | { other: { name: string; eec: string } };
 export type CrewSelection = { lead: string | null; additional: CrewPick[] };
 
@@ -244,7 +282,9 @@ export function crewSelectionProblems(sel: CrewSelection, staff: StaffOption[]):
   const p: string[] = [], nv: string[] = [];
   const byId = new Map(staff.map((s) => [s.workerId, s]));
   const lead = sel.lead ? byId.get(sel.lead) : undefined;
+  const unapproved = (s: StaffOption) => s.approved === false;
   if (!lead) p.push("Choose the lead installer from your verified staff");
+  else if (unapproved(lead)) p.push(`${lead.name}: waiting for office approval — can't go on the safety form yet`);
   else if (!lead.eecVerified || !lead.eec) p.push(`${lead.name}: EEC certification not verified`);
   if (sel.additional.length > 3) p.push("The official form has room for 3 additional installers");
   const seenIds = new Set<string>(sel.lead ? [sel.lead] : []);
@@ -256,11 +296,14 @@ export function crewSelectionProblems(sel: CrewSelection, staff: StaffOption[]):
       if (!s) { p.push("An additional installer is not on your verified staff list"); continue; }
       if (seenIds.has(a.workerId)) { p.push(`${s.name} is listed twice`); continue; }
       seenIds.add(a.workerId); seenName.add(norm(s.name)); if (s.eec) seenEec.add(norm(s.eec));
-      if (!s.eecVerified || !s.eec) p.push(`${s.name}: EEC certification not verified`);
+      if (unapproved(s)) p.push(`${s.name}: waiting for office approval — can't go on the safety form yet`);
+      else if (!s.eecVerified || !s.eec) p.push(`${s.name}: EEC certification not verified`);
     } else {
       const name = a.other.name.trim(), eec = a.other.eec.trim();
       if (!name || !eec) { p.push("Other installer needs a full name and EEC certification number"); continue; }
       if (seenName.has(norm(name)) || seenEec.has(norm(eec))) { p.push(`${name} is listed twice`); continue; }
+      const known = staff.find((s) => norm(s.name) === norm(name) || (s.eec && norm(s.eec) === norm(eec)));
+      if (known) { p.push(`${known.name} is already on your staff list — choose them instead of Other`); continue; }
       seenName.add(norm(name)); seenEec.add(norm(eec));
       nv.push(`${name} (EEC ${eec}) must be verified by the office before work starts`);
     }

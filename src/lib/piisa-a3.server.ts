@@ -5,7 +5,7 @@ type Any = any;
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
 import { WorkflowError, logEvent } from "./workflow.server";
-import { crewSelectionProblems, type CrewSelection, type RcArea, type StaffOption } from "./piisa-a3.core";
+import { certificationRef, crewSelectionProblems, staffFromRecords, type CrewSelection, type RcArea, type StaffOption } from "./piisa-a3.core";
 
 export async function assignedInstallerBusiness(jobId: string): Promise<string> {
   const { data } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
@@ -15,9 +15,13 @@ export async function assignedInstallerBusiness(jobId: string): Promise<string> 
 
 /** Approved, current installer staff of THIS business only. EEC counts only when office-verified. */
 export async function crewStaff(businessId: string): Promise<StaffOption[]> {
-  const { data, error } = await admin.from("partner_workers").select("id, full_legal_name, certification, certification_status, approval_status, removed_at, trade_role").eq("business_id", businessId).eq("trade_role", "installer").eq("approval_status", "approved").is("removed_at", null);
-  if (error) throw new WorkflowError(`Staff could not be loaded: ${error.message}`);
-  return (data ?? []).map((w) => ({ workerId: w.id, name: w.full_legal_name, eec: (w.certification as string | null)?.trim() || null, eecVerified: w.certification_status === "verified" && !!(w.certification as string | null)?.trim() }));
+  // All current installer workers of THIS business (approval shown, never changed), with their linked certification rows.
+  const { data, error } = await admin.from("partner_workers").select("id, full_legal_name, certification, approval_status, removed_at, trade_role, licence_expires_on").eq("business_id", businessId).eq("trade_role", "installer").is("removed_at", null);
+  if (error) throw new Error(`Couldn't load your staff: ${error.message}`);
+  const ids = [...new Set((data ?? []).map((w) => certificationRef(w.certification)).filter((x): x is string => !!x))];
+  const { data: certs, error: ce } = ids.length ? await admin.from("partner_worker_certifications").select("id, status, certificate_number, issuer, worker_id").in("id", ids) : { data: [], error: null };
+  if (ce) throw new Error(`Couldn't load staff certifications: ${ce.message}`);
+  return staffFromRecords((data ?? []) as never, (certs ?? []) as never);
 }
 
 export async function loadCrew(jobId: string): Promise<{ staff: StaffOption[]; selection: CrewSelection | null }> {
