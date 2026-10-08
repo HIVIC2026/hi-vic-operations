@@ -128,10 +128,18 @@ export const partnerFileUrl = createServerFn({ method: "POST" }).middleware([req
   .inputValidator((d) => z.object({ businessId: uuid, path: z.string().max(500) }).parse(d))
   .handler(async ({ data, context }) => {
     if (!(await isAdmin(context.supabase))) await requireMember(context.userId, data.businessId, true);
-    if (!data.path.startsWith(`partners/${data.businessId}/`)) throw new WorkflowError("Invalid path");
-    const { data: s, error } = await signFile("job-files", data.path, 300);
-    if (error) throw new WorkflowError(error.message);
-    return { url: s!.signedUrl };
+    const { partnerFileBucket } = await import("./partner-file.core");
+    let recorded = false;
+    if (!data.path.startsWith(`partners/${data.businessId}/`)) {
+      const credential = await admin.from("business_credentials").select("id").eq("business_id", data.businessId).eq("document_path", data.path).limit(1).maybeSingle();
+      if (credential.error) throw new WorkflowError("The certificate could not be checked. Please try again.");
+      recorded = !!credential.data;
+    }
+    const bucket = partnerFileBucket(data.businessId, data.path, recorded);
+    if (!bucket) throw new WorkflowError("This file isn't available to your business.");
+    const { data: s, error } = await signFile(bucket, data.path, 300);
+    if (error || !s) throw new WorkflowError("The file could not be opened. Please try again.");
+    return { url: s.signedUrl };
   });
 
 export const setBankDetails = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

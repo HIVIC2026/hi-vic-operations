@@ -1,6 +1,8 @@
 # Server/domain rules (src/lib)
 
 ## Architecture rules
+- Installer duplicate-email recovery may reuse an owner only through an existing installer-sourced job of the same originating business, without updating that owner; other matches stop for office review. Why: recover same-business submissions without global owner merges or customer-data disclosure.
+- Partner file reads use membership checks and exact business credential linkage for onboarding storage paths; new uploads stay business-prefix scoped. Why: existing onboarding certificates live in partner-files, not job-files.
 - Office operations and compact job presentation use the admin-only SELECT-only `operations-preview.core.ts` read model; the original preview remains direct-link, and no workflow guard may import this classifier. Why: agreed phase-3 navigation shares factual counts without operational changes.
 - All admin reads/writes use authenticated server functions with explicit errors; non-admin reads stay RLS-scoped. Why: no false-empty records or weak access.
 - Stage-entry guards (Owner Authority, PIESA window, approved payment option, evidence, compliance) live only in `stageEntryBlockers`; authority rules live in `authority.server.ts`. Why: rules change centrally.

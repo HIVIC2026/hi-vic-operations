@@ -19,8 +19,8 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   if (problems.length) throw new WorkflowError(problems.join(" • "));
 
   const email = input.email.trim().toLowerCase();
-  const { data: owner, error: oe } = await admin.from("owners").insert({ full_name: input.full_name.trim(), email, phone: input.phone.trim() }).select("id").single();
-  if (oe || !owner) throw new WorkflowError(oe?.message ?? "Owner could not be saved.");
+  const { createInstallerOwner } = await import("./installer-owner.server");
+  const owner = await createInstallerOwner(admin, businessId, { full_name: input.full_name.trim(), email, phone: input.phone.trim() });
   const { data: prop, error: pe } = await admin.from("properties").insert({ owner_id: owner.id, address_line: input.address_line.trim(), suburb: input.suburb.trim(), postcode: input.postcode.trim(), state: "VIC" }).select("id").single();
   if (pe || !prop) throw new WorkflowError(pe?.message ?? "Property could not be saved.");
   const { todayMelbourne } = await import("./eligibility.server");

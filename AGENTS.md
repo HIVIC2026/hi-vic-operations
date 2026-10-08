@@ -27,3 +27,4 @@
 - The new-installer test (`bun run installer-test --runs 3`) drives the portal's own server steps plus `e2e/journey/shoot.py`, uses only TEST logins/businesses, snapshots and restores the TEST business each run, and writes reports/screens to Files `installer-test/`. Why: Jo approves real installers from a repeatable, strict check.
 
 - Office operations categories and compact job status reuse the operations read classifier and one shared Query cache; legacy preview remains direct-link. Why: unique counts and factual precedence must agree without navigation polling.
+- Installer Add job and onsite entry share CustomerFields; optional imports use existing guarded confirmation. Why: one address/contact/permission form without duplicate questions.
