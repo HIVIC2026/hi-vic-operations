@@ -29,9 +29,11 @@ type Props = {
   /** "dark" renders the input and status note legibly on the navy register panel. */
   tone?: "light" | "dark";
   ariaLabel?: string;
+  /** Never search (sample/preview screens): plain typing only, no network. */
+  offline?: boolean;
 };
 
-export function AddressCombobox({ id, value, onChange, onPick, placeholder, className, tone = "light", ariaLabel }: Props) {
+export function AddressCombobox({ id, value, onChange, onPick, placeholder, className, tone = "light", ariaLabel, offline = false }: Props) {
   const [items, setItems] = useState<AddressSuggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
@@ -50,7 +52,7 @@ export function AddressCombobox({ id, value, onChange, onPick, placeholder, clas
       justPicked.current = false;
       return;
     }
-    if (q.length < MIN_CHARS) {
+    if (offline || q.length < MIN_CHARS) {
       setItems([]);
       setOpen(false);
       setNote("");
