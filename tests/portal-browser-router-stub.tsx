@@ -6,3 +6,4 @@ export function Link({ children, params, search, to, ...props }: AnchorHTMLAttri
   return <a {...props} href={href}>{children}</a>;
 }
 export const useNavigate = () => (o: unknown) => (globalThis as { __stubNavigate?: (o: unknown) => void }).__stubNavigate?.(o);
+export const useRouterState = ({ select }: { select: (s: { location: { pathname: string; search: Record<string, unknown> } }) => unknown }) => select({ location: { pathname: "/admin/jobs/test", search: {} } });

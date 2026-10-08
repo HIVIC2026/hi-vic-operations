@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { Link, type LinkProps } from "@tanstack/react-router";
 import { Plus, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 /* ---------- Page frame ---------- */
 export function PageHeader({ title, sub, actions }: { title: ReactNode; sub?: ReactNode; actions?: ReactNode }) {
@@ -82,11 +83,11 @@ export function NowPanel({ eyebrow, due, status, next, pairs = [], action, atten
 /* ---------- Stat tiles + segmented filters ---------- */
 export function StatTile({ label, value, sub, selected, onClick }: { label: string; value: ReactNode; sub?: ReactNode; selected?: boolean; onClick?: () => void }) {
   return (
-    <button type="button" onClick={onClick} aria-pressed={selected} className={cn("min-w-0 rounded-[14px] border p-4 text-left transition-colors", selected ? "border-mist-line bg-mist" : "border-line bg-paper hover:bg-mist/60")}>
-      <span className="block truncate text-xs text-sub">{label}</span>
+    <Button variant="outline" type="button" onClick={onClick} aria-pressed={selected} className={cn("h-auto min-w-0 flex-col items-start whitespace-normal rounded-[14px] border p-4 text-left transition-colors", selected ? "border-mist-line bg-mist" : "border-line bg-paper hover:bg-mist/60")}>
+      <span className="block break-words text-xs text-sub">{label}</span>
       <span className="mt-1 block font-display text-[25px] font-bold leading-none text-ink">{value}</span>
-      {sub && <span className="mt-1.5 block truncate text-[11px] text-sub">{sub}</span>}
-    </button>
+      {sub && <span className="mt-1.5 block break-words text-[11px] text-sub">{sub}</span>}
+    </Button>
   );
 }
 

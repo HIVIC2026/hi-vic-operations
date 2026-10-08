@@ -93,7 +93,7 @@ describe("isolated operations presentation", () => {
     expect(endpoint).toContain('.middleware([requireSupabaseAuth])'); expect(endpoint.indexOf('await requireAdmin')).toBeLessThan(endpoint.indexOf('client.server'));
     expect(server).toContain(".eq('business_unit', 'hivic').or('source.is.null,source.neq.qa_test')");
     expect(server).not.toMatch(/\.(insert|update|delete|upsert|rpc)\(|maybeAutoRoute|sendSaveMySpot|fetch\(/);
-    expect(readFileSync("src/lib/office-nav.ts", "utf8")).not.toContain("operations-preview");
+    expect(readFileSync("src/lib/office-nav.ts", "utf8")).not.toMatch(/key: "[^"]+", label: "[^"]+", to: "\/admin\/operations-preview"/);
   });
   test("future installation and PIISA requirements do not block leads now", () => {
     const r = classifyOperation(fixture("future", { evidence: [{ label: "PIISA", gate: "installation", status: "outstanding" }, { label: "Completed photos", gate: "installation", status: "outstanding" }] }), now);

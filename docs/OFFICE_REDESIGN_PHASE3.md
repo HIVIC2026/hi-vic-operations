@@ -1,0 +1,38 @@
+# Phase 3 — actual office navigation and compact jobs
+
+8 October 2026. Preview only; no publish, migrations, business-data/settings writes, sends, cron or external integration actions. Jo's phase-3 instruction overrides the earlier presentation freeze only for these office surfaces. Concurrent installer onboarding, Availability and phase-2 approved email work preserved.
+
+## Implementation and routes
+- Primary navigation: Overview / Leads / Active jobs / Closed jobs / Partners / Templates. More retains Today, quote approvals, AP review, communications, bulk campaigns, original operations preview, legacy task/stage/board/live-job tools, Money and Settings. No legacy Needs me polling or headline total. Individual job pages have no Pipeline tab forest.
+- `/admin/operations`: canonical overview; `?category=leads|active|closed|needs` shows exclusive classified records. Saved/media, process, responsible-party, source, eligibility and search filters compose in URL state. Whole-business reconciliation/stage/party counts remain available on Overview. Unknown facts remain Needs classification.
+- `/admin/operations-preview` remains the original isolated direct-link screen, now also discoverable as an explicitly named secondary tool. Both surfaces and actual job status use one shared cached authenticated GET, not a second domain engine or navigation polling.
+- Leads retains `/admin/enquiry-groups` for website email/bulk work. Both screens explicitly link the all-source classified Leads view. Website queue excludes installer-supplied, TEST, duplicate and calculator-only entries; not all enquiries are labelled eligible. Actual classifier snapshot contained two installer-source records across the business, not silently omitted.
+- `/admin/jobs/$jobId`: compact identity/contact links; canonical current lifecycle/action/party, separate eligibility, recorded communication, saved-capacity waiting, visible current blockers and Update job. Eligibility evidence and record panes mount when opened. Quotes/payments, forms/evidence, communications/history, AP and all prior controls remain in precise disclosures/targets. Paperwork strip moved inside Enquiry rather than deleted; trade assignment controls remain in Contacts and Ready Check. Exact existing money rendering unchanged and hidden until opened.
+- Update job opens existing audited eligibility/hold/resume/cancel controls and exact Ready Check/quote/AP targets. **No existing guarded manual Check ↔ Save spot transition exists.** The UI says so; no raw stage update or pretend action was created. Saving a spot remains the existing owner response.
+- Operational/blocker read failures are explicit, never interpreted as clear or zero. Canonical retry tested; original preview retry now invalidates its loader. Permissions remain separate from integration health.
+
+## Actual verification (TEST admin, SELECT-only)
+- Supported pre-existing approved TEST admin session restored only to localhost. Actual authenticated server-function/RPC/database path loaded **712 unique = 675 Leads + 1 Active + 23 Closed + 13 Needs classification = stage sum 712**, zero duplicate IDs. Snapshot can change with unrelated live intake; this work performed no business writes.
+- All seven current stage-count clicks matched their records. Canonical Leads/Active/Closed category counts matched. Spot saved **23**, photos/videos to review **79**; each flag's actual count plus source + eligibility + search combination passed. Installer-source filter matched two records.
+- Actual saved-capacity job loaded, old giant Right now/tracker absent, Update job visible at 1280/430/375 widths. No horizontal overflow or page exceptions. No mutation control clicked. Private job identifiers/contacts excluded from this report; actual screenshots remain temporary private QA material, not deliverables.
+- Interrupted canonical GET displayed unavailable counts, not zeros; Retry read recovered actual records. Active→Closed navigation reused the existing operations cache with **zero duplicate operations RPCs**.
+- Original preview and Templates remained reachable. Signed-out `/admin/operations`, `/admin/operations-preview`, `/admin/templates` redirected to `/auth`.
+- Fresh non-office check **blocked**: the supported explicit-user mint for a confirmed existing TEST installer returned “approval unavailable in this context”. Attempted once; no new permission request, bypass, credentials/reset or role change. Prior phase-2 actual installer denial remains recorded in its document, not claimed as a new phase-3 run. Unchanged parent admin route gate and unchanged GET handler requireAdmin were source-checked.
+
+## Focused checks
+- **127 passed, five retired tests skipped, zero failures, 532 assertions across 11 files:** phase-3 category/filter/factual communication tests; operations classifier and loader scope/error tests; presentation targets; Templates/email parity; payment gate; owner paperwork; partner emails; central guards; compliance timeline; Xero pure rules. No external integration actions in these checks.
+- Standalone `bunx --package @typescript/native-preview tsgo --noEmit`: exit 0. Automatic harness: build OK. Retired-term scan: 27 existing test/internal warnings, zero customer-visible failures.
+- Isolated non-deployed fictitious fixture at 1280/430/375: current-action/saved/media precedence, visible actions, phone text wrapping, secondary tool menu and no overflow/page exceptions. Real logo checked at the actual app; fixture asset requests were fulfilled from that same logo only within the test browser. No production demo route.
+
+## Touched files and narrow rollback
+- Rules/docs: `AGENTS.md`, `src/lib/AGENTS.md`, `docs/STATUS.md`, this document, `roadmap.md`.
+- Presentation: `src/lib/office-nav.ts`, `operations-filter.core.ts`, `operations-query.ts`; `src/components/portal/office.tsx`, `AppShell.tsx`, `OperationsPreview.tsx`, `CompactJobStatus.tsx`, `job-workspace.tsx`, `kit.tsx`; `src/routes/_authenticated/admin.operations.tsx`, `admin.operations-preview.tsx`, `admin.enquiry-groups.tsx`, `admin.jobs.$jobId.tsx`.
+- Tests: `tests/office-phase3.test.ts`, `office-phase3.browser.tsx`, `office-phase3.browser.html`, `operations-preview.test.ts`, `templates-hub.test.ts`, `portal-browser-router-stub.tsx`. Generated route tree refreshed automatically, never manually edited.
+- Rollback only these phase-3 hunks, remove the new canonical route/status/query/filter/fixture files and restore their consumers/imports. Restore pre-phase-3 nav/job presentation from the change history; do not reset an entire baseline or remove concurrent onboarding/no-size/template/email changes. No database restoration required. Original preview route survives rollback.
+
+## Remaining blockers / limits
+- New phase-3 non-office browser/RPC verification awaits supported session tooling; source guard proof is not browser proof.
+- Manual Check ↔ Save spot update is unsupported by existing guarded actions and needs separate domain authorisation/design if required.
+- No mutation-path testing, full operational readiness, real sends, live Mitti/Xero health, current legal/payment approval or compliance launch readiness claimed. Existing PIESA approved-rate and commercial/payment/compliance blockers remain unchanged.
+- Shared operations read loads the existing business-wide classifier once; it is not a new per-job optimised data reader. Existing deeper disclosure readers retain their previous behaviour; not every legacy pane was opened/tested.
+- Original classifier commencement timing limitation persists: completion evidence retires the alert; no distinct actual commencement timestamp in these reads.
