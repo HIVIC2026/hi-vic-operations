@@ -1,4 +1,5 @@
 # Roadmap (preview only, nothing sent, no publish, no real jobs)
+- [ ] Jo 09:25: diagnose saved Ready Check not opening Mitti; SELECT-only settings/job evidence, no integration actions or enabling controls.
 - [ ] Jo 09:24: remove red duplicate-email warning from onsite Add job; keep truthful unsuccessful-save status and customer access protection.
 ## Add job choices (Jo 8 Oct 09:21 UTC)
 - [x] Separate later Ready Check entry with customer details, appointment and optional manual measurements from existing quote/measurement entry; retain guarded booking and provisional data.
