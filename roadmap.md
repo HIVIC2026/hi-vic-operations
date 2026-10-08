@@ -167,3 +167,7 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] One automated Leads screen/router; Group B real sending awaits Jo's visual approval
 - [x] Re-checked 338 out-of-date screenings against current rules (333 refreshed, 5 held jobs left for Jo: HV-1100, HV-1090, HV-1119, HV-1341, HV-1404); unsure-insulation owners now in insulation-details group
 - [ ] Send waiting emails (41 Save my spot, 497 insulation details, 9 ineligible) — waiting on Jo's go-ahead / Group B approval
+
+## 8 Oct (Jo)
+- [ ] No enquiry shows as waiting for a Ready Check until its spot is saved
+- [ ] Leads screen: tick fake/junk leads and Remove them (own "Removed" category, out of every list)
