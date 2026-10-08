@@ -118,7 +118,7 @@ describe("crew", () => {
     expect(crewSelectionProblems({ lead: "w1", additional: [{ other: { name: "Ann", eec: "X" } }] }, staff).problems[0]).toMatch(/twice/);
     expect(crewSelectionProblems({ lead: "w3", additional: [] }, staff).problems[0]).toMatch(/not verified/);
     expect(crewSelectionProblems({ lead: "w1", additional: [{ other: { name: "Dan", eec: "E9" } }] }, staff).needsVerification).toHaveLength(1);
-    expect(crewSelectionProblems({ lead: "x", additional: [] }, staff).problems[0]).toMatch(/verified staff/);
+    expect(crewSelectionProblems({ lead: "x", additional: [] }, staff).problems[0]).toMatch(/not on your staff list/);
   });
   test("crew prefill carries verified certification numbers to rows", () => {
     expect(crewPrefill({ lead: "w1", additional: [{ workerId: "w2" }] }, staff)).toEqual([

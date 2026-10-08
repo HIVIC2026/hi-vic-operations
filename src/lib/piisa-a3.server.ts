@@ -5,7 +5,7 @@ type Any = any;
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
 import { WorkflowError, logEvent } from "./workflow.server";
-import { certificationRef, crewSelectionProblems, staffFromRecords, type CrewSelection, type RcArea, type StaffOption } from "./piisa-a3.core";
+import { certificationRef, crewSelectionProblems, leadWorkerId, rcAreasFromRecord, staffFromRecords, type CrewSelection, type RcArea, type StaffOption } from "./piisa-a3.core";
 
 export async function assignedInstallerBusiness(jobId: string): Promise<string> {
   const { data } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
@@ -21,7 +21,9 @@ export async function crewStaff(businessId: string): Promise<StaffOption[]> {
   const ids = [...new Set((data ?? []).map((w) => certificationRef(w.certification)).filter((x): x is string => !!x))];
   const { data: certs, error: ce } = ids.length ? await admin.from("partner_worker_certifications").select("id, status, certificate_number, issuer, worker_id").in("id", ids) : { data: [], error: null };
   if (ce) throw new Error(`Couldn't load staff certifications: ${ce.message}`);
-  return staffFromRecords((data ?? []) as never, (certs ?? []) as never);
+  const { data: lv, error: le } = ids.length ? await admin.from("worker_certification_levels").select("certification_id, level, expires_on, recorded_at").in("certification_id", ids) : { data: [], error: null };
+  if (le) throw new Error(`Couldn't load certification levels: ${le.message}`);
+  return staffFromRecords((data ?? []) as never, (certs ?? []) as never, (lv ?? []) as never);
 }
 
 export async function loadCrew(jobId: string): Promise<{ staff: StaffOption[]; selection: CrewSelection | null }> {
@@ -34,16 +36,15 @@ export async function saveCrewSelection(jobId: string, actorId: string, sel: Cre
   const staff = await crewStaff(await assignedInstallerBusiness(jobId));
   const { problems, needsVerification } = crewSelectionProblems(sel, staff);
   if (problems.length) throw new WorkflowError(problems.join(" • "));
-  await logEvent(jobId, actorId, "piisa_crew_selected", needsVerification.length ? `Install crew chosen — ${needsVerification.length} to verify` : "Install crew chosen from verified staff", { selection: sel as unknown as Json, needs_verification: needsVerification, staff_snapshot: staff.filter((s) => s.workerId === sel.lead || sel.additional.some((a) => "workerId" in a && a.workerId === s.workerId)) as unknown as Json }, { internal: true });
+  await logEvent(jobId, actorId, "piisa_crew_selected", needsVerification.length ? `Install crew chosen — ${needsVerification.length} to verify` : "Install crew chosen from verified staff", { selection: sel as unknown as Json, needs_verification: needsVerification, staff_snapshot: staff.filter((s) => s.workerId === leadWorkerId(sel) || sel.additional.some((a) => "workerId" in a && a.workerId === s.workerId)) as unknown as Json }, { internal: true });
   return { needsVerification };
 }
 
-/** Same job's current Ready Check areas (raw snapshot areas/zones when present; else the single measurement). */
+/** Same job's current Ready Check areas from the canonical persisted record (see rcAreasFromRecord). */
 export async function readyCheckAreas(jobId: string): Promise<RcArea[]> {
-  const { data: m } = await admin.from("ceiling_measurements").select("insulation_present, existing_r_value, raw_snapshot, zones, status").eq("job_id", jobId).eq("is_current", true).maybeSingle();
+  const { data: m } = await admin.from("ceiling_measurements").select("insulation_present, existing_r_value, removal_required, zones").eq("job_id", jobId).eq("is_current", true).maybeSingle();
   if (!m) return [];
-  const n = (v: unknown) => { const x = v == null || v === "" ? NaN : Number(v); return Number.isFinite(x) ? x : null; };
-  const list = ((m.raw_snapshot as { areas?: unknown[] } | null)?.areas ?? (Array.isArray(m.zones) ? m.zones : [])) as Any[];
-  if (list.length) return list.map((a) => ({ name: (a.name as string) ?? null, present: typeof a.present === "boolean" ? a.present : a.insulation_present == null ? null : !!a.insulation_present, depthMm: n(a.depthMm ?? a.depth_mm), rValue: n(a.rValue ?? a.r_value), downlights: n(a.downlights) }));
-  return [{ present: m.insulation_present, depthMm: null, rValue: n(m.existing_r_value), downlights: null }];
+  const { data: a } = await admin.from("assessments").select("downlights_qty").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const dl = typeof a?.downlights_qty === "number" ? a.downlights_qty : null;
+  return rcAreasFromRecord(m, dl);
 }
