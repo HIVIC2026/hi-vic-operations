@@ -576,7 +576,7 @@ export function a3CrewOptions(template: unknown): Opt[] | null {
 }
 function allItems(t: unknown): Map<string, Any> {
   const out = new Map<string, Any>();
-  const walk = (x: unknown) => { if (Array.isArray(x)) x.forEach(walk); else if (x && typeof x === "object") { const o = x as Any; const id = o.item_id ?? o.id; if (id != null && ("label" in o || "type" in o || "question" in o)) out.set(String(id), o); for (const v of Object.values(o)) if (typeof v === "object") walk(v); } };
+  const walk = (x: unknown) => { if (Array.isArray(x)) x.forEach(walk); else if (x && typeof x === "object") { const o = x as Any; const id = o.item_id ?? o.id; if (o.item_id != null || (o.id != null && ("label" in o || "type" in o || "question" in o))) out.set(String(id), o); for (const v of Object.values(o)) if (typeof v === "object") walk(v); } };
   walk(rootOf(t)); return out;
 }
 /** Template must have: retired cert items gone (tolerated if present but never required), 4 name items on the crew set, Other option, all 8 Other branch fields. */
