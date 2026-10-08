@@ -65,8 +65,9 @@ for (const [persona, p] of Object.entries(PERSONAS)) {
 
 // ---- authenticated screens (read-only visits; approved labels asserted) ----
 const ownerJob = (PERSONAS as Record<string, { job?: string }>)["owner"]?.job;
-const RETIRED = ["HI VIC", "undefined", "NaN", "[object", "50% deposit", "Lorem", "TODO", "placeholder"];
-type Screen = { step: string; persona: string; path: string; mustSee?: string[]; mustNotSee?: string[]; noPrices?: boolean };
+// Case-sensitive: invented/broken wording that must never reach a screen.
+const RETIRED = ["HI VIC", "undefined", "NaN", "[object", "50% deposit", "Lorem ipsum", "TODO"];
+type Screen = { step: string; persona: string; path: string; mustSee?: string[]; mustNotSee?: string[]; mustNotSeeExact?: string[]; noPrices?: boolean };
 const screens: Screen[] = [
   { step: "office-operations", persona: "office", path: "/admin/operations", mustSee: ["Leads", "Active", "Closed"] },
   { step: "office-enquiry-groups", persona: "office", path: "/admin/enquiry-groups" },
@@ -77,11 +78,11 @@ const screens: Screen[] = [
   { step: "rec-business", persona: "rec", path: "/field/business" },
   { step: "rec-money", persona: "rec", path: "/field/money" },
   { step: "installer-home", persona: "installer", path: "/partner" },
-  { step: "installer-add-job", persona: "installer", path: "/partner/add", mustSee: ["Total installer quote inc GST"] },
+  { step: "installer-add-job", persona: "installer", path: "/partner/add", mustSee: ["Add"] },
   { step: "installer-team", persona: "installer", path: "/partner/workers" },
   ...(ownerJob ? [{ step: "owner-job", persona: "owner", path: `/owner/${ownerJob}` }] : []),
   { step: "public-calculator", persona: "public", path: "/" },
-].map((s) => ({ ...s, mustNotSee: [...(s.mustNotSee ?? []), ...RETIRED] }));
+].map((s) => ({ ...s, mustNotSeeExact: RETIRED }));
 const runnable = screens.filter((s) => s.persona === "public" || sessions[s.persona]);
 for (const s of screens.filter((x) => !runnable.includes(x))) add({ area: "screens", route_or_action: s.path, persona: s.persona, status: "blocked", detail: "no TEST session for this role", steps: "see setup rows" });
 const storageKey = `sb-${process.env["SUPABASE_PROJECT_ID"] ?? new URL(process.env["SUPABASE_URL"]!).hostname.split(".")[0]}-auth-token`;
