@@ -1,18 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import { buildOfficialPrefill } from "../src/lib/mitti.core";
-import { A3_ALIASES, PIISA_A3_MAPPING, a3EvidenceBlockers, a3EvidenceRequired, a3MissingFields, a3Occurrence, a3Signature, crewPrefill, crewSelectionProblems, mergeTreatment, parseA3Answers, readyCheckPartPrefill } from "../src/lib/piisa-a3.core";
+import { A3_ALIASES, A3_MEDIA_IDS, A3_NATIVE_IDS, a3MediaCounts, PIISA_A3_MAPPING, a3EvidenceBlockers, a3EvidenceRequired, a3MissingFields, a3Occurrence, a3Signature, crewPrefill, crewSelectionProblems, mergeTreatment, parseA3Answers, readyCheckPartPrefill } from "../src/lib/piisa-a3.core";
 import { OFFICIAL_ITEMS } from "../src/lib/official-forms.core";
 import { piisaPrefill, seedAnswers } from "../src/lib/official-prefill.core";
 
 const it = (label: string, id: string, extra: Record<string, unknown> = {}) => ({ item_id: id, label, type: "text", ...extra });
 const fullTemplate = () => {
-  const items: unknown[] = []; let n = 0;
-  for (const [id, labels] of Object.entries(A3_ALIASES)) {
-    if (id === "p2.addEec") continue; // shares "EEC certification number" — added per row below
-    const rows = id === "p2.addName" ? 3 : 1;
-    for (let r = 0; r < rows; r++) { items.push(it(labels[0]!, `n${n++}`)); if (id === "p2.addName") items.push(it("EEC certification number", `n${n++}`)); }
-  }
+  const items: unknown[] = [];
+  for (const [id, nids] of Object.entries(A3_NATIVE_IDS)) nids.forEach((nid) => items.push(it(A3_ALIASES[id]?.[0] ?? (id === "p8.declaration" ? "I acknowledge" : "Life support document"), nid)));
+  for (const nid of Object.values(A3_MEDIA_IDS)) items.push(it("media", nid!, { type: "media" }));
   return { items };
+};
 };
 
 describe("A3 aliases map to real official ids", () => {
@@ -26,22 +24,45 @@ describe("A3 aliases map to real official ids", () => {
   });
 });
 
-describe("repeated labels resolve by occurrence, not first match", () => {
-  test("lead EEC, then each additional installer's EEC go to their own fields", () => {
+describe("stable native IDs (draft-observed)", () => {
+  test("every crew row binds to its own native ID, never the first", () => {
     const t = fullTemplate();
     const pre = [
-      { itemId: "p2.leadEec", value: "EEC-LEAD", occurrence: a3Occurrence("p2.leadEec") },
-      { itemId: "p2.addName", value: "Ann", occurrence: a3Occurrence("p2.addName", 0) },
-      { itemId: "p2.addEec", value: "EEC-ANN", occurrence: a3Occurrence("p2.addEec", 0) },
-      { itemId: "p2.addName", value: "Bob", occurrence: a3Occurrence("p2.addName", 1) },
-      { itemId: "p2.addEec", value: "EEC-BOB", occurrence: a3Occurrence("p2.addEec", 1) },
-    ].map((x) => ({ ...x, label: "x", kind: "text" }));
+      { itemId: "p2.leadEec", value: "EEC-LEAD", row: 0 },
+      { itemId: "p2.addName", value: "Ann", row: 0 }, { itemId: "p2.addEec", value: "EEC-ANN", row: 0 },
+      { itemId: "p2.addName", value: "Bob", row: 1 }, { itemId: "p2.addEec", value: "EEC-BOB", row: 1 },
+      { itemId: "p2.addName", value: "Cy", row: 2 }, { itemId: "p2.addEec", value: "EEC-CY", row: 2 },
+    ].map((x) => ({ ...x, label: "x", kind: "text", occurrence: a3Occurrence(x.itemId, x.row) }));
     const p = buildOfficialPrefill(t, pre as never, PIISA_A3_MAPPING);
-    const ids = p.items.map((x: { item_id: string }) => x.item_id);
-    expect(new Set(ids).size).toBe(5);
-    const eecs = (t.items as { item_id: string; label: string }[]).filter((x) => x.label === "EEC certification number").map((x) => x.item_id);
-    const got = Object.fromEntries(p.items.map((x: { item_id: string; responses: { text: string } }) => [x.item_id, x.responses.text]));
-    expect([got[eecs[0]!], got[eecs[1]!], got[eecs[2]!]]).toEqual(["EEC-LEAD", "EEC-ANN", "EEC-BOB"]);
+    const got = Object.fromEntries([...p.header_items, ...p.items].map((x: { item_id: string; responses: { text: string } }) => [x.item_id, x.responses.text]));
+    expect(got).toEqual({
+      "647221f2-f74c-4da1-a8be-e44a20f0b08b": "EEC-LEAD",
+      "4bea475f-516e-46a2-8922-e85896c68402": "Ann", "24e41e61-a490-4bdc-bd34-002fb6ae1089": "EEC-ANN",
+      "726f9e46-8308-449e-822f-2280cd7affa7": "Bob", "65d9d9d5-b87e-4d81-b92a-fa877e5a4f98": "EEC-BOB",
+      "c0c2178e-e872-4c70-a260-78aecde3d01e": "Cy", "3681131a-dee1-429a-ba34-6e066ef07152": "EEC-CY",
+    });
+  });
+  test("a row whose ID is absent is skipped (visible), never written to another row", () => {
+    const t = fullTemplate(); t.items = (t.items as { item_id: string }[]).filter((x) => x.item_id !== "726f9e46-8308-449e-822f-2280cd7affa7");
+    const p = buildOfficialPrefill(t, [{ itemId: "p2.addName", value: "Bob", row: 1, label: "x", kind: "text", occurrence: 1 }] as never, PIISA_A3_MAPPING);
+    expect(p.count).toBe(0); expect(p.skipped[0]).toMatch(/p2.addName row 2/);
+  });
+  test("API definition that disagrees fails closed: missing ID or a different question on a known ID", () => {
+    const t = fullTemplate();
+    (t.items as { item_id: string; label: string }[]).find((x) => x.item_id === "1be8ebff-a754-4a2a-83f0-9561708ffb85")!.label = "Something else";
+    t.items = (t.items as { item_id: string }[]).filter((x) => x.item_id !== A3_MEDIA_IDS.before_video);
+    const m = a3MissingFields(t);
+    expect(m.some((x) => /SWMS.*now reads "Something else"/.test(x))).toBe(true);
+    expect(m.some((x) => /Before-work video.*\(media\)/.test(x))).toBe(true);
+  });
+  test("parses answers by ID; media counted per evidence item", () => {
+    const a = { items: [
+      it("Additional installer", "726f9e46-8308-449e-822f-2280cd7affa7", { responses: { text: "Bob" } }),
+      it("EEC certification number", "65d9d9d5-b87e-4d81-b92a-fa877e5a4f98", { responses: { text: "B2" } }),
+      it("x", A3_MEDIA_IDS.product_photos!, { media: [{ id: 1 }, { id: 2 }] }),
+    ] };
+    expect(parseA3Answers(a).crew).toEqual([{ name: "Bob", eec: "B2" }]);
+    expect(a3MediaCounts(a).find((x) => x.key === "product_photos")!.count).toBe(2);
   });
 });
 
@@ -55,10 +76,10 @@ describe("completed audit -> official answers", () => {
   });
   test("parses yes/no, treatment and crew rows by occurrence", () => {
     const a = { items: [
-      it("Has the SWMS been completed for this job and all risks identified?", "1", { responses: { selected: [{ label: "Yes" }] } }),
-      it("Will the existing insulation be removed, topped up, or both?", "2", { responses: { selected: [{ label: "Both" }] } }),
-      it("EEC certification number", "3", { responses: { text: "LEAD-1" } }),
-      it("Additional installer", "4", { responses: { text: "Ann" } }), it("EEC certification number", "5", { responses: { text: "ANN-2" } }),
+      it("Has the SWMS been completed for this job and all risks identified?", "1be8ebff-a754-4a2a-83f0-9561708ffb85", { responses: { selected: [{ label: "Yes" }] } }),
+      it("Will the existing insulation be removed, topped up, or both?", "8dadd5c5-e8d7-431e-b65a-a5dc4d174864", { responses: { selected: [{ label: "Both" }] } }),
+      it("EEC certification number", "647221f2-f74c-4da1-a8be-e44a20f0b08b", { responses: { text: "LEAD-1" } }),
+      it("Additional installer", "4bea475f-516e-46a2-8922-e85896c68402", { responses: { text: "Ann" } }), it("EEC certification number", "24e41e61-a490-4bdc-bd34-002fb6ae1089", { responses: { text: "ANN-2" } }),
     ] };
     const r = parseA3Answers(a);
     expect(r.answers["p3.swms"]).toBe("Yes");
@@ -69,7 +90,7 @@ describe("completed audit -> official answers", () => {
   });
   test("signature needs its own timestamp; audit modified time is never used", () => {
     expect(a3Signature({ modified_at: "2026-10-08T01:00:00Z", items: [it("Signature", "s", { responses: { name: "Ann", image: "m1" } })] }).signedAt).toBeNull();
-    expect(a3Signature({ items: [it("Signature", "s", { responses: { name: "Ann", image: "m1", timestamp: "2026-10-08T00:10:00Z" } })] })).toEqual({ name: "Ann", signedAt: "2026-10-08T00:10:00Z", present: true });
+    expect(a3Signature({ items: [it("Signature", "805138fa-827e-4e25-8ca5-3871eeda1202", { responses: { name: "Ann", image: "m1", timestamp: "2026-10-08T00:10:00Z" } })] })).toEqual({ name: "Ann", signedAt: "2026-10-08T00:10:00Z", present: true });
   });
 });
 
