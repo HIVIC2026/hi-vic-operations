@@ -18,6 +18,10 @@ import {
 import { newResumeToken, takeStaffLink } from "@/lib/onboarding-security.core";
 import { prepareCertificate } from "@/lib/certificate-file";
 import { VerifiedAddressInput } from "@/components/onboarding/VerifiedAddressInput";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { CalendarIcon } from "lucide-react";
 
 // Public installer onboarding + partner agreement signing, in the same design system as REC onboarding.
 // Progress is saved server-side (on "Save & continue") against an opaque resume token kept in this browser.
@@ -175,6 +179,7 @@ function InstallerOnboarding() {
   const [review, setReview] = useState<"with_office" | "changes_requested" | "declined">("with_office");
   const [officeMessage, setOfficeMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [savingDirection, setSavingDirection] = useState<1 | -1 | null>(null);
   const [addressPending, setAddressPending] = useState(false);
   const navigationLock = useRef(false);
   const latestData = useRef(d);
@@ -297,14 +302,14 @@ function InstallerOnboarding() {
       }
       setShowErrors(false);
       const target = steps[Math.min(steps.length - 1, Math.max(0, idx + delta))]?.key ?? "about";
-      if (delta === -1) { setStep(target); window.history.pushState({ instStep: target }, ""); window.scrollTo({ top: 0 }); }
-      setBusy(true);
+      // Keep the current page and its controls mounted until its answers are saved.
+      setSavingDirection(delta); setBusy(true);
       await persist(target);
-      if (delta === 1) { setStep(target); window.history.pushState({ instStep: target }, ""); window.scrollTo({ top: 0 }); }
+      setStep(target); window.history.pushState({ instStep: target }, ""); window.scrollTo({ top: 0 });
       // Bank account name usually matches the business: suggest it once (still editable).
       if (delta === 1 && target === "bank" && !(d.bank_account_name ?? "").trim() && (d.legal_entity_name ?? "").trim()) up({ bank_account_name: d.legal_entity_name ?? "" });
     } catch (e) { setError(e instanceof Error ? e.message : "Could not save. Please try again."); }
-    finally { navigationLock.current = false; setBusy(false); }
+    finally { navigationLock.current = false; setBusy(false); setSavingDirection(null); }
   }
 
   const shell = (children: React.ReactNode, footer?: React.ReactNode) => (
@@ -371,8 +376,8 @@ function InstallerOnboarding() {
   const footer = (
     <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "rgba(255,255,255,.97)", borderTop: `1px solid ${LINE}`, padding: "12px 20px", zIndex: 10 }}>
       <div className="flex flex-col-reverse items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between" style={{ maxWidth: COL, margin: "0 auto" }}>
-        <button style={{ border: "none", background: "none", color: NAVY, fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "inherit", padding: "8px 4px", minHeight: 40, opacity: busy || addressPending ? 0.5 : 1 }} disabled={busy || addressPending} onClick={() => { if (idx === 0) { setStarted(false); window.scrollTo({ top: 0 }); } else void go(-1); }}>Back</button>
-        {step !== "review" && !staffStop && <button className="w-full sm:w-auto" style={{ ...btn(true, busy || addressPending), minHeight: 52, padding: "0 28px" }} disabled={busy || addressPending} onClick={() => go(1)}>{addressPending ? "Checking address…" : busy ? "Saving…" : "Save & continue"}</button>}
+        <button style={{ border: "none", background: "none", color: NAVY, fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "inherit", padding: "8px 4px", minHeight: 40, opacity: busy || addressPending ? 0.5 : 1 }} disabled={busy || addressPending} onClick={() => { if (idx === 0) { setStarted(false); window.scrollTo({ top: 0 }); } else void go(-1); }}>{savingDirection === -1 ? "Saving…" : "Back"}</button>
+        {step !== "review" && !staffStop && <button className="w-full sm:w-auto" style={{ ...btn(true, busy || addressPending), minHeight: 52, padding: "0 28px" }} disabled={busy || addressPending} onClick={() => go(1)}>{addressPending ? "Checking address…" : busy && savingDirection !== -1 ? "Saving…" : "Save & continue"}</button>}
       </div>
     </div>
   );
@@ -585,20 +590,25 @@ function ReviewPanel({ d, up, preview, load, onReady }: { d: InstData; up: (p: P
 function DateBox({ id, value, onChange }: { id: string; value?: string | null | undefined; onChange: (v: string) => void }) {
   // While typing, the box shows exactly what was typed; otherwise it shows the saved date as dd/mm/yyyy.
   const [draft, setDraft] = useState<string | null>(null);
-  const picker = useRef<HTMLInputElement>(null);
+  const [open, setOpen] = useState(false);
+  const iso = parseDateInput(value ?? "");
+  const selected = iso ? new Date(`${iso}T12:00:00`) : undefined;
   const shown = draft ?? formatDateAu(value);
   return (
     <div style={{ display: "flex", gap: 8, alignItems: "center", maxWidth: 280, position: "relative" }}>
-      <input id={id} style={{ ...input, flex: 1, minWidth: 0 }} inputMode="numeric" placeholder="dd/mm/yyyy" autoComplete="off" value={shown}
+      <input id={id} style={{ ...input, flex: 1, minWidth: 0 }} type="text" placeholder="dd/mm/yyyy" autoComplete="off" value={shown}
         onFocus={() => setDraft(formatDateAu(value))}
         onChange={(e) => { const t = e.target.value; setDraft(t); onChange(t.trim() === "" ? "" : parseDateInput(t) ?? t.trim()); }}
         onBlur={() => setDraft(null)} />
-      <button type="button" aria-label="Pick from calendar" onClick={() => { const el = picker.current; if (!el) return; try { el.showPicker(); } catch { el.focus(); el.click(); } }}
-        style={{ minWidth: 48, minHeight: 48, borderRadius: 12, border: "1px solid #D7DCE8", background: "#fff", cursor: "pointer", color: NAVY }}>
-        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>
-      </button>
-      <input ref={picker} type="date" tabIndex={-1} aria-hidden="true" value={parseDateInput(value ?? "") ?? ""} onChange={(e) => { if (e.target.value) { setDraft(null); onChange(e.target.value); } }}
-        style={{ position: "absolute", right: 0, bottom: 0, width: 48, height: 1, opacity: 0, pointerEvents: "none", border: 0, padding: 0 }} />
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild><Button type="button" variant="outline" size="icon" className="h-12 w-12 shrink-0" aria-label="Pick from calendar"><CalendarIcon /></Button></PopoverTrigger>
+        <PopoverContent align="end" className="w-auto p-0 pointer-events-auto">
+          <Calendar mode="single" selected={selected} {...(selected ? { defaultMonth: selected } : {})} captionLayout="dropdown" startMonth={new Date(2000, 0)} endMonth={new Date(2100, 11)} className="p-3 pointer-events-auto" onSelect={(date) => {
+            if (!date) return;
+            setDraft(null); onChange(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`); setOpen(false);
+          }} />
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }

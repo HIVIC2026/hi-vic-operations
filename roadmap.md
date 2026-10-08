@@ -1,4 +1,7 @@
 # Roadmap (preview only, nothing sent, no publish, no real jobs)
+## Installer onboarding repairs (Jo, 8 Oct 08:17 UTC)
+- [x] Replaced hidden native date picker with interactive calendar; typing, date selection and retained date checked on sample onboarding at desktop/phone widths. No real application saved.
+- [x] Back saves before changing page and shows saving on Back rather than replacing continue text; sample Back/continue checked, 45 onboarding/revision regressions passed, app check OK. Real-session save timing remains unverified.
 ## Group B insulation review (Jo, 8 Oct 03:27–03:29 UTC)
 - [x] Jo 03:37: shorten Group B email invitation and explicitly exclude insulation removal from the estimate because existing insulation may stay; Group A unchanged.
 - [x] Jo 03:35: Group B invitation explains limited capacity, current queue position and insulation-review path to the eligible queue; email and linked pages updated, estimate retained, Group A unchanged. 32 checks passed; invitation visually verified; preview build OK. No sending or publishing.
