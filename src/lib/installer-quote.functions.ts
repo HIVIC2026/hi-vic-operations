@@ -140,3 +140,35 @@ export const saveMyIntakeJob = createServerFn({ method: "POST" }).middleware([re
     try { const r = await installerUpdateIntake(jobId, context.userId, biz, p as never); return { changed: r.changed, quoteHeld: [...r.state.readiness.blockers, ...r.state.releaseBlockers.filter((b) => !/contact consent/.test(b))] }; }
     catch (e) { throw new Error(e instanceof Error ? e.message : "Couldn't save."); }
   });
+
+/** Installer job page progress (intake jobs only). Supplying-installer scoped; read-only. */
+export const getMyIntakeProgress = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireSupplyingInstaller(context.supabase as never, context.userId, data.jobId);
+    const m = await import("./installer-intake.server");
+    if (!(await m.isIntakeJob(data.jobId))) return { applies: false as const };
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const id = data.jobId;
+    const [s, { data: job }, { data: qs }, { data: pr }, { count: installs }, { count: missing }, { data: ap }, { data: veec }] = await Promise.all([
+      m.installerIntakeState(id),
+      admin.from("jobs").select("stage, installer_quoted").eq("id", id).single(),
+      admin.from("quotes").select("status").eq("job_id", id).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]),
+      admin.from("piesa_records").select("outcome, signed_off_by").eq("job_id", id).eq("is_current", true).limit(1).maybeSingle(),
+      admin.from("bookings").select("id", { count: "exact", head: true }).eq("job_id", id).eq("kind", "installation").eq("status", "completed"),
+      admin.from("evidence_requirements").select("id", { count: "exact", head: true }).eq("job_id", id).eq("required", true).in("status", ["outstanding", "rejected"]),
+      admin.from("workflow_events").select("created_at").eq("job_id", id).eq("event_type", "stage_changed").eq("to_stage", "ready_for_veec").order("created_at").limit(1).maybeSingle(),
+      admin.from("veec_lodgements").select("status").eq("job_id", id).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    const st = (qs ?? []).map((q) => q.status);
+    const { installerProgress } = await import("./installer-progress.core");
+    return { applies: true as const, ...installerProgress({
+      coordination: s.coordination, quoted: (job?.installer_quoted ?? null) as "yes" | "no" | null,
+      eligibility: await m.commercialEligibility(id),
+      quoteHeld: [...s.readiness.blockers, ...s.releaseBlockers.filter((b: string) => !/contact consent/.test(b))],
+      quoteStatus: st.includes("accepted") ? "accepted" : st.includes("issued") ? "issued" : st.includes("draft") ? "draft" : "none",
+      reconfirmationRequired: !!s.reconfirmationRequired, electricianPayer: s.electricianPayer,
+      electricalCleared: pr?.outcome === "pass" && !!pr.signed_off_by, installationCompleted: (installs ?? 0) > 0,
+      evidenceMissing: missing ?? 0, evidenceApprovedAt: ap?.created_at ?? null, veecStatus: veec?.status ?? null, stage: job?.stage ?? "",
+    }) };
+  });
