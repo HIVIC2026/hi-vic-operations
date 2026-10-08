@@ -95,7 +95,8 @@ describe("customer outcome email renderers", () => {
     for (const t of ["$4,500", "$349"]) expect(e.html).toContain(t);
     expect(e.html).not.toContain("$2,361");
     const preview = readFileSync("src/routes/step3-email-preview.tsx", "utf8");
-    for (const value of ["AP_FEE = 349", "SAMPLE_INSTALL = 4500", "SAMPLE_DISCOUNT = 1481.76", "SAMPLE_GROSS = SAMPLE_INSTALL + PIESA_FEE + AP_FEE", "SAMPLE_CUSTOMER = SAMPLE_GROSS - SAMPLE_DISCOUNT", "amountPayableNow: 0"]) expect(preview).toContain(value);
+    const sample = readFileSync("src/lib/step3-email-samples.ts", "utf8");
+    for (const value of ["AP_FEE = 349", "SAMPLE_INSTALL = 4500", "SAMPLE_DISCOUNT = 1481.76", "SAMPLE_GROSS = SAMPLE_INSTALL + PIESA_FEE + AP_FEE", "SAMPLE_CUSTOMER = SAMPLE_GROSS - SAMPLE_DISCOUNT", "amountPayableNow: 0"]) expect(sample).toContain(value);
     expect(preview).not.toMatch(/bg-background|text-primary/);
   });
 

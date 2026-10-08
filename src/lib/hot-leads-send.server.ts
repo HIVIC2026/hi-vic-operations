@@ -100,6 +100,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   const key = `${LAUNCH_CAMPAIGN}:${followup ? "existing_insulation_save_spot" : sendGroup === "onsite" ? "insulation_details" : "save_my_spot"}:${jobId}${isTest && testOpts.subjectPrefix ? `:preview-test:${testOpts.variant ?? "savespot"}:${Date.now()}` : ""}`;
   const { data: ex, error: existingSendError } = await admin.from("customer_email_sends").select("id, status").eq("idempotency_key", key).maybeSingle();
   if (followup && existingSendError) return r("blocked", "Could not check previous delivery. Nothing sent; try again.");
+  if (followup && mode === "send" && ex) return r("skipped", "A follow-up attempt already exists. Check its delivery record before any further action.");
   if (mode === "send" && ex && !reservationAllowed(ex)) return r("skipped", "Already sent to this home.");
   let sendId = ex?.id ?? null;
   if (mode === "send") {
@@ -166,6 +167,16 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   if (followup && (!(await followupAllowed(link.token)) || !(await (await import("./comms.server")).customerCommsEnabled()) || !(await (await import("./comms.server")).hasCurrentOwnerContactConsent(jobId)))) {
     await finish("failed", "not_sent", "Follow-up permission changed; nothing sent.");
     return r("blocked", "Follow-up permission changed; nothing sent.");
+  }
+  if (followup) {
+    const [{ data: optout, error: oe }, { data: response, error: re }] = await Promise.all([
+      admin.from("customer_email_optouts").select("opted_out_at").eq("job_id", jobId).maybeSingle(),
+      admin.from("lead_campaign_responses").select("opted_out_at, spot_saved_at").eq("job_id", jobId).maybeSingle(),
+    ]);
+    if (oe || re || optout?.opted_out_at || response?.opted_out_at || response?.spot_saved_at) {
+      await finish("failed", "not_sent", "Owner response or opt-out changed; nothing sent.");
+      return r("blocked", "Owner response or opt-out changed; nothing sent.");
+    }
   }
   if (sendGroup === "onsite") {
     const blocker = groupBInvitationBlocker(await groupBMediaForJob(jobId));
