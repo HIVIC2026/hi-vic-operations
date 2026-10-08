@@ -158,6 +158,8 @@ function EvidenceRow({ req, canUpload, isAdmin }: { req: Req; canUpload: boolean
       void qc.invalidateQueries().catch(() => undefined);
     } catch (e) {
       const message = e instanceof Error ? e.message : "The upload failed. Please try again.";
+      // Stored-byte validation deletes a rejected file; it cannot be confirmed again.
+      if (/file type isn't accepted/i.test(message)) pending.current = null;
       setUploadError(pending.current ? `The file reached storage, but evidence is not confirmed. ${message}` : message);
     } finally {
       if (input.current) input.current.value = "";
