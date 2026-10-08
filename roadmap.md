@@ -1,4 +1,8 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## PIISA corrections (Jo 8 Oct 20:20 UTC)
+- [x] Update STOP actions, crew portal wording, product-photo prestart phase and completed-video instruction; preserve native IDs and official output.
+- [x] 91 focused tests / 273 assertions pass; staged photo, fail-closed schema, scoped crew and structured actual-product safeguards checked; latest preview build/type check OK.
+- [ ] Native direct-name/cert structure and products-text removal await Jo's concrete edited schema; no native editing authorised here.
 - [x] 11:26 Add job correction: optional previous price agreement, obsolete installer bulk entry redirected; 41 tests and styled sealed phone/desktop paths pass; published bundle still had mandatory tick. Exact report/rollback in docs/ADD_JOB_8OCT_QUESTION_CORRECTION.md; no publishing or live actions.
 - [ ] 11:26 actual installer question click-through: supported TEST session reached Add job but no business choices loaded; needs a usable existing TEST installer business session. No live submissions permitted.
 - [x] Jo 09:37 explicitly authorised creating HV-2010's missing form. One existing admin-guarded createMittiAssessment call attempted using the approved TEST office session; Mitti user lookup rejected the assigned installer as not found. No audit created, no linkage recorded, no retry or invitation sent.

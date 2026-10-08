@@ -19,7 +19,7 @@ describe("PIISA clearer labels (Jo 9 Oct 2026)", () => {
     expect(a3AcceptedLabels("p3.swms")).toContain(norm("Has the SWMS been completed for this job and all risks identified?"));
     expect(a3AcceptedLabels("p5.noAccess")).toContain(norm("Has the owner or occupier confirmed no one has accessed or worked in the ceiling since the PIESA?"));
   });
-  test("banner heading exact", () => expect(STOP_BANNER).toBe("🛑 STOP WORK — INSTALLATION CANNOT PROCEED."));
+  test("banner heading exact", () => expect(STOP_BANNER).toBe("🛑 STOP —"));
   test("crew prefill refuses a staff member still waiting for office approval", () => {
     const tpl = { items: [] };
     const r = a3CrewNativeItems(tpl, { lead: "w1", additional: [] }, [{ workerId: "w1", name: "A B", eec: "EEC1", eecVerified: true, approved: false } as never], "Co");

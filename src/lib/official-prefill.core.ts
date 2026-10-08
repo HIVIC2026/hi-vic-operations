@@ -117,8 +117,8 @@ export function piisaPrefill(ctx: OfficialPrefillContext): PrefillHint[] {
     fromPiesa("p5.basic", "reminder", ctx, "c.tick5", "Section C (Basic Protection)", true),
     hint("p6.present", "reminder", ctx.measuredInsulationPresent == null ? null : ctx.measuredInsulationPresent ? "Yes" : "No", "measure_up", "Accepted measure-up",
       ctx.measuredInsulationPresent == null ? "The measure-up has no insulation answer — nothing to compare." : `Measure-up recorded existing insulation: "${ctx.measuredInsulationPresent ? "Yes" : "No"}". Shown as a reminder — the installer still answers.`),
-    hint("p7.products", "prefill", blankTo(ctx.acceptedQuoteProduct), "accepted_quote", "Accepted quote",
-      blankTo(ctx.acceptedQuoteProduct) ? "From the accepted quote — the installer must confirm the product used on the day." : NO_SOURCE),
+    hint("p7.products", "reminder", blankTo(ctx.acceptedQuoteProduct), "accepted_quote", "Accepted quote (planned products only)",
+      blankTo(ctx.acceptedQuoteProduct) ? "Planned products from the accepted quote, not verified actual products. The official Part 7 table must record the actual brand, model and R-value checked against the product labels; a photo alone does not fill this table." : NO_SOURCE),
     hint("p8.name", "prefill", blankTo(lead?.name), "portal_record", "Signed-in installer profile", blankTo(lead?.name) ? "From the signed-in installer's profile." : NO_SOURCE),
     // Signature date comes from the signature itself — never pre-filled.
     hint("p8.date", "reminder", null, "portal_record", "Signature", "Dated when the installer signs."),
