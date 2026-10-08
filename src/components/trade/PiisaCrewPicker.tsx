@@ -25,7 +25,7 @@ export function PiisaCrewPicker({ jobId }: { jobId: string }) {
       <h2 className="font-display text-xl font-bold">Who's on the install?</h2>
       <p className="mt-1 text-sm">These names and EEC numbers go on the safety form for you.</p>
       <p className="mt-1 text-xs text-sub" data-native-lookup-note>{A3_NATIVE_CREW_LOOKUP.note}</p>
-      {data.staff.length === 0 && <p className="mt-2 text-sm" data-no-staff>No installers are on your staff list yet. Use Other for each installer.</p>}
+      {!data.staff.some(ready) && <p className="mt-2 text-sm font-semibold" data-no-staff>No approved installer with a checked EEC certificate is on your staff list yet, so the lead installer can't be chosen. The office needs to approve one first.</p>}
       <label className="mt-3 block text-sm font-bold">Lead installer
         <select className={`${sel} mt-1`} value={lead ?? ""} onChange={(e) => setLead(e.target.value || null)}>
           <option value="">Choose</option>
