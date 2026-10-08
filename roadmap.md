@@ -3,6 +3,7 @@
 - [x] Recovered original partial TEST import on published app as HV-2111 without duplication; status-0 request confirmed, exact transport cause unproven. Interrupted-message/Retry check passed; original exact-attempt fence preserved.
 - [x] Proposed R5.0/R6.0/R7.0/Other + structured included removal saved/read back on actual TEST job; $0/$500/No checks preserve $3,450 total. 35 focused tests/108 assertions passed; phone/desktop no overflow/errors.
 - [x] Extra QA jobs archived (history retained); proof in docs/URGENT_INTAKE_QA_8OCT.md. Harness compile OK; no separate production bundle or publication. Root review still required.
+- [ ] Conditional publication approved by Jo 22:37 UTC only after root diff review and final harness checks pass; same repair, no duplicate task. Fresh isolated checks: 48 tests/123 assertions passed; original import confirmed on original job. Exact disconnect cause remains unproven.
 - [ ] Requested Dad inspection text: blocked until Dad’s identity/mobile and intended inspection/job are established.
 ## First-page Accredited Person (Jo 8 Oct 22:18 UTC)
 - [x] Actual GET confirms preserved required AP text field immediately after installation date. Pin updated; fixed legal entity sent and read back before share. Only observed unsigned blank AP can receive documented partial text repair; wrong/unknown/signed records held for office. No actual audits created or changed.
