@@ -10,6 +10,7 @@ import { StatusLineView } from "@/components/trade/job-status";
 import { getTradeHome } from "@/lib/trade-view.functions";
 import { dayTile, goneIn, tradeGreeting } from "@/lib/trade-view.core";
 import { SourceBadge } from "@/components/portal/badges";
+import { INSTALLER_TABS, type InstallerTab } from "@/lib/installer-progress.core";
 
 export const Route = createFileRoute("/_authenticated/field/")({
   head: () => ({ meta: [{ title: "My work – Home Insulation Victoria" }, { name: "description", content: "New job offers, what needs you and what's coming up." }, { property: "og:title", content: "My work – Home Insulation Victoria" }, { property: "og:description", content: "New job offers, what needs you and what's coming up." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -33,7 +34,7 @@ function MyWork() {
   return (
     <TradeShell installer={installer} boss={data.boss} test={data.isTest}>
       <div><h1 className="font-display text-[26px] font-bold leading-tight">{g.title}</h1><p className="text-sm text-sub">{g.sub}</p></div>
-      <div className="grid grid-cols-2 gap-2" data-work-tiles>
+      {!installer && <div className="grid grid-cols-2 gap-2" data-work-tiles>
         {([
           ["Offers", data.offers.length, installer ? "Free Ready Check" : "Safety check"],
           ["Needs me", data.yourMove.length, "Your next actions"],
@@ -42,7 +43,7 @@ function MyWork() {
         ] as [string, number, string][]).map(([k, n, s]) => (
           <div key={k} className="rounded-[18px] border border-line bg-paper p-3.5"><p className="text-xs font-semibold text-estimate-navy">{k}</p><p className="mt-1 font-display text-2xl font-bold">{n}</p><p className="mt-1 text-[11px] text-sub">{s}</p></div>
         ))}
-      </div>
+      </div>}
       {installer && data.boss && (
         <div data-upload-actions>
           <Link to="/partner/import" className={btnClass("primary", "w-full")}><PlusCircle className="h-4 w-4" />Add a job</Link>
@@ -72,7 +73,8 @@ function MyWork() {
             <span className="min-w-0 flex-1"><span className="block font-bold">{b.what} · {b.surname}</span><span className="block truncate text-sm text-sub">{b.address}</span></span><ChevronRight className="h-5 w-5" />
           </Link>); })}</div> : <p className={`${card} text-sm`}>Nothing booked yet.</p>}
       </section>
-      {data.jobs.length > 0 && (
+      {installer ? <InstallerJobs jobs={data.jobs} done={data.done} moves={data.yourMove} offers={data.offers.length} /> : (
+      data.jobs.length > 0 && (
         <section data-your-jobs>
           <div className="mb-2 flex items-center justify-between gap-2"><h2 className="font-display text-base font-bold">Your jobs <span className="text-sm font-semibold text-sub">{data.jobs.length}</span></h2>
             <div className="flex gap-1" role="group" aria-label="Filter jobs"><button className={btnClass(onlyChasing || onlyMoving ? "secondary" : "primary", "min-h-[34px] px-3")} aria-pressed={!onlyChasing && !onlyMoving} onClick={() => { setOnlyChasing(false); setOnlyMoving(false); }}>All</button><button data-moving-filter className={btnClass(onlyMoving ? "primary" : "secondary", "min-h-[34px] px-3")} aria-pressed={onlyMoving} onClick={() => { setOnlyMoving(true); setOnlyChasing(false); }}>Moving automatically ({moving.length})</button><button data-needs-chasing className={btnClass(onlyChasing ? "primary" : "secondary", "min-h-[34px] px-3")} aria-pressed={onlyChasing} onClick={() => { setOnlyChasing(true); setOnlyMoving(false); }}>Needs chasing{chasing.length ? ` (${chasing.length})` : ""}</button></div></div>
@@ -88,5 +90,53 @@ function MyWork() {
         <span className="font-display text-2xl font-bold">{aud(data.month.earned)}</span>
       </section>}
     </TradeShell>
+  );
+}
+
+type HomeJob = { jobId: string; jobNumber: string | number | null; owner: string | null; address: string; tab: InstallerTab; status: string; channel: string | null; line: { text: string; who: string | null } | null };
+function InstallerJobs({ jobs, done, moves, offers }: { jobs: HomeJob[]; done: { jobId: string; jobNumber: string | number | null; suburb: string | null; reason: string; open: boolean }[]; moves: { jobId: string; title: string }[]; offers: number }) {
+  const [tab, setTab] = useState<InstallerTab>("action");
+  const count = (k: InstallerTab) => (k === "done" ? done.length : jobs.filter((j) => j.tab === k).length);
+  const shown = jobs.filter((j) => j.tab === tab);
+  const nextOf = (j: HomeJob) => {
+    const m = moves.find((x) => x.jobId === j.jobId);
+    if (m) return { who: "You", text: m.title };
+    if (j.line) return { who: j.line.who, text: j.line.text };
+    return { who: "Home Insulation Victoria", text: j.status };
+  };
+  return (
+    <section data-your-jobs>
+      <h2 className="mb-2 font-display text-base font-bold">Jobs</h2>
+      <div className="grid grid-cols-3 gap-1 rounded-[14px] border border-line bg-paper p-1" role="tablist" aria-label="Jobs">
+        {INSTALLER_TABS.map((t) => (
+          <button key={t.key} role="tab" aria-selected={tab === t.key} data-tab={t.key} onClick={() => setTab(t.key)}
+            className={`min-h-[44px] rounded-[10px] px-2 text-sm font-semibold ${tab === t.key ? "bg-action text-primary-foreground" : "text-ink hover:bg-estimate-mist"}`}>
+            {t.label} <span className="font-normal">({count(t.key)})</span>
+          </button>
+        ))}
+      </div>
+      {tab === "action" && offers > 0 && <p className="mt-2 text-sm text-sub">{offers} job offer{offers === 1 ? "" : "s"} waiting above.</p>}
+      <div className="mt-2 space-y-2" role="tabpanel">
+        {tab !== "done" && !shown.length && <p className={`${card} text-sm`}>{tab === "action" ? "Nothing needs you right now." : "No jobs in progress."}</p>}
+        {tab !== "done" && shown.map((j) => { const n = nextOf(j); return (
+          <Link key={j.jobId} to="/field/$jobId" params={{ jobId: j.jobId }} data-job-card className="flex items-center gap-3 rounded-[14px] border border-line bg-paper p-3 hover:border-action">
+            <span className="min-w-0 flex-1">
+              <span className="block font-bold">{j.jobNumber} · {j.owner ?? "Owner"}</span>
+              <span className="mt-1 block"><SourceBadge channel={j.channel} /></span>
+              <span className="block truncate text-sm text-sub">{j.address}</span>
+              <span className="mt-1 block text-sm"><span className="font-semibold text-estimate-navy">Next{n.who ? ` — ${n.who}` : ""}:</span> {n.text}</span>
+            </span><ChevronRight className="h-5 w-5" />
+          </Link>); })}
+        {tab === "done" && (done.length ? done.map((d) => d.open ? (
+          <Link key={d.jobId} to="/field/$jobId" params={{ jobId: d.jobId }} data-done-card className="flex items-center gap-3 rounded-[14px] border border-line bg-paper p-3">
+            <span className="min-w-0 flex-1"><span className="block font-bold">{d.jobNumber}{d.suburb ? ` · ${d.suburb}` : ""}</span><span className="block text-sm text-sub">{d.reason}</span></span><ChevronRight className="h-5 w-5" />
+          </Link>
+        ) : (
+          <div key={d.jobId} data-done-card data-readonly className="rounded-[14px] border border-line bg-paper p-3">
+            <span className="block font-bold">{d.jobNumber}{d.suburb ? ` · ${d.suburb}` : ""}</span><span className="block text-sm text-sub">{d.reason} · summary only</span>
+          </div>
+        )) : <p className={`${card} text-sm`}>No finished jobs yet.</p>)}
+      </div>
+    </section>
   );
 }
