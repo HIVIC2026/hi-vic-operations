@@ -81,6 +81,8 @@ export const setEligibility = createServerFn({ method: "POST" }).middleware([req
     await admin.from("compliance_checks").update({ status: data.outcome === "does_not_appear_eligible" ? "fail" : data.outcome === "likely_eligible" ? "pass" : "pending", checked_by: context.userId, checked_at: new Date().toISOString(), notes: data.reason }).eq("job_id", data.jobId).eq("check_key", "eligibility");
     // Step 3 sync after the admin decision is persisted: likely/onsite -> refresh + ensure link; review/fail -> revoke.
     try { const { syncStep3 } = await import("./estimatelink.server"); await syncStep3(data.jobId, context.userId); } catch (e) { await logEvent(data.jobId, context.userId, "step3_prepare_failed", "Step 3 preparation failed after admin Gate 1 decision", { error: (e as Error).message.slice(0, 300) }, { internal: true }); }
+    // Auto Save my spot email after an admin Gate 1 decision (Jo, 8 Oct 2026). Best-effort; all guards re-checked inside.
+    try { const { maybeAutoSendSaveSpot } = await import("./hot-leads-send.server"); await maybeAutoSendSaveSpot(data.jobId); } catch { /* never block the decision */ }
     await autoAdvanceJob(data.jobId, context.userId, "eligibility");
     return { ok: true };
   });

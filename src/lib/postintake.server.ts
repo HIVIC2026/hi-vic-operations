@@ -58,6 +58,9 @@ async function processItem(item: Claimed) {
     const { syncStep3 } = await import("./estimatelink.server");
     await syncStep3(item.job_id, null);
     await attemptCustomerEmail(item.job_id); // best-effort; never throws, never fails/retries this work item
+    // Auto Save my spot email (Jo, 8 Oct 2026): sends only when likely eligible + no insulation + size entered.
+    const { maybeAutoSendSaveSpot } = await import("./hot-leads-send.server");
+    await maybeAutoSendSaveSpot(item.job_id);
     const { error: ce } = await mine({ status: "complete", completed_at: new Date().toISOString(), locked_at: null, lease_expires_at: null, last_error: null });
     if (ce) throw new Error(ce.message);
     const { autoAdvanceJob } = await import("./autoadvance.server");
