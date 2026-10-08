@@ -189,13 +189,18 @@ export function intakeScopeArea(m: { verified_area_m2?: unknown; measured_area_m
  */
 export const CLAIM_STALE_MS = 120_000;
 export type ImportClaimState = { status: string; confirmedBy: string | null; confirmedAt: string | null; jobId: string | null };
-export function importClaimDecision(s: ImportClaimState, userId: string, nowMs: number): "claim" | "resume" | "done" | "busy" | "refuse" {
+export function importClaimDecision(s: ImportClaimState, userId: string, nowMs: number): "claim" | "done" | "busy" | "refuse" {
   if (s.status === "confirmed") return s.confirmedBy === userId && s.jobId ? "done" : "refuse";
   if (s.status !== "draft") return "refuse";
-  if (!s.confirmedBy) return "claim";
+  if (!s.confirmedBy) return "claim"; // never claimed, or safely released (a partial job_id is reused by the claimer)
   const age = s.confirmedAt ? nowMs - Date.parse(s.confirmedAt) : Infinity;
-  if (s.confirmedBy === userId) return s.jobId || age >= CLAIM_STALE_MS ? "resume" : "busy";
-  return age >= CLAIM_STALE_MS ? "claim" : "busy";
+  return age >= CLAIM_STALE_MS ? "claim" : "busy"; // a FRESH claim is busy for everyone, even the same user with a partial job
+}
+
+/** Stable key of what a submission attempted, so a retry onto a partial job cannot silently write different facts. */
+export function intakeAttemptKey(d: { facts: unknown; occupancy?: unknown; progress?: unknown; details?: unknown; installer?: unknown; electrician?: unknown }): string {
+  const norm = (v: unknown): unknown => Array.isArray(v) ? v.map(norm) : v && typeof v === "object" ? Object.fromEntries(Object.keys(v as object).sort().filter((k) => (v as Record<string, unknown>)[k] !== undefined).map((k) => [k, norm((v as Record<string, unknown>)[k])])) : v;
+  return JSON.stringify(norm({ facts: d.facts, occupancy: d.occupancy ?? null, progress: d.progress ?? null, details: d.details ?? null, installer: d.installer ?? null, electrician: d.electrician ?? null }));
 }
 
 /** What a material intake correction does to an existing quote. Accepted prices are never changed unilaterally. */

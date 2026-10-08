@@ -37,13 +37,17 @@ export async function createImportFor(userId: string, data: CreateImportInput) {
 
 async function loadImport(id: string) { const { data } = await admin.from("job_imports").select("*").eq("id", id).single(); return data; }
 
-export async function confirmImportFor(userId: string, data: ConfirmImportInput) {
+/** Exact-claim fence: only the handler holding THIS claim (user + exact claim timestamp read back from the row) may write. */
+export type ImportClaim = { id: string; userId: string; at: string };
+const fenced = <Q extends { eq: (c: string, v: string) => Q }>(q: Q, cl: ImportClaim) => q.eq("id", cl.id).eq("status", "draft").eq("confirmed_by", cl.userId).eq("confirmed_at", cl.at);
+
+export async function confirmImportFor(userId: string, data: ConfirmImportInput, run: typeof confirmClaimed = confirmClaimed) {
   const { data: imp0 } = await admin.from("job_imports").select("*").eq("id", data.importId).single();
   if (!imp0) throw new WorkflowError("This import was not found.");
   await requireMember(userId, imp0.business_id, true);
-  // Race-safe claim (compare-and-swap on confirmed_by/confirmed_at while status stays draft). Status becomes
-  // confirmed only after EVERY step below succeeded, so a crashed/partial attempt is resumed, never silently left.
-  const { importClaimDecision } = await import("./installer-intake.core");
+  // Every attempt (first, retry after release, or stale takeover) must atomically WIN the claim by compare-and-swap on
+  // the exact claim it observed. A fresh claim stays busy even when a partial job exists (no second-tab resume).
+  const { importClaimDecision, intakeAttemptKey } = await import("./installer-intake.core");
   const decision = importClaimDecision({ status: imp0.status, confirmedBy: imp0.confirmed_by, confirmedAt: imp0.confirmed_at, jobId: imp0.job_id }, userId, Date.now());
   if (decision === "done") {
     const { data: j } = await admin.from("jobs").select("job_number").eq("id", imp0.job_id!).maybeSingle();
@@ -51,25 +55,38 @@ export async function confirmImportFor(userId: string, data: ConfirmImportInput)
   }
   if (decision === "refuse") throw new WorkflowError("This import was already confirmed or discarded.");
   if (decision === "busy") throw new WorkflowError("This job is already being saved — wait a moment and try again.");
-  if (decision === "claim") {
-    let q = admin.from("job_imports").update({ confirmed_by: userId, confirmed_at: new Date().toISOString() }).eq("id", imp0.id).eq("status", "draft");
-    q = imp0.confirmed_at ? q.eq("confirmed_at", imp0.confirmed_at) : q.is("confirmed_by", null);
-    const { data: won, error: ce } = await q.select("id").maybeSingle();
-    if (ce) throw new WorkflowError(ce.message);
-    if (!won) throw new WorkflowError("This job is already being saved — wait a moment and try again.");
-  } else {
-    // resume: refresh the claim time so a parallel tab sees it as busy
-    await admin.from("job_imports").update({ confirmed_at: new Date().toISOString() }).eq("id", imp0.id).eq("status", "draft").eq("confirmed_by", userId);
+  let q = admin.from("job_imports").update({ confirmed_by: userId, confirmed_at: new Date().toISOString() }).eq("id", imp0.id).eq("status", "draft");
+  q = imp0.confirmed_by ? q.eq("confirmed_by", imp0.confirmed_by).eq("confirmed_at", imp0.confirmed_at as string) : q.is("confirmed_by", null);
+  const { data: won, error: ce } = await q.select("id, confirmed_at, job_id, confirmed_facts").maybeSingle();
+  if (ce) throw new WorkflowError(ce.message);
+  if (!won?.confirmed_at) throw new WorkflowError("This job is already being saved — wait a moment and try again.");
+  const claim: ImportClaim = { id: imp0.id, userId, at: won.confirmed_at as string };
+  const release = async () => { await fenced(admin.from("job_imports").update({ confirmed_by: null, confirmed_at: null }), claim); }; // keeps job_id
+  const attempt = intakeAttemptKey(data);
+  const resumeJobId = (won.job_id as string | null) ?? null;
+  if (resumeJobId) {
+    const prev = (won.confirmed_facts as { pending_attempt?: string } | null)?.pending_attempt;
+    if (prev && prev !== attempt) { await release(); throw new WorkflowError("This job was already partly saved with different details. Go back, keep the details you first submitted, and submit again — or ask Home Insulation Victoria to correct it."); }
   }
-  const imp = imp0;
-  const resumeJobId = imp0.job_id as string | null;
-  const release = async () => { await admin.from("job_imports").update({ confirmed_by: null, confirmed_at: null }).eq("id", imp.id).eq("status", "draft").eq("confirmed_by", userId).is("job_id", null); };
   try {
-  return await confirmClaimed(userId, data, imp, resumeJobId);
+    return await run(userId, data, imp0, resumeJobId, claim, attempt);
   } catch (e) { await release(); throw e; }
 }
 
-async function confirmClaimed(userId: string, data: ConfirmImportInput, imp: NonNullable<Awaited<ReturnType<typeof loadImport>>>, resumeJobId: string | null) {
+/** Attach the new job to the claimed import (fenced) and remember exactly what was attempted. */
+export async function linkImportJob(claim: ImportClaim, jobId: string, attempt: string) {
+  const { data, error } = await fenced(admin.from("job_imports").update({ job_id: jobId, confirmed_facts: { pending_attempt: attempt } as unknown as Json }), claim).is("job_id", null).select("id").maybeSingle();
+  if (error) throw new WorkflowError(error.message);
+  if (!data) throw new WorkflowError("This save was taken over by a newer attempt — refresh to see the job.");
+}
+/** Only the claim holder may confirm; a superseded handler cannot. */
+export async function finalizeImport(claim: ImportClaim, jobId: string, facts: Json) {
+  const { data, error } = await fenced(admin.from("job_imports").update({ status: "confirmed", confirmed_facts: facts, job_id: jobId, updated_at: new Date().toISOString() }), claim).eq("job_id", jobId).select("id").maybeSingle();
+  if (error) throw new WorkflowError(`Confirming the job: ${error.message}`);
+  if (!data) throw new WorkflowError("This save was taken over by a newer attempt — refresh to see the job.");
+}
+
+export async function confirmClaimed(userId: string, data: ConfirmImportInput, imp: NonNullable<Awaited<ReturnType<typeof loadImport>>>, resumeJobId: string | null, claim: ImportClaim, attempt: string) {
   const context = { userId, supabase: admin };
   await requireMember(context.userId, imp.business_id, true); // business owner only (staff are refused, like createImport)
   const biz = await requireApprovedPartner(imp.business_id);
@@ -114,7 +131,7 @@ async function confirmClaimed(userId: string, data: ConfirmImportInput, imp: Non
     full_name: s("full_name")!, email: s("email")!, phone: s("phone"), address_line: s("address_line")!, suburb: s("suburb"), postcode: s("postcode"),
     estimated_area_m2: area, ...(data.occupancy ? { occupancy: data.occupancy } : {}),
   }, await (await import("./pilot.server")).intakeSourceFor(context.userId, imp.business_id, "installer_import"), context.userId, { channel: "installer_sourced", businessId: imp.business_id, userId: context.userId });
-  if (!resumeJobId) { const { error: le } = await admin.from("job_imports").update({ job_id: res.job_id }).eq("id", imp.id).eq("confirmed_by", userId); if (le) throw new WorkflowError(le.message); }
+  if (!resumeJobId) await linkImportJob(claim, res.job_id, attempt);
   const chk = (r: { error: { message: string } | null }, what: string) => { if (r.error) throw new WorkflowError(`${what}: ${r.error.message}`); };
   const once = async (type: string, fn: () => Promise<unknown>) => { const { count } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", res.job_id).eq("event_type", type).contains("details", { import_id: imp.id }); if (!count) await fn(); };
   const refs = { ...(imp.external_refs as Record<string, unknown>), ...(s("external_reference") ? { reference: s("external_reference") } : {}), ...(imp.source_url ? { source_url: imp.source_url } : {}), import_id: imp.id, ...(data.installer?.owner_agreed && data.installer.quoted === "yes" ? { owner_agreed_price: true } : {}) };
@@ -191,7 +208,7 @@ async function confirmClaimed(userId: string, data: ConfirmImportInput, imp: Non
     if (de) throw new WorkflowError(`Uploaded files could not be attached to the job: ${de.message}`);
   }
   // Every step succeeded: only now is the import confirmed.
-  chk(await admin.from("job_imports").update({ status: "confirmed", confirmed_facts: c as Json, confirmed_by: context.userId, confirmed_at: new Date().toISOString(), job_id: res.job_id, updated_at: new Date().toISOString() }).eq("id", imp.id).eq("status", "draft").eq("confirmed_by", context.userId), "Confirming the job");
+  await finalizeImport(claim, res.job_id, c as Json);
   return { jobId: res.job_id, jobNumber: res.job_number };
 }
 
