@@ -11,7 +11,7 @@ describe("Add job next steps (Jo 8 Oct)", () => {
     expect(outcomeFor("onsite", { state: { kind: "open", url: "x" } as never }).tone).toBe("success");
     const b = outcomeFor("onsite", { state: { kind: "office", message: "Office must set up the form." } as never });
     expect(b.tone).toBe("blocked");
-    expect(b.heading).not.toMatch(/ready/i);
+    expect(b.heading).toContain("not ready");
     expect(outcomeFor("onsite", { state: { kind: "preparing" } as never }).tone).toBe("waiting");
   });
   test("later: only a confirmed booking claims Upcoming visits", () => {

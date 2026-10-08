@@ -95,7 +95,7 @@ export const nextStepText = (m: AddJobMode) => MODE_CHOICES.find((c) => c.mode =
 
 export type Outcome = { tone: "success" | "waiting" | "blocked"; heading: string; body: string; waitingOn: string | null };
 /** The real outcome after saving, from the server's own answer. Saving alone is never shown as the goal. */
-export function outcomeFor(mode: AddJobMode, r: { booking?: BookingOutcome; state?: OnsiteState }): Outcome {
+export function outcomeFor(mode: AddJobMode, r: { booking?: BookingOutcome; state?: OnsiteState | undefined }): Outcome {
   if (mode === "existing") return { tone: "waiting", heading: "Sent to Home Insulation Victoria", body: "Nobody has been contacted yet. Next, Home Insulation Victoria contacts the owner for the eligibility check and quote approval, then lets you know when they accept.", waitingOn: "Home Insulation Victoria" };
   if (mode === "later") {
     if (r.booking === "confirmed") return { tone: "success", heading: "Visit booked", body: "It's in Upcoming visits under My work. On the day, open the job and complete the Ready Check form.", waitingOn: null };
