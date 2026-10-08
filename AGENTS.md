@@ -14,7 +14,8 @@
 - Email variants reuse Step 3; avoids drift.
 - Group B reuses locked Group A email layout; submissions queue office review only, with saving guarded by `campaignSaveAllowed`. Why: declarations never approve eligibility or save spots.
 - Lead campaigns share `lead_campaign_responses`; post-Gate-1 email selection is centralised in `lead-email-routing.server.ts`, while each sender remains consent, opt-out, TEST and idempotency guarded. Why: one automatic outcome per enquiry without accidental sends.
-- Presentation lives in `portal-presentation.core.ts`; isolated admin preview uses `operations-preview.core.ts` + SELECT-only loader, never production navigation/workflow. Why: one reversible classifier for all preview counts/details.
+- Staff portal presentation-only derivations and exact disclosure targets live in pure `src/lib/portal-presentation.core.ts`; they may label existing facts but never decide workflow or eligibility. Why: focused UI tests must not duplicate or alter domain rules.
+- Isolated admin preview uses `operations-preview.core.ts` + SELECT-only loader, never production navigation/workflow or eligibility decisions. Why: one reversible classifier for all preview counts/details.
 - Service Coverage is a read-only operational summary derived from approved partner credentials, verified postcodes, active enquiries, and approved workers; it never assigns work or changes partner status. Why: coverage planning must not trigger operational actions.
 - Domain, workflow, payment, compliance and integration rules live in `src/lib/AGENTS.md`; read it before changing `src/lib`. Why: keeps this file small.
 - Server functions are literal `createServerFn(...).middleware(...).inputValidator(...).handler(...)` chains; never import `@tanstack/react-start/server` in `*.functions.ts`. Why: factories/that import break the client bundle.

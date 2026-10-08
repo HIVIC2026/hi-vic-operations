@@ -1,12 +1,20 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { buildOperationsPreview, classifyOperation, communicationLabel, type OperationInput } from "../src/lib/operations-preview.core";
+import { buildOperationsPreview, classifyOperation, communicationLabel, sendingControlState, type OperationInput } from "../src/lib/operations-preview.core";
 
 const now = Date.parse("2026-10-08T06:44:00Z");
+const sent = (purpose: string, status = "sent", actionKey?: string) => ({ purpose, status, at: "2026-10-01T00:00:00Z", actionKey });
 export function fixture(id: string, patch: Partial<OperationInput> = {}): OperationInput {
   return { id, jobNumber: `HV-${id}`, owner: "TEST Owner", address: "18 Test Street, Melbourne VIC 3000", source: "website", channel: "hivic_sourced", businessUnit: "hivic", originatingInstaller: null, assignedInstaller: null, eligibility: "likely_eligible", eligibilityReason: null, verifiedEligibility: null, insulation: "none", mediaCount: 0, mediaReview: null, actualHandoff: false, evidence: [], communications: [], failures: [], facts: { id, stage: "preliminary_estimate_ready", createdAt: "2026-09-01T00:00:00Z", lastActivityAt: null, enteredStageAt: null }, ...patch };
 }
 describe("isolated operations presentation", () => {
+  test("insulation sending composes approval with BOTH global locks", () => {
+    expect(sendingControlState(true, false, true)).toBe("Paused");
+    expect(sendingControlState(true, true, false)).toBe("Paused");
+    expect(sendingControlState(false, true, true)).toBe("Paused");
+    expect(sendingControlState(true, true, true)).toBe("Enabled");
+    expect(sendingControlState(true, undefined, true)).toBe("Unknown");
+  });
   test("saved-only legacy scheduling remains a lead, capacity never overdue", () => {
     const input = fixture("saved"); input.facts.stage = "ready_check_ready_to_schedule";
     input.facts.campaign = { spotSavedAt: "2026-09-01T00:00:00Z", optedOutAt: null, videoRequested: false, mediaReceivedAt: null, deskCheckStatus: null, createdAt: "2026-09-01T00:00:00Z" };
@@ -26,7 +34,7 @@ describe("isolated operations presentation", () => {
     expect(r.bucket).toBe("Active jobs"); expect(r.nextAction).not.toMatch(/booked|sent/i);
   });
   test("received vs missing evidence and responsible role", () => {
-    const r = classifyOperation(fixture("evidence", { actualHandoff: true, evidence: [{ label: "Safety evidence", status: "outstanding", role: "electrician" }, { label: "Ceiling pictures", status: "uploaded", role: "installer" }] }), now);
+    const r = classifyOperation(fixture("evidence", { facts: { id: "evidence", stage: "ready_check_complete", createdAt: "2026-09-01", lastActivityAt: null, enteredStageAt: null }, actualHandoff: true, evidence: [{ label: "Safety evidence", status: "outstanding", role: "electrician", gate: "assessment" }, { label: "Ceiling pictures", status: "uploaded", role: "installer", gate: "assessment" }] }), now);
     expect(r.tasks.some((t) => t.party === "Electrician" && t.label.includes("not received"))).toBe(true);
     expect(r.tasks.some((t) => t.party === "Office" && t.label.includes("received, verification pending"))).toBe(true);
   });
@@ -72,9 +80,9 @@ describe("isolated operations presentation", () => {
     expect(result.reconciliation.uniqueJobs).toBe(result.reconciliation.bucketSum); expect(result.reconciliation.stageSum).toBe(result.reconciliation.bucketSum); expect(result.reconciliation.excluded).toBe(2);
   });
   test("concurrent tasks count distinct jobs separately from tasks", () => {
-    const result = buildOperationsPreview([fixture("a", { actualHandoff: true, evidence: [{ label: "A", status: "uploaded" }, { label: "B", status: "uploaded" }] })], [], now);
+    const result = buildOperationsPreview([fixture("a", { facts: { id: "a", stage: "ready_check_complete", createdAt: "2026-09-01", lastActivityAt: null, enteredStageAt: null }, actualHandoff: true, evidence: [{ label: "A", status: "uploaded", gate: "assessment" }, { label: "B", status: "uploaded", gate: "assessment" }] })], [], now);
     expect(result.stages[0]?.parties.find((p) => p.party === "Office")?.jobs).toBe(1);
-    expect(result.stages[0]?.parties.find((p) => p.party === "Office")?.tasks).toBe(3); // handoff arranging + two received evidence checks
+    expect(result.stages[0]?.parties.find((p) => p.party === "Office")?.tasks).toBe(2); // two received evidence checks; sync task belongs to System
   });
   test("route and endpoint both require admin; direct only; no mutations", () => {
     const route = readFileSync("src/routes/_authenticated/admin.operations-preview.tsx", "utf8");
@@ -83,8 +91,81 @@ describe("isolated operations presentation", () => {
     expect(route).toContain('/_authenticated/admin/operations-preview');
     expect(readFileSync("src/routes/_authenticated/admin.tsx", "utf8")).toContain('.admin');
     expect(endpoint).toContain('.middleware([requireSupabaseAuth])'); expect(endpoint.indexOf('await requireAdmin')).toBeLessThan(endpoint.indexOf('client.server'));
-    expect(server).toContain(".eq('business_unit', 'hivic').neq('source', 'qa_test')");
+    expect(server).toContain(".eq('business_unit', 'hivic').or('source.is.null,source.neq.qa_test')");
     expect(server).not.toMatch(/\.(insert|update|delete|upsert|rpc)\(|maybeAutoRoute|sendSaveMySpot|fetch\(/);
     expect(readFileSync("src/lib/office-nav.ts", "utf8")).not.toContain("operations-preview");
+  });
+  test("future installation and PIISA requirements do not block leads now", () => {
+    const r = classifyOperation(fixture("future", { evidence: [{ label: "PIISA", gate: "installation", status: "outstanding" }, { label: "Completed photos", gate: "installation", status: "outstanding" }] }), now);
+    expect(r.bucket).toBe("Leads"); expect(r.blocked).toBe(false); expect(r.tasks).toHaveLength(1);
+    expect(r.evidence).toHaveLength(2);
+    expect(classifyOperation(fixture("unknown-gate", { evidence: [{ label: "Unknown", gate: "new_gate", status: "outstanding" }] }), now).bucket).toBe("Needs classification");
+  });
+  test("legacy stage order alone is not PIESA completion proof; installation guards establish prior gates", () => {
+    const f = fixture("legacy", { actualHandoff: true, evidence: [{ label: "PIESA", gate: "electrical", status: "outstanding" }] });
+    f.facts.stage = "awaiting_electrician";
+    expect(classifyOperation(f, now).bucket).toBe("Needs classification");
+    f.facts.stage = "installation_scheduling";
+    expect(classifyOperation(f, now).bucket).toBe("Active jobs");
+    expect(classifyOperation(f, now).tasks.some(t => t.label === "PIESA: not received")).toBe(true);
+  });
+  test("unrelated/manual and ambiguous legacy campaign emails never prove photos or estimate contact", () => {
+    for (const purpose of ["followup", "email", "existing_leads_launch_v1", "area_unavailable"]) {
+      const r = classifyOperation(fixture(purpose, { communications: [sent(purpose)] }), now);
+      expect(r.process).toBe("Eligibility & estimate");
+      const photos = classifyOperation(fixture(purpose, { insulation: "present", eligibility: "needs_onsite_confirmation", insulationOnlyPassed: true, communications: [sent(purpose)] }), now);
+      expect(photos.tasks[0]?.party).toBe("System");
+    }
+    const photoMail = sent("existing_leads_launch_v1", "sent", "existing_leads_launch_v1:insulation_details:x");
+    expect(classifyOperation(fixture("photo-mail", { insulation: "present", eligibility: "needs_onsite_confirmation", insulationOnlyPassed: true, communications: [photoMail] }), now).tasks[0]?.party).toBe("Homeowner");
+    expect(classifyOperation(fixture("offer-mail", { communications: [sent("existing_leads_launch_v1", "sent", "existing_leads_launch_v1:save_my_spot:x")] }), now).process).toBe("Offer & owner response");
+  });
+  test("latest purpose outcome recovers failures without deleting history; unknown send protects against retry", () => {
+    const history = [{ ...sent("step3_estimate", "failed"), recordedAt: "2026-10-01T00:00:00Z" }, { ...sent("step3_estimate"), recordedAt: "2026-10-02T00:00:00Z" }];
+    const r = classifyOperation(fixture("recovered", { communications: history }), now);
+    expect(r.blocked).toBe(false); expect(r.process).toBe("Offer & owner response"); expect(r.communications).toHaveLength(2);
+    const unknown = classifyOperation(fixture("unknown-send", { communications: [...history, { ...sent("step3_estimate", "sent_unknown"), recordedAt: "2026-10-03T00:00:00Z" }] }), now);
+    expect(unknown.process).toBe("Eligibility & estimate"); expect(unknown.nextAction).toContain("do not resend"); expect(unknown.nextAction).not.toContain("failed");
+  });
+  test("null source survives scope and is visibly unclassified", () => {
+    const r = buildOperationsPreview([fixture("null", { source: null, channel: null })], [], now);
+    expect(r.rows).toHaveLength(1); expect(r.totals["Needs classification"]).toBe(1); expect(r.reconciliation.excluded).toBe(0);
+  });
+  test("installation deadline does not make quote or payment action overdue", () => {
+    for (const status of ["issued", "accepted"]) {
+      const f = fixture(status); f.facts.stage = status === "issued" ? "awaiting_quote_acceptance" : "measured_quote_accepted";
+      f.facts.quote = { status, releaseState: "released", holdReason: null, sentAt: "2026-10-01", acceptedAt: status === "accepted" ? "2026-10-02" : null };
+      f.facts.installDeadline = "2026-10-01";
+      const r = classifyOperation(f, now);
+      expect(r.tasks[0]?.overdue).toBe(false); expect(r.tasks[0]?.dueAt).toBeNull();
+      expect(r.tasks.find(t => t.label.includes("commence"))?.overdue).toBe(true);
+      f.paymentDueAt = "2026-10-01";
+      if (status === "accepted") expect(classifyOperation(f, now).tasks[0]?.overdue).toBe(true);
+      f.facts.installedAt = "2026-10-02";
+      expect(classifyOperation(f, now).tasks.some(t => t.label.includes("commence"))).toBe(false);
+    }
+  });
+  test("draft/historic or unconfirmed quotes alone are not operational handoffs", () => {
+    for (const status of ["draft", "declined", "expired", "superseded", "issued", "accepted"]) {
+      const f = fixture(status); f.facts.quote = { status, releaseState: "queued", holdReason: null, sentAt: null, acceptedAt: null };
+      expect(classifyOperation(f, now).bucket).toBe("Leads");
+      f.facts.rcOfferAt = "2026-10-08";
+      expect(classifyOperation(f, now).bucket).toBe("Active jobs");
+    }
+    for (const status of ["issued", "accepted"]) {
+      const f = fixture(status); f.facts.quote = { status, releaseState: "released", holdReason: null, sentAt: "2026-10-08", acceptedAt: "2026-10-08" };
+      expect(classifyOperation(f, now).bucket).toBe("Active jobs");
+    }
+  });
+  test("notified ineligible enquiry has no mandatory closure task", () => {
+    const r = classifyOperation(fixture("notified", { eligibility: "does_not_appear_eligible", communications: [sent("preliminary_ineligible")] }), now);
+    expect(r.bucket).toBe("Leads"); expect(r.tasks).toHaveLength(0); expect(r.nextAction).toBe("No outstanding task recorded");
+  });
+  test("otherwise-eligible insulation group requires real insulationOnly pass", () => {
+    for (const passed of [undefined, false, true]) {
+      const r = classifyOperation(fixture("checks", { insulation: "present", eligibility: "needs_onsite_confirmation", insulationOnlyPassed: passed }), now);
+      expect(r.eligibilityGroup.includes("Otherwise eligible")).toBe(passed === true);
+      if (!passed) expect(r.eligibilityLabel).toContain("other eligibility checks");
+    }
   });
 });
