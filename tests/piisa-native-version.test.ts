@@ -2,7 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { a3Template, OPT_OTHER } from "./helpers/a3-template";
 import { A3_CREW_NAME_IDS, A3_CREW_OTHER_FIELDS, A3_NATIVE_IDS, a3CrewChoices } from "../src/lib/piisa-a3.core";
 import published from "../src/lib/piisa-direct-published.data.json";
-import { buildOfficialPrefill } from "../src/lib/mitti.core";
+import { flatten } from "../src/lib/mitti.core";
+import finalPublished from "../src/lib/piisa-single-name-published.data.json";
 import { a3Signature, parseA3Answers } from "../src/lib/piisa-a3.core";
 import { PIISA_DIRECT_SIGNATURE_ID, PIISA_DIRECT_VERSION, resolveDirectCrew, directCrewLabels, resolvePiisaNativeVersion, stagedDirectCrewChoices, stagedDirectCrewPrefill, stagedDirectSchemaProblems } from "../src/lib/piisa-native-version.core";
 
@@ -99,4 +100,16 @@ test("published required and conditional crew structure changes cannot activate"
   };
   expect(resolvePiisaNativeVersion(change("required")).active).toBe(false);
   expect(resolvePiisaNativeVersion(change("condition")).active).toBe(false);
+});
+
+test("actual final revision 19 is registered but absent completion field blocks activation", () => {
+  const r = resolvePiisaNativeVersion(finalPublished);
+  expect(r.active).toBe(false);
+  expect(r.problems.some((p) => p.includes("84a8b69b-efd5-4830-9da7-66958cbfdb6e"))).toBe(true);
+  expect(r.problems.some((p) => p.includes("differ from verified"))).toBe(false);
+});
+test("final published definition removed four duplicate signer and metadata inputs", () => {
+  const ids = new Set(flatten(finalPublished).map((e) => e.id));
+  for (const id of ["f7032d72-4135-4165-bd50-32d84a66d085", "cda99bb8-8865-46a1-928a-2267175a1e2a", "f3245d43-ea77-11e1-aff1-0800200c9a66", "2e485f38-8ce2-4312-a06c-bd4b3a10e8ce"]) expect(ids.has(id)).toBe(false);
+  expect(ids.has("78e550a4-1c8b-4b59-be77-64a5c09ba848")).toBe(true);
 });

@@ -14,3 +14,7 @@ Read-only existing Mitti integration returned published revision `19-a7ea04e7fa3
 Expected completion date `84a8b69b-efd5-4830-9da7-66958cbfdb6e` is absent from the actual published definition. Latest activation remains paused rather than silently dropping Jo's required same-day editable completion field. Native restoration and a new complete published readback are required.
 
 No native write, portal publication, real audit creation/signing, worker approval or communication performed. Captured signature tests are synthetic; no real signed audit tested.
+
+## Checks
+
+Nine isolated focused test files: personal signature, native version, declaration, actual products, product sync/Part 7, evidence, historical mapping, STOP gates and prefill. Final results recorded after execution; no manual production build performed (preview harness checks compilation).
