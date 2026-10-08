@@ -27,6 +27,8 @@ export type IntakeInput = {
   insulation: ExistingInsulation | null; quoteFileCount: number; evidenceAck: boolean;
   /** null = not chosen yet. Omitted (legacy callers) = "have_quote". */
   quoteStatus?: QuoteStatus | null;
+  /** New intake "Yes, measured and quoted": area + insulation required. Later edits leave them optional. */
+  requireMeasured?: boolean;
 };
 
 const num = (s: string) => { const t = s.trim(); if (!t) return null; const n = Number(t.replace(/[$,\sRr]/g, "")); return Number.isFinite(n) ? n : NaN; };
@@ -44,6 +46,11 @@ export function intakeProblems(i: IntakeInput): string[] {
   const qs = i.quoteStatus === undefined ? "have_quote" : i.quoteStatus;
   if (!qs) out.push("Choose the quote status");
   if (qs === "have_quote") {
+    // "Yes, measured and quoted": the measured area and existing insulation are required (Jo, 9 Oct).
+    if (i.requireMeasured) {
+      if (area == null) out.push("Enter the measured ceiling area (m²)");
+      if (!i.insulation) out.push("Choose the existing insulation");
+    }
     const amount = num(i.amount);
     const manual = amount != null && !Number.isNaN(amount) && amount > 0;
     if (amount != null && (Number.isNaN(amount) || amount <= 0 || amount > 1_000_000)) out.push("Check the quote amount inc GST");
@@ -104,10 +111,17 @@ export function installerQuoteReadiness(f: QuoteReadinessFacts): { ready: boolea
 }
 
 /** Actual release (send) needs a current granted owner_contact_consents row and fee awareness on record — an event alone is not consent. */
-export function installerQuoteReleaseBlockers(r: { consentStatus: string | null; feeAwarenessRecorded: boolean }): string[] {
+/**
+ * Owner quote release holds. Fee awareness must match the CURRENT electrician payer: a declaration made for one payer
+ * (e.g. HIV's $349 PIESA) does not cover another (own electrician billing directly). Office records (payer null) count.
+ * Undecided electrician holds the quote until the owner's electrician cost is known and disclosed.
+ */
+export function installerQuoteReleaseBlockers(r: { consentStatus: string | null; feeAwarenessRecorded: boolean; feeAwarenessPayer?: ElectricianPayer | null; electricianPayer?: ElectricianPayer }): string[] {
   const b: string[] = [];
   if (r.consentStatus !== "granted") b.push("No current owner contact consent on record");
-  if (!r.feeAwarenessRecorded) b.push("Owner fee awareness (AP management and PIESA fees) not recorded yet");
+  if (r.electricianPayer === "undecided") b.push("Electrician not decided yet — the owner's electrician cost must be known and disclosed before the quote");
+  if (!r.feeAwarenessRecorded) b.push("Owner fee awareness not recorded yet");
+  else if (r.electricianPayer && r.electricianPayer !== "undecided" && r.feeAwarenessPayer && r.feeAwarenessPayer !== r.electricianPayer) b.push("Owner fee awareness was given for a different electrician arrangement — record it again for the current one");
   return b;
 }
 
@@ -270,10 +284,42 @@ export function intakeOriginalConditionMedia(existing: string | null | undefined
 // ---- Who will organise this job? (Jo, 8 Oct 2026). Coordination responsibility only — never waives any gate. ----
 export type Coordination = "hivic_managed" | "self_managed";
 export const COORDINATION_VERSION = "coordination-2026-10-08";
+// Jo, 9 Oct 2026 01:17 Sydney: organise choice comes FIRST on its own screen, before "Have you measured and quoted?".
+export const ORGANISE_QUESTION = "How would you like to organise this job?";
 export const COORDINATION_CHOICES: { value: Coordination; title: string; badge?: string; body: string }[] = [
-  { value: "hivic_managed", title: "Home Insulation Victoria manages the process", badge: "Recommended", body: "We coordinate bookings, guide you through the required checks and documentation, and prepare your VEEC submission once the job meets all eligibility, compliance and evidence requirements." },
-  { value: "self_managed", title: "I'll organise the job myself", body: "You coordinate the owner, electrician and installation, meet all required compliance steps and deadlines, and provide the complete evidence pack for our review." },
+  { value: "hivic_managed", title: "Home Insulation Victoria manages the process", badge: "Recommended", body: "We coordinate bookings, the required documentation, and your VEEC submission once all requirements are met." },
+  { value: "self_managed", title: "I’ll manage the job myself", body: "You coordinate the owner, electrician and installation, meet the required steps and deadlines, and provide the complete evidence for our review." },
 ];
+
+// ---------- Jo, 9 Oct 2026: measured/quoted question, electrician payer and installer fee declaration ----------
+export const INSTALLER_CONTACT_PERMISSION = "The owner has given permission for Home Insulation Victoria to contact them to check eligibility and discuss this job.";
+export const MEASURED_QUOTED_QUESTION = "Have you measured and quoted this job?";
+export const MEASURED_QUOTED_CHOICES: { value: QuoteStatus; label: string }[] = [{ value: "have_quote", label: "Yes" }, { value: "not_quoted", label: "No" }];
+export const NOT_MEASURED_NOTE = "That’s fine — we’ll save the job now. Add your measurements and quote on this same job when ready.";
+/** Who arranges/pays the electrician on an installer-supplied job (separate from who manages the job). */
+export type ElectricianPayer = "hivic" | "own" | "undecided";
+export const ELECTRICIAN_PAYER_CHOICES: { value: ElectricianPayer; label: string; body: string }[] = [
+  { value: "hivic", label: "Home Insulation Victoria arranges — $349 including GST", body: "We arrange an approved electrician. The $349 PIESA fee is on the owner’s quote." },
+  { value: "own", label: "I’ll use my own electrician", body: "Your electrician invoices the owner directly at the price agreed with them. Our $349 PIESA fee is not charged. The office still verifies the electrician, the PIESA, any conditions, evidence and notices before work." },
+  { value: "undecided", label: "To be arranged", body: "You can save now. The owner quote waits until the electrician and their cost are known." },
+];
+export const FEE_AWARENESS_HIV_REC = "The owner has been advised of the $349 PIESA fee and $349 AP management fee, both including GST.";
+export const FEE_AWARENESS_OWN_REC = "The owner has been advised of the $349 AP management fee including GST and that their electrician invoices them separately at the agreed price.";
+export const FEE_AWARENESS_VERSION = "installer-fee-awareness-2026-10-09";
+export const feeAwarenessText = (p: ElectricianPayer | null): string | null => (p === "hivic" ? FEE_AWARENESS_HIV_REC : p === "own" ? FEE_AWARENESS_OWN_REC : null);
+/** jobs.electrician_choice -> payer. HIV organise/matched/books = HIV; preferred/nominated/own = direct own REC. */
+export function payerFromChoice(choice: string | null | undefined): ElectricianPayer {
+  if (choice === "hivic_organise" || choice === "hivic_matched" || choice === "installer_own_hivic_books") return "hivic";
+  if (choice === "preferred" || choice === "nominated" || choice === "installer_own") return "own";
+  return "undecided";
+}
+/** Next action for an installer-supplied job by route x measured/quoted. */
+export function intakeNextAction(c: Coordination | null, quoted: boolean): string {
+  if (quoted) return "Home Insulation Victoria checks the owner's eligibility, then prepares the owner quote.";
+  return c === "self_managed"
+    ? "Home Insulation Victoria checks the owner's eligibility. Then measure and quote the job and add it here."
+    : "Home Insulation Victoria checks the owner's eligibility, then arranges the Ready Check.";
+}
 export const SELF_MANAGED_ACK = "I understand I am responsible for organising the required assessments and installation, meeting the applicable requirements and deadlines, and supplying complete, accurate evidence. Missing, late or unacceptable evidence may prevent this job from receiving the rebate.";
 export const VEEC_NOTE = "VEEC claims can only be submitted once all requirements are met. Final registration is subject to the regulator's approval.";
 
