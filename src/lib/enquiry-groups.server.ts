@@ -245,3 +245,29 @@ export async function prepareEnquiryEmails(ids: string[], sel: Selected, withHtm
     sendState: "Review only – nothing has been sent, queued or saved. Sending stays locked.",
   };
 }
+
+/** Signed short-lived links to a lead's uploaded photos/videos (intake_media, private job-files bucket). Admin only. */
+export async function loadLeadMedia(jobId: string) {
+  const docs = must(await admin.from("documents").select("id, kind, mime_type, storage_path, created_at").eq("job_id", jobId).eq("kind", "intake_media").order("created_at"), "Lead media") ?? [];
+  const files: { id: string; mimeType: string | null; url: string; at: string | null }[] = [];
+  for (const d of docs) {
+    const signed = await signFile("job-files", d.storage_path, 3600);
+    if (signed.data) files.push({ id: d.id, mimeType: d.mime_type, url: signed.data.signedUrl, at: d.created_at });
+  }
+  return { files };
+}
+
+/** Records the office photo/video review (Jo, 8 Oct): below_r2 → Save my spot offer; over_r2 → ineligible; unclear → more pictures.
+ *  Writes one permanent engagement event; the latest event decides the lead's group. Never changes the Gate 1 audit. */
+export async function reviewLeadMedia(jobId: string, outcome: MediaReviewOutcome, by: string | null) {
+  if (!MEDIA_OUTCOMES.includes(outcome)) throw new Error("Unknown review outcome.");
+  const job = must(await admin.from("jobs").select("id, job_number").eq("id", jobId).maybeSingle(), "Job");
+  if (!job) throw new Error("Job not found.");
+  const now = new Date();
+  const ins = await admin.from("customer_engagement_events").insert({
+    job_id: jobId, event_type: "intake_media_reviewed", occurred_at: now.toISOString(), source: "office",
+    metadata: { outcome, by }, dedupe_key: `intake_media_reviewed:${jobId}:${now.getTime()}`,
+  });
+  if (ins.error) throw new Error(`Review could not be saved: ${ins.error.message}`);
+  return { ok: true as const, outcome };
+}
