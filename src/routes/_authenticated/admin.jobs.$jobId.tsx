@@ -27,7 +27,8 @@ import { PiisaPanel } from "@/components/portal/piisa-panel";
 import { EligibilityCard } from "@/components/portal/eligibility-card";
 import { IntakeSummary } from "@/components/portal/intake";
 import { ClearTimeline } from "@/components/portal/waiting";
-import { CompactJobStatus } from "@/components/portal/CompactJobStatus";
+import { PaperworkStrip } from "@/components/portal/paperwork";
+import { CompactJobStatus, CurrentJobBlockers } from "@/components/portal/CompactJobStatus";
 import { JobIdentity, RecordDisclosure, SubHeading, usePortalTargetNavigation, type RecordGroup } from "@/components/portal/job-workspace";
 import { AllDocuments, Correspondence, ExportJobPack, JobTimeline, RetentionCard, SectionDocuments } from "@/components/portal/jobfile";
 import type { PortalTarget } from "@/lib/portal-presentation.core";
@@ -85,7 +86,7 @@ function JobDetail() {
       <JobIdentity jobId={jobId} job={job} onOpen={openTarget} />
       <CompactJobStatus jobId={jobId} onOpen={openTarget} />
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-bold">Current blockers</h2><Button size="sm" onClick={() => setUpdating(!updating)} aria-expanded={updating} aria-controls="job-update-controls">Update job</Button></div>
-      <BlockersPanel jobId={jobId} />
+      <CurrentJobBlockers jobId={jobId} />
       {updating && <section id="job-update-controls" aria-label="Guarded job controls" className="my-3 border-y border-line py-3">
         <h2 className="text-sm font-bold">Existing guarded controls</h2>
         <p className="my-2 text-sm text-sub">Eligibility correction, hold, resume and cancellation use the existing audited actions. A manual Check ↔ Save spot move is not available: saving a spot is an owner response, not a stage switch.</p>
@@ -116,7 +117,7 @@ function JobDetail() {
       <h2 className="mb-1 text-sm font-bold">Forms & evidence</h2>
       <div className="mb-6 rounded-md border bg-card">
         <RecordDisclosure {...g("enquiry")} title="Enquiry" summary="Estimate, website intake and consent">
-          <AdminEstimateCard jobId={jobId} />
+          <PaperworkStrip jobId={jobId} /><AdminEstimateCard jobId={jobId} />
           <SubHeading>Contact consent and photos</SubHeading>
           <div id="panel-intake-consent" className="scroll-mt-4"><IntakeSummary jobId={jobId} /></div><SectionDocuments jobId={jobId} categories={["Property"]} />
         </RecordDisclosure>
