@@ -63,7 +63,7 @@ function HotLeadsPage() {
   }
 
   const table = (list: Row[], label: string) => <section className="mt-6"><h2 className="font-display text-xl font-bold">{label} ({list.length})</h2>
-    <div className="mt-3 overflow-x-auto rounded-2xl border bg-card"><table className="w-full min-w-[1100px] text-left text-sm"><thead className="bg-muted"><tr>{["", "Job", "Name", "Address", "Region", "m²", "Price", "VEU discount", "Trades for this area", "Status"].map((h) => <th key={h} className="p-3">{h}</th>)}</tr></thead>
+    <div className="mt-3 overflow-x-auto rounded-2xl border bg-card"><table className="w-full min-w-[1100px] text-left text-sm"><thead className="bg-muted"><tr>{["", "Job", "Name", "Address", "Region", "m²", "Price", "VEU discount", "Trades for this area", "Email sent", "Spot saved", "Unactioned enquiry"].map((h) => <th key={h} className="p-3">{h}</th>)}</tr></thead>
       <tbody className="divide-y">{list.map((r) => <tr key={r.id} className={r.flags.length ? "bg-accent/40" : ""}>
         <td className="p-3"><input type="checkbox" className="h-5 w-5" aria-label={`Select ${r.jobNumber}`} disabled={r.status !== "not_sent"} checked={selected.has(r.id)} onChange={() => toggle(r.id)} /></td>
         <td className="p-3"><Link to="/admin/jobs/$jobId" params={{ jobId: r.id }} className="font-semibold text-primary underline">{r.jobNumber}</Link></td>
@@ -75,7 +75,9 @@ function HotLeadsPage() {
         <td className="p-3">{r.address}</td><td className="p-3">{r.region}</td><td className="p-3">{r.area}</td>
         <td className="p-3 font-semibold">{money(r.price)}</td><td className="p-3">{money(r.discount)}</td>
         <td className="p-3 text-xs"><div>Installers: {r.installers.join(", ") || "—"}</div><div>Electricians: {r.electricians.join(", ") || "—"}</div></td>
-        <td className="p-3"><span className={r.status === "spot_saved" ? "font-semibold text-estimate-green" : r.status === "opted_out" ? "text-destructive" : ""}>{HOT_STATUS_LABEL[r.status]}</span>{r.sentAt && <div className="text-xs text-muted-foreground">{when(r.sentAt)}</div>}</td>
+        <td className="p-3">{r.sentAt ? <span className="text-xs">{when(r.sentAt)}</span> : "—"}</td>
+        <td className="p-3">{r.spotSavedAt ? <span className="text-xs font-semibold text-estimate-green">{when(r.spotSavedAt)}</span> : "—"}</td>
+        <td className="p-3">{r.status === "opted_out" ? <span className="text-xs font-semibold text-destructive">Opted out</span> : r.sentAt && !r.spotSavedAt ? <span className="text-xs font-semibold">Yes — sent, no spot saved</span> : "—"}</td>
       </tr>)}</tbody></table></div></section>;
 
   return <AppShell wide><div className="space-y-4">
