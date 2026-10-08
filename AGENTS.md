@@ -13,7 +13,7 @@
 # Project rules
 - PIISA schema/prefill/copy changes require observed IDs and current-definition validation; media is not structured product data. Why: protect crew/statutory output.
 - PIISA maps registered whole definitions; audits retain crew/signature schema. Lead signatures use captured attribution/time. Product review needs same-audit photo fingerprints and human-confirmed area, never quote defaults. Why: history/fail closed.
-- Email variants reuse Step 3; no drift.
+- Emails reuse Step 3; no drift.
 - Staff portal presentation-only derivations and exact disclosure targets live in pure `src/lib/portal-presentation.core.ts`; they may label existing facts but never decide workflow or eligibility. Why: focused UI tests must not duplicate or alter domain rules.
 - Domain, workflow, payment, compliance and integration rules live in `src/lib/AGENTS.md`; read it before changing `src/lib`. Why: keeps this file small.
 - Server functions are literal `createServerFn(...).middleware(...).inputValidator(...).handler(...)` chains; never import `@tanstack/react-start/server` in `*.functions.ts`. Why: factories/that import break the client bundle.
@@ -30,5 +30,5 @@
 - Office operations categories and compact job status reuse the operations read classifier and one shared Query cache; legacy preview remains direct-link. Why: unique counts and factual precedence must agree without navigation polling.
 - Installer Add job is one intake (`installer-intake-flow.tsx`) on shared CustomerFields and the guarded import handlers; legacy add/bulk bookmarks redirect there (office keeps batch history). Why: one form, no duplicate or obsolete questions.
 - Intake pages share progress reads without error fallbacks; private files use signed viewers, durable controls and explicit read/upload failures; evidence success requires confirmation. Why: truthful progress and retries.
-- Installer QA: `--installer-app-only`, no signing/office actions. Why: bounded.
+- Installer QA: `--installer-app-only`, no signing/office. Why: bounded.
 - Intake serializes files, preserves partial uploads/provenance; editors keep job identity, lock pending inputs and preserve dirty drafts on read errors. Why: safe retries/saves.
