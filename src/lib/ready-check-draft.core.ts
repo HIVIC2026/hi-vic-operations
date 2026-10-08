@@ -65,8 +65,3 @@ export function rcProgress(obs: Observations, evidence: RcEvidence[]): RcProgres
     outstandingCount: missingAnswers.length + missing.length + rejected.length + awaitingReview.length,
   };
 }
-
-/** Pre-start wording for unanswered original-condition items (blocks works through the existing pre-start lock). */
-export function rcWorksFailures(blockers: string[]): string[] {
-  return blockers.map((b) => `Ready Check original condition not recorded: ${b}.`);
-}
