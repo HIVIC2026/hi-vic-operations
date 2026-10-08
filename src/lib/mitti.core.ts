@@ -527,14 +527,17 @@ export type OfficialPrefillItem = { itemId: string; label: string; kind: string;
  * (`occurrence`). Attachments can't be pre-loaded into Mitti, and choice values must match an option exactly. */
 /** Keyed mapping contract for a native template: portal item id -> stable Mitti item ids and/or plain-language label
  * aliases. The official wording stays in OFFICIAL_ITEMS / the DOCX; only the native Mitti label may be simpler. */
-export type NativeMapping = Record<string, { itemIds?: string[]; labels?: string[] }>;
+export type NativeMapping = Record<string, { itemIds?: string[]; labels?: string[]; byRow?: boolean }>;
 
-export function buildOfficialPrefill(template: Any, items: (OfficialPrefillItem & { occurrence: number })[], mapping: NativeMapping = {}) {
+export function buildOfficialPrefill(template: Any, items: (OfficialPrefillItem & { occurrence: number; row?: number })[], mapping: NativeMapping = {}) {
   const entries = flatten(template);
   const header_items: Any[] = [], rows: Any[] = [], skipped: string[] = [];
   for (const f of items) {
     const m = mapping[f.itemId];
-    const byId = m?.itemIds?.length ? entries.find((x) => m.itemIds!.includes(String(x.id))) : undefined;
+    // byRow: itemIds[row] is the exact native field for that row — never another row's or the first ID.
+    const wantId = m?.byRow ? m.itemIds?.[f.row ?? 0] : undefined;
+    if (m?.byRow) { const hit = wantId ? entries.find((x) => String(x.id) === wantId) : undefined; if (!hit) { skipped.push(`${f.itemId}${f.row ? ` row ${f.row + 1}` : ""} (not on the Mitti form)`); continue; } }
+    const byId = m?.byRow ? entries.find((x) => String(x.id) === wantId) : m?.itemIds?.length ? entries.find((x) => m.itemIds!.includes(String(x.id))) : undefined;
     // Repeated native labels (crew rows, EEC numbers) resolve by OCCURRENCE in form order, never first-match.
     const byAlias = !byId && m?.labels?.length ? entries.filter((x) => m.labels!.some((l) => norm(l) === x.norm))[f.occurrence] : undefined;
     const e = byId ?? byAlias ?? entries.filter((x) => x.norm === norm(f.label))[f.occurrence];
