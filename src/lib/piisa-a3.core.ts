@@ -259,7 +259,7 @@ export function parseA3Answers(audit: unknown): { answers: OfficialAnswers; crew
     if (YN_IDS.has(id)) { const y = yn(v); if (y) answers[id] = y; continue; }
     answers[id] = v;
   }
-  if (answers.startDate != null && answers["p2.installDate"] == null) answers["p2.installDate"] = answers.startDate;
+  if (answers["startDate"] != null && answers["p2.installDate"] == null) answers["p2.installDate"] = answers["startDate"];
   // Additional rows as typed/selected (unresolved; a3ResolveCrewChoices decides what the official form may hold).
   const crew: { name: string; eec: string | null }[] = [];
   for (const c of a3CrewChoices(audit).slice(1)) {
