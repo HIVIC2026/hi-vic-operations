@@ -25,7 +25,7 @@ describe("LR-003 pre-fills", () => {
   });
   test("empty sources stay blank — never No", () => {
     const seed = seedAnswers(piisaPrefill(empty));
-    expect(Object.keys(seed).sort()).toEqual(["p8.date"]);
+    expect(Object.keys(seed).sort()).toEqual([]);
     expect(Object.keys(seedAnswers(piesaPrefill(empty))).sort()).toEqual(["c.completionDate", "inspectionDate", "o.date"]);
     expect(seedAnswers(piesaPrefill({ ...full, electrician: { name: "E", licence: null, recName: null, recNo: null, phone: null } }))["b3.licence"]).toBeUndefined();
     expect(seedAnswers(piesaPrefill({ ...empty, lifeSupportDeclared: "unknown" }))["lifeSupport"]).toBeUndefined();
@@ -39,7 +39,7 @@ describe("LR-003 pre-fills", () => {
     expect(h["p5.tps"]!.value).toBeNull();
   });
   test("electrician-present N/A only when PIESA says no rectification", () => {
-    expect(seedAnswers(piisaPrefill(full))["p5.electricianPresent"]).toBe("N/A");
+    expect(seedAnswers(piisaPrefill(full))["p5.electricianPresent"]).toBeUndefined(); // never automatic N/A
     expect(seedAnswers(piisaPrefill({ ...full, piesaAnswers: { b1: B1_OPTIONS[1] } }))["p5.electricianPresent"]).toBeUndefined();
   });
   test("EEC number only from a verified certification", () => {

@@ -298,7 +298,8 @@ export async function syncPendingMitti(actorId: string | null, call: MittiCall =
 /** Sends the official PIISA to the assigned installer in Mitti with the LR-003 pre-fills (Installation Booked only).
  * Fails closed while the PIISA is locked or its Mitti form isn't configured. Reminders stay in the portal. */
 export async function createPiisaMittiAudit(jobId: string, actorId: string, call: MittiCall = realMittiCall) {
-  const { buildOfficialPrefill, missingKnownFields, PIISA_A3_MAPPING, PIISA_A3_TEMPLATE_ID } = await import("./mitti.core");
+  const { buildOfficialPrefill, missingKnownFields, PIISA_A3_TEMPLATE_ID } = await import("./mitti.core");
+  const a3 = await import("./piisa-a3.core");
   const { OFFICIAL_ITEMS } = await import("./official-forms.core");
   const { piisaPrefill } = await import("./official-prefill.core");
   const { officialPrefillContext } = await import("./official-forms.server");
@@ -333,19 +334,44 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string, call
   }
   const hints = piisaPrefill(await officialPrefillContext(jobId, todayMelbourne(), asg.user_id));
   const items = OFFICIAL_ITEMS.piisa;
-  const pre = hints.filter((h) => h.mode === "prefill" && h.value != null).map((h) => {
-    const it = items.find((i) => i.id === h.itemId)!;
-    const occurrence = items.filter((i) => i.label === it.label && items.indexOf(i) < items.indexOf(it)).length;
-    return { itemId: h.itemId, label: it.label, kind: it.kind, value: h.value!, occurrence };
-  });
+  const isA3 = MITTI_PIISA_TEMPLATE_ID === PIISA_A3_TEMPLATE_ID;
+  type Pre = { itemId: string; label: string; kind: string; value: string; occurrence: number };
+  const toPre = (itemId: string, value: string, row = 0): Pre => {
+    const it = items.find((i) => i.id === itemId)!;
+    const occurrence = isA3 ? a3.a3Occurrence(itemId, row) : items.filter((i) => i.label === it.label && items.indexOf(i) < items.indexOf(it)).length + row;
+    return { itemId, label: it.label, kind: it.kind, value, occurrence };
+  };
+  const preMap = new Map<string, Pre>();
+  for (const h of hints) if (h.mode === "prefill" && h.value != null) preMap.set(`${h.itemId}#0`, toPre(h.itemId, h.value));
+  const prefillNotes: string[] = [];
+  if (isA3) {
+    // Verified crew chosen in the portal (native form has no live staff lookup), then same-job Ready Check facts.
+    const { loadCrew, readyCheckAreas } = await import("./piisa-a3.server");
+    const { staff, selection } = await loadCrew(jobId);
+    if (!selection) throw new WorkflowError("Choose the install crew (lead installer and any additional installers) before sending the safety form.");
+    const cp = a3.crewSelectionProblems(selection, staff);
+    if (cp.problems.length) throw new WorkflowError(cp.problems.join(" • "));
+    if (cp.needsVerification.length) throw new WorkflowError(`Verify before work: ${cp.needsVerification.join("; ")}`);
+    for (const c of a3.crewPrefill(selection, staff)) preMap.set(`${c.itemId}#${c.row}`, toPre(c.itemId, c.value, c.row));
+    const rc = a3.readyCheckPartPrefill(await readyCheckAreas(jobId));
+    for (const [id, v] of Object.entries(rc.values)) if (!preMap.has(`${id}#0`)) preMap.set(`${id}#0`, toPre(id, v));
+    prefillNotes.push(...rc.notes);
+  }
+  const pre = [...preMap.values()];
   const template = await api.getTemplateDefinition(MITTI_PIISA_TEMPLATE_ID);
-  const p = buildOfficialPrefill(template, pre, MITTI_PIISA_TEMPLATE_ID === PIISA_A3_TEMPLATE_ID ? PIISA_A3_MAPPING : {});
+  if (isA3) {
+    const miss = a3.a3MissingFields(template);
+    if (miss.length) throw new WorkflowError(`The A3 Mitti form is missing ${miss.length} expected field(s) (publish the native draft first): ${miss.slice(0, 8).join("; ")}${miss.length > 8 ? "…" : ""}`);
+  }
+  const p = buildOfficialPrefill(template, pre, isA3 ? a3.PIISA_A3_MAPPING : {});
   const missing = missingKnownFields(p.skipped);
   if (missing.length) throw new WorkflowError(`The Mitti PIISA form is missing known fields, so it was not created: ${missing.join("; ")}`);
+  // Validate returned prefill: every value we sent must be on the payload, at its own field.
+  { const sent = new Set([...p.header_items, ...p.items].map((x: { item_id: string }) => x.item_id)); if (sent.size !== p.count) throw new WorkflowError("Two pre-fills resolved to the same Mitti field — not created."); }
   const audit = (await api.createAudit({ template_id: MITTI_PIISA_TEMPLATE_ID, header_items: p.header_items, items: p.items })) as { audit_id?: string; id?: string };
   const auditId = audit?.audit_id ?? audit?.id;
   if (!auditId) throw new WorkflowError("Mitti did not return an audit ID.");
   await api.shareAudit(String(auditId), String(userId)); await api.setAuditOwner(String(auditId), String(userId));
-  await logEvent(jobId, actorId, "mitti_piisa_audit_created", `Installer safety form sent to ${email} with ${p.count} pre-filled answers`, { audit_id: String(auditId), prefill_count: p.count, skipped: p.skipped });
+  await logEvent(jobId, actorId, "mitti_piisa_audit_created", `Installer safety form sent to ${email} with ${p.count} pre-filled answers`, { audit_id: String(auditId), prefill_count: p.count, skipped: p.skipped, template: MITTI_PIISA_TEMPLATE_ID, prefill_notes: prefillNotes });
   return { auditId: String(auditId), reused: false, skipped: p.skipped };
 }

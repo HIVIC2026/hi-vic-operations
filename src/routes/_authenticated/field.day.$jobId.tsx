@@ -5,6 +5,7 @@ import { useState } from "react";
 import { ArrowUpRight, Check, MapPin, Phone } from "lucide-react";
 import { TradeShell, card, navyCard, ghostBtn, greenBtn } from "@/components/trade/TradeShell";
 import { TradePrestart } from "@/components/trade/TradePrestart";
+import { PiisaCrewPicker } from "@/components/trade/PiisaCrewPicker";
 import { onsiteFormStatus } from "@/lib/onsite-ready-check.functions";
 import { confirmHivicReadyCheckPricingFn, getTradeDayView, tradeCouldntGetInFn } from "@/lib/trade-view.functions";
 import { COULDNT_GET_IN, couldntGetInMessage, dayTile } from "@/lib/trade-view.core";
@@ -94,6 +95,7 @@ function DayPage() {
             <p className="mt-1 text-sm">{data.kind === "safety_check" ? "Tap below to open the safety check form. We'll pick it up from there." : data.kind === "ready_check" ? "Tap below to open the Ready Check form. Measure, photos and your quote all go in there." : "Tap below to open the install form. PIISA, photos and bag labels are all in there."}</p>
             {data.kind === "ready_check" && <button type="button" className={`${ghostBtn} mt-4`} onClick={() => setAsking(true)}>Couldn't get in?</button>}
           </section>
+          {data.kind !== "ready_check" && data.kind !== "safety_check" && <PiisaCrewPicker jobId={jobId} />}
           <TradePrestart jobId={jobId} kind={data.kind} channel={data.channel} onStart={async () => { if (data.kind === "ready_check" && data.channel === "hivic_sourced") await confirmPricing({ data: { jobId } }); setStarted(true); }} disabledReason={data.kind === "safety_check" && !data.mittiReady && !data.mittiId ? "The office is still setting up the onsite form. Your result will show here once it's in." : null} />
         </>
       )}
