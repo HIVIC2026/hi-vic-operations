@@ -23,5 +23,18 @@ g.__mockData = {
   confirmImport: (a: { data: { importId: string } }) => { const s = srv(); s.confirms++; const i = s.imports[a.data.importId]!; const first = i.status !== "confirmed"; i.status = "confirmed"; i.jobId = "job-fix"; put(s); (g.__confirmArgs as unknown[] ?? (g.__confirmArgs = [])).push(a.data); if (q.get("lose") === "1" && first) throw new Error("Failed to fetch"); return { jobId: "job-fix", jobNumber: "HV-FIX", reused: !first }; },
   getMyIntakeReadyCheck: { coordination: "self_managed", readyCheck: { outstandingCount: 11, outstanding: [] }, quoteHeldFor: [] },
 };
+// Fault controls for sealed regression runs only. No real service is reachable.
+const wait = (n: number) => new Promise((r) => setTimeout(r, n));
+g.__authDelay = Number(q.get("restoreDelay") ?? 0);
+g.__uploads = [];
+g.__storageUpload = async (path: string) => { (g.__uploads as string[]).push(path); await wait(Number(q.get("uploadDelay") ?? 0)); return { error: path.endsWith("bad.pdf") ? new Error("TEST upload failure") : null }; };
+const mocks = g.__mockData as Record<string, unknown>;
+const originalRead = mocks.readBulkFile;
+mocks.readBulkFile = async () => { await wait(Number(q.get("readDelay") ?? 0)); if (q.has("readFail")) throw new Error("TEST optional read failure"); return originalRead; };
+const originalRemove = mocks.removeImportFile as (a: unknown) => unknown;
+g.__removes = 0;
+mocks.removeImportFile = async (a: unknown) => { g.__removes = Number(g.__removes) + 1; await wait(Number(q.get("removeDelay") ?? 0)); if (q.has("removeFail")) throw new Error("TEST remove failure"); return originalRemove(a); };
+const originalConfirm = mocks.confirmImport as (a: unknown) => unknown;
+mocks.confirmImport = async (a: unknown) => { await wait(Number(q.get("submitDelay") ?? 0)); return originalConfirm(a); };
 const root = document.getElementById("root");
 if (root) createRoot(root).render(<QueryClientProvider client={new QueryClient()}><div className="portal-theme min-h-screen bg-canvas p-4 text-ink"><div className="mx-auto max-w-lg"><InstallerIntakeFlow businessId={q.get("biz") ?? "biz-test"} /></div></div></QueryClientProvider>);
