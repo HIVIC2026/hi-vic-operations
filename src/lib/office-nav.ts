@@ -6,14 +6,9 @@ import type { LinkProps } from "@tanstack/react-router";
 export type OfficeTab = { label: string; to: NonNullable<LinkProps["to"]>; search?: Record<string, string> };
 
 export const ENQUIRY_TABS: OfficeTab[] = [
-  { label: "Spot saved", to: "/admin/launch-campaign" },
-  { label: "Likely eligible", to: "/admin", search: { tab: "enquiries" } },
-  { label: "Hot leads", to: "/admin/hot-leads" },
-  { label: "Campaign emails", to: "/admin/campaign-emails" },
-  { label: "Email groups", to: "/admin/enquiry-groups" },
+  { label: "All leads", to: "/admin/enquiry-groups" },
   { label: "Needs video check", to: "/admin/list", search: { status: "enquiry.video_in" } },
   { label: "Calculator interest", to: "/admin/interests" },
-  { label: "Not eligible", to: "/admin", search: { tab: "ineligible" } },
 ];
 
 export const SECTION_TABS: Record<OfficeSection, OfficeTab[]> = {

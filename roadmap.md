@@ -164,3 +164,4 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Hot leads: Edit email Save button unresponsive for HV-1122 — placeholder looked filled; now disabled-with-hint until email+reason entered, Saving state, verified
 - [x] Save my spot link "isn't available" (Jo 8 Oct 02:29): LAUNCH_COPY_APPROVED was false so real campaign pages returned null. Set true (Jo approved copy); HV-1109 verified loading; live links need publish
 - [x] Hot leads columns: Email sent / Spot saved / Unactioned enquiry (Jo 8 Oct)
+- [x] One automated Leads screen/router; Group B real sending awaits Jo's visual approval

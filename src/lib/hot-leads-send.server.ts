@@ -23,7 +23,7 @@ void LAUNCH_COPY_APPROVED;
 
 /** TEST-only overrides (qa_test jobs): link host and group. Ignored for real jobs.
  *  mode "preview" renders without sending; "test_to_jo" sends a real lead's email to Jo's inbox only, with TEST-job links. */
-export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string; /** TEST only: send the Step 3 likely-eligible email instead, same facts. */ variant?: "likely_estimate"; mode?: "send" | "preview" | "test_to_jo" };
+export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string; /** TEST only: send the Step 3 likely-eligible email instead, same facts. */ variant?: "likely_estimate"; mode?: "send" | "preview" | "test_to_jo"; automaticInsulation?: boolean };
 /** Jo's own inbox for "send me a test of this lead". */
 export const JO_TEST_INBOX = "jolowexo@hotmail.com";
 /** TEST job whose links go into Jo's test copies, so pressing them never touches the real lead. */
@@ -67,11 +67,11 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     if (!(await hasCurrentOwnerContactConsent(jobId))) return r("skipped", "No current contact consent.");
   }
   const group = launchGroup(job.eligibility_outcome, price.insulation) ?? "likely";
-  if (group !== "likely" && !isTest) return r("blocked", "Only the approved Group A email can be sent from this list.");
+  if (group !== "likely" && !isTest && !testOpts.automaticInsulation) return r("blocked", "Only the approved Group A email can be sent from this list.");
 
   // Once per home, ever: the idempotency key is the job, not the batch.
-  const sendGroup = isTest ? (testOpts.group ?? group) : "likely";
-  const key = `${LAUNCH_CAMPAIGN}:save_my_spot:${jobId}${isTest && sendGroup === "onsite" ? ":b" : ""}${isTest && testOpts.subjectPrefix ? `:preview-test:${testOpts.variant ?? "savespot"}:${Date.now()}` : ""}`;
+  const sendGroup = isTest || testOpts.automaticInsulation ? (testOpts.group ?? group) : "likely";
+  const key = `${LAUNCH_CAMPAIGN}:${sendGroup === "onsite" ? "insulation_details" : "save_my_spot"}:${jobId}${isTest && testOpts.subjectPrefix ? `:preview-test:${testOpts.variant ?? "savespot"}:${Date.now()}` : ""}`;
   const { data: ex } = await admin.from("customer_email_sends").select("id, status").eq("idempotency_key", key).maybeSingle();
   if (mode === "send" && ex && !reservationAllowed(ex)) return r("skipped", "Already sent to this home.");
   let sendId = ex?.id ?? null;
@@ -167,6 +167,12 @@ export async function maybeAutoSendSaveSpot(jobId: string): Promise<void> {
   } catch (e) {
     console.warn("auto save-my-spot send failed (ignored)", (e as Error).message.slice(0, 200));
   }
+}
+
+export async function sendAutomaticInsulationDetails(jobId: string): Promise<HotSendResult> {
+  const { INSULATION_DETAILS_REAL_SEND_APPROVED } = await import("./hot-leads.core");
+  if (!INSULATION_DETAILS_REAL_SEND_APPROVED) return { jobId, jobNumber: null, outcome: "blocked", detail: "Insulation email awaits final visual approval" };
+  return sendOne(jobId, null, true, { group: "onsite", automaticInsulation: true });
 }
 
 const CAMPAIGN_FROM = "Home Insulation Victoria <jobs@homeinsulationvictoria.com.au>";

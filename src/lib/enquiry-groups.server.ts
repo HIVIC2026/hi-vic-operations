@@ -49,12 +49,12 @@ export type EnquiryGroupRow = EnquiryClass & {
   createdAt: string; stage: string | null; areaLabel: string; declaredInsulation: "none" | "present" | "unknown" | null; hardFailures: string[];
   lastEmail: { purpose: string; status: string; at: string | null; error: string | null } | null;
   consent: string | null; optedOut: boolean; bounced: boolean; source: string | null; isPrimaryForContact: boolean; sentPurposes: string[];
-  status: EnquiryStatus;
+  status: EnquiryStatus; attentionReason: string | null; outcomeAt: string | null;
 };
 
 export async function loadEnquiryGroups() {
   const jobs = await all((f, t) => admin.from("jobs")
-    .select("id, job_number, external_enquiry_id, stage, hold_reason, source, created_at, eligibility_outcome, eligibility_decision_source, eligibility_review_required, eligibility_decision_rules, estimated_area_m2, estimated_area_unknown, owners(full_name, email), properties(address_line, suburb, state, postcode, enrichment)")
+    .select("id, job_number, external_enquiry_id, stage, hold_reason, source, created_at, eligibility_set_at, eligibility_outcome, eligibility_decision_source, eligibility_review_required, eligibility_decision_rules, estimated_area_m2, estimated_area_unknown, owners(full_name, email), properties(address_line, suburb, state, postcode, enrichment)")
     .eq("source", WEBSITE_SOURCE).eq("channel", WEBSITE_CHANNEL).order("created_at", { ascending: true }).order("id").range(f, t));
   const outside = await all((f, t) => admin.from("jobs").select("source, channel").or(`source.neq.${WEBSITE_SOURCE},channel.neq.${WEBSITE_CHANNEL}`).range(f, t));
   const ids = jobs.map((j) => j.id);
@@ -105,14 +105,28 @@ export async function loadEnquiryGroups() {
         const camp = sent.filter((s) => s.purpose === LAUNCH_CAMPAIGN);
         return enquiryStatus({
           spotSaved: savedSet.has(j.id), ineligible: c.otherReason === "not_eligible",
+          ineligibleEmailSent: sent.some((s) => s.purpose === "preliminary_ineligible"),
           campaignSent: camp.length > 0, insulationEmailSent: sent.some((s) => s.purpose === "insulation_video_request"),
           campaignGroup: camp.length ? (camp.some((s) => /:b(:|$)/.test(s.idempotency_key ?? "")) ? "onsite" : "likely") : null,
         });
-      })(),
+      })(), attentionReason: null, outcomeAt: j.eligibility_set_at ?? null,
     };
   });
   const primary = primaryByContact(rows);
-  for (const r of rows) r.isPrimaryForContact = primary.has(r.id);
+  for (const r of rows) {
+    r.isPrimaryForContact = contactKey(r.email, r.propKey) === null || primary.has(r.id);
+    if (r.status === "needs_attention") {
+      r.attentionReason = !r.isPrimaryForContact ? "Duplicate enquiry for the same contact and property"
+        : r.lastEmail?.status === "failed" ? `Email failed: ${r.lastEmail.error ?? "delivery error"}`
+        : r.optedOut ? "Owner opted out"
+        : r.bounced ? "Email bounced or was suppressed"
+        : r.consent !== "granted" ? "Contact consent is missing or withdrawn"
+        : !r.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(r.email) ? "Missing or invalid email"
+        : r.group === "insulation_check" ? "Insulation email awaits final visual approval"
+        : r.otherReason === "not_eligible" ? "Ineligible email has not sent"
+        : r.reason;
+    }
+  }
 
   // Calculator registrations: merged only when the SAME contact registered for the SAME property; otherwise listed.
   const jobContacts = new Set(rows.map((r) => contactKey(r.email, r.propKey)).filter(Boolean));
@@ -120,14 +134,15 @@ export async function loadEnquiryGroups() {
   for (const i of interests) {
     const pk = propertyKey(i.address_line, i.postcode);
     if (jobContacts.has(contactKey(i.email, pk))) { calculatorMatched++; continue; }
-    const c = classifyEnquiry({ kind: "calculator", stage: null, outcome: null, decisionSource: null, reviewRequired: false, audit: null, intakeWorkActive: false, area: { declared: Number(i.ceiling_m2) }, videoCount: 0, calculatorStatus: i.status });
-    rows.push({ ...c, id: i.id, kind: "calculator", jobNumber: null, reference: null, name: i.full_name, email: i.email, address: [i.address_line, i.suburb, i.postcode].filter(Boolean).join(", "), postcode: i.postcode, propKey: pk, createdAt: i.created_at, stage: null, areaLabel: AREA_LABEL[c.area.source], declaredInsulation: normaliseInsulation(i.insulation_declared), hardFailures: [], lastEmail: null, consent: null, optedOut: false, bounced: false, source: "calculator", isPrimaryForContact: true, sentPurposes: [], status: "not_emailed" });
+    void i;
   }
+  const visibleRows = rows.filter((r) => r.kind === "job" && r.isPrimaryForContact);
   const bySource = (pred: (o: { source: string; channel: string }) => boolean) => outside.filter(pred).length;
   return {
-    rows,
+    rows: visibleRows,
     scope: {
-      websiteJobs: jobs.length, calculatorRegistrations: interests.length, calculatorMatched, calculatorListed: interests.length - calculatorMatched, total: rows.length,
+      websiteJobs: jobs.length, calculatorRegistrations: interests.length, calculatorMatched, calculatorListed: interests.length - calculatorMatched, total: visibleRows.length,
+      duplicateWebsiteEnquiries: rows.length - visibleRows.length,
       testHidden: bySource((o) => o.source === "qa_test"), installerSourced: bySource((o) => o.source !== "qa_test" && o.channel === "installer_sourced"),
       otherSources: bySource((o) => o.source !== "qa_test" && o.channel !== "installer_sourced"),
     },

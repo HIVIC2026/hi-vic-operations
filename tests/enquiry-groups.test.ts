@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { classifyEnquiry, contactExclusion, sendHolds, primaryByContact, propertyKey, templateFor, realArea, GROUP_ORDER, type EnquiryInput, type ContactFacts } from "../src/lib/enquiry-groups.core";
+import { automaticLeadEmail, classifyEnquiry, contactExclusion, sendHolds, primaryByContact, propertyKey, templateFor, realArea, GROUP_ORDER, type EnquiryInput, type ContactFacts } from "../src/lib/enquiry-groups.core";
 import { captureLinkState, parseCapturePath, validateVideo, validateCaptureFile, homeownerVideoCount, capturePath } from "../src/lib/owner-capture.core";
 import { renderEstimateEmail, renderInsulationVideoEmail } from "../src/lib/estimate-email";
 import { GATE1_RULESET_VERSION } from "../src/lib/eligibility.core";
@@ -132,12 +132,26 @@ describe("homeowner video capture", () => {
 
 import { enquiryStatus, STATUS_ORDER } from "../src/lib/enquiry-groups.core";
 describe("one office status per enquiry", () => {
-  const b = { spotSaved: false, ineligible: false, campaignSent: false, insulationEmailSent: false, campaignGroup: null as "likely" | "onsite" | null };
+  const b = { spotSaved: false, ineligible: false, ineligibleEmailSent: false, campaignSent: false, insulationEmailSent: false, campaignGroup: null as "likely" | "onsite" | null };
   test("spot saved wins over everything", () => expect(enquiryStatus({ ...b, spotSaved: true, ineligible: true, campaignSent: true, campaignGroup: "likely" })).toBe("spot_saved"));
-  test("ineligible beats an email sent", () => expect(enquiryStatus({ ...b, ineligible: true, campaignSent: true, campaignGroup: "likely" })).toBe("ineligible"));
+  test("ineligible is final only once its email sent", () => expect(enquiryStatus({ ...b, ineligible: true, ineligibleEmailSent: true })).toBe("ineligible"));
+  test("unsent ineligible needs attention", () => expect(enquiryStatus({ ...b, ineligible: true })).toBe("needs_attention"));
   test("likely email sent -> offering spot", () => expect(enquiryStatus({ ...b, campaignSent: true, campaignGroup: "likely" })).toBe("offered_spot"));
   test("onsite email sent -> insulation details needed", () => expect(enquiryStatus({ ...b, campaignSent: true, campaignGroup: "onsite" })).toBe("insulation_requested"));
   test("video request sent -> insulation details needed", () => expect(enquiryStatus({ ...b, insulationEmailSent: true })).toBe("insulation_requested"));
-  test("nothing sent -> not emailed yet", () => expect(enquiryStatus(b)).toBe("not_emailed"));
+  test("nothing sent -> needs attention", () => expect(enquiryStatus(b)).toBe("needs_attention"));
   test("five statuses, no overlap", () => expect(new Set(STATUS_ORDER).size).toBe(5));
+});
+
+describe("one automatic email route", () => {
+  const baseRoute = { source: "base44", channel: "hivic_sourced", decisionSource: "system", reviewRequired: false, intakeWorkActive: false, outcome: "likely_eligible", declaredInsulation: "none" as const, ownerEnteredArea: true };
+  test("eligible no-insulation owner with entered size gets the spot offer", () => expect(automaticLeadEmail(baseRoute)).toEqual({ email: "offer_spot", blocker: null }));
+  test("existing insulation gets the details request", () => expect(automaticLeadEmail({ ...baseRoute, outcome: "needs_onsite_confirmation", declaredInsulation: "present" })).toEqual({ email: "request_insulation", blocker: null }));
+  test("official ineligible gets the ineligible email", () => expect(automaticLeadEmail({ ...baseRoute, outcome: "does_not_appear_eligible", declaredInsulation: "unknown" })).toEqual({ email: "ineligible", blocker: null }));
+  test.each([
+    [{ source: "qa_test" }, "TEST"], [{ ownerEnteredArea: false }, "ceiling size"], [{ reviewRequired: true }, "office review"], [{ intakeWorkActive: true }, "still running"], [{ decisionSource: null }, "missing"],
+  ])("unsafe route %p is held with one reason", (change, reason) => {
+    const result = automaticLeadEmail({ ...baseRoute, ...change });
+    expect(result.email).toBe("none"); expect(result.blocker).toContain(reason);
+  });
 });

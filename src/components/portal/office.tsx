@@ -13,7 +13,7 @@ import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 
 const HEADINGS: { key: OfficeSection; label: string; to: OfficeTab["to"] }[] = [
   { key: "needs", label: "Needs me", to: "/admin/needs-me" },
-  { key: "leads", label: "Leads", to: "/admin/launch-campaign" },
+  { key: "leads", label: "Leads", to: "/admin/enquiry-groups" },
   { key: "pipeline", label: "Pipeline", to: "/admin/pipeline" },
   { key: "partners", label: "Partners", to: "/admin/partners-overview" },
   { key: "money", label: "Money", to: "/admin/money" },

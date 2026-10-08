@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
@@ -10,6 +10,7 @@ import { getLaunchCampaignOffice, saveDesktopInsulationCheck } from "@/lib/launc
 import { renderLaunchGroupEmail } from "@/lib/estimate-email";
 
 export const Route = createFileRoute("/_authenticated/admin/launch-campaign")({
+  beforeLoad: () => { throw redirect({ to: "/admin/enquiry-groups", replace: true }); },
   component: LaunchCampaignOffice,
   head: () => ({ meta: [{ title: "Existing leads campaign – Home Insulation Victoria Operations" }, { name: "description", content: "Review saved spots and desktop insulation checks." }, { property: "og:title", content: "Existing leads campaign – Home Insulation Victoria Operations" }, { property: "og:description", content: "Review saved spots and desktop insulation checks." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
 });

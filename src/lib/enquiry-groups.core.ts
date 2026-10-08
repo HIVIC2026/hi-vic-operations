@@ -201,24 +201,45 @@ export function primaryByContact(rows: { id: string; email: string | null; propK
 
 // ---------- One office status per enquiry (Jo, 8 Oct 2026) ----------
 // Presentation only: reads what actually happened (emails sent, spot saved, recorded eligibility). Never changes a job.
-export type EnquiryStatus = "spot_saved" | "offered_spot" | "insulation_requested" | "ineligible" | "not_emailed";
-export const STATUS_ORDER: EnquiryStatus[] = ["spot_saved", "offered_spot", "insulation_requested", "ineligible", "not_emailed"];
+export type EnquiryStatus = "spot_saved" | "offered_spot" | "insulation_requested" | "ineligible" | "needs_attention";
+export const STATUS_ORDER: EnquiryStatus[] = ["spot_saved", "offered_spot", "insulation_requested", "ineligible", "needs_attention"];
 export const STATUS_LABEL: Record<EnquiryStatus, string> = {
   spot_saved: "Spot saved",
   offered_spot: "Email sent – offering spot",
   insulation_requested: "Email sent – insulation details needed",
   ineligible: "Ineligible",
-  not_emailed: "Not emailed yet",
+  needs_attention: "Needs attention",
 };
-/** Exactly one status. Precedence: spot saved > ineligible > insulation email sent > spot offer sent > not emailed. */
+/** Exactly one office outcome. Unsent results are exceptions, never a normal waiting queue. */
 export function enquiryStatus(x: {
-  spotSaved: boolean; ineligible: boolean; campaignSent: boolean; insulationEmailSent: boolean;
+  spotSaved: boolean; ineligible: boolean; ineligibleEmailSent: boolean; campaignSent: boolean; insulationEmailSent: boolean;
   /** Which version the campaign email was for this owner: "likely" = Save my spot offer, "onsite" = insulation details request. */
   campaignGroup: "likely" | "onsite" | null;
 }): EnquiryStatus {
   if (x.spotSaved) return "spot_saved";
-  if (x.ineligible) return "ineligible";
+  if (x.ineligible && x.ineligibleEmailSent) return "ineligible";
   if (x.insulationEmailSent || (x.campaignSent && x.campaignGroup === "onsite")) return "insulation_requested";
   if (x.campaignSent) return "offered_spot";
-  return "not_emailed";
+  return "needs_attention";
+}
+
+export type AutomaticLeadEmail = "offer_spot" | "request_insulation" | "ineligible" | "none";
+
+/** Selects the single automatic email path. Gate 1 remains the source of the eligibility result. */
+export function automaticLeadEmail(x: {
+  source: string | null; channel: string | null; decisionSource: string | null; reviewRequired: boolean;
+  outcome: string | null; intakeWorkActive: boolean; declaredInsulation: "none" | "present" | "unknown" | null;
+  ownerEnteredArea: boolean;
+}): { email: AutomaticLeadEmail; blocker: string | null } {
+  if (x.source === "qa_test") return { email: "none", blocker: "TEST enquiry" };
+  if (x.source !== "base44" || x.channel !== "hivic_sourced") return { email: "none", blocker: "Not a website homeowner enquiry" };
+  if (x.intakeWorkActive) return { email: "none", blocker: "Initial checks are still running" };
+  if (x.decisionSource !== "system" && x.decisionSource !== "admin") return { email: "none", blocker: "Official eligibility result is missing" };
+  if (x.reviewRequired) return { email: "none", blocker: "Eligibility needs office review" };
+  if (x.outcome === "does_not_appear_eligible") return { email: "ineligible", blocker: null };
+  if (x.outcome === "likely_eligible" && x.declaredInsulation === "none") {
+    return x.ownerEnteredArea ? { email: "offer_spot", blocker: null } : { email: "none", blocker: "Owner did not enter a ceiling size" };
+  }
+  if ((x.outcome === "likely_eligible" || x.outcome === "needs_onsite_confirmation") && x.declaredInsulation === "present") return { email: "request_insulation", blocker: null };
+  return { email: "none", blocker: "Eligibility or insulation details need office review" };
 }
