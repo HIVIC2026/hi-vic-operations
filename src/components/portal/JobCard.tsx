@@ -3,7 +3,7 @@ import { nextStep } from "@/lib/nextstep.core";
 import { AlertTriangle, CheckCircle2, HeartPulse, XCircle } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 import { fmtDateTime } from "@/lib/workflow";
-import { Pill } from "./badges";
+import { Pill, SourceBadge } from "./badges";
 
 export type JobRow = Omit<Database["public"]["Views"]["job_overview"]["Row"], "authority_status" | "authority_expires_at" | "deposit_cleared"> & Partial<Pick<Database["public"]["Views"]["job_overview"]["Row"], "authority_status" | "authority_expires_at" | "deposit_cleared">> & { stuck_reasons?: string[]; comms_status?: { label: string; tone: "good" | "warn" | "bad" | "neutral" } | null; installer_facts?: import("@/lib/bulk-import.core").InstallerJobFacts | null };
 
@@ -21,7 +21,7 @@ export function JobCard({ job, to, coverage }: { job: JobRow; to: "/admin/jobs/$
         </div>
         {job.life_support && <HeartPulse className="h-5 w-5 shrink-0 text-danger" aria-label="Life support" />}
       </div>
-      <div className="mt-3 flex flex-wrap gap-1.5"><Pill t={step.tone}>{step.label}</Pill>
+      <div className="mt-3 flex flex-wrap gap-1.5"><SourceBadge channel={job.channel} business={job.originating_business_name} /><Pill t={step.tone}>{step.label}</Pill>
         {job.eligibility_review_required && step.label !== "Review required" ? <Pill t="warn">Review required</Pill>
           : job.eligibility_outcome === "does_not_appear_eligible" ? <Pill t="bad">Ineligible</Pill>
             : job.eligibility_outcome === "needs_onsite_confirmation" ? <Pill t="info">Needs onsite confirmation</Pill>

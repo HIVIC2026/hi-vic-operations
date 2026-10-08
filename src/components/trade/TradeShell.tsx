@@ -27,13 +27,13 @@ export function TradeShell({ children, installer, boss: bossProp, test = false }
   );
 }
 
-/** Trade menu items (Jo approved 7 Oct): My work · upload/customers (installer boss) · Money · My business. Staff see only My work. */
+/** Trade menu items: My work · Add a job (installer boss) · Money · My business. Staff see only My work. */
 function useTradeItems(installer: boolean, boss: boolean) {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const work = path === "/field" || path.startsWith("/field/offer") || path.startsWith("/field/day") || /^\/field\/[0-9a-f-]{36}/.test(path);
   return [
     { to: "/field", label: "My work", Icon: Briefcase, on: work, show: true },
-    { to: "/partner/bulk-import", label: "Your customers", Icon: PlusCircle, on: path.startsWith("/partner/add") || path.startsWith("/partner/bulk") || path.startsWith("/partner/import"), show: installer && boss },
+    { to: "/partner/import", label: "Add a job", Icon: PlusCircle, on: path.startsWith("/partner/import"), show: installer && boss },
     { to: "/field/money", label: "Money", Icon: Wallet, on: path.startsWith("/field/money"), show: boss },
     { to: "/field/business", label: "My business", Icon: Building2, on: path.startsWith("/field/business"), show: boss },
   ].filter((i) => i.show);

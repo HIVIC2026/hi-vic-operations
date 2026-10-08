@@ -70,7 +70,7 @@ export function TradeTabs({ installer }: { installer: boolean }) {
   return (
     <nav aria-label="Trade menu" className="fixed inset-x-0 bottom-0 z-40 flex border-t bg-card pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_16px_rgba(34,55,107,0.08)] md:hidden">
       {tab("/field", "My work", Briefcase, path === "/field" || path.startsWith("/field/"))}
-      {installer && boss && access?.installerBusinessAdmin !== false && tab("/partner/bulk-import", "Upload jobs", PlusCircle, path.startsWith("/partner/add") || path.startsWith("/partner/import") || path.startsWith("/partner/bulk"))}
+      {installer && boss && access?.installerBusinessAdmin !== false && tab("/partner/import", "Add a job", PlusCircle, path.startsWith("/partner/import"))}
       {boss && tab("/field/money", "Money", Wallet, path.startsWith("/field/money"))}
       {boss && tab("/field/business", "My business", Building2, path.startsWith("/partner/profile") || path.startsWith("/partner/workers"))}
     </nav>
