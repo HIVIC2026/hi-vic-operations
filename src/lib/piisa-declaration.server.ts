@@ -62,6 +62,7 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
   // A3: the prestart signature's OWN time, captured before completion and kept immutable.
   const signedAt = prestart ? prestart.snapshot.signature.signed_at : sig.signedAt;
   // A3: completed audit populates the OFFICIAL PIISA answers (Parts 1–8) and the original official DOCX.
+  let crewBlockers: string[] = [];
   let official: { answers: Record<string, unknown>; docx?: { path: string; sha256: string; missed: string[] }; signature_attachment?: unknown; a3_evidence?: unknown } | null = null;
   if (expectedTpl === PIISA_A3_TEMPLATE_ID) {
     const { answers, crew } = parseA3Answers(audit);
@@ -74,7 +75,7 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
     const tplDef = await mittiApi(realCall).getTemplateDefinition(expectedTpl).catch(() => null);
     const crewRes = coreC.a3ResolveCrewChoices(coreC.a3CrewChoices(audit), tplDef, asgB?.business_id ? await cs(asgB.business_id) : [], bizB?.name ?? "");
     Object.assign(answers, crewRes.answers);
-    var crewBlockers = [...crewRes.blockers, ...crewRes.needsVerification];
+    crewBlockers = [...crewRes.blockers, ...crewRes.needsVerification];
     // Signature date in Melbourne from the signature's own timestamp (prestart snapshot kept independently of AP completion).
     const sigDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(new Date(signedAt));
     answers["p8.date"] = sigDate;
@@ -103,11 +104,8 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
     // Evidence checklist from the actual audit media metadata; crew resolved against CURRENT verified staff.
     const core = await import("./piisa-a3.core");
     const { a3Ctx } = await import("./piisa-prestart.server");
-    const { crewStaff } = await import("./piisa-a3.server");
     const ctx = { ...(await a3Ctx(jobId, audit)), crewCount: coreC.a3CrewChoices(audit).filter((c) => c.kind !== "none").length || 1 };
     const media = core.a3MediaSummary(core.a3MediaFiles(audit));
-    const staff = a?.business_id ? await crewStaff(a.business_id) : [];
-    void staff;
     const a3_evidence = {
       checklist: core.a3EvidenceChecklist(answers as never, ctx, media),
       prestart_blockers: prestart!.snapshot.blockers,
