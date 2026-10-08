@@ -70,7 +70,7 @@ test("photos/video queue pending, only approved review unlocks save", async () =
   await markCampaignMediaReceived(LAUNCH_ID.job,LAUNCH_ID.link);
   expect(JSON.parse(await campaignPage(token) ?? "null").saveAllowed).toBe(false);
   await expect(saveCampaignSpot(token)).rejects.toThrow();
-  await db.exec("UPDATE lead_campaign_responses SET desk_check_status='looks_eligible'");
+  await db.exec("UPDATE lead_campaign_responses SET desk_check_status='looks_eligible',desk_checked_at=now(),desk_checked_by='00000000-0000-4000-8000-0000000000a1'");
   await saveCampaignSpot(token);
   expect((await db.query("SELECT spot_saved_at IS NOT NULL saved FROM lead_campaign_responses")).rows[0]).toEqual({saved:true});
 });
