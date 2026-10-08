@@ -64,7 +64,7 @@ function Money() {
   }
 
   // ---- Overview ----
-  if (!data.rows.length) return shell(<>
+  if (!data.rows.length && !(data.ownerDirect ?? []).length) return shell(<>
     <h1 className="font-display text-[26px] font-bold leading-tight">Money</h1>
     <section className={`${card} text-center`} data-money-empty><h2 className="font-display text-xl font-bold">No completed jobs yet.</h2><p className="mt-1 text-sm text-sub">Approved jobs and expected payment dates will appear here.</p></section>
   </>);
@@ -97,6 +97,15 @@ function Money() {
           <ChevronRight className="h-4 w-4 shrink-0 text-sub" aria-hidden />
         </Link></li>); })}</ul> : <p className={`${card} text-sm`}>None right now.</p>}
     </section>
+    {(data.ownerDirect ?? []).length > 0 && (
+      <section data-owner-direct className="space-y-2">
+        <h2 className="px-1 font-display text-lg font-bold">Invoice the owner directly</h2>
+        <p className="px-1 text-xs text-sub">The installer's customer chose you as their own electrician. You invoice and collect payment from the owner at your agreed price — Home Insulation Victoria doesn't pay this work and hasn't recorded the owner's payment.</p>
+        <ul className="divide-y divide-line overflow-hidden rounded-[18px] border border-line bg-paper">{data.ownerDirect.map((r) => (
+          <li key={r.jobId + r.what} className="flex min-h-[56px] items-center gap-3 p-4"><span className="min-w-0 flex-1"><span className="block font-bold">{r.surname}, {r.suburb}</span><span className="block text-sm text-sub">{r.jobNumber} · {r.what}</span></span><span className="shrink-0 text-[11px] font-semibold text-sub">Owner payment: not recorded</span></li>
+        ))}</ul>
+      </section>
+    )}
     <a href={csv()} download="statement.csv" className="block text-center text-sm font-bold text-estimate-blue">Download statements ›</a>
   </>);
 }

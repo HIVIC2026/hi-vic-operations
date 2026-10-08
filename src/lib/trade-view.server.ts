@@ -83,7 +83,7 @@ export async function tradeHome(userId: string) {
   const wk0 = new Date(now); wk0.setDate(now.getDate() - ((now.getDay() + 6) % 7)); wk0.setHours(0, 0, 0, 0);
   const wk1 = new Date(wk0.getTime() + 7 * 86_400_000);
   const week = (books ?? []).filter((b) => mine.includes(b.kind) && byId.has(b.job_id) && new Date(b.scheduled_start) >= wk0 && new Date(b.scheduled_start) < wk1).length;
-  const money = c.boss ? await tradeMoneyRows(c.biz.id, c.kind, c.isTest) : [];
+  const money = c.boss ? (await tradeMoneyRows(c.biz.id, c.kind, c.isTest)).filter((r) => r.billing === "hivic") : [];
   const m0 = new Date(now.getFullYear(), now.getMonth(), 1);
   const month = money.filter((r) => r.doneAt && new Date(r.doneAt) >= m0);
   const offerList = (offers ?? []).filter((o) => (c.kind === "installer" ? o.kind === "ready_check" || o.kind === "installer" : o.kind === "piesa" || o.kind === "rectification"))
@@ -278,7 +278,7 @@ export async function confirmHivicReadyCheckPricing(jobId: string, userId: strin
 /** Money rows: own pay only. Paid = office marked paid; Coming = 7 days after AP approval; else Being checked. */
 async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean) {
   const mine = kind === "installer" ? ["ready_check", "installation"] : ["assessment", "rectification"];
-  const { data: books } = await admin.from("bookings").select("job_id, kind, scheduled_start, status, jobs!inner(job_number, source, channel, stage, owners(full_name), properties(suburb))").eq("business_id", bizId).eq("status", "completed").in("kind", mine as never).order("scheduled_start", { ascending: false });
+  const { data: books } = await admin.from("bookings").select("job_id, kind, scheduled_start, status, jobs!inner(job_number, source, channel, stage, electrician_choice, owners(full_name), properties(suburb))").eq("business_id", bizId).eq("status", "completed").in("kind", mine as never).order("scheduled_start", { ascending: false });
   const rows = (books ?? []).filter((b) => b.kind !== "ready_check" && (!testOnly || (b.jobs as { source: string }).source === "qa_test"));
   const ids = [...new Set(rows.map((r) => r.job_id))];
   const none = ["00000000-0000-0000-0000-000000000000"];
@@ -289,6 +289,14 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
   ]);
   // Owner paid in full (Xero mirror): needed alongside AP approval before the 7-day payout clock starts.
   const { data: invs } = await admin.from("invoices").select("job_id, status, balance_paid_at, paid_at, updated_at").in("job_id", ids.length ? ids : none);
+  // Committed contract snapshot: does the accepted HIV quote carry this electrical line?
+  const { data: accQ } = await admin.from("quotes").select("job_id, kind, quote_items(code, description)").in("job_id", ids.length ? ids : none).eq("status", "accepted");
+  const committed = (jobId: string, kind: string): boolean | null => {
+    const qs = (accQ ?? []).filter((q) => q.job_id === jobId); if (!qs.length) return null;
+    const items = qs.flatMap((q) => [...((q.quote_items as { code: string | null; description: string | null }[] | null) ?? []).map((i) => ({ ...i, qk: q.kind }))]);
+    return kind === "assessment" ? items.some((i) => i.code === "PIESA") : items.some((i) => i.qk === "rectification" || (i.description ?? "").startsWith("Electrical rectification:"));
+  };
+  const { electricalBillingSource } = await import("./installer-led.core");
   const paidInFull = (jobId: string) => { const i = (invs ?? []).filter((x) => x.job_id === jobId); if (!i.length || i.some((x) => x.status !== "fully_paid")) return null; return i.map((x) => x.balance_paid_at ?? x.paid_at ?? x.updated_at).sort().at(-1) ?? null; };
   return rows.map((b) => {
     const j = b.jobs as { job_number: string; owners: { full_name: string | null } | null; properties: { suburb: string | null } | null };
@@ -298,14 +306,23 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
     const amount = Number((pe?.details as { amount?: number })?.amount ?? (b.kind === "assessment" ? sum.electrician_rate_inc_gst : b.kind === "rectification" ? sum.fixes_pay_inc_gst : sum.installer_pay_inc_gst) ?? 0) || null;
     const state = payState({ paidAt: pe?.created_at ?? null, apApprovedAt: (ap ?? []).find((x) => x.job_id === b.job_id)?.created_at ?? null, installerSupplied: (b.jobs as { channel?: string }).channel === "installer_sourced", ownerPaidInFullAt: paidInFull(b.job_id) });
     const approvedAt = (ap ?? []).find((x) => x.job_id === b.job_id)?.created_at ?? null;
-    return { jobId: b.job_id, jobNumber: j.job_number, surname: surname(j.owners?.full_name), suburb: j.properties?.suburb ?? null, what: VISIT[b.kind] ?? "Job", kind: b.kind, amount, state, doneAt: b.scheduled_start, approvedAt };
+    const jj = b.jobs as { channel?: string | null; electrician_choice?: string | null };
+    // A kind-less payout event is the job/installer payout; only an explicit electrical-kind event proves an HIV electrical payment.
+    const explicitPaid = pe && (pe.details as { kind?: string })?.kind === b.kind ? pe.created_at : null;
+    const billing = b.kind === "assessment" || b.kind === "rectification"
+      ? electricalBillingSource({ channel: jj.channel ?? null, choice: jj.electrician_choice ?? null, committedLineOnAcceptedQuote: committed(b.job_id, b.kind), hivPaidAt: explicitPaid })
+      : "hivic" as const;
+    return { billing, jobId: b.job_id, jobNumber: j.job_number, surname: surname(j.owners?.full_name), suburb: j.properties?.suburb ?? null, what: VISIT[b.kind] ?? "Job", kind: b.kind, amount, state, doneAt: b.scheduled_start, approvedAt };
   });
 }
 
 export async function tradeMoney(userId: string) {
   const c = await ctxOrThrow(userId);
   if (!c.boss) throw new WorkflowError("Money is only shown to the business owner.");
-  const rows = await tradeMoneyRows(c.biz.id, c.kind, c.isTest);
+  const all = await tradeMoneyRows(c.biz.id, c.kind, c.isTest);
+  // Owner-direct electrical work is invoiced to the owner by the electrician: never an HIV payout, never in our totals.
+  const rows = all.filter((r) => r.billing === "hivic");
+  const ownerDirect = all.filter((r) => r.billing === "owner_direct").map((r) => ({ jobId: r.jobId, jobNumber: r.jobNumber, surname: r.surname, suburb: r.suburb, what: r.what, doneAt: r.doneAt }));
   const now = new Date(), m0 = new Date(now.getFullYear(), now.getMonth(), 1);
   const coming = rows.filter((r) => r.state.kind === "coming");
   const next = coming.map((r) => (r.state as { on: string }).on).sort()[0] ?? null;
@@ -314,7 +331,7 @@ export async function tradeMoney(userId: string) {
   // Only the last 3 digits of the saved account: enough to recognise it, never the full number.
   const { data: bank } = await admin.from("business_bank_details").select("account_number").eq("business_id", c.biz.id).maybeSingle();
   const digits = String(bank?.account_number ?? "").replace(/\D/g, "");
-  return { kind: c.kind, boss: c.boss, business: c.biz.name, bankEnding: digits.length >= 3 ? digits.slice(-3) : null, next: next ? { on: next, total: sum(nextRows), jobs: nextRows.length } : null, month: sum(rows.filter((r) => r.doneAt && new Date(r.doneAt) >= m0)), allTime: sum(rows), rows };
+  return { kind: c.kind, boss: c.boss, business: c.biz.name, bankEnding: digits.length >= 3 ? digits.slice(-3) : null, next: next ? { on: next, total: sum(nextRows), jobs: nextRows.length } : null, month: sum(rows.filter((r) => r.doneAt && new Date(r.doneAt) >= m0)), allTime: sum(rows), rows, ownerDirect };
 }
 
 export async function tradeBusiness(userId: string) {
