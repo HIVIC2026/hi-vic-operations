@@ -221,3 +221,14 @@ export async function removeImportFileFor(userId: string, importId: string, path
   await admin.from("job_imports").update({ files: next as unknown as Json, updated_at: new Date().toISOString() }).eq("id", importId);
   return { files: next as { path: string; name: string; type: string }[] };
 }
+
+/** Resume an Add job draft after refresh. Only the user who created it, still a member of its business, may read it. */
+export async function getImportDraftFor(userId: string, importId: string, businessId: string) {
+  const { data: imp } = await admin.from("job_imports").select("id, business_id, created_by, status, files, job_id").eq("id", importId).maybeSingle();
+  if (!imp || imp.created_by !== userId || imp.business_id !== businessId) return { status: "gone" as const, files: [], jobId: null, jobNumber: null };
+  await requireMember(userId, imp.business_id);
+  if (imp.status === "discarded") return { status: "gone" as const, files: [], jobId: null, jobNumber: null };
+  let jobNumber: string | null = null;
+  if (imp.job_id) { const { data: j } = await admin.from("jobs").select("job_number").eq("id", imp.job_id).maybeSingle(); jobNumber = (j?.job_number as string | null) ?? null; }
+  return { status: (imp.status === "confirmed" ? "confirmed" : "draft") as "draft" | "confirmed", files: (imp.files as { path: string; name: string; type: string }[] | null) ?? [], jobId: (imp.status === "confirmed" ? imp.job_id : null) as string | null, jobNumber };
+}

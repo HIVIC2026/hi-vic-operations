@@ -39,7 +39,7 @@ export async function loadRcDraft(jobId: string) {
   const progress = rcProgress(obs, await rcEvidence(jobId));
   return {
     readyCheckId: rc?.id ?? null, status: (rc?.status ?? "none") as "none" | "draft" | "submitted", savedAt: rc?.updated_at ?? null,
-    values, prefilled, suppliedAreaHint: st.areaProvenance === "installer_supplied_provisional" ? st.areaM2 : null,
+    values, prefilled, suppliedAreaHint: st.areaProvenance === "installer_provisional" ? st.areaM2 : null,
     progress, coordination: st.coordination, commercial: { ready: st.readiness.ready, blockers: st.readiness.blockers, releaseBlockers: st.releaseBlockers },
   };
 }

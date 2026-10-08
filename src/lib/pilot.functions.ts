@@ -278,6 +278,13 @@ export const createImport = createServerFn({ method: "POST" }).middleware([requi
     return createImportFor(context.userId, data);
   });
 
+export const getImportDraft = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ importId: uuid, businessId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { getImportDraftFor } = await import("./partner-import.server");
+    return getImportDraftFor(context.userId, data.importId, data.businessId);
+  });
+
 export const discardImport = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ importId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
