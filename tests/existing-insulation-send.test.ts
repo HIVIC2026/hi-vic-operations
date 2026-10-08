@@ -19,7 +19,7 @@ mock.module("../src/lib/emailsafety.server",()=>({unsubscribeUrlForJob:async()=>
 mock.module("../src/lib/referral.server",()=>({referralUrlForJob:async()=>null}));
 mock.module("../src/lib/workflow.server",()=>({logEvent:async()=>{}}));
 const {sendExistingInsulationSaveSpot} = await import("../src/lib/hot-leads-send.server");
-beforeEach(()=>{qualified=true;enabled=false;reviewed=true;writes=0;originalMediaReads=0;});
+beforeEach(()=>{qualified=true;enabled=false;reviewed=true;writes=0;originalMediaReads=0;delete data.customer_email_sends;});
 test("office below-R2 preview uses follow-up renderer despite original media",async()=>{
   const r = await sendExistingInsulationSaveSpot(id,id,true);
   expect(r.preview?.html).toContain("This estimate does not include removal of existing insulation.");
@@ -37,4 +37,12 @@ test("unqualified review cannot prepare the follow-up",async()=>{
 test("real office send remains globally locked with no reservation or delivery",async()=>{
   const r=await sendExistingInsulationSaveSpot(id,id);
   expect(r.outcome).toBe("blocked");expect(writes).toBe(0);
+});
+test("repeated or uncertain prior follow-up attempts never send again",async()=>{
+  enabled=true;
+  for (const status of ["sent","sending","delivered_unrecorded","failed"]) {
+    data.customer_email_sends={id,status};
+    const r=await sendExistingInsulationSaveSpot(id,id);
+    expect(r.outcome).toBe("skipped");expect(writes).toBe(0);
+  }
 });
