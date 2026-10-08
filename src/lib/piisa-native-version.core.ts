@@ -1,6 +1,7 @@
 // Published revision 18 read through the existing Mitti GET integration, 8 Oct 2026.
 // The complete answer/condition/page structure is pinned; any structural change fails closed.
 import published from "./piisa-direct-published.data.json";
+import finalPublished from "./piisa-single-name-published.data.json";
 import { flatten, norm, type NativeMapping } from "./mitti.core";
 import { A3_CREW_NAME_IDS, A3_CREW_OTHER_FIELDS, A3_NATIVE_IDS, PIISA_A3_MAPPING, a3MissingFields, type StaffOption, type CrewSelection, crewSelectionProblems, crewPrefill, type CrewChoice } from "./piisa-a3.core";
 
@@ -41,7 +42,8 @@ export function stagedDirectSchemaProblems(template: unknown): string[] {
       if (!entry || entry.norm !== norm(labels[key])) problems.push(`Direct crew row ${row}: ${labels[key]} is missing or relabelled`);
     }
   });
-  if (nativeDefinitionFingerprint(publishedStructure(template)) !== nativeDefinitionFingerprint(publishedStructure(published))) problems.push("The published PIISA types, conditions, labels or page order differ from verified revision 18.");
+  const fingerprint = nativeDefinitionFingerprint(publishedStructure(template));
+  if (![published, finalPublished].some((definition) => fingerprint === nativeDefinitionFingerprint(publishedStructure(definition)))) problems.push("The published PIISA types, conditions, labels or page order differ from verified revision 18 or 19.");
   return problems;
 }
 
@@ -55,7 +57,7 @@ export function resolvePiisaNativeVersion(template: unknown) {
 
 function directMapping(): NativeMapping {
   const mapping = { ...PIISA_A3_MAPPING };
-  for (const id of ["p7.products", "completionDate", "p8.name", "p8.date"]) delete mapping[id];
+  for (const id of ["p7.products", "p8.name", "p8.date"]) delete mapping[id];
   mapping["startDate"] = { itemIds: A3_NATIVE_IDS["startDate"] ?? [], labels: ["Installation date"], byRow: true };
   mapping["p5.safeToCover"] = { itemIds: A3_NATIVE_IDS["p5.safeToCover"] ?? [], labels: ["Does the PIESA confirm that all recessed lights are safe to cover with insulation?"], byRow: true };
   mapping["p8.signature"] = { itemIds: [PIISA_DIRECT_SIGNATURE_ID], labels: ["Signature"], byRow: true };
