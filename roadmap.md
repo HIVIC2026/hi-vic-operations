@@ -1,4 +1,7 @@
 # Roadmap (preview only, nothing sent, no publish, no real jobs)
+## Installer onboarding repairs (Jo, 8 Oct 08:17 UTC)
+- [ ] Repair insurance expiry date entry and verify calendar interaction without saving real data.
+- [ ] Repair Back navigation saving state so the green continue control stays usable; focused regression checks.
 ## Group B insulation review (Jo, 8 Oct 03:27–03:29 UTC)
 - [x] Jo 03:37: shorten Group B email invitation and explicitly exclude insulation removal from the estimate because existing insulation may stay; Group A unchanged.
 - [x] Jo 03:35: Group B invitation explains limited capacity, current queue position and insulation-review path to the eligible queue; email and linked pages updated, estimate retained, Group A unchanged. 32 checks passed; invitation visually verified; preview build OK. No sending or publishing.
