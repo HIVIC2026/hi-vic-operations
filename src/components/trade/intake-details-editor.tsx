@@ -15,7 +15,7 @@ import { EXISTING_INSULATION_CHOICES, JOB_DETAILS_LEAD, QUOTE_STATUS_CHOICES, in
 import type { ElectricianPlan } from "@/lib/job-electrician.core";
 
 export type IntakeJobFacts = {
-  areaM2: number | null; insulation: ExistingInsulation | null; quoted: "yes" | "no" | null; quoteIncGst: number | null;
+  areaM2: number | null; insulation: ExistingInsulation | null; quoted: "yes" | "no" | null; quoteAnswer?: QuoteStatus | null; quoteIncGst: number | null;
   includes: string | null; proposedR: number | null; files: AttachedFile[]; electricianChosen: boolean; quoteHeld: string[];
   electricianPayer?: ElectricianPayer; feeAwarenessCurrent?: boolean; payerEditable?: boolean;
 };
@@ -31,7 +31,7 @@ type ElChoices = { approved: { businessId?: string; nominationId?: string; name:
 export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electricians, preview = false }: {
   facts: IntakeJobFacts; businessId: string; onSave: (s: IntakeSave) => Promise<{ quoteHeld: string[] }>; upload: (f: File[]) => Promise<AttachedFile[]>; electricians?: ElChoices | undefined; preview?: boolean;
 }) {
-  const initStatus: QuoteStatus | null = facts.quoted === "yes" || facts.quoteIncGst != null ? "have_quote" : facts.quoted === "no" ? "not_quoted" : facts.files.length ? "have_quote" : null;
+  const initStatus: QuoteStatus | null = facts.quoteAnswer !== undefined ? facts.quoteAnswer : facts.quoted === "yes" || facts.quoteIncGst != null ? "have_quote" : facts.quoted === "no" ? "not_quoted" : null;
   const [open, setOpen] = useState(false);
   const [area, setArea] = useState(facts.areaM2 == null ? "" : String(facts.areaM2));
   const [ins, setIns] = useState<ExistingInsulation>(facts.insulation ?? "unknown");
@@ -75,7 +75,7 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
   const known = [
     facts.areaM2 != null ? `Ceiling ${facts.areaM2} m² (your figure, not yet accepted)` : "Ceiling area: not measured yet",
     `Existing insulation: ${EXISTING_INSULATION_CHOICES.find((c) => c.value === (facts.insulation ?? "unknown"))?.label}`,
-    facts.quoteIncGst != null ? `Your quote $${facts.quoteIncGst.toLocaleString("en-AU")} inc GST` : facts.quoted === "no" || !facts.files.length ? "Quote: not quoted yet" : "Quote: file attached",
+    facts.quoteIncGst != null ? `Your quote $${facts.quoteIncGst.toLocaleString("en-AU")} inc GST` : initStatus === "not_quoted" ? "Quote: not quoted yet" : initStatus === "have_quote" ? (facts.files.length ? "Quote: your uploaded quote — office confirms the amount" : "Quote: amount still needed") : "Quote: not answered yet",
   ];
   return (
     <section className="space-y-3 rounded-[18px] border border-line bg-paper p-4" data-intake-editor>

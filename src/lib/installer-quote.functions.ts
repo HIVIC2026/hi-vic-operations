@@ -123,7 +123,8 @@ export const getMyIntakeJob = createServerFn({ method: "POST" }).middleware([req
       admin.from("jobs").select("installer_quoted, electrician_choice").eq("id", data.jobId).single(),
     ]);
     const payerLock = await (await import("./job-electrician.server")).payerChangeBlocker(data.jobId);
-    return { applies: true as const, businessId: biz, areaM2: s.areaM2, areaProvenance: s.areaProvenance, insulation: s.insulation, quoted: (job?.installer_quoted ?? null) as "yes" | "no" | null, quoteIncGst: s.quoteIncGst, includes: s.includes, proposedR: s.proposedR, files: ((imp?.files as { path: string; name: string; type: string }[] | null) ?? []), electricianChosen: s.electricianPayer !== "undecided", payerEditable: !payerLock && s.electricianPayer !== "own", payerLockReason: payerLock ?? (s.electricianPayer === "own" ? "Your electrician is already chosen — ask the office to change it." : null), quoteHeld: [...s.readiness.blockers, ...s.releaseBlockers.filter((b) => !/contact consent/.test(b))], electricianPayer: s.electricianPayer, feeAwarenessCurrent: s.feeAwarenessRecorded && (s.feeAwarenessPayer ?? "hivic") === s.electricianPayer };
+    const quoteAnswer = (await m.intakeQuoteAnswers([data.jobId])).get(data.jobId) ?? null;
+    return { applies: true as const, businessId: biz, areaM2: s.areaM2, areaProvenance: s.areaProvenance, insulation: s.insulation, quoted: (job?.installer_quoted ?? null) as "yes" | "no" | null, quoteAnswer, quoteIncGst: s.quoteIncGst, includes: s.includes, proposedR: s.proposedR, files: ((imp?.files as { path: string; name: string; type: string }[] | null) ?? []), electricianChosen: s.electricianPayer !== "undecided", payerEditable: !payerLock && s.electricianPayer !== "own", payerLockReason: payerLock ?? (s.electricianPayer === "own" ? "Your electrician is already chosen — ask the office to change it." : null), quoteHeld: [...s.readiness.blockers, ...s.releaseBlockers.filter((b) => !/contact consent/.test(b))], electricianPayer: s.electricianPayer, feeAwarenessCurrent: s.feeAwarenessRecorded && (s.feeAwarenessPayer ?? "hivic") === s.electricianPayer };
   });
 
 export const saveMyIntakeJob = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -177,8 +178,10 @@ export const getMyIntakeProgress = createServerFn({ method: "POST" }).middleware
     const lastVerifiedAt = (ev ?? []).map((e) => e.verified_at).filter(Boolean).sort().pop() ?? null;
     const q = core.currentQuote(qs ?? []);
     const installBlockers = inst && inst.status === "confirmed" ? (await (await import("./esc.server")).installReadiness(id).catch(() => ({ blockers: ["Installation readiness could not be checked"] }))).blockers : [];
+    const answer = (await m.intakeQuoteAnswers([id])).get(id) ?? null;
     return { applies: true as const, ...core.installerProgress({
-      coordination: s.coordination, quoted: (job?.installer_quoted ?? null) as "yes" | "no" | null,
+      coordination: s.coordination, quoted: answer === "have_quote" ? "yes" : answer === "not_quoted" ? "no" : null,
+      quoteAmountKnown: s.quoteIncGst != null,
       eligibility: await m.commercialEligibility(id),
       quoteHeld: [...s.readiness.blockers, ...s.releaseBlockers.filter((b: string) => !/contact consent/.test(b))],
       quoteStatus: q.status, quoteDelivery: q.delivery, quoteHoldReason: q.row?.release_hold_reason ?? null,

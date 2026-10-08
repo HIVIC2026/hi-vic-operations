@@ -383,3 +383,14 @@ export function electricalLineBlocker(codes: (string | null)[], payer: Electrici
   if (payer === "own" && has) return "This quote charges a PIESA but the owner's own electrician invoices them directly — prepare a fresh quote first";
   return null;
 }
+
+/**
+ * The installer's explicit "Have you measured and quoted this job?" answer, separate from price readiness.
+ * Latest recorded answer wins (a later No overrides retained files); older jobs fall back to jobs.installer_quoted.
+ * Never inferred from attachments.
+ */
+export function resolveQuoteAnswer(events: { answer: unknown; at: string }[], installerQuoted: string | null | undefined): QuoteStatus | null {
+  const valid = events.filter((e) => e.answer === "have_quote" || e.answer === "not_quoted").sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  if (valid[0]) return valid[0].answer as QuoteStatus;
+  return installerQuoted === "yes" ? "have_quote" : installerQuoted === "no" ? "not_quoted" : null;
+}

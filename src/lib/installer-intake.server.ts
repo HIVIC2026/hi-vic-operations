@@ -248,6 +248,8 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
     }
     await admin.from("jobs").update({ estimated_area_m2: ch.area, estimated_area_unknown: false }).eq("id", jobId);
   }
+  { const prev = (await intakeQuoteAnswers([jobId])).get(jobId) ?? null;
+    if (prev !== p.quoteStatus) await logEvent(jobId, actorId, "installer_quote_answer", p.quoteStatus === "have_quote" ? "Installer answered: measured and quoted" : "Installer answered: not measured or quoted yet", { answer: p.quoteStatus, previous: prev, source: "installer_edit" }, { internal: true }); }
   if (ch.quote) { const { error: e } = await admin.from("jobs").update({ installer_quoted: ch.quote.quoted, installer_quoted_price_inc_gst: ch.quote.quoteIncGst, installer_price_includes: ch.quote.includes }).eq("id", jobId); if (e) throw new WorkflowError(e.message); }
   if (p.files.length) {
     const { data: imp } = await admin.from("job_imports").select("id, files").eq("job_id", jobId).eq("business_id", businessId).order("created_at", { ascending: true }).limit(1).maybeSingle();
@@ -290,4 +292,17 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
   // Payer change: prepare a fresh held draft at the current lines when the commercial facts are ready (never sent here).
   if (pc.change) { const s2 = await installerIntakeState(jobId); if (s2.readiness.ready && pc.nextPayer !== "undecided") await draftQuoteFromIntake(jobId, actorId).catch(() => null); }
   return { changed: material || p.files.length > 0 || !!electrician || feeRecorded, quotes: quotes.length, state: await installerIntakeState(jobId) };
+}
+
+/** Canonical explicit quote answer per job (see resolveQuoteAnswer). */
+export async function intakeQuoteAnswers(jobIds: string[]): Promise<Map<string, "have_quote" | "not_quoted" | null>> {
+  const out = new Map<string, "have_quote" | "not_quoted" | null>();
+  if (!jobIds.length) return out;
+  const { resolveQuoteAnswer } = await import("./installer-intake.core");
+  const [{ data: ev }, { data: jobs }] = await Promise.all([
+    admin.from("workflow_events").select("job_id, created_at, details").in("job_id", jobIds).eq("event_type", "installer_quote_answer"),
+    admin.from("jobs").select("id, installer_quoted").in("id", jobIds),
+  ]);
+  for (const j of jobs ?? []) out.set(j.id, resolveQuoteAnswer((ev ?? []).filter((e) => e.job_id === j.id).map((e) => ({ answer: (e.details as { answer?: unknown } | null)?.answer, at: e.created_at })), j.installer_quoted));
+  return out;
 }
