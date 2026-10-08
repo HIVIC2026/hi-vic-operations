@@ -675,6 +675,12 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
         if (cur?.status !== "issued" || cur.release_state !== "released") throw new WorkflowError("This quote is not the current version sent to you.");
         const ib = await intakeSendBlockers(q.job_id);
         if (ib.length) throw new WorkflowError(`Blocked: ${ib.join(" • ")}`);
+        // Reconfirming after a correction: the earlier accepted quote is replaced only if no invoice was raised on it.
+        const { data: prior } = await admin.from("quotes").select("id").eq("job_id", q.job_id).eq("kind", "installation").eq("status", "accepted").neq("id", q.id);
+        if (prior?.length) {
+          const { count: inv } = await admin.from("invoices").select("id", { count: "exact", head: true }).in("quote_id", prior.map((x) => x.id));
+          if (inv) throw new WorkflowError("Home Insulation Victoria needs to cancel the earlier invoice before you can accept the corrected quote. We'll be in touch.");
+        }
       }
       const cb = await commercialBlocker(q.job_id);
       if (cb) throw new WorkflowError(`Blocked: ${cb}`);
@@ -706,6 +712,7 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
     }
     if (!pickedWindow) await admin.from("quotes").update({ status: "accepted", accepted_at: new Date().toISOString(), accepted_by: context.userId }).eq("id", q.id);
     await admin.from("quotes").update({ status: "superseded" }).eq("job_id", q.job_id).eq("kind", q.kind).eq("status", "issued");
+    if (q.kind === "installation") await admin.from("quotes").update({ status: "superseded" }).eq("job_id", q.job_id).eq("kind", "installation").eq("status", "accepted").neq("id", q.id); // replaced by the reconfirmed quote (no invoice on it — checked above for intake jobs)
     if (pickedWindow) await logEvent(q.job_id, context.userId, "rectification_window_picked", `Owner picked the rectification time ${new Date(pickedWindow).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })}; it becomes the confirmed booking when rectification scheduling opens`, { quote_id: q.id, starts_at: pickedWindow });
     if (pickedWindow) {
       const { moveHoldForRectification } = await import("./install-holds.server");
