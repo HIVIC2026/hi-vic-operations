@@ -35,3 +35,4 @@
 - Installer QA: `--installer-app-only`, no signing/office. Why: bounded.
 - Intake serializes files, keeps partial uploads/provenance, locks pending inputs and protects dirty drafts. Why: safe retries.
 - Group B guards are shared; follow-up removal uses snapshot facts; initial email stays separate. Why: no repeat requests or price drift.
+- Recurring portal QA is one bounded command `bun run portal-qa` (scripts/portal-qa.ts) reusing installer-test and e2e/journey/shoot.py; only PASS rows count, gaps are NOT_RUN. Why: honest, repeatable checks without new AI tasks.
