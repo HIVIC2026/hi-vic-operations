@@ -48,6 +48,7 @@ async function byJobs<T>(ids: string[], q: (chunk: string[], from: number, to: n
 const must = <T>(r: { data: T; error: { message: string } | null }, what: string): T => { if (r.error) throw new Error(`${what} unavailable: ${r.error.message}`); return r.data; };
 
 export type EnquiryGroupRow = EnquiryClass & {
+  removed?: boolean;
   id: string; kind: "job" | "calculator"; jobNumber: string | null; reference: string | null; name: string | null; email: string | null; address: string | null; postcode: string | null;
   createdAt: string; stage: string | null; areaLabel: string; declaredInsulation: "none" | "present" | "unknown" | null; hardFailures: string[];
   lastEmail: { purpose: string; status: string; at: string | null; error: string | null } | null;
@@ -284,7 +285,7 @@ export async function removeLeads(jobIds: string[], reason: string, by: string |
     if (!j || j.source !== WEBSITE_SOURCE || j.channel !== WEBSITE_CHANNEL) continue;
     const { error } = await admin.from("jobs").update({ stage: "cancelled", prior_stage: j.stage, hold_reason: `Removed by office: ${reason}` }).eq("id", id);
     if (error) throw new Error(`Could not remove a lead: ${error.message}`);
-    await logEvent(id, by, "lead_removed", `Lead removed by office: ${reason}`, { reason }, { from: j.stage, to: "cancelled" } as never);
+    await logEvent(id, by, "lead_removed", `Lead removed by office: ${reason}`, { reason }, { from: j.stage as never, to: "cancelled", internal: true });
     removed++;
   }
   return { removed };
