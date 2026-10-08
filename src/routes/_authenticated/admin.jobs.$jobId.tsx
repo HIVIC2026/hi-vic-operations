@@ -65,6 +65,7 @@ function JobDetail() {
   const { jobId } = Route.useParams();
   const { data: job, error, refetch } = useJob(jobId);
   const [updating, setUpdating] = useState(false);
+  const [eligibilityOpen, setEligibilityOpen] = useState(false);
   const [open, setOpen] = useState<Set<RecordGroup>>(new Set());
   const toggle = (g: RecordGroup) => setOpen((s) => { const n = new Set(s); if (n.has(g)) n.delete(g); else n.add(g); return n; });
   const ensureOpen = useCallback((group: RecordGroup) => setOpen((current) => new Set(current).add(group)), []);
@@ -93,7 +94,7 @@ function JobDetail() {
         <EligibilityForm jobId={jobId} /><HoldControls jobId={jobId} stage={job.stage ?? ""} />
         <div className="mt-2 flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => openTarget("ready-check")}>Ready Check controls</Button><Button size="sm" variant="outline" onClick={() => openTarget("quotes")}>Quote controls</Button><Button size="sm" variant="outline" onClick={() => openTarget("ap-evidence")}>AP controls</Button></div>
       </section>}
-      <details className="my-3 text-sm"><summary className="cursor-pointer font-semibold text-sub">Eligibility evidence & verified decision</summary><EligibilityCard jobId={jobId} override={<EligibilityForm jobId={jobId} />} verifiedControls={<VerifiedEligibilityCard jobId={jobId} />} /></details>
+      <details className="my-3 text-sm" onToggle={(event) => setEligibilityOpen(event.currentTarget.open)}><summary className="cursor-pointer font-semibold text-sub">Eligibility evidence & verified decision</summary>{eligibilityOpen && <EligibilityCard jobId={jobId} override={<EligibilityForm jobId={jobId} />} verifiedControls={<VerifiedEligibilityCard jobId={jobId} />} />}</details>
       <div className="mb-3 flex flex-wrap gap-1.5 text-xs text-muted-foreground">
         <SourceBadge channel={job.channel} business={job.originating_business_name} />{job.urgency && <UrgencyBadge urgency={job.urgency} days={job.days_remaining} />}
       </div>

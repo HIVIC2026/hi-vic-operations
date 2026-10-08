@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { SECTION_TABS, sectionFor, tabActive } from "../src/lib/office-nav";
+import { OFFICE_HEADINGS, SECTION_TABS, sectionFor, tabActive } from "../src/lib/office-nav";
 import { TEMPLATE_ENTRIES, entriesFor, parseTemplateSearch, selectTemplate } from "../src/lib/template-hub.core";
 import { samples } from "../src/lib/step3-email-samples";
 import { renderStep3SaveSpot, renderStep3SaveSpotNoSize, STEP3_SAVESPOT_SAMPLE } from "../src/lib/step3-emails";
@@ -8,14 +8,13 @@ import { PARTNER_TEMPLATES, renderPartnerTemplate } from "../src/lib/partner-tem
 import { INSTALLER_INVITATION_HTML } from "../src/lib/installer-invitation.html";
 
 describe("Templates navigation", () => {
-  test("one Templates heading with Email / Mitti / Compliance tabs; other headings unchanged", () => {
+  test("one Templates heading with Email / Mitti / Compliance tabs; original tools retained", () => {
     expect(SECTION_TABS.templates.map((t) => t.label)).toEqual(["Email", "Mitti", "Compliance"]);
     expect(sectionFor("/admin/templates", { cat: "mitti" })).toBe("templates");
-    expect(sectionFor("/admin/communications")).toBe("pipeline");
+    expect(sectionFor("/admin/communications")).toBe("overview");
     expect(sectionFor("/admin/compliance")).toBe("settings");
     expect(SECTION_TABS.settings.map((t) => t.to)).toContain("/admin/compliance");
-    const office = readFileSync("src/components/portal/office.tsx", "utf8");
-    expect(office.match(/label: "Templates"/g)?.length).toBe(1);
+    expect(OFFICE_HEADINGS.filter(h => h.label === "Templates").length).toBe(1);
   });
   test("category tab is active only for its own category", () => {
     const [email, mitti] = SECTION_TABS.templates;

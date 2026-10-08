@@ -114,7 +114,7 @@ export function JobIdentity({ jobId, job, onOpen }: { jobId: string; job: JobRow
             : intake.error ? <span role="alert" className="text-danger">Couldn't load consent — treat as missing</span>
               : consent?.consent_status === "granted" ? <span className="text-success">Granted{consent.consented_at ? ` ${fmtDate(consent.consented_at)}` : ""}</span>
                 : <span className="text-danger">{consent ? `Not granted (${consent.consent_status})` : "No consent record"} — no external contact</span>}
-          {" "}<button type="button" className="text-xs font-semibold text-primary underline" onClick={() => onOpen("intake-consent")}>View evidence</button>
+          {" "}<Button variant="link" size="sm" type="button" className="h-auto p-0 text-xs" onClick={() => onOpen("intake-consent")}>View evidence</Button>
         </dd></div>
         <div className="min-w-0"><dt className="text-xs text-muted-foreground">Eligibility (Gate 1)</dt><dd><Pill t={outcome.t}>{outcome.l}</Pill></dd></div>
       </dl>
