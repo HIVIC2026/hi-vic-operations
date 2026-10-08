@@ -7,7 +7,6 @@ import { piisaPrefill, seedAnswers } from "../src/lib/official-prefill.core";
 
 const it = (label: string, id: string, extra: Record<string, unknown> = {}) => ({ item_id: id, label, type: "text", ...extra });
 const fullTemplate = () => a3Template() as { items: unknown[] } & Record<string, unknown>;
-};
 
 describe("A3 aliases map to real official ids", () => {
   test("every alias key is an official PIISA item id", () => {
