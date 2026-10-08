@@ -63,8 +63,9 @@ export function readyCheckCoverage(e: SuppliedEvidence): Coverage {
     need(!!(a.m2 && a.m2 > 0 && a.m2 <= 5000), `${n}: measured m²`);
     need(!!a.beforeVideo, `${n}: 360° before video`);
     if (a.state === "Under-insulated") {
-      need(!!a.depthPhoto, `${n}: depth photo with vertical ruler`);
-      need(a.rValue != null && Number.isFinite(a.rValue), `${n}: estimated existing R-value`);
+      // Jo 8 Oct 2026: no depth photo is fine when the installer ticks the below-R2.0 / eligible confirmation.
+      need(!!a.depthPhoto || !!a.belowR2Confirmed, `${n}: depth photo with vertical ruler`);
+      need(!!a.belowR2Confirmed || (a.rValue != null && Number.isFinite(a.rValue)), `${n}: estimated existing R-value`);
       need(a.removal != null, `${n}: removal required?`);
       if (a.rValue != null && a.rValue >= 2) hardFail.push(`${n}: existing R-value is R2.0 or more – not eligible.`);
     }
