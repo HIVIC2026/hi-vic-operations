@@ -77,6 +77,8 @@ export async function loadEnquiryGroups() {
     byJobs(ids, (c, f, t) => admin.from("customer_engagement_events").select("job_id").in("job_id", c).eq("event_type", "intake_media_reviewed").range(f, t)),
   ]);
   const savedSet = new Set(responses.filter((r) => r.spot_saved_at).map((r) => r.job_id));
+  const mediaBy = group(media);
+  const checkedSet = new Set(reviewed.map((r) => r.job_id));
   const deliveryCfg = must(cfg, "Delivery settings");
   const group = <T extends { job_id: string | null }>(rows: T[]) => { const m = new Map<string, T[]>(); for (const r of rows) if (r.job_id) m.set(r.job_id, [...(m.get(r.job_id) ?? []), r]); return m; };
   const mBy = group(meas), eBy = group(ests), dBy = group(docs), sBy = group(sends), cBy = group(consents);
@@ -115,6 +117,7 @@ export async function loadEnquiryGroups() {
           campaignGroup: camp.length ? (camp.some((s) => /:b(:|$)/.test(s.idempotency_key ?? "")) ? "onsite" : "likely") : null,
         });
       })(), attentionReason: null, outcomeAt: j.eligibility_set_at ?? null,
+      mediaCount: (mediaBy.get(j.id) ?? []).length, mediaChecked: checkedSet.has(j.id),
     };
   });
   const primary = primaryByContact(rows);
