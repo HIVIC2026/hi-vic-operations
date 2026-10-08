@@ -72,6 +72,33 @@ export async function autoDecideEligibility(jobId: string, opts: { initialProces
   return d;
 }
 
+/**
+ * Re-records a SYSTEM screening made under an older ruleset, for jobs already past the enquiry stage.
+ * Never touches admin decisions, never moves stage, never sends anything. Only applies when the current
+ * rules give the same result or an upgrade (onsite -> likely); a downgrade or a change for a held job is
+ * returned as "needs_office" so a person decides.
+ */
+export async function refreshStaleSystemGate1(jobId: string): Promise<"refreshed" | "current" | "needs_office" | "skipped"> {
+  const { data: j } = await admin.from("jobs").select(JOB_COLS).eq("id", jobId).single();
+  if (!j || j.eligibility_decision_source !== "system") return "skipped";
+  const prev = j.eligibility_decision_rules as { ruleset_version?: string } | null;
+  const { facts, d } = await evaluateStored(j as StoredJob, jobId);
+  if (prev?.ruleset_version === d.ruleset_version) return "current";
+  const same = (j.eligibility_outcome ?? null) === d.outcome;
+  const upgrade = j.eligibility_outcome === "needs_onsite_confirmation" && d.outcome === "likely_eligible";
+  if (j.stage === "on_hold" || d.reviewRequired || !(same || upgrade)) return "needs_office";
+  const now = new Date().toISOString();
+  const audit = { ...gate1Audit(d, facts, now), signature: gate1Signature(d), sources: ["properties", "properties.enrichment (owner answers)", "jobs.life_support_status", "workflow_settings"], refreshed_from_ruleset: prev?.ruleset_version ?? null };
+  const reason = d.onsite.length ? `Needs onsite confirmation: ${d.onsite.join("; ")}` : `Auto-pass: ${d.passed.join("; ")}`;
+  await admin.from("jobs").update({
+    eligibility_outcome: d.outcome, eligibility_reason: reason.slice(0, 2000), eligibility_set_at: now,
+    eligibility_decision_rules: audit as unknown as Json, eligibility_flags: d.flags as unknown as Json,
+  }).eq("id", jobId);
+  await logEvent(jobId, null, "eligibility_auto_decided",
+    `Gate 1 re-checked against current rules (${d.ruleset_version}): ${same ? "result unchanged" : "upgraded"} – ${d.outcome!.replace(/_/g, " ")}`, audit, { internal: true });
+  return "refreshed";
+}
+
 /** Admin-decided jobs keep their outcome; only safety/operational flags (incl. rollout hold) are refreshed. */
 export async function refreshGate1Flags(jobId: string): Promise<Gate1Decision | null> {
   const { data: j } = await admin.from("jobs").select(JOB_COLS).eq("id", jobId).single();
