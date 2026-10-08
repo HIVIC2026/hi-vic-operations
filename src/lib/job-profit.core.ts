@@ -24,6 +24,8 @@ export type ProfitInput = {
   ownerR5IncPerM2: number; ownerRemovalIncPerM2: number;
   installerR5IncPerM2: number | null; installerRemovalIncPerM2: number | null;
   apFeeInc: number; piesaCustomerInc: number; electricianPiesaRateInc: number | null;
+  /** Installer's own electrician invoices the owner directly: no HIV PIESA revenue, cost or markup. */
+  piesaOwnerDirect?: boolean;
   currentVeecPrice: number;
   veecBuyPrice?: number; // office setting, default $70
   // actuals
@@ -47,8 +49,9 @@ function side(i: ProfitInput, actual: boolean): ProfitSide {
   const sold = actual && i.saleVeecPrice != null;
   const veecPrice = sold ? i.saleVeecPrice! : i.currentVeecPrice;
   const veecSpread = veecs == null ? null : r2(veecs * (veecPrice - (i.veecBuyPrice ?? VEEC_BOUGHT_PRICE)));
-  const piesaMarkupInc = i.electricianPiesaRateInc == null ? null : r2(i.piesaCustomerInc - i.electricianPiesaRateInc);
-  if (piesaMarkupInc == null) notes.push("Electrician PIESA rate to be confirmed.");
+  const piesaMarkupInc = i.piesaOwnerDirect ? 0 : i.electricianPiesaRateInc == null ? null : r2(i.piesaCustomerInc - i.electricianPiesaRateInc);
+  if (i.piesaOwnerDirect) notes.push("Electrician invoices the owner directly – no PIESA revenue or cost for Home Insulation Victoria.");
+  else if (piesaMarkupInc == null) notes.push("Electrician PIESA rate to be confirmed.");
   let installerMarkupInc: number | null = 0;
   if (i.hivJob) {
     if (actual && i.acceptedQuoteMarkupInc != null) {

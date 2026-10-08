@@ -113,11 +113,23 @@ export const snoozeNeedsItem = createServerFn({ method: "POST" }).middleware([re
 
 /** Office records that a trade has been paid (no money moves automatically). */
 export const markPayoutPaid = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: z.string().uuid(), reference: z.string().trim().min(2).max(120) }).parse(d))
+  .inputValidator((d) => z.object({ jobId: z.string().uuid(), reference: z.string().trim().min(2).max(120), kind: z.enum(["assessment", "rectification", "installation"]).optional() }).parse(d))
   .handler(async ({ context, data }) => {
     await requireAdmin(context.supabase);
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    if (data.kind === "assessment" || data.kind === "rectification") {
+      const [{ data: j }, { data: qs }] = await Promise.all([
+        admin.from("jobs").select("channel, electrician_choice").eq("id", data.jobId).single(),
+        admin.from("quotes").select("kind, quote_items(code, description)").eq("job_id", data.jobId).eq("status", "accepted"),
+      ]);
+      const items = (qs ?? []).flatMap((q) => ((q.quote_items as { code: string | null; description: string | null }[] | null) ?? []).map((i) => ({ ...i, qk: q.kind })));
+      const committed = qs?.length ? (data.kind === "assessment" ? items.some((i) => i.code === "PIESA") : items.some((i) => i.qk === "rectification" || (i.description ?? "").startsWith("Electrical rectification:"))) : null;
+      const { electricalBillingSource } = await import("./installer-led.core");
+      if (electricalBillingSource({ channel: j?.channel ?? null, choice: j?.electrician_choice ?? null, committedLineOnAcceptedQuote: committed, hivPaidAt: null }) === "owner_direct")
+        throw new Error("This electrician invoices the owner directly — Home Insulation Victoria doesn't pay this work.");
+    }
     const { logEvent } = await import("./workflow.server");
-    await logEvent(data.jobId, context.userId, "payout_marked_paid", `Payout marked paid (${data.reference})`, { reference: data.reference }, { internal: true });
+    await logEvent(data.jobId, context.userId, "payout_marked_paid", `Payout marked paid (${data.reference})`, { reference: data.reference, ...(data.kind ? { kind: data.kind } : {}) }, { internal: true });
     return { ok: true };
   });
 

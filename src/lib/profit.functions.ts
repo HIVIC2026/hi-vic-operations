@@ -24,7 +24,7 @@ export const getProfitRegister = createServerFn({ method: "POST" }).middleware([
     admin.from("veec_spot_prices").select("id,price,priced_on,source,note,created_at").order("priced_on", { ascending: false }).limit(500),
     admin.from("quotes").select("id,job_id,kind,customer_total_inc_gst,subtotal_inc_gst,veec_discount_inc_gst,veec_count,accepted_at").eq("status", "accepted"),
     admin.from("job_overview").select("id,job_number,property_address,owner_name,stage,source"),
-    admin.from("jobs").select("id,channel"),
+    admin.from("jobs").select("id,channel,electrician_choice"),
     admin.from("pricing_settings").select("piesa_rec_cost_ex_gst,veec_lodgement_fee_ex_gst").eq("is_active", true).maybeSingle(),
   ]);
   for (const r of [spots, quotes, jobs, channels, pricing]) if (r.error) throw new Error(`Profit register could not be loaded: ${r.error.message}`);
@@ -80,6 +80,14 @@ export const getProfitRegister = createServerFn({ method: "POST" }).middleware([
     byJob.set(q.job_id, cur);
   }
   const channelByJob = new Map((channels.data ?? []).map((c) => [c.id, c.channel]));
+  // Owner-direct electrician (installer's own REC): zero PIESA cost/markup, never "rate missing". Accepted quotes carrying a PIESA line stay as committed.
+  const { electricalBillingSource } = await import("./installer-led.core");
+  for (const c of channels.data ?? []) {
+    const cur = byJob.get(c.id); if (!cur) continue;
+    const qids = (quotes.data ?? []).filter((q) => q.job_id === c.id).map((q) => q.id);
+    const hasLine = (items.data ?? []).some((l) => qids.includes(l.quote_id) && /\(PIESA\)/.test(l.description ?? ""));
+    if (electricalBillingSource({ channel: c.channel, choice: (c as { electrician_choice?: string | null }).electrician_choice ?? null, committedLineOnAcceptedQuote: hasLine, hivPaidAt: null }) === "owner_direct") { cur.piesaCostEx = 0; cur.piesaCostMissing = false; }
+  }
   const rows = (jobs.data ?? []).filter((j) => j.id && byJob.has(j.id) && j.source !== "qa_test" && j.stage !== "cancelled").map((j) => ({
     jobId: j.id!, jobNumber: j.job_number, address: j.property_address, owner: j.owner_name, stage: j.stage,
     ...byJob.get(j.id!)!, installerSourced: channelByJob.get(j.id!) === "hivic_sourced", installerLed: channelByJob.get(j.id!) === "installer_sourced",
@@ -125,7 +133,7 @@ export const getJobProfit = createServerFn({ method: "POST" }).middleware([requi
     await requireAdmin(context.supabase);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const db = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
-    const { data: job, error } = await admin.from("jobs").select("channel, installer_led, estimated_area_m2, ap_fee_override_inc_gst, properties(postcode)").eq("id", data.jobId).single();
+    const { data: job, error } = await admin.from("jobs").select("channel, installer_led, electrician_choice, estimated_area_m2, ap_fee_override_inc_gst, properties(postcode)").eq("id", data.jobId).single();
     if (error || !job) throw new Error("Job not found.");
     const [m, asg, rs, ps, ws, quote, lodg] = await Promise.all([
       admin.from("ceiling_measurements").select("measured_area_m2, removal_required, removal_m2, access_difficulty, status").eq("job_id", data.jobId).eq("is_current", true).maybeSingle(),
@@ -133,7 +141,7 @@ export const getJobProfit = createServerFn({ method: "POST" }).middleware([requi
       admin.from("retail_estimator_settings").select("r5_install_inc_gst_per_m2, removal_inc_gst_per_m2, piesa_assessment_inc_gst, ap_management_inc_gst, veec_buy_price").eq("is_current", true).maybeSingle(),
       admin.from("pricing_settings").select("access_loadings, gst_rate").eq("is_active", true).maybeSingle(),
       db.from("workflow_settings").select("current_veec_price").limit(1).maybeSingle(),
-      admin.from("quotes").select("id, quote_internals(ap_margin_ex_gst, calc_snapshot)").eq("job_id", data.jobId).eq("kind", "installation").eq("status", "accepted").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      admin.from("quotes").select("id, quote_items(code), quote_internals(ap_margin_ex_gst, calc_snapshot)").eq("job_id", data.jobId).eq("kind", "installation").eq("status", "accepted").order("created_at", { ascending: false }).limit(1).maybeSingle(),
       db.from("veec_lodgements").select("quantity, sale_price_per_veec").eq("job_id", data.jobId).maybeSingle(),
     ]);
     if (!rs.data || !ps.data) throw new Error("Price settings missing.");
@@ -157,6 +165,9 @@ export const getJobProfit = createServerFn({ method: "POST" }).middleware([requi
     const snap = qi?.calc_snapshot as { pricing_rule?: string; installer_markup?: { markupInc: number } } | null;
     const acceptedMarkup = qi ? (snap?.pricing_rule ? Number(snap.installer_markup?.markupInc ?? 0) : Math.round(Number(qi.ap_margin_ex_gst ?? 0) * gst * 100) / 100) : null;
     const { jobProfitBreakdown } = await import("./job-profit.core");
+    const { electricalBillingSource } = await import("./installer-led.core");
+    const qItems = (quote.data as unknown as { quote_items?: { code: string | null }[] } | null)?.quote_items;
+    const piesaOwnerDirect = electricalBillingSource({ channel: job.channel, choice: (job as { electrician_choice?: string | null }).electrician_choice ?? null, committedLineOnAcceptedQuote: quote.data ? (qItems ?? []).some((i) => i.code === "PIESA") : null, hivPaidAt: null }) === "owner_direct";
     const hivJob = job.channel !== "installer_sourced" && !job.installer_led;
     return {
       hivJob,
@@ -169,7 +180,7 @@ export const getJobProfit = createServerFn({ method: "POST" }).middleware([requi
         ownerR5IncPerM2: Number(rs.data.r5_install_inc_gst_per_m2), ownerRemovalIncPerM2: Number(rs.data.removal_inc_gst_per_m2),
         installerR5IncPerM2: r5, installerRemovalIncPerM2: rem,
         apFeeInc: job.ap_fee_override_inc_gst != null ? Number(job.ap_fee_override_inc_gst) : Number(rs.data.ap_management_inc_gst),
-        piesaCustomerInc: Number(rs.data.piesa_assessment_inc_gst), electricianPiesaRateInc: piesaRate, veecBuyPrice: Number(rs.data.veec_buy_price),
+        piesaCustomerInc: Number(rs.data.piesa_assessment_inc_gst), electricianPiesaRateInc: piesaRate, piesaOwnerDirect, veecBuyPrice: Number(rs.data.veec_buy_price),
         currentVeecPrice: Number(ws.data?.current_veec_price ?? 83),
         acceptedQuoteMarkupInc: hivJob ? acceptedMarkup : null, acceptedQuoteLegacy: !!qi && !snap?.pricing_rule,
         lodgedVeecs: lodg.data?.quantity != null ? Number(lodg.data.quantity) : null,
