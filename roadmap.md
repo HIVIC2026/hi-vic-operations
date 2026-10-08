@@ -1,10 +1,14 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Approved date removal and signature capability (Jo 8 Oct 21:51 UTC)
+- [x] Remove completion question requirement; derive official expected date from captured PIISA signing day in Australia/Sydney, never actual work completion or installation fallback. Current verified revision 19 is compatible; any subsequent native structure remains fail-closed until readback registration.
+- [x] Documented API prefill excludes signature type; responses.name being readable does not establish name-only writes/drawing preservation. No speculative signature mutation or dynamic autofill enabled.
+- [ ] Reported new Signature 805138fa… and impending native publication not yet observed through published GET; wait for final actual definition before registering changed IDs/structure.
 ## Final published native grouping (Jo 8 Oct 21:48 UTC)
 - [x] Refreshed actual Mitti GET definition: same revision 19, date after address, direct crew and nonblank certificate branches before photo; concise evidence labels already exact. Registered latest readback; response-set collection ordering normalized without relaxing item/condition order.
-- [ ] Activation still blocked: expected completion 84a8b69b-efd5-4830-9da7-66958cbfdb6e remains absent in actual published readback; awaiting Jo's retention decision/native restoration. No invented field, audit, send, approval or publication.
+- [x] Completion blocker superseded by Jo's explicit 21:51 removal approval; current verified grouping supports one date input. No invented field, audit, send, approval or publication.
 ## PIISA single-name/date layout (Jo 8 Oct 21:43 UTC)
 - [x] Read actual published revision 19 (modified 21:44:57 UTC): removed duplicate metadata, installation date in Title Page, eight crew fields and three conditional certificates before installer photo confirmed. Registered actual readback; personal lead attribution and captured signing date safeguards tested; no external writes.
-- [ ] Latest activation blocked: expected completion date 84a8b69b-efd5-4830-9da7-66958cbfdb6e is absent from actual published revision 19 despite Jo's retained-field requirement. Restore that native field then refetch/validate the complete published definition; no guessed fingerprint.
+- [x] Completion blocker superseded by Jo's explicit 21:51 removal approval; official expected date now comes from captured PIISA day, not a repeated input.
 ## Evidence upload QA (Jo 8 Oct 21:36 UTC)
 - [x] Shared upload/open/read failures and explicit retries, same-file reset, confirmed-only success; retained stored-file confirmation retry avoids reupload. Product controls/gates unchanged. 10 sealed evidence + 11 save phone/desktop groups, 53 focused tests passed; preview build OK. Actual unarchived TEST HV-1785 measurement PDF: controlled storage failure → same-file retry → confirmed, private open/exact-byte download; saved uploaded/unverified, null GPS, stage unchanged and zero outbox records. TEST file/history retained; no approval/sign/send/publish. See docs/EVIDENCE_UPLOAD_QA_8OCT.md.
 ## Final save QA (Jo 8 Oct 21:29 UTC)

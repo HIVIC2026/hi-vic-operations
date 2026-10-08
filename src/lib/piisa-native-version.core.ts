@@ -33,10 +33,8 @@ export function stagedDirectSchemaProblems(template: unknown): string[] {
   const entries = flatten(template);
   const byId = new Map(entries.map((e) => [String(e.id), e]));
   const problems: string[] = [];
-  const removed = ["f7032d72-4135-4165-bd50-32d84a66d085", "cda99bb8-8865-46a1-928a-2267175a1e2a", "f3245d43-ea77-11e1-aff1-0800200c9a66", "2e485f38-8ce2-4312-a06c-bd4b3a10e8ce"];
+  const removed = ["84a8b69b-efd5-4830-9da7-66958cbfdb6e", "f7032d72-4135-4165-bd50-32d84a66d085", "cda99bb8-8865-46a1-928a-2267175a1e2a", "f3245d43-ea77-11e1-aff1-0800200c9a66", "2e485f38-8ce2-4312-a06c-bd4b3a10e8ce"];
   for (const id of removed) if (byId.has(id)) problems.push(`Duplicate signing or metadata question must be removed: ${id}`);
-  const completionId = A3_NATIVE_IDS["completionDate"]?.[0];
-  if (!completionId || !byId.has(completionId)) problems.push("Expected completion date 84a8b69b-efd5-4830-9da7-66958cbfdb6e is absent from the published form; final single-date layout activation is paused.");
   for (const id of [...A3_CREW_NAME_IDS, ...(A3_NATIVE_IDS["p7.products"] ?? [])]) if (byId.has(id)) problems.push(`Retired native item is still present: ${id}`);
   A3_CREW_OTHER_FIELDS.forEach((pair, row) => {
     const labels = directCrewLabels(row);
@@ -60,7 +58,7 @@ export function resolvePiisaNativeVersion(template: unknown) {
 
 function directMapping(): NativeMapping {
   const mapping = { ...PIISA_A3_MAPPING };
-  for (const id of ["p7.products", "p8.name", "p8.date"]) delete mapping[id];
+  for (const id of ["p7.products", "completionDate", "p8.name", "p8.date"]) delete mapping[id];
   mapping["startDate"] = { itemIds: A3_NATIVE_IDS["startDate"] ?? [], labels: ["Installation date"], byRow: true };
   mapping["p5.safeToCover"] = { itemIds: A3_NATIVE_IDS["p5.safeToCover"] ?? [], labels: ["Does the PIESA confirm that all recessed lights are safe to cover with insulation?"], byRow: true };
   mapping["p8.signature"] = { itemIds: [PIISA_DIRECT_SIGNATURE_ID], labels: ["Signature"], byRow: true };

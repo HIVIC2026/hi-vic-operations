@@ -5,6 +5,7 @@ import { mittiApi, parseAudit, type MittiCall } from "./mitti.core";
 import { activeTemplate, sha256Hex, stableJson, templateBlockers } from "./assignment.core";
 import { declarationFromPiisa, MISSING_INSTALLER_DECLARATION } from "./piisa-declaration.core";
 import { logEvent } from "./workflow.server";
+import { piisaAssessmentDay } from "./piisa-assessment-date.core";
 
 export type PiisaDeclSync = { status: "saved" | "already" | "pending" | "missing" | "no_form" | "error"; message: string };
 
@@ -116,6 +117,11 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
     if (mappingProblems.length) return { status: "error", message: `The PIISA field structure has changed and needs confirmed mapping: ${mappingProblems.join(" • ")}. No signed official copy saved.` };
     const crewRes = directCrew ?? coreC.a3ResolveCrewChoices(coreC.a3CrewChoices(audit), audit, asgB?.business_id ? await cs(asgB.business_id) : [], bizB?.name ?? "");
     Object.assign(answers, crewRes.answers, actualProducts?.answers ?? {});
+    if (direct) {
+      const assessmentDay = piisaAssessmentDay(signedAt);
+      if (!assessmentDay) return { status: "missing", message: "The captured PIISA assessment/signing timestamp is missing or invalid; no expected completion date was invented." };
+      answers["completionDate"] = assessmentDay;
+    }
     crewBlockers = [...crewRes.blockers, ...crewRes.needsVerification];
     // Signature date in Melbourne from the signature's own timestamp (prestart snapshot kept independently of AP completion).
     const sigDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(new Date(signedAt));
