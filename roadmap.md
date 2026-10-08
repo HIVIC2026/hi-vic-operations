@@ -1,8 +1,11 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Native signature restoration hold (Jo 8 Oct 21:54 UTC)
+- [x] Pause direct schema activation even for previously registered definitions; legacy audit readers and signer-name match retained. Unsupported signature-name prefill/update stays off; mandatory built-in Full name limitation explained.
+- [ ] Await restored blank signature's final published readback; no assumed replacement ID. No native write, audit creation, signing, communication or portal publication.
 ## Approved date removal and signature capability (Jo 8 Oct 21:51 UTC)
 - [x] Remove completion question requirement; derive official expected date from captured PIISA signing day in Australia/Sydney, never actual work completion or installation fallback. Current verified revision 19 is compatible; any subsequent native structure remains fail-closed until readback registration.
 - [x] Documented API prefill excludes signature type; responses.name being readable does not establish name-only writes/drawing preservation. No speculative signature mutation or dynamic autofill enabled.
-- [ ] Reported new Signature 805138fa… and impending native publication not yet observed through published GET; wait for final actual definition before registering changed IDs/structure.
+- [x] Superseded by signature restoration hold above; do not assume reported 805138fa… ID.
 ## Final published native grouping (Jo 8 Oct 21:48 UTC)
 - [x] Refreshed actual Mitti GET definition: same revision 19, date after address, direct crew and nonblank certificate branches before photo; concise evidence labels already exact. Registered latest readback; response-set collection ordering normalized without relaxing item/condition order.
 - [x] Completion blocker superseded by Jo's explicit 21:51 removal approval; current verified grouping supports one date input. No invented field, audit, send, approval or publication.

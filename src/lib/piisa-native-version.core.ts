@@ -8,6 +8,7 @@ import { A3_CREW_NAME_IDS, A3_CREW_OTHER_FIELDS, A3_NATIVE_IDS, PIISA_A3_MAPPING
 
 export const PIISA_DIRECT_VERSION = "a3-direct-crew-products-review-2026-10-08";
 export const PIISA_DIRECT_SIGNATURE_ID = "83caffa2-e9c8-4315-885f-5337a4389372";
+export const PIISA_SIGNATURE_RESTORATION_HOLD = "Native signature restoration is pending; direct PIISA activation is paused until the restored signature's final published definition is read back and verified.";
 
 export function directCrewLabels(row: number) {
   const prefix = row === 0 ? "Lead installer" : `Additional installer ${row}`;
@@ -50,7 +51,7 @@ export function stagedDirectSchemaProblems(template: unknown): string[] {
 
 export function resolvePiisaNativeVersion(template: unknown) {
   if (!flatten(template).some((e) => e.id === PIISA_DIRECT_SIGNATURE_ID) && !a3MissingFields(template).length) return { version: "a3-published-choice", active: true, mapping: PIISA_A3_MAPPING, problems: [] };
-  const problems = stagedDirectSchemaProblems(template);
+  const problems = [...stagedDirectSchemaProblems(template), PIISA_SIGNATURE_RESTORATION_HOLD];
   const approved = !problems.length;
   return { version: PIISA_DIRECT_VERSION, active: approved && !problems.length, mapping: approved && !problems.length ? directMapping() : null,
     problems: [...problems, ...(!approved ? ["Final published direct-field definition has not been verified; mapping activation is paused."] : [])] };

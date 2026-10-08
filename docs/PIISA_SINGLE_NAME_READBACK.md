@@ -31,4 +31,10 @@ Published GET still returns signature `83caffa2-e9c8-4315-885f-5337a4389372` in 
 
 ## Checks
 
+## 21:54 UTC — explicit restoration hold
+
+Jo reports accidental deletion of the native signature during date editing and targeted restoration in progress. Current direct schema activation is explicitly paused, including previously registered definitions, until the restored signature's final published definition is verified. No replacement ID is assumed. Historical audit parsing is unchanged; actual signature image/time and personal lead-name match remain mandatory.
+
+The documented start/update APIs do not support signature prefills. Built-in signature Full name cannot be hidden or linked according to the native capability finding; the installer must enter it and the portal checks it matches the lead. No unsupported name-only write, fake signature, image or timestamp is enabled. Approved expected-date derivation remains unchanged.
+
 Nine isolated focused test files: 90 passed, 0 failed, 303 assertions. Personal signature, native version, declaration, actual products, product sync/Part 7, evidence, historical mapping, STOP gates and prefill checked. Latest preview harness build OK; no manual production build performed.
