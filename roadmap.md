@@ -1,5 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## PIISA corrections (Jo 8 Oct 20:20 UTC)
+- [ ] 20:24 expand every PIISA evidence/consent request and STOP action into clear full sentences; preserve stable IDs, conditions and safety checks; verify focused mapping/evidence tests.
 - [x] Update STOP actions, crew portal wording, product-photo prestart phase and completed-video instruction; preserve native IDs and official output.
 - [x] 91 focused tests / 273 assertions pass; staged photo, fail-closed schema, scoped crew and structured actual-product safeguards checked; latest preview build/type check OK.
 - [ ] Native direct-name/cert structure and products-text removal await Jo's concrete edited schema; no native editing authorised here.
