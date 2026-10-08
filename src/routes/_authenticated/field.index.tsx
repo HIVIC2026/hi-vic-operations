@@ -84,7 +84,7 @@ function MyWork() {
               <span className="min-w-0 flex-1"><span className="block font-bold">{j.jobNumber} · {j.owner ?? "Owner"}</span><span className="mt-1 block"><SourceBadge channel={j.channel} /></span><span className="block truncate text-sm text-sub">{j.address}</span><span className="mt-1 block">{j.line ? <StatusLineView line={j.line} compact /> : <Pill>{j.status}</Pill>}</span><span className="mt-1 block"><InstallerFactsLine facts={j.facts} /></span></span><ChevronRight className="h-5 w-5" />
             </Link>))}</div>
         </section>
-      )}
+      ))}
       {data.month && <section className="flex items-center justify-between rounded-[18px] border border-line bg-mint p-4">
         <span><span className="block text-xs font-bold uppercase tracking-wide">This month</span><span className="font-bold">{data.month.jobs} {installer ? `install${data.month.jobs === 1 ? "" : "s"}` : `job${data.month.jobs === 1 ? "" : "s"}`} done</span></span>
         <span className="font-display text-2xl font-bold">{aud(data.month.earned)}</span>
