@@ -56,6 +56,17 @@ describe("BEFORE QUOTE job creation payload", () => {
 });
 
 describe("installer edits the same received job (persistence boundary)", () => {
+  test("removal yes/zero persists and reopen reads it; No clears it without adding to total", async () => {
+    const p = { ...base, areaM2: 120, insulation: "below_r2" as const, quoteStatus: "have_quote" as const, quoteIncGst: 3450, includes: "Removal included", proposedR: 5, removalQuote: { answer: "yes" as const, areaM2: 120, chargeIncGst: 0 } };
+    const first = await installerUpdateIntake(JOB, U, BIZ, p);
+    expect(first.state.removalQuote).toEqual(p.removalQuote);
+    expect(Number((await job()).installer_quoted_price_inc_gst)).toBe(3450);
+    await installerUpdateIntake(JOB, U, BIZ, { ...p, removalQuote: { answer: "yes", areaM2: 120, chargeIncGst: 500 } });
+    expect(Number((await job()).installer_quoted_price_inc_gst)).toBe(3450);
+    const last = await installerUpdateIntake(JOB, U, BIZ, { ...p, removalQuote: { answer: "no", areaM2: null, chargeIncGst: null } });
+    expect(last.state.removalQuote).toEqual({ answer: "no", areaM2: null, chargeIncGst: null });
+    expect((await db.query("select count(*)::int n from jobs")).rows[0]).toEqual({ n: 1 });
+  });
   test("adds area + manual quote later on the SAME job; provisional measurement only", async () => {
     await installerUpdateIntake(JOB, U, BIZ, { ...base, areaM2: 142, insulation: "none", quoteStatus: "have_quote", quoteIncGst: 3450, includes: "R5.0 batts supply and install", proposedR: 5 });
     const j = await job();

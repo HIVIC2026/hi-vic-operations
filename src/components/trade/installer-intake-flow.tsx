@@ -21,6 +21,9 @@ import type { IntakeApi } from "./intake-preview-adapter";
 import { BUSY_LABEL, blankCustomer, customerProblems, restoreCustomer, saveErrorMessage } from "@/lib/add-job-flow.core";
 import { ELECTRICIAN_PAYER_CHOICES, FEE_AWARENESS_VERSION, INSTALLER_CONTACT_PERMISSION, MEASURED_QUOTED_CHOICES, MEASURED_QUOTED_QUESTION, NOT_MEASURED_NOTE, ORGANISE_QUESTION, feeAwarenessText, intakeNextAction, type ElectricianPayer } from "@/lib/installer-intake.core";
 
+import { ProposedRField, RemovalQuoteFields } from "./intake-quote-fields";
+import { blankRemoval, removalPayload, removalProblems, removalSummary, type RemovalInput } from "@/lib/intake-quote-details.core";
+
 type AddJobStep = "customer" | "organise" | "job" | "review";
 const ADD_JOB_STEPS: { key: AddJobStep; label: string }[] = [
   { key: "customer", label: "Customer" }, { key: "organise", label: "Organise" }, { key: "job", label: "Job" }, { key: "review", label: "Review & submit" },
@@ -34,13 +37,13 @@ import { COORDINATION_CHOICES, COORDINATION_VERSION, SELF_MANAGED_ACK, VEEC_NOTE
 // The server owns the draft id's files; consent and both acknowledgements are never stored or restored.
 const resumeKey = (userId: string, businessId: string) => `hiv-intake:${userId}:${businessId}`;
 const LEGACY_KEYS = (businessId: string) => ["hiv-intake-draft", `hiv-intake-draft:${businessId}`, `hiv-intake-draft-id:${businessId}`];
-type Details = { area: string; amount: string; includes: string; proposedR: string; insulation: ExistingInsulation | null; quoteStatus?: QuoteStatus | null };
+type Details = { area: string; amount: string; includes: string; proposedR: string; insulation: ExistingInsulation | null; quoteStatus?: QuoteStatus | null; removal?: RemovalInput };
 
 /** `preview` swaps every server/storage call for a local adapter (no auth, saving or sending). */
 export function InstallerIntakeFlow({ businessId, preview }: { businessId: string; preview?: IntakeApi }) {
   const [step, setStep] = useState<AddJobStep>("customer");
   const [customer, setCustomer] = useState<OnsiteInput>(() => ({ ...blankCustomer(), ...(preview?.sampleCustomer ?? {}), contact_permission: false, consent_by: null }));
-  const [d, setD] = useState<Details>({ area: "", amount: "", includes: "", proposedR: "", insulation: null });
+  const [d, setD] = useState<Details>({ area: "", amount: "", includes: "", proposedR: "", insulation: null, removal: blankRemoval() });
   const [ack, setAck] = useState(false);
   const [coord, setCoord] = useState<Coordination | null>(null);
   const [selfAck, setSelfAck] = useState(false);
@@ -93,7 +96,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         if (raw) {
           const r = JSON.parse(raw) as { customer?: unknown; d?: Details; coord?: Coordination | null; draftId?: string | null; step?: AddJobStep; fileTexts?: Record<string, string>; derived?: Record<string, { path: string; value: string }>; typed?: string[]; payer?: ElectricianPayer | null; plan?: ElectricianPlan | null };
           if (r.customer) setCustomer(restoreCustomer(r.customer as never));
-          if (r.d) setD({ area: r.d.area ?? "", amount: r.d.amount ?? "", includes: r.d.includes ?? "", proposedR: r.d.proposedR ?? "", insulation: r.d.insulation ?? null, quoteStatus: r.d.quoteStatus ?? null });
+          if (r.d) setD({ area: r.d.area ?? "", amount: r.d.amount ?? "", includes: r.d.includes ?? "", proposedR: r.d.proposedR ?? "", insulation: r.d.insulation ?? null, quoteStatus: r.d.quoteStatus ?? null, ...(r.d.removal ? { removal: r.d.removal } : {}) });
           if (r.coord) setCoord(r.coord);
           if (r.payer) setPayer(r.payer);
           if (r.plan) setPlan(r.plan);
@@ -135,6 +138,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
     const org = coordinationProblems(coord, selfAck);
     if (step === "organise") return org;
     const p = intakeProblems({ ...d, quoteStatus: d.quoteStatus ?? null, quoteFileCount: files.length, evidenceAck: ack, requireMeasured: true }).map((x) => x === "Choose the quote status" ? "Choose whether you have measured and quoted this job" : x);
+    p.push(...removalProblems(removalPayload(d.removal ?? blankRemoval(), d.quoteStatus === "have_quote"), d.insulation, intakeArea(d.area), intakeQuotePayload({ ...d, quoteStatus: d.quoteStatus ?? null }).quoted_price_inc_gst));
     if (!payer) p.push("Choose who arranges the electrician");
     else if (payer === "own") { const eb = electricianPlanBlocker(plan); if (eb) p.push(eb); }
     if (fileText && d.quoteStatus === "have_quote" && multiCustomerAmbiguity(fileText)) p.push("Your file names more than one customer — upload one customer's quote per job");
@@ -175,7 +179,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         price_includes: q.price_includes,
         contact_permission: customer.contact_permission, owner_agreed: false,
         intake: { existing_insulation: d.insulation ?? "unknown", evidence_ack: ack, proposed_r_value: q.proposed_r_value, quote_status: d.quoteStatus, version: `${INTAKE_RULESET_VERSION}+${COORDINATION_VERSION}`, coordination: coord, self_managed_ack: coord === "self_managed" && selfAck,
-          measured_required: true, electrician_payer: payer,
+          measured_required: true, electrician_payer: payer, ...(d.removal ? { removal_quote: removalPayload(d.removal, d.quoteStatus === "have_quote") } : {}),
           ...(d.quoteStatus === "have_quote" && feeAck && feeText ? { fee_awareness: { declared: true, payer: payer, text: feeText, version: FEE_AWARENESS_VERSION } } : {}) },
       }, electrician: payer === "undecided" ? { mode: "later" } : payer === "own" && plan?.mode === "mine" ? { mode: "mine", business_id: plan.business_id ?? null, nomination_id: plan.nomination_id ?? null } : { mode: "hivic" } } as never });
       try { if (userId) localStorage.removeItem(resumeKey(userId, businessId)); } catch { /* ignore */ }
@@ -272,7 +276,8 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         <p className="text-xs text-sub">No quote file? Enter the amount and what it includes.</p>
         <label className="block text-sm font-bold">Your quote inc GST<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 3,450" value={d.amount} onChange={(e) => { typed.current.add("amount"); setD({ ...d, amount: e.target.value }); }} /></label>
         <label className="block text-sm font-bold">What the quote includes<Textarea className="mt-1" rows={3} maxLength={1000} value={d.includes} onChange={(e) => { typed.current.add("includes"); setD({ ...d, includes: e.target.value }); }} /></label>
-        <label className="block text-sm font-bold">Proposed product R-rating<span className="block text-xs font-normal text-sub">Optional, e.g. R5.0</span><Input className="mt-1 h-12" inputMode="decimal" value={d.proposedR} onChange={(e) => { typed.current.add("proposedR"); setD({ ...d, proposedR: e.target.value }); }} /></label>
+        <ProposedRField value={d.proposedR} disabled={busy || fileBusy} onChange={(v) => { typed.current.add("proposedR"); setD({ ...d, proposedR: v }); }} />
+        <RemovalQuoteFields value={d.removal ?? blankRemoval()} disabled={busy || fileBusy} onChange={(removal) => setD({ ...d, removal })} />
         </div>}
         <fieldset data-electrician-payer><legend className="text-sm font-bold">Electrician (PIESA)</legend>
           <div className="mt-2 grid gap-2" role="radiogroup" aria-label="Electrician">
@@ -292,6 +297,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         <Summary title="Job" disabled={busy || fileBusy} onEdit={() => setStep("job")} rows={[
           d.quoteStatus === "not_quoted" ? "Not measured or quoted yet" : intakeArea(d.area) ? `Ceiling ${d.area} m²` : "Ceiling area: not measured yet", `Existing insulation: ${EXISTING_INSULATION_CHOICES.find((c) => c.value === (d.insulation ?? "unknown"))?.label ?? "Not yet confirmed"}`,
           ...(d.quoteStatus === "not_quoted" ? ["Quote: not quoted yet"] : [d.amount ? `Quote $${d.amount.replace(/^\$/, "")} inc GST` : "Quote amount from your uploaded file", d.includes ? `Includes: ${d.includes}` : "", d.proposedR ? `Proposed product ${/^r/i.test(d.proposedR) ? d.proposedR : `R${d.proposedR}`}` : ""]),
+          ...(d.quoteStatus === "have_quote" ? [removalSummary(removalPayload(d.removal ?? blankRemoval(), true))] : []),
           `${files.length} file${files.length === 1 ? "" : "s"} attached`, `Electrician: ${elName}`, ...(d.quoteStatus === "have_quote" ? [feeAck && feeText ? "Owner fees advised (declared)" : "Owner fees: not declared yet — owner quote waits"] : []),
         ]} />
         <label className="flex items-start gap-3 text-sm" data-evidence-ack><Checkbox className="mt-0.5" checked={ack} onCheckedChange={(c) => setAck(c === true)} aria-label={EVIDENCE_ACK} /><span>{EVIDENCE_ACK}</span></label>
@@ -303,7 +309,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
 
       <div className="space-y-2">
         {step === "review"
-          ? <Button size="field" className="w-full" disabled={busy || fileBusy} aria-busy={busy} onClick={submit}>{busy ? BUSY_LABEL : "Submit job"}</Button>
+          ? <Button size="field" className="w-full" disabled={busy || fileBusy} aria-busy={busy} onClick={submit}>{busy ? BUSY_LABEL : err ? "Retry submission" : "Submit job"}</Button>
           : <Button size="field" className="w-full" disabled={busy || fileBusy} onClick={forward}>Next</Button>}
         {step !== "customer" && <Button size="field" variant="outline" className="w-full" disabled={busy || fileBusy} onClick={back}>Back</Button>}
       </div>

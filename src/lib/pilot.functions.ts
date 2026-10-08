@@ -319,6 +319,7 @@ export const confirmImport = createServerFn({ method: "POST" }).middleware([requ
         existing_insulation: z.enum(["none", "below_r2", "unknown"]),
         evidence_ack: z.boolean(),
         proposed_r_value: z.number().positive().max(10).nullish(),
+        removal_quote: z.object({ answer: z.enum(["yes", "no", "unknown"]), areaM2: z.number().positive().max(5000).nullable(), chargeIncGst: z.number().min(0).max(1_000_000).nullable() }).optional(),
         version: z.string().max(60),
         coordination: z.enum(["hivic_managed", "self_managed"]),
         self_managed_ack: z.boolean(),
