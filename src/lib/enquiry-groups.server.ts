@@ -77,11 +77,10 @@ export async function loadEnquiryGroups() {
     byJobs(ids, (c, f, t) => admin.from("customer_engagement_events").select("job_id").in("job_id", c).eq("event_type", "intake_media_reviewed").range(f, t)),
   ]);
   const savedSet = new Set(responses.filter((r) => r.spot_saved_at).map((r) => r.job_id));
-  const mediaBy = group(media);
-  const checkedSet = new Set(reviewed.map((r) => r.job_id));
   const deliveryCfg = must(cfg, "Delivery settings");
   const group = <T extends { job_id: string | null }>(rows: T[]) => { const m = new Map<string, T[]>(); for (const r of rows) if (r.job_id) m.set(r.job_id, [...(m.get(r.job_id) ?? []), r]); return m; };
-  const mBy = group(meas), eBy = group(ests), dBy = group(docs), sBy = group(sends), cBy = group(consents);
+  const mBy = group(meas), eBy = group(ests), dBy = group(docs), sBy = group(sends), cBy = group(consents), mediaBy = group(media);
+  const checkedSet = new Set(reviewed.map((r) => r.job_id));
   const workSet = new Set(work.map((w) => w.job_id)), optSet = new Set(optouts.filter((o) => o.opted_out_at).map((o) => o.job_id)), bounceSet = new Set(events.map((e) => e.job_id));
 
   const rows: (EnquiryGroupRow & { propKey: string })[] = jobs.map((j) => {
