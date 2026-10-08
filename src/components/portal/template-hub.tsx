@@ -77,9 +77,8 @@ function TemplateDetail({ entry }: { entry: TemplateEntry }) {
       {v.kind === "partner_invitation" && <PartnerInvitation templateKey={v.templateKey} />}
       {v.kind === "partner_email" && <PartnerEmail email={v.email} />}
       {v.kind === "plain_email" && <PlainEmail />}
-      {v.kind === "review_only" && <p className="rounded-[14px] border border-line bg-paper p-4 text-sm text-sub">No preview built — wording needs drafting and approval.</p>}
       {v.kind === "open_original" && <div className="rounded-[14px] border border-line bg-paper p-4 text-sm"><p className="text-sub">Preview uses the saved campaign wording, so it is shown in its original tool.</p><Link to={v.to} className={cn(btnClass("secondary"), "mt-3")}>{v.label}<ArrowUpRight className="h-4 w-4" /></Link></div>}
-      {entry.reviewKey && <ReviewVersions reviewKey={entry.reviewKey} />}
+      {entry.reviewKey && <ReviewVersions reviewKey={entry.reviewKey} storedOnly={v.kind === "review_only"} />}
       {v.kind === "mitti" && <MittiDetail formKey={v.formKey} />}
       {v.kind === "compliance_template" && <ComplianceVersions templateKey={v.templateKey} />}
       {v.kind === "register" && <RegisterDetail index={v.index} mitti={v.mitti} />}
@@ -125,17 +124,23 @@ function PlainEmail() {
   return <div className="rounded-[14px] border border-line bg-paper p-4"><p className="text-sm"><b>Subject:</b> {m.subject}</p><p className="mt-1 text-xs text-sub">Plain-text email. Sample link only.</p><pre className="mt-3 whitespace-pre-wrap rounded-[10px] bg-mist p-3 font-sans text-sm">{m.message}</pre></div>;
 }
 
-function ReviewVersions({ reviewKey }: { reviewKey: string }) {
+function ReviewVersions({ reviewKey, storedOnly }: { reviewKey: string; storedOnly: boolean }) {
   const list = useServerFn(listCustomerCommunicationTemplates);
   const q = useQuery({ queryKey: ["customer-communication-templates"], queryFn: () => list() });
   const rows = (q.data ?? []).filter((r) => r.template_key === reviewKey);
   return (
     <div className="rounded-[14px] border border-line bg-paper p-4">
       <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">Stored review versions</h3><Link to="/admin/communications" search={{ key: reviewKey }} className={btnClass("secondary")}>Create or approve in Customer communications<ArrowUpRight className="h-4 w-4" /></Link></div>
+      {storedOnly && <p className="mt-2 text-xs text-sub">No live-send renderer preview available for this entry. Stored review wording below is not a live-send layout; its approval does not replace the sending template.</p>}
       {q.isError ? <p role="alert" className="mt-2 text-sm text-rose">Versions could not load: {q.error instanceof Error ? q.error.message : "read failed"}</p>
         : q.isLoading ? <p className="mt-2 text-sm text-sub">Loading versions…</p>
-        : rows.length === 0 ? <p className="mt-2 text-sm text-sub">No review version saved.</p>
-        : <ul className="mt-2 space-y-1 text-sm">{rows.map((r) => <li key={r.id} className="flex flex-wrap items-center gap-2"><b>{r.version}</b><Pill tone={r.status === "approved" ? "green" : r.status === "draft" ? "amber" : "plain"}>{r.status}</Pill><span className="min-w-0 break-words text-sub">{r.subject}</span></li>)}</ul>}
+        : rows.length === 0 ? <p className="mt-2 text-sm text-sub">{storedOnly ? "No preview available. No review version saved." : "No review version saved."}</p>
+        : <ul className="mt-2 space-y-3 text-sm">{rows.map((r) => <li key={r.id} className="min-w-0 border-t border-line pt-3">
+          <div className="flex flex-wrap items-center gap-2"><b>{r.version}</b><Pill tone={r.status === "approved" ? "green" : r.status === "draft" ? "amber" : "plain"}>{r.status || "Not recorded"}</Pill></div>
+          <p className="mt-1 break-words font-semibold">{r.subject}</p>
+          {r.body_markdown?.trim() ? <pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap break-words bg-mist p-3 font-sans text-sm">{r.body_markdown}</pre> : <p className="mt-2 text-sub">No preview available. No body saved for this version.</p>}
+          {r.source_note && <p className="mt-2 break-words text-xs text-sub">Source note: {r.source_note}</p>}
+        </li>)}</ul>}
     </div>
   );
 }
@@ -152,7 +157,7 @@ function MittiDetail({ formKey }: { formKey: keyof typeof FORMS }) {
     <div className="space-y-3">
       <dl className="grid grid-cols-[150px_minmax(0,1fr)] gap-x-3 gap-y-1 rounded-[14px] border border-line bg-paper p-4 text-sm">
         <dt className="text-sub">Template version</dt><dd>Portal build sheet · {FORMS[formKey].fields.length} required questions (no version number stored)</dd>
-        <dt className="text-sub">Connection</dt><dd>{q.isError ? <span className="text-rose">Settings could not load</span> : q.isLoading ? "Loading…" : id ? `Form ID saved in settings: ${id}` : "Not connected"}</dd>
+        <dt className="text-sub">Saved connection</dt><dd className="break-all">{q.isError ? <span className="text-rose">Settings could not load</span> : q.isLoading ? "Loading…" : id ? `Form ID saved in settings: ${id}` : "No form ID saved"}</dd>
         <dt className="text-sub">Live health</dt><dd>Not checked here. "Check &amp; connect" contacts Mitti only when you press it.</dd>
       </dl>
       {q.data && <MittiFormCard formKey={formKey} connected={id} />}

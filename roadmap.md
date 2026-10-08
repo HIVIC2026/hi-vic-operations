@@ -183,3 +183,8 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] /admin/templates hub (Email / Mitti / Compliance) + Templates heading
 - [x] Focused tests, isolated browser checks, docs
 - [ ] Authenticated admin + non-admin browser check — blocked: TEST admin session needs user approval
+
+## Narrow phase-2 review corrections (Jo, 8 Oct 08:13 UTC)
+- [ ] Inventory five review-only emails; show stored bodies without claiming live-renderer parity.
+- [ ] Correct new hub purpose/send/approval metadata and displayed Mitti ID submission; no connect clicks.
+- [ ] Source-only access/notes checks, focused regressions and signed-out/fixture verification; document exact limits and rollback from b477a44.

@@ -40,7 +40,7 @@ const commEntry = (key: string, view: TemplateView, approval: string): TemplateE
 
 const EMAIL: TemplateEntry[] = [
   commEntry("likely_estimate", { kind: "sample_email", sample: "likely" }, "Locked as approved (project record, 1 Oct 2026)"),
-  { id: "email:save_my_spot", category: "email", group: "Customer emails", title: "Save your spot", purpose: "Step 3 likely email with only the four Save-my-spot swaps.", audience: "Homeowner (likely eligible, no insulation, ceiling size entered)", trigger: "Office bulk send from Hot leads after Jo presses Send", approval: "Approved final by Jo Lowe, 7 Oct 2026", view: { kind: "sample_email", sample: "savespot" } },
+   { id: "email:save_my_spot", category: "email", group: "Customer emails", title: "Save your spot", purpose: "Provides an estimate and invites the homeowner to save a spot while installer capacity is arranged.", audience: "Homeowner (likely eligible, no insulation, ceiling size entered)", trigger: "Office bulk send from leads after Jo presses Send", approval: "Approved final by Jo Lowe, 7 Oct 2026", view: { kind: "sample_email", sample: "savespot" } },
   { id: "email:save_my_spot_no_size", category: "email", group: "Customer emails", title: "Save your spot — no ceiling size", purpose: "Same email using a clearly stated assumed average of 150 m² plus the usual size-check calculator link.", audience: "Homeowner (eligible, no ceiling size given)", trigger: "Separate template; nothing sends it automatically", approval: "Requested by Jo, 8 Oct 2026 — no stored approval record", view: { kind: "sample_email", sample: "savespotNoSize" } },
   commEntry("onsite_estimate", { kind: "sample_email", sample: "onsite" }, "Not recorded"),
   { id: "email:insulation_details", category: "email", group: "Customer emails", title: "Insulation details (Group B)", purpose: "Group A layout with a preliminary estimate; asks for insulation photos/video or a below-R2 declaration.", audience: "Homeowner (otherwise eligible, existing or unknown insulation)", trigger: "Automatic lead email routing once real sending is approved", approval: "Real sending not approved (held)", view: { kind: "open_original", to: "/admin/campaign-emails", label: "Open in Campaign emails" } },
@@ -59,7 +59,7 @@ const EMAIL: TemplateEntry[] = [
 const MITTI: TemplateEntry[] = MITTI_FORM_ORDER.map((o) => ({
   id: `mitti:${o.key}`, category: "mitti" as const, group: "Mitti forms", title: `${o.letter} · ${o.forWho}`, purpose: o.who,
   audience: o.key === "piesa" ? "Licensed electrician" : "Installer", trigger: o.key === "piisa" ? "Install day" : o.key === "piesa" ? "Before installation" : "Free Ready Check visit",
-  approval: "Built and approved by Jo in Mitti — not tracked in the portal", view: { kind: "mitti" as const, formKey: o.key },
+  approval: "Not recorded", view: { kind: "mitti" as const, formKey: o.key },
 }));
 
 const REGISTER_FOR_TEMPLATE: Record<string, string> = { esc_consent: "ESC Owner Consent (Reg 23A)", installer_declaration: "Installer Declaration", consumer_declaration: "Final Activity 48 VEEC Assignment" };
