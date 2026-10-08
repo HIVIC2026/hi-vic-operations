@@ -360,7 +360,7 @@ async function createBulkJob(e: BulkExtracted, batch: { id: string; business_id:
 
 async function draftQuoteFromImport(jobId: string, e: BulkExtracted, actorId: string, partnerBusinessId: string) {
   if (!(e.price_inc_gst && e.price_inc_gst > 0) || !(e.area_m2 && e.area_m2 > 0)) return false;
-  const { data: job } = await admin.from("jobs").select("ap_fee_override_inc_gst, properties(postcode)").eq("id", jobId).single();
+  const { data: job } = await admin.from("jobs").select("ap_fee_override_inc_gst, electrician_choice, properties(postcode)").eq("id", jobId).single();
   const postcode = String((job?.properties as { postcode: string | null } | null)?.postcode ?? "").trim();
   const [{ data: loc }, { data: rs }] = await Promise.all([
     admin.from("veu_location_variables").select("*").eq("postcode", postcode).maybeSingle(),
@@ -368,12 +368,14 @@ async function draftQuoteFromImport(jobId: string, e: BulkExtracted, actorId: st
   ]);
   const veecValue = rs ? Number(rs.indicative_veec_value) : null;
   const apFee = job?.ap_fee_override_inc_gst != null ? Number(job.ap_fee_override_inc_gst) : rs ? Number(rs.ap_management_inc_gst) : null;
-  const piesa = rs ? Number(rs.piesa_assessment_inc_gst) : null;
-  if (!loc || veecValue == null || apFee == null || !(piesa && piesa > 0)) return false; // office quotes manually
+  // Current recorded payer: own electrician = no HIV PIESA line; undecided = no automatic quote (office quotes later).
+  const { piesaChargeIncGst } = await import("./installer-led.core");
+  const piesa = piesaChargeIncGst(job?.electrician_choice ?? null, rs ? Number(rs.piesa_assessment_inc_gst) : null);
+  if (!loc || veecValue == null || apFee == null || piesa == null) return false; // office quotes manually
   const rawDiscount = wholeVeecDiscount(e.area_m2, loc as unknown as LocationVariables, veecValue).raw;
   const lines = [
     { code: "INSTALLER_PRICE", description: e.price_includes ? `Insulation works by your installer — includes: ${e.price_includes}`.slice(0, 500) : "Insulation works by your installer", quantity: 1, unit: "flat", unit_price_inc_gst: e.price_inc_gst, line_total_inc_gst: e.price_inc_gst, is_other: false, explanation: null, sort: 0 },
-    { code: "PIESA", description: "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", quantity: 1, unit: "flat", unit_price_inc_gst: piesa, line_total_inc_gst: piesa, is_other: false, explanation: null, sort: 1 },
+    ...(piesa > 0 ? [{ code: "PIESA", description: "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", quantity: 1, unit: "flat", unit_price_inc_gst: piesa, line_total_inc_gst: piesa, is_other: false, explanation: null, sort: 1 }] : []),
     { code: "AP_FEE", description: "Home Insulation Victoria — Accredited Person fee", quantity: 1, unit: "flat", unit_price_inc_gst: apFee, line_total_inc_gst: apFee, is_other: false, explanation: null, sort: 2 },
   ];
   const subtotal = Math.round((e.price_inc_gst + piesa + apFee) * 100) / 100;
