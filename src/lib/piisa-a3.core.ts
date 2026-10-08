@@ -20,6 +20,7 @@ export const A3_ALIASES: Record<string, string[]> = {
   "p1.powerInformed": ["Has the household or tenant been told the power will be off during installation?"],
   lifeSupport: ["Does anyone at this property rely on life support?"],
   lifeSupportConsent: ["Have you received written consent or a medical plan before starting this assessment?"],
+  lifeSupportAttachment: ["Please attach the occupant’s written life support consent or medical plan, showing all pages, the person’s details and the consent or medical instructions. Please ensure everything is clearly visible. Home Insulation Victoria cannot accept unclear or incomplete evidence for your VEEC submission.", "Written consent or medical plan (kept as an attachment to this assessment)"],
   "p2.ap": ["Accredited person (AP)"],
   "p2.company": ["Installer company"],
   "p2.lead": ["Lead installer"],
@@ -109,6 +110,19 @@ export const A3_MEDIA_IDS: Record<A3EvidenceKey, string> = {
 };
 /** Native media labels as observed (verification only; the stable ID owns the mapping). */
 export const A3_MEDIA_LABELS: Partial<Record<A3EvidenceKey, string>> = { electrician_photo: "Electrician photo — onsite today (geotagged)" };
+/** Recorded prior labels plus Jo's approved full instructions; never accept an arbitrary relabel on a stable ID. */
+const A3_PREVIOUS_MEDIA_LABELS: Record<A3EvidenceKey, string> = {
+  installer_photos: "Installer photos — every installer onsite today (geotagged)",
+  electrician_photo: "Electrician photo — onsite today (geotagged)",
+  isolation_photo: "Power isolation photo — isolated, locked out and tagged before work (geotagged)",
+  before_video: "Before-work video — all ceiling areas and existing insulation",
+  product_photos: "Installed product photos — brand, model and R-value (geotagged)",
+  completed_video: "Completed-work video — coverage, depth and all waste removed",
+  final_plan: "Final installation plan — actual installed area (m²) and products",
+};
+export function a3AcceptedMediaLabels(key: A3EvidenceKey): string[] {
+  return [A3_PREVIOUS_MEDIA_LABELS[key], A3_EVIDENCE_LABELS[key], ...(A3_MEDIA_LABELS[key] ? [A3_MEDIA_LABELS[key]] : [])].map(norm);
+}
 
 /** CONTROLLED label suffixes added in the editor on the SAME stable IDs (Jo, 8 Oct 2026). Only these exact additions pass. */
 export const A3_ALIAS_SUFFIXES: Record<string, string[]> = {
@@ -183,9 +197,8 @@ export function a3MissingFields(template: unknown): string[] {
   out.push(...a3CrewSchemaProblems(template));
   for (const [k, nid] of Object.entries(A3_MEDIA_IDS)) {
     const e = entries.find((x) => String(x.id) === nid);
-    const lbl = A3_MEDIA_LABELS[k as A3EvidenceKey];
     if (!e) out.push(`${A3_EVIDENCE_LABELS[k as A3EvidenceKey]} (media)`);
-    else if (lbl && e.norm !== norm(lbl)) out.push(`${A3_EVIDENCE_LABELS[k as A3EvidenceKey]} (media) — ID ${nid} now reads "${e.label}"`);
+    else if (!a3AcceptedMediaLabels(k as A3EvidenceKey).includes(e.norm)) out.push(`${A3_EVIDENCE_LABELS[k as A3EvidenceKey]} (media) — ID ${nid} now reads "${e.label}"`);
   }
   return out;
 }
@@ -441,14 +454,15 @@ export function crewPrefill(sel: CrewSelection, staff: StaffOption[]): { itemId:
 
 // ---------- AP evidence for the A3 path ----------
 export type A3EvidenceKey = "installer_photos" | "electrician_photo" | "isolation_photo" | "before_video" | "product_photos" | "completed_video" | "final_plan";
+export const A3_EVIDENCE_QUALITY = "Please ensure everything is clearly visible. Home Insulation Victoria cannot accept unclear or incomplete evidence for your VEEC submission.";
 export const A3_EVIDENCE_LABELS: Record<A3EvidenceKey, string> = {
-  installer_photos: "Installer photos — every installer onsite today (geotagged)",
-  electrician_photo: "Electrician photo — onsite today (geotagged)",
-  isolation_photo: "Power isolation photo — isolated, locked out and tagged before work (geotagged)",
-  before_video: "Before-work video — all ceiling areas and existing insulation",
-  product_photos: "Before installing, please take a clear, geotagged photo of each insulation product label showing the brand, model and R-value.",
-  completed_video: "Completed installation video — all ceiling areas, coverage and clearances. Please make sure the video is clear and complete. Home Insulation Victoria cannot accept unclear or incomplete evidence for your VEEC submission.",
-  final_plan: "Final installation plan — actual installed area (m²) and products",
+  installer_photos: `Please take a clear, geotagged photo of each installer working onsite today, showing their face clearly so every member of the installation crew can be identified. If you also take a group photo, please make sure every installer is clearly visible. ${A3_EVIDENCE_QUALITY}`,
+  electrician_photo: `Please take a clear, geotagged photo of the attending electrician onsite today, showing their face clearly so the electrician attending the start of the installation can be identified. ${A3_EVIDENCE_QUALITY}`,
+  isolation_photo: `Before work starts, please take a clear, geotagged photo showing the power isolation points, locks and tags used to isolate the main and any alternative power supplies. ${A3_EVIDENCE_QUALITY}`,
+  before_video: `Please record a clear video showing all ceiling areas before installation, including the existing insulation or bare ceiling, the condition of the ceiling space, electrical cables, lights, other fittings and the areas where insulation will be installed. ${A3_EVIDENCE_QUALITY}`,
+  product_photos: `Before installing, please take a clear, geotagged photo of each insulation product label showing the brand, model and R-value. ${A3_EVIDENCE_QUALITY}`,
+  completed_video: `Please record a clear video showing the completed installation in all ceiling areas, including insulation coverage and depth, clearances around lights, fittings and other hazards, and the removal of installation waste. ${A3_EVIDENCE_QUALITY}`,
+  final_plan: `Please attach the final ceiling installation plan showing every installed area, the actual installed area in square metres and the products used in each area. If you photograph the plan, please show the entire plan with all measurements, labels and product details readable. ${A3_EVIDENCE_QUALITY}`,
 };
 const GEOTAG: A3EvidenceKey[] = ["installer_photos", "electrician_photo", "isolation_photo", "product_photos"];
 
@@ -519,31 +533,31 @@ export function a3StopWork(answers: OfficialAnswers, ctx: Pick<A3EvidenceCtx, "e
     else if (/^no\b/i.test(c.trim())) out.push(stopMsg("Obtain the occupant’s written consent or medical plan for life support and attach it, then reconfirm it is safe to start."));
     else if (!ctx.lifeSupportConsentOnFile) out.push(stopMsg("Attach the life support consent or medical plan, then reconfirm it is safe to start."));
   }
-  need("p3.swms", "SWMS", stopMsg("Complete the SWMS before work starts."));
-  need("p3.table1", "Table 1 hazards", stopMsg("Consider and control all Table 1 hazards before you continue."));
-  need("p3.isolated", "Power isolation", stopMsg("Isolate, lock out and tag all power supplies before you continue."));
+  need("p3.swms", "SWMS", stopMsg("Please complete the Safe Work Method Statement for this job, identify all risks and reconfirm safety clearance before work starts."));
+  need("p3.table1", "Table 1 hazards", stopMsg("Please assess every hazard listed in Table 1, record and implement the control measures in the Safe Work Method Statement, and reconfirm safety clearance before continuing."));
+  need("p3.isolated", "Power isolation", stopMsg("Please have the main and any alternative power supplies isolated, locked out and tagged, and reconfirm that the ceiling space is electrically safe to enter before continuing."));
   const solar = a("p4.present");
   if (solar == null) out.push("Solar/battery/other supply: not answered");
   else if (solar === "Yes") {
-    need("p4.instructions", "Shutdown instructions", stopMsg("Safe shutdown, isolation and restart instructions are needed for every supply."));
-    need("p4.isolator", "Ground-level isolator", stopMsg("The AC/DC isolator must be accessible, working and safe to isolate."));
+    need("p4.instructions", "Shutdown instructions", stopMsg("Please obtain safe shutdown, isolation and restart instructions for every alternative power supply and have the required electrician isolate the supplies, lock out, tag and reconfirm electrical safety before work starts."));
+    need("p4.isolator", "Ground-level isolator", stopMsg("Please arrange electrical review of the ground-level AC/DC isolator so it is accessible, working and safe to isolate, and reconfirm electrical safety before continuing."));
   }
   need("p5.reviewed", "PIESA review", stopMsg("The lead installer must read the PIESA and confirm it is safe to start work."));
   const required = ctx.electricianRequiredAtStart || a("p4.instructions") === "No";
   const el = a("p5.electricianPresent");
   if (el == null) out.push("Electrician attendance: not answered");
   else if (el === "No") out.push(stopMsg("Get the required electrician onsite, then reconfirm it is safe to start."));
-  else if (el === "N/A" && required) out.push(stopMsg("The PIESA or shutdown requirement needs an electrician, so N/A is not valid."));
+  else if (el === "N/A" && required) out.push(stopMsg("Please arrange for the electrician required by the PIESA or shutdown instructions to attend and reconfirm electrical safety before work starts; N/A is not valid for this job."));
   const rec = a("p5.recessed");
   if (rec == null) out.push("Recessed lights: not answered");
   else if (rec === "Yes") {
-    need("p5.icConfirmed", "IC-rated lights", stopMsg("The PIESA must confirm all ceiling lights are IC-rated."));
-    need("p5.safeToCover", "Safe to cover", stopMsg("Recessed lights must be safe to cover with insulation."));
+    need("p5.icConfirmed", "IC-rated lights", stopMsg("Please obtain PIESA confirmation that the relevant ceiling lights are classified and marked IC or IC-4, and reconfirm safety clearance before continuing."));
+    need("p5.safeToCover", "Safe to cover", stopMsg("Please arrange electrical review to confirm the recessed lights are safe to cover with insulation, and reconfirm safety clearance before continuing."));
   }
-  need("p5.rcd", "RCD protection", stopMsg("All ceiling mains cables need RCD protection."));
-  need("p5.tps", "TPS cables", stopMsg("All ceiling mains cables must be TPS or equivalent."));
-  need("p5.basic", "Basic protection", stopMsg("All ceiling mains cables must meet Basic Protection."));
-  need("p5.noAccess", "No ceiling access since PIESA", stopMsg("Confirm nobody has accessed or worked in the ceiling since the PIESA."));
+  need("p5.rcd", "RCD protection", stopMsg("Please arrange electrical review to confirm that mains-connected cables in the ceiling have RCD protection where required, and reconfirm safety clearance before continuing."));
+  need("p5.tps", "TPS cables", stopMsg("Please arrange electrical review to confirm that mains-connected cables in the ceiling are thermoplastic insulated and sheathed (TPS), or an equivalent cable type, and reconfirm safety clearance before continuing."));
+  need("p5.basic", "Basic protection", stopMsg("Please arrange electrical review to confirm that mains-connected cables in the ceiling meet Basic Protection Requirements, and reconfirm safety clearance before continuing."));
+  need("p5.noAccess", "No ceiling access since PIESA", stopMsg("Please clarify with the owner or occupier who has entered or worked in the ceiling since the PIESA, arrange review of any changed conditions, and reconfirm safety clearance before continuing."));
   const ins = a("p6.present");
   if (ins == null) out.push("Existing insulation: not answered");
   else if (ins === "Yes") {

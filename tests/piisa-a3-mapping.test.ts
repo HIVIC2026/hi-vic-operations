@@ -30,7 +30,7 @@ describe("stable native IDs (draft-observed)", () => {
     t.items = (t.items as { item_id: string }[]).filter((x) => x.item_id !== A3_MEDIA_IDS.before_video);
     const m = a3MissingFields(t);
     expect(m.some((x) => /SWMS.*now reads "Something else"/.test(x))).toBe(true);
-    expect(m.some((x) => /Before-work video.*\(media\)/.test(x))).toBe(true);
+    expect(m.some((x) => /ceiling areas before installation.*\(media\)/.test(x))).toBe(true);
   });
   test("parses answers by ID; media counted per evidence item", () => {
     const a = { items: [
@@ -119,9 +119,9 @@ describe("A3 evidence", () => {
   test("one photo per installer, geotags, before-work timing, life-support consent", () => {
     const media = [{ key: "installer_photos" as const, count: 1, geotagged: 1 }, { key: "isolation_photo" as const, count: 1, geotagged: 1, capturedAt: "2026-10-09T03:00:00Z" }, { key: "before_video" as const, count: 1, geotagged: 0 }, { key: "product_photos" as const, count: 1, geotagged: 0 }, { key: "completed_video" as const, count: 1, geotagged: 0 }];
     const b = a3EvidenceBlockers({ lifeSupport: "Yes" }, ctx, media, "2026-10-09T01:00:00Z");
-    expect(b.some((x) => /Installer photos.*1 of 2/.test(x))).toBe(true);
+    expect(b.some((x) => /each installer.*1 of 2/.test(x))).toBe(true);
     expect(b.some((x) => /product label.*location not recorded.*office review/.test(x))).toBe(true);
-    expect(b.some((x) => /Power isolation.*before work starts/.test(x))).toBe(true);
+    expect(b.some((x) => /power isolation points.*must be taken before work starts/.test(x))).toBe(true);
     expect(b.some((x) => /Life support/.test(x))).toBe(true);
   });
 });

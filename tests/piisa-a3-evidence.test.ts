@@ -21,7 +21,7 @@ describe("native labels: stable IDs + controlled suffixes", () => {
   });
   test("suffix not on the controlled list, or electrician media relabelled, fails closed", () => {
     expect(a3MissingFields(tpl({ "p4.isolator": `${A3_ALIASES["p4.isolator"]![0]} Probably fine.` })).join()).toContain("now reads");
-    expect(a3MissingFields(tpl({}, "Some other photo")).join()).toContain("Electrician photo");
+    expect(a3MissingFields(tpl({}, "Some other photo")).join()).toContain(A3_MEDIA_IDS.electrician_photo);
   });
   test("parsing still reads answers on suffixed labels", () => {
     const a = { items: [it(`${A3_ALIASES["p6.suitable"]![0]} If No, remove it before laying new insulation.`, A3_NATIVE_IDS["p6.suitable"]![0]!, { responses: { selected: [{ label: "No" }] } })] };
@@ -60,8 +60,8 @@ describe("before/after split", () => {
     expect(a3CompletionBlockers({}, { ...ctx, existingPlanMatchesInstall: true }, before).length).toBe(1);
   });
   test("electrician photo required whenever attendance = Yes, even if not required at start", () => {
-    expect(a3PrestartBlockers({ "p5.electricianPresent": "Yes" }, ctx, before).join()).toContain("Electrician photo");
-    expect(a3PrestartBlockers({ "p5.electricianPresent": "N/A" }, ctx, before).join()).not.toContain("Electrician photo");
+    expect(a3EvidenceChecklist({ "p5.electricianPresent": "Yes" }, ctx, before).find((r) => r.key === "electrician_photo")).toMatchObject({ required: 1, state: "missing" });
+    expect(a3EvidenceChecklist({ "p5.electricianPresent": "N/A" }, ctx, before).find((r) => r.key === "electrician_photo")).toMatchObject({ required: 0, state: "not_required" });
   });
   test("before-work photo taken after the signature fails", () => {
     expect(a3PrestartBlockers({}, ctx, before, "2026-10-09T00:05:30Z").join()).toContain("before work starts");

@@ -16,7 +16,7 @@ describe("PIISA product-label phase and actual statutory data", () => {
     expect(rows[0]).toMatchObject({ phase: "before", required: 1, state: "missing" });
     expect(a3PrestartBlockers({}, ctx, before).filter((b) => b.includes("product label"))).toHaveLength(1);
     expect(a3CompletionBlockers({}, ctx, before)).toHaveLength(1);
-    expect(a3CompletionBlockers({}, ctx, before)[0]).toContain("Completed installation video");
+    expect(a3EvidenceChecklist({}, ctx, before).filter((r) => r.phase === "after" && r.state === "missing").map((r) => r.key)).toEqual(["completed_video"]);
   });
   test("product label without real geotag or taken after starting cannot clear prestart", () => {
     expect(a3PrestartBlockers({}, ctx, [...before, { ...product, geotagged: 0 }]).join()).toContain("location not recorded");

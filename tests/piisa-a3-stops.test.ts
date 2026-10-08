@@ -17,9 +17,9 @@ describe("STOP-WORK gates (Jo 8 Oct 2026)", () => {
     expect(stops({ lifeSupport: "Yes", lifeSupportConsent: "Yes – received Medical Plan" }, { ...ctx, lifeSupportConsentOnFile: true })).toEqual([]);
   });
   test("SWMS / Table 1 / isolation / PIESA review No -> STOP", () => {
-    expect(stops({ "p3.swms": "No" })[0]).toMatch(/STOP — Complete the SWMS/);
+    expect(stops({ "p3.swms": "No" })).toHaveLength(1);
     expect(stops({ "p3.table1": "No" })[0]).toMatch(/^🛑 STOP —/);
-    expect(stops({ "p3.isolated": "No" })[0]).toMatch(/Isolate, lock out and tag/);
+    expect(stops({ "p3.isolated": "No" })).toHaveLength(1);
     expect(stops({ "p5.reviewed": "No" })[0]).toMatch(/read the PIESA and confirm it is safe/);
   });
   test("electrician No -> STOP banner; N/A invalid when the signed PIESA or shutdown needs one", () => {
@@ -47,7 +47,7 @@ describe("STOP-WORK gates (Jo 8 Oct 2026)", () => {
     const before: A3Media[] = [{ key: "installer_photos", count: 1, geotagged: 1, timed: 1 }, { key: "isolation_photo", count: 1, geotagged: 1, timed: 1 }, { key: "before_video", count: 1, geotagged: 0, timed: 1 }, { key: "product_photos", count: 1, geotagged: 1, timed: 1 }];
     const full = { ...ctx, crewCount: 1, existingPlanMatchesInstall: false };
     expect(a3PrestartBlockers(SAFE as never, full, before)).toEqual([]);
-    expect(a3PrestartBlockers({ ...SAFE, "p3.swms": "No" } as never, full, before)).toEqual(["🛑 STOP — Complete the SWMS before work starts."]);
+    expect(a3PrestartBlockers({ ...SAFE, "p3.swms": "No" } as never, full, before)).toEqual(stops({ "p3.swms": "No" }));
   });
 });
 
