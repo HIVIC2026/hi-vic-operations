@@ -7,7 +7,7 @@ async def main():
         b = await p.chromium.launch(headless=True)
         pg = await (await b.new_context(viewport={"width": 390, "height": 1800})).new_page()
         reqs, errs = [], []
-        pg.on("request", lambda r: reqs.append(r.url) if ("_serverFn" in r.url or "supabase" in r.url) else None)
+        pg.on("request", lambda r: reqs.append(r.url) if ("_serverFn" in r.url or "supabase.co" in r.url or not r.url.startswith(BASE)) else None)
         pg.on("pageerror", lambda e: errs.append(str(e)))
         await pg.goto(f"{BASE}/installer-preview", wait_until="networkidle")
         assert await pg.get_by_text("Preview only — sample job, nothing is saved or sent").is_visible()
