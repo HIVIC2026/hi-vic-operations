@@ -118,14 +118,15 @@ function EditEmail({ row, onClose }: { row: Row; onClose: () => void }) {
   const [reason, setReason] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const missing = !email.trim() || reason.trim().length < 5;
+  const missing = !email.trim();
+  const suggested = (row.email ?? "").replace(/@gmai\.com$/i, "@gmail.com").replace(/@gmial\.com$/i, "@gmail.com").replace(/@hotmial\.com$/i, "@hotmail.com");
   return <Dialog open onOpenChange={(o) => !o && onClose()}><DialogContent><DialogHeader><DialogTitle>Edit email for {row.jobNumber}</DialogTitle></DialogHeader>
-    <p className="text-sm text-muted-foreground">Only change this once Jo has confirmed the right address. The change is recorded in job history.</p>
+    <p className="text-sm text-muted-foreground">The change is recorded in job history.</p>
+    {suggested !== row.email && suggested !== email && <Button type="button" variant="outline" onClick={() => setEmail(suggested)}>Use {suggested}</Button>}
     <label className="text-sm font-medium">Email<Input value={email} onChange={(e) => setEmail(e.target.value)} /></label>
-    <label className="text-sm font-medium">Why it's changing<Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Type the reason here, e.g. confirmed by phone" /></label>
-    {missing && <p className="text-xs text-muted-foreground">Type the new email and a short reason (at least a few words) to enable Save.</p>}
+    <label className="text-sm font-medium">Reason (optional)<Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. typo fixed" /></label>
     {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
-    <Button disabled={busy || missing} onClick={async () => { setBusy(true); setErr(null); try { await save({ data: { jobId: row.id, email, reason } }); onClose(); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); } }}>{busy ? "Saving…" : "Save email"}</Button>
+    <Button disabled={busy || missing} onClick={async () => { setBusy(true); setErr(null); try { await save({ data: { jobId: row.id, email, reason: reason.trim().length >= 5 ? reason : "Email corrected by office" } }); onClose(); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); } }}>{busy ? "Saving…" : "Save email"}</Button>
   </DialogContent></Dialog>;
 }
 
