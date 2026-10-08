@@ -15,9 +15,9 @@ Query and shared pure classifier run on the 734 Base44/homeowner-channel enquiri
 - Counts are enquiry records, not final sendable unique recipients; no batch was prepared or sent.
 
 ## Validation
-- 35 focused pure/real-handler tests passed (140 assertions before the final additional raw-reference assertion): same declaration/page/save guards, pending photo/video references, imported photos/videos, intake evidence fallback, legacy uncertainty, repeat automatic routing with no send, repeat sync identity retention, negative review precedence, original-media reviewed spot save and preserved existing-insulation pricing. Campaign handlers use isolated PGlite with mocked ancillary estimate/referral/stage boundaries; no live database change.
+- 35 focused pure/real-handler tests passed (141 assertions): same declaration/page/save guards, pending photo/video references, imported photos/videos, intake evidence fallback, legacy uncertainty, repeat automatic routing with no send, repeat sync identity retention, negative review precedence, original-media reviewed spot save and preserved existing-insulation pricing. Campaign handlers use isolated PGlite with mocked ancillary estimate/referral/stage boundaries; no live database change.
 - Separately: enquiry groups 64/289 assertions; insulation review 3/6; launch migration practice database 2/6; hot-lead maths 7/14; intake 19/69, one pre-existing skipped case.
 - Sealed Playwright at desktop 1280×1800 and phone 390×844: original/pending media links received, uncertain links checking, zero question/file inputs; both Yes→campaign→saved, No/unsure, invalid upload Retry and manhole video safety remain working. Zero page errors/overflow; screenshots visually inspected. Intercepted server responses: not a hosted persistence/storage test.
-- Harness build OK at 23:03:55 UTC; final status checked again before completion. No manual production build claimed.
+- Final harness build OK at 23:06:19 UTC; final practice tests and sealed desktop/phone checks rerun successfully. No manual production build claimed.
 
 No customer writes, sends, texts, signatures, approvals, native edits, database changes or publication. Original source needs confirmation before uncertain legacy records can become recipients.
