@@ -1,11 +1,14 @@
+import { a3Template } from "./helpers/a3-template";
 import { describe, expect, mock, test } from "bun:test";
 import { A3_ALIASES, A3_ALIAS_SUFFIXES, A3_MEDIA_IDS, A3_MEDIA_LABELS, A3_NATIVE_IDS, a3CompletionBlockers, a3CrewResolution, a3EvidenceChecklist, a3EvidenceGate, a3MediaFiles, a3MediaSummary, a3MissingFields, a3PrestartBlockers, a3PrestartSnapshot, parseA3Answers, staffCompositeLabel, type A3Media, type StaffOption } from "../src/lib/piisa-a3.core";
 
 const it = (label: string, id: string, extra: Record<string, unknown> = {}) => ({ item_id: id, label, type: "text", ...extra });
-const tpl = (relabel: Record<string, string> = {}, mediaLabel?: string) => ({ items: [
-  ...Object.entries(A3_NATIVE_IDS).flatMap(([k, ids]) => ids.map((id) => it(relabel[k] ?? A3_ALIASES[k]?.[0] ?? k, id))),
-  ...Object.entries(A3_MEDIA_IDS).map(([k, id]) => it(k === "electrician_photo" ? (mediaLabel ?? A3_MEDIA_LABELS.electrician_photo!) : "media", id, { type: "media" })),
-] });
+const tpl = (relabel: Record<string, string> = {}, mediaLabel?: string) => {
+  const t = a3Template() as { items: { item_id: string; label: string }[] };
+  for (const [k, v] of Object.entries(relabel)) for (const id of A3_NATIVE_IDS[k] ?? []) t.items.find((x) => x.item_id === id)!.label = v;
+  if (mediaLabel) t.items.find((x) => x.item_id === A3_MEDIA_IDS.electrician_photo)!.label = mediaLabel;
+  return t;
+};
 const geo = (n: number, t = "2026-10-09T00:05:00Z") => Array.from({ length: n }, (_, i) => ({ media_id: `m${i}`, date_created: t, location: { geometry: { coordinates: [145.0, -37.8] } } }));
 const SIG = "0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b";
 const ctx = { crewCount: 1, electricianRequiredAtStart: false, existingPlanMatchesInstall: false, lifeSupportConsentOnFile: false };
