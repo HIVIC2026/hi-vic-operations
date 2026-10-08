@@ -42,8 +42,11 @@ describe("installer intake", () => {
     expect(installerQuoteReleaseBlockers({ consentStatus: "granted", feeAwarenessRecorded: true })).toEqual([]);
   });
   test("multi-customer upload is rejected", () => {
-    expect(multiCustomerAmbiguity("a@x.com and b@y.com")).toBe(true);
-    expect(multiCustomerAmbiguity("only a@x.com, A@X.com")).toBe(false);
+    // Ordinary single-customer quote: contractor email + customer email is NOT ambiguous.
+    expect(multiCustomerAmbiguity("Cozy Insulation sales@cozy.com.au\nCustomer: Jane Smith\njane@example.com\nSite address: 1 Main St Ballarat 3350")).toBe(false);
+    expect(multiCustomerAmbiguity("Customer: Jane Smith\nCustomer: Bob Lee")).toBe(true);
+    expect(multiCustomerAmbiguity("Site address: 1 Main St\nSite address: 9 High St")).toBe(true);
+    expect(multiCustomerAmbiguity("name,email,address\nJane,jane@x.com,1 Main\nBob,bob@y.com,9 High")).toBe(true);
   });
   test("prefill takes only found values; several price lines stay blank", () => {
     const p = prefillFromExtracted({ measured_area_m2: { value: 120, confidence: "found" }, r_value: { value: 5, confidence: "uncertain" }, quote_lines: [{ description: "Batts", amount: 3000 }, { description: "Removal", amount: 400 }] });

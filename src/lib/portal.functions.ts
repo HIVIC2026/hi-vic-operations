@@ -668,6 +668,14 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
     }
     // All gates are checked BEFORE the quote is marked accepted, so a blocked acceptance leaves nothing half-done.
     if (q.kind === "installation") {
+      // Installer intake jobs: the exact released version, current readiness/consent and no pending reconfirmation.
+      const { data: cur } = await admin.from("quotes").select("status, release_state").eq("id", q.id).maybeSingle();
+      const { intakeSendBlockers, isIntakeJob } = await import("./installer-intake.server");
+      if (await isIntakeJob(q.job_id)) {
+        if (cur?.status !== "issued" || cur.release_state !== "released") throw new WorkflowError("This quote is not the current version sent to you.");
+        const ib = await intakeSendBlockers(q.job_id);
+        if (ib.length) throw new WorkflowError(`Blocked: ${ib.join(" • ")}`);
+      }
       const cb = await commercialBlocker(q.job_id);
       if (cb) throw new WorkflowError(`Blocked: ${cb}`);
       const p = await piesaStatus(q.job_id);

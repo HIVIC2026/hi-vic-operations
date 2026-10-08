@@ -78,6 +78,9 @@ export function InstallerIntakeReviewPanel({ jobId }: { jobId: string }) {
   const [reason, setReason] = useState("");
   const [ins, setIns] = useState<"" | "none" | "below_r2" | "unknown">("");
   const [amount, setAmount] = useState("");
+  const [area, setArea] = useState("");
+  const [incl, setIncl] = useState("");
+  const [prop, setProp] = useState("");
   const [busy, setBusy] = useState(false);
   if (q.isLoading || q.error || !q.data || q.data.channel !== "installer_sourced") return null;
   const s = q.data;
@@ -93,6 +96,9 @@ export function InstallerIntakeReviewPanel({ jobId }: { jobId: string }) {
       <ul className="text-sm space-y-0.5">
         <li>Who organises: <b>{s.coordination === "self_managed" ? "Installer organises the job" : s.coordination === "hivic_managed" ? "Home Insulation Victoria manages" : "Not recorded"}</b> — {s.coordinationNext}</li>
         <li>Owner eligibility (office): <b>{s.officeEligibility === "eligible" ? "Checked — eligible" : s.officeEligibility === "declined" ? "Not eligible" : "Not checked yet"}</b></li>
+        <li>Ceiling area: <b>{s.areaM2 ? `${s.areaM2} m²` : "Missing"}</b>{s.areaProvenance === "installer_provisional" ? " (installer-supplied, provisional)" : s.areaProvenance ? ` (${s.areaProvenance})` : ""}</li>
+        <li>Proposed product: <b>{s.proposedR ? `R${s.proposedR}` : "Not given"}</b> (not existing insulation)</li>
+        {s.reconfirmationRequired && <li className="font-medium text-destructive">Accepted quote facts changed — owner must reconfirm</li>}
         <li>Existing insulation: <b>{s.insulation ? label[s.insulation] : "Not recorded"}</b>{s.insulationSource === "installer_intake_corrected" ? " (office corrected)" : " (installer declaration, unverified)"}</li>
         <li>Ceiling area: {s.areaM2 ?? "—"} m² · Installer quote: {s.quoteIncGst != null ? money(s.quoteIncGst) + " inc GST" : "not entered (check uploaded file)"}</li>
         <li>Includes: {s.includes ?? "—"}</li>
@@ -109,9 +115,12 @@ export function InstallerIntakeReviewPanel({ jobId }: { jobId: string }) {
       <div className="flex flex-wrap items-end gap-2">
         <label className="text-sm">Insulation<select className="ml-1 h-9 rounded border px-2" value={ins} onChange={(e) => setIns(e.target.value as typeof ins)}><option value="">No change</option><option value="none">None</option><option value="below_r2">Confirmed below R2</option><option value="unknown">Not yet confirmed</option></select></label>
         <label className="text-sm">Quote inc GST<input className="ml-1 h-9 w-28 rounded border px-2" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
-        <Button size="sm" variant="outline" disabled={busy || !reason.trim() || (!ins && !amount)} onClick={() => run({ action: "correct", jobId, reason, ...(ins ? { insulation: ins } : {}), ...(amount && Number(amount.replace(/[$,]/g, "")) > 0 ? { quoteIncGst: Number(amount.replace(/[$,]/g, "")) } : {}) })}>Save correction</Button>
+        <label className="text-sm">Area m²<input className="ml-1 h-9 w-20 rounded border px-2" inputMode="decimal" value={area} onChange={(e) => setArea(e.target.value)} /></label>
+        <label className="text-sm">Proposed R<input className="ml-1 h-9 w-16 rounded border px-2" inputMode="decimal" value={prop} onChange={(e) => setProp(e.target.value)} /></label>
+        <label className="text-sm">Includes<input className="ml-1 h-9 w-48 rounded border px-2" value={incl} onChange={(e) => setIncl(e.target.value)} /></label>
+        <Button size="sm" variant="outline" disabled={busy || !reason.trim() || (!ins && !amount && !area && !incl.trim() && !prop)} onClick={() => { const n = (v: string) => Number(v.replace(/[$,Rr\s]/g, "")); run({ action: "correct", jobId, reason, ...(ins ? { insulation: ins } : {}), ...(amount && n(amount) > 0 ? { quoteIncGst: n(amount) } : {}), ...(area && n(area) > 0 ? { areaM2: n(area) } : {}), ...(incl.trim() ? { includes: incl.trim() } : {}), ...(prop && n(prop) > 0 ? { proposedR: n(prop) } : {}) }); }}>Save correction</Button>
       </div>
-      <p className="text-xs text-muted-foreground">A correction withdraws unsent draft quotes and needs the eligibility check again.</p>
+      <p className="text-xs text-muted-foreground">A correction withdraws draft and sent quotes, needs the eligibility check again, and flags an accepted quote for owner reconfirmation (its price is never changed).</p>
       <Button size="sm" disabled={busy || !s.readiness.ready} onClick={() => run({ action: "draft_quote", jobId })}>Prepare owner quote (draft, not sent)</Button>
     </section>
   );

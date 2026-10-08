@@ -16,8 +16,9 @@ type Sb = SupabaseClient<Database>;
  */
 export const TRANSITIONS: Partial<Record<Stage, Stage[]>> = {
   // Eligible jobs go to the free installer Ready Check first; the electrician PIESA comes later (piesa_and_install_window_pending).
-  new_enquiry: ["eligibility_review", "ready_check_ready_to_schedule", "ready_check_complete", "preliminary_estimate_ready"],
-  eligibility_review: ["ready_check_ready_to_schedule", "ready_check_complete", "preliminary_estimate_ready"],
+  new_enquiry: ["eligibility_review", "ready_check_ready_to_schedule", "ready_check_complete", "preliminary_estimate_ready", "measured_estimate_ready"],
+  // measured_estimate_ready from new_enquiry/eligibility_review: ONLY the installer-intake commercial route (readyCheckBlockers).
+  eligibility_review: ["ready_check_ready_to_schedule", "ready_check_complete", "preliminary_estimate_ready", "measured_estimate_ready"],
   // Ready Check pathway. NO electrician-review stage between ready_check_complete and measured_estimate_ready.
   preliminary_estimate_ready: ["ready_check_awaiting_acceptance", "ready_check_ready_to_schedule"],
   ready_check_awaiting_acceptance: ["ready_check_ready_to_schedule"],
@@ -197,7 +198,12 @@ async function readyCheckBlockers(jobId: string, to: Stage): Promise<string[]> {
     const { data: booking } = await admin.from("bookings").select("id, scheduled_start, contractor_id, assignment_id, business_id").eq("job_id", jobId).eq("kind", "ready_check").eq("status", "confirmed").order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (!booking?.scheduled_start || booking.assignment_id !== assignment?.id || booking.contractor_id !== assignment?.user_id || booking.business_id !== assignment?.business_id) out.push("Record the Ready Check date, time, assigned installer and installer business before scheduling.");
   }
-  if (to === "measured_estimate_ready") {
+  if (to === "measured_estimate_ready" && (await (await import("./installer-intake.server")).isIntakeJob(jobId))) {
+    // Installer-intake commercial route (Jo, 8 Oct 2026): owner quote stage on office-checked eligibility + qualifying
+    // insulation + usable scope + installer quote. Ready Check evidence is deferred, never waived (ready_for_veec).
+    const { installerIntakeState } = await import("./installer-intake.server");
+    out.push(...(await installerIntakeState(jobId)).readiness.blockers);
+  } else if (to === "measured_estimate_ready") {
     const { count } = await admin.from("ceiling_measurements").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("is_current", true).eq("status", "complete").eq("source_role", "installer");
     if (!count) out.push("Free Ready Check eligibility measure-up not yet completed by the installer.");
     const { verifiedEligible } = await import("./verified-eligibility.server");
@@ -251,7 +257,7 @@ export async function installBookingBlocker(jobId: string): Promise<string | nul
   return null;
 }
 
-export async function stageEntryBlockers(jobId: string, to: Stage): Promise<string[]> {
+export async function stageEntryBlockers(jobId: string, to: Stage, actorId: string | null = null): Promise<string[]> {
   const retired = retiredStageBlocker(to);
   if (retired) return [retired]; // server-side: stale clients / direct calls cannot re-enter the legacy path
   const blockers: string[] = [];
@@ -295,16 +301,37 @@ export async function stageEntryBlockers(jobId: string, to: Stage): Promise<stri
     const st = await assignmentStatus(jobId);
     if (st === "variation_required") blockers.push("Assignment variation must be reconfirmed by the customer.");
     if (st !== "effective_complete") blockers.push(ASSIGNMENT_VEEC_BLOCKER);
-    // Rebate gate (Jo, 8 Oct 2026): every required evidence item VERIFIED — uploads, ticks and declarations don't count.
-    // The office person making this transition is the final human AP approval.
-    const { rebateEvidenceBlockers } = await import("./installer-intake.core");
-    const { data: ev } = await admin.from("evidence_requirements").select("category, label, required, status").eq("job_id", jobId);
-    blockers.push(...rebateEvidenceBlockers({ items: (ev ?? []).map((r) => ({ category: r.category, label: r.label, blocking: r.required, status: r.status })), apApprovedBy: "office_transition" }));
-    // Installer intake route deferred the Ready Check: it must be finished and office-verified before the rebate.
-    const { verifiedEligible } = await import("./verified-eligibility.server");
-    if (!(await verifiedEligible(jobId))) blockers.push("Ready Check evidence not verified as eligible by the office.");
+    // Final AP approval must be a real signed-in admin person making this move — automation (null actor) never passes.
+    if (!actorId) blockers.push("Final Accredited Person approval must be given by a person in the AP review queue.");
+    else { const { data: isAdmin } = await admin.rpc("has_role", { _user_id: actorId, _role: "admin" }); if (!isAdmin) blockers.push("Only an Accredited Person (office admin) can give final approval."); }
+    const { isIntakeJob } = await import("./installer-intake.server");
+    if (await isIntakeJob(jobId)) {
+      // Installer intake route deferred the Ready Check: every required item VERIFIED (uploads, ticks and
+      // declarations never count), real initial-condition and existing R-value media verified, and verified eligibility.
+      const { rebateEvidenceBlockers, INTAKE_REQUIRED_MEDIA } = await import("./installer-intake.core");
+      const { data: ev } = await admin.from("evidence_requirements").select("category, label, required, status").eq("job_id", jobId);
+      blockers.push(...rebateEvidenceBlockers({ items: (ev ?? []).map((r) => ({ category: r.category, label: r.label, blocking: r.required, status: r.status })), apApprovedBy: actorId, requiredCategories: INTAKE_REQUIRED_MEDIA }).filter((b) => !b.startsWith("Final Accredited Person")));
+      const { verifiedEligible } = await import("./verified-eligibility.server");
+      if (!(await verifiedEligible(jobId))) blockers.push("Ready Check evidence not verified as eligible by the office.");
+    }
   }
-
+  if (["piesa_and_install_window_pending", "installation_scheduling", "installation_booked", "evidence_outstanding"].includes(to)) {
+    const m = await import("./installer-intake.server");
+    if ((await m.isIntakeJob(jobId)) && (await m.reconfirmationOpen(jobId))) blockers.push("Quote facts changed after acceptance — the owner must reconfirm the corrected quote first.");
+  }
+  if (to === "evidence_outstanding") {
+    // Install-day order for intake jobs (Ready Check deferred): initial-condition media BEFORE removal/covering
+    // and a passed pre-start check BEFORE PIISA/works.
+    const m = await import("./installer-intake.server");
+    if (await m.isIntakeJob(jobId)) {
+      const { installDayBlockers } = await import("./installer-intake.core");
+      const [{ data: before }, { data: ps }] = await Promise.all([
+        admin.from("evidence_requirements").select("status").eq("job_id", jobId).eq("category", "before_ceiling_space"),
+        admin.from("pre_start_checks").select("passed").eq("job_id", jobId).order("checked_at", { ascending: false }).limit(1).maybeSingle(),
+      ]);
+      blockers.push(...installDayBlockers({ initialConditionCaptured: (before ?? []).some((r) => r.status === "uploaded" || r.status === "verified"), prestartComplete: ps?.passed === true }, "piisa_or_works"));
+    }
+  }
   if (PIESA_WINDOW_STAGES.includes(to) && piesa?.piesa_expired) {
     blockers.push(
       `PIESA 30-day window expired on ${piesa.install_deadline}. Electrician must record a reassessment before progressing.`,
@@ -414,7 +441,7 @@ export async function transition(
   if (from !== to && !TRANSITIONS[from]?.includes(to)) {
     throw new WorkflowError(`Cannot move from ${STAGE_LABEL[from]} to ${STAGE_LABEL[to]}.`);
   }
-  const blockers = await stageEntryBlockers(jobId, to);
+  const blockers = await stageEntryBlockers(jobId, to, actorId);
   if (blockers.length) throw new WorkflowError(`Blocked: ${blockers.join(" • ")}`);
   const { error } = await admin
     .from("jobs")

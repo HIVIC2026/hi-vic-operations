@@ -203,7 +203,10 @@ export async function releaseQueuedQuotes() {
   if (workflow?.auto_send_quote !== true || workflow?.customer_comms_enabled !== true) return { released: 0 };
   const { data: queued } = await admin.from("quotes").select("id, job_id, kind").eq("status", "issued").eq("release_state", "queued").limit(200);
   let released = 0;
+  const { intakeSendBlockers } = await import("./installer-intake.server");
   for (const quote of queued ?? []) {
+    const ib = await intakeSendBlockers(quote.job_id).catch(() => ["Intake readiness could not be checked"]);
+    if (ib.length) { await admin.from("quotes").update({ release_state: "held", release_hold_reason: ib.join(" · ") }).eq("id", quote.id).eq("release_state", "queued"); continue; }
     const now = new Date().toISOString();
     const { data: updated } = await admin.from("quotes").update({ sent_at: now, release_state: "released" }).eq("id", quote.id).eq("status", "issued").eq("release_state", "queued").select("id").maybeSingle();
     if (!updated) continue;
@@ -220,6 +223,7 @@ export async function approveHeldQuote(quoteId: string, actorId: string) {
     admin.from("workflow_settings").select("auto_send_quote, customer_comms_enabled").eq("id", 1).maybeSingle(),
   ]);
   if (!quote || quote.status !== "draft" || quote.release_state !== "held") throw new WorkflowError("Only a held draft quote can be approved.");
+  { const ib = await (await import("./installer-intake.server")).intakeSendBlockers(quote.job_id); if (ib.length) throw new WorkflowError(ib.join(" • ")); }
   const releaseNow = workflow?.auto_send_quote === true && workflow?.customer_comms_enabled === true;
   const now = new Date().toISOString();
   await admin.from("quotes").update({ release_state: releaseNow ? "released" : "queued", release_hold_reason: null, status: "issued", sent_at: releaseNow ? now : null, office_reviewed_at: now, office_reviewed_by: actorId }).eq("id", quote.id);
@@ -246,6 +250,8 @@ export async function adjustQuote(quoteId: string, actorId: string, reason: stri
   const after = { subtotal_inc_gst: subtotal, gst_amount: r2(subtotal - subtotal / gst), veec_discount_inc_gst: veec, customer_total_inc_gst: r2(subtotal - veec), manually_adjusted: true, ...(veec !== Number(before.veec_discount_inc_gst) ? { veec_count: dr.veecs, veec_unit_value_inc_gst: dr.veecs != null ? Number(rs?.indicative_veec_value) : null } : {}) };
   await admin.from("quotes").update({ ...after, version: before.version + 1 }).eq("id", quoteId);
   if (before.status === "draft") await admin.from("quotes").update({ release_state: "held", release_hold_reason: "Quote held: manually priced or adjusted" }).eq("id", quoteId);
+  // Intake jobs: an adjusted issued quote goes back to held (not visible as current) until the office re-approves it.
+  else if (before.option_code === "INSTALLER_A1" && await (await import("./installer-intake.server")).isIntakeJob(before.job_id)) await admin.from("quotes").update({ status: "draft", release_state: "held", release_hold_reason: "Adjusted after sending — office must re-approve", sent_at: null }).eq("id", quoteId).eq("status", "issued");
   const { data: afterFull } = await admin.from("quotes").select("*, quote_items(*)").eq("id", quoteId).single();
   await admin.from("quote_adjustments").insert({ quote_id: quoteId, adjusted_by: actorId, reason, before_snapshot: before, after_snapshot: afterFull ?? {} });
   if (discountOverride && dr.veecs == null) await logEvent(before.job_id, actorId, "quote_discount_override", `Office discount override: ${reason}`, { quote_id: quoteId, requested: veecDiscount ?? null, applied: veec, reduced_for_minimum: dr.reducedForMin }, { internal: true });

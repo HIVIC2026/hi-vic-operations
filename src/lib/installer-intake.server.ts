@@ -1,7 +1,7 @@
 // Installer-supplied intake persistence/read model (Jo, 8 Oct 2026). Server-only; callers authorise first.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
-import { installerQuoteReadiness, installerQuoteReleaseBlockers, insulationQualifies, readyCheckOutstanding, type EvidenceItem, type ExistingInsulation } from "./installer-intake.core";
+import { intakeScopeArea, staleQuoteAction, installerQuoteReadiness, installerQuoteReleaseBlockers, insulationQualifies, readyCheckOutstanding, type EvidenceItem, type ExistingInsulation } from "./installer-intake.core";
 
 const INSULATION_EVENTS = ["installer_existing_insulation_declared", "installer_intake_corrected"];
 
@@ -35,20 +35,45 @@ export async function recordCommercialEligibility(jobId: string, actorId: string
   await logEvent(jobId, actorId, "installer_commercial_eligibility", outcome === "eligible" ? "Office checked owner and property eligibility for the installer quote" : "Office found the owner or property not eligible", { outcome, reason: reason.trim(), checked_at: new Date().toISOString(), note: "Owner quote eligibility only — Ready Check evidence and final AP verification still required" }, { internal: true });
 }
 
+async function latestProposedR(jobId: string): Promise<number | null> {
+  const { data } = await admin.from("workflow_events").select("event_type, details").eq("job_id", jobId).in("event_type", ["installer_evidence_acknowledged", "installer_intake_corrected"]).order("created_at", { ascending: false }).limit(10);
+  for (const e of data ?? []) { const v = (e.details as { proposed_r_value?: unknown } | null)?.proposed_r_value; if (typeof v === "number") return v; }
+  return null;
+}
+
+/** An accepted quote whose facts were materially corrected needs the owner to reconfirm; cleared only by a new acceptance. */
+export async function reconfirmationOpen(jobId: string): Promise<boolean> {
+  const { data } = await admin.from("workflow_events").select("event_type").eq("job_id", jobId).in("event_type", ["installer_quote_reconfirmation_required", "QUOTE_ACCEPTED"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return data?.event_type === "installer_quote_reconfirmation_required";
+}
+
+/** True only for jobs that came through the approved single installer intake. */
+export async function isIntakeJob(jobId: string): Promise<boolean> {
+  const { count } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "installer_evidence_acknowledged");
+  return (count ?? 0) > 0;
+}
+
+/** Every send/release/approve/accept path for an intake job re-checks readiness, consent, fee awareness and reconfirmation. [] for other jobs. */
+export async function intakeSendBlockers(jobId: string): Promise<string[]> {
+  if (!(await isIntakeJob(jobId))) return [];
+  const st = await installerIntakeState(jobId);
+  return [...st.readiness.blockers, ...st.releaseBlockers]; // reconfirmation is enforced as a stage blocker so a corrected quote can be re-sent and re-accepted
+}
+
 export async function installerIntakeState(jobId: string) {
   const { data: co } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "installer_coordination_chosen").order("created_at", { ascending: false }).limit(1).maybeSingle();
   const coordination = ((co?.details as { coordination?: string } | null)?.coordination ?? null) as "hivic_managed" | "self_managed" | null;
   const [{ data: job, error }, ins, { data: m }, decision, { data: consent }, { count: fee }, { data: ev }] = await Promise.all([
     admin.from("jobs").select("channel, installer_quoted_price_inc_gst, installer_price_includes").eq("id", jobId).single(),
     latestInsulation(jobId),
-    admin.from("ceiling_measurements").select("measured_area_m2, verified_area_m2, existing_r_value").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
+    admin.from("ceiling_measurements").select("measured_area_m2, verified_area_m2, supplied_area_m2, provenance, existing_r_value").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
     commercialEligibility(jobId),
     admin.from("owner_contact_consents").select("consent_status").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "installer_owner_fee_awareness"),
     admin.from("evidence_requirements").select("category, label, required, status").eq("job_id", jobId),
   ]);
   if (error) throw new WorkflowError(error.message);
-  const area = m ? Number(m.verified_area_m2 ?? m.measured_area_m2) || null : null;
+  const scope = intakeScopeArea(m ?? null); const area = scope.areaM2;
   const measuredR = m?.existing_r_value == null ? null : Number(m.existing_r_value);
   const officeEligibility = decision;
   const readiness = installerQuoteReadiness({ channel: job.channel, officeEligibility, insulation: ins.value, measuredR, areaM2: area, installerQuoteIncGst: job.installer_quoted_price_inc_gst == null ? null : Number(job.installer_quoted_price_inc_gst) });
@@ -56,7 +81,8 @@ export async function installerIntakeState(jobId: string) {
   const rc = readyCheckOutstanding((ev ?? []).map((r) => ({ category: r.category, label: r.label, blocking: r.required, status: r.status })) as EvidenceItem[]);
   return {
     coordination, coordinationNext: (await import("./installer-intake.core")).coordinationNextAction(coordination),
-    channel: job.channel, insulation: ins.value, insulationSource: ins.source, areaM2: area, measuredR,
+    channel: job.channel, insulation: ins.value, insulationSource: ins.source, areaM2: area, areaProvenance: scope.provenance,
+    proposedR: await latestProposedR(jobId), reconfirmationRequired: await reconfirmationOpen(jobId), measuredR,
     quoteIncGst: job.installer_quoted_price_inc_gst == null ? null : Number(job.installer_quoted_price_inc_gst), includes: job.installer_price_includes,
     officeEligibility, readiness, releaseBlockers: release,
     readyCheck: { outstandingCount: rc.count, outstanding: rc.outstanding.map((i) => ({ label: i.label, status: i.status })) },
@@ -73,8 +99,12 @@ export async function installerIntakeQualified(jobId: string): Promise<boolean> 
   return s.readiness.ready && insulationQualifies(s.insulation, s.measuredR);
 }
 
-/** Office correction of intake facts. Any change supersedes unsent draft quotes so stale figures can't be sent. */
-export async function correctInstallerIntake(jobId: string, actorId: string, p: { insulation?: ExistingInsulation | undefined; quoteIncGst?: number | null | undefined; includes?: string | null | undefined; reason: string }) {
+/**
+ * Office correction of intake facts (insulation, area, quote amount, inclusions, proposed product). Any change makes
+ * the earlier eligibility decision stale; draft quotes are superseded, issued quotes withdrawn, and an ACCEPTED quote
+ * is never repriced — it is flagged for owner reconfirmation instead.
+ */
+export async function correctInstallerIntake(jobId: string, actorId: string, p: { insulation?: ExistingInsulation | undefined; quoteIncGst?: number | null | undefined; includes?: string | null | undefined; areaM2?: number | undefined; proposedR?: number | null | undefined; reason: string }) {
   const { data: job } = await admin.from("jobs").select("channel").eq("id", jobId).single();
   if (job?.channel !== "installer_sourced") throw new WorkflowError("Only installer-supplied jobs use this correction.");
   if (!p.reason.trim()) throw new WorkflowError("Give a reason for the correction.");
@@ -82,9 +112,27 @@ export async function correctInstallerIntake(jobId: string, actorId: string, p: 
   if (p.quoteIncGst !== undefined) upd.installer_quoted_price_inc_gst = p.quoteIncGst;
   if (p.includes !== undefined) upd.installer_price_includes = p.includes;
   if (Object.keys(upd).length) { const { error } = await admin.from("jobs").update(upd).eq("id", jobId); if (error) throw new WorkflowError(error.message); }
-  const { data: sup } = await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "installation").eq("status", "draft").select("id");
-  await logEvent(jobId, actorId, "installer_intake_corrected", `Office corrected intake facts: ${p.reason.trim()}`, { insulation: p.insulation ?? null, quote_inc_gst: p.quoteIncGst ?? null, includes: p.includes ?? null, superseded_quotes: (sup ?? []).map((q) => q.id) }, { internal: true });
-  return { superseded: (sup ?? []).length };
+  if (p.areaM2 !== undefined) {
+    if (!(p.areaM2 > 0 && p.areaM2 <= 5000)) throw new WorkflowError("Check the ceiling area.");
+    // Only the provisional installer-supplied figure is corrected; a measured/verified area is never overwritten here.
+    const { data: m } = await admin.from("ceiling_measurements").select("id, provenance").eq("job_id", jobId).eq("is_current", true).maybeSingle();
+    if (!m || m.provenance !== "installer_supplied_provisional") throw new WorkflowError("The area has already been measured — change it through the measurement review.");
+    const { error } = await admin.from("ceiling_measurements").update({ supplied_area_m2: p.areaM2 }).eq("id", m.id);
+    if (error) throw new WorkflowError(error.message);
+  }
+  const { data: quotes } = await admin.from("quotes").select("id, status").eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]);
+  const touched: { id: string; action: string }[] = [];
+  for (const q of quotes ?? []) {
+    const a = staleQuoteAction(q.status);
+    if (a === "supersede" || a === "withdraw") {
+      const { error } = await admin.from("quotes").update({ status: "superseded", release_state: "held", release_hold_reason: "Withdrawn: intake facts corrected" }).eq("id", q.id).eq("status", q.status);
+      if (error) throw new WorkflowError(error.message);
+    }
+    if (a !== "keep") touched.push({ id: q.id, action: a });
+  }
+  await logEvent(jobId, actorId, "installer_intake_corrected", `Office corrected intake facts: ${p.reason.trim()}`, { insulation: p.insulation ?? null, quote_inc_gst: p.quoteIncGst ?? null, includes: p.includes ?? null, area_m2: p.areaM2 ?? null, ...(p.proposedR !== undefined ? { proposed_r_value: p.proposedR } : {}), quotes: touched }, { internal: true });
+  if (touched.some((t) => t.action === "reconfirm")) await logEvent(jobId, actorId, "installer_quote_reconfirmation_required", "Accepted quote facts changed — the owner must reconfirm before work continues", { quotes: touched.filter((t) => t.action === "reconfirm").map((t) => t.id) }, { internal: true });
+  return { superseded: touched.filter((t) => t.action !== "reconfirm").length, reconfirm: touched.some((t) => t.action === "reconfirm") };
 }
 
 export async function recordOfficeFeeAwareness(jobId: string, actorId: string, note: string) {
@@ -98,5 +146,5 @@ export async function draftQuoteFromIntake(jobId: string, actorId: string) {
   const s = await installerIntakeState(jobId);
   if (!s.readiness.ready) throw new WorkflowError(s.readiness.blockers.join(" • "));
   const { draftInstallerQuoteFromReadyCheck } = await import("./installer-quote.server");
-  return draftInstallerQuoteFromReadyCheck(jobId, actorId, [], `intake:${jobId}`, { totalIncGst: s.quoteIncGst!, includes: s.includes ?? "As quoted by the installer" });
+  return draftInstallerQuoteFromReadyCheck(jobId, actorId, [], `intake:${jobId}`, { totalIncGst: s.quoteIncGst!, includes: s.includes ?? "As quoted by the installer", areaM2: s.areaM2! });
 }
