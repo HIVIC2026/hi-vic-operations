@@ -17,8 +17,10 @@ import { formatPropertyAddress } from "./address";
 import { LAUNCH_CAMPAIGN } from "./launch-campaign.core";
 import {
   classifyEnquiry, enquiryStatus, contactExclusion, primaryByContact, propertyKey, contactKey, sendHolds, templateFor, AREA_LABEL, ASSUMED_REFERENCE_AREA_M2,
-  type EnquiryClass, type EnquiryStatus, type EnquiryGroup, type OtherReason, type StoredAudit,
+  type EnquiryClass, type EnquiryStatus, type EnquiryGroup, type OtherReason, type StoredAudit, type MediaReviewOutcome,
 } from "./enquiry-groups.core";
+
+const MEDIA_OUTCOMES: MediaReviewOutcome[] = ["below_r2", "over_r2", "unclear"];
 
 const PAGE = 1000;
 const CHUNK = 150;
@@ -53,6 +55,8 @@ export type EnquiryGroupRow = EnquiryClass & {
   status: EnquiryStatus; attentionReason: string | null; outcomeAt: string | null;
   /** Homeowner photos/videos attached to the website enquiry (intake_media), and whether the office has reviewed them. */
   mediaCount: number; mediaChecked: boolean;
+  /** Latest office photo/video review outcome, if any. below_r2/over_r2 are final; unclear keeps the lead in the review list. */
+  mediaOutcome: MediaReviewOutcome | null;
 };
 
 export async function loadEnquiryGroups() {
@@ -74,13 +78,18 @@ export async function loadEnquiryGroups() {
     admin.from("customer_delivery_settings").select("jobs_created_after").eq("id", 1).maybeSingle(),
     byJobs(ids, (c, f, t) => admin.from("lead_campaign_responses").select("job_id, spot_saved_at").in("job_id", c).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("documents").select("job_id").in("job_id", c).eq("kind", "intake_media").range(f, t)),
-    byJobs(ids, (c, f, t) => admin.from("customer_engagement_events").select("job_id").in("job_id", c).eq("event_type", "intake_media_reviewed").range(f, t)),
+    byJobs(ids, (c, f, t) => admin.from("customer_engagement_events").select("job_id, occurred_at, metadata").in("job_id", c).eq("event_type", "intake_media_reviewed").order("occurred_at").range(f, t)),
   ]);
   const savedSet = new Set(responses.filter((r) => r.spot_saved_at).map((r) => r.job_id));
   const deliveryCfg = must(cfg, "Delivery settings");
   const group = <T extends { job_id: string | null }>(rows: T[]) => { const m = new Map<string, T[]>(); for (const r of rows) if (r.job_id) m.set(r.job_id, [...(m.get(r.job_id) ?? []), r]); return m; };
   const mBy = group(meas), eBy = group(ests), dBy = group(docs), sBy = group(sends), cBy = group(consents), mediaBy = group(media);
-  const checkedSet = new Set(reviewed.map((r) => r.job_id));
+  // Latest office review outcome per job; below_r2/over_r2 are final, unclear keeps the lead in the review list.
+  const outcomeBy = new Map<string, MediaReviewOutcome>();
+  for (const r of reviewed) {
+    const o = (r.metadata as { outcome?: string } | null)?.outcome;
+    if (o && MEDIA_OUTCOMES.includes(o as MediaReviewOutcome)) outcomeBy.set(r.job_id, o as MediaReviewOutcome);
+  }
   const workSet = new Set(work.map((w) => w.job_id)), optSet = new Set(optouts.filter((o) => o.opted_out_at).map((o) => o.job_id)), bounceSet = new Set(events.map((e) => e.job_id));
 
   const rows: (EnquiryGroupRow & { propKey: string })[] = jobs.map((j) => {
@@ -93,9 +102,10 @@ export async function loadEnquiryGroups() {
     const js = sBy.get(j.id) ?? [];
     const last = js[js.length - 1];
     const audit = (j.eligibility_decision_rules ?? null) as StoredAudit;
+    const mediaOutcome = outcomeBy.get(j.id) ?? null;
     const c = classifyEnquiry({
       kind: "job", stage: j.stage, holdReason: j.hold_reason, outcome: j.eligibility_outcome, decisionSource: j.eligibility_decision_source,
-      reviewRequired: !!j.eligibility_review_required, audit, intakeWorkActive: workSet.has(j.id), declaredInsulation,
+      reviewRequired: !!j.eligibility_review_required, audit, intakeWorkActive: workSet.has(j.id), declaredInsulation, officeInsulation: mediaOutcome,
       area: { measured: m ? Number(m.verified_area_m2 ?? m.measured_area_m2) : null, estimated: best?.net_m2 ?? null, declared: j.estimated_area_m2 == null ? null : Number(j.estimated_area_m2), declaredUnknown: j.estimated_area_unknown },
       videoCount: homeownerVideoCount((dBy.get(j.id) ?? []) as { kind: string; mime_type: string | null; storage_path: string }[]),
     });
@@ -116,7 +126,7 @@ export async function loadEnquiryGroups() {
           campaignGroup: camp.length ? (camp.some((s) => /:b(:|$)/.test(s.idempotency_key ?? "")) ? "onsite" : "likely") : null,
         });
       })(), attentionReason: null, outcomeAt: j.eligibility_set_at ?? null,
-      mediaCount: (mediaBy.get(j.id) ?? []).length, mediaChecked: checkedSet.has(j.id),
+      mediaCount: (mediaBy.get(j.id) ?? []).length, mediaChecked: mediaOutcome === "below_r2" || mediaOutcome === "over_r2", mediaOutcome,
     };
   });
   const primary = primaryByContact(rows);
@@ -234,4 +244,30 @@ export async function prepareEnquiryEmails(ids: string[], sel: Selected, withHtm
     commsEnabled, selected: want.length, recipients: drafts.length, drafts, excluded,
     sendState: "Review only – nothing has been sent, queued or saved. Sending stays locked.",
   };
+}
+
+/** Signed short-lived links to a lead's uploaded photos/videos (intake_media, private job-files bucket). Admin only. */
+export async function loadLeadMedia(jobId: string) {
+  const docs = must(await admin.from("documents").select("id, kind, mime_type, storage_path, created_at").eq("job_id", jobId).eq("kind", "intake_media").order("created_at"), "Lead media") ?? [];
+  const files: { id: string; mimeType: string | null; url: string; at: string | null }[] = [];
+  for (const d of docs) {
+    const signed = await signFile("job-files", d.storage_path, 3600);
+    if (signed.data) files.push({ id: d.id, mimeType: d.mime_type, url: signed.data.signedUrl, at: d.created_at });
+  }
+  return { files };
+}
+
+/** Records the office photo/video review (Jo, 8 Oct): below_r2 → Save my spot offer; over_r2 → ineligible; unclear → more pictures.
+ *  Writes one permanent engagement event; the latest event decides the lead's group. Never changes the Gate 1 audit. */
+export async function reviewLeadMedia(jobId: string, outcome: MediaReviewOutcome, by: string | null) {
+  if (!MEDIA_OUTCOMES.includes(outcome)) throw new Error("Unknown review outcome.");
+  const job = must(await admin.from("jobs").select("id, job_number").eq("id", jobId).maybeSingle(), "Job");
+  if (!job) throw new Error("Job not found.");
+  const now = new Date();
+  const ins = await admin.from("customer_engagement_events").insert({
+    job_id: jobId, event_type: "intake_media_reviewed", occurred_at: now.toISOString(), source: "office",
+    metadata: { outcome, by }, dedupe_key: `intake_media_reviewed:${jobId}:${now.getTime()}`,
+  });
+  if (ins.error) throw new Error(`Review could not be saved: ${ins.error.message}`);
+  return { ok: true as const, outcome };
 }

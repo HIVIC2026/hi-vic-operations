@@ -157,3 +157,36 @@ describe("one automatic email route", () => {
     expect(result.email).toBe("none"); expect(result.blocker).toContain(reason);
   });
 });
+
+describe("office photo/video review outcomes (Jo, 8 Oct)", () => {
+  const audit = { ruleset_version: GATE1_RULESET_VERSION, rules: [
+    { key: "location", result: "pass" }, { key: "residential", result: "pass" }, { key: "ceiling_age", result: "pass" },
+    { key: "previous_activity", result: "pass" }, { key: "roof_access", result: "pass" }, { key: "existing_insulation", result: "onsite" },
+  ] };
+  const base = { kind: "job" as const, stage: "eligibility_review", outcome: "needs_onsite_confirmation", decisionSource: "system", reviewRequired: false,
+    audit, intakeWorkActive: false, declaredInsulation: "present" as const, area: { declared: 120 }, videoCount: 2 };
+  test("below R2 moves to the Save my spot offer group", () => {
+    const c = classifyEnquiry({ ...base, officeInsulation: "below_r2" });
+    expect(c.group).toBe("likely_size"); expect(c.reason).toContain("below R2");
+  });
+  test("below R2 without a size uses the assumed-size offer group", () => {
+    const c = classifyEnquiry({ ...base, area: {}, officeInsulation: "below_r2" });
+    expect(c.group).toBe("likely_no_size");
+  });
+  test("over R2 moves to ineligible", () => {
+    const c = classifyEnquiry({ ...base, officeInsulation: "over_r2" });
+    expect(c.group).toBe("other"); expect(c.otherReason).toBe("not_eligible"); expect(c.reason).toContain("R2 or above");
+  });
+  test("unclear stays in the insulation group asking for more pictures", () => {
+    const c = classifyEnquiry({ ...base, officeInsulation: "unclear" });
+    expect(c.group).toBe("insulation_check"); expect(c.nextAction).toBe("Request more photos");
+  });
+  test("no review keeps the original insulation-check grouping", () => {
+    const c = classifyEnquiry(base);
+    expect(c.group).toBe("insulation_check"); expect(c.nextAction).toBe("Review video");
+  });
+  test("review never overrides a recorded hard fail", () => {
+    const c = classifyEnquiry({ ...base, outcome: "does_not_appear_eligible", audit: { ...audit, hard_failures: ["Previous upgrade"] }, officeInsulation: "below_r2" });
+    expect(c.otherReason).toBe("not_eligible");
+  });
+});

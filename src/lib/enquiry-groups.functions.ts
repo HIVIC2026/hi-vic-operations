@@ -15,6 +15,7 @@ export const getEnquiryGroups = createServerFn({ method: "POST" }).middleware([r
         group: x.group, otherReason: x.otherReason, reason: x.reason, area: x.area, areaLabel: x.areaLabel, videoState: x.videoState, nextAction: x.nextAction, lastEmail: x.lastEmail,
         duplicate: x.kind === "job" && !x.isPrimaryForContact, status: x.status,
         attentionReason: x.attentionReason ?? (x.status === "needs_attention" ? x.reason : null), outcomeAt: x.outcomeAt,
+        mediaCount: x.mediaCount, mediaChecked: x.mediaChecked, mediaOutcome: x.mediaOutcome,
       })),
       scope: r.scope,
     };
@@ -35,4 +36,20 @@ export const prepareEnquiryEmailsFn = createServerFn({ method: "POST" }).middlew
     const a = data.assumedAreaM2 ?? ASSUMED_REFERENCE_AREA_M2;
     if (!Number.isFinite(a) || a < 20 || a > 1000) throw new Error("Assumed area must be between 20 and 1000 m².");
     return prepareEnquiryEmails(data.ids, { group: data.group, otherReason: data.otherReason, assumedAreaM2: Math.round(a * 10) / 10 }, data.withHtmlFor);
+  });
+
+export const getLeadMedia = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { loadLeadMedia } = await import("./enquiry-groups.server");
+    return loadLeadMedia(data.jobId);
+  });
+
+export const reviewLeadMediaFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), outcome: z.enum(["below_r2", "over_r2", "unclear"]) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { reviewLeadMedia } = await import("./enquiry-groups.server");
+    return reviewLeadMedia(data.jobId, data.outcome, context.userId ?? null);
   });

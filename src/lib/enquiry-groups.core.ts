@@ -39,6 +39,14 @@ const REQUIRED_PASSES = ["location", "residential", "ceiling_age", "previous_act
 export type StoredRule = { key?: string; result?: string; fact?: string; basis?: string; reason?: string };
 export type StoredAudit = { ruleset_version?: string; rules?: StoredRule[]; hard_failures?: string[]; review_reasons?: string[]; onsite_drivers?: string[] } | null;
 
+/** Office photo/video review outcome (Jo, 8 Oct 2026): below R2 → offer Save my spot; over R2 → ineligible; unclear → ask for more pictures. */
+export type MediaReviewOutcome = "below_r2" | "over_r2" | "unclear";
+export const MEDIA_OUTCOME_LABEL: Record<MediaReviewOutcome, string> = {
+  below_r2: "Below R2 – offer Save my spot",
+  over_r2: "R2 or above – not eligible",
+  unclear: "Not clear – ask for more pictures",
+};
+
 export type EnquiryInput = {
   kind: "job" | "calculator";
   stage: string | null;
@@ -52,6 +60,8 @@ export type EnquiryInput = {
   videoCount: number;
   /** Canonical owner answer (normaliseInsulation over Base44 answers), never inferred. */
   declaredInsulation?: "none" | "present" | "unknown" | null;
+  /** Latest office review of the owner's uploaded photos/videos. Overrides the insulation-only grouping, never the recorded Gate 1 audit. */
+  officeInsulation?: MediaReviewOutcome | null;
   calculatorStatus?: string | null;
 };
 export type EnquiryClass = {
@@ -128,8 +138,14 @@ export function classifyEnquiry(x: EnquiryInput): EnquiryClass {
     return { group: "likely_no_size", otherReason: null, reason: "No usable ceiling area", area: { m2: ASSUMED_REFERENCE_AREA_M2, source: "assumed" }, videoState, nextAction: GROUP_ACTION.likely_no_size };
   }
   if (x.outcome === "needs_onsite_confirmation") {
+    // Office photo/video review decides the insulation-only path (Jo, 8 Oct): below R2 → Save my spot offer, over R2 → ineligible, unclear → more pictures.
+    if (x.officeInsulation === "below_r2") {
+      if (area.m2 != null) return { group: "likely_size", otherReason: null, reason: "Office confirmed below R2 from photos/video", area, videoState, nextAction: GROUP_ACTION.likely_size };
+      return { group: "likely_no_size", otherReason: null, reason: "Office confirmed below R2 from photos/video", area: { m2: ASSUMED_REFERENCE_AREA_M2, source: "assumed" }, videoState, nextAction: GROUP_ACTION.likely_no_size };
+    }
+    if (x.officeInsulation === "over_r2") return other("not_eligible", "Office confirmed existing insulation is R2 or above", area, videoState);
     const chk = insulationOnly(x.audit, x.declaredInsulation);
-    if (chk.ok) return { group: "insulation_check", otherReason: null, reason: videoState === "received" ? "Video received – priority review" : "Existing insulation declared; all other checks passed", area, videoState, nextAction: videoState === "received" ? "Review video" : GROUP_ACTION.insulation_check };
+    if (chk.ok) return { group: "insulation_check", otherReason: null, reason: x.officeInsulation === "unclear" ? "Photos unclear – more pictures needed" : videoState === "received" ? "Video received – priority review" : "Existing insulation declared; all other checks passed", area, videoState, nextAction: x.officeInsulation === "unclear" ? "Request more photos" : videoState === "received" ? "Review video" : GROUP_ACTION.insulation_check };
     return other(chk.missing ? "missing_info" : "needs_review", chk.why, area, videoState);
   }
   return other("needs_review", `Unrecognised result: ${x.outcome}`, area, videoState);
