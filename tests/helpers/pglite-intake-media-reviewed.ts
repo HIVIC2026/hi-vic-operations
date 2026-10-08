@@ -16,6 +16,7 @@ await ins("intake_media_reviewed"); await ins("email_sent");
 threw = false;
 try { await ins("made_up_type"); } catch { threw = true; }
 if (!threw) throw new Error("unknown type still accepted");
+await db.query(`DELETE FROM public.customer_engagement_events WHERE event_type = 'intake_media_reviewed'`);
 await db.exec(read("0147_intake_media_reviewed.undo.sql"));
 threw = false;
 try { await ins("intake_media_reviewed"); } catch { threw = true; }
