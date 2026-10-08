@@ -949,13 +949,13 @@ export const confirmEvidenceUpload = createServerFn({ method: "POST" }).middlewa
     if (!data.path.startsWith(`${req.job_id}/${req.category}/`)) throw new WorkflowError("Invalid path");
     { const { allowedUpload } = await import("./upload-safety.core"); const m = allowedUpload(data.fileName, data.mimeType); if (!m) throw new WorkflowError("That file type isn't accepted."); const { verifyStoredUpload } = await import("./upload-safety.server"); await verifyStoredUpload("job-files", data.path, m); }
     const loc = await enforcePhotoLocation(context.supabase, req.job_id, data.mimeType, data.fix);
-    await admin.from("evidence_files").insert({ requirement_id: req.id, job_id: req.job_id, storage_path: data.path, file_name: data.fileName, mime_type: data.mimeType, size_bytes: data.size, uploaded_by: context.userId,
-      lat: data.fix?.lat ?? null, lng: data.fix?.lng ?? null, location_accuracy_m: data.fix?.accuracyM ?? null, captured_at: data.fix?.capturedAt ?? new Date().toISOString(),
-      distance_m: loc.distanceM, location_source: loc.exempt ? (loc.role === "admin" ? "office_upload" : "not_required") : "device_at_capture" });
-    await admin.from("evidence_requirements").update({ status: "uploaded", verified_by: null, verified_at: null }).eq("id", req.id);
-    await logEvent(req.job_id, context.userId, "evidence_uploaded", `Evidence uploaded: ${req.label}`, { file: data.fileName });
-    await autoAdvanceJob(req.job_id, context.userId, "evidence uploaded");
-    return { ok: true };
+    const { persistEvidenceConfirmation } = await import("./evidence-confirmation.server");
+    return persistEvidenceConfirmation(admin, { requirement_id: req.id, job_id: req.job_id, storage_path: data.path, file_name: data.fileName, mime_type: data.mimeType, size_bytes: data.size, uploaded_by: context.userId,
+      lat: data.fix?.lat ?? null, lng: data.fix?.lng ?? null, location_accuracy_m: data.fix?.accuracyM ?? null, captured_at: null,
+      distance_m: loc.distanceM, location_source: loc.exempt ? (loc.role === "admin" ? "office_upload" : "not_required") : "device_at_upload" }, async () => {
+      await logEvent(req.job_id, context.userId, "evidence_uploaded", `Evidence uploaded: ${req.label}`, { file: data.fileName });
+      await autoAdvanceJob(req.job_id, context.userId, "evidence uploaded");
+    });
   });
 
 export const getEvidenceUrl = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
