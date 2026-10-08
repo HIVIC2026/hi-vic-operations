@@ -3,7 +3,7 @@
 // never retries an ambiguous send, and logs delivery status against the job or partner.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { customerCommsEnabled, hasCurrentOwnerContactConsent } from "./comms.server";
-import { SMS_MESSAGE_TYPES, smsBlocker, toAuE164, type SmsMessageType } from "./sms.core";
+import { SMS_MESSAGE_TYPES, brandSmsBody, smsBlocker, toAuE164, type SmsMessageType } from "./sms.core";
 
 const db = admin as any;
 const WEBHOOK_BASE = "https://estimate.homeinsulationvictoria.com.au";

@@ -42,6 +42,12 @@ export function smsBlocker(x: SmsGateInput): string | null {
   return null;
 }
 
+/** Brand line at the start of every text the portal sends (Jo, 8 Oct). Visible brand only — never "HI VIC". */
+export const SMS_BRAND_PREFIX = "Home Insulation Victoria: ";
+export function brandSmsBody(body: string): string {
+  return body.trimStart().startsWith(SMS_BRAND_PREFIX) ? body : SMS_BRAND_PREFIX + body.trimStart();
+}
+
 /** STOP / START keywords (Twilio standard set). */
 const STOP = new Set(["STOP", "STOPALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT", "OPTOUT", "OPT-OUT", "REVOKE"]);
 const START = new Set(["START", "UNSTOP", "YES", "OPTIN"]);
