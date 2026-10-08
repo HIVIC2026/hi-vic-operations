@@ -24,10 +24,10 @@ export const A3_ALIASES: Record<string, string[]> = {
   "p2.ap": ["Accredited person (AP)"],
   "p2.company": ["Installer company"],
   "p2.lead": ["Lead installer"],
-  // "EEC certification number" repeats: occurrence 0 = lead installer, 1..3 = additional installer rows.
-  "p2.leadEec": ["EEC certification number"],
   "p2.addName": ["Additional installer"],
-  "p2.addEec": ["EEC certification number"],
+  // Certificate numbers are no longer standalone native questions: known crew choices embed them; "Other" branches
+  // carry their own required name + certificate fields (A3_CREW_OTHER_FIELDS). Official p2.leadEec/p2.addEec are
+  // derived from the resolved choice, never from a native text box.
   "p3.swms": ["Has the SWMS been completed for this job and all risks identified?"],
   "p3.table1": ["Have all Table 1 hazards been considered and controlled in the SWMS?"],
   "p3.isolated": ["Have the main and any alternative power supplies been isolated, locked out and tagged, and the roof cavity confirmed electrically safe to enter?"],
@@ -70,9 +70,7 @@ export const A3_NATIVE_IDS: Record<string, string[]> = {
   "p2.ap": ["b7212b10-067a-4fd8-8f6a-90efd2db8389"],
   "p2.company": ["dc12088c-8316-461e-91e2-53b1db0dc558"],
   "p2.lead": ["e377bcdb-0ba0-46d3-82f6-5d84519b55c4"],
-  "p2.leadEec": ["647221f2-f74c-4da1-a8be-e44a20f0b08b"],
   "p2.addName": ["4bea475f-516e-46a2-8922-e85896c68402", "726f9e46-8308-449e-822f-2280cd7affa7", "c0c2178e-e872-4c70-a260-78aecde3d01e"],
-  "p2.addEec": ["24e41e61-a490-4bdc-bd34-002fb6ae1089", "65d9d9d5-b87e-4d81-b92a-fa877e5a4f98", "3681131a-dee1-429a-ba34-6e066ef07152"],
   "p3.swms": ["1be8ebff-a754-4a2a-83f0-9561708ffb85"],
   "p3.table1": ["ac43a81a-7576-4b2e-885c-389585fbded5"],
   "p3.isolated": ["d2bb79c9-6307-4283-950b-c808315d1998"],
@@ -128,13 +126,28 @@ export function a3AcceptedLabels(id: string): string[] {
   return base.flatMap((a) => [norm(a), ...(A3_ALIAS_SUFFIXES[id] ?? []).map((x) => norm(`${a} ${x}`))]);
 }
 
+// ---------- native crew schema (saved + read from the rendered editor, Jo 8 Oct 2026 14:22 UTC) ----------
+/** Retired standalone certificate items. Must NOT be required or written. */
+export const A3_RETIRED_CREW_CERT_IDS = ["647221f2-f74c-4da1-a8be-e44a20f0b08b", "24e41e61-a490-4bdc-bd34-002fb6ae1089", "65d9d9d5-b87e-4d81-b92a-fa877e5a4f98", "3681131a-dee1-429a-ba34-6e066ef07152"] as const;
+/** The four crew name items are SINGLE CHOICE on this response set. Options are read from the template at runtime. */
+export const A3_CREW_RESPONSE_SET = "4fe1175e-502f-428d-8bd8-28c07f46eb2d";
+export const A3_CREW_OTHER_OPTION = "8e9ba585-c0da-416a-90ab-d3cb09029b32";
+/** Crew row 0 = lead, 1..3 = additional installer rows. */
+export const A3_CREW_NAME_IDS = ["e377bcdb-0ba0-46d3-82f6-5d84519b55c4", "4bea475f-516e-46a2-8922-e85896c68402", "726f9e46-8308-449e-822f-2280cd7affa7", "c0c2178e-e872-4c70-a260-78aecde3d01e"] as const;
+/** Required "Other" branch fields per row: Full legal name / EEC certification number. */
+export const A3_CREW_OTHER_FIELDS: { name: string; eec: string }[] = [
+  { name: "9e1a8b94-d3fc-492e-bb33-57b6bd4e85a8", eec: "6fea5874-992b-476b-8f09-839abaa2d049" },
+  { name: "4ac27cb9-e588-4666-b5df-3e2172b60358", eec: "b8daad98-4a63-480d-85a7-c0fb670b34c3" },
+  { name: "824af4ab-d764-403a-80eb-05b55f86d600", eec: "d986b4c1-1d3d-414c-9a14-8be9c000fa26" },
+  { name: "1bc12288-7517-4d43-a1b3-c2235ae250dc", eec: "90609251-f347-407f-982f-1796e59db496" },
+];
+
 /** NativeMapping for buildOfficialPrefill: per-row stable IDs; labels kept only for verification. */
-export const PIISA_A3_MAPPING: NativeMapping = Object.fromEntries(Object.keys(A3_NATIVE_IDS).map((k) => [k, { itemIds: A3_NATIVE_IDS[k]!, labels: A3_ALIASES[k] ?? [], byRow: true }]));
+export const PIISA_A3_MAPPING: NativeMapping = Object.fromEntries(Object.keys(A3_NATIVE_IDS).filter((k) => k !== "p2.lead" && k !== "p2.addName").map((k) => [k, { itemIds: A3_NATIVE_IDS[k]!, labels: A3_ALIASES[k] ?? [], byRow: true }]));
 const ROWS = (id: string) => A3_NATIVE_IDS[id]?.length ?? 1;
 
 /** Native occurrence of an official item: EEC rows share one label with the lead's EEC field. */
 export function a3Occurrence(itemId: string, row = 0): number {
-  if (itemId === "p2.addEec") return row + 1;
   if (itemId === "p2.addName") return row;
   return 0;
 }
@@ -165,6 +178,7 @@ export function a3MissingFields(template: unknown): string[] {
       if (al?.length && !a3AcceptedLabels(id).includes(e.norm)) out.push(`${name} — ID ${e.id} now reads "${e.label}"`);
     }
   }
+  out.push(...a3CrewSchemaProblems(template));
   for (const [k, nid] of Object.entries(A3_MEDIA_IDS)) {
     const e = entries.find((x) => String(x.id) === nid);
     const lbl = A3_MEDIA_LABELS[k as A3EvidenceKey];
@@ -232,7 +246,7 @@ export function parseA3Answers(audit: unknown): { answers: OfficialAnswers; crew
   const entries = flatten(audit);
   const answers: OfficialAnswers = {};
   for (const id of Object.keys(A3_ALIASES)) {
-    if (id === "p2.addName" || id === "p2.addEec" || id === "p8.signature") continue;
+    if (id === "p2.lead" || id === "p2.addName" || id === "p8.signature") continue;
     if (id === "p8.declaration") continue;
     const v = a3Entry(entries, id)?.value ?? null;
     if (v == null) continue;
@@ -240,10 +254,11 @@ export function parseA3Answers(audit: unknown): { answers: OfficialAnswers; crew
     if (YN_IDS.has(id)) { const y = yn(v); if (y) answers[id] = y; continue; }
     answers[id] = v;
   }
+  // Additional rows as typed/selected (unresolved; a3ResolveCrewChoices decides what the official form may hold).
   const crew: { name: string; eec: string | null }[] = [];
-  for (let r = 0; r < 3; r++) {
-    const name = a3Entry(entries, "p2.addName", r)?.value?.trim();
-    if (name) crew.push({ name, eec: a3Entry(entries, "p2.addEec", r)?.value?.trim() || null });
+  for (const c of a3CrewChoices(audit).slice(1)) {
+    if (c.kind === "other" && c.name) crew.push({ name: c.name, eec: c.eec });
+    else if (c.kind === "option" && c.optionLabel) crew.push({ name: c.optionLabel, eec: null });
   }
   return { answers, crew };
 }
@@ -310,7 +325,7 @@ export function readyCheckPartPrefill(areas: RcArea[]): { values: Record<string,
   const withIns = areas.filter((a) => a.present === true);
   if (withIns.length && withIns.every((a) => a.removal != null)) {
     const rem = withIns.some((a) => a.removal === true), top = withIns.some((a) => a.removal === false);
-    values["p6.treatment"] = rem && top ? "Both" : rem ? "Removed" : "Topped up";
+    values["p6.treatment"] = rem && top ? "Removed, Topped up" : rem ? "Removed" : "Topped up"; // multi-select seed merged to one response
   }
   one("rValue", "p6.rValue", "Existing insulation R-value");
   const dl = areas.map((a) => a.downlights);
@@ -547,4 +562,129 @@ export function a3EvidenceGate(official: unknown): string[] {
   const out = [...(ev.prestart_blockers ?? []).map((b) => `PIISA start-of-work: ${b}`), ...(ev.completion_blockers ?? []).map((b) => `PIISA evidence: ${b}`), ...(ev.crew_blockers ?? []).map((b) => `PIISA crew: ${b}`)];
   if (ev.prestart_captured_from === "completed_audit") out.push("PIISA start-of-work check was only captured after the form was completed — office review");
   return out;
+}
+
+// ---------- native crew choices ----------
+type Opt = { id: string; label: string };
+function rootOf(t: unknown): Any { return (t as Any)?.template ?? t; }
+/** Options of the crew response set as published in the template (never a hardcoded roster). */
+export function a3CrewOptions(template: unknown): Opt[] | null {
+  const root = rootOf(template);
+  const sets: Any[] = [...(root?.response_sets ?? []), ...(root?.global_response_sets ?? [])];
+  const set = sets.find((x) => String(x.id) === A3_CREW_RESPONSE_SET);
+  return set ? (set.responses ?? []).map((o: Any) => ({ id: String(o.id), label: String(o.label) })) : null;
+}
+function allItems(t: unknown): Map<string, Any> {
+  const out = new Map<string, Any>();
+  const walk = (x: unknown) => { if (Array.isArray(x)) x.forEach(walk); else if (x && typeof x === "object") { const o = x as Any; const id = o.item_id ?? o.id; if (o.item_id != null || (o.id != null && ("label" in o || "type" in o || "question" in o))) out.set(String(id), o); for (const v of Object.values(o)) if (typeof v === "object") walk(v); } };
+  walk(rootOf(t)); return out;
+}
+/** Template must have: retired cert items gone (tolerated if present but never required), 4 name items on the crew set, Other option, all 8 Other branch fields. */
+export function a3CrewSchemaProblems(template: unknown): string[] {
+  const p: string[] = [];
+  const items = allItems(template);
+  const opts = a3CrewOptions(template);
+  if (!opts) p.push("Crew choice list (response set) not found on the form");
+  else if (!opts.some((o) => o.id === A3_CREW_OTHER_OPTION)) p.push("Crew choice list has no Other option");
+  A3_CREW_NAME_IDS.forEach((id, r) => {
+    const it = items.get(id);
+    const label = r === 0 ? "Lead installer" : `Additional installer (row ${r})`;
+    if (!it) { p.push(`${label} (crew choice)`); return; }
+    const rs = it.question?.response_set_id ?? it.response_set_id ?? it.response_set;
+    if (rs !== A3_CREW_RESPONSE_SET) p.push(`${label} — ID ${id} is not a single choice on the crew list`);
+    const f = A3_CREW_OTHER_FIELDS[r]!;
+    if (!items.get(f.name)) p.push(`${label} — Other: Full legal name`);
+    if (!items.get(f.eec)) p.push(`${label} — Other: EEC certification number`);
+  });
+  return p;
+}
+/** What each crew row holds on an audit: a selected option id (+ its label), Other with its branch fields, or nothing. */
+export type CrewChoice = { row: number; kind: "none" } | { row: number; kind: "option"; optionId: string; optionLabel: string | null } | { row: number; kind: "other"; name: string | null; eec: string | null };
+export function a3CrewChoices(audit: unknown): CrewChoice[] {
+  const items = allItems(audit);
+  const txt = (id: string) => { const r = items.get(id)?.responses ?? {}; const v = r.text ?? r.value; return typeof v === "string" && v.trim() ? v.trim() : null; };
+  return A3_CREW_NAME_IDS.map((id, row): CrewChoice => {
+    const sel = items.get(id)?.responses?.selected;
+    const s = Array.isArray(sel) ? sel[0] : null;
+    if (!s) return { row, kind: "none" };
+    const oid = String(s.id ?? "");
+    if (oid === A3_CREW_OTHER_OPTION) return { row, kind: "other", name: txt(A3_CREW_OTHER_FIELDS[row]!.name), eec: txt(A3_CREW_OTHER_FIELDS[row]!.eec) };
+    return { row, kind: "option", optionId: oid, optionLabel: typeof s.label === "string" ? s.label : null };
+  });
+}
+/** A native option belongs to a staff member only if its label EQUALS the label built from the current record (name case-normalised; certificate and business exact). The label is compared, never parsed. */
+export function optionForStaff(opts: Opt[], s: StaffOption, business: string): Opt | null {
+  if (!s.eecVerified || !s.eec) return null;
+  const tail = ` — EEC ${s.eec} — ${business}`;
+  return opts.find((o) => o.id !== A3_CREW_OTHER_OPTION && o.label.endsWith(tail) && o.label.slice(0, -tail.length).trim().toLowerCase() === s.name.trim().toLowerCase()) ?? null;
+}
+/** Roster upkeep: verified+approved staff without a native option, and native options matching no current verified staff. */
+export function a3RosterStatus(template: unknown, staff: StaffOption[], business: string): { missingOptions: string[]; staleOptions: string[]; alert: string | null } {
+  const opts = a3CrewOptions(template) ?? [];
+  const ok = staff.filter((s) => s.approved !== false && s.eecVerified && s.eec);
+  const matched = new Set<string>();
+  const missingOptions: string[] = [];
+  for (const s of ok) { const o = optionForStaff(opts, s, business); if (o) matched.add(o.id); else missingOptions.push(s.name); }
+  const staleOptions = opts.filter((o) => o.id !== A3_CREW_OTHER_OPTION && !matched.has(o.id)).map((o) => o.label);
+  const alert = missingOptions.length || staleOptions.length
+    ? `Mitti crew list is out of date for ${business}${missingOptions.length ? ` — not listed: ${missingOptions.join(", ")} (filled in under Other)` : ""}${staleOptions.length ? ` — options not matching a current verified installer of this company: ${staleOptions.length}` : ""}. Update the Mitti crew list.`
+    : null;
+  return { missingOptions, staleOptions, alert };
+}
+/**
+ * Native crew prefill: each row selects the REAL option id matching the chosen verified worker; a verified worker with no
+ * native option (or a portal "Other") selects Other and seeds the required branch fields so nothing is retyped.
+ */
+export function a3CrewNativeItems(template: unknown, sel: CrewSelection, staff: StaffOption[], business: string): { items: Any[]; notes: string[]; problems: string[] } {
+  const opts = a3CrewOptions(template);
+  const items: Any[] = [], notes: string[] = [], problems: string[] = [];
+  if (!opts) return { items, notes, problems: ["Crew choice list not found on the Mitti form"] };
+  const other = opts.find((o) => o.id === A3_CREW_OTHER_OPTION);
+  const byId = new Map(staff.map((s) => [s.workerId, s]));
+  const rows: (CrewPick | null)[] = [typeof sel.lead === "string" ? { workerId: sel.lead } : sel.lead ? sel.lead : null, ...sel.additional.slice(0, 3)];
+  rows.forEach((pick, row) => {
+    if (!pick) return;
+    const nameId = A3_CREW_NAME_IDS[row]!, f = A3_CREW_OTHER_FIELDS[row]!;
+    const choose = (o: Opt) => items.push({ item_id: nameId, type: "question", responses: { selected: [{ id: o.id, label: o.label }] } });
+    const seedOther = (name: string, eec: string) => {
+      if (!other) { problems.push("Crew choice list has no Other option"); return; }
+      choose(other);
+      items.push({ item_id: f.name, type: "text", responses: { text: name } }, { item_id: f.eec, type: "text", responses: { text: eec } });
+    };
+    if ("workerId" in pick) {
+      const s = byId.get(pick.workerId);
+      if (!s || !s.eecVerified || !s.eec) { problems.push(`Crew row ${row + 1}: not a verified installer`); return; }
+      const o = optionForStaff(opts, s, business);
+      if (o) choose(o); else { seedOther(s.name, s.eec); notes.push(`${s.name} is not in the Mitti crew list yet — filled in under Other.`); }
+    } else seedOther(pick.other.name.trim(), pick.other.eec.trim());
+  });
+  return { items, notes, problems };
+}
+/**
+ * Completed audit crew -> official Part 2 answers + blockers. Known option: resolved ONLY to a current verified, approved
+ * staff member of the assigned company whose built label equals the option label; the certificate comes from the DB
+ * record. Other: typed branch values, always office verification.
+ */
+export function a3ResolveCrewChoices(choices: CrewChoice[], template: unknown | null, staff: StaffOption[], business: string): { answers: Record<string, string>; blockers: string[]; needsVerification: string[] } {
+  const answers: Record<string, string> = {}, blockers: string[] = [], nv: string[] = [];
+  const optsFromTemplate = template ? a3CrewOptions(template) : null;
+  const seen = new Set<string>();
+  for (const c of choices) {
+    const label = c.row === 0 ? "Lead installer" : `Additional installer ${c.row}`;
+    const put = (name: string, eec: string) => { if (c.row === 0) { answers["p2.lead"] = name; answers["p2.leadEec"] = eec; } else { answers[`p2.addName#${c.row - 1}`] = name; answers[`p2.addEec#${c.row - 1}`] = eec; } };
+    if (c.kind === "none") { if (c.row === 0) blockers.push("Lead installer not chosen on the PIISA"); continue; }
+    if (c.kind === "other") {
+      if (!c.name || !c.eec) { blockers.push(`${label}: Other needs a full legal name and EEC certification number`); continue; }
+      const k = c.name.toLowerCase(); if (seen.has(k)) { blockers.push(`${c.name} is listed twice`); continue; } seen.add(k);
+      put(c.name, c.eec); nv.push(`${label} ${c.name} (EEC ${c.eec}) entered as Other — office must verify before AP approval`);
+      continue;
+    }
+    const opts = optsFromTemplate ?? (c.optionLabel ? [{ id: c.optionId, label: c.optionLabel }] : []);
+    const opt = opts.find((o) => o.id === c.optionId);
+    const s = opt ? staff.find((x) => x.approved !== false && optionForStaff([opt], x, business)) : undefined;
+    if (!s) { blockers.push(`${label}: chosen option does not match a current verified, approved installer of ${business} — office review`); continue; }
+    if (seen.has(s.workerId)) { blockers.push(`${s.name} is listed twice`); continue; } seen.add(s.workerId);
+    put(s.name, s.eec!);
+  }
+  return { answers, blockers, needsVerification: nv };
 }

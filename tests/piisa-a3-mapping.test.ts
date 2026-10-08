@@ -1,16 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { buildOfficialPrefill } from "../src/lib/mitti.core";
 import { A3_ALIASES, A3_MEDIA_IDS, A3_MEDIA_LABELS, A3_NATIVE_IDS, a3MediaCounts, PIISA_A3_MAPPING, a3EvidenceBlockers, a3EvidenceRequired, a3MissingFields, a3Occurrence, a3Signature, crewPrefill, crewSelectionProblems, mergeTreatment, parseA3Answers, readyCheckPartPrefill } from "../src/lib/piisa-a3.core";
+import { a3Template } from "./helpers/a3-template";
 import { OFFICIAL_ITEMS } from "../src/lib/official-forms.core";
 import { piisaPrefill, seedAnswers } from "../src/lib/official-prefill.core";
 
 const it = (label: string, id: string, extra: Record<string, unknown> = {}) => ({ item_id: id, label, type: "text", ...extra });
-const fullTemplate = () => {
-  const items: unknown[] = [];
-  for (const [id, nids] of Object.entries(A3_NATIVE_IDS)) nids.forEach((nid) => items.push(it(A3_ALIASES[id]?.[0] ?? (id === "p8.declaration" ? "I acknowledge" : "Life support document"), nid)));
-  for (const [k, nid] of Object.entries(A3_MEDIA_IDS)) items.push(it((A3_MEDIA_LABELS as Record<string, string>)[k] ?? "media", nid, { type: "media" }));
-  return { items };
-};
+const fullTemplate = () => a3Template() as { items: unknown[] } & Record<string, unknown>;
 
 describe("A3 aliases map to real official ids", () => {
   test("every alias key is an official PIISA item id", () => {
@@ -24,27 +20,9 @@ describe("A3 aliases map to real official ids", () => {
 });
 
 describe("stable native IDs (draft-observed)", () => {
-  test("every crew row binds to its own native ID, never the first", () => {
-    const t = fullTemplate();
-    const pre = [
-      { itemId: "p2.leadEec", value: "EEC-LEAD", row: 0 },
-      { itemId: "p2.addName", value: "Ann", row: 0 }, { itemId: "p2.addEec", value: "EEC-ANN", row: 0 },
-      { itemId: "p2.addName", value: "Bob", row: 1 }, { itemId: "p2.addEec", value: "EEC-BOB", row: 1 },
-      { itemId: "p2.addName", value: "Cy", row: 2 }, { itemId: "p2.addEec", value: "EEC-CY", row: 2 },
-    ].map((x) => ({ ...x, label: "x", kind: "text", occurrence: a3Occurrence(x.itemId, x.row) }));
-    const p = buildOfficialPrefill(t, pre as never, PIISA_A3_MAPPING);
-    const got = Object.fromEntries([...p.header_items, ...p.items].map((x: { item_id: string; responses: { text: string } }) => [x.item_id, x.responses.text]));
-    expect(got).toEqual({
-      "647221f2-f74c-4da1-a8be-e44a20f0b08b": "EEC-LEAD",
-      "4bea475f-516e-46a2-8922-e85896c68402": "Ann", "24e41e61-a490-4bdc-bd34-002fb6ae1089": "EEC-ANN",
-      "726f9e46-8308-449e-822f-2280cd7affa7": "Bob", "65d9d9d5-b87e-4d81-b92a-fa877e5a4f98": "EEC-BOB",
-      "c0c2178e-e872-4c70-a260-78aecde3d01e": "Cy", "3681131a-dee1-429a-ba34-6e066ef07152": "EEC-CY",
-    });
-  });
-  test("a row whose ID is absent is skipped (visible), never written to another row", () => {
-    const t = fullTemplate(); t.items = (t.items as { item_id: string }[]).filter((x) => x.item_id !== "726f9e46-8308-449e-822f-2280cd7affa7");
-    const p = buildOfficialPrefill(t, [{ itemId: "p2.addName", value: "Bob", row: 1, label: "x", kind: "text", occurrence: 1 }] as never, PIISA_A3_MAPPING);
-    expect(p.count).toBe(0); expect(p.skipped[0]).toMatch(/p2.addName row 2/);
+  test("retired standalone certificate items are neither required nor written", () => {
+    expect(Object.values(A3_NATIVE_IDS).flat()).not.toContain("647221f2-f74c-4da1-a8be-e44a20f0b08b");
+    expect(a3MissingFields(fullTemplate())).toEqual([]);
   });
   test("API definition that disagrees fails closed: missing ID or a different question on a known ID", () => {
     const t = fullTemplate();
@@ -56,8 +34,9 @@ describe("stable native IDs (draft-observed)", () => {
   });
   test("parses answers by ID; media counted per evidence item", () => {
     const a = { items: [
-      it("Additional installer", "726f9e46-8308-449e-822f-2280cd7affa7", { responses: { text: "Bob" } }),
-      it("EEC certification number", "65d9d9d5-b87e-4d81-b92a-fa877e5a4f98", { responses: { text: "B2" } }),
+      it("Additional installer", "726f9e46-8308-449e-822f-2280cd7affa7", { responses: { selected: [{ id: "8e9ba585-c0da-416a-90ab-d3cb09029b32", label: "Other" }] } }),
+      it("Full legal name", "824af4ab-d764-403a-80eb-05b55f86d600", { responses: { text: "Bob" } }),
+      it("EEC certification number", "d986b4c1-1d3d-414c-9a14-8be9c000fa26", { responses: { text: "B2" } }),
       it("x", A3_MEDIA_IDS.product_photos!, { media: [{ id: 1 }, { id: 2 }] }),
     ] };
     expect(parseA3Answers(a).crew).toEqual([{ name: "Bob", eec: "B2" }]);
@@ -77,13 +56,13 @@ describe("completed audit -> official answers", () => {
     const a = { items: [
       it("Has the SWMS been completed for this job and all risks identified?", "1be8ebff-a754-4a2a-83f0-9561708ffb85", { responses: { selected: [{ label: "Yes" }] } }),
       it("Will the existing insulation be removed, topped up, or both?", "8dadd5c5-e8d7-431e-b65a-a5dc4d174864", { responses: { selected: [{ label: "Both" }] } }),
-      it("EEC certification number", "647221f2-f74c-4da1-a8be-e44a20f0b08b", { responses: { text: "LEAD-1" } }),
-      it("Additional installer", "4bea475f-516e-46a2-8922-e85896c68402", { responses: { text: "Ann" } }), it("EEC certification number", "24e41e61-a490-4bdc-bd34-002fb6ae1089", { responses: { text: "ANN-2" } }),
+      it("Additional installer", "4bea475f-516e-46a2-8922-e85896c68402", { responses: { selected: [{ id: "8e9ba585-c0da-416a-90ab-d3cb09029b32", label: "Other" }] } }),
+      it("Full legal name", "4ac27cb9-e588-4666-b5df-3e2172b60358", { responses: { text: "Ann" } }), it("EEC certification number", "b8daad98-4a63-480d-85a7-c0fb670b34c3", { responses: { text: "ANN-2" } }),
     ] };
     const r = parseA3Answers(a);
     expect(r.answers["p3.swms"]).toBe("Yes");
     expect(r.answers["p6.treatment"]).toEqual(["Removed", "Topped Up"]);
-    expect(r.answers["p2.leadEec"]).toBe("LEAD-1");
+    expect(r.answers["p2.leadEec"]).toBeUndefined(); // no native certificate box any more
     expect(r.crew).toEqual([{ name: "Ann", eec: "ANN-2" }]);
     void audit;
   });

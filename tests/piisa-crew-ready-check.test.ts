@@ -56,6 +56,6 @@ describe("Ready Check areas: strict and canonical", () => {
     expect(readyCheckPartPrefill(rcAreasFromRecord({ insulation_present: true, existing_r_value: null, removal_required: null, zones: [] }, null)).values["p6.treatment"]).toBeUndefined();
     const none = readyCheckPartPrefill(rcAreasFromRecord({ insulation_present: false, existing_r_value: null, removal_required: null, zones: [] }, 0)).values;
     expect(none).toEqual({ "p6.present": "No", "p5.recessed": "No" });
-    expect(readyCheckPartPrefill(rcAreasFromRecord({ insulation_present: null, existing_r_value: null, zones: [{ insulation_present: "Yes", removal_required: true }, { insulation_present: "Yes", removal_required: "No" }] }, null)).values["p6.treatment"]).toBe("Both");
+    expect(readyCheckPartPrefill(rcAreasFromRecord({ insulation_present: null, existing_r_value: null, zones: [{ insulation_present: "Yes", removal_required: true }, { insulation_present: "Yes", removal_required: "No" }] }, null)).values["p6.treatment"]).toBe("Removed, Topped up");
   });
 });

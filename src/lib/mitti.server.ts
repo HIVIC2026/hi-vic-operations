@@ -364,7 +364,9 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string, call
     const cp = a3.crewSelectionProblems(selection, staff);
     if (cp.problems.length) throw new WorkflowError(cp.problems.join(" • "));
     if (cp.needsVerification.length) throw new WorkflowError(`Verify before work: ${cp.needsVerification.join("; ")}`);
-    for (const c of a3.crewPrefill(selection, staff)) preMap.set(`${c.itemId}#${c.row}`, toPre(c.itemId, c.value, c.row));
+    // Crew goes to the native single-choice list (real option ids / Other branch), never as plain text.
+    for (const k of [...preMap.keys()]) if (/^p2\.(lead|leadEec|addName|addEec)#/.test(k)) preMap.delete(k);
+    for (const c of a3.crewPrefill(selection, staff)) if (c.itemId === "p8.name") preMap.set("p8.name#0", toPre("p8.name", c.value));
     const rc = a3.readyCheckPartPrefill(await readyCheckAreas(jobId));
     for (const [id, v] of Object.entries(rc.values)) if (!preMap.has(`${id}#0`)) preMap.set(`${id}#0`, toPre(id, v));
     prefillNotes.push(...rc.notes);
@@ -376,6 +378,18 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string, call
     if (miss.length) throw new WorkflowError(`The A3 Mitti form is missing ${miss.length} expected field(s) (publish the native draft first): ${miss.slice(0, 8).join("; ")}${miss.length > 8 ? "…" : ""}`);
   }
   const p = buildOfficialPrefill(template, pre, isA3 ? a3.PIISA_A3_MAPPING : {});
+  if (isA3) {
+    const { loadCrew, assignedInstallerBusiness } = await import("./piisa-a3.server");
+    const { staff, selection } = await loadCrew(jobId);
+    const { data: biz } = await admin.from("businesses").select("name").eq("id", await assignedInstallerBusiness(jobId)).maybeSingle();
+    const bname = biz?.name ?? "";
+    const crew = a3.a3CrewNativeItems(template, selection!, staff, bname);
+    if (crew.problems.length) throw new WorkflowError(`Crew could not be filled in on the Mitti form: ${crew.problems.join("; ")}`);
+    p.items.push(...crew.items); p.count += crew.items.length;
+    prefillNotes.push(...crew.notes);
+    const roster = a3.a3RosterStatus(template, staff, bname);
+    if (roster.alert) { prefillNotes.push(roster.alert); await logEvent(jobId, actorId, "mitti_crew_roster_stale", roster.alert, { missing: roster.missingOptions, stale_count: roster.staleOptions.length }, { internal: true }); }
+  }
   const missing = missingKnownFields(p.skipped);
   if (missing.length) throw new WorkflowError(`The Mitti PIISA form is missing known fields, so it was not created: ${missing.join("; ")}`);
   // Validate returned prefill: every value we sent must be on the payload, at its own field.

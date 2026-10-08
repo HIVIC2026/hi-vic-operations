@@ -62,10 +62,20 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
   // A3: the prestart signature's OWN time, captured before completion and kept immutable.
   const signedAt = prestart ? prestart.snapshot.signature.signed_at : sig.signedAt;
   // A3: completed audit populates the OFFICIAL PIISA answers (Parts 1–8) and the original official DOCX.
+  let crewBlockers: string[] = [];
   let official: { answers: Record<string, unknown>; docx?: { path: string; sha256: string; missed: string[] }; signature_attachment?: unknown; a3_evidence?: unknown } | null = null;
   if (expectedTpl === PIISA_A3_TEMPLATE_ID) {
     const { answers, crew } = parseA3Answers(audit);
-    crew.forEach((c, i) => { answers[`p2.addName#${i}`] = c.name; if (c.eec) answers[`p2.addEec#${i}`] = c.eec; });
+    void crew;
+    // Part 2 crew from the native choice list, resolved against CURRENT verified staff of the assigned company.
+    const coreC = await import("./piisa-a3.core");
+    const { crewStaff: cs } = await import("./piisa-a3.server");
+    const { data: asgB } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
+    const { data: bizB } = asgB?.business_id ? await admin.from("businesses").select("name").eq("id", asgB.business_id).maybeSingle() : { data: null };
+    const tplDef = await mittiApi(realCall).getTemplateDefinition(expectedTpl).catch(() => null);
+    const crewRes = coreC.a3ResolveCrewChoices(coreC.a3CrewChoices(audit), tplDef, asgB?.business_id ? await cs(asgB.business_id) : [], bizB?.name ?? "");
+    Object.assign(answers, crewRes.answers);
+    crewBlockers = [...crewRes.blockers, ...crewRes.needsVerification];
     // Signature date in Melbourne from the signature's own timestamp (prestart snapshot kept independently of AP completion).
     const sigDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(new Date(signedAt));
     answers["p8.date"] = sigDate;
@@ -94,18 +104,14 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
     // Evidence checklist from the actual audit media metadata; crew resolved against CURRENT verified staff.
     const core = await import("./piisa-a3.core");
     const { a3Ctx } = await import("./piisa-prestart.server");
-    const { crewStaff } = await import("./piisa-a3.server");
-    const ctx = { ...(await a3Ctx(jobId, audit)), crewCount: 1 + crew.length };
+    const ctx = { ...(await a3Ctx(jobId, audit)), crewCount: coreC.a3CrewChoices(audit).filter((c) => c.kind !== "none").length || 1 };
     const media = core.a3MediaSummary(core.a3MediaFiles(audit));
-    const staff = a?.business_id ? await crewStaff(a.business_id) : [];
-    const lead = typeof answers["p2.lead"] === "string" ? [{ name: answers["p2.lead"] as string, eec: typeof answers["p2.leadEec"] === "string" ? answers["p2.leadEec"] as string : null }] : [];
-    const crewRes = core.a3CrewResolution([...lead, ...crew], staff, b?.name ?? "the assigned installer company");
     const a3_evidence = {
       checklist: core.a3EvidenceChecklist(answers as never, ctx, media),
       prestart_blockers: prestart!.snapshot.blockers,
       prestart_captured_from: prestart!.snapshot.captured_from,
       completion_blockers: core.a3CompletionBlockers(answers as never, ctx, media),
-      crew_blockers: crewRes.blockers,
+      crew_blockers: crewBlockers,
     };
     official = { answers: { ...answers, signed_copy_id: copyId }, docx: { path, sha256: r.sha256, missed: r.missed }, signature_attachment: { ...att, record_path: sidecar }, a3_evidence };
     await logEvent(jobId, actorId, "piisa_a3_evidence_synced", "PIISA evidence checklist read from the completed form", a3_evidence as unknown as Record<string, unknown>, { internal: true });
