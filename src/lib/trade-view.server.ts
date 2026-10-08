@@ -104,10 +104,9 @@ export async function tradeHome(userId: string) {
   const { data: histJobs } = histIds.length
     ? await admin.from("jobs").select("id, job_number, stage, source, qa_archived_at, updated_at, properties(suburb)").in("id", histIds).in("stage", ["complete", "cancelled"])
     : { data: [] as never[] };
-  const activeIds = new Set(jobIds);
   const done = [
     ...jobsTabbed.filter((j) => j.tab === "done").map((j) => ({ jobId: j.jobId, jobNumber: j.jobNumber, suburb: j.suburb, reason: doneReason(j.stage), open: true })),
-    ...(histJobs ?? []).filter((j) => !j.qa_archived_at && (!c.isTest || j.source === "qa_test")).map((j) => ({ jobId: j.id, jobNumber: j.job_number, suburb: (j.properties as { suburb: string | null } | null)?.suburb ?? null, reason: doneReason(j.stage), open: false && activeIds.has(j.id) })),
+    ...(histJobs ?? []).filter((j) => !j.qa_archived_at && (!c.isTest || j.source === "qa_test")).map((j) => ({ jobId: j.id, jobNumber: j.job_number, suburb: (j.properties as { suburb: string | null } | null)?.suburb ?? null, reason: doneReason(j.stage), open: false })),
   ];
   return { kind: c.kind, boss: c.boss, business: c.biz.name, firstName: c.firstName, isTest: c.isTest, week, offers: offerList, yourMove, coming, jobs: jobsTabbed, done, month: c.boss ? { jobs: month.length, earned: month.reduce((t, r) => t + (r.amount ?? 0), 0) } : null };
 }
