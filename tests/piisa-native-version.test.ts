@@ -55,14 +55,21 @@ const directAudit = () => ({ items: [
   { item_id: A3_CREW_OTHER_FIELDS[0]?.eec, label: "Lead installer — CII certification number (issued by the EEC)", responses: { text: "CII-123" } },
   { item_id: PIISA_DIRECT_SIGNATURE_ID, label: "Signature", responses: { signature: { media_id: "sig", timestamp: "2026-10-08T08:00:00Z" } } },
 ] });
-test("revision 18 duplicate signer questions keep it out of current activation", () => {
+test("registered revision 18 retains direct schema compatibility without repeated date prefills", () => {
   const r = resolvePiisaNativeVersion(published);
-  expect(r.active).toBe(false); expect(r.version).toBe(PIISA_DIRECT_VERSION);
-  expect(r.mapping).toBeNull();
-  expect(r.problems.join()).toContain("Duplicate signing or metadata question");
+  expect(r.active).toBe(true); expect(r.version).toBe(PIISA_DIRECT_VERSION);
+  expect(r.problems).toEqual([]);
   for (const id of ["p7.products", "completionDate", "p8.name", "p8.date"]) expect(r.mapping?.[id]).toBeUndefined();
   const crew = stagedDirectCrewPrefill({ lead: "ours", additional: [] }, staff);
   expect(crew.items.map((i) => i.item_id)).toEqual(["9e1a8b94-d3fc-492e-bb33-57b6bd4e85a8", "6fea5874-992b-476b-8f09-839abaa2d049"]);
+});
+
+test("reintroducing removed expected completion question blocks current activation", () => {
+  const copy = structuredClone(finalGrouping);
+  copy.template.items.push({ id: "84a8b69b-efd5-4830-9da7-66958cbfdb6e", label: "Expected completion date", children: [] } as typeof copy.template.items[number]);
+  const r = resolvePiisaNativeVersion(copy);
+  expect(r.active).toBe(false);
+  expect(r.problems.join()).toContain("84a8b69b-efd5-4830-9da7-66958cbfdb6e");
 });
 test("any changed required flag, condition or page order pauses current mapping", () => {
   for (const mutate of [(t: typeof published) => { t.template.items.reverse(); }, (t: typeof published) => { t.template.items[0] = { ...t.template.items[0], label: "Changed" } as typeof t.template.items[0]; }]) {
