@@ -4,6 +4,7 @@ import { A3_CREW_NAME_IDS, A3_CREW_OTHER_FIELDS, A3_NATIVE_IDS, a3CrewChoices } 
 import published from "../src/lib/piisa-direct-published.data.json";
 import { flatten } from "../src/lib/mitti.core";
 import finalPublished from "../src/lib/piisa-single-name-published.data.json";
+import finalGrouping from "../src/lib/piisa-final-grouping-published.data.json";
 import { a3Signature, parseA3Answers } from "../src/lib/piisa-a3.core";
 import { PIISA_DIRECT_SIGNATURE_ID, PIISA_DIRECT_VERSION, resolveDirectCrew, directCrewLabels, resolvePiisaNativeVersion, stagedDirectCrewChoices, stagedDirectCrewPrefill, stagedDirectSchemaProblems } from "../src/lib/piisa-native-version.core";
 
@@ -112,4 +113,37 @@ test("final published definition removed four duplicate signer and metadata inpu
   const ids = new Set(flatten(finalPublished).map((e) => e.id));
   for (const id of ["f7032d72-4135-4165-bd50-32d84a66d085", "cda99bb8-8865-46a1-928a-2267175a1e2a", "f3245d43-ea77-11e1-aff1-0800200c9a66", "2e485f38-8ce2-4312-a06c-bd4b3a10e8ce"]) expect(ids.has(id)).toBe(false);
   expect(ids.has("78e550a4-1c8b-4b59-be77-64a5c09ba848")).toBe(true);
+});
+
+test("latest actual readback stays paused for absent completion, not unordered response sets", () => {
+  const r = resolvePiisaNativeVersion(finalGrouping);
+  expect(r.active).toBe(false);
+  expect(r.problems.some((p) => p.includes("84a8b69b-efd5-4830-9da7-66958cbfdb6e"))).toBe(true);
+  expect(r.problems.some((p) => p.includes("differ from verified"))).toBe(false);
+  const reordered = structuredClone(finalGrouping);
+  reordered.template.response_sets.reverse();
+  expect(resolvePiisaNativeVersion(reordered).problems).toEqual(r.problems);
+  const changed = structuredClone(finalGrouping);
+  changed.template.items.reverse();
+  expect(resolvePiisaNativeVersion(changed).problems.some((p) => p.includes("differ from verified"))).toBe(true);
+});
+
+test("final crew fields preserve lead requirements and additional nonblank-name certificate gates", () => {
+  type Item = { id: string; children?: Item[]; textsingle?: { options: { is_mandatory: boolean } }; logicfield?: { text_not_equal?: { value: string } } };
+  const pages = finalGrouping.template.items as unknown as Item[];
+  const before = pages.find((p) => p.id === "d310537d-74e0-4e31-a440-23bd90fb746b");
+  const children = before?.children ?? [];
+  const photoIndex = children.findIndex((i) => i.id === "06598474-e46a-4bba-8c9d-d1be2c9993e1");
+  const lead = A3_CREW_OTHER_FIELDS[0];
+  expect(children.find((i) => i.id === lead?.name)?.textsingle?.options.is_mandatory).toBe(true);
+  expect(children.find((i) => i.id === lead?.eec)?.textsingle?.options.is_mandatory).toBe(true);
+  for (const pair of A3_CREW_OTHER_FIELDS.slice(1)) {
+    const sectionIndex = children.findIndex((s) => s.children?.some((i) => i.id === pair.name));
+    expect(sectionIndex).toBeGreaterThan(0); expect(sectionIndex).toBeLessThan(photoIndex);
+    const name = children[sectionIndex]?.children?.find((i) => i.id === pair.name);
+    expect(name?.textsingle?.options.is_mandatory).toBe(false);
+    const branch = name?.children?.find((i) => i.logicfield);
+    expect(branch?.logicfield?.text_not_equal?.value).toBe("");
+    expect(branch?.children?.find((i) => i.id === pair.eec)?.textsingle?.options.is_mandatory).toBe(true);
+  }
 });

@@ -2,6 +2,7 @@
 // The complete answer/condition/page structure is pinned; any structural change fails closed.
 import published from "./piisa-direct-published.data.json";
 import finalPublished from "./piisa-single-name-published.data.json";
+import finalGrouping from "./piisa-final-grouping-published.data.json";
 import { flatten, norm, type NativeMapping } from "./mitti.core";
 import { A3_CREW_NAME_IDS, A3_CREW_OTHER_FIELDS, A3_NATIVE_IDS, PIISA_A3_MAPPING, a3MissingFields, type StaffOption, type CrewSelection, crewSelectionProblems, crewPrefill, type CrewChoice } from "./piisa-a3.core";
 
@@ -24,7 +25,9 @@ export function nativeDefinitionFingerprint(value: unknown): string {
 export function publishedStructure(template: unknown): unknown {
   const root = (template as { template?: unknown })?.template ?? template;
   const t = root as Record<string, unknown>;
-  return { id: t?.["id"], items: t?.["items"], response_sets: t?.["response_sets"], global_response_sets: t?.["global_response_sets"], mandatory_mark_as_complete: t?.["mandatory_mark_as_complete"] };
+  // API response-set collections may arrive in arbitrary order; item/page/condition order remains pinned.
+  const responseSets = (v: unknown) => Array.isArray(v) ? [...v].sort((a, b) => String(a?.id ?? "").localeCompare(String(b?.id ?? ""))) : v;
+  return { id: t?.["id"], items: t?.["items"], response_sets: responseSets(t?.["response_sets"]), global_response_sets: responseSets(t?.["global_response_sets"]), mandatory_mark_as_complete: t?.["mandatory_mark_as_complete"] };
 }
 export function stagedDirectSchemaProblems(template: unknown): string[] {
   const entries = flatten(template);
@@ -43,7 +46,7 @@ export function stagedDirectSchemaProblems(template: unknown): string[] {
     }
   });
   const fingerprint = nativeDefinitionFingerprint(publishedStructure(template));
-  if (![published, finalPublished].some((definition) => fingerprint === nativeDefinitionFingerprint(publishedStructure(definition)))) problems.push("The published PIISA types, conditions, labels or page order differ from verified revision 18 or 19.");
+  if (![published, finalPublished, finalGrouping].some((definition) => fingerprint === nativeDefinitionFingerprint(publishedStructure(definition)))) problems.push("The published PIISA types, conditions, labels or page order differ from verified revision 18 or 19.");
   return problems;
 }
 
