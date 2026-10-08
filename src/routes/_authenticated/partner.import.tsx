@@ -2,6 +2,7 @@ import { OWNER_AGREED_TICK, OWNER_FEE_AWARENESS_TICK } from "@/lib/owner-confirm
 import { OnsiteStart } from "@/components/trade/onsite-start";
 import { CustomerFields } from "@/components/trade/customer-fields";
 import { onsiteProblems, type OnsiteInput } from "@/lib/onsite-ready-check.core";
+import { quotedIntakeProblems } from "@/lib/installer-quote-intake.core";
 import { LATER_CHOICE, ONSITE_CHOICE } from "@/lib/onsite-ready-check.core";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -25,7 +26,7 @@ export const Route = createFileRoute("/_authenticated/partner/import")({
   component: ImportPage,
 });
 
-type Draft = { id: string; extracted: Extracted; files: AttachedFile[]; businessId: string; permission?: boolean };
+type Draft = { id: string; extracted: Extracted; files: AttachedFile[]; businessId: string; permission?: boolean; quote?: { amount: string; includes: string } };
 
 function ImportPage() {
   const loadProfile = useServerFn(getPartnerProfile);
@@ -55,11 +56,19 @@ function Source({ businessId, onDraft }: { businessId: string; onDraft: (d: Draf
   const [text, setText] = useState("");
   const [customer, setCustomer] = useState<OnsiteInput>({ address_line: "", suburb: "", postcode: "", full_name: "", phone: "", email: "", contact_permission: false, consent_by: null });
   const [problems, setProblems] = useState<string[]>([]);
+  const [quoted, setQuoted] = useState<"yes" | "no" | null>(null);
+  const [area, setArea] = useState("");
+  const [method, setMethod] = useState("");
+  const [amount, setAmount] = useState("");
+  const [includes, setIncludes] = useState("");
+  const [next, setNext] = useState<"ready_check" | "later" | null>(null);
   const [files, setFiles] = useState<AttachedFile[]>([]);
   const [busy, setBusy] = useState(false);
   const [fileNote, setFileNote] = useState<string | null>(null);
   const go = async () => {
-    const issues = onsiteProblems(customer); setProblems(issues); if (issues.length) return;
+    const issues = [...onsiteProblems(customer), ...quotedIntakeProblems({ quoted, area, method, amount: Number(amount.replace(/[$,\s]/g, "")), includes })];
+    if (!quoted) issues.push("Answer Have you quoted?");
+    setProblems(issues); if (issues.length || quoted !== "yes") return;
     setBusy(true);
     try {
       const uploaded = files.map((f) => ({ path: f.path, name: f.name, type: f.type ?? "" }));
@@ -67,13 +76,26 @@ function Source({ businessId, onDraft }: { businessId: string; onDraft: (d: Draf
       if (r) {
         const extracted = { ...r.extracted };
         for (const key of ["full_name", "phone", "email", "address_line", "suburb", "postcode"] as const) extracted[key] = { value: customer[key].trim(), confidence: "found", source: "installer entered" };
-        onDraft({ ...r, extracted, files, businessId, permission: customer.contact_permission });
+        extracted.measured_area_m2 = { value: Number(area), confidence: "found", source: "installer entered" };
+        extracted.measurement_method = { value: method.trim(), confidence: "found", source: "installer entered" };
+        onDraft({ ...r, extracted, files, businessId, permission: customer.contact_permission, quote: { amount, includes } });
       }
     } finally { setBusy(false); }
   };
+  if (next === "ready_check") return <OnsiteStart businessId={businessId} initial={customer} onBack={() => setNext(null)} />;
   return (
     <div className="space-y-4">
       <Section title="Customer details"><CustomerFields value={customer} onChange={setCustomer} /></Section>
+      <Section title="Have you quoted?">
+        <div className="grid grid-cols-2 gap-2">{(["yes", "no"] as const).map((v) => <Button key={v} size="field" variant={quoted === v ? "default" : "outline"} onClick={() => { setQuoted(v); setNext(null); }}>{v === "yes" ? "Yes" : "No"}</Button>)}</div>
+        {quoted === "yes" && <div className="mt-3 space-y-3">
+          <label className="block text-sm font-bold">Ceiling area (m²)<Input className="mt-1 h-12" inputMode="decimal" value={area} onChange={(e) => setArea(e.target.value)} /></label>
+          <label className="block text-sm font-bold">How was it measured?<Input className="mt-1 h-12" placeholder="e.g. laser, tape or floor plan" maxLength={200} value={method} onChange={(e) => setMethod(e.target.value)} /></label>
+          <label className="block text-sm font-bold">Quote amount inc GST<Input className="mt-1 h-12" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
+          <label className="block text-sm font-bold">What does the quote include?<Textarea className="mt-1" maxLength={1000} value={includes} onChange={(e) => setIncludes(e.target.value)} /></label>
+        </div>}
+        {quoted === "no" && <div className="mt-3 space-y-3"><Button size="field" className="w-full" onClick={() => { const issues = onsiteProblems(customer); setProblems(issues); if (!issues.length) setNext("ready_check"); }}>Do our Ready Check</Button><Button size="field" variant="outline" className="h-auto min-h-12 w-full whitespace-normal" onClick={() => setNext("later")}>Fill in the details after I've visited</Button>{next === "later" && <p className="text-sm text-sub">Return to Add a job after your visit with the ceiling area, measurement method and quote. No job has been submitted.</p>}</div>}
+      </Section>
       <Section title="Photos, quotes and job sheets">
         <AttachFiles businessId={businessId} files={files} label="Upload one customer file" onAdd={async (picked) => {
           if (files.length || picked.length !== 1) throw new Error("Upload one file for this customer at a time.");
@@ -89,7 +111,7 @@ function Source({ businessId, onDraft }: { businessId: string; onDraft: (d: Draf
         {fileNote && <p className="mt-2 text-xs text-sub">{fileNote}</p>}
       </Section>
       {problems.length > 0 && <ul className="text-sm text-danger">{problems.map((p) => <li key={p}>{p}</li>)}</ul>}
-      <Button size="field" className="w-full" disabled={busy} onClick={go}>{busy ? "Reading…" : "Continue"}</Button>
+      {quoted !== "no" && <Button size="field" className="w-full" disabled={busy} onClick={go}>{busy ? "Reading…" : "Continue"}</Button>}
     </div>
   );
 }
@@ -119,9 +141,9 @@ function Review({ draft, onBack }: { draft: Draft; onBack: () => void }) {
   const [belowR2, setBelowR2] = useState(false);
   const [ownerAgreed, setOwnerAgreed] = useState(false);
   const [siteDate, setSiteDate] = useState("");
-  const [price, setPrice] = useState("");
-  const [quoted, setQuoted] = useState<"yes" | "no" | null>(null); // never preset (Jo, 7 Oct)
-  const [includes, setIncludes] = useState("");
+  const [price, setPrice] = useState(draft.quote?.amount ?? "");
+  const [quoted, setQuoted] = useState<"yes" | "no" | null>(draft.quote ? "yes" : null);
+  const [includes, setIncludes] = useState(draft.quote?.includes ?? "");
   const priceNum = price.trim() ? Number(price.replace(/[$,\s]/g, "")) : null;
   const priceBad = priceNum != null && !(Number.isFinite(priceNum) && priceNum > 0);
   const out = () => Object.fromEntries(items.map((i) => {
@@ -167,12 +189,12 @@ function Review({ draft, onBack }: { draft: Draft; onBack: () => void }) {
         <AttachFiles businessId={draft.businessId} files={files} label="Attached to this job" onAdd={async (f) => { const up = await uploadFiles(f); const r = await addFiles({ data: { importId: draft.id, files: up.map((x) => ({ path: x.path, name: x.name, type: x.type ?? "" })) } }); setFiles(r.files); if (!siteCheck && visitedFromEvidence({ files: r.files })) setSiteCheck("yes"); }} onRemove={async (path) => { const r = await dropFile({ data: { importId: draft.id, path } }); setFiles(r.files); }} />
       </Section>
       {plan && <ElectricianPicker value={plan} onChange={setPlan} approved={el?.approved ?? []} pending={el?.pending ?? []} onAdd={async (d) => { const r = await addElectrician({ data: { businessId: draft.businessId, name: d.name, mobile: d.mobile, email: d.email, business: d.business } }); await refreshEl(); setPlan({ mode: "mine", ...(r.businessId ? { business_id: r.businessId } : { nomination_id: r.nominationId }) }); return { message: inviteResultMessage(r) }; }} />}
-      <label className="flex items-start gap-3 rounded-[18px] border border-line bg-paper p-4 text-sm" data-owner-consent><Checkbox className="mt-0.5" checked={permission} onCheckedChange={(c) => setPermission(c === true)} aria-label={OWNER_CONTACT_PERMISSION} /><span>{OWNER_CONTACT_PERMISSION}</span></label>
+      {!draft.permission && <label className="flex items-start gap-3 rounded-[18px] border border-line bg-paper p-4 text-sm" data-owner-consent><Checkbox className="mt-0.5" checked={permission} onCheckedChange={(c) => setPermission(c === true)} aria-label={OWNER_CONTACT_PERMISSION} /><span>{OWNER_CONTACT_PERMISSION}</span></label>}
       <label className="flex items-start gap-3 rounded-[18px] border border-line bg-paper p-4 text-sm" data-owner-fee-awareness><Checkbox className="mt-0.5" checked={feeAwareness} onCheckedChange={(c) => setFeeAwareness(c === true)} aria-label={OWNER_FEE_AWARENESS_TICK} /><span>{OWNER_FEE_AWARENESS_TICK}</span></label>
       <label className="flex items-start gap-3 rounded-[18px] border border-line bg-paper p-4 text-sm" data-existing-below-r2><Checkbox className="mt-0.5" checked={belowR2} onCheckedChange={(c) => setBelowR2(c === true)} aria-label="I confirm the existing insulation, if any, is below R2.0" /><span>I confirm the existing insulation, if any, is below R2.0.</span></label>
       {!permission && <p className="-mt-2 text-xs text-sub">Tick this to add the job.</p>}
       <p className="text-xs text-sub">Nothing is sent when you add the job. Next, Home Insulation Victoria checks eligibility, adds the rebate, AP management fee and $349 electrician PIESA fee, then sends the full quote to the owner for approval. We let you know when it is accepted.</p>
-      <Button size="field" className="w-full" disabled={!siteCheck || priceBad || !permission || !feeAwareness || !belowR2 || (quoted === "yes" && (!priceNum || !includes.trim())) || !!electricianPlanBlocker(plan)} onClick={async () => { const r = await confirm({ importId: draft.id, facts: out(), installer: { quoted, site_check: siteCheck!, site_check_date: siteCheck === "yes" && siteDate ? siteDate : null, quoted_price_inc_gst: priceNum, price_includes: includes.trim() || null, contact_permission: permission, fee_awareness: feeAwareness, existing_below_r2: belowR2, owner_agreed: quoted === "yes" && ownerAgreed }, electrician: plan && plan.mode === "mine" ? { mode: "mine", business_id: plan.business_id ?? null, nomination_id: plan.nomination_id ?? null } : { mode: "hivic" } }, "Job added"); if (r) navigate({ to: "/field/$jobId", params: { jobId: r.jobId } }); }}>Add this job</Button>
+      <Button size="field" className="w-full" disabled={!siteCheck || priceBad || !permission || !feeAwareness || !belowR2 || quotedIntakeProblems({ quoted, area: vals.measured_area_m2, method: vals.measurement_method, amount: priceNum, includes }).length > 0 || !!electricianPlanBlocker(plan)} onClick={async () => { if (!siteCheck) return; const r = await confirm({ importId: draft.id, facts: out(), installer: { quoted, site_check: siteCheck, site_check_date: siteCheck === "yes" && siteDate ? siteDate : null, quoted_price_inc_gst: priceNum, price_includes: includes.trim() || null, contact_permission: permission, fee_awareness: feeAwareness, existing_below_r2: belowR2, owner_agreed: quoted === "yes" && ownerAgreed }, electrician: plan && plan.mode === "mine" ? { mode: "mine", business_id: plan.business_id ?? null, nomination_id: plan.nomination_id ?? null } : { mode: "hivic" } }, "Job added"); if (r) navigate({ to: "/field/$jobId", params: { jobId: r.jobId } }); }}>Add this job</Button>
       <div className="grid grid-cols-2 gap-2"><Button variant="outline" onClick={onBack}>Back</Button><Button variant="ghost" onClick={async () => { await discard({ importId: draft.id }, "Draft discarded"); onBack(); }}>Discard draft</Button></div>
     </div>
   );

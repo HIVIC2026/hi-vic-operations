@@ -17,8 +17,8 @@ import { PREPARING, START_BUTTON, addressFromReverse, onsiteProblems, type Onsit
 const DRAFT_KEY = "hiv-onsite-draft";
 const blank: OnsiteInput = { full_name: "", address_line: "", suburb: "", postcode: "", phone: "", email: "", contact_permission: false, consent_by: null };
 
-export function OnsiteStart({ businessId, onBack }: { businessId: string; onBack: () => void }) {
-  const [v, setV] = useState<OnsiteInput>(blank);
+export function OnsiteStart({ businessId, onBack, initial }: { businessId: string; onBack: () => void; initial?: OnsiteInput }) {
+  const [v, setV] = useState<OnsiteInput>(initial ?? blank);
   const [touched, setTouched] = useState(false);
   const [loc, setLoc] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -31,7 +31,7 @@ export function OnsiteStart({ businessId, onBack }: { businessId: string; onBack
   useEffect(() => { if (plan || !el) return; const u = usualElectrician(el.approved); setPlan(u?.businessId ? { mode: "mine", business_id: u.businessId } : { mode: "hivic" }); }, [el, plan]);
 
   // Poor signal: what's typed is kept on the phone until the job is saved.
-  useEffect(() => { try { const d = localStorage.getItem(DRAFT_KEY); if (d) setV({ ...blank, ...JSON.parse(d), contact_permission: false, consent_by: null }); } catch { /* ignore */ } }, []);
+  useEffect(() => { if (initial) return; try { const d = localStorage.getItem(DRAFT_KEY); if (d) setV({ ...blank, ...JSON.parse(d), contact_permission: false, consent_by: null }); } catch { /* ignore */ } }, [initial]);
   useEffect(() => { try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...v, contact_permission: false, consent_by: null })); } catch { /* ignore */ } }, [v]);
 
   const useLocation = () => {
