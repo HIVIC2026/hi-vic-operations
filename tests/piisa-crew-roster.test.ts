@@ -35,9 +35,11 @@ describe("certified crew roster from recorded facts", () => {
 
 describe("stable native IDs own the mapping", () => {
   const tpl = (relabel: Record<string, string>) => ({ items: Object.entries(A3_NATIVE_IDS).flatMap(([k, ids]) => ids.map((id) => ({ item_id: id, label: relabel[k] ?? A3_ALIASES[k]?.[0] ?? k, type: "text" }))) });
-  test("an added warning suffix keeps the mapping; a different question fails closed", () => {
-    const ok = a3MissingFields(tpl({ "p3.swms": `${A3_ALIASES["p3.swms"]![0]} Warning: stop work if not` }));
+  test("only a CONTROLLED suffix keeps the mapping; an unapproved suffix or a different question fails closed", () => {
+    const ok = a3MissingFields(tpl({ "p4.isolator": `${A3_ALIASES["p4.isolator"]![0]} If No, get electrical review before proceeding.` }));
     expect(ok.some((m) => m.includes("now reads"))).toBe(false);
+    const loose = a3MissingFields(tpl({ "p3.swms": `${A3_ALIASES["p3.swms"]![0]} Warning: stop work if not` }));
+    expect(loose.some((m) => m.includes("now reads"))).toBe(true);
     const bad = a3MissingFields(tpl({ "p3.swms": "What colour is the roof?" }));
     expect(bad.some((m) => m.includes("now reads"))).toBe(true);
   });

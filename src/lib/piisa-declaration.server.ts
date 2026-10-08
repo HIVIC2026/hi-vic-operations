@@ -8,7 +8,7 @@ import { logEvent } from "./workflow.server";
 
 export type PiisaDeclSync = { status: "saved" | "already" | "pending" | "missing" | "no_form" | "error"; message: string };
 
-export async function syncPiisaDeclaration(jobId: string, actorId: string | null, call?: MittiCall, opts: { testTemplateId?: string } = {}): Promise<PiisaDeclSync> {
+export async function syncPiisaDeclaration(jobId: string, actorId: string | null, call?: MittiCall, opts: { testTemplateId?: string; fetchMedia?: import("./mitti.server").MittiMediaFetch } = {}): Promise<PiisaDeclSync> {
   const { data: existing } = await admin.from("installer_declarations").select("id").eq("job_id", jobId).eq("status", "signed").maybeSingle();
   if (existing) return { status: "already", message: "Declaration already saved." };
   const { data: job } = await admin.from("jobs").select("job_number, source").eq("id", jobId).single();
@@ -26,6 +26,18 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
   if (p.auditId && p.auditId !== auditId) return { status: "error", message: "Mitti returned a different audit." };
   if (p.templateId !== expectedTpl) return { status: "error", message: "This Mitti audit is not the PIISA form." };
   if (!p.jobNumber || p.jobNumber.trim().toUpperCase() !== job.job_number.trim().toUpperCase()) return { status: "error", message: `Mitti Job Reference ID (${p.jobNumber ?? "missing"}) does not match ${job.job_number}.` };
+  const { PIISA_A3_TEMPLATE_ID: A3_TPL } = await import("./piisa-a3.core");
+  const isA3 = expectedTpl === A3_TPL;
+  const fetchMedia = opts.fetchMedia ?? (isA3 ? (await import("./mitti.server")).realMittiMedia : undefined);
+  // A3: the signed start-of-work check is captured from the CURRENT audit BEFORE completion (after-work media not needed).
+  let prestart: import("./piisa-prestart.server").StoredPrestart | null = null;
+  if (isA3) {
+    const { capturePiisaPrestart } = await import("./piisa-prestart.server");
+    const pr = await capturePiisaPrestart(jobId, actorId, auditId, audit, fetchMedia!);
+    if (pr.status === "error") return { status: "error", message: pr.message };
+    prestart = pr.prestart ?? null;
+    if (!p.completed) return { status: "pending", message: prestart ? `PIISA start-of-work check captured; final completion not done in Mitti yet.` : `PIISA not completed in Mitti yet. ${pr.message}` };
+  }
   if (!p.completed) return { status: "pending", message: "PIISA not completed in Mitti yet." };
   const r = declarationFromPiisa(p.snapshot);
   if (!r.ok) {
@@ -46,9 +58,11 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
     await logEvent(jobId, actorId, "installer_declaration_missing", "Completed PIISA has no signature timestamp — not saved", { audit_id: auditId }, { internal: true });
     return { status: "missing", message: sig.present ? "The PIISA signature has no time recorded, so it can't be used. Ask the installer to sign again in Mitti." : "The PIISA has no signature image, so it can't be used. Ask the installer to sign in Mitti." };
   }
-  const signedAt = sig.signedAt;
+  if (isA3 && (!prestart || prestart.snapshot.signature.media_id !== sig.mediaId)) return { status: "error", message: "The PIISA signature does not match the captured start-of-work check — office review required." };
+  // A3: the prestart signature's OWN time, captured before completion and kept immutable.
+  const signedAt = prestart ? prestart.snapshot.signature.signed_at : sig.signedAt;
   // A3: completed audit populates the OFFICIAL PIISA answers (Parts 1–8) and the original official DOCX.
-  let official: { answers: Record<string, unknown>; docx?: { path: string; sha256: string; missed: string[] }; signature_attachment?: unknown } | null = null;
+  let official: { answers: Record<string, unknown>; docx?: { path: string; sha256: string; missed: string[] }; signature_attachment?: unknown; a3_evidence?: unknown } | null = null;
   if (expectedTpl === PIISA_A3_TEMPLATE_ID) {
     const { answers, crew } = parseA3Answers(audit);
     crew.forEach((c, i) => { answers[`p2.addName#${i}`] = c.name; if (c.eec) answers[`p2.addEec#${i}`] = c.eec; });
@@ -71,12 +85,30 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
     // The Word form keeps its blank signature line; the signature is an explicit linked attachment record next to it.
     const { createHash } = await import("node:crypto");
     const docSha = createHash("sha256").update(r.bytes).digest("hex");
-    const att = signatureAttachment(auditId, sig, { path, sha256: docSha });
+    const base = signatureAttachment(auditId, { ...sig, signedAt }, { path, sha256: docSha });
+    const att = base && prestart ? { ...base, image_path: prestart.signature_image.image_path, image_sha256: prestart.signature_image.image_sha256, image_content_type: prestart.signature_image.content_type } : null;
     if (!att) return { status: "missing", message: "The PIISA signature image or its time is missing, so it can't be used." };
     const sidecar = `jobs/${jobId}/official/piisa-${auditId}.signature.json`;
     const su = await admin.storage.from("job-files").upload(sidecar, new Blob([JSON.stringify(att)], { type: "application/json" }), { contentType: "application/json", upsert: false });
     if (su.error && !/exists/i.test(su.error.message)) return { status: "error", message: `PIISA signature record could not be stored: ${su.error.message}` };
-    official = { answers: { ...answers, signed_copy_id: copyId }, docx: { path, sha256: r.sha256, missed: r.missed }, signature_attachment: { ...att, record_path: sidecar } };
+    // Evidence checklist from the actual audit media metadata; crew resolved against CURRENT verified staff.
+    const core = await import("./piisa-a3.core");
+    const { a3Ctx } = await import("./piisa-prestart.server");
+    const { crewStaff } = await import("./piisa-a3.server");
+    const ctx = { ...(await a3Ctx(jobId, audit)), crewCount: 1 + crew.length };
+    const media = core.a3MediaSummary(core.a3MediaFiles(audit));
+    const staff = a?.business_id ? await crewStaff(a.business_id) : [];
+    const lead = typeof answers["p2.lead"] === "string" ? [{ name: answers["p2.lead"] as string, eec: typeof answers["p2.leadEec"] === "string" ? answers["p2.leadEec"] as string : null }] : [];
+    const crewRes = core.a3CrewResolution([...lead, ...crew], staff, b?.name ?? "the assigned installer company");
+    const a3_evidence = {
+      checklist: core.a3EvidenceChecklist(answers as never, ctx, media),
+      prestart_blockers: prestart!.snapshot.blockers,
+      prestart_captured_from: prestart!.snapshot.captured_from,
+      completion_blockers: core.a3CompletionBlockers(answers as never, ctx, media),
+      crew_blockers: crewRes.blockers,
+    };
+    official = { answers: { ...answers, signed_copy_id: copyId }, docx: { path, sha256: r.sha256, missed: r.missed }, signature_attachment: { ...att, record_path: sidecar }, a3_evidence };
+    await logEvent(jobId, actorId, "piisa_a3_evidence_synced", "PIISA evidence checklist read from the completed form", a3_evidence as unknown as Record<string, unknown>, { internal: true });
   }
   const d = r.decl;
   const snap = { official, prestart_signed_at: signedAt, source: "mitti_piisa", audit_id: auditId, declaration: { version: tpl.version, body: tpl.body }, installed_product: d.product, installed_r_value: d.rValue, installed_area_m2: d.areaM2, signature: { typed_name: d.signatureName, mitti_signature: d.signature, signed_on: d.signedOn, at: signedAt, user_id: a?.user_id ?? null }, piisa_answers: p.snapshot };

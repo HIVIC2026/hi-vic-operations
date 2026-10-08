@@ -1,0 +1,67 @@
+// A3 PIISA prestart capture: reads the CURRENT (normally in-progress) audit via GET, stores the signature IMAGE itself and an
+// immutable prestart snapshot BEFORE final completion. After-work media never block this check. No audit writes, no sends.
+import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+
+import { mittiApi, parseAudit, type MittiCall } from "./mitti.core";
+import { sha256Hex, stableJson } from "./assignment.core";
+import { a3PrestartSnapshot, type A3EvidenceCtx, type A3PrestartSnapshot } from "./piisa-a3.core";
+import { logEvent } from "./workflow.server";
+import type { MittiMediaFetch } from "./mitti.server";
+
+export type StoredSignature = { media_id: string; image_path: string; image_sha256: string; content_type: string; signed_at: string; signer_name: string | null };
+export type StoredPrestart = { snapshot: A3PrestartSnapshot; signature_image: StoredSignature; sha256: string };
+
+export async function latestPrestart(jobId: string, auditId: string): Promise<StoredPrestart | null> {
+  const { data } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "piisa_prestart_captured").order("created_at", { ascending: true }).limit(20);
+  const hit = (data ?? []).map((r) => r.details as unknown as StoredPrestart & { audit_id?: string }).find((d) => d?.snapshot?.audit_id === auditId);
+  return hit ?? null;
+}
+
+/** Context reused from the SAME job (life-support consent/plan on file, existing valid plan). */
+export async function a3Ctx(jobId: string, audit: unknown): Promise<A3EvidenceCtx> {
+  const { data: reqs } = await admin.from("evidence_requirements").select("category,status").eq("job_id", jobId);
+  const ok = (c: string) => (reqs ?? []).some((r) => r.category === c && ["uploaded", "verified"].includes(String(r.status)));
+  const { A3_NATIVE_IDS } = await import("./piisa-a3.core");
+  const { flatten } = await import("./mitti.core");
+  const ls = flatten(audit).find((e) => e.id === A3_NATIVE_IDS["lifeSupportAttachment"]![0]);
+  const { data: lsDoc } = await admin.from("documents").select("id").eq("job_id", jobId).ilike("kind", "%life_support%").limit(1);
+  return { crewCount: 1, electricianRequiredAtStart: false, existingPlanMatchesInstall: ok("final_zone_plan"), lifeSupportConsentOnFile: !!ls?.value || (lsDoc ?? []).length > 0 };
+}
+
+export async function storeSignatureImage(jobId: string, auditId: string, sig: A3PrestartSnapshot["signature"], fetchMedia: MittiMediaFetch): Promise<StoredSignature> {
+  const { bytes, contentType } = await fetchMedia(auditId, sig.media_id);
+  if (!bytes.length) throw new Error("The signature image is empty.");
+  const { createHash } = await import("node:crypto");
+  const image_sha256 = createHash("sha256").update(bytes).digest("hex");
+  const ext = contentType.includes("png") ? "png" : contentType.includes("jpeg") || contentType.includes("jpg") ? "jpg" : "img";
+  const image_path = `jobs/${jobId}/official/piisa-${auditId}.signature.${ext}`;
+  const up = await admin.storage.from("job-files").upload(image_path, bytes, { contentType, upsert: false });
+  if (up.error && !/exists/i.test(up.error.message)) throw new Error(`Signature image could not be stored: ${up.error.message}`);
+  return { media_id: sig.media_id, image_path, image_sha256, content_type: contentType, signed_at: sig.signed_at, signer_name: sig.signer_name };
+}
+
+export type PrestartResult = { status: "captured" | "already" | "not_signed" | "error"; message: string; prestart?: StoredPrestart };
+
+/** Capture once per audit; later calls return the stored immutable record. Signature changed after capture = error. */
+export async function capturePiisaPrestart(jobId: string, actorId: string | null, auditId: string, audit: unknown, fetchMedia: MittiMediaFetch): Promise<PrestartResult> {
+  const p = parseAudit(audit);
+  const built = a3PrestartSnapshot(auditId, audit, await a3Ctx(jobId, audit), { completed: p.completed });
+  const existing = await latestPrestart(jobId, auditId);
+  if (existing) {
+    if (built.ok && built.snapshot.signature.media_id !== existing.snapshot.signature.media_id) return { status: "error", message: "The PIISA signature changed after the start-of-work check was captured — office review required." };
+    return { status: "already", message: "Start-of-work check already captured.", prestart: existing };
+  }
+  if (!built.ok) return { status: "not_signed", message: built.reason };
+  let image: StoredSignature;
+  try { image = await storeSignatureImage(jobId, auditId, built.snapshot.signature, fetchMedia); }
+  catch (e) { return { status: "error", message: e instanceof Error ? e.message : "Signature image could not be stored." }; }
+  const sha256 = await sha256Hex(stableJson(built.snapshot));
+  const rec: StoredPrestart = { snapshot: built.snapshot, signature_image: image, sha256 };
+  await logEvent(jobId, actorId, "piisa_prestart_captured", built.snapshot.blockers.length ? `PIISA start-of-work check captured — ${built.snapshot.blockers.length} item(s) need attention` : "PIISA start-of-work check captured", rec as unknown as Record<string, unknown>, { internal: true });
+  return { status: "captured", message: "Start-of-work check captured.", prestart: rec };
+}
+
+/** GET the current audit and capture (used by sync before completion). */
+export async function capturePrestartFromMitti(jobId: string, actorId: string | null, auditId: string, call: MittiCall, fetchMedia: MittiMediaFetch) {
+  return capturePiisaPrestart(jobId, actorId, auditId, await mittiApi(call).getAudit(auditId), fetchMedia);
+}

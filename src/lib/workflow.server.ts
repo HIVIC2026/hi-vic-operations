@@ -294,8 +294,12 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
     const ib = await installBookingBlocker(jobId);
     if (ib) blockers.push(ib);
     // Installer declaration is signed inside the Mitti PIISA; no signed record = no AP sign-off.
-    const { data: decl } = await admin.from("installer_declarations").select("id").eq("job_id", jobId).eq("status", "signed").maybeSingle();
+    const { data: decl } = await admin.from("installer_declarations").select("id, snapshot").eq("job_id", jobId).eq("status", "signed").maybeSingle();
     if (!decl) blockers.push((await import("./piisa-declaration.core")).MISSING_INSTALLER_DECLARATION);
+    else {
+      const { a3EvidenceGate } = await import("./piisa-a3.core");
+      blockers.push(...a3EvidenceGate((decl.snapshot as { official?: unknown } | null)?.official));
+    }
   }
   if (to === "ready_for_veec") {
     const st = await assignmentStatus(jobId);
