@@ -1,5 +1,6 @@
 # Roadmap (preview only, nothing sent, no publish, no real jobs)
 ## Installer Add job and insurance repairs (Jo, 8 Oct 09:00 UTC)
+- [ ] Check why a newly added electrician cannot be invited (Jo 09:11); preserve sending controls and do not send during testing.
 - [ ] Change appointment explanation from “your electrician” to “the electrician”.
 - [ ] Require Have you quoted? Yes/No: Yes needs ceiling area, measurement method, quote amount and inclusions; No offers Ready Check or returning after a visit.
 - [ ] Replace paste/CSV intake with address, owner name, mobile, email and consent fields; keep optional single-file upload.
