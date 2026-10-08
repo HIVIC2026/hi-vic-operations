@@ -17,6 +17,18 @@ describe("My work: one place per job", () => {
     for (const stage of STAGES) expect(placeWorkJob(base({ stage, installerSourced: true, quoted: null, upcoming: soon })).place).toBe("needs_me");
   });
   test("site check not recorded is Needs me", () => expect(placeWorkJob(base({ installerSourced: true, siteCheck: null })).title).toBe("Site check? answer needed"));
+  test("Quoted? answer needed never appears on Home Insulation Victoria jobs, in any stage", () => {
+    for (const stage of STAGES) {
+      const p = placeWorkJob(base({ stage, installerSourced: false, quoted: null }));
+      expect(p.title).not.toBe("Quoted? answer needed");
+    }
+  });
+  test("Site check? answer needed never appears on Home Insulation Victoria jobs, in any stage", () => {
+    for (const stage of STAGES) {
+      const p = placeWorkJob(base({ stage, installerSourced: false, siteCheck: null }));
+      expect(p.title).not.toBe("Site check? answer needed");
+    }
+  });
   test("pending offer wins", () => expect(placeWorkJob(base({ pendingOffer: true, installerSourced: true, quoted: null })).place).toBe("offers"));
   test("installer action stages", () => {
     expect(placeWorkJob(base({ stage: "ready_check_ready_to_schedule" })).place).toBe("needs_me");
