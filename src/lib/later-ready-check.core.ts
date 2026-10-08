@@ -1,4 +1,4 @@
-export type LaterReadyCheck = { startsAt: string; area?: number; method?: string; notes?: string };
+export type LaterReadyCheck = { startsAt: string; area?: number | undefined; method?: string | undefined; notes?: string | undefined };
 export function laterReadyCheckProblems(x: LaterReadyCheck): string[] {
   const problems: string[] = [];
   if (!x.startsAt || !Number.isFinite(Date.parse(x.startsAt))) problems.push("Enter the booked Ready Check date and time");

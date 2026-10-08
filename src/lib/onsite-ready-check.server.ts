@@ -64,7 +64,7 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
     await admin.from("jobs").update({ next_action: "Owner to sign paperwork A, then the Ready Check can start" }).eq("id", job.id);
     await logEvent(job.id, userId, "onsite_waiting_paperwork_a", "On-site Ready Check held: the owner hasn't signed paperwork A yet", {}, { internal: true });
   }
-  if (later) return { jobId: job.id, jobNumber: job.job_number, state: { kind: "paperwork" as const } };
+  if (later) return { jobId: job.id, jobNumber: job.job_number, state: { kind: "office" as const, message: "Job added. Check the appointment status on the job." } };
   const state = await onsiteFormFor(job.id, userId, call);
   return { jobId: job.id, jobNumber: job.job_number, state };
 }
