@@ -6,8 +6,10 @@ export const LAUNCH_COPY_APPROVED = true;
 export type LaunchGroup = "likely" | "onsite";
 export type DeskCheckOutcome = "looks_eligible" | "not_eligible" | "needs_onsite_check";
 
-export function campaignSaveAllowed(group: LaunchGroup, deskStatus: string | null | undefined) {
-  return group === "likely" || deskStatus === "looks_eligible";
+export function campaignSaveAllowed(group: LaunchGroup, deskStatus: string | null | undefined, ownerQualified = false) {
+  if (group === "likely") return true;
+  if (deskStatus === "not_eligible" || deskStatus === "needs_onsite_check") return false;
+  return deskStatus === "looks_eligible" || ownerQualified;
 }
 
 export function launchGroup(outcome: string | null, insulation: string | null): LaunchGroup | null {
