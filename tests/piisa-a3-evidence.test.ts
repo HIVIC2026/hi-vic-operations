@@ -52,11 +52,12 @@ describe("before/after split", () => {
     { key: "installer_photos", count: 1, geotagged: 1, timed: 1, capturedAt: "2026-10-09T00:05:00Z" },
     { key: "isolation_photo", count: 1, geotagged: 1, timed: 1, capturedAt: "2026-10-09T00:05:00Z" },
     { key: "before_video", count: 1, geotagged: 0, timed: 1, capturedAt: "2026-10-09T00:06:00Z" },
+    { key: "product_photos", count: 1, geotagged: 1, timed: 1, capturedAt: "2026-10-09T00:06:00Z" },
   ];
   test("prestart passes with no after-work media (all safety answers safe)", () => expect(a3PrestartBlockers(SAFE, ctx, before, "2026-10-09T00:10:00Z")).toEqual([]));
-  test("completion needs product photos, completed video and final plan (unless existing plan reused)", () => {
-    expect(a3CompletionBlockers({}, ctx, before).length).toBe(3);
-    expect(a3CompletionBlockers({}, { ...ctx, existingPlanMatchesInstall: true }, before).length).toBe(2);
+  test("completion needs completed video and final plan, not another product photo (unless existing plan reused)", () => {
+    expect(a3CompletionBlockers({}, ctx, before).length).toBe(2);
+    expect(a3CompletionBlockers({}, { ...ctx, existingPlanMatchesInstall: true }, before).length).toBe(1);
   });
   test("electrician photo required whenever attendance = Yes, even if not required at start", () => {
     expect(a3PrestartBlockers({ "p5.electricianPresent": "Yes" }, ctx, before).join()).toContain("Electrician photo");
@@ -80,7 +81,7 @@ describe("prestart snapshot", () => {
     if (!r.ok) return;
     expect(r.snapshot.signature).toEqual({ media_id: SIG, item_id: A3_NATIVE_IDS["p8.signature"]![0]!, signer_name: "Lead", signed_at: "2026-10-09T00:10:00Z" });
     expect(r.snapshot.captured_from).toBe("in_progress_audit");
-    expect(r.snapshot.media.product_photos).toEqual([]);
+    expect(r.snapshot.media.product_photos).toHaveLength(2);
     expect(r.snapshot.blockers.filter((b) => !/not answered/.test(b))).toEqual([]);
   });
   test("text signature or missing timestamp is refused", () => {

@@ -22,7 +22,7 @@ export function TradePrestart({ jobId, kind, channel, onStart, disabledReason }:
       <section className="rounded-[19px] border border-mist-line bg-mist p-5 text-ink md:p-[23px]">
         <h2 className="font-display text-xl font-bold">Sharp photos and videos, every time</h2>
         <p className="mt-1 text-sm text-sub">The onsite form tells you exactly what to shoot. We just need every one crystal clear.</p>
-        <p className="mt-3 rounded-2xl bg-owner-house-pink p-3 text-sm text-estimate-navy"><strong>Why it matters:</strong> every photo and video is checked before the rebate is claimed. If one is blurry, dark or missing, the claim can be <strong>rejected by the regulator. That means no rebate for the job.</strong> At best, it's a trip back to redo it.</p>
+        <p className="mt-3 rounded-2xl bg-owner-house-pink p-3 text-sm text-estimate-navy"><strong>Why it matters:</strong> {kind === "installation" ? "Please make sure the video is clear and complete. Home Insulation Victoria cannot accept unclear or incomplete evidence for your VEEC submission." : "Every photo and video is reviewed before the rebate is claimed. Unclear or incomplete evidence needs to be corrected before submission."}</p>
         <div className="mt-3 grid grid-cols-2 gap-2">{tips.map((t) => <div key={t} className="rounded-2xl bg-paper border border-line p-3 text-sm font-bold">{t}</div>)}</div>
         <p className="mt-3 text-sm font-bold text-owner-house-pink">Check each one before you move on. Blurry? Retake it on the spot.</p>
       </section>

@@ -349,8 +349,8 @@ export type StaffOption = {
   level?: string | null; expiresOn?: string | null;
 };
 
-/** The native A3 crew name boxes are plain text in Mitti; a native staff dropdown was attempted and did NOT save. */
-export const A3_NATIVE_CREW_LOOKUP = { available: false, note: "Mitti's safety form has plain text boxes for installer names. The portal fills those boxes from this list — Mitti has no staff dropdown of its own." } as const;
+/** Portal lookup only. Native direct-entry schema awaits concrete edited IDs; the observed native choice mapping remains fail closed. */
+export const A3_NATIVE_CREW_LOOKUP = { available: false, note: "Choose from your company’s approved installers, or enter a full legal name and Certified Insulation Installer (CII) certification number. Entered details need office verification." } as const;
 
 type WorkerRow = { id: string; full_legal_name: string; approval_status: string | null; removed_at: string | null; trade_role: string | null; licence_expires_on?: string | null; certification: unknown };
 type CertRow = { id: string; status: string | null; certificate_number: string | null; issuer: string | null; worker_id?: string | null };
@@ -446,8 +446,8 @@ export const A3_EVIDENCE_LABELS: Record<A3EvidenceKey, string> = {
   electrician_photo: "Electrician photo — onsite today (geotagged)",
   isolation_photo: "Power isolation photo — isolated, locked out and tagged before work (geotagged)",
   before_video: "Before-work video — all ceiling areas and existing insulation",
-  product_photos: "Installed product photos — brand, model and R-value (geotagged)",
-  completed_video: "Completed-work video — coverage, depth and all waste removed",
+  product_photos: "Before installing, please take a clear, geotagged photo of each insulation product label showing the brand, model and R-value.",
+  completed_video: "Completed installation video — all ceiling areas, coverage and clearances. Please make sure the video is clear and complete. Home Insulation Victoria cannot accept unclear or incomplete evidence for your VEEC submission.",
   final_plan: "Final installation plan — actual installed area (m²) and products",
 };
 const GEOTAG: A3EvidenceKey[] = ["installer_photos", "electrician_photo", "isolation_photo", "product_photos"];
@@ -463,8 +463,8 @@ export type A3EvidenceCtx = {
 /** capturedAt = LATEST recorded capture time; timed = files with a recorded time (undefined = legacy, treated as all). */
 export type A3Media = { key: A3EvidenceKey; count: number; geotagged: number; timed?: number; capturedAt?: string | null };
 /** Before-work media are checked at prestart; after-work media only at completion (never block the prestart check). */
-export const A3_PRESTART_KEYS: A3EvidenceKey[] = ["installer_photos", "electrician_photo", "isolation_photo", "before_video"];
-export const A3_AFTER_KEYS: A3EvidenceKey[] = ["product_photos", "completed_video", "final_plan"];
+export const A3_PRESTART_KEYS: A3EvidenceKey[] = ["installer_photos", "electrician_photo", "isolation_photo", "before_video", "product_photos"];
+export const A3_AFTER_KEYS: A3EvidenceKey[] = ["completed_video", "final_plan"];
 
 /** Required A3 evidence. The old ID-holding / 360° / ruler extras are NOT in this path (no official basis). */
 export function a3EvidenceRequired(answers: OfficialAnswers, ctx: A3EvidenceCtx): { key: A3EvidenceKey; min: number; label: string }[] {
@@ -490,14 +490,14 @@ function evidenceBlockers(keys: A3EvidenceKey[], answers: OfficialAnswers, ctx: 
     if (!m || m.count < r.min) { b.push(`${r.label}: ${m?.count ?? 0} of ${r.min}`); continue; }
     if (GEOTAG.includes(r.key) && m.geotagged < r.min) b.push(`${r.label}: location not recorded on ${r.min - m.geotagged} — office review`);
     if (m.timed != null && m.timed < m.count) b.push(`${r.label}: capture time not recorded on ${m.count - m.timed} — office review`);
-    if ((r.key === "isolation_photo" || r.key === "before_video") && workStartAt && m.capturedAt && Date.parse(m.capturedAt) > Date.parse(workStartAt)) b.push(`${r.label}: must be taken before work starts`);
+    if ((r.key === "isolation_photo" || r.key === "before_video" || r.key === "product_photos") && workStartAt && m.capturedAt && Date.parse(m.capturedAt) > Date.parse(workStartAt)) b.push(`${r.label}: must be taken before work starts`);
   }
   return b;
 }
 /** Prestart: before-work evidence + life support only. After-work media are never required here. */
 /** Prominent banner heading (Jo, 9 Oct 2026). No calendar delay: work may proceed only once the unmet prerequisite is
  * actually corrected and safety clearance reconfirmed. Banners are instructions, never proof of clearance. */
-export const STOP_BANNER = "🛑 STOP WORK — INSTALLATION CANNOT PROCEED.";
+export const STOP_BANNER = "🛑 STOP —";
 export const stopMsg = (action: string) => `${STOP_BANNER} ${action}`;
 /** STOP-WORK rules (Jo's PIISA review, 8 Oct 2026). Presence questions answered No (solar, recessed lights, existing
  * insulation) are factual and green. Every other safety "No" is a hard stop, never just a score. Follow-up questions
@@ -510,7 +510,7 @@ export function a3StopWork(answers: OfficialAnswers, ctx: Pick<A3EvidenceCtx, "e
     if (v == null) out.push(`${label}: not answered`);
     else if (v === "No") out.push(stop);
   };
-  need("p1.powerInformed", "Power-off notice", stopMsg("Tell the household the power will be off before you continue."));
+  need("p1.powerInformed", "Power-off notice", "STOP - Please ensure the household is aware the power will be turned off before continuing.");
   const ls = a("lifeSupport");
   if (ls == null) out.push("Life support: not answered");
   else if (ls === "Yes") {
@@ -703,6 +703,8 @@ export function a3RosterStatus(template: unknown, staff: StaffOption[], business
  * native option (or a portal "Other") selects Other and seeds the required branch fields so nothing is retyped.
  */
 export function a3CrewNativeItems(template: unknown, sel: CrewSelection, staff: StaffOption[], business: string): { items: Any[]; notes: string[]; problems: string[] } {
+  const schemaProblems = a3CrewSchemaProblems(template);
+  if (schemaProblems.length) return { items: [], notes: [], problems: schemaProblems };
   const opts = a3CrewOptions(template);
   const items: Any[] = [], notes: string[] = [], problems: string[] = [];
   if (!opts) return { items, notes, problems: ["Crew choice list not found on the Mitti form"] };
