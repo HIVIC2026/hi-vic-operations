@@ -153,3 +153,5 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] PIESA booking unpaired (done 17:50)
 
 - [x] Save my spot send: verify every rebate is exactly calculated before Jo presses Send (Jo 8 Oct)
+
+- [ ] Hot leads: Edit email Save button unresponsive for HV-1122 (Jo 8 Oct 02:32) — reproduce + fix
