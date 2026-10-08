@@ -51,6 +51,5 @@ export const reviewLeadMediaFn = createServerFn({ method: "POST" }).middleware([
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const { reviewLeadMedia } = await import("./enquiry-groups.server");
-    const email = (context as { user?: { email?: string | null } }).user?.email ?? null;
-    return reviewLeadMedia(data.jobId, data.outcome, email);
+    return reviewLeadMedia(data.jobId, data.outcome, context.userId ?? null);
   });
