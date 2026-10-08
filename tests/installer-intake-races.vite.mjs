@@ -7,9 +7,11 @@ const aliases = [
   { find: '@tanstack/react-start', replacement: `${root}/tests/portal-browser-serverfn-stub.ts` },
   { find: '@tanstack/react-router', replacement: `${root}/tests/portal-browser-router-stub.tsx` },
   { find: /^@\/integrations\/supabase\/client$/, replacement: `${root}/tests/portal-browser-supabase-stub.ts` },
-  { find: /^@\/lib\/(pilot|bulk-import|job-electrician|installer-quote)\.functions$/, replacement: `${root}/tests/installer-intake-functions-stub.ts` },
+  { find: /^@\/lib\/(pilot|bulk-import|job-electrician|installer-quote|ready-check-draft)\.functions$/, replacement: `${root}/tests/installer-intake-functions-stub.ts` },
+  { find: /^@\/components\/portal\/panels$/, replacement: `${root}/tests/save-feedback-panels-stub.tsx` },
   { find: '@', replacement: `${root}/src` },
 ];
-const server = await createServer({ root, configFile: false, plugins: [react(), tailwind()], resolve: { alias: aliases }, server: { host: '127.0.0.1', port: 8091, strictPort: true } });
+const port = Number(process.env.PORT ?? 8091);
+const server = await createServer({ root, configFile: false, plugins: [react(), tailwind()], resolve: { alias: aliases }, server: { host: '127.0.0.1', port, strictPort: true } });
 await server.listen();
-console.log('Sealed installer intake fixture ready on localhost:8091');
+console.log(`Sealed installer intake fixture ready on localhost:${port}`);
