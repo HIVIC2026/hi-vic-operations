@@ -113,10 +113,12 @@ export async function loadHotLeads(group: HotList = "likely") {
     else if (!r.priceCheck) flags.push("Saved estimate does not match the current price settings. Recalculate before sending.");
     const hold = group !== "test" && HOT_HOLD_REGIONS.has(r.region);
     const sentAt = sent.get(r.id) ?? null;
-    const status = hotStatus({ sentAt, spotSavedAt: resp.get(r.id)?.spot_saved_at ?? null, optedOutAt: resp.get(r.id)?.opted_out_at ?? opt.get(r.id) ?? null });
+    const spotSavedAt = resp.get(r.id)?.spot_saved_at ?? null;
+    const optedOutAt = resp.get(r.id)?.opted_out_at ?? opt.get(r.id) ?? null;
+    const status = hotStatus({ sentAt, spotSavedAt, optedOutAt });
     const send = hold ? "hold" as const : "ready" as const;
     const note = HOT_MAYBE_EMAILED_BY_HAND[r.jobNumber ?? ""] ?? null;
-    return { ...r, send, flags, note, status, sentAt, defaultTicked: group === "likely" && send === "ready" && !flags.length && status === "not_sent" };
+    return { ...r, send, flags, note, status, sentAt, spotSavedAt, optedOutAt, defaultTicked: group === "likely" && send === "ready" && !flags.length && status === "not_sent" };
   });
   const regionOrder = ["Melbourne metro", "Geelong", "Mornington Peninsula", "Ballarat / Macedon", "Goulburn & Hume", "Western Victoria", "Gippsland", "Bendigo / Loddon", "Far East Gippsland", "Other Victoria"];
   list.sort((a, b) => regionOrder.indexOf(a.region) - regionOrder.indexOf(b.region) || (a.jobNumber ?? "").localeCompare(b.jobNumber ?? ""));

@@ -10,8 +10,8 @@ describe("existing leads launch campaign", () => {
     expect(launchGroup("does_not_appear_eligible", "none")).toBeNull();
   });
 
-  test("keeps sending locked and caps the future batch", () => {
-    expect(LAUNCH_COPY_APPROVED).toBe(false);
+  test("copy is approved (Jo 8 Oct) so owner links work; batch stays capped", () => {
+    expect(LAUNCH_COPY_APPROVED).toBe(true);
     expect(LAUNCH_BATCH_SIZE).toBe(50);
   });
 
