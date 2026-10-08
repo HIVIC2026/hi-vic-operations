@@ -82,8 +82,8 @@ describe("Jo 7 Oct: Add one job + each Upload jobs card", () => {
   test("pages: camera + files with remove, consent tick required, three electrician options", () => {
     const ui = read("src/components/trade/job-intake.tsx");
     for (const t of ['capture="environment"', "Take photo", "Choose files", "Remove ${f.name}", "My electrician", "+ Add another electrician", "Home Insulation Victoria arranges"]) expect(ui).toContain(t);
-    const one = read("src/routes/_authenticated/partner.import.tsx");
-    expect(one).toContain("!permission"); expect(one).toContain("<AttachFiles"); expect(one).toContain("<ElectricianPicker");
+    const one = read("src/components/trade/add-job-flow.tsx");
+    expect(one).toContain("contact_permission: customer.contact_permission"); expect(one).toContain("<AttachFiles"); expect(one).toContain("<ElectricianPicker");
     const bulk = read("src/routes/_authenticated/partner.bulk-import.tsx");
     expect(bulk).toContain("<AttachFiles"); expect(bulk).toContain("<ElectricianPicker compact"); expect(bulk).not.toContain("(optional)");
   });
