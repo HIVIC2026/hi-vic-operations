@@ -50,7 +50,16 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
   useEffect(() => { setFeeTick(false); }, [payer]);
   const [problems, setProblems] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [fileBusy, setFileBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  // Refresh idle forms only. An open edit must survive focus/refetch without losing input or feedback.
+  useEffect(() => {
+    if (open || busy || fileBusy) return;
+    setArea(facts.areaM2 == null ? "" : String(facts.areaM2)); setIns(facts.insulation ?? "unknown");
+    setQs(initStatus); setAmount(facts.quoteIncGst == null ? "" : String(facts.quoteIncGst));
+    setIncludes(facts.includes ?? ""); setProposedR(facts.proposedR == null ? "" : String(facts.proposedR));
+    setPayer(currentPayer);
+  }, [facts, open, busy, fileBusy, initStatus, currentPayer]);
   const allFiles = [...facts.files, ...newFiles];
 
   const save = async () => {
@@ -58,11 +67,11 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
     if (facts.areaM2 != null && !area.trim()) p.push("The ceiling area is already saved — enter the corrected area instead of clearing it");
     if (payerChanged && payer === "own" && !(plan?.mode === "mine" && (plan.business_id || plan.nomination_id))) p.push("Choose your electrician");
     setProblems(p); setMsg(null);
-    if (p.length || busy) return;
+    if (p.length || busy || fileBusy || !qs) return;
     const q = intakeQuotePayload({ quoteStatus: qs, amount, includes, proposedR });
     setBusy(true);
     try {
-      const r = await onSave({ areaM2: intakeArea(area), insulation: ins, quoteStatus: qs!, quoteIncGst: q.quoted_price_inc_gst, includes: q.price_includes, proposedR: q.proposed_r_value, files: newFiles,
+      const r = await onSave({ areaM2: intakeArea(area), insulation: ins, quoteStatus: qs, quoteIncGst: q.quoted_price_inc_gst, includes: q.price_includes, proposedR: q.proposed_r_value, files: newFiles,
         ...(feeTick && feeText && (payer === "hivic" || payer === "own") ? { feeAwareness: { payer, text: feeText } } : {}),
         ...(payerChanged ? { electricianPayer: payer } : {}),
         ...(payerChanged && payer === "own" && plan?.mode === "mine" && (plan.business_id || plan.nomination_id) ? { electrician: { mode: "mine" as const, business_id: plan.business_id ?? null, nomination_id: plan.nomination_id ?? null } } : {}) });
@@ -84,6 +93,7 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
       {facts.quoteHeld.length > 0 && <p className="text-xs text-sub" data-quote-held>Owner quote on hold: {facts.quoteHeld.join("; ")}</p>}
       {!open ? <Button size="field" variant="outline" className="w-full" onClick={() => setOpen(true)}>Add or update details</Button> : <>
         <p className="text-sm text-sub">{JOB_DETAILS_LEAD}</p>
+        <fieldset disabled={busy || fileBusy} className="space-y-3" aria-busy={busy || fileBusy}>
         <label className="block text-sm font-bold">Ceiling area (m²)<span className="block text-xs font-normal text-sub">Optional — leave blank if not measured yet</span><Input className="mt-1 h-12" inputMode="decimal" placeholder="Not measured yet" value={area} onChange={(e) => setArea(e.target.value)} /></label>
         <fieldset><legend className="text-sm font-bold">Existing insulation</legend>
           <div className="mt-2 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Existing insulation">
@@ -97,7 +107,14 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
           {qs === "not_quoted" && (facts.quoteIncGst != null || facts.includes) && <p className="mt-1 text-xs text-sub" data-quote-clear-note>Saving "Not quoted yet" removes the quote amount and inclusions saved earlier. Uploaded files are kept as originals.</p>}
         </fieldset>
         {qs === "have_quote" && <>
-          <AttachFiles businessId={businessId} files={allFiles} label="Upload your quote" canRemove={(path) => newFiles.some((f) => f.path === path)} onAdd={async (picked) => { const up = await upload(picked); setNewFiles((o) => [...o, ...up]); }} onRemove={async (path) => setNewFiles((o) => o.filter((f) => f.path !== path))} />
+          <AttachFiles businessId={businessId} files={allFiles} label="Upload your quote" disabled={busy} onBusyChange={setFileBusy} canRemove={(path) => newFiles.some((f) => f.path === path)} onAdd={async (picked) => {
+            const failed: string[] = [];
+            for (const file of picked) {
+              try { const up = await upload([file]); setNewFiles((o) => [...o, ...up]); }
+              catch { failed.push(file.name); }
+            }
+            if (failed.length) throw new Error(`${failed.join(", ")} didn't upload. Other uploaded files have been kept. Retry only the missing files.`);
+          }} onRemove={async (path) => setNewFiles((o) => o.filter((f) => f.path !== path))} />
           <p className="text-xs text-sub">No quote file? Enter the amount and what it includes.</p>
           <label className="block text-sm font-bold">Your quote inc GST<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 3,450" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
           <label className="block text-sm font-bold">What the quote includes<Textarea className="mt-1" rows={3} maxLength={1000} value={includes} onChange={(e) => setIncludes(e.target.value)} /></label>
@@ -112,9 +129,10 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
         </fieldset>}
         {!facts.payerEditable && <p className="text-sm" data-editor-payer-fixed>Electrician: {currentPayer === "own" ? "your own electrician (invoices the owner directly)" : currentPayer === "hivic" ? "Home Insulation Victoria arranges" : "to be arranged"}. {facts.payerLockReason ?? "Ask Home Insulation Victoria to change it."}</p>}
         {feeText && <label className="flex items-start gap-3 text-sm" data-editor-fee-ack><Checkbox className="mt-0.5" checked={feeTick} onCheckedChange={(c) => setFeeTick(c === true)} aria-label={feeText} /><span>{feeText}<span className="block text-xs text-sub">Optional now — the owner quote waits until this is recorded.</span></span></label>}
+        </fieldset>
         {problems.length > 0 && <ul role="alert" className="space-y-1 rounded-[12px] border border-danger/40 p-3 text-sm text-danger" data-editor-problems>{problems.map((p) => <li key={p}>{p}</li>)}</ul>}
         {msg && <p role="status" className="text-sm" data-editor-msg>{msg}</p>}
-        <Button size="field" className="w-full" disabled={busy} aria-busy={busy} onClick={save}>{busy ? "Saving…" : "Save details"}</Button>
+        <Button size="field" className="w-full" disabled={busy || fileBusy} aria-busy={busy || fileBusy} onClick={save}>{busy ? "Saving…" : fileBusy ? "Saving files…" : "Save details"}</Button>
       </>}
     </section>
   );
@@ -124,13 +142,12 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
 export function MyIntakeDetailsCard({ jobId }: { jobId: string }) {
   const get = useServerFn(getMyIntakeJob), put = useServerFn(saveMyIntakeJob), getEl = useServerFn(bulkElectricianChoices);
   const qc = useQueryClient();
-  const { data } = useQuery({ queryKey: ["my-intake-job", jobId], queryFn: () => get({ data: { jobId } }), retry: false });
+  const { data, isError, refetch } = useQuery({ queryKey: ["my-intake-job", jobId], queryFn: () => get({ data: { jobId } }), retry: false });
   const biz = data?.applies ? data.businessId : null;
-  const { data: el } = useQuery({ queryKey: ["bulk-electricians", biz], queryFn: () => getEl({ data: { businessId: biz! } }), enabled: !!biz });
+  const { data: el } = useQuery({ queryKey: ["bulk-electricians", biz], queryFn: () => { if (!biz) throw new Error("Business not loaded"); return getEl({ data: { businessId: biz } }); }, enabled: !!biz });
   const upload = useUploadFiles(biz ?? "");
-  const [k, setK] = useState(0);
-  useEffect(() => { setK((x) => x + 1); }, [data]);
+  if (isError && !data) return <section><p role="alert">Couldn't load the job details.</p><Button variant="outline" onClick={() => void refetch()}>Retry</Button></section>;
   if (!data?.applies) return null;
-  return <IntakeDetailsEditor key={k} facts={data as IntakeJobFacts} businessId={data.businessId} upload={upload} electricians={el as ElChoices | undefined}
+  return <IntakeDetailsEditor key={jobId} facts={data as IntakeJobFacts} businessId={data.businessId} upload={upload} electricians={el as ElChoices | undefined}
     onSave={async (s) => { const r = await put({ data: { jobId, ...s, files: s.files.map((f) => ({ path: f.path, name: f.name, type: f.type ?? "" })) } }); await qc.invalidateQueries({ queryKey: ["my-intake-job", jobId] }); return r; }} />;
 }
