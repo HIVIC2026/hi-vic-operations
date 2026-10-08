@@ -68,14 +68,14 @@ function LeadsPage() {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [removing, setRemoving] = useState(false);
   const [removeMsg, setRemoveMsg] = useState<string | null>(null);
+  const [removeReason, setRemoveReason] = useState("Fake or test enquiry");
   const allRows = data?.rows ?? [];
   const rows = useMemo(() => allRows.filter((row) => !row.removed), [allRows]);
   const removedRows = useMemo(() => allRows.filter((row) => row.removed), [allRows]);
   const doRemove = async () => {
     const ids = [...picked].filter((id) => rows.some((r) => r.id === id && r.kind === "job"));
     if (!ids.length) return;
-    const reason = window.prompt(`Remove ${ids.length} lead${ids.length === 1 ? "" : "s"}? Say why (e.g. fake / test address):`, "Fake or test enquiry");
-    if (!reason || reason.trim().length < 2) return;
+    const reason = removeReason.trim() || "Fake or test enquiry";
     setRemoving(true);
     try { const r = await remove({ data: { ids, reason: reason.trim() } }); setRemoveMsg(`Removed ${r.removed} lead${r.removed === 1 ? "" : "s"}.`); setPicked(new Set()); await refetch(); }
     catch (e) { setRemoveMsg((e as Error).message); }
@@ -103,7 +103,7 @@ function LeadsPage() {
       </div>
       {tab === "needs_attention" && <div className="rounded-md border border-warning/40 bg-warning/5 p-3 text-sm"><strong>Only exceptions appear here.</strong> The reason tells the office what stopped automatic sending. The existing-insulation email is currently held here until Jo approves its final appearance. <a href="/campaign-preview" target="_blank" rel="noopener" className="font-semibold text-primary underline">View that email</a>.</div>}
       {tab === "photos" && <div className="rounded-md border border-warning/40 bg-warning/5 p-3 text-sm"><strong>Homeowners who sent photos or videos.</strong> Open each one, look at the pictures, then choose: below R2 moves them to the Save my spot offer, R2 or above moves them to ineligible, and not clear asks for more pictures.</div>}
-      <div className="flex flex-wrap items-center justify-between gap-3"><Input aria-label="Search leads" placeholder="Search name, email, address or job" value={q} onChange={(event) => { setQ(event.target.value); setPage(0); }} className="max-w-md" /><div className="flex items-center gap-3">{tab !== "removed" && <Button size="sm" variant="destructive" disabled={picked.size === 0 || removing} onClick={doRemove}>{removing ? "Removing…" : `Remove selected (${picked.size})`}</Button>}<span className="text-sm text-muted-foreground">{matching.length} in {tabLabel}</span></div></div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><Input aria-label="Search leads" placeholder="Search name, email, address or job" value={q} onChange={(event) => { setQ(event.target.value); setPage(0); }} className="max-w-md" /><div className="flex items-center gap-3">{tab !== "removed" && <Input aria-label="Reason for removing" value={removeReason} onChange={(e) => setRemoveReason(e.target.value)} className="h-9 w-56" />}{tab !== "removed" && <Button size="sm" variant="destructive" disabled={picked.size === 0 || removing} onClick={doRemove}>{removing ? "Removing…" : `Remove selected (${picked.size})`}</Button>}<span className="text-sm text-muted-foreground">{matching.length} in {tabLabel}</span></div></div>
       {removeMsg && <p role="status" className="text-sm font-semibold">{removeMsg}</p>}
       <div className="overflow-x-auto rounded-md border bg-card"><table className="w-full min-w-[900px] text-left text-sm"><thead className="bg-muted/40 text-xs uppercase text-muted-foreground"><tr><th className="w-10 p-3">{tab !== "removed" && <input type="checkbox" aria-label="Select all on this page" checked={visible.length > 0 && visible.every((r) => picked.has(r.id))} onChange={(e) => setPicked((prev) => { const n = new Set(prev); for (const r of visible) { if (e.target.checked) n.add(r.id); else n.delete(r.id); } return n; })} />}</th><th className="p-3">Homeowner</th><th className="p-3">Property</th><th className="p-3">Outcome</th><th className="p-3">Estimate</th><th className="p-3">When</th><th className="p-3">Next office action</th></tr></thead><tbody className="divide-y">
         {visible.length === 0 && <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">No leads here.</td></tr>}
