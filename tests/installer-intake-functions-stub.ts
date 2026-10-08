@@ -1,6 +1,5 @@
 const noAction = async () => { throw new Error("Isolated fixture: server actions are disabled"); };
-export const partnerFileUrl = noAction;
-export const partnerUploadUrl = noAction;
+
 export const getJobElectrician = noAction;
 export const switchJobElectricianToHivic = noAction;
 const named = (n: string) => Object.assign(async () => { throw new Error("Isolated fixture: server actions are disabled"); }, { __mockName: n });
@@ -20,3 +19,5 @@ export const getImportDraft = named("getImportDraft");
 export const getMyIntakeReadyCheck = named("getMyIntakeReadyCheck");
 export const getReadyCheckDraft = named("getReadyCheckDraft");
 export const saveReadyCheckDraft = named("saveReadyCheckDraft");
+export const partnerFileUrl = named("partnerFileUrl");
+export const partnerUploadUrl = named("partnerUploadUrl");
