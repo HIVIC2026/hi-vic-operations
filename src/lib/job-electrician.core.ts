@@ -5,7 +5,7 @@ export const OWNER_CONTACT_PERMISSION = "The owner has given Home Insulation Vic
 
 /** Note under the electrician choice (wording approved by Jo, 7 Oct 2026). */
 export const SAFETY_CHECK_NOTE =
-  "Once the owner accepts the quote and pays the $349 safety check, they'll choose 3 days and times that suit them. These go to your electrician to accept, and the booking updates in the job automatically so everyone can see it.";
+  "Once the owner accepts the quote and pays the $349 safety check, they'll choose 3 days and times that suit them. These go to the electrician to accept, and the booking updates in the job automatically so everyone can see it.";
 
 export const ELECTRICIAN_INVITED_LABEL = "Electrician invited – waiting to onboard";
 export const HIV_ARRANGES_LABEL = "Home Insulation Victoria arranges";
