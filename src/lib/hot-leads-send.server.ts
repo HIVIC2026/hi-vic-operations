@@ -29,7 +29,7 @@ export const JO_TEST_INBOX = "jolowexo@hotmail.com";
 /** TEST job whose links go into Jo's test copies, so pressing them never touches the real lead. */
 export const JO_TEST_LINK_JOB = "HV-1609";
 
-export async function sendSaveMySpot(jobIds: string[], actorId: string, testOpts: TestSendOptions = {}): Promise<HotSendResult[]> {
+export async function sendSaveMySpot(jobIds: string[], actorId: string | null, testOpts: TestSendOptions = {}): Promise<HotSendResult[]> {
   if (jobIds.length > HOT_SEND_BATCH) throw new Error(`Send at most ${HOT_SEND_BATCH} at a time.`);
   const realOn = await realSendingOn();
   const out: HotSendResult[] = [];
