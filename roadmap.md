@@ -1,5 +1,6 @@
 # Roadmap (preview only, nothing sent, no publish, no real jobs)
 ## Installer Add job and insurance repairs (Jo, 8 Oct 09:00 UTC)
+- [ ] Require Have you quoted? Yes/No: Yes needs ceiling area, measurement method, quote amount and inclusions; No offers Ready Check or returning after a visit.
 - [ ] Replace paste/CSV intake with address, owner name, mobile, email and consent fields; keep optional single-file upload.
 - [ ] Remove CSV row entirely from Add job (Jo 09:02).
 - [ ] Remove “Where is it from?” / EasyMate question from Add job; retain internal installer attribution.
