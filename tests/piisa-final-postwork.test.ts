@@ -1,6 +1,5 @@
 import { expect, test } from "bun:test";
 import final from "../src/lib/piisa-final-postwork-published.data.json";
-import historic from "../src/lib/piisa-restored-signature-published.data.json";
 import { resolvePiisaNativeVersion } from "../src/lib/piisa-native-version.core";
 import { a3CompletionBlockers, A3_MEDIA_IDS } from "../src/lib/piisa-a3.core";
 import { currentPostworkMedia, postworkReviewProblems } from "../src/lib/piisa-postwork.core";
@@ -17,7 +16,12 @@ test("current published company is first before lead; both final attachments man
   expect(last?.id).toBe("d11eaa63-198b-471f-b57c-d3717bce551c");
   expect(last && "category" in last).toBe(true);
   expect(resolvePiisaNativeVersion(final).active).toBe(true);
-  expect(resolvePiisaNativeVersion(historic).active).toBe(false);
+  const changed = structuredClone(final);
+  const changedAfter = changed.template.items.find((p) => p.label === "AP Evidence – After Installation");
+  const plan = changedAfter?.children.find((i) => i.id === "344e863b-3af3-44f5-b1b8-966941f0e667") as unknown as { media: { options: { is_mandatory: boolean } } } | undefined;
+  if (!plan) throw new Error("Plan missing");
+  plan.media.options.is_mandatory = false;
+  expect(resolvePiisaNativeVersion(changed).active).toBe(false);
 });
 
 test("signature-only and historical plan cannot satisfy current after-work attachments", () => {
