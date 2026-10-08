@@ -1,4 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Final cross-screen refresh (Jo 8 Oct 22:05 UTC)
+- [ ] Refresh affected job read models after successful details/Ready Check saves; evidence confirmation retains existing all-reader invalidation. Explicit progress Retry, never error-to-legacy fallback. Verify sealed and signed-in TEST save/reopen/private-file smoke; record targeted checks and revision for root review, no publication.
 ## Final restored signature (Jo 8 Oct 22:02 UTC)
 - [x] Fresh GET confirms required restored 83c signature after declaration, sole Title Page installation date and unchanged crew conditions. Activated pinned restored version; 159 isolated tests/860 assertions pass across 14 files, preview build OK. Historical 805 readable, blank restored field cannot borrow old media; captured Sydney expected day and no signature prefill tested. No external writes/publication; actual new signed audit not exercised.
 ## Evidence persistence reliability (Jo 8 Oct 21:55 UTC)

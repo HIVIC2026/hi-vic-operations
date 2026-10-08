@@ -13,6 +13,7 @@ import { ELECTRICIAN_PAYER_CHOICES, feeAwarenessText, type ElectricianPayer } fr
 import { Checkbox } from "@/components/ui/checkbox";
 import { EXISTING_INSULATION_CHOICES, JOB_DETAILS_LEAD, QUOTE_STATUS_CHOICES, intakeArea, intakeProblems, intakeQuotePayload, type ExistingInsulation, type QuoteStatus } from "@/lib/installer-intake.core";
 import type { ElectricianPlan } from "@/lib/job-electrician.core";
+import { refreshInstallerJob } from "./job-cache";
 
 export type IntakeJobFacts = {
   areaM2: number | null; insulation: ExistingInsulation | null; quoted: "yes" | "no" | null; quoteAnswer?: QuoteStatus | null; quoteIncGst: number | null;
@@ -149,5 +150,5 @@ export function MyIntakeDetailsCard({ jobId }: { jobId: string }) {
   if (isError && !data) return <section><p role="alert">Couldn't load the job details.</p><Button variant="outline" onClick={() => void refetch()}>Retry</Button></section>;
   if (!data?.applies) return null;
   return <IntakeDetailsEditor key={jobId} facts={data as IntakeJobFacts} businessId={data.businessId} upload={upload} electricians={el as ElChoices | undefined}
-    onSave={async (s) => { const r = await put({ data: { jobId, ...s, files: s.files.map((f) => ({ path: f.path, name: f.name, type: f.type ?? "" })) } }); await qc.invalidateQueries({ queryKey: ["my-intake-job", jobId] }); return r; }} />;
+    onSave={async (s) => { const r = await put({ data: { jobId, ...s, files: s.files.map((f) => ({ path: f.path, name: f.name, type: f.type ?? "" })) } }); await refreshInstallerJob(qc, jobId); return r; }} />;
 }
