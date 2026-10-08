@@ -20,7 +20,7 @@ function CampaignPage() {
   const getPage = useServerFn(getLaunchCampaignPage);
   const save = useServerFn(saveMySpot);
   const optOut = useServerFn(takeMeOffList);
-  type CampaignData = { group: "likely" | "onsite"; estimate: unknown; pricing: Pricing | null; response: { spot_saved_at: string | null; opted_out_at: string | null; queue_priority: string; media_received_at?: string | null; saved_total?: number | null; saved_veu_discount?: number | null } | null; referralUrl?: string | null; home?: { suburb: string | null; short: string | null }; bookingAvailable: boolean; owner: { firstName: string | null }; initialValues: { address: string; areaM2: number | null; insulation: InsulationDeclared } } | null;
+  type CampaignData = { group: "likely" | "onsite"; estimate: unknown; pricing: Pricing | null; response: { spot_saved_at: string | null; opted_out_at: string | null; queue_priority: string; media_received_at?: string | null; desk_check_status?: string; saved_total?: number | null; saved_veu_discount?: number | null } | null; referralUrl?: string | null; home?: { suburb: string | null; short: string | null }; bookingAvailable: boolean; owner: { firstName: string | null }; initialValues: { address: string; areaM2: number | null; insulation: InsulationDeclared } } | null;
   const { data, isLoading, isError, refetch } = useQuery({ queryKey: ["launch_campaign", token], queryFn: async () => {
     const json = await getPage({ data: { token } });
     return json ? JSON.parse(json) as CampaignData : null;
@@ -39,7 +39,7 @@ function CampaignPage() {
       : isError || !data ? <section className="estimate-offset rounded-2xl border bg-white p-8 text-center"><h1 className="font-display text-2xl font-bold">This link isn't available</h1><p className="mt-2 text-sm">Please contact Home Insulation Victoria and we'll help.</p></section>
       : data.response?.opted_out_at ? <div className="mx-auto max-w-[760px] px-4 sm:px-8"><section className="estimate-offset rounded-[22px] border border-estimate-blue-soft bg-white p-8 text-center"><h1 className="font-display text-3xl font-extrabold text-estimate-navy">You're off the list</h1><p className="mt-3 text-estimate-navy/75">We won't send any more campaign messages about this enquiry.</p></section></div>
       : data.response?.spot_saved_at ? <div className="mx-auto max-w-[760px] px-4 sm:px-8"><Result group={data.group} videoPriority={data.response.queue_priority === "video"} token={token} rebate={data.response.saved_veu_discount ?? null} customer={data.response.saved_total ?? null} suburb={data.home?.suburb ?? null} home={data.home?.short ?? null} referralUrl={data.referralUrl ?? null} firstName={data.owner.firstName ?? null} /></div>
-      : data.pricing ? <CampaignDesign group={data.group} token={token} name={data.owner.firstName} suburb={data.home?.suburb ?? null} p={data.pricing} busy={busy} error={error} onSave={() => void act("save")} onOptOut={() => void act("optout")} />
+      : data.pricing ? <CampaignDesign reviewStatus={data.response?.desk_check_status ?? null} group={data.group} token={token} name={data.owner.firstName} suburb={data.home?.suburb ?? null} p={data.pricing} busy={busy} error={error} onSave={() => void act("save")} onOptOut={() => void act("optout")} />
       : <section className="estimate-offset mx-4 rounded-2xl border bg-white p-8 text-center"><h1 className="font-display text-2xl font-bold">Your estimate is being updated</h1><p className="mt-2 text-sm">Please check back soon.</p></section>}
     </main>
   </div>;
@@ -84,11 +84,11 @@ type Pricing = { gross: number; discount: number; total: number; areaM2: number;
 const money = (n: number) => `$${Math.floor(Number(n)).toLocaleString("en-AU")}`;
 
 /** v8 (Jo, 6 Oct): Jo's approved Group A design lives here, where Outfit/Figtree load. The short email only links here. */
-function CampaignDesign({ group, token, name, suburb, p, busy, error, onSave, onOptOut }: { group: "likely" | "onsite"; token: string; name: string | null; suburb: string | null; p: Pricing; busy: "save" | "optout" | null; error: string | null; onSave: () => void; onOptOut: () => void }) {
-  const onsite = group === "onsite";
+function CampaignDesign({ reviewStatus, group, token, name, suburb, p, busy, error, onSave, onOptOut }: { reviewStatus: string | null; group: "likely" | "onsite"; token: string; name: string | null; suburb: string | null; p: Pricing; busy: "save" | "optout" | null; error: string | null; onSave: () => void; onOptOut: () => void }) {
+  const onsite = group === "onsite" && reviewStatus !== "looks_eligible";
   const rebate = money(p.discount);
   const saveBtn = <Button type="button" disabled={!!busy} onClick={onSave} className="h-14 w-full rounded-xl bg-estimate-green font-display text-lg font-bold text-estimate-white hover:bg-estimate-accent">{busy === "save" ? "Saving…" : "Save my spot →"}</Button>;
-  const videoBtn = <Button asChild className="h-14 w-full rounded-xl bg-estimate-green font-display text-lg font-bold text-estimate-white hover:bg-estimate-accent"><Link to="/estimate/$token/video" params={{ token }}>Send my video and jump the queue →</Link></Button>;
+  const videoBtn = <Button asChild className="h-14 w-full rounded-xl bg-estimate-green font-display text-lg font-bold text-estimate-white hover:bg-estimate-accent"><Link to="/estimate/$token/video" params={{ token }}>Check my existing insulation →</Link></Button>;
   const removal = p.insulation === "none" ? "Doesn't include removing old insulation (you told us there isn't any)." : "If old insulation needs removing, we'll confirm it at your Ready Check.";
   const row = (l: string, v: string, cls = "") => <div className={`flex justify-between gap-3 py-1.5 text-sm ${cls}`}><span>{l}</span><span>{v}</span></div>;
   const gets: [string, string][] = [["Free Ready Check", "We measure your roof space and confirm the job."], ["R5.0 ceiling insulation", "Supplied and fitted by a certified installer."], ["Electrical safety check", "By a licensed electrician, as the rules require."], ["Rebate paperwork, done for you", "We handle the forms and the claim."]];
@@ -101,9 +101,9 @@ function CampaignDesign({ group, token, name, suburb, p, busy, error, onSave, on
       <p className={`text-[11px] font-extrabold uppercase tracking-[0.13em] ${onsite ? "text-estimate-green" : "text-estimate-logo-green"}`}>{onsite ? "Jump the queue" : "🎉 Your rebate is waiting"}</p>
       <h1 className="mt-2 font-display text-[32px] font-extrabold leading-[1.15]">{onsite ? <>{name ? `${name}, take` : "Take"} <span className="text-estimate-logo-green">{rebate}</span> off your ceiling insulation</> : <>Great news{name ? `, ${name}` : ""}! You could take <span className="text-estimate-logo-green">{rebate}</span> off your ceiling insulation</>}</h1>
       <p className="mt-4 text-[15px] leading-relaxed">Your {suburb ? `${suburb} ` : ""}home {onsite ? "could be eligible" : "looks eligible"} for the Victorian Energy Upgrades rebate. That means you pay about <strong>{money(p.total)}</strong> instead of {money(p.gross)}, and enjoy lower power bills for years to come.</p>
-      <p className="mt-3 text-sm font-extrabold">{onsite ? "Homes that send a quick manhole video get booked first." : "Hundreds of homes have enquired since 1 October. Spots go in order."}</p>
+      <p className="mt-3 text-sm font-extrabold">{onsite ? "If your existing insulation appears below R2, you could JUMP THE QUEUE after office review." : "Hundreds of homes have enquired since 1 October. Spots go in order."}</p>
       <div className="mt-5">{onsite ? videoBtn : saveBtn}</div>
-      {onsite ? <p className="mt-3 text-center text-sm">No video? <button type="button" disabled={!!busy} onClick={onSave} className="font-bold text-estimate-blue underline">{busy === "save" ? "Saving…" : "Just save my spot"}</button> · free, no obligation</p> : <p className="mt-3 text-center text-sm">Free · no payment · no obligation</p>}
+      {onsite ? <p className="mt-3 text-center text-sm">Upload a manhole video or pictures, or confirm it is below R2. Office checks first.</p> : <p className="mt-3 text-center text-sm">Free · no payment · no obligation</p>}
       {error && <p role="alert" className="mt-2 text-center text-sm text-danger">{error}</p>}
     </section>
     <section data-campaign-estimate className="mt-7 rounded-[22px] bg-estimate-mist p-5">
@@ -122,7 +122,7 @@ function CampaignDesign({ group, token, name, suburb, p, busy, error, onSave, on
     </section>
     <section className="mt-5 rounded-[22px] bg-estimate-blush p-5">
       <h2 className="font-display text-[23px] font-extrabold leading-tight">{onsite ? "Want to jump the queue?" : "Hold your place in line"}</h2>
-      {onsite ? <><p className="mt-3 text-sm leading-relaxed">Send us one short video from your manhole. It lets us check your existing insulation before we book you in, so nobody's time is wasted. <strong>Homes with a video get booked first.</strong></p><p className="mt-2 text-xs">Only if you can do it safely. Please don’t climb into or walk through the roof space.</p><div className="mt-4">{videoBtn}</div><p className="mt-3 text-center text-sm">Can’t do a video? No worries. <button type="button" disabled={!!busy} onClick={onSave} className="font-bold text-estimate-blue underline">Just save my spot</button></p></>
+      {onsite ? <><p className="mt-3 text-sm leading-relaxed">Send a short manhole video or clear pictures, or select “I confirm this is below R2”. Our office will assess what you provide and, if suitable, offer you Save my spot.</p><p className="mt-2 text-xs">Only if you can do it safely. Please don’t climb into or walk through the roof space.</p><div className="mt-4">{videoBtn}</div><p className="mt-3 text-center text-sm">{reviewStatus === "pending" ? "Your insulation details are awaiting office review." : reviewStatus === "not_eligible" ? "Our office has assessed your insulation as not eligible. Please contact us with any questions." : reviewStatus === "needs_onsite_check" ? "An onsite check is needed before we can offer Save my spot." : "Your spot is not saved until our office has checked your insulation and you choose Save my spot."}</p></>
         : <><p className="mt-3 text-sm leading-relaxed">One tap and you're in. We'll be in touch to book your free Ready Check as soon as an installer is free near you.</p><div className="mt-4">{saveBtn}</div></>}
     </section>
     <p className="mt-5 text-xs leading-relaxed text-estimate-navy/70">Estimate only. Your price can change if your ceiling is a different size, old insulation needs removing, access is tricky, or the electrician finds something to fix. We never add work or cost without showing you first and getting your OK.</p>

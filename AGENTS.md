@@ -11,7 +11,7 @@
 
 - `docs/HIV_WORKFLOW_SOURCE_OF_TRUTH.md` + `src/config/workflow-decisions.ts` override older prompts/comments/labels; run `bun scripts/scan-retired-terms.ts` before workflow work. Pending DB changes live in `docs/pending-migrations/` and are proven on PGlite (`tests/helpers/pglite-*.ts`) before any live run. Why: stop retired rules returning and keep untested SQL off the live database.
 # Project rules
-- Welcome and campaign email presentation share the pure `simple-email.core.ts` renderer; the welcome wrapper preserves its legacy output. Why: exact reuse prevents visually divergent email-client layouts.
+- Group B reuses locked Group A email layout; submissions queue office review only, with saving guarded by `campaignSaveAllowed`. Why: declarations never approve eligibility or save spots.
 - Launch and hot-lead campaigns share `lead_campaign_responses`; recipient entries are token-scoped and idempotent; only Save my spot may reach real customers (own switch, direct sending from Hot leads), all else fails closed. Why: auditable responses, no accidental sends.
 - Staff portal presentation-only derivations and exact disclosure targets live in pure `src/lib/portal-presentation.core.ts`; they may label existing facts but never decide workflow or eligibility. Why: focused UI tests must not duplicate or alter domain rules.
 - Service Coverage is a read-only operational summary derived from approved partner credentials, verified postcodes, active enquiries, and approved workers; it never assigns work or changes partner status. Why: coverage planning must not trigger operational actions.

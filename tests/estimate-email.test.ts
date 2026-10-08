@@ -199,7 +199,7 @@ d2("copy normalisation", () => {
 const CAMPAIGN_BANNED = ["VEU rebate", "You could save", "PIESA", "REC", "CII", "Accredited Person (AP)", "VEECs ×", "Open the calculator", "incl. GST · before rebate", "What this includes"];
 describe("launch campaign email drafts", () => {
   const campaignUrl = `https://estimate.homeinsulationvictoria.com.au/estimate/${token}/campaign`;
-  const unsubscribeUrl = `https://estimate.homeinsulationvictoria.com.au/email/unsubscribe?t=${token}`;
+  const unsubscribeUrl = `https://estimate.homeinsulationvictoria.com.au/api/public/unsubscribe?t=${token}`;
 
   test.skip("RETIRED by Jo 7 Oct — v9 Group A reuses the partner invitation template shell verbatim with live price rows", () => {
     const email = renderLaunchCampaignEmail({ group: "likely", campaignUrl, unsubscribeUrl, firstName: "Sarah", estimatedTotal: 3728, veuDiscount: 1470, grossTotal: 5198, areaM2: 150, address: "14 Example Street, Ballarat VIC 3350", insulation: "none", reference: "HV-1" });
@@ -216,12 +216,12 @@ describe("launch campaign email drafts", () => {
     for (const text of ["TRADE<br>PARTNERS", "partnership invitations", "email-art", "Saving your spot does not book a visit", "TEST — only sent to Jo"]) expect(email.html).not.toContain(text);
     expect(email.html.match(/<img /g)?.length).toBe(1);
   });
-  test("v9 Group B: same onboarding email, could-be-eligible line, links to its page", () => {
+  test("Group B: approved Group A layout with preliminary estimate and office-first insulation invitation", () => {
     const email = renderLaunchCampaignEmail({ group: "onsite", campaignUrl, unsubscribeUrl, firstName: "Michael", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150, address: "28 Sample Road, Bendigo VIC 3550" });
-    expect(email.subject).toBe("Michael, jump the queue for your $1,470 rebate");
-    expect(email.html).toContain("Your Bendigo home could be eligible for the Victorian Energy Upgrades rebate.");
-    expect(email.html).toContain(`href="${campaignUrl}"`);
-    expect(email.html).not.toContain("/video");
+    expect(email.subject).toBe("Michael — your preliminary insulation estimate");
+    for (const text of ["your home could qualify", "JUMP THE QUEUE", "below R2", "Our office will assess", "$3,379", "$1,470", "data-likely-savings", "data-likely-itemised", "What could change this price?"]) expect(email.html).toContain(text);
+    expect(email.html).toContain(`href="${campaignUrl.replace(/\/campaign$/, "/video")}"`);
+    expect(email.html).not.toContain("Save my spot →");
   });
 
 });

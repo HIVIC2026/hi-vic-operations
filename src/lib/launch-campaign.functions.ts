@@ -17,6 +17,10 @@ export const takeMeOffList = createServerFn({ method: "POST" }).middleware([with
   .inputValidator((d) => z.object({ token }).parse(d))
   .handler(async ({ data }) => (await import("./launch-campaign.server")).optOutCampaign(data.token));
 
+export const submitInsulationDeclaration = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token, confirmed: z.literal(true) }).parse(d))
+  .handler(async ({ data }) => (await import("./launch-campaign.server")).recordInsulationDeclaration(data.token));
+
 export const getLaunchCampaignOffice = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { requireAdmin } = await import("./workflow.server");

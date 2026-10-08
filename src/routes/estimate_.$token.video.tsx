@@ -7,6 +7,8 @@ import { EstimateHeader } from "@/components/portal/EstimateHeader";
 import { finishCaptureUpload, getCaptureStatus, startCaptureUpload } from "@/lib/owner-capture.functions";
 import { validateCaptureFile } from "@/lib/owner-capture.core";
 import { PUBLIC_CALCULATOR_URL } from "@/lib/estimate-email";
+import { submitInsulationDeclaration } from "@/lib/launch-campaign.functions";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 
 // Public no-login optional homeowner video. The token is the only credential; nothing is fetched during SSR.
@@ -15,10 +17,10 @@ export const Route = createFileRoute("/estimate_/$token/video")({
   headers: () => ({ "Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex, nofollow" }),
   head: () => ({
     meta: [
-      { title: "Send us a short ceiling video — Home Insulation Victoria" },
-      { name: "description", content: "Optionally send Home Insulation Victoria a short phone video of your existing ceiling insulation." },
-      { property: "og:title", content: "Send us a short ceiling video — Home Insulation Victoria" },
-      { property: "og:description", content: "Optional phone video for your insulation enquiry." },
+      { title: "Existing insulation review — Home Insulation Victoria" },
+      { name: "description", content: "Submit ceiling insulation video, photos or a below-R2 declaration for office review." },
+      { property: "og:title", content: "Existing insulation review — Home Insulation Victoria" },
+      { property: "og:description", content: "Submit existing ceiling insulation details for office review." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex, nofollow" },
@@ -35,6 +37,18 @@ function VideoPage() {
   const status = useServerFn(getCaptureStatus);
   const start = useServerFn(startCaptureUpload);
   const finish = useServerFn(finishCaptureUpload);
+  const declare = useServerFn(submitInsulationDeclaration);
+  const [confirmed, setConfirmed] = useState(false);
+  const [declaring, setDeclaring] = useState(false);
+  const [declared, setDeclared] = useState(false);
+  const [declarationError, setDeclarationError] = useState<string | null>(null);
+  const submitDeclaration = async () => {
+    if (!confirmed) return;
+    setDeclaring(true); setDeclarationError(null);
+    try { await declare({ data: { token, confirmed: true } }); setDeclared(true); }
+    catch (e) { setDeclarationError(e instanceof Error ? e.message : "Please try again."); }
+    finally { setDeclaring(false); }
+  };
   const { data, isLoading, isError, refetch } = useQuery({ queryKey: ["capture", token], queryFn: () => status({ data: { token } }), retry: false, refetchOnWindowFocus: false });
   const [phase, setPhase] = useState<Phase>({ k: "idle" });
   const last = useRef<File | null>(null);
@@ -73,8 +87,8 @@ function VideoPage() {
           <div className="mt-6 space-y-4">
             <section className="rounded-2xl border bg-card p-6">
                <p className="text-xs font-bold uppercase tracking-wide text-primary">Jump the queue · {data.reference}{data.suburb ? ` · ${data.suburb}` : ""}</p>
-                <h1 className="mt-1 font-display text-3xl font-bold leading-tight">Send one quick manhole video</h1>
-                <p className="mt-3 text-[15px]">It helps us check your existing insulation before a Ready Check. Homes with a video get booked first.</p>
+                <h1 className="mt-1 font-display text-3xl font-bold leading-tight">Let us check your existing insulation</h1>
+                <p className="mt-3 text-[15px]">If your existing insulation appears below R2, you could JUMP THE QUEUE. Send a manhole video or clear pictures, or confirm it is below R2. Our office checks first and, if suitable, offers you Save my spot.</p>
               <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">
                 <li>Only record if you can do it safely — for example, holding your phone up through the ceiling hatch while standing on a stable ladder.</li>
                 <li><strong>Please don't climb into or walk through the roof space.</strong></li>
@@ -87,7 +101,7 @@ function VideoPage() {
               {phase.k === "done" ? (
                 <div role="status" className="text-center">
                    <h2 className="font-display text-xl font-bold">Thanks — we've got your file</h2>
-                    <p className="mt-2 text-sm text-muted-foreground">You're on the list, with video priority. Our office will review it before arranging your Ready Check.</p><Button asChild variant="link" className="mt-2"><Link to="/estimate/$token/campaign" params={{ token }}>Return to my savings</Link></Button>
+                    <p className="mt-2 text-sm text-muted-foreground">Your file is awaiting office review. If suitable, we will offer you Save my spot. Your spot is not saved yet.</p><Button asChild variant="link" className="mt-2"><Link to="/estimate/$token/campaign" params={{ token }}>Return to my savings</Link></Button>
                 </div>
               ) : data.remaining <= 0 ? (
                  <p role="status" className="text-center text-sm">We've already received your files. Thank you!</p>
@@ -102,8 +116,13 @@ function VideoPage() {
               )}
             </section>
             <section className="rounded-2xl border bg-card p-6 text-sm">
-              <h2 className="font-display text-lg font-bold">Can't record safely?</h2>
-               <p className="mt-1">That's completely fine — your place is still saved. We'll check your existing insulation when a Ready Check is arranged.</p>
+              <h2 className="font-display text-lg font-bold">No video or pictures?</h2>
+              {declared ? <p role="status" className="mt-3">Your confirmation has been submitted for office review. It does not confirm eligibility or save a spot.</p> : <>
+                <label className="mt-3 flex items-center gap-3"><Checkbox checked={confirmed} onCheckedChange={(v) => setConfirmed(v === true)} disabled={declaring} />I confirm this is below R2</label>
+                <Button className="mt-4 h-12 w-full" disabled={!confirmed || declaring || phase.k === "uploading"} onClick={() => void submitDeclaration()}>{declaring ? "Submitting…" : "Submit for office review"}</Button>
+                {declarationError && <p role="alert" className="mt-2 text-destructive">{declarationError}</p>}
+              </>}
+              <p className="mt-3 text-muted-foreground">Do not enter the roof space. If you cannot check safely or are unsure, contact us.</p>
                <p className="mt-3"><Link to="/estimate/$token/campaign" params={{ token }} className="font-semibold text-primary underline">Return to my savings</Link></p>
             </section>
           </div>

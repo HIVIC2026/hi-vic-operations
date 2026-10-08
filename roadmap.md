@@ -1,4 +1,9 @@
 # Roadmap (preview only, nothing sent, no publish, no real jobs)
+## Group B insulation review (Jo, 8 Oct 03:27–03:29 UTC)
+- [x] Match Group A email layout and include the preliminary estimate; change the invitation to existing-insulation review / JUMP THE QUEUE. Actual HTML visually checked.
+- [x] Accept manhole video/photos or owner below-R2 declaration; office checks first, no automatic saved spot or eligibility approval. Positive office check unlocks the existing Save my spot link.
+- [x] Regression checks: 34 pass, one retired test skipped; unchanged Group A parity verified; preview build OK. No emails sent or publish.
+- [ ] Full owner submission → office check → save click-through: blocked by no active usable Group B TEST link (only existing match HV-1003 is revoked). No real homeowner record changed.
 
 ## Texts — brand prefix + replies (Jo, 8 Oct 02:10-02:20 UTC)
 - [x] Prefix every text the portal sends with "Home Insulation Victoria: " (real sender + test sender, idempotent).

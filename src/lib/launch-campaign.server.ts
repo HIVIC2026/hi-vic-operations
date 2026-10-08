@@ -3,7 +3,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { declaredExtras } from "./enquiry.core";
 import { normaliseInsulation } from "./eligibility.core";
 import { isWellFormedToken, LINK_PURPOSE, linkUsable } from "./estimatelink.core";
-import { LAUNCH_BATCH_SIZE, LAUNCH_CAMPAIGN, LAUNCH_COPY_APPROVED, deskCheckReasonError, launchGroup, ownerCalculatorChangeNote, savedPriceFromCalculator, savedPriceFromEstimate, savedPriceLabel, type DeskCheckOutcome } from "./launch-campaign.core";
+import { LAUNCH_BATCH_SIZE, LAUNCH_CAMPAIGN, LAUNCH_COPY_APPROVED, campaignSaveAllowed, deskCheckReasonError, launchGroup, ownerCalculatorChangeNote, savedPriceFromCalculator, savedPriceFromEstimate, savedPriceLabel, type DeskCheckOutcome } from "./launch-campaign.core";
 import { logEvent } from "./workflow.server";
 import { whatIfEstimate } from "./estimate.core";
 
@@ -58,6 +58,8 @@ export async function campaignPage(token: unknown, testMode = false) {
 export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; insulation: "none" | "present" | "unknown" | null } | null) {
   const c = await campaignLink(token);
   if (!c) throw new Error("This link is no longer available.");
+  const { data: review, error: reviewError } = await admin.from("lead_campaign_responses").select("desk_check_status").eq("job_id", c.job.id).maybeSingle();
+  if (reviewError || !campaignSaveAllowed(c.group, review?.desk_check_status)) throw new Error("Our office needs to check your insulation before offering Save my spot.");
   const now = new Date().toISOString();
   const { data: est } = await admin.from("indicative_estimates").select("id, area_m2, insulation_declared, scenarios").eq("job_id", c.job.id).eq("status", "current").maybeSingle();
   let price = savedPriceFromEstimate(est ?? null);
@@ -84,7 +86,9 @@ export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; 
   const ins = await admin.from("lead_campaign_responses").upsert({ job_id: c.job.id, estimate_link_id: c.link.id, campaign: LAUNCH_CAMPAIGN, spot_saved_at: now, video_requested: c.group === "onsite", desk_check_status: c.group === "onsite" ? "pending" : "not_needed", updated_at: now, ...snapshot }, { onConflict: "job_id", ignoreDuplicates: true }).select("id");
   let firstSave = !ins.error && (ins.data?.length ?? 0) > 0;
   if (!firstSave) {
-    const upd = await admin.from("lead_campaign_responses").update({ spot_saved_at: now, updated_at: now, ...snapshot }).eq("job_id", c.job.id).is("opted_out_at", null).is("spot_saved_at", null).select("id");
+    let query = admin.from("lead_campaign_responses").update({ spot_saved_at: now, updated_at: now, ...snapshot }).eq("job_id", c.job.id).is("opted_out_at", null).is("spot_saved_at", null);
+    if (c.group === "onsite") query = query.eq("desk_check_status", "looks_eligible");
+    const upd = await query.select("id");
     firstSave = !upd.error && (upd.data?.length ?? 0) > 0;
   }
   const { data: row } = await admin.from("lead_campaign_responses").select("opted_out_at, spot_saved_at").eq("job_id", c.job.id).maybeSingle();
@@ -137,15 +141,30 @@ export async function markCampaignMediaReceived(jobId: string, linkId: string) {
   const { data: link } = await admin.from("customer_estimate_links").select("id").eq("id", linkId).eq("job_id", jobId).maybeSingle();
   if (!link) return;
   const now = new Date().toISOString();
-  const { data: existing } = await admin.from("lead_campaign_responses").select("desk_check_status, media_received_at, spot_saved_at").eq("job_id", jobId).maybeSingle();
-  const patch = { media_received_at: existing?.media_received_at ?? now, spot_saved_at: existing?.spot_saved_at ?? now, queue_priority: "video", updated_at: now, ...(existing && !["not_needed", "pending"].includes(existing.desk_check_status) ? {} : { desk_check_status: "pending" }) };
-  if (existing) await admin.from("lead_campaign_responses").update(patch).eq("job_id", jobId);
-  else await admin.from("lead_campaign_responses").insert({ job_id: jobId, estimate_link_id: linkId, campaign: LAUNCH_CAMPAIGN, video_requested: true, ...patch });
-  // A video that is the FIRST save sends the confirmation once; a video after saving never re-sends.
-  if (!existing?.spot_saved_at) {
-    const { data: l } = await admin.from("customer_estimate_links").select("token").eq("id", linkId).maybeSingle();
-    if (l?.token) await queueSpotSavedConfirmations(jobId, l.token);
+  const { data: existing, error: readError } = await admin.from("lead_campaign_responses").select("desk_check_status, media_received_at, spot_saved_at, opted_out_at").eq("job_id", jobId).maybeSingle();
+  if (readError) throw new Error("Your file was received but the office review could not be queued. Please try again.");
+  if (existing?.opted_out_at) return;
+  const patch = { media_received_at: existing?.media_received_at ?? now, queue_priority: "video", updated_at: now, ...(existing && !["not_needed", "pending"].includes(existing.desk_check_status) ? {} : { desk_check_status: "pending" }) };
+  const result = existing ? await admin.from("lead_campaign_responses").update(patch).eq("job_id", jobId) : await admin.from("lead_campaign_responses").insert({ job_id: jobId, estimate_link_id: linkId, campaign: LAUNCH_CAMPAIGN, video_requested: true, ...patch });
+  if (result.error) throw new Error("Your file was received but the office review could not be queued. Please try again.");
+}
+
+export async function recordInsulationDeclaration(token: unknown) {
+  const c = await campaignLink(token);
+  if (!c || c.group !== "onsite") throw new Error("This insulation review link is not available.");
+  const { data: existing, error: readError } = await admin.from("lead_campaign_responses").select("id, opted_out_at").eq("job_id", c.job.id).maybeSingle();
+  if (readError || existing?.opted_out_at) throw new Error("This insulation review is not available.");
+  const { data: recorded, error: eventError } = await admin.from("workflow_events").select("id").eq("job_id", c.job.id).eq("event_type", "owner_insulation_below_r2_declared").limit(1).maybeSingle();
+  if (eventError) throw new Error("We couldn't check your submission. Please try again.");
+  if (!recorded) await logEvent(c.job.id, null, "owner_insulation_below_r2_declared", "Owner declared: I confirm this is below R2 — office review required (not verified eligibility)", { declaration: "I confirm this is below R2", basis: "owner_declared" }, { internal: true });
+  if (!existing) {
+    const { error } = await admin.from("lead_campaign_responses").upsert({ job_id: c.job.id, estimate_link_id: c.link.id, campaign: LAUNCH_CAMPAIGN, desk_check_status: "pending", desk_check_reason: "Owner declaration: I confirm this is below R2 (not verified)", updated_at: new Date().toISOString() }, { onConflict: "job_id", ignoreDuplicates: true });
+    if (error) throw new Error("We couldn't submit your insulation for review. Please try again.");
+  } else {
+    const { error } = await admin.from("lead_campaign_responses").update({ desk_check_status: "pending", desk_check_reason: "Owner declaration: I confirm this is below R2 (not verified)", updated_at: new Date().toISOString() }).eq("job_id", c.job.id).eq("desk_check_status", "not_needed").is("opted_out_at", null);
+    if (error) throw new Error("We couldn't submit your insulation for review. Please try again.");
   }
+  return { ok: true as const };
 }
 
 export async function launchCampaignOffice() {
