@@ -73,6 +73,9 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
     const { data: asgB } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
     const { data: bizB } = asgB?.business_id ? await admin.from("businesses").select("name").eq("id", asgB.business_id).maybeSingle() : { data: null };
     const tplDef = await mittiApi(realCall).getTemplateDefinition(expectedTpl).catch(() => null);
+    if (!tplDef) return { status: "error", message: "The current PIISA field structure could not be checked. No signed official copy saved." };
+    const mappingProblems = coreC.a3MissingFields(tplDef);
+    if (mappingProblems.length) return { status: "error", message: `The PIISA field structure has changed and needs confirmed mapping: ${mappingProblems.join(" • ")}. No signed official copy saved.` };
     const crewRes = coreC.a3ResolveCrewChoices(coreC.a3CrewChoices(audit), tplDef, asgB?.business_id ? await cs(asgB.business_id) : [], bizB?.name ?? "");
     Object.assign(answers, crewRes.answers);
     crewBlockers = [...crewRes.blockers, ...crewRes.needsVerification];
