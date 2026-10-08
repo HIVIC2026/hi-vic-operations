@@ -102,9 +102,10 @@ export async function loadEnquiryGroups() {
     const js = sBy.get(j.id) ?? [];
     const last = js[js.length - 1];
     const audit = (j.eligibility_decision_rules ?? null) as StoredAudit;
+    const mediaOutcome = outcomeBy.get(j.id) ?? null;
     const c = classifyEnquiry({
       kind: "job", stage: j.stage, holdReason: j.hold_reason, outcome: j.eligibility_outcome, decisionSource: j.eligibility_decision_source,
-      reviewRequired: !!j.eligibility_review_required, audit, intakeWorkActive: workSet.has(j.id), declaredInsulation,
+      reviewRequired: !!j.eligibility_review_required, audit, intakeWorkActive: workSet.has(j.id), declaredInsulation, officeInsulation: mediaOutcome,
       area: { measured: m ? Number(m.verified_area_m2 ?? m.measured_area_m2) : null, estimated: best?.net_m2 ?? null, declared: j.estimated_area_m2 == null ? null : Number(j.estimated_area_m2), declaredUnknown: j.estimated_area_unknown },
       videoCount: homeownerVideoCount((dBy.get(j.id) ?? []) as { kind: string; mime_type: string | null; storage_path: string }[]),
     });
@@ -125,7 +126,7 @@ export async function loadEnquiryGroups() {
           campaignGroup: camp.length ? (camp.some((s) => /:b(:|$)/.test(s.idempotency_key ?? "")) ? "onsite" : "likely") : null,
         });
       })(), attentionReason: null, outcomeAt: j.eligibility_set_at ?? null,
-      mediaCount: (mediaBy.get(j.id) ?? []).length, mediaChecked: checkedSet.has(j.id),
+      mediaCount: (mediaBy.get(j.id) ?? []).length, mediaChecked: mediaOutcome === "below_r2" || mediaOutcome === "over_r2", mediaOutcome,
     };
   });
   const primary = primaryByContact(rows);
