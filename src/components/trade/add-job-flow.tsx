@@ -225,7 +225,7 @@ export function AddJobFlow({ businessId, initialMode, onExit }: { businessId: st
       <div className="space-y-2">
         {step === "review"
           ? <Button size="field" className="w-full" disabled={busy} aria-busy={busy} onClick={save}>{busy ? BUSY_LABEL : submitLabel(mode)}</Button>
-          : !(step === "details" && mode === "existing" && ex.quoted === "no") && <Button size="field" className="w-full" disabled={busy} aria-busy={busy} onClick={forward}>{busy ? BUSY_LABEL : "Continue"}</Button>}
+          : !(step === "details" && mode === "existing" && ex.quoted === "no") && <Button size="field" className="w-full" disabled={busy} aria-busy={busy} onClick={forward}>{busy ? BUSY_LABEL : "Next"}</Button>}
         <div className="grid grid-cols-2 gap-2">
           <Button size="field" variant="outline" disabled={busy} onClick={back}>Back</Button>
           <Button size="field" variant="ghost" disabled={busy} onClick={async () => {
@@ -277,7 +277,7 @@ function SavedResult({ saved }: { saved: Saved }) {
   useEffect(() => {
     if (saved.mode !== "onsite" || !state) return;
     if (state.kind === "open") { if (!opened.current) { opened.current = true; window.location.href = state.url; } return; }
-    if ((state.kind !== "preparing" && state.kind !== "retry") || tries >= 30) return;
+    if (state.kind !== "preparing" || tries >= 60) return;
     const t = setTimeout(async () => { try { setState(await status({ data: { jobId: saved.jobId, retry: false } })); } catch { /* keep */ } setTries((n) => n + 1); }, 4000);
     return () => clearTimeout(t);
   }, [state, tries, saved, status]);

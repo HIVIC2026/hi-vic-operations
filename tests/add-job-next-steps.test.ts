@@ -26,4 +26,8 @@ describe("Add job next steps (Jo 8 Oct)", () => {
     expect(o.body).toContain("Nobody has been contacted yet");
     expect(o.waitingOn).toBe("Home Insulation Victoria");
   });
+  test("onsite preparing wording is Jo 90-second copy", () => {
+    expect(nextStepText("onsite")).toContain("about 90 seconds");
+    expect(outcomeFor("onsite", { state: { kind: "preparing", message: "" } }).heading).toBe("Job saved — preparing your Ready Check form…");
+  });
 });
