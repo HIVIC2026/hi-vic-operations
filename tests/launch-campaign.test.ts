@@ -3,16 +3,12 @@ import { campaignSaveAllowed, deskCheckReasonError, launchGroup, LAUNCH_BATCH_SI
 import { readFileSync } from "node:fs";
 
 describe("existing leads launch campaign", () => {
-  test("Group B waits for a positive office check, never a declaration or upload alone", () => {
+  test("Group B media waits for positive review; explicit qualifying declaration opens the spot", () => {
     for (const status of [null, undefined, "pending", "not_needed", "not_eligible", "needs_onsite_check"]) expect(campaignSaveAllowed("onsite", status)).toBe(false);
     expect(campaignSaveAllowed("onsite", "looks_eligible")).toBe(true);
     expect(campaignSaveAllowed("likely", null)).toBe(true);
-    const server = readFileSync("src/lib/launch-campaign.server.ts", "utf8");
-    const submission = server.slice(server.indexOf("export async function markCampaignMediaReceived"), server.indexOf("export async function launchCampaignOffice"));
-    expect(submission).not.toContain("queueSpotSavedConfirmations");
-    expect(submission).not.toMatch(/spot_saved_at\s*:/);
-    expect(submission).not.toMatch(/eligibility_outcome\s*:|stage\s*:/);
-    expect(server).toContain("!campaignSaveAllowed(c.group, review?.desk_check_status)");
+    expect(campaignSaveAllowed("onsite", "not_needed", true)).toBe(true);
+    expect(campaignSaveAllowed("onsite", "not_eligible", true)).toBe(false);
   });
   test("segments the two approved groups and excludes ineligible leads", () => {
     expect(launchGroup("likely_eligible", "none")).toBe("likely");

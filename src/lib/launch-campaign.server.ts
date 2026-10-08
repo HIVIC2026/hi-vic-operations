@@ -49,7 +49,7 @@ export async function campaignLink(token: unknown) {
 function campaignPermission(c: NonNullable<Awaited<ReturnType<typeof campaignLink>>>, deskStatus: string | null | undefined) {
   if (["not_eligible", "needs_onsite_check"].includes(deskStatus ?? "") || c.mediaReview === "over_r2" || c.mediaReview === "unclear") return false;
   if (c.mediaReview === "below_r2" && c.criteriaPassed) return true;
-  if (c.media?.excluded) return deskStatus === "eligible_for_free_ready_check" && c.criteriaPassed;
+  if (c.media?.excluded) return deskStatus === "looks_eligible" && c.criteriaPassed;
   return campaignSaveAllowed(c.group, deskStatus, c.ownerQualified);
 }
 
