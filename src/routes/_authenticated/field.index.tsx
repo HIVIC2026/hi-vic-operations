@@ -57,7 +57,7 @@ function MyWork() {
         <NowPanel eyebrow="Your next step" status={data.yourMove[0].title} next={data.yourMove[0].detail}
           action={<Link to="/field/$jobId" params={{ jobId: data.yourMove[0].jobId }} className={btnClass("primary", "w-full md:w-auto")}>Open job</Link>} />
       ) : null}
-      {data.yourMove.length > 0 && (
+      {!installer && data.yourMove.length > 0 && (
         <section>
           <h2 className="mb-2 flex items-center gap-2 font-display text-base font-bold">Your move <Pill tone="rose">{data.yourMove.length}</Pill></h2>
           <div className="space-y-2">{data.yourMove.map((m) => (
