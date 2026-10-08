@@ -61,6 +61,8 @@ export function AddJobFlow({ businessId, initialMode, onExit }: { businessId: st
   useEffect(() => { try { const d = localStorage.getItem(DRAFT_KEY); if (d) setCustomer(restoreCustomer(JSON.parse(d))); } catch { /* ignore */ } }, []);
   useEffect(() => { try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...customer, contact_permission: false, consent_by: null })); } catch { /* ignore */ } }, [customer]);
   useEffect(() => { if (shown.length) problemsRef.current?.focus(); }, [shown]);
+  // Fixing an answer clears the old hint list; it is rebuilt on the next tap.
+  useEffect(() => { setShown([]); }, [ticks, customer, ex, later]);
 
   const start = useServerFn(startOnsiteReadyCheck);
   const create = useServerFn(createImport), confirm = useServerFn(confirmImport), discard = useServerFn(discardImport);
