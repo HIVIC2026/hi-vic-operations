@@ -29,7 +29,7 @@ export const JO_TEST_INBOX = "jolowexo@hotmail.com";
 /** TEST job whose links go into Jo's test copies, so pressing them never touches the real lead. */
 export const JO_TEST_LINK_JOB = "HV-1609";
 
-export async function sendSaveMySpot(jobIds: string[], actorId: string, testOpts: TestSendOptions = {}): Promise<HotSendResult[]> {
+export async function sendSaveMySpot(jobIds: string[], actorId: string | null, testOpts: TestSendOptions = {}): Promise<HotSendResult[]> {
   if (jobIds.length > HOT_SEND_BATCH) throw new Error(`Send at most ${HOT_SEND_BATCH} at a time.`);
   const realOn = await realSendingOn();
   const out: HotSendResult[] = [];
@@ -37,7 +37,7 @@ export async function sendSaveMySpot(jobIds: string[], actorId: string, testOpts
   return out;
 }
 
-async function sendOne(jobId: string, actorId: string, realOn: boolean, testOpts: TestSendOptions): Promise<HotSendResult> {
+async function sendOne(jobId: string, actorId: string | null, realOn: boolean, testOpts: TestSendOptions): Promise<HotSendResult> {
   const mode = testOpts.mode ?? "send";
   const { data: job } = await admin.from("jobs").select("id, job_number, source, stage, eligibility_outcome, owners(full_name, email), properties(address_line, suburb, postcode)").eq("id", jobId).maybeSingle();
   if (!job) return { jobId, jobNumber: null, outcome: "failed", detail: "Job not found" };
@@ -154,6 +154,19 @@ async function sendOne(jobId: string, actorId: string, realOn: boolean, testOpts
   }
   await logEvent(jobId, actorId, "save_my_spot_email_sent", `Save my spot email sent from Hot leads${isTest ? " (TEST, allowlist only)" : ""}`, { campaign: LAUNCH_CAMPAIGN, to_test: isTest }, { internal: true }).catch(() => null);
   return r("sent", isTest ? "Sent to Jo's test inbox" : "Sent");
+}
+
+/** Automatic send after an official Gate 1 decision + Step 3 prep (Jo, 8 Oct 2026): real jobs only —
+ *  sendOne re-checks likely-eligible + no insulation + size entered, consent, opt-out and once-per-home.
+ *  TEST (qa_test) jobs never auto-email. Best-effort: never throws, never blocks intake. */
+export async function maybeAutoSendSaveSpot(jobId: string): Promise<void> {
+  try {
+    const { data: job } = await admin.from("jobs").select("source").eq("id", jobId).maybeSingle();
+    if (!job || job.source === "qa_test") return;
+    await sendSaveMySpot([jobId], null);
+  } catch (e) {
+    console.warn("auto save-my-spot send failed (ignored)", (e as Error).message.slice(0, 200));
+  }
 }
 
 const CAMPAIGN_FROM = "Home Insulation Victoria <jobs@homeinsulationvictoria.com.au>";
