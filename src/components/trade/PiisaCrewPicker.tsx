@@ -14,7 +14,7 @@ export function PiisaCrewPicker({ jobId }: { jobId: string }) {
   const { data, refetch } = useQuery({ queryKey: ["piisa-crew", jobId], queryFn: () => get({ data: { jobId } }) });
   const [lead, setLead] = useState<CrewSelection["lead"]>(null);
   const [extra, setExtra] = useState<CrewPick[]>([]);
-  const [msg, setMsg] = useState<CrewSelection["lead"]>(null);
+  const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => { if (!data) return; if (data.selection) { setLead(data.selection.lead); setExtra(data.selection.additional); } else { const r = data.staff.filter(ready); if (r.length === 1) setLead(r[0]!.workerId); } }, [data]);
   if (!data) return null;
