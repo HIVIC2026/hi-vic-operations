@@ -33,9 +33,8 @@ describe("original-condition evidence applicability (final verified gate)", () =
 
 describe("work-start lock uses the live original-condition answers", () => {
   test("PIISA send / install evidence refused while original-condition answers are missing", async () => {
-    const real = await import("../src/lib/ready-check-draft.server");
-    let block = true; // scoped: other test files sharing this process see the real behaviour afterwards
-    mock.module("@/lib/ready-check-draft.server", () => ({ ...real, rcWorksBlockers: async (id: string) => (block ? ["Existing insulation", "Removal required"] : real.rcWorksBlockers(id)) }));
+    let block = true; // afterwards: [] (= a non-intake job), so other files sharing this process are unaffected
+    mock.module("@/lib/ready-check-draft.server", () => ({ rcWorksBlockers: async () => (block ? ["Existing insulation", "Removal required"] : []), rcObservedInsulation: async () => null }));
     const { requirePrestartClear } = await import("../src/lib/prestart.server");
     try { await expect(requirePrestartClear("job-1")).rejects.toThrow("record the original ceiling condition"); } finally { block = false; }
   });
