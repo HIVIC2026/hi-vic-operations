@@ -59,7 +59,7 @@ describe("5. race-safe submission claim", () => {
     expect(importClaimDecision({ status: "draft", confirmedBy: "u2", confirmedAt: new Date(now - 1000).toISOString(), jobId: null }, "u1", now)).toBe("busy");
   });
   test("partial attempt (job created, not confirmed) resumes for the same user — never a second job", () => {
-    expect(importClaimDecision({ status: "draft", confirmedBy: "u1", confirmedAt: new Date(now - 1000).toISOString(), jobId: "j1" }, "u1", now)).toBe("resume");
+    expect(importClaimDecision({ status: "draft", confirmedBy: "u1", confirmedAt: new Date(now - 1000).toISOString(), jobId: "j1" }, "u1", now)).toBe("busy"); // fresh claim stays busy even for the same user with a partial job
   });
   test("stale crashed claim can be taken over; confirmed returns the same job", () => {
     expect(importClaimDecision({ status: "draft", confirmedBy: "u2", confirmedAt: new Date(now - CLAIM_STALE_MS).toISOString(), jobId: null }, "u1", now)).toBe("claim");

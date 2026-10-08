@@ -190,3 +190,9 @@ One Add a job intake for installer customers; office intake review panel on the 
 - Pre-start works lock now also lists missing original-condition Ready Check answers for installer-intake jobs.
 - Add job: typed details, step and coordination resume per user+business; consent and acknowledgements never restored; quote files resume from the private server draft; retry after a lost response returns the same job.
 - Verified: sealed fixtures at 390px and 1280px (56 click checks, screenshots, no overflow/runtime errors); focused tests 82 pass; typecheck clean. NOT verified: authenticated TEST RPC, live save, installer-test run (no TEST session minted this turn).
+
+## Correctness fixes (8 Oct, 13:19 request)
+- Add job submit claim: a fresh claim is busy for everyone (same user + partial job included); every attempt wins the claim by exact compare-and-swap; job link, confirm and release are fenced on the exact claim timestamp; failed partial release keeps job_id; a retry with different details onto a partial job is refused. PGlite persistence tests: `tests/import-claim-db.test.ts`.
+- Final evidence gate for installer-intake jobs uses the Ready Check `insulation.existing` answer: none → empty-ceiling media only (existing R-value item not applicable); present (incl. mixed) → both verified; unknown/not recorded → fails closed.
+- Corrected accepted quotes: a replacement quote can now be drafted while reconfirmation is open; accepting it supersedes the old accepted quote only if no invoice exists on it (otherwise office must cancel that invoice first).
+- PIISA send and install evidence uploads now check the live original-condition Ready Check answers, not only the day-before pre-start snapshot.

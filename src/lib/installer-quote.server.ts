@@ -15,7 +15,11 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   // Fee awareness is an office quote-SEND prerequisite (Jo, 8 Oct 2026): the draft is still prepared, but held.
   const { data: feeConfirmation } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "installer_owner_fee_awareness").order("created_at", { ascending: false }).limit(1).maybeSingle();
   const { data: open } = await admin.from("quotes").select("id, status, subtotal_inc_gst, veec_discount_inc_gst, option_code").eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]);
-  if ((open ?? []).some((q) => q.status !== "draft")) return null; // a sent/accepted quote is never touched
+  // A sent quote is never touched. An ACCEPTED quote is never changed either, but when its facts were corrected
+  // (reconfirmation open) a replacement draft may be prepared so the owner can reconfirm at the corrected figures.
+  const { reconfirmationOpen } = await import("./installer-intake.server");
+  if ((open ?? []).some((q) => q.status === "issued")) return null;
+  if ((open ?? []).some((q) => q.status === "accepted") && !(await reconfirmationOpen(jobId))) return null;
 
   const { data: m } = await admin.from("ceiling_measurements").select("measured_area_m2, verified_area_m2, removal_required").eq("job_id", jobId).eq("is_current", true).maybeSingle();
   const m2 = (m ? Number(m.verified_area_m2 ?? m.measured_area_m2) || null : null) ?? intakePrice?.areaM2 ?? null; // intake: provisional installer scope

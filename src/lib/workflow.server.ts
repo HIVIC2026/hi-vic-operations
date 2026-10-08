@@ -308,9 +308,12 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
     if (await isIntakeJob(jobId)) {
       // Installer intake route deferred the Ready Check: every required item VERIFIED (uploads, ticks and
       // declarations never count), real initial-condition and existing R-value media verified, and verified eligibility.
-      const { rebateEvidenceBlockers, INTAKE_REQUIRED_MEDIA } = await import("./installer-intake.core");
+      const { rebateEvidenceBlockers, intakeOriginalConditionMedia } = await import("./installer-intake.core");
+      const { rcObservedInsulation } = await import("./ready-check-draft.server");
+      const media = intakeOriginalConditionMedia(await rcObservedInsulation(jobId));
+      if (media.blocker) blockers.push(media.blocker);
       const { data: ev } = await admin.from("evidence_requirements").select("category, label, required, status").eq("job_id", jobId);
-      blockers.push(...rebateEvidenceBlockers({ items: (ev ?? []).map((r) => ({ category: r.category, label: r.label, blocking: r.required, status: r.status })), apApprovedBy: actorId, requiredCategories: INTAKE_REQUIRED_MEDIA }).filter((b) => !b.startsWith("Final Accredited Person")));
+      blockers.push(...rebateEvidenceBlockers({ items: (ev ?? []).map((r) => ({ category: r.category, label: r.label, blocking: r.required, status: r.status })), apApprovedBy: actorId, requiredCategories: media.required, notApplicableCategories: media.notApplicable }).filter((b) => !b.startsWith("Final Accredited Person")));
       const { verifiedEligible } = await import("./verified-eligibility.server");
       if (!(await verifiedEligible(jobId))) blockers.push("Ready Check evidence not verified as eligible by the office.");
     }
