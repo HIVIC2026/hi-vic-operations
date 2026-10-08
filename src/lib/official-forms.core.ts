@@ -303,7 +303,7 @@ export const PIISA_ITEMS: OfficialItem[] = [
   f("p6.treatment", "P6", "ticks", "Will the existing ceiling insulation be removed completely or topped up?", { options: ["Removed", "Topped Up"], when: "p6.present = Yes" }),
   st("P6", "Note: any foil backed or electrically conductive insulation cannot be topped up and must be removed prior to installation."),
   yn("p6.suitable", "P6", "Is the existing insulation in a suitable condition for new insulation to be laid over?", { when: "p6.present = Yes" }),
-  f("p6.reason", "P6", "text", "If the existing insulation is not removed, what is the reason?", { when: "p6.treatment excludes Removed" }),
+  f("p6.reason", "P6", "text", "If the existing insulation is not removed, what is the reason?", { when: "p6.treatment includes Topped Up" }),
   st("P7", "PART 7 – PRODUCT DETAILS", "heading"),
   f("p7.products", "P7", "text", "List the insulation product(s) brand, model and R-value being installed"),
   st("P8", "PART 8 – INSTALLER DECLARATION", "heading"),
@@ -482,6 +482,7 @@ export function evaluatePiisa(a: OfficialAnswers, ctx: PiisaContext = {}): Evalu
       case "p5.recessed = Yes": return recessed;
       case "p6.present = Yes": return present;
       case "p6.treatment excludes Removed": return present && !treatment.includes("Removed");
+      case "p6.treatment includes Topped Up": return present && treatment.includes("Topped Up");
       default: return true;
     }
   };
@@ -489,12 +490,16 @@ export function evaluatePiisa(a: OfficialAnswers, ctx: PiisaContext = {}): Evalu
   if (isYes(a["lifeSupport"]) && (!LS_OPTIONS.includes(s(a["lifeSupportConsent"])) || !s(a["lifeSupportAttachment"])))
     blockers.push({ rule: "P1-LIFE-SUPPORT", message: LS_STOP });
   if (["p3.swms", "p3.table1", "p3.isolated"].some((k) => isNo(a[k]))) blockers.push({ rule: "P3-CANNOT-PROCEED", message: "\"If you’ve answered NO to any of the question in PART 3 – SAFE SYSTEM OF WORK, the installation CANNOT proceed.\"" });
-  if (solar && isNo(a["p4.isolator"])) nextActions.push({ rule: "P4-ELECTRICIAN", message: "\"If you’ve answered NO to the second question in PART 4 - SOLAR, an electrician must be present at the start of the installation …\"" });
-  if ((solar && isNo(a["p4.isolator"])) || ctx.electricianRequiredAtStart) {
+  // Trigger (Jo, 8 Oct 2026): "No" to the solar instructions question, or the signed PIESA requiring attendance.
+  if (solar && isNo(a["p4.instructions"])) nextActions.push({ rule: "P4-ELECTRICIAN", message: "\"If you’ve answered NO to the second question in PART 4 - SOLAR, an electrician must be present at the start of the installation …\"" });
+  if ((solar && isNo(a["p4.instructions"])) || ctx.electricianRequiredAtStart) {
+    if (s(a["p5.electricianPresent"]) === "N/A") blockers.push({ rule: "ELECTRICIAN-NA-INVALID", message: "An electrician must attend the start, so \"N/A\" is not a valid answer." });
     if (!isYes(a["p5.electricianPresent"])) blockers.push({ rule: "ELECTRICIAN-AT-START", message: "An electrician must be present at the start of the installation, and \"has this occurred?\" is not Yes." });
   }
   const p5 = ["p5.reviewed", "p5.electricianPresent", "p5.icConfirmed", "p5.safeToCover", "p5.rcd", "p5.tps", "p5.basic", "p5.noAccess"];
   if (p5.some((k) => isNo(a[k]))) blockers.push({ rule: "P5-CANNOT-COMMENCE", message: "\"If you’ve answered NO to questions in PART 5 - PRE-INSTALLATION ELECTRICAL SAFETY ASSESSMENT (other than are there recessed luminaries present in the ceiling?), the activity CANNOT commence.\"" });
+  // Unsuitable condition only stops laying new insulation over retained insulation; complete removal is fine.
+  if (present && isNo(a["p6.suitable"]) && treatment.includes("Topped Up")) blockers.push({ rule: "P6-UNSUITABLE-TOPUP", message: "Part 6: the existing insulation is not in a suitable condition for new insulation to be laid over, so it cannot be topped up." });
   if (treatment.some((t) => !["Removed", "Topped Up"].includes(t))) blockers.push({ rule: "P6-OPTIONS", message: "Part 6: existing insulation can only be \"Removed and/or Topped Up\"." });
   if (present) {
     // The form has no conductivity field: an explicit recorded answer plus evidence is required; blank never means "No".
