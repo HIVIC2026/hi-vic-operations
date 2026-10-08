@@ -177,3 +177,42 @@ describe("draft reuse compares full scope, not just code + amount", () => {
     expect((await quotes()).length).toBe(1);
   });
 });
+
+describe("uncommitted own electrician can be corrected through the guarded editor", () => {
+  beforeEach(async () => { await seed("preferred"); await db.exec("update business_members set member_role='business_admin'"); });
+
+  test("own, no accepted quote/invoice/REC -> HIV: nomination ended, fee invalidated, fresh held draft has PIESA", async () => {
+    await db.query("insert into electrician_nominations (job_id, business_id, contact_name) values ($1,$2,'Sample')", [JOB, EL]);
+    await db.query("insert into workflow_events (job_id, event_type, details) values ($1,'installer_owner_fee_awareness',$2)", [JOB, JSON.stringify({ by: "installer", payer: "own", wording: FEE_AWARENESS_OWN_REC })]);
+    await draftQuoteFromIntake(JOB, U);
+    const before = (await current())[0]!;
+    expect(await items(before.id)).not.toContain("PIESA:349");
+    await installerUpdateIntake(JOB, U, BIZ, { ...base, electricianPayer: "hivic" } as never);
+    expect(await choice()).toBe("hivic_organise");
+    expect((await db.query("select id from electrician_nominations where ended_at is null")).rows.length).toBe(0);
+    expect(await evs()).toContain("installer_owner_fee_awareness_invalidated");
+    const drafts = await current();
+    expect(drafts.some((q) => q.id === before.id)).toBe(false);
+    const fresh = (await quotes()).filter((q) => q.status === "draft").pop();
+    if (fresh) expect(await items(fresh.id)).toContain("PIESA:349");
+    const held = (await db.query<{ release_state: string }>("select release_state from quotes where status='draft'")).rows;
+    for (const h of held) expect(h.release_state).toBe("held");
+  });
+
+  test("committed own (accepted owner quote) stays refused with no mutation", async () => {
+    await db.query("insert into electrician_nominations (job_id, business_id, contact_name) values ($1,$2,'Sample')", [JOB, EL]);
+    await db.query("insert into quotes (job_id, kind, status, release_state) values ($1,'installation','accepted','released')", [JOB]);
+    const evBefore = (await evs()).length;
+    const r = await err(installerUpdateIntake(JOB, U, BIZ, { ...base, electricianPayer: "hivic" } as never));
+    expect(r).toMatch(/accepted a quote with your own electrician/);
+    expect(await choice()).toBe("preferred");
+    expect((await db.query("select id from electrician_nominations where ended_at is null")).rows.length).toBe(1);
+    expect((await evs()).length).toBe(evBefore);
+  });
+
+  test("staff member cannot change an own choice", async () => {
+    await db.exec("update business_members set member_role='member'");
+    expect(await err(installerUpdateIntake(JOB, U, BIZ, { ...base, electricianPayer: "hivic" } as never))).toMatch(/business owner/);
+    expect(await choice()).toBe("preferred");
+  });
+});
