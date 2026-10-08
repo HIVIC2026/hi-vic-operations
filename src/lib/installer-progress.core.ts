@@ -3,29 +3,76 @@
 
 export type ProgressStepKey = "review" | "quote" | "electrical" | "installation" | "evidence" | "veec";
 export type ProgressStep = { key: ProgressStepKey; label: string; state: "done" | "current" | "todo"; note: string | null };
+export type QuoteDelivery = "released" | "queued" | "held" | "none";
+export type EvidenceItem = { label: string; status: string; role: string | null; applicability: "current" | "future" | "unknown" };
 export type ProgressFacts = {
   coordination: "hivic_managed" | "self_managed" | null;
   quoted: "yes" | "no" | null;
   eligibility: "eligible" | "declined" | "unresolved";
   quoteHeld: string[];
+  /** Status of the CURRENT (latest non-withdrawn) installation quote; older accepted history never wins over a newer replacement. */
   quoteStatus: "none" | "draft" | "issued" | "accepted";
+  /** Actual release record of the current quote: "released" only with release_state=released AND sent_at recorded. */
+  quoteDelivery: QuoteDelivery;
+  quoteHoldReason?: string | null;
   reconfirmationRequired: boolean;
   electricianPayer: "hivic" | "own" | "undecided";
   /** Current PIESA record with a pass outcome AND a recorded sign-off (an uploaded report alone is not clearance). */
   electricalCleared: boolean;
+  /** 30-day installation window from the current PIESA has expired (job_piesa_deadlines). */
+  electricalExpired?: boolean;
+  /** Job is in an electrical fix-up stage. */
+  rectificationOpen?: boolean;
+  /** Latest installation booking (proposed/confirmed/completed), if any. */
+  installBooking?: { status: string; start: string | null } | null;
+  /** Existing install-readiness blockers (ESC notice, consent, PIESA window) for the current booking. */
+  installBlockers?: string[];
   installationCompleted: boolean;
-  /** Required evidence items still missing or rejected. */
-  evidenceMissing: number;
-  /** AP approval recorded (stage change to ready_for_veec). */
+  /** Required evidence items with their responsible party and applicability. */
+  evidence: EvidenceItem[];
+  /** Latest AP approval, counted only while it is still current (see apApprovalCurrent). */
   evidenceApprovedAt: string | null;
-  veecStatus: string | null; // veec_lodgements.status: submitted | approved | query | rejected | other
+  veecStatus: string | null;
   stage: string;
+  now?: number;
 };
 export type NextAction = { who: "You" | "Home Insulation Victoria" | "Owner" | "Electrician" | "Regulator" | null; text: string };
 
 export const PROGRESS_LABELS: Record<ProgressStepKey, string> = {
   review: "Job review", quote: "Quote", electrical: "Electrical safety", installation: "Installation", evidence: "Evidence review", veec: "VEEC submission",
 };
+
+const OK = new Set(["verified", "not_required"]);
+/** An AP approval counts only while the job still sits after AP review and every applicable required item is verified (none rejected/awaiting review/corrected after approval). */
+export function apApprovalCurrent(f: { stage: string; approvedAt: string | null; evidence: EvidenceItem[]; lastVerifiedAt?: string | null }): boolean {
+  if (!f.approvedAt) return false;
+  if (!["ready_for_veec", "complete"].includes(f.stage)) return false;
+  if (f.evidence.some((e) => e.applicability !== "future" && !OK.has(e.status))) return false;
+  if (f.lastVerifiedAt && Date.parse(f.lastVerifiedAt) > Date.parse(f.approvedAt)) return false;
+  return true;
+}
+
+function partyOf(role: string | null): "You" | "Electrician" | "Home Insulation Victoria" {
+  return role === "installer" ? "You" : role === "electrician" ? "Electrician" : "Home Insulation Victoria";
+}
+
+/** Exact next evidence action: missing/rejected goes to the responsible party; uploaded = waiting for HIV review. */
+export function evidenceNext(items: EvidenceItem[]): NextAction | null {
+  const open = items.filter((e) => e.applicability !== "future");
+  const order: ("You" | "Electrician" | "Home Insulation Victoria")[] = ["You", "Electrician", "Home Insulation Victoria"];
+  for (const status of ["rejected", "outstanding"]) {
+    for (const who of order) {
+      const hit = open.filter((e) => e.status === status && partyOf(e.role) === who);
+      if (!hit.length) continue;
+      const names = hit.map((e) => e.label).join(", ");
+      const verb = status === "rejected" ? "Replace rejected evidence" : "Upload missing evidence";
+      return { who, text: who === "You" ? `${verb}: ${names}.` : who === "Electrician" ? `Electrician to ${verb.toLowerCase()}: ${names}.` : `Office to provide ${status === "rejected" ? "replacement" : "missing"} evidence: ${names}.` };
+    }
+  }
+  const waiting = open.filter((e) => e.status === "uploaded");
+  if (waiting.length) return { who: "Home Insulation Victoria", text: `Review uploaded evidence: ${waiting.map((e) => e.label).join(", ")}.` };
+  return null;
+}
 
 export function installerProgress(f: ProgressFacts): { steps: ProgressStep[]; next: NextAction } {
   const veecSubmitted = f.veecStatus === "submitted" || f.veecStatus === "approved" || f.veecStatus === "query";
@@ -39,8 +86,10 @@ export function installerProgress(f: ProgressFacts): { steps: ProgressStep[]; ne
   };
   const notes: Partial<Record<ProgressStepKey, string>> = {};
   if (f.eligibility === "declined") notes.review = "Not eligible";
-  if (f.quoteStatus === "issued") notes.quote = "Sent to owner";
-  if (f.reconfirmationRequired) notes.quote = "Owner must reconfirm";
+  if (f.quoteStatus === "issued") notes.quote = f.quoteDelivery === "released" ? "Available to owner" : "Waiting to be sent";
+  if (f.reconfirmationRequired) notes.quote = f.quoteStatus === "issued" && f.quoteDelivery === "released" ? "Owner must reconfirm" : "Updated quote being prepared";
+  if (f.electricalCleared && f.electricalExpired) notes.electrical = "Completed — 30-day window expired";
+  else if (f.rectificationOpen) notes.electrical = "Fix-up required";
   if (f.veecStatus === "approved") notes.veec = "Registered";
   else if (f.veecStatus === "submitted") notes.veec = "Submitted — awaiting registration";
   else if (f.veecStatus === "query") notes.veec = "Submitted — regulator query";
@@ -53,6 +102,7 @@ export function installerProgress(f: ProgressFacts): { steps: ProgressStep[]; ne
 
 function nextAction(f: ProgressFacts, done: Record<ProgressStepKey, boolean>): NextAction {
   const HIV = "Home Insulation Victoria" as const;
+  const now = f.now ?? Date.now();
   if (f.stage === "cancelled") return { who: null, text: "This job was cancelled." };
   if (f.stage === "on_hold") return { who: HIV, text: "Job is on hold while the office reviews it." };
   if (f.eligibility === "declined") return { who: null, text: "The owner isn't eligible, so this job won't go ahead." };
@@ -63,27 +113,46 @@ function nextAction(f: ProgressFacts, done: Record<ProgressStepKey, boolean>): N
       : "Check the owner's eligibility, then arrange the Ready Check." };
   }
   if (!done.quote) {
-    if (f.reconfirmationRequired) return { who: "Owner", text: "Reconfirm the updated quote." };
-    if (f.quoteStatus === "issued") return { who: "Owner", text: "Review and accept the quote." };
+    const released = f.quoteStatus === "issued" && f.quoteDelivery === "released";
+    if (f.quoteStatus === "issued" && !released) return { who: HIV, text: f.quoteDelivery === "held" && f.quoteHoldReason ? `Owner quote not sent yet: ${f.quoteHoldReason}` : "Owner quote approved — waiting to be sent to the owner." };
+    if (f.reconfirmationRequired) return released ? { who: "Owner", text: "Reconfirm the updated quote." } : { who: HIV, text: "Prepare and send the updated quote for the owner to reconfirm." };
+    if (released) return { who: "Owner", text: "Review and accept the quote." };
     if (!quotedYes) return f.coordination === "self_managed"
       ? { who: "You", text: "Measure and quote the job, then add the details below." }
       : { who: HIV, text: "Arrange the Ready Check so the job can be measured and quoted." };
     if (f.quoteHeld.length) return { who: f.quoteHeld.some((b) => /installer|you|area|quote|fee|electrician/i.test(b)) ? "You" : HIV, text: `Owner quote on hold: ${f.quoteHeld[0]}` };
     return { who: HIV, text: "Prepare and send the owner quote." };
   }
+  if (!done.installation && f.rectificationOpen) return { who: f.electricianPayer === "own" ? "Electrician" : HIV, text: "Electrical fix-up required before installation can be booked." };
   if (!done.electrical) return f.electricianPayer === "own"
     ? { who: "Electrician", text: "Your electrician completes the electrical safety check; the office verifies the report." }
     : f.electricianPayer === "undecided" ? { who: "You", text: "Choose who arranges the electrician (below)." }
     : { who: HIV, text: "Arrange the electrical safety check." };
-  if (!done.installation) return { who: "You", text: "Complete the installation once it's booked." };
-  if (!done.evidence) return f.evidenceMissing > 0
-    ? { who: "You", text: `Upload ${f.evidenceMissing} missing or rejected evidence item${f.evidenceMissing === 1 ? "" : "s"}.` }
-    : { who: HIV, text: "Review the installation evidence." };
+  if (!done.installation) {
+    if (f.electricalExpired) return { who: HIV, text: "The electrical safety check's 30-day window has expired — a new check is needed before installation." };
+    const b = f.installBooking;
+    if (!b || !["proposed", "confirmed"].includes(b.status)) return { who: f.coordination === "self_managed" ? "You" : HIV, text: "Book the installation date." };
+    if (b.status === "proposed") return { who: HIV, text: "Confirm the proposed installation date." };
+    const when = b.start ? new Date(b.start).toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "short" }) : null;
+    if (f.installBlockers?.length) return { who: HIV, text: `Before installation${when ? ` on ${when}` : ""}: ${f.installBlockers[0]}` };
+    if (b.start && Date.parse(b.start) > now) return { who: "You", text: `Install on ${when}.` };
+    return { who: "You", text: "Complete the booked installation and record it." };
+  }
+  if (!done.evidence) return evidenceNext(f.evidence) ?? { who: HIV, text: "Final AP review of the installation evidence." };
   if (f.veecStatus === "rejected") return { who: HIV, text: "Resolve the regulator's rejection." };
   if (!done.veec) return { who: HIV, text: "Submit the VEEC claim." };
   if (f.veecStatus === "approved") return { who: null, text: "VEECs registered — nothing more to do." };
   if (f.veecStatus === "query") return { who: HIV, text: "Answer the regulator's query." };
   return { who: "Regulator", text: "Registration decision on the submitted VEEC claim." };
+}
+
+/** Pick the current installation quote: the newest non-withdrawn row. Older accepted history never wins over a newer replacement. */
+export function currentQuote<T extends { status: string; created_at: string; release_state?: string | null; sent_at?: string | null }>(rows: T[]): { status: ProgressFacts["quoteStatus"]; delivery: QuoteDelivery; row: T | null } {
+  const live = rows.filter((r) => ["draft", "issued", "accepted"].includes(r.status)).sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+  const row = live[0] ?? null;
+  if (!row) return { status: "none", delivery: "none", row: null };
+  const delivery: QuoteDelivery = row.release_state === "released" && row.sent_at ? "released" : row.release_state === "queued" ? "queued" : row.release_state === "held" ? "held" : "none";
+  return { status: row.status as ProgressFacts["quoteStatus"], delivery, row };
 }
 
 // ---- Installer Jobs tabs (My work) ----

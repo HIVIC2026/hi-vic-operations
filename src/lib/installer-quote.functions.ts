@@ -152,25 +152,42 @@ export const getMyIntakeProgress = createServerFn({ method: "POST" }).middleware
     if (!(await m.isIntakeJob(data.jobId))) return { applies: false as const };
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const id = data.jobId;
-    const [s, { data: job }, { data: qs }, { data: pr }, { count: installs }, { count: missing }, { data: ap }, { data: veec }] = await Promise.all([
+    const [s, { data: job }, { data: qs }, { data: pr }, { data: bks }, { data: ev }, { data: ap }, { data: veec }, { data: dl }] = await Promise.all([
       m.installerIntakeState(id),
-      admin.from("jobs").select("stage, installer_quoted").eq("id", id).single(),
-      admin.from("quotes").select("status").eq("job_id", id).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]),
-      admin.from("piesa_records").select("outcome, signed_off_by").eq("job_id", id).eq("is_current", true).limit(1).maybeSingle(),
-      admin.from("bookings").select("id", { count: "exact", head: true }).eq("job_id", id).eq("kind", "installation").eq("status", "completed"),
-      admin.from("evidence_requirements").select("id", { count: "exact", head: true }).eq("job_id", id).eq("required", true).in("status", ["outstanding", "rejected"]),
-      admin.from("workflow_events").select("created_at").eq("job_id", id).eq("event_type", "stage_changed").eq("to_stage", "ready_for_veec").order("created_at").limit(1).maybeSingle(),
+      admin.from("jobs").select("stage, installer_quoted, installation_completed_at").eq("id", id).single(),
+      admin.from("quotes").select("status, created_at, release_state, release_hold_reason, sent_at").eq("job_id", id).eq("kind", "installation"),
+      admin.from("piesa_records").select("outcome, signed_off_by, created_at").eq("job_id", id).eq("is_current", true).limit(1).maybeSingle(),
+      admin.from("bookings").select("kind, status, scheduled_start, created_at").eq("job_id", id).neq("status", "cancelled").order("created_at", { ascending: false }),
+      admin.from("evidence_requirements").select("label, status, responsible_role, gate, verified_at").eq("job_id", id).eq("required", true),
+      admin.from("workflow_events").select("created_at").eq("job_id", id).eq("event_type", "ap_approved").order("created_at", { ascending: false }).limit(1).maybeSingle(),
       admin.from("veec_lodgements").select("status").eq("job_id", id).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
+      admin.from("job_piesa_deadlines").select("piesa_expired").eq("job_id", id).maybeSingle(),
     ]);
-    const st = (qs ?? []).map((q) => q.status);
-    const { installerProgress } = await import("./installer-progress.core");
-    return { applies: true as const, ...installerProgress({
+    const core = await import("./installer-progress.core");
+    const { evidenceApplicability } = await import("./operations-preview.core");
+    const stage = job?.stage ?? "";
+    const book = (k: string) => (bks ?? []).find((b) => b.kind === k) ?? null;
+    const inst = book("installation"); const installedAt = job?.installation_completed_at ?? (bks ?? []).find((b) => b.kind === "installation" && b.status === "completed")?.scheduled_start ?? null;
+    const piesaDone = pr?.outcome === "pass" && !!pr.signed_off_by;
+    const facts = { id, stage, createdAt: "", lastActivityAt: null, enteredStageAt: null, installedAt, installBookingAt: inst?.scheduled_start ?? null,
+      elecBookingAt: book("assessment")?.scheduled_start ?? null, rcBookingAt: book("ready_check")?.scheduled_start ?? null,
+      piesa: pr ? { completedAt: piesaDone ? pr.created_at : null, passed: pr.outcome === "pass", sectionCAt: null } : null } as never;
+    const now = Date.now();
+    const evidence = (ev ?? []).map((e) => ({ label: e.label, status: e.status, role: e.responsible_role, applicability: evidenceApplicability(e.gate, facts, now) }));
+    const lastVerifiedAt = (ev ?? []).map((e) => e.verified_at).filter(Boolean).sort().pop() ?? null;
+    const q = core.currentQuote(qs ?? []);
+    const installBlockers = inst && inst.status === "confirmed" ? (await (await import("./esc.server")).installReadiness(id).catch(() => ({ blockers: ["Installation readiness could not be checked"] }))).blockers : [];
+    return { applies: true as const, ...core.installerProgress({
       coordination: s.coordination, quoted: (job?.installer_quoted ?? null) as "yes" | "no" | null,
       eligibility: await m.commercialEligibility(id),
       quoteHeld: [...s.readiness.blockers, ...s.releaseBlockers.filter((b: string) => !/contact consent/.test(b))],
-      quoteStatus: st.includes("accepted") ? "accepted" : st.includes("issued") ? "issued" : st.includes("draft") ? "draft" : "none",
+      quoteStatus: q.status, quoteDelivery: q.delivery, quoteHoldReason: q.row?.release_hold_reason ?? null,
       reconfirmationRequired: !!s.reconfirmationRequired, electricianPayer: s.electricianPayer,
-      electricalCleared: pr?.outcome === "pass" && !!pr.signed_off_by, installationCompleted: (installs ?? 0) > 0,
-      evidenceMissing: missing ?? 0, evidenceApprovedAt: ap?.created_at ?? null, veecStatus: veec?.status ?? null, stage: job?.stage ?? "",
+      electricalCleared: piesaDone, electricalExpired: !!dl?.piesa_expired,
+      rectificationOpen: ["rectification_required", "awaiting_owner_rectification_approval", "rectification_scheduling", "rectification_booked", "electrical_variation_pending"].includes(stage),
+      installBooking: inst ? { status: inst.status, start: inst.scheduled_start } : null, installBlockers,
+      installationCompleted: !!installedAt, evidence,
+      evidenceApprovedAt: core.apApprovalCurrent({ stage, approvedAt: ap?.created_at ?? null, evidence, lastVerifiedAt }) ? ap!.created_at : null,
+      veecStatus: veec?.status ?? null, stage, now,
     }) };
   });
