@@ -19,8 +19,7 @@
 - Server functions are literal `createServerFn(...).middleware(...).inputValidator(...).handler(...)` chains; never import `@tanstack/react-start/server` in `*.functions.ts`. Why: factories/that import break the client bundle.
 - Pure rules in `*.core.ts` (tested via `bun test ./tests/`), persistence in `*.server.ts`, RPC in `*.functions.ts`. Why: testable, central guards.
 - Test Centre jobs use `jobs.source = 'qa_test'` from creation and never enter post-intake automation. Why: launch testing must remain visibly isolated from live work and external actions.
-- The bare address `/` is the public calculator on every host; the same calculator also answers at `/calculator`, and staff sign in at `/auth`. Why: customers already have the plain link, so the calculator must stay on the home page.
-- The current calculator exists only at the customer-domain root through `/calculator`; secure estimate pages do not embed the retired what-if calculator or track calculator use. Why: customers use one current calculator and obsolete variants stay deleted.
+- `/` on every host and `/calculator` serve the same current public calculator; staff sign in at `/auth`. Secure estimates never embed the retired what-if calculator or track calculator use. Why: preserve customer links and one calculator without obsolete variants.
 - The server entry detaches GET/HEAD rendering requests from the local adapter's socket-owned abort signal; keep mutation requests unchanged. Why: cancelled preview navigation must not throw after response close and blank the page.
 - Office navigation is the top bar + tab map in `src/lib/office-nav.ts`; Leads has one canonical screen and old routes remain valid. Why: one operational queue without breaking bookmarks.
 - REC and installer onboarding keep legacy step keys for history but show nine page groups (installer: `INSTALLER_VISIBLE_PAGES`); each group validates all members and persists its canonical anchor; installer contact details are asked once, signing authority only at signing. Why: old drafts resume safely without weakened gates.
@@ -31,4 +30,5 @@
 - Office operations categories and compact job status reuse the operations read classifier and one shared Query cache; legacy preview remains direct-link. Why: unique counts and factual precedence must agree without navigation polling.
 - Installer Add job is one intake (`installer-intake-flow.tsx`) on shared CustomerFields and the guarded import handlers; legacy add/bulk bookmarks redirect there (office keeps batch history). Why: one form, no duplicate or obsolete questions.
 - Intake pages share progress reads, never legacy fallback on errors; private attachments use the signed viewer and no local-only original removal. Why: truthful progress and durable file controls.
-- Installer QA uses `--installer-app-only` to skip signing/review and office sessions. Why: bounded checks must exclude approvals and sends.
+- Installer QA uses `--installer-app-only`; no signing/office actions. Why: bounded checks.
+- Intake serializes file changes, keeps partial uploads, and tracks extracted vs typed values. Why: safe retries/removal.

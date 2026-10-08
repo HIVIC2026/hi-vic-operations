@@ -1,4 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Upload QA supplement (Jo 8 Oct 21:05 UTC)
+- [x] Serialized upload/read/remove and parent navigation; per-file partial successes retained, optional read failure honest, restore blocks typing, removed extraction cleared while typed fields stay, business-load Retry added. Seven sealed race groups pass on desktop and phone; 56 focused tests pass; preview build OK. No live actions. Reproduce with tests/installer-intake-races.vite.mjs + tests/installer-intake-races.browser.py.
 ## Installer morning QA (Jo 8 Oct 20:37 UTC)
 - [x] Three installer-only TEST runs: 63/63 step groups passed, all snapshots restored (7/6/6 new QA jobs archived, 12 batches hidden per run). Initial default run unexpectedly performed TEST signing/review steps; stopped and recorded snapshot restored, disclosed to Jo. Those append-only TEST actions are not claimed erased.
 - [x] Actual signed-in phone/desktop: Customer validation, self-managed acknowledgment, No branch, Back/reload, real submit, later same-job 118 m²/$2,450 edit, private uploaded-file exact-byte download, saved original preview and business navigation passed; zero page errors/overflow. Installer bulk bookmark correctly redirects to Add job. Real Mitti audit creation and communications excluded; C15 uses a mocked unreachable-Mitti boundary.
