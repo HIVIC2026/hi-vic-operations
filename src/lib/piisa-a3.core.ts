@@ -20,7 +20,6 @@ export const A3_ALIASES: Record<string, string[]> = {
   "p1.powerInformed": ["Has the household or tenant been told the power will be off during installation?"],
   lifeSupport: ["Does anyone at this property rely on life support?"],
   lifeSupportConsent: ["Have you received written consent or a medical plan before starting this assessment?"],
-  "p2.installDate": ["Installation date"],
   "p2.ap": ["Accredited person (AP)"],
   "p2.company": ["Installer company"],
   "p2.lead": ["Lead installer"],
@@ -66,7 +65,6 @@ export const A3_NATIVE_IDS: Record<string, string[]> = {
   lifeSupport: ["3075146f-44dc-411f-a438-dabb289dc539"],
   lifeSupportConsent: ["6bd6569f-bc6d-4019-ba28-68410328bf67"],
   lifeSupportAttachment: ["1c606c49-4c47-41e9-b351-fa15972fbbe9"],
-  "p2.installDate": ["747968d6-030d-46ca-a82a-4482cad9e81f"],
   "p2.ap": ["b7212b10-067a-4fd8-8f6a-90efd2db8389"],
   "p2.company": ["dc12088c-8316-461e-91e2-53b1db0dc558"],
   "p2.lead": ["e377bcdb-0ba0-46d3-82f6-5d84519b55c4"],
@@ -125,6 +123,10 @@ export function a3AcceptedLabels(id: string): string[] {
   const base = A3_ALIASES[id] ?? [];
   return base.flatMap((a) => [norm(a), ...(A3_ALIAS_SUFFIXES[id] ?? []).map((x) => norm(`${a} ${x}`))]);
 }
+
+/** Official items the PUBLISHED native form (read 8 Oct 2026) no longer asks separately. Official Part 2 "Installation
+ * date" is the same fact as the native "Installation start date", so it is copied from that answer, never asked twice. */
+export const A3_NOT_ON_NATIVE = ["p2.installDate"] as const;
 
 // ---------- native crew schema (saved + read from the rendered editor, Jo 8 Oct 2026 14:22 UTC) ----------
 /** Retired standalone certificate items. Must NOT be required or written. */
@@ -189,7 +191,9 @@ export function a3MissingFields(template: unknown): string[] {
 }
 
 /** One media file on the audit with ONLY the metadata Mitti actually returned. Unknown stays null (never faked). */
-export type A3MediaFile = { mediaId: string | null; capturedAt: string | null; lat: number | null; lng: number | null };
+/** capturedAt = a real capture time only. Mitti's `date_created` is when the file reached Mitti (upload), so it is kept
+ * separately as uploadedAt and never treated as the time the photo was taken. */
+export type A3MediaFile = { mediaId: string | null; capturedAt: string | null; uploadedAt?: string | null; lat: number | null; lng: number | null };
 const num = (v: unknown) => { const x = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v) : NaN; return Number.isFinite(x) ? x : null; };
 function mediaFile(m: Any): A3MediaFile {
   const loc = m?.location ?? m?.geo ?? m?.metadata?.location ?? null;
@@ -197,9 +201,10 @@ function mediaFile(m: Any): A3MediaFile {
   let lat = num(loc?.lat ?? loc?.latitude ?? m?.lat ?? m?.latitude ?? (coords ? coords[1] : undefined));
   let lng = num(loc?.lng ?? loc?.lon ?? loc?.longitude ?? m?.lng ?? m?.longitude ?? (coords ? coords[0] : undefined));
   if (lat == null || lng == null || Math.abs(lat) > 90 || Math.abs(lng) > 180 || (lat === 0 && lng === 0)) { lat = null; lng = null; }
-  const ts = [m?.captured_at, m?.date_taken, m?.metadata?.captured_at, m?.date_created, m?.timestamp].find((t) => typeof t === "string" && !Number.isNaN(Date.parse(t))) as string | undefined;
+  const ts = [m?.captured_at, m?.date_taken, m?.metadata?.captured_at].find((t) => typeof t === "string" && !Number.isNaN(Date.parse(t))) as string | undefined;
   const id = m?.media_id ?? m?.id ?? null;
-  return { mediaId: id == null ? null : String(id), capturedAt: ts ?? null, lat, lng };
+  const up = typeof m?.date_created === "string" && !Number.isNaN(Date.parse(m.date_created)) ? m.date_created : null;
+  return { mediaId: id == null ? null : String(id), capturedAt: ts ?? null, uploadedAt: up, lat, lng };
 }
 function itemsById(audit: unknown): Map<string, Any> {
   const byId = new Map<string, Any>();
@@ -254,6 +259,7 @@ export function parseA3Answers(audit: unknown): { answers: OfficialAnswers; crew
     if (YN_IDS.has(id)) { const y = yn(v); if (y) answers[id] = y; continue; }
     answers[id] = v;
   }
+  if (answers.startDate != null && answers["p2.installDate"] == null) answers["p2.installDate"] = answers.startDate;
   // Additional rows as typed/selected (unresolved; a3ResolveCrewChoices decides what the official form may hold).
   const crew: { name: string; eec: string | null }[] = [];
   for (const c of a3CrewChoices(audit).slice(1)) {
