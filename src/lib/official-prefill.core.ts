@@ -33,6 +33,7 @@ export type OfficialPrefillContext = {
   /** Owner name on the job (owner's own enquiry details — DECLARED). Optional for older callers. */ ownerName?: string | null;
   /** Assigned electrician + REC. licence/recNo are set ONLY from office-verified, current credentials. */
   electrician?: { name: string | null; licence: string | null; recName: string | null; recNo: string | null; phone: string | null } | null;
+  /** Real expected completion date (YYYY-MM-DD) from the booked installation, if any. */ predictedCompletionDate?: string | null;
 };
 
 const txt = (v: unknown) => (v == null ? "" : Array.isArray(v) ? v.join(", ") : String(v)).trim();
@@ -92,7 +93,9 @@ export function piisaPrefill(ctx: OfficialPrefillContext): PrefillHint[] {
   const noRect = b1 === B1_OPTIONS[0];
   const ls = lifeSupport(ctx, "installer");
   return [
-    jobRef(ctx), address(ctx), installDate("startDate", ctx), installDate("completionDate", ctx), ls,
+    jobRef(ctx), address(ctx), installDate("startDate", ctx),
+    // Predicted completion is blank unless a real expected completion date is on record (never the start date).
+    hint("completionDate", "prefill", isDate(ctx.predictedCompletionDate ?? null) ? ctx.predictedCompletionDate! : null, "portal_record", "Booked installation", isDate(ctx.predictedCompletionDate ?? null) ? "From the booked installation end date." : "No expected completion date on record — the installer enters it."), ls,
     hint("lifeSupportAttachment", "prefill", blankTo(ctx.piesaLifeSupportAttachment), "signed_piesa", "Signed PIESA attachment",
       blankTo(ctx.piesaLifeSupportAttachment) ? "Attached from the signed PIESA on this job — the installer must still check it." : "No consent or medical plan is attached to the signed PIESA — the installer must attach one if life support applies."),
     installDate("p2.installDate", ctx),
@@ -102,8 +105,9 @@ export function piisaPrefill(ctx: OfficialPrefillContext): PrefillHint[] {
     hint("p2.leadEec", "prefill", eec, "verified", "Verified EEC certification",
       eec ? "From the verified, current EEC certification on file." : "No verified, current EEC certification on file — the installer must enter it and the office will check it."),
     fromPiesa("p4.present", "cross_check", ctx, "p3.present", "Part 3 solar/battery"),
-    hint("p5.electricianPresent", "prefill", noRect ? "N/A" : null, "signed_piesa", "Signed PIESA outcome (B1)",
-      noRect ? "Set to N/A because the signed PIESA says no rectification is required — the installer can change it." : ctx.piesaAnswers ? "The signed PIESA doesn't say no rectification is required — the installer must answer." : "No signed PIESA on this job yet — the installer must answer."),
+    // Never pre-answered (no automatic N/A): attendance is a day-of fact the installer records.
+    hint("p5.electricianPresent", "reminder", noRect ? "N/A" : null, "signed_piesa", "Signed PIESA outcome (B1)",
+      noRect ? "The signed PIESA says no rectification is required — the installer still answers on the day." : ctx.piesaAnswers ? "The signed PIESA doesn't say no rectification is required — the installer must answer." : "No signed PIESA on this job yet — the installer must answer."),
     fromPiesa("p5.recessed", "cross_check", ctx, "p6.recessed", "Part 6 recessed luminaires"),
     fromPiesa("p5.icConfirmed", "reminder", ctx, "c.tick2", "Section C (IC / IC-4 luminaires)", true),
     fromPiesa("p5.safeToCover", "reminder", ctx, "c.tick2", "Section C (IC / IC-4 luminaires)", true),
@@ -115,7 +119,8 @@ export function piisaPrefill(ctx: OfficialPrefillContext): PrefillHint[] {
     hint("p7.products", "prefill", blankTo(ctx.acceptedQuoteProduct), "accepted_quote", "Accepted quote",
       blankTo(ctx.acceptedQuoteProduct) ? "From the accepted quote — the installer must confirm the product used on the day." : NO_SOURCE),
     hint("p8.name", "prefill", blankTo(lead?.name), "portal_record", "Signed-in installer profile", blankTo(lead?.name) ? "From the signed-in installer's profile." : NO_SOURCE),
-    today("p8.date", ctx, "installer"),
+    // Signature date comes from the signature itself — never pre-filled.
+    hint("p8.date", "reminder", null, "portal_record", "Signature", "Dated when the installer signs."),
   ];
 }
 

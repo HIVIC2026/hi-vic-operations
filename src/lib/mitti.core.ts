@@ -535,7 +535,8 @@ export function buildOfficialPrefill(template: Any, items: (OfficialPrefillItem 
   for (const f of items) {
     const m = mapping[f.itemId];
     const byId = m?.itemIds?.length ? entries.find((x) => m.itemIds!.includes(String(x.id))) : undefined;
-    const byAlias = !byId && m?.labels?.length ? entries.find((x) => m.labels!.some((l) => norm(l) === x.norm)) : undefined;
+    // Repeated native labels (crew rows, EEC numbers) resolve by OCCURRENCE in form order, never first-match.
+    const byAlias = !byId && m?.labels?.length ? entries.filter((x) => m.labels!.some((l) => norm(l) === x.norm))[f.occurrence] : undefined;
     const e = byId ?? byAlias ?? entries.filter((x) => x.norm === norm(f.label))[f.occurrence];
     if (!e) { skipped.push(`${f.itemId} (not on the Mitti form)`); continue; }
     let type = e.type, responses: Any;
@@ -556,15 +557,5 @@ export function missingKnownFields(skipped: string[]): string[] {
   return skipped.filter((x) => !/attachment — shown in the portal/.test(x));
 }
 
-/** A3 - PIISA + AP Evidence (template_f6a2597479164eb181453eb335ce5125): plain-language native label aliases.
- * Stable item ids are added once read from the live template definition (getTemplateDefinition). */
+/** A3 template id + mapping now live in piisa-a3.core.ts (observed native aliases, occurrence-aware). */
 export const PIISA_A3_TEMPLATE_ID = "template_f6a2597479164eb181453eb335ce5125";
-export const PIISA_A3_MAPPING: NativeMapping = {
-  "p2.lead": { labels: ["Lead installer name", "Your name"] },
-  "p2.leadEec": { labels: ["Lead installer EEC number", "Your EEC certification number"] },
-  "p6.height": { labels: ["Existing insulation depth (mm)", "Average depth of existing insulation (mm)"] },
-  "p6.rValue": { labels: ["Existing insulation R-value (if known)"] },
-  "p6.treatment": { labels: ["Existing insulation: removed or topped up?"] },
-  "p6.reason": { labels: ["Why is existing insulation being kept?"] },
-  "p5.count": { labels: ["How many recessed lights?"] },
-};

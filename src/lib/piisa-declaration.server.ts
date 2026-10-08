@@ -39,9 +39,39 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
   if (tb.length || !tpl) return { status: "error", message: tb.join(" ") || "Installer declaration wording is not approved." };
   const { data: a } = await admin.from("job_assignments").select("user_id, business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
   const { data: b } = a?.business_id ? await admin.from("businesses").select("name, abn, licence_number").eq("id", a.business_id).maybeSingle() : { data: null };
-  const signedAt = (p.modifiedAt as string | null) ?? new Date().toISOString();
+  // The signature's OWN timestamp only — never the audit's modified/completed time, never "now".
+  const { a3Signature, parseA3Answers, PIISA_A3_TEMPLATE_ID } = await import("./piisa-a3.core");
+  const sig = a3Signature(audit);
+  if (!sig.present || !sig.signedAt) {
+    await logEvent(jobId, actorId, "installer_declaration_missing", "Completed PIISA has no signature timestamp — not saved", { audit_id: auditId }, { internal: true });
+    return { status: "missing", message: "The PIISA signature has no time recorded, so it can't be used. Ask the installer to sign again in Mitti." };
+  }
+  const signedAt = sig.signedAt;
+  // A3: completed audit populates the OFFICIAL PIISA answers (Parts 1–8) and the original official DOCX.
+  let official: { answers: Record<string, unknown>; docx?: { path: string; sha256: string; missed: string[] } } | null = null;
+  if (expectedTpl === PIISA_A3_TEMPLATE_ID) {
+    const { answers, crew } = parseA3Answers(audit);
+    crew.forEach((c, i) => { answers[`p2.addName#${i}`] = c.name; if (c.eec) answers[`p2.addEec#${i}`] = c.eec; });
+    // Signature date in Melbourne from the signature's own timestamp (prestart snapshot kept independently of AP completion).
+    const sigDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(new Date(signedAt));
+    answers["p8.date"] = sigDate;
+    const { data: asg } = await admin.from("job_assignments").select("user_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
+    if (!asg?.user_id) return { status: "error", message: "No assigned installer to attribute the signed PIISA to." };
+    // Stored as the job's current signed official PIISA; the canonical PIISA gate (piisaPanel / stageEntryBlockers)
+    // then evaluates Parts 1–8, the 30-day PIESA window, install-day signing and electrician attendance. Never bypassed.
+    const { storeSignedCopy, currentCopy, materialFacts } = await import("./official-forms.server");
+    const piesa = (await currentCopy(jobId, "piesa")).copy;
+    const { facts } = await materialFacts(jobId, piesa);
+    const copyId = await storeSignedCopy({ jobId, key: "piisa", answers: answers as never, signer: { userId: asg.user_id, name: sig.name ?? String(answers["p8.name"] ?? ""), role: "installer" }, enteredDate: sigDate, jobFacts: facts as unknown as Record<string, string>, acknowledgementIds: [], signature: `mitti:${auditId}` });
+    const { renderOfficialDocx } = await import("./official-docx.server");
+    const r = renderOfficialDocx("piisa", answers as never);
+    const path = `jobs/${jobId}/official/piisa-${auditId}.docx`;
+    const up = await admin.storage.from("job-files").upload(path, r.bytes, { contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", upsert: false });
+    if (up.error && !/exists/i.test(up.error.message)) return { status: "error", message: `Official PIISA document could not be stored: ${up.error.message}` };
+    official = { answers: { ...answers, signed_copy_id: copyId }, docx: { path, sha256: r.sha256, missed: r.missed } };
+  }
   const d = r.decl;
-  const snap = { source: "mitti_piisa", audit_id: auditId, declaration: { version: tpl.version, body: tpl.body }, installed_product: d.product, installed_r_value: d.rValue, installed_area_m2: d.areaM2, signature: { typed_name: d.signatureName, mitti_signature: d.signature, signed_on: d.signedOn, at: signedAt, user_id: a?.user_id ?? null }, piisa_answers: p.snapshot };
+  const snap = { official, prestart_signed_at: signedAt, source: "mitti_piisa", audit_id: auditId, declaration: { version: tpl.version, body: tpl.body }, installed_product: d.product, installed_r_value: d.rValue, installed_area_m2: d.areaM2, signature: { typed_name: d.signatureName, mitti_signature: d.signature, signed_on: d.signedOn, at: signedAt, user_id: a?.user_id ?? null }, piisa_answers: p.snapshot };
   const hash = await sha256Hex(stableJson(snap));
   const { data: row, error } = await admin.from("installer_declarations").insert({
     job_id: jobId, installer_user_id: a?.user_id ?? null, installer_business_id: a?.business_id ?? null, installer_name: d.signatureName, installer_business_name: b?.name ?? null, installer_abn: b?.abn ?? null, installer_licence: b?.licence_number ?? null,
