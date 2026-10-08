@@ -4,13 +4,14 @@ import { Check, Circle } from "lucide-react";
 import { getMyIntakeProgress } from "@/lib/installer-quote.functions";
 import { InstallerJourney } from "@/components/portal/installer-journey";
 import type { NextAction, ProgressStep } from "@/lib/installer-progress.core";
+import { Button } from "@/components/trade/trade-ui";
 
 /** Installer-supplied (intake) jobs show current progress; other installer jobs keep the existing tracker. */
 export function InstallerProgressCard({ jobId }: { jobId: string }) {
   const load = useServerFn(getMyIntakeProgress);
-  const { data, isError, isPending } = useQuery({ queryKey: ["intake-progress", jobId], queryFn: () => load({ data: { jobId } }), retry: false });
+  const { data, isError, isPending, isFetching, refetch } = useQuery({ queryKey: ["intake-progress", jobId], queryFn: () => load({ data: { jobId } }), retry: false });
   if (isPending) return null;
-  if (isError || !data) return <p role="alert" className="text-sm text-sub">Couldn't load current job progress. Please refresh to try again.</p>;
+  if (isError || !data) return <section className="space-y-2"><p role="alert" className="text-sm text-sub">Couldn't load current job progress.</p><Button variant="outline" disabled={isFetching} onClick={() => void refetch()}>Retry</Button></section>;
   if (!data.applies) return <InstallerJourney jobId={jobId} />;
   return <ProgressView steps={data.steps} next={data.next} />;
 }

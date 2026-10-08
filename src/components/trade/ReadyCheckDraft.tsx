@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { EvidencePanel } from "@/components/portal/panels";
 import { getReadyCheckDraft, saveReadyCheckDraft } from "@/lib/ready-check-draft.functions";
 import { RC_DRAFT_FIELDS, type RcDraftValues } from "@/lib/ready-check-draft.core";
+import { refreshInstallerJob } from "./job-cache";
 
 const SECTION: Record<string, string> = { A: "Attendance", B: "Measurement and existing insulation", C: "Access", D: "Electrical observations (not a PIESA)" };
 const OPTION_LABEL: Record<string, string> = { unable_to_confirm: "Can't tell", plan_verified_onsite: "Plan checked onsite", modern_breakers: "Modern breakers", ceramic_fuses_visible: "Ceramic fuses", not_visible: "Not visible", uncertain: "Not sure" };
@@ -30,7 +31,7 @@ export function ReadyCheckDraft({ jobId, evidence = true }: { jobId: string; evi
   const onSave = async () => {
     if (busy || locked || !dirty) return;
     setBusy(true); setMsg(null);
-    try { const r = await save({ data: { jobId, values: v } }); qc.setQueryData(["rc-draft", jobId], r); setDirty(false); setMsg({ ok: true, text: "Saved. You can come back and finish it any time — nothing has been submitted." }); }
+    try { const r = await save({ data: { jobId, values: v } }); qc.setQueryData(["rc-draft", jobId], r); await refreshInstallerJob(qc, jobId); setDirty(false); setMsg({ ok: true, text: "Saved. You can come back and finish it any time — nothing has been submitted." }); }
     catch (e) { setMsg({ ok: false, text: (e as Error).message || "Couldn't save — check your signal and try again." }); }
     finally { setBusy(false); }
   };
