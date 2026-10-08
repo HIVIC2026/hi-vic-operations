@@ -1,4 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## First-page Accredited Person (Jo 8 Oct 22:18 UTC)
+- [x] Actual GET confirms preserved required AP text field immediately after installation date. Pin updated; fixed legal entity sent and read back before share. Only observed unsigned blank AP can receive documented partial text repair; wrong/unknown/signed records held for office. No actual audits created or changed.
 ## Final native post-work requirements (Jo 8 Oct 22:13 UTC)
 - [x] Fresh existing-integration GET validates company-first placement, preserved crew conditions, sole installation date, restored signature, non-answer signing notice and mandatory completed video/final plan. Current pinned resolver activated in preview; same-audit originals copied for human review before final output, signature alone remains pending. Historical audit ownership retained; no signature-name prefill. Focused regression proof: docs/PIISA_FINAL_POSTWORK_8OCT.md. No external writes/publication.
 ## Final cross-screen refresh (Jo 8 Oct 22:05 UTC)

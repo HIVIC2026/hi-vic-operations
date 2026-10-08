@@ -43,6 +43,9 @@ export function stagedDirectSchemaProblems(template: unknown): string[] {
   });
   const fingerprint = nativeDefinitionFingerprint(publishedStructure(template));
   if (fingerprint !== nativeDefinitionFingerprint(publishedStructure(restoredPublished))) problems.push("The published PIISA types, conditions, labels or page order differ from verified revision 19 final mandatory post-work evidence.");
+  const root = (template as { template?: { items?: { children?: { id?: string }[] }[] } })?.template;
+  const titleIds = root?.items?.[0]?.children?.map((i) => i.id) ?? [];
+  if (titleIds.indexOf("b7212b10-067a-4fd8-8f6a-90efd2db8389") !== titleIds.indexOf("78e550a4-1c8b-4b59-be77-64a5c09ba848") + 1) problems.push("Accredited Person must follow Installation date on the first page.");
   return problems;
 }
 
