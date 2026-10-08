@@ -1,7 +1,4 @@
-import { simpleEmail } from "./simple-email.core";
-import { invitationShell, inv } from "./invitation-email.core";
 import { AMOUNT_LH, HEADER_ART_W, HEADING_ART, amountArtWidth, emailArtUrl } from "./email-art.core";
-import { dedupeAddress } from "./address";
 import { READY_CHECK_FEE } from "./readycheck.core";
 /** Pure customer outcome email renderers: no data access, delivery, or side effects. */
 import { CUSTOMER_BRAND, CUSTOMER_WHAT_COULD_CHANGE } from "./customer-quote-system";
@@ -465,7 +462,10 @@ export function renderLaunchCampaignEmail(input: LaunchCampaignEmailInput): Esti
     estimateUrl: input.campaignUrl.replace(/\/campaign$/, ""), campaignUrl: input.campaignUrl, unsubscribeUrl: input.unsubscribeUrl,
     referralUrl: input.referralUrl ?? null, firstName: input.firstName ?? null, address: input.address ?? null, reference: input.reference ?? null,
     estimatedTotal: input.estimatedTotal, veuDiscount: input.veuDiscount, grossTotal: input.grossTotal, areaM2: input.areaM2,
-    existingInsulationPresent: true, installation: input.installation, assessmentFee: input.assessmentFee, apFee: input.apFee,
+    existingInsulationPresent: true,
+    ...(input.installation === undefined ? {} : { installation: input.installation }),
+    ...(input.assessmentFee === undefined ? {} : { assessmentFee: input.assessmentFee }),
+    ...(input.apFee === undefined ? {} : { apFee: input.apFee }),
   });
   const instruction = "We need to check your existing ceiling insulation. If it appears to be below R2, you could JUMP THE QUEUE. Upload a short video from your manhole or clear pictures, or select ‘I confirm this is below R2’. Our office will assess what you provide and, if suitable, offer you Save my spot.";
   const small = "Office checks first. Your spot is not saved until we offer it and you choose Save my spot.";
