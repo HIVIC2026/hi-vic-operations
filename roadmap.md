@@ -1,5 +1,6 @@
 # Roadmap (preview only, nothing sent, no publish, no real jobs)
 ## Group B insulation review (Jo, 8 Oct 03:27–03:29 UTC)
+- [x] Jo 03:35: Group B invitation explains limited capacity, current queue position and insulation-review path to the eligible queue; email and linked pages updated, estimate retained, Group A unchanged. 32 checks passed; invitation visually verified; preview build OK. No sending or publishing.
 - [x] Match Group A email layout and include the preliminary estimate; change the invitation to existing-insulation review / JUMP THE QUEUE. Actual HTML visually checked.
 - [x] Accept manhole video/photos or owner below-R2 declaration; office checks first, no automatic saved spot or eligibility approval. Positive office check unlocks the existing Save my spot link.
 - [x] Regression checks: 34 pass, one retired test skipped; unchanged Group A parity verified; preview build OK. No emails sent or publish.

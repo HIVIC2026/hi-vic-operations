@@ -467,8 +467,8 @@ export function renderLaunchCampaignEmail(input: LaunchCampaignEmailInput): Esti
     ...(input.assessmentFee === undefined ? {} : { assessmentFee: input.assessmentFee }),
     ...(input.apFee === undefined ? {} : { apFee: input.apFee }),
   });
-  const instruction = "We need to check your existing ceiling insulation. If it appears to be below R2, you could JUMP THE QUEUE. Upload a short video from your manhole or clear pictures, or select ‘I confirm this is below R2’. Our office will assess what you provide and, if suitable, offer you Save my spot.";
-  const small = "Office checks first. Your spot is not saved until we offer it and you choose Save my spot.";
+  const instruction = "We have been inundated with requests from homeowners all over Victoria. As one of only two Accredited Persons for this activity, and with limited capacity of suitably qualified installers, we need to take on approvals in batches. Your enquiry is currently further down the queue, behind homes whose eligibility we can already confirm, because we still need to check your existing ceiling insulation. Want to JUMP THE QUEUE? Upload a short video from your manhole or clear pictures, or select ‘I confirm this is below R2’. Our office will assess what you provide. If the insulation appears below R2 and your home meets the eligibility requirements, we’ll move your enquiry into the eligible queue and invite you to save your spot.";
+  const small = "Send your insulation details first. Once our office has checked them, we’ll let you know whether you can move up and save your spot. No payment. No obligation.";
   const intro = "your home could qualify for a VEU ceiling insulation rebate, subject to checking the existing insulation.";
   const replace = (value: string) => value
     .replace("your home looks likely to qualify for a VEU ceiling insulation rebate.", intro)
@@ -479,11 +479,11 @@ export function renderLaunchCampaignEmail(input: LaunchCampaignEmailInput): Esti
   const html = replace(base.html)
     .replace("Save your spot</h2>", "JUMP THE QUEUE</h2>")
     .replace(`href="${escape(input.campaignUrl)}"`, `href="${escape(input.campaignUrl.replace(/\/campaign$/, "/video"))}"`)
-    .replace("Save my spot →", "Check my existing insulation →");
+    .replace("Save my spot →", "Send my insulation details →");
   const plainText = replace(base.plainText)
     .replace("SAVE YOUR SPOT\n", "JUMP THE QUEUE\n")
-    .replace(`Save my spot: ${input.campaignUrl}`, `Check my existing insulation: ${input.campaignUrl.replace(/\/campaign$/, "/video")}`);
-  return { subject: `${input.firstName?.trim() || "Your home"} — your preliminary insulation estimate`, previewText: "Your potential rebate and estimate. Send insulation details for office review to JUMP THE QUEUE.", html, plainText };
+    .replace(`Save my spot: ${input.campaignUrl}`, `Send my insulation details: ${input.campaignUrl.replace(/\/campaign$/, "/video")}`);
+  return { subject: `${input.firstName?.trim() || "Your home"} — your preliminary insulation estimate`, previewText: "Limited installer capacity. Help us check your insulation so you could move into the eligible queue and save your spot.", html, plainText };
 }
 
 // ---------------------------------------------------------------------------
