@@ -22,8 +22,8 @@ export function qualifyingDeclaration(events: { event_type: string; details: unk
   return events.some((event) => {
     if (!event.details || typeof event.details !== "object") return false;
     const m = event.details as Record<string, unknown>;
-    return m.answer === "yes" && m.preliminary_queue_qualification === true && m.basis === "owner_declared" &&
-      ((event.event_type === "owner_insulation_loose_fill_only_declared" && m.declaration_type === "loose_fill_only") || (event.event_type === "owner_insulation_below_r2_declared" && m.declaration_type === "below_r2"));
+    return m['answer'] === "yes" && m['preliminary_queue_qualification'] === true && m['basis'] === "owner_declared" &&
+      ((event.event_type === "owner_insulation_loose_fill_only_declared" && m['declaration_type'] === "loose_fill_only") || (event.event_type === "owner_insulation_below_r2_declared" && m['declaration_type'] === "below_r2"));
   });
 }
 export const INSULATION_REVIEW_INVITATION = "Help us check your existing insulation. Choose one option below. Is your existing insulation loose-fill only (no batts)? Is your existing insulation less than R2? If you answer Yes to either question and the other initial checks pass, you can save your spot. Alternatively, upload photos of your existing insulation or take a video from the manhole for office review. Record from the manhole opening. Please do not climb into the roof space. Not sure? You can upload photos or a video, or we can check onsite. Final onsite and compliance verification still apply.";
