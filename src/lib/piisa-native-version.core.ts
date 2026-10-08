@@ -1,8 +1,5 @@
 // Published revision 18 read through the existing Mitti GET integration, 8 Oct 2026.
 // The complete answer/condition/page structure is pinned; any structural change fails closed.
-import published from "./piisa-direct-published.data.json";
-import finalPublished from "./piisa-single-name-published.data.json";
-import finalGrouping from "./piisa-final-grouping-published.data.json";
 import restoredPublished from "./piisa-restored-signature-published.data.json";
 import { flatten, norm, type NativeMapping } from "./mitti.core";
 import { A3_CREW_NAME_IDS, A3_CREW_OTHER_FIELDS, A3_NATIVE_IDS, PIISA_A3_MAPPING, a3MissingFields, type StaffOption, type CrewSelection, crewSelectionProblems, crewPrefill, type CrewChoice } from "./piisa-a3.core";

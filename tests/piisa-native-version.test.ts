@@ -55,11 +55,11 @@ const directAudit = () => ({ items: [
   { item_id: A3_CREW_OTHER_FIELDS[0]?.eec, label: "Lead installer — CII certification number (issued by the EEC)", responses: { text: "CII-123" } },
   { item_id: PIISA_DIRECT_SIGNATURE_ID, label: "Signature", responses: { signature: { media_id: "sig", timestamp: "2026-10-08T08:00:00Z" } } },
 ] });
-test("registered revision 18 retains schema compatibility but restoration hold prevents activation", () => {
+test("registered revision 18 retains schema compatibility but matches restored published structure", () => {
   const r = resolvePiisaNativeVersion(published);
-  expect(r.active).toBe(false); expect(r.version).toBe(PIISA_DIRECT_VERSION);
-  expect(r.mapping).toBeNull();
-  expect(r.problems.join()).toContain("signature restoration");
+  expect(r.active).toBe(true); expect(r.version).toBe(PIISA_DIRECT_VERSION);
+  expect(r.mapping?.["p8.signature"]?.itemIds).toEqual(["83caffa2-e9c8-4315-885f-5337a4389372"]);
+  expect(r.problems).toEqual([]);
   expect(stagedDirectSchemaProblems(published)).toEqual([]);
   for (const id of ["p7.products", "completionDate", "p8.name", "p8.date"]) expect(r.mapping?.[id]).toBeUndefined();
   const crew = stagedDirectCrewPrefill({ lead: "ours", additional: [] }, staff);
@@ -112,11 +112,11 @@ test("published required and conditional crew structure changes cannot activate"
   expect(resolvePiisaNativeVersion(change("condition")).active).toBe(false);
 });
 
-test("verified revision 19 remains paused until restored signature final readback", () => {
+test("verified revision 19 matches restored signature readback", () => {
   const r = resolvePiisaNativeVersion(finalPublished);
-  expect(r.active).toBe(false);
-  expect(r.mapping).toBeNull();
-  expect(r.problems.join()).toContain("signature restoration");
+  expect(r.active).toBe(true);
+  expect(r.mapping?.["p8.signature"]?.itemIds).toEqual(["83caffa2-e9c8-4315-885f-5337a4389372"]);
+  expect(r.problems).toEqual([]);
   expect(r.mapping?.completionDate).toBeUndefined();
   expect(r.problems.some((p) => p.includes("differ from verified"))).toBe(false);
 });
@@ -126,11 +126,11 @@ test("final published definition removed four duplicate signer and metadata inpu
   expect(ids.has("78e550a4-1c8b-4b59-be77-64a5c09ba848")).toBe(true);
 });
 
-test("latest historical readback cannot bypass restoration hold regardless of response-set ordering", () => {
+test("restored-compatible readback is order-insensitive only for response sets", () => {
   const r = resolvePiisaNativeVersion(finalGrouping);
-  expect(r.active).toBe(false);
-  expect(r.mapping).toBeNull();
-  expect(r.problems.join()).toContain("signature restoration");
+  expect(r.active).toBe(true);
+  expect(r.mapping?.["p8.signature"]?.itemIds).toEqual(["83caffa2-e9c8-4315-885f-5337a4389372"]);
+  expect(r.problems).toEqual([]);
   expect(r.mapping?.completionDate).toBeUndefined();
   expect(r.problems.some((p) => p.includes("differ from verified"))).toBe(false);
   const reordered = structuredClone(finalGrouping);
