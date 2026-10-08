@@ -20,7 +20,7 @@ export const A3_ALIASES: Record<string, string[]> = {
   "p1.powerInformed": ["Has the household or tenant been told the power will be off during installation?"],
   lifeSupport: ["Does anyone at this property rely on life support?"],
   lifeSupportConsent: ["Have you received written consent or a medical plan before starting this assessment?"],
-  lifeSupportAttachment: ["Please attach the occupant’s written life support consent or medical plan, showing all pages, the person’s details and the consent or medical instructions. Please ensure everything is clearly visible. Home Insulation Victoria cannot accept unclear or incomplete evidence for your VEEC submission.", "Written consent or medical plan (kept as an attachment to this assessment)"],
+  lifeSupportAttachment: ["Please attach the occupant’s written life support consent or medical plan, showing all pages, the person’s details and the consent or medical instructions. Please ensure the photos and videos are clear and show all required details. Unclear or incomplete evidence may result in the Essential Services Commission (ESC) rejecting the VEEC submission.", "Written consent or medical plan (kept as an attachment to this assessment)"],
   "p2.ap": ["Accredited person (AP)"],
   "p2.company": ["Installer company"],
   "p2.lead": ["Lead installer"],
@@ -454,7 +454,7 @@ export function crewPrefill(sel: CrewSelection, staff: StaffOption[]): { itemId:
 
 // ---------- AP evidence for the A3 path ----------
 export type A3EvidenceKey = "installer_photos" | "electrician_photo" | "isolation_photo" | "before_video" | "product_photos" | "completed_video" | "final_plan";
-export const A3_EVIDENCE_QUALITY = "Please ensure everything is clearly visible. Home Insulation Victoria cannot accept unclear or incomplete evidence for your VEEC submission.";
+export const A3_EVIDENCE_QUALITY = "Please ensure the photos and videos are clear and show all required details. Unclear or incomplete evidence may result in the Essential Services Commission (ESC) rejecting the VEEC submission.";
 export const A3_EVIDENCE_LABELS: Record<A3EvidenceKey, string> = {
   installer_photos: `Please take a clear, geotagged photo of each installer working onsite today, showing their face clearly so every member of the installation crew can be identified. If you also take a group photo, please make sure every installer is clearly visible. ${A3_EVIDENCE_QUALITY}`,
   electrician_photo: `Please take a clear, geotagged photo of the attending electrician onsite today, showing their face clearly so the electrician attending the start of the installation can be identified. ${A3_EVIDENCE_QUALITY}`,
