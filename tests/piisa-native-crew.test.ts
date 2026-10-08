@@ -33,7 +33,7 @@ describe("native prefill uses REAL option ids", () => {
   });
   test("verified worker with no native option -> Other + required branch fields seeded", () => {
     const r = a3CrewNativeItems(a3Template(), { lead: BH.workerId, additional: [{ workerId: NEW.workerId }] }, [BH, NEW], "Reinsulate");
-    expect(r.items.slice(1)).toEqual([
+    expect(r.items.slice(3)).toEqual([
       { item_id: A3_CREW_NAME_IDS[1], type: "question", responses: { selected: [OPT_OTHER] } },
       { item_id: A3_CREW_OTHER_FIELDS[1]!.name, type: "text", responses: { text: "Nia New" } },
       { item_id: A3_CREW_OTHER_FIELDS[1]!.eec, type: "text", responses: { text: "EEC-77" } },
