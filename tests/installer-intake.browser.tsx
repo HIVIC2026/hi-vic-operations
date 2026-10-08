@@ -17,10 +17,10 @@ g.__mockData = {
   partnerFileUrl: { url: "" },
   readBulkFile: { text: "QUOTE Q-1\nCustomer: TEST Quote 1\nMeasured ceiling area: 112 m2\nR5.0 ceiling batts supply and install\nTOTAL inc GST: $3001.00" },
   createImport: (a: { data: { files: { path: string; name: string; type: string }[] } }) => { const s = srv(); s.creates++; const id = `imp-${s.creates}`; s.imports[id] = { files: a.data.files, status: "draft", jobId: null }; put(s); return { id, extracted: {} }; },
-  addImportFiles: (a: { data: { importId: string; files: { path: string; name: string; type: string }[] } }) => { const s = srv(); const i = s.imports[a.data.importId]!; i.files = [...i.files, ...a.data.files.filter((f) => !i.files.some((h) => h.path === f.path))]; put(s); return { files: i.files }; },
-  removeImportFile: (a: { data: { importId: string; path: string } }) => { const s = srv(); const i = s.imports[a.data.importId]!; i.files = i.files.filter((f) => f.path !== a.data.path); put(s); return { files: i.files }; },
+  addImportFiles: (a: { data: { importId: string; files: { path: string; name: string; type: string }[] } }) => { const s = srv(); const i = s.imports[a.data.importId]; if (!i) throw new Error("TEST draft missing"); i.files = [...i.files, ...a.data.files.filter((f) => !i.files.some((h) => h.path === f.path))]; put(s); return { files: i.files }; },
+  removeImportFile: (a: { data: { importId: string; path: string } }) => { const s = srv(); const i = s.imports[a.data.importId]; if (!i) throw new Error("TEST draft missing"); i.files = i.files.filter((f) => f.path !== a.data.path); put(s); return { files: i.files }; },
   getImportDraft: (a: { data: { importId: string } }) => { const i = srv().imports[a.data.importId]; return i ? { status: i.status === "confirmed" ? "confirmed" : "draft", files: i.files, jobId: i.jobId, jobNumber: i.jobId ? "HV-FIX" : null } : { status: "gone", files: [], jobId: null, jobNumber: null }; },
-  confirmImport: (a: { data: { importId: string } }) => { const s = srv(); s.confirms++; const i = s.imports[a.data.importId]!; const first = i.status !== "confirmed"; i.status = "confirmed"; i.jobId = "job-fix"; put(s); (g.__confirmArgs as unknown[] ?? (g.__confirmArgs = [])).push(a.data); if (q.get("lose") === "1" && first) throw new Error("Failed to fetch"); return { jobId: "job-fix", jobNumber: "HV-FIX", reused: !first }; },
+  confirmImport: (a: { data: { importId: string } }) => { const s = srv(); s.confirms++; const i = s.imports[a.data.importId]; if (!i) throw new Error("TEST draft missing"); const first = i.status !== "confirmed"; i.status = "confirmed"; i.jobId = "job-fix"; put(s); (g.__confirmArgs as unknown[] ?? (g.__confirmArgs = [])).push(a.data); if (q.get("lose") === "1" && first) throw new Error("Failed to fetch"); return { jobId: "job-fix", jobNumber: "HV-FIX", reused: !first }; },
   getMyIntakeReadyCheck: { coordination: "self_managed", readyCheck: { outstandingCount: 11, outstanding: [] }, quoteHeldFor: [] },
 };
 // Fault controls for sealed regression runs only. No real service is reachable.
@@ -30,7 +30,7 @@ g.__uploads = [];
 g.__storageUpload = async (path: string) => { (g.__uploads as string[]).push(path); await wait(Number(q.get("uploadDelay") ?? 0)); return { error: path.endsWith("bad.pdf") ? new Error("TEST upload failure") : null }; };
 const mocks = g.__mockData as Record<string, unknown>;
 const originalRead = mocks.readBulkFile;
-mocks.readBulkFile = async () => { await wait(Number(q.get("readDelay") ?? 0)); if (q.has("readFail")) throw new Error("TEST optional read failure"); return originalRead; };
+mocks.readBulkFile = async (a: { data: { name: string } }) => { await wait(Number(q.get("readDelay") ?? 0)); if (q.has("readFail")) throw new Error("TEST optional read failure"); if (a.data.name === "multi.pdf") return { text: "Customer: TEST One\nCustomer: TEST Two\nTOTAL inc GST: $999.00" }; return originalRead; };
 const originalRemove = mocks.removeImportFile as (a: unknown) => unknown;
 g.__removes = 0;
 mocks.removeImportFile = async (a: unknown) => { g.__removes = Number(g.__removes) + 1; await wait(Number(q.get("removeDelay") ?? 0)); if (q.has("removeFail")) throw new Error("TEST remove failure"); return originalRemove(a); };

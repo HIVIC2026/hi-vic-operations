@@ -219,7 +219,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
       {step === "job" && <section className="space-y-4 rounded-[18px] border border-line bg-paper p-4" data-step-job>
         <fieldset data-measured-quoted><legend className="font-display text-lg font-bold">{MEASURED_QUOTED_QUESTION}</legend>
           <div className="mt-2 grid grid-cols-2 gap-2" role="radiogroup" aria-label={MEASURED_QUOTED_QUESTION}>
-            {MEASURED_QUOTED_CHOICES.map((c) => <Button key={c.value} size="field" role="radio" aria-checked={d.quoteStatus === c.value} variant={d.quoteStatus === c.value ? "default" : "outline"} onClick={() => setD({ ...d, quoteStatus: c.value })}>{c.label}</Button>)}
+            {MEASURED_QUOTED_CHOICES.map((c) => <Button key={c.value} disabled={busy || fileBusy} size="field" role="radio" aria-checked={d.quoteStatus === c.value} variant={d.quoteStatus === c.value ? "default" : "outline"} onClick={() => setD({ ...d, quoteStatus: c.value })}>{c.label}</Button>)}
           </div>
           {d.quoteStatus === "not_quoted" && <p className="mt-2 text-sm text-sub" data-not-measured-note>{NOT_MEASURED_NOTE}</p>}
         </fieldset>
