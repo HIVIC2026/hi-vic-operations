@@ -13,6 +13,7 @@ export type SaveSpotFacts = {
   veuDiscount: number;
   grossTotal: number;
   areaM2: number;
+  areaIsTypical?: boolean;
   firstName: string | null;
   address: string | null;
   reference: string | null;
@@ -27,6 +28,7 @@ function likelyInput(f: SaveSpotFacts) {
   return {
     estimateUrl: f.estimateUrl, outcome: "likely" as const, apCount: 2, referralUrl: f.referralUrl ?? null,
     estimatedTotal: f.estimatedTotal, veuDiscount: f.veuDiscount, grossProjectTotal: f.grossTotal, areaM2: f.areaM2,
+    ...(f.areaIsTypical === undefined ? {} : { areaIsTypical: f.areaIsTypical }),
     amountPayableNow: 0, estimatedRemainingBalance: f.estimatedTotal,
     firstName: f.firstName, address: f.address, reference: f.reference, existingInsulationPresent: f.existingInsulationPresent,
     assessmentFee: f.assessmentFee ?? 349, apFee: f.apFee ?? 349,
@@ -42,6 +44,11 @@ export function renderStep3Likely(f: SaveSpotFacts): EstimateEmail {
 /** Save your spot = the Step 3 likely email for the same facts with ONLY the four pink-box swaps. */
 export function renderStep3SaveSpot(f: SaveSpotFacts): EstimateEmail {
   return withUnsubscribe(renderSaveSpotFromLikelyEmail({ ...likelyInput(f), campaignUrl: f.campaignUrl }), f.unsubscribeUrl);
+}
+
+/** Missing-size template only. Supplied prices/rebate must be calculated for the assumed area; never changes owner answers or sends. */
+export function renderStep3SaveSpotNoSize(f: Omit<SaveSpotFacts, "areaM2" | "areaIsTypical">): EstimateEmail {
+  return renderStep3SaveSpot({ ...f, areaM2: 150, areaIsTypical: true });
 }
 
 /** Lines that differ between the two (plain text), old next to new. */

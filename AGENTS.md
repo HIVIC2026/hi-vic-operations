@@ -11,6 +11,7 @@
 
 - `docs/HIV_WORKFLOW_SOURCE_OF_TRUTH.md` + `src/config/workflow-decisions.ts` override older prompts/comments/labels; run `bun scripts/scan-retired-terms.ts` before workflow work. Pending DB changes live in `docs/pending-migrations/` and are proven on PGlite (`tests/helpers/pglite-*.ts`) before any live run. Why: stop retired rules returning and keep untested SQL off the live database.
 # Project rules
+- Email variants reuse Step 3; avoids drift.
 - Group B reuses locked Group A email layout; submissions queue office review only, with saving guarded by `campaignSaveAllowed`. Why: declarations never approve eligibility or save spots.
 - Lead campaigns share `lead_campaign_responses`; post-Gate-1 email selection is centralised in `lead-email-routing.server.ts`, while each sender remains consent, opt-out, TEST and idempotency guarded. Why: one automatic outcome per enquiry without accidental sends.
 - Staff portal presentation-only derivations and exact disclosure targets live in pure `src/lib/portal-presentation.core.ts`; they may label existing facts but never decide workflow or eligibility. Why: focused UI tests must not duplicate or alter domain rules.
