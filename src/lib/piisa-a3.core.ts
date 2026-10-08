@@ -325,7 +325,7 @@ export function readyCheckPartPrefill(areas: RcArea[]): { values: Record<string,
   const withIns = areas.filter((a) => a.present === true);
   if (withIns.length && withIns.every((a) => a.removal != null)) {
     const rem = withIns.some((a) => a.removal === true), top = withIns.some((a) => a.removal === false);
-    values["p6.treatment"] = rem && top ? "Both" : rem ? "Removed" : "Topped up";
+    values["p6.treatment"] = rem && top ? "Removed, Topped up" : rem ? "Removed" : "Topped up"; // multi-select seed merged to one response
   }
   one("rValue", "p6.rValue", "Existing insulation R-value");
   const dl = areas.map((a) => a.downlights);

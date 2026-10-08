@@ -546,11 +546,21 @@ export function buildOfficialPrefill(template: Any, items: (OfficialPrefillItem 
     if (f.kind === "attachment") { skipped.push(`${f.itemId} (attachment — shown in the portal)`); continue; }
     if (f.kind === "date") responses = { datetime: f.value };
     else if (/choice|question|switch|list/i.test(e.type)) {
-      const opt = choiceOption(template, e.id, f.value);
-      if (!opt) { skipped.push(`${f.itemId} (no "${f.value}" option)`); continue; }
-      type = "question"; responses = { selected: [opt] };
+      // One exact option, or a multi-select seed ("Removed, Topped up") resolved to EVERY real option id.
+      const whole = choiceOption(template, e.id, f.value);
+      const parts = whole ? [whole] : f.value.split(/\s*,\s*/).filter(Boolean).map((v) => choiceOption(template, e.id, v));
+      if (!parts.length || parts.some((o) => !o)) { skipped.push(`${f.itemId} (no "${f.value}" option)`); continue; }
+      type = "question"; responses = { selected: parts };
     } else responses = { text: f.value };
-    (e.header ? header_items : rows).push({ item_id: e.id, label: e.label, type, responses });
+    const list = e.header ? header_items : rows;
+    const prior = list.find((x) => x.item_id === e.id);
+    // Two seeds for the same multi-select item merge into ONE response (never overwrite or duplicate).
+    if (prior && type === "question" && prior.type === "question") {
+      const ids = new Set(prior.responses.selected.map((o: Any) => o.id));
+      for (const o of responses.selected) if (!ids.has(o.id)) prior.responses.selected.push(o);
+      continue;
+    }
+    list.push({ item_id: e.id, label: e.label, type, responses });
   }
   return { header_items, items: rows, count: header_items.length + rows.length, skipped };
 }
