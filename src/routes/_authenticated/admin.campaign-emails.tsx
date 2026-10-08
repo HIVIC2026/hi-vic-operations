@@ -23,6 +23,12 @@ type Copy = Partial<Record<LaunchCopyField, string>>;
 type Lead = { id: string; jobNumber: string | null; name: string | null; suburb: string | null; address: string | null; area: number; price: number | null; discount: number | null };
 
 const SAMPLE_URL = "https://estimate.homeinsulationvictoria.com.au/estimate/PREVIEWonlyPREVIEWonlyPREVIEWonlyPREVIEWonl/campaign";
+/** Office preview only: sample buttons open the sample owner pages in a new tab. The email itself is unchanged. */
+function previewClickable(html: string) {
+  const base = SAMPLE_URL.replace(/\/campaign$/, "");
+  const target = typeof window === "undefined" ? "/campaign-preview" : `${window.location.origin}/campaign-preview`;
+  return html.replace(/<head>/i, `<head><base target="_blank">`).split(`href="${base}`).join(`data-sample="1" href="${target}#`);
+}
 const SAMPLE: Lead = { id: "sample", jobNumber: "HV-SAMPLE", name: "Sarah Mitchell", suburb: "Frankston", address: "14 Banksia Street, Frankston VIC 3199", area: 120, price: 1188, discount: 1890 };
 const GROUP_LABEL: Record<Group, string> = { likely: "Group A — no insulation (Save my spot)", onsite: "Group B — has insulation (video check)" };
 const FIELDS: { key: LaunchCopyField; label: string; long?: boolean; onsiteOnly?: boolean }[] = [
@@ -96,7 +102,7 @@ function CampaignEmailsPage() {
                   <div className="mt-1"><span className="text-muted-foreground">Preview text: </span>{email.previewText}</div>
                 </div>
                 <div className="flex justify-center rounded-[22px] border bg-muted/40 p-3">
-                  <iframe title="Email preview" srcDoc={email.html} sandbox="" className="rounded-xl border bg-card" style={{ width: device === "phone" ? 390 : 680, height: 1500, maxWidth: "100%" }} />
+                  <iframe title="Email preview" srcDoc={previewClickable(email.html)} sandbox="allow-popups allow-popups-to-escape-sandbox" className="rounded-xl border bg-card" style={{ width: device === "phone" ? 390 : 680, height: 1500, maxWidth: "100%" }} />
                 </div>
               </>
             )}
