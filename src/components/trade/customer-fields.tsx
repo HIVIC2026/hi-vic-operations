@@ -5,7 +5,7 @@ import { AddressCombobox } from "@/components/portal/address-combobox";
 import { OWNER_CONTACT_PERMISSION } from "@/lib/job-electrician.core";
 import type { OnsiteInput } from "@/lib/onsite-ready-check.core";
 
-export function CustomerFields({ value, onChange }: { value: OnsiteInput; onChange: (v: OnsiteInput) => void }) {
+export function CustomerFields({ value, onChange, consentLabel }: { value: OnsiteInput; onChange: (v: OnsiteInput) => void; consentLabel?: string | undefined }) {
   // A picked suggestion shows a short suburb/postcode confirmation; typing a correction drops it and shows the editable fields.
   const [picked, setPicked] = useState(false);
   const field = (key: "full_name" | "phone" | "email" | "suburb" | "postcode", label: string, props = {}) => (
@@ -21,6 +21,6 @@ export function CustomerFields({ value, onChange }: { value: OnsiteInput; onChan
     {field("full_name", "Owner name", { autoComplete: "name", maxLength: 200 })}
     {field("phone", "Mobile number", { inputMode: "tel", autoComplete: "tel", maxLength: 40 })}
     {field("email", "Email", { type: "email", autoComplete: "email", maxLength: 200 })}
-    <label className="flex items-start gap-3 pt-2 text-sm"><Checkbox className="mt-0.5" checked={value.contact_permission} onCheckedChange={(c) => onChange({ ...value, contact_permission: c === true, consent_by: c === true ? "installer" : null })} aria-label={OWNER_CONTACT_PERMISSION} /><span>{OWNER_CONTACT_PERMISSION}</span></label>
+    <label className="flex items-start gap-3 pt-2 text-sm"><Checkbox className="mt-0.5" checked={value.contact_permission} onCheckedChange={(c) => onChange({ ...value, contact_permission: c === true, consent_by: c === true ? "installer" : null })} aria-label={consentLabel ?? OWNER_CONTACT_PERMISSION} /><span>{consentLabel ?? OWNER_CONTACT_PERMISSION}</span></label>
   </div>;
 }

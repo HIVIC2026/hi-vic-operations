@@ -1,3 +1,4 @@
+import { READY_CHECK_CONTACT_PERMISSION } from "@/lib/job-electrician.core";
 // Installer Add job (Jo, 8 Oct 2026): one phone-first flow for the three existing modes.
 // Customer -> Job details -> Review & save. Uses only the existing guarded server handlers.
 import { useEffect, useRef, useState } from "react";
@@ -149,7 +150,7 @@ export function AddJobFlow({ businessId, initialMode, onExit }: { businessId: st
 
       {step === "customer" && <section className="space-y-3 rounded-[18px] border border-line bg-paper p-4" data-step-customer>
         <div className="flex items-center justify-between gap-2"><h2 className="font-display text-lg font-bold">Customer</h2>{mode === "onsite" && <LocationButton onFound={(a) => setCustomer((x) => ({ ...x, address_line: a.address_line || x.address_line, suburb: a.suburb || x.suburb, postcode: a.postcode || x.postcode }))} />}</div>
-        <CustomerFields value={customer} onChange={(n) => { setCustomer(n); setErr(null); }} />
+        <CustomerFields value={customer} consentLabel={mode === "existing" ? undefined : READY_CHECK_CONTACT_PERMISSION} onChange={(n) => { setCustomer(n); setErr(null); }} />
       </section>}
 
       {step === "details" && <section className="space-y-4 rounded-[18px] border border-line bg-paper p-4" data-step-details>

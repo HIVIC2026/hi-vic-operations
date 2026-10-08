@@ -1,6 +1,8 @@
 // "Your electrician or ours?" on Add one job and each Upload jobs card (Jo, 7 Oct 2026). Pure wording + rules only.
 
 /** Required owner-consent tick (Jo's exact wording). */
+/** Onsite + later Ready Check consent wording (Jo, 8 Oct 2026). */
+export const READY_CHECK_CONTACT_PERMISSION = "The homeowner has given Home Insulation Victoria permission to contact them for the eligibility assessment.";
 export const OWNER_CONTACT_PERMISSION = "The owner has given Home Insulation Victoria permission to contact them.";
 
 /** Note under the electrician choice (wording approved by Jo, 7 Oct 2026). */
