@@ -34,4 +34,4 @@
 - Evidence confirmation uses the guarded persistence helper with stored-path-derived primary keys and legacy path lookup; it checks both writes before success and never labels upload location/time as original capture. Why: retries and downstream failures must not duplicate files or invent evidence provenance.
 - Installer QA: `--installer-app-only`, no signing/office. Why: bounded.
 - Intake serializes files, keeps partial uploads/provenance, locks pending inputs and protects dirty drafts. Why: safe retries.
-- Group B uses `insulation-review.core.ts` and owner-capture; declarations need office review. Why: no inferred eligibility.
+- Group B uses `insulation-review.core.ts` for queue qualification, owner-capture for review media. Why: no inferred verification.
