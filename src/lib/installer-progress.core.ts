@@ -7,7 +7,10 @@ export type QuoteDelivery = "released" | "queued" | "held" | "none";
 export type EvidenceItem = { label: string; status: string; role: string | null; applicability: "current" | "future" | "unknown" };
 export type ProgressFacts = {
   coordination: "hivic_managed" | "self_managed" | null;
+  /** Installer's explicit measured-and-quoted answer (not price readiness). */
   quoted: "yes" | "no" | null;
+  /** A GST-inclusive quote amount is recorded; false for a file-only quote the office must still read. */
+  quoteAmountKnown?: boolean;
   eligibility: "eligible" | "declined" | "unresolved";
   quoteHeld: string[];
   /** Status of the CURRENT (latest non-withdrawn) installation quote; older accepted history never wins over a newer replacement. */
@@ -120,6 +123,7 @@ function nextAction(f: ProgressFacts, done: Record<ProgressStepKey, boolean>): N
     if (!quotedYes) return f.coordination === "self_managed"
       ? { who: "You", text: "Measure and quote the job, then add the details below." }
       : { who: HIV, text: "Arrange the Ready Check so the job can be measured and quoted." };
+    if (f.quoteAmountKnown === false && (f.quoteStatus === "none" || f.quoteStatus === "draft")) return { who: HIV, text: "Read your uploaded quote and confirm the amount and what it includes." };
     if (f.quoteHeld.length) return { who: f.quoteHeld.some((b) => /installer|you|area|quote|fee|electrician/i.test(b)) ? "You" : HIV, text: `Owner quote on hold: ${f.quoteHeld[0]}` };
     return { who: HIV, text: "Prepare and send the owner quote." };
   }

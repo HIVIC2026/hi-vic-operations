@@ -71,10 +71,11 @@ export async function tradeHome(userId: string) {
   const yourMove: { jobId: string; title: string; detail: string }[] = [];
   const coming: { jobId: string; kind: string; what: string; start: string; end: string | null; owner: string | null; surname: string | null; suburb: string | null; address: string }[] = [];
   const placeOf = new Map<string, WorkPlace>();
+  const answers = await (await import("./installer-intake.server")).intakeQuoteAnswers(live.filter((j) => (j as { channel?: string }).channel === "installer_sourced").map((j) => j.id));
   for (const j of live) {
     const l = label(j);
     const up = upcomingOf(j.id);
-    const p = placeWorkJob({ jobId: j.id, stage: j.stage, trade: c.kind, installerSourced: (j as { channel?: string }).channel === "installer_sourced", quoted: j.installer_quoted as "yes" | "no" | null, siteCheck: j.installer_site_check as "yes" | "no" | null, missingPhotos: miss.get(j.id) ?? 0, pendingOffer: offerJobs.has(j.id), upcoming: up });
+    const p = placeWorkJob({ jobId: j.id, stage: j.stage, trade: c.kind, installerSourced: (j as { channel?: string }).channel === "installer_sourced", quoted: ((a) => a === "have_quote" ? "yes" : a === "not_quoted" ? "no" : (j.installer_quoted as "yes" | "no" | null))(answers.get(j.id)), siteCheck: j.installer_site_check as "yes" | "no" | null, missingPhotos: miss.get(j.id) ?? 0, pendingOffer: offerJobs.has(j.id), upcoming: up });
     placeOf.set(j.id, p.place);
     if (p.place === "needs_me") yourMove.push({ jobId: j.id, title: p.title, detail: `${l.owner ?? "Owner"}, ${l.suburb ?? ""}` });
     if (p.place === "coming_up") { const b = up[0]!; coming.push({ jobId: b.job_id, kind: b.kind, what: VISIT[b.kind] ?? "Visit", start: b.scheduled_start, end: b.scheduled_end, ...l }); }
