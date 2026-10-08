@@ -40,7 +40,7 @@ export function ownerPriceFromQuoted(
 
 export type SuppliedEvidence = {
   installerIdPhoto?: boolean; buildingClass?: string | null; builtLast5Years?: boolean | null; floorPlan?: boolean; icObservation?: boolean | null;
-  areas: { name?: string | null; state?: "Uninsulated" | "Under-insulated" | null; depthPhoto?: boolean; rValue?: number | null; removal?: boolean | null; m2?: number | null; beforeVideo?: boolean }[];
+  areas: { name?: string | null; state?: "Uninsulated" | "Under-insulated" | null; depthPhoto?: boolean; rValue?: number | null; removal?: boolean | null; m2?: number | null; beforeVideo?: boolean; /** Jo 8 Oct 2026: installer tick box confirming existing insulation is below R2.0 and the home is eligible — replaces the depth photo + R-value when no photo is uploaded. */ belowR2Confirmed?: boolean }[];
 };
 export type Coverage = { status: "complete" | "partial" | "none"; missing: string[]; hardFail: string[] };
 
