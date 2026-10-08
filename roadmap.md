@@ -1,8 +1,10 @@
 # Roadmap (preview only, nothing sent, no publish, no real jobs)
 
 ## Current priority — both quote handoffs (Jo, 8 Oct 00:49 UTC)
+- [ ] Replace installer bulk intake with one clear Add job path only; keep existing historical bulk imports readable.
+- [ ] Ask the agreed single-job questions: property/owner, electrician choice, owner price/scope, contact and fee awareness, measurement method/area, removal, and below-R2 confirmation.
 - [ ] Audit installer-supplied and Home Insulation Victoria-sourced paths from intake/Ready Check to owner approval and guarded next steps.
-- [ ] Verify single and bulk upload buttons, per-job information extraction, confirmation and file attachment; repair failures within this flow.
+- [ ] Verify the single-job upload button, information extraction, confirmation and private file attachment; repair failures within this flow.
 - [ ] Require recorded owner fee awareness before quote issuance; make the installer handoff clear without asking installers to quote our leads.
 - [ ] Verify owner approval updates and automatic progression with existing launch, payment and evidence controls intact.
 - [ ] Test both paths and report what works and any remaining gaps; do not publish or send.
