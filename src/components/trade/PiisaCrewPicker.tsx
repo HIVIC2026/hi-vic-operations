@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { card, ghostBtn, greenBtn } from "@/components/trade/TradeShell";
 import { getPiisaCrew, savePiisaCrew } from "@/lib/piisa-a3.functions";
-import { A3_NATIVE_CREW_LOOKUP, crewSelectionProblems, type CrewPick, type StaffOption } from "@/lib/piisa-a3.core";
+import { A3_NATIVE_CREW_LOOKUP, crewSelectionProblems, type CrewPick, type CrewSelection, type StaffOption } from "@/lib/piisa-a3.core";
 
 const ready = (s: StaffOption) => s.approved !== false && s.eecVerified && !!s.eec;
 const tag = (s: StaffOption) => s.approved === false ? " · waiting for office approval" : s.eecVerified ? ` · EEC ${s.eec}` : " · EEC not verified";
@@ -12,9 +12,9 @@ const tag = (s: StaffOption) => s.approved === false ? " · waiting for office a
 export function PiisaCrewPicker({ jobId }: { jobId: string }) {
   const get = useServerFn(getPiisaCrew), save = useServerFn(savePiisaCrew);
   const { data, refetch } = useQuery({ queryKey: ["piisa-crew", jobId], queryFn: () => get({ data: { jobId } }) });
-  const [lead, setLead] = useState<string | null>(null);
+  const [lead, setLead] = useState<CrewSelection["lead"]>(null);
   const [extra, setExtra] = useState<CrewPick[]>([]);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [msg, setMsg] = useState<CrewSelection["lead"]>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => { if (!data) return; if (data.selection) { setLead(data.selection.lead); setExtra(data.selection.additional); } else { const r = data.staff.filter(ready); if (r.length === 1) setLead(r[0]!.workerId); } }, [data]);
   if (!data) return null;
@@ -27,11 +27,16 @@ export function PiisaCrewPicker({ jobId }: { jobId: string }) {
       <p className="mt-1 text-xs text-sub" data-native-lookup-note>{A3_NATIVE_CREW_LOOKUP.note}</p>
       {!data.staff.some(ready) && <p className="mt-2 text-sm font-semibold" data-no-staff>No approved installer with a checked EEC certificate is on your staff list yet, so the lead installer can't be chosen. The office needs to approve one first.</p>}
       <label className="mt-3 block text-sm font-bold">Lead installer
-        <select className={`${sel} mt-1`} value={lead ?? ""} onChange={(e) => setLead(e.target.value || null)}>
+        <select className={`${sel} mt-1`} value={typeof lead === "string" ? lead : lead ? "other" : ""} onChange={(e) => setLead(e.target.value === "other" ? { other: { name: "", eec: "" } } : e.target.value || null)}>
           <option value="">Choose</option>
           {data.staff.map((s) => <option key={s.workerId} value={s.workerId} disabled={!ready(s)}>{s.name}{tag(s)}</option>)}
+          <option value="other">Other</option>
         </select>
       </label>
+      {lead && typeof lead === "object" && <div className="mt-2 grid grid-cols-2 gap-2" data-lead-other>
+        <input className={sel} placeholder="Full name" value={lead.other.name} onChange={(e) => setLead({ other: { ...lead.other, name: e.target.value } })} />
+        <input className={sel} placeholder="EEC certificate number" value={lead.other.eec} onChange={(e) => setLead({ other: { ...lead.other, eec: e.target.value } })} />
+      </div>}
       {extra.map((a, i) => (
         <div key={i} className="mt-3 space-y-2">
           <select className={sel} value={"workerId" in a ? a.workerId : "other"} onChange={(e) => setExtra(extra.map((x, j) => j !== i ? x : e.target.value === "other" ? { other: { name: "", eec: "" } } : { workerId: e.target.value }))}>
