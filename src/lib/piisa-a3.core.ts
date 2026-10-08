@@ -153,11 +153,11 @@ export function a3MissingFields(template: unknown): string[] {
 
 /** Media item ids that hold each evidence type on a completed audit (for evidence sync). */
 export function a3MediaCounts(audit: unknown): { key: A3EvidenceKey; count: number }[] {
-  const entries = flatten(audit) as (Entry & { raw?: Any })[];
+  const byId = new Map<string, Any>();
+  const walk = (x: unknown) => { if (Array.isArray(x)) x.forEach(walk); else if (x && typeof x === "object") { const o = x as Any; const id = o.item_id ?? o.id; if (id != null && "label" in o) byId.set(String(id), o); for (const v of Object.values(o)) if (typeof v === "object") walk(v); } };
+  walk(audit);
   return (Object.entries(A3_MEDIA_IDS) as [A3EvidenceKey, string][]).map(([key, nid]) => {
-    const e = entries.find((x) => String(x.id) === nid) as Any;
-    const r = e?.raw?.responses ?? e?.responses ?? {};
-    const media = (e?.raw?.media ?? r.media ?? r.attachments ?? []) as unknown[];
+    const o = byId.get(nid); const media = o?.media ?? o?.responses?.media ?? o?.responses?.attachments ?? [];
     return { key, count: Array.isArray(media) ? media.length : 0 };
   });
 }
