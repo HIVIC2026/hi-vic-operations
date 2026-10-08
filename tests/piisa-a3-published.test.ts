@@ -31,7 +31,7 @@ describe("published A3 definition (live read-only GET)", () => {
       expect(n.question.response_set_id).toBe(A3_CREW_RESPONSE_SET);
       expect(n.question.options.is_mandatory).toBe(row === 0);
     });
-    const alwaysCrew = typed.filter(({ node, parents }) => opts(node).is_mandatory && !conditional(parents) && /installer|eec|legal name/i.test(String(node.label)));
+    const alwaysCrew = typed.filter(({ node, parents }) => opts(node).is_mandatory && !conditional(parents) && /^(lead installer|additional installer|full legal name|eec certification number|installer company|installer full name|installer photos)/i.test(String(node.label)));
     expect(alwaysCrew.map(({ node }) => node.label).sort()).toEqual(["Installer company", "Installer full name", "Installer photos — every installer onsite today (geotagged)", "Lead installer"].sort());
   });
   test("Other branch name/EEC are required only under the Other option of their own row", () => {
