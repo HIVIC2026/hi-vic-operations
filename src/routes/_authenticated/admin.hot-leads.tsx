@@ -113,12 +113,15 @@ function EditEmail({ row, onClose }: { row: Row; onClose: () => void }) {
   const [email, setEmail] = useState(row.email ?? "");
   const [reason, setReason] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const missing = !email.trim() || reason.trim().length < 5;
   return <Dialog open onOpenChange={(o) => !o && onClose()}><DialogContent><DialogHeader><DialogTitle>Edit email for {row.jobNumber}</DialogTitle></DialogHeader>
     <p className="text-sm text-muted-foreground">Only change this once Jo has confirmed the right address. The change is recorded in job history.</p>
     <label className="text-sm font-medium">Email<Input value={email} onChange={(e) => setEmail(e.target.value)} /></label>
-    <label className="text-sm font-medium">Why it's changing<Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Jo confirmed with the owner" /></label>
-    {err && <p className="text-sm text-destructive">{err}</p>}
-    <Button onClick={async () => { try { await save({ data: { jobId: row.id, email, reason } }); onClose(); } catch (e) { setErr((e as Error).message); } }}>Save email</Button>
+    <label className="text-sm font-medium">Why it's changing<Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Type the reason here, e.g. confirmed by phone" /></label>
+    {missing && <p className="text-xs text-muted-foreground">Type the new email and a short reason (at least a few words) to enable Save.</p>}
+    {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
+    <Button disabled={busy || missing} onClick={async () => { setBusy(true); setErr(null); try { await save({ data: { jobId: row.id, email, reason } }); onClose(); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); } }}>{busy ? "Saving…" : "Save email"}</Button>
   </DialogContent></Dialog>;
 }
 
