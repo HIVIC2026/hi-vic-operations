@@ -173,6 +173,8 @@ export type InstallerIntakeUpdate = {
   quoteIncGst: number | null; includes: string | null; proposedR: number | null;
   files: { path: string; name: string; type: string }[];
   electrician?: { mode: "mine"; business_id?: string | null; nomination_id?: string | null } | undefined;
+  /** Who arranges/pays the electrician: HIV ($349 on quote) / own (direct billing, needs `electrician`) / to be arranged. */
+  electricianPayer?: "hivic" | "own" | "undecided" | undefined;
   /** Installer declares (later, on the same job) the owner was advised of the fees for the CURRENT electrician payer. */
   feeAwareness?: { payer: "hivic" | "own"; text: string } | undefined;
 };
@@ -191,6 +193,23 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
   if (!(await isIntakeJob(jobId))) throw new WorkflowError("This job wasn't added through Add job.");
   for (const f of p.files) if (!f.path.startsWith(`partners/${businessId}/`)) throw new WorkflowError("That file isn't one of your uploads.");
   const st = await installerIntakeState(jobId);
+  // ---- Validate the electrician/payer change and fee declaration BEFORE any write (no misleading partial saves). ----
+  const { planPayerChange } = await import("./installer-intake.core");
+  const requestedPayer = p.electricianPayer ?? (p.electrician && (p.electrician.business_id || p.electrician.nomination_id) && st.electricianPayer !== "own" ? "own" : undefined);
+  const { count: elAccepted } = await admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true);
+  const pc = planPayerChange({ currentPayer: st.electricianPayer, requested: requestedPayer, electricianAccepted: (elAccepted ?? 0) > 0, fee: p.feeAwareness });
+  if (!pc.ok) throw new WorkflowError(pc.error);
+  if (pc.change) {
+    if (st.electricianPayer === "own") throw new WorkflowError("Your electrician is already chosen — ask the office to change it.");
+    if (pc.nextPayer === "own") {
+      const e = p.electrician;
+      if (!e || !(e.business_id || e.nomination_id)) throw new WorkflowError("Choose your electrician.");
+      if (e.business_id) { const { data: rel } = await admin.from("partner_relationships").select("electrician_business_id").eq("installer_business_id", businessId).eq("electrician_business_id", e.business_id).eq("active", true).maybeSingle(); if (!rel) throw new WorkflowError("That electrician isn't one of your approved electricians."); }
+      else { const { data: n } = await admin.from("electrician_nominations").select("id").eq("id", e.nomination_id!).eq("nominating_business_id", businessId).maybeSingle(); if (!n) throw new WorkflowError("That electrician couldn't be found. Add them again."); }
+    }
+    const { data: acc } = await admin.from("quotes").select("id").eq("job_id", jobId).eq("kind", "installation").eq("status", "accepted");
+    if (acc?.length) { const { count: inv } = await admin.from("invoices").select("id", { count: "exact", head: true }).in("quote_id", acc.map((q) => q.id)); if (inv) throw new WorkflowError("The owner's invoice has already been raised — ask Home Insulation Victoria to change the electrician arrangement."); }
+  }
   const { data: m } = await admin.from("ceiling_measurements").select("id, provenance, supplied_area_m2").eq("job_id", jobId).eq("is_current", true).maybeSingle();
   const ch = pickIntakeChanges({
     areaM2: m?.supplied_area_m2 == null ? (st.areaM2 ?? null) : Number(m.supplied_area_m2), insulation: st.insulation, quoted: (job.installer_quoted ?? null) as "yes" | "no" | null,
@@ -218,21 +237,28 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
     if (add.length) await logEvent(jobId, actorId, "installer_quote_file_added", `Installer added ${add.length} file${add.length === 1 ? "" : "s"} (originals kept)`, { files: add }, { internal: true });
   }
   let electrician: string | null = null;
-  if (p.electrician && (p.electrician.business_id || p.electrician.nomination_id)) {
-    if (job.electrician_choice && job.electrician_choice !== "hivic_organise") throw new WorkflowError("An electrician is already chosen — ask the office to change it.");
-    const { recordJobElectricianChoice } = await import("./job-electrician.server");
-    electrician = (await recordJobElectricianChoice(jobId, businessId, p.electrician as never, actorId)).choice ?? null;
+  if (pc.change) {
+    const now = new Date().toISOString();
+    if (pc.nextPayer === "own") electrician = (await (await import("./job-electrician.server")).recordJobElectricianChoice(jobId, businessId, p.electrician as never, actorId)).choice ?? null;
+    else if (pc.nextPayer === "hivic") { await (await import("./job-electrician.server")).switchJobToHivic(jobId, actorId); electrician = "hivic_organise"; }
+    else {
+      await admin.from("electrician_nominations").update({ ended_at: now, updated_at: now }).eq("job_id", jobId).is("ended_at", null);
+      const { error: e } = await admin.from("jobs").update({ electrician_choice: null, next_action: "Electrician to be arranged" }).eq("id", jobId);
+      if (e) throw new WorkflowError(e.message);
+      electrician = "undecided";
+    }
+    await logEvent(jobId, actorId, "installer_electrician_payer_changed", `Installer changed the electrician arrangement: ${st.electricianPayer} → ${pc.nextPayer}`, { from: st.electricianPayer, to: pc.nextPayer, choice: electrician }, { internal: true });
+    if (st.feeAwarenessRecorded && !p.feeAwareness) await logEvent(jobId, actorId, "installer_owner_fee_awareness_invalidated", "Earlier owner fee declaration no longer covers the new electrician arrangement — a new declaration is needed", { previous_payer: st.feeAwarenessPayer, new_payer: pc.nextPayer }, { internal: true });
   }
   let feeRecorded = false;
   if (p.feeAwareness) {
-    const { feeAwarenessText, payerFromChoice, FEE_AWARENESS_VERSION } = await import("./installer-intake.core");
-    const { data: j2 } = await admin.from("jobs").select("electrician_choice").eq("id", jobId).single();
-    const payer = payerFromChoice(j2?.electrician_choice);
-    if (payer !== p.feeAwareness.payer || p.feeAwareness.text !== feeAwarenessText(payer)) throw new WorkflowError("The fee confirmation doesn't match this job's electrician arrangement — refresh and tick it again.");
+    const { FEE_AWARENESS_VERSION } = await import("./installer-intake.core");
+    const payer = pc.nextPayer;
     await logEvent(jobId, actorId, "installer_owner_fee_awareness", payer === "own" ? "Installer declared the owner was advised of the $349 AP management fee and that their own electrician invoices them separately" : "Installer declared the owner was advised of the $349 PIESA fee and $349 AP management fee", { by: "installer", source: "installer_job_page", payer, wording: p.feeAwareness.text, version: FEE_AWARENESS_VERSION, confirmed_at: new Date().toISOString(), not_owner_paperwork: true }, { internal: true });
     feeRecorded = true;
   }
-  const material = ch.area !== undefined || !!ch.quote || ch.proposedR !== undefined || ch.insulation !== undefined;
+  // A payer change is material: it changes the owner quote's lines (HIV PIESA line on/off).
+  const material = ch.area !== undefined || !!ch.quote || ch.proposedR !== undefined || ch.insulation !== undefined || pc.change;
   let quotes: { id: string; action: string }[] = [];
   if (material) {
     quotes = await staleIntakeQuotes(jobId, actorId);
@@ -240,5 +266,7 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
     if (ch.insulation !== undefined) await logEvent(jobId, actorId, "installer_intake_corrected", `Installer updated existing insulation to ${ch.insulation === "none" ? "none" : ch.insulation === "below_r2" ? "confirmed below R2.0" : "not yet confirmed"}`, { ...details, insulation: ch.insulation }, { internal: true });
     else await logEvent(jobId, actorId, "installer_intake_updated", "Installer updated job details", details, { internal: true });
   }
+  // Payer change: prepare a fresh held draft at the current lines when the commercial facts are ready (never sent here).
+  if (pc.change) { const s2 = await installerIntakeState(jobId); if (s2.readiness.ready && pc.nextPayer !== "undecided") await draftQuoteFromIntake(jobId, actorId).catch(() => null); }
   return { changed: material || p.files.length > 0 || !!electrician || feeRecorded, quotes: quotes.length, state: await installerIntakeState(jobId) };
 }
