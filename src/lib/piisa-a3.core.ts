@@ -273,7 +273,22 @@ export function signatureAttachment(auditId: string, sig: ReturnType<typeof a3Si
 }
 
 // ---------- Ready Check -> Part 6 prefill (multi-area aware) ----------
-export type RcArea = { name?: string | null; present?: boolean | null; depthMm?: number | null; rValue?: number | null; downlights?: number | null };
+export type RcArea = { name?: string | null; present?: boolean | null; depthMm?: number | null; rValue?: number | null; downlights?: number | null; removal?: boolean | null };
+/** Strict yes/no: real booleans, or exact Yes/No text. "No", "false", "" and anything else never become true. */
+export const strictPresent = (v: unknown): boolean | null => typeof v === "boolean" ? v : typeof v === "string" ? (/^\s*(yes|true)\s*$/i.test(v) ? true : /^\s*(no|false)\s*$/i.test(v) ? false : null) : null;
+/**
+ * Areas from the CANONICAL persisted Ready Check record. Mitti syncs store raw_snapshot as a flat entry list
+ * (id/label/section/value) and the canonical parser's per-room results are written to the row columns, so the row
+ * columns are the source. Structured per-area zones are used only when present as objects. Depth is not captured
+ * canonically -> null. Removal/top-up only when actually recorded; never inferred from absence.
+ */
+export function rcAreasFromRecord(m: { insulation_present: unknown; existing_r_value: unknown; removal_required?: unknown; zones?: unknown } | null, downlightsQty: number | null): RcArea[] {
+  if (!m) return [];
+  const n = (v: unknown) => { const x = v == null || v === "" ? NaN : Number(v); return Number.isFinite(x) ? x : null; };
+  const zones = Array.isArray(m.zones) ? (m.zones as Any[]).filter((z) => z && typeof z === "object" && !Array.isArray(z)) : [];
+  if (zones.length) return zones.map((a) => ({ name: typeof a.name === "string" ? a.name : null, present: strictPresent(a.present ?? a.insulation_present), depthMm: n(a.depth_mm ?? a.depthMm), rValue: n(a.r_value ?? a.rValue ?? a.existing_r_value), downlights: n(a.downlights), removal: strictPresent(a.removal_required ?? a.removal) }));
+  return [{ present: strictPresent(m.insulation_present), depthMm: null, rValue: n(m.existing_r_value), downlights: downlightsQty, removal: strictPresent(m.removal_required) }];
+}
 
 /**
  * Part 6/5 facts from the SAME job's completed Ready Check. A single shared value is prefilled; areas that disagree are
@@ -291,6 +306,12 @@ export function readyCheckPartPrefill(areas: RcArea[]): { values: Record<string,
     else if (distinct.length > 1) notes.push(`${label} differs between ceiling areas (${distinct.join(", ")}) — the installer must enter it.`);
   };
   one("depthMm", "p6.height", "Existing insulation depth");
+  // Removal / top-up only where existing insulation is present AND removal was actually recorded for every such area.
+  const withIns = areas.filter((a) => a.present === true);
+  if (withIns.length && withIns.every((a) => a.removal != null)) {
+    const rem = withIns.some((a) => a.removal === true), top = withIns.some((a) => a.removal === false);
+    values["p6.treatment"] = rem && top ? "Both" : rem ? "Removed" : "Topped up";
+  }
   one("rValue", "p6.rValue", "Existing insulation R-value");
   const dl = areas.map((a) => a.downlights);
   if (dl.every((x) => x != null && Number.isFinite(x))) { const sum = (dl as number[]).reduce((a, b) => a + b, 0); values["p5.recessed"] = sum > 0 ? "Yes" : "No"; if (sum > 0) values["p5.count"] = String(sum); }
@@ -316,31 +337,48 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const certificationRef = (c: unknown): string | null => { const v = (c as { verification_id?: unknown } | null)?.verification_id; return typeof v === "string" && UUID.test(v) ? v : null; };
 
 /** Roster from RECORDED facts: EEC verified only through a linked verified certification row (declared text never counts). */
-export function staffFromRecords(workers: WorkerRow[], certs: CertRow[]): StaffOption[] {
+export type LevelRow = { certification_id: string; level: string | null; expires_on: string | null; recorded_at: string };
+export function staffFromRecords(workers: WorkerRow[], certs: CertRow[], levels: LevelRow[] = []): StaffOption[] {
   const byId = new Map(certs.map((c) => [c.id, c]));
+  const lv = new Map<string, LevelRow>();
+  for (const l of [...levels].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at))) lv.set(l.certification_id, l); // latest recorded wins
   return workers.filter((w) => !w.removed_at && w.trade_role === "installer").map((w) => {
     const ref = certificationRef(w.certification);
     const c = ref ? byId.get(ref) : undefined;
     const ok = !!c && c.status === "verified" && !!c.certificate_number?.trim() && (!c.worker_id || c.worker_id === w.id);
-    return { workerId: w.id, name: w.full_legal_name.trim(), eec: ok ? c!.certificate_number!.trim() : null, eecVerified: ok, approved: w.approval_status === "approved", issuer: ok ? c!.issuer?.trim() || null : null, certificationId: ok ? c!.id : null, level: null, expiresOn: w.licence_expires_on ?? null };
+    return { workerId: w.id, name: w.full_legal_name.trim(), eec: ok ? c!.certificate_number!.trim() : null, eecVerified: ok, approved: w.approval_status === "approved", issuer: ok ? c!.issuer?.trim() || null : null, certificationId: ok ? c!.id : null, level: ok ? lv.get(c!.id)?.level ?? null : null, expiresOn: ok ? lv.get(c!.id)?.expires_on ?? null : null };
   }).sort((a, b) => a.name.localeCompare(b.name));
 }
 export type CrewPick = { workerId: string } | { other: { name: string; eec: string } };
-export type CrewSelection = { lead: string | null; additional: CrewPick[] };
+/** Lead = a staff workerId, or "Other" (typed name + EEC, office verification required before work starts). */
+export type CrewSelection = { lead: string | { other: { name: string; eec: string } } | null; additional: CrewPick[] };
+export const leadWorkerId = (sel: CrewSelection): string | null => typeof sel.lead === "string" ? sel.lead : null;
 
 /** Lead = verified staff of the assigned installer business; ≤3 additional; no duplicates; "Other" needs name + EEC and office verification. */
 export function crewSelectionProblems(sel: CrewSelection, staff: StaffOption[]): { problems: string[]; needsVerification: string[] } {
   const p: string[] = [], nv: string[] = [];
   const byId = new Map(staff.map((s) => [s.workerId, s]));
-  const lead = sel.lead ? byId.get(sel.lead) : undefined;
+  const leadId = leadWorkerId(sel);
+  const lead = leadId ? byId.get(leadId) : undefined;
+  const leadOther = sel.lead && typeof sel.lead === "object" ? { name: sel.lead.other.name.trim(), eec: sel.lead.other.eec.trim() } : null;
   const unapproved = (s: StaffOption) => s.approved === false;
-  if (!lead) p.push("Choose the lead installer from your verified staff");
+  const seenIds = new Set<string>(leadId ? [leadId] : []);
+  const seenEec = new Set<string>();
+  const seenName = new Set<string>();
+  if (leadOther) {
+    if (!leadOther.name || !leadOther.eec) p.push("Other lead installer needs a full name and EEC certification number");
+    else {
+      const known = staff.find((s) => norm(s.name) === norm(leadOther.name) || (s.eec && norm(s.eec) === norm(leadOther.eec)));
+      if (known) p.push(`${known.name} is already on your staff list — choose them instead of Other`);
+      else nv.push(`Lead installer ${leadOther.name} (EEC ${leadOther.eec}) must be verified by the office before work starts`);
+      seenName.add(norm(leadOther.name)); seenEec.add(norm(leadOther.eec));
+    }
+  } else if (leadId && !lead) p.push("The lead installer is not on your staff list");
+  else if (!lead) p.push("Choose the lead installer from your staff, or Other");
   else if (unapproved(lead)) p.push(`${lead.name}: waiting for office approval — can't go on the safety form yet`);
   else if (!lead.eecVerified || !lead.eec) p.push(`${lead.name}: EEC certification not verified`);
+  if (lead) { seenName.add(norm(lead.name)); if (lead.eec) seenEec.add(norm(lead.eec)); }
   if (sel.additional.length > 3) p.push("The official form has room for 3 additional installers");
-  const seenIds = new Set<string>(sel.lead ? [sel.lead] : []);
-  const seenEec = new Set<string>(lead?.eec ? [norm(lead.eec)] : []);
-  const seenName = new Set<string>(lead ? [norm(lead.name)] : []);
   for (const a of sel.additional) {
     if ("workerId" in a) {
       const s = byId.get(a.workerId);
@@ -366,7 +404,9 @@ export function crewSelectionProblems(sel: CrewSelection, staff: StaffOption[]):
 export function crewPrefill(sel: CrewSelection, staff: StaffOption[]): { itemId: string; row: number; value: string }[] {
   const byId = new Map(staff.map((s) => [s.workerId, s]));
   const out: { itemId: string; row: number; value: string }[] = [];
-  const lead = sel.lead ? byId.get(sel.lead) : undefined;
+  const lid = leadWorkerId(sel);
+  const lead = lid ? byId.get(lid) : undefined;
+  if (sel.lead && typeof sel.lead === "object") { const o = sel.lead.other; if (o.name.trim()) out.push({ itemId: "p2.lead", row: 0, value: o.name.trim() }, { itemId: "p8.name", row: 0, value: o.name.trim() }); if (o.eec.trim()) out.push({ itemId: "p2.leadEec", row: 0, value: o.eec.trim() }); }
   if (lead) { out.push({ itemId: "p2.lead", row: 0, value: lead.name }, { itemId: "p8.name", row: 0, value: lead.name }); if (lead.eecVerified && lead.eec) out.push({ itemId: "p2.leadEec", row: 0, value: lead.eec }); }
   sel.additional.slice(0, 3).forEach((a, row) => {
     const s = "workerId" in a ? byId.get(a.workerId) : null;
