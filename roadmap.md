@@ -231,3 +231,5 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [ ] 12:25 Installer intake follow-ups: TEST installer browser click-through; job-page Ready Check outstanding list + resume; wire installDayBlockers into PIISA/works tools.
 - [ ] Ready Check draft + Add job resume: verify with authenticated TEST installer (blocked: needs approved TEST session)
 - Add job claim fencing + original-condition evidence + reconfirmation drafting + live pre-start check — done, verified by focused tests only (no authenticated TEST run)
+
+- [ ] Authenticated TEST check of the PIISA crew picker and signed-PIISA signature record (needs a TEST installer with an approved worker; no live audit).

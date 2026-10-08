@@ -40,15 +40,15 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
   const { data: a } = await admin.from("job_assignments").select("user_id, business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
   const { data: b } = a?.business_id ? await admin.from("businesses").select("name, abn, licence_number").eq("id", a.business_id).maybeSingle() : { data: null };
   // The signature's OWN timestamp only — never the audit's modified/completed time, never "now".
-  const { a3Signature, parseA3Answers, PIISA_A3_TEMPLATE_ID } = await import("./piisa-a3.core");
+  const { a3Signature, parseA3Answers, signatureAttachment, PIISA_A3_TEMPLATE_ID } = await import("./piisa-a3.core");
   const sig = a3Signature(audit);
   if (!sig.present || !sig.signedAt) {
     await logEvent(jobId, actorId, "installer_declaration_missing", "Completed PIISA has no signature timestamp — not saved", { audit_id: auditId }, { internal: true });
-    return { status: "missing", message: "The PIISA signature has no time recorded, so it can't be used. Ask the installer to sign again in Mitti." };
+    return { status: "missing", message: sig.present ? "The PIISA signature has no time recorded, so it can't be used. Ask the installer to sign again in Mitti." : "The PIISA has no signature image, so it can't be used. Ask the installer to sign in Mitti." };
   }
   const signedAt = sig.signedAt;
   // A3: completed audit populates the OFFICIAL PIISA answers (Parts 1–8) and the original official DOCX.
-  let official: { answers: Record<string, unknown>; docx?: { path: string; sha256: string; missed: string[] } } | null = null;
+  let official: { answers: Record<string, unknown>; docx?: { path: string; sha256: string; missed: string[] }; signature_attachment?: unknown } | null = null;
   if (expectedTpl === PIISA_A3_TEMPLATE_ID) {
     const { answers, crew } = parseA3Answers(audit);
     crew.forEach((c, i) => { answers[`p2.addName#${i}`] = c.name; if (c.eec) answers[`p2.addEec#${i}`] = c.eec; });
@@ -68,7 +68,15 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
     const path = `jobs/${jobId}/official/piisa-${auditId}.docx`;
     const up = await admin.storage.from("job-files").upload(path, r.bytes, { contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", upsert: false });
     if (up.error && !/exists/i.test(up.error.message)) return { status: "error", message: `Official PIISA document could not be stored: ${up.error.message}` };
-    official = { answers: { ...answers, signed_copy_id: copyId }, docx: { path, sha256: r.sha256, missed: r.missed } };
+    // The Word form keeps its blank signature line; the signature is an explicit linked attachment record next to it.
+    const { createHash } = await import("node:crypto");
+    const docSha = createHash("sha256").update(r.bytes).digest("hex");
+    const att = signatureAttachment(auditId, sig, { path, sha256: docSha });
+    if (!att) return { status: "missing", message: "The PIISA signature image or its time is missing, so it can't be used." };
+    const sidecar = `jobs/${jobId}/official/piisa-${auditId}.signature.json`;
+    const su = await admin.storage.from("job-files").upload(sidecar, new Blob([JSON.stringify(att)], { type: "application/json" }), { contentType: "application/json", upsert: false });
+    if (su.error && !/exists/i.test(su.error.message)) return { status: "error", message: `PIISA signature record could not be stored: ${su.error.message}` };
+    official = { answers: { ...answers, signed_copy_id: copyId }, docx: { path, sha256: r.sha256, missed: r.missed }, signature_attachment: { ...att, record_path: sidecar } };
   }
   const d = r.decl;
   const snap = { official, prestart_signed_at: signedAt, source: "mitti_piisa", audit_id: auditId, declaration: { version: tpl.version, body: tpl.body }, installed_product: d.product, installed_r_value: d.rValue, installed_area_m2: d.areaM2, signature: { typed_name: d.signatureName, mitti_signature: d.signature, signed_on: d.signedOn, at: signedAt, user_id: a?.user_id ?? null }, piisa_answers: p.snapshot };

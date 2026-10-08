@@ -89,7 +89,7 @@ describe("completed audit -> official answers", () => {
   });
   test("signature needs its own timestamp; audit modified time is never used", () => {
     expect(a3Signature({ modified_at: "2026-10-08T01:00:00Z", items: [it("Signature", "s", { responses: { name: "Ann", image: "m1" } })] }).signedAt).toBeNull();
-    expect(a3Signature({ items: [it("Signature", "805138fa-827e-4e25-8ca5-3871eeda1202", { responses: { name: "Ann", image: "m1", timestamp: "2026-10-08T00:10:00Z" } })] })).toEqual({ name: "Ann", signedAt: "2026-10-08T00:10:00Z", present: true });
+    expect(a3Signature({ items: [it("Signature", "805138fa-827e-4e25-8ca5-3871eeda1202", { responses: { name: "Ann", image: "0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b", timestamp: "2026-10-08T00:10:00Z" } })] })).toEqual({ name: "Ann", signedAt: "2026-10-08T00:10:00Z", present: true, mediaId: "0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b", itemId: "805138fa-827e-4e25-8ca5-3871eeda1202" });
   });
 });
 
