@@ -42,8 +42,12 @@ function HotLeadsPage() {
   const blocker = hotSelectionBlocker(picked);
   const canSendHere = tab === "test" || (tab === "likely" && !!data?.realSendingOn);
   const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  const ready = rows.filter((r) => r.send === "ready");
-  const hold = rows.filter((r) => r.send === "hold");
+  // Jo (8 Oct): a lead leaves the send queues the moment its spot is saved or it opts out, so the lists always show who still needs the email.
+  const ready = rows.filter((r) => r.send === "ready" && r.status === "not_sent");
+  const hold = rows.filter((r) => r.send === "hold" && r.status === "not_sent");
+  const awaiting = rows.filter((r) => r.status === "sent");
+  const saved = rows.filter((r) => r.status === "spot_saved");
+  const optedOut = rows.filter((r) => r.status === "opted_out");
   const counts = useMemo(() => [...ready.reduce((m, r) => m.set(r.region, (m.get(r.region) ?? 0) + 1), new Map<string, number>())], [ready]);
 
   async function runSend() {
@@ -94,7 +98,7 @@ function HotLeadsPage() {
         {blocker && <p className="mt-2 text-sm font-semibold text-destructive">{blocker}</p>}
         {progress && <p role="status" className="mt-2 text-sm">{progress}</p>}
       </div>
-      {tab === "likely" ? <>{table(ready, "Ready to send")}{table(hold, "Hold — no local trade confirmed yet")}</> : table(rows, tab === "warm" ? "Warm" : "TEST jobs")}
+      {tab === "likely" ? <>{table(ready, "Ready to send")}{table(hold, "Hold — no local trade confirmed yet")}{table(awaiting, "Sent — waiting for the owner")}{table(saved, "Spot saved ✓")}{table(optedOut, "Opted out")}</> : table(rows, tab === "warm" ? "Warm" : "TEST jobs")}
       {tab === "likely" && data.skipped.length > 0 && <section className="mt-6"><h2 className="font-display text-xl font-bold">Not on this list ({data.skipped.length})</h2>
         <p className="text-sm text-muted-foreground">Likely eligible website leads left out, and why.</p>
         <div className="mt-3 overflow-x-auto rounded-2xl border bg-card"><table className="w-full text-left text-sm"><thead className="bg-muted"><tr><th className="p-3">Job</th><th className="p-3">Name</th><th className="p-3">Why</th></tr></thead>
