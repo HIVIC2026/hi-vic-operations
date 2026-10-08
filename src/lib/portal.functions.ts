@@ -648,6 +648,7 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
       if (quoteIsExpired(q)) throw new WorkflowError("This quote has expired. Please contact us for an updated quote.");
     }
     if (data.accept && !data.consent) throw new WorkflowError("Please confirm to proceed.");
+    if (data.accept) { const bb = await (await import("./installer-quote.server")).quoteBillingBlocker(q.id); if (bb) throw new WorkflowError(`${bb}. Please contact us for an updated quote.`); }
     const stage = await getStage(q.job_id);
     // Installation quotes: the Ready Check path (office-released measured quote at measured_estimate_ready, Jo 7 Oct)
     // and the older awaiting_quote_acceptance path both accept. Every other guard below still applies to both.

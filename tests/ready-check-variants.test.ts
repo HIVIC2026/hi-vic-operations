@@ -3,6 +3,7 @@ import { FORMS, PRICING_FIELDS, readyCheckVariant, validateQuotedPrice, validate
 import { buildInstallerQuoteDraft, ownerPriceFromQuoted, quotedPriceFromEntries } from "../src/lib/installer-led.core";
 import { parseAudit } from "../src/lib/mitti.core";
 
+const EXTRAS_MISSING = ["Missing: Are any extras needed beyond the standard install and removal?", "Missing: Describe each extra and why it is needed", "Missing: Photos of each extra"];
 describe("Ready Check variants", () => {
   test("installer-sourced jobs get the priced form; our leads get evidence-only", () => {
     expect(readyCheckVariant("installer_sourced")).toBe("ready_check_priced");
@@ -104,7 +105,8 @@ describe("the real Mitti templates", () => {
   ].map(([label, type]) => ({ label, type }));
   test("the real installer A1 template passes ready_check_priced", () => {
     const r = validateTemplate("ready_check_priced", A1);
-    expect(r.issues).toEqual([]);
+    // Jo 8 Oct 2026 made the extras section required; this fixture was downloaded before it existed, so the ONLY gaps are the extras questions.
+    expect(r.issues).toEqual(EXTRAS_MISSING);
   });
   test("the evidence-only form without pricing still fails the priced validator", () => {
     const r = validateTemplate("ready_check_priced", A1.filter((i) => !/quote|included/i.test(i.label)));
@@ -155,13 +157,13 @@ describe("the real own-leads A2 template (HIVIC sourced, downloaded 2026-10-02)"
     ["I confirm the information, measurements, photos and quote provided in this Ready Check are accurate to the best of my knowledge.", "signature"],
   ].map(([label, type]) => ({ label, type }));
   test("the real own-leads template passes the ready_check validator despite help-text lines", () => {
-    expect(validateTemplate("ready_check", A2).issues).toEqual([]);
+    expect(validateTemplate("ready_check", A2).issues).toEqual(EXTRAS_MISSING); // help-text lines cause no issues; only the 8 Oct extras section is absent
   });
   test("own-leads form has no pricing section and fails the priced validator with exactly the pricing issues", () => {
     const r = validateTemplate("ready_check_priced", A2);
     expect(r.ok).toBe(false);
     expect(r.issues).toEqual([
-      "Missing: What's included in your quote?", "Missing: What else is included?", "Missing: Total quoted price (inc GST)",
+      ...EXTRAS_MISSING, "Missing: What's included in your quote?", "Missing: What else is included?", "Missing: Total quoted price (inc GST)",
     ]);
   });
   test("A2 wording parses: per-area hazards flag, failed outcome and installer reasons", () => {

@@ -373,3 +373,13 @@ export function planPayerChange(x: { currentPayer: ElectricianPayer; requested: 
   if (x.fee && (x.fee.payer !== nextPayer || x.fee.text !== feeAwarenessText(nextPayer))) return { ok: false, error: "The fee confirmation doesn't match the electrician arrangement you chose — tick it again." };
   return { ok: true, change, nextPayer };
 }
+
+/** Release/accept guard (Jo 9 Oct): an installer quote's electrical billing lines must match the CURRENT payer,
+ *  whichever path changed the payer. Accepted quotes are frozen and never re-checked/repriced. */
+export function electricalLineBlocker(codes: (string | null)[], payer: ElectricianPayer): string | null {
+  if (payer === "undecided") return "Electrician arrangement not decided yet — this quote can't go to the owner";
+  const has = codes.includes("PIESA");
+  if (payer === "hivic" && !has) return "This quote has no PIESA line but Home Insulation Victoria is arranging the electrician — prepare a fresh quote first";
+  if (payer === "own" && has) return "This quote charges a PIESA but the owner's own electrician invoices them directly — prepare a fresh quote first";
+  return null;
+}

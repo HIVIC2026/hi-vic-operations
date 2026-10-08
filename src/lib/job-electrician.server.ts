@@ -43,7 +43,9 @@ export async function jobElectricianState(jobId: string) {
   ]);
   const n = noms?.[0] ?? null;
   const a = asg?.[0] as { businesses?: { name?: string; trading_name?: string | null } | null } | undefined;
+  const { isIntakeJob } = await import("./installer-intake.server");
   return {
+    intake: await isIntakeJob(jobId),
     choice: (job?.electrician_choice as string | null) ?? null,
     assignedName: a ? a.businesses?.trading_name || a.businesses?.name || "Electrician" : null,
     chosenName: n?.business_id ? n.contact_name : null,
@@ -52,7 +54,31 @@ export async function jobElectricianState(jobId: string) {
 }
 
 /** Installer switches to "Home Insulation Victoria arranges" at any time before an electrician has accepted. */
+/** ONE payer-change lock for every path: electrician accepted, or the owner's invoice raised on an accepted quote. */
+export async function payerChangeBlocker(jobId: string): Promise<string | null> {
+  const { count } = await admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true);
+  if (count) return "An electrician has already accepted this job. Ask Home Insulation Victoria to change it.";
+  const { data: acc } = await admin.from("quotes").select("id").eq("job_id", jobId).eq("kind", "installation").eq("status", "accepted");
+  if (acc?.length) { const { count: inv } = await admin.from("invoices").select("id", { count: "exact", head: true }).in("quote_id", acc.map((q) => q.id)); if (inv) return "The owner's invoice has already been raised — ask Home Insulation Victoria to change the electrician arrangement."; }
+  return null;
+}
+
+/** Legacy job-card / RPC switch. Add job (intake) jobs are REFUSED here: their payer changes only through the guarded
+ *  job-details editor (installerUpdateIntake) so quotes and fee declarations update together. Other jobs share the
+ *  same lock and may not switch after a quote has been accepted (no reconfirmation path for them). */
 export async function switchJobToHivic(jobId: string, userId: string) {
+  const { isIntakeJob } = await import("./installer-intake.server");
+  if (await isIntakeJob(jobId)) throw new WorkflowError("Change the electrician in this job's details below, so the owner's quote and fee confirmation update together.");
+  const lock = await payerChangeBlocker(jobId);
+  if (lock) throw new WorkflowError(lock);
+  const { data: acc } = await admin.from("quotes").select("id").eq("job_id", jobId).eq("kind", "installation").eq("status", "accepted").limit(1);
+  const { data: j } = await admin.from("jobs").select("channel").eq("id", jobId).maybeSingle();
+  if (j?.channel === "installer_sourced" && acc?.length) throw new WorkflowError("The owner has already accepted the quote — ask Home Insulation Victoria to change the electrician arrangement.");
+  return applyHivicArrangement(jobId, userId);
+}
+
+/** Internal: callers must already have applied the guards (legacy switch above, or installerUpdateIntake). */
+export async function applyHivicArrangement(jobId: string, userId: string) {
   const { data: mine } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("user_id", userId).eq("active", true).maybeSingle();
   if (!mine?.business_id) throw new WorkflowError("Only the installer on this job can change this.");
   const { data: biz } = await admin.from("business_members").select("member_role").eq("business_id", mine.business_id).eq("user_id", userId).eq("active", true).maybeSingle();

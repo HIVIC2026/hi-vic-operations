@@ -206,6 +206,7 @@ export async function releaseQueuedQuotes() {
   const { intakeSendBlockers } = await import("./installer-intake.server");
   for (const quote of queued ?? []) {
     const ib = await intakeSendBlockers(quote.job_id).catch(() => ["Intake readiness could not be checked"]);
+    { const bb = await (await import("./installer-quote.server")).quoteBillingBlocker(quote.id).catch(() => "Electrical billing could not be checked"); if (bb) ib.push(bb); }
     if (ib.length) { await admin.from("quotes").update({ release_state: "held", release_hold_reason: ib.join(" · ") }).eq("id", quote.id).eq("release_state", "queued"); continue; }
     const now = new Date().toISOString();
     const { data: updated } = await admin.from("quotes").update({ sent_at: now, release_state: "released" }).eq("id", quote.id).eq("status", "issued").eq("release_state", "queued").select("id").maybeSingle();
@@ -224,6 +225,7 @@ export async function approveHeldQuote(quoteId: string, actorId: string) {
   ]);
   if (!quote || quote.status !== "draft" || quote.release_state !== "held") throw new WorkflowError("Only a held draft quote can be approved.");
   { const ib = await (await import("./installer-intake.server")).intakeSendBlockers(quote.job_id); if (ib.length) throw new WorkflowError(ib.join(" • ")); }
+  { const bb = await (await import("./installer-quote.server")).quoteBillingBlocker(quote.id); if (bb) throw new WorkflowError(bb); }
   const releaseNow = workflow?.auto_send_quote === true && workflow?.customer_comms_enabled === true;
   const now = new Date().toISOString();
   await admin.from("quotes").update({ release_state: releaseNow ? "released" : "queued", release_hold_reason: null, status: "issued", sent_at: releaseNow ? now : null, office_reviewed_at: now, office_reviewed_by: actorId }).eq("id", quote.id);

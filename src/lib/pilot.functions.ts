@@ -375,6 +375,12 @@ export const chooseElectrician = createServerFn({ method: "POST" }).middleware([
     const cand = data.businessId ? cands.find((c) => c.id === data.businessId) ?? null : null;
     const blocker = electricianSelectionBlocker(data.choice, cand);
     if (blocker) throw new WorkflowError(blocker);
+    { // Same central payer lock as the Add job editor; Add job jobs change payer only through their guarded editor.
+      const { isIntakeJob } = await import("./installer-intake.server");
+      if (await isIntakeJob(data.jobId)) throw new WorkflowError(role === "admin" ? "This job came through Add job — its electrician arrangement changes through the installer's job details (quotes and fee confirmation update together). Ask the installer to change it." : "Change the electrician in this job's details, so the owner's quote and fee confirmation update together.");
+      const lock = await (await import("./job-electrician.server")).payerChangeBlocker(data.jobId);
+      if (lock) throw new WorkflowError(lock);
+    }
     await admin.from("jobs").update({ electrician_choice: data.choice }).eq("id", data.jobId);
     if (data.choice === "hivic_organise") { await logEvent(data.jobId, context.userId, "electrician_choice", "Home Insulation Victoria asked to organise an electrician"); return { ok: true, assigned: false }; }
     if (data.choice === "nominated") {
@@ -429,7 +435,9 @@ export const requestAnotherElectrician = createServerFn({ method: "POST" }).midd
     await admin.from("job_assignments").update({ active: false, ended_at: now, end_reason: `replacement requested by ${role}: ${data.reason}` }).eq("id", a.id);
     await admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", data.jobId).in("kind", ["assessment", "rectification"]).eq("status", "proposed");
     await admin.from("reassignment_requests").update({ status: "actioned", resolved_by: context.userId, resolved_at: now }).eq("job_id", data.jobId).eq("role", "electrician").eq("status", "open");
-    await admin.from("jobs").update({ electrician_choice: null, next_action: "Choose another electrician" }).eq("id", data.jobId);
+    // Replacing the PERSON keeps an Add job job's recorded payer (billing arrangement) — only its guarded editor changes that.
+    const keepPayer = await (await import("./installer-intake.server")).isIntakeJob(data.jobId);
+    await admin.from("jobs").update(keepPayer ? { next_action: "Choose another electrician" } : { electrician_choice: null, next_action: "Choose another electrician" }).eq("id", data.jobId);
     await logEvent(data.jobId, context.userId, "electrician_replacement_requested", `${role} requested another electrician (${sla.message})`, { reason: data.reason, previous_assignment: a.id });
     return { ok: true };
   });
