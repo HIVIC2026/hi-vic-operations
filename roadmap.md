@@ -3,6 +3,7 @@
 ## Current read-only check (Jo, 8 Oct 00:46 UTC)
 - [ ] Report existing installer quote notices, owner fee/rebate breakdown and approval updates.
 - [ ] Check where installers can record measurement method (aerial imagery, on site, floor plan, other); no feature changes.
+- [ ] Check existing less-than-R2 confirmation and report whether Add job includes it; no feature changes.
 
 ## Current priority — campaign v12 picture (Jo, 6 Oct)
 - [x] Recover exact approved v10 HTML; capture Sarah at 700px / scale 2 with Google Fonts blocked, Arial → Liberation Sans; crop after estimate disclaimer, footer excluded. PNG 338,861 bytes (331 KB), 1280×2492; picture visually checked.
