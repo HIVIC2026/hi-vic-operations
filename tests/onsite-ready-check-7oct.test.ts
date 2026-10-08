@@ -6,7 +6,7 @@ const facts = { mittiInvited: true, templateSet: true, gateADone: true, booked: 
 
 describe("on-site Ready Check (Jo, 7 Oct)", () => {
   test("minimum details only; complete input has no problems", () => expect(onsiteProblems(ok)).toEqual([]));
-  test("consent tick is required", () => expect(onsiteProblems({ ...ok, contact_permission: false }).join()).toContain("owner's consent"));
+  test("installer consent confirmation is required", () => expect(onsiteProblems({ ...ok, contact_permission: false }).join()).toContain("permission to contact"));
   test("non-Victorian postcode is refused plainly", () => expect(onsiteProblems({ ...ok, postcode: "2604" })).toContain("We can only take Victorian jobs — this one can't be added"));
   test("mobile and email checked once each", () => {
     expect(isAuMobile("+61 403 595 088")).toBe(true);
@@ -32,9 +32,10 @@ describe("on-site Ready Check (Jo, 7 Oct)", () => {
 });
 
 describe("on-site consent clears Gate A (Jo, 8 Oct)", () => {
-  test("owner tick or installer tick both accepted; auto-send off holds the form", async () => {
-    expect(onsiteProblems({ ...ok, consent_by: "owner" })).toEqual([]);
-    expect(onsiteProblems({ ...ok, consent_by: null }).join()).toContain("owner's consent");
+  test("installer tick alone is accepted; owner tick is retired; auto-send off holds the form", async () => {
+    expect(onsiteProblems({ ...ok, consent_by: "installer" })).toEqual([]);
+    expect(onsiteProblems({ ...ok, consent_by: "owner" }).join()).toContain("permission to contact");
+    expect(onsiteProblems({ ...ok, consent_by: null }).join()).toContain("permission to contact");
     expect(onsiteState({ ...facts, autoSend: false }).kind).toBe("office");
     const { evaluateOwnerGates } = await import("../src/lib/owner-gates.core");
     const base = { isTest: false, signed: [], approved: {}, tenant: false, lifeSupport: false, visitedByInstaller: false, hasQuote: false, agreementSigned: false, agreementWordingApproved: false, escConsentSigned: false, piesaCopyDelivered: false, piesaDeclarationMappingApproved: false, assignmentEffective: false };
