@@ -216,12 +216,12 @@ describe("launch campaign email drafts", () => {
     for (const text of ["TRADE<br>PARTNERS", "partnership invitations", "email-art", "Saving your spot does not book a visit", "TEST — only sent to Jo"]) expect(email.html).not.toContain(text);
     expect(email.html.match(/<img /g)?.length).toBe(1);
   });
-  test("v9 Group B: same onboarding email, could-be-eligible line, links to its page", () => {
+  test("Group B: approved Group A layout with preliminary estimate and office-first insulation invitation", () => {
     const email = renderLaunchCampaignEmail({ group: "onsite", campaignUrl, unsubscribeUrl, firstName: "Michael", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150, address: "28 Sample Road, Bendigo VIC 3550" });
-    expect(email.subject).toBe("Michael, jump the queue for your $1,470 rebate");
-    expect(email.html).toContain("Your Bendigo home could be eligible for the Victorian Energy Upgrades rebate.");
-    expect(email.html).toContain(`href="${campaignUrl}"`);
-    expect(email.html).not.toContain("/video");
+    expect(email.subject).toBe("Michael — your preliminary insulation estimate");
+    for (const text of ["your home could qualify", "JUMP THE QUEUE", "below R2", "Our office will assess", "$3,379", "$1,470", "data-likely-savings", "data-likely-itemised", "What could change this price?"]) expect(email.html).toContain(text);
+    expect(email.html).toContain(`href="${campaignUrl.replace(/\/campaign$/, "/video")}"`);
+    expect(email.html).not.toContain("Save my spot →");
   });
 
 });
