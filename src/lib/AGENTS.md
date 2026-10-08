@@ -1,6 +1,8 @@
 # Server/domain rules (src/lib)
 
 ## Architecture rules
+- Intake pages share progress reads without error fallbacks; successful installer saves invalidate job-keyed readers and trade-home through job-cache; evidence retains all-reader invalidation. Why: next actions stay current without remounting editors.
+- Evidence confirmation uses the guarded persistence helper with stored-path-derived primary keys and legacy path lookup; it checks both writes before success and never labels upload location/time as original capture. Why: retries and downstream failures must not duplicate files or invent evidence provenance.
 - Installer duplicate-email recovery may reuse an owner only through an existing installer-sourced job of the same originating business, without updating that owner; other matches stop for office review. Why: recover same-business submissions without global owner merges or customer-data disclosure.
 - Partner file reads use membership checks and exact business credential linkage for onboarding storage paths; new uploads stay business-prefix scoped. Why: existing onboarding certificates live in partner-files, not job-files.
 - Office operations and compact job presentation use the admin-only SELECT-only `operations-preview.core.ts` read model; the original preview remains direct-link, and no workflow guard may import this classifier. Why: agreed phase-3 navigation shares factual counts without operational changes.

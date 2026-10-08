@@ -12,6 +12,7 @@
     "format": "prettier --write .",
     "test": "bun ./scripts/test-isolated.ts 8",
     "journey": "bun scripts/journey.ts",
+    "portal-qa": "bun scripts/portal-qa.ts",
     "installer-test": "bun scripts/installer-test.ts"
   },
   "overrides": {

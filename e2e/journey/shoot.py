@@ -35,6 +35,9 @@ async def main(manifest_path):
                         if t.lower() not in body.lower(): ok, detail = False, f'{detail}: missing "{t}"'
                     for t in s.get("mustNotSee") or []:
                         if t.lower() in body.lower(): ok, detail = False, f'{detail}: should not show "{t}"'
+                    for t in s.get("mustNotSeeExact") or []:
+                        idx = body.find(t)
+                        if idx >= 0: ok, detail = False, f'{detail}: shows "{t}" in "...{body[max(0, idx - 40):idx + 40]}..."'.replace("\n", " ")
                     if s.get("noPrices") and PRICE.search(body): ok, detail = False, f"{detail}: shows a price ({PRICE.search(body).group(0)})"
                     if re.search(r"something went wrong|application error", body, re.I): ok, detail = False, f"{detail}: error page"
                     if errors: ok, detail = False, f"{detail}: page error {errors[0]}"
