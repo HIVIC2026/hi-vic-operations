@@ -88,7 +88,7 @@ function VideoPage() {
             <section className="rounded-2xl border bg-card p-6">
                <p className="text-xs font-bold uppercase tracking-wide text-primary">Jump the queue · {data.reference}{data.suburb ? ` · ${data.suburb}` : ""}</p>
                 <h1 className="mt-1 font-display text-3xl font-bold leading-tight">Let us check your existing insulation</h1>
-                <p className="mt-3 text-[15px]">Installer capacity is limited, so we’re approving homes in batches. Your enquiry is currently behind homes whose eligibility we can already confirm, because we still need to check your existing insulation. Send a manhole video or clear pictures, or select “I confirm this is below R2”. If our office assesses the insulation as appearing below R2 and your home meets the eligibility requirements, we’ll move your enquiry into the eligible queue and invite you to save your spot.</p>
+                <p className="mt-3 text-[15px]">Your enquiry is behind eligible homes while we check your existing insulation. Send manhole video/photos or select “I confirm this is below R2”. If our office assesses it as appearing below R2 and your home qualifies, we’ll move you into the eligible queue so you can save your spot.</p>
               <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">
                 <li>Only record if you can do it safely — for example, holding your phone up through the ceiling hatch while standing on a stable ladder.</li>
                 <li><strong>Please don't climb into or walk through the roof space.</strong></li>

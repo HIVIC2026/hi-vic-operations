@@ -467,13 +467,14 @@ export function renderLaunchCampaignEmail(input: LaunchCampaignEmailInput): Esti
     ...(input.assessmentFee === undefined ? {} : { assessmentFee: input.assessmentFee }),
     ...(input.apFee === undefined ? {} : { apFee: input.apFee }),
   });
-  const instruction = "We have been inundated with requests from homeowners all over Victoria. As one of only two Accredited Persons for this activity, and with limited capacity of suitably qualified installers, we need to take on approvals in batches. Your enquiry is currently further down the queue, behind homes whose eligibility we can already confirm, because we still need to check your existing ceiling insulation. Want to JUMP THE QUEUE? Upload a short video from your manhole or clear pictures, or select ‘I confirm this is below R2’. Our office will assess what you provide. If the insulation appears below R2 and your home meets the eligibility requirements, we’ll move your enquiry into the eligible queue and invite you to save your spot.";
-  const small = "Send your insulation details first. Once our office has checked them, we’ll let you know whether you can move up and save your spot. No payment. No obligation.";
+  const instruction = "Demand is high and installer capacity is limited. Your enquiry is behind eligible homes while we check your existing insulation. To JUMP THE QUEUE, send manhole video/photos or select ‘I confirm this is below R2’. Our office will assess it. If it appears below R2 and your home qualifies, we’ll move you into the eligible queue so you can save your spot.";
+  const small = "Office review first. No payment. No obligation.";
   const intro = "your home could qualify for a VEU ceiling insulation rebate, subject to checking the existing insulation.";
   const replace = (value: string) => value
     .replace("your home looks likely to qualify for a VEU ceiling insulation rebate.", intro)
     .replace("Your estimated VEU rebate", "Your potential VEU rebate")
     .replace("Your estimated cost after rebate", "Estimated cost if eligible")
+    .replace("Estimate only. Eligibility, measurements and final pricing confirmed after assessment.", "This price excludes existing insulation removal — it may be able to stay. If removal is needed, we’ll confirm the cost before you proceed. Estimate only; eligibility and final price subject to assessment.")
     .replace(SAVE_SPOT_INSTRUCTION, instruction)
     .replace(SAVE_SPOT_SMALL_PRINT, small);
   const html = replace(base.html)
