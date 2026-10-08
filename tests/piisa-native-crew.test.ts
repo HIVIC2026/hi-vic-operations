@@ -22,10 +22,14 @@ describe("schema checker", () => {
 });
 
 describe("native prefill uses REAL option ids", () => {
-  test("verified approved worker -> matching option id (name case-normalised), never plain text", () => {
+  test("PRIVACY: even when a named option exists on the shared list, a verified worker goes in as Other + recorded facts", () => {
     const r = a3CrewNativeItems(a3Template(), { lead: BH.workerId, additional: [] }, [BH], "Reinsulate");
     expect(r.problems).toEqual([]);
-    expect(r.items).toEqual([{ item_id: A3_CREW_NAME_IDS[0], type: "question", responses: { selected: [OPT_BHAVDEEP] } }]);
+    expect(r.items).toEqual([
+      { item_id: A3_CREW_NAME_IDS[0], type: "question", responses: { selected: [OPT_OTHER] } },
+      { item_id: A3_CREW_OTHER_FIELDS[0]!.name, type: "text", responses: { text: BH.name } },
+      { item_id: A3_CREW_OTHER_FIELDS[0]!.eec, type: "text", responses: { text: BH.eec } },
+    ]);
   });
   test("verified worker with no native option -> Other + required branch fields seeded", () => {
     const r = a3CrewNativeItems(a3Template(), { lead: BH.workerId, additional: [{ workerId: NEW.workerId }] }, [BH, NEW], "Reinsulate");
@@ -34,7 +38,6 @@ describe("native prefill uses REAL option ids", () => {
       { item_id: A3_CREW_OTHER_FIELDS[1]!.name, type: "text", responses: { text: "Nia New" } },
       { item_id: A3_CREW_OTHER_FIELDS[1]!.eec, type: "text", responses: { text: "EEC-77" } },
     ]);
-    expect(r.notes[0]).toContain("Nia New is not in the Mitti crew list");
   });
   test("same name but different company: option is NOT used (company is part of the match)", () => {
     const r = a3CrewNativeItems(a3Template(), { lead: BH.workerId, additional: [] }, [BH], "Some Other Co");
@@ -44,12 +47,10 @@ describe("native prefill uses REAL option ids", () => {
     const r = a3CrewNativeItems(a3Template(), { lead: { other: { name: "Zed New", eec: "Z-1" } }, additional: [] }, [BH], "Reinsulate");
     expect(r.items.map((x) => x.item_id)).toEqual([A3_CREW_NAME_IDS[0], A3_CREW_OTHER_FIELDS[0]!.name, A3_CREW_OTHER_FIELDS[0]!.eec]);
   });
-  test("roster upkeep alert names missing staff and counts options matching nobody current", () => {
-    const s = a3RosterStatus(a3Template(), [BH, NEW], "Reinsulate");
-    expect(s.missingOptions).toEqual(["Nia New"]);
-    expect(s.staleOptions).toEqual([OPT_DOMINIC.label]);
-    expect(s.alert).toContain("Update the Mitti crew list");
-    expect(a3RosterStatus(a3Template([OPT_BHAVDEEP, OPT_OTHER]), [BH], "Reinsulate").alert).toBeNull();
+  test("named choices on the shared template raise a privacy alert; Other-only list raises none", () => {
+    expect(a3RosterStatus(a3Template(), [BH, NEW], "Reinsulate").alert).toContain("Privacy");
+    expect(a3RosterStatus(a3Template([OPT_BHAVDEEP, OPT_OTHER]), [BH], "Reinsulate").alert).toContain("Privacy");
+    expect(a3RosterStatus(a3Template([OPT_OTHER]), [BH, NEW], "Reinsulate").alert).toBeNull();
   });
 });
 

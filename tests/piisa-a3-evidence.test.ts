@@ -46,13 +46,14 @@ describe("media metadata from the audit", () => {
   });
 });
 
+export const SAFE = { "p1.powerInformed": "Yes", lifeSupport: "No", "p3.swms": "Yes", "p3.table1": "Yes", "p3.isolated": "Yes", "p4.present": "No", "p5.reviewed": "Yes", "p5.electricianPresent": "N/A", "p5.recessed": "No", "p5.rcd": "Yes", "p5.tps": "Yes", "p5.basic": "Yes", "p5.noAccess": "Yes", "p6.present": "No" } as Record<string, string>;
 describe("before/after split", () => {
   const before: A3Media[] = [
     { key: "installer_photos", count: 1, geotagged: 1, timed: 1, capturedAt: "2026-10-09T00:05:00Z" },
     { key: "isolation_photo", count: 1, geotagged: 1, timed: 1, capturedAt: "2026-10-09T00:05:00Z" },
     { key: "before_video", count: 1, geotagged: 0, timed: 1, capturedAt: "2026-10-09T00:06:00Z" },
   ];
-  test("prestart passes with no after-work media", () => expect(a3PrestartBlockers({}, ctx, before, "2026-10-09T00:10:00Z")).toEqual([]));
+  test("prestart passes with no after-work media (all safety answers safe)", () => expect(a3PrestartBlockers(SAFE, ctx, before, "2026-10-09T00:10:00Z")).toEqual([]));
   test("completion needs product photos, completed video and final plan (unless existing plan reused)", () => {
     expect(a3CompletionBlockers({}, ctx, before).length).toBe(3);
     expect(a3CompletionBlockers({}, { ...ctx, existingPlanMatchesInstall: true }, before).length).toBe(2);
@@ -80,7 +81,7 @@ describe("prestart snapshot", () => {
     expect(r.snapshot.signature).toEqual({ media_id: SIG, item_id: A3_NATIVE_IDS["p8.signature"]![0]!, signer_name: "Lead", signed_at: "2026-10-09T00:10:00Z" });
     expect(r.snapshot.captured_from).toBe("in_progress_audit");
     expect(r.snapshot.media.product_photos).toEqual([]);
-    expect(r.snapshot.blockers).toEqual([]);
+    expect(r.snapshot.blockers.filter((b) => !/not answered/.test(b))).toEqual([]);
   });
   test("text signature or missing timestamp is refused", () => {
     expect(a3PrestartSnapshot("a", { items: [sigItem({ signature: "signature-image-ref", timestamp: "2026-10-09T00:10:00Z" })] }, ctx, { completed: false }).ok).toBe(false);

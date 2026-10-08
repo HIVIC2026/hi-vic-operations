@@ -85,7 +85,9 @@ describe("Ready Check prefill (multi-area)", () => {
 describe("prefill never answers safety or day-of facts", () => {
   test("no Part 3/5 yes, no automatic N/A, no completion date or signature date", () => {
     const seed = seedAnswers(piisaPrefill({ today: "2026-10-08", jobNumber: "HV-1", address: "1 St", lifeSupportDeclared: "no", installDate: "2026-10-09", apName: "AP", installerBusinessName: "Co", leadInstaller: { name: "Ann", eecNumber: "E1", eecVerified: true }, piesaAnswers: { b1: "No rectification required" }, piesaLifeSupportAttachment: null, measuredInsulationPresent: true, acceptedQuoteProduct: "Earthwool R5" } as never));
-    for (const k of ["p3.swms", "p3.table1", "p3.isolated", "p5.reviewed", "p5.noAccess", "p5.electricianPresent", "completionDate", "p8.date", "p8.signature"]) expect(seed[k]).toBeUndefined();
+    for (const k of ["p3.swms", "p3.table1", "p3.isolated", "p5.reviewed", "p5.noAccess", "p5.electricianPresent", "p8.date", "p8.signature"]) expect(seed[k]).toBeUndefined();
+    // Jo 8 Oct: completion defaults to the same day as the start (editable); both official dates carry the start.
+    expect(seed["completionDate"]).toBe("2026-10-09"); expect(seed["startDate"]).toBe("2026-10-09"); expect(seed["p2.installDate"]).toBe("2026-10-09");
   });
 });
 
