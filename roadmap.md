@@ -1,5 +1,12 @@
 # Roadmap (preview only, nothing sent, no publish, no real jobs)
 
+## Current priority — both quote handoffs (Jo, 8 Oct 00:49 UTC)
+- [ ] Audit installer-supplied and Home Insulation Victoria-sourced paths from intake/Ready Check to owner approval and guarded next steps.
+- [ ] Verify single and bulk upload buttons, per-job information extraction, confirmation and file attachment; repair failures within this flow.
+- [ ] Require recorded owner fee awareness before quote issuance; make the installer handoff clear without asking installers to quote our leads.
+- [ ] Verify owner approval updates and automatic progression with existing launch, payment and evidence controls intact.
+- [ ] Test both paths and report what works and any remaining gaps; do not publish or send.
+
 ## Current read-only check (Jo, 8 Oct 00:46 UTC)
 - [x] Report existing installer quote notices, owner fee/rebate breakdown and approval updates.
 - [x] Check where installers can record measurement method (aerial imagery, on site, floor plan, other); no feature changes.
