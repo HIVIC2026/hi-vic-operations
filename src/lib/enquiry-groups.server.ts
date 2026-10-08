@@ -121,7 +121,7 @@ export async function loadEnquiryGroups() {
     const pk = propertyKey(i.address_line, i.postcode);
     if (jobContacts.has(contactKey(i.email, pk))) { calculatorMatched++; continue; }
     const c = classifyEnquiry({ kind: "calculator", stage: null, outcome: null, decisionSource: null, reviewRequired: false, audit: null, intakeWorkActive: false, area: { declared: Number(i.ceiling_m2) }, videoCount: 0, calculatorStatus: i.status });
-    rows.push({ ...c, id: i.id, kind: "calculator", jobNumber: null, reference: null, name: i.full_name, email: i.email, address: [i.address_line, i.suburb, i.postcode].filter(Boolean).join(", "), postcode: i.postcode, propKey: pk, createdAt: i.created_at, stage: null, areaLabel: AREA_LABEL[c.area.source], declaredInsulation: normaliseInsulation(i.insulation_declared), hardFailures: [], lastEmail: null, consent: null, optedOut: false, bounced: false, source: "calculator", isPrimaryForContact: true, sentPurposes: [] });
+    rows.push({ ...c, id: i.id, kind: "calculator", jobNumber: null, reference: null, name: i.full_name, email: i.email, address: [i.address_line, i.suburb, i.postcode].filter(Boolean).join(", "), postcode: i.postcode, propKey: pk, createdAt: i.created_at, stage: null, areaLabel: AREA_LABEL[c.area.source], declaredInsulation: normaliseInsulation(i.insulation_declared), hardFailures: [], lastEmail: null, consent: null, optedOut: false, bounced: false, source: "calculator", isPrimaryForContact: true, sentPurposes: [], status: "not_emailed" });
   }
   const bySource = (pred: (o: { source: string; channel: string }) => boolean) => outside.filter(pred).length;
   return {
