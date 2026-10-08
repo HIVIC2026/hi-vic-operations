@@ -5,8 +5,8 @@ import { useMemo, useState } from "react";
 import { AppShell } from "@/components/portal/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getEnquiryGroups } from "@/lib/enquiry-groups.functions";
-import { STATUS_LABEL, STATUS_ORDER, type EnquiryStatus } from "@/lib/enquiry-groups.core";
+import { getEnquiryGroups, getLeadMedia, reviewLeadMediaFn } from "@/lib/enquiry-groups.functions";
+import { MEDIA_OUTCOME_LABEL, STATUS_LABEL, STATUS_ORDER, type EnquiryStatus, type MediaReviewOutcome } from "@/lib/enquiry-groups.core";
 
 export const Route = createFileRoute("/_authenticated/admin/enquiry-groups")({
   head: () => ({ meta: [
@@ -20,36 +20,81 @@ export const Route = createFileRoute("/_authenticated/admin/enquiry-groups")({
 });
 
 type Data = Awaited<ReturnType<typeof getEnquiryGroups>>;
+type Row = Data["rows"][number];
 const PAGE = 50;
 const when = (value: string | null | undefined) => value ? new Date(value).toLocaleString("en-AU", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "—";
+
+function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
+  const loadMedia = useServerFn(getLeadMedia);
+  const review = useServerFn(reviewLeadMediaFn);
+  const { data, isLoading, error } = useQuery({ queryKey: ["lead-media", row.id], queryFn: () => loadMedia({ data: { jobId: row.id } }) });
+  const [busy, setBusy] = useState<MediaReviewOutcome | null>(null);
+  const [saved, setSaved] = useState<string | null>(null);
+  const act = async (outcome: MediaReviewOutcome) => {
+    setBusy(outcome);
+    try {
+      await review({ data: { jobId: row.id, outcome } });
+      setSaved(MEDIA_OUTCOME_LABEL[outcome]);
+      onDone();
+    } finally { setBusy(null); }
+  };
+  return <div className="space-y-3 rounded-md border bg-muted/20 p-3">
+    {isLoading ? <p role="status" className="text-sm">Loading photos…</p> : error ? <p role="alert" className="text-sm text-destructive">Could not load the photos. Try again.</p> : <>
+      <div className="flex flex-wrap gap-3">
+        {(data?.files ?? []).map((f) => f.mimeType?.startsWith("video/")
+          ? <video key={f.id} src={f.url} controls className="h-40 rounded-md border bg-black" />
+          : <a key={f.id} href={f.url} target="_blank" rel="noopener"><img src={f.url} alt={`Uploaded by ${row.name ?? "owner"}`} className="h-40 rounded-md border object-cover" /></a>)}
+        {data && data.files.length === 0 && <p className="text-sm text-muted-foreground">No files found.</p>}
+      </div>
+      {saved ? <p role="status" className="text-sm font-semibold text-primary">Saved: {saved}</p> : (
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" disabled={busy !== null} onClick={() => act("below_r2")}>{MEDIA_OUTCOME_LABEL.below_r2}</Button>
+          <Button size="sm" variant="destructive" disabled={busy !== null} onClick={() => act("over_r2")}>{MEDIA_OUTCOME_LABEL.over_r2}</Button>
+          <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => act("unclear")}>{MEDIA_OUTCOME_LABEL.unclear}</Button>
+        </div>
+      )}
+    </>}
+  </div>;
+}
 
 function LeadsPage() {
   const load = useServerFn(getEnquiryGroups);
   const { data, isLoading, error, refetch } = useQuery({ queryKey: ["leads-one-list"], queryFn: () => load({ data: {} }), refetchInterval: 30_000 });
-  const [status, setStatus] = useState<EnquiryStatus>("needs_attention");
+  const [tab, setTab] = useState<EnquiryStatus | "photos">("needs_attention");
   const [q, setQ] = useState("");
   const [page, setPage] = useState(0);
+  const [openId, setOpenId] = useState<string | null>(null);
   const rows = data?.rows ?? [];
   const counts = useMemo(() => Object.fromEntries(STATUS_ORDER.map((key) => [key, rows.filter((row) => row.status === key).length])) as Record<EnquiryStatus, number>, [rows]);
+  const photoRows = useMemo(() => rows.filter((row) => row.mediaCount > 0 && !row.mediaChecked), [rows]);
   const matching = useMemo(() => {
     const term = q.trim().toLowerCase();
-    return rows.filter((row) => row.status === status && (!term || [row.name, row.email, row.address, row.jobNumber].some((value) => value?.toLowerCase().includes(term))));
-  }, [rows, status, q]);
+    const base = tab === "photos" ? photoRows : rows.filter((row) => row.status === tab);
+    return base.filter((row) => !term || [row.name, row.email, row.address, row.jobNumber].some((value) => value?.toLowerCase().includes(term)));
+  }, [rows, photoRows, tab, q]);
   const pages = Math.max(1, Math.ceil(matching.length / PAGE));
   const visible = matching.slice(Math.min(page, pages - 1) * PAGE, Math.min(page, pages - 1) * PAGE + PAGE);
+  const tabLabel = tab === "photos" ? "Photos to check" : STATUS_LABEL[tab];
 
   return <AppShell wide><div className="space-y-5">
     <header><h1 className="font-display text-2xl font-bold">Leads</h1><p className="mt-1 text-sm text-muted-foreground">Every website homeowner appears once, under their current outcome.</p></header>
     {isLoading ? <p role="status">Loading leads…</p> : error || !data ? <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm">Could not load leads. <Button variant="link" onClick={() => refetch()}>Try again</Button></div> : <>
       <p className="text-xs text-muted-foreground">{data.scope.total} current website enquiries. Excluded from this list: {data.scope.duplicateWebsiteEnquiries} older duplicate enquiries, {data.scope.testHidden} TEST, {data.scope.installerSourced} installer customers and {data.scope.calculatorRegistrations} calculator-only registrations.</p>
-      <div role="tablist" aria-label="Lead outcomes" className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        {STATUS_ORDER.map((key) => <Button key={key} role="tab" aria-selected={status === key} variant={status === key ? "default" : "outline"} className="h-auto min-h-20 flex-col items-start px-4 py-3 text-left" onClick={() => { setStatus(key); setPage(0); }}><span className="font-display text-2xl font-bold">{counts[key]}</span><span className="whitespace-normal text-sm">{STATUS_LABEL[key]}</span></Button>)}
+      <div role="tablist" aria-label="Lead outcomes" className="grid grid-cols-2 gap-3 md:grid-cols-6">
+        {STATUS_ORDER.map((key) => <Button key={key} role="tab" aria-selected={tab === key} variant={tab === key ? "default" : "outline"} className="h-auto min-h-20 flex-col items-start px-4 py-3 text-left" onClick={() => { setTab(key); setPage(0); }}><span className="font-display text-2xl font-bold">{counts[key]}</span><span className="whitespace-normal text-sm">{STATUS_LABEL[key]}</span></Button>)}
+        <Button role="tab" aria-selected={tab === "photos"} variant={tab === "photos" ? "default" : "outline"} className="h-auto min-h-20 flex-col items-start px-4 py-3 text-left" onClick={() => { setTab("photos"); setPage(0); }}><span className="font-display text-2xl font-bold">{photoRows.length}</span><span className="whitespace-normal text-sm">Photos to check</span></Button>
       </div>
-      {status === "needs_attention" && <div className="rounded-md border border-warning/40 bg-warning/5 p-3 text-sm"><strong>Only exceptions appear here.</strong> The reason tells the office what stopped automatic sending. The existing-insulation email is currently held here until Jo approves its final appearance. <a href="/campaign-preview" target="_blank" rel="noopener" className="font-semibold text-primary underline">View that email</a>.</div>}
-      <div className="flex flex-wrap items-center justify-between gap-3"><Input aria-label="Search leads" placeholder="Search name, email, address or job" value={q} onChange={(event) => { setQ(event.target.value); setPage(0); }} className="max-w-md" /><span className="text-sm text-muted-foreground">{matching.length} in {STATUS_LABEL[status]}</span></div>
+      {tab === "needs_attention" && <div className="rounded-md border border-warning/40 bg-warning/5 p-3 text-sm"><strong>Only exceptions appear here.</strong> The reason tells the office what stopped automatic sending. The existing-insulation email is currently held here until Jo approves its final appearance. <a href="/campaign-preview" target="_blank" rel="noopener" className="font-semibold text-primary underline">View that email</a>.</div>}
+      {tab === "photos" && <div className="rounded-md border border-warning/40 bg-warning/5 p-3 text-sm"><strong>Homeowners who sent photos or videos.</strong> Open each one, look at the pictures, then choose: below R2 moves them to the Save my spot offer, R2 or above moves them to ineligible, and not clear asks for more pictures.</div>}
+      <div className="flex flex-wrap items-center justify-between gap-3"><Input aria-label="Search leads" placeholder="Search name, email, address or job" value={q} onChange={(event) => { setQ(event.target.value); setPage(0); }} className="max-w-md" /><span className="text-sm text-muted-foreground">{matching.length} in {tabLabel}</span></div>
       <div className="overflow-x-auto rounded-md border bg-card"><table className="w-full min-w-[900px] text-left text-sm"><thead className="bg-muted/40 text-xs uppercase text-muted-foreground"><tr><th className="p-3">Homeowner</th><th className="p-3">Property</th><th className="p-3">Outcome</th><th className="p-3">Estimate</th><th className="p-3">When</th><th className="p-3">Next office action</th></tr></thead><tbody className="divide-y">
         {visible.length === 0 && <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">No leads here.</td></tr>}
-        {visible.map((row) => <tr key={row.id} className="align-top hover:bg-muted/30"><td className="p-3"><Link to="/admin/jobs/$jobId" params={{ jobId: row.id }} className="font-semibold text-primary underline">{row.name ?? "—"}</Link><div className="text-xs text-muted-foreground">{row.jobNumber} · {row.email ?? "No email"}</div></td><td className="p-3">{row.address ?? "—"}</td><td className="p-3 font-semibold">{STATUS_LABEL[row.status]}</td><td className="p-3">{row.area.m2 != null ? `${row.area.m2} m²` : "—"}<div className="text-xs text-muted-foreground">{row.areaLabel}</div></td><td className="p-3">{when(row.status === "needs_attention" ? row.outcomeAt : row.lastEmail?.at)}</td><td className="p-3">{row.status === "needs_attention" ? row.attentionReason ?? row.reason : row.status === "spot_saved" ? "Continue from the saved-spot queue" : row.status === "ineligible" ? "No action unless the owner replies" : "Waiting for the homeowner"}</td></tr>)}
+        {visible.map((row) => <tr key={row.id} className="align-top hover:bg-muted/30"><td className="p-3"><Link to="/admin/jobs/$jobId" params={{ jobId: row.id }} className="font-semibold text-primary underline">{row.name ?? "—"}</Link><div className="text-xs text-muted-foreground">{row.jobNumber} · {row.email ?? "No email"}</div></td><td className="p-3">{row.address ?? "—"}</td><td className="p-3 font-semibold">{STATUS_LABEL[row.status]}{row.mediaOutcome ? <div className="text-xs font-normal text-muted-foreground">Photo review: {MEDIA_OUTCOME_LABEL[row.mediaOutcome]}</div> : null}</td><td className="p-3">{row.area.m2 != null ? `${row.area.m2} m²` : "—"}<div className="text-xs text-muted-foreground">{row.areaLabel}</div></td><td className="p-3">{when(row.status === "needs_attention" ? row.outcomeAt : row.lastEmail?.at)}</td><td className="p-3">{tab === "photos" ? (
+          <div className="space-y-2">
+            <Button size="sm" variant="outline" onClick={() => setOpenId(openId === row.id ? null : row.id)}>{openId === row.id ? "Hide photos" : `View ${row.mediaCount} photo${row.mediaCount === 1 ? "" : "s"}/video`}</Button>
+            {openId === row.id && <MediaReview row={row} onDone={() => refetch()} />}
+          </div>
+        ) : row.status === "needs_attention" ? row.attentionReason ?? row.reason : row.status === "spot_saved" ? "Continue from the saved-spot queue" : row.status === "ineligible" ? "No action unless the owner replies" : "Waiting for the homeowner"}</td></tr>)}
       </tbody></table></div>
       <div className="flex items-center justify-end gap-2"><Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((value) => value - 1)}>Previous</Button><span className="text-sm">Page {Math.min(page, pages - 1) + 1} of {pages}</span><Button variant="outline" size="sm" disabled={page + 1 >= pages} onClick={() => setPage((value) => value + 1)}>Next</Button></div>
     </>}
