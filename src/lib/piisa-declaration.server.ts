@@ -72,6 +72,9 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
       if (!fetchMedia) return { status: "error", message: "The original after-work evidence could not be read." };
       const postworkProblems = await postwork.syncVerifiedPiisaPostwork(jobId, auditId, audit, fetchMedia);
       if (postworkProblems.length) return { status: "pending", message: postworkProblems.join(" • ") };
+      const core = await import("./piisa-a3.core");
+      const completionProblems = core.a3CompletionBlockers({}, { ...(await (await import("./piisa-prestart.server")).a3Ctx(jobId, audit)), mandatoryCurrentPostwork: true }, core.a3MediaSummary(core.a3MediaFiles(audit)));
+      if (completionProblems.length) return { status: "pending", message: completionProblems.join(" • ") };
     }
     const { loadCrew } = await import("./piisa-a3.server");
     directCrew = native.resolveDirectCrew(audit, (await loadCrew(jobId)).staff);
