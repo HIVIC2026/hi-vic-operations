@@ -99,7 +99,7 @@ export function EvidencePanel({ jobId, role, gates, excludeGates }: { jobId: str
   );
 }
 
-type Req = { id: string; label: string; status: string; required: boolean; notes: string | null; responsible_role: string | null; verified_at: string | null; evidence_files: { id: string; file_name: string; uploaded_at: string }[] };
+type Req = { id: string; label: string; category?: string; status: string; required: boolean; notes: string | null; responsible_role: string | null; verified_at: string | null; evidence_files: { id: string; file_name: string; uploaded_at: string }[] };
 
 /** Location at the moment of upload. null if the phone refuses or times out — the server then refuses the photo. */
 function currentFix(): Promise<{ lat: number; lng: number; accuracyM: number; capturedAt: string } | null> {
@@ -112,6 +112,8 @@ function currentFix(): Promise<{ lat: number; lng: number; accuracyM: number; ca
 function EvidenceRow({ req, canUpload, isAdmin }: { req: Req; canUpload: boolean; isAdmin: boolean }) {
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [products, setProducts] = useState([{ brand: "", model: "", rValue: "" }]);
+  const productReview = isAdmin && req.category === "product_evidence";
   const reqUpload = useAction(requestEvidenceUpload);
   const confirm = useAction(confirmEvidenceUpload);
   const verify = useAction(verifyEvidence);
@@ -137,7 +139,7 @@ function EvidenceRow({ req, canUpload, isAdmin }: { req: Req; canUpload: boolean
         <div className="font-medium">{req.label}{!req.required && <span className="ml-1 text-xs text-muted-foreground">(optional)</span>}</div>
         <Pill t={t}>{EVIDENCE_STATUS_LABEL[req.status]}</Pill>
       </div>
-      {req.notes && <p className="mt-1 text-xs text-muted-foreground">{req.notes}</p>}
+      {req.notes && <p className="mt-1 text-xs text-muted-foreground">{req.notes.includes('"kind":"piisa_actual_products_v1"') ? "Actual installed products confirmed from the product label evidence." : req.notes}</p>}
       <div className="mt-2 flex flex-wrap gap-2">
         {req.evidence_files.map((f) => (
           <button key={f.id} className="inline-flex items-center gap-1 rounded bg-muted px-2 py-1 text-xs hover:bg-secondary" onClick={async () => openFileViewer((await openUrl({ data: { fileId: f.id } })).url)}>
@@ -145,6 +147,13 @@ function EvidenceRow({ req, canUpload, isAdmin }: { req: Req; canUpload: boolean
           </button>
         ))}
       </div>
+      {productReview && req.status === "uploaded" && <div className="mt-3 space-y-2">
+        <p className="text-sm font-medium">Confirm the actual installed products shown on the labels</p>
+        {products.map((p, index) => <div key={index} className="grid gap-2 sm:grid-cols-3">
+          {(["brand", "model", "rValue"] as const).map((key) => <Input key={key} aria-label={`Product ${index + 1} ${key === "rValue" ? "R-value" : key}`} placeholder={key === "rValue" ? "R-value" : key === "brand" ? "Brand" : "Model"} type={key === "rValue" ? "number" : "text"} value={p[key]} onChange={(event) => setProducts((rows) => rows.map((row, i) => i === index ? { ...row, [key]: event.target.value } : row))} />)}
+        </div>)}
+        <Button variant="outline" size="sm" disabled={products.length >= 20} onClick={() => setProducts((rows) => [...rows, { brand: "", model: "", rValue: "" }])}>Add product</Button>
+      </div>}
       <div className="mt-2 flex flex-wrap gap-2">
         {canUpload && req.status !== "verified" && req.status !== "not_required" && (
           <>
@@ -156,7 +165,7 @@ function EvidenceRow({ req, canUpload, isAdmin }: { req: Req; canUpload: boolean
         )}
         {isAdmin && req.status === "uploaded" && (
           <>
-            <Button size="sm" onClick={() => verify({ requirementId: req.id, status: "verified" }, "Verified")}>Verify</Button>
+            <Button size="sm" disabled={productReview && products.some((p) => !p.brand.trim() || !p.model.trim() || !(Number(p.rValue) > 0))} onClick={() => verify({ requirementId: req.id, status: "verified", ...(productReview ? { actualProducts: products.map((p) => ({ brand: p.brand, model: p.model, rValue: Number(p.rValue) })) } : {}) }, "Verified")}>Verify</Button>
             <Button size="sm" variant="outline" onClick={() => { const n = prompt("Reason for rejection"); if (n) verify({ requirementId: req.id, status: "rejected", notes: n }, "Rejected"); }}>Reject</Button>
           </>
         )}

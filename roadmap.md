@@ -1,11 +1,13 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## PIISA corrections (Jo 8 Oct 20:20 UTC)
+- [x] 20:33 prepared dormant direct crew resolver; old mapping/audit parser unchanged. Read-only database schema confirms no structured verified product source; existing office evidence Verify now records actual brand/model/R with photo fingerprint/reviewer/time. 57 focused checks pass; preview build OK.
+- [ ] Activate successor only after Jo's final published definition readback validates types/conditions/page placement; connect reviewed actual products to native-label source and declaration/official rendering before retiring typed product mapping. No duplicate installer product question added.
 - [x] 20:30 applied exact seven media labels and consent reminder; preserved published native IDs/schema and structured Part 7. Updated stale wording-dependent safeguard assertions to use canonical labels; focused checks recorded separately.
 - [x] 20:27 replaced proposed AP evidence consequences with Jo's exact ESC may-reject reminder throughout PIISA media, consent and prestart instructions; focused PIISA checks pass, native readback remains separate.
 - [x] 20:24 expanded PIISA evidence/consent requests and STOP actions; stable IDs/conditions/safety preserved; 107 focused tests pass, latest harness build OK. Native edit/readback still pending.
 - [x] Update STOP actions, crew portal wording, product-photo prestart phase and completed-video instruction; preserve native IDs and official output.
 - [x] 91 focused tests / 273 assertions pass; staged photo, fail-closed schema, scoped crew and structured actual-product safeguards checked; latest preview build/type check OK.
-- [ ] Native edits blocked: Jo's Mitti save failed and reload signed out; latest corrections are NOT saved/published. Await verified definition before crew/product mapping changes; no native editing performed here.
+- [ ] Native sign-in restored and draft edits saving (Jo 20:33); final published definition still awaited before crew/product mapping activation. No native editing performed here.
 - [x] 11:26 Add job correction: optional previous price agreement, obsolete installer bulk entry redirected; 41 tests and styled sealed phone/desktop paths pass; published bundle still had mandatory tick. Exact report/rollback in docs/ADD_JOB_8OCT_QUESTION_CORRECTION.md; no publishing or live actions.
 - [ ] 11:26 actual installer question click-through: supported TEST session reached Add job but no business choices loaded; needs a usable existing TEST installer business session. No live submissions permitted.
 - [x] Jo 09:37 explicitly authorised creating HV-2010's missing form. One existing admin-guarded createMittiAssessment call attempted using the approved TEST office session; Mitti user lookup rejected the assigned installer as not found. No audit created, no linkage recorded, no retry or invitation sent.
