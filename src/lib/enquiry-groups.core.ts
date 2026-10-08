@@ -86,6 +86,7 @@ export function insulationOnly(audit: StoredAudit, declared: EnquiryInput["decla
   if (!rules.length) return { ok: false, why: "Screening reasons were not recorded", missing: false };
   const canonical = normaliseInsulation(declared ?? null);
   if (canonical === "none") return { ok: false, why: "Owner declared no insulation – screening disagrees", missing: false };
+  if (canonical === null) return { ok: false, why: "Owner did not answer the insulation question", missing: true };
   const ins = rules.find((r) => r.key === "existing_insulation");
   if (!ins || ins.result !== "onsite") return { ok: false, why: "Existing-insulation check not recorded as open", missing: false };
   for (const [k, allowed] of Object.entries(REQUIRED_GATES)) {
@@ -241,6 +242,6 @@ export function automaticLeadEmail(x: {
   if (x.outcome === "likely_eligible" && x.declaredInsulation === "none") {
     return x.ownerEnteredArea ? { email: "offer_spot", blocker: null } : { email: "none", blocker: "Owner did not enter a ceiling size" };
   }
-  if ((x.outcome === "likely_eligible" || x.outcome === "needs_onsite_confirmation") && x.declaredInsulation === "present") return { email: "request_insulation", blocker: null };
+  if ((x.outcome === "likely_eligible" || x.outcome === "needs_onsite_confirmation") && (x.declaredInsulation === "present" || x.declaredInsulation === "unknown")) return { email: "request_insulation", blocker: null };
   return { email: "none", blocker: "Eligibility or insulation details need office review" };
 }

@@ -28,7 +28,8 @@ describe("enquiry email groups", () => {
     const a = audit({ result: "onsite", fact: "owner: present" }); a.rules[1] = { key: "residential", result: "review" };
     expect(classifyEnquiry(onsite({ audit: a })).group).toBe("other");
   });
-  test("unknown insulation never becomes No or group 3", () => expect(classifyEnquiry(onsite({ declaredInsulation: "unknown", audit: audit({ result: "onsite", fact: "owner: unknown" }) }))).toMatchObject({ group: "other", otherReason: "missing_info" }));
+  test("unsure insulation goes to the insulation-details group, never to No", () => expect(classifyEnquiry(onsite({ declaredInsulation: "unknown", audit: audit({ result: "onsite", fact: "owner: unknown" }) })).group).toBe("insulation_check"));
+  test("unanswered insulation question -> missing info", () => expect(classifyEnquiry(onsite({ declaredInsulation: null, audit: audit({ result: "onsite", fact: "unknown" }) }))).toMatchObject({ group: "other", otherReason: "missing_info" }));
   test("known fail wins even with present insulation", () => expect(classifyEnquiry(onsite({ outcome: "does_not_appear_eligible" })).otherReason).toBe("not_eligible"));
   test("stale system ruleset -> review", () => expect(classifyEnquiry(base({ audit: { ...audit({ result: "pass" }), ruleset_version: "old" } })).otherReason).toBe("needs_review"));
   test("admin decision stands even with old audit", () => expect(classifyEnquiry(base({ decisionSource: "admin", audit: { ruleset_version: "old", rules: [{ key: "previous_activity", result: "fail" }] } })).group).toBe("likely_size"));
@@ -41,7 +42,7 @@ describe("enquiry email groups", () => {
   });
   test("video upload flags priority but never grants a group", () => {
     expect(classifyEnquiry(onsite({ videoCount: 1 }))).toMatchObject({ group: "insulation_check", videoState: "received", nextAction: "Review video" });
-    expect(classifyEnquiry(onsite({ videoCount: 1, declaredInsulation: "unknown", audit: audit({ result: "onsite", fact: "owner: unknown" }) })).group).toBe("other");
+    expect(classifyEnquiry(onsite({ videoCount: 1, declaredInsulation: "none", audit: audit({ result: "onsite", fact: "owner: none" }) })).group).toBe("other");
   });
   test("calculator registrations are never auto-screened", () => expect(classifyEnquiry({ ...base(), kind: "calculator", calculatorStatus: "new" })).toMatchObject({ group: "other", otherReason: "needs_review" }));
   test("exactly one group for a matrix of inputs; totals add up", () => {
@@ -147,6 +148,7 @@ describe("one automatic email route", () => {
   const baseRoute = { source: "base44", channel: "hivic_sourced", decisionSource: "system", reviewRequired: false, intakeWorkActive: false, outcome: "likely_eligible", declaredInsulation: "none" as const, ownerEnteredArea: true };
   test("eligible no-insulation owner with entered size gets the spot offer", () => expect(automaticLeadEmail(baseRoute)).toEqual({ email: "offer_spot", blocker: null }));
   test("existing insulation gets the details request", () => expect(automaticLeadEmail({ ...baseRoute, outcome: "needs_onsite_confirmation", declaredInsulation: "present" })).toEqual({ email: "request_insulation", blocker: null }));
+  test("unsure insulation also gets the details request", () => expect(automaticLeadEmail({ ...baseRoute, outcome: "needs_onsite_confirmation", declaredInsulation: "unknown" })).toEqual({ email: "request_insulation", blocker: null }));
   test("official ineligible gets the ineligible email", () => expect(automaticLeadEmail({ ...baseRoute, outcome: "does_not_appear_eligible", declaredInsulation: "unknown" })).toEqual({ email: "ineligible", blocker: null }));
   test.each([
     [{ source: "qa_test" }, "TEST"], [{ ownerEnteredArea: false }, "ceiling size"], [{ reviewRequired: true }, "office review"], [{ intakeWorkActive: true }, "still running"], [{ decisionSource: null }, "missing"],
