@@ -93,7 +93,7 @@ function LeadsPage() {
   const tabLabel = tab === "photos" ? "Photos to check" : tab === "removed" ? "Removed" : STATUS_LABEL[tab];
 
   return <AppShell wide><div className="space-y-5">
-    <header><h1 className="font-display text-2xl font-bold">Leads</h1><p className="mt-1 text-sm text-muted-foreground">Every website homeowner appears once, under their current outcome.</p></header>
+    <header><h1 className="font-display text-2xl font-bold">Leads</h1><p className="mt-1 text-sm text-muted-foreground">Website homeowner email queue only; installer-supplied and other classified leads are shown separately.</p><Link to="/admin/operations" search={{ category: "leads" }} className="mt-2 inline-flex text-sm font-semibold text-primary underline">All classified leads · both sources, saved spots and media review</Link></header>
     {isLoading ? <p role="status">Loading leads…</p> : error || !data ? <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm">Could not load leads. <Button variant="link" onClick={() => refetch()}>Try again</Button></div> : <>
       <p className="text-xs text-muted-foreground">{data.scope.total} current website enquiries. Excluded from this list: {data.scope.duplicateWebsiteEnquiries} older duplicate enquiries, {data.scope.testHidden} TEST, {data.scope.installerSourced} installer customers and {data.scope.calculatorRegistrations} calculator-only registrations.</p>
       <div role="tablist" aria-label="Lead outcomes" className="grid grid-cols-2 gap-3 md:grid-cols-7">

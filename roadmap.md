@@ -1,4 +1,8 @@
 # Roadmap (preview only, nothing sent, no publish, no real jobs)
+## Phase 3 actual office screens (Jo, 8 Oct 08:35 UTC)
+- [ ] Primary navigation and canonical operations categories; preserve legacy tools and Leads scope.
+- [ ] Compact actual job screen using the shared classifier and existing guarded controls.
+- [ ] Focused tests, typecheck, desktop/phone and supported TEST read-only verification; document rollback and gaps.
 ## Installer Availability wording (Jo, 8 Oct 08:34 UTC)
 - [x] Removed “About 1 minute” from Availability only; desktop/phone actual sample checks and build OK. Buttons/save behaviour unchanged; no application saved.
 ## Authorised authenticated verification (Jo, 8 Oct 08:22 UTC)
