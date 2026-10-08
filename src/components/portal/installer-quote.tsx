@@ -102,6 +102,10 @@ export function InstallerIntakeReviewPanel({ jobId }: { jobId: string }) {
         <li>Existing insulation: <b>{s.insulation ? label[s.insulation] : "Not recorded"}</b>{s.insulationSource === "installer_intake_corrected" ? " (office corrected)" : " (installer declaration, unverified)"}</li>
         <li>Ceiling area: {s.areaM2 ?? "—"} m² · Installer quote: {s.quoteIncGst != null ? money(s.quoteIncGst) + " inc GST" : "not entered (check uploaded file)"}</li>
         <li>Includes: {s.includes ?? "—"}</li>
+        <li>Electrician: <b>{s.electricianPayer === "own" ? "Installer's own electrician — invoices the owner directly (no $349 PIESA on our quote)" : s.electricianPayer === "hivic" ? "Home Insulation Victoria arranges — $349 PIESA on the quote" : "To be arranged"}</b></li>
+        <li data-office-fee-record>Owner fee declaration: {s.feeRecord ? <>
+          <b>{s.feeRecord.current && s.feeRecord.coversCurrentPayer ? "Recorded" : "Out of date — record again"}</b> · by {s.feeRecord.by === "installer" ? "installer" : s.feeRecord.by === "office" ? "office" : s.feeRecord.by}{s.feeRecord.actorName ? ` (${s.feeRecord.actorName})` : ""} · {new Date(s.feeRecord.at).toLocaleString("en-AU")} · for {s.feeRecord.payer === "own" ? "own electrician" : s.feeRecord.payer === "hivic" ? "Home Insulation Victoria electrician" : "earlier office record (PIESA + AP wording)"}
+          <span className="block text-xs text-muted-foreground">“{s.feeRecord.wording ?? "Wording not stored on this older record"}”{s.feeRecord.version ? ` · ${s.feeRecord.version}` : ""}{s.feeRecord.source ? ` · ${s.feeRecord.source}` : ""}{s.feeRecord.note ? ` · Note: ${s.feeRecord.note}` : ""}</span></> : <b>Not recorded</b>}</li>
         <li>Ready Check: {s.readyCheck.outstandingCount} item{s.readyCheck.outstandingCount === 1 ? "" : "s"} outstanding (not needed for the quote; needed before the rebate)</li>
       </ul>
       {s.readiness.blockers.length > 0 && <div className="text-sm"><p className="font-medium">Quote not ready:</p><ul className="list-disc pl-5">{s.readiness.blockers.map((b) => <li key={b}>{b}</li>)}</ul></div>}
