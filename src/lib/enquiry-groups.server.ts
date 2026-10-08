@@ -11,7 +11,7 @@ import { READY_CHECK_FEE } from "./readycheck.core";
 import { renderEstimateEmail, renderIneligibleOutcomeEmail, renderInsulationVideoEmail } from "./estimate-email";
 import { CUSTOMER_BASE } from "./engagement.core";
 import type { LocationVariables } from "./activity48.core";
-import { homeownerVideoCount } from "./owner-capture.core";
+import { originalEnquiryMedia, groupBInvitationBlocker, type GroupBMediaState } from "./group-b-media.core";
 import { signFile } from "./file-links.server";
 import { formatPropertyAddress } from "./address";
 import { LAUNCH_CAMPAIGN } from "./launch-campaign.core";
@@ -55,7 +55,7 @@ export type EnquiryGroupRow = EnquiryClass & {
   consent: string | null; optedOut: boolean; bounced: boolean; source: string | null; isPrimaryForContact: boolean; sentPurposes: string[];
   status: EnquiryStatus; attentionReason: string | null; outcomeAt: string | null;
   /** Homeowner photos/videos attached to the website enquiry (intake_media), and whether the office has reviewed them. */
-  mediaCount: number; mediaChecked: boolean;
+  mediaCount: number; mediaChecked: boolean; groupBMedia: GroupBMediaState;
   /** Latest office photo/video review outcome, if any. below_r2/over_r2 are final; unclear keeps the lead in the review list. */
   mediaOutcome: MediaReviewOutcome | null;
 };
@@ -69,7 +69,7 @@ export async function loadEnquiryGroups() {
   const [meas, ests, docs, work, sends, consents, optouts, events, interests, cfg, responses, media, reviewed] = await Promise.all([
     byJobs(ids, (c, f, t) => admin.from("ceiling_measurements").select("job_id, verified_area_m2, measured_area_m2").in("job_id", c).eq("is_current", true).eq("status", "complete").range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("property_area_estimates").select("id, job_id, tier, net_m2, created_at").in("job_id", c).in("tier", TRUSTED_ESTIMATE_TIERS).range(f, t)),
-    byJobs(ids, (c, f, t) => admin.from("documents").select("job_id, kind, mime_type, storage_path").in("job_id", c).like("mime_type", "video/%").range(f, t)),
+    byJobs(ids, (c, f, t) => admin.from("evidence_files").select("job_id, mime_type, storage_path").in("job_id", c).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("post_intake_work").select("job_id").in("job_id", c).in("status", ["queued", "processing", "retry"]).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("customer_email_sends").select("job_id, purpose, status, sent_at, created_at, error, idempotency_key").in("job_id", c).order("created_at", { ascending: true }).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("owner_contact_consents").select("job_id, consent_status, created_at").in("job_id", c).order("created_at", { ascending: true }).range(f, t)),
@@ -78,7 +78,7 @@ export async function loadEnquiryGroups() {
     all((f, t) => admin.from("calculator_interests").select("id, created_at, full_name, email, address_line, suburb, postcode, ceiling_m2, insulation_declared, status").order("created_at").range(f, t)),
     admin.from("customer_delivery_settings").select("jobs_created_after").eq("id", 1).maybeSingle(),
     byJobs(ids, (c, f, t) => admin.from("lead_campaign_responses").select("job_id, spot_saved_at").in("job_id", c).range(f, t)),
-    byJobs(ids, (c, f, t) => admin.from("documents").select("job_id").in("job_id", c).eq("kind", "intake_media").range(f, t)),
+    byJobs(ids, (c, f, t) => admin.from("documents").select("job_id, kind, mime_type, storage_path, source_system, external_id").in("job_id", c).eq("kind", "intake_media").range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("customer_engagement_events").select("job_id, occurred_at, metadata").in("job_id", c).eq("event_type", "intake_media_reviewed").order("occurred_at").range(f, t)),
   ]);
   const removedRows = await byJobs(ids, (c, f, t) => admin.from("workflow_events").select("job_id").in("job_id", c).eq("event_type", "lead_removed").range(f, t));
@@ -86,7 +86,8 @@ export async function loadEnquiryGroups() {
   const savedSet = new Set(responses.filter((r) => r.spot_saved_at).map((r) => r.job_id));
   const deliveryCfg = must(cfg, "Delivery settings");
   const group = <T extends { job_id: string | null }>(rows: T[]) => { const m = new Map<string, T[]>(); for (const r of rows) if (r.job_id) m.set(r.job_id, [...(m.get(r.job_id) ?? []), r]); return m; };
-  const mBy = group(meas), eBy = group(ests), dBy = group(docs), sBy = group(sends), cBy = group(consents), mediaBy = group(media);
+  const mBy = group(meas), eBy = group(ests), sBy = group(sends), cBy = group(consents), mediaBy = group(media);
+  const evidenceBy = group(docs.filter((d) => d.job_id && d.storage_path.startsWith(`${d.job_id}/intake/`)).map((d) => ({ ...d, kind: "intake_media" })));
   // Latest office review outcome per job; below_r2/over_r2 are final, unclear keeps the lead in the review list.
   const outcomeBy = new Map<string, MediaReviewOutcome>();
   for (const r of reviewed) {
@@ -106,14 +107,15 @@ export async function loadEnquiryGroups() {
     const last = js[js.length - 1];
     const audit = (j.eligibility_decision_rules ?? null) as StoredAudit;
     const mediaOutcome = outcomeBy.get(j.id) ?? null;
+    const groupBMedia = originalEnquiryMedia(b44.raw, [...(mediaBy.get(j.id) ?? []), ...(evidenceBy.get(j.id) ?? [])]);
     const c = classifyEnquiry({
       kind: "job", stage: j.stage, holdReason: j.hold_reason, outcome: j.eligibility_outcome, decisionSource: j.eligibility_decision_source,
       reviewRequired: !!j.eligibility_review_required, audit, intakeWorkActive: workSet.has(j.id), declaredInsulation, officeInsulation: mediaOutcome,
       area: { measured: m ? Number(m.verified_area_m2 ?? m.measured_area_m2) : null, estimated: best?.net_m2 ?? null, declared: j.estimated_area_m2 == null ? null : Number(j.estimated_area_m2), declaredUnknown: j.estimated_area_unknown },
-      videoCount: homeownerVideoCount((dBy.get(j.id) ?? []) as { kind: string; mime_type: string | null; storage_path: string }[]),
+      videoCount: groupBMedia.count,
     });
     return {
-      ...c, id: j.id, kind: "job", jobNumber: j.job_number, reference: j.external_enquiry_id, name: owner?.full_name ?? null, email: owner?.email ?? null,
+      ...c, ...(c.group === "insulation_check" && groupBMedia.excluded ? { nextAction: groupBMedia.received ? "Review existing photos/video" : "Check original media sync", reason: groupBInvitationBlocker(groupBMedia) ?? c.reason } : {}), id: j.id, kind: "job", jobNumber: j.job_number, reference: j.external_enquiry_id, name: owner?.full_name ?? null, email: owner?.email ?? null,
       address: formatPropertyAddress(p) || null, postcode: p?.postcode ?? null, propKey: propertyKey(p?.address_line, p?.postcode), createdAt: j.created_at, stage: j.stage,
       areaLabel: AREA_LABEL[c.area.source], declaredInsulation, hardFailures: audit?.hard_failures ?? [],
       lastEmail: last ? { purpose: last.purpose, status: last.status, at: last.sent_at ?? last.created_at, error: last.error } : null,
@@ -129,7 +131,7 @@ export async function loadEnquiryGroups() {
           campaignGroup: camp.length ? (camp.some((s) => /:b(:|$)/.test(s.idempotency_key ?? "")) ? "onsite" : "likely") : null,
         });
       })(), attentionReason: null, outcomeAt: j.eligibility_set_at ?? null,
-      mediaCount: (mediaBy.get(j.id) ?? []).length, mediaChecked: mediaOutcome === "below_r2" || mediaOutcome === "over_r2", mediaOutcome,
+      groupBMedia, mediaCount: groupBMedia.count, mediaChecked: mediaOutcome === "below_r2" || mediaOutcome === "over_r2", mediaOutcome,
       removed: removedSet.has(j.id),
     };
   });
@@ -233,6 +235,8 @@ export async function prepareEnquiryEmails(ids: string[], sel: Selected, withHtm
     const why = contactExclusion({ id, group: r.group, otherReason: r.otherReason, email: r.email, consent: r.consent, optedOut: r.optedOut, bounced: r.bounced, source: r.source, alreadySentCampaign: r.sentPurposes.includes(tpl.campaign), isPrimaryForContact: r.isPrimaryForContact }, sel)
       ?? (k && seen.has(k) ? "Duplicate in this selection" : null);
     if (why) { excluded.push({ id, name: r.name, email: r.email, reason: why }); continue; }
+    const mediaBlocker = sel.group === "insulation_check" ? groupBInvitationBlocker(r.groupBMedia) : null;
+    if (mediaBlocker) { excluded.push({ id, name: r.name, email: r.email, reason: mediaBlocker }); continue; }
     const d = renderDraft(r, sel, ctx);
     if ("error" in d) { excluded.push({ id, name: r.name, email: r.email, reason: d.error }); continue; }
     seen.add(k);
@@ -253,12 +257,16 @@ export async function prepareEnquiryEmails(ids: string[], sel: Selected, withHtm
 /** Signed short-lived links to a lead's uploaded photos/videos (intake_media, private job-files bucket). Admin only. */
 export async function loadLeadMedia(jobId: string) {
   const docs = must(await admin.from("documents").select("id, kind, mime_type, storage_path, created_at").eq("job_id", jobId).eq("kind", "intake_media").order("created_at"), "Lead media") ?? [];
+  const evidence = must(await admin.from("evidence_files").select("id, mime_type, storage_path, uploaded_at").eq("job_id", jobId), "Intake evidence") ?? [];
   const files: { id: string; mimeType: string | null; url: string; at: string | null }[] = [];
-  for (const d of docs) {
+  const linked = [...new Map([...docs, ...evidence.filter((d) => d.storage_path.startsWith(`${jobId}/intake/`)).map((d) => ({ ...d, created_at: d.uploaded_at }))].filter((d) => /^(image|video)\//i.test(d.mime_type ?? "") || /\.(jpe?g|png|heic|heif|webp|mov|mp4|webm)$/i.test(d.storage_path)).map((d) => [d.storage_path, d])).values()];
+  for (const d of linked) {
     const signed = await signFile("job-files", d.storage_path, 3600);
     if (signed.data) files.push({ id: d.id, mimeType: d.mime_type, url: signed.data.signedUrl, at: d.created_at });
   }
-  return { files };
+  const { groupBMediaForJob } = await import("./group-b-media.server");
+  const media = await groupBMediaForJob(jobId);
+  return { files, pendingSync: media.pendingSync, uncertain: media.uncertain };
 }
 
 /** Records the office photo/video review (Jo, 8 Oct): below_r2 → Save my spot offer; over_r2 → ineligible; unclear → more pictures.

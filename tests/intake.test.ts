@@ -54,8 +54,7 @@ describe("snapshots and declarations", () => {
     const raw = buildBase44Raw({ base44_answers: { over5: "yes" }, base44_screening: { status: "likely" }, base44_ai_observations: { o: 1 }, property_research_raw: { r: 1 }, contact_consent: true });
     expect(raw).toMatchObject({ basis: "base44_snapshot", answers: { over5: "yes" }, screening: { status: "likely" }, ai_observations: { o: 1 }, research_raw: { r: 1 } });
     expect(buildBase44Evidence({ declared_over_five_years: "yes" }).declared.basis).toBe("owner_declaration");
-    const src = readFileSync("src/lib/enquiry.server.ts", "utf8");
-    expect(src).toContain("raw: buildBase44Raw(input)");
+    expect(buildBase44Raw({ media: [] }).media).toEqual([]);
   });
 });
 

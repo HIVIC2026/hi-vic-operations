@@ -1,5 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Group B four alternatives (Jo 8 Oct 22:41 UTC)
+- [ ] Jo 22:54 locked exclusion: authoritative original media + pending refs, fail-closed invitation/reminder/link guards, existing office evidence visibility, meaningful tests and read-only matching counts; no sends.
 ### Jo 22:47 correction — supersedes declaration review stop
 - [x] Qualifying audited owner Yes opens/saves existing spot server-side; media remains review-only; retain existing-insulation prices and final verification.
 - [x] 17 actual campaign-handler practice-database tests/68 assertions and 75 regression tests/318 assertions pass; sealed desktop/phone both Yes→campaign→saved, No/unsure, upload Retry and video safety pass with zero page errors/overflow. Hosted persistence, real storage and guarded stage transition remain unverified; no live sends/publication. See docs/GROUP_B_DECLARATION_CORRECTION_QA.md.

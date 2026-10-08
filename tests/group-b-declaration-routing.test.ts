@@ -5,14 +5,17 @@ import { postgrestShim } from "./helpers/pglite-postgrest-shim";
 import { GATE1_RULESET_VERSION } from "../src/lib/eligibility.core";
 const db = await launchCampaignDb();
 await db.exec(`
-ALTER TABLE jobs ADD source text, ADD stage text, ADD eligibility_outcome text, ADD eligibility_review_required boolean DEFAULT false,
- ADD eligibility_decision_source text, ADD eligibility_decision_rules jsonb, ADD estimated_area_m2 numeric, ADD owners jsonb, ADD properties jsonb;
+ALTER TABLE jobs ADD source text, ADD channel text DEFAULT 'hivic_sourced', ADD stage text, ADD eligibility_outcome text, ADD eligibility_review_required boolean DEFAULT false,
+ ADD eligibility_decision_source text, ADD eligibility_decision_rules jsonb, ADD estimated_area_m2 numeric, ADD estimated_area_unknown boolean DEFAULT false, ADD owners jsonb, ADD properties jsonb;
 ALTER TABLE customer_estimate_links ADD token text, ADD purpose text, ADD status text, ADD expires_at timestamptz;
 CREATE TABLE owner_contact_consents(job_id uuid, consent_status text, created_at timestamptz DEFAULT now());
 CREATE TABLE customer_email_optouts(job_id uuid, opted_out_at timestamptz);
-CREATE TABLE post_intake_work(job_id uuid, status text);
+CREATE TABLE post_intake_work(id uuid DEFAULT gen_random_uuid(), job_id uuid, status text);
 CREATE TABLE workflow_events(id uuid DEFAULT gen_random_uuid(), job_id uuid, event_type text, summary text, details jsonb, created_at timestamptz DEFAULT now());
 CREATE TABLE indicative_estimates(id uuid DEFAULT gen_random_uuid(), job_id uuid, status text, area_m2 numeric, insulation_declared text, scenarios jsonb);
+CREATE TABLE documents(job_id uuid, kind text, mime_type text, storage_path text, source_system text, external_id text);
+CREATE TABLE evidence_files(job_id uuid, mime_type text, storage_path text);
+CREATE TABLE customer_engagement_events(job_id uuid, event_type text, metadata jsonb, occurred_at timestamptz DEFAULT now());
 ALTER TABLE customer_delivery_settings ADD IF NOT EXISTS ready_check_available_postcodes text[];
 CREATE TABLE retail_estimator_settings(is_current boolean, indicative_veec_value numeric, piesa_assessment_inc_gst numeric, ap_management_inc_gst numeric, r5_install_inc_gst_per_m2 numeric);
 INSERT INTO customer_delivery_settings(id) VALUES (1);
@@ -42,11 +45,12 @@ mock.module("../src/lib/workflow.server", () => ({
 mock.module("../src/lib/estimatelink.server", () => ({ resolvePublicEstimate: async () => ({ estimate: {} }) }));
 mock.module("../src/lib/referral.server", () => ({ referralUrlForJob: async () => null }));
 const { campaignLink, campaignPage, recordInsulationDeclaration, saveCampaignSpot, markCampaignMediaReceived } = await import("../src/lib/launch-campaign.server");
+const { maybeAutoRouteLeadEmail } = await import("../src/lib/lead-email-routing.server");
 const token = "A".repeat(43);
 const audit = { ruleset_version: GATE1_RULESET_VERSION, rules: ["location", "residential", "ceiling_age", "previous_activity", "roof_access"].map((key) => ({ key, result: "pass" })).concat([{ key: "existing_insulation", result: "onsite" }]), hard_failures: [], review_reasons: [] };
 beforeEach(async () => {
-  await db.exec("DELETE FROM lead_campaign_responses; DELETE FROM workflow_events; DELETE FROM owner_contact_consents; DELETE FROM customer_email_optouts; DELETE FROM post_intake_work; DELETE FROM indicative_estimates;");
-  await db.query("UPDATE jobs SET source='qa_test',stage='preliminary_estimate_ready',eligibility_outcome='needs_onsite_confirmation',eligibility_review_required=false,eligibility_decision_source='system',eligibility_decision_rules=$1,estimated_area_m2=120,owners=$2,properties=$3", [JSON.stringify(audit), JSON.stringify({full_name:"TEST Owner"}), JSON.stringify({postcode:"3000",enrichment:{base44:{raw:{answers:{existing_insulation:"present"}}}}})]);
+  await db.exec("DELETE FROM documents; DELETE FROM evidence_files; DELETE FROM customer_engagement_events; DELETE FROM lead_campaign_responses; DELETE FROM workflow_events; DELETE FROM owner_contact_consents; DELETE FROM customer_email_optouts; DELETE FROM post_intake_work; DELETE FROM indicative_estimates;");
+  await db.query("UPDATE jobs SET source='qa_test',stage='preliminary_estimate_ready',eligibility_outcome='needs_onsite_confirmation',eligibility_review_required=false,eligibility_decision_source='system',eligibility_decision_rules=$1,estimated_area_m2=120,owners=$2,properties=$3", [JSON.stringify(audit), JSON.stringify({full_name:"TEST Owner"}), JSON.stringify({postcode:"3000",enrichment:{base44:{raw:{media:[],answers:{existing_insulation:"present"}}}}})]);
   await db.query("UPDATE customer_estimate_links SET token=$1,purpose='step3_estimate',status='active',expires_at=now()+interval '1 day'", [token]);
   await db.query("INSERT INTO owner_contact_consents VALUES($1,'granted',now())", [LAUNCH_ID.job]);
   await db.query("INSERT INTO workflow_events(job_id,event_type) VALUES($1,'spot_saved_confirmation_queued')", [LAUNCH_ID.job]);
@@ -95,7 +99,7 @@ for (const state of ["ineligible","closed","opted_out","expired","revoked","wron
   if (state === "wrong_source") await db.exec("UPDATE jobs SET source='installer'");
   if (state === "no_consent") await db.exec("DELETE FROM owner_contact_consents");
   if (state === "review") await db.exec("UPDATE jobs SET eligibility_review_required=true");
-  if (state === "processing") await db.query("INSERT INTO post_intake_work VALUES($1,'processing')",[LAUNCH_ID.job]);
+  if (state === "processing") await db.query("INSERT INTO post_intake_work(job_id,status) VALUES($1,'processing')",[LAUNCH_ID.job]);
   await expect(recordInsulationDeclaration(token,"below_r2",true)).rejects.toThrow(); await expect(saveCampaignSpot(token)).rejects.toThrow();
 });
 test("declaration cannot erase existing insulation through calculator save", async () => {
@@ -114,4 +118,38 @@ test("a previously qualifying Yes stops qualifying if another initial check chan
   await db.query("UPDATE jobs SET eligibility_decision_rules=$1",[JSON.stringify({...audit,rules:audit.rules.map((r)=>r.key==="location"?{...r,result:"fail"}:r)})]);
   expect((await campaignLink(token))?.ownerQualified).toBe(false);
   await expect(saveCampaignSpot(token)).rejects.toThrow();
+});
+for (const mime of ["image/jpeg", "video/mp4"]) test(`original ${mime} excludes repeated routing, blocks fresh declaration, preserves evidence`, async () => {
+  await db.query("INSERT INTO documents VALUES($1,'intake_media',$2,$3,'base44','original')", [LAUNCH_ID.job,mime,`${LAUNCH_ID.job}/intake/base44/original`]);
+  for (let i=0;i<2;i++) {
+    expect((await campaignLink(token))?.media?.received).toBe(true);
+    expect(JSON.parse(await campaignPage(token) ?? "null").media.excluded).toBe(true);
+    await expect(recordInsulationDeclaration(token,"loose_fill_only",true)).rejects.toThrow("already have");
+  }
+  expect((await db.query("SELECT count(*)::int n FROM documents")).rows[0]).toEqual({n:1});
+  expect((await db.query("SELECT count(*)::int n FROM workflow_events WHERE event_type='owner_insulation_loose_fill_only_declared'")).rows[0]).toEqual({n:0});
+});
+test("pending original video refs exclude before import; legacy missing manifest holds", async () => {
+  await db.query("UPDATE jobs SET properties=$1",[JSON.stringify({enrichment:{base44:{raw:{answers:{insulation:"present",media_choice:"no"},media:[{source_id:"v1",name:"roof.mov",mime_type:"video/quicktime"}]}}}})]);
+  expect((await campaignLink(token))?.media).toMatchObject({received:true,pendingSync:true,excluded:true,count:1});
+  await expect(saveCampaignSpot(token)).rejects.toThrow();
+  await db.query("UPDATE jobs SET properties=$1",[JSON.stringify({enrichment:{base44:{raw:{answers:{insulation:"present",media_choice:"yes"}}}}})]);
+  expect((await campaignLink(token))?.media).toMatchObject({received:false,uncertain:true,excluded:true});
+});
+test("actual original evidence review unlocks save without rewriting declared insulation or review", async () => {
+  await db.query("INSERT INTO documents VALUES($1,'intake_media','image/jpeg',$2,'base44','original')",[LAUNCH_ID.job,`${LAUNCH_ID.job}/intake/base44/a.jpg`]);
+  await db.query("INSERT INTO customer_engagement_events(job_id,event_type,metadata) VALUES($1,'intake_media_reviewed',$2)",[LAUNCH_ID.job,JSON.stringify({outcome:"below_r2",by:"office"})]);
+  expect(JSON.parse(await campaignPage(token) ?? "null").saveAllowed).toBe(true);
+  await saveCampaignSpot(token);
+  expect((await db.query("SELECT saved_insulation FROM lead_campaign_responses")).rows[0]).toEqual({saved_insulation:"present"});
+  expect((await db.query("SELECT metadata FROM customer_engagement_events")).rows[0]).toEqual({metadata:{outcome:"below_r2",by:"office"}});
+});
+test("original evidence overrides old Yes, repeated automatic routing never requests again", async () => {
+  await recordInsulationDeclaration(token,"loose_fill_only",true);
+  await db.query("INSERT INTO evidence_files VALUES($1,'video/mp4',$2)",[LAUNCH_ID.job,`${LAUNCH_ID.job}/intake/video.mp4`]);
+  expect(JSON.parse(await campaignPage(token) ?? "null").saveAllowed).toBe(false);
+  await expect(saveCampaignSpot(token)).rejects.toThrow();
+  await db.query("UPDATE jobs SET source='base44'");
+  for(let i=0;i<3;i++) expect(await maybeAutoRouteLeadEmail(LAUNCH_ID.job)).toMatchObject({route:"none",sent:false,reason:"Existing enquiry photos/video received — office review, no repeat invitation"});
+  expect((await db.query("SELECT count(*)::int n FROM evidence_files")).rows[0]).toEqual({n:1});
 });

@@ -4,6 +4,8 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { customerCommsEnabled, hasCurrentOwnerContactConsent, recordCommunication } from "./comms.server";
 import { refreshIndicativeEstimate } from "./estimate.server";
 import { LINK_PURPOSE, linkAllowed, linkUsable } from "./estimatelink.core";
+import { groupBMediaForJob } from "./group-b-media.server";
+import { groupBInvitationBlocker } from "./group-b-media.core";
 import { renderEstimateEmail } from "./estimate-email";
 import { renderFollowupEmail } from "./followup-email";
 import { clickUrl, dedupe, estimateUrl, isActiveFollowupKind, pixelUrl, planFollowup, planInitialFollowups, retryAt, sendBlocker, type ActiveFollowupKind } from "./engagement.core";
@@ -93,6 +95,10 @@ async function deliverTracked(x: { jobId: string; linkId: string; linkToken: str
 export async function sendInitialEstimateEmail(jobId: string, actorId: string | null, adapterIn?: DeliveryAdapter | null) {
   const official = await officialOutcomeForDelivery(jobId);
   if (official.kind !== "eligible") return { sent: false as const, reason: official.kind === "hold" ? official.reason : "official_ineligible" };
+  if (official.mode === "onsite") {
+    const blocker = groupBInvitationBlocker(await groupBMediaForJob(jobId));
+    if (blocker) return { sent: false as const, reason: blocker };
+  }
   const adapter = adapterIn === undefined ? await configuredDeliveryAdapter() : adapterIn;
   const { link, view, gates } = await gatesFor(jobId, adapter);
   if (view.mode !== official.mode) return { sent: false as const, reason: "eligibility_view_mismatch" };
@@ -147,7 +153,14 @@ export async function processDueFollowups(opts: { limit?: number; adapter?: Deli
         await recordEngagement({ jobId: f.job_id, type: "followup_suppressed", metadata: { followup_kind: f.kind, reason: "retired_followup_kind" }, dedupeKey: dedupe.followup(f.id, "suppressed") });
         results.push({ status: "suppressed", reason: "retired_followup_kind" }); continue;
       }
-      const [{ link, gates }, summary] = await Promise.all([gatesFor(f.job_id, adapter), jobSummary(f.job_id)]);
+      const [{ link, gates, view }, summary] = await Promise.all([gatesFor(f.job_id, adapter), jobSummary(f.job_id)]);
+      if (view.mode === "onsite") {
+        const blocker = groupBInvitationBlocker(await groupBMediaForJob(f.job_id));
+        if (blocker) {
+          await admin.from("customer_followups").update({ status: "suppressed", suppression_reason: blocker, lease_until: null }).eq("id", f.id);
+          results.push({ status: "suppressed", reason: blocker }); continue;
+        }
+      }
       const plan = planFollowup(f as never, summary, gates);
       if (plan.action === "suppress") {
         await admin.from("customer_followups").update({ status: "suppressed", suppression_reason: plan.reason, lease_until: null }).eq("id", f.id);

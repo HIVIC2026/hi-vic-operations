@@ -7,7 +7,7 @@ import { z } from "zod";
 import type { Json, TablesUpdate } from "@/integrations/supabase/types";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
-import { buildBase44Evidence, buildBase44Raw, normaliseState, planBase44Job, properAddress, properName } from "./enquiry.core";
+import { buildBase44Evidence, buildBase44Raw, retainOriginalMedia, normaliseState, planBase44Job, properAddress, properName } from "./enquiry.core";
 import { recordContactConsent, importBase44Media } from "./intake.server";
 
 /** A JSON object snapshot capped at 60KB serialised. */
@@ -179,7 +179,9 @@ export async function upsertEnquiry(input: Omit<EnquiryInput, "estimated_area_m2
 /** Merge Base44 Gate 1 evidence under enrichment.base44 without touching other keys (e.g. verified portal facts). */
 function mergeEvidence(existing: unknown, input: EnquiryInput): Json {
   const base = existing && typeof existing === "object" && !Array.isArray(existing) ? (existing as Record<string, unknown>) : {};
-  return { ...base, base44: { ...buildBase44Evidence(input), raw: buildBase44Raw(input) } } as Json;
+  const old = (base['base44'] as { raw?: unknown } | undefined)?.raw;
+  const raw = retainOriginalMedia(old, buildBase44Raw(input));
+  return { ...base, base44: { ...buildBase44Evidence(input), raw } } as Json;
 }
 
 /** Consent + media are stored before Gate 1/intelligence run. Media failures never fail the enquiry. */

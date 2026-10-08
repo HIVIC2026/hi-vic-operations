@@ -4,6 +4,7 @@
 // or eligibility; only adds an internal job-history note so the office sees "Video received – priority review".
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { LINK_PURPOSE, isWellFormedToken } from "./estimatelink.core";
+import { groupBMediaForJob } from "./group-b-media.server";
 import { logEvent } from "./workflow.server";
 import { CAPTURE_KIND, CAPTURE_MAX_FILES, CAPTURE_SOURCE_SYSTEM, captureLinkState, capturePath, parseCapturePath, validateCaptureFile, normaliseCaptureType, CAPTURE_MAX_BYTES } from "./owner-capture.core";
 
@@ -30,18 +31,23 @@ async function existing(jobId: string) {
 export async function captureStatus(token: unknown) {
   const r = await resolve(token);
   if (r.state !== "ok") return { state: r.state };
-  const files = await existing(r.link!.job_id);
-  const suburb = (r.job!.properties as { suburb: string | null } | null)?.suburb ?? null;
-  return { state: "ok" as const, suburb, reference: r.job!.job_number, received: files.length, remaining: Math.max(0, CAPTURE_MAX_FILES - files.length) };
+  if (!r.link || !r.job) return { state: "invalid" as const };
+  const media = await groupBMediaForJob(r.link.job_id);
+  const files = await existing(r.link.job_id);
+  const suburb = (r.job.properties as { suburb: string | null } | null)?.suburb ?? null;
+  return { state: "ok" as const, suburb, reference: r.job.job_number, originalMedia: media, received: files.length, remaining: Math.max(0, CAPTURE_MAX_FILES - files.length) };
 }
 
 export async function startCapture(token: unknown, f: { fileName: string; mime: string; size: number }) {
   const r = await resolve(token);
   if (r.state !== "ok") throw new Error(GENERIC);
+  if (!r.link) throw new Error(GENERIC);
+  const media = await groupBMediaForJob(r.link.job_id);
+  if (media.excluded) throw new Error(media.received ? "We already have your enquiry photos/video. Our office will review them." : "We are checking your original enquiry uploads. Please contact our office.");
   const v = validateCaptureFile({ mime: f.mime, fileName: f.fileName, size: f.size });
   if (!v.ok) throw new Error(v.error);
-  if ((await existing(r.link!.job_id)).length >= CAPTURE_MAX_FILES) throw new Error("We've already received the maximum number of files for this property. Thank you!");
-  const path = capturePath(r.link!.job_id, crypto.randomUUID(), v.mime);
+  if ((await existing(r.link.job_id)).length >= CAPTURE_MAX_FILES) throw new Error("We've already received the maximum number of files for this property. Thank you!");
+  const path = capturePath(r.link.job_id, crypto.randomUUID(), v.mime);
   const { data, error } = await admin.storage.from(BUCKET).createSignedUploadUrl(path);
   if (error || !data) throw new Error("Upload could not start. Please try again.");
   return { path, uploadToken: data.token, mime: v.mime };
@@ -50,7 +56,8 @@ export async function startCapture(token: unknown, f: { fileName: string; mime: 
 export async function finishCapture(token: unknown, x: { path: string; fileName: string; deviceModifiedAt: number | null }, meta: { userAgent: string | null }) {
   const r = await resolve(token);
   if (r.state !== "ok") throw new Error(GENERIC);
-  const jobId = r.link!.job_id;
+  if (!r.link) throw new Error(GENERIC);
+  const jobId = r.link.job_id;
   const uploadId = parseCapturePath(jobId, x.path);
   if (!uploadId) throw new Error(GENERIC);
   const folder = x.path.slice(0, x.path.lastIndexOf("/"));
@@ -81,6 +88,6 @@ export async function finishCapture(token: unknown, x: { path: string; fileName:
   }
   // Retry office review even for an already recorded stored file.
   const { markCampaignMediaReceived } = await import("./launch-campaign.server");
-  await markCampaignMediaReceived(jobId, r.link!.id);
+  await markCampaignMediaReceived(jobId, r.link.id);
   return { recorded: true, duplicate };
 }

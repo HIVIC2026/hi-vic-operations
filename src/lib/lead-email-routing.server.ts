@@ -1,6 +1,8 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { declaredExtras } from "./enquiry.core";
 import { normaliseInsulation } from "./eligibility.core";
+import { groupBMediaForJob } from "./group-b-media.server";
+import { groupBInvitationBlocker } from "./group-b-media.core";
 import { automaticLeadEmail } from "./enquiry-groups.core";
 
 export type LeadEmailRouteResult = { route: "offer_spot" | "request_insulation" | "ineligible" | "none"; sent: boolean; reason: string };
@@ -30,6 +32,8 @@ export async function maybeAutoRouteLeadEmail(jobId: string): Promise<LeadEmailR
       return { route: route.email, sent: result?.outcome === "sent", reason: result?.detail ?? "No send result" };
     }
     if (route.email === "request_insulation") {
+      const blocker = groupBInvitationBlocker(await groupBMediaForJob(jobId));
+      if (blocker) return { route: "none", sent: false, reason: blocker };
       const { syncStep3 } = await import("./estimatelink.server");
       await syncStep3(jobId, null);
       const { sendAutomaticInsulationDetails } = await import("./hot-leads-send.server");

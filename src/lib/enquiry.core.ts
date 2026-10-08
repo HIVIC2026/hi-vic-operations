@@ -150,6 +150,7 @@ export function buildBase44Evidence(i: Base44EvidenceInput, now: Date = new Date
 // Full Base44 intake (0028): raw snapshots, contact consent, media copy planning. Pure; tested in tests/intake.test.ts.
 
 export type Base44Snapshots = {
+  media?: readonly Base44Media[] | null | undefined;
   state?: string | null | undefined;
   base44_answers?: Record<string, unknown> | null | undefined;
   base44_screening?: Record<string, unknown> | null | undefined;
@@ -164,6 +165,8 @@ export function buildBase44Raw(i: Base44Snapshots) {
   return {
     basis: "base44_snapshot",
     answers: i.base44_answers ?? null,
+    // Preserve original attachment identities before copying, without expiring URLs.
+    ...(Array.isArray(i.media) ? { media: i.media.map(({ source_id, name, mime_type }) => ({ source_id, name, mime_type })) } : {}),
     screening: i.base44_screening ?? null,
     ai_observations: i.base44_ai_observations ?? null,
     research_raw: i.property_research_raw ?? null,
@@ -172,6 +175,15 @@ export function buildBase44Raw(i: Base44Snapshots) {
       age_confirmed: i.age_confirmed ?? null, assistance: i.assistance ?? null, preference: i.contact_preference ?? null,
     },
   };
+}
+
+/** Preserve original identities and legacy uncertainty; a later empty sync cannot prove original absence. */
+export function retainOriginalMedia(previous: unknown, current: ReturnType<typeof buildBase44Raw>) {
+  const old = previous && typeof previous === "object" && !Array.isArray(previous) ? previous as Record<string, unknown> : null;
+  const prior = Array.isArray(old?.['media']) ? old['media'] as { source_id: string; name: string; mime_type: string }[] : [];
+  const media = [...new Map([...prior, ...(current.media ?? [])].map((m) => [m.source_id, m])).values()];
+  const uncertain = !!old && (!Array.isArray(old['media']) || old['original_media_manifest_uncertain'] === true);
+  return { ...current, ...(prior.length || Array.isArray(current.media) || Array.isArray(old?.['media']) ? { media } : {}), ...(uncertain ? { original_media_manifest_uncertain: true } : {}) };
 }
 
 /** Normalise a state code (VIC etc). Null when absent/blank. */

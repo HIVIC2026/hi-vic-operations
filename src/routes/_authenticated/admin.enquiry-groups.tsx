@@ -44,7 +44,8 @@ function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
         {(data?.files ?? []).map((f) => f.mimeType?.startsWith("video/")
           ? <video key={f.id} src={f.url} controls className="h-40 rounded-md border bg-black" />
           : <a key={f.id} href={f.url} target="_blank" rel="noopener"><img src={f.url} alt={`Uploaded by ${row.name ?? "owner"}`} className="h-40 rounded-md border object-cover" /></a>)}
-        {data && data.files.length === 0 && <p className="text-sm text-muted-foreground">No files found.</p>}
+        {data?.pendingSync && <p role="status" className="text-sm">Original enquiry attachments are awaiting import. Do not ask the owner to upload again.</p>}
+        {data && data.files.length === 0 && !data.pendingSync && <p className="text-sm text-muted-foreground">No files found.</p>}
       </div>
       {saved ? <p role="status" className="text-sm font-semibold text-primary">Saved: {saved}</p> : (
         <div className="flex flex-wrap gap-2">
