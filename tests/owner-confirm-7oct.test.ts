@@ -34,7 +34,7 @@ describe("owner confirm link for installer-quoted jobs (Jo 7 Oct 9:25pm)", () =>
     expect(page.match(/<FixesNote \/>/g)?.length).toBe(2);
     expect(page).toContain("ownerPriceTitle(v.agreed)");
     expect(readFileSync("src/lib/owner-gates.server.ts", "utf8")).toContain('d.gate === "B" ? (await import("./owner-confirm.core")).signedSummaryNote()');
-    expect(readFileSync("src/routes/_authenticated/partner.import.tsx", "utf8")).toContain("OWNER_AGREED_TICK");
+    expect(readFileSync("src/components/trade/add-job-flow.tsx", "utf8")).toContain("OWNER_AGREED_TICK");
     expect(readFileSync("src/lib/partner-import.server.ts", "utf8")).toContain("owner_agreed_price: true");
   });
 });

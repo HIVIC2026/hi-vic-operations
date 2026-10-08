@@ -104,8 +104,8 @@ export function ElectricianPicker({ value, onChange, approved, pending, onAdd, c
         </select>
       )}
       {invitedPick && <p className="text-xs font-semibold text-rose">{pending.find((x) => x.nominationId === value.nomination_id)?.status === "invited" ? "Electrician invited – waiting to onboard" : "Electrician added – invitation delivery not confirmed"}</p>}
-      {onAdd && !adding && <Button type="button" variant="link" className="h-12 px-0 text-xs" onClick={() => { setAttempted(false); setAdding(true); }}>+ Add another electrician</Button>}
-      {onAdd && adding && (
+      {onAdd && !adding && value.mode === "mine" && <Button type="button" variant="link" className="h-12 px-0 text-xs" onClick={() => { setAttempted(false); setAdding(true); }}>+ Add another electrician</Button>}
+      {onAdd && adding && value.mode === "mine" && (
         <div className="grid gap-2 rounded-[12px] bg-mist p-2 sm:grid-cols-2" data-add-electrician>
           {([["name", "Name", "text"], ["business", "Business", "text"], ["mobile", "Mobile", "tel"], ["email", "Email", "email"]] as const).map(([k, l, t]) => (
             <label key={k} className="block text-xs"><span className="font-semibold text-sub">{l}</span><input aria-label={`Electrician ${l.toLowerCase()}`} type={t} inputMode={t === "tel" ? "tel" : undefined} value={d[k]} onChange={(e) => setD({ ...d, [k]: e.target.value })} className="mt-0.5 h-10 w-full rounded-[10px] border border-line bg-paper px-2.5 text-sm" /></label>

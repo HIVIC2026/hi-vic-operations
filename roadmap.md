@@ -223,3 +223,6 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Inventory five review-only emails; show stored bodies without claiming live-renderer parity.
 - [x] Correct new hub purpose/send/approval metadata and displayed Mitti ID submission; no connect clicks.
 - [x] Source-only access/notes checks, 33 focused regressions and signed-out/desktop-phone fixture verification; document exact limits and rollback from b477a44. Authenticated checks remain unauthorised/unverified.
+- [x] Installer Add job: one Customer -> Job details -> Review & save flow (8 Oct, preview)
+- [ ] Installer job page: remove contradictory timelines / "coming soon" form wording (next)
+- [ ] Real signed-in installer save + Mitti form check (needs a usable TEST installer session)
