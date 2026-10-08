@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
@@ -13,6 +13,7 @@ import { hotSelectionBlocker } from "@/lib/hot-leads.core";
 const title = "Hot leads – Home Insulation Victoria Operations";
 const description = "Office-only Save my spot list: preliminary prices, local trades and send status for eligible website leads.";
 export const Route = createFileRoute("/_authenticated/admin/hot-leads")({
+  beforeLoad: () => { throw redirect({ to: "/admin/enquiry-groups", replace: true }); },
   head: () => ({ meta: [{ title }, { name: "description", content: description }, { property: "og:title", content: title }, { property: "og:description", content: description }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: HotLeadsPage,
 });
