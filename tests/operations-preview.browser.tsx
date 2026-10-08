@@ -1,0 +1,15 @@
+import { createRoot } from "react-dom/client";
+import { OperationsPreviewView } from "../src/components/portal/OperationsPreview";
+import { buildOperationsPreview, type OperationInput } from "../src/lib/operations-preview.core";
+import "../src/styles.css";
+const make = (id: string): OperationInput => ({ id, jobNumber: `HV-TEST-${id}`, owner: "TEST Alexandra Montgomery", address: "18 Long Gumtree Crescent, Melbourne VIC 3000", source: "website", channel: "hivic_sourced", businessUnit: "hivic", originatingInstaller: null, assignedInstaller: null, eligibility: "likely_eligible", eligibilityReason: null, verifiedEligibility: null, insulation: "none", mediaCount: 0, mediaReview: null, actualHandoff: false, evidence: [], communications: [], failures: [], facts: { id, stage: "preliminary_estimate_ready", createdAt: "2026-09-01T00:00:00Z", lastActivityAt: null, enteredStageAt: null } });
+const saved = make("saved"); saved.facts.campaign = { spotSavedAt: "2026-09-01T00:00:00Z", optedOutAt: null, videoRequested: false, mediaReceivedAt: null, deskCheckStatus: null, createdAt: "2026-09-01T00:00:00Z" };
+const media = make("media"); media.insulation = "present"; media.eligibility = "needs_onsite_confirmation"; media.mediaCount = 3;
+const active = make("active"); active.actualHandoff = true; active.channel = "installer_sourced"; active.originatingInstaller = "TEST Insulation Partner"; active.assignedInstaller = "TEST Insulation Partner"; active.facts.stage = "installation_booked"; active.facts.installBookingAt = "2026-10-12T00:00:00Z"; active.facts.installDeadline = "2026-10-25T00:00:00Z"; active.evidence = [{ label: "Ceiling-space photos", status: "uploaded", role: "installer" }, { label: "Electrical clearance", status: "outstanding", role: "electrician" }];
+const unknown = make("unknown"); unknown.facts.stage = "future_stage";
+const closed = make("closed"); closed.facts.stage = "complete";
+const ineligible = make("ineligible"); ineligible.eligibility = "does_not_appear_eligible"; ineligible.eligibilityReason = "Building too new";
+const data = buildOperationsPreview([saved, media, active, unknown, closed, ineligible], [{ label: "Insulation-details email", state: "Paused", detail: "Final approval pending" }, { label: "Mitti", state: "Unknown", detail: "Connection not tested" }], Date.parse("2026-10-08T06:44:00Z"));
+const root = document.getElementById("root");
+if (!root) throw new Error("Missing isolated test root");
+createRoot(root).render(<OperationsPreviewView data={data} refresh={() => {}} />);

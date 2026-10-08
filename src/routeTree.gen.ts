@@ -48,6 +48,7 @@ import { Route as AuthenticatedAdminLaunchCampaignRouteImport } from './routes/_
 import { Route as AuthenticatedAdminListRouteImport } from './routes/_authenticated/admin.list'
 import { Route as AuthenticatedAdminMoneyRouteImport } from './routes/_authenticated/admin.money'
 import { Route as AuthenticatedAdminNeedsMeRouteImport } from './routes/_authenticated/admin.needs-me'
+import { Route as AuthenticatedAdminOperationsPreviewRouteImport } from './routes/_authenticated/admin.operations-preview'
 import { Route as AuthenticatedAdminOwnerPaperworkRouteImport } from './routes/_authenticated/admin.owner-paperwork'
 import { Route as AuthenticatedAdminPartnersRouteImport } from './routes/_authenticated/admin.partners'
 import { Route as AuthenticatedAdminPartnersOverviewRouteImport } from './routes/_authenticated/admin.partners-overview'
@@ -307,6 +308,12 @@ const AuthenticatedAdminNeedsMeRoute =
   AuthenticatedAdminNeedsMeRouteImport.update({
     id: '/needs-me',
     path: '/needs-me',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminOperationsPreviewRoute =
+  AuthenticatedAdminOperationsPreviewRouteImport.update({
+    id: '/operations-preview',
+    path: '/operations-preview',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminOwnerPaperworkRoute =
@@ -649,6 +656,7 @@ export interface FileRoutesByFullPath {
   '/admin/list': typeof AuthenticatedAdminListRoute
   '/admin/money': typeof AuthenticatedAdminMoneyRoute
   '/admin/needs-me': typeof AuthenticatedAdminNeedsMeRoute
+  '/admin/operations-preview': typeof AuthenticatedAdminOperationsPreviewRoute
   '/admin/owner-paperwork': typeof AuthenticatedAdminOwnerPaperworkRoute
   '/admin/partners': typeof AuthenticatedAdminPartnersRoute
   '/admin/partners-overview': typeof AuthenticatedAdminPartnersOverviewRoute
@@ -739,6 +747,7 @@ export interface FileRoutesByTo {
   '/admin/list': typeof AuthenticatedAdminListRoute
   '/admin/money': typeof AuthenticatedAdminMoneyRoute
   '/admin/needs-me': typeof AuthenticatedAdminNeedsMeRoute
+  '/admin/operations-preview': typeof AuthenticatedAdminOperationsPreviewRoute
   '/admin/owner-paperwork': typeof AuthenticatedAdminOwnerPaperworkRoute
   '/admin/partners': typeof AuthenticatedAdminPartnersRoute
   '/admin/partners-overview': typeof AuthenticatedAdminPartnersOverviewRoute
@@ -835,6 +844,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/list': typeof AuthenticatedAdminListRoute
   '/_authenticated/admin/money': typeof AuthenticatedAdminMoneyRoute
   '/_authenticated/admin/needs-me': typeof AuthenticatedAdminNeedsMeRoute
+  '/_authenticated/admin/operations-preview': typeof AuthenticatedAdminOperationsPreviewRoute
   '/_authenticated/admin/owner-paperwork': typeof AuthenticatedAdminOwnerPaperworkRoute
   '/_authenticated/admin/partners': typeof AuthenticatedAdminPartnersRoute
   '/_authenticated/admin/partners-overview': typeof AuthenticatedAdminPartnersOverviewRoute
@@ -931,6 +941,7 @@ export interface FileRouteTypes {
     | '/admin/list'
     | '/admin/money'
     | '/admin/needs-me'
+    | '/admin/operations-preview'
     | '/admin/owner-paperwork'
     | '/admin/partners'
     | '/admin/partners-overview'
@@ -1021,6 +1032,7 @@ export interface FileRouteTypes {
     | '/admin/list'
     | '/admin/money'
     | '/admin/needs-me'
+    | '/admin/operations-preview'
     | '/admin/owner-paperwork'
     | '/admin/partners'
     | '/admin/partners-overview'
@@ -1116,6 +1128,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/list'
     | '/_authenticated/admin/money'
     | '/_authenticated/admin/needs-me'
+    | '/_authenticated/admin/operations-preview'
     | '/_authenticated/admin/owner-paperwork'
     | '/_authenticated/admin/partners'
     | '/_authenticated/admin/partners-overview'
@@ -1486,6 +1499,13 @@ declare module '@tanstack/react-router' {
       path: '/needs-me'
       fullPath: '/admin/needs-me'
       preLoaderRoute: typeof AuthenticatedAdminNeedsMeRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/operations-preview': {
+      id: '/_authenticated/admin/operations-preview'
+      path: '/operations-preview'
+      fullPath: '/admin/operations-preview'
+      preLoaderRoute: typeof AuthenticatedAdminOperationsPreviewRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/owner-paperwork': {
@@ -1884,6 +1904,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminListRoute: typeof AuthenticatedAdminListRoute
   AuthenticatedAdminMoneyRoute: typeof AuthenticatedAdminMoneyRoute
   AuthenticatedAdminNeedsMeRoute: typeof AuthenticatedAdminNeedsMeRoute
+  AuthenticatedAdminOperationsPreviewRoute: typeof AuthenticatedAdminOperationsPreviewRoute
   AuthenticatedAdminOwnerPaperworkRoute: typeof AuthenticatedAdminOwnerPaperworkRoute
   AuthenticatedAdminPartnersRoute: typeof AuthenticatedAdminPartnersRoute
   AuthenticatedAdminPartnersOverviewRoute: typeof AuthenticatedAdminPartnersOverviewRoute
@@ -1916,6 +1937,8 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminListRoute: AuthenticatedAdminListRoute,
   AuthenticatedAdminMoneyRoute: AuthenticatedAdminMoneyRoute,
   AuthenticatedAdminNeedsMeRoute: AuthenticatedAdminNeedsMeRoute,
+  AuthenticatedAdminOperationsPreviewRoute:
+    AuthenticatedAdminOperationsPreviewRoute,
   AuthenticatedAdminOwnerPaperworkRoute: AuthenticatedAdminOwnerPaperworkRoute,
   AuthenticatedAdminPartnersRoute: AuthenticatedAdminPartnersRoute,
   AuthenticatedAdminPartnersOverviewRoute:

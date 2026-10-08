@@ -1,6 +1,7 @@
 # Server/domain rules (src/lib)
 
 ## Architecture rules
+- Operations preview is direct-link admin-only, SELECT-only, and uses `operations-preview.core.ts` for all counts/list/details; never import it into production workflow or navigation. Why: preview decisions must remain reversible without operational changes.
 - All admin reads/writes use authenticated server functions with explicit errors; non-admin reads stay RLS-scoped. Why: no false-empty records or weak access.
 - Stage-entry guards (Owner Authority, PIESA window, approved payment option, evidence, compliance) live only in `stageEntryBlockers`; authority rules live in `authority.server.ts`. Why: rules change centrally.
 - One combined installation quote (rectification lines folded in) carries the single Xero invoice; the safety check payment must be received before the PIESA is booked. Why: one setting-driven upfront amount gates the safety check.

@@ -2,6 +2,16 @@
 
 Updated: 5 October 2026
 
+## Isolated operations preview — 8 October 2026
+- Built at `/admin/operations-preview`, direct link only; no navigation/workflow/payment/quote/compliance/email-template changes.
+- Authenticated admin-only GET reads, business-unit scoped, no customer writes, migrations, sends, live integration calls, cron runs or publishing.
+- One pure classifier reconciles Leads / Active jobs / Closed jobs / Needs classification. Saved-only leads wait for capacity without a two-day overdue alert; operational evidence overrides saved spots. On hold stays open.
+- **Verification:** 168 focused tests passed across 8 files, including 13 preview scenarios and office/enquiry/email/guards/routing regressions. Ineligibility communication requires its own purpose, never an unrelated sent estimate. Retired-term scan: 27 existing warnings, zero customer-visible failures. Automatic harness reported `build OK` (typecheck/build); earlier preview-introduced type errors were corrected. No manual build/typecheck run.
+- **Browser:** isolated six-record fixtures at desktop 1280×1800 and phone 390×844; filtering, installer source, expandable details, no horizontal overflow and no browser exceptions. Signed-out actual route redirected to `/auth?next=%2Fadmin%2Foperations-preview` without loading records. Non-admin signed-in denial is source-guard checked, not browser-tested.
+- **Reconciliation:** mock-only 6 unique = 3 Leads + 1 Active + 1 Closed + 1 Needs classification = stage total 6. Live counts/admin read path not tested against real records per instruction; no real totals claimed. Real read errors surface instead of zeros.
+- **Limits:** live read/schema behavior, connection health, backup availability and full compliance readiness are unverified. No database backup claimed; no restoration needed. Later phases: Email/Mitti/Compliance automation and Templates organisation. Baseline and file rollback: `docs/OPERATIONS_PREVIEW_PHASE1.md`.
+- Touched: `operations-preview.core.ts`, `.server.ts`, `.functions.ts`, `OperationsPreview.tsx`, `admin.operations-preview.tsx`, three isolated test files, `AGENTS.md`, `src/lib/AGENTS.md`, this register, rollback document and `roadmap.md`; router tree regenerated automatically. Preview-specific memory saved; locked no-size email files untouched.
+
 This is the only current implementation register. `docs/HIV_WORKFLOW_SOURCE_OF_TRUTH.md` defines workflow rules. **Built** means the current path exists; **Partly built** means a working foundation exists but the approved flow is incomplete; **Not built** means approved or planned only.
 
 ## Public and owner
