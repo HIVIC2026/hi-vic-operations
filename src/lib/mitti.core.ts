@@ -559,7 +559,10 @@ export function buildOfficialPrefill(template: Any, items: (OfficialPrefillItem 
     // Two seeds for the same multi-select item merge into ONE response (never overwrite or duplicate).
     if (prior && type === "question" && prior.type === "question") {
       const ids = new Set(prior.responses.selected.map((o: Any) => o.id));
-      for (const o of responses.selected) if (!ids.has(o.id)) prior.responses.selected.push(o);
+      const extra = responses.selected.filter((o: Any) => !ids.has(o.id));
+      // Single-choice native question: a second, different answer can't be added — drop the seed, installer picks on site.
+      if (extra.length && e.type === "question") { list.splice(list.indexOf(prior), 1); skipped.push(`${f.itemId} (single choice on the Mitti form — installer chooses on site)`); continue; }
+      prior.responses.selected.push(...extra);
       continue;
     }
     list.push({ item_id: e.id, label: e.label, type, responses });
