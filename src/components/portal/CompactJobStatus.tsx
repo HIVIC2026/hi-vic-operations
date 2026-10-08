@@ -4,13 +4,23 @@ import { operationsOptions } from "@/lib/operations-query";
 import { fmtDate } from "@/lib/workflow";
 import type { OperationRow } from "@/lib/operations-preview.core";
 import type { PortalTarget } from "@/lib/portal-presentation.core";
+import { getJobBlockers } from "@/lib/portal.functions";
+import { BlockersPanel } from "./panels";
+
+export function CurrentJobBlockers({ jobId }: { jobId: string }) {
+  const query = useQuery({ queryKey: ["blockers", jobId], queryFn: () => getJobBlockers({ data: { jobId } }) });
+  if (query.error) return <p role="alert" className="my-2 text-sm text-rose">Current blockers could not load — progression is unverified. <Button variant="outline" size="sm" onClick={() => void query.refetch()}>Retry blockers</Button></p>;
+  if (!query.data) return <p role="status" className="my-2 text-sm text-sub">Loading current blockers…</p>;
+  return <BlockersPanel jobId={jobId} />;
+}
 
 export function JobStatusSummary({ row, loadedAt, onOpen }: { row: OperationRow; loadedAt: string; onOpen: (target: PortalTarget) => void }) {
+  const target: PortalTarget = row.process === "Quote & payment" ? "quotes" : row.process === "Electrical safety & fixes" ? "piesa" : row.process === "Installation" ? "installation" : row.process === "Evidence & AP review" ? "ap-evidence" : row.process === "VEEC lodgement" ? "veec" : row.process === "Ready Check" ? "ready-check" : "intake-consent";
   return <section aria-label="Current job status" className="mb-4 border-y border-line py-3">
     <div className="flex flex-wrap items-center gap-2 text-xs"><b className="text-hiv-blue">{row.bucket}</b><span>{row.process}</span><span className="text-sub">Recorded stage: {row.facts.stage}</span></div>
     <p className="mt-2 text-sm"><span className="text-sub">Eligibility · </span><b>{row.eligibilityLabel}</b></p>
     {row.savedSpot && <p className="mt-1 text-sm font-semibold text-hiv-green">{row.spotSavedOpen ? "Spot saved — waiting for onboarded installer capacity; review tasks take precedence" : "Spot saved — operational handoff or closed outcome now takes precedence"}</p>}
-    <div className="mt-3 flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-bold">Current action</h2><Button size="sm" variant="outline" onClick={() => onOpen("correspondence")}>Communication records</Button></div>
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-bold">Current action</h2><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => onOpen(target)}>Open current records</Button><Button size="sm" variant="outline" onClick={() => onOpen("correspondence")}>Communication records</Button></div></div>
     <ul className="mt-1 space-y-1 text-sm">{row.tasks.map((t,i) => <li key={i} className={t.blocked || t.overdue ? "text-rose" : "text-ink"}><b>{t.party}</b> · {t.label}{t.dueAt && <span className="ml-2 text-xs">{t.overdue ? "Overdue" : "Due"} {fmtDate(t.dueAt)}</span>}</li>)}</ul>
     {!row.tasks.length && <p className="text-sm text-sub">No outstanding task recorded.</p>}
     <p className="mt-2 text-xs text-sub">Latest recorded communication · {row.communicationLabel}{row.communication && ` · ${row.communication.purpose}`}</p>
