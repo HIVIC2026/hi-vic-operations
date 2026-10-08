@@ -55,7 +55,7 @@ mock.module("../src/lib/workflow.server", () => ({
 }));
 const { installerUpdateIntake, draftQuoteFromIntake } = await import("../src/lib/installer-intake.server");
 const { intakeQuoteAnswers } = await import("../src/lib/installer-intake.server");
-const { installerProgress } = await import("../src/lib/installer-progress.core");
+const { installerProgress, currentQuote } = await import("../src/lib/installer-progress.core");
 
 const JOB = "00000000-0000-0000-0000-00000000e101", BIZ = "00000000-0000-0000-0000-00000000b101", EL = "00000000-0000-0000-0000-00000000b201", U = "00000000-0000-0000-0000-00000000c101";
 const base = { areaM2: 142, insulation: "none" as const, quoteStatus: "have_quote" as const, quoteIncGst: 3450, includes: "R5.0 batts supply and install", proposedR: 5, files: [] };
@@ -131,5 +131,25 @@ describe("explicit measured-and-quoted answer", () => {
     await db.exec("update jobs set installer_quoted=null");
     await db.query("update job_imports set files=$1 where job_id=$2", [JSON.stringify([FILE]), JOB]);
     expect(await answer()).toBeNull();
+  });
+});
+
+describe("initial No, later current prepared draft (real rows)", () => {
+  beforeEach(() => seed("hivic_organise"));
+  for (const coordination of ["hivic_managed", "self_managed"] as const) test(`${coordination}: draft outranks the old No answer`, async () => {
+    await db.exec("update jobs set installer_quoted='no', installer_quoted_price_inc_gst=null, installer_price_includes=null");
+    await db.query("insert into quotes (job_id, kind, status, release_state, release_hold_reason) values ($1,'installation','draft','held','Owner fee confirmation needed')", [JOB]);
+    const a = await answer(); expect(a).toBe("not_quoted");
+    const rows = (await db.query<{ status: string; created_at: string; release_state: string; release_hold_reason: string; sent_at: string | null }>("select status, created_at::text, release_state, release_hold_reason, sent_at from quotes where job_id=$1", [JOB])).rows;
+    const q = currentQuote(rows);
+    const r = installerProgress({ coordination, quoted: "no", quoteAmountKnown: false, eligibility: "eligible", quoteHeld: [], quoteStatus: q.status, quoteDelivery: q.delivery, quoteHoldReason: q.row?.release_hold_reason ?? null, reconfirmationRequired: false, electricianPayer: "hivic", electricalCleared: false, installationCompleted: false, evidence: [], evidenceApprovedAt: null, veecStatus: null, stage: "ready_for_installer_quotes" });
+    expect(r.next.who).toBe("Home Insulation Victoria");
+    expect(r.next.text).toBe("Review and complete the owner quote — on hold: Owner fee confirmation needed");
+    expect(r.next.text).not.toMatch(/Ready Check|Measure/);
+    expect(r.steps.find((s) => s.key === "quote")!.state).not.toBe("done");
+  });
+  test("no draft + No still asks for the Ready Check", async () => {
+    await db.exec("update jobs set installer_quoted='no'");
+    expect(next(await answer(), false).text).toContain("Ready Check");
   });
 });

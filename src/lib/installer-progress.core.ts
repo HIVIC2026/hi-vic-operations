@@ -120,6 +120,8 @@ function nextAction(f: ProgressFacts, done: Record<ProgressStepKey, boolean>): N
     if (f.quoteStatus === "issued" && !released) return { who: HIV, text: f.quoteDelivery === "held" && f.quoteHoldReason ? `Owner quote not sent yet: ${f.quoteHoldReason}` : "Owner quote approved — waiting to be sent to the owner." };
     if (f.reconfirmationRequired) return released ? { who: "Owner", text: "Reconfirm the updated quote." } : { who: HIV, text: "Prepare and send the updated quote for the owner to reconfirm." };
     if (released) return { who: "Owner", text: "Review and accept the quote." };
+    // A current prepared draft is the actual quote record: it outranks an earlier "not quoted yet" answer.
+    if (f.quoteStatus === "draft" && !(quotedYes && f.quoteAmountKnown === false)) return { who: HIV, text: f.quoteHoldReason ? `Review and complete the owner quote — on hold: ${f.quoteHoldReason}` : f.quoteHeld.length ? `Review and complete the owner quote — on hold: ${f.quoteHeld[0]}` : "Review and complete the owner quote." };
     if (!quotedYes) return f.coordination === "self_managed"
       ? { who: "You", text: "Measure and quote the job, then add the details below." }
       : { who: HIV, text: "Arrange the Ready Check so the job can be measured and quoted." };
