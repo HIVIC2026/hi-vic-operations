@@ -28,7 +28,7 @@ function HotLeadsPage() {
   const load = useServerFn(getHotLeads);
   const send = useServerFn(sendHotLeadsBatch);
   const qc = useQueryClient();
-  const { data, isPending, error } = useQuery({ queryKey: ["hot-leads", tab], queryFn: () => load({ data: { list: tab === "dupes" ? "likely" : tab } }), refetchInterval: 15000, enabled: tab !== "dupes" });
+  const { data, isPending, error } = useQuery({ queryKey: ["hot-leads", tab], queryFn: () => load({ data: { list: tab === "dupes" ? "likely" : tab } }), refetchInterval: 60_000, enabled: tab !== "dupes" });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirm, setConfirm] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);

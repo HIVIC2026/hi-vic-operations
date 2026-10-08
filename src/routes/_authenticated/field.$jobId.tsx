@@ -126,7 +126,7 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
   useEffect(() => { if (a) setF(a as unknown as A); }, [a]);
   const locked = a?.status === "complete";
   const [plan, setPlan] = useState<RectPlan>({ hours: "", picks: [] });
-  const { data: rectCount } = useQuery({ queryKey: ["rect-items-count", jobId], queryFn: async () => (await supabase.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("status", "required")).count ?? 0, refetchInterval: 5000 });
+  const { data: rectCount } = useQuery({ queryKey: ["rect-items-count", jobId], queryFn: async () => (await supabase.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("status", "required")).count ?? 0, refetchInterval: 30_000 });
   const needsPlan = !!rectCount && f["no_rectification_confirmed"] !== true;
   const finish = () => complete(needsPlan ? { jobId, rectHours: Number(plan.hours), rectWindows: plan.picks } : { jobId }, "PIESA complete");
   const planBlock = !locked && needsPlan ? <Section title="Rectification time and hours"><RectPlanFields value={plan} onChange={setPlan} /></Section> : null;
