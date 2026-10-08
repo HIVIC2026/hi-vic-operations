@@ -5,7 +5,7 @@
 // an in-place retry for those.
 
 const TRANSPORT_ERROR =
-  /aborted|aborterror|econnreset|econnrefused|socket hang up|etimedout|failed to fetch|networkerror|network request failed|load failed|reading 'method'|unsupported method/i;
+  /aborted|aborterror|econnreset|econnrefused|socket hang up|etimedout|failed to fetch|networkerror|network request failed|load failed|reading 'method'|unsupported method|failed to fetch dynamically imported module|importing a module script failed|error loading dynamically imported module/i;
 
 export function isRecoverableTransportError(error: unknown): boolean {
   const message =
