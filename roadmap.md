@@ -1,4 +1,6 @@
 # Roadmap (preview only, nothing sent, no publish, no real jobs)
+## Installer Availability phone overlap (Jo, 8 Oct 08:34 UTC)
+- [ ] Keep the bottom onboarding actions from covering Availability answers; verify all final choices remain reachable on phone without saving an application.
 ## Authorised authenticated verification (Jo, 8 Oct 08:22 UTC)
 - [x] Read current root/scoped rules; preserve concurrent onboarding fixes; standalone tsgo passed and 48 focused regressions passed.
 - [x] TEST admin authenticated operations/Templates reads, reconciliation and filters; TEST installer page/RPC denial — verified 8 Oct 08:27–08:33 UTC using supported authorised sessions. Latest snapshot: 711 unique = 674 Leads + 1 Active + 23 Closed + 13 Needs classification; every stage and source/eligibility/search/flag filter checked. All five admin reads denied to installer; signed-out pages redirect. No records/settings changed.
