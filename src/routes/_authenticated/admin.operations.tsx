@@ -33,7 +33,7 @@ export const Route = createFileRoute("/_authenticated/admin/operations")({
 });
 function OperationsError({ error }: ErrorComponentProps) {
   const router = useRouter();
-  return <AppShell><h1 className="font-display text-xl font-bold">Office records could not load</h1><p role="alert" className="my-3 text-rose">{error.message}</p><p className="mb-3 text-sm text-sub">Counts are unavailable, not zero.</p><Button variant="outline" onClick={() => void router.invalidate()}>Retry read</Button></AppShell>;
+  return <AppShell><h1 className="font-display text-xl font-bold">Office records could not load</h1><p role="alert" className="my-3 text-rose">{error instanceof Error ? error.message : "Read failed"}</p><p className="mb-3 text-sm text-sub">Counts are unavailable, not zero.</p><Button variant="outline" onClick={() => void router.invalidate()}>Retry read</Button></AppShell>;
 }
 function OperationsPage() {
   const query = useSuspenseQuery(operationsOptions);
