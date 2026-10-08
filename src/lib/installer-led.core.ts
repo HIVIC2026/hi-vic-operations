@@ -19,6 +19,19 @@ export function piesaChargeIncGst(choice: ElectricianChoice | string | null, sta
 }
 export const isDirectBilledElectrician = (choice: string | null | undefined) => choice === "installer_own" || choice === "preferred" || choice === "nominated";
 
+/**
+ * Who bills an electrical service (PIESA or rectification) on a job. Pure; shared by trade Money, office payout and profit.
+ * History is never reinterpreted: a recorded HIV payout, or an accepted HIV quote that carries the electrical line, stays
+ * HIV-payable. Otherwise only installer-supplied jobs with the installer's OWN electrician are owner-direct.
+ */
+export type ElectricalBilling = "hivic" | "owner_direct";
+export function electricalBillingSource(f: { channel: string | null; choice: string | null; committedLineOnAcceptedQuote: boolean | null; hivPaidAt: string | null }): ElectricalBilling {
+  if (f.hivPaidAt) return "hivic";
+  if (f.channel !== "installer_sourced") return "hivic";
+  if (f.committedLineOnAcceptedQuote === true) return "hivic";
+  return isDirectBilledElectrician(f.choice) ? "owner_direct" : "hivic";
+}
+
 export type OwnerPriceInput = { installerQuoteIncGst: number; piesaIncGst: number | null; rectificationIncGst: number; apFeeIncGst: number | null; veecDiscountIncGst: number };
 /** Owner's co-branded invoice: installer quote + PIESA + rectification + AP fee − VEU discount. The discount is reduced if needed so the owner always pays at least the $200 minimum contribution (official VEU rule). */
 export function installerLedOwnerPrice(i: OwnerPriceInput) {
