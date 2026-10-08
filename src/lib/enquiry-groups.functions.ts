@@ -37,3 +37,20 @@ export const prepareEnquiryEmailsFn = createServerFn({ method: "POST" }).middlew
     if (!Number.isFinite(a) || a < 20 || a > 1000) throw new Error("Assumed area must be between 20 and 1000 m².");
     return prepareEnquiryEmails(data.ids, { group: data.group, otherReason: data.otherReason, assumedAreaM2: Math.round(a * 10) / 10 }, data.withHtmlFor);
   });
+
+export const getLeadMedia = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { loadLeadMedia } = await import("./enquiry-groups.server");
+    return loadLeadMedia(data.jobId);
+  });
+
+export const reviewLeadMediaFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), outcome: z.enum(["below_r2", "over_r2", "unclear"]) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { reviewLeadMedia } = await import("./enquiry-groups.server");
+    const email = (context as { user?: { email?: string | null } }).user?.email ?? null;
+    return reviewLeadMedia(data.jobId, data.outcome, email);
+  });
