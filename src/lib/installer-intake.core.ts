@@ -151,18 +151,24 @@ export function prefillFromExtracted(x: { measured_area_m2?: { value: unknown; c
 }
 
 /**
- * Facts sent to confirmImport. Never carries r_value / existing_r_value: the proposed product rating travels only
- * in intake.proposed_r_value, so it can never become the EXISTING insulation value on the measurement.
+ * Facts sent to confirmImport. r_value is the established PROPOSED product R (pilot.core); existing_r_value is never
+ * sent, so the proposal can never become the existing insulation value on the measurement.
  */
-export function intakeConfirmFacts(c: { full_name: string; email: string; phone: string; address_line: string; suburb: string; postcode: string }, areaM2: number): Record<string, string | number | null> {
+export function intakeConfirmFacts(c: { full_name: string; email: string; phone: string; address_line: string; suburb: string; postcode: string }, areaM2: number, proposedR: number | null = null): Record<string, string | number | null> {
   return { full_name: c.full_name.trim(), email: c.email.trim(), phone: c.phone.trim(), address_line: c.address_line.trim(), suburb: c.suburb.trim(), postcode: c.postcode.trim(),
-    measured_area_m2: areaM2, measurement_method: "Installer supplied (unverified)" };
+    measured_area_m2: areaM2, measurement_method: "Installer supplied (unverified)", r_value: proposedR };
 }
 
-/** Server-side strip: whatever a client sends, intake submissions never store a proposed or existing R-value as fact. */
+/**
+ * Server-side strip for intake submissions: the installer is never asked for an EXISTING R-value, so any
+ * existing_r_value a client sends is dropped. facts.r_value keeps its established meaning (PROPOSED product R).
+ */
 export function stripIntakeRValues<T extends Record<string, unknown>>(facts: T): T {
-  const o = { ...facts }; delete o["r_value"]; delete o["existing_r_value"]; return o;
+  const o = { ...facts }; delete o["existing_r_value"]; return o;
 }
+
+/** Truthful consent source for the remote installer intake — never "onsite_ready_check" (that unlocks onsite paperwork). */
+export const INSTALLER_INTAKE_CONSENT_SOURCE = "installer_intake_remote";
 
 /**
  * Usable scope for an installer-supplied OWNER QUOTE: verified, then measured, then the installer-supplied provisional

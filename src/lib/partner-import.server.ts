@@ -127,8 +127,9 @@ async function confirmClaimed(userId: string, data: ConfirmImportInput, imp: Non
   const onDate = typeof c.measured_on === "string" && /^\d{4}-\d{2}-\d{2}$/.test(c.measured_on) ? c.measured_on : null;
   const inst = data.installer;
   chk(await admin.from("jobs").update(inst ? {
-    installer_site_check: inst.site_check,
-    installer_site_check_date: inst.site_check === "yes" ? inst.site_check_date ?? null : null,
+    // Single intake never asks whether the installer visited: record unknown (null), never an assumed visit.
+    installer_site_check: intake ? null : inst.site_check,
+    installer_site_check_date: !intake && inst.site_check === "yes" ? inst.site_check_date ?? null : null,
     installer_quoted: inst.quoted ?? null,
     installer_quoted_price_inc_gst: inst.quoted === "yes" ? inst.quoted_price_inc_gst ?? null : null, installer_price_includes: inst.quoted === "yes" && inst.quoted_price_inc_gst ? inst.price_includes || null : null,
   } : {
@@ -146,7 +147,7 @@ async function confirmClaimed(userId: string, data: ConfirmImportInput, imp: Non
   const { data: ws } = await admin.from("workflow_settings").select("measurement_standard_approved").limit(1).maybeSingle();
   const { data: pm } = await admin.from("partner_measurement_methods").select("id").eq("business_id", imp.business_id).eq("status", "approved").order("approved_at", { ascending: false }).limit(1).maybeSingle();
   // "Not visited yet": the rough size is only the estimate; no measure-up is recorded and the Ready Check is next.
-  const m = data.progress === "not_visited" || data.installer?.site_check === "no" ? null : planImportedMeasurement(c, imp.id, { businessId: imp.business_id, standardApproved: !!ws?.measurement_standard_approved && !!pm });
+  const m = !intake && (data.progress === "not_visited" || data.installer?.site_check === "no") ? null : planImportedMeasurement(c, imp.id, { businessId: imp.business_id, standardApproved: !!ws?.measurement_standard_approved && !!pm });
   const { count: haveM } = m ? await admin.from("ceiling_measurements").select("id", { count: "exact", head: true }).eq("job_id", res.job_id).eq("external_id", imp.id) : { count: 0 };
   if (m && !haveM) {
     chk(await admin.from("ceiling_measurements").update({ is_current: false }).eq("job_id", res.job_id).eq("is_current", true), "Measurement");
@@ -166,8 +167,10 @@ async function confirmClaimed(userId: string, data: ConfirmImportInput, imp: Non
     if (!have && job?.owner_id) {
       const text = READY_CHECK_CONTACT_PERMISSION;
       const sha256 = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)))].map((x) => x.toString(16).padStart(2, "0")).join("");
-      const { ONSITE_CONSENT_SOURCE } = await import("./onsite-ready-check.core");
-      const { error: ce } = await admin.from("owner_contact_consents").insert({ job_id: res.job_id, owner_id: job.owner_id, source: ONSITE_CONSENT_SOURCE, consent_key: key, consent_status: "granted", contact_consent: true, consented_at: new Date().toISOString(), snapshot: { by: "installer", text, recorded_by: userId, intake_version: intake.version } as unknown as Json, sha256 });
+      // Dedicated truthful source: remote permission-to-contact only. Never "onsite_ready_check", which owner-gates
+      // treats as signed onsite paperwork (Gate A); owner approvals/tenancy/life-support/authority stay required.
+      const { INSTALLER_INTAKE_CONSENT_SOURCE } = await import("./installer-intake.core");
+      const { error: ce } = await admin.from("owner_contact_consents").insert({ job_id: res.job_id, owner_id: job.owner_id, source: INSTALLER_INTAKE_CONSENT_SOURCE, consent_key: key, consent_status: "granted", contact_consent: true, consented_at: new Date().toISOString(), snapshot: { by: "installer", text, recorded_by: userId, intake_version: intake.version } as unknown as Json, sha256 });
       if (ce) throw new WorkflowError(`Consent could not be saved: ${ce.message}`);
     }
     await once("installer_existing_insulation_declared", async () => logEvent(res.job_id, userId, "installer_existing_insulation_declared", `Installer declared existing insulation: ${intake.existing_insulation === "none" ? "none" : intake.existing_insulation === "below_r2" ? "confirmed below R2.0" : "not yet confirmed"}`, { import_id: data.importId, value: intake.existing_insulation, version: intake.version, declared_at: new Date().toISOString(), verified: false }, { internal: true }));

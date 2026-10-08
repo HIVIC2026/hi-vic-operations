@@ -127,8 +127,12 @@ export function extractFromText(text: string): Extracted {
   const ex = label(/existing (?:insulation )?(?:r[- ]?value)?\s*[:\-]\s*R?\s*([\d.]+)/i);
   out.existing_r_value = f(num(ex ?? undefined), "label");
   out.product = f(label(/^(?:product|insulation|proposed product)\s*[:\-]\s*(.+)$/im), "label");
-  const rv = label(/(?:proposed |new )?r[- ]?value\s*[:\-]\s*R?\s*([\d.]+)/i);
-  out.r_value = f(num(rv ?? undefined), "label", rv && !/proposed|new/i.test(t) ? "uncertain" : rv ? "found" : "missing");
+  // Proposed R: an explicitly labelled "proposed/new" value is found; an unlabelled R-value is uncertain;
+  // an "existing ..." R-value is never captured as the proposal (the word "proposed" elsewhere does not count).
+  const rvExplicit = label(/(?:proposed|new)\s+(?:product\s+)?r[- ]?(?:value|rating)\s*[:\-]\s*R?\s*([\d.]+)/i);
+  const rvBare = rvExplicit ? null : label(/(?<!existing\s(?:insulation\s)?)(?<![a-z])r[- ]?value\s*[:\-]\s*R?\s*([\d.]+)/i);
+  const rv = rvExplicit ?? rvBare;
+  out.r_value = f(num(rv ?? undefined), "label", rvExplicit ? "found" : rvBare ? "uncertain" : "missing");
   out.access_notes = f(label(/^(?:access|roof access|roof)\s*[:\-]\s*(.+)$/im), "label");
   out.inspection_status = f(label(/^(?:inspection|measure[- ]?up)(?: status)?\s*[:\-]\s*(.+)$/im), "label");
   out.electrical_status = f(label(/^(?:electrical|electrical safety|piesa)(?: status)?\s*[:\-]\s*(.+)$/im), "label");

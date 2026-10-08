@@ -92,10 +92,10 @@ export function InstallerIntakeFlow({ businessId }: { businessId: string }) {
       const id = await ensureDraft();
       const amount = parseIntakeAmount(d.amount);
       const r = Number(d.proposedR.replace(/[Rr\s]/g, ""));
-      const facts = intakeConfirmFacts(customer, Number(d.area)); // proposed R travels only as intake.proposed_r_value
+      const facts = intakeConfirmFacts(customer, Number(d.area), d.proposedR.trim() && Number.isFinite(r) ? r : null); // r_value = PROPOSED product R
       const hasAmount = amount != null && !Number.isNaN(amount) && amount > 0;
       const res = await confirm({ data: { importId: id, facts, installer: {
-        quoted: hasAmount ? "yes" : "no", site_check: "yes", site_check_date: null, quoted_price_inc_gst: hasAmount ? amount : null, price_includes: d.includes.trim() || null,
+        quoted: hasAmount ? "yes" : "no", site_check: "no", site_check_date: null, // visit not asked here; server records it as unknown quoted_price_inc_gst: hasAmount ? amount : null, price_includes: d.includes.trim() || null,
         contact_permission: customer.contact_permission, owner_agreed: false,
         intake: { existing_insulation: d.insulation!, evidence_ack: ack, proposed_r_value: d.proposedR.trim() && Number.isFinite(r) ? r : null, version: `${INTAKE_RULESET_VERSION}+${COORDINATION_VERSION}`, coordination: coord!, self_managed_ack: coord === "self_managed" && selfAck },
       }, electrician: plan?.mode === "mine" ? { mode: "mine", business_id: plan.business_id ?? null, nomination_id: plan.nomination_id ?? null } : { mode: "hivic" } } as never });
