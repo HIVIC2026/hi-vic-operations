@@ -1,10 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
-import { getOperationsPreview } from "@/lib/operations-preview.functions";
+import { useSuspenseQuery } from "@tanstack/react-query";
+import { operationsOptions as options } from "@/lib/operations-query";
 import { OperationsPreviewView } from "@/components/portal/OperationsPreview";
 import { Btn } from "@/components/portal/kit";
 
-const options = queryOptions({ queryKey: ["operations-preview"], queryFn: () => getOperationsPreview(), staleTime: 60_000, retry: false, refetchOnWindowFocus: false });
 export const Route = createFileRoute("/_authenticated/admin/operations-preview")({
   loader: ({ context }) => context.queryClient.ensureQueryData(options),
   head: () => ({ meta: [
