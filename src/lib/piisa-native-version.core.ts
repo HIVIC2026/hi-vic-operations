@@ -25,14 +25,7 @@ export function stagedDirectSchemaProblems(template: unknown): string[] {
   const problems: string[] = [];
   // Reuse every unchanged answer/media check; only the explicitly retired crew/product fields differ.
   const removed = new Set<string>([...A3_CREW_NAME_IDS, ...(A3_NATIVE_IDS["p7.products"] ?? [])]);
-  const adapted = structuredClone(template) as any;
-  const walk = (v: any) => {
-    if (Array.isArray(v)) { for (let i = v.length - 1; i >= 0; i--) { const id = String(v[i]?.item_id ?? v[i]?.id); if (removed.has(id)) v.splice(i, 1); else walk(v[i]); } }
-    else if (v && typeof v === "object") Object.values(v).forEach(walk);
-  };
-  walk(adapted);
-  // Validate unchanged fields individually against a legacy-compatible synthetic shell. This shell
-  // is only for validation, never a template to submit or a source of observed native IDs.
+  // Validate unchanged fields using the established schema checks.
   const legacy = a3MissingFields(template);
   const ignored = ["Lead installer", "Additional installer", "Crew choice list", "What insulation products are being installed?"];
   problems.push(...legacy.filter((p) => !ignored.some((x) => p.startsWith(x))));
