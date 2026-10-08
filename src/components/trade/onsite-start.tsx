@@ -5,6 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/trade/trade-ui";
 import { Input } from "@/components/ui/input";
+import { CustomerFields } from "./customer-fields";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ElectricianPicker, inviteResultMessage } from "@/components/trade/job-intake";
 import { addBulkElectrician, bulkElectricianChoices } from "@/lib/bulk-import.functions";
@@ -49,29 +50,14 @@ export function OnsiteStart({ businessId, onBack }: { businessId: string; onBack
 
   if (job) return <FormReady job={job} />;
   const problems = onsiteProblems(v);
-  const set = (k: keyof OnsiteInput) => (e: React.ChangeEvent<HTMLInputElement>) => setV((x) => ({ ...x, [k]: e.target.value }));
-  const field = (k: keyof OnsiteInput, label: string, props: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
-    <label className="block text-sm"><span className="font-bold">{label}</span><Input className="mt-1 h-12" value={String(v[k])} onChange={set(k)} {...props} /></label>
-  );
   return (
     <div className="mt-4 space-y-4" data-onsite>
       <section className="space-y-3 rounded-[18px] border border-line bg-paper p-4">
-        <h2 className="font-display text-lg font-bold">Owner</h2>
-        {field("full_name", "Name", { autoComplete: "name" })}
-        {field("phone", "Mobile", { inputMode: "tel", autoComplete: "tel" })}
-        {field("email", "Email", { inputMode: "email", autoComplete: "email" })}
-      </section>
-      <section className="space-y-3 rounded-[18px] border border-line bg-paper p-4">
-        <div className="flex items-center justify-between gap-2"><h2 className="font-display text-lg font-bold">Address</h2><Button type="button" variant="outline" size="sm" onClick={useLocation}>Use my location</Button></div>
+        <div className="flex items-center justify-between gap-2"><h2 className="font-display text-lg font-bold">Customer details</h2><Button type="button" variant="outline" size="sm" onClick={useLocation}>Use my location</Button></div>
         {loc && <p className="text-xs text-sub">{loc}</p>}
-        {field("address_line", "Street", { autoComplete: "address-line1" })}
-        <div className="grid grid-cols-[1fr_7rem] gap-2">{field("suburb", "Suburb")}{field("postcode", "Postcode", { inputMode: "numeric", maxLength: 4 })}</div>
+        <CustomerFields value={v} onChange={(next) => { setV(next); setErr(null); }} />
       </section>
       {plan && <ElectricianPicker value={plan} onChange={setPlan} approved={el?.approved ?? []} pending={el?.pending ?? []} onAdd={async (d) => { const r = await addEl({ data: { businessId, name: d.name, mobile: d.mobile, email: d.email, business: d.business } }); await refetch(); setPlan({ mode: "mine", ...(r.businessId ? { business_id: r.businessId } : { nomination_id: r.nominationId }) }); return { message: inviteResultMessage(r) }; }} />}
-      <section className="space-y-3 rounded-[18px] border border-line bg-paper p-4" data-owner-consent>
-        <h2 className="font-display text-lg font-bold">Owner consent</h2>
-        <label className="flex items-start gap-3 text-sm" data-consent-installer><Checkbox className="mt-0.5" checked={v.consent_by === "installer"} onCheckedChange={(c) => setV((x) => ({ ...x, contact_permission: c === true, consent_by: c === true ? "installer" : null }))} aria-label={OWNER_CONTACT_PERMISSION} /><span>{OWNER_CONTACT_PERMISSION}</span></label>
-      </section>
       {touched && problems.length > 0 && <ul className="space-y-1 text-sm text-danger" data-onsite-problems>{problems.map((p) => <li key={p}>{p}</li>)}</ul>}
       {err && <p className="text-sm text-danger">{err}</p>}
       <Button size="field" className="w-full" disabled={busy} onClick={async () => {

@@ -1,6 +1,7 @@
 # Roadmap (preview only, nothing sent, no publish, no real jobs)
 ## Installer Add job and insurance repairs (Jo, 8 Oct 09:00 UTC)
 - [ ] Replace paste/CSV intake with address, owner name, mobile, email and consent fields; keep optional single-file upload.
+- [ ] Remove CSV row entirely from Add job (Jo 09:02).
 - [ ] Remove “Where is it from?” / EasyMate question from Add job; retain internal installer attribution.
 - [ ] Fix corrected-address recovery, address lookup and existing-owner email conflict without changing Victorian eligibility.
 - [ ] Repair insurance View action; verify with isolated tests/read-only checks, no business record changes.

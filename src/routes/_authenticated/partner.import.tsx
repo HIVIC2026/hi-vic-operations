@@ -1,5 +1,7 @@
 import { OWNER_AGREED_TICK, OWNER_FEE_AWARENESS_TICK } from "@/lib/owner-confirm.core";
 import { OnsiteStart } from "@/components/trade/onsite-start";
+import { CustomerFields } from "@/components/trade/customer-fields";
+import { onsiteProblems, type OnsiteInput } from "@/lib/onsite-ready-check.core";
 import { LATER_CHOICE, ONSITE_CHOICE } from "@/lib/onsite-ready-check.core";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -23,7 +25,7 @@ export const Route = createFileRoute("/_authenticated/partner/import")({
   component: ImportPage,
 });
 
-type Draft = { id: string; extracted: Extracted; files: AttachedFile[]; businessId: string };
+type Draft = { id: string; extracted: Extracted; files: AttachedFile[]; businessId: string; permission?: boolean };
 
 function ImportPage() {
   const loadProfile = useServerFn(getPartnerProfile);
@@ -51,40 +53,27 @@ function Source({ businessId, onDraft }: { businessId: string; onDraft: (d: Draf
   const uploadFiles = useUploadFiles(businessId);
   const readFile = useServerFn(readBulkFile);
   const [text, setText] = useState("");
-  const [csv, setCsv] = useState("");
-  const [row, setRow] = useState(0);
-  const [url, setUrl] = useState("");
-  const [ref, setRef] = useState("");
-  const [system, setSystem] = useState<"easymate" | "manual_import" | "email">("easymate");
+  const [customer, setCustomer] = useState<OnsiteInput>({ address_line: "", suburb: "", postcode: "", full_name: "", phone: "", email: "", contact_permission: false, consent_by: null });
+  const [problems, setProblems] = useState<string[]>([]);
   const [files, setFiles] = useState<AttachedFile[]>([]);
   const [busy, setBusy] = useState(false);
   const [fileNote, setFileNote] = useState<string | null>(null);
-  const rows = csv ? parseCsv(csv) : [];
   const go = async () => {
+    const issues = onsiteProblems(customer); setProblems(issues); if (issues.length) return;
     setBusy(true);
     try {
       const uploaded = files.map((f) => ({ path: f.path, name: f.name, type: f.type ?? "" }));
-      const r = await create({ businessId, sourceSystem: system, ...(text ? { text } : {}), ...(csv ? { csv, csvRow: row } : {}), ...(url ? { sourceUrl: url } : {}), ...(ref ? { externalRefs: { [system === "easymate" ? "easymate_ref" : "reference"]: ref } } : {}), files: uploaded });
-      if (r) onDraft({ ...r, files, businessId });
+      const r = await create({ businessId, sourceSystem: "manual_import", ...(text ? { text } : {}), files: uploaded });
+      if (r) {
+        const extracted = { ...r.extracted };
+        for (const key of ["full_name", "phone", "email", "address_line", "suburb", "postcode"] as const) extracted[key] = { value: customer[key].trim(), confidence: "found", source: "installer entered" };
+        onDraft({ ...r, extracted, files, businessId, permission: customer.contact_permission });
+      }
     } finally { setBusy(false); }
   };
   return (
     <div className="space-y-4">
-      <Section title="Where is it from?">
-        <div className="grid grid-cols-3 gap-2 [&_button]:px-2">{([["easymate", "EasyMate"], ["email", "Email"], ["manual_import", "Other"]] as const).map(([k, l]) => <Button key={k} size="field" variant={system === k ? "default" : "outline"} onClick={() => setSystem(k)}>{l}</Button>)}</div>
-        <div className="mt-2 grid gap-2 sm:grid-cols-2">
-          <Input className="h-12" placeholder="Your job / lead reference" value={ref} onChange={(e) => setRef(e.target.value)} />
-          <Input className="h-12" placeholder="Link (ERA / job link – saved as a reference only)" value={url} onChange={(e) => setUrl(e.target.value)} />
-        </div>
-      </Section>
-      <Section title="Paste job details or an email">
-        <Textarea rows={8} placeholder={"Customer: Jane Smith\nEmail: jane@example.com\nPhone: 0400 000 000\nAddress: 12 Example St, Brunswick VIC 3056\nCeiling area: 120 m2\nRemoval: yes\nProduct: R5.0 batts"} value={text} onChange={(e) => setText(e.target.value)} />
-      </Section>
-      <Section title="Or use one row from a CSV">
-        <Input type="file" accept=".csv,text/csv" onChange={async (e) => { const f = e.target.files?.[0]; setCsv(f ? await f.text() : ""); setRow(0); }} />
-        {rows.length > 1 && <select className="mt-2 h-12 w-full rounded border bg-background px-2" value={row} onChange={(e) => setRow(Number(e.target.value))}>{rows.map((r, i) => <option key={i} value={i}>{Object.values(r).slice(0, 3).join(" · ")}</option>)}</select>}
-        {rows.length > 0 && <p className="mt-1 text-xs text-estimate-navy/70">{rows.length} row(s) found – one job per import.</p>}
-      </Section>
+      <Section title="Customer details"><CustomerFields value={customer} onChange={setCustomer} /></Section>
       <Section title="Photos, quotes and job sheets">
         <AttachFiles businessId={businessId} files={files} label="Upload one customer file" onAdd={async (picked) => {
           if (files.length || picked.length !== 1) throw new Error("Upload one file for this customer at a time.");
@@ -99,7 +88,8 @@ function Source({ businessId, onDraft }: { businessId: string; onDraft: (d: Draf
         }} onRemove={async (path) => { setFiles((o) => o.filter((x) => x.path !== path)); setFileNote(null); }} />
         {fileNote && <p className="mt-2 text-xs text-sub">{fileNote}</p>}
       </Section>
-      <Button size="field" className="w-full" disabled={busy || (!text && !csv && !files.length && !ref)} onClick={go}>{busy ? "Reading…" : "Continue"}</Button>
+      {problems.length > 0 && <ul className="text-sm text-danger">{problems.map((p) => <li key={p}>{p}</li>)}</ul>}
+      <Button size="field" className="w-full" disabled={busy} onClick={go}>{busy ? "Reading…" : "Continue"}</Button>
     </div>
   );
 }
@@ -124,7 +114,7 @@ function Review({ draft, onBack }: { draft: Draft; onBack: () => void }) {
   // Photos or a measurement mean Visited: the site check answer starts at Yes (the installer can change it).
   const visited = visitedFromEvidence({ files, measuredArea: draft.extracted.measured_area_m2?.value as number | null | undefined });
   const [siteCheck, setSiteCheck] = useState<"yes" | "no" | null>(visited ? "yes" : null);
-  const [permission, setPermission] = useState(false);
+  const [permission, setPermission] = useState(draft.permission === true);
   const [feeAwareness, setFeeAwareness] = useState(false);
   const [belowR2, setBelowR2] = useState(false);
   const [ownerAgreed, setOwnerAgreed] = useState(false);
