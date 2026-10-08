@@ -196,3 +196,4 @@ One Add a job intake for installer customers; office intake review panel on the 
 - Final evidence gate for installer-intake jobs uses the Ready Check `insulation.existing` answer: none → empty-ceiling media only (existing R-value item not applicable); present (incl. mixed) → both verified; unknown/not recorded → fails closed.
 - Corrected accepted quotes: a replacement quote can now be drafted while reconfirmation is open; accepting it supersedes the old accepted quote only if no invoice exists on it (otherwise office must cancel that invoice first).
 - PIISA send and install evidence uploads now check the live original-condition Ready Check answers, not only the day-before pre-start snapshot.
+- 9 Oct 2026: installer Add job reordered (customer → organise → measured/quoted → review), electrician payer + fee declaration, own-REC PIESA excluded (pending regulator confirmation). Fixture-verified on /installer-preview 390/1280; authenticated TEST run not performed.
