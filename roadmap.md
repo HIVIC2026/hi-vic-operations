@@ -151,3 +151,5 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Finish trade redesign pages (open: in-visit card + Mitti hand-off screenshots need a started TEST visit)
 - [x] Consent wording exact on customer cards
 - [x] PIESA booking unpaired (done 17:50)
+
+- [x] Save my spot send: verify every rebate is exactly calculated before Jo presses Send (Jo 8 Oct)
