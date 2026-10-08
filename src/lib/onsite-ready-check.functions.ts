@@ -10,10 +10,11 @@ export const startOnsiteReadyCheck = createServerFn({ method: "POST" }).middlewa
     businessId: uuid,
     owner: z.object({ full_name: z.string().max(200), address_line: z.string().max(300), suburb: z.string().max(100), postcode: z.string().max(10), phone: z.string().max(40), email: z.string().max(200), contact_permission: z.boolean(), consent_by: z.enum(["owner", "installer"]).nullable().optional() }),
     electrician: plan,
+     later: z.object({ startsAt: z.string().max(100), area: z.number().optional(), method: z.string().max(200).optional(), notes: z.string().max(2000).optional() }).optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
     const { startOnsiteReadyCheckFor } = await import("./onsite-ready-check.server");
-    return startOnsiteReadyCheckFor(context.userId, data.businessId, data.owner, data.electrician as never);
+    return startOnsiteReadyCheckFor(context.userId, data.businessId, data.owner, data.electrician as never, undefined, data.later);
   });
 
 export const onsiteFormStatus = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

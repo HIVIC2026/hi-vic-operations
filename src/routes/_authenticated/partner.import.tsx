@@ -1,5 +1,6 @@
 import { OWNER_AGREED_TICK, OWNER_FEE_AWARENESS_TICK } from "@/lib/owner-confirm.core";
 import { OnsiteStart } from "@/components/trade/onsite-start";
+import { LaterJob } from "@/components/trade/later-job";
 import { CustomerFields } from "@/components/trade/customer-fields";
 import { onsiteProblems, type OnsiteInput } from "@/lib/onsite-ready-check.core";
 import { quotedIntakeProblems } from "@/lib/installer-quote-intake.core";
@@ -32,19 +33,19 @@ function ImportPage() {
   const loadProfile = useServerFn(getPartnerProfile);
   const { data: profile } = useQuery({ queryKey: ["partner-profile", "mine"], queryFn: () => loadProfile({ data: {} }) });
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [mode, setMode] = useState<"choose" | "onsite" | "later">("choose");
+  const [mode, setMode] = useState<"choose" | "onsite" | "later" | "existing">("choose");
   useEffect(() => { const m = new URLSearchParams(window.location.search).get("mode"); if (m === "later" || m === "onsite") setMode(m); }, []);
   const businessId = (profile?.business as { id?: string } | undefined)?.id;
   return (
     <TradeShell installer>
       <h1 className="font-display text-[26px] font-bold leading-tight">{mode === "onsite" ? "Start a Ready Check" : "Add a job"}</h1>
-      {mode === "later" && <p className="text-sm text-sub">This is an Installer customer. Add their details, your quote and measure-up, or upload one job sheet and check what was found.</p>}
       {!businessId ? <p className="text-sm text-estimate-navy/70">Loading…</p> : mode === "choose" ? (
         <div className="mt-4 grid gap-3" data-add-choice>
           <Button size="field" className="h-auto w-full whitespace-normal py-4 text-left" onClick={() => setMode("onsite")}>{ONSITE_CHOICE}</Button>
           <Button size="field" variant="outline" className="h-auto w-full whitespace-normal py-4 text-left" onClick={() => setMode("later")}>{LATER_CHOICE}</Button>
+          <Button size="field" variant="outline" className="h-auto w-full whitespace-normal py-4 text-left" onClick={() => setMode("existing")}>Add an existing job</Button>
         </div>
-      ) : mode === "onsite" ? <OnsiteStart businessId={businessId} onBack={() => setMode("choose")} /> : draft ? <Review key={draft.id} draft={draft} onBack={() => setDraft(null)} /> : <Source businessId={businessId} onDraft={setDraft} />}
+      ) : mode === "onsite" ? <OnsiteStart businessId={businessId} onBack={() => setMode("choose")} /> : mode === "later" ? <LaterJob businessId={businessId} onBack={() => setMode("choose")} /> : draft ? <Review key={draft.id} draft={draft} onBack={() => setDraft(null)} /> : <Source businessId={businessId} onDraft={setDraft} />}
     </TradeShell>
   );
 }

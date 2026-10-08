@@ -28,3 +28,4 @@
 
 - Office operations categories and compact job status reuse the operations read classifier and one shared Query cache; legacy preview remains direct-link. Why: unique counts and factual precedence must agree without navigation polling.
 - Installer Add job and onsite entry share CustomerFields; optional imports use existing guarded confirmation. Why: one address/contact/permission form without duplicate questions.
+- Later installer jobs reuse onsite intake access/consent checks and confirmBooking; supplied measurements stay unverified audit facts and no Mitti form is created at intake. Why: adding an appointment must not bypass booking or evidence gates.

@@ -1,4 +1,7 @@
 # Roadmap (preview only, nothing sent, no publish, no real jobs)
+## Add job choices (Jo 8 Oct 09:21 UTC)
+- [ ] Separate later Ready Check entry with customer details, appointment and optional manual measurements from existing quote/measurement entry; retain guarded booking and provisional data.
+- [ ] Focused validation tests and preview checks; no real submissions, sends or integrations.
 ## Installer Add job and insurance repairs (Jo, 8 Oct 09:00 UTC)
 - [x] Removed confusing Team invitation explanation; optional staff access unchanged.
 - [x] Invite validation visibly explains missing details; existing never-attempted invitation can issue once using recorded timestamp claim. Sent/uncertain attempts require office check. No sends tested.

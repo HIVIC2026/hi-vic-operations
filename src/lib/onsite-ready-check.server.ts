@@ -8,12 +8,14 @@ import { WorkflowError, logEvent } from "./workflow.server";
 import { ONSITE_CONSENT_SOURCE, TEST_MITTI_ASSIGNEE, onsiteProblems, onsiteState, retryable, type OnsiteInput, type OnsiteState } from "./onsite-ready-check.core";
 import type { ElectricianPlan } from "./job-electrician.core";
 import type { MittiCall } from "./mitti.core";
+import { laterReadyCheckProblems, type LaterReadyCheck } from "./later-ready-check.core";
 
-export async function startOnsiteReadyCheckFor(userId: string, businessId: string, input: OnsiteInput, electrician: ElectricianPlan | null, call?: MittiCall) {
+export async function startOnsiteReadyCheckFor(userId: string, businessId: string, input: OnsiteInput, electrician: ElectricianPlan | null, call?: MittiCall, later?: LaterReadyCheck) {
   const { requireMember, requireApprovedPartner, intakeSourceFor } = await import("./pilot.server");
   await requireMember(userId, businessId, true); // same rule as Add one job: business owner only
   await requireApprovedPartner(businessId);
   const problems = onsiteProblems(input);
+  if (later) problems.push(...laterReadyCheckProblems(later));
   const { electricianPlanBlocker, OWNER_CONTACT_PERMISSION } = await import("./job-electrician.core");
   const eb = electricianPlanBlocker(electrician); if (eb) problems.push(eb);
   if (problems.length) throw new WorkflowError(problems.join(" • "));
@@ -29,13 +31,14 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
     owner_id: owner.id, property_id: prop.id, stage: "ready_check_ready_to_schedule", source, business_unit: "hivic", installer_led: true,
     channel: "installer_sourced", originating_installer_business_id: businessId, originating_installer_user_id: userId,
     external_enquiry_id: `onsite:${crypto.randomUUID()}`, customer_relationship_owner: "installer",
-    installer_site_check: "yes", installer_site_check_date: todayMelbourne(), installer_quoted: null,
-    next_action: "Ready Check on site now",
+    installer_site_check: later ? "no" : "yes", installer_site_check_date: later ? null : todayMelbourne(), installer_quoted: later ? "no" : null,
+    ...(later ? { external_refs: { supplied_ready_check: { ...later, measurements_status: "unverified" } } } : {}),
+    next_action: later ? "Confirm supplied Ready Check appointment" : "Ready Check on site now",
   }).select("id, job_number").single();
   if (je || !job) throw new WorkflowError(je?.message ?? "Job could not be saved.");
   await admin.from("job_assignments").insert({ job_id: job.id, user_id: userId, role: "installer", business_id: businessId, assigned_by: userId, first_response_at: new Date().toISOString() });
   await (await import("./job-electrician.server")).recordJobElectricianChoice(job.id, businessId, electrician ?? { mode: "hivic" }, userId);
-  await logEvent(job.id, userId, "onsite_ready_check_started", "Installer added this customer while at the property and started the Ready Check", { business_id: businessId });
+  await logEvent(job.id, userId, later ? "installer_later_job_added" : "onsite_ready_check_started", later ? "Installer supplied a Ready Check appointment and optional unverified measurements" : "Installer added this customer while at the property and started the Ready Check", { business_id: businessId, ...(later ? { supplied_ready_check: later } : {}) });
   // Gate A on site (Jo, 8 Oct): owner ticked on the installer's phone, or the installer confirmed the owner's consent.
   const { gateDoc } = await import("./owner-gates.core");
   const byOwner = input.consent_by === "owner";
@@ -50,12 +53,18 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   const { gateAComplete } = await import("./owner-gates.server");
   if (await gateAComplete(job.id)) {
     const { confirmBooking } = await import("./booking.server");
-    await confirmBooking(job.id, "ready_check", new Date().toISOString(), userId, "installer (on site now)");
-    await admin.from("jobs").update({ next_action: "Ready Check on site now" }).eq("id", job.id);
+    try {
+      await confirmBooking(job.id, "ready_check", later?.startsAt ?? new Date().toISOString(), userId, later ? "installer (supplied appointment)" : "installer (on site now)");
+      await admin.from("jobs").update({ next_action: later ? "Attend booked Ready Check" : "Ready Check on site now" }).eq("id", job.id);
+    } catch (error) {
+      if (!later) throw error;
+      await logEvent(job.id, userId, "installer_later_booking_blocked", "Supplied appointment not confirmed: existing booking checks blocked it", { reason: error instanceof Error ? error.message : "Booking checks blocked confirmation", starts_at: later.startsAt }, { internal: true });
+    }
   } else {
     await admin.from("jobs").update({ next_action: "Owner to sign paperwork A, then the Ready Check can start" }).eq("id", job.id);
     await logEvent(job.id, userId, "onsite_waiting_paperwork_a", "On-site Ready Check held: the owner hasn't signed paperwork A yet", {}, { internal: true });
   }
+  if (later) return { jobId: job.id, jobNumber: job.job_number, state: { kind: "paperwork" as const } };
   const state = await onsiteFormFor(job.id, userId, call);
   return { jobId: job.id, jobNumber: job.job_number, state };
 }
