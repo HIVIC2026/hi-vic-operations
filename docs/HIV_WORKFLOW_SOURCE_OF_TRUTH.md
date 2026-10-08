@@ -97,3 +97,6 @@ Xero invoice and all customer/trade/financial-facing references use "Home Insula
 - Balance = total after VEU discount − safety check payment. Owner chooses at Step B: two instalments (half when install is booked, half on install day) or pay the full total now. If the job can't go ahead after the check, refund everything except the safety check payment.
 - Step B payment wording is DRAFT (`draft-2026-10-07`) pending lawyer; blocks real jobs until Jo approves it in Settings.
 - Refunds are office-recorded; no money moves automatically. Payment gate, Xero live calls and sending stay OFF until switched on.
+
+## Installer Add job coordination choice (current, Jo 8 Oct)
+One intake (Customer → Job details → Review). Coordination is one of two options: "Home Insulation Victoria manages the process" (Recommended) or "I'll organise the job myself" (requires an unticked acknowledgement). The retired onsite/later/already-visited selector is not used. The choice never transfers AP duties and never books, signs or completes evidence. A portal Ready Check draft is saved partially and is never treated as submitted or verified.
