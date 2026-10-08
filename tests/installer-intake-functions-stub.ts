@@ -3,7 +3,7 @@ export const partnerFileUrl = noAction;
 export const partnerUploadUrl = noAction;
 export const getJobElectrician = noAction;
 export const switchJobElectricianToHivic = noAction;
-const named = (n: string) => Object.assign(noAction, {}) && Object.assign(async () => { throw new Error("Isolated fixture: server actions are disabled"); }, { __mockName: n });
+const named = (n: string) => Object.assign(async () => { throw new Error("Isolated fixture: server actions are disabled"); }, { __mockName: n });
 export const createImport = named("createImport");
 export const confirmImport = named("confirmImport");
 export const discardImport = named("discardImport");
