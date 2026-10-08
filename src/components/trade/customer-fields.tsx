@@ -5,7 +5,7 @@ import { AddressCombobox } from "@/components/portal/address-combobox";
 import { OWNER_CONTACT_PERMISSION } from "@/lib/job-electrician.core";
 import type { OnsiteInput } from "@/lib/onsite-ready-check.core";
 
-export function CustomerFields({ value, onChange, consentLabel }: { value: OnsiteInput; onChange: (v: OnsiteInput) => void; consentLabel?: string }) {
+export function CustomerFields({ value, onChange, consentLabel }: { value: OnsiteInput; onChange: (v: OnsiteInput) => void; consentLabel?: string | undefined }) {
   // A picked suggestion shows a short suburb/postcode confirmation; typing a correction drops it and shows the editable fields.
   const [picked, setPicked] = useState(false);
   const field = (key: "full_name" | "phone" | "email" | "suburb" | "postcode", label: string, props = {}) => (
