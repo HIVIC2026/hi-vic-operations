@@ -76,7 +76,7 @@ export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; 
   const now = new Date().toISOString();
   const { data: est } = await admin.from("indicative_estimates").select("id, area_m2, insulation_declared, scenarios").eq("job_id", c.job.id).eq("status", "current").maybeSingle();
   let price = savedPriceFromEstimate(est ?? null);
-  if (c.group === "onsite" && calc?.insulation === "none") throw new Error("Keep your existing-insulation answer for this estimate. A declaration does not mean insulation is absent.");
+  if (c.ownerQualified && calc?.insulation === "none") throw new Error("Keep your existing-insulation answer for this estimate. A declaration does not mean insulation is absent.");
   // Owner calculator: snapshot exactly what the calculator showed, recomputed server-side from the same pure core.
   if (calc) {
     const { resolvePublicEstimate } = await import("./estimatelink.server");

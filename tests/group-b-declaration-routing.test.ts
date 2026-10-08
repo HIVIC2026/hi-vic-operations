@@ -98,3 +98,20 @@ for (const state of ["ineligible","closed","opted_out","expired","revoked","wron
   if (state === "processing") await db.query("INSERT INTO post_intake_work VALUES($1,'processing')",[LAUNCH_ID.job]);
   await expect(recordInsulationDeclaration(token,"below_r2",true)).rejects.toThrow(); await expect(saveCampaignSpot(token)).rejects.toThrow();
 });
+test("declaration cannot erase existing insulation through calculator save", async () => {
+  await recordInsulationDeclaration(token,"loose_fill_only",true);
+  await expect(saveCampaignSpot(token,{areaM2:120,insulation:"none"})).rejects.toThrow();
+  expect((await db.query("SELECT saved_insulation,spot_saved_at FROM lead_campaign_responses")).rows[0]).toEqual({saved_insulation:null,spot_saved_at:null});
+});
+test("current negative office finding overrides an earlier qualifying Yes", async () => {
+  await recordInsulationDeclaration(token,"below_r2",true);
+  await db.exec("UPDATE lead_campaign_responses SET desk_check_status='not_eligible',desk_checked_at=now(),desk_checked_by='00000000-0000-4000-8000-0000000000a1'");
+  expect(JSON.parse(await campaignPage(token) ?? "null").saveAllowed).toBe(false);
+  await expect(saveCampaignSpot(token)).rejects.toThrow();
+});
+test("a previously qualifying Yes stops qualifying if another initial check changes", async () => {
+  await recordInsulationDeclaration(token,"below_r2",true);
+  await db.query("UPDATE jobs SET eligibility_decision_rules=$1",[JSON.stringify({...audit,rules:audit.rules.map((r)=>r.key==="location"?{...r,result:"fail"}:r)})]);
+  expect((await campaignLink(token))?.ownerQualified).toBe(false);
+  await expect(saveCampaignSpot(token)).rejects.toThrow();
+});
