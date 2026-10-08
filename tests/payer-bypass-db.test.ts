@@ -194,7 +194,7 @@ describe("uncommitted own electrician can be corrected through the guarded edito
     const drafts = await current();
     expect(drafts.some((q) => q.id === before.id)).toBe(false);
     const fresh = (await quotes()).filter((q) => q.status === "draft").pop();
-    if (fresh) expect(await items(fresh.id)).toContain("PIESA:349");
+    expect(fresh).toBeDefined(); expect(await items(fresh!.id)).toContain("PIESA:349");
     const held = (await db.query<{ release_state: string }>("select release_state from quotes where status='draft'")).rows;
     for (const h of held) expect(h.release_state).toBe("held");
   });
