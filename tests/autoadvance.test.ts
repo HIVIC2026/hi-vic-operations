@@ -141,8 +141,8 @@ describe("Gate 1 auto-decision", () => {
     expect(evaluateGate1({ ...g, isResidential: null, yearBuilt: null, yearBuiltVerified: false, preliminaryOutcome: "likely_eligible" }).outcome).toBeNull();
     expect(evaluateGate1({ ...g, preliminaryOutcome: "needs_onsite_confirmation" }).rules.find((r) => r.key === "preliminary")?.result).toBe("info");
   });
-  test("auto-pass leaves Enquiries automatically", async () => {
+  test("auto-pass waits for the owner to save their spot (Jo, 8 Oct)", async () => {
     const x = fake("new_enquiry", { eligibilityConfirmed: true, electricianAssigned: false });
-    expect((await runAutoAdvance(x.deps)).to).toBe("ready_check_ready_to_schedule");
+    expect((await runAutoAdvance(x.deps)).to).toBe("preliminary_estimate_ready");
   });
 });
