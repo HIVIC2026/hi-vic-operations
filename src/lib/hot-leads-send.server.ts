@@ -66,12 +66,13 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   const owner = job.owners as { full_name: string | null; email: string | null } | null;
   const to = owner?.email?.trim().toLowerCase();
   if (!to) return r("skipped", "No owner email.");
-  const [{ data: opt }, { data: resp }, { data: link }, { data: est }] = await Promise.all([
+  const [{ data: opt, error: optError }, { data: resp, error: responseError }, { data: link, error: linkError }, { data: est, error: estimateError }] = await Promise.all([
     admin.from("customer_email_optouts").select("opted_out_at").eq("job_id", jobId).maybeSingle(),
     admin.from("lead_campaign_responses").select("opted_out_at, spot_saved_at").eq("job_id", jobId).maybeSingle(),
     admin.from("customer_estimate_links").select("id, token").eq("job_id", jobId).eq("purpose", "step3_estimate").eq("status", "active").maybeSingle(),
     admin.from("indicative_estimates").select("id, area_m2, insulation_declared, scenarios, snapshot").eq("job_id", jobId).eq("status", "current").maybeSingle(),
   ]);
+  if (followup && (optError || responseError || linkError || estimateError)) return r("blocked", "Could not verify the current follow-up records. Try again; nothing sent.");
   if (opt?.opted_out_at || resp?.opted_out_at) return r("skipped", "Owner opted out.");
   if (resp?.spot_saved_at && !(isTest && testOpts.subjectPrefix)) return r("skipped", "Spot already saved.");
   if (!link?.token) return r("skipped", "No secure estimate link yet.");
@@ -97,7 +98,8 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     if (!isTest && mode === "send" && !INSULATION_DETAILS_REAL_SEND_APPROVED) return r("blocked", "Insulation email awaits final visual approval");
   }
   const key = `${LAUNCH_CAMPAIGN}:${followup ? "existing_insulation_save_spot" : sendGroup === "onsite" ? "insulation_details" : "save_my_spot"}:${jobId}${isTest && testOpts.subjectPrefix ? `:preview-test:${testOpts.variant ?? "savespot"}:${Date.now()}` : ""}`;
-  const { data: ex } = await admin.from("customer_email_sends").select("id, status").eq("idempotency_key", key).maybeSingle();
+  const { data: ex, error: existingSendError } = await admin.from("customer_email_sends").select("id, status").eq("idempotency_key", key).maybeSingle();
+  if (followup && existingSendError) return r("blocked", "Could not check previous delivery. Nothing sent; try again.");
   if (mode === "send" && ex && !reservationAllowed(ex)) return r("skipped", "Already sent to this home.");
   let sendId = ex?.id ?? null;
   if (mode === "send") {
@@ -185,7 +187,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
       await recordCommunication({ jobId, direction: "outbound", channel: "email", recipients: [to], subject: mail.subject, body: mail.plainText, provider: "resend", providerMessageId: d.id, visibility: "customer", sourceEvent: LAUNCH_CAMPAIGN, sourceReference: key, createdBy: actorId } as never).catch(() => null);
     }
   } catch (e) {
-    await finish("failed", isTest ? "resend_test" : "resend", (e as Error).message.slice(0, 300));
+    await finish(followup ? "delivered_unrecorded" : "failed", isTest ? "resend_test" : "resend", (e as Error).message.slice(0, 300));
     return r("failed", (e as Error).message);
   }
   await logEvent(jobId, actorId, "save_my_spot_email_sent", `Save my spot email sent${followup ? " after preliminary existing-insulation qualification" : " from Hot leads"}${isTest ? " (TEST, allowlist only)" : ""}`, { campaign: LAUNCH_CAMPAIGN, to_test: isTest, existing_insulation_followup: followup }, { internal: true }).catch(() => null);

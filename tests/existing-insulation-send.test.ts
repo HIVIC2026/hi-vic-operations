@@ -15,7 +15,7 @@ mock.module("../src/lib/launch-campaign.server",()=>({campaignLink:async()=>qual
 mock.module("../src/lib/group-b-media.server",()=>({groupBMediaForJob:async()=>{originalMediaReads++;throw new Error("Invitation exclusion must not gate qualified follow-up");}}));
 mock.module("../src/lib/comms.server",()=>({hasCurrentOwnerContactConsent:async()=>true,customerCommsEnabled:async()=>enabled}));
 mock.module("../src/lib/estimate.core",()=>({discountIsWholeVeecs:()=>true}));
-mock.module("../src/lib/emailsafety.server",()=>({unsubscribeUrlForJob:async()=>"https://estimate.homeinsulationvictoria.com.au/opt-out/TEST"}));
+mock.module("../src/lib/emailsafety.server",()=>({unsubscribeUrlForJob:async()=>"https://estimate.homeinsulationvictoria.com.au/api/public/unsubscribe?t="+"A".repeat(43)}));
 mock.module("../src/lib/referral.server",()=>({referralUrlForJob:async()=>null}));
 mock.module("../src/lib/workflow.server",()=>({logEvent:async()=>{}}));
 const {sendExistingInsulationSaveSpot} = await import("../src/lib/hot-leads-send.server");
