@@ -10,6 +10,8 @@ Restored signature image, personal lead match and capture timestamp are required
 
 Tests use synthetic audit responses only, not physical-device evidence or real signatures. No native write, audit creation/signing, approval, communication or portal publication.
 
+Final checks: 159 tests passed, zero failed, 860 assertions across 14 isolated files (restored/native version, personal signature, captured date, declaration, products/sync, historical mapping/published audit shape, STOP/evidence/prestart, official prefill/forms). Preview harness build OK. Actual new-version signed audit and live official output were not exercised under the no-audit/signing restriction; no separate manual build/typecheck claimed.
+
 Read-only existing Mitti integration returned published revision `19-a7ea04e7fa3b45b18937ee1d09b8d129`, modified `2026-10-08T21:44:57.954Z`.
 
 - The four duplicate signer/date/preparer/conducted metadata questions are absent.
