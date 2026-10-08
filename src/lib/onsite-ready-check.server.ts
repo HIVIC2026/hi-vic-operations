@@ -16,7 +16,7 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   await requireApprovedPartner(businessId);
   const problems = onsiteProblems(input);
   if (later) problems.push(...laterReadyCheckProblems(later));
-  const { electricianPlanBlocker, OWNER_CONTACT_PERMISSION } = await import("./job-electrician.core");
+  const { electricianPlanBlocker, READY_CHECK_CONTACT_PERMISSION } = await import("./job-electrician.core");
   const eb = electricianPlanBlocker(electrician); if (eb) problems.push(eb);
   if (problems.length) throw new WorkflowError(problems.join(" • "));
 
@@ -42,7 +42,7 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   // Gate A on site (Jo, 8 Oct): owner ticked on the installer's phone, or the installer confirmed the owner's consent.
   const { gateDoc } = await import("./owner-gates.core");
   const byOwner = input.consent_by === "owner";
-  const text = byOwner ? gateDoc("contact_privacy").body : OWNER_CONTACT_PERMISSION;
+  const text = byOwner ? gateDoc("contact_privacy").body : READY_CHECK_CONTACT_PERMISSION;
   const now = new Date().toISOString();
   const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)))].map((x) => x.toString(16).padStart(2, "0")).join("");
   const { error: ce } = await admin.from("owner_contact_consents").insert({ job_id: job.id, owner_id: owner.id, source: ONSITE_CONSENT_SOURCE, consent_key: byOwner ? "owner_ticked" : "installer_confirmed", consent_status: "granted", contact_consent: true, consented_at: now, snapshot: { by: byOwner ? "owner" : "installer", text, recorded_by: userId }, sha256: hash });
