@@ -36,6 +36,8 @@ export async function recordCommercialEligibility(jobId: string, actorId: string
 }
 
 export async function installerIntakeState(jobId: string) {
+  const { data: co } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "installer_coordination_chosen").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const coordination = ((co?.details as { coordination?: string } | null)?.coordination ?? null) as "hivic_managed" | "self_managed" | null;
   const [{ data: job, error }, ins, { data: m }, decision, { data: consent }, { count: fee }, { data: ev }] = await Promise.all([
     admin.from("jobs").select("channel, installer_quoted_price_inc_gst, installer_price_includes").eq("id", jobId).single(),
     latestInsulation(jobId),
@@ -53,6 +55,7 @@ export async function installerIntakeState(jobId: string) {
   const release = installerQuoteReleaseBlockers({ consentStatus: consent?.consent_status ?? null, feeAwarenessRecorded: (fee ?? 0) > 0 });
   const rc = readyCheckOutstanding((ev ?? []).map((r) => ({ category: r.category, label: r.label, blocking: r.required, status: r.status })) as EvidenceItem[]);
   return {
+    coordination, coordinationNext: (await import("./installer-intake.core")).coordinationNextAction(coordination),
     channel: job.channel, insulation: ins.value, insulationSource: ins.source, areaM2: area, measuredR,
     quoteIncGst: job.installer_quoted_price_inc_gst == null ? null : Number(job.installer_quoted_price_inc_gst), includes: job.installer_price_includes,
     officeEligibility, readiness, releaseBlockers: release,

@@ -125,3 +125,26 @@ export function prefillFromExtracted(x: { measured_area_m2?: { value: unknown; c
   return { area: found(x.measured_area_m2), proposedR: found(x.r_value), includes: [found(x.product), ...lines.map((l) => l.description)].filter(Boolean).join("; ").slice(0, 1000), amount: total };
 }
 
+
+// ---- Who will organise this job? (Jo, 8 Oct 2026). Coordination responsibility only — never waives any gate. ----
+export type Coordination = "hivic_managed" | "self_managed";
+export const COORDINATION_VERSION = "coordination-2026-10-08";
+export const COORDINATION_CHOICES: { value: Coordination; title: string; badge?: string; body: string }[] = [
+  { value: "hivic_managed", title: "Home Insulation Victoria manages the process", badge: "Recommended", body: "We coordinate bookings, guide you through the required checks and documentation, and prepare your VEEC submission once the job meets all eligibility, compliance and evidence requirements." },
+  { value: "self_managed", title: "I'll organise the job myself", body: "You coordinate the owner, electrician and installation, meet all required compliance steps and deadlines, and provide the complete evidence pack for our review." },
+];
+export const SELF_MANAGED_ACK = "I understand I am responsible for organising the required assessments and installation, meeting the applicable requirements and deadlines, and supplying complete, accurate evidence. Missing, late or unacceptable evidence may prevent this job from receiving the rebate.";
+export const VEEC_NOTE = "VEEC claims can only be submitted once all requirements are met. Final registration is subject to the regulator's approval.";
+
+export function coordinationProblems(c: Coordination | null, selfAck: boolean): string[] {
+  if (!c) return ["Choose who will organise this job"];
+  if (c === "self_managed" && !selfAck) return ["Tick that you are responsible for organising the job and supplying complete evidence"];
+  return [];
+}
+
+/** Office next action by route. Both routes keep every AP check, notice, evidence and final approval step. */
+export function coordinationNextAction(c: Coordination | null): string {
+  if (c === "self_managed") return "Installer organises bookings — check eligibility, then review the installer's recorded bookings and evidence as they arrive.";
+  if (c === "hivic_managed") return "Home Insulation Victoria organises — check eligibility, then arrange bookings through the normal workflow.";
+  return "Coordination not recorded — confirm with the installer.";
+}

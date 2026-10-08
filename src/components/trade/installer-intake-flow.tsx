@@ -17,7 +17,7 @@ import { READY_CHECK_CONTACT_PERMISSION, electricianPlanBlocker, usualElectricia
 import type { OnsiteInput } from "@/lib/onsite-ready-check.core";
 import type { Extracted } from "@/lib/pilot.core";
 import { ADD_JOB_STEPS, BUSY_LABEL, blankCustomer, customerProblems, nextStep, prevStep, restoreCustomer, saveErrorMessage, type AddJobStep } from "@/lib/add-job-flow.core";
-import { EVIDENCE_ACK, EXISTING_INSULATION_CHOICES, INTAKE_RULESET_VERSION, intakeProblems, multiCustomerAmbiguity, parseIntakeAmount, prefillFromExtracted, type ExistingInsulation } from "@/lib/installer-intake.core";
+import { COORDINATION_CHOICES, COORDINATION_VERSION, SELF_MANAGED_ACK, VEEC_NOTE, coordinationProblems, type Coordination, EVIDENCE_ACK, EXISTING_INSULATION_CHOICES, INTAKE_RULESET_VERSION, intakeProblems, multiCustomerAmbiguity, parseIntakeAmount, prefillFromExtracted, type ExistingInsulation } from "@/lib/installer-intake.core";
 
 const DRAFT_KEY = "hiv-intake-draft";
 type Details = { area: string; amount: string; includes: string; proposedR: string; insulation: ExistingInsulation | null };
@@ -27,6 +27,8 @@ export function InstallerIntakeFlow({ businessId }: { businessId: string }) {
   const [customer, setCustomer] = useState<OnsiteInput>(blankCustomer());
   const [d, setD] = useState<Details>({ area: "", amount: "", includes: "", proposedR: "", insulation: null });
   const [ack, setAck] = useState(false);
+  const [coord, setCoord] = useState<Coordination | null>(null);
+  const [selfAck, setSelfAck] = useState(false);
   const [files, setFiles] = useState<AttachedFile[]>([]);
   const [fileText, setFileText] = useState("");
   const [fileNote, setFileNote] = useState<string | null>(null);
@@ -47,7 +49,7 @@ export function InstallerIntakeFlow({ businessId }: { businessId: string }) {
   useEffect(() => { try { const s = localStorage.getItem(DRAFT_KEY); if (s) setCustomer(restoreCustomer(JSON.parse(s))); } catch { /* ignore */ } }, []);
   useEffect(() => { try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...customer, contact_permission: false, consent_by: null })); } catch { /* ignore */ } }, [customer]);
   useEffect(() => { if (shown.length) problemsRef.current?.focus(); }, [shown]);
-  useEffect(() => { setShown([]); }, [customer, d, ack]);
+  useEffect(() => { setShown([]); }, [customer, d, ack, coord, selfAck]);
 
   const create = useServerFn(createImport), confirm = useServerFn(confirmImport);
   const addFiles = useServerFn(addImportFiles), dropFile = useServerFn(removeImportFile), readFile = useServerFn(readBulkFile);
@@ -59,6 +61,7 @@ export function InstallerIntakeFlow({ businessId }: { businessId: string }) {
     if (step === "customer") return customerProblems(customer);
     const p = intakeProblems({ ...d, quoteFileCount: files.length, evidenceAck: ack });
     const eb = electricianPlanBlocker(plan); if (eb) p.push(eb);
+    p.push(...coordinationProblems(coord, selfAck));
     if (fileText && multiCustomerAmbiguity(fileText)) p.push("Your file names more than one customer — upload one customer's quote per job");
     return step === "details" ? p.filter((x) => !/evidence must be supplied/.test(x)) : p;
   };
@@ -96,7 +99,7 @@ export function InstallerIntakeFlow({ businessId }: { businessId: string }) {
       const res = await confirm({ data: { importId: id, facts, installer: {
         quoted: hasAmount ? "yes" : "no", site_check: "yes", site_check_date: null, quoted_price_inc_gst: hasAmount ? amount : null, price_includes: d.includes.trim() || null,
         contact_permission: customer.contact_permission, owner_agreed: false,
-        intake: { existing_insulation: d.insulation!, evidence_ack: ack, proposed_r_value: d.proposedR.trim() && Number.isFinite(r) ? r : null, version: INTAKE_RULESET_VERSION },
+        intake: { existing_insulation: d.insulation!, evidence_ack: ack, proposed_r_value: d.proposedR.trim() && Number.isFinite(r) ? r : null, version: `${INTAKE_RULESET_VERSION}+${COORDINATION_VERSION}`, coordination: coord!, self_managed_ack: coord === "self_managed" && selfAck },
       }, electrician: plan?.mode === "mine" ? { mode: "mine", business_id: plan.business_id ?? null, nomination_id: plan.nomination_id ?? null } : { mode: "hivic" } } as never });
       try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
       setSaved({ jobId: res.jobId, jobNumber: res.jobNumber ?? null, insulation: d.insulation! });
@@ -156,6 +159,16 @@ export function InstallerIntakeFlow({ businessId }: { businessId: string }) {
         <label className="block text-sm font-bold">Your quote inc GST<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 3,450" value={d.amount} onChange={(e) => setD({ ...d, amount: e.target.value })} /></label>
         <label className="block text-sm font-bold">What the quote includes<Textarea className="mt-1" rows={3} maxLength={1000} value={d.includes} onChange={(e) => setD({ ...d, includes: e.target.value })} /></label>
         <label className="block text-sm font-bold">Proposed product R-rating<span className="block text-xs font-normal text-sub">Optional, e.g. R5.0</span><Input className="mt-1 h-12" inputMode="decimal" value={d.proposedR} onChange={(e) => setD({ ...d, proposedR: e.target.value })} /></label>
+        <fieldset data-coordination><legend className="text-sm font-bold">Who will organise this job?</legend>
+          <div className="mt-2 grid gap-2" role="radiogroup" aria-label="Who will organise this job?">
+            {COORDINATION_CHOICES.map((c) => <button key={c.value} type="button" role="radio" aria-checked={coord === c.value} onClick={() => { setCoord(c.value); if (c.value !== "self_managed") setSelfAck(false); }} className={`w-full rounded-[14px] border p-3 text-left ${coord === c.value ? "border-primary bg-primary/5" : "border-line bg-paper"}`}>
+              <span className="flex flex-wrap items-center gap-2 text-sm font-bold">{c.title}{c.badge && <span className="rounded-full bg-primary px-2 py-0.5 text-[11px] text-primary-foreground">{c.badge}</span>}</span>
+              <span className="mt-1 block text-xs text-sub">{c.body}</span>
+            </button>)}
+          </div>
+          {coord === "self_managed" && <label className="mt-2 flex items-start gap-3 text-sm" data-self-managed-ack><Checkbox className="mt-0.5" checked={selfAck} onCheckedChange={(c) => setSelfAck(c === true)} aria-label={SELF_MANAGED_ACK} /><span>{SELF_MANAGED_ACK}</span></label>}
+          <p className="mt-2 text-xs text-sub">{VEEC_NOTE}</p>
+        </fieldset>
         {plan && <ElectricianPicker value={plan} onChange={setPlan} note={false} approved={el?.approved ?? []} pending={el?.pending ?? []} onAdd={async (x) => { const r = await addEl({ data: { businessId, name: x.name, mobile: x.mobile, email: x.email, business: x.business } }); await refetch(); setPlan({ mode: "mine", ...(r.businessId ? { business_id: r.businessId } : { nomination_id: r.nominationId }) }); return { message: inviteResultMessage(r) }; }} />}
       </section>}
 
@@ -165,7 +178,7 @@ export function InstallerIntakeFlow({ businessId }: { businessId: string }) {
         <Summary title="Job details" onEdit={() => setStep("details")} rows={[
           `Ceiling ${d.area} m²`, `Existing insulation: ${EXISTING_INSULATION_CHOICES.find((c) => c.value === d.insulation)?.label ?? "—"}`,
           d.amount ? `Quote $${d.amount.replace(/^\$/, "")} inc GST` : "Quote amount from your uploaded file", d.includes ? `Includes: ${d.includes}` : "", d.proposedR ? `Proposed product ${/^r/i.test(d.proposedR) ? d.proposedR : `R${d.proposedR}`}` : "",
-          `${files.length} file${files.length === 1 ? "" : "s"} attached`, `Electrician: ${elName}`,
+          `${files.length} file${files.length === 1 ? "" : "s"} attached`, `Electrician: ${elName}`, `Organised by: ${coord === "self_managed" ? "you" : "Home Insulation Victoria"}`,
         ]} />
         <label className="flex items-start gap-3 text-sm" data-evidence-ack><Checkbox className="mt-0.5" checked={ack} onCheckedChange={(c) => setAck(c === true)} aria-label={EVIDENCE_ACK} /><span>{EVIDENCE_ACK}</span></label>
         <div className="rounded-[12px] border border-line p-3" data-next-step><p className="text-xs font-bold uppercase tracking-wide text-sub">What happens next</p><p className="mt-1 text-sm">Nothing is sent when you submit. Home Insulation Victoria checks the owner's eligibility and prepares the quote when it's ready, then lets you know when the owner accepts.</p></div>
@@ -200,6 +213,7 @@ function Received({ saved }: { saved: { jobId: string; jobNumber: string | null;
       <h2 className="font-display text-xl font-bold">Job received</h2>
       <p className="text-sm">Home Insulation Victoria will check the owner's eligibility and prepare the quote when it's ready. Nobody has been contacted yet.</p>
       {saved.insulation === "unknown" && <p className="text-sm font-semibold">The owner quote waits until the existing insulation is confirmed as none or below R2.0.</p>}
+      {data?.coordination && <p className="text-sm" data-coordination-saved>Organised by: {data.coordination === "self_managed" ? "you" : "Home Insulation Victoria"}</p>}
       {data && <p className="text-sm" data-rc-outstanding>Ready Check: {data.readyCheck.outstandingCount} item{data.readyCheck.outstandingCount === 1 ? "" : "s"} outstanding</p>}
       <Link to="/field/$jobId" params={{ jobId: saved.jobId }} className="inline-flex h-12 w-full items-center justify-center rounded-full border border-line font-bold">Complete Ready Check</Link>
       <Link to="/field" className="block text-center text-sm font-bold underline">Back to My work</Link>
