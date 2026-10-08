@@ -1,5 +1,8 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Group B four alternatives (Jo 8 Oct 22:41 UTC)
+### Jo 22:47 correction — supersedes declaration review stop
+- [ ] Qualifying audited owner Yes opens/saves existing spot server-side; media remains review-only; retain existing-insulation prices and final verification.
+- [ ] Test actual server handler sequence with isolated persistence and phone flow; invalid/closed/opt-out/nonqualifying links stay blocked. No live sends/publication.
 - [x] Four alternatives/shared invitation, typed audited declarations, historic event compatibility, stored-path retry/review recovery. Group B send approval remains false; no Group A/installer edits.
 - [x] 75 tests/318 assertions; sealed browser confirms four choices, explicit declaration confirmation, received states, invalid upload Retry, video safety and phone layout; build OK 22:45:30 UTC. No real customer writes/sends/publication. Real storage and office persistence end-to-end remain unverified (sealed checks, not live writes).
 ## Urgent live Add job failure (Jo 8 Oct 22:22 UTC)
