@@ -25,7 +25,7 @@ test("mixed Removed + Topped Up still needs the retention reason", () => {
   expect(msgs).toMatch(/not removed, what is the reason/i);
 });
 test("alias mapping matches a simplified native label; unknown fields fail visibly", () => {
-  const template = { header_items: [], items: [{ item_id: "x1", label: "What is the average depth of the existing insulation (mm)?", type: "text" }] };
+  const template = { header_items: [], items: [{ item_id: "14ea4360-9c22-45b8-ac90-768704ecdc07", label: "What is the average depth of the existing insulation (mm)?", type: "text" }] };
   const p = buildOfficialPrefill(template, [{ itemId: "p6.height", label: "What is the average height of the existing insulation?", kind: "number", value: "80", occurrence: 0 }, { itemId: "p2.lead", label: "Lead installer name:", kind: "text", value: "A", occurrence: 0 }] as never, PIISA_A3_MAPPING);
   expect(p.count).toBe(1);
   expect(missingKnownFields(p.skipped)).toEqual(["p2.lead (not on the Mitti form)"]);
