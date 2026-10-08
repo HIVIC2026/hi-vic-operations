@@ -152,4 +152,4 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Consent wording exact on customer cards
 - [x] PIESA booking unpaired (done 17:50)
 
-- [ ] Save my spot send: verify every rebate is exactly calculated before Jo presses Send (Jo 8 Oct)
+- [x] Save my spot send: verify every rebate is exactly calculated before Jo presses Send (Jo 8 Oct)
