@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { installDayBlockers, installerQuoteReadiness, installerQuoteReleaseBlockers, insulationQualifies, intakeProblems, multiCustomerAmbiguity, prefillFromExtracted, readyCheckOutstanding, rebateEvidenceBlockers } from "../src/lib/installer-intake.core";
+import { coordinationNextAction, coordinationProblems, installDayBlockers, installerQuoteReadiness, installerQuoteReleaseBlockers, insulationQualifies, intakeProblems, multiCustomerAmbiguity, prefillFromExtracted, readyCheckOutstanding, rebateEvidenceBlockers } from "../src/lib/installer-intake.core";
 import { piesaRequestBlockers } from "../src/lib/payment-gate.core";
 
 const base = { area: "120", amount: "3450", includes: "R5.0 batts supply and install", proposedR: "R5", insulation: "none" as const, quoteFileCount: 0, evidenceAck: true };
@@ -65,5 +65,15 @@ describe("installer intake", () => {
     const pay = { cleared: false, blocker: "Safety check payment not received." } as never;
     expect(piesaRequestBlockers({ readyCheckComplete: false, verifiedEligible: false, currentQuoteApproved: false, payment: pay, installerIntakeQualified: true })).toEqual(["Owner has not approved the current confirmed insulation quote version.", "Safety check payment not received."]);
     expect(piesaRequestBlockers({ readyCheckComplete: false, verifiedEligible: false, currentQuoteApproved: true, payment: { cleared: true } as never })).toEqual(["Ready Check not complete.", "Verified eligibility has not been recorded as eligible."]);
+  });
+  test("coordination: required choice; self-managed needs unticked ack; both routes keep gates", () => {
+    expect(coordinationProblems(null, false)).toEqual(["Choose who will organise this job"]);
+    expect(coordinationProblems("self_managed", false)).toHaveLength(1);
+    expect(coordinationProblems("self_managed", true)).toEqual([]);
+    expect(coordinationProblems("hivic_managed", false)).toEqual([]);
+    expect(coordinationNextAction("self_managed")).toMatch(/installer's recorded bookings/);
+    expect(coordinationNextAction("hivic_managed")).toMatch(/normal workflow/);
+    // Route never relaxes the rebate gate.
+    expect(rebateEvidenceBlockers({ items: [{ category: "x", label: "Before video", blocking: true, status: "uploaded" }], apApprovedBy: "office" })).toHaveLength(1);
   });
 });

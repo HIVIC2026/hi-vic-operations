@@ -313,6 +313,8 @@ export const confirmImport = createServerFn({ method: "POST" }).middleware([requ
         evidence_ack: z.boolean(),
         proposed_r_value: z.number().positive().max(10).nullish(),
         version: z.string().max(60),
+        coordination: z.enum(["hivic_managed", "self_managed"]),
+        self_managed_ack: z.boolean(),
       }).optional(),
     }).optional(),
     electrician: z.object({ mode: z.enum(["mine", "hivic"]), business_id: uuid.nullish(), nomination_id: uuid.nullish() }).optional(),

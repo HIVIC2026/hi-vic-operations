@@ -91,6 +91,7 @@ export function InstallerIntakeReviewPanel({ jobId }: { jobId: string }) {
     <section className="space-y-3 rounded-lg border p-4" data-installer-intake-review>
       <h3 className="font-semibold">Installer intake</h3>
       <ul className="text-sm space-y-0.5">
+        <li>Who organises: <b>{s.coordination === "self_managed" ? "Installer organises the job" : s.coordination === "hivic_managed" ? "Home Insulation Victoria manages" : "Not recorded"}</b> — {s.coordinationNext}</li>
         <li>Owner eligibility (office): <b>{s.officeEligibility === "eligible" ? "Checked — eligible" : s.officeEligibility === "declined" ? "Not eligible" : "Not checked yet"}</b></li>
         <li>Existing insulation: <b>{s.insulation ? label[s.insulation] : "Not recorded"}</b>{s.insulationSource === "installer_intake_corrected" ? " (office corrected)" : " (installer declaration, unverified)"}</li>
         <li>Ceiling area: {s.areaM2 ?? "—"} m² · Installer quote: {s.quoteIncGst != null ? money(s.quoteIncGst) + " inc GST" : "not entered (check uploaded file)"}</li>
