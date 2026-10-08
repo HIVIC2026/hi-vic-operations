@@ -86,7 +86,9 @@ export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; 
   const ins = await admin.from("lead_campaign_responses").upsert({ job_id: c.job.id, estimate_link_id: c.link.id, campaign: LAUNCH_CAMPAIGN, spot_saved_at: now, video_requested: c.group === "onsite", desk_check_status: c.group === "onsite" ? "pending" : "not_needed", updated_at: now, ...snapshot }, { onConflict: "job_id", ignoreDuplicates: true }).select("id");
   let firstSave = !ins.error && (ins.data?.length ?? 0) > 0;
   if (!firstSave) {
-    const upd = await admin.from("lead_campaign_responses").update({ spot_saved_at: now, updated_at: now, ...snapshot }).eq("job_id", c.job.id).is("opted_out_at", null).is("spot_saved_at", null).select("id");
+    let query = admin.from("lead_campaign_responses").update({ spot_saved_at: now, updated_at: now, ...snapshot }).eq("job_id", c.job.id).is("opted_out_at", null).is("spot_saved_at", null);
+    if (c.group === "onsite") query = query.eq("desk_check_status", "looks_eligible");
+    const upd = await query.select("id");
     firstSave = !upd.error && (upd.data?.length ?? 0) > 0;
   }
   const { data: row } = await admin.from("lead_campaign_responses").select("opted_out_at, spot_saved_at").eq("job_id", c.job.id).maybeSingle();
@@ -139,7 +141,9 @@ export async function markCampaignMediaReceived(jobId: string, linkId: string) {
   const { data: link } = await admin.from("customer_estimate_links").select("id").eq("id", linkId).eq("job_id", jobId).maybeSingle();
   if (!link) return;
   const now = new Date().toISOString();
-  const { data: existing } = await admin.from("lead_campaign_responses").select("desk_check_status, media_received_at, spot_saved_at").eq("job_id", jobId).maybeSingle();
+  const { data: existing, error: readError } = await admin.from("lead_campaign_responses").select("desk_check_status, media_received_at, spot_saved_at, opted_out_at").eq("job_id", jobId).maybeSingle();
+  if (readError) throw new Error("Your file was received but the office review could not be queued. Please try again.");
+  if (existing?.opted_out_at) return;
   const patch = { media_received_at: existing?.media_received_at ?? now, queue_priority: "video", updated_at: now, ...(existing && !["not_needed", "pending"].includes(existing.desk_check_status) ? {} : { desk_check_status: "pending" }) };
   const result = existing ? await admin.from("lead_campaign_responses").update(patch).eq("job_id", jobId) : await admin.from("lead_campaign_responses").insert({ job_id: jobId, estimate_link_id: linkId, campaign: LAUNCH_CAMPAIGN, video_requested: true, ...patch });
   if (result.error) throw new Error("Your file was received but the office review could not be queued. Please try again.");
@@ -155,6 +159,9 @@ export async function recordInsulationDeclaration(token: unknown) {
   if (!recorded) await logEvent(c.job.id, null, "owner_insulation_below_r2_declared", "Owner declared: I confirm this is below R2 — office review required (not verified eligibility)", { declaration: "I confirm this is below R2", basis: "owner_declared" }, { internal: true });
   if (!existing) {
     const { error } = await admin.from("lead_campaign_responses").upsert({ job_id: c.job.id, estimate_link_id: c.link.id, campaign: LAUNCH_CAMPAIGN, desk_check_status: "pending", desk_check_reason: "Owner declaration: I confirm this is below R2 (not verified)", updated_at: new Date().toISOString() }, { onConflict: "job_id", ignoreDuplicates: true });
+    if (error) throw new Error("We couldn't submit your insulation for review. Please try again.");
+  } else {
+    const { error } = await admin.from("lead_campaign_responses").update({ desk_check_status: "pending", desk_check_reason: "Owner declaration: I confirm this is below R2 (not verified)", updated_at: new Date().toISOString() }).eq("job_id", c.job.id).eq("desk_check_status", "not_needed").is("opted_out_at", null);
     if (error) throw new Error("We couldn't submit your insulation for review. Please try again.");
   }
   return { ok: true as const };
