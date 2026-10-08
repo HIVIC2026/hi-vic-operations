@@ -14,22 +14,11 @@ import { useAction } from "@/hooks/use-me";
 import { approveCustomerCommunicationDraft, listCustomerCommunicationTemplates, saveCustomerCommunicationDraft } from "@/lib/customer-communications.functions";
 import { PARTNER_TEMPLATES, previewPartnerTemplate, renderPartnerTemplate, type PartnerTemplate } from "@/lib/partner-templates";
 
-// [key, label, purpose, when it is sent, mandatory forms attached, preview available]
-const CATALOG = [
-  ["likely_estimate", "Likely eligible estimate", "After the official Gate 1 result; includes estimate and free Ready Check action.", "1 · Enquiry", "None – preliminary estimate only", true],
-  ["onsite_estimate", "Needs onsite confirmation estimate", "Explains what the installer must confirm during the free Ready Check.", "1 · Enquiry", "None – preliminary estimate only", true],
-  ["ineligible_result", "Ineligible result", "No quote or Ready Check action; offers result review only.", "1 · Enquiry", "None", true],
-  ["estimate_unopened_3d", "Estimate not opened reminder", "Manual-first follow-up after three days.", "1 · Enquiry", "None", false],
-  ["area_unavailable", "No partner in service area", "Used only after both REC and installer coverage are conclusively checked.", "1 · Enquiry", "None", false],
-  ["measured_quote", "Measured quote (after Ready Check)", "Sends the measured quote for one electronic acceptance.", "2 · Quote", "Customer Acceptance · VEU Consumer Factsheet · Consumer rights & Home Insulation Victoria terms · Code of Conduct / dispute information", true],
-  ["booking_consent", "Booking confirmation + ESC consent", "Confirms the install date and requests electronic Reg 23A consent.", "3 · Booked", "ESC Owner Consent (Reg 23A) – signed ≥24h before work", false],
-  ["pre_install_pack", "Pre-installation pack", "Delivers PIESA copy and consumer documents before work.", "4 · Before install", "PIESA copy (≥24h before) · Certificate of Electrical Safety if rectified · Life-support plan if applicable", false],
-  ["assignment_signing", "Final VEEC assignment signing", "Electronic signature after installer and AP have signed verified final facts.", "5 · After install", "Final Activity 48 VEEC Assignment (installer → AP → homeowner)", false],
-  ["completion_pack", "Completion email + certificate pack", "Final email after installation and sign-off.", "6 · Complete", "Tax invoice & $200+ co-payment receipt · Certificate of installation / Installer Declaration · Signed assignment copy · Warranties & product info · Dispute and contact information", false],
-] as const;
+import { CUSTOMER_COMMUNICATION_CATALOG as CATALOG } from "@/lib/template-catalog";
 type Key = (typeof CATALOG)[number][0];
 
 export const Route = createFileRoute("/_authenticated/admin/communications")({
+  validateSearch: (s: Record<string, unknown>): { key?: string } => (typeof s["key"] === "string" && CATALOG.some(([k]) => k === s["key"]) ? { key: s["key"] } : {}),
   head: () => ({ meta: [{ title: "Customer Communications – Home Insulation Victoria Portal" }, { name: "description", content: "Review every customer email and controlled communication draft." }, { property: "og:title", content: "Customer Communications – Home Insulation Victoria Portal" }, { property: "og:description", content: "Review every customer email and controlled communication draft." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: CustomerCommunications,
 });
@@ -39,7 +28,8 @@ function CustomerCommunications() {
   const { data = [], refetch } = useQuery({ queryKey: ["customer-communication-templates"], queryFn: () => list() });
   const save = useAction(saveCustomerCommunicationDraft);
   const approve = useAction(approveCustomerCommunicationDraft);
-  const [selected, setSelected] = useState<Key>("likely_estimate");
+  const { key: initialKey } = Route.useSearch();
+  const [selected, setSelected] = useState<Key>((initialKey as Key | undefined) ?? "likely_estimate");
   const [version, setVersion] = useState("draft-1");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");

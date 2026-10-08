@@ -12,43 +12,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CheckCircle2, Clock3, FileSignature, ShieldCheck } from "lucide-react";
-import piesaPdf from "@/assets/veu-piesa-form.pdf.asset.json";
-import piisaPdf from "@/assets/veu-piisa-form.pdf.asset.json";
 import { MittiFormsSection } from "@/components/portal/mitti-forms";
 
 export const Route = createFileRoute("/_authenticated/admin/compliance")({
+  validateSearch: (s: Record<string, unknown>): { key?: string } => (typeof s["key"] === "string" && KEYS.some(([k]) => k === s["key"]) ? { key: s["key"] } : {}),
   head: () => ({ meta: [{ title: "Compliance Setup (Admin) – Home Insulation Victoria Portal" }, { name: "description", content: "Versioned official wording and field definitions used by the electronic forms." }, { property: "og:title", content: "Compliance Setup (Admin) – Home Insulation Victoria Portal" }, { property: "og:description", content: "Versioned official wording and field definitions used by the electronic forms." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: Compliance,
 });
 
-const KEYS = [
-  ["consumer_rights", "Customer agreement – VEU consumer information & rights (pre-install, at quote acceptance)"],
-  ["customer_agreement", "Customer agreement – Home Insulation Victoria commercial terms (optional, pre-install)"],
-  ["esc_consent", "ESC Owner Consent – information sharing (after booking, ≥24h before work)"],
-  ["installer_declaration", "Installer declaration (post-install)"],
-  ["consumer_declaration", "Final Activity 48 VEEC Assignment – official form (post-install)"],
-  ["ap_declaration", "AP declaration (if required)"],
-  ["partner_agreement", "Home Insulation Victoria partner participation agreement (partner onboarding)"],
-] as const;
-
-const ACTIVITY_48_FORMS = [
-  { name: "Customer Acceptance", purpose: "Records the accepted commercial quote and customer terms.", signer: "Homeowner", timing: "At quote acceptance", blocks: "Invoice and deposit", source: "Approved customer agreement and consumer rights versions" },
-  { name: "ESC Owner Consent (Reg 23A)", purpose: "Records consent for required information sharing.", signer: "Homeowner", timing: "After booking and at least 24 hours before work", blocks: "Ready to install", source: "Approved ESC consent version" },
-  { name: "PIESA and Consumer Information Pack", purpose: "Gives the owner the PIESA copy, Consumer Factsheet, Code of Conduct information and CES when rectification occurred.", signer: "Electronic delivery evidence", timing: "Before installation; PIESA copy at least 24 hours before", blocks: "Installation start", source: "Current PIESA and approved customer documents" },
-  { name: "Ready Check (Home Insulation Victoria checklist)", purpose: "Free installer eligibility and measure-up with required photos, videos and floor plan.", signer: "Installer", timing: "Before the PIESA", blocks: "Quote", source: "Mitti form A1 (installer's own customer) / A2 (our lead)" },
-  { name: "Pre-installation electrical safety assessment (PIESA)", purpose: "Official DEECA form: licensed electrician checks mains, solar, hazards, cables and luminaires; B1 outcome; Section C after rectification; owner declaration.", signer: "Electrician → owner", timing: "No earlier than 30 days before work; copy to owner and installer at least 24 hours before", blocks: "Installation start", source: "Official DEECA form · Mitti form B", pdf: piesaPdf.url },
-  { name: "Pre-installation installer safety assessment (PIISA)", purpose: "Official DEECA form: lead installer confirms SWMS, isolation, PIESA review, existing insulation and products.", signer: "Lead installer", timing: "Install day, within 30 days of the PIESA; re-check each extra day", blocks: "Installation start", source: "Official DEECA form · Mitti form C", pdf: piisaPdf.url },
-  { name: "Installer Declaration", purpose: "Confirms the installed work and evidence after completion.", signer: "Lead installer", timing: "After installation", blocks: "AP review", source: "Approved installer declaration version" },
-  { name: "Final Activity 48 VEEC Assignment", purpose: "Records verified final installation, price and benefit facts for VEEC creation.", signer: "Lead installer → AP → homeowner", timing: "After installation, during AP review", blocks: "VEEC lodgement", source: "Approved official assignment version" },
-  { name: "Completion Pack", purpose: "Gives the owner the tax invoice, dispute information, instructions, contacts and five-year warranty.", signer: "Electronic delivery evidence", timing: "On completion", blocks: "AP review", source: "Current approved completion documents" },
-] as const;
+import { COMPLIANCE_TEMPLATE_KEYS as KEYS, ACTIVITY_48_FORMS } from "@/lib/template-catalog";
 
 function Compliance() {
   const list = useServerFn(listComplianceTemplates);
   const { data = [] } = useQuery({ queryKey: ["compliance_templates"], queryFn: () => list() });
   const add = useAction(addComplianceTemplate);
   const approve = useAction(approveComplianceTemplate);
-  const [key, setKey] = useState<(typeof KEYS)[number][0]>("consumer_rights");
+  const { key: initialKey } = Route.useSearch();
+  const [key, setKey] = useState<(typeof KEYS)[number][0]>((initialKey as (typeof KEYS)[number][0] | undefined) ?? "consumer_rights");
   const [version, setVersion] = useState("");
   const [body, setBody] = useState("");
   const [note, setNote] = useState("");

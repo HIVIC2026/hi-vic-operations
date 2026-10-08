@@ -177,3 +177,9 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Reverse only unrelated recovery hunks; restore presentation guard.
 - [x] Correct evidence applicability, purpose-specific current communication, source scope, deadlines, quote handoff, sending locks and eligibility/ineligibility labels.
 - [x] Mocked loader regressions + SELECT-only schema/count validation; update status and rollback proof.
+
+## Phase 2 — Templates hub + preview flags (8 Oct)
+- [x] Spot saved / Photos-videos to review preview filters
+- [x] /admin/templates hub (Email / Mitti / Compliance) + Templates heading
+- [x] Focused tests, isolated browser checks, docs
+- [ ] Authenticated admin + non-admin browser check — blocked: TEST admin session needs user approval

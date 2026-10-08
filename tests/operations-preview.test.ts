@@ -169,3 +169,26 @@ describe("isolated operations presentation", () => {
     }
   });
 });
+describe("preview cross-cutting flags (phase 2)", () => {
+  const saved = { spotSavedAt: "2026-09-01T00:00:00Z", optedOutAt: null, videoRequested: false, mediaReceivedAt: null, deskCheckStatus: null, createdAt: "2026-09-01T00:00:00Z" };
+  test("Spot saved covers saved leads even when media review is the current stage, without changing stage totals", () => {
+    const a = fixture("s1"); a.facts.campaign = { ...saved };
+    const b = fixture("s2", { insulation: "some", mediaCount: 2 }); b.facts.campaign = { ...saved };
+    const c = fixture("s3", { actualHandoff: true }); c.facts.campaign = { ...saved };
+    const d = fixture("s4");
+    const p = buildOperationsPreview([a, b, c, d], [], now);
+    const rb = p.rows.find((r) => r.id === "s2")!;
+    expect(rb.process).toBe("Insulation review");
+    expect(rb.spotSavedOpen).toBe(true);
+    expect(p.rows.find((r) => r.id === "s3")!.spotSavedOpen).toBe(false);
+    expect(p.flags.spotSaved).toBe(2);
+    expect(p.flags.mediaToReview).toBe(1);
+    expect(p.reconciliation.stageSum).toBe(4);
+  });
+  test("reviewed media and opted-out spots are not flagged", () => {
+    const a = fixture("m1", { insulation: "some", mediaCount: 3, mediaReview: "below_r2" });
+    const b = fixture("m2"); b.facts.campaign = { ...saved, optedOutAt: "2026-09-02T00:00:00Z" };
+    const p = buildOperationsPreview([a, b], [], now);
+    expect(p.flags).toEqual({ spotSaved: 0, mediaToReview: 0 });
+  });
+});

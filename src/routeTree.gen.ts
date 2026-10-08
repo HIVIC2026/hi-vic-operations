@@ -55,6 +55,7 @@ import { Route as AuthenticatedAdminPartnersOverviewRouteImport } from './routes
 import { Route as AuthenticatedAdminPipelineRouteImport } from './routes/_authenticated/admin.pipeline'
 import { Route as AuthenticatedAdminPricingRouteImport } from './routes/_authenticated/admin.pricing'
 import { Route as AuthenticatedAdminTeamUpsRouteImport } from './routes/_authenticated/admin.team-ups'
+import { Route as AuthenticatedAdminTemplatesRouteImport } from './routes/_authenticated/admin.templates'
 import { Route as AuthenticatedAdminTestCentreRouteImport } from './routes/_authenticated/admin.test-centre'
 import { Route as AuthenticatedAdminTodayRouteImport } from './routes/_authenticated/admin.today'
 import { Route as AuthenticatedAdminTodoRouteImport } from './routes/_authenticated/admin.todo'
@@ -350,6 +351,12 @@ const AuthenticatedAdminTeamUpsRoute =
   AuthenticatedAdminTeamUpsRouteImport.update({
     id: '/team-ups',
     path: '/team-ups',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminTemplatesRoute =
+  AuthenticatedAdminTemplatesRouteImport.update({
+    id: '/templates',
+    path: '/templates',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminTestCentreRoute =
@@ -663,6 +670,7 @@ export interface FileRoutesByFullPath {
   '/admin/pipeline': typeof AuthenticatedAdminPipelineRoute
   '/admin/pricing': typeof AuthenticatedAdminPricingRoute
   '/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
+  '/admin/templates': typeof AuthenticatedAdminTemplatesRoute
   '/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
   '/admin/today': typeof AuthenticatedAdminTodayRoute
   '/admin/todo': typeof AuthenticatedAdminTodoRoute
@@ -754,6 +762,7 @@ export interface FileRoutesByTo {
   '/admin/pipeline': typeof AuthenticatedAdminPipelineRoute
   '/admin/pricing': typeof AuthenticatedAdminPricingRoute
   '/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
+  '/admin/templates': typeof AuthenticatedAdminTemplatesRoute
   '/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
   '/admin/today': typeof AuthenticatedAdminTodayRoute
   '/admin/todo': typeof AuthenticatedAdminTodoRoute
@@ -851,6 +860,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/pipeline': typeof AuthenticatedAdminPipelineRoute
   '/_authenticated/admin/pricing': typeof AuthenticatedAdminPricingRoute
   '/_authenticated/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
+  '/_authenticated/admin/templates': typeof AuthenticatedAdminTemplatesRoute
   '/_authenticated/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
   '/_authenticated/admin/today': typeof AuthenticatedAdminTodayRoute
   '/_authenticated/admin/todo': typeof AuthenticatedAdminTodoRoute
@@ -948,6 +958,7 @@ export interface FileRouteTypes {
     | '/admin/pipeline'
     | '/admin/pricing'
     | '/admin/team-ups'
+    | '/admin/templates'
     | '/admin/test-centre'
     | '/admin/today'
     | '/admin/todo'
@@ -1039,6 +1050,7 @@ export interface FileRouteTypes {
     | '/admin/pipeline'
     | '/admin/pricing'
     | '/admin/team-ups'
+    | '/admin/templates'
     | '/admin/test-centre'
     | '/admin/today'
     | '/admin/todo'
@@ -1135,6 +1147,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/pipeline'
     | '/_authenticated/admin/pricing'
     | '/_authenticated/admin/team-ups'
+    | '/_authenticated/admin/templates'
     | '/_authenticated/admin/test-centre'
     | '/_authenticated/admin/today'
     | '/_authenticated/admin/todo'
@@ -1550,6 +1563,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminTeamUpsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/templates': {
+      id: '/_authenticated/admin/templates'
+      path: '/templates'
+      fullPath: '/admin/templates'
+      preLoaderRoute: typeof AuthenticatedAdminTemplatesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/test-centre': {
       id: '/_authenticated/admin/test-centre'
       path: '/test-centre'
@@ -1911,6 +1931,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminPipelineRoute: typeof AuthenticatedAdminPipelineRoute
   AuthenticatedAdminPricingRoute: typeof AuthenticatedAdminPricingRoute
   AuthenticatedAdminTeamUpsRoute: typeof AuthenticatedAdminTeamUpsRoute
+  AuthenticatedAdminTemplatesRoute: typeof AuthenticatedAdminTemplatesRoute
   AuthenticatedAdminTestCentreRoute: typeof AuthenticatedAdminTestCentreRoute
   AuthenticatedAdminTodayRoute: typeof AuthenticatedAdminTodayRoute
   AuthenticatedAdminTodoRoute: typeof AuthenticatedAdminTodoRoute
@@ -1946,6 +1967,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminPipelineRoute: AuthenticatedAdminPipelineRoute,
   AuthenticatedAdminPricingRoute: AuthenticatedAdminPricingRoute,
   AuthenticatedAdminTeamUpsRoute: AuthenticatedAdminTeamUpsRoute,
+  AuthenticatedAdminTemplatesRoute: AuthenticatedAdminTemplatesRoute,
   AuthenticatedAdminTestCentreRoute: AuthenticatedAdminTestCentreRoute,
   AuthenticatedAdminTodayRoute: AuthenticatedAdminTodayRoute,
   AuthenticatedAdminTodoRoute: AuthenticatedAdminTodoRoute,

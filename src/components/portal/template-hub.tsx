@@ -1,0 +1,223 @@
+import { Link, useNavigate } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { ArrowUpRight, Download } from "lucide-react";
+import { Btn, Pill, btnClass, fieldInput } from "./kit";
+import { MittiFormCard } from "./mitti-forms";
+import { useAction } from "@/hooks/use-me";
+import { cn } from "@/lib/utils";
+import { TEMPLATE_CATEGORIES, entriesFor, registerFor, selectTemplate, type TemplateCategory, type TemplateEntry } from "@/lib/template-hub.core";
+import { ACTIVITY_48_FORMS, MITTI_FORM_ORDER } from "@/lib/template-catalog";
+import { samples } from "@/lib/step3-email-samples";
+import { PARTNER_TEMPLATES, renderPartnerTemplate } from "@/lib/partner-templates";
+import { partnerWelcomeEmail } from "@/lib/partner-email.core";
+import { changesEmail, declineEmail } from "@/lib/application-review.core";
+import { partnerLoginEmail } from "@/lib/partner-login-email.core";
+import { FORMS } from "@/lib/mitti-forms.core";
+import { listCustomerCommunicationTemplates } from "@/lib/customer-communications.functions";
+import { approveComplianceTemplate, listComplianceTemplates } from "@/lib/portal.functions";
+import { getMittiForms } from "@/lib/mitti-forms.functions";
+import { paperworkCatalogueFn } from "@/lib/owner-gates.functions";
+import { parseFormFields } from "@/lib/assignment.core";
+
+const SAMPLE_LINK = "https://estimate.homeinsulationvictoria.com.au/portal";
+
+export function TemplatesHub({ cat, t }: { cat: TemplateCategory; t?: string }) {
+  const navigate = useNavigate();
+  const list = entriesFor(cat);
+  const selected = selectTemplate(cat, t);
+  const choose = (id: string) => navigate({ to: "/admin/templates", search: { cat, t: id }, replace: true });
+  const groups = [...new Set(list.map((e) => e.group))];
+  return (
+    <div>
+      <header className="mb-4"><h1 className="font-display text-[26px] font-bold leading-tight">Templates</h1><p className="mt-1 text-sm text-sub">Every email, Mitti form and compliance wording in one place. Viewing here never sends, saves or connects anything.</p></header>
+      <nav aria-label="Template categories" className="mb-4 flex gap-1 border-b border-line">
+        {TEMPLATE_CATEGORIES.map((c) => <Link key={c.key} to="/admin/templates" search={{ cat: c.key }} aria-current={c.key === cat ? "page" : undefined} className={cn("-mb-px border-b-2 px-3 py-2 text-sm font-semibold", c.key === cat ? "border-hiv-blue text-ink" : "border-transparent text-sub hover:text-ink")}>{c.label} <span className="text-xs font-normal text-sub">{entriesFor(c.key).length}</span></Link>)}
+      </nav>
+      <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <div>
+          <label className="block lg:hidden"><span className="sr-only">Choose a template</span>
+            <select aria-label="Choose a template" className={fieldInput} value={selected.id} onChange={(e) => choose(e.target.value)}>
+              {groups.map((g) => <optgroup key={g} label={g}>{list.filter((e) => e.group === g).map((e) => <option key={e.id} value={e.id}>{e.title}</option>)}</optgroup>)}
+            </select>
+          </label>
+          <div className="hidden space-y-3 lg:block" role="listbox" aria-label="Templates">
+            {groups.map((g) => <div key={g}><p className="px-2 pb-1 text-[11px] font-bold uppercase text-sub">{g}</p>
+              {list.filter((e) => e.group === g).map((e) => <button key={e.id} type="button" role="option" aria-selected={e.id === selected.id} onClick={() => choose(e.id)} className={cn("block w-full rounded-[8px] px-2 py-1.5 text-left text-sm", e.id === selected.id ? "bg-mist font-semibold text-ink" : "text-sub hover:bg-mist/60 hover:text-ink")}>{e.title}</button>)}
+            </div>)}
+          </div>
+        </div>
+        <section aria-label="Selected template" className="min-w-0"><TemplateDetail key={selected.id} entry={selected} /></section>
+      </div>
+    </div>
+  );
+}
+
+function Facts({ entry }: { entry: TemplateEntry }) {
+  return (
+    <div className="rounded-[14px] border border-line bg-paper p-4">
+      <p className="text-[11px] font-bold uppercase text-hiv-blue">{entry.group}</p>
+      <h2 className="font-display text-xl font-bold">{entry.title}</h2>
+      <p className="mt-1 text-sm text-sub">{entry.purpose}</p>
+      <dl className="mt-3 grid grid-cols-[110px_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm">
+        <dt className="text-sub">Audience / signer</dt><dd>{entry.audience}</dd>
+        <dt className="text-sub">When used</dt><dd>{entry.trigger}</dd>
+        <dt className="text-sub">Approval</dt><dd>{entry.approval}</dd>
+      </dl>
+    </div>
+  );
+}
+
+function TemplateDetail({ entry }: { entry: TemplateEntry }) {
+  const v = entry.view;
+  return (
+    <div className="space-y-4">
+      <Facts entry={entry} />
+      {v.kind === "sample_email" && <HtmlEmail subject={samples[v.sample].subject} preview={samples[v.sample].previewText} html={samples[v.sample].html} note="Sample values only. Same renderer as every real send." original={{ href: "/step3-email-preview", label: "Open full email preview page" }} />}
+      {v.kind === "partner_invitation" && <PartnerInvitation templateKey={v.templateKey} />}
+      {v.kind === "partner_email" && <PartnerEmail email={v.email} />}
+      {v.kind === "plain_email" && <PlainEmail />}
+      {v.kind === "review_only" && <p className="rounded-[14px] border border-line bg-paper p-4 text-sm text-sub">No preview built — wording needs drafting and approval.</p>}
+      {v.kind === "open_original" && <div className="rounded-[14px] border border-line bg-paper p-4 text-sm"><p className="text-sub">Preview uses the saved campaign wording, so it is shown in its original tool.</p><Link to={v.to} className={cn(btnClass("secondary"), "mt-3")}>{v.label}<ArrowUpRight className="h-4 w-4" /></Link></div>}
+      {entry.reviewKey && <ReviewVersions reviewKey={entry.reviewKey} />}
+      {v.kind === "mitti" && <MittiDetail formKey={v.formKey} />}
+      {v.kind === "compliance_template" && <ComplianceVersions templateKey={v.templateKey} />}
+      {v.kind === "register" && <RegisterDetail index={v.index} mitti={v.mitti} />}
+      {v.kind === "owner_paperwork" && <OwnerPaperwork gate={v.gate} />}
+    </div>
+  );
+}
+
+function HtmlEmail({ subject, preview, html, note, original }: { subject: string; preview?: string; html: string; note: string; original?: { href: string; label: string } }) {
+  return (
+    <div className="rounded-[14px] border border-line bg-paper p-4">
+      <p className="text-sm"><b>Subject:</b> {subject}</p>
+      {preview && <p className="mt-1 text-sm"><b>Preheader:</b> {preview}</p>}
+      <p className="mt-1 text-xs text-sub">{note} Links are disabled in this preview.</p>
+      {original && <a href={original.href} target="_blank" rel="noopener" className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-hiv-blue hover:underline">{original.label}<ArrowUpRight className="h-4 w-4" /></a>}
+      <iframe title={`${subject} preview`} srcDoc={html} sandbox="" className="mt-3 h-[70vh] min-h-[480px] w-full rounded-[10px] border border-line bg-paper" />
+    </div>
+  );
+}
+
+function PartnerInvitation({ templateKey }: { templateKey: string }) {
+  const t = PARTNER_TEMPLATES.find((p) => p.key === templateKey)!;
+  return (
+    <div className="space-y-2">
+      <Btn tone="secondary" onClick={() => {
+        const url = URL.createObjectURL(new Blob([renderPartnerTemplate(t)], { type: "text/html;charset=utf-8" }));
+        const a = document.createElement("a"); a.href = url; a.download = t.fileName; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }}><Download className="h-4 w-4" />Download HTML template</Btn>
+      <HtmlEmail subject={t.subject} html={renderPartnerTemplate(t)} note={`Exact stored HTML. Registration link: ${t.registrationUrl}.`} />
+    </div>
+  );
+}
+
+function PartnerEmail({ email }: { email: "welcome" | "changes" | "decline" }) {
+  const m = email === "welcome" ? partnerWelcomeEmail({ firstName: "Alex", businessName: "Sample Insulation Co", trade: "installer", email: "alex@example.com", link: SAMPLE_LINK, test: false })
+    : email === "changes" ? changesEmail({ contactName: "Alex Sample", message: "[The office's typed message appears here]", link: SAMPLE_LINK, test: false })
+    : declineEmail({ contactName: "Alex Sample", reason: null, test: false });
+  return <HtmlEmail subject={m.subject} html={m.html} note="Sample names only. Same builder as the real send." />;
+}
+
+function PlainEmail() {
+  const m = partnerLoginEmail(null, SAMPLE_LINK);
+  return <div className="rounded-[14px] border border-line bg-paper p-4"><p className="text-sm"><b>Subject:</b> {m.subject}</p><p className="mt-1 text-xs text-sub">Plain-text email. Sample link only.</p><pre className="mt-3 whitespace-pre-wrap rounded-[10px] bg-mist p-3 font-sans text-sm">{m.message}</pre></div>;
+}
+
+function ReviewVersions({ reviewKey }: { reviewKey: string }) {
+  const list = useServerFn(listCustomerCommunicationTemplates);
+  const q = useQuery({ queryKey: ["customer-communication-templates"], queryFn: () => list() });
+  const rows = (q.data ?? []).filter((r) => r.template_key === reviewKey);
+  return (
+    <div className="rounded-[14px] border border-line bg-paper p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">Stored review versions</h3><Link to="/admin/communications" search={{ key: reviewKey }} className={btnClass("secondary")}>Create or approve in Customer communications<ArrowUpRight className="h-4 w-4" /></Link></div>
+      {q.isError ? <p role="alert" className="mt-2 text-sm text-rose">Versions could not load: {q.error instanceof Error ? q.error.message : "read failed"}</p>
+        : q.isLoading ? <p className="mt-2 text-sm text-sub">Loading versions…</p>
+        : rows.length === 0 ? <p className="mt-2 text-sm text-sub">No review version saved.</p>
+        : <ul className="mt-2 space-y-1 text-sm">{rows.map((r) => <li key={r.id} className="flex flex-wrap items-center gap-2"><b>{r.version}</b><Pill tone={r.status === "approved" ? "green" : r.status === "draft" ? "amber" : "plain"}>{r.status}</Pill><span className="min-w-0 break-words text-sub">{r.subject}</span></li>)}</ul>}
+    </div>
+  );
+}
+
+function useMittiIds() {
+  const get = useServerFn(getMittiForms);
+  return useQuery({ queryKey: ["mitti_forms"], queryFn: () => get() });
+}
+
+function MittiDetail({ formKey }: { formKey: keyof typeof FORMS }) {
+  const q = useMittiIds();
+  const id = q.data?.[formKey] ?? null;
+  return (
+    <div className="space-y-3">
+      <dl className="grid grid-cols-[150px_minmax(0,1fr)] gap-x-3 gap-y-1 rounded-[14px] border border-line bg-paper p-4 text-sm">
+        <dt className="text-sub">Template version</dt><dd>Portal build sheet · {FORMS[formKey].fields.length} required questions (no version number stored)</dd>
+        <dt className="text-sub">Connection</dt><dd>{q.isError ? <span className="text-rose">Settings could not load</span> : q.isLoading ? "Loading…" : id ? `Form ID saved in settings: ${id}` : "Not connected"}</dd>
+        <dt className="text-sub">Live health</dt><dd>Not checked here. "Check &amp; connect" contacts Mitti only when you press it.</dd>
+      </dl>
+      {q.data && <MittiFormCard formKey={formKey} connected={id} />}
+    </div>
+  );
+}
+
+function ComplianceVersions({ templateKey }: { templateKey: string }) {
+  const list = useServerFn(listComplianceTemplates);
+  const approve = useAction(approveComplianceTemplate);
+  const q = useQuery({ queryKey: ["compliance_templates"], queryFn: () => list() });
+  const rows = (q.data ?? []).filter((r) => r.template_key === templateKey);
+  const reg = registerFor(templateKey);
+  return (
+    <div className="space-y-3">
+      {reg && <p className="rounded-[14px] border border-line bg-paper p-4 text-sm"><b>Blocks:</b> {reg.blocks} · <b>Source:</b> {reg.source}</p>}
+      <div className="rounded-[14px] border border-line bg-paper p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">Versions</h3><Link to="/admin/compliance" search={{ key: templateKey }} className={btnClass("secondary")}>Add a new version<ArrowUpRight className="h-4 w-4" /></Link></div>
+        <p className="mt-1 text-xs text-sub">Approved versions can't be edited — add a new version instead.</p>
+        {q.isError ? <p role="alert" className="mt-2 text-sm text-rose">Versions could not load.</p>
+          : q.isLoading ? <p className="mt-2 text-sm text-sub">Loading versions…</p>
+          : rows.length === 0 ? <p className="mt-2 text-sm text-rose">Not configured</p>
+          : <ul className="mt-2 space-y-2">{rows.map((r) => <li key={r.id} className="rounded-[10px] border border-line p-3 text-sm">
+            <div className="flex flex-wrap items-center gap-2"><b>{r.version}</b>{r.is_active ? <Pill tone="green">Active</Pill> : r.approved ? <Pill>Superseded</Pill> : <Pill tone="amber">Draft</Pill>}
+              {!r.approved && <Btn className="ml-auto min-h-9 px-3 py-1 text-xs" onClick={() => void approve({ id: r.id }, "Approved and activated")}>Approve &amp; activate</Btn>}</div>
+            {r.source_note && <p className="mt-1 text-xs text-sub">{r.source_note}</p>}
+            <details className="mt-1"><summary className="cursor-pointer text-xs text-hiv-blue">Official wording</summary><pre className="mt-1 max-h-96 overflow-auto whitespace-pre-wrap text-xs">{r.body}</pre></details>
+            {parseFormFields(r.form_fields).length > 0 && <p className="mt-1 text-xs">Form fields: {parseFormFields(r.form_fields).map((f) => `${f.label}${f.required ? "*" : ""}`).join(", ")}</p>}
+          </li>)}</ul>}
+      </div>
+    </div>
+  );
+}
+
+function RegisterDetail({ index, mitti }: { index: number; mitti: (keyof typeof FORMS)[] }) {
+  const f = ACTIVITY_48_FORMS[index]!;
+  const q = useMittiIds();
+  return (
+    <div className="rounded-[14px] border border-line bg-paper p-4 text-sm">
+      <dl className="grid grid-cols-[110px_minmax(0,1fr)] gap-x-3 gap-y-1">
+        <dt className="text-sub">Blocks</dt><dd>{f.blocks}</dd><dt className="text-sub">Source</dt><dd>{f.source}</dd>
+        <dt className="text-sub">Retention</dt><dd>Permanent job record; keep Activity 48 records for six years after registration.</dd>
+      </dl>
+      {"pdf" in f && <a className="mt-3 inline-flex items-center gap-1 font-semibold text-hiv-blue hover:underline" href={f.pdf} target="_blank" rel="noreferrer">Open official form (read-only)<ArrowUpRight className="h-4 w-4" /></a>}
+      {mitti.length > 0 && <div className="mt-3 border-t border-line pt-3"><p className="text-xs text-sub">Completed through the connected Mitti form — not a separate editable copy:</p>
+        <ul className="mt-1 space-y-1">{mitti.map((k) => { const o = MITTI_FORM_ORDER.find((m) => m.key === k)!; return <li key={k} className="flex flex-wrap items-center gap-2"><Link to="/admin/templates" search={{ cat: "mitti", t: `mitti:${k}` }} className="font-semibold text-hiv-blue hover:underline">Mitti {o.letter} · {o.forWho}</Link>{q.data ? (q.data[k] ? <Pill tone="green">ID saved</Pill> : <Pill tone="amber">Not connected</Pill>) : null}</li>; })}</ul></div>}
+    </div>
+  );
+}
+
+type Doc = { key: string; gate: string; title: string; version: string; status: string; approvedBy: string | null; approvedAt: string | null; managedIn: string; templateId: string | null };
+function OwnerPaperwork({ gate }: { gate: string }) {
+  const load = useServerFn(paperworkCatalogueFn);
+  const q = useQuery({ queryKey: ["paperwork-catalogue"], queryFn: () => load() });
+  const docs = ((q.data?.docs ?? []) as Doc[]).filter((d) => d.gate === gate);
+  const bodies = (q.data?.bodies ?? {}) as Record<string, string>;
+  return (
+    <div className="rounded-[14px] border border-line bg-paper p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">Documents</h3><Link to="/admin/owner-paperwork" className={btnClass("secondary")}>Approve in Owner paperwork<ArrowUpRight className="h-4 w-4" /></Link></div>
+      {q.isError ? <p role="alert" className="mt-2 text-sm text-rose">Owner paperwork could not load.</p> : q.isLoading ? <p className="mt-2 text-sm text-sub">Loading…</p> : docs.length === 0 ? <p className="mt-2 text-sm text-sub">No documents recorded for this gate.</p> :
+        <ul className="mt-2 divide-y divide-line">{docs.map((d) => <li key={d.key} className="py-2 text-sm">
+          <div className="flex flex-wrap items-center gap-2"><b>{d.title}</b><span className="text-sub">{d.version}</span><Pill tone={d.status === "Approved" ? "green" : "rose"}>{d.status}</Pill>{d.approvedBy && <span className="text-xs text-sub">{d.approvedBy}{d.approvedAt ? `, ${d.approvedAt.slice(0, 10)}` : ""}</span>}</div>
+          {d.managedIn === "Templates" ? <Link to="/admin/templates" search={{ cat: "compliance", t: `compliance:${d.key}` }} className="mt-1 inline-block text-xs font-semibold text-hiv-blue hover:underline">Wording is managed in the versioned template →</Link>
+            : bodies[d.key] ? <details className="mt-1"><summary className="cursor-pointer text-xs text-hiv-blue">Wording</summary><pre className="mt-1 max-h-80 overflow-auto whitespace-pre-wrap text-xs">{bodies[d.key]}</pre></details> : null}
+        </li>)}</ul>}
+    </div>
+  );
+}

@@ -1,3 +1,7 @@
+## Templates hub + preview flags (phase 2) — 8 October 2026
+- `/admin/templates` (Email / Mitti / Compliance) under one office heading "Templates"; preview gains Spot saved and Photos/videos to review filters. Details, checks, rollback: `docs/TEMPLATES_HUB_PHASE2.md`.
+- Verified: 71 focused tests, typecheck/build OK, retired-term scan 0 customer-visible, isolated desktop/phone browser fixtures, signed-out redirects. NOT verified: authenticated admin load and non-admin denial in a browser (TEST admin session needs user approval). Automation is not all ready; no sends, writes or publishing.
+
 # Home Insulation Victoria portal status
 
 Updated: 5 October 2026

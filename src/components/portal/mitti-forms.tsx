@@ -8,45 +8,42 @@ import { Pill } from "@/components/portal/badges";
 import { FORMS, buildSheet, type FormKey } from "@/lib/mitti-forms.core";
 import { connectMittiForm, getMittiForms } from "@/lib/mitti-forms.functions";
 
-const ORDER: { key: FormKey; letter: string; forWho: string; who: string }[] = [
-  { key: "ready_check", letter: "A2", forWho: "For a customer WE brought you", who: "Installer · free Ready Check on a Home Insulation Victoria lead (no price)" },
-  { key: "ready_check_priced", letter: "A1", forWho: "For a customer THE INSTALLER brought", who: "Installer · free Ready Check on their own customer (with quoted price)" },
-  { key: "piesa", letter: "B", forWho: "For every job that needs electrical work", who: "Licensed electrician · official DEECA PIESA" },
-  { key: "piisa", letter: "C", forWho: "For every installation", who: "Lead installer · official DEECA PIISA on install day" },
-];
+import { MITTI_FORM_ORDER as ORDER } from "@/lib/template-catalog";
 
 export function MittiFormsSection() {
   const get = useServerFn(getMittiForms);
-  const connect = useServerFn(connectMittiForm);
-  const qc = useQueryClient();
   const { data: ids } = useQuery({ queryKey: ["mitti_forms"], queryFn: () => get() });
-  const [draft, setDraft] = useState<Record<string, string>>({});
-  const [result, setResult] = useState<Record<string, { ok: boolean; issues: string[] }>>({});
-  const [open, setOpen] = useState<FormKey | null>(null);
-  const [busy, setBusy] = useState<FormKey | null>(null);
   return (
     <section className="my-6">
       <div className="mb-1 flex items-center gap-2"><ClipboardList className="h-5 w-5 text-primary" /><h2 className="text-xl font-bold">Mitti forms</h2></div>
       <p className="mb-3 text-sm text-muted-foreground">Build each form in Mitti using its build sheet, then paste its ID here. The portal checks every required question before connecting it, and nothing is sent automatically.</p>
-      <div className="grid gap-3 lg:grid-cols-2">{ORDER.map(({ key, letter, forWho, who }) => {
-        const connected = ids?.[key];
-        const r = result[key];
-        return (
-          <article key={key} className="rounded-md border bg-card p-4 shadow-sm">
-            <div className="flex items-start justify-between gap-2"><div><p className="text-[11px] font-bold uppercase tracking-wide text-primary">{letter} · {forWho}</p><h3 className="font-bold">{FORMS[key].title}</h3></div>{connected ? <Pill t="good">Connected</Pill> : <Pill t="warn">Not connected</Pill>}</div>
-            <p className="mt-1 text-xs text-muted-foreground">{who} · {FORMS[key].fields.length} questions</p>
-            <Button variant="outline" size="sm" className="mt-3" onClick={() => setOpen(open === key ? null : key)}>{open === key ? "Hide build sheet" : "View build sheet"}</Button>
-            {open === key && <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap rounded bg-muted p-2 text-xs">{buildSheet(key)}</pre>}
-            <div className="mt-3 flex gap-2"><Input placeholder="template_…" value={draft[key] ?? connected ?? ""} onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} /><Button size="sm" disabled={busy === key} onClick={async () => {
-              setBusy(key);
-              try { const res = await connect({ data: { key, templateId: (draft[key] ?? "").trim() } }); setResult({ ...result, [key]: res }); qc.invalidateQueries({ queryKey: ["mitti_forms"] }); }
-              catch (e) { setResult({ ...result, [key]: { ok: false, issues: [e instanceof Error ? e.message : "Could not check this form."] } }); }
-              finally { setBusy(null); }
-            }}>Check &amp; connect</Button></div>
-            {r && (r.ok ? <p className="mt-2 text-sm font-semibold text-success">All required questions found. Form connected.</p> : <ul className="mt-2 list-disc pl-5 text-xs text-destructive">{r.issues.slice(0, 12).map((i) => <li key={i}>{i}</li>)}{r.issues.length > 12 && <li>…and {r.issues.length - 12} more</li>}</ul>)}
-          </article>
-        );
-      })}</div>
+      <div className="grid gap-3 lg:grid-cols-2">{ORDER.map(({ key }) => <MittiFormCard key={key} formKey={key} connected={ids?.[key] ?? null} />)}</div>
     </section>
+  );
+}
+
+/** One Mitti form card. "Check & connect" only runs when the office presses it (it calls Mitti). */
+export function MittiFormCard({ formKey: key, connected }: { formKey: FormKey; connected: string | null }) {
+  const connect = useServerFn(connectMittiForm);
+  const qc = useQueryClient();
+  const meta = ORDER.find((o) => o.key === key)!;
+  const [draft, setDraft] = useState<string | undefined>(undefined);
+  const [r, setResult] = useState<{ ok: boolean; issues: string[] } | null>(null);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  return (
+    <article className="rounded-md border bg-card p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-2"><div><p className="text-[11px] font-bold uppercase tracking-wide text-primary">{meta.letter} · {meta.forWho}</p><h3 className="font-bold">{FORMS[key].title}</h3></div>{connected ? <Pill t="good">Connected</Pill> : <Pill t="warn">Not connected</Pill>}</div>
+      <p className="mt-1 text-xs text-muted-foreground">{meta.who} · {FORMS[key].fields.length} questions</p>
+      <Button variant="outline" size="sm" className="mt-3" onClick={() => setOpen(!open)}>{open ? "Hide build sheet" : "View build sheet"}</Button>
+      {open && <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap rounded bg-muted p-2 text-xs">{buildSheet(key)}</pre>}
+      <div className="mt-3 flex gap-2"><Input aria-label={`${meta.letter} Mitti form ID`} placeholder="template_…" value={draft ?? connected ?? ""} onChange={(e) => setDraft(e.target.value)} /><Button size="sm" disabled={busy} onClick={async () => {
+        setBusy(true);
+        try { const res = await connect({ data: { key, templateId: (draft ?? "").trim() } }); setResult(res); qc.invalidateQueries({ queryKey: ["mitti_forms"] }); }
+        catch (e) { setResult({ ok: false, issues: [e instanceof Error ? e.message : "Could not check this form."] }); }
+        finally { setBusy(false); }
+      }}>Check &amp; connect</Button></div>
+      {r && (r.ok ? <p className="mt-2 text-sm font-semibold text-success">All required questions found. Form connected.</p> : <ul className="mt-2 list-disc pl-5 text-xs text-destructive">{r.issues.slice(0, 12).map((i) => <li key={i}>{i}</li>)}{r.issues.length > 12 && <li>…and {r.issues.length - 12} more</li>}</ul>)}
+    </article>
   );
 }
