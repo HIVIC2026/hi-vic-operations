@@ -36,4 +36,6 @@ test("repeat empty sync retains pending attachments; legacy uncertainty survives
   const legacy = retainOriginalMedia({answers:{media_choice:"no"}},buildBase44Raw({media:[]}));
   expect(originalEnquiryMedia(legacy,[])).toMatchObject({excluded:true,uncertain:true});
   expect(originalEnquiryMedia(retainOriginalMedia(legacy,buildBase44Raw({media:[]})),[]).excluded).toBe(true);
+  const rawRef = retainOriginalMedia({answers:{photos:["https://example.test/original.jpg"]}},buildBase44Raw({media:[],base44_answers:{media_choice:"no"}}));
+  expect(originalEnquiryMedia(rawRef,[])).toMatchObject({received:true,pendingSync:true,excluded:true});
 });

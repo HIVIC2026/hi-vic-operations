@@ -183,7 +183,13 @@ export function retainOriginalMedia(previous: unknown, current: ReturnType<typeo
   const prior = Array.isArray(old?.['media']) ? old['media'] as { source_id: string; name: string; mime_type: string }[] : [];
   const media = [...new Map([...prior, ...(current.media ?? [])].map((m) => [m.source_id, m])).values()];
   const uncertain = !!old && (!Array.isArray(old['media']) || old['original_media_manifest_uncertain'] === true);
-  return { ...current, ...(prior.length || Array.isArray(current.media) || Array.isArray(old?.['media']) ? { media } : {}), ...(uncertain ? { original_media_manifest_uncertain: true } : {}) };
+  const oldAnswers = old?.['answers'] && typeof old['answers'] === "object" && !Array.isArray(old['answers']) ? old['answers'] as Record<string, unknown> : {};
+  const originalReferences: Record<string, unknown> = {}, answerReferences: Record<string, unknown> = {};
+  for (const key of ["photos", "videos", "attachments", "uploaded_files", "uploaded_photos", "uploaded_videos"]) {
+    if (old && key in old) originalReferences[key] = old[key];
+    if (key in oldAnswers) answerReferences[key] = oldAnswers[key];
+  }
+  return { ...originalReferences, ...current, answers: { ...answerReferences, ...(current.answers ?? {}) }, ...(prior.length || Array.isArray(current.media) || Array.isArray(old?.['media']) ? { media } : {}), ...(uncertain ? { original_media_manifest_uncertain: true } : {}) };
 }
 
 /** Normalise a state code (VIC etc). Null when absent/blank. */
