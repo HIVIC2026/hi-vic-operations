@@ -7,6 +7,7 @@ const input = { jobId: "job", requirementId: "req", status: "verified", verified
 describe("actual products from human photo review", () => {
   test("only confirmed brand/model/R fills original Part 7", () => {
     expect(reviewedProductAnswers(input)).toEqual({ answers: { "p7.products": "Actual Brand | Actual Model | R5" }, blockers: [] });
+    expect(reviewedProductAnswers({ ...input, verifiedAt: "2026-10-08T20:33:00+00:00" }).blockers).toEqual([]);
   });
   test("quoted/summary product text is never verified actual product data", () => {
     expect(reviewedProductAnswers({ ...input, notes: "Quoted Brand R5" }).answers).toEqual({});

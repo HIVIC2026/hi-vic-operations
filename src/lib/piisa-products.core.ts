@@ -20,7 +20,7 @@ export function reviewedProductAnswers(input: { jobId: string; requirementId: st
   if (input.status !== "verified") return fail("The product label evidence needs current office review.");
   let review: ProductReview;
   try { review = JSON.parse(input.notes ?? ""); } catch { return fail("The office must confirm the actual brand, model and R-value from the product labels."); }
-  if (review?.kind !== "piisa_actual_products_v1" || review.jobId !== input.jobId || review.requirementId !== input.requirementId || review.reviewedBy !== input.verifiedBy || review.reviewedAt !== input.verifiedAt) return fail("The actual product review does not match this job's current evidence approval.");
+  if (review?.kind !== "piisa_actual_products_v1" || review.jobId !== input.jobId || review.requirementId !== input.requirementId || review.reviewedBy !== input.verifiedBy || !input.verifiedAt || Date.parse(review.reviewedAt) !== Date.parse(input.verifiedAt)) return fail("The actual product review does not match this job's current evidence approval.");
   try {
     const checked = prepareProductReview({ jobId: input.jobId, requirementId: input.requirementId, products: review.products, files: input.files, actor: review.reviewedBy, at: review.reviewedAt });
     if (checked.files !== review.files) return fail("Product label photos have changed; the office must review the actual products again.");
