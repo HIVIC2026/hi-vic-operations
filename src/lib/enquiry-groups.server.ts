@@ -17,8 +17,10 @@ import { formatPropertyAddress } from "./address";
 import { LAUNCH_CAMPAIGN } from "./launch-campaign.core";
 import {
   classifyEnquiry, enquiryStatus, contactExclusion, primaryByContact, propertyKey, contactKey, sendHolds, templateFor, AREA_LABEL, ASSUMED_REFERENCE_AREA_M2,
-  type EnquiryClass, type EnquiryStatus, type EnquiryGroup, type OtherReason, type StoredAudit,
+  type EnquiryClass, type EnquiryStatus, type EnquiryGroup, type OtherReason, type StoredAudit, type MediaReviewOutcome,
 } from "./enquiry-groups.core";
+
+const MEDIA_OUTCOMES: MediaReviewOutcome[] = ["below_r2", "over_r2", "unclear"];
 
 const PAGE = 1000;
 const CHUNK = 150;
