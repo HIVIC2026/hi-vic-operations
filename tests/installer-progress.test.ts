@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { installerProgress, installerTab, type ProgressFacts } from "../src/lib/installer-progress.core";
 
-const base: ProgressFacts = { coordination: "hivic_managed", quoted: "no", eligibility: "unresolved", quoteHeld: [], quoteStatus: "none", reconfirmationRequired: false, electricianPayer: "hivic", electricalCleared: false, installationCompleted: false, evidenceMissing: 0, evidenceApprovedAt: null, veecStatus: null, stage: "new_enquiry" };
+const base: ProgressFacts = { coordination: "hivic_managed", quoted: "no", eligibility: "unresolved", quoteHeld: [], quoteStatus: "none", reconfirmationRequired: false, electricianPayer: "hivic", electricalCleared: false, installationCompleted: false, quoteDelivery: "none", evidence: [], evidenceApprovedAt: null, veecStatus: null, stage: "new_enquiry" };
 const st = (f: ProgressFacts) => Object.fromEntries(installerProgress(f).steps.map((s) => [s.key, s.state]));
 
 describe("four next actions by coordination × quoted (eligibility pending)", () => {
