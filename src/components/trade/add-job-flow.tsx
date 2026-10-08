@@ -42,14 +42,12 @@ export function AddJobFlow({ businessId, initialMode, onExit }: { businessId: st
   // Job details, per mode — kept while moving back and forward.
   const [ex, setEx] = useState<ExistingDetails>({ area: "", method: "", amount: "", includes: "" });
   const [later, setLater] = useState<LaterDetails>({ date: "", manual: false, area: "", method: "", notes: "" });
-  const [siteDate, setSiteDate] = useState("");
   const [files, setFiles] = useState<AttachedFile[]>([]);
   const [fileText, setFileText] = useState("");
   const [fileNote, setFileNote] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [extraVals, setExtraVals] = useState<Record<string, string>>({});
   const [ticks, setTicks] = useState({ feeAwareness: false, belowR2: false, ownerAgreed: false });
-  const [notVisited, setNotVisited] = useState(false);
   const problemsRef = useRef<HTMLUListElement>(null);
 
   const getEl = useServerFn(bulkElectricianChoices), addEl = useServerFn(addBulkElectrician);
@@ -187,12 +185,6 @@ export function AddJobFlow({ businessId, initialMode, onExit }: { businessId: st
             }} onRemove={async (path) => { if (draft) { const r = await dropFile({ data: { importId: draft.id, path } }); setFiles(r.files); } else { setFiles((o) => o.filter((x) => x.path !== path)); setFileText(""); } setFileNote(null); }} />
             {fileNote && <p className="text-xs text-sub">{fileNote}</p>}
           </div>
-          {false && <div>
-            <Button size="field" className="h-auto min-h-12 w-full whitespace-normal" onClick={() => switchMode("onsite")}>I'm at the property — do the Ready Check now</Button>
-            <Button size="field" variant="outline" className="h-auto min-h-12 w-full whitespace-normal" onClick={() => switchMode("later")}>Book a Ready Check for later</Button>
-            <Button size="field" variant="ghost" className="h-auto min-h-12 w-full whitespace-normal" onClick={() => setNotVisited(true)}>I'll come back after I've visited</Button>
-            {notVisited && <p role="status" className="text-sm text-sub">Nothing has been saved. Come back to Add a job after your visit with the area, how it was measured and your quote.</p>}
-          </div>}
         </>}
         {mode !== "later" && plan && true && <ElectricianPicker value={plan} onChange={setPlan} note={false} approved={el?.approved ?? []} pending={el?.pending ?? []} onAdd={async (d) => { const r = await addEl({ data: { businessId, name: d.name, mobile: d.mobile, email: d.email, business: d.business } }); await refetch(); setPlan({ mode: "mine", ...(r.businessId ? { business_id: r.businessId } : { nomination_id: r.nominationId }) }); return { message: inviteResultMessage(r) }; }} />}
       </section>}
