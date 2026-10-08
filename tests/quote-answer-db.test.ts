@@ -55,7 +55,7 @@ mock.module("../src/lib/workflow.server", () => ({
 }));
 const { installerUpdateIntake, draftQuoteFromIntake } = await import("../src/lib/installer-intake.server");
 const { intakeQuoteAnswers } = await import("../src/lib/installer-intake.server");
-const { installerProgress } = await import("../src/lib/installer-progress.core");
+const { installerProgress, currentQuote } = await import("../src/lib/installer-progress.core");
 
 const JOB = "00000000-0000-0000-0000-00000000e101", BIZ = "00000000-0000-0000-0000-00000000b101", EL = "00000000-0000-0000-0000-00000000b201", U = "00000000-0000-0000-0000-00000000c101";
 const base = { areaM2: 142, insulation: "none" as const, quoteStatus: "have_quote" as const, quoteIncGst: 3450, includes: "R5.0 batts supply and install", proposedR: 5, files: [] };
@@ -136,7 +136,6 @@ describe("explicit measured-and-quoted answer", () => {
 
 describe("initial No, later current prepared draft (real rows)", () => {
   beforeEach(() => seed("hivic_organise"));
-  const { currentQuote } = await import("../src/lib/installer-progress.core");
   for (const coordination of ["hivic_managed", "self_managed"] as const) test(`${coordination}: draft outranks the old No answer`, async () => {
     await db.exec("update jobs set installer_quoted='no', installer_quoted_price_inc_gst=null, installer_price_includes=null");
     await db.query("insert into quotes (job_id, kind, status, release_state, release_hold_reason) values ($1,'installation','draft','held','Owner fee confirmation needed')", [JOB]);
