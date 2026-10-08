@@ -31,6 +31,14 @@ describe("Ready Check coverage", () => {
     const c = readyCheckCoverage({ ...full, areas: [{ ...full.areas[0], depthPhoto: false }] });
     expect(c.status).toBe("partial"); expect(c.missing).toEqual(["Main: depth photo with vertical ruler"]);
   });
+  it("below-R2.0 confirmation tick replaces the depth photo and R-value (Jo 8 Oct 2026)", () => {
+    const c = readyCheckCoverage({ ...full, areas: [{ ...full.areas[0], depthPhoto: false, rValue: null, belowR2Confirmed: true }] });
+    expect(c.status).toBe("complete"); expect(c.missing).toEqual([]);
+  });
+  it("the tick does not rescue a measured R2.0+ area", () => {
+    const c = readyCheckCoverage({ ...full, areas: [{ ...full.areas[0], depthPhoto: false, rValue: 2.5, belowR2Confirmed: true }] });
+    expect(c.hardFail.length).toBe(1);
+  });
   it("nothing supplied → book Ready Check", () => {
     const c = readyCheckCoverage({ areas: [] });
     expect(c.status).toBe("none");
