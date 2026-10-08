@@ -20,9 +20,15 @@ describe("Add job flow (Jo 8 Oct)", () => {
     expect(existingDetailsProblems(ex)).toEqual([]);
     expect(existingDetailsProblems({ ...ex, amount: "" })).toContain("Enter the quote amount inc GST");
   });
-  test("review requires owner-agreed, fee awareness and below-R2 ticks", () => {
-    expect(existingReviewProblems({ feeAwareness: false, belowR2: false, ownerAgreed: false })).toHaveLength(3);
+  test("previously agreed price is optional for already-visited intake", () => {
+    expect(existingReviewProblems({ feeAwareness: true, belowR2: true, ownerAgreed: false })).toEqual([]);
     expect(existingReviewProblems({ feeAwareness: true, belowR2: true, ownerAgreed: true })).toEqual([]);
+  });
+  test("fee awareness remains required without prior price agreement", () => {
+    expect(existingReviewProblems({ feeAwareness: false, belowR2: true, ownerAgreed: false })).toEqual(["Tick that the owner knows about the fees"]);
+  });
+  test("below-R2 confirmation remains required without prior price agreement", () => {
+    expect(existingReviewProblems({ feeAwareness: true, belowR2: false, ownerAgreed: false })).toEqual(["Tick that any existing insulation is below R2.0"]);
   });
   test("later job needs the booked date; manual area needs a method", () => {
     expect(laterDetailsProblems({ date: "", manual: false, area: "", method: "", notes: "" })).toContain("Enter the booked Ready Check date and time");

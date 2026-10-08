@@ -36,7 +36,6 @@ export function existingDetailsProblems(d: ExistingDetails): string[] {
 export type ExistingTicks = { feeAwareness: boolean; belowR2: boolean; ownerAgreed: boolean };
 export function existingReviewProblems(t: ExistingTicks): string[] {
   const out: string[] = [];
-  if (!t.ownerAgreed) out.push("Tick that the owner agreed to your quoted price");
   if (!t.feeAwareness) out.push("Tick that the owner knows about the fees");
   if (!t.belowR2) out.push("Tick that any existing insulation is below R2.0");
   return out;

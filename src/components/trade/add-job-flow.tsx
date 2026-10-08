@@ -200,7 +200,7 @@ export function AddJobFlow({ businessId, initialMode, onExit }: { businessId: st
         } />
         {mode === "existing" && draft && reviewItems(draft.extracted).some((i) => !HIDDEN_EXTRA.includes(i.key) && i.value != null) && <details className="rounded-[12px] bg-mist p-3"><summary className="cursor-pointer text-sm font-semibold">Other details found in your file</summary><div className="mt-2 grid gap-2">{reviewItems(draft.extracted).filter((i) => !HIDDEN_EXTRA.includes(i.key) && i.value != null).map((i) => <label key={i.key} className="block text-sm"><span className="text-sub">{i.label}{i.confidence === "uncertain" && <span className="ml-1 text-warning">please check</span>}</span><Input className="h-12" value={extraVals[i.key] ?? ""} onChange={(e) => setExtraVals({ ...extraVals, [i.key]: e.target.value })} /></label>)}</div></details>}
         {mode === "existing" && <div className="space-y-3 pt-1">
-          <Tick data="owner-agreed" checked={ticks.ownerAgreed} onChange={(c) => setTicks({ ...ticks, ownerAgreed: c })} label={OWNER_AGREED_TICK} />
+          <Tick data="owner-agreed" checked={ticks.ownerAgreed} onChange={(c) => setTicks({ ...ticks, ownerAgreed: c })} label={`${OWNER_AGREED_TICK} (optional)`} />
           <Tick data="owner-fee-awareness" checked={ticks.feeAwareness} onChange={(c) => setTicks({ ...ticks, feeAwareness: c })} label={OWNER_FEE_AWARENESS_TICK} />
           <Tick data="existing-below-r2" checked={ticks.belowR2} onChange={(c) => setTicks({ ...ticks, belowR2: c })} label="I confirm the existing insulation, if any, is below R2.0." />
           <p className="text-xs text-sub" data-safety-check-note>{SAFETY_CHECK_NOTE}</p>
