@@ -184,3 +184,9 @@ This is the only current implementation register. `docs/HIV_WORKFLOW_SOURCE_OF_T
 
 ## 8 Oct 2026 — Installer single intake (preview, not published)
 One Add a job intake for installer customers; office intake review panel on the job page; auto-drafted installer quotes are now always held drafts (never marked sent); intake-route PIESA deferral; rebate gate requires verified evidence. No migration. Pending: actual TEST-installer click-through, Ready Check save/resume on the installer job page, install-day order enforcement wired into PIISA tools.
+
+## Ready Check draft + Add job resume (build 4963c8f1 follow-up)
+- Installer job page (installer-sourced jobs): durable partial Ready Check save/resume in existing `ready_checks` (draft) + `ready_check_observations`; blanks stay unknown; never submits, verifies or signs. Shows missing answers, missing/rejected/awaiting-review assessment evidence, commercial status and coordination separately. Electrician-owned evidence stays read-only to installers (existing rule, not widened).
+- Pre-start works lock now also lists missing original-condition Ready Check answers for installer-intake jobs.
+- Add job: typed details, step and coordination resume per user+business; consent and acknowledgements never restored; quote files resume from the private server draft; retry after a lost response returns the same job.
+- Verified: sealed fixtures at 390px and 1280px (56 click checks, screenshots, no overflow/runtime errors); focused tests 82 pass; typecheck clean. NOT verified: authenticated TEST RPC, live save, installer-test run (no TEST session minted this turn).
