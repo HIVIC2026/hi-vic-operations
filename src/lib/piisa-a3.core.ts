@@ -688,8 +688,9 @@ export function a3RosterStatus(template: unknown, staff: StaffOption[], business
   const missingOptions: string[] = [];
   for (const s of ok) { const o = optionForStaff(opts, s, business); if (o) matched.add(o.id); else missingOptions.push(s.name); }
   const staleOptions = opts.filter((o) => o.id !== A3_CREW_OTHER_OPTION && !matched.has(o.id)).map((o) => o.label);
-  const alert = missingOptions.length || staleOptions.length
-    ? `Mitti crew list is out of date for ${business}${missingOptions.length ? ` — not listed: ${missingOptions.join(", ")} (filled in under Other)` : ""}${staleOptions.length ? ` — options not matching a current verified installer of this company: ${staleOptions.length}` : ""}. Update the Mitti crew list.`
+  // Named choices on the SHARED template would expose one company's staff to every other company: privacy alert.
+  const alert = staleOptions.length || opts.some((o) => o.id !== A3_CREW_OTHER_OPTION)
+    ? `Privacy: the shared Mitti safety form lists ${opts.filter((o) => o.id !== A3_CREW_OTHER_OPTION).length} named crew choice(s). Remove them — crew is filled in under Other from ${business}'s own verified records.`
     : null;
   return { missingOptions, staleOptions, alert };
 }
@@ -716,8 +717,10 @@ export function a3CrewNativeItems(template: unknown, sel: CrewSelection, staff: 
     if ("workerId" in pick) {
       const s = byId.get(pick.workerId);
       if (!s || !s.eecVerified || !s.eec) { problems.push(`Crew row ${row + 1}: not a verified installer`); return; }
-      const o = optionForStaff(opts, s, business);
-      if (o) choose(o); else { seedOther(s.name, s.eec); notes.push(`${s.name} is not in the Mitti crew list yet — filled in under Other.`); }
+      // PRIVACY (Jo 8 Oct 2026): the A3 template is shared by every company, so it must hold no named staff. Known,
+      // verified staff of the ASSIGNED company always go in as Other + their recorded name/certificate (never retyped),
+      // and a named option is never selected even if one appears in the shared list.
+      seedOther(s.name, s.eec);
     } else seedOther(pick.other.name.trim(), pick.other.eec.trim());
   });
   return { items, notes, problems };

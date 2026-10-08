@@ -389,7 +389,7 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string, call
     p.items.push(...crew.items); p.count += crew.items.length;
     prefillNotes.push(...crew.notes);
     const roster = a3.a3RosterStatus(template, staff, bname);
-    if (roster.alert) { prefillNotes.push(roster.alert); await logEvent(jobId, actorId, "mitti_crew_roster_stale", roster.alert, { missing: roster.missingOptions, stale_count: roster.staleOptions.length }, { internal: true }); }
+    if (roster.alert) { prefillNotes.push(roster.alert); await logEvent(jobId, actorId, "mitti_crew_shared_names", roster.alert, { missing: roster.missingOptions, stale_count: roster.staleOptions.length }, { internal: true }); }
   }
   for (const s of p.skipped) if (/single choice on the Mitti form/.test(s)) prefillNotes.push(`Removed and topped up are both recorded, but Mitti's question takes one answer — the installer chooses on site.`);
   const missing = missingKnownFields(p.skipped);
