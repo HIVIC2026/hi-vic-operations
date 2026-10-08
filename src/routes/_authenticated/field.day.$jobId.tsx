@@ -5,6 +5,7 @@ import { useState } from "react";
 import { ArrowUpRight, Check, MapPin, Phone } from "lucide-react";
 import { TradeShell, card, navyCard, ghostBtn, greenBtn } from "@/components/trade/TradeShell";
 import { TradePrestart } from "@/components/trade/TradePrestart";
+import { onsiteFormStatus } from "@/lib/onsite-ready-check.functions";
 import { confirmHivicReadyCheckPricingFn, getTradeDayView, tradeCouldntGetInFn } from "@/lib/trade-view.functions";
 import { COULDNT_GET_IN, couldntGetInMessage, dayTile } from "@/lib/trade-view.core";
 
@@ -74,6 +75,7 @@ function DayPage() {
             <section className={`${card} border-rose bg-pink`} data-mitti-setup>
               <h2 className="font-display text-xl font-bold">Your form is being set up.</h2>
               <p className="mt-1 text-sm">Home Insulation Victoria is preparing the onsite form. It will appear on this job when ready.</p>
+              {data.kind === "ready_check" && data.channel === "installer_sourced" && <PrepareForm jobId={jobId} onDone={() => refetch()} />}
             </section>
           )}
           {back}
@@ -107,5 +109,23 @@ function Result({ tone, title, body, items }: { tone: "mint" | "blush"; title: s
       <p className="mt-1 text-sm">{body}</p>
       {!!items?.length && <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">{items.map((i) => <li key={i}>{i}</li>)}</ul>}
     </section>
+  );
+}
+
+/** Uses the existing guarded onsite-form action (membership, booking and paperwork checks stay server-side). */
+function PrepareForm({ jobId, onDone }: { jobId: string; onDone: () => void }) {
+  const get = useServerFn(onsiteFormStatus);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  return (
+    <div className="mt-3" data-prepare-form>
+      <button type="button" disabled={busy} className={greenBtn} onClick={async () => {
+        setBusy(true); setMsg(null);
+        try { const s = await get({ data: { jobId, retry: false } }); if (s.kind === "open") { window.location.href = s.url; return; } setMsg(s.kind === "preparing" ? "Still getting it ready — try again in a minute." : s.message); onDone(); }
+        catch { setMsg("Couldn't check the form just now. Try again in a minute."); }
+        finally { setBusy(false); }
+      }}>{busy ? "Checking…" : "Get my Ready Check form"}</button>
+      {msg && <p className="mt-2 text-sm font-semibold" data-prepare-msg>{msg}</p>}
+    </div>
   );
 }
