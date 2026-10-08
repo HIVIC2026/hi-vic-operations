@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { downloadOfficialDocx, getOfficialPrefill, getPiisaPanel, sendPiisaToInstaller } from "@/lib/official-forms.functions";
 import { Section } from "@/components/portal/panels";
 import { openFileViewer } from "@/components/portal/file-viewer";
+import { AP_LEGAL_ENTITY } from "@/lib/authority";
 
 const DUE: Record<string, string> = {
   not_scheduled: "Not scheduled", due_on_installation_day: "Due on installation day", due_today: "Due today, before work starts",
@@ -17,6 +18,7 @@ export function PiisaPanel({ jobId }: { jobId: string }) {
   const { data, error } = useQuery({ queryKey: ["piisa_panel", jobId], queryFn: () => load({ data: { jobId } }) });
   return (
     <Section title="Installer safety assessment (PIISA)">
+      <p className="mb-2 text-sm"><span className="text-muted-foreground">Accredited Person:</span> <strong>{AP_LEGAL_ENTITY}</strong></p>
       {error ? <p className="text-sm text-destructive">Couldn't load the PIISA status.</p> : !data ? <p className="text-sm text-muted-foreground">Loading…</p> : (
         <div className="space-y-2 text-sm">
           <div className="flex flex-wrap gap-x-6 gap-y-1">

@@ -1,0 +1,11 @@
+# First-page Accredited Person — 8 October 2026
+
+Actual published GET through the existing integration confirms Title Page order: Job number, Property address, Installation date `78e550a4-1c8b-4b59-be77-64a5c09ba848`, Accredited person `b7212b10-067a-4fd8-8f6a-90efd2db8389`. AP remains mandatory `textsingle`. Current structure pin includes the move; crew conditions, restored `83caffa2` signature, mandatory post-work video/plan, single date and signing notice remain validated.
+
+New portal-created forms send the fixed authoritative legal entity and fetch the returned audit to confirm that exact AP before sharing. Audit identity is recorded before verification so readback failures reuse the same audit. Reuse checks job/template identity, refuses wrong AP or unknown/signed capture state, and repairs only an observed blank AP with observed empty signature fields, using documented `PUT /audits/{audit_id}` partial text updates followed by GET verification. This supported update changes the API author; omitted answers are untouched. No signature writes or name prefill are implemented. Concurrent external signing cannot be atomically locked by this documented API; repairs are limited to the pre-share reuse path and observed unsigned records.
+
+Portal AP display is read-only. Native standalone preview lacks portal job context and may be blank; automatic AP filling applies to portal-created forms only. Official expected completion still uses actual captured signature day in Australia/Sydney, never a second date question or installation-day fallback. Actual completion and reviewed after-work evidence remain separate.
+
+No actual audits created, updated, signed, shared or sent in this check. No worker approvals, communications, database migrations, portal publication or subagents. New/reused-audit network actions are tested with injected responses, not real signed media. Signed-in current-intake replay remains blocked by absence of an active canonical TEST fixture; owner-direct regulatory confirmation and portal publication/root review remain pending.
+
+Changed files: `src/lib/piisa-ap.core.ts`, `src/lib/mitti.core.ts`, `src/lib/mitti.server.ts`, `src/lib/piisa-native-version.core.ts`, `src/lib/piisa-final-postwork-published.data.json`, `src/components/portal/piisa-panel.tsx`, `tests/piisa-ap.test.ts`, `roadmap.md`, `AGENTS.md`, this proof.
