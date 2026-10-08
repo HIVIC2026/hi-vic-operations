@@ -36,8 +36,8 @@ export async function recordCommercialEligibility(jobId: string, actorId: string
 }
 
 async function latestProposedR(jobId: string): Promise<number | null> {
-  const { data } = await admin.from("workflow_events").select("event_type, details").eq("job_id", jobId).in("event_type", ["installer_evidence_acknowledged", "installer_intake_corrected"]).order("created_at", { ascending: false }).limit(10);
-  for (const e of data ?? []) { const v = (e.details as { proposed_r_value?: unknown } | null)?.proposed_r_value; if (typeof v === "number") return v; }
+  const { data } = await admin.from("workflow_events").select("event_type, details").eq("job_id", jobId).in("event_type", ["installer_evidence_acknowledged", "installer_intake_corrected", "installer_intake_updated"]).order("created_at", { ascending: false }).limit(10);
+  for (const e of data ?? []) { const d = e.details as { proposed_r_value?: unknown } | null; if (d && "proposed_r_value" in d) return typeof d.proposed_r_value === "number" ? d.proposed_r_value : null; }
   return null;
 }
 
@@ -76,7 +76,7 @@ export async function installerIntakeState(jobId: string) {
   const scope = intakeScopeArea(m ?? null); const area = scope.areaM2;
   const measuredR = m?.existing_r_value == null ? null : Number(m.existing_r_value);
   const officeEligibility = decision;
-  const readiness = installerQuoteReadiness({ channel: job.channel, officeEligibility, insulation: ins.value, measuredR, areaM2: area, installerQuoteIncGst: job.installer_quoted_price_inc_gst == null ? null : Number(job.installer_quoted_price_inc_gst) });
+  const readiness = installerQuoteReadiness({ channel: job.channel, officeEligibility, insulation: ins.value, measuredR, areaM2: area, installerQuoteIncGst: job.installer_quoted_price_inc_gst == null ? null : Number(job.installer_quoted_price_inc_gst), includes: job.installer_price_includes ?? null });
   const release = installerQuoteReleaseBlockers({ consentStatus: consent?.consent_status ?? null, feeAwarenessRecorded: (fee ?? 0) > 0 });
   const rc = readyCheckOutstanding((ev ?? []).map((r) => ({ category: r.category, label: r.label, blocking: r.required, status: r.status })) as EvidenceItem[]);
   return {
@@ -147,4 +147,84 @@ export async function draftQuoteFromIntake(jobId: string, actorId: string) {
   if (!s.readiness.ready) throw new WorkflowError(s.readiness.blockers.join(" • "));
   const { draftInstallerQuoteFromReadyCheck } = await import("./installer-quote.server");
   return draftInstallerQuoteFromReadyCheck(jobId, actorId, [], `intake:${jobId}`, { totalIncGst: s.quoteIncGst!, includes: s.includes ?? "As quoted by the installer", areaM2: s.areaM2! });
+}
+
+/** Draft quotes superseded, issued withdrawn, accepted flagged for owner reconfirmation (never repriced). */
+async function staleIntakeQuotes(jobId: string, actorId: string) {
+  const { data: quotes } = await admin.from("quotes").select("id, status").eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]);
+  const touched: { id: string; action: string }[] = [];
+  for (const q of quotes ?? []) {
+    const a = staleQuoteAction(q.status);
+    if (a === "supersede" || a === "withdraw") {
+      const { error } = await admin.from("quotes").update({ status: "superseded", release_state: "held", release_hold_reason: "Withdrawn: installer updated job details" }).eq("id", q.id).eq("status", q.status);
+      if (error) throw new WorkflowError(error.message);
+    }
+    if (a !== "keep") touched.push({ id: q.id, action: a });
+  }
+  if (touched.some((t) => t.action === "reconfirm")) await logEvent(jobId, actorId, "installer_quote_reconfirmation_required", "Accepted quote facts changed — the owner must reconfirm before work continues", { quotes: touched.filter((t) => t.action === "reconfirm").map((t) => t.id) }, { internal: true });
+  return touched;
+}
+
+export type InstallerIntakeUpdate = {
+  areaM2: number | null; insulation: ExistingInsulation; quoteStatus: "not_quoted" | "have_quote";
+  quoteIncGst: number | null; includes: string | null; proposedR: number | null;
+  files: { path: string; name: string; type: string }[];
+  electrician?: { mode: "mine"; business_id?: string | null; nomination_id?: string | null } | undefined;
+};
+
+/**
+ * The SUPPLYING installer adds/updates what they know on their own received job (area, quote, product, insulation,
+ * electrician, quote files). Same job, canonical records: provisional installer area (never accepted/verified),
+ * jobs quote facts, appended original files. Saved partial info is NOT an accepted measurement or Ready Check approval.
+ * Only actual material changes stale quotes; only an insulation change reopens the office eligibility decision.
+ */
+export async function installerUpdateIntake(jobId: string, actorId: string, businessId: string, p: InstallerIntakeUpdate) {
+  const { pickIntakeChanges } = await import("./installer-intake.core");
+  const { data: job, error } = await admin.from("jobs").select("channel, originating_installer_business_id, installer_quoted, installer_quoted_price_inc_gst, installer_price_includes, electrician_choice").eq("id", jobId).single();
+  if (error || !job) throw new WorkflowError("Job not found.");
+  if (job.channel !== "installer_sourced" || job.originating_installer_business_id !== businessId) throw new WorkflowError("Only the installer who supplied this job can update it.");
+  if (!(await isIntakeJob(jobId))) throw new WorkflowError("This job wasn't added through Add job.");
+  for (const f of p.files) if (!f.path.startsWith(`partners/${businessId}/`)) throw new WorkflowError("That file isn't one of your uploads.");
+  const st = await installerIntakeState(jobId);
+  const { data: m } = await admin.from("ceiling_measurements").select("id, provenance, supplied_area_m2").eq("job_id", jobId).eq("is_current", true).maybeSingle();
+  const ch = pickIntakeChanges({
+    areaM2: m?.supplied_area_m2 == null ? (st.areaM2 ?? null) : Number(m.supplied_area_m2), insulation: st.insulation, quoted: (job.installer_quoted ?? null) as "yes" | "no" | null,
+    quoteIncGst: job.installer_quoted_price_inc_gst == null ? null : Number(job.installer_quoted_price_inc_gst), includes: job.installer_price_includes ?? null, proposedR: st.proposedR,
+  }, p);
+  if (ch.area !== undefined) {
+    if (m && m.provenance !== "installer_supplied_provisional") throw new WorkflowError("The ceiling has already been measured — the office changes it through the measurement review.");
+    if (m) { const { error: e } = await admin.from("ceiling_measurements").update({ supplied_area_m2: ch.area }).eq("id", m.id); if (e) throw new WorkflowError(e.message); }
+    else {
+      const { planImportedMeasurement } = await import("./pilot.core");
+      const plan = planImportedMeasurement({ measured_area_m2: ch.area, measurement_method: "Installer supplied (unverified)" } as never, `installer_edit:${jobId}:${Date.now()}`, { businessId, standardApproved: false })!;
+      const { error: e } = await admin.from("ceiling_measurements").insert({ ...plan, supplied_snapshot: plan.supplied_snapshot as never, review_flags: plan.review_flags as never, job_id: jobId, is_current: true, created_by: actorId, raw_snapshot: { source: "installer_edit" } as never });
+      if (e) throw new WorkflowError(`Measurement: ${e.message}`);
+      await admin.from("jobs").update({ measure_up_responsibility: "installer" }).eq("id", jobId);
+    }
+    await admin.from("jobs").update({ estimated_area_m2: ch.area, estimated_area_unknown: false }).eq("id", jobId);
+  }
+  if (ch.quote) { const { error: e } = await admin.from("jobs").update({ installer_quoted: ch.quote.quoted, installer_quoted_price_inc_gst: ch.quote.quoteIncGst, installer_price_includes: ch.quote.includes }).eq("id", jobId); if (e) throw new WorkflowError(e.message); }
+  if (p.files.length) {
+    const { data: imp } = await admin.from("job_imports").select("id, files").eq("job_id", jobId).eq("business_id", businessId).order("created_at", { ascending: true }).limit(1).maybeSingle();
+    if (!imp) throw new WorkflowError("The original job record couldn't be found to attach the file.");
+    const have = (imp.files as { path: string }[] | null) ?? [];
+    const add = p.files.filter((f) => !have.some((h) => h.path === f.path));
+    if (add.length) { const { error: e } = await admin.from("job_imports").update({ files: [...have, ...add] as never }).eq("id", imp.id); if (e) throw new WorkflowError(e.message); }
+    if (add.length) await logEvent(jobId, actorId, "installer_quote_file_added", `Installer added ${add.length} file${add.length === 1 ? "" : "s"} (originals kept)`, { files: add }, { internal: true });
+  }
+  let electrician: string | null = null;
+  if (p.electrician && (p.electrician.business_id || p.electrician.nomination_id)) {
+    if (job.electrician_choice && job.electrician_choice !== "hivic_organise") throw new WorkflowError("An electrician is already chosen — ask the office to change it.");
+    const { recordJobElectricianChoice } = await import("./job-electrician.server");
+    electrician = (await recordJobElectricianChoice(jobId, businessId, p.electrician as never, actorId)).choice ?? null;
+  }
+  const material = ch.area !== undefined || !!ch.quote || ch.proposedR !== undefined || ch.insulation !== undefined;
+  let quotes: { id: string; action: string }[] = [];
+  if (material) {
+    quotes = await staleIntakeQuotes(jobId, actorId);
+    const details = { by: "installer", area_m2: ch.area ?? null, quote: ch.quote ?? null, ...(ch.proposedR !== undefined ? { proposed_r_value: ch.proposedR } : {}), quotes, partial: true, note: "Saved details only — not an accepted measurement or Ready Check approval" };
+    if (ch.insulation !== undefined) await logEvent(jobId, actorId, "installer_intake_corrected", `Installer updated existing insulation to ${ch.insulation === "none" ? "none" : ch.insulation === "below_r2" ? "confirmed below R2.0" : "not yet confirmed"}`, { ...details, insulation: ch.insulation }, { internal: true });
+    else await logEvent(jobId, actorId, "installer_intake_updated", "Installer updated job details", details, { internal: true });
+  }
+  return { changed: material || p.files.length > 0 || !!electrician, quotes: quotes.length, state: await installerIntakeState(jobId) };
 }

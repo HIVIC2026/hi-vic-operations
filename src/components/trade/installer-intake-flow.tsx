@@ -19,13 +19,13 @@ import type { OnsiteInput } from "@/lib/onsite-ready-check.core";
 import type { IntakeApi } from "./intake-preview-adapter";
 import type { Extracted } from "@/lib/pilot.core";
 import { ADD_JOB_STEPS, BUSY_LABEL, blankCustomer, customerProblems, nextStep, prevStep, restoreCustomer, saveErrorMessage, type AddJobStep } from "@/lib/add-job-flow.core";
-import { COORDINATION_CHOICES, COORDINATION_VERSION, SELF_MANAGED_ACK, VEEC_NOTE, coordinationProblems, type Coordination, EVIDENCE_ACK, EXISTING_INSULATION_CHOICES, INTAKE_RULESET_VERSION, intakeProblems, multiCustomerAmbiguity, parseIntakeAmount, prefillFromExtracted, intakeConfirmFacts, type ExistingInsulation } from "@/lib/installer-intake.core";
+import { COORDINATION_CHOICES, COORDINATION_VERSION, SELF_MANAGED_ACK, VEEC_NOTE, coordinationProblems, type Coordination, EVIDENCE_ACK, EXISTING_INSULATION_CHOICES, INTAKE_RULESET_VERSION, intakeProblems, multiCustomerAmbiguity, prefillFromExtracted, intakeConfirmFacts, type ExistingInsulation, QUOTE_STATUS_CHOICES, JOB_DETAILS_LEAD, intakeArea, intakeQuotePayload, type QuoteStatus } from "@/lib/installer-intake.core";
 
 // Resume after refresh: scoped to the signed-in USER and business (never shared between people or businesses).
 // The server owns the draft id's files; consent and both acknowledgements are never stored or restored.
 const resumeKey = (userId: string, businessId: string) => `hiv-intake:${userId}:${businessId}`;
 const LEGACY_KEYS = (businessId: string) => ["hiv-intake-draft", `hiv-intake-draft:${businessId}`, `hiv-intake-draft-id:${businessId}`];
-type Details = { area: string; amount: string; includes: string; proposedR: string; insulation: ExistingInsulation | null };
+type Details = { area: string; amount: string; includes: string; proposedR: string; insulation: ExistingInsulation | null; quoteStatus?: QuoteStatus | null };
 
 /** `preview` swaps every server/storage call for a local adapter (no auth, saving or sending). */
 export function InstallerIntakeFlow({ businessId, preview }: { businessId: string; preview?: IntakeApi }) {
@@ -42,7 +42,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
   const [shown, setShown] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [saved, setSaved] = useState<{ jobId: string; jobNumber: string | null; insulation: ExistingInsulation } | null>(null);
+  const [saved, setSaved] = useState<{ jobId: string; jobNumber: string | null; insulation: ExistingInsulation; quoted?: boolean } | null>(null);
   const problemsRef = useRef<HTMLUListElement>(null);
   const inFlight = useRef(false);
 
@@ -50,6 +50,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
   const getEl = (preview?.getEl ?? realGetEl) as typeof realGetEl, addEl = (preview?.addEl ?? realAddEl) as typeof realAddEl;
   const { data: el, refetch } = useQuery({ queryKey: ["bulk-electricians", businessId, !!preview], queryFn: () => getEl({ data: { businessId } }) });
   const [plan, setPlan] = useState<ElectricianPlan | null>(null);
+  const [elLater, setElLater] = useState(false);
   useEffect(() => { if (plan || !el) return; const u = usualElectrician(el.approved); setPlan(u?.businessId ? { mode: "mine", business_id: u.businessId } : { mode: "hivic" }); }, [el, plan]);
 
   // Typed details survive refresh/poor signal; consent and the acknowledgements are never restored.
@@ -68,7 +69,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         if (raw) {
           const r = JSON.parse(raw) as { customer?: unknown; d?: Details; coord?: Coordination | null; draftId?: string | null; step?: AddJobStep; fileText?: string };
           if (r.customer) setCustomer(restoreCustomer(r.customer as never));
-          if (r.d) setD({ area: r.d.area ?? "", amount: r.d.amount ?? "", includes: r.d.includes ?? "", proposedR: r.d.proposedR ?? "", insulation: r.d.insulation ?? null });
+          if (r.d) setD({ area: r.d.area ?? "", amount: r.d.amount ?? "", includes: r.d.includes ?? "", proposedR: r.d.proposedR ?? "", insulation: r.d.insulation ?? null, quoteStatus: r.d.quoteStatus ?? null });
           if (r.coord) setCoord(r.coord);
           if (r.fileText) setFileText(r.fileText);
           if (r.step && r.step !== "review") setStep(r.step);
@@ -102,8 +103,8 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
 
   const problems = (): string[] => {
     if (step === "customer") return customerProblems(customer);
-    const p = intakeProblems({ ...d, quoteFileCount: files.length, evidenceAck: ack });
-    const eb = electricianPlanBlocker(plan); if (eb) p.push(eb);
+    const p = intakeProblems({ ...d, quoteStatus: d.quoteStatus ?? null, quoteFileCount: files.length, evidenceAck: ack });
+    const eb = elLater ? null : electricianPlanBlocker(plan); if (eb) p.push(eb);
     p.push(...coordinationProblems(coord, selfAck));
     if (fileText && multiCustomerAmbiguity(fileText)) p.push("Your file names more than one customer — upload one customer's quote per job");
     return step === "details" ? p.filter((x) => !/evidence must be supplied/.test(x)) : p;
@@ -115,7 +116,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
     setDraftId(r.id);
     if (userId) try { const k = resumeKey(userId, businessId); const cur = JSON.parse(localStorage.getItem(k) ?? "{}"); localStorage.setItem(k, JSON.stringify({ ...cur, draftId: r.id })); } catch { /* ignore */ }
     const pre = prefillFromExtracted(r.extracted as Extracted, fileText);
-    setD((o) => ({ area: o.area || pre.area, amount: o.amount || pre.amount, includes: o.includes || pre.includes, proposedR: o.proposedR || pre.proposedR, insulation: o.insulation }));
+    setD((o) => ({ ...o, area: o.area || pre.area, amount: o.amount || pre.amount, includes: o.includes || pre.includes, proposedR: o.proposedR || pre.proposedR }));
     return r.id;
   };
 
@@ -133,24 +134,23 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
     inFlight.current = true; setBusy(true);
     try {
       const id = await ensureDraft();
-      const amount = parseIntakeAmount(d.amount);
-      const r = Number(d.proposedR.replace(/[Rr\s]/g, ""));
-      const facts = intakeConfirmFacts(customer, Number(d.area), d.proposedR.trim() && Number.isFinite(r) ? r : null); // r_value = PROPOSED product R
-      const hasAmount = amount != null && !Number.isNaN(amount) && amount > 0;
+      const q = intakeQuotePayload({ quoteStatus: d.quoteStatus ?? null, amount: d.amount, includes: d.includes, proposedR: d.proposedR });
+      const facts = intakeConfirmFacts(customer, intakeArea(d.area), q.proposed_r_value); // r_value = PROPOSED product R; no area -> null, never 0
       const res = await confirm({ data: { importId: id, facts, installer: {
-        quoted: hasAmount ? "yes" : "no", site_check: "no", site_check_date: null, // visit not asked here; server records it as unknown
-        quoted_price_inc_gst: hasAmount ? amount : null, price_includes: d.includes.trim() || null,
+        quoted: q.quoted, site_check: "no", site_check_date: null, // visit not asked here; server records it as unknown
+        quoted_price_inc_gst: q.quoted_price_inc_gst,
+        price_includes: q.price_includes,
         contact_permission: customer.contact_permission, owner_agreed: false,
-        intake: { existing_insulation: d.insulation!, evidence_ack: ack, proposed_r_value: d.proposedR.trim() && Number.isFinite(r) ? r : null, version: `${INTAKE_RULESET_VERSION}+${COORDINATION_VERSION}`, coordination: coord!, self_managed_ack: coord === "self_managed" && selfAck },
-      }, electrician: plan?.mode === "mine" ? { mode: "mine", business_id: plan.business_id ?? null, nomination_id: plan.nomination_id ?? null } : { mode: "hivic" } } as never });
+        intake: { existing_insulation: d.insulation ?? "unknown", evidence_ack: ack, proposed_r_value: q.proposed_r_value, quote_status: d.quoteStatus!, version: `${INTAKE_RULESET_VERSION}+${COORDINATION_VERSION}`, coordination: coord!, self_managed_ack: coord === "self_managed" && selfAck },
+      }, electrician: elLater ? { mode: "later" } : plan?.mode === "mine" ? { mode: "mine", business_id: plan.business_id ?? null, nomination_id: plan.nomination_id ?? null } : { mode: "hivic" } } as never });
       try { if (userId) localStorage.removeItem(resumeKey(userId, businessId)); } catch { /* ignore */ }
-      setSaved({ jobId: res.jobId, jobNumber: res.jobNumber ?? null, insulation: d.insulation! });
+      setSaved({ jobId: res.jobId, jobNumber: res.jobNumber ?? null, insulation: d.insulation ?? "unknown", quoted: d.quoteStatus === "have_quote" });
     } catch (e) { setErr(saveErrorMessage(e instanceof Error ? e.message : null)); }
     finally { setBusy(false); inFlight.current = false; }
   };
 
   const idx = ADD_JOB_STEPS.findIndex((s) => s.key === step);
-  const elName = plan?.mode === "mine" ? (([...(el?.approved ?? []), ...(el?.pending ?? [])] as { businessId?: string; nominationId?: string; name: string }[]).find((x) => (plan.business_id && x.businessId === plan.business_id) || (plan.nomination_id && x.nominationId === plan.nomination_id))?.name ?? "your electrician") : "Home Insulation Victoria arranges";
+  const elName = elLater ? "To be arranged" : plan?.mode === "mine" ? (([...(el?.approved ?? []), ...(el?.pending ?? [])] as { businessId?: string; nominationId?: string; name: string }[]).find((x) => (plan.business_id && x.businessId === plan.business_id) || (plan.nomination_id && x.nominationId === plan.nomination_id))?.name ?? "your electrician") : "Home Insulation Victoria arranges";
 
   return (
     <div className="mt-3 space-y-4 pb-24" data-installer-intake data-step={step}>
@@ -170,13 +170,23 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
 
       {step === "details" && <section className="space-y-4 rounded-[18px] border border-line bg-paper p-4" data-step-details>
         <h2 className="font-display text-lg font-bold">Job details</h2>
-        <label className="block text-sm font-bold">Ceiling area (m²)<Input className="mt-1 h-12" inputMode="decimal" value={d.area} onChange={(e) => setD({ ...d, area: e.target.value })} /></label>
+        <p className="text-sm text-sub" data-details-lead>{JOB_DETAILS_LEAD}</p>
+        <label className="block text-sm font-bold">Ceiling area (m²)<span className="block text-xs font-normal text-sub">Optional — leave blank if not measured yet</span><Input className="mt-1 h-12" inputMode="decimal" placeholder="Not measured yet" value={d.area} onChange={(e) => setD({ ...d, area: e.target.value })} /></label>
         <fieldset data-existing-insulation><legend className="text-sm font-bold">Existing insulation</legend>
           <div className="mt-2 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Existing insulation">
             {EXISTING_INSULATION_CHOICES.map((c) => <Button key={c.value} size="field" role="radio" aria-checked={d.insulation === c.value} variant={d.insulation === c.value ? "default" : "outline"} className="h-auto min-h-12 whitespace-normal px-1 text-xs leading-tight" onClick={() => setD({ ...d, insulation: c.value })}>{c.label}</Button>)}
           </div>
           {d.insulation === "unknown" && <p className="mt-1 text-xs text-sub">You can submit. The owner quote waits until the existing insulation is confirmed as none or below R2.0.</p>}
         </fieldset>
+        <fieldset data-quote-status><legend className="text-sm font-bold">Quote status</legend>
+          <div className="mt-2 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Quote status">
+            {QUOTE_STATUS_CHOICES.map((c) => <Button key={c.value} size="field" role="radio" aria-checked={d.quoteStatus === c.value} variant={d.quoteStatus === c.value ? "default" : "outline"} className="h-auto min-h-12 whitespace-normal px-1 text-sm leading-tight" onClick={() => setD({ ...d, quoteStatus: c.value })}>{c.label}</Button>)}
+          </div>
+          {d.quoteStatus === "not_quoted" && (d.amount || d.includes || d.proposedR || files.length > 0)
+            ? <p className="mt-1 text-xs text-sub" data-quote-hidden-note>The quote details you entered won't be sent while "Not quoted yet" is chosen.{files.length ? " Attached files stay with the job as originals." : ""}</p>
+            : d.quoteStatus === "not_quoted" ? <p className="mt-1 text-xs text-sub">That's fine — add your measurements and quote on the job when ready.</p> : null}
+        </fieldset>
+        {d.quoteStatus === "have_quote" && <>
         <AttachFiles businessId={businessId} files={files} label="Upload your quote" onAdd={async (picked) => {
           const up = await uploadFiles(picked);
           if (draftId) { const r = await addFiles({ data: { importId: draftId, files: up.map((x) => ({ path: x.path, name: x.name, type: x.type ?? "" })) } }); setFiles(r.files); setFileNote("Attached to this job."); }
@@ -202,6 +212,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         <label className="block text-sm font-bold">Your quote inc GST<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 3,450" value={d.amount} onChange={(e) => setD({ ...d, amount: e.target.value })} /></label>
         <label className="block text-sm font-bold">What the quote includes<Textarea className="mt-1" rows={3} maxLength={1000} value={d.includes} onChange={(e) => setD({ ...d, includes: e.target.value })} /></label>
         <label className="block text-sm font-bold">Proposed product R-rating<span className="block text-xs font-normal text-sub">Optional, e.g. R5.0</span><Input className="mt-1 h-12" inputMode="decimal" value={d.proposedR} onChange={(e) => setD({ ...d, proposedR: e.target.value })} /></label>
+        </>}
         <fieldset data-coordination><legend className="text-sm font-bold">Who will organise this job?</legend>
           <div className="mt-2 grid gap-2" role="radiogroup" aria-label="Who will organise this job?">
             {COORDINATION_CHOICES.map((c) => <button key={c.value} type="button" role="radio" aria-checked={coord === c.value} onClick={() => { setCoord(c.value); if (c.value !== "self_managed") setSelfAck(false); }} className={`w-full rounded-[14px] border p-3 text-left ${coord === c.value ? "border-primary bg-primary/5" : "border-line bg-paper"}`}>
@@ -212,19 +223,26 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
           {coord === "self_managed" && <label className="mt-2 flex items-start gap-3 text-sm" data-self-managed-ack><Checkbox className="mt-0.5" checked={selfAck} onCheckedChange={(c) => setSelfAck(c === true)} aria-label={SELF_MANAGED_ACK} /><span>{SELF_MANAGED_ACK}</span></label>}
           <p className="mt-2 text-xs text-sub">{VEEC_NOTE}</p>
         </fieldset>
-        {plan && <ElectricianPicker value={plan} onChange={setPlan} note={false} approved={el?.approved ?? []} pending={el?.pending ?? []} onAdd={async (x) => { const r = await addEl({ data: { businessId, name: x.name, mobile: x.mobile, email: x.email, business: x.business } }); await refetch(); setPlan({ mode: "mine", ...(r.businessId ? { business_id: r.businessId } : { nomination_id: r.nominationId }) }); return { message: inviteResultMessage(r) }; }} />}
+        <fieldset data-electrician-when><legend className="text-sm font-bold">Electrician</legend>
+          <div className="mt-2 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Electrician">
+            <Button size="field" role="radio" aria-checked={!elLater} variant={!elLater ? "default" : "outline"} onClick={() => setElLater(false)}>Choose now</Button>
+            <Button size="field" role="radio" aria-checked={elLater} variant={elLater ? "default" : "outline"} onClick={() => setElLater(true)}>To be arranged</Button>
+          </div>
+          {elLater && <p className="mt-1 text-xs text-sub">You can choose the electrician on the job later. Nobody is booked.</p>}
+        </fieldset>
+        {plan && !elLater && <ElectricianPicker value={plan} onChange={setPlan} note={false} approved={el?.approved ?? []} pending={el?.pending ?? []} onAdd={async (x) => { const r = await addEl({ data: { businessId, name: x.name, mobile: x.mobile, email: x.email, business: x.business } }); await refetch(); setPlan({ mode: "mine", ...(r.businessId ? { business_id: r.businessId } : { nomination_id: r.nominationId }) }); return { message: inviteResultMessage(r) }; }} />}
       </section>}
 
       {step === "review" && <section className="space-y-3 rounded-[18px] border border-line bg-paper p-4" data-step-review>
         <h2 className="font-display text-lg font-bold">Review & submit</h2>
         <Summary title="Customer" onEdit={() => setStep("customer")} rows={[customer.full_name, [customer.address_line, customer.suburb, customer.postcode].filter(Boolean).join(", "), customer.phone, customer.email, "Permission to contact given"]} />
         <Summary title="Job details" onEdit={() => setStep("details")} rows={[
-          `Ceiling ${d.area} m²`, `Existing insulation: ${EXISTING_INSULATION_CHOICES.find((c) => c.value === d.insulation)?.label ?? "—"}`,
-          d.amount ? `Quote $${d.amount.replace(/^\$/, "")} inc GST` : "Quote amount from your uploaded file", d.includes ? `Includes: ${d.includes}` : "", d.proposedR ? `Proposed product ${/^r/i.test(d.proposedR) ? d.proposedR : `R${d.proposedR}`}` : "",
+          intakeArea(d.area) ? `Ceiling ${d.area} m²` : "Ceiling area: not measured yet", `Existing insulation: ${EXISTING_INSULATION_CHOICES.find((c) => c.value === (d.insulation ?? "unknown"))?.label ?? "Not yet confirmed"}`,
+          ...(d.quoteStatus === "not_quoted" ? ["Quote: not quoted yet"] : [d.amount ? `Quote $${d.amount.replace(/^\$/, "")} inc GST` : "Quote amount from your uploaded file", d.includes ? `Includes: ${d.includes}` : "", d.proposedR ? `Proposed product ${/^r/i.test(d.proposedR) ? d.proposedR : `R${d.proposedR}`}` : ""]),
           `${files.length} file${files.length === 1 ? "" : "s"} attached`, `Electrician: ${elName}`, `Organised by: ${coord === "self_managed" ? "you" : "Home Insulation Victoria"}`,
         ]} />
         <label className="flex items-start gap-3 text-sm" data-evidence-ack><Checkbox className="mt-0.5" checked={ack} onCheckedChange={(c) => setAck(c === true)} aria-label={EVIDENCE_ACK} /><span>{EVIDENCE_ACK}</span></label>
-        <div className="rounded-[12px] border border-line p-3" data-next-step><p className="text-xs font-bold uppercase tracking-wide text-sub">What happens next</p><p className="mt-1 text-sm">Nothing is sent when you submit. Home Insulation Victoria checks the owner's eligibility and prepares the quote when it's ready, then lets you know when the owner accepts.</p></div>
+        <div className="rounded-[12px] border border-line p-3" data-next-step><p className="text-xs font-bold uppercase tracking-wide text-sub">What happens next</p><p className="mt-1 text-sm">Nothing is sent when you submit. Home Insulation Victoria checks the owner's eligibility and prepares the owner quote once the measurements, your quote and the eligibility checks are ready.</p></div>
       </section>}
 
       {shown.length > 0 && <ul ref={problemsRef} tabIndex={-1} role="alert" className="space-y-1 rounded-[12px] border border-danger/40 bg-paper p-3 text-sm text-danger outline-none" data-step-problems>{shown.map((p) => <li key={p}>{p}</li>)}</ul>}
@@ -247,7 +265,7 @@ function Summary({ title, rows, onEdit }: { title: string; rows: string[]; onEdi
   </div>;
 }
 
-function Received({ saved, preview = false }: { saved: { jobId: string; jobNumber: string | null; insulation: ExistingInsulation }; preview?: boolean }) {
+function Received({ saved, preview = false }: { saved: { jobId: string; jobNumber: string | null; insulation: ExistingInsulation; quoted?: boolean }; preview?: boolean }) {
   const get = useServerFn(getMyIntakeReadyCheck);
   const { data } = useQuery({ queryKey: ["intake-rc", saved.jobId], queryFn: () => get({ data: { jobId: saved.jobId } }), retry: false, enabled: !preview });
   if (preview) return (
@@ -255,13 +273,15 @@ function Received({ saved, preview = false }: { saved: { jobId: string; jobNumbe
       <p className="text-xs font-bold uppercase tracking-wide text-sub">Preview only</p>
       <h2 className="font-display text-xl font-bold">This is where the installer would see "Job received"</h2>
       <p className="text-sm">Nothing was saved or sent. No job was created and nobody was contacted.</p>
+      {!saved.quoted && <p className="text-sm" data-add-when-ready>A real installer would see: "Add your measurements and quote when ready."</p>}
     </section>
   );
   return (
     <section className="mt-4 space-y-3 rounded-[18px] border border-line bg-paper p-5" data-saved data-intake-received>
       <p className="text-xs font-bold uppercase tracking-wide text-sub">{saved.jobNumber ?? "Job"} received</p>
       <h2 className="font-display text-xl font-bold">Job received</h2>
-      <p className="text-sm">Home Insulation Victoria will check the owner's eligibility and prepare the quote when it's ready. Nobody has been contacted yet.</p>
+      <p className="text-sm">Home Insulation Victoria checks the owner's eligibility next. Nobody has been contacted and nothing is booked yet.</p>
+      {!saved.quoted && <p className="text-sm font-semibold" data-add-when-ready>Add your measurements and quote when ready.</p>}
       {saved.insulation === "unknown" && <p className="text-sm font-semibold">The owner quote waits until the existing insulation is confirmed as none or below R2.0.</p>}
       {data?.coordination && <p className="text-sm" data-coordination-saved>Organised by: {data.coordination === "self_managed" ? "you" : "Home Insulation Victoria"}</p>}
       {data && <p className="text-sm" data-rc-outstanding>Ready Check: {data.readyCheck.outstandingCount} item{data.readyCheck.outstandingCount === 1 ? "" : "s"} outstanding</p>}

@@ -6,6 +6,11 @@ import { type ElectricianPlan } from "./job-electrician.core";
 /** Records the installer's choice on a new job. A chosen approved electrician is offered the owner's times first
  *  (never assigned directly); an invited one shows "Electrician invited – waiting to onboard". */
 export async function recordJobElectricianChoice(jobId: string, installerBusinessId: string, plan: ElectricianPlan | null | undefined, actorId: string) {
+  if ((plan as { mode?: string } | null)?.mode === "later") {
+    // "To be arranged": no electrician chosen, nothing booked or offered. Office/installer chooses later.
+    await logEvent(jobId, actorId, "electrician_to_be_arranged", "Electrician to be arranged — none chosen yet", {}, { internal: true });
+    return { choice: null };
+  }
   if (!plan || plan.mode !== "mine") {
     await admin.from("jobs").update({ electrician_choice: "hivic_organise" }).eq("id", jobId);
     return { choice: "hivic_organise" as const };

@@ -91,3 +91,49 @@ export const getMyIntakeReadyCheck = createServerFn({ method: "POST" }).middlewa
     const d = await loadRcDraft(data.jobId);
     return { coordination: s.coordination, readyCheck: { outstandingCount: d.progress.outstandingCount, outstanding: [] as { label: string; status: string }[] }, quoteHeldFor: s.readiness.blockers.filter((b) => /insulation|eligib/i.test(b)) };
   });
+
+// ---- Supplying installer: add/update what they know on their own received job (Jo, 8 Oct). ----
+async function requireSupplyingInstaller(supabase: { rpc: (...a: never[]) => unknown }, userId: string, jobId: string): Promise<string> {
+  const sb = supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }> };
+  const { data: ok, error } = await sb.rpc("can_access_job", { _job: jobId });
+  if (error || !ok) throw new Error("Not your job.");
+  const { data: inst } = await sb.rpc("has_role", { _user_id: userId, _role: "installer" });
+  if (!inst) throw new Error("Only installers can update this job.");
+  const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+  const { data: job } = await admin.from("jobs").select("originating_installer_business_id").eq("id", jobId).maybeSingle();
+  const biz = job?.originating_installer_business_id;
+  if (!biz) throw new Error("Only the installer who supplied this job can update it.");
+  const { data: mem } = await sb.rpc("is_business_member", { _biz: biz });
+  if (!mem) throw new Error("Only the installer who supplied this job can update it.");
+  return biz;
+}
+
+export const getMyIntakeJob = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const biz = await requireSupplyingInstaller(context.supabase as never, context.userId, data.jobId);
+    const m = await import("./installer-intake.server");
+    if (!(await m.isIntakeJob(data.jobId))) return { applies: false as const };
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const [s, { data: imp }, { data: job }] = await Promise.all([
+      m.installerIntakeState(data.jobId),
+      admin.from("job_imports").select("files").eq("job_id", data.jobId).eq("business_id", biz).order("created_at", { ascending: true }).limit(1).maybeSingle(),
+      admin.from("jobs").select("installer_quoted, electrician_choice").eq("id", data.jobId).single(),
+    ]);
+    return { applies: true as const, businessId: biz, areaM2: s.areaM2, areaProvenance: s.areaProvenance, insulation: s.insulation, quoted: (job?.installer_quoted ?? null) as "yes" | "no" | null, quoteIncGst: s.quoteIncGst, includes: s.includes, proposedR: s.proposedR, files: ((imp?.files as { path: string; name: string; type: string }[] | null) ?? []), electricianChosen: !!job?.electrician_choice && job.electrician_choice !== "hivic_organise", quoteHeld: s.readiness.blockers };
+  });
+
+export const saveMyIntakeJob = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({
+    jobId: z.string().uuid(), areaM2: z.number().positive().max(5000).nullable(), insulation: z.enum(["none", "below_r2", "unknown"]),
+    quoteStatus: z.enum(["not_quoted", "have_quote"]), quoteIncGst: z.number().positive().max(1_000_000).nullable(), includes: z.string().trim().max(1000).nullable(), proposedR: z.number().positive().max(10).nullable(),
+    files: z.array(z.object({ path: z.string().max(500), name: z.string().max(200), type: z.string().max(100) })).max(20),
+    electrician: z.object({ mode: z.literal("mine"), business_id: z.string().uuid().nullish(), nomination_id: z.string().uuid().nullish() }).optional(),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    const biz = await requireSupplyingInstaller(context.supabase as never, context.userId, data.jobId);
+    const { installerUpdateIntake } = await import("./installer-intake.server");
+    const { jobId, ...p } = data;
+    try { const r = await installerUpdateIntake(jobId, context.userId, biz, p as never); return { changed: r.changed, quoteHeld: r.state.readiness.blockers }; }
+    catch (e) { throw new Error(e instanceof Error ? e.message : "Couldn't save."); }
+  });

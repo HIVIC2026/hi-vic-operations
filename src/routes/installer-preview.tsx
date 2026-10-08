@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { InstallerIntakeFlow } from "@/components/trade/installer-intake-flow";
+import { IntakeDetailsEditor } from "@/components/trade/intake-details-editor";
 import { PREVIEW_BUSINESS_ID, createPreviewIntakeApi } from "@/components/trade/intake-preview-adapter";
 
 export const Route = createFileRoute("/installer-preview")({
@@ -31,6 +32,12 @@ function InstallerPreview() {
           <p role="note" data-preview-banner className="sticky top-2 z-10 rounded-[12px] border border-primary bg-paper p-3 text-center text-sm font-bold">Preview only — sample job, nothing is saved or sent</p>
           <h1 className="mt-4 font-display text-2xl font-bold">Add job</h1>
           <InstallerIntakeFlow businessId={PREVIEW_BUSINESS_ID} preview={api} />
+          <h2 className="mt-8 font-display text-xl font-bold">Sample received job (not quoted yet)</h2>
+          <p className="text-sm text-sub">How the installer adds measurements and a quote later, on the same job. Sample only — nothing is saved.</p>
+          <div className="mt-3" data-preview-editor><IntakeDetailsEditor preview businessId={PREVIEW_BUSINESS_ID} upload={api.uploadFiles}
+            facts={{ areaM2: null, insulation: "unknown", quoted: "no", quoteIncGst: null, includes: null, proposedR: null, files: [], electricianChosen: false, quoteHeld: ["Ceiling area not measured yet", "No installer quote yet", "Existing insulation not yet confirmed"] }}
+            electricians={{ approved: [{ businessId: "preview-electrician", name: "Sample Electrical (sample)" }], pending: [] }}
+            onSave={async () => ({ quoteHeld: [] })} /></div>
         </div>
       </div>
     </QueryClientProvider>

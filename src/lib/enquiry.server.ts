@@ -77,7 +77,9 @@ export type JobOrigin = { channel: "hivic_sourced" } | { channel: "installer_sou
 
 
 /** Step 1 intake → durable enqueue. Initial Property Intelligence + first official Gate 1 run in the post-intake processor. */
-export async function upsertEnquiry(input: EnquiryInput, source: string, actorId: string | null, origin: JobOrigin = { channel: "hivic_sourced" }) {
+/** Installer Add job may register a job BEFORE any measure-up (area null). Every other origin still needs an area. */
+export async function upsertEnquiry(input: Omit<EnquiryInput, "estimated_area_m2"> & { estimated_area_m2: number | null }, source: string, actorId: string | null, origin: JobOrigin = { channel: "hivic_sourced" }) {
+  if (input.estimated_area_m2 == null && origin.channel !== "installer_sourced") throw new Error("estimated_area_m2 is required");
   const email = input.email.toLowerCase();
   const fullName = properName(input.full_name);
   let { data: owner } = await admin.from("owners").select("id").ilike("email", exactLike(email)).maybeSingle();
@@ -111,7 +113,7 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
   const propFields = { owner_id: owner!.id, address_line: properAddress(input.address_line), suburb: input.suburb ? properAddress(input.suburb) : null, postcode: input.postcode ?? null, occupancy: input.occupancy ?? null, ...(normaliseState(input.state) ? { state: normaliseState(input.state)! } : {}) };
   const jobFields = {
     estimated_area_m2: input.estimated_area_m2,
-    estimated_area_unknown: false,
+    estimated_area_unknown: input.estimated_area_m2 == null,
     life_support: input.life_support ?? false,
     life_support_status: input.life_support_status ?? (input.life_support === true ? "yes" : null),
   };
@@ -120,7 +122,7 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
 
   if (existingJob) {
     const { data: before } = await admin.from("properties").select("address_line, suburb, postcode, enrichment").eq("id", existingJob.property_id).single();
-    await admin.from("properties").update({ ...propFields, ...(source === "base44" || source === "qa_test" ? { enrichment: mergeEvidence(before?.enrichment, input) } : {}) }).eq("id", existingJob.property_id);
+    await admin.from("properties").update({ ...propFields, ...(source === "base44" || source === "qa_test" ? { enrichment: mergeEvidence(before?.enrichment, input as EnquiryInput) } : {}) }).eq("id", existingJob.property_id);
     const addrChanged = !!before && addressHash(before.address_line, before.suburb, before.postcode) !== addressHash(propFields.address_line, propFields.suburb, propFields.postcode);
     const update = { ...jobFields, ...(plan?.patch ?? {}) } as TablesUpdate<"jobs">; // never changes stage
     const { error: ue } = await admin.from("jobs").update(update).eq("id", existingJob.id);
@@ -132,13 +134,13 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
       await logEvent(existingJob.id, actorId, "repeat_enquiry_attached", `Same owner filled in the calculator again; attached to this job instead of creating a new one.${sizeNote}`, { repeat_external_enquiry_id: repeatOf, previous_area_m2: before, area_m2: after });
     }
     await logEvent(existingJob.id, actorId, "enquiry_updated", `Enquiry updated from ${source}`, plan?.details ?? {});
-    if (source === "base44") await completeIntake(existingJob.id, owner!.id, input);
+    if (source === "base44") await completeIntake(existingJob.id, owner!.id, input as EnquiryInput);
     if (source === "qa_test") return { job_id: existingJob.id, job_number: existingJob.job_number, created: false, post_intake: "none" as const };
     const queued = await enqueueInitialGate1(existingJob.id, await eligibilityFactsVersion(input), addrChanged ? "address changed" : "eligibility facts changed");
     if (queued !== "none") runAfterResponse(() => processPostIntakeWork({ jobId: existingJob.id })); // best-effort; scheduled worker is the durable fallback
     return { job_id: existingJob.id, job_number: existingJob.job_number, created: false, post_intake: queued };
   }
-  const { data: prop, error: pe } = await admin.from("properties").insert({ ...propFields, ...(source === "base44" || source === "qa_test" ? { enrichment: mergeEvidence(null, input) } : {}) }).select("id").single();
+  const { data: prop, error: pe } = await admin.from("properties").insert({ ...propFields, ...(source === "base44" || source === "qa_test" ? { enrichment: mergeEvidence(null, input as EnquiryInput) } : {}) }).select("id").single();
   if (pe) throw new Error(pe.message);
   const { data: job, error: je } = await admin
     .from("jobs")
@@ -165,7 +167,7 @@ export async function upsertEnquiry(input: EnquiryInput, source: string, actorId
   await logEvent(job.id, actorId, "job_source_recorded",
     origin.channel === "installer_sourced" ? "Job source: Installer-sourced (attribution locked)" : "Job source: Home Insulation Victoria-sourced",
     origin.channel === "installer_sourced" ? { channel: origin.channel, originating_installer_business_id: origin.businessId, originating_installer_user_id: origin.userId, commercial_model: "not_configured" } : { channel: origin.channel });
-  if (source === "base44") await completeIntake(job.id, owner!.id, input);
+  if (source === "base44") await completeIntake(job.id, owner!.id, input as EnquiryInput);
   // QA records stay permanently isolated from live post-intake automation.
   if (source === "qa_test") return { job_id: job.id, job_number: job.job_number, created: true, post_intake: "none" as const };
   // Durable hand-off: initial Property Intelligence + the first official Gate 1 run in the post-intake processor.

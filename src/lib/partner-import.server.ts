@@ -9,8 +9,8 @@ import { requireApprovedPartner, requireMember } from "./pilot.server";
 export type CreateImportInput = { businessId: string; sourceSystem: "easymate" | "manual_import" | "csv" | "email"; text?: undefined | string; csv?: undefined | string; csvRow: number; sourceUrl?: undefined | string; externalRefs?: undefined | Record<string, string>; files: { path: string; name: string; type: string }[] };
 export type ConfirmImportInput = { importId: string; facts: Record<string, string | number | boolean | null>; progress?: undefined | "not_visited" | "measured" | "quoted"; occupancy?: undefined | "owner_occupied" | "rental"; details?: undefined | Record<string, unknown>;
   installer?: undefined | { quoted?: undefined | "yes" | "no" | null; site_check: "yes" | "no"; site_check_date?: undefined | string | null; quoted_price_inc_gst?: undefined | number | null; price_includes?: undefined | string | null; contact_permission?: undefined | boolean; fee_awareness?: undefined | boolean; existing_below_r2?: undefined | boolean; owner_agreed?: undefined | boolean;
-    intake?: undefined | { existing_insulation: "none" | "below_r2" | "unknown"; evidence_ack: boolean; proposed_r_value?: undefined | number | null; version: string; coordination: "hivic_managed" | "self_managed"; self_managed_ack: boolean } };
-  electrician?: undefined | { mode: "mine" | "hivic"; business_id?: undefined | string | null; nomination_id?: undefined | string | null } };
+    intake?: undefined | { existing_insulation: "none" | "below_r2" | "unknown"; evidence_ack: boolean; proposed_r_value?: undefined | number | null; version: string; coordination: "hivic_managed" | "self_managed"; self_managed_ack: boolean; quote_status?: undefined | "not_quoted" | "have_quote" } };
+  electrician?: undefined | { mode: "mine" | "hivic" | "later"; business_id?: undefined | string | null; nomination_id?: undefined | string | null } };
 
 export async function createImportFor(userId: string, data: CreateImportInput) {
   const context = { userId };
@@ -97,12 +97,22 @@ export async function confirmClaimed(userId: string, data: ConfirmImportInput, i
   const intake = data.installer?.intake;
   const files0 = (imp.files as unknown[] | null) ?? [];
   if (intake) {
-    // Approved single intake: quote upload OR manual amount + inclusions; insulation declared; evidence acknowledged.
-    const area0 = Number(c.measured_area_m2);
-    if (!Number.isFinite(area0) || area0 <= 0 || area0 > 5000) blockers.push("Enter the ceiling area (m²)");
-    const amt = data.installer?.quoted_price_inc_gst;
-    if (!(amt && amt > 0) && files0.length === 0) blockers.push("Upload your quote or enter the quote amount inc GST");
-    if (amt && amt > 0 && !data.installer?.price_includes?.trim()) blockers.push("Tell us what the quote includes");
+    // Approved single intake (Jo, 8 Oct): a job may be registered BEFORE a visit and BEFORE a quote. Area and quote are
+    // optional; anything supplied must be valid. "Not quoted yet" stores null quote facts (never zero/fake).
+    const qs = intake.quote_status ?? "have_quote";
+    if (c.measured_area_m2 != null && c.measured_area_m2 !== "") { const a0 = Number(c.measured_area_m2); if (!Number.isFinite(a0) || a0 <= 0 || a0 > 5000) blockers.push("Check the ceiling area (m²)"); }
+    else c.measured_area_m2 = null;
+    if (qs === "not_quoted") {
+      if (data.installer) { data.installer.quoted = "no"; data.installer.quoted_price_inc_gst = null; data.installer.price_includes = null; }
+      intake.proposed_r_value = null;
+    } else {
+      const amt = data.installer?.quoted_price_inc_gst;
+      if (!(amt && amt > 0) && files0.length === 0) blockers.push("Upload your quote or enter the quote amount inc GST");
+      if (amt && amt > 0 && !data.installer?.price_includes?.trim()) blockers.push("Tell us what the quote includes");
+      // Upload-only quote: amount comes later; quoted stays unknown (never a false "yes").
+      if (data.installer && !(amt && amt > 0)) { data.installer.quoted = null; data.installer.quoted_price_inc_gst = null; data.installer.price_includes = null; }
+      else if (data.installer) data.installer.quoted = "yes";
+    }
     { const { coordinationProblems } = await import("./installer-intake.core"); blockers.push(...coordinationProblems(intake.coordination, intake.self_managed_ack)); }
     if (intake.evidence_ack !== true) blockers.push("Tick that all required evidence must be supplied and accepted before the rebate");
     if (typeof imp.raw_text === "string") { const { multiCustomerAmbiguity } = await import("./installer-intake.core"); if (multiCustomerAmbiguity(imp.raw_text)) blockers.push("The uploaded file names more than one customer — upload one customer's quote per job"); }
@@ -123,13 +133,13 @@ export async function confirmClaimed(userId: string, data: ConfirmImportInput, i
   }
   { const { electricianPlanBlocker } = await import("./job-electrician.core"); const eb = electricianPlanBlocker(data.electrician as never); if (eb) blockers.push(eb); }
   if (blockers.length) throw new WorkflowError(blockers.join(" • "));
-  const area = Number(c.measured_area_m2);
-  if (!Number.isFinite(area) || area <= 0 || area > 5000) throw new WorkflowError("Enter the ceiling area (m²) before confirming — every job needs an area estimate.");
+  const area = c.measured_area_m2 == null || c.measured_area_m2 === "" ? null : Number(c.measured_area_m2);
+  if (!intake && (area == null || !Number.isFinite(area) || area <= 0 || area > 5000)) throw new WorkflowError("Enter the ceiling area (m²) before confirming — every job needs an area estimate.");
   const { upsertEnquiry } = await import("./enquiry.server");
   const s = (k: keyof ConfirmedFacts) => (c[k] == null || c[k] === "" ? null : String(c[k]));
   const res = resumeJobId ? await (async () => { const { data: j } = await admin.from("jobs").select("job_number").eq("id", resumeJobId).single(); return { job_id: resumeJobId, job_number: j?.job_number as string }; })() : await upsertEnquiry({
     full_name: s("full_name")!, email: s("email")!, phone: s("phone"), address_line: s("address_line")!, suburb: s("suburb"), postcode: s("postcode"),
-    estimated_area_m2: area, ...(data.occupancy ? { occupancy: data.occupancy } : {}),
+    estimated_area_m2: area != null && Number.isFinite(area) && area > 0 ? area : null, ...(data.occupancy ? { occupancy: data.occupancy } : {}),
   }, await (await import("./pilot.server")).intakeSourceFor(context.userId, imp.business_id, "installer_import"), context.userId, { channel: "installer_sourced", businessId: imp.business_id, userId: context.userId });
   if (!resumeJobId) await linkImportJob(claim, res.job_id, attempt);
   const chk = (r: { error: { message: string } | null }, what: string) => { if (r.error) throw new WorkflowError(`${what}: ${r.error.message}`); };
