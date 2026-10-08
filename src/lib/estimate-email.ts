@@ -459,50 +459,31 @@ export function renderLaunchGroupEmail(input: LaunchCampaignEmailInput): Estimat
 /** Group B (onsite) campaign email only. The v9 likely-eligible Save my spot version is RETIRED (Jo, 7 Oct) and refuses to render. */
 export function renderLaunchCampaignEmail(input: LaunchCampaignEmailInput): EstimateEmail {
   if (input.group === "likely") throw new Error("The old Save my spot email is retired. Use renderSaveSpotFromLikelyEmail.");
-  // Jo-approved 6 Oct (v4): logo green #00BF63 for the caps line, headline amount and rebate row. Buttons keep the V2 theme green.
-  const origins: readonly string[] = CAMPAIGN_LINK_ORIGINS;
   const campaign = new URL(input.campaignUrl);
-  if (!origins.includes(campaign.origin) || !/^\/estimate\/[A-Za-z0-9_-]{43,128}\/campaign$/.test(campaign.pathname) || campaign.search || campaign.hash) throw new Error("A secure Home Insulation Victoria campaign link is required.");
-  const unsubscribe = new URL(input.unsubscribeUrl);
-  if (!origins.includes(unsubscribe.origin) || !["/email/unsubscribe", "/api/public/unsubscribe"].includes(unsubscribe.pathname) || !isWellFormedToken(unsubscribe.searchParams.get("t"))) throw new Error("A secure unsubscribe link is required.");
-  const myJob = input.myJobUrl ? new URL(input.myJobUrl) : null;
-  if (myJob && (!origins.includes(myJob.origin) || !/^\/my-job\/[A-Za-z0-9_-]{43,128}$/.test(myJob.pathname))) throw new Error("A secure My job link is required.");
-  const amounts = [input.estimatedTotal, input.veuDiscount, input.grossTotal, input.areaM2];
-  if (!amounts.every((value) => Number.isFinite(value) && value > 0) || Math.abs(input.estimatedTotal + input.veuDiscount - input.grossTotal) > 0.01) throw new Error("Campaign email estimate values must be positive and reconcile.");
-  const onsite = input.group === "onsite";
-  const name = input.firstName?.trim().replace(/\s+/g, " ").slice(0, 60) || null;
-  const c = input.copy ?? {};
-  const fill = (v: string | undefined) => (v && v.trim() ? v.trim().replace(/\{name\}\s*/g, name ? `${name} ` : "").replace(/\s+([,!.])/g, "$1").replace(/^[,\s]+/, "").replace(/^./, (x) => x.toUpperCase()) : null);
-  const rebate = money(input.veuDiscount), customer = money(input.estimatedTotal), gross = money(input.grossTotal);
-  const address = dedupeAddress(input.address);
-  const suburb = (() => { if (!address) return null; const parts = address.split(",").map((p) => p.trim()).filter(Boolean); return parts.length > 1 ? (parts[1] ?? "").replace(/\s+VIC\s+\d{4}$/i, "") || null : null; })();
-  const subject0 = onsite ? `${name ? `${name}, jump` : "Jump"} the queue for your ${rebate} rebate` : `Great news${name ? `, ${name}` : ""}! ${rebate} off your ceiling insulation 🎉`;
-  const previewText0 = onsite ? "One short manhole video moves you up the list." : "Save your spot in one tap. Installers are booking up fast.";
-  const subject = fill(c.subject) ?? subject0;
-  const previewText = fill(c.previewText) ?? previewText0;
-  const assessmentFee = input.assessmentFee ?? 349, apFee = input.apFee ?? 349;
-  const installation = input.installation ?? input.grossTotal - assessmentFee - apFee;
-  if (![installation, assessmentFee, apFee].every((n) => Number.isFinite(n) && n >= 0) || Math.abs(installation + assessmentFee + apFee - input.grossTotal) > 0.01) throw new Error("Campaign email cost breakdown must add up to the price before discount.");
-  const heading = `Great news${name ? `, ${name}` : ""}!`;
-  const home = `Your ${suburb ? `${suburb} ` : ""}home ${onsite ? "could be eligible" : "looks eligible"} for the Victorian Energy Upgrades rebate.`;
-  const prices: [string, string, string][] = [
-    [`Ceiling insulation (${number(input.areaM2)} m²)`, money(installation), ""],
-    ["Electrical safety check", money(assessmentFee), ""],
-    ["Accredited Person fee", money(apFee), ""],
-    ["VEU rebate", `−${rebate}`, "color:#07BF61;"],
-    ["You pay about", customer, "font-weight:bold;"],
-  ];
-  // v9 (Jo, 6 Oct): built on the partner invitation template shell, reused verbatim.
-  const bodyRows =
-    inv.pad(inv.h1(heading) + "\n" + inv.lead(escape(home)), "8px 40px 0") +
-    inv.pad(inv.rows(prices.map(([label, value, style]) => ({ label, value, style: style.replace("#07BF61", "#008A45") })))) +
-    inv.pad(inv.p(`${inv.tag("FREE")}&nbsp; <strong style="color:#22376B;">Free Ready Check</strong>`, "20px 0 12px") + inv.p("Hundreds of homes have enquired since 1 October. Spots go in order.", "0 0 20px")) +
-    inv.pad(inv.button(campaign.toString(), "Save my spot →") + inv.small("Free · no payment · no obligation", true), "0 40px 24px");
-  const privacy = `<a href="${escape(PRIVACY_URL)}" style="color:#3C51C4;">Privacy</a>`;
-  const remove = `<a href="${escape(unsubscribe.toString())}" style="color:#3C51C4;">Remove my enquiry</a>`;
-  const html = invitationShell({ title: subject, previewText, bodyRows, footerExtraHtml: `${privacy} · ${remove}` });
-  const textLines = [heading, "", home, ...prices.map(([label, value]) => `${label}: ${value}`), "FREE Ready Check", "Hundreds of homes have enquired since 1 October. Spots go in order.", "", `Save my spot →: ${campaign.toString()}`, "Free · no payment · no obligation"];
-  return { subject, previewText, html, plainText: [...textLines, "", "DC Construction Solutions Pty Ltd", "ABN 44 671 613 979", "Trading as Home Insulation Victoria", `Privacy: ${PRIVACY_URL}`, `Remove my enquiry: ${unsubscribe.toString()}`].join("\n") };
+  if (campaign.origin !== BASE || !/^\/estimate\/[A-Za-z0-9_-]{43,128}\/campaign$/.test(campaign.pathname) || campaign.search || campaign.hash) throw new Error("A secure Home Insulation Victoria campaign link is required.");
+  const base = renderStep3SaveSpot({
+    estimateUrl: input.campaignUrl.replace(/\/campaign$/, ""), campaignUrl: input.campaignUrl, unsubscribeUrl: input.unsubscribeUrl,
+    referralUrl: input.referralUrl ?? null, firstName: input.firstName ?? null, address: input.address ?? null, reference: input.reference ?? null,
+    estimatedTotal: input.estimatedTotal, veuDiscount: input.veuDiscount, grossTotal: input.grossTotal, areaM2: input.areaM2,
+    existingInsulationPresent: true, installation: input.installation, assessmentFee: input.assessmentFee, apFee: input.apFee,
+  });
+  const instruction = "We need to check your existing ceiling insulation. If it appears to be below R2, you could JUMP THE QUEUE. Upload a short video from your manhole or clear pictures, or select ‘I confirm this is below R2’. Our office will assess what you provide and, if suitable, offer you Save my spot.";
+  const small = "Office checks first. Your spot is not saved until we offer it and you choose Save my spot.";
+  const intro = "your home could qualify for a VEU ceiling insulation rebate, subject to checking the existing insulation.";
+  const replace = (value: string) => value
+    .replace("your home looks likely to qualify for a VEU ceiling insulation rebate.", intro)
+    .replace("Your estimated VEU rebate", "Your potential VEU rebate")
+    .replace("Your estimated cost after rebate", "Estimated cost if eligible")
+    .replace(SAVE_SPOT_INSTRUCTION, instruction)
+    .replace(SAVE_SPOT_SMALL_PRINT, small);
+  const html = replace(base.html)
+    .replace("Save your spot</h2>", "JUMP THE QUEUE</h2>")
+    .replace(`href="${escape(input.campaignUrl)}"`, `href="${escape(input.campaignUrl.replace(/\/campaign$/, "/video"))}"`)
+    .replace("Save my spot →", "Check my existing insulation →");
+  const plainText = replace(base.plainText)
+    .replace("SAVE YOUR SPOT\n", "JUMP THE QUEUE\n")
+    .replace(`Save my spot: ${input.campaignUrl}`, `Check my existing insulation: ${input.campaignUrl.replace(/\/campaign$/, "/video")}`);
+  return { subject: `${input.firstName?.trim() || "Your home"} — your preliminary insulation estimate`, previewText: "Your potential rebate and estimate. Send insulation details for office review to JUMP THE QUEUE.", html, plainText };
 }
 
 // ---------------------------------------------------------------------------
