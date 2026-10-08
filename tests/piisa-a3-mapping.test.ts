@@ -120,7 +120,7 @@ describe("A3 evidence", () => {
     const media = [{ key: "installer_photos" as const, count: 1, geotagged: 1 }, { key: "isolation_photo" as const, count: 1, geotagged: 1, capturedAt: "2026-10-09T03:00:00Z" }, { key: "before_video" as const, count: 1, geotagged: 0 }, { key: "product_photos" as const, count: 1, geotagged: 0 }, { key: "completed_video" as const, count: 1, geotagged: 0 }];
     const b = a3EvidenceBlockers({ lifeSupport: "Yes" }, ctx, media, "2026-10-09T01:00:00Z");
     expect(b.some((x) => /Installer photos.*1 of 2/.test(x))).toBe(true);
-    expect(b.some((x) => /Installed product.*location not recorded.*office review/.test(x))).toBe(true);
+    expect(b.some((x) => /product label.*location not recorded.*office review/.test(x))).toBe(true);
     expect(b.some((x) => /Power isolation.*before work starts/.test(x))).toBe(true);
     expect(b.some((x) => /Life support/.test(x))).toBe(true);
   });

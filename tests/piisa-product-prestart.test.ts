@@ -27,7 +27,7 @@ describe("PIISA product-label phase and actual statutory data", () => {
     const parsed = parseA3Answers({ items: [{ item_id: A3_MEDIA_IDS.product_photos, label: "Product labels", media: [{ media_id: "photo" }] }] });
     expect(parsed.answers["p7.products"]).toBeUndefined();
     expect(renderOfficialDocument("piisa", parsed.answers).find((r) => r.id === "p7.products")?.value).toBeNull();
-    expect(evaluateOfficialForm("piisa", parsed.answers).blockers.some((b) => b.rule === "REQ" && /brand.*model.*R-value/i.test(b.message))).toBe(true);
+    expect(evaluateOfficialForm("piisa", parsed.answers).blockers.some((b) => b.rule === "REQ:p7.products")).toBe(true);
     const actual = parseA3Answers({ items: [{ item_id: A3_NATIVE_IDS["p7.products"]?.[0], label: "What insulation products are being installed? Include brand, model and R-value.", responses: { text: "Actual brand / actual model / R5.0" } }] });
     expect(renderOfficialDocument("piisa", actual.answers).find((r) => r.id === "p7.products")?.value).toBe("Actual brand / actual model / R5.0");
   });
