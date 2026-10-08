@@ -1,4 +1,5 @@
-// Installer-supplied customer: ONE short intake (Jo, 8 Oct 2026, approved). Customer -> Job details -> Review & submit.
+// Installer-supplied customer: ONE short intake. Agreed order (Jo, 9 Oct 2026 01:17 Sydney):
+// Customer -> How would you like to organise this job? -> Have you measured and quoted? (+ electrician, fees) -> Review.
 // Existing portal look; existing guarded handlers (createImport / confirmImport) and shared CustomerFields.
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -14,11 +15,20 @@ import { addImportFiles, confirmImport, createImport, getImportDraft, removeImpo
 import { supabase } from "@/integrations/supabase/client";
 import { addBulkElectrician, bulkElectricianChoices, readBulkFile } from "@/lib/bulk-import.functions";
 import { getMyIntakeReadyCheck } from "@/lib/installer-quote.functions";
-import { READY_CHECK_CONTACT_PERMISSION, electricianPlanBlocker, usualElectrician, type ElectricianPlan } from "@/lib/job-electrician.core";
+import { electricianPlanBlocker, usualElectrician, type ElectricianPlan } from "@/lib/job-electrician.core";
 import type { OnsiteInput } from "@/lib/onsite-ready-check.core";
 import type { IntakeApi } from "./intake-preview-adapter";
 import type { Extracted } from "@/lib/pilot.core";
-import { ADD_JOB_STEPS, BUSY_LABEL, blankCustomer, customerProblems, nextStep, prevStep, restoreCustomer, saveErrorMessage, type AddJobStep } from "@/lib/add-job-flow.core";
+import { BUSY_LABEL, blankCustomer, customerProblems, restoreCustomer, saveErrorMessage } from "@/lib/add-job-flow.core";
+import { ELECTRICIAN_PAYER_CHOICES, FEE_AWARENESS_VERSION, INSTALLER_CONTACT_PERMISSION, MEASURED_QUOTED_CHOICES, MEASURED_QUOTED_QUESTION, NOT_MEASURED_NOTE, ORGANISE_QUESTION, feeAwarenessText, intakeNextAction, type ElectricianPayer } from "@/lib/installer-intake.core";
+
+type AddJobStep = "customer" | "organise" | "job" | "review";
+const ADD_JOB_STEPS: { key: AddJobStep; label: string }[] = [
+  { key: "customer", label: "Customer" }, { key: "organise", label: "Organise" }, { key: "job", label: "Job" }, { key: "review", label: "Review & submit" },
+];
+const ORDER = ADD_JOB_STEPS.map((s) => s.key);
+const nextStep = (s: AddJobStep): AddJobStep => ORDER[Math.min(ORDER.indexOf(s) + 1, ORDER.length - 1)]!;
+const prevStep = (s: AddJobStep): AddJobStep | null => (ORDER.indexOf(s) > 0 ? ORDER[ORDER.indexOf(s) - 1]! : null);
 import { COORDINATION_CHOICES, COORDINATION_VERSION, SELF_MANAGED_ACK, VEEC_NOTE, coordinationProblems, type Coordination, EVIDENCE_ACK, EXISTING_INSULATION_CHOICES, INTAKE_RULESET_VERSION, intakeProblems, multiCustomerAmbiguity, prefillFromExtracted, intakeConfirmFacts, type ExistingInsulation, QUOTE_STATUS_CHOICES, JOB_DETAILS_LEAD, intakeArea, intakeQuotePayload, type QuoteStatus } from "@/lib/installer-intake.core";
 
 // Resume after refresh: scoped to the signed-in USER and business (never shared between people or businesses).
@@ -42,7 +52,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
   const [shown, setShown] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [saved, setSaved] = useState<{ jobId: string; jobNumber: string | null; insulation: ExistingInsulation; quoted?: boolean } | null>(null);
+  const [saved, setSaved] = useState<Saved | null>(null);
   const problemsRef = useRef<HTMLUListElement>(null);
   const inFlight = useRef(false);
 
@@ -50,8 +60,12 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
   const getEl = (preview?.getEl ?? realGetEl) as typeof realGetEl, addEl = (preview?.addEl ?? realAddEl) as typeof realAddEl;
   const { data: el, refetch } = useQuery({ queryKey: ["bulk-electricians", businessId, !!preview], queryFn: () => getEl({ data: { businessId } }) });
   const [plan, setPlan] = useState<ElectricianPlan | null>(null);
-  const [elLater, setElLater] = useState(false);
-  useEffect(() => { if (plan || !el) return; const u = usualElectrician(el.approved); setPlan(u?.businessId ? { mode: "mine", business_id: u.businessId } : { mode: "hivic" }); }, [el, plan]);
+  const [payer, setPayer] = useState<ElectricianPayer | null>(null);
+  const [feeAck, setFeeAck] = useState(false);
+  const elLater = payer === "undecided";
+  // Own electrician: the usual approved REC is prefilled (never auto-chooses "own" for them).
+  useEffect(() => { if (payer !== "own" || (plan?.mode === "mine")) return; const u = usualElectrician(el?.approved ?? []); setPlan(u?.businessId ? { mode: "mine", business_id: u.businessId } : { mode: "mine" }); }, [payer, el]); // eslint-disable-line react-hooks/exhaustive-deps
+  const feeText = feeAwarenessText(payer);
 
   // Typed details survive refresh/poor signal; consent and the acknowledgements are never restored.
   const [userId, setUserId] = useState<string | null>(null);
@@ -67,12 +81,14 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         for (const k of LEGACY_KEYS(businessId)) { localStorage.removeItem(k); sessionStorage.removeItem(k); }
         const raw = localStorage.getItem(resumeKey(userId, businessId));
         if (raw) {
-          const r = JSON.parse(raw) as { customer?: unknown; d?: Details; coord?: Coordination | null; draftId?: string | null; step?: AddJobStep; fileText?: string };
+          const r = JSON.parse(raw) as { customer?: unknown; d?: Details; coord?: Coordination | null; draftId?: string | null; step?: AddJobStep; fileText?: string; payer?: ElectricianPayer | null; plan?: ElectricianPlan | null };
           if (r.customer) setCustomer(restoreCustomer(r.customer as never));
           if (r.d) setD({ area: r.d.area ?? "", amount: r.d.amount ?? "", includes: r.d.includes ?? "", proposedR: r.d.proposedR ?? "", insulation: r.d.insulation ?? null, quoteStatus: r.d.quoteStatus ?? null });
           if (r.coord) setCoord(r.coord);
+          if (r.payer) setPayer(r.payer);
+          if (r.plan) setPlan(r.plan);
           if (r.fileText) setFileText(r.fileText);
-          if (r.step && r.step !== "review") setStep(r.step);
+          if (r.step && r.step !== "review" && ORDER.includes(r.step)) setStep(r.step);
           if (r.draftId) {
             const srv = await loadDraft({ data: { importId: r.draftId, businessId } });
             if (!live) return;
@@ -87,10 +103,11 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
   }, [userId, businessId]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!userId || !hydrated) return;
-    try { localStorage.setItem(resumeKey(userId, businessId), JSON.stringify({ customer: { ...customer, contact_permission: false, consent_by: null }, d, coord, draftId, step, fileText: fileText.slice(0, 100_000) })); } catch { /* ignore */ }
-  }, [customer, d, coord, draftId, step, fileText, userId, hydrated, businessId]);
+    try { localStorage.setItem(resumeKey(userId, businessId), JSON.stringify({ customer: { ...customer, contact_permission: false, consent_by: null }, d, coord, payer, plan, draftId, step, fileText: fileText.slice(0, 100_000) })); } catch { /* ignore */ }
+  }, [customer, d, coord, payer, plan, draftId, step, fileText, userId, hydrated, businessId]);
   useEffect(() => { if (shown.length) problemsRef.current?.focus(); }, [shown]);
-  useEffect(() => { setShown([]); }, [customer, d, ack, coord, selfAck]);
+  useEffect(() => { setShown([]); }, [customer, d, ack, coord, selfAck, payer, plan]);
+  useEffect(() => { setFeeAck(false); }, [payer]); // a declaration is for ONE electrician arrangement
 
   const rCreate = useServerFn(createImport), rConfirm = useServerFn(confirmImport);
   const rAddFiles = useServerFn(addImportFiles), rDropFile = useServerFn(removeImportFile), rReadFile = useServerFn(readBulkFile);
@@ -102,12 +119,16 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
   if (saved) return <Received saved={saved} preview={!!preview} />;
 
   const problems = (): string[] => {
-    if (step === "customer") return customerProblems(customer);
-    const p = intakeProblems({ ...d, quoteStatus: d.quoteStatus ?? null, quoteFileCount: files.length, evidenceAck: ack });
-    const eb = elLater ? null : electricianPlanBlocker(plan); if (eb) p.push(eb);
-    p.push(...coordinationProblems(coord, selfAck));
-    if (fileText && multiCustomerAmbiguity(fileText)) p.push("Your file names more than one customer — upload one customer's quote per job");
-    return step === "details" ? p.filter((x) => !/evidence must be supplied/.test(x)) : p;
+    const c = customerProblems(customer);
+    if (step === "customer") return c;
+    const org = coordinationProblems(coord, selfAck);
+    if (step === "organise") return org;
+    const p = intakeProblems({ ...d, quoteStatus: d.quoteStatus ?? null, quoteFileCount: files.length, evidenceAck: ack, requireMeasured: true }).map((x) => x === "Choose the quote status" ? "Choose whether you have measured and quoted this job" : x);
+    if (!payer) p.push("Choose who arranges the electrician");
+    else if (payer === "own") { const eb = electricianPlanBlocker(plan); if (eb) p.push(eb); }
+    if (fileText && d.quoteStatus === "have_quote" && multiCustomerAmbiguity(fileText)) p.push("Your file names more than one customer — upload one customer's quote per job");
+    if (step === "job") return p.filter((x) => !/evidence must be supplied/.test(x));
+    return [...c, ...org, ...p];
   };
 
   const ensureDraft = async (extra: AttachedFile[] = [], text = fileText) => {
@@ -141,10 +162,12 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         quoted_price_inc_gst: q.quoted_price_inc_gst,
         price_includes: q.price_includes,
         contact_permission: customer.contact_permission, owner_agreed: false,
-        intake: { existing_insulation: d.insulation ?? "unknown", evidence_ack: ack, proposed_r_value: q.proposed_r_value, quote_status: d.quoteStatus!, version: `${INTAKE_RULESET_VERSION}+${COORDINATION_VERSION}`, coordination: coord!, self_managed_ack: coord === "self_managed" && selfAck },
-      }, electrician: elLater ? { mode: "later" } : plan?.mode === "mine" ? { mode: "mine", business_id: plan.business_id ?? null, nomination_id: plan.nomination_id ?? null } : { mode: "hivic" } } as never });
+        intake: { existing_insulation: d.insulation ?? "unknown", evidence_ack: ack, proposed_r_value: q.proposed_r_value, quote_status: d.quoteStatus!, version: `${INTAKE_RULESET_VERSION}+${COORDINATION_VERSION}`, coordination: coord!, self_managed_ack: coord === "self_managed" && selfAck,
+          measured_required: true, electrician_payer: payer!,
+          ...(d.quoteStatus === "have_quote" && feeAck && feeText ? { fee_awareness: { declared: true, payer: payer!, text: feeText, version: FEE_AWARENESS_VERSION } } : {}) },
+      }, electrician: payer === "undecided" ? { mode: "later" } : payer === "own" && plan?.mode === "mine" ? { mode: "mine", business_id: plan.business_id ?? null, nomination_id: plan.nomination_id ?? null } : { mode: "hivic" } } as never });
       try { if (userId) localStorage.removeItem(resumeKey(userId, businessId)); } catch { /* ignore */ }
-      setSaved({ jobId: res.jobId, jobNumber: res.jobNumber ?? null, insulation: d.insulation ?? "unknown", quoted: d.quoteStatus === "have_quote" });
+      setSaved({ jobId: res.jobId, jobNumber: res.jobNumber ?? null, insulation: d.insulation ?? "unknown", quoted: d.quoteStatus === "have_quote", next: intakeNextAction(coord, d.quoteStatus === "have_quote"), feeHeld: d.quoteStatus === "have_quote" && !(feeAck && feeText) });
     } catch (e) { setErr(saveErrorMessage(e instanceof Error ? e.message : null)); }
     finally { setBusy(false); inFlight.current = false; }
   };
@@ -154,39 +177,48 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
 
   return (
     <div className="mt-3 space-y-4 pb-24" data-installer-intake data-step={step}>
-      <ol className="grid grid-cols-3 gap-1" aria-label="Progress">
+      <ol className="grid grid-cols-4 gap-1" aria-label="Progress">
         {ADD_JOB_STEPS.map((s, i) => (
           <li key={s.key} aria-current={i === idx ? "step" : undefined} className="min-w-0">
             <span className={`block h-1.5 rounded-full ${i <= idx ? "bg-primary" : "bg-line"}`} />
-            <span className={`mt-1 block truncate text-xs ${i === idx ? "font-bold text-ink" : "text-sub"}`}>{s.key === "review" ? "Review & submit" : s.label}</span>
+            <span className={`mt-1 block truncate text-xs ${i === idx ? "font-bold text-ink" : "text-sub"}`}>{s.label}</span>
           </li>
         ))}
       </ol>
 
       {step === "customer" && <section className="space-y-3 rounded-[18px] border border-line bg-paper p-4" data-step-customer>
         <h2 className="font-display text-lg font-bold">Customer</h2>
-        <CustomerFields offline={!!preview} value={customer} consentLabel={READY_CHECK_CONTACT_PERMISSION} onChange={(n) => { setCustomer(n); setErr(null); }} />
+        <CustomerFields offline={!!preview} value={customer} consentLabel={INSTALLER_CONTACT_PERMISSION} onChange={(n) => { setCustomer(n); setErr(null); }} />
       </section>}
 
-      {step === "details" && <section className="space-y-4 rounded-[18px] border border-line bg-paper p-4" data-step-details>
-        <h2 className="font-display text-lg font-bold">Job details</h2>
-        <p className="text-sm text-sub" data-details-lead>{JOB_DETAILS_LEAD}</p>
-        <label className="block text-sm font-bold">Ceiling area (m²)<span className="block text-xs font-normal text-sub">Optional — leave blank if not measured yet</span><Input className="mt-1 h-12" inputMode="decimal" placeholder="Not measured yet" value={d.area} onChange={(e) => setD({ ...d, area: e.target.value })} /></label>
+      {step === "organise" && <section className="space-y-3 rounded-[18px] border border-line bg-paper p-4" data-step-organise>
+        <fieldset data-coordination><legend className="font-display text-lg font-bold">{ORGANISE_QUESTION}</legend>
+          <div className="mt-2 grid gap-2" role="radiogroup" aria-label={ORGANISE_QUESTION}>
+            {COORDINATION_CHOICES.map((c) => <button key={c.value} type="button" role="radio" aria-checked={coord === c.value} onClick={() => { setCoord(c.value); if (c.value !== "self_managed") setSelfAck(false); }} className={`w-full rounded-[14px] border p-3 text-left ${coord === c.value ? "border-primary bg-primary/5" : "border-line bg-paper"}`}>
+              <span className="flex flex-wrap items-center gap-2 text-sm font-bold">{c.title}{c.badge && <span className="rounded-full bg-primary px-2 py-0.5 text-[11px] text-primary-foreground">{c.badge}</span>}</span>
+              <span className="mt-1 block text-xs text-sub">{c.body}</span>
+            </button>)}
+          </div>
+          {coord === "self_managed" && <label className="mt-2 flex items-start gap-3 text-sm" data-self-managed-ack><Checkbox className="mt-0.5" checked={selfAck} onCheckedChange={(c) => setSelfAck(c === true)} aria-label={SELF_MANAGED_ACK} /><span>{SELF_MANAGED_ACK}</span></label>}
+          <p className="mt-2 text-xs text-sub">{VEEC_NOTE}</p>
+        </fieldset>
+      </section>}
+
+      {step === "job" && <section className="space-y-4 rounded-[18px] border border-line bg-paper p-4" data-step-job>
+        <fieldset data-measured-quoted><legend className="font-display text-lg font-bold">{MEASURED_QUOTED_QUESTION}</legend>
+          <div className="mt-2 grid grid-cols-2 gap-2" role="radiogroup" aria-label={MEASURED_QUOTED_QUESTION}>
+            {MEASURED_QUOTED_CHOICES.map((c) => <Button key={c.value} size="field" role="radio" aria-checked={d.quoteStatus === c.value} variant={d.quoteStatus === c.value ? "default" : "outline"} onClick={() => setD({ ...d, quoteStatus: c.value })}>{c.label}</Button>)}
+          </div>
+          {d.quoteStatus === "not_quoted" && <p className="mt-2 text-sm text-sub" data-not-measured-note>{NOT_MEASURED_NOTE}</p>}
+        </fieldset>
+        {d.quoteStatus === "have_quote" && <div className="space-y-4" data-measured-branch>
+        <label className="block text-sm font-bold">Measured ceiling area (m²)<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 120" value={d.area} onChange={(e) => setD({ ...d, area: e.target.value })} /></label>
         <fieldset data-existing-insulation><legend className="text-sm font-bold">Existing insulation</legend>
           <div className="mt-2 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Existing insulation">
             {EXISTING_INSULATION_CHOICES.map((c) => <Button key={c.value} size="field" role="radio" aria-checked={d.insulation === c.value} variant={d.insulation === c.value ? "default" : "outline"} className="h-auto min-h-12 whitespace-normal px-1 text-xs leading-tight" onClick={() => setD({ ...d, insulation: c.value })}>{c.label}</Button>)}
           </div>
           {d.insulation === "unknown" && <p className="mt-1 text-xs text-sub">You can submit. The owner quote waits until the existing insulation is confirmed as none or below R2.0.</p>}
         </fieldset>
-        <fieldset data-quote-status><legend className="text-sm font-bold">Quote status</legend>
-          <div className="mt-2 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Quote status">
-            {QUOTE_STATUS_CHOICES.map((c) => <Button key={c.value} size="field" role="radio" aria-checked={d.quoteStatus === c.value} variant={d.quoteStatus === c.value ? "default" : "outline"} className="h-auto min-h-12 whitespace-normal px-1 text-sm leading-tight" onClick={() => setD({ ...d, quoteStatus: c.value })}>{c.label}</Button>)}
-          </div>
-          {d.quoteStatus === "not_quoted" && (d.amount || d.includes || d.proposedR || files.length > 0)
-            ? <p className="mt-1 text-xs text-sub" data-quote-hidden-note>The quote details you entered won't be sent while "Not quoted yet" is chosen.{files.length ? " Attached files stay with the job as originals." : ""}</p>
-            : d.quoteStatus === "not_quoted" ? <p className="mt-1 text-xs text-sub">That's fine — add your measurements and quote on the job when ready.</p> : null}
-        </fieldset>
-        {d.quoteStatus === "have_quote" && <>
         <AttachFiles businessId={businessId} files={files} label="Upload your quote" onAdd={async (picked) => {
           const up = await uploadFiles(picked);
           if (draftId) { const r = await addFiles({ data: { importId: draftId, files: up.map((x) => ({ path: x.path, name: x.name, type: x.type ?? "" })) } }); setFiles(r.files); setFileNote("Attached to this job."); }
@@ -212,37 +244,29 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         <label className="block text-sm font-bold">Your quote inc GST<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 3,450" value={d.amount} onChange={(e) => setD({ ...d, amount: e.target.value })} /></label>
         <label className="block text-sm font-bold">What the quote includes<Textarea className="mt-1" rows={3} maxLength={1000} value={d.includes} onChange={(e) => setD({ ...d, includes: e.target.value })} /></label>
         <label className="block text-sm font-bold">Proposed product R-rating<span className="block text-xs font-normal text-sub">Optional, e.g. R5.0</span><Input className="mt-1 h-12" inputMode="decimal" value={d.proposedR} onChange={(e) => setD({ ...d, proposedR: e.target.value })} /></label>
-        </>}
-        <fieldset data-coordination><legend className="text-sm font-bold">Who will organise this job?</legend>
-          <div className="mt-2 grid gap-2" role="radiogroup" aria-label="Who will organise this job?">
-            {COORDINATION_CHOICES.map((c) => <button key={c.value} type="button" role="radio" aria-checked={coord === c.value} onClick={() => { setCoord(c.value); if (c.value !== "self_managed") setSelfAck(false); }} className={`w-full rounded-[14px] border p-3 text-left ${coord === c.value ? "border-primary bg-primary/5" : "border-line bg-paper"}`}>
-              <span className="flex flex-wrap items-center gap-2 text-sm font-bold">{c.title}{c.badge && <span className="rounded-full bg-primary px-2 py-0.5 text-[11px] text-primary-foreground">{c.badge}</span>}</span>
-              <span className="mt-1 block text-xs text-sub">{c.body}</span>
+        </div>}
+        <fieldset data-electrician-payer><legend className="text-sm font-bold">Electrician (PIESA)</legend>
+          <div className="mt-2 grid gap-2" role="radiogroup" aria-label="Electrician">
+            {ELECTRICIAN_PAYER_CHOICES.map((c) => <button key={c.value} type="button" role="radio" aria-checked={payer === c.value} onClick={() => { setPayer(c.value); if (c.value === "hivic") setPlan({ mode: "hivic" }); }} className={`w-full rounded-[14px] border p-3 text-left ${payer === c.value ? "border-primary bg-primary/5" : "border-line bg-paper"}`}>
+              <span className="block text-sm font-bold">{c.label}</span><span className="mt-1 block text-xs text-sub">{c.body}</span>
             </button>)}
           </div>
-          {coord === "self_managed" && <label className="mt-2 flex items-start gap-3 text-sm" data-self-managed-ack><Checkbox className="mt-0.5" checked={selfAck} onCheckedChange={(c) => setSelfAck(c === true)} aria-label={SELF_MANAGED_ACK} /><span>{SELF_MANAGED_ACK}</span></label>}
-          <p className="mt-2 text-xs text-sub">{VEEC_NOTE}</p>
         </fieldset>
-        <fieldset data-electrician-when><legend className="text-sm font-bold">Electrician</legend>
-          <div className="mt-2 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Electrician">
-            <Button size="field" role="radio" aria-checked={!elLater} variant={!elLater ? "default" : "outline"} onClick={() => setElLater(false)}>Choose now</Button>
-            <Button size="field" role="radio" aria-checked={elLater} variant={elLater ? "default" : "outline"} onClick={() => setElLater(true)}>To be arranged</Button>
-          </div>
-          {elLater && <p className="mt-1 text-xs text-sub">You can choose the electrician on the job later. Nobody is booked.</p>}
-        </fieldset>
-        {plan && !elLater && <ElectricianPicker value={plan} onChange={setPlan} note={false} approved={el?.approved ?? []} pending={el?.pending ?? []} onAdd={async (x) => { const r = await addEl({ data: { businessId, name: x.name, mobile: x.mobile, email: x.email, business: x.business } }); await refetch(); setPlan({ mode: "mine", ...(r.businessId ? { business_id: r.businessId } : { nomination_id: r.nominationId }) }); return { message: inviteResultMessage(r) }; }} />}
+        {payer === "own" && plan && <ElectricianPicker value={plan} onChange={(n) => { setPlan(n); if (n.mode !== "mine") setPayer("hivic"); }} note={false} approved={el?.approved ?? []} pending={el?.pending ?? []} onAdd={async (x) => { const r = await addEl({ data: { businessId, name: x.name, mobile: x.mobile, email: x.email, business: x.business } }); await refetch(); setPlan({ mode: "mine", ...(r.businessId ? { business_id: r.businessId } : { nomination_id: r.nominationId }) }); return { message: inviteResultMessage(r) }; }} />}
+        {d.quoteStatus === "have_quote" && feeText && <label className="flex items-start gap-3 text-sm" data-fee-ack><Checkbox className="mt-0.5" checked={feeAck} onCheckedChange={(c) => setFeeAck(c === true)} aria-label={feeText} /><span>{feeText}<span className="block text-xs text-sub">Not ticked? You can still submit — the owner quote waits until this is recorded.</span></span></label>}
       </section>}
 
       {step === "review" && <section className="space-y-3 rounded-[18px] border border-line bg-paper p-4" data-step-review>
         <h2 className="font-display text-lg font-bold">Review & submit</h2>
         <Summary title="Customer" onEdit={() => setStep("customer")} rows={[customer.full_name, [customer.address_line, customer.suburb, customer.postcode].filter(Boolean).join(", "), customer.phone, customer.email, "Permission to contact given"]} />
-        <Summary title="Job details" onEdit={() => setStep("details")} rows={[
-          intakeArea(d.area) ? `Ceiling ${d.area} m²` : "Ceiling area: not measured yet", `Existing insulation: ${EXISTING_INSULATION_CHOICES.find((c) => c.value === (d.insulation ?? "unknown"))?.label ?? "Not yet confirmed"}`,
+        <Summary title="Organise" onEdit={() => setStep("organise")} rows={[coord === "self_managed" ? "I’ll manage the job myself (responsibility acknowledged)" : "Home Insulation Victoria manages the process"]} />
+        <Summary title="Job" onEdit={() => setStep("job")} rows={[
+          d.quoteStatus === "not_quoted" ? "Not measured or quoted yet" : intakeArea(d.area) ? `Ceiling ${d.area} m²` : "Ceiling area: not measured yet", `Existing insulation: ${EXISTING_INSULATION_CHOICES.find((c) => c.value === (d.insulation ?? "unknown"))?.label ?? "Not yet confirmed"}`,
           ...(d.quoteStatus === "not_quoted" ? ["Quote: not quoted yet"] : [d.amount ? `Quote $${d.amount.replace(/^\$/, "")} inc GST` : "Quote amount from your uploaded file", d.includes ? `Includes: ${d.includes}` : "", d.proposedR ? `Proposed product ${/^r/i.test(d.proposedR) ? d.proposedR : `R${d.proposedR}`}` : ""]),
-          `${files.length} file${files.length === 1 ? "" : "s"} attached`, `Electrician: ${elName}`, `Organised by: ${coord === "self_managed" ? "you" : "Home Insulation Victoria"}`,
+          `${files.length} file${files.length === 1 ? "" : "s"} attached`, `Electrician: ${elName}`, ...(d.quoteStatus === "have_quote" ? [feeAck && feeText ? "Owner fees advised (declared)" : "Owner fees: not declared yet — owner quote waits"] : []),
         ]} />
         <label className="flex items-start gap-3 text-sm" data-evidence-ack><Checkbox className="mt-0.5" checked={ack} onCheckedChange={(c) => setAck(c === true)} aria-label={EVIDENCE_ACK} /><span>{EVIDENCE_ACK}</span></label>
-        <div className="rounded-[12px] border border-line p-3" data-next-step><p className="text-xs font-bold uppercase tracking-wide text-sub">What happens next</p><p className="mt-1 text-sm">Nothing is sent when you submit. Home Insulation Victoria checks the owner's eligibility and prepares the owner quote once the measurements, your quote and the eligibility checks are ready.</p></div>
+        <div className="rounded-[12px] border border-line p-3" data-next-step><p className="text-xs font-bold uppercase tracking-wide text-sub">What happens next</p><p className="mt-1 text-sm">Nothing is sent when you submit. {intakeNextAction(coord, d.quoteStatus === "have_quote")}</p></div>
       </section>}
 
       {shown.length > 0 && <ul ref={problemsRef} tabIndex={-1} role="alert" className="space-y-1 rounded-[12px] border border-danger/40 bg-paper p-3 text-sm text-danger outline-none" data-step-problems>{shown.map((p) => <li key={p}>{p}</li>)}</ul>}
@@ -265,7 +289,8 @@ function Summary({ title, rows, onEdit }: { title: string; rows: string[]; onEdi
   </div>;
 }
 
-function Received({ saved, preview = false }: { saved: { jobId: string; jobNumber: string | null; insulation: ExistingInsulation; quoted?: boolean }; preview?: boolean }) {
+type Saved = { jobId: string; jobNumber: string | null; insulation: ExistingInsulation; quoted?: boolean; next?: string; feeHeld?: boolean };
+function Received({ saved, preview = false }: { saved: Saved; preview?: boolean }) {
   const get = useServerFn(getMyIntakeReadyCheck);
   const { data } = useQuery({ queryKey: ["intake-rc", saved.jobId], queryFn: () => get({ data: { jobId: saved.jobId } }), retry: false, enabled: !preview });
   if (preview) return (
@@ -273,16 +298,19 @@ function Received({ saved, preview = false }: { saved: { jobId: string; jobNumbe
       <p className="text-xs font-bold uppercase tracking-wide text-sub">Preview only</p>
       <h2 className="font-display text-xl font-bold">This is where the installer would see "Job received"</h2>
       <p className="text-sm">Nothing was saved or sent. No job was created and nobody was contacted.</p>
-      {!saved.quoted && <p className="text-sm" data-add-when-ready>A real installer would see: "Add your measurements and quote when ready."</p>}
+      {!saved.quoted && <p className="text-sm" data-add-when-ready>A real installer would see: "Add your measurements and quote on this job when ready."</p>}
+      {saved.next && <p className="text-sm" data-received-next>Next: {saved.next}</p>}
+      {saved.feeHeld && <p className="text-sm" data-fee-held>Owner quote would wait until the owner fee confirmation is recorded.</p>}
     </section>
   );
   return (
     <section className="mt-4 space-y-3 rounded-[18px] border border-line bg-paper p-5" data-saved data-intake-received>
       <p className="text-xs font-bold uppercase tracking-wide text-sub">{saved.jobNumber ?? "Job"} received</p>
       <h2 className="font-display text-xl font-bold">Job received</h2>
-      <p className="text-sm">Home Insulation Victoria checks the owner's eligibility next. Nobody has been contacted and nothing is booked yet.</p>
-      {!saved.quoted && <p className="text-sm font-semibold" data-add-when-ready>Add your measurements and quote when ready.</p>}
-      {saved.insulation === "unknown" && <p className="text-sm font-semibold">The owner quote waits until the existing insulation is confirmed as none or below R2.0.</p>}
+      <p className="text-sm" data-received-next>{saved.next ?? "Home Insulation Victoria checks the owner's eligibility next."} Nobody has been contacted and nothing is booked yet.</p>
+      {saved.feeHeld && <p className="text-sm font-semibold" data-fee-held>The owner quote waits until you confirm the owner has been advised of the fees — you can do this on the job.</p>}
+      {!saved.quoted && <p className="text-sm font-semibold" data-add-when-ready>Add your measurements and quote on this job when ready.</p>}
+      {saved.quoted && saved.insulation === "unknown" && <p className="text-sm font-semibold">The owner quote waits until the existing insulation is confirmed as none or below R2.0.</p>}
       {data?.coordination && <p className="text-sm" data-coordination-saved>Organised by: {data.coordination === "self_managed" ? "you" : "Home Insulation Victoria"}</p>}
       {data && <p className="text-sm" data-rc-outstanding>Ready Check: {data.readyCheck.outstandingCount} item{data.readyCheck.outstandingCount === 1 ? "" : "s"} outstanding</p>}
       <Link to="/field/$jobId" params={{ jobId: saved.jobId }} className="inline-flex h-12 w-full items-center justify-center rounded-full border border-line font-bold">Complete Ready Check</Link>
