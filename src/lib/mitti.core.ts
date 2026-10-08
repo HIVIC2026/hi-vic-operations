@@ -525,11 +525,18 @@ export const MITTI_PIISA_TEMPLATE_ID = "";
 export type OfficialPrefillItem = { itemId: string; label: string; kind: string; value: string };
 /** Places "prefill" values on the template by official label. Labels the form repeats are matched in form order
  * (`occurrence`). Attachments can't be pre-loaded into Mitti, and choice values must match an option exactly. */
-export function buildOfficialPrefill(template: Any, items: (OfficialPrefillItem & { occurrence: number })[]) {
+/** Keyed mapping contract for a native template: portal item id -> stable Mitti item ids and/or plain-language label
+ * aliases. The official wording stays in OFFICIAL_ITEMS / the DOCX; only the native Mitti label may be simpler. */
+export type NativeMapping = Record<string, { itemIds?: string[]; labels?: string[] }>;
+
+export function buildOfficialPrefill(template: Any, items: (OfficialPrefillItem & { occurrence: number })[], mapping: NativeMapping = {}) {
   const entries = flatten(template);
   const header_items: Any[] = [], rows: Any[] = [], skipped: string[] = [];
   for (const f of items) {
-    const e = entries.filter((x) => x.norm === norm(f.label))[f.occurrence];
+    const m = mapping[f.itemId];
+    const byId = m?.itemIds?.length ? entries.find((x) => m.itemIds!.includes(String(x.id))) : undefined;
+    const byAlias = !byId && m?.labels?.length ? entries.find((x) => m.labels!.some((l) => norm(l) === x.norm)) : undefined;
+    const e = byId ?? byAlias ?? entries.filter((x) => x.norm === norm(f.label))[f.occurrence];
     if (!e) { skipped.push(`${f.itemId} (not on the Mitti form)`); continue; }
     let type = e.type, responses: Any;
     if (f.kind === "attachment") { skipped.push(`${f.itemId} (attachment — shown in the portal)`); continue; }
@@ -543,3 +550,21 @@ export function buildOfficialPrefill(template: Any, items: (OfficialPrefillItem 
   }
   return { header_items, items: rows, count: header_items.length + rows.length, skipped };
 }
+
+/** Known PIISA fields that are prefilled. A known field missing from the native template is a visible failure, never a silent skip. */
+export function missingKnownFields(skipped: string[]): string[] {
+  return skipped.filter((x) => !/attachment — shown in the portal/.test(x));
+}
+
+/** A3 - PIISA + AP Evidence (template_f6a2597479164eb181453eb335ce5125): plain-language native label aliases.
+ * Stable item ids are added once read from the live template definition (getTemplateDefinition). */
+export const PIISA_A3_TEMPLATE_ID = "template_f6a2597479164eb181453eb335ce5125";
+export const PIISA_A3_MAPPING: NativeMapping = {
+  "p2.lead": { labels: ["Lead installer name", "Your name"] },
+  "p2.leadEec": { labels: ["Lead installer EEC number", "Your EEC certification number"] },
+  "p6.height": { labels: ["Existing insulation depth (mm)", "Average depth of existing insulation (mm)"] },
+  "p6.rValue": { labels: ["Existing insulation R-value (if known)"] },
+  "p6.treatment": { labels: ["Existing insulation: removed or topped up?"] },
+  "p6.reason": { labels: ["Why is existing insulation being kept?"] },
+  "p5.count": { labels: ["How many recessed lights?"] },
+};

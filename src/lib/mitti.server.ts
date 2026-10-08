@@ -298,7 +298,7 @@ export async function syncPendingMitti(actorId: string | null, call: MittiCall =
 /** Sends the official PIISA to the assigned installer in Mitti with the LR-003 pre-fills (Installation Booked only).
  * Fails closed while the PIISA is locked or its Mitti form isn't configured. Reminders stay in the portal. */
 export async function createPiisaMittiAudit(jobId: string, actorId: string, call: MittiCall = realMittiCall) {
-  const { buildOfficialPrefill } = await import("./mitti.core");
+  const { buildOfficialPrefill, missingKnownFields, PIISA_A3_MAPPING, PIISA_A3_TEMPLATE_ID } = await import("./mitti.core");
   const { OFFICIAL_ITEMS } = await import("./official-forms.core");
   const { piisaPrefill } = await import("./official-prefill.core");
   const { officialPrefillContext } = await import("./official-forms.server");
@@ -312,6 +312,9 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string, call
   if (job.business_unit !== "hivic") throw new WorkflowError("Mitti automation is only available for Home Insulation Victoria jobs.");
   if (job.stage !== "installation_booked") throw new WorkflowError("The installer safety form can only be sent once the installation is booked.");
   { const { requirePrestartClear } = await import("./prestart.server"); await requirePrestartClear(jobId); }
+  // One PIISA per job, only after this same job's Ready Check is completed.
+  { const { count } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("to_stage", "ready_check_complete");
+    if (!count) throw new WorkflowError("Complete this job's Ready Check before the installer safety form (PIISA) is sent."); }
   const { data: asg } = await admin.from("job_assignments").select("user_id, profiles:user_id(email)").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
   const email = (asg as unknown as { profiles: { email: string | null } | null } | null)?.profiles?.email?.trim();
   if (!asg || !email) throw new WorkflowError("Assign an installer with an email address before sending the safety form.");
@@ -336,7 +339,9 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string, call
     return { itemId: h.itemId, label: it.label, kind: it.kind, value: h.value!, occurrence };
   });
   const template = await api.getTemplateDefinition(MITTI_PIISA_TEMPLATE_ID);
-  const p = buildOfficialPrefill(template, pre);
+  const p = buildOfficialPrefill(template, pre, MITTI_PIISA_TEMPLATE_ID === PIISA_A3_TEMPLATE_ID ? PIISA_A3_MAPPING : {});
+  const missing = missingKnownFields(p.skipped);
+  if (missing.length) throw new WorkflowError(`The Mitti PIISA form is missing known fields, so it was not created: ${missing.join("; ")}`);
   const audit = (await api.createAudit({ template_id: MITTI_PIISA_TEMPLATE_ID, header_items: p.header_items, items: p.items })) as { audit_id?: string; id?: string };
   const auditId = audit?.audit_id ?? audit?.id;
   if (!auditId) throw new WorkflowError("Mitti did not return an audit ID.");

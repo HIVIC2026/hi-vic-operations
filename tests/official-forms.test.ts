@@ -139,13 +139,13 @@ describe("PIISA printed rules", () => {
     expect(rules(evaluatePiisa({ ...piisaPass(), "p5.noAccess": "No" }, ctx))).toContain("P5-CANNOT-COMMENCE");
     expect(rules(evaluatePiisa({ ...piisaPass(), "p5.recessed": "No" }, ctx))).not.toContain("P5-CANNOT-COMMENCE");
   });
-  test("solar isolator NO requires an electrician at the start", () => {
-    const a = { ...piisaPass(), "p4.present": "Yes", "p4.instructions": "Yes", "p4.isolator": "No" };
+  test("solar instructions NO requires an electrician at the start (Jo, 8 Oct 2026)", () => {
+    const a = { ...piisaPass(), "p4.present": "Yes", "p4.instructions": "No", "p4.isolator": "Yes" };
     expect(rules(evaluatePiisa(a, ctx))).toContain("ELECTRICIAN-AT-START");
     expect(evaluatePiisa({ ...a, "p5.electricianPresent": "Yes" }, ctx).blockers).toEqual([]);
   });
   test("both Removed and Topped Up allowed; top-up of conductive insulation blocked; unknown needs confirmation", () => {
-    const both = { ...piisaPass(), "p6.treatment": ["Removed", "Topped Up"] };
+    const both = { ...piisaPass(), "p6.treatment": ["Removed", "Topped Up"], "p6.reason": "Rear section retained in good condition" };
     expect(evaluatePiisa(both, ctx).blockers).toEqual([]);
     expect(rules(evaluatePiisa(both, { ...ctx, conductiveExistingInsulation: true }))).toContain("P6-FOIL");
     expect(rules(evaluatePiisa(both, { ...ctx, conductiveExistingInsulation: null }))).toContain("P6-FOIL-UNKNOWN");
@@ -211,7 +211,7 @@ describe("PIISA installation-day gate", () => {
   test("cannot-proceed answer blocks", () => expect(base({ piisa: copy("piisa", { ...piisaPass(), "p8.date": "2026-10-10", "p3.swms": "No" }, "2026-10-10") }).blockers.some((b) => b.includes("CANNOT proceed"))).toBe(true));
   test("life support without attachment blocks", () => expect(base({ piisa: copy("piisa", { ...piisaPass(), "p8.date": "2026-10-10", lifeSupport: "Yes", lifeSupportConsent: undefined }, "2026-10-10") }).blockers.length).toBeGreaterThan(0));
   test("electrician needed: explicit blocker, electrician responsible", () => {
-    const r = base({ piisa: copy("piisa", { ...piisaPass(), "p8.date": "2026-10-10", "p4.present": "Yes", "p4.instructions": "Yes", "p4.isolator": "No", "p5.electricianPresent": "N/A" }, "2026-10-10") });
+    const r = base({ piisa: copy("piisa", { ...piisaPass(), "p8.date": "2026-10-10", "p4.present": "Yes", "p4.instructions": "No", "p4.isolator": "Yes", "p5.electricianPresent": "N/A" }, "2026-10-10") });
     expect(r.responsible).toBe("electrician"); expect(r.nextAction).toContain("electrician");
   });
   test("rule A: ineffective hazard action blocks with the exact message; attempted action not success; review not yet accepted", () => {
