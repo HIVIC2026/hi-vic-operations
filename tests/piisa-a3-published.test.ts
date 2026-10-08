@@ -65,9 +65,9 @@ describe("published A3 definition (live read-only GET)", () => {
 
 describe("crew roster against what Mitti actually published", () => {
   const staff = [{ workerId: "w1", name: "Bhavdeep singh", eec: "CII-027", eecVerified: true, approved: true, issuer: "EEC", certificationId: "c1" }];
-  test("published crew list holds only Other, so a verified worker is seeded through Other and a stale-roster alert shows", () => {
+  test("published crew list holds only Other, so a verified worker is seeded through Other with no privacy alert", () => {
     expect(a3CrewOptions(published)?.map((o) => o.id)).toEqual([A3_CREW_OTHER_OPTION]);
-    expect(a3RosterStatus(published, staff, "Reinsulate").alert).toBeTruthy();
+    expect(a3RosterStatus(published, staff, "Reinsulate").alert).toBeNull(); // Other-only shared list: no named staff exposed
     const r = a3CrewNativeItems(published, { lead: { kind: "staff", workerId: "w1" }, additional: [] } as never, staff, "Reinsulate");
     expect(r.problems).toEqual([]);
     const lead = r.items.find((i) => i.item_id === A3_CREW_NAME_IDS[0]);
