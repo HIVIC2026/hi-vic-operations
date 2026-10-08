@@ -228,8 +228,8 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
       if (e.business_id) { const { data: rel } = await admin.from("partner_relationships").select("electrician_business_id").eq("installer_business_id", businessId).eq("electrician_business_id", e.business_id).eq("active", true).maybeSingle(); if (!rel) throw new WorkflowError("That electrician isn't one of your approved electricians."); }
       else { const { data: n } = await admin.from("electrician_nominations").select("id").eq("id", e.nomination_id!).eq("nominating_business_id", businessId).maybeSingle(); if (!n) throw new WorkflowError("That electrician couldn't be found. Add them again."); }
     }
-    const { data: acc } = await admin.from("quotes").select("id").eq("job_id", jobId).eq("kind", "installation").eq("status", "accepted");
-    if (acc?.length) { const { count: inv } = await admin.from("invoices").select("id", { count: "exact", head: true }).in("quote_id", acc.map((q) => q.id)); if (inv) throw new WorkflowError("The owner's invoice has already been raised — ask Home Insulation Victoria to change the electrician arrangement."); }
+    const lock = await (await import("./job-electrician.server")).payerChangeBlocker(jobId);
+    if (lock) throw new WorkflowError(lock);
   }
   const { data: m } = await admin.from("ceiling_measurements").select("id, provenance, supplied_area_m2").eq("job_id", jobId).eq("is_current", true).maybeSingle();
   const ch = pickIntakeChanges({
@@ -261,7 +261,7 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
   if (pc.change) {
     const now = new Date().toISOString();
     if (pc.nextPayer === "own") electrician = (await (await import("./job-electrician.server")).recordJobElectricianChoice(jobId, businessId, p.electrician as never, actorId)).choice ?? null;
-    else if (pc.nextPayer === "hivic") { await (await import("./job-electrician.server")).switchJobToHivic(jobId, actorId); electrician = "hivic_organise"; }
+    else if (pc.nextPayer === "hivic") { await (await import("./job-electrician.server")).applyHivicArrangement(jobId, actorId); electrician = "hivic_organise"; }
     else {
       await admin.from("electrician_nominations").update({ ended_at: now, updated_at: now }).eq("job_id", jobId).is("ended_at", null);
       const { error: e } = await admin.from("jobs").update({ electrician_choice: null, next_action: "Electrician to be arranged" }).eq("id", jobId);

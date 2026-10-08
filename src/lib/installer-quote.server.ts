@@ -10,15 +10,28 @@ import { installerPriceRangeReason } from "./quote-release.core";
 
 export const INSTALLER_QUOTE_CODE = "INSTALLER_A1";
 export const OWN_REC_QUOTE_NOTE = "Your electrician's safety check (PIESA) is not included in this total — your electrician invoices you for it separately at the price you agreed with them.";
-export const quoteLineSignature = (lines: { code: string | null; line_total_inc_gst: number | string | null }[]) =>
-  lines.map((l) => `${l.code}:${Number(l.line_total_inc_gst)}`).sort().join("|");
+type SigLine = { code: string | null; line_total_inc_gst: number | string | null; description?: string | null; quantity?: number | string | null; unit?: string | null; unit_price_inc_gst?: number | string | null; explanation?: string | null; is_other?: boolean | null };
+/** Full scope fingerprint: equal amounts with changed inclusions/description/explanation are a DIFFERENT quote. */
+export const quoteLineSignature = (lines: SigLine[], discountNote?: string | null) =>
+  JSON.stringify([lines.map((l) => [l.code ?? "", Number(l.line_total_inc_gst), (l.description ?? "").trim(), Number(l.quantity ?? 0), l.unit ?? "", Number(l.unit_price_inc_gst ?? 0), (l.explanation ?? "").trim(), !!l.is_other]).map((x) => JSON.stringify(x)).sort(), (discountNote ?? "").trim()]);
+
+/** Current installer quote's electrical billing lines vs the job's CURRENT payer (any path). Null = fine / not applicable. */
+export async function quoteBillingBlocker(quoteId: string): Promise<string | null> {
+  const { data: q } = await admin.from("quotes").select("option_code, status, job_id").eq("id", quoteId).maybeSingle();
+  if (!q || q.option_code !== INSTALLER_QUOTE_CODE || q.status === "accepted") return null;
+  const { data: j } = await admin.from("jobs").select("channel, electrician_choice").eq("id", q.job_id).maybeSingle();
+  if (j?.channel !== "installer_sourced") return null;
+  const { data: items } = await admin.from("quote_items").select("code").eq("quote_id", quoteId);
+  const { electricalLineBlocker } = await import("./installer-intake.core");
+  return electricalLineBlocker((items ?? []).map((i) => i.code), payerFromChoice(j.electrician_choice));
+}
 
 export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: string | null, entries: { label: string; value: string | null }[], auditId: string, intakePrice?: { totalIncGst: number; includes: string; areaM2?: number }) {
   const { data: job } = await admin.from("jobs").select("channel, ap_fee_override_inc_gst, electrician_choice, properties(postcode)").eq("id", jobId).single();
   if (!job || job.channel !== "installer_sourced") return null;
   // Fee awareness is an office quote-SEND prerequisite (Jo, 8 Oct 2026): the draft is still prepared, but held.
   const { data: feeConfirmation } = await admin.from("workflow_events").select("id, details").eq("job_id", jobId).eq("event_type", "installer_owner_fee_awareness").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  const { data: open } = await admin.from("quotes").select("id, status, subtotal_inc_gst, veec_discount_inc_gst, option_code").eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]);
+  const { data: open } = await admin.from("quotes").select("id, status, subtotal_inc_gst, veec_discount_inc_gst, option_code, discount_note").eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]);
   // A sent quote is never touched. An ACCEPTED quote is never changed either, but when its facts were corrected
   // (reconfirmation open) a replacement draft may be prepared so the owner can reconfirm at the corrected figures.
   const { reconfirmationOpen } = await import("./installer-intake.server");
@@ -59,12 +72,12 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   const holdReason = [rangeReason, ...installerQuoteReleaseBlockers({ consentStatus: "granted", feeAwarenessRecorded: !!feeConfirmation, feeAwarenessPayer: ((feeConfirmation?.details as { payer?: "hivic" | "own" } | null)?.payer ?? null), electricianPayer: payer }), "Waiting for office review before sending"].filter(Boolean).join(" · ");
   void workflow?.auto_send_quote;
   // Dedup only on identical figures AND identical lines (a payer change can keep totals but change scope/lines).
-  const sig = quoteLineSignature(draft.lines);
+  const sig = quoteLineSignature(draft.lines, draft.discountNote);
   let same: { id: string } | undefined;
   for (const q of open ?? []) {
     if (q.status !== "draft" || q.option_code !== INSTALLER_QUOTE_CODE || Number(q.subtotal_inc_gst) !== draft.subtotal || Number(q.veec_discount_inc_gst) !== draft.discount) continue;
-    const { data: items } = await admin.from("quote_items").select("code, line_total_inc_gst").eq("quote_id", q.id);
-    if (quoteLineSignature(items ?? []) === sig) { same = q; break; }
+    const { data: items } = await admin.from("quote_items").select("code, line_total_inc_gst, description, quantity, unit, unit_price_inc_gst, explanation, is_other").eq("quote_id", q.id);
+    if (quoteLineSignature(items ?? [], (q as { discount_note?: string | null }).discount_note) === sig) { same = q; break; }
   }
   if (same) return draft; // dedup: same figures never create a second quote or audit row
   await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "installation").eq("status", "draft");

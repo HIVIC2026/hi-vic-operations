@@ -141,7 +141,7 @@ export function JobElectricianCard({ jobId }: { jobId: string }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => { get({ data: { jobId } }).then(setS).catch(() => {}); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [jobId]);
-  if (!s) return null;
+  if (!s || s.intake) return null; // Add job jobs: one guarded editor (job details) owns the electrician choice
   const label = jobElectricianLabel(s);
   const canSwitch = !s.assignedName && (s.invitedName || s.chosenName);
   return (
