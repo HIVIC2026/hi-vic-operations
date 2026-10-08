@@ -29,6 +29,10 @@ export function stagedDirectSchemaProblems(template: unknown): string[] {
   const entries = flatten(template);
   const byId = new Map(entries.map((e) => [String(e.id), e]));
   const problems: string[] = [];
+  const removed = ["f7032d72-4135-4165-bd50-32d84a66d085", "cda99bb8-8865-46a1-928a-2267175a1e2a", "f3245d43-ea77-11e1-aff1-0800200c9a66", "2e485f38-8ce2-4312-a06c-bd4b3a10e8ce"];
+  for (const id of removed) if (byId.has(id)) problems.push(`Duplicate signing or metadata question must be removed: ${id}`);
+  const completionId = A3_NATIVE_IDS["completionDate"]?.[0];
+  if (!completionId || !byId.has(completionId)) problems.push("Expected completion date 84a8b69b-efd5-4830-9da7-66958cbfdb6e is absent from the published form; final single-date layout activation is paused.");
   for (const id of [...A3_CREW_NAME_IDS, ...(A3_NATIVE_IDS["p7.products"] ?? [])]) if (byId.has(id)) problems.push(`Retired native item is still present: ${id}`);
   A3_CREW_OTHER_FIELDS.forEach((pair, row) => {
     const labels = directCrewLabels(row);
@@ -42,7 +46,7 @@ export function stagedDirectSchemaProblems(template: unknown): string[] {
 }
 
 export function resolvePiisaNativeVersion(template: unknown) {
-  if (!a3MissingFields(template).length) return { version: "a3-published-choice", active: true, mapping: PIISA_A3_MAPPING, problems: [] };
+  if (!flatten(template).some((e) => e.id === PIISA_DIRECT_SIGNATURE_ID) && !a3MissingFields(template).length) return { version: "a3-published-choice", active: true, mapping: PIISA_A3_MAPPING, problems: [] };
   const problems = stagedDirectSchemaProblems(template);
   const approved = !problems.length;
   return { version: PIISA_DIRECT_VERSION, active: approved && !problems.length, mapping: approved && !problems.length ? directMapping() : null,
@@ -91,7 +95,7 @@ export function resolveDirectCrew(audit: unknown, staff: StaffOption[]) {
     const hit = staff.find((s) => s.approved === true && s.eecVerified && norm(s.name) === norm(c.name) && norm(s.eec) === norm(c.eec));
     if (!hit) { blockers.push(`${c.name}: name and CII number need matching verified company records or office verification.`); continue; }
     if (seen.has(hit.workerId)) { blockers.push(`${c.name} is listed twice.`); continue; } seen.add(hit.workerId);
-    if (!c.row) { answers["p2.lead"] = hit.name; answers["p2.leadEec"] = hit.eec ?? ""; answers["p8.name"] = hit.name; }
+    if (!c.row) { answers["p2.lead"] = c.name; answers["p2.leadEec"] = hit.eec ?? ""; answers["p8.name"] = c.name; }
     else { answers[`p2.addName#${c.row - 1}`] = hit.name; answers[`p2.addEec#${c.row - 1}`] = hit.eec ?? ""; }
   }
   return { answers, blockers, needsVerification: [] as string[], choices };
