@@ -1,4 +1,7 @@
 # Roadmap (preview only, nothing sent, no publish, no real jobs)
+- [x] Jo 09:25: SELECT-only diagnosis confirms saved/confirmed Ready Check, configured template and auto-send on, but business mitti_account_invited=false and no audit. No integration action/settings change.
+- [ ] Mitti opening blocked until office confirms the business's actual invitation through existing guarded setup; never enable merely to hide the blocker.
+- [x] Jo 09:24: red duplicate-email warning replaced by neutral unsuccessful-save/help status; customer access protection unchanged. 23 tests/41 assertions, harness build OK.
 ## Add job choices (Jo 8 Oct 09:21 UTC)
 - [x] Separate later Ready Check entry with customer details, appointment and optional manual measurements from existing quote/measurement entry; retain guarded booking and provisional data.
 - [x] 31 focused tests/57 assertions and harness build OK; no real submissions, sends or integrations.
