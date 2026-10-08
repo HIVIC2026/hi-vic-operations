@@ -18,10 +18,10 @@ export function declarationCriteriaPassed(x: { outcome: string | null; decisionS
     ["system", "admin"].includes(x.decisionSource ?? "") && (x.decisionSource !== "system" || x.audit?.ruleset_version === GATE1_RULESET_VERSION) &&
     !(x.audit?.hard_failures?.length || x.audit?.review_reasons?.length || x.audit?.rules?.some((r) => r.result === "fail")) && insulationOnly(x.audit, x.insulation).ok;
 }
-export function qualifyingDeclaration(events: { event_type: string; metadata: unknown }[]): boolean {
+export function qualifyingDeclaration(events: { event_type: string; details: unknown }[]): boolean {
   return events.some((event) => {
-    if (!event.metadata || typeof event.metadata !== "object") return false;
-    const m = event.metadata as Record<string, unknown>;
+    if (!event.details || typeof event.details !== "object") return false;
+    const m = event.details as Record<string, unknown>;
     return m.answer === "yes" && m.preliminary_queue_qualification === true && m.basis === "owner_declared" &&
       ((event.event_type === "owner_insulation_loose_fill_only_declared" && m.declaration_type === "loose_fill_only") || (event.event_type === "owner_insulation_below_r2_declared" && m.declaration_type === "below_r2"));
   });

@@ -31,9 +31,10 @@ export async function campaignLink(token: unknown) {
   let criteriaPassed = false;
   let ownerQualified = false;
   if (group === "onsite") {
+    if (!["new_enquiry", "eligibility_review", "preliminary_estimate_ready", "ready_check_ready_to_schedule"].includes(job.stage)) return null;
     const { data: work, error: workError } = await admin.from("post_intake_work").select("job_id").eq("job_id", job.id).in("status", ["queued", "processing", "retry"]);
     criteriaPassed = !workError && declarationCriteriaPassed({ outcome: job.eligibility_outcome, decisionSource: job.eligibility_decision_source, reviewRequired: job.eligibility_review_required, audit: job.eligibility_decision_rules as import("./enquiry-groups.core").StoredAudit, insulation, intakeActive: !!work?.length });
-    const { data: events, error: eventsError } = await admin.from("workflow_events").select("event_type, metadata").eq("job_id", job.id).in("event_type", ["owner_insulation_loose_fill_only_declared", "owner_insulation_below_r2_declared"]);
+    const { data: events, error: eventsError } = await admin.from("workflow_events").select("event_type, details").eq("job_id", job.id).in("event_type", ["owner_insulation_loose_fill_only_declared", "owner_insulation_below_r2_declared"]);
     if (eventsError) throw new Error("We couldn't check your declaration. Please try again.");
     ownerQualified = criteriaPassed && qualifyingDeclaration(events ?? []);
   }
@@ -75,6 +76,7 @@ export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; 
   const now = new Date().toISOString();
   const { data: est } = await admin.from("indicative_estimates").select("id, area_m2, insulation_declared, scenarios").eq("job_id", c.job.id).eq("status", "current").maybeSingle();
   let price = savedPriceFromEstimate(est ?? null);
+  if (c.group === "onsite" && calc?.insulation === "none") throw new Error("Keep your existing-insulation answer for this estimate. A declaration does not mean insulation is absent.");
   // Owner calculator: snapshot exactly what the calculator showed, recomputed server-side from the same pure core.
   if (calc) {
     const { resolvePublicEstimate } = await import("./estimatelink.server");
@@ -178,7 +180,7 @@ export async function recordInsulationDeclaration(token: unknown, declarationTyp
   if (!["new_enquiry", "eligibility_review", "preliminary_estimate_ready", "ready_check_ready_to_schedule"].includes(c.job.stage)) throw new Error("This enquiry has already moved on. Please contact our office.");
   const { data: existing, error: readError } = await admin.from("lead_campaign_responses").select("id, opted_out_at, desk_check_status, desk_checked_at").eq("job_id", c.job.id).maybeSingle();
   if (readError || existing?.opted_out_at || ["not_eligible", "needs_onsite_check"].includes(existing?.desk_check_status ?? "")) throw new Error("This enquiry needs an office check before you can save a spot.");
-  const { data: recorded, error: eventError } = await admin.from("workflow_events").select("id, event_type, metadata").eq("job_id", c.job.id).eq("event_type", record.eventType);
+  const { data: recorded, error: eventError } = await admin.from("workflow_events").select("id, event_type, details").eq("job_id", c.job.id).eq("event_type", record.eventType);
   if (eventError) throw new Error("We couldn't check your submission. Please try again.");
   if (!qualifyingDeclaration(recorded ?? [])) await logEvent(c.job.id, null, record.eventType, record.reviewReason, { declaration: record.declaration, question: INSULATION_REVIEW_OPTIONS.find((item) => item.id === type)?.label, answer: "yes", declaration_type: type, basis: record.basis, answered_at: new Date().toISOString(), preliminary_queue_qualification: true }, { internal: true });
   // No invented office reviewer/time. Historical office decisions are retained.
