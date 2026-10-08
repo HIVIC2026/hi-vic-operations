@@ -55,6 +55,8 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
   const fileBusyChange = (value: boolean) => { fileFlight.current = value; setFileBusy(value); };
   const [fileNote, setFileNote] = useState<string | null>(null);
   const [draftId, setDraftId] = useState<string | null>(null);
+  const draftRef = useRef<string | null>(null);
+  const filesRef = useRef<AttachedFile[]>([]);
   const [shown, setShown] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -101,7 +103,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
             const srv = await loadDraft({ data: { importId: r.draftId, businessId } });
             if (!live) return;
             if (srv.status === "confirmed" && srv.jobId) { localStorage.removeItem(resumeKey(userId, businessId)); setSaved({ jobId: srv.jobId, jobNumber: srv.jobNumber, insulation: r.d?.insulation ?? "unknown" }); }
-            else if (srv.status === "draft") { setDraftId(r.draftId); setFiles(srv.files); setFileTexts(Object.fromEntries(Object.entries(r.fileTexts ?? {}).filter(([path]) => srv.files.some((f) => f.path === path)))); setDerived(r.derived ?? {}); if (srv.files.length) setFileNote("Your attached files were kept."); }
+            else if (srv.status === "draft") { draftRef.current = r.draftId; filesRef.current = srv.files; setDraftId(r.draftId); setFiles(srv.files); setFileTexts(Object.fromEntries(Object.entries(r.fileTexts ?? {}).filter(([path]) => srv.files.some((f) => f.path === path)))); setDerived(r.derived ?? {}); if (srv.files.length) setFileNote("Your attached files were kept."); }
           }
         }
       } catch { if (live) setRestoreError(true); return; }
@@ -141,9 +143,9 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
   };
 
   const ensureDraft = async (extra: AttachedFile[] = [], text = fileText) => {
-    if (draftId) return draftId; // one draft only, even after Back, a refresh or a retry
-    const r = await create({ data: { businessId, sourceSystem: "manual_import", ...(text ? { text } : {}), files: [...files, ...extra].map((f) => ({ path: f.path, name: f.name, type: f.type ?? "" })) } });
-    setDraftId(r.id);
+    if (draftRef.current) return draftRef.current; // one draft only, even after Back, a refresh or a retry
+    const r = await create({ data: { businessId, sourceSystem: "manual_import", ...(text ? { text } : {}), files: [...filesRef.current, ...extra].filter((f, i, all) => all.findIndex((x) => x.path === f.path) === i).map((f) => ({ path: f.path, name: f.name, type: f.type ?? "" })) } });
+    draftRef.current = r.id; setDraftId(r.id);
     if (userId) try { const k = resumeKey(userId, businessId); const cur = JSON.parse(localStorage.getItem(k) ?? "{}"); localStorage.setItem(k, JSON.stringify({ ...cur, draftId: r.id })); } catch { /* ignore */ }
 
     return r.id;
@@ -160,7 +162,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
   const submit = async () => {
     if (!hydrated || busy || fileFlight.current || inFlight.current) return; // double tap
     const p = problems(); setShown(p); setErr(null);
-    if (p.length) return;
+    if (p.length || !d.quoteStatus || !coord || !payer) return;
     inFlight.current = true; setBusy(true);
     try {
       const id = await ensureDraft();
@@ -172,9 +174,9 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         quoted_price_inc_gst: q.quoted_price_inc_gst,
         price_includes: q.price_includes,
         contact_permission: customer.contact_permission, owner_agreed: false,
-        intake: { existing_insulation: d.insulation ?? "unknown", evidence_ack: ack, proposed_r_value: q.proposed_r_value, quote_status: d.quoteStatus!, version: `${INTAKE_RULESET_VERSION}+${COORDINATION_VERSION}`, coordination: coord!, self_managed_ack: coord === "self_managed" && selfAck,
-          measured_required: true, electrician_payer: payer!,
-          ...(d.quoteStatus === "have_quote" && feeAck && feeText ? { fee_awareness: { declared: true, payer: payer!, text: feeText, version: FEE_AWARENESS_VERSION } } : {}) },
+        intake: { existing_insulation: d.insulation ?? "unknown", evidence_ack: ack, proposed_r_value: q.proposed_r_value, quote_status: d.quoteStatus, version: `${INTAKE_RULESET_VERSION}+${COORDINATION_VERSION}`, coordination: coord, self_managed_ack: coord === "self_managed" && selfAck,
+          measured_required: true, electrician_payer: payer,
+          ...(d.quoteStatus === "have_quote" && feeAck && feeText ? { fee_awareness: { declared: true, payer: payer, text: feeText, version: FEE_AWARENESS_VERSION } } : {}) },
       }, electrician: payer === "undecided" ? { mode: "later" } : payer === "own" && plan?.mode === "mine" ? { mode: "mine", business_id: plan.business_id ?? null, nomination_id: plan.nomination_id ?? null } : { mode: "hivic" } } as never });
       try { if (userId) localStorage.removeItem(resumeKey(userId, businessId)); } catch { /* ignore */ }
       setSaved({ jobId: res.jobId, jobNumber: res.jobNumber ?? null, insulation: d.insulation ?? "unknown", quoted: d.quoteStatus === "have_quote", next: intakeNextAction(coord, d.quoteStatus === "have_quote"), feeHeld: d.quoteStatus === "have_quote" && !(feeAck && feeText) });
@@ -237,9 +239,10 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
               if (!ref) { const up = await uploadFiles([f]); ref = up[0]; if (!ref) throw new Error("No stored file returned"); stored.current.set(f, ref); }
             } catch { failures.push(`${f.name} did not upload. Choose only this file to retry.`); continue; }
             const attached = ref;
-            setFiles((old) => old.some((x) => x.path === attached.path) ? old : [...old, attached]);
+            filesRef.current = filesRef.current.some((x) => x.path === attached.path) ? filesRef.current : [...filesRef.current, attached];
+            setFiles(filesRef.current);
             try {
-              if (draftId) { const r = await addFiles({ data: { importId: draftId, files: [{ ...attached, type: attached.type ?? "" }] } }); setFiles((old) => [...old.filter((x) => !r.files.some((y) => y.path === x.path)), ...r.files]); }
+              if (draftRef.current) { const r = await addFiles({ data: { importId: draftRef.current, files: [{ ...attached, type: attached.type ?? "" }] } }); setFiles((old) => [...old.filter((x) => !r.files.some((y) => y.path === x.path)), ...r.files]); }
               else await ensureDraft([attached], "");
             } catch { failures.push(`${f.name} uploaded and is kept here, but its job attachment could not be confirmed. Submit will retry attaching it without uploading again.`); }
             setFileNote("File uploaded. Checking optional quote details…");
@@ -259,7 +262,8 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
           }
           if (failures.length) throw new Error(failures.join(" "));
         }} onRemove={async (path) => {
-          if (draftId) { const r = await dropFile({ data: { importId: draftId, path } }); setFiles(r.files); } else setFiles((old) => old.filter((x) => x.path !== path));
+          if (draftRef.current) { const r = await dropFile({ data: { importId: draftRef.current, path } }); filesRef.current = r.files; } else filesRef.current = filesRef.current.filter((x) => x.path !== path);
+          setFiles(filesRef.current);
           setFileTexts((old) => Object.fromEntries(Object.entries(old).filter(([key]) => key !== path)));
           setD((old) => { const next = { ...old }; for (const key of ["area", "amount", "includes", "proposedR"] as const) if (derived[key]?.path === path && !typed.current.has(key) && next[key] === derived[key]?.value) next[key] = ""; return next; });
           setDerived((old) => Object.fromEntries(Object.entries(old).filter(([, value]) => value.path !== path))); setFileNote("File removed. Details you entered were kept.");
