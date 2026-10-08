@@ -5,6 +5,7 @@ import { WorkflowError, logEvent } from "./workflow.server";
 import { fullAddress } from "./address";
 import { isTestPartner } from "./test-send.core";
 import { offerTiming } from "./offer-timing.core";
+import { placeWorkJob, type WorkPlace } from "./work-places.core";
 import { COULDNT_GET_IN, payState, surname, type AreaSource, type InsulationNow, type TradeKind, SETUP_STEPS, type SetupKey, tradeJobAllowed, contactVisible, type AccessAssignment } from "./trade-view.core";
 
 type Biz = { id: string; name: string; business_type: string | null; capabilities: string[] | null; base_suburb: string | null; coverage_radius_km: number | null; covers_all_victoria: boolean | null; accepting_new_jobs: boolean | null; onboarding_notes: string | null; mitti_account_invited?: boolean | null };
@@ -50,7 +51,7 @@ export async function tradeHome(userId: string) {
   const c = await ctxOrThrow(userId);
   const now = new Date();
   const [{ data: offers }, { data: asg }] = await Promise.all([
-    admin.from("partner_offers").select("id, kind, summary, expires_at").eq("business_id", c.biz.id).eq("status", "pending").order("offered_at", { ascending: false }),
+    admin.from("partner_offers").select("id, job_id, kind, summary, expires_at").eq("business_id", c.biz.id).eq("status", "pending").order("offered_at", { ascending: false }),
     assignmentQuery(c, userId),
   ]);
   const jobIds = [...new Set((asg ?? []).map((a) => a.job_id))];
@@ -65,15 +66,20 @@ export async function tradeHome(userId: string) {
   const byId = new Map(live.map((j) => [j.id, j]));
   const miss = new Map<string, number>(); for (const r of missing ?? []) miss.set(r.job_id, (miss.get(r.job_id) ?? 0) + 1);
   const label = (j: (typeof live)[number]) => { const o = j.owners as { full_name: string | null } | null; const p = j.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null; return { owner: o?.full_name ?? null, surname: surname(o?.full_name), suburb: p?.suburb ?? null, address: fullAddress(p?.address_line, p?.suburb, p?.postcode) }; };
-  const coming = (books ?? []).filter((b) => b.status === "confirmed" && mine.includes(b.kind) && byId.has(b.job_id) && new Date(b.scheduled_end ?? b.scheduled_start).getTime() > now.getTime() - 12 * 3_600_000)
-    .map((b) => ({ jobId: b.job_id, kind: b.kind, what: VISIT[b.kind] ?? "Visit", start: b.scheduled_start, end: b.scheduled_end, ...label(byId.get(b.job_id)!) }));
+  const upcomingOf = (id: string) => (books ?? []).filter((b) => b.job_id === id && b.status === "confirmed" && mine.includes(b.kind) && new Date(b.scheduled_end ?? b.scheduled_start).getTime() > now.getTime() - 12 * 3_600_000);
+  const offerJobs = new Set((offers ?? []).map((o) => o.job_id));
   const yourMove: { jobId: string; title: string; detail: string }[] = [];
+  const coming: { jobId: string; kind: string; what: string; start: string; end: string | null; owner: string | null; surname: string | null; suburb: string | null; address: string }[] = [];
+  const placeOf = new Map<string, WorkPlace>();
   for (const j of live) {
     const l = label(j);
-    if (c.kind === "electrician" && j.stage === "rectification_scheduling") yourMove.push({ jobId: j.id, title: "Fixes approved. Pick a time", detail: `${l.owner ?? "Owner"}, ${l.suburb ?? ""}` });
-    if (c.kind === "installer" && j.stage === "installation_scheduling") yourMove.push({ jobId: j.id, title: "Quote approved. Pick install day", detail: `${l.owner ?? "Owner"}, ${l.suburb ?? ""}` });
-    if (c.kind === "installer" && j.stage === "evidence_outstanding" && (miss.get(j.id) ?? 0) > 0) yourMove.push({ jobId: j.id, title: `${miss.get(j.id)} photo${miss.get(j.id) === 1 ? "" : "s"} missing`, detail: `${l.owner ?? "Owner"}, ${l.suburb ?? ""}` });
+    const up = upcomingOf(j.id);
+    const p = placeWorkJob({ jobId: j.id, stage: j.stage, trade: c.kind, installerSourced: (j as { channel?: string }).channel === "installer_sourced", quoted: j.installer_quoted as "yes" | "no" | null, siteCheck: j.installer_site_check as "yes" | "no" | null, missingPhotos: miss.get(j.id) ?? 0, pendingOffer: offerJobs.has(j.id), upcoming: up });
+    placeOf.set(j.id, p.place);
+    if (p.place === "needs_me") yourMove.push({ jobId: j.id, title: p.title, detail: `${l.owner ?? "Owner"}, ${l.suburb ?? ""}` });
+    if (p.place === "coming_up") { const b = up[0]!; coming.push({ jobId: b.job_id, kind: b.kind, what: VISIT[b.kind] ?? "Visit", start: b.scheduled_start, end: b.scheduled_end, ...l }); }
   }
+  coming.sort((a, b) => a.start.localeCompare(b.start));
   const wk0 = new Date(now); wk0.setDate(now.getDate() - ((now.getDay() + 6) % 7)); wk0.setHours(0, 0, 0, 0);
   const wk1 = new Date(wk0.getTime() + 7 * 86_400_000);
   const week = (books ?? []).filter((b) => mine.includes(b.kind) && byId.has(b.job_id) && new Date(b.scheduled_start) >= wk0 && new Date(b.scheduled_start) < wk1).length;
@@ -86,7 +92,7 @@ export async function tradeHome(userId: string) {
   // Installer-sourced jobs: his own site-check answer and price (labels only; never HIV owner prices or margins).
   const { statusFactsFor, statusView } = await import("./job-status.server");
   const sf = await statusFactsFor(c, live.map((j) => j.id));
-  const allJobs = live.map((j) => ({ jobId: j.id, jobNumber: j.job_number, status: STATUS[j.stage] ?? "In progress", line: sf.get(j.id) ? statusView(c, sf.get(j.id)!) : null, ...label(j),
+  const allJobs = live.map((j) => ({ jobId: j.id, jobNumber: j.job_number, place: placeOf.get(j.id)!, status: STATUS[j.stage] ?? "In progress", line: sf.get(j.id) ? statusView(c, sf.get(j.id)!) : null, ...label(j),
     facts: j.installer_site_check || j.installer_quoted_price_inc_gst != null || (j as { channel?: string }).channel === "installer_sourced" ? { quoted: j.installer_quoted as "yes" | "no" | null, site_check: j.installer_site_check as "yes" | "no" | null, site_check_date: j.installer_site_check_date, quoted_price_inc_gst: j.installer_quoted_price_inc_gst == null ? null : Number(j.installer_quoted_price_inc_gst), price_includes: j.installer_price_includes } : null }));
   return { kind: c.kind, boss: c.boss, business: c.biz.name, firstName: c.firstName, isTest: c.isTest, week, offers: offerList, yourMove, coming, jobs: allJobs, month: c.boss ? { jobs: month.length, earned: month.reduce((t, r) => t + (r.amount ?? 0), 0) } : null };
 }

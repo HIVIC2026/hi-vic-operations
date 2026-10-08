@@ -18,6 +18,7 @@ export const Route = createFileRoute("/_authenticated/field/")({
 function MyWork() {
   const load = useServerFn(getTradeHome);
   const [onlyChasing, setOnlyChasing] = useState(false);
+  const [onlyMoving, setOnlyMoving] = useState(false);
   const { data, error, refetch } = useQuery({ queryKey: ["trade-home"], queryFn: () => load(), refetchInterval: 60_000 });
   if (error) return <TradeShell installer={false}><div role="alert" className={card}><p className="text-sm">Your work couldn't load. Check your signal and try again.</p><button className="mt-3 font-bold text-estimate-blue" onClick={() => refetch()}>Try again</button></div></TradeShell>;
   if (data === undefined) return <TradeShell installer={false}><p className="text-sm">Loading your work…</p></TradeShell>;
@@ -26,7 +27,8 @@ function MyWork() {
   const g = tradeGreeting(data.firstName, data.week);
   const first = data.offers[0];
   const chasing = data.jobs.filter((j) => j.line && j.line.tone !== "ok");
-  const shown = onlyChasing ? chasing : data.jobs;
+  const moving = data.jobs.filter((j) => j.place === "moving");
+  const shown = onlyMoving ? moving : onlyChasing ? chasing : data.jobs;
   return (
     <TradeShell installer={installer} boss={data.boss} test={data.isTest}>
       <div><h1 className="font-display text-[26px] font-bold leading-tight">{g.title}</h1><p className="text-sm text-sub">{g.sub}</p></div>
@@ -34,7 +36,7 @@ function MyWork() {
         {([
           ["Offers", data.offers.length, installer ? "Free Ready Check" : "Safety check"],
           ["Needs me", data.yourMove.length, "Your next actions"],
-          ["Moving automatically", data.jobs.filter((j) => j.line?.who !== "You" && !data.yourMove.some((m) => m.jobId === j.jobId)).length, "No action needed now"],
+          ["Moving automatically", data.jobs.filter((j) => j.place === "moving").length, "No action needed now"],
           ["Coming up", data.coming.length, "Booked visits"],
         ] as [string, number, string][]).map(([k, n, s]) => (
           <div key={k} className="rounded-[18px] border border-line bg-paper p-3.5"><p className="text-xs font-semibold text-estimate-navy">{k}</p><p className="mt-1 font-display text-2xl font-bold">{n}</p><p className="mt-1 text-[11px] text-sub">{s}</p></div>
@@ -73,7 +75,7 @@ function MyWork() {
       {data.jobs.length > 0 && (
         <section data-your-jobs>
           <div className="mb-2 flex items-center justify-between gap-2"><h2 className="font-display text-base font-bold">Your jobs <span className="text-sm font-semibold text-sub">{data.jobs.length}</span></h2>
-            <div className="flex gap-1" role="group" aria-label="Filter jobs"><button className={btnClass(onlyChasing ? "secondary" : "primary", "min-h-[34px] px-3")} aria-pressed={!onlyChasing} onClick={() => setOnlyChasing(false)}>All</button><button data-needs-chasing className={btnClass(onlyChasing ? "primary" : "secondary", "min-h-[34px] px-3")} aria-pressed={onlyChasing} onClick={() => setOnlyChasing(true)}>Needs chasing{chasing.length ? ` (${chasing.length})` : ""}</button></div></div>
+            <div className="flex gap-1" role="group" aria-label="Filter jobs"><button className={btnClass(onlyChasing || onlyMoving ? "secondary" : "primary", "min-h-[34px] px-3")} aria-pressed={!onlyChasing && !onlyMoving} onClick={() => { setOnlyChasing(false); setOnlyMoving(false); }}>All</button><button data-moving-filter className={btnClass(onlyMoving ? "primary" : "secondary", "min-h-[34px] px-3")} aria-pressed={onlyMoving} onClick={() => { setOnlyMoving(true); setOnlyChasing(false); }}>Moving automatically ({moving.length})</button><button data-needs-chasing className={btnClass(onlyChasing ? "primary" : "secondary", "min-h-[34px] px-3")} aria-pressed={onlyChasing} onClick={() => { setOnlyChasing(true); setOnlyMoving(false); }}>Needs chasing{chasing.length ? ` (${chasing.length})` : ""}</button></div></div>
           {onlyChasing && !shown.length && <p className={`${card} text-sm`}>Nothing needs chasing right now.</p>}
           <div className="space-y-2">{shown.map((j) => (
             <Link key={j.jobId} to="/field/$jobId" params={{ jobId: j.jobId }} className="flex items-center gap-3 rounded-[14px] border border-line bg-paper p-3">
