@@ -1,4 +1,7 @@
 # Roadmap (preview only, nothing sent, no publish, no real jobs)
+## Authorised authenticated verification (Jo, 8 Oct 08:22 UTC)
+- [x] Read current root/scoped rules; preserve concurrent onboarding fixes; standalone tsgo passed and 48 focused regressions passed.
+- [ ] TEST admin authenticated operations/Templates reads, reconciliation and filters; TEST non-admin page/RPC denial — blocked by supported session tool: explicit-user mint says approval unavailable in this context despite Jo's authorisation. No existing session/test password available; no credentials reset.
 ## Installer onboarding repairs (Jo, 8 Oct 08:17 UTC)
 - [x] Replaced hidden native date picker with interactive calendar; typing, date selection and retained date checked on sample onboarding at desktop/phone widths. No real application saved.
 - [x] Back saves before changing page and shows saving on Back rather than replacing continue text; sample Back/continue checked, 45 onboarding/revision regressions passed, app check OK. Real-session save timing remains unverified.
@@ -185,7 +188,7 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Spot saved / Photos-videos to review preview filters
 - [x] /admin/templates hub (Email / Mitti / Compliance) + Templates heading
 - [x] Focused tests, isolated browser checks, docs
-- [ ] Authenticated admin + non-admin browser check — blocked: TEST admin session needs user approval
+- [ ] Authenticated admin + non-admin browser check — Jo approved 08:22 UTC; blocked by session tooling's unavailable approval mechanism (not missing user consent).
 
 ## Narrow phase-2 review corrections (Jo, 8 Oct 08:13 UTC)
 - [x] Inventory five review-only emails; show stored bodies without claiming live-renderer parity.
