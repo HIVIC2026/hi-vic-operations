@@ -389,7 +389,7 @@ async function draftQuoteFromImport(jobId: string, e: BulkExtracted, actorId: st
   const { data: q, error } = await admin.from("quotes").insert({
     job_id: jobId, kind: "installation", option_label: "Installer's quote (from bulk upload)", option_code: "INSTALLER_A1", status: "draft",
     subtotal_inc_gst: subtotal, gst_amount: Math.round((subtotal - subtotal / 1.1) * 100) / 100,
-    veec_discount_inc_gst: discount, discount_note: discountNotes(rules).join(" ") || null, customer_total_inc_gst: customerTotal, created_by: actorId,
+    veec_discount_inc_gst: discount, discount_note: [piesa === 0 ? (await import("./installer-quote.server")).OWN_REC_QUOTE_NOTE : null, discountNotes(rules).join(" ")].filter(Boolean).join(" ") || null, customer_total_inc_gst: customerTotal, created_by: actorId,
     partner_business_id: partnerBusinessId, release_state: release.state, release_hold_reason: release.reason,
   }).select("id").single();
   if (error || !q) throw new BulkImportError(error?.message ?? "Quote could not be saved.");
