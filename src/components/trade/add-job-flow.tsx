@@ -40,16 +40,14 @@ export function AddJobFlow({ businessId, initialMode, onExit }: { businessId: st
   const [err, setErr] = useState<string | null>(null);
   const [saved, setSaved] = useState<Saved | null>(null);
   // Job details, per mode — kept while moving back and forward.
-  const [ex, setEx] = useState<ExistingDetails>({ siteCheck: null, quoted: null, area: "", method: "", amount: "", includes: "" });
+  const [ex, setEx] = useState<ExistingDetails>({ area: "", method: "", amount: "", includes: "" });
   const [later, setLater] = useState<LaterDetails>({ date: "", manual: false, area: "", method: "", notes: "" });
-  const [siteDate, setSiteDate] = useState("");
   const [files, setFiles] = useState<AttachedFile[]>([]);
   const [fileText, setFileText] = useState("");
   const [fileNote, setFileNote] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [extraVals, setExtraVals] = useState<Record<string, string>>({});
   const [ticks, setTicks] = useState({ feeAwareness: false, belowR2: false, ownerAgreed: false });
-  const [notVisited, setNotVisited] = useState(false);
   const problemsRef = useRef<HTMLUListElement>(null);
 
   const getEl = useServerFn(bulkElectricianChoices), addEl = useServerFn(addBulkElectrician);
@@ -79,7 +77,7 @@ export function AddJobFlow({ businessId, initialMode, onExit }: { businessId: st
     if (step === "customer") return customerProblems(customer);
     if (step === "details") {
       if (mode === "later") return laterDetailsProblems(later);
-      if (mode === "existing") { const p = existingDetailsProblems(ex); if (ex.quoted === "no") return ["Choose a Ready Check option below"]; return p; }
+      if (mode === "existing") { return existingDetailsProblems(ex); }
       return electricianPlanBlocker(plan) ? [electricianPlanBlocker(plan) as string] : [];
     }
     if (mode === "existing") return [...existingReviewProblems(ticks), ...(electricianPlanBlocker(plan) ? [electricianPlanBlocker(plan) as string] : [])];
@@ -123,7 +121,7 @@ export function AddJobFlow({ businessId, initialMode, onExit }: { businessId: st
         for (const k of CUSTOMER_KEYS) facts[k] = customer[k].trim();
         facts["measured_area_m2"] = Number(ex.area); facts["measurement_method"] = ex.method.trim();
         const amount = parseAmount(ex.amount);
-        const r = await confirm({ data: { importId: d.id, facts, installer: { quoted: ex.quoted, site_check: ex.siteCheck ?? "yes", site_check_date: ex.siteCheck === "yes" && siteDate ? siteDate : null, quoted_price_inc_gst: amount, price_includes: ex.includes.trim() || null, contact_permission: customer.contact_permission, fee_awareness: ticks.feeAwareness, existing_below_r2: ticks.belowR2, owner_agreed: ticks.ownerAgreed }, electrician: electrician() } as never });
+        const r = await confirm({ data: { importId: d.id, facts, installer: { quoted: "yes", site_check: "yes", site_check_date: null, quoted_price_inc_gst: amount, price_includes: ex.includes.trim() || null, contact_permission: customer.contact_permission, fee_awareness: ticks.feeAwareness, existing_below_r2: ticks.belowR2, owner_agreed: ticks.ownerAgreed }, electrician: electrician() } as never });
         try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
         setSaved({ jobId: r.jobId, jobNumber: r.jobNumber ?? null, mode });
       } else {
@@ -168,10 +166,7 @@ export function AddJobFlow({ businessId, initialMode, onExit }: { businessId: st
           </div>}
         </>}
         {mode === "existing" && <>
-          <div><p className="text-sm font-bold">Have you quoted this owner?</p><div className="mt-2 grid grid-cols-2 gap-2">{(["yes", "no"] as const).map((v) => <Button key={v} size="field" variant={ex.quoted === v ? "default" : "outline"} aria-pressed={ex.quoted === v} onClick={() => { setEx({ ...ex, quoted: v }); setNotVisited(false); }}>{v === "yes" ? "Yes" : "No"}</Button>)}</div></div>
-          {ex.quoted === "yes" && <div className="space-y-3" data-quoted-yes>
-            <div><p className="text-sm font-bold">Have you done the site check / measure-up?</p><p className="text-xs text-sub">Your measure-up stays unverified until Home Insulation Victoria checks it.</p><div className="mt-2 grid grid-cols-2 gap-2">{(["yes", "no"] as const).map((v) => <Button key={v} size="field" variant={ex.siteCheck === v ? "default" : "outline"} aria-pressed={ex.siteCheck === v} onClick={() => setEx({ ...ex, siteCheck: v })}>{v === "yes" ? "Yes" : "No"}</Button>)}</div></div>
-            {ex.siteCheck === "yes" && <label className="block text-sm font-bold">Site check date (if known)<Input type="date" className="mt-1 h-12" value={siteDate} onChange={(e) => setSiteDate(e.target.value)} /></label>}
+          <div className="space-y-3" data-visited-details>
             <label className="block text-sm font-bold">Ceiling area (m²)<Input className="mt-1 h-12" inputMode="decimal" value={ex.area} onChange={(e) => setEx({ ...ex, area: e.target.value })} /></label>
             <label className="block text-sm font-bold">How was it measured?<Input className="mt-1 h-12" placeholder="e.g. laser, tape or floor plan" maxLength={200} value={ex.method} onChange={(e) => setEx({ ...ex, method: e.target.value })} /></label>
             <label className="block text-sm font-bold">Your quoted price inc GST<span className="block text-xs font-normal text-sub">Exactly as you quoted the owner.</span><Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 3,450" value={ex.amount} onChange={(e) => setEx({ ...ex, amount: e.target.value })} /></label>
@@ -189,15 +184,9 @@ export function AddJobFlow({ businessId, initialMode, onExit }: { businessId: st
               } else setFileNote("Attached. Your typed details are used.");
             }} onRemove={async (path) => { if (draft) { const r = await dropFile({ data: { importId: draft.id, path } }); setFiles(r.files); } else { setFiles((o) => o.filter((x) => x.path !== path)); setFileText(""); } setFileNote(null); }} />
             {fileNote && <p className="text-xs text-sub">{fileNote}</p>}
-          </div>}
-          {ex.quoted === "no" && <div className="space-y-2" data-quoted-no>
-            <Button size="field" className="h-auto min-h-12 w-full whitespace-normal" onClick={() => switchMode("onsite")}>I'm at the property — do the Ready Check now</Button>
-            <Button size="field" variant="outline" className="h-auto min-h-12 w-full whitespace-normal" onClick={() => switchMode("later")}>Book a Ready Check for later</Button>
-            <Button size="field" variant="ghost" className="h-auto min-h-12 w-full whitespace-normal" onClick={() => setNotVisited(true)}>I'll come back after I've visited</Button>
-            {notVisited && <p role="status" className="text-sm text-sub">Nothing has been saved. Come back to Add a job after your visit with the area, how it was measured and your quote.</p>}
-          </div>}
+          </div>
         </>}
-        {mode !== "later" && plan && !(mode === "existing" && ex.quoted !== "yes") && <ElectricianPicker value={plan} onChange={setPlan} note={false} approved={el?.approved ?? []} pending={el?.pending ?? []} onAdd={async (d) => { const r = await addEl({ data: { businessId, name: d.name, mobile: d.mobile, email: d.email, business: d.business } }); await refetch(); setPlan({ mode: "mine", ...(r.businessId ? { business_id: r.businessId } : { nomination_id: r.nominationId }) }); return { message: inviteResultMessage(r) }; }} />}
+        {mode !== "later" && plan && true && <ElectricianPicker value={plan} onChange={setPlan} note={false} approved={el?.approved ?? []} pending={el?.pending ?? []} onAdd={async (d) => { const r = await addEl({ data: { businessId, name: d.name, mobile: d.mobile, email: d.email, business: d.business } }); await refetch(); setPlan({ mode: "mine", ...(r.businessId ? { business_id: r.businessId } : { nomination_id: r.nominationId }) }); return { message: inviteResultMessage(r) }; }} />}
       </section>}
 
       {step === "review" && <section className="space-y-3 rounded-[18px] border border-line bg-paper p-4" data-step-review>
@@ -206,7 +195,7 @@ export function AddJobFlow({ businessId, initialMode, onExit }: { businessId: st
         <Summary title="Job details" onEdit={() => setStep("details")} rows={
           mode === "onsite" ? [["Ready Check at the property now"], [plan?.mode === "mine" ? "Electrician: your electrician" : "Electrician: Home Insulation Victoria arranges"]]
           : mode === "later" ? [[`Ready Check booked for ${later.date ? new Date(later.date).toLocaleString("en-AU", { dateStyle: "medium", timeStyle: "short" }) : "—"}`], [later.manual && later.area ? `Ceiling ${later.area} m² (${later.method}) — unverified` : "Measurements added later"]]
-          : [[`Quoted ${ex.amount ? `$${ex.amount.replace(/^\$/, "")}` : ""} inc GST`], [`Ceiling ${ex.area} m² · ${ex.method}`], [`Includes: ${ex.includes}`], [ex.siteCheck === "yes" ? `Site check done${siteDate ? ` ${siteDate}` : ""}` : "Site check not done"], [`${files.length} file${files.length === 1 ? "" : "s"} attached`], [plan?.mode === "mine" ? `Electrician: ${([...(el?.approved ?? []), ...(el?.pending ?? [])] as { businessId?: string; nominationId?: string; name: string }[]).find((x) => (plan.business_id && x.businessId === plan.business_id) || (plan.nomination_id && x.nominationId === plan.nomination_id))?.name ?? "your electrician"}` : "Electrician: Home Insulation Victoria arranges"]]
+          : [[`Quoted ${ex.amount ? `$${ex.amount.replace(/^\$/, "")}` : ""} inc GST`], [`Ceiling ${ex.area} m² · ${ex.method}`], [`Includes: ${ex.includes}`], [`${files.length} file${files.length === 1 ? "" : "s"} attached`], [plan?.mode === "mine" ? `Electrician: ${([...(el?.approved ?? []), ...(el?.pending ?? [])] as { businessId?: string; nominationId?: string; name: string }[]).find((x) => (plan.business_id && x.businessId === plan.business_id) || (plan.nomination_id && x.nominationId === plan.nomination_id))?.name ?? "your electrician"}` : "Electrician: Home Insulation Victoria arranges"]]
         } />
         {mode === "existing" && draft && reviewItems(draft.extracted).some((i) => !HIDDEN_EXTRA.includes(i.key) && i.value != null) && <details className="rounded-[12px] bg-mist p-3"><summary className="cursor-pointer text-sm font-semibold">Other details found in your file</summary><div className="mt-2 grid gap-2">{reviewItems(draft.extracted).filter((i) => !HIDDEN_EXTRA.includes(i.key) && i.value != null).map((i) => <label key={i.key} className="block text-sm"><span className="text-sub">{i.label}{i.confidence === "uncertain" && <span className="ml-1 text-warning">please check</span>}</span><Input className="h-12" value={extraVals[i.key] ?? ""} onChange={(e) => setExtraVals({ ...extraVals, [i.key]: e.target.value })} /></label>)}</div></details>}
         {mode === "existing" && <div className="space-y-3 pt-1">
@@ -225,7 +214,7 @@ export function AddJobFlow({ businessId, initialMode, onExit }: { businessId: st
       <div className="space-y-2">
         {step === "review"
           ? <Button size="field" className="w-full" disabled={busy} aria-busy={busy} onClick={save}>{busy ? BUSY_LABEL : submitLabel(mode)}</Button>
-          : !(step === "details" && mode === "existing" && ex.quoted === "no") && <Button size="field" className="w-full" disabled={busy} aria-busy={busy} onClick={forward}>{busy ? BUSY_LABEL : "Next"}</Button>}
+          : <Button size="field" className="w-full" disabled={busy} aria-busy={busy} onClick={forward}>{busy ? BUSY_LABEL : "Next"}</Button>}
         <div className="grid grid-cols-2 gap-2">
           <Button size="field" variant="outline" disabled={busy} onClick={back}>Back</Button>
           <Button size="field" variant="ghost" disabled={busy} onClick={async () => {

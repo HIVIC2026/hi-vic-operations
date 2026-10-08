@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { ADD_JOB_STEPS, NEUTRAL_SAVE_ERROR, bookingLabel, existingDetailsProblems, existingReviewProblems, formLabel, laterDetailsProblems, nextStep, prevStep, restoreCustomer, saveErrorMessage, submitLabel } from "../src/lib/add-job-flow.core";
 import { onsiteProblems } from "../src/lib/onsite-ready-check.core";
 
-const ex = { siteCheck: "yes" as const, quoted: "yes" as const, area: "120", method: "laser", amount: "3,450", includes: "R5 batts" };
+const ex = { area: "120", method: "laser", amount: "3,450", includes: "R5 batts" };
 describe("Add job flow (Jo 8 Oct)", () => {
   test("three steps in order, back from customer exits", () => {
     expect(ADD_JOB_STEPS.map((s) => s.label)).toEqual(["Customer", "Job details", "Review & save"]);
@@ -16,11 +16,9 @@ describe("Add job flow (Jo 8 Oct)", () => {
     expect(r.contact_permission).toBe(false); expect(r.consent_by).toBeNull();
   });
   test("ACT postcode still refused", () => expect(onsiteProblems({ ...restoreCustomer({}), postcode: "2604" })).toContain("We can only take Victorian jobs — this one can't be added"));
-  test("existing quoted job needs site-check answer and exact quote facts", () => {
+  test("existing quoted job needs measurements and exact quote facts only", () => {
     expect(existingDetailsProblems(ex)).toEqual([]);
-    expect(existingDetailsProblems({ ...ex, siteCheck: null })).toContain("Answer Have you done the site check / measure-up?");
     expect(existingDetailsProblems({ ...ex, amount: "" })).toContain("Enter the quote amount inc GST");
-    expect(existingDetailsProblems({ ...ex, quoted: null })).toContain("Answer Have you quoted?");
   });
   test("review requires owner-agreed, fee awareness and below-R2 ticks", () => {
     expect(existingReviewProblems({ feeAwareness: false, belowR2: false, ownerAgreed: false })).toHaveLength(3);

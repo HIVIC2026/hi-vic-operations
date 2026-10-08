@@ -23,15 +23,13 @@ export const restoreCustomer = (raw: unknown): OnsiteInput => {
 
 export const customerProblems = (c: OnsiteInput) => onsiteProblems(c);
 
-export type ExistingDetails = { siteCheck: "yes" | "no" | null; quoted: "yes" | "no" | null; area: string; method: string; amount: string; includes: string };
+export type ExistingDetails = { area: string; method: string; amount: string; includes: string };
 export const parseAmount = (s: string): number | null => { const t = s.trim(); if (!t) return null; const n = Number(t.replace(/[$,\s]/g, "")); return Number.isFinite(n) ? n : NaN; };
 
 export function existingDetailsProblems(d: ExistingDetails): string[] {
   const out: string[] = [];
-  if (!d.quoted) out.push("Answer Have you quoted?");
-  if (d.quoted === "yes" && !d.siteCheck) out.push("Answer Have you done the site check / measure-up?");
   const amount = parseAmount(d.amount);
-  out.push(...quotedIntakeProblems({ quoted: d.quoted, area: d.area, method: d.method, amount: amount != null && Number.isNaN(amount) ? 0 : amount, includes: d.includes }));
+  out.push(...quotedIntakeProblems({ quoted: "yes", area: d.area, method: d.method, amount: amount != null && Number.isNaN(amount) ? 0 : amount, includes: d.includes }));
   return out;
 }
 
