@@ -14,6 +14,7 @@ async def main():
         await pg.screenshot(path="/tmp/browser/ip1.png")
         await pg.get_by_role("checkbox").first.click()
         await pg.get_by_role("button", name="Next").click()
+        await pg.screenshot(path="/tmp/browser/ip1b.png")
         await pg.get_by_label("Ceiling area (m²)").fill("120")
         await pg.get_by_role("radio", name="None").click()
         await pg.get_by_label("Your quote inc GST").fill("3,450")
