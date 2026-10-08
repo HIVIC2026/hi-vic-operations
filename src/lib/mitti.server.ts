@@ -335,7 +335,7 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string, call
   const hints = piisaPrefill(await officialPrefillContext(jobId, todayMelbourne(), asg.user_id));
   const items = OFFICIAL_ITEMS.piisa;
   const isA3 = MITTI_PIISA_TEMPLATE_ID === PIISA_A3_TEMPLATE_ID;
-  type Pre = { itemId: string; label: string; kind: string; value: string; occurrence: number };
+  type Pre = { itemId: string; label: string; kind: string; value: string; occurrence: number; row: number };
   const toPre = (itemId: string, value: string, row = 0): Pre => {
     const it = items.find((i) => i.id === itemId)!;
     const occurrence = isA3 ? a3.a3Occurrence(itemId, row) : items.filter((i) => i.label === it.label && items.indexOf(i) < items.indexOf(it)).length + row;
