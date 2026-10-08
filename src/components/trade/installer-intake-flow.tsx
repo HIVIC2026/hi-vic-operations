@@ -30,7 +30,7 @@ type Details = { area: string; amount: string; includes: string; proposedR: stri
 /** `preview` swaps every server/storage call for a local adapter (no auth, saving or sending). */
 export function InstallerIntakeFlow({ businessId, preview }: { businessId: string; preview?: IntakeApi }) {
   const [step, setStep] = useState<AddJobStep>("customer");
-  const [customer, setCustomer] = useState<OnsiteInput>(blankCustomer());
+  const [customer, setCustomer] = useState<OnsiteInput>(() => ({ ...blankCustomer(), ...(preview?.sampleCustomer ?? {}), contact_permission: false, consent_by: null }));
   const [d, setD] = useState<Details>({ area: "", amount: "", includes: "", proposedR: "", insulation: null });
   const [ack, setAck] = useState(false);
   const [coord, setCoord] = useState<Coordination | null>(null);
