@@ -1,5 +1,9 @@
 import { mockInvoices } from "./portal-browser-stubs";
-const chain: any = { data: mockInvoices, select: () => chain, eq: () => chain, order: () => Promise.resolve({ data: mockInvoices }) };
+const read = () => {
+  const g = globalThis as { __evidenceRead?: () => unknown };
+  return g.__evidenceRead ? g.__evidenceRead() : { data: mockInvoices };
+};
+const chain: any = { data: mockInvoices, select: () => chain, eq: () => chain, order: async () => read() };
 export const supabase = { storage: { from: () => ({ uploadToSignedUrl: async (path: string) => {
   const g = globalThis as { __storageUpload?: (path: string) => Promise<{ error: unknown }> };
   return g.__storageUpload ? g.__storageUpload(path) : { error: null };

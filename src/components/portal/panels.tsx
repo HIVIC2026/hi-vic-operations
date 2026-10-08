@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { balanceSplit, requiredDepositCents } from "@/lib/payment-gate.core";
 import { QUOTE_EXPIRED_OWNER_MESSAGE, quoteExpiresAt, quoteIsExpired } from "@/lib/quote-expiry.core";
 import { veecDiscountLabel } from "@/lib/estimate.core";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, FileUp, Lock, Paperclip, ShieldAlert } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,6 +28,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { AcceptanceFlow } from "./assignment";
 import { AuthorityBadge, PaymentBadge, Pill } from "./badges";
 import { openFileViewer } from "@/components/portal/file-viewer";
+import { allowedUpload } from "@/lib/upload-safety.core";
 
 export function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
@@ -80,13 +81,17 @@ export function BlockersPanel({ jobId, quietWhenClear = false, partner = false }
 
 // ---------------- Evidence ----------------
 export function EvidencePanel({ jobId, role, gates, excludeGates }: { jobId: string; role: string; gates?: string[]; excludeGates?: string[] }) {
-  const { data } = useQuery({
+  const { data, isPending, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["evidence", jobId],
     queryFn: async () => {
-      const { data } = await supabase.from("evidence_requirements").select("*, evidence_files(*)").eq("job_id", jobId).order("sort");
+      const { data, error } = await supabase.from("evidence_requirements").select("*, evidence_files(*)").eq("job_id", jobId).order("sort");
+      if (error) throw new Error(error.message);
       return data ?? [];
     },
+    retry: false,
   });
+  if (isError) return <Section title="Evidence"><p role="alert" className="text-sm text-destructive">Evidence could not be loaded. {error.message}</p><Button variant="outline" disabled={isFetching} onClick={() => void refetch()}>Retry</Button></Section>;
+  if (isPending) return <Section title="Evidence"><p role="status" className="text-sm text-muted-foreground">Loading evidence…</p></Section>;
   const reqs = (data ?? []).filter((r) => (!gates || gates.includes(r.gate)) && !excludeGates?.includes(r.gate));
   const done = reqs.filter((r) => r.required && ["uploaded", "verified"].includes(r.status)).length;
   const total = reqs.filter((r) => r.required).length;
@@ -112,26 +117,67 @@ function currentFix(): Promise<{ lat: number; lng: number; accuracyM: number; ca
 function EvidenceRow({ req, canUpload, isAdmin }: { req: Req; canUpload: boolean; isAdmin: boolean }) {
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const uploadLock = useRef(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploaded, setUploaded] = useState(false);
+  const [opening, setOpening] = useState<string | null>(null);
+  const [openError, setOpenError] = useState<string | null>(null);
+  const pending = useRef<{ file: File; path: string; mimeType: string; fix: Awaited<ReturnType<typeof currentFix>> } | null>(null);
+  const qc = useQueryClient();
   const [products, setProducts] = useState([{ brand: "", model: "", rValue: "" }]);
   const productReview = isAdmin && req.category === "product_evidence";
   const [installedArea, setInstalledArea] = useState("");
-  const reqUpload = useAction(requestEvidenceUpload);
-  const confirm = useAction(confirmEvidenceUpload);
+  const reqUpload = useServerFn(requestEvidenceUpload);
+  const confirm = useServerFn(confirmEvidenceUpload);
   const verify = useAction(verifyEvidence);
   const openUrl = useServerFn(getEvidenceUrl);
   const onFile = async (f: File) => {
+    if (uploadLock.current) return;
+    uploadLock.current = true;
     setBusy(true);
+    setUploadError(null);
+    setUploaded(false);
     try {
-      const fix = /^(image|video)\//.test(f.type) && !isAdmin ? await currentFix() : null;
-      const up = await reqUpload({ requirementId: req.id, fileName: f.name, mimeType: f.type || "application/octet-stream", fix });
-      if (!up) return;
-      const { path, token } = up;
-      const { error } = await supabase.storage.from("job-files").uploadToSignedUrl(path, token, f, { contentType: f.type });
-      if (error) throw error;
-      await confirm({ requirementId: req.id, path, fileName: f.name, mimeType: f.type, size: f.size, fix }, "Uploaded");
+      const mimeType = allowedUpload(f.name, f.type);
+      if (!mimeType || !/^(image\/|video\/|application\/pdf$)/.test(mimeType)) throw new Error("Only photos (JPG, PNG, WEBP, HEIC), videos (MP4, MOV) and PDFs are accepted.");
+      if (!f.size) throw new Error("This file is empty. Choose a complete photo, video or PDF.");
+      if (!pending.current) {
+        const fix = /^(image|video)\//.test(mimeType) && !isAdmin ? await currentFix() : null;
+        const up = await reqUpload({ data: { requirementId: req.id, fileName: f.name, mimeType, fix } });
+        if (!up) throw new Error("The upload could not be started. Please try again.");
+        const { path, token } = up;
+        const { error } = await supabase.storage.from("job-files").uploadToSignedUrl(path, token, f, { contentType: mimeType });
+        if (error) throw new Error(error.message);
+        pending.current = { file: f, path, mimeType, fix };
+      }
+      const saved = pending.current;
+      const result = await confirm({ data: { requirementId: req.id, path: saved.path, fileName: saved.file.name, mimeType: saved.mimeType, size: saved.file.size, fix: saved.fix } });
+      if (!result?.ok) throw new Error("Upload confirmation failed. Please retry confirmation.");
+      pending.current = null;
+      setUploaded(true);
+      void qc.invalidateQueries().catch(() => undefined);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "The upload failed. Please try again.";
+      // Stored-byte validation deletes a rejected file; it cannot be confirmed again.
+      if (/file type isn't accepted/i.test(message)) pending.current = null;
+      setUploadError(pending.current ? `The file reached storage, but evidence is not confirmed. ${message}` : message);
     } finally {
+      if (input.current) input.current.value = "";
+      uploadLock.current = false;
       setBusy(false);
     }
+  };
+  const openFile = async (id: string) => {
+    if (opening) return;
+    setOpening(id);
+    setOpenError(null);
+    try {
+      const result = await openUrl({ data: { fileId: id } });
+      if (!result?.url) throw new Error("This file could not be opened. Please try again.");
+      openFileViewer(result.url);
+    } catch (e) {
+      setOpenError(e instanceof Error ? e.message : "This file could not be opened. Please try again.");
+    } finally { setOpening(null); }
   };
   const t = req.status === "verified" ? "good" : req.status === "uploaded" ? "info" : req.status === "rejected" ? "bad" : req.status === "not_required" ? "neutral" : "warn";
   return (
@@ -143,11 +189,14 @@ function EvidenceRow({ req, canUpload, isAdmin }: { req: Req; canUpload: boolean
       {req.notes && <p className="mt-1 text-xs text-muted-foreground">{req.notes.includes('"kind":"piisa_actual_products_v1"') ? "Actual installed products confirmed from the product label evidence." : req.notes}</p>}
       <div className="mt-2 flex flex-wrap gap-2">
         {req.evidence_files.map((f) => (
-          <button key={f.id} className="inline-flex items-center gap-1 rounded bg-muted px-2 py-1 text-xs hover:bg-secondary" onClick={async () => openFileViewer((await openUrl({ data: { fileId: f.id } })).url)}>
-            <Paperclip className="h-3 w-3" /> {f.file_name}
-          </button>
+          <Button key={f.id} variant="outline" size="sm" disabled={opening !== null} onClick={() => void openFile(f.id)}>
+            <Paperclip className="h-3 w-3" /> {opening === f.id ? "Opening…" : f.file_name}
+          </Button>
         ))}
       </div>
+      {openError && <p role="alert" className="mt-2 text-sm text-destructive">{openError} Select the file to retry.</p>}
+      {uploadError && <p role="alert" className="mt-2 text-sm text-destructive">{uploadError}</p>}
+      {uploaded && <p role="status" className="mt-2 text-sm text-success">Upload confirmed. Evidence still requires review.</p>}
       {productReview && req.status === "uploaded" && <div className="mt-3 space-y-2">
         <p className="text-sm font-medium">Confirm the actual installed products shown on the labels</p>
         {products.map((p, index) => <div key={index} className="grid gap-2 sm:grid-cols-3">
@@ -159,9 +208,9 @@ function EvidenceRow({ req, canUpload, isAdmin }: { req: Req; canUpload: boolean
       <div className="mt-2 flex flex-wrap gap-2">
         {canUpload && req.status !== "verified" && req.status !== "not_required" && (
           <>
-            <input ref={input} type="file" accept="image/*,video/*,application/pdf" capture="environment" className="hidden" onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
-            <Button size="field" variant="outline" disabled={busy} onClick={() => input.current?.click()} className="w-full sm:w-auto">
-              <FileUp /> {busy ? "Uploading…" : "Add photo / video / PDF"}
+            <input ref={input} disabled={busy || pending.current !== null} type="file" accept="image/*,video/*,application/pdf" capture="environment" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) void onFile(file); }} />
+            <Button size="field" variant="outline" disabled={busy} onClick={() => { const saved = pending.current; if (saved) void onFile(saved.file); else input.current?.click(); }} className="w-full sm:w-auto">
+              <FileUp /> {busy ? "Uploading…" : pending.current ? "Retry confirmation" : uploadError ? "Retry upload" : "Add photo / video / PDF"}
             </Button>
           </>
         )}
