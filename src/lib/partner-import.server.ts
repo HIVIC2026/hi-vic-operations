@@ -8,7 +8,8 @@ import { requireApprovedPartner, requireMember } from "./pilot.server";
 
 export type CreateImportInput = { businessId: string; sourceSystem: "easymate" | "manual_import" | "csv" | "email"; text?: undefined | string; csv?: undefined | string; csvRow: number; sourceUrl?: undefined | string; externalRefs?: undefined | Record<string, string>; files: { path: string; name: string; type: string }[] };
 export type ConfirmImportInput = { importId: string; facts: Record<string, string | number | boolean | null>; progress?: undefined | "not_visited" | "measured" | "quoted"; occupancy?: undefined | "owner_occupied" | "rental"; details?: undefined | Record<string, unknown>;
-  installer?: undefined | { quoted?: undefined | "yes" | "no" | null; site_check: "yes" | "no"; site_check_date?: undefined | string | null; quoted_price_inc_gst?: undefined | number | null; price_includes?: undefined | string | null; contact_permission?: undefined | boolean; fee_awareness?: undefined | boolean; existing_below_r2?: undefined | boolean; owner_agreed?: undefined | boolean };
+  installer?: undefined | { quoted?: undefined | "yes" | "no" | null; site_check: "yes" | "no"; site_check_date?: undefined | string | null; quoted_price_inc_gst?: undefined | number | null; price_includes?: undefined | string | null; contact_permission?: undefined | boolean; fee_awareness?: undefined | boolean; existing_below_r2?: undefined | boolean; owner_agreed?: undefined | boolean;
+    intake?: undefined | { existing_insulation: "none" | "below_r2" | "unknown"; evidence_ack: boolean; proposed_r_value?: undefined | number | null; version: string } };
   electrician?: undefined | { mode: "mine" | "hivic"; business_id?: undefined | string | null; nomination_id?: undefined | string | null } };
 
 export async function createImportFor(userId: string, data: CreateImportInput) {
@@ -37,6 +38,12 @@ export async function createImportFor(userId: string, data: CreateImportInput) {
 export async function confirmImportFor(userId: string, data: ConfirmImportInput) {
   const context = { userId, supabase: admin };
   const { data: imp } = await admin.from("job_imports").select("*").eq("id", data.importId).single();
+  // Double tap / retry after a lost response: the same confirmed import returns the same job — never a second job.
+  if (imp && imp.status === "confirmed" && imp.job_id && imp.confirmed_by === userId) {
+    await requireMember(userId, imp.business_id, true);
+    const { data: j } = await admin.from("jobs").select("job_number").eq("id", imp.job_id).maybeSingle();
+    return { jobId: imp.job_id as string, jobNumber: (j?.job_number as string | null) ?? null, reused: true };
+  }
   if (!imp || imp.status !== "draft") throw new WorkflowError("This import was already confirmed or discarded.");
   await requireMember(context.userId, imp.business_id, true); // business owner only (staff are refused, like createImport)
   const biz = await requireApprovedPartner(imp.business_id);
@@ -44,16 +51,32 @@ export async function confirmImportFor(userId: string, data: ConfirmImportInput)
   if (!isInstaller) throw new WorkflowError("Only installer team members can confirm imported jobs.");
   const c = data.facts as ConfirmedFacts;
   const blockers = confirmBlockers(c);
-  const { quotedIntakeProblems } = await import("./installer-quote-intake.core");
-  blockers.push(...quotedIntakeProblems({ quoted: data.installer?.quoted, area: c.measured_area_m2, method: c.measurement_method, amount: data.installer?.quoted_price_inc_gst, includes: data.installer?.price_includes }));
-  const { quotedGap } = await import("./bulk-import.core");
-  const qg = data.installer?.quoted === "yes" ? quotedGap("yes", data.installer.quoted_price_inc_gst) : null; // blank never blocks (Jo, 5:46pm)
-  if (qg) blockers.push(qg);
+  const intake = data.installer?.intake;
+  const files0 = (imp.files as unknown[] | null) ?? [];
+  if (intake) {
+    // Approved single intake: quote upload OR manual amount + inclusions; insulation declared; evidence acknowledged.
+    const area0 = Number(c.measured_area_m2);
+    if (!Number.isFinite(area0) || area0 <= 0 || area0 > 5000) blockers.push("Enter the ceiling area (m²)");
+    const amt = data.installer?.quoted_price_inc_gst;
+    if (!(amt && amt > 0) && files0.length === 0) blockers.push("Upload your quote or enter the quote amount inc GST");
+    if (amt && amt > 0 && !data.installer?.price_includes?.trim()) blockers.push("Tell us what the quote includes");
+    if (intake.evidence_ack !== true) blockers.push("Tick that all required evidence must be supplied and accepted before the rebate");
+    if (typeof imp.raw_text === "string") { const { multiCustomerAmbiguity } = await import("./installer-intake.core"); if (multiCustomerAmbiguity(imp.raw_text)) blockers.push("The uploaded file names more than one customer — upload one customer's quote per job"); }
+  } else {
+    const { quotedIntakeProblems } = await import("./installer-quote-intake.core");
+    blockers.push(...quotedIntakeProblems({ quoted: data.installer?.quoted, area: c.measured_area_m2, method: c.measurement_method, amount: data.installer?.quoted_price_inc_gst, includes: data.installer?.price_includes }));
+    const { quotedGap } = await import("./bulk-import.core");
+    const qg = data.installer?.quoted === "yes" ? quotedGap("yes", data.installer.quoted_price_inc_gst) : null; // blank never blocks (Jo, 5:46pm)
+    if (qg) blockers.push(qg);
+  }
   if (data.installer && data.installer.quoted === "no") data.installer.quoted_price_inc_gst = null; // "Quote needed from installer"
   { const { ownerAgreedBlocker } = await import("./owner-confirm.core"); const ab = ownerAgreedBlocker({ ownerAgreed: data.installer?.owner_agreed, quoted: data.installer?.quoted, price: data.installer?.quoted_price_inc_gst }); if (ab) blockers.push(ab); }
   if (data.installer?.contact_permission !== true) blockers.push("Tick to confirm the owner has given Home Insulation Victoria permission to contact them");
-  { const { feeAwarenessBlocker } = await import("./owner-confirm.core"); const fb = feeAwarenessBlocker(data.installer?.fee_awareness); if (fb) blockers.push(fb); }
-  if (data.installer?.existing_below_r2 !== true) blockers.push("Confirm any existing insulation is below R2.0");
+  if (!intake) {
+    // Older paths keep their checks; the single intake moves fee awareness to the office quote-send step.
+    const { feeAwarenessBlocker } = await import("./owner-confirm.core"); const fb = feeAwarenessBlocker(data.installer?.fee_awareness); if (fb) blockers.push(fb);
+    if (data.installer?.existing_below_r2 !== true) blockers.push("Confirm any existing insulation is below R2.0");
+  }
   { const { electricianPlanBlocker } = await import("./job-electrician.core"); const eb = electricianPlanBlocker(data.electrician as never); if (eb) blockers.push(eb); }
   if (blockers.length) throw new WorkflowError(blockers.join(" • "));
   const area = Number(c.measured_area_m2);
@@ -101,8 +124,26 @@ export async function confirmImportFor(userId: string, data: ConfirmImportInput)
   if (data.installer?.owner_agreed && data.installer.quoted === "yes") await logEvent(res.job_id, context.userId, "installer_owner_agreed_price", `Installer says the owner agreed to their price ($${data.installer.quoted_price_inc_gst} inc GST); goes through office review as normal`, { import_id: imp.id, price_inc_gst: data.installer.quoted_price_inc_gst }, { internal: true });
   if (pilotInvoice) await logEvent(res.job_id, context.userId, "commercial_model_set", "Pilot commercial route: full job invoiced by Home Insulation Victoria (split invoicing disabled)", { route: "hivic_full_invoice" });
   await logEvent(res.job_id, userId, "installer_contact_permission", "Installer confirmed the owner agreed to Home Insulation Victoria contacting them", { import_id: data.importId, wording: (await import("./job-electrician.core")).OWNER_CONTACT_PERMISSION }, { internal: true });
-  await logEvent(res.job_id, userId, "installer_owner_fee_awareness", "Installer confirmed the owner is aware that the full quote will include the rebate, Home Insulation Victoria AP management fee and electrician PIESA fee", { import_id: data.importId, wording: (await import("./owner-confirm.core")).OWNER_FEE_AWARENESS_TICK, confirmed_at: new Date().toISOString() }, { internal: true });
-  await logEvent(res.job_id, userId, "installer_existing_insulation_below_r2", "Installer confirmed any existing insulation is below R2.0", { import_id: data.importId, confirmed_at: new Date().toISOString() }, { internal: true });
+  if (intake) {
+    // A real owner_contact_consents row (the event alone is not consent). Idempotent per import.
+    const { READY_CHECK_CONTACT_PERMISSION } = await import("./job-electrician.core");
+    const { data: job } = await admin.from("jobs").select("owner_id").eq("id", res.job_id).single();
+    const key = `installer_import:${imp.id}`;
+    const { data: have } = await admin.from("owner_contact_consents").select("id").eq("job_id", res.job_id).eq("consent_key", key).maybeSingle();
+    if (!have && job?.owner_id) {
+      const text = READY_CHECK_CONTACT_PERMISSION;
+      const sha256 = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)))].map((x) => x.toString(16).padStart(2, "0")).join("");
+      const { ONSITE_CONSENT_SOURCE } = await import("./onsite-ready-check.core");
+      const { error: ce } = await admin.from("owner_contact_consents").insert({ job_id: res.job_id, owner_id: job.owner_id, source: ONSITE_CONSENT_SOURCE, consent_key: key, consent_status: "granted", contact_consent: true, consented_at: new Date().toISOString(), snapshot: { by: "installer", text, recorded_by: userId, intake_version: intake.version } as unknown as Json, sha256 });
+      if (ce) throw new WorkflowError(`Consent could not be saved: ${ce.message}`);
+    }
+    await logEvent(res.job_id, userId, "installer_existing_insulation_declared", `Installer declared existing insulation: ${intake.existing_insulation === "none" ? "none" : intake.existing_insulation === "below_r2" ? "confirmed below R2.0" : "not yet confirmed"}`, { import_id: data.importId, value: intake.existing_insulation, version: intake.version, declared_at: new Date().toISOString(), verified: false }, { internal: true });
+    if (intake.existing_insulation === "below_r2") await logEvent(res.job_id, userId, "installer_existing_insulation_below_r2", "Installer confirmed any existing insulation is below R2.0", { import_id: data.importId, confirmed_at: new Date().toISOString(), version: intake.version }, { internal: true });
+    await logEvent(res.job_id, userId, "installer_evidence_acknowledged", "Installer acknowledged all required Ready Check and installation evidence must be supplied and accepted before the rebate", { import_id: data.importId, wording: (await import("./installer-intake.core")).EVIDENCE_ACK, version: intake.version, proposed_r_value: intake.proposed_r_value ?? null, acknowledged_at: new Date().toISOString() }, { internal: true });
+  } else {
+    await logEvent(res.job_id, userId, "installer_owner_fee_awareness", "Installer confirmed the owner is aware that the full quote will include the rebate, Home Insulation Victoria AP management fee and electrician PIESA fee", { import_id: data.importId, wording: (await import("./owner-confirm.core")).OWNER_FEE_AWARENESS_TICK, confirmed_at: new Date().toISOString() }, { internal: true });
+    await logEvent(res.job_id, userId, "installer_existing_insulation_below_r2", "Installer confirmed any existing insulation is below R2.0", { import_id: data.importId, confirmed_at: new Date().toISOString() }, { internal: true });
+  }
   const importFiles = (imp.files as { path: string; name: string; type: string }[] | null) ?? [];
   if (importFiles.length) {
     const { error: de } = await admin.from("documents").insert(importFiles.map((f) => ({ job_id: res.job_id, kind: "installer_import", title: f.name, original_name: f.name, mime_type: f.type || null, storage_path: f.path, source_system: imp.source_system, uploaded_by: context.userId })));

@@ -175,12 +175,14 @@ export async function paymentOptionCleared(jobId: string) {
 /** PIESA request facts: Ready Check complete, verified eligible, current quote approved, payment option verified. */
 export async function piesaRequestFacts(jobId: string) {
   const { verifiedEligible } = await import("./verified-eligibility.server");
-  const [{ count: rc }, eligible, quote, payment] = await Promise.all([
+  const { installerIntakeQualified } = await import("./installer-intake.server");
+  const [{ count: rc }, eligible, quote, payment, intake] = await Promise.all([
     admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("to_stage", "ready_check_complete"),
     verifiedEligible(jobId), // current, not-stale office verification only (fails closed)
     currentApprovedQuote(jobId), paymentGate(jobId),
+    installerIntakeQualified(jobId).catch(() => false), // fails closed
   ]);
-  return { readyCheckComplete: (rc ?? 0) > 0, verifiedEligible: eligible, currentQuoteApproved: !!quote, payment };
+  return { readyCheckComplete: (rc ?? 0) > 0, verifiedEligible: eligible, currentQuoteApproved: !!quote, payment, installerIntakeQualified: intake };
 }
 
 /** Ready Check pathway guards (pure rules in readycheck.core.ts). */
@@ -293,6 +295,14 @@ export async function stageEntryBlockers(jobId: string, to: Stage): Promise<stri
     const st = await assignmentStatus(jobId);
     if (st === "variation_required") blockers.push("Assignment variation must be reconfirmed by the customer.");
     if (st !== "effective_complete") blockers.push(ASSIGNMENT_VEEC_BLOCKER);
+    // Rebate gate (Jo, 8 Oct 2026): every required evidence item VERIFIED — uploads, ticks and declarations don't count.
+    // The office person making this transition is the final human AP approval.
+    const { rebateEvidenceBlockers } = await import("./installer-intake.core");
+    const { data: ev } = await admin.from("evidence_requirements").select("category, label, required, status").eq("job_id", jobId);
+    blockers.push(...rebateEvidenceBlockers({ items: (ev ?? []).map((r) => ({ category: r.category, label: r.label, blocking: r.required, status: r.status })), apApprovedBy: "office_transition" }));
+    // Installer intake route deferred the Ready Check: it must be finished and office-verified before the rebate.
+    const { verifiedEligible } = await import("./verified-eligibility.server");
+    if (!(await verifiedEligible(jobId))) blockers.push("Ready Check evidence not verified as eligible by the office.");
   }
 
   if (PIESA_WINDOW_STAGES.includes(to) && piesa?.piesa_expired) {

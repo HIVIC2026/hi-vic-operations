@@ -36,6 +36,15 @@ export const sendInstallerQuote = createServerFn({ method: "POST" }).middleware(
     const { data: q } = await admin.from("quotes").select("id, status, option_code, job_id, release_state").eq("id", data.quoteId).eq("job_id", data.jobId).maybeSingle();
     if (!q || q.option_code !== "INSTALLER_A1") throw new WorkflowError("Quote not found.");
     if (q.status !== "draft") throw new WorkflowError("This quote has already been sent.");
+    { // Approved intake jobs: readiness + a real consent row + fee awareness before release (event alone is not consent).
+      const { count } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", data.jobId).eq("event_type", "installer_evidence_acknowledged");
+      if (count) {
+        const { installerIntakeState } = await import("./installer-intake.server");
+        const st = await installerIntakeState(data.jobId);
+        const b = [...st.readiness.blockers, ...st.releaseBlockers];
+        if (b.length) throw new WorkflowError(b.join(" • "));
+      }
+    }
     await applyCobrand(data.jobId);
     const { customerDeliveryState } = await import("./comms.server");
     const delivery = await customerDeliveryState(data.jobId);
@@ -44,4 +53,41 @@ export const sendInstallerQuote = createServerFn({ method: "POST" }).middleware(
     if (error) throw new Error(error.message);
     await logEvent(data.jobId, context.userId, released ? "installer_quote_released" : "installer_quote_queued", released ? "Office released the co-branded owner quote" : "Office approved the co-branded owner quote — queued behind the launch switches", { quote_id: q.id, email_delivery: delivery });
     return { delivery };
+  });
+
+// ---- Approved installer intake (Jo, 8 Oct 2026): office review of the short intake. Admin only. ----
+export const getInstallerIntake = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { installerIntakeState } = await import("./installer-intake.server");
+    return installerIntakeState(data.jobId);
+  });
+
+export const officeIntakeAction = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.discriminatedUnion("action", [
+    z.object({ action: z.literal("eligibility"), jobId: z.string().uuid(), outcome: z.enum(["eligible", "not_eligible"]), reason: z.string().trim().min(1).max(1000) }),
+    z.object({ action: z.literal("correct"), jobId: z.string().uuid(), insulation: z.enum(["none", "below_r2", "unknown"]).optional(), quoteIncGst: z.number().positive().max(1_000_000).nullable().optional(), includes: z.string().trim().max(1000).nullable().optional(), reason: z.string().trim().min(1).max(1000) }),
+    z.object({ action: z.literal("fee_awareness"), jobId: z.string().uuid(), note: z.string().trim().min(1).max(1000) }),
+    z.object({ action: z.literal("draft_quote"), jobId: z.string().uuid() }),
+  ]).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const m = await import("./installer-intake.server");
+    if (data.action === "eligibility") await m.recordCommercialEligibility(data.jobId, context.userId, data.outcome, data.reason);
+    else if (data.action === "correct") await m.correctInstallerIntake(data.jobId, context.userId, { insulation: data.insulation, quoteIncGst: data.quoteIncGst, includes: data.includes, reason: data.reason });
+    else if (data.action === "fee_awareness") await m.recordOfficeFeeAwareness(data.jobId, context.userId, data.note);
+    else await m.draftQuoteFromIntake(data.jobId, context.userId);
+    return m.installerIntakeState(data.jobId);
+  });
+
+// Installer's own job: the Ready Check outstanding list (business-scoped via job assignment).
+export const getMyIntakeReadyCheck = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: ok, error } = await context.supabase.rpc("can_access_job", { _job: data.jobId });
+    if (error || !ok) throw new Error("Not your job.");
+    const { installerIntakeState } = await import("./installer-intake.server");
+    const s = await installerIntakeState(data.jobId);
+    return { readyCheck: s.readyCheck, quoteHeldFor: s.readiness.blockers.filter((b) => /insulation|eligib/i.test(b)) };
   });
