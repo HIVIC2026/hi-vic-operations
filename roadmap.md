@@ -1,6 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## PIISA corrections (Jo 8 Oct 20:20 UTC)
-- [ ] 20:30 apply exact seven media labels and consent reminder; preserve published native IDs/schema and structured Part 7, verify focused checks.
+- [x] 20:30 applied exact seven media labels and consent reminder; preserved published native IDs/schema and structured Part 7. Updated stale wording-dependent safeguard assertions to use canonical labels; focused checks recorded separately.
 - [x] 20:27 replaced proposed AP evidence consequences with Jo's exact ESC may-reject reminder throughout PIISA media, consent and prestart instructions; focused PIISA checks pass, native readback remains separate.
 - [x] 20:24 expanded PIISA evidence/consent requests and STOP actions; stable IDs/conditions/safety preserved; 107 focused tests pass, latest harness build OK. Native edit/readback still pending.
 - [x] Update STOP actions, crew portal wording, product-photo prestart phase and completed-video instruction; preserve native IDs and official output.

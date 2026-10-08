@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { buildOfficialPrefill } from "../src/lib/mitti.core";
-import { A3_ALIASES, A3_MEDIA_IDS, A3_MEDIA_LABELS, A3_NATIVE_IDS, a3MediaCounts, PIISA_A3_MAPPING, a3EvidenceBlockers, a3EvidenceRequired, a3MissingFields, a3Occurrence, a3Signature, crewPrefill, crewSelectionProblems, mergeTreatment, parseA3Answers, readyCheckPartPrefill } from "../src/lib/piisa-a3.core";
+import { A3_ALIASES, A3_EVIDENCE_LABELS, A3_MEDIA_IDS, A3_MEDIA_LABELS, A3_NATIVE_IDS, a3MediaCounts, PIISA_A3_MAPPING, a3EvidenceBlockers, a3EvidenceRequired, a3MissingFields, a3Occurrence, a3Signature, crewPrefill, crewSelectionProblems, mergeTreatment, parseA3Answers, readyCheckPartPrefill } from "../src/lib/piisa-a3.core";
 import { a3Template } from "./helpers/a3-template";
 import { OFFICIAL_ITEMS } from "../src/lib/official-forms.core";
 import { piisaPrefill, seedAnswers } from "../src/lib/official-prefill.core";
@@ -30,7 +30,7 @@ describe("stable native IDs (draft-observed)", () => {
     t.items = (t.items as { item_id: string }[]).filter((x) => x.item_id !== A3_MEDIA_IDS.before_video);
     const m = a3MissingFields(t);
     expect(m.some((x) => /SWMS.*now reads "Something else"/.test(x))).toBe(true);
-    expect(m.some((x) => /ceiling areas before installation.*\(media\)/.test(x))).toBe(true);
+    expect(m).toContain(`${A3_EVIDENCE_LABELS.before_video} (media)`);
   });
   test("parses answers by ID; media counted per evidence item", () => {
     const a = { items: [
@@ -119,9 +119,9 @@ describe("A3 evidence", () => {
   test("one photo per installer, geotags, before-work timing, life-support consent", () => {
     const media = [{ key: "installer_photos" as const, count: 1, geotagged: 1 }, { key: "isolation_photo" as const, count: 1, geotagged: 1, capturedAt: "2026-10-09T03:00:00Z" }, { key: "before_video" as const, count: 1, geotagged: 0 }, { key: "product_photos" as const, count: 1, geotagged: 0 }, { key: "completed_video" as const, count: 1, geotagged: 0 }];
     const b = a3EvidenceBlockers({ lifeSupport: "Yes" }, ctx, media, "2026-10-09T01:00:00Z");
-    expect(b.some((x) => /each installer.*1 of 2/.test(x))).toBe(true);
-    expect(b.some((x) => /product label.*location not recorded.*office review/.test(x))).toBe(true);
-    expect(b.some((x) => /power isolation points.*must be taken before work starts/.test(x))).toBe(true);
+    expect(b).toContain(`${A3_EVIDENCE_LABELS.installer_photos}: 1 of 2`);
+    expect(b).toContain(`${A3_EVIDENCE_LABELS.product_photos}: location not recorded on 1 — office review`);
+    expect(b).toContain(`${A3_EVIDENCE_LABELS.isolation_photo}: must be taken before work starts`);
     expect(b.some((x) => /Life support/.test(x))).toBe(true);
   });
 });
