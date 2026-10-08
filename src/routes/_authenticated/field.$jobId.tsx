@@ -34,6 +34,7 @@ import { MeasurementDetails, MeasurementReadOnly, useJobScope, useMeasurements }
 import { useAction } from "@/hooks/use-me";
 import { InstallerFinalDeclaration } from "@/components/portal/assignment";
 import { JobStatusCard } from "@/components/trade/job-status";
+import { SourceBadge } from "@/components/portal/badges";
 import { InstallerJourney } from "@/components/portal/installer-journey";
 import { addApprovedRectItem, addOtherRectItem, completeAssessment, completeInstallation, getAssignedRecRates, recordPiesa, removeRectItem, saveAssessment, submitForApReview } from "@/lib/portal.functions";
 import { aud } from "@/lib/workflow";
@@ -64,6 +65,7 @@ function FieldJob() {
       <div className="min-w-0">
         <h1 className="font-display text-[24px] font-bold leading-tight">{streetAndSuburb(job.property_address) || "Your job"}</h1>
         {job.owner_name && <p className="text-sm text-sub">{job.owner_name}</p>}
+        <div className="mt-1"><SourceBadge channel={job.channel} business={job.originating_business_name} /></div>
       </div>
       <NowPanel attention={yourTurn} eyebrow={yourTurn ? "Your turn" : `Waiting on ${step.waitingOn ?? "Home Insulation Victoria"}`} status={task.label}
         due={job.install_deadline && job.days_remaining != null ? `${job.days_remaining} days left` : undefined}

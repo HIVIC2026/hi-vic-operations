@@ -92,7 +92,7 @@ export async function tradeHome(userId: string) {
   // Installer-sourced jobs: his own site-check answer and price (labels only; never HIV owner prices or margins).
   const { statusFactsFor, statusView } = await import("./job-status.server");
   const sf = await statusFactsFor(c, live.map((j) => j.id));
-  const allJobs = live.map((j) => ({ jobId: j.id, jobNumber: j.job_number, place: placeOf.get(j.id)!, status: STATUS[j.stage] ?? "In progress", line: sf.get(j.id) ? statusView(c, sf.get(j.id)!) : null, ...label(j),
+  const allJobs = live.map((j) => ({ jobId: j.id, jobNumber: j.job_number, channel: j.channel, place: placeOf.get(j.id)!, status: STATUS[j.stage] ?? "In progress", line: sf.get(j.id) ? statusView(c, sf.get(j.id)!) : null, ...label(j),
     facts: j.installer_site_check || j.installer_quoted_price_inc_gst != null || (j as { channel?: string }).channel === "installer_sourced" ? { quoted: j.installer_quoted as "yes" | "no" | null, site_check: j.installer_site_check as "yes" | "no" | null, site_check_date: j.installer_site_check_date, quoted_price_inc_gst: j.installer_quoted_price_inc_gst == null ? null : Number(j.installer_quoted_price_inc_gst), price_includes: j.installer_price_includes } : null }));
   return { kind: c.kind, boss: c.boss, business: c.biz.name, firstName: c.firstName, isTest: c.isTest, week, offers: offerList, yourMove, coming, jobs: allJobs, month: c.boss ? { jobs: month.length, earned: month.reduce((t, r) => t + (r.amount ?? 0), 0) } : null };
 }
@@ -196,7 +196,7 @@ export async function tradeDay(jobId: string, userId: string) {
   const kinds = c.kind === "installer" ? ["installation", "ready_check"] : ["assessment", "rectification"];
   const [{ data: bks }, { data: j }, { data: a }, { data: rc }, { data: cm }, { data: q }, { data: miss }, { data: ws }, { data: fixes }] = await Promise.all([
     admin.from("bookings").select("kind, scheduled_start, scheduled_end, status").eq("job_id", jobId).in("kind", kinds as never).neq("status", "cancelled").order("scheduled_start", { ascending: false }),
-    admin.from("jobs").select("job_number, stage, eligibility_outcome, owners(full_name, phone), properties(address_line, suburb, postcode)").eq("id", jobId).single(),
+    admin.from("jobs").select("job_number, stage, channel, eligibility_outcome, owners(full_name, phone), properties(address_line, suburb, postcode)").eq("id", jobId).single(),
     admin.from("assessments").select("status, piesa_outcome, external_mitti_id").eq("job_id", jobId).maybeSingle(),
     admin.from("ready_checks").select("status, submitted_at, external_mitti_id").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("ceiling_measurements").select("external_source, external_id").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
@@ -218,7 +218,7 @@ export async function tradeDay(jobId: string, userId: string) {
   else if (dayKind === "ready_check" && (rc?.status === "submitted" || j?.stage === "ready_check_complete" || j?.stage === "measured_estimate_ready" || j?.stage === "measured_quote_accepted")) outcome = j?.eligibility_outcome === "does_not_appear_eligible" ? { kind: "not_eligible", reason: "Existing insulation doesn't qualify for this rebate." } : q ? { kind: "quoted" } : { kind: "quoted" };
   else if (dayKind === "install" && ["evidence_outstanding", "ap_review", "ready_for_veec", "complete"].includes(j?.stage ?? "")) outcome = (miss ?? []).length ? { kind: "missing", items: (miss ?? []).map((m) => m.label) } : { kind: "wrap" };
   return {
-    kind: dayKind as "safety_check" | "ready_check" | "install", jobNumber: j?.job_number ?? null, owner: showContact ? ow?.full_name ?? null : null, surname: showContact ? surname(ow?.full_name) : null, phone: showContact ? ow?.phone ?? null : null,
+    kind: dayKind as "safety_check" | "ready_check" | "install", channel: j?.channel ?? null, jobNumber: j?.job_number ?? null, owner: showContact ? ow?.full_name ?? null : null, surname: showContact ? surname(ow?.full_name) : null, phone: showContact ? ow?.phone ?? null : null,
     address: showContact ? fullAddress(p?.address_line, p?.suburb, p?.postcode) : null, contactHidden: !showContact, start: b?.scheduled_start ?? null, end: b?.scheduled_end ?? null, outcome,
     // Mitti stays invisible to partners until the office ticks "Mitti account invited".
     mittiInvited: c.biz.mitti_account_invited === true,
@@ -246,6 +246,18 @@ export async function tradeCouldntGetIn(jobId: string, reason: string, userId: s
   await admin.from("bookings").update({ status: "cancelled" }).eq("id", bk!.id).eq("status", "confirmed");
   await admin.from("job_assignments").update({ active: false, ended_at: new Date().toISOString(), end_reason: `Couldn't get in: ${reason}` } as never).eq("id", asg.id);
   await logEvent(jobId, userId, "trade_couldnt_get_in", `Needs me: installer couldn't get in (${reason}). Rebook with the owner; offer back to ${c.biz.name} first.`, { reason, business_id: c.biz.id, reoffer_first_to: c.biz.id, needs_office: true }, { internal: true });
+  return { ok: true };
+}
+
+/** Required acknowledgement before an installer starts a Ready Check on a Home Insulation Victoria customer. */
+export async function confirmHivicReadyCheckPricing(jobId: string, userId: string) {
+  await requireTradeJob(userId, jobId);
+  const { data: job } = await admin.from("jobs").select("channel").eq("id", jobId).maybeSingle();
+  if (!job || job.channel !== "hivic_sourced") throw new WorkflowError("This confirmation only applies to Home Insulation Victoria customers.");
+  const { data: booking } = await admin.from("bookings").select("id").eq("job_id", jobId).eq("kind", "ready_check").eq("status", "confirmed").limit(1).maybeSingle();
+  if (!booking) throw new WorkflowError("A confirmed Ready Check is required.");
+  const { HIVIC_READY_CHECK_PRICING_TICK } = await import("./owner-confirm.core");
+  await logEvent(jobId, userId, "installer_hivic_pricing_acknowledged", "Installer confirmed Home Insulation Victoria controls all owner pricing discussions", { wording: HIVIC_READY_CHECK_PRICING_TICK, booking_id: booking.id, confirmed_at: new Date().toISOString() }, { internal: true });
   return { ok: true };
 }
 

@@ -1,4 +1,4 @@
-import { OWNER_AGREED_TICK } from "@/lib/owner-confirm.core";
+import { OWNER_AGREED_TICK, OWNER_FEE_AWARENESS_TICK } from "@/lib/owner-confirm.core";
 import { OnsiteStart } from "@/components/trade/onsite-start";
 import { LATER_CHOICE, ONSITE_CHOICE } from "@/lib/onsite-ready-check.core";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -9,7 +9,7 @@ import { TradeShell } from "@/components/trade/TradeShell";
 import { Button, Section } from "@/components/trade/trade-ui";
 import { useAction } from "@/hooks/use-me";
 import { addImportFiles, confirmImport, createImport, discardImport, getPartnerProfile, removeImportFile } from "@/lib/pilot.functions";
-import { addBulkElectrician, bulkElectricianChoices } from "@/lib/bulk-import.functions";
+import { addBulkElectrician, bulkElectricianChoices, readBulkFile } from "@/lib/bulk-import.functions";
 import { AttachFiles, ElectricianPicker, inviteResultMessage, useUploadFiles, type AttachedFile } from "@/components/trade/job-intake";
 import { OWNER_CONTACT_PERMISSION, electricianPlanBlocker, usualElectrician, visitedFromEvidence, type ElectricianPlan } from "@/lib/job-electrician.core";
 import { useEffect } from "react";
@@ -34,8 +34,8 @@ function ImportPage() {
   const businessId = (profile?.business as { id?: string } | undefined)?.id;
   return (
     <TradeShell installer>
-      <h1 className="font-display text-[26px] font-bold leading-tight">{mode === "onsite" ? "Start a Ready Check" : "Add one job"}</h1>
-      {mode === "later" && <p className="text-sm text-sub">Paste or attach what you have. You just check the details.</p>}
+      <h1 className="font-display text-[26px] font-bold leading-tight">{mode === "onsite" ? "Start a Ready Check" : "Add a job"}</h1>
+      {mode === "later" && <p className="text-sm text-sub">This is an Installer customer. Add their details, your quote and measure-up, or upload one job sheet and check what was found.</p>}
       {!businessId ? <p className="text-sm text-estimate-navy/70">Loading…</p> : mode === "choose" ? (
         <div className="mt-4 grid gap-3" data-add-choice>
           <Button size="field" className="h-auto w-full whitespace-normal py-4 text-left" onClick={() => setMode("onsite")}>{ONSITE_CHOICE}</Button>
@@ -49,6 +49,7 @@ function ImportPage() {
 function Source({ businessId, onDraft }: { businessId: string; onDraft: (d: Draft) => void }) {
   const create = useAction(createImport);
   const uploadFiles = useUploadFiles(businessId);
+  const readFile = useServerFn(readBulkFile);
   const [text, setText] = useState("");
   const [csv, setCsv] = useState("");
   const [row, setRow] = useState(0);
@@ -57,6 +58,7 @@ function Source({ businessId, onDraft }: { businessId: string; onDraft: (d: Draf
   const [system, setSystem] = useState<"easymate" | "manual_import" | "email">("easymate");
   const [files, setFiles] = useState<AttachedFile[]>([]);
   const [busy, setBusy] = useState(false);
+  const [fileNote, setFileNote] = useState<string | null>(null);
   const rows = csv ? parseCsv(csv) : [];
   const go = async () => {
     setBusy(true);
@@ -78,13 +80,24 @@ function Source({ businessId, onDraft }: { businessId: string; onDraft: (d: Draf
       <Section title="Paste job details or an email">
         <Textarea rows={8} placeholder={"Customer: Jane Smith\nEmail: jane@example.com\nPhone: 0400 000 000\nAddress: 12 Example St, Brunswick VIC 3056\nCeiling area: 120 m2\nRemoval: yes\nProduct: R5.0 batts"} value={text} onChange={(e) => setText(e.target.value)} />
       </Section>
-      <Section title="Or upload a CSV export">
+      <Section title="Or use one row from a CSV">
         <Input type="file" accept=".csv,text/csv" onChange={async (e) => { const f = e.target.files?.[0]; setCsv(f ? await f.text() : ""); setRow(0); }} />
         {rows.length > 1 && <select className="mt-2 h-12 w-full rounded border bg-background px-2" value={row} onChange={(e) => setRow(Number(e.target.value))}>{rows.map((r, i) => <option key={i} value={i}>{Object.values(r).slice(0, 3).join(" · ")}</option>)}</select>}
         {rows.length > 0 && <p className="mt-1 text-xs text-estimate-navy/70">{rows.length} row(s) found – one job per import.</p>}
       </Section>
       <Section title="Photos, quotes and job sheets">
-        <AttachFiles businessId={businessId} files={files} label="Attach to this job" onAdd={async (f) => { const up = await uploadFiles(f); setFiles((o) => [...o, ...up]); }} onRemove={async (path) => setFiles((o) => o.filter((x) => x.path !== path))} />
+        <AttachFiles businessId={businessId} files={files} label="Upload one customer file" onAdd={async (picked) => {
+          if (files.length || picked.length !== 1) throw new Error("Upload one file for this customer at a time.");
+          const f = picked[0]; if (!f) return;
+          const up = await uploadFiles([f]); setFiles(up);
+          if (["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(f.type) && f.size <= 10_000_000) {
+            const bytes = new Uint8Array(await f.arrayBuffer()); let raw = ""; for (let i = 0; i < bytes.length; i += 0x8000) raw += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+            const r = await readFile({ data: { businessId, onBehalf: false, name: f.name, mime: f.type as "application/pdf" | "image/jpeg" | "image/png" | "image/webp", base64: btoa(raw) } });
+            if (r.text) { setText((old) => [old, r.text].filter(Boolean).join("\n")); setFileNote("Details found. Check every field on the next screen."); }
+            else setFileNote(r.description ? `No customer details found: ${r.description}` : "No customer details were found. You can still enter them yourself.");
+          } else setFileNote("This file is attached to the job. Enter its customer details yourself.");
+        }} onRemove={async (path) => { setFiles((o) => o.filter((x) => x.path !== path)); setFileNote(null); }} />
+        {fileNote && <p className="mt-2 text-xs text-sub">{fileNote}</p>}
       </Section>
       <Button size="field" className="w-full" disabled={busy || (!text && !csv && !files.length && !ref)} onClick={go}>{busy ? "Reading…" : "Continue"}</Button>
     </div>
@@ -112,6 +125,8 @@ function Review({ draft, onBack }: { draft: Draft; onBack: () => void }) {
   const visited = visitedFromEvidence({ files, measuredArea: draft.extracted.measured_area_m2?.value as number | null | undefined });
   const [siteCheck, setSiteCheck] = useState<"yes" | "no" | null>(visited ? "yes" : null);
   const [permission, setPermission] = useState(false);
+  const [feeAwareness, setFeeAwareness] = useState(false);
+  const [belowR2, setBelowR2] = useState(false);
   const [ownerAgreed, setOwnerAgreed] = useState(false);
   const [siteDate, setSiteDate] = useState("");
   const [price, setPrice] = useState("");
@@ -134,6 +149,7 @@ function Review({ draft, onBack }: { draft: Draft; onBack: () => void }) {
   );
   return (
     <div className="space-y-4">
+      <div className="rounded-[18px] border border-line bg-mist p-4"><p className="font-bold">Installer customer</p><p className="mt-1 text-sm text-sub">You supplied this customer. We will check eligibility, prepare the full quote for owner approval and tell you when they accept.</p></div>
       <Section title="We found these details – confirm"><div className="grid gap-2 sm:grid-cols-2">{found.length ? found.map(row) : <p className="text-sm text-estimate-navy/70">Nothing found automatically.</p>}</div></Section>
       <Section title="Check or fill in"><div className="grid gap-2 sm:grid-cols-2">{check.map(row)}</div></Section>
       <details className="rounded-[18px] border border-line bg-paper p-[19px] shadow-card"><summary className="cursor-pointer text-sm font-medium">More details (if you have them)</summary><div className="mt-3 grid gap-2 sm:grid-cols-2">{rest.map(row)}</div></details>
@@ -162,9 +178,11 @@ function Review({ draft, onBack }: { draft: Draft; onBack: () => void }) {
       </Section>
       {plan && <ElectricianPicker value={plan} onChange={setPlan} approved={el?.approved ?? []} pending={el?.pending ?? []} onAdd={async (d) => { const r = await addElectrician({ data: { businessId: draft.businessId, name: d.name, mobile: d.mobile, email: d.email, business: d.business } }); await refreshEl(); setPlan({ mode: "mine", ...(r.businessId ? { business_id: r.businessId } : { nomination_id: r.nominationId }) }); return { message: inviteResultMessage(r) }; }} />}
       <label className="flex items-start gap-3 rounded-[18px] border border-line bg-paper p-4 text-sm" data-owner-consent><Checkbox className="mt-0.5" checked={permission} onCheckedChange={(c) => setPermission(c === true)} aria-label={OWNER_CONTACT_PERMISSION} /><span>{OWNER_CONTACT_PERMISSION}</span></label>
+      <label className="flex items-start gap-3 rounded-[18px] border border-line bg-paper p-4 text-sm" data-owner-fee-awareness><Checkbox className="mt-0.5" checked={feeAwareness} onCheckedChange={(c) => setFeeAwareness(c === true)} aria-label={OWNER_FEE_AWARENESS_TICK} /><span>{OWNER_FEE_AWARENESS_TICK}</span></label>
+      <label className="flex items-start gap-3 rounded-[18px] border border-line bg-paper p-4 text-sm" data-existing-below-r2><Checkbox className="mt-0.5" checked={belowR2} onCheckedChange={(c) => setBelowR2(c === true)} aria-label="I confirm the existing insulation, if any, is below R2.0" /><span>I confirm the existing insulation, if any, is below R2.0.</span></label>
       {!permission && <p className="-mt-2 text-xs text-sub">Tick this to add the job.</p>}
-      <p className="text-xs text-sub">Nothing is sent to the owner when you add the job.</p>
-      <Button size="field" className="w-full" disabled={!siteCheck || priceBad || !permission || (quoted === "yes" && !priceNum) || !!electricianPlanBlocker(plan)} onClick={async () => { const r = await confirm({ importId: draft.id, facts: out(), installer: { quoted, site_check: siteCheck!, site_check_date: siteCheck === "yes" && siteDate ? siteDate : null, quoted_price_inc_gst: priceNum, price_includes: includes.trim() || null, contact_permission: permission, owner_agreed: quoted === "yes" && ownerAgreed }, electrician: plan && plan.mode === "mine" ? { mode: "mine", business_id: plan.business_id ?? null, nomination_id: plan.nomination_id ?? null } : { mode: "hivic" } }, "Job added"); if (r) navigate({ to: "/field/$jobId", params: { jobId: r.jobId } }); }}>Add this job</Button>
+      <p className="text-xs text-sub">Nothing is sent when you add the job. Next, Home Insulation Victoria checks eligibility, adds the rebate, AP management fee and $349 electrician PIESA fee, then sends the full quote to the owner for approval. We let you know when it is accepted.</p>
+      <Button size="field" className="w-full" disabled={!siteCheck || priceBad || !permission || !feeAwareness || !belowR2 || (quoted === "yes" && (!priceNum || !includes.trim())) || !!electricianPlanBlocker(plan)} onClick={async () => { const r = await confirm({ importId: draft.id, facts: out(), installer: { quoted, site_check: siteCheck!, site_check_date: siteCheck === "yes" && siteDate ? siteDate : null, quoted_price_inc_gst: priceNum, price_includes: includes.trim() || null, contact_permission: permission, fee_awareness: feeAwareness, existing_below_r2: belowR2, owner_agreed: quoted === "yes" && ownerAgreed }, electrician: plan && plan.mode === "mine" ? { mode: "mine", business_id: plan.business_id ?? null, nomination_id: plan.nomination_id ?? null } : { mode: "hivic" } }, "Job added"); if (r) navigate({ to: "/field/$jobId", params: { jobId: r.jobId } }); }}>Add this job</Button>
       <div className="grid grid-cols-2 gap-2"><Button variant="outline" onClick={onBack}>Back</Button><Button variant="ghost" onClick={async () => { await discard({ importId: draft.id }, "Draft discarded"); onBack(); }}>Discard draft</Button></div>
     </div>
   );

@@ -28,6 +28,10 @@ export const tradeCouldntGetInFn = createServerFn({ method: "POST" }).middleware
   .inputValidator((d) => z.object({ jobId: uuid, reason: z.string().max(60) }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeCouldntGetIn(data.jobId, data.reason, context.userId));
 
+export const confirmHivicReadyCheckPricingFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).confirmHivicReadyCheckPricing(data.jobId, context.userId));
+
 export const getTradeMoneyView = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .handler(async ({ context }) => plain(await (await import("./trade-view.server")).tradeMoney(context.userId)));
 

@@ -2,13 +2,14 @@ import { InstallerFactsLine } from "@/components/portal/installer-job-facts";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronRight, PlusCircle, UploadCloud } from "lucide-react";
+import { ChevronRight, PlusCircle } from "lucide-react";
 import { TradeShell, aud, card } from "@/components/trade/TradeShell";
 import { NowPanel, Pill, btnClass } from "@/components/portal/kit";
 import { useState } from "react";
 import { StatusLineView } from "@/components/trade/job-status";
 import { getTradeHome } from "@/lib/trade-view.functions";
 import { dayTile, goneIn, tradeGreeting } from "@/lib/trade-view.core";
+import { SourceBadge } from "@/components/portal/badges";
 
 export const Route = createFileRoute("/_authenticated/field/")({
   head: () => ({ meta: [{ title: "My work – Home Insulation Victoria" }, { name: "description", content: "New job offers, what needs you and what's coming up." }, { property: "og:title", content: "My work – Home Insulation Victoria" }, { property: "og:description", content: "New job offers, what needs you and what's coming up." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -43,9 +44,8 @@ function MyWork() {
         ))}
       </div>
       {installer && data.boss && (
-        <div className="grid grid-cols-2 gap-2" data-upload-actions>
-          <Link to="/partner/bulk-import" className={btnClass("primary")}><UploadCloud className="h-4 w-4" />Upload jobs</Link>
-          <Link to="/partner/import" className={btnClass("secondary")}><PlusCircle className="h-4 w-4" />Add one job</Link>
+        <div data-upload-actions>
+          <Link to="/partner/import" className={btnClass("primary", "w-full")}><PlusCircle className="h-4 w-4" />Add a job</Link>
         </div>
       )}
       {first ? (
@@ -79,7 +79,7 @@ function MyWork() {
           {onlyChasing && !shown.length && <p className={`${card} text-sm`}>Nothing needs chasing right now.</p>}
           <div className="space-y-2">{shown.map((j) => (
             <Link key={j.jobId} to="/field/$jobId" params={{ jobId: j.jobId }} className="flex items-center gap-3 rounded-[14px] border border-line bg-paper p-3">
-              <span className="min-w-0 flex-1"><span className="block font-bold">{j.jobNumber} · {j.owner ?? "Owner"}</span><span className="block truncate text-sm text-sub">{j.address}</span><span className="mt-1 block">{j.line ? <StatusLineView line={j.line} compact /> : <Pill>{j.status}</Pill>}</span><span className="mt-1 block"><InstallerFactsLine facts={j.facts} /></span></span><ChevronRight className="h-5 w-5" />
+              <span className="min-w-0 flex-1"><span className="block font-bold">{j.jobNumber} · {j.owner ?? "Owner"}</span><span className="mt-1 block"><SourceBadge channel={j.channel} /></span><span className="block truncate text-sm text-sub">{j.address}</span><span className="mt-1 block">{j.line ? <StatusLineView line={j.line} compact /> : <Pill>{j.status}</Pill>}</span><span className="mt-1 block"><InstallerFactsLine facts={j.facts} /></span></span><ChevronRight className="h-5 w-5" />
             </Link>))}</div>
         </section>
       )}

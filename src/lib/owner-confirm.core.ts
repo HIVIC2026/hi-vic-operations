@@ -4,6 +4,18 @@
 /** Tick on Add one job (Jo's wording). */
 export const OWNER_AGREED_TICK = "The owner has agreed to my price";
 
+/** Required before an installer-supplied owner's quote can be prepared for office review. */
+export const OWNER_FEE_AWARENESS_TICK =
+  "I confirm the owner is aware that Home Insulation Victoria will add the rebate, the AP management fee and the electrician's $349 PIESA fee before sending the full quote for approval.";
+
+/** Required before a Home Insulation Victoria Ready Check starts. Never shown for installer-supplied customers. */
+export const HIVIC_READY_CHECK_PRICING_TICK =
+  "I confirm I will not discuss pricing with the home owner during my Ready Check. All pricing discussions are to come directly from Home Insulation Victoria.";
+
+export function feeAwarenessBlocker(confirmed: boolean | null | undefined): string | null {
+  return confirmed ? null : "Confirm the owner is aware of Home Insulation Victoria and electrician fees";
+}
+
 export const CONFIRM_JOB_TITLE = "Confirm your insulation job";
 export const CONFIRMED_QUOTE_TITLE = "Your confirmed quote";
 

@@ -151,8 +151,9 @@ export async function aiExtractRows(rawRows: Record<string, string>[], documents
 }
 
 const MEDIA_PROMPT = `You are reading one file an insulation installer uploaded (a PDF, a scanned page or a photo).
-Write out, as plain text, every customer name, street address, suburb, postcode, phone, email, ceiling area (m2),
-existing insulation, ceiling access, roof type, hazards, building age and quoted price you can see. For a list or
+Write out, as plain text, every customer name, street address, suburb, postcode, phone, email, measured ceiling area (m2),
+measurement method and date, existing insulation and R-value, whether removal is needed and removal area (m2), ceiling access,
+roof type, hazards, building age, quoted price inc GST and exactly what that price includes. For a list or
 table, write one line per customer. Free-text notes and paragraphs count too: read every sentence and copy out any of
 those details mentioned in it. Copy what is written; never guess. If nothing like that is visible, reply with
 exactly NONE followed by a few words describing the picture.`;

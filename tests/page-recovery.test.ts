@@ -25,6 +25,8 @@ test("flags dropped-connection failures from each browser engine", () => {
   expect(isRecoverableTransportError(new Error("socket hang up"))).toBe(true);
   expect(isRecoverableTransportError(new Error("read ECONNRESET"))).toBe(true);
   expect(isRecoverableTransportError(new Error("Network request failed"))).toBe(true);
+  expect(isRecoverableTransportError(new TypeError("Importing a module script failed."))).toBe(true);
+  expect(isRecoverableTransportError(new TypeError("Failed to fetch dynamically imported module"))).toBe(true);
 });
 
 test("does not flag ordinary application errors", () => {
