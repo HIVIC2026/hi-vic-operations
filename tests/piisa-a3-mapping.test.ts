@@ -11,7 +11,6 @@ const fullTemplate = () => {
   for (const nid of Object.values(A3_MEDIA_IDS)) items.push(it("media", nid!, { type: "media" }));
   return { items };
 };
-};
 
 describe("A3 aliases map to real official ids", () => {
   test("every alias key is an official PIISA item id", () => {
