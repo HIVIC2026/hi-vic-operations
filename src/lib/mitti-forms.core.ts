@@ -117,7 +117,13 @@ const READY_CHECK_FIELDS: FormField[] = [
       { label: "Explain the method", type: "text", required: true, when: "Scaled from floor plan or Other", aliases: ["Tell us how you measured it"], perArea: true, source: "portal – provenance" },
       { label: "Upgrade area diagram or floor plan", type: "media", required: true, perArea: true, aliases: ["Upload your area sketch or floor plan."], source: `${G} Table 4 – required regulator evidence: sketch of each area with its length and width; draw it in the form, photograph a paper sketch, mark up a plan photo, or upload a plan` },
       { label: "Was the ceiling or roof built or replaced in the last 5 years?", type: "choice", required: true, choices: ["Yes", "No", "Not sure"], types: ["text"], source: `${G} eligibility` },
-      // 6. Finish
+      // 6. Extras (Jo 8 Oct 2026): the installer reports anything beyond the agreed install and removal rates
+      // (e.g. tile lift, metal-sheet access, difficult access). The office prices these into the measured quote;
+      // the installer never enters a price here.
+      { label: "Are any extras needed beyond the standard install and removal?", type: "choice", required: true, choices: ["Yes", "No"], source: "portal – quoting: extras the office must price (Jo 8 Oct 2026)" },
+      { label: "Describe each extra and why it is needed", type: "text", required: true, when: "Yes", source: "portal – quoting: extras detail for the office" },
+      { label: "Photos of each extra", type: "media", required: true, when: "Yes", source: "portal – quoting: extras evidence" },
+      // 7. Finish
       { label: "Anything else the office should know?", type: "text", required: false, source: "portal" },
       { label: "I confirm this information is accurate", type: "signature", required: true, aliases: ["I confirm the information, measurements, photos and quote provided in this Ready Check are accurate to the best of my knowledge.", "I confirm the information, measurements and photos provided in this Ready Check are accurate to the best of my knowledge."], source: `${G} – installer confirmation` },
 ];
