@@ -1,6 +1,9 @@
 export type RemovalQuote = { answer: "yes" | "no" | "unknown"; areaM2: number | null; chargeIncGst: number | null };
 export type RemovalInput = { answer: RemovalQuote["answer"]; area: string; charge: string };
 export const blankRemoval = (): RemovalInput => ({ answer: "unknown", area: "", charge: "" });
+export function selectRemovalAnswer(value: RemovalInput, answer: RemovalInput["answer"]): RemovalInput {
+  return answer === value.answer ? value : { answer, area: "", charge: "" };
+}
 export function parseProposedR(value: string): number | null {
   const text = value.trim().replace(/^r\s*/i, "");
   if (!text) return null;

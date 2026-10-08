@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { parseProposedR, removalPayload, removalProblems } from "../src/lib/intake-quote-details.core";
+import { parseProposedR, removalPayload, removalProblems, selectRemovalAnswer } from "../src/lib/intake-quote-details.core";
 import { intakeQuotePayload, insulationQualifies } from "../src/lib/installer-intake.core";
 test("R5/R6/R7 and custom R prefixes normalize without eligibility proof", () => {
   expect(["R5.0", "R6.0", "R7.0", "R5.5"].map(parseProposedR)).toEqual([5, 6, 7, 5.5]);
@@ -13,6 +13,14 @@ test("explicit zero removal charge is valid and blank is not zero", () => {
 test("No or unquoted clears active removal values", () => {
   expect(removalPayload({ answer: "no", area: "120", charge: "500" }, true)).toEqual({ answer: "no", areaM2: null, chargeIncGst: null });
   expect(removalPayload({ answer: "yes", area: "120", charge: "500" }, false)).toEqual({ answer: "unknown", areaM2: null, chargeIncGst: null });
+});
+test("reselecting Yes retains 120 m² and $500", () => {
+  const value = { answer: "yes" as const, area: "120", charge: "500" };
+  expect(selectRemovalAnswer(value, "yes")).toBe(value);
+  expect(selectRemovalAnswer(value, "yes")).toEqual({ answer: "yes", area: "120", charge: "500" });
+});
+test("changing Yes to No clears the active area and charge", () => {
+  expect(selectRemovalAnswer({ answer: "yes", area: "120", charge: "500" }, "no")).toEqual({ answer: "no", area: "", charge: "" });
 });
 test("None conflicts with removal Yes; oversized area and charges are refused", () => {
   expect(removalProblems({ answer: "yes", areaM2: 120, chargeIncGst: 0 }, "none", 120, 3450)).toHaveLength(1);
