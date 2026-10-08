@@ -59,7 +59,7 @@ export function OnsiteStart({ businessId, onBack, initial }: { businessId: strin
       </section>
       {plan && <ElectricianPicker value={plan} onChange={setPlan} approved={el?.approved ?? []} pending={el?.pending ?? []} onAdd={async (d) => { const r = await addEl({ data: { businessId, name: d.name, mobile: d.mobile, email: d.email, business: d.business } }); await refetch(); setPlan({ mode: "mine", ...(r.businessId ? { business_id: r.businessId } : { nomination_id: r.nominationId }) }); return { message: inviteResultMessage(r) }; }} />}
       {touched && problems.length > 0 && <ul className="space-y-1 text-sm text-danger" data-onsite-problems>{problems.map((p) => <li key={p}>{p}</li>)}</ul>}
-      {err && <p className="text-sm text-danger">{err}</p>}
+      {err && (err.startsWith("This email is already on another customer record.") ? <p role="status" className="text-sm text-sub">Job not added. Please contact the office for help; your entered details are kept.</p> : <p role="alert" className="text-sm text-danger">{err}</p>)}
       <Button size="field" className="w-full" disabled={busy} onClick={async () => {
         setTouched(true); setErr(null);
         if (problems.length) return;

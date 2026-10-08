@@ -1,4 +1,5 @@
 # Roadmap (preview only, nothing sent, no publish, no real jobs)
+- [ ] Jo 09:24: remove red duplicate-email warning from onsite Add job; keep truthful unsuccessful-save status and customer access protection.
 ## Add job choices (Jo 8 Oct 09:21 UTC)
 - [x] Separate later Ready Check entry with customer details, appointment and optional manual measurements from existing quote/measurement entry; retain guarded booking and provisional data.
 - [x] 31 focused tests/57 assertions and harness build OK; no real submissions, sends or integrations.
