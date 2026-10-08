@@ -16,3 +16,5 @@ The current products text ID `5426daa7-060d-43ac-b180-e698e27eac98` remains requ
 ## Verification
 
 Focused tests cover prestart photo staging, no duplicate after-work request, absent geotag/late capture, photo-only missing statutory data, quote-product reminder-only behaviour, native conversion refusal, current company crew isolation, safety and signature persistence. No real audit used or created. Preview compiler/type-check result recorded separately in the final check.
+
+Final result: `bun test` on the eight focused PIISA/product/prefill/declaration files: exit 0, 91 passed, 0 failed, 273 assertions. Latest harness build entry at 20:23:51 UTC: build OK (after correcting the installation mode literal). No manual production build or type-check run; the harness performs those checks. No signed-in/native browser verification claimed.
