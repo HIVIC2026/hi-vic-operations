@@ -1,4 +1,8 @@
 # Roadmap (preview only, nothing sent, no publish, no real jobs)
+## Group B insulation review (Jo, 8 Oct 03:27–03:29 UTC)
+- [ ] Match Group A email layout and include the preliminary estimate; change the invitation to existing-insulation review / JUMP THE QUEUE.
+- [ ] Accept manhole video/photos or owner below-R2 declaration; office checks first, no automatic saved spot or eligibility approval.
+- [ ] Verify email parity, submission, office review and subsequent Save my spot offer; no sends or publish.
 
 ## Texts — brand prefix + replies (Jo, 8 Oct 02:10-02:20 UTC)
 - [x] Prefix every text the portal sends with "Home Insulation Victoria: " (real sender + test sender, idempotent).
