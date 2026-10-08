@@ -3,7 +3,7 @@
 // never retries an ambiguous send, and logs delivery status against the job or partner.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { customerCommsEnabled, hasCurrentOwnerContactConsent } from "./comms.server";
-import { SMS_MESSAGE_TYPES, smsBlocker, toAuE164, type SmsMessageType } from "./sms.core";
+import { SMS_MESSAGE_TYPES, brandSmsBody, smsBlocker, toAuE164, type SmsMessageType } from "./sms.core";
 
 const db = admin as any;
 const WEBHOOK_BASE = "https://estimate.homeinsulationvictoria.com.au";
@@ -54,7 +54,7 @@ async function consentAndTest(input: RealSmsInput): Promise<{ consent: boolean; 
 async function logJob(input: RealSmsInput, to: string, status: string, detail: string) {
   if (!input.jobId) return;
   await db.from("job_communications").insert({
-    job_id: input.jobId, direction: "outbound", channel: "sms", recipients: [to], subject: null, body: input.body, provider: "twilio",
+    job_id: input.jobId, direction: "outbound", channel: "sms", recipients: [to], subject: null, body: brandSmsBody(input.body), provider: "twilio",
     sent_at: status === "sent" ? new Date().toISOString() : null, delivery_status: status === "blocked" ? "blocked_prelaunch" : status,
     visibility: SMS_MESSAGE_TYPES[input.type].audience === "owner" ? "customer" : "trade", source_event: `sms:${input.type}`, source_reference: detail.slice(0, 200),
   }).then(() => null, () => null);
@@ -72,7 +72,7 @@ export async function sendRealSms(input: RealSmsInput): Promise<RealSmsResult> {
   // Claim the idempotency key first (unique). An existing claim means this message was already handled.
   const { data: row, error } = await db.from("sms_messages").insert({
     message_type: input.type, idempotency_key: input.idempotencyKey, job_id: input.jobId ?? null, business_id: input.businessId ?? null,
-    to_number: to ?? String(input.to ?? ""), from_sender: from, body: input.body, status: blocked ? "blocked" : "sending", detail: blocked,
+    to_number: to ?? String(input.to ?? ""), from_sender: from, body: brandSmsBody(input.body), status: blocked ? "blocked" : "sending", detail: blocked,
   }).select("id").maybeSingle();
   if (error || !row) return { status: "already", detail: "Already handled for this key – not sent again", sid: null };
   if (blocked) { await logJob(input, to ?? String(input.to ?? ""), "blocked", blocked); return { status: "blocked", detail: blocked, sid: null }; }
@@ -82,7 +82,7 @@ export async function sendRealSms(input: RealSmsInput): Promise<RealSmsResult> {
   let r: RealSmsResult;
   if (!au1Configured()) r = { status: "failed", detail: "Twilio AU1 is not set up", sid: null };
   else {
-    const params = new URLSearchParams({ To: to!, From: from!, Body: input.body });
+    const params = new URLSearchParams({ To: to!, From: from!, Body: brandSmsBody(input.body) });
     if (hook) params.set("StatusCallback", `${WEBHOOK_BASE}/api/public/twilio/status?t=${encodeURIComponent(hook)}`);
     try {
       const res = await au1SendMessage(params);

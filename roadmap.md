@@ -1,5 +1,10 @@
 # Roadmap (preview only, nothing sent, no publish, no real jobs)
 
+## Texts — brand prefix + replies (Jo, 8 Oct 02:10-02:20 UTC)
+- [x] Prefix every text the portal sends with "Home Insulation Victoria: " (real sender + test sender, idempotent).
+- [x] Wire the portal's Twilio number to the reply/status webhooks so replies and delivery confirmations reach the portal.
+- [ ] Non-STOP replies (e.g. "8am works") are received but not stored or shown to the office — awaiting Jo's decision on recording them against the job.
+
 ## Current priority — both quote handoffs (Jo, 8 Oct 00:49 UTC)
 - [x] Replace installer bulk intake with one clear Add job path only; keep existing historical bulk imports readable.
 - [x] Label every trade job clearly as “Installer customer” or “Home Insulation Victoria customer” across Add job, My work, jobs and job details.

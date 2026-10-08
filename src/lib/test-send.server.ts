@@ -2,6 +2,7 @@
 // anything not on the allowlist is recorded as blocked and never reaches a provider.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { normaliseAuMobile, normaliseEmail, testSendBlocker } from "./test-send.core";
+import { brandSmsBody } from "./sms.core";
 
 export const TEST_APP_BASE = "https://id-preview--fb35adfe-10bf-4d4c-987d-28567ca1ddeb.lovable.app";
 const FROM_EMAIL = "Home Insulation Victoria <jobs@homeinsulationvictoria.com.au>";
@@ -26,7 +27,8 @@ function gw() {
   return key;
 }
 
-export async function sendTestSms(ctx: Ctx, to: string, body: string): Promise<SendResult> {
+export async function sendTestSms(ctx: Ctx, to: string, rawBody: string): Promise<SendResult> {
+  const body = brandSmsBody(rawBody);
   const norm = normaliseAuMobile(to) ?? to;
   const blocked = testSendBlocker({ channel: "sms", to, jobSource: ctx.jobSource, partnerIsTest: ctx.partnerIsTest });
   let r: SendResult;
