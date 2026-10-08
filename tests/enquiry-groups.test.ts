@@ -129,3 +129,15 @@ describe("homeowner video capture", () => {
     expect(m.html).toContain("150");
   });
 });
+
+import { enquiryStatus, STATUS_ORDER } from "../src/lib/enquiry-groups.core";
+describe("one office status per enquiry", () => {
+  const b = { spotSaved: false, ineligible: false, campaignSent: false, insulationEmailSent: false, campaignGroup: null as "likely" | "onsite" | null };
+  test("spot saved wins over everything", () => expect(enquiryStatus({ ...b, spotSaved: true, ineligible: true, campaignSent: true, campaignGroup: "likely" })).toBe("spot_saved"));
+  test("ineligible beats an email sent", () => expect(enquiryStatus({ ...b, ineligible: true, campaignSent: true, campaignGroup: "likely" })).toBe("ineligible"));
+  test("likely email sent -> offering spot", () => expect(enquiryStatus({ ...b, campaignSent: true, campaignGroup: "likely" })).toBe("offered_spot"));
+  test("onsite email sent -> insulation details needed", () => expect(enquiryStatus({ ...b, campaignSent: true, campaignGroup: "onsite" })).toBe("insulation_requested"));
+  test("video request sent -> insulation details needed", () => expect(enquiryStatus({ ...b, insulationEmailSent: true })).toBe("insulation_requested"));
+  test("nothing sent -> not emailed yet", () => expect(enquiryStatus(b)).toBe("not_emailed"));
+  test("five statuses, no overlap", () => expect(new Set(STATUS_ORDER).size).toBe(5));
+});
