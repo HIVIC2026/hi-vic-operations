@@ -1,0 +1,1824 @@
+{
+  "template": {
+    "id": "f6a25974-7916-4eb1-8145-3eb335ce5125",
+    "revision_id": "19-a7ea04e7fa3b45b18937ee1d09b8d129",
+    "name": "A3 - PIISA + AP Evidence",
+    "permissions": {
+      "edit": [
+        {
+          "id": "c4f1967c-e97b-4625-bdf8-3d03c3cfa1ed",
+          "type": "USER"
+        },
+        {
+          "id": "c2216060-26e5-44e9-ade4-8be42be49763",
+          "type": "ROLE"
+        }
+      ],
+      "view": [
+        {
+          "id": "c4f1967c-e97b-4625-bdf8-3d03c3cfa1ed",
+          "type": "USER"
+        },
+        {
+          "id": "c2216060-26e5-44e9-ade4-8be42be49763",
+          "type": "ROLE"
+        }
+      ],
+      "owner": [
+        {
+          "id": "c4f1967c-e97b-4625-bdf8-3d03c3cfa1ed",
+          "type": "USER"
+        }
+      ],
+      "delete": [
+        {
+          "id": "c4f1967c-e97b-4625-bdf8-3d03c3cfa1ed",
+          "type": "USER"
+        },
+        {
+          "id": "c2216060-26e5-44e9-ade4-8be42be49763",
+          "type": "ROLE"
+        }
+      ],
+      "context": [
+        {
+          "id": "c2216060-26e5-44e9-ade4-8be42be49763",
+          "type": "ROLE"
+        }
+      ]
+    },
+    "items": [
+      {
+        "id": "f3245d39-ea77-11e1-aff1-0800200c9a66",
+        "label": "Title Page",
+        "children": [
+          {
+            "id": "d76e6595-b1b0-4022-ab5d-d73423e6393b",
+            "label": "Job number",
+            "children": [],
+            "textsingle": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": null
+              },
+              "text_format": "TEXT",
+              "calculation_data": null,
+              "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+              "reading_config_id": ""
+            }
+          },
+          {
+            "id": "a9e7dadc-b6ad-45a1-84db-79e4a88b63cd",
+            "label": "Property address",
+            "children": [],
+            "textsingle": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": null
+              },
+              "text_format": "TEXT",
+              "calculation_data": null,
+              "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+              "reading_config_id": ""
+            }
+          },
+          {
+            "id": "78e550a4-1c8b-4b59-be77-64a5c09ba848",
+            "label": "Installation date",
+            "children": [],
+            "datetime": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": null
+              },
+              "enable_date": true,
+              "enable_time": false
+            }
+          },
+          {
+            "id": "b7212b10-067a-4fd8-8f6a-90efd2db8389",
+            "label": "Accredited person (AP)",
+            "children": [],
+            "textsingle": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": null
+              },
+              "text_format": "TEXT",
+              "calculation_data": null,
+              "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+              "reading_config_id": ""
+            }
+          }
+        ],
+        "section": {
+          "section_type": "SECTION_TYPE_UNSPECIFIED",
+          "autoshares": null,
+          "approvers": null,
+          "user_defined_approvers": false
+        }
+      },
+      {
+        "id": "d310537d-74e0-4e31-a440-23bd90fb746b",
+        "label": "AP Evidence – Before Work",
+        "children": [
+          {
+            "id": "dc12088c-8316-461e-91e2-53b1db0dc558",
+            "label": "Installer company",
+            "children": [],
+            "textsingle": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": null
+              },
+              "text_format": "TEXT",
+              "calculation_data": null,
+              "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+              "reading_config_id": ""
+            }
+          },
+          {
+            "id": "9e1a8b94-d3fc-492e-bb33-57b6bd4e85a8",
+            "label": "Lead installer — full legal name",
+            "children": [],
+            "textsingle": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": null
+              },
+              "text_format": "TEXT",
+              "calculation_data": null,
+              "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+              "reading_config_id": ""
+            }
+          },
+          {
+            "id": "6fea5874-992b-476b-8f09-839abaa2d049",
+            "label": "Lead installer — CII certification number (issued by the EEC)",
+            "children": [],
+            "textsingle": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": null
+              },
+              "text_format": "TEXT",
+              "calculation_data": null,
+              "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+              "reading_config_id": ""
+            }
+          },
+          {
+            "id": "7a20cf63-a86e-465d-9981-88236259416d",
+            "label": "Additional Installer 1",
+            "children": [
+              {
+                "id": "4ac27cb9-e588-4666-b5df-3e2172b60358",
+                "label": "Additional installer 1 — full legal name (leave blank if not applicable)",
+                "children": [
+                  {
+                    "id": "bcbb5017-4b54-433b-bfb8-d733fe1403ff",
+                    "label": "",
+                    "children": [
+                      {
+                        "id": "b8daad98-4a63-480d-85a7-c0fb670b34c3",
+                        "label": "Additional installer 1 — CII certification number (issued by the EEC)",
+                        "children": [],
+                        "textsingle": {
+                          "options": {
+                            "is_mandatory": true,
+                            "weighting": null
+                          },
+                          "text_format": "TEXT",
+                          "calculation_data": null,
+                          "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+                          "reading_config_id": ""
+                        }
+                      }
+                    ],
+                    "logicfield": {
+                      "text_not_equal": {
+                        "value": ""
+                      },
+                      "require_note": false,
+                      "require_media": false,
+                      "require_action": false,
+                      "skip_to": null,
+                      "preset_action_type_ids": [],
+                      "procurement_trigger": false
+                    }
+                  }
+                ],
+                "textsingle": {
+                  "options": {
+                    "is_mandatory": false,
+                    "weighting": null
+                  },
+                  "text_format": "TEXT",
+                  "calculation_data": null,
+                  "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+                  "reading_config_id": ""
+                }
+              }
+            ],
+            "category": {}
+          },
+          {
+            "id": "51135034-2053-48ef-86c6-a4984e12ae3c",
+            "label": "Additional Installer 2",
+            "children": [
+              {
+                "id": "824af4ab-d764-403a-80eb-05b55f86d600",
+                "label": "Additional installer 2 — full legal name (leave blank if not applicable)",
+                "children": [
+                  {
+                    "id": "6ae3ec52-d2d6-4187-90b3-bb7e1ec076e9",
+                    "label": "",
+                    "children": [
+                      {
+                        "id": "d986b4c1-1d3d-414c-9a14-8be9c000fa26",
+                        "label": "Additional installer 2 — CII certification number (issued by the EEC)",
+                        "children": [],
+                        "textsingle": {
+                          "options": {
+                            "is_mandatory": true,
+                            "weighting": null
+                          },
+                          "text_format": "TEXT",
+                          "calculation_data": null,
+                          "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+                          "reading_config_id": ""
+                        }
+                      }
+                    ],
+                    "logicfield": {
+                      "text_not_equal": {
+                        "value": ""
+                      },
+                      "require_note": false,
+                      "require_media": false,
+                      "require_action": false,
+                      "skip_to": null,
+                      "preset_action_type_ids": [],
+                      "procurement_trigger": false
+                    }
+                  }
+                ],
+                "textsingle": {
+                  "options": {
+                    "is_mandatory": false,
+                    "weighting": null
+                  },
+                  "text_format": "TEXT",
+                  "calculation_data": null,
+                  "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+                  "reading_config_id": ""
+                }
+              }
+            ],
+            "category": {}
+          },
+          {
+            "id": "fe3e61df-5dad-4b60-bb68-94988c93fb8c",
+            "label": "Additional Installer 3",
+            "children": [
+              {
+                "id": "1bc12288-7517-4d43-a1b3-c2235ae250dc",
+                "label": "Additional installer 3 — full legal name (leave blank if not applicable)",
+                "children": [
+                  {
+                    "id": "96b9ad52-4abf-44f1-915d-398aee65148e",
+                    "label": "",
+                    "children": [
+                      {
+                        "id": "90609251-f347-407f-982f-1796e59db496",
+                        "label": "Additional installer 3 — CII certification number (issued by the EEC)",
+                        "children": [],
+                        "textsingle": {
+                          "options": {
+                            "is_mandatory": true,
+                            "weighting": null
+                          },
+                          "text_format": "TEXT",
+                          "calculation_data": null,
+                          "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+                          "reading_config_id": ""
+                        }
+                      }
+                    ],
+                    "logicfield": {
+                      "text_not_equal": {
+                        "value": ""
+                      },
+                      "require_note": false,
+                      "require_media": false,
+                      "require_action": false,
+                      "skip_to": null,
+                      "preset_action_type_ids": [],
+                      "procurement_trigger": false
+                    }
+                  }
+                ],
+                "textsingle": {
+                  "options": {
+                    "is_mandatory": false,
+                    "weighting": null
+                  },
+                  "text_format": "TEXT",
+                  "calculation_data": null,
+                  "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+                  "reading_config_id": ""
+                }
+              }
+            ],
+            "category": {}
+          },
+          {
+            "id": "06598474-e46a-4bba-8c9d-d1be2c9993e1",
+            "label": "Please take a clear, geotagged photo of every installer at this property. Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).",
+            "children": [],
+            "media": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": null
+              }
+            }
+          },
+          {
+            "id": "49c8ef21-dd6a-41e0-a4ae-acb0c53e7ada",
+            "label": "Before installation, please record a clear video of every ceiling area being upgraded, including any existing insulation. Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).",
+            "children": [],
+            "media": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": null
+              }
+            }
+          }
+        ],
+        "section": {
+          "section_type": "SECTION_TYPE_UNSPECIFIED",
+          "autoshares": null,
+          "approvers": null,
+          "user_defined_approvers": false
+        }
+      },
+      {
+        "id": "301428de-bc76-4dfe-af4c-338611015f9d",
+        "label": "Part 1 – Property Details",
+        "children": [
+          {
+            "id": "66768b5a-a5d4-491c-829a-096ce58fed8b",
+            "label": "Has the household or tenant been told the power will be off during installation?",
+            "children": [
+              {
+                "id": "3a3f7850-40fa-446b-92ab-4bcc8b436f0e",
+                "label": "",
+                "children": [
+                  {
+                    "id": "86195781-1797-45d7-9936-520bd6325b15",
+                    "label": "STOP - Please ensure the household is aware the power will be turned off before continuing.",
+                    "children": [],
+                    "category": {}
+                  }
+                ],
+                "logicfield": {
+                  "response_is": {
+                    "responses": [
+                      "9fa7c129-1cb2-49e6-adda-77abf99cc0b2"
+                    ]
+                  },
+                  "require_note": false,
+                  "require_media": false,
+                  "require_action": false,
+                  "skip_to": null,
+                  "preset_action_type_ids": [],
+                  "procurement_trigger": false
+                }
+              }
+            ],
+            "question": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": 0
+              },
+              "failed_responses": [
+                "9fa7c129-1cb2-49e6-adda-77abf99cc0b2"
+              ],
+              "response_set_id": "7cd85ccf-158e-407f-8cdd-a6034cd550c5",
+              "calculation_data": null
+            }
+          },
+          {
+            "id": "3075146f-44dc-411f-a438-dabb289dc539",
+            "label": "Does anyone at this property rely on life support?",
+            "children": [
+              {
+                "id": "934a0713-31b8-4cc5-9b6e-8b34696d6e5b",
+                "label": "",
+                "children": [
+                  {
+                    "id": "6bd6569f-bc6d-4019-ba28-68410328bf67",
+                    "label": "Have you received written consent or a medical plan before starting this assessment?",
+                    "children": [
+                      {
+                        "id": "686b7370-20ff-479b-8d19-97082765135d",
+                        "label": "",
+                        "children": [
+                          {
+                            "id": "c0fba1af-9c9e-4ab6-9935-1ca933980c67",
+                            "label": "🛑 STOP — Obtain and keep the required written consent or medical plan before starting the assessment.",
+                            "children": [],
+                            "category": {}
+                          }
+                        ],
+                        "logicfield": {
+                          "response_is": {
+                            "responses": [
+                              "4e804291-96d2-4ae9-86e8-0d98ef08d8c2"
+                            ]
+                          },
+                          "require_note": false,
+                          "require_media": false,
+                          "require_action": false,
+                          "skip_to": null,
+                          "preset_action_type_ids": [],
+                          "procurement_trigger": false
+                        }
+                      }
+                    ],
+                    "question": {
+                      "options": {
+                        "is_mandatory": true,
+                        "weighting": 0
+                      },
+                      "failed_responses": [
+                        "4e804291-96d2-4ae9-86e8-0d98ef08d8c2"
+                      ],
+                      "response_set_id": "51fa2a5b-f63a-49f3-a13f-780d24ffaf10",
+                      "calculation_data": null
+                    }
+                  },
+                  {
+                    "id": "1c606c49-4c47-41e9-b351-fa15972fbbe9",
+                    "label": "Please upload the written consent or medical plan with every page clearly readable. Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).",
+                    "children": [],
+                    "media": {
+                      "options": {
+                        "is_mandatory": false,
+                        "weighting": null
+                      }
+                    }
+                  }
+                ],
+                "logicfield": {
+                  "response_is": {
+                    "responses": [
+                      "32fb374f-7262-4164-a1f5-60873ead1a24"
+                    ]
+                  },
+                  "require_note": false,
+                  "require_media": false,
+                  "require_action": false,
+                  "skip_to": null,
+                  "preset_action_type_ids": [],
+                  "procurement_trigger": false
+                }
+              }
+            ],
+            "question": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": 0
+              },
+              "failed_responses": [
+                "32fb374f-7262-4164-a1f5-60873ead1a24"
+              ],
+              "response_set_id": "2bbd309e-e554-4bcc-8097-3b16a91f1ca4",
+              "calculation_data": null
+            }
+          },
+          {
+            "id": "3a096d95-8c6f-4b00-8fa5-5ab21bb6e36a",
+            "label": "Written consent or a medical plan is only required if someone at this property relies on life support.",
+            "children": [],
+            "category": {}
+          }
+        ],
+        "section": {
+          "section_type": "SECTION_TYPE_UNSPECIFIED",
+          "autoshares": null,
+          "approvers": null,
+          "user_defined_approvers": false
+        }
+      },
+      {
+        "id": "15b15f8b-34f2-48f0-8ffb-1ef25e4e36f8",
+        "label": "Part 3 – Safe System of Work – All checks must be Yes before work starts",
+        "children": [
+          {
+            "id": "1be8ebff-a754-4a2a-83f0-9561708ffb85",
+            "label": "Has the Safe Work Method Statement (SWMS) been completed for this job and all risks identified?",
+            "children": [
+              {
+                "id": "62e52267-809e-4776-ac11-b3eff95718c1",
+                "label": "",
+                "children": [
+                  {
+                    "id": "1603c6f1-1c2b-435a-a384-c411f16cd6b7",
+                    "label": "🛑 STOP — Complete the SWMS before continuing.",
+                    "children": [],
+                    "category": {}
+                  }
+                ],
+                "logicfield": {
+                  "response_is": {
+                    "responses": [
+                      "9fa7c129-1cb2-49e6-adda-77abf99cc0b2"
+                    ]
+                  },
+                  "require_note": false,
+                  "require_media": false,
+                  "require_action": false,
+                  "skip_to": null,
+                  "preset_action_type_ids": [],
+                  "procurement_trigger": false
+                }
+              }
+            ],
+            "question": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": 0
+              },
+              "failed_responses": [
+                "9fa7c129-1cb2-49e6-adda-77abf99cc0b2"
+              ],
+              "response_set_id": "7cd85ccf-158e-407f-8cdd-a6034cd550c5",
+              "calculation_data": null
+            }
+          },
+          {
+            "id": "ac43a81a-7576-4b2e-885c-389585fbded5",
+            "label": "Have all Table 1 hazards been assessed and controlled in the SWMS?",
+            "children": [
+              {
+                "id": "ef1801f5-f1c4-4b27-8103-6036ed150670",
+                "label": "",
+                "children": [
+                  {
+                    "id": "30b0631a-c4aa-41ff-a1a5-91ba16546484",
+                    "label": "🛑 STOP — Assess and control all Table 1 hazards in the SWMS before continuing.",
+                    "children": [],
+                    "category": {}
+                  }
+                ],
+                "logicfield": {
+                  "response_is": {
+                    "responses": [
+                      "9fa7c129-1cb2-49e6-adda-77abf99cc0b2"
+                    ]
+                  },
+                  "require_note": false,
+                  "require_media": false,
+                  "require_action": false,
+                  "skip_to": null,
+                  "preset_action_type_ids": [],
+                  "procurement_trigger": false
+                }
+              }
+            ],
+            "question": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": 0
+              },
+              "failed_responses": [
+                "9fa7c129-1cb2-49e6-adda-77abf99cc0b2"
+              ],
+              "response_set_id": "7cd85ccf-158e-407f-8cdd-a6034cd550c5",
+              "calculation_data": null
+            }
+          },
+          {
+            "id": "d2bb79c9-6307-4283-950b-c808315d1998",
+            "label": "Have the main and any alternative power supplies been isolated, locked out and tagged, and the roof cavity confirmed electrically safe to enter?",
+            "children": [
+              {
+                "id": "47dc2d88-82bd-4ae7-b4b5-c0ea9eba8805",
+                "label": "",
+                "children": [
+                  {
+                    "id": "889a4a9d-8bbe-41dc-afbc-8891e70bc59f",
+                    "label": "🛑 STOP — Isolate, lock out and tag all power supplies. Confirm the roof cavity is electrically safe before anyone enters.",
+                    "children": [],
+                    "category": {}
+                  }
+                ],
+                "logicfield": {
+                  "response_is": {
+                    "responses": [
+                      "9fa7c129-1cb2-49e6-adda-77abf99cc0b2"
+                    ]
+                  },
+                  "require_note": false,
+                  "require_media": false,
+                  "require_action": false,
+                  "skip_to": null,
+                  "preset_action_type_ids": [],
+                  "procurement_trigger": false
+                }
+              }
+            ],
+            "question": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": 0
+              },
+              "failed_responses": [
+                "9fa7c129-1cb2-49e6-adda-77abf99cc0b2"
+              ],
+              "response_set_id": "7cd85ccf-158e-407f-8cdd-a6034cd550c5",
+              "calculation_data": null
+            }
+          },
+          {
+            "id": "3d8347ae-ed16-4e93-be18-4ecada390a7a",
+            "label": "Before work starts, please take a clear, geotagged photo showing the power isolated, locked out and tagged. Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).",
+            "children": [],
+            "media": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": null
+              }
+            }
+          },
+          {
+            "id": "01198225-6488-40ba-a999-146c4e48ff68",
+            "label": "Table 1 – Common hazards when installing insulation:\n• Falls / working at height / roof and enclosed ceiling spaces\n• High temperatures / hot weather\n• Electricity\n• Noise / vibration\n• Hazardous substances including asbestos\n• Respiratory and biological hazards including dust, animal sources, fibres, mould and bacteria\n• Heat / ignition sources including flues, chimneys, gas heaters, bathroom heating lamps, exhaust fans, downlights and cables surrounded by insulation\n• Working alone\n\nRead the official Table 1 and job SWMS.",
+            "children": [],
+            "category": {}
+          }
+        ],
+        "section": {
+          "section_type": "SECTION_TYPE_UNSPECIFIED",
+          "autoshares": null,
+          "approvers": null,
+          "user_defined_approvers": false
+        }
+      },
+      {
+        "id": "51f15abe-5034-408b-af8f-f25b85698a8e",
+        "label": "Part 4 – Solar Power, Battery and/or Alternative Supply",
+        "children": [
+          {
+            "id": "7a6f8dd0-9aae-472d-83a2-6f63f0c51b77",
+            "label": "Is there solar, a battery or another power supply, such as a generator?",
+            "children": [
+              {
+                "id": "e64a7a03-445a-4db4-ae58-025185e773de",
+                "label": "",
+                "children": [
+                  {
+                    "id": "d4298abc-7302-4555-a15b-ef4dc83e75e3",
+                    "label": "Are safe shutdown, isolation and restart instructions available for every alternative power supply?",
+                    "children": [
+                      {
+                        "id": "95c4104f-df07-4b0e-ae23-874994247e7a",
+                        "label": "",
+                        "children": [
+                          {
+                            "id": "18848d54-ec71-4f32-80b2-41dfbae4533a",
+                            "label": "🛑 STOP — An electrician must isolate, lock out and tag the power supplies and confirm electrical safety before work starts.",
+                            "children": [],
+                            "category": {}
+                          }
+                        ],
+                        "logicfield": {
+                          "response_is": {
+                            "responses": [
+                              "9fa7c129-1cb2-49e6-adda-77abf99cc0b2"
+                            ]
+                          },
+                          "require_note": false,
+                          "require_media": false,
+                          "require_action": false,
+                          "skip_to": null,
+                          "preset_action_type_ids": [],
+                          "procurement_trigger": false
+                        }
+                      }
+                    ],
+                    "question": {
+                      "options": {
+                        "is_mandatory": true,
+                        "weighting": 0
+                      },
+                      "failed_responses": [
+                        "9fa7c129-1cb2-49e6-adda-77abf99cc0b2"
+                      ],
+                      "response_set_id": "7cd85ccf-158e-407f-8cdd-a6034cd550c5",
+                      "calculation_data": null
+                    }
+                  },
+                  {
+                    "id": "e840fc02-6eea-415f-94dd-e5a5073845e5",
+                    "label": "Is the ground-level AC/DC isolator accessible, working and safe to isolate?",
+                    "children": [
+                      {
+                        "id": "944679ee-619a-48de-a846-02bdfc883d00",
+                        "label": "",
+                        "children": [
+                          {
+                            "id": "fbf0f1d0-d976-417a-972c-23d87509f04e",
+                            "label": "🛑 STOP — Have an electrician check the isolator and confirm a safe way to isolate the power before continuing.",
+                            "children": [],
+                            "category": {}
+                          }
+                        ],
+                        "logicfield": {
+                          "response_is": {
+                            "responses": [
+                              "9fa7c129-1cb2-49e6-adda-77abf99cc0b2"
+                            ]
+                          },
+                          "require_note": false,
+                          "require_media": false,
+                          "require_action": false,
+                          "skip_to": null,
+                          "preset_action_type_ids": [],
+                          "procurement_trigger": false
+                        }
+                      }
+                    ],
+                    "question": {
+                      "options": {
+                        "is_mandatory": true,
+                        "weighting": 0
+                      },
+                      "failed_responses": [
+                        "9fa7c129-1cb2-49e6-adda-77abf99cc0b2"
+                      ],
+                      "response_set_id": "7cd85ccf-158e-407f-8cdd-a6034cd550c5",
+                      "calculation_data": null
+                    }
+                  }
+                ],
+                "logicfield": {
+                  "response_is": {
+                    "responses": [
+                      "47fcff61-fa7e-42df-bf23-6f2dccd14449"
+                    ]
+                  },
+                  "require_note": false,
+                  "require_media": false,
+                  "require_action": false,
+                  "skip_to": null,
+                  "preset_action_type_ids": [],
+                  "procurement_trigger": false
+                }
+              }
+            ],
+            "question": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": 0
+              },
+              "failed_responses": [],
+              "response_set_id": "161cca97-d091-4c37-a304-14718bc08437",
+              "calculation_data": null
+            }
+          }
+        ],
+        "section": {
+          "section_type": "SECTION_TYPE_UNSPECIFIED",
+          "autoshares": null,
+          "approvers": null,
+          "user_defined_approvers": false
+        }
+      },
+      {
+        "id": "7e37677b-973d-4755-b611-f231e57c2e28",
+        "label": "Part 5 – Electrical Safety – Stop if any safety check is No",
+        "children": [
+          {
+            "id": "1c9258de-d3a0-4dd4-a372-388bf725b2af",
+            "label": "Has the lead installer read the electrical safety assessment (PIESA) and confirmed it is safe to start work?",
+            "children": [
+              {
+                "id": "88cf439f-0c43-4c5d-8f33-77b24b27f02a",
+                "label": "",
+                "children": [
+                  {
+                    "id": "940ce4c5-61f3-427b-99c8-0ab7d4e3f6bd",
+                    "label": "🛑 STOP — Read the PIESA and confirm the site is safe before starting work.",
+                    "children": [],
+                    "category": {}
+                  }
+                ],
+                "logicfield": {
+                  "response_is": {
+                    "responses": [
+                      "9fa7c129-1cb2-49e6-adda-77abf99cc0b2"
+                    ]
+                  },
+                  "require_note": false,
+                  "require_media": false,
+                  "require_action": false,
+                  "skip_to": null,
+                  "preset_action_type_ids": [],
+                  "procurement_trigger": false
+                }
+              }
+            ],
+            "question": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": 0
+              },
+              "failed_responses": [
+                "9fa7c129-1cb2-49e6-adda-77abf99cc0b2"
+              ],
+              "response_set_id": "7cd85ccf-158e-407f-8cdd-a6034cd550c5",
+              "calculation_data": null
+            }
+          },
+          {
+            "id": "dc75c06c-662e-4c16-9f74-b2f0816cccbd",
+            "label": "If the PIESA requires an electrician at the start, has the electrician attended? Choose N/A only when attendance is not required by the PIESA or solar shutdown instructions.",
+            "children": [
+              {
+                "id": "8d6405a9-a6f2-4ce0-9630-443d12d94894",
+                "label": "",
+                "children": [
+                  {
+                    "id": "1b6461ce-2181-4c4e-b7e8-d53a5e093e75",
+                    "label": "Please take a clear, geotagged photo of the electrician attending this property. Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).",
+                    "children": [],
+                    "media": {
+                      "options": {
+                        "is_mandatory": true,
+                        "weighting": null
+                      }
+                    }
+                  }
+                ],
+                "logicfield": {
+                  "response_is": {
+                    "responses": [
+                      "060ace00-1f61-468e-9c42-918fa93badcf"
+                    ]
+                  },
+                  "require_note": false,
+                  "require_media": false,
+                  "require_action": false,
+                  "skip_to": null,
+                  "preset_action_type_ids": [],
+                  "procurement_trigger": false
+                }
+              },
+              {
+                "id": "763ec77a-6af5-4410-ad41-df8534cd2c4e",
+                "label": "",
+                "children": [
+                  {
+                    "id": "ea7797d8-b046-4f00-bbd3-0b208fa6982c",
+                    "label": "🛑 STOP — The required electrician must attend and confirm electrical safety before work starts.",
+                    "children": [],
+                    "category": {}
+                  }
+                ],
+                "logicfield": {
+                  "response_is": {
+                    "responses": [
+                      "060ace01-1f61-468e-9c42-918fa93badcf"
+                    ]
+                  },
+                  "require_note": false,
+                  "require_media": false,
+                  "require_action": false,
+                  "skip_to": null,
+                  "preset_action_type_ids": [],
+                  "procurement_trigger": false
+                }
+              }
+            ],
+            "question": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": 0
+              },
+              "failed_responses": [
+                "060ace01-1f61-468e-9c42-918fa93badcf"
+              ],
+              "response_set_id": "c6c011ed-4ade-460d-a04b-da730834b667",
+              "calculation_data": null
+            }
+          },
+          {
+            "id": "d0369395-a471-4c27-a8b8-809c406206a9",
+            "label": "Are there recessed lights in the ceiling?",
+            "children": [
+              {
+                "id": "26f3af20-824a-44db-a975-10da6540628e",
+                "label": "",
+                "children": [
+                  {
+                    "id": "72eae2fe-ae1a-42e7-ac3f-e2c8a59a9a3f",
+                    "label": "How many recessed lights are there?",
+                    "children": [],
+                    "textsingle": {
+                      "options": {
+                        "is_mandatory": true,
+                        "weighting": null
+                      },
+                      "text_format": "NUMBER",
+                      "calculation_data": null,
+                      "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+                      "reading_config_id": ""
+                    }
+                  }
+                ],
+                "logicfield": {
+                  "response_is": {
+                    "responses": [
+                      "47fcff61-fa7e-42df-bf23-6f2dccd14449"
+                    ]
+                  },
+                  "require_note": false,
+                  "require_media": false,
+                  "require_action": false,
+                  "skip_to": null,
+                  "preset_action_type_ids": [],
+                  "procurement_trigger": false
+                }
+              }
+            ],
+            "question": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": 0
+              },
+              "failed_responses": [],
+              "response_set_id": "161cca97-d091-4c37-a304-14718bc08437",
+              "calculation_data": null
+            }
+          },
+          {
+            "id": "0f7e9415-4649-4e8b-8519-6a31f4f18fea",
+            "label": "Does the PIESA confirm all ceiling lights are classified and marked IC or IC-4?",
+            "children": [
+              {
+                "id": "196f6efa-0e22-40ef-9a91-e177fe6b483d",
+                "label": "",
+                "children": [
+                  {
+                    "id": "dbed45a2-3b43-4de8-9ab6-81756329bb6e",
+                    "label": "🛑 STOP — Have an electrician confirm the light classifications and required safety measures before continuing.",
+                    "children": [],
+                    "category": {}
+                  }
+                ],
+                "logicfield": {
+                  "response_is": {
+                    "responses": [
+                      "9fa7c129-1cb2-49e6-adda-77abf99cc0b2"
+                    ]
+                  },
+                  "require_note": false,
+                  "require_media": false,
+                  "require_action": false,
+                  "skip_to": null,
+                  "preset_action_type_ids": [],
+                  "procurement_trigger": false
+                }
+              }
+            ],
+            "question": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": 0
+              },
+              "failed_responses": [
+                "9fa7c129-1cb2-49e6-adda-77abf99cc0b2"
+              ],
+              "response_set_id": "7cd85ccf-158e-407f-8cdd-a6034cd550c5",
+              "calculation_data": null
+            }
+          },
+          {
+            "id": "2d8bd875-09a8-4c8c-a3a7-f83b21231415",
+            "label": "Does the PIESA confirm that all recessed lights are safe to cover with insulation?",
+            "children": [
+              {
+                "id": "a8f7ec1f-42b5-474a-80bb-7ab0f209bb54",
+                "label": "",
+                "children": [
+                  {
+                    "id": "983dd75d-cd84-46bd-862d-0bcf1b77424f",
+                    "label": "🛑 STOP — Do not cover the recessed lights. Have an electrician confirm they are safe to cover before continuing.",
+                    "children": [],
+                    "category": {}
+                  }
+                ],
+                "logicfield": {
+                  "response_is": {
+                    "responses": [
+                      "9fa7c129-1cb2-49e6-adda-77abf99cc0b2"
+                    ]
+                  },
+                  "require_note": false,
+                  "require_media": false,
+                  "require_action": false,
+                  "skip_to": null,
+                  "preset_action_type_ids": [],
+                  "procurement_trigger": false
+                }
+              }
+            ],
+            "question": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": 0
+              },
+              "failed_responses": [
+                "9fa7c129-1cb2-49e6-adda-77abf99cc0b2"
+              ],
+              "response_set_id": "7cd85ccf-158e-407f-8cdd-a6034cd550c5",
+              "calculation_data": null
+            }
+          },
+          {
+            "id": "7b0fee21-26b7-47dc-aa33-79d3224dd22e",
+            "label": "Does the PIESA confirm all mains cables in the ceiling have RCD protection where required?",
+            "children": [
+              {
+                "id": "c07fa345-f27d-4fc6-919b-a35a3d79ccf6",
+                "label": "",
+                "children": [
+                  {
+                    "id": "8c88e257-cb2a-4ec2-afe1-b3b011ae49b9",
+                    "label": "🛑 STOP — Have an electrician confirm the required RCD protection before continuing.",
+                    "children": [],
+                    "category": {}
+                  }
+                ],
+                "logicfield": {
+                  "response_is": {
+                    "responses": [
+                      "9fa7c129-1cb2-49e6-adda-77abf99cc0b2"
+                    ]
+                  },
+                  "require_note": false,
+                  "require_media": false,
+                  "require_action": false,
+                  "skip_to": null,
+                  "preset_action_type_ids": [],
+                  "procurement_trigger": false
+                }
+              }
+            ],
+            "question": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": 0
+              },
+              "failed_responses": [
+                "9fa7c129-1cb2-49e6-adda-77abf99cc0b2"
+              ],
+              "response_set_id": "7cd85ccf-158e-407f-8cdd-a6034cd550c5",
+              "calculation_data": null
+            }
+          },
+          {
+            "id": "930883db-4608-4cff-8955-7b48e2b42149",
+            "label": "Does the PIESA confirm all mains cables in the ceiling are TPS or an equivalent cable type?",
+            "children": [
+              {
+                "id": "cba3611c-33ee-454d-aab4-0ebfadf4ddd4",
+                "label": "",
+                "children": [
+                  {
+                    "id": "7e310ab2-0eed-40f8-bd9c-d22ee39250f2",
+                    "label": "🛑 STOP — Have an electrician check the cable types and confirm electrical safety before continuing.",
+                    "children": [],
+                    "category": {}
+                  }
+                ],
+                "logicfield": {
+                  "response_is": {
+                    "responses": [
+                      "9fa7c129-1cb2-49e6-adda-77abf99cc0b2"
+                    ]
+                  },
+                  "require_note": false,
+                  "require_media": false,
+                  "require_action": false,
+                  "skip_to": null,
+                  "preset_action_type_ids": [],
+                  "procurement_trigger": false
+                }
+              }
+            ],
+            "question": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": 0
+              },
+              "failed_responses": [
+                "9fa7c129-1cb2-49e6-adda-77abf99cc0b2"
+              ],
+              "response_set_id": "7cd85ccf-158e-407f-8cdd-a6034cd550c5",
+              "calculation_data": null
+            }
+          },
+          {
+            "id": "e38b971b-9088-4dfa-b127-ace3ed7e4213",
+            "label": "Does the PIESA confirm all mains cables in the ceiling meet Basic Protection Requirements?",
+            "children": [
+              {
+                "id": "5323e2c0-dc79-49fb-8c22-a58858601790",
+                "label": "",
+                "children": [
+                  {
+                    "id": "f575de0e-ad98-431c-b54c-3bb4d579b7a5",
+                    "label": "🛑 STOP — Have an electrician confirm the cables meet Basic Protection Requirements before continuing.",
+                    "children": [],
+                    "category": {}
+                  }
+                ],
+                "logicfield": {
+                  "response_is": {
+                    "responses": [
+                      "9fa7c129-1cb2-49e6-adda-77abf99cc0b2"
+                    ]
+                  },
+                  "require_note": false,
+                  "require_media": false,
+                  "require_action": false,
+                  "skip_to": null,
+                  "preset_action_type_ids": [],
+                  "procurement_trigger": false
+                }
+              }
+            ],
+            "question": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": 0
+              },
+              "failed_responses": [
+                "9fa7c129-1cb2-49e6-adda-77abf99cc0b2"
+              ],
+              "response_set_id": "7cd85ccf-158e-407f-8cdd-a6034cd550c5",
+              "calculation_data": null
+            }
+          },
+          {
+            "id": "ad9e1f51-6957-44cc-aaa1-1c41306b6f24",
+            "label": "Has the owner or occupier confirmed that nobody has entered or worked in the ceiling since the PIESA?",
+            "children": [
+              {
+                "id": "fae0ffa9-3ac4-4f5f-8c8b-e722d1cf3268",
+                "label": "",
+                "children": [
+                  {
+                    "id": "5d0c2e21-5fed-45d7-bea4-cff36e6f5e60",
+                    "label": "🛑 STOP — Confirm whether anyone has entered or worked in the ceiling since the PIESA. If they have, an electrician must reassess electrical safety before continuing.",
+                    "children": [],
+                    "category": {}
+                  }
+                ],
+                "logicfield": {
+                  "response_is": {
+                    "responses": [
+                      "9fa7c129-1cb2-49e6-adda-77abf99cc0b2"
+                    ]
+                  },
+                  "require_note": false,
+                  "require_media": false,
+                  "require_action": false,
+                  "skip_to": null,
+                  "preset_action_type_ids": [],
+                  "procurement_trigger": false
+                }
+              }
+            ],
+            "question": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": 0
+              },
+              "failed_responses": [
+                "9fa7c129-1cb2-49e6-adda-77abf99cc0b2"
+              ],
+              "response_set_id": "7cd85ccf-158e-407f-8cdd-a6034cd550c5",
+              "calculation_data": null
+            }
+          }
+        ],
+        "section": {
+          "section_type": "SECTION_TYPE_UNSPECIFIED",
+          "autoshares": null,
+          "approvers": null,
+          "user_defined_approvers": false
+        }
+      },
+      {
+        "id": "6d4b6775-3c42-4954-af19-dc2a182662d7",
+        "label": "Part 6 – Existing Insulation",
+        "children": [
+          {
+            "id": "f03e5612-b32b-4b4c-9784-27ee05b620d1",
+            "label": "Is there existing insulation in the ceiling?",
+            "children": [
+              {
+                "id": "b33a82e7-1116-4064-a289-cede861810d5",
+                "label": "",
+                "children": [
+                  {
+                    "id": "14ea4360-9c22-45b8-ac90-768704ecdc07",
+                    "label": "What is the average depth of the existing insulation (mm)?",
+                    "children": [],
+                    "textsingle": {
+                      "options": {
+                        "is_mandatory": true,
+                        "weighting": null
+                      },
+                      "text_format": "NUMBER",
+                      "calculation_data": null,
+                      "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+                      "reading_config_id": ""
+                    }
+                  },
+                  {
+                    "id": "b3105b42-8545-432e-80cf-31f95a6a6174",
+                    "label": "What is the existing insulation R-value, if known?",
+                    "children": [],
+                    "textsingle": {
+                      "options": {
+                        "is_mandatory": false,
+                        "weighting": null
+                      },
+                      "text_format": "NUMBER",
+                      "calculation_data": null,
+                      "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+                      "reading_config_id": ""
+                    }
+                  },
+                  {
+                    "id": "8dadd5c5-e8d7-431e-b65a-a5dc4d174864",
+                    "label": "Will the existing insulation be removed, topped up, or both? Foil-backed or electrically conductive insulation must be removed.",
+                    "children": [
+                      {
+                        "id": "c2fb0648-b928-49d8-a490-fc5ef6178422",
+                        "label": "",
+                        "children": [
+                          {
+                            "id": "01ccb26c-acea-488e-add5-da9d6169979f",
+                            "label": "Why is the existing insulation being retained?",
+                            "children": [],
+                            "textsingle": {
+                              "options": {
+                                "is_mandatory": true,
+                                "weighting": null
+                              },
+                              "text_format": "TEXT",
+                              "calculation_data": null,
+                              "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+                              "reading_config_id": ""
+                            }
+                          }
+                        ],
+                        "logicfield": {
+                          "response_is": {
+                            "responses": [
+                              "3267e606-201d-4cf3-81ff-76278c45013a"
+                            ]
+                          },
+                          "require_note": false,
+                          "require_media": false,
+                          "require_action": false,
+                          "skip_to": null,
+                          "preset_action_type_ids": [],
+                          "procurement_trigger": false
+                        }
+                      }
+                    ],
+                    "question": {
+                      "options": {
+                        "is_mandatory": true,
+                        "weighting": 0
+                      },
+                      "failed_responses": [],
+                      "response_set_id": "7b3bb250-5d51-483b-9aec-5bd5c6540b3a",
+                      "calculation_data": null
+                    }
+                  },
+                  {
+                    "id": "99f56c12-846d-4bac-bf89-d095e2cf16fe",
+                    "label": "Is the existing insulation suitable to lay new insulation over?",
+                    "children": [
+                      {
+                        "id": "ee4fb213-c12f-43d6-be4b-d701f0ca6f3f",
+                        "label": "",
+                        "children": [
+                          {
+                            "id": "486d3ac6-414e-4db7-ba10-ec51548bf8ec",
+                            "label": "🛑 STOP — Remove unsuitable existing insulation before laying new insulation. Do not top it up.",
+                            "children": [],
+                            "category": {}
+                          }
+                        ],
+                        "logicfield": {
+                          "response_is": {
+                            "responses": [
+                              "9fa7c129-1cb2-49e6-adda-77abf99cc0b2"
+                            ]
+                          },
+                          "require_note": false,
+                          "require_media": false,
+                          "require_action": false,
+                          "skip_to": null,
+                          "preset_action_type_ids": [],
+                          "procurement_trigger": false
+                        }
+                      }
+                    ],
+                    "question": {
+                      "options": {
+                        "is_mandatory": true,
+                        "weighting": 0
+                      },
+                      "failed_responses": [
+                        "9fa7c129-1cb2-49e6-adda-77abf99cc0b2"
+                      ],
+                      "response_set_id": "7cd85ccf-158e-407f-8cdd-a6034cd550c5",
+                      "calculation_data": null
+                    }
+                  }
+                ],
+                "logicfield": {
+                  "response_is": {
+                    "responses": [
+                      "47fcff61-fa7e-42df-bf23-6f2dccd14449"
+                    ]
+                  },
+                  "require_note": false,
+                  "require_media": false,
+                  "require_action": false,
+                  "skip_to": null,
+                  "preset_action_type_ids": [],
+                  "procurement_trigger": false
+                }
+              }
+            ],
+            "question": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": 0
+              },
+              "failed_responses": [],
+              "response_set_id": "161cca97-d091-4c37-a304-14718bc08437",
+              "calculation_data": null
+            }
+          }
+        ],
+        "section": {
+          "section_type": "SECTION_TYPE_UNSPECIFIED",
+          "autoshares": null,
+          "approvers": null,
+          "user_defined_approvers": false
+        }
+      },
+      {
+        "id": "f40fe480-5dbf-4acf-873a-afd5e52897bc",
+        "label": "Part 7 – Product Details",
+        "children": [
+          {
+            "id": "0a587e0e-9787-464e-be40-7cdd2c636b87",
+            "label": "Before installation, please take a clear, geotagged photo of each product label showing the brand, model and R-value. Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).",
+            "children": [],
+            "media": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": null
+              }
+            }
+          }
+        ],
+        "section": {
+          "section_type": "SECTION_TYPE_UNSPECIFIED",
+          "autoshares": null,
+          "approvers": null,
+          "user_defined_approvers": false
+        }
+      },
+      {
+        "id": "ae1442f8-e913-4072-9c0d-21e2a4e12651",
+        "label": "Part 8 – Installer Declaration",
+        "children": [
+          {
+            "id": "3b753f4b-6f6c-416a-bbc5-6ab8e410889e",
+            "label": "INSTALLER DECLARATION – Sign BEFORE insulation work starts.\n\nAs the lead EEC Certified installer responsible for this installation, I confirm that:\n\na. I have received a completed copy of the Pre-installation electrical safety assessment for the premises; and\n\nb. I have completed the current Pre-installation installer safety assessment, as published on the department's Internet site within 30 days of the completion of the pre-installation electrical safety assessment; and\n\nc. the pre-installation installer safety assessment confirms\n   i. the worksite is safe and the installation or upgrade will proceed in accordance with any recommendations or conditions from the pre-installation electrical safety assessment including, if required, that a licensed electrician must be present during the insulation upgrade; and\n   ii. that safe work methods are in place as per Occupational Health and Safety Regulations 2017 (Vic); and",
+            "children": [],
+            "category": {}
+          },
+          {
+            "id": "50b943ef-ca7c-4380-aee0-1336541acba7",
+            "label": "d. I will ensure that:\n   i. all applicable occupation health and safety laws and requirements are complied with; and\n   ii. the insulation will be installed in compliance with the effective version of AS 3999; and\n   iii. if the installation is carried out on multiple days, that I will check that all items remain compliant with this assessment form at the start of each day prior to undertaking the work; and\n   iv. the insulation product/s being installed are listed on the ESC Register of Products.",
+            "children": [],
+            "category": {}
+          },
+          {
+            "id": "7eb8816a-a0b1-4e35-a2b7-44680696f91b",
+            "label": "Privacy Collection Statement: DEECA and ESC collect and use this information under the Privacy and Data Protection Act 2014 (Vic) to administer, monitor and enforce VEU. Refer to the complete Privacy Collection Statement in the linked official form: https://www.energy.vic.gov.au/__data/assets/word_doc/0042/788397/VEU-pre-installation-installer-safety-assessment-form-.docx",
+            "children": [],
+            "category": {}
+          },
+          {
+            "id": "3efc235d-da8e-46a5-b3f0-8c6a8c23e3e9",
+            "label": "All information contained in and attached to this form is correct and not misleading by inclusion or omission",
+            "children": [],
+            "checkbox": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": 0
+              }
+            }
+          },
+          {
+            "id": "83caffa2-e9c8-4315-885f-5337a4389372",
+            "label": "Signature",
+            "children": [],
+            "signature": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": null
+              }
+            }
+          },
+          {
+            "id": "d11eaa63-198b-471f-b57c-d3717bce551c",
+            "label": "Signing does not finish this form. After installation, complete the next page with the completed-work video and final roof-space plan.",
+            "children": [],
+            "category": {}
+          }
+        ],
+        "section": {
+          "section_type": "SECTION_TYPE_UNSPECIFIED",
+          "autoshares": null,
+          "approvers": null,
+          "user_defined_approvers": false
+        }
+      },
+      {
+        "id": "2864b618-cfc0-42c9-a295-ef9d117b78e7",
+        "label": "AP Evidence – After Installation",
+        "children": [
+          {
+            "id": "86b3772c-6227-4b6f-8011-b7ed288e734e",
+            "label": "After installation, please record a clear video showing all insulated areas, coverage, depth and removal of waste. Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).",
+            "children": [],
+            "media": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": null
+              }
+            }
+          },
+          {
+            "id": "344e863b-3af3-44f5-b1b8-966941f0e667",
+            "label": "Please upload a clear final roof-space plan showing the installed area in m² and the products used. Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).",
+            "children": [],
+            "media": {
+              "options": {
+                "is_mandatory": true,
+                "weighting": null
+              }
+            }
+          }
+        ],
+        "section": {
+          "section_type": "SECTION_TYPE_UNSPECIFIED",
+          "autoshares": null,
+          "approvers": null,
+          "user_defined_approvers": false
+        }
+      }
+    ],
+    "response_sets": [
+      {
+        "id": "161cca97-d091-4c37-a304-14718bc08437",
+        "responses": [
+          {
+            "id": "47fcff61-fa7e-42df-bf23-6f2dccd14449",
+            "label": "Yes",
+            "score": 1,
+            "color": "0,68,163",
+            "score_enabled": true
+          },
+          {
+            "id": "0f1e3b32-a276-42e1-a5b3-7d9d7b5e21d3",
+            "label": "No",
+            "score": 1,
+            "color": "129,181,50",
+            "score_enabled": true
+          }
+        ],
+        "is_grs": false
+      },
+      {
+        "id": "4fe1175e-502f-428d-8bd8-28c07f46eb2d",
+        "responses": [
+          {
+            "id": "8e9ba585-c0da-416a-90ab-d3cb09029b32",
+            "label": "Other",
+            "score": 1,
+            "color": "0,68,163",
+            "score_enabled": true
+          }
+        ],
+        "is_grs": false
+      },
+      {
+        "id": "51fa2a5b-f63a-49f3-a13f-780d24ffaf10",
+        "responses": [
+          {
+            "id": "a89f30c3-5d63-4f2a-bfd5-8c3b47d0e7c2",
+            "label": "Yes – received Consent",
+            "score": 1,
+            "color": "129,181,50",
+            "score_enabled": true
+          },
+          {
+            "id": "b28a4f72-bb0d-4d68-bed1-f94b410e657a",
+            "label": "Yes – received Medical Plan",
+            "score": 1,
+            "color": "129,181,50",
+            "score_enabled": true
+          },
+          {
+            "id": "4e804291-96d2-4ae9-86e8-0d98ef08d8c2",
+            "label": "No",
+            "score": 0,
+            "color": "198,0,34",
+            "score_enabled": true
+          }
+        ],
+        "is_grs": false
+      },
+      {
+        "id": "7b3bb250-5d51-483b-9aec-5bd5c6540b3a",
+        "responses": [
+          {
+            "id": "bef19ea9-c072-4ce0-8661-93679b189656",
+            "label": "Removed",
+            "score": 1,
+            "color": "129,181,50",
+            "score_enabled": true
+          },
+          {
+            "id": "3267e606-201d-4cf3-81ff-76278c45013a",
+            "label": "Topped Up",
+            "score": 1,
+            "color": "0,68,163",
+            "score_enabled": true
+          }
+        ],
+        "is_grs": false
+      },
+      {
+        "id": "7cd85ccf-158e-407f-8cdd-a6034cd550c5",
+        "responses": [
+          {
+            "id": "726f8dda-2683-43a4-a96c-ec0438ff7401",
+            "label": "Yes",
+            "score": 1,
+            "color": "129,181,50",
+            "score_enabled": true
+          },
+          {
+            "id": "9fa7c129-1cb2-49e6-adda-77abf99cc0b2",
+            "label": "No",
+            "score": 0,
+            "color": "198,0,34",
+            "score_enabled": true
+          }
+        ],
+        "is_grs": false
+      },
+      {
+        "id": "b52a8b4c-048b-4f7d-99b9-c6b9680be5ed",
+        "responses": [
+          {
+            "id": "2a2b8507-c53d-4d0e-83ec-164cb179b6a0",
+            "label": "Pass",
+            "score": 1,
+            "color": "19,133,95",
+            "score_enabled": true
+          },
+          {
+            "id": "2a2b8507-c53d-4d0e-83ec-164cb179b6a1",
+            "label": "Fail",
+            "score": 0,
+            "color": "198,0,34",
+            "score_enabled": true
+          },
+          {
+            "id": "2a2b8507-c53d-4d0e-83ec-164cb179b6a2",
+            "label": "N/A",
+            "score": 1,
+            "color": "112,112,112",
+            "score_enabled": false
+          }
+        ],
+        "is_grs": false
+      },
+      {
+        "id": "d743f356-a147-472c-a790-0c46a187de92",
+        "responses": [
+          {
+            "id": "6bb1beb4-494e-4a17-bff7-bed8a6fcd3d0",
+            "label": "Compliant",
+            "score": 1,
+            "color": "19,133,95",
+            "score_enabled": true
+          },
+          {
+            "id": "6bb1beb4-494e-4a17-bff7-bed8a6fcd3d1",
+            "label": "Non-Compliant",
+            "score": 0,
+            "color": "198,0,34",
+            "score_enabled": true
+          },
+          {
+            "id": "6bb1beb4-494e-4a17-bff7-bed8a6fcd3d2",
+            "label": "N/A",
+            "score": 1,
+            "color": "112,112,112",
+            "score_enabled": false
+          }
+        ],
+        "is_grs": false
+      },
+      {
+        "id": "2bbd309e-e554-4bcc-8097-3b16a91f1ca4",
+        "responses": [
+          {
+            "id": "32fb374f-7262-4164-a1f5-60873ead1a24",
+            "label": "Yes",
+            "score": 1,
+            "color": "198,0,34",
+            "score_enabled": true
+          },
+          {
+            "id": "20a5c14b-c8a8-4ce0-806d-55c52519120b",
+            "label": "No",
+            "score": 1,
+            "color": "129,181,50",
+            "score_enabled": true
+          }
+        ],
+        "is_grs": false
+      },
+      {
+        "id": "5b69aee5-0532-46a4-b2f5-d020d4d5381d",
+        "responses": [
+          {
+            "id": "ef4abf51-3361-46f5-ba04-70c23c85ca20",
+            "label": "Good",
+            "score": 1,
+            "color": "19,133,95",
+            "score_enabled": true
+          },
+          {
+            "id": "ef4abf51-3361-46f5-ba04-70c23c85ca21",
+            "label": "Fair",
+            "score": 1,
+            "color": "255,176,0",
+            "score_enabled": true
+          },
+          {
+            "id": "ef4abf51-3361-46f5-ba04-70c23c85ca22",
+            "label": "Poor",
+            "score": 0,
+            "color": "198,0,34",
+            "score_enabled": true
+          },
+          {
+            "id": "ef4abf51-3361-46f5-ba04-70c23c85ca23",
+            "label": "N/A",
+            "score": 1,
+            "color": "112,112,112",
+            "score_enabled": false
+          }
+        ],
+        "is_grs": false
+      },
+      {
+        "id": "7601fb75-80ae-4409-b31a-9acd58d45445",
+        "responses": [
+          {
+            "id": "af89ffa0-5db2-4a49-93e5-7dd392ab8f10",
+            "label": "Safe",
+            "score": 1,
+            "color": "19,133,95",
+            "score_enabled": true
+          },
+          {
+            "id": "af89ffa1-5db2-4a49-93e5-7dd392ab8f10",
+            "label": "At Risk",
+            "score": 0,
+            "color": "198,0,34",
+            "score_enabled": true
+          },
+          {
+            "id": "af89ffa2-5db2-4a49-93e5-7dd392ab8f10",
+            "label": "N/A",
+            "score": 1,
+            "color": "112,112,112",
+            "score_enabled": false
+          }
+        ],
+        "is_grs": false
+      },
+      {
+        "id": "c6c011ed-4ade-460d-a04b-da730834b667",
+        "responses": [
+          {
+            "id": "060ace00-1f61-468e-9c42-918fa93badcf",
+            "label": "Yes",
+            "score": 1,
+            "color": "19,133,95",
+            "score_enabled": true
+          },
+          {
+            "id": "060ace01-1f61-468e-9c42-918fa93badcf",
+            "label": "No",
+            "score": 0,
+            "color": "198,0,34",
+            "score_enabled": true
+          },
+          {
+            "id": "060ace02-1f61-468e-9c42-918fa93badcf",
+            "label": "N/A",
+            "score": 1,
+            "color": "112,112,112",
+            "score_enabled": false
+          }
+        ],
+        "is_grs": false
+      }
+    ],
+    "global_response_sets": [],
+    "title_rules": [
+      "d76e6595-b1b0-4022-ab5d-d73423e6393b",
+      "a9e7dadc-b6ad-45a1-84db-79e4a88b63cd"
+    ],
+    "media": [
+      {
+        "id": "70794536-ee35-491d-b5ac-b940463b59ce",
+        "token": "f03076f347075a3f649db503eaa943aa3dc50bddfb148aa6a3c8a995239c5ee0",
+        "filename": "IMG_1377 (002).PNG",
+        "media_type": "MEDIA_TYPE_IMAGE"
+      }
+    ],
+    "mandatory_mark_as_complete": false,
+    "description": "",
+    "created_at": "2026-10-03T01:33:55.161Z",
+    "modified_at": "2026-10-08T21:44:57.954Z",
+    "author": {
+      "id": "user_c4f1967ce97b4625bdf83d03c3cfa1ed",
+      "name": "Jo Lowe"
+    },
+    "owner": {
+      "id": "user_c4f1967ce97b4625bdf83d03c3cfa1ed",
+      "name": "Jo Lowe"
+    },
+    "archived": false,
+    "metadata_image": {
+      "id": "70794536-ee35-491d-b5ac-b940463b59ce",
+      "token": "f03076f347075a3f649db503eaa943aa3dc50bddfb148aa6a3c8a995239c5ee0",
+      "filename": "IMG_1377 (002).PNG",
+      "media_type": "MEDIA_TYPE_IMAGE"
+    },
+    "access_level": "ACCESS_LEVEL_DELETE",
+    "last_used": "2026-10-08T21:46:41Z",
+    "added_at": "2026-10-03T01:33:55.161Z",
+    "revision_key": "4b06914a-1e4b-4534-9bab-e70ce074578b",
+    "support_site_as_question_type": true,
+    "date_draft_modified": "1970-01-01T00:00:00Z",
+    "draft_author_name": "",
+    "origin_information": null,
+    "translation_id": "",
+    "is_locked_from_shared_library": false,
+    "settings": {
+      "is_add_note_disabled": false,
+      "is_attach_media_disabled": false,
+      "is_create_action_disabled": false,
+      "is_inspection_completion_dialog_confirmation_disabled": false
+    },
+    "document_links": [],
+    "procurement_order_settings": null
+  }
+}
