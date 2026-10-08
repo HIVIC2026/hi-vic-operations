@@ -94,7 +94,22 @@ export async function tradeHome(userId: string) {
   const sf = await statusFactsFor(c, live.map((j) => j.id));
   const allJobs = live.map((j) => ({ jobId: j.id, jobNumber: j.job_number, channel: j.channel, place: placeOf.get(j.id)!, status: STATUS[j.stage] ?? "In progress", line: sf.get(j.id) ? statusView(c, sf.get(j.id)!) : null, ...label(j),
     facts: j.installer_site_check || j.installer_quoted_price_inc_gst != null || (j as { channel?: string }).channel === "installer_sourced" ? { quoted: j.installer_quoted as "yes" | "no" | null, site_check: j.installer_site_check as "yes" | "no" | null, site_check_date: j.installer_site_check_date, quoted_price_inc_gst: j.installer_quoted_price_inc_gst == null ? null : Number(j.installer_quoted_price_inc_gst), price_includes: j.installer_price_includes } : null }));
-  return { kind: c.kind, boss: c.boss, business: c.biz.name, firstName: c.firstName, isTest: c.isTest, week, offers: offerList, yourMove, coming, jobs: allJobs, month: c.boss ? { jobs: month.length, earned: month.reduce((t, r) => t + (r.amount ?? 0), 0) } : null };
+  // Done tab: only actual final stages. Active-assignment jobs keep their link; ended assignments get a read-only summary
+  // (job number, suburb, terminal reason) — no owner, address, contact or price, and no reopened access.
+  const { installerTab, doneReason } = await import("./installer-progress.core");
+  const jobsTabbed = allJobs.map((j) => ({ ...j, stage: byId.get(j.jobId)!.stage, tab: installerTab(j.place, byId.get(j.jobId)!.stage) }));
+  const histQ = admin.from("job_assignments").select("job_id").eq("business_id", c.biz.id).eq("active", false);
+  const { data: ended } = await (c.boss ? histQ : histQ.eq("user_id", userId));
+  const histIds = [...new Set([...(ended ?? []).map((a) => a.job_id), ...(jobs ?? []).filter((j) => j.stage === "cancelled").map((j) => j.id)])].filter((id) => !byId.has(id));
+  const { data: histJobs } = histIds.length
+    ? await admin.from("jobs").select("id, job_number, stage, source, qa_archived_at, updated_at, properties(suburb)").in("id", histIds).in("stage", ["complete", "cancelled"])
+    : { data: [] as never[] };
+  const activeIds = new Set(jobIds);
+  const done = [
+    ...jobsTabbed.filter((j) => j.tab === "done").map((j) => ({ jobId: j.jobId, jobNumber: j.jobNumber, suburb: j.suburb, reason: doneReason(j.stage), open: true })),
+    ...(histJobs ?? []).filter((j) => !j.qa_archived_at && (!c.isTest || j.source === "qa_test")).map((j) => ({ jobId: j.id, jobNumber: j.job_number, suburb: (j.properties as { suburb: string | null } | null)?.suburb ?? null, reason: doneReason(j.stage), open: false && activeIds.has(j.id) })),
+  ];
+  return { kind: c.kind, boss: c.boss, business: c.biz.name, firstName: c.firstName, isTest: c.isTest, week, offers: offerList, yourMove, coming, jobs: jobsTabbed, done, month: c.boss ? { jobs: month.length, earned: month.reduce((t, r) => t + (r.amount ?? 0), 0) } : null };
 }
 
 /** One offer, trade-side. Owner and address only once this business has taken it. */
