@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { isRecoverableTransportError } from "@/lib/page-recovery.core";
+import { readFileSync } from "node:fs";
 
 test("flags an aborted stream", () => {
   expect(isRecoverableTransportError(new Error("aborted"))).toBe(true);
@@ -38,4 +39,13 @@ test("does not flag ordinary application errors", () => {
 
 test("does not flag a rejected server response", () => {
   expect(isRecoverableTransportError(new Response("Unauthorized", { status: 401 }))).toBe(false);
+});
+
+test("module-resource errors recover even without a message and retries survive blocked storage", () => {
+  const router = readFileSync("src/router.tsx", "utf8");
+  expect(router).toContain('ev.target instanceof HTMLScriptElement');
+  expect(router).toContain('ev.target.type === "module"');
+  expect(router).toContain('!!ev.target.src');
+  expect(router).toContain('isStaleChunkError(ev.message || ev.error)');
+  expect(router).toContain('return reloadStamps.get(key) ?? 0');
 });
