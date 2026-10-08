@@ -90,6 +90,10 @@ export async function prestartGate(jobId: string, now = new Date()) {
   return prestartLocked({ start: b.scheduled_start, latest: await latestCheck(jobId), now });
 }
 export async function requirePrestartClear(jobId: string) {
+  // Live original-condition check (installer-intake jobs): never relies on the day-before snapshot, so the PIISA send
+  // and install evidence stay locked until insulation/removal/access/downlights are recorded BEFORE any removal.
+  const rc = await (await import("./ready-check-draft.server")).rcWorksBlockers(jobId);
+  if (rc.length) throw new WorkflowError(`Not cleared to start: record the original ceiling condition in the Ready Check first — ${rc.join(", ")}.`);
   const g = await prestartGate(jobId);
   if (g.locked) throw new WorkflowError(`Not cleared to start: ${g.reasons.join(" ")}`);
 }
