@@ -174,7 +174,7 @@ export function MessagesPanel({ jobId, isAdmin, role }: { jobId: string; isAdmin
   const { data: me } = useQuery({ queryKey: ["me-id"], queryFn: async () => (await supabase.auth.getUser()).data.user?.id ?? null });
   const { data, refetch } = useQuery({
     queryKey: ["messages", jobId],
-    refetchInterval: 15000,
+    refetchInterval: 60_000,
     queryFn: async () => (await supabase.from("messages").select("*, profiles(full_name)").eq("job_id", jobId).order("created_at")).data ?? [],
   });
   const quick = role ? QUICK_ACTIONS[role] : [];
