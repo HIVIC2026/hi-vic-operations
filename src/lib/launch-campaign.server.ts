@@ -172,7 +172,7 @@ export async function markCampaignMediaReceived(jobId: string, linkId: string) {
   if (result.error) throw new Error("Your file was received but the office review could not be queued. Please try again.");
 }
 
-export async function recordInsulationDeclaration(token: unknown, declarationType?: InsulationDeclaration, confirmed: boolean = true) {
+export async function recordInsulationDeclaration(token: unknown, declarationType?: InsulationDeclaration, confirmed: boolean = false) {
   const type = declarationType ?? "below_r2";
   const record = insulationDeclarationRecord(type, confirmed);
   const c = await campaignLink(token);

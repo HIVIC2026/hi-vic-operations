@@ -13,7 +13,7 @@ CREATE TABLE customer_email_optouts(job_id uuid, opted_out_at timestamptz);
 CREATE TABLE post_intake_work(job_id uuid, status text);
 CREATE TABLE workflow_events(id uuid DEFAULT gen_random_uuid(), job_id uuid, event_type text, summary text, details jsonb, created_at timestamptz DEFAULT now());
 CREATE TABLE indicative_estimates(id uuid DEFAULT gen_random_uuid(), job_id uuid, status text, area_m2 numeric, insulation_declared text, scenarios jsonb);
-ALTER TABLE customer_delivery_settings ADD ready_check_available_postcodes text[];
+ALTER TABLE customer_delivery_settings ADD IF NOT EXISTS ready_check_available_postcodes text[];
 CREATE TABLE retail_estimator_settings(is_current boolean, indicative_veec_value numeric, piesa_assessment_inc_gst numeric, ap_management_inc_gst numeric, r5_install_inc_gst_per_m2 numeric);
 INSERT INTO customer_delivery_settings(id) VALUES (1);
 INSERT INTO retail_estimator_settings VALUES(true,70,349,349,30);
