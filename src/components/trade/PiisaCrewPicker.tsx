@@ -33,7 +33,7 @@ export function PiisaCrewPicker({ jobId }: { jobId: string }) {
           <option value="other">Other</option>
         </select>
       </label>
-      {lead && typeof lead === "object" && <div className="mt-2 grid grid-cols-2 gap-2" data-lead-other>
+      {typeof lead === "object" && lead !== null && <div className="mt-2 grid grid-cols-2 gap-2" data-lead-other>
         <input className={sel} placeholder="Full name" value={lead.other.name} onChange={(e) => setLead({ other: { ...lead.other, name: e.target.value } })} />
         <input className={sel} placeholder="EEC certificate number" value={lead.other.eec} onChange={(e) => setLead({ other: { ...lead.other, eec: e.target.value } })} />
       </div>}
