@@ -37,7 +37,7 @@ export async function sendSaveMySpot(jobIds: string[], actorId: string | null, t
   return out;
 }
 
-async function sendOne(jobId: string, actorId: string, realOn: boolean, testOpts: TestSendOptions): Promise<HotSendResult> {
+async function sendOne(jobId: string, actorId: string | null, realOn: boolean, testOpts: TestSendOptions): Promise<HotSendResult> {
   const mode = testOpts.mode ?? "send";
   const { data: job } = await admin.from("jobs").select("id, job_number, source, stage, eligibility_outcome, owners(full_name, email), properties(address_line, suburb, postcode)").eq("id", jobId).maybeSingle();
   if (!job) return { jobId, jobNumber: null, outcome: "failed", detail: "Job not found" };
