@@ -100,7 +100,7 @@ export function buildComplianceTimeline(f: TimelineFacts): Gate[] {
 
   const installed = !!f.installCompletedAt;
   push({ key: "co_payment_paid", label: "Minimum $200 inc GST co-payment paid by the energy consumer to the Accredited Person", when: "Before VEEC creation; must not be reimbursed", status: f.coPaymentPaidAt ? "done" : installed ? "open" : "not_yet", dueAt: null, detail: null, blocks: "VEEC creation" });
-  push({ key: "completion_consumer_docs", label: "Owner given tax invoice, dispute info, instructions, contacts and 5-year warranty", when: "On completion", status: f.completionDocsGivenAt ? "done" : installed ? "open" : "not_yet", dueAt: null, detail: null, blocks: "AP review" });
+  push({ key: "completion_consumer_docs", label: "Owner given tax invoice, dispute info, instructions, contacts and written workmanship and insulation product warranty details (each at least 5 years from completion)", when: "On completion", status: f.completionDocsGivenAt ? "done" : installed ? "open" : "not_yet", dueAt: null, detail: null, blocks: "AP review" });
   push({ key: "installer_declaration", label: "Installer declaration", when: "After install", status: f.installerDeclarationAt ? "done" : installed ? "open" : "not_yet", dueAt: null, detail: null, blocks: "AP review" });
   push({ key: "evidence_complete", label: "Installation evidence complete", when: "After install", status: f.evidenceComplete ? "done" : installed ? "open" : "not_yet", dueAt: null, detail: null, blocks: "AP review" });
   push({ key: "assignment_effective", label: "VEEC assignment final facts + installer, AP and customer signatures", when: "After install", status: f.assignmentEffective ? "done" : installed ? "open" : "not_yet", dueAt: null, detail: null, blocks: "Ready for VEEC" });
@@ -124,7 +124,7 @@ export const RECORD_LABELS: Record<RecordKey, string> = {
   installer_safety_assessment: "Completed signed VEU pre-installation installer safety assessment",
   pre_install_consumer_docs: "Owner given Consumer Factsheet, Code of Conduct info, PIESA copy (+ CES if rectified)",
   co_payment_paid: "Minimum $200 inc GST co-payment paid by the energy consumer to the Accredited Person and not reimbursed",
-  completion_consumer_docs: "Owner given tax invoice, dispute info, instructions, contacts and 5-year warranty",
+  completion_consumer_docs: "Owner given tax invoice, dispute info, instructions, contacts and written workmanship and insulation product warranty details (each at least 5 years from completion)",
 };
 export const MIN_CO_PAYMENT_INC_GST = 200;
 
