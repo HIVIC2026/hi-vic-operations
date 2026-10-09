@@ -37,13 +37,10 @@ async def run(p, w):
         await pg.reload(wait_until="networkidle"); await pg.wait_for_timeout(1500)
         t = await body()
         rec(f"delete job ({tag})", empty_disabled and short_disabled and "This job is deleted" in t, f"empty/2-char reason blocked={empty_disabled}/{short_disabled}; deleted banner after reload={'This job is deleted' in t}", [await snap("1-deleted")])
-        # --- deleted page + pipeline absence ---
+        # --- deleted page (count/list parity is proven separately on the office reads with TEST jobs included) ---
         await pg.goto(BASE + "/admin/deleted", wait_until="networkidle"); await pg.wait_for_timeout(1500)
         listed = NUM in await body()
-        s1 = await snap("2-deleted-page")
-        await pg.goto(BASE + "/admin/pipeline", wait_until="networkidle"); await pg.wait_for_timeout(2500)
-        in_pipe = NUM in await body()
-        rec(f"deleted page lists, pipeline hides ({tag})", listed and not in_pipe, f"on Deleted jobs={listed}; on Pipeline={in_pipe}", [s1, await snap("3-pipeline")])
+        rec(f"deleted page lists job ({tag})", listed, f"on Deleted jobs={listed}", [await snap("2-deleted-page")])
         # --- restore from deleted page ---
         await pg.goto(BASE + "/admin/deleted", wait_until="networkidle"); await pg.wait_for_timeout(1500)
         row = pg.locator("tr").filter(has_text=NUM)
