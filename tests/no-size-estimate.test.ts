@@ -17,3 +17,10 @@ test("sender render equals the approved no-size template", () => {
   const a = renderStep3SaveSpot({ ...f, areaM2: 150, areaIsTypical: true }), b = renderStep3SaveSpotNoSize(f);
   expect(a.html).toBe(b.html); expect(a.plainText).toBe(b.plainText); expect(a.subject).toBe(b.subject);
 });
+import { initialReplyWindowOk } from "../src/lib/no-size-estimate.core";
+const now = new Date("2026-10-09T01:00:00Z");
+const fresh = { jobCreatedAt: "2026-10-09T00:30:00Z", intakeStatus: "complete", intakeCompletedAt: "2026-10-09T00:40:00Z", now };
+test("new enquiry with just-completed intake qualifies as first reply", () => expect(initialReplyWindowOk(fresh)).toBe(true));
+test("old backlog job never qualifies even with a fresh intake re-run", () => expect(initialReplyWindowOk({ ...fresh, jobCreatedAt: "2026-09-20T00:00:00Z" })).toBe(false));
+test("intake completed over 24h ago never qualifies", () => expect(initialReplyWindowOk({ ...fresh, intakeCompletedAt: "2026-10-07T23:00:00Z", jobCreatedAt: "2026-10-07T22:00:00Z" })).toBe(false));
+test("intake not complete or missing never qualifies", () => { expect(initialReplyWindowOk({ ...fresh, intakeStatus: "retry" })).toBe(false); expect(initialReplyWindowOk({ ...fresh, intakeCompletedAt: null })).toBe(false); expect(initialReplyWindowOk({ ...fresh, jobCreatedAt: null })).toBe(false); });

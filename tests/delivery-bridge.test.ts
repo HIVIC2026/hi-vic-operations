@@ -61,8 +61,13 @@ describe("HMAC contract unchanged", () => {
 describe("post-intake + worker wiring", () => {
   const pi = src("src/lib/postintake.server.ts");
   test("email attempt runs after Step 3, before completion, and can never throw", () => {
-    expect(pi.indexOf("await syncStep3")).toBeLessThan(pi.indexOf("await attemptCustomerEmail"));
-    expect(pi.indexOf("await attemptCustomerEmail")).toBeLessThan(pi.indexOf('status: "complete"'));
+    // 8 Oct one-automated-leads plan: Step 3 before completion; the single router runs after and never throws.
+    expect(pi.indexOf("await syncStep3")).toBeGreaterThan(0);
+    expect(pi.indexOf("await syncStep3")).toBeLessThan(pi.indexOf('status: "complete"'));
+    expect(pi.indexOf('status: "complete"')).toBeLessThan(pi.indexOf("await maybeAutoRouteLeadEmail"));
+    const router = src("src/lib/lead-email-routing.server.ts");
+    expect(router).toMatch(/try \{[\s\S]*\} catch/);
+    expect(router).toContain("sendPreliminaryIneligibleEmail");
     const fn = pi.slice(pi.indexOf("export async function attemptCustomerEmail"));
     expect(fn).toMatch(/try \{[\s\S]*\} catch/);
     expect(fn).toContain('view.mode === "none_ineligible"');

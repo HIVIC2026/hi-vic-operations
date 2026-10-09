@@ -114,7 +114,7 @@ export async function upsertEnquiry(input: Omit<EnquiryInput, "estimated_area_m2
   const propFields = { owner_id: owner!.id, address_line: properAddress(input.address_line), suburb: input.suburb ? properAddress(input.suburb) : null, postcode: input.postcode ?? null, occupancy: input.occupancy ?? null, ...(normaliseState(input.state) ? { state: normaliseState(input.state)! } : {}) };
   const jobFields = {
     estimated_area_m2: input.estimated_area_m2,
-    estimated_area_unknown: input.estimated_area_m2 == null,
+    estimated_area_unknown: false, // LOCKED: the signed schema requires a positive supplied area; missing size never arrives here
     life_support: input.life_support ?? false,
     life_support_status: input.life_support_status ?? (input.life_support === true ? "yes" : null),
   };

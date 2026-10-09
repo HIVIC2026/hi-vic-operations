@@ -42,6 +42,8 @@ const REVIEWED: Record<string, string> = {
   ownerPaperworkFn: "secure owner link token, usable link only, own job",
   ownerReconfirmVariationFn: "verified owner code session; variation must belong to the session job",
   ownerSignConsentFn: "verified owner code session scoped to its own job",
+  getMyIntakeJob: "requireSupplyingInstaller(): can_access_job + installer role + member of the job's originating business",
+  getMyIntakeProgress: "requireSupplyingInstaller(): can_access_job + installer role + member of the job's originating business",
   myTeamCompliance: "scoped to caller's own business memberships (read through RLS) or their own worker row",
 };
 describe("server-side role guards", () => {

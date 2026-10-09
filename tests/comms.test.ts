@@ -6,7 +6,8 @@ import { dirname, resolve } from "path";
 function graph(entry: string, seen = new Set<string>()) {
   if (seen.has(entry)) return seen;
   seen.add(entry);
-  const src = readFileSync(entry, "utf8");
+  // Type-only references (import type / import("x").Type) carry no runtime call; strip them.
+  const src = readFileSync(entry, "utf8").replace(/^import type [^;]+;/gm, "").replace(/import\(["'][^"']+["']\)\.[A-Z]\w*/g, "");
   for (const m of src.matchAll(/(?:from|import\()\s*["'](\.\/[^"']+|@\/lib\/[^"']+)["']/g)) {
     const spec = m[1]!.startsWith("@/") ? resolve("src", m[1]!.slice(2)) : resolve(dirname(entry), m[1]!);
     const file = [".ts", ".tsx"].map((e) => spec + e).find(existsSync);

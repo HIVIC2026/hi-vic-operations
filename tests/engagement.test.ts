@@ -155,8 +155,12 @@ describe("delivery configuration", () => {
     expect(base44BridgeConfig({ ...ok, enabled: false })).toBeNull();
     expect(base44BridgeConfig(ok)).not.toBeNull();
   });
+  test("approved Save my spot sender keeps its delivery guards", () => {
+    const h = src("src/lib/hot-leads-send.server.ts");
+    for (const g of ["await realSendingOn()", "hasCurrentOwnerContactConsent", "customer_email_optouts", "Idempotency-Key", "groupBInvitationBlocker", "noSizeEstimateBlocker", "initialReplyWindowOk", "discountIsWholeVeecs", "if (optError || responseError || linkError || estimateError)"]) expect(h).toContain(g);
+  });
   test("Resend only in the allowlisted test sender", () => {
-    for (const f of walk("src")) if (/\.(ts|tsx)$/.test(f) && !f.endsWith("lib/test-send.server.ts") && !f.endsWith("lib/office-email.server.ts") /* Jo 7 Oct: manual office emails really send */) expect(src(f)).not.toMatch(/from ["']resend["']|api\.resend\.com|RESEND_API_KEY|new Resend\(/);
+    for (const f of walk("src")) if (/\.(ts|tsx)$/.test(f) && !f.endsWith("lib/test-send.server.ts") && !f.endsWith("lib/office-email.server.ts") /* Jo 7 Oct: manual office emails really send */ && !f.endsWith("lib/hot-leads-send.server.ts") /* Jo 8 Oct: approved Save my spot sender, guarded below */) expect(src(f)).not.toMatch(/from ["']resend["']|api\.resend\.com|RESEND_API_KEY|new Resend\(/);
   });
 });
 
