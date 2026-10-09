@@ -116,7 +116,7 @@ export async function loadOperationsPreview(admin: SupabaseClient<Database>) {
     control('Customer messages',c?.customer_comms_enabled,'Global permission only; consent and sending rules still apply.'),
     control('Customer delivery adapter',delivery.data?.enabled,'Setting only; connection health not tested.'),
     control('Save my spot',c && delivery.data ? SAVE_SPOT_REAL_SEND_APPROVED && c.customer_comms_enabled && delivery.data.enabled : null,'Approved path; global controls, estimate, consent, coverage and duplicate guards still apply.'),
-    {label:'Insulation-details email',state:c && delivery.data ? sendingControlState(INSULATION_DETAILS_REAL_SEND_APPROVED,c.customer_comms_enabled,delivery.data.enabled) : 'Unknown',detail:'Requires final approval, global customer messages permission and delivery adapter permission.'},
+    {label:'Insulation-details email',state:c && delivery.data ? sendingControlState(INSULATION_DETAILS_REAL_SEND_APPROVED,c.customer_comms_enabled,delivery.data.enabled) : 'Unknown',detail:'Approved by Jo 9 Oct; still needs global customer messages permission and delivery adapter permission.'},
     control('Quotes',c?c.auto_send_quote&&c.customer_comms_enabled:null,'Requires release rules and customer messages permission.'),
     control('Mitti',c?.auto_send_mitti,'Setting only; forms and connection not tested.'),
     control('Installer offers',c?c.auto_send_installer&&!officePicks(c.offer_dispatch_mode,null):null,'Office-picks mode or disabled switch pauses automatic offers.'),
