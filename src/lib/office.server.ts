@@ -123,6 +123,8 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
   const paid = new Set(inv.filter((v) => v["deposit_cleared"]).map((v) => String(v["job_id"])));
   const pie = new Map(piesa.map((p) => [String(p["job_id"]), p]));
   const rcSub = new Map<string, string>(); for (const r of rcs) latest(rcSub, String(r["job_id"]), s(r["submitted_at"]));
+  const meas = ids.length ? await all("measure-ups", (a, b) => scope(admin.from("ceiling_measurements").select("job_id, created_at").eq("is_current", true)).range(a, b)) : [];
+  const measAt = new Map<string, string>(); for (const r of meas) { const k = String(r["job_id"]), v = String(r["created_at"]); if (!measAt.has(k) || v < measAt.get(k)!) measAt.set(k, v); }
   const evMissing = by(ev, () => 1);
   const veecAt = new Map<string, string>(); for (const v of veec) if (v["submitted_date"]) latest(veecAt, String(v["job_id"]), s(v["submitted_date"]));
   const payoutPaid = new Set(payoutEv.map((p) => String(p["job_id"])));
@@ -170,7 +172,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
       id, stage, createdAt: String(j["created_at"]), lastActivityAt: s(j["last_activity_at"]), enteredStageAt: entered.get(`${id}:${stage}`) ?? null,
       holdRevisitAt: s(j["hold_revisit_at"]), cancelledReason: s(j["cancelled_reason"]),
       campaign: c ? { spotSavedAt: s(c["spot_saved_at"]), optedOutAt: s(c["opted_out_at"]), videoRequested: !!c["video_requested"], mediaReceivedAt: s(c["media_received_at"]), deskCheckStatus: s(c["desk_check_status"]), createdAt: String(c["created_at"]), queuePriority: s(c["queue_priority"]) } : null,
-      estimateSentAt: estLink.get(id) ?? null, ownerContactedAt: contacted.get(id) ?? null, rcWindowsOpen: winOpen.get(id)?.length ?? 0, rcAccepted: accepted.has(id), rcOfferAt: offerAt.get(`${id}:rc`) ?? null, rcBookingAt: bookAt.get(`${id}:ready_check`) ?? null, rcSubmittedAt: rcSub.get(id) ?? null,
+      estimateSentAt: estLink.get(id) ?? null, ownerContactedAt: contacted.get(id) ?? null, rcWindowsOpen: winOpen.get(id)?.length ?? 0, rcAccepted: accepted.has(id), rcOfferAt: offerAt.get(`${id}:rc`) ?? null, rcBookingAt: bookAt.get(`${id}:ready_check`) ?? null, rcSubmittedAt: rcSub.get(id) ?? null, measurementStartedAt: measAt.get(id) ?? null,
       proposalPending: proposal.get(id) ?? null,
       quote: q ? { releaseState: s(q["release_state"]), holdReason: s(q["release_hold_reason"]), sentAt: s(q["sent_at"]), status: String(q["status"]), acceptedAt: s(q["accepted_at"]) } : null,
       rectQuote: rq ? { releaseState: s(rq["release_state"]), sentAt: s(rq["sent_at"]), status: String(rq["status"]) } : null,

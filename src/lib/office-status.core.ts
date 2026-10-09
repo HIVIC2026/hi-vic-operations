@@ -182,9 +182,8 @@ export function officeStatus(f: JobFacts, now: number, lim: Record<string, numbe
       // The stage alone never proves a booking: without a real Ready Check booking, classify as not yet scheduled.
       if (!f.rcBookingAt) return officeStatus({ ...f, stage: "ready_check_ready_to_schedule" }, now, lim);
       if (f.measurementStartedAt) return pick("ready_check.onsite_started", f.measurementStartedAt, { detail: `Booked ${f.rcBookingAt.slice(0, 10)}` });
+      return pick("ready_check.booked", f.enteredStageAt, { due: f.rcBookingAt ? new Date(new Date(f.rcBookingAt).getTime() + DAY).toISOString() : null, detail: f.rcBookingAt ? `Booked ${f.rcBookingAt.slice(0, 10)}` : null });
     }
-    // falls through
-    case "ready_check_booked_legacy": return pick("ready_check.booked", f.enteredStageAt, { due: f.rcBookingAt ? new Date(new Date(f.rcBookingAt).getTime() + DAY).toISOString() : null, detail: f.rcBookingAt ? `Booked ${f.rcBookingAt.slice(0, 10)}` : null });
     case "ready_check_complete": return f.rcSubmittedAt ? pick("ready_check.evidence_in", f.rcSubmittedAt) : pick("ready_check.done", f.enteredStageAt);
     case "assessment_complete": case "measured_estimate_ready": case "ready_for_installer_quotes": case "awaiting_quote_acceptance": {
       const q = f.quote;
