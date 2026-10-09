@@ -1,4 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Partner agreement Guide V1.2 corrections (Jo, 9 Oct 20:13 UTC)
+- [ ] Update installer/REC clauses, incorporated versioned compliance schedule, versions and signing acknowledgements; validate full generated texts with isolated non-database tests. Preserve fees/warranties/signed history; no DB tests/writes, sends or publication.
 ## Narrow installer warranty correction (Jo, 9 Oct 20:05 UTC; supersedes 20:00)
 - [x] Restored twelve-month workmanship cover and separate minimum five-year product defects warranty under table 48-3 with written product details/Australian contact; signing version v1.17 → v1.18 and linked summaries aligned. 68 focused tests / 282 assertions passed, including isolated PGlite signing/history checks; automatic build OK. Previously activatable versions retained. No workflow/reacceptance development, production writes, notices or publication.
 ## Existing-insulation Save your spot follow-up (Jo 8 Oct 23:11 UTC)
