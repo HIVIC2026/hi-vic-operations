@@ -54,14 +54,13 @@ import { InstallerIntakeReviewPanel, InstallerQuoteDraftPanel } from "@/componen
 import { AdminVisitHistory } from "@/components/portal/visit-changes";
 import { OfficeJobProfitCard } from "@/components/portal/job-profit";
 import { melbourneToday } from "@/lib/melbourne-time.core";
+import { JobDeleteControls } from "@/components/portal/JobDeleteControls";
 
 export const Route = createFileRoute("/_authenticated/admin/jobs/$jobId")({
   head: () => ({ meta: [{ title: "Job – Home Insulation Victoria Portal" }, { name: "description", content: "Job detail and workflow." }, { property: "og:title", content: "Job – Home Insulation Victoria Portal" }, { property: "og:description", content: "Job detail and workflow." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   validateSearch: (s: Record<string, unknown>): { section?: RecordGroup } => { const v = parseJobSection(s['section']); return v ? { section: v } : {}; },
   component: JobDetail,
 });
-import { JobDeleteControls } from "@/components/portal/JobDeleteControls";
-
 function JobDetail() {
   const { jobId } = Route.useParams();
   const { data: job, error, refetch } = useJob(jobId);
