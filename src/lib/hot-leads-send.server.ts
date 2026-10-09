@@ -4,7 +4,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { LAUNCH_CAMPAIGN, LAUNCH_COPY_APPROVED, launchGroup, savedPriceFromEstimate } from "./launch-campaign.core";
 import { renderLaunchCampaignEmail } from "./estimate-email";
 import { renderStep3Likely, renderStep3SaveSpot } from "./step3-emails";
-import { noSizeEstimateBlocker, initialReplyWindowOk } from "./no-size-estimate.core";
+import { noSizeEstimateBlocker, initialReplyQualifies, NO_SIZE_REAL_SEND_HELD } from "./no-size-estimate.core";
 import { CUSTOMER_BASE } from "./engagement.core";
 import { reservationAllowed, withUnsubscribe } from "./emailsafety.core";
 import { groupBMediaForJob } from "./group-b-media.server";
@@ -83,13 +83,9 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   if (!price || !price.areaM2) return r("skipped", "No current preliminary price.");
   const assumed = est?.area_source === "typical_default";
   if (assumed) {
-    // The caller flag alone never qualifies: a real send must also be a NEW enquiry whose initial intake just completed.
-    let automaticInitial = isTest || mode !== "send";
-    if (!automaticInitial && testOpts.automaticInitial === true) {
-      const { data: intake, error: intakeError } = await admin.from("post_intake_work").select("status, completed_at").eq("job_id", jobId).order("completed_at", { ascending: false, nullsFirst: false }).limit(1).maybeSingle();
-      if (intakeError) return r("blocked", "Could not verify the initial enquiry. Try again; nothing sent.");
-      automaticInitial = initialReplyWindowOk({ jobCreatedAt: job.created_at, intakeStatus: intake?.status ?? null, intakeCompletedAt: intake?.completed_at ?? null, now: new Date() });
-    }
+    // Real typical-size sends are held (no proven original-enquiry claim); previews and TEST records still render.
+    const automaticInitial = isTest || mode !== "send" ? true : initialReplyQualifies({ originalInitialClaim: null });
+    if (!automaticInitial && testOpts.automaticInitial === true) return r("skipped", NO_SIZE_REAL_SEND_HELD);
     const b = noSizeEstimateBlocker({ areaSource: est?.area_source ?? null, areaM2: price.areaM2, ownerArea: job.estimated_area_unknown ? null : Number(job.estimated_area_m2) || null, insulation: price.insulation, followup, automaticInitial });
     if (b) return r("skipped", b);
   }
@@ -199,6 +195,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     const blocker = groupBInvitationBlocker(await groupBMediaForJob(jobId));
     if (blocker) { await finish("failed", "not_sent", blocker); return r("blocked", blocker); }
   }
+  { const { jobDeletedBlocker } = await import("./job-live.server"); const del = await jobDeletedBlocker(jobId); if (del) { await finish("failed", "not_sent", del); return r("blocked", del); } }
   try {
     if (isTest) {
       const { sendTestEmail } = await import("./test-send.server");

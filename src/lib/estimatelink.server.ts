@@ -49,6 +49,7 @@ export async function resolvePublicEstimate(token: unknown, assessmentTestMode =
   if (!isWellFormedToken(token)) return null;
   const { data: l } = await admin.from("customer_estimate_links").select("id, job_id, status, expires_at, view_count").eq("token", token).eq("purpose", LINK_PURPOSE).maybeSingle();
   if (!l || !linkUsable(l)) return null;
+  { const { jobDeletedBlocker } = await import("./job-live.server"); if (await jobDeletedBlocker(l.job_id)) return null; }
   const view = await refreshIndicativeEstimate(l.job_id);
   if (!linkAllowed(view.mode)) { await revokeActive(l.job_id, `Gate 1 no longer permits a customer estimate (${view.mode})`); return null; }
   const cv = customerView(view);

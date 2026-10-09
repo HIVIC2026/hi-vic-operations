@@ -279,7 +279,7 @@ export async function confirmHivicReadyCheckPricing(jobId: string, userId: strin
 /** Money rows: own pay only. Paid = office marked paid; Coming = 7 days after AP approval; else Being checked. */
 async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean) {
   const mine = kind === "installer" ? ["ready_check", "installation"] : ["assessment", "rectification"];
-  const { data: books } = await admin.from("bookings").select("job_id, kind, scheduled_start, status, jobs!inner(job_number, source, channel, stage, electrician_choice, owners(full_name), properties(suburb))").eq("business_id", bizId).eq("status", "completed").in("kind", mine as never).order("scheduled_start", { ascending: false });
+  const { data: books } = await admin.from("bookings").select("job_id, kind, scheduled_start, status, jobs!inner(deleted_at, job_number, source, channel, stage, electrician_choice, owners(full_name), properties(suburb))").is("jobs.deleted_at", null).eq("business_id", bizId).eq("status", "completed").in("kind", mine as never).order("scheduled_start", { ascending: false });
   const rows = (books ?? []).filter((b) => b.kind !== "ready_check" && (!testOnly || (b.jobs as { source: string }).source === "qa_test"));
   const ids = [...new Set(rows.map((r) => r.job_id))];
   const none = ["00000000-0000-0000-0000-000000000000"];

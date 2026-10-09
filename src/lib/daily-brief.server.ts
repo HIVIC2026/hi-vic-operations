@@ -12,7 +12,7 @@ async function sha256Hex(s: string) {
 /** Timer: queue the 24h and 2h reminder to the owner and the trade for every booked visit. Never sends. */
 export async function sweepVisitReminders(now = new Date()) {
   const n = now.getTime();
-  const { data, error } = await admin.from("bookings").select("id, job_id, kind, scheduled_start, assignment_id, jobs!inner(source, stage)")
+  const { data, error } = await admin.from("bookings").select("id, job_id, kind, scheduled_start, assignment_id, jobs!inner(deleted_at, source, stage)").is("jobs.deleted_at", null)
     .eq("status", "confirmed").gt("scheduled_start", now.toISOString()).lte("scheduled_start", new Date(n + 24 * 3_600_000).toISOString());
   if (error) throw new Error(error.message);
   let queued = 0;
@@ -53,10 +53,10 @@ export async function collectBrief(date: string, now = new Date()) {
     admin.from("jobs").select("id, job_number, stage, source"),
     admin.from("job_piesa_deadlines").select("job_id, install_deadline, days_remaining, piesa_expired").eq("piesa_expired", false).lte("days_remaining", 7),
     admin.from("esc_notifications").select("job_id, due_by").is("sent_at", null).not("status", "in", "(stale,cancelled)").not("due_by", "is", null).lte("due_by", week),
-    admin.from("bookings").select("job_id, scheduled_start").eq("kind", "installation").eq("status", "confirmed").gt("scheduled_start", now.toISOString()).lte("scheduled_start", week),
+    admin.from("bookings").select("job_id, scheduled_start, jobs!inner(deleted_at)").is("jobs.deleted_at", null).eq("kind", "installation").eq("status", "confirmed").gt("scheduled_start", now.toISOString()).lte("scheduled_start", week),
     admin.from("pre_start_checks").select("job_id, scheduled_start, passed, checked_at").gte("scheduled_start", now.toISOString()),
     admin.from("jobs").select("id", { count: "exact", head: true }).neq("source", "qa_test").gte("created_at", y.from).lt("created_at", y.to),
-    admin.from("bookings").select("job_id, jobs!inner(source)").in("status", ["confirmed", "completed"]).gte("created_at", y.from).lt("created_at", y.to),
+    admin.from("bookings").select("job_id, jobs!inner(deleted_at, source)").is("jobs.deleted_at", null).in("status", ["confirmed", "completed"]).gte("created_at", y.from).lt("created_at", y.to),
     admin.from("jobs").select("id", { count: "exact", head: true }).neq("source", "qa_test").gte("installation_completed_at", y.from).lt("installation_completed_at", y.to),
     admin.from("veec_lodgements").select("job_id").eq("submitted_date", y.day),
     admin.from("veec_lodgements").select("job_id").eq("status", "approved").gte("updated_at", y.from).lt("updated_at", y.to),

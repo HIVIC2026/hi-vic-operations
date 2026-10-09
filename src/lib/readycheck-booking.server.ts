@@ -99,7 +99,7 @@ export async function installerCandidatesFor(jobId: string) {
     admin.from("partner_workers").select("id, business_id, email, trade_role, piisa_status, piisa_certificate_path, piisa_verified_at").eq("trade_role", "installer").eq("approval_status", "approved").is("removed_at", null).in("business_id", inIds),
     admin.from("partner_offers").select("business_id, status, offered_at, responded_at").eq("kind", "ready_check").gte("offered_at", since).in("business_id", inIds),
     windows.length
-      ? admin.from("bookings").select("business_id, scheduled_start, scheduled_end, jobs(properties(postcode))").eq("status", "confirmed").in("business_id", inIds)
+      ? admin.from("bookings").select("business_id, scheduled_start, scheduled_end, jobs!inner(deleted_at, properties(postcode))").is("jobs.deleted_at", null).eq("status", "confirmed").in("business_id", inIds)
           .gte("scheduled_start", new Date(Math.min(...windows.map((x) => x.s)) - 86_400_000).toISOString())
           .lte("scheduled_start", new Date(Math.max(...windows.map((x) => x.e)) + 86_400_000).toISOString())
       : Promise.resolve({ data: [] as { business_id: string | null; scheduled_start: string; scheduled_end: string | null; jobs: unknown }[] }),

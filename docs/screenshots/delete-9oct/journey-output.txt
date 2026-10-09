@@ -1,0 +1,13 @@
+Skipping host requirements validation logic because `PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS` env variable is set.
+Skipping host requirements validation logic because `PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS` env variable is set.
+FAILCASE empty reason -> confirm disabled: True
+FAILCASE 2-char reason -> confirm disabled: True
+PASS delete persisted after reload
+pipeline list rows HV-2111 while deleted: 0
+PASS listed on Deleted jobs page
+FAILCASE restore empty reason -> confirm disabled: True
+PASS restore persisted (not listed): True
+PASS 3 options visible
+current after reload: Does Not Appear Eligible
+PASS phone row gone after reload: True
+phone restore done

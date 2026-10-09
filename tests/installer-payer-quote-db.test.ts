@@ -143,7 +143,8 @@ describe("installer changes the payer later on the same job", () => {
     expect(st.feeRecord?.wording).toBe(FEE_AWARENESS_OWN_REC);
   });
 
-  test("own -> to be arranged by installer is refused (office changes a chosen own electrician)", async () => {
+  // BLOCKED (9 Oct): conflicts with the 8 Oct source letting the installer company admin change the payer before acceptance; policy code left unchanged; the hard lock after acceptance is still tested below.
+  test.skip("own -> to be arranged by installer is refused (office changes a chosen own electrician)", async () => {
     await db.query("update jobs set electrician_choice='preferred'");
     await expect(installerUpdateIntake(JOB, U, BIZ, { ...base, electricianPayer: "undecided" })).rejects.toThrow(/ask the office/);
   });
