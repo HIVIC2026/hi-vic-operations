@@ -77,6 +77,8 @@ export async function sendRealSms(input: RealSmsInput): Promise<RealSmsResult> {
   if (error || !row) return { status: "already", detail: "Already handled for this key – not sent again", sid: null };
   if (blocked) { await logJob(input, to ?? String(input.to ?? ""), "blocked", blocked); return { status: "blocked", detail: blocked, sid: null }; }
 
+  { const { jobDeletedBlocker } = await import("./job-live.server"); const del = await jobDeletedBlocker(input.jobId ?? null);
+    if (del) { await db.from("sms_messages").update({ status: "blocked", detail: del }).eq("id", row.id); await logJob(input, to ?? String(input.to ?? ""), "blocked", del); return { status: "blocked", detail: del, sid: null }; } }
   const hook = process.env["SMS_WEBHOOK_TOKEN"];
   const { au1Configured, au1SendMessage } = await import("./twilio-au1.server");
   let r: RealSmsResult;

@@ -1037,6 +1037,13 @@
       "when": 1791507081712,
       "tag": "0147_job_soft_delete",
       "breakpoints": true
+    },
+    {
+      "idx": 148,
+      "version": "7",
+      "when": 1791508252005,
+      "tag": "0148_job_soft_delete_claims",
+      "breakpoints": true
     }
   ]
 }

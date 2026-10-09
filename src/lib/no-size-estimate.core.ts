@@ -12,13 +12,8 @@ export function noSizeEstimateBlocker(x: { areaSource: string | null; areaM2: nu
   return null;
 }
 
-/** Window for the owner's own first reply: the enquiry is at most 7 days old and its initial intake
- *  completed within the last 24 hours. Old jobs, re-runs and lists never qualify. */
-export const INITIAL_REPLY_MAX_JOB_AGE_MS = 7 * 24 * 3600_000;
-export const INITIAL_REPLY_MAX_INTAKE_AGE_MS = 24 * 3600_000;
-export function initialReplyWindowOk(x: { jobCreatedAt: string | null; intakeStatus: string | null; intakeCompletedAt: string | null; now: Date }): boolean {
-  if (x.intakeStatus !== "complete" || !x.jobCreatedAt || !x.intakeCompletedAt) return false;
-  const now = x.now.getTime(), created = Date.parse(x.jobCreatedAt), done = Date.parse(x.intakeCompletedAt);
-  if (!Number.isFinite(created) || !Number.isFinite(done) || done > now + 60_000) return false;
-  return now - created <= INITIAL_REPLY_MAX_JOB_AGE_MS && now - done <= INITIAL_REPLY_MAX_INTAKE_AGE_MS;
-}
+/** Real typical-150 m² first replies are HELD: no durable, once-only "original initial enquiry" claim exists yet,
+ *  and the website enquiry contract does not currently send a missing size. Age windows were never approved and
+ *  cannot tell a new enquiry from a re-run backlog job, so nothing real qualifies until that claim is built. */
+export const NO_SIZE_REAL_SEND_HELD = "Typical-size first reply is on hold until the original enquiry can be proven new; nothing sent.";
+export function initialReplyQualifies(_x: { originalInitialClaim: null }): boolean { return false; }
