@@ -15,7 +15,7 @@ describe("office record presentation", () => {
   });
   test("queued, recorded and unknown are never called delivered", () => {
     expect(communicationStatusLabel({ status: "queued", at: null })).toBe("Waiting to send — not sent");
-    expect(communicationStatusLabel({ status: "recorded", at: "2026-10-01T00:00:00Z" })).toBe("Logged only — not sent");
+    expect(communicationStatusLabel({ status: "recorded", at: "2026-10-01T00:00:00Z" })).toBe("Recorded — send not confirmed");
     expect(communicationStatusLabel({ status: "weird", at: null })).toBe("Status unavailable");
   });
   test("plain message names, no internal codes", () => {
