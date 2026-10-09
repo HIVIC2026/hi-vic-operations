@@ -124,10 +124,19 @@ add({ area: "emails (isolated)", route_or_action: "audience/price/routing/remova
 const sc = sh(["bun", "scripts/scan-retired-terms.ts"]);
 add({ area: "wording", route_or_action: "retired-term scan", persona: "-", status: sc.status === 0 ? "passed" : "failed", detail: sc.status === 0 ? "no customer-visible retired terms" : (sc.stdout + sc.stderr).slice(-400), steps: "bun scripts/scan-retired-terms.ts" });
 
+// ---- office delete / restore / classification on ONE qa_test job + denied roles (snapshot restore) ----
+{
+  const ow = sh(["bun", "scripts/qa-office-writes.ts", "--base", BASE, "--out", `${OUT}/office-writes`], 480_000);
+  writeFileSync(`${OUT}/office-writes.log`, `${ow.stdout}\n${ow.stderr}`);
+  const f = `${OUT}/office-writes/office-writes.json`;
+  if (!existsSync(f)) add({ area: "office writes", route_or_action: "qa-office-writes", persona: "office", status: "failed", detail: `harness produced no results (exit ${ow.status})`, steps: "bun scripts/qa-office-writes.ts" });
+  else for (const r of JSON.parse(readFileSync(f, "utf8")) as Result[]) add(r);
+}
+
 // ---- honest coverage gaps (never PASS) ----
 for (const [a, why] of [
   ["electrician/REC onboarding click-through (sign, rates, insurance)", "no TEST-scoped writable REC onboarding journey harness yet"],
-  ["office write actions (approve, send back, Save my spot send button)", "office writes touch shared records; needs dedicated TEST office scope"],
+  ["office write actions (approve, send back, Save my spot send button)", "office writes touch shared records; needs dedicated TEST office scope (delete/restore/classification covered above)"],
   ["owner signing / booking / payment choice", "no TEST owner signing harness with restore"],
   ["installer onboarding signing + approval", "excluded in --installer-app-only; run `bun run installer-test --runs 3` deliberately"],
 ]) add({ area: "coverage", route_or_action: a, persona: "-", status: "not_run", detail: why, steps: "" });
