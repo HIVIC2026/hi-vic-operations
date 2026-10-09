@@ -69,6 +69,7 @@ export const enquirySchema = z.object({
     mime_type: z.string().trim().max(100),
     signed_url: z.string().trim().url().max(4000).refine((u) => u.startsWith("https://"), "https only"),
   })).max(10).optional().nullable(),
+  media_manifest_complete: z.boolean().optional().nullable(),
 });
 export type EnquiryInput = z.infer<typeof enquirySchema>;
 

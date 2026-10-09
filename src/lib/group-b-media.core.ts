@@ -32,6 +32,9 @@ export function originalEnquiryMedia(raw: unknown, documents: EnquiryMediaDocume
   const paths = new Set(persisted.map((d) => d.storage_path));
   const imported = new Set(persisted.filter((d) => d.source_system === "base44").map((d) => d.external_id).filter((id): id is string => !!id));
   const pending = [...refs].filter((id) => !imported.has(id));
+  const v = record(snapshot?.['original_media_verification']);
+  // An empty list proves absence only with an explicit complete original manifest.
+  if (known && refs.size === 0 && v?.['complete'] !== true) uncertain = true;
   uncertain ||= !known;
   const count = paths.size + pending.length;
   return { excluded: count > 0 || uncertain, received: count > 0, uncertain, pendingSync: pending.length > 0, count };

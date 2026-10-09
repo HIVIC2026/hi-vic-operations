@@ -151,6 +151,8 @@ export function buildBase44Evidence(i: Base44EvidenceInput, now: Date = new Date
 
 export type Base44Snapshots = {
   media?: readonly Base44Media[] | null | undefined;
+  /** Base44 asserts the media list is the complete original upload list. Absent = unknown. */
+  media_manifest_complete?: boolean | null | undefined;
   state?: string | null | undefined;
   base44_answers?: Record<string, unknown> | null | undefined;
   base44_screening?: Record<string, unknown> | null | undefined;
@@ -167,6 +169,7 @@ export function buildBase44Raw(i: Base44Snapshots) {
     answers: i.base44_answers ?? null,
     // Preserve original attachment identities before copying, without expiring URLs.
     ...(Array.isArray(i.media) ? { media: i.media.map(({ source_id, name, mime_type }) => ({ source_id, name, mime_type })) } : {}),
+    ...(Array.isArray(i.media) && i.media_manifest_complete === true ? { original_media_verification: { basis: "signed_base44_intake", complete: true, media_count: i.media.length } } : {}),
     screening: i.base44_screening ?? null,
     ai_observations: i.base44_ai_observations ?? null,
     research_raw: i.property_research_raw ?? null,
@@ -189,7 +192,8 @@ export function retainOriginalMedia(previous: unknown, current: ReturnType<typeo
     if (old && key in old) originalReferences[key] = old[key];
     if (key in oldAnswers) answerReferences[key] = oldAnswers[key];
   }
-  return { ...originalReferences, ...current, answers: { ...answerReferences, ...(current.answers ?? {}) }, ...(prior.length || Array.isArray(current.media) || Array.isArray(old?.['media']) ? { media } : {}), ...(uncertain ? { original_media_manifest_uncertain: true } : {}) };
+  const priorVerification = old?.['original_media_verification'];
+  return { ...originalReferences, ...current, ...(priorVerification ? { original_media_verification: priorVerification } : {}), answers: { ...answerReferences, ...(current.answers ?? {}) }, ...(prior.length || Array.isArray(current.media) || Array.isArray(old?.['media']) ? { media } : {}), ...(uncertain ? { original_media_manifest_uncertain: true } : {}) };
 }
 
 /** Normalise a state code (VIC etc). Null when absent/blank. */
