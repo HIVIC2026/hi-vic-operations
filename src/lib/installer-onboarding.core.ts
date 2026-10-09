@@ -10,9 +10,10 @@ export type { ResolvedAddress };
 // 1.16 (5 Oct, single onboarding-fix version; folds in the unsigned 1.15 changes): CII lines omit blank details; vacuum-only rate dropped;
 //   payment terms: 7 days after approval (HIV-sourced) or after the later of approval and owner paid in full (installer-sourced); AP fee as recorded per installer.
 // Earlier signed versions stay immutable and remain activatable.
-// 1.17: minimum five-year workmanship and supplied-product warranties, with written completion-pack details.
-export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.17-2026-10-09";
-export const ACTIVATABLE_INSTALLER_VERSIONS: readonly string[] = ["HI-VIC-A48-INST-1.11-2026-10-03", "HI-VIC-A48-INST-1.12-2026-10-03", "HI-VIC-A48-INST-1.13-2026-10-03", "HI-VIC-A48-INST-1.14-2026-10-03", "HI-VIC-A48-INST-1.16-2026-10-05", INSTALLER_AGREEMENT_VERSION];
+// 1.18 supersedes the 1.17 warranty correction: twelve-month workmanship cover, separate minimum five-year product defects warranty,
+//   with written product details and an Australian contact for overseas warrantors; signed history remains immutable.
+export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.18-2026-10-09";
+export const ACTIVATABLE_INSTALLER_VERSIONS: readonly string[] = ["HI-VIC-A48-INST-1.11-2026-10-03", "HI-VIC-A48-INST-1.12-2026-10-03", "HI-VIC-A48-INST-1.13-2026-10-03", "HI-VIC-A48-INST-1.14-2026-10-03", "HI-VIC-A48-INST-1.16-2026-10-05", "HI-VIC-A48-INST-1.17-2026-10-09", INSTALLER_AGREEMENT_VERSION];
 export const INSTALLER_AGREEMENT_TITLE = "Activity 48 Insulation Installer Partner Agreement";
 
 export const ACKNOWLEDGEMENTS = [
