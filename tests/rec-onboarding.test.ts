@@ -148,11 +148,11 @@ describe("rec onboarding", () => {
   });
   test("agreement text includes final clauses, schedules and every acknowledgement", () => {
     const t = agreementText(full);
-    expect(t).toContain("HI-VIC-A48-REC-2.5-2026-10-05");
+    expect(t).toContain("HI-VIC-A48-REC-2.6-2026-10-09");
     expect(t).toContain("AP accreditation number: A003654");
     expect(t).toContain("public liability insurance of at least $5,000,000");
     expect(t).toContain("No separate fixed product-liability minimum is imposed");
-    expect(t).toContain("six years after the record was made or the relevant transaction was completed, whichever is later");
+    expect(t).toContain("no less than six years after the relevant VEEC registration");
     expect(t).toContain("is not the customer-facing price");
     expect(t).toContain("does not depend on Home Insulation Victoria receiving payment from the customer");
     expect(t).toContain("does not itself commence this agreement");
@@ -163,7 +163,7 @@ describe("rec onboarding", () => {
     expect(t).toContain("does not repeat the business signup or require a second invitation");
     expect(t).toContain("Pre-insulation electrical safety assessment (PIESA): $300.00 / visit");
     expect(t).toContain("1. Sam Smith — licence A123");
-    expect(ACKNOWLEDGEMENTS.length).toBe(9);
+    expect(ACKNOWLEDGEMENTS.length).toBe(10);
     for (const a of ACKNOWLEDGEMENTS) expect(t).toContain(a.text);
   });
 

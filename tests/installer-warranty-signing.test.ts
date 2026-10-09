@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { ACKNOWLEDGEMENTS, ACTIVATABLE_INSTALLER_VERSIONS, INSTALLER_AGREEMENT_VERSION, agreementText } from "../src/lib/installer-onboarding.core";
 import { performInstallerSign, signedData, type InstallerSignApp, type InstallerSignInput, type InstallerSignDeps } from "../src/lib/installer-sign.core";
 
-const previousVersion = "HI-VIC-A48-INST-1.17-2026-10-09";
+const previousVersion = "HI-VIC-A48-INST-1.18-2026-10-09";
 const app: InstallerSignApp = {
   id: "isolated-warranty-test", status: "draft", data: { works_for_business: false, agreement_reviewed: true, wants_hivic_leads: false },
   insurance_certificate_path: null, created_at: "2026-10-09T20:00:00Z", updated_at: "2026-10-09T20:00:00Z", test_mode: true, allow_incomplete_sign: true,
@@ -48,7 +48,7 @@ describe("installer warranty terms bound to prospective signatures (no hosted ca
     expect((await capturedSignature()).agreement_text).toContain("Where the warrantor is overseas, those details must include an Australian warranty contact.");
   });
   test("new signature stores the exact reviewed updated text, version and hash", async () => {
-    expect(await capturedSignature()).toMatchObject({ agreement_version: "HI-VIC-A48-INST-1.18-2026-10-09", agreement_text: text, agreement_sha256: hash(text) });
+    expect(await capturedSignature()).toMatchObject({ agreement_version: "HI-VIC-A48-INST-1.19-2026-10-09", agreement_text: text, agreement_sha256: hash(text) });
     expect(ACTIVATABLE_INSTALLER_VERSIONS).toContain(previousVersion);
     expect(ACTIVATABLE_INSTALLER_VERSIONS).toContain("HI-VIC-A48-INST-1.16-2026-10-05");
     expect(ACTIVATABLE_INSTALLER_VERSIONS).toContain("HI-VIC-A48-INST-1.13-2026-10-03");
