@@ -44,6 +44,16 @@ describe('complete applicant contracts', () => {
  });
 });
 describe('mock-only signatures and history', () => {
+  test('signed review preserves exact historic version/text; draft review uses new complete contract', () => {
+   const historic = { status: 'submitted', agreement_version: 'historic-version', agreement_text: 'Exact signed historical text' };
+   for (const view of [inst.installerAgreementView(historic, {}), rec.recAgreementView(historic, {})]) expect(view).toMatchObject({ version: 'historic-version', text: 'Exact signed historical text' });
+   expect(inst.installerAgreementView({ ...historic, status: 'draft' }, {}).version).toBe(inst.INSTALLER_AGREEMENT_VERSION);
+   expect(rec.recAgreementView({ ...historic, status: 'draft' }, {}).text).toContain(activity48AgreementScheduleText());
+   for (const status of ['submitted', 'approved']) {
+    expect(() => inst.installerAgreementView({ status }, {})).toThrow('stored signed agreement is incomplete');
+    expect(() => rec.recAgreementView({ status }, {})).toThrow('stored signed agreement is incomplete');
+   }
+  });
  test('both signatures bind complete text, schedule, version, hash and acknowledgement', async () => {
   let is: Record<string, unknown> | undefined, rs: Record<string, unknown> | undefined;
   await performInstallerSign(ia, ii, { ip: null, userAgent: null }, { sha256: async s => hash(s), signAtomic: async a => { is = a.signed; return { outcome: 'signed', partner_enquiry_id: 'sample', signed_at: date }; } });
