@@ -8,7 +8,7 @@ function mock(rows: Record<string, unknown[]> = {}, settings: Record<string, unk
   const client={from(table:string) {
     const call:Call={table,methods:[]}; calls.push(call);
     const q: Record<string, unknown>={};
-    for(const name of ['select','eq','neq','or','in','not','order','range','maybeSingle']) q[name]=(...args:unknown[])=>{call.methods.push({name,args});return q;};
+    for(const name of ['select','eq','neq','or','in','not','is','order','range','maybeSingle']) q[name]=(...args:unknown[])=>{call.methods.push({name,args});return q;};
     q.then=(resolve:(v:unknown)=>unknown)=>{
       let data:unknown=rows[table]??[];
       if(table==='workflow_settings')data=settings;
