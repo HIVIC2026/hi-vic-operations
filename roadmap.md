@@ -1,4 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Life-support agreement correction (Jo, 9 Oct 20:21 UTC)
+- [ ] Correct life-support documents to written consent OR a medical plan in current unsigned agreements/schedule; retain conditional applicability, pre-PIESA timing, attachment and installer receipt. Focused checks only; no DB actions, sends or publication.
 ## Partner agreement Guide V1.2 corrections (Jo, 9 Oct 20:13 UTC)
 - [x] Updated installer/REC clauses, incorporated versioned compliance schedule, versions and signing acknowledgements; 78 isolated non-database tests / 449 assertions passed, automatic build OK. Signed review uses stored text/version and historic PDFs remain stored-text only. Preserved fees/warranties/history; no DB tests/writes, sends or publication.
 ## Narrow installer warranty correction (Jo, 9 Oct 20:05 UTC; supersedes 20:00)
