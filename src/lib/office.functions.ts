@@ -238,3 +238,14 @@ export const getJobDeleteState = createServerFn({ method: "GET" }).middleware([r
     if (error || !j) throw new Error("Job delete state could not be loaded");
     return { deletedAt: j.deleted_at, reason: j.deleted_reason };
   });
+
+/** Board columns (Jo 9 Oct): the facts-based office stage for every job, so no job sits in Ready Check without real Ready Check facts. */
+export const getBoardStages = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => testFlag.parse(d ?? {}))
+  .handler(async ({ context, data }) => {
+    await requireAdmin(context.supabase);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { loadOffice } = await import("./office.server");
+    const o = await loadOffice(supabaseAdmin, { includeTest: data.includeTest ?? false });
+    return Object.fromEntries(o.jobs.map((j) => [j.id, j.status?.stage ?? null])) as Record<string, string | null>;
+  });

@@ -83,8 +83,8 @@ export function supplementalEligibilityLabel(input: {
   return label === authoritativeLabel ? null : label;
 }
 
-export function filterVisibleJobs<T extends { stage?: S | null }, S extends string>(jobs: T[], phase: string, phaseFor: (stage: S | null | undefined) => string): T[] {
-  return phase === "all" ? jobs : jobs.filter((job) => phaseFor(job.stage) === phase);
+export function filterVisibleJobs<T extends { stage?: S | null }, S extends string>(jobs: T[], phase: string, phaseFor: (stage: S | null | undefined, job: T) => string | null): T[] {
+  return phase === "all" ? jobs : jobs.filter((job) => phaseFor(job.stage, job) === phase);
 }
 /** Trade job page (Jo, 7 Oct): office blocker wording → one plain line per kind of wait. Labels only; never decides anything. */
 export function tradeBlockerLines(blockers: string[]): string[] {
