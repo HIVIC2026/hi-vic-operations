@@ -11,7 +11,7 @@
 import { writeFileSync, readFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { toJSONAsync, fromJSON } from "seroval";
+import { toJSONAsync, fromCrossJSON } from "seroval";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 
 const arg = (k: string, d: string) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1]! : d; };
@@ -98,7 +98,7 @@ async function callFn(id: string, token: string, data: unknown, method: "GET" | 
     : await fetch(`${BASE}/_serverFn/${id}`, { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: payload, signal: ctl });
   const text = await res.text();
   let value: { result?: unknown; error?: unknown } | null = null;
-  try { value = fromJSON(JSON.parse(text)) as typeof value; } catch { /* error payloads use custom tags */ }
+  try { value = fromCrossJSON(JSON.parse(text), { refs: new Map() }) as typeof value; } catch { /* error payloads use custom tags */ }
   return { status: res.status, text: text.slice(0, 600), value };
 }
 const OFFICE_FN = "src/lib/office.functions.ts";
