@@ -25,9 +25,9 @@ test('loader uses SELECT only, retains null sources and bounds every child by sc
   expect(result.rows).toHaveLength(1);expect(result.totals['Needs classification']).toBe(1);
   const jobs=calls.find(c=>c.table==='jobs');
   expect(jobs?.methods).toContainEqual({name:'eq',args:['business_unit','hivic']});
-  expect(jobs?.methods).toContainEqual({name:'or',args:['source.is.null,source.neq.qa_test']});
+  expect(jobs?.methods).toContainEqual({name:'or',args:['source.is.null,source.neq.qa_test']}); expect(jobs?.methods).toContainEqual({name:'is',args:['deleted_at',null]});
   for(const c of calls){
-    expect(c.methods.every(m=>['select','eq','neq','or','in','not','order','range','maybeSingle'].includes(m.name))).toBe(true);
+    expect(c.methods.every(m=>['select','eq','neq','or','in','not','is','order','range','maybeSingle'].includes(m.name))).toBe(true);
     if(!['jobs','workflow_settings','customer_delivery_settings','businesses'].includes(c.table)) expect(c.methods).toContainEqual({name:'in',args:['job_id',['test-job']]});
   }
   expect(result.controls.find(c=>c.label==='Insulation-details email')?.state).toBe('Paused');
