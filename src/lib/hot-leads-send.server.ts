@@ -15,7 +15,7 @@ import { removalFromScenario } from "./estimate-removal.core";
 export const HOT_SEND_BATCH = 10;
 /** Last TEST send detail per job (Resend id), for reporting. */
 export const testSendIds = new Map<string, string>();
-export type HotSendResult = { jobId: string; jobNumber: string | null; outcome: "sent" | "skipped" | "blocked" | "failed"; detail: string; preview?: { to: string; subject: string; html: string } };
+export type HotSendResult = { jobId: string; jobNumber: string | null; outcome: "sent" | "skipped" | "blocked" | "failed"; detail: string; preview?: { to: string; subject: string; html: string }; linkJobId?: string; linkToken?: string; sendGroup?: string };
 
 /** Real customers: ONLY this Save my spot campaign, approved by Jo (8 Oct 2026). The global customer
  *  comms switch stays off, so every other customer email remains blocked. Contact consent is still checked per lead. */
@@ -27,7 +27,7 @@ void LAUNCH_COPY_APPROVED;
 
 /** TEST-only overrides (qa_test jobs): link host and group. Ignored for real jobs.
  *  mode "preview" renders without sending; "test_to_jo" sends a real lead's email to Jo's inbox only, with TEST-job links. */
-export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string; /** TEST only: send the Step 3 likely-eligible email instead, same facts. */ variant?: "likely_estimate"; mode?: "send" | "preview" | "test_to_jo"; automaticInsulation?: boolean; /** Set only by the post-Gate-1 router: the owner's own first reply. */ automaticInitial?: boolean };
+export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string; /** TEST only: send the Step 3 likely-eligible email instead, same facts. */ variant?: "likely_estimate"; mode?: "send" | "preview" | "test_to_jo" | "test_preview"; automaticInsulation?: boolean; /** Set only by the post-Gate-1 router: the owner's own first reply. */ automaticInitial?: boolean };
 /** Jo's own inbox for "send me a test of this lead". */
 export const JO_TEST_INBOX = "jolowexo@hotmail.com";
 /** TEST job whose links go into Jo's test copies, so pressing them never touches the real lead. */
@@ -126,12 +126,14 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
 
   // Jo's test copy of a real lead: real wording/facts, but every link points at a TEST job.
   let linkJobId = jobId, linkToken = link.token;
-  if (mode === "test_to_jo" && sendGroup === "onsite") {
+  // "test_preview" prepares exactly the same TEST links as "test_to_jo" but renders only: no provider call.
+  const testCopy = mode === "test_to_jo" || mode === "test_preview";
+  if (testCopy && sendGroup === "onsite") {
     // Group B test copies must open a Group B TEST homeowner who has not answered yet. HV-1609 is a likely-eligible
     // TEST job with a saved spot, so its links skipped the four insulation choices and showed "Spot saved".
     try { const f = await (await import("./group-b-test-fixture.server")).createGroupBTestLink(JO_TEST_LINK_JOB); linkJobId = f.jobId; linkToken = f.token; }
     catch { return r("failed", "TEST Group B homeowner unavailable for the test copy."); }
-  } else if (mode === "test_to_jo") {
+  } else if (testCopy) {
     const { data: tj } = await admin.from("jobs").select("id, source").eq("job_number", JO_TEST_LINK_JOB).maybeSingle();
     const { data: tl } = tj?.source === "qa_test" ? await admin.from("customer_estimate_links").select("token").eq("job_id", tj.id).eq("purpose", "step3_estimate").eq("status", "active").maybeSingle() : { data: null };
     if (!tj || !tl?.token) return r("failed", "TEST job links unavailable for the test copy.");
@@ -171,6 +173,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     ...(apFee === undefined ? {} : { apFee }),
   }), unsubscribeUrl);
   if (mode === "preview") return { ...r("sent", "Preview only — not sent"), preview: { to, subject: mail.subject, html: mail.html } };
+  if (mode === "test_preview") return { ...r("sent", "TEST copy rendered only — not sent"), preview: { to: JO_TEST_INBOX, subject: `[TEST of ${job.job_number}] ${mail.subject}`, html: mail.html }, linkJobId, linkToken, sendGroup };
   if (mode === "test_to_jo") {
     const subject = `[TEST of ${job.job_number}] ${mail.subject}`;
     const t = await resendSend(JO_TEST_INBOX, subject, mail.html, mail.plainText, `save-spot-test:${jobId}:${Date.now()}`, null);
