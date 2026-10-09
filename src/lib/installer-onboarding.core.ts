@@ -13,6 +13,7 @@ export type { ResolvedAddress };
 // Earlier signed versions stay immutable and remain activatable.
 // 1.18 supersedes the 1.17 warranty correction: twelve-month workmanship cover, separate minimum five-year product defects warranty,
 //   with written product details and an Australian contact for overseas warrantors; signed history remains immutable.
+// 1.19 incorporates the role-owned Guide V1.2 compliance/evidence schedule; commercial and warranty terms unchanged.
 export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.19-2026-10-09";
 export const ACTIVATABLE_INSTALLER_VERSIONS: readonly string[] = ["HI-VIC-A48-INST-1.11-2026-10-03", "HI-VIC-A48-INST-1.12-2026-10-03", "HI-VIC-A48-INST-1.13-2026-10-03", "HI-VIC-A48-INST-1.14-2026-10-03", "HI-VIC-A48-INST-1.16-2026-10-05", "HI-VIC-A48-INST-1.17-2026-10-09", "HI-VIC-A48-INST-1.18-2026-10-09", INSTALLER_AGREEMENT_VERSION];
 export const INSTALLER_AGREEMENT_TITLE = "Activity 48 Insulation Installer Partner Agreement";
@@ -358,6 +359,13 @@ export function agreementText(d: InstData): string {
     scheduleText(d), "", "ACKNOWLEDGEMENTS",
     ...ACKNOWLEDGEMENTS.map((a, i) => `${i + 1}. ${a.text}`),
   ].join("\n");
+}
+
+/** Draft reviews use current terms; signed records must use their exact stored text and version. */
+export function installerAgreementView(app: { status: string; agreement_text?: string | null; agreement_version?: string | null }, d: InstData) {
+  if (app.status === "draft") return { title: INSTALLER_AGREEMENT_TITLE, version: INSTALLER_AGREEMENT_VERSION, text: agreementText(d) };
+  if (!app.agreement_text || !app.agreement_version) throw new Error("The stored signed agreement is incomplete; please contact the office.");
+  return { title: INSTALLER_AGREEMENT_TITLE, version: app.agreement_version, text: app.agreement_text };
 }
 
 /** Friendly date entry: accepts 05/10/2028, 5/10/28, 5-10-2028 or ISO 2028-10-05. Returns ISO or null. */

@@ -4,6 +4,7 @@ import { melbourneToday as melbourneTodayCore } from "./melbourne-time.core";
 import { REC_AGREEMENT_SECTIONS } from "./rec-agreement.text";
 import { activity48AgreementScheduleText } from "./activity48-agreement-schedule.text";
 
+// 2.6 incorporates Guide V1.2 role-owned evidence and retention; commercial and electrical warranty terms unchanged.
 export const REC_AGREEMENT_VERSION = "HI-VIC-A48-REC-2.6-2026-10-09";
 /** Earlier signed agreements remain valid for office activation; only new signatures use the current version. */
 export const ACTIVATABLE_REC_VERSIONS: readonly string[] = ["HI-VIC-A48-REC-2.3-2026-10-01", "HI-VIC-A48-REC-2.4-2026-10-03", "HI-VIC-A48-REC-2.5-2026-10-05", REC_AGREEMENT_VERSION];
@@ -447,6 +448,13 @@ export function agreementText(d: RecData): string {
     ...ACKNOWLEDGEMENTS.map((a, i) => `${i + 1}. ${a.text}`),
   ];
   return parts.join("\n");
+}
+
+/** Draft reviews use current terms; signed records must use their exact stored text and version. */
+export function recAgreementView(app: { status: string; agreement_text?: string | null; agreement_version?: string | null }, d: RecData) {
+  if (app.status === "draft") return { title: REC_AGREEMENT_TITLE, version: REC_AGREEMENT_VERSION, text: agreementText(d) };
+  if (!app.agreement_text || !app.agreement_version) throw new Error("The stored signed agreement is incomplete; please contact the office.");
+  return { title: REC_AGREEMENT_TITLE, version: app.agreement_version, text: app.agreement_text };
 }
 
 /** Continue from Review is allowed only with a loaded current-version agreement AND an explicit tick. */
