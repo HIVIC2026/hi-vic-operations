@@ -35,7 +35,7 @@ describe("admin pipeline visibility", () => {
   });
 
   it("uses the same phase-filtered jobs for rows, select-all and the empty state", () => {
-    expect(pipeline).toContain("const visibleJobs = useMemo(() => filterVisibleJobs(filtered, phase, phaseForStage)");
+    expect(pipeline).toContain("const visibleJobs = useMemo(() => filterVisibleJobs(filtered, phase, (_s, j) => phaseOf(j))");
     expect(pipeline).toContain("visibleJobs.map((j: JobRow)");
     expect(pipeline).toContain("visibleJobs.every((j) => selected.has(j.id!))");
     expect(pipeline).toContain("visibleJobs.length === 0 && shownInterests.length === 0");
