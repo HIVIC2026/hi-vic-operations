@@ -3,7 +3,6 @@
 // Mitti sync NEVER completes an assessment, writes PIESA records, moves stages or issues quotes —
 // completeAssessment remains the authoritative gate.
 
-export const MITTI_BASE_URL = "https://api.mitti.com";
 export const MITTI_TEMPLATE_ID = "template_fd20c6437f4e4db2b49b2d6dbe0d3f91";
 /** Electrical rate codes Lovable can price. Everything else from Mitti is manual office review. */
 export const STANDARD_RATE_CODES = ["CALLOUT", "DOWNLIGHT_UPGRADE", "EXHAUST_CLEARANCE", "RCD_INSTALL", "SWITCHBOARD_UPGRADE"] as const;
