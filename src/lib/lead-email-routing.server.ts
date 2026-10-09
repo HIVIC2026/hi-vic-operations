@@ -28,7 +28,7 @@ export async function maybeAutoRouteLeadEmail(jobId: string): Promise<LeadEmailR
       const { syncStep3 } = await import("./estimatelink.server");
       await syncStep3(jobId, null);
       const { sendSaveMySpot } = await import("./hot-leads-send.server");
-      const result = (await sendSaveMySpot([jobId], null))[0];
+      const result = (await sendSaveMySpot([jobId], null, route.assumedArea ? { automaticInitial: true } : {}))[0];
       return { route: route.email, sent: result?.outcome === "sent", reason: result?.detail ?? "No send result" };
     }
     if (route.email === "request_insulation") {

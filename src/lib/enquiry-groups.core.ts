@@ -248,7 +248,7 @@ export function automaticLeadEmail(x: {
   source: string | null; channel: string | null; decisionSource: string | null; reviewRequired: boolean;
   outcome: string | null; intakeWorkActive: boolean; declaredInsulation: "none" | "present" | "unknown" | null;
   ownerEnteredArea: boolean;
-}): { email: AutomaticLeadEmail; blocker: string | null } {
+}): { email: AutomaticLeadEmail; blocker: string | null; assumedArea?: true } {
   if (x.source === "qa_test") return { email: "none", blocker: "TEST enquiry" };
   if (x.source !== "base44" || x.channel !== "hivic_sourced") return { email: "none", blocker: "Not a website homeowner enquiry" };
   if (x.intakeWorkActive) return { email: "none", blocker: "Initial checks are still running" };
@@ -256,7 +256,8 @@ export function automaticLeadEmail(x: {
   if (x.reviewRequired) return { email: "none", blocker: "Eligibility needs office review" };
   if (x.outcome === "does_not_appear_eligible") return { email: "ineligible", blocker: null };
   if (x.outcome === "likely_eligible" && x.declaredInsulation === "none") {
-    return x.ownerEnteredArea ? { email: "offer_spot", blocker: null } : { email: "none", blocker: "Owner did not enter a ceiling size" };
+    // No owner size: same initial response, priced on the clearly labelled typical 150 m² assumption (owner answer stays unknown).
+    return { email: "offer_spot", blocker: null, ...(x.ownerEnteredArea ? {} : { assumedArea: true }) };
   }
   if ((x.outcome === "likely_eligible" || x.outcome === "needs_onsite_confirmation") && (x.declaredInsulation === "present" || x.declaredInsulation === "unknown")) return { email: "request_insulation", blocker: null };
   return { email: "none", blocker: "Eligibility or insulation details need office review" };
