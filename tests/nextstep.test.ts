@@ -27,7 +27,8 @@ describe("one next-step rule", () => {
 });
 
 describe("routing after eligibility", () => {
-  test("no approved measure-up → Ready Check", () => expect(planStep("new_enquiry", base)).toMatchObject({ to: "ready_check_ready_to_schedule" }));
+  // Jo 8 Oct: eligibility alone never creates a Ready Check; the job waits for the owner to save a spot.
+  test("no approved measure-up → waits for the owner to save a spot", () => expect(planStep("new_enquiry", base)).toMatchObject({ to: "preliminary_estimate_ready" }));
   test("HI VIC-approved measure-up → skips Ready Check", () => expect(planStep("new_enquiry", { ...base, measureUpAccepted: true })).toMatchObject({ to: "ready_check_complete" }));
   test("waiting at Ready Check, measure-up approved later → skips", () => expect(planStep("ready_check_ready_to_schedule", { ...base, measureUpAccepted: true })).toMatchObject({ to: "ready_check_complete" }));
   test("waiting at Ready Check, not approved → stays", () => expect(planStep("ready_check_ready_to_schedule", base).kind).toBe("stop"));

@@ -74,7 +74,7 @@ async function seed(choice: string | null) {
   await db.query("insert into retail_estimator_settings values (true, 349, 349, 40, 200)");
   await db.query("insert into workflow_settings values (1, false, false, null, null)");
   await db.query("insert into job_assignments (job_id, role, user_id, business_id, active) values ($1,'installer',$2,$3,true)", [JOB, U, BIZ]);
-  await db.query("insert into business_members values ($1,$2,'owner',true)", [BIZ, U]);
+  await db.query("insert into business_members values ($1,$2,'business_admin',true)", [BIZ, U]);
   await db.query("insert into partner_relationships values ($1,$2,true)", [BIZ, EL]);
   await db.query("insert into businesses values ($1,'Sample Electrical',null,null,null)", [EL]);
 }

@@ -31,7 +31,9 @@ describe("spot saved confirmations", () => {
     const src = readFileSync("src/lib/launch-campaign.server.ts", "utf8");
     expect(src).toContain("if (firstSave) await queueSpotSavedConfirmations(");
     expect(src).toContain('eq("event_type", "spot_saved_confirmation_queued")');
-    expect(src).toContain("if (!existing?.spot_saved_at) {");
+    // Atomic first-save: insert ignoring duplicates, else fill only a row whose spot_saved_at is still null.
+    expect(src).toContain('ignoreDuplicates: true');
+    expect(src).toContain('.is("spot_saved_at", null)');
     expect(src).toContain('delivery_status: "queued"');
   });
 });
