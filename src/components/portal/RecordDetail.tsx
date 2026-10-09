@@ -33,7 +33,7 @@ export function RecordDetail({ r }: { r: OperationRow }) {
         <Fact k="Source" v={source} />
         <Fact k="Installer" v={r.assignedInstaller ?? "Not assigned"} />
         <Fact k="Spot" v={r.savedSpot ? "Spot saved" : "Not saved"} />
-        <Fact k="Photos and videos" v={r.mediaCount ? `${r.mediaCount} received · ${r.mediaState}` : r.mediaState} />
+        <Fact k="Photos and videos" v={r.mediaState} />
       </dl>
       <p className="border-t border-line pt-3"><span className="text-sub">Last email or text sent: </span><b>{confirmed ? `${communicationPurposeLabel(confirmed)} · ${when(confirmed.at)}` : "None confirmed"}</b>{failed && <span className="mt-1 block text-rose">Latest attempt failed: {communicationPurposeLabel(failed)}{when(failed.recordedAt) ? ` · ${when(failed.recordedAt)}` : ""}</span>}</p>
       <Fold title="Eligibility details"><p><b>{r.eligibilityLabel}</b></p><p className="mt-1 text-sub">{r.eligibilityReason ?? "No reason recorded."}</p></Fold>
