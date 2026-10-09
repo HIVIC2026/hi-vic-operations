@@ -31,6 +31,7 @@ export const OFFICE_STATUSES = {
   "ready_check.pick_times": { stage: "ready_check", label: "Waiting for owner to pick 3–5 times", waiting: "Owner", limit: { d: 3 }, limitKey: "owner_times_days", action: "Remind owner" },
   "ready_check.offered": { stage: "ready_check", label: "Offered to installers, first to tap books", waiting: "Installer", limit: { bh: 4 }, limitKey: "offer_business_hours", action: "Offer to more installers" },
   "ready_check.booked": { stage: "ready_check", label: "Booked", waiting: "Installer", limit: null },
+  "ready_check.onsite_started": { stage: "ready_check", label: "Started onsite, measure-up not finished", waiting: "Installer", limit: { d: 1 }, limitKey: "evidence_sync_days" },
   "ready_check.arranging": { stage: "ready_check", label: "No time suited, installer arranging with owner", waiting: "Owner + Installer", limit: { h: 48 }, limitKey: "arranging_hours", action: "Call to help book" },
   "ready_check.done": { stage: "ready_check", label: "Done, evidence coming in", waiting: "System", limit: { d: 1 }, limitKey: "evidence_sync_days" },
   "ready_check.evidence_in": { stage: "ready_check", label: "Evidence in, confirm eligible", waiting: "Us", limit: { d: 1 }, limitKey: "confirm_eligible_days", action: "Confirm eligible" },
@@ -103,6 +104,8 @@ export type JobFacts = {
   /** Earliest real send record to the owner (customer_email_sends / outbound job_communications with sent_at). Only this may make a status say "sent" or "waiting for owner". */
   ownerContactedAt?: string | null;
   rcWindowsOpen?: number; rcAccepted?: boolean; rcOfferAt?: string | null; rcBookingAt?: string | null; rcSubmittedAt?: string | null;
+  /** Earliest current ceiling measurement row (any status) — proof the visit actually started. */
+  measurementStartedAt?: string | null;
   proposalPending?: { kind: string; since: string } | null;
   quote?: { releaseState: string | null; holdReason: string | null; sentAt: string | null; status: string; acceptedAt: string | null } | null;
   rectQuote?: { releaseState: string | null; sentAt: string | null; status: string } | null;
@@ -171,7 +174,16 @@ export function officeStatus(f: JobFacts, now: number, lim: Record<string, numbe
       if (!f.rcAccepted) return pick("enquiry.estimate_sent", f.ownerContactedAt);
       return pick("ready_check.pick_times", f.enteredStageAt);
     }
-    case "ready_check_scheduled": return pick("ready_check.booked", f.enteredStageAt, { due: f.rcBookingAt ? new Date(new Date(f.rcBookingAt).getTime() + DAY).toISOString() : null, detail: f.rcBookingAt ? `Booked ${f.rcBookingAt.slice(0, 10)}` : null });
+    case "ready_check_scheduled": {
+      // Later facts outrank the stored stage: a prepared quote means the job is at Quote.
+      const q = f.quote;
+      if (q?.releaseState === "held") return pick("quote.held", f.enteredStageAt, { detail: q.holdReason });
+      if (q?.sentAt && q.status === "issued") return pick("quote.waiting_sign", q.sentAt);
+      // The stage alone never proves a booking: without a real Ready Check booking, classify as not yet scheduled.
+      if (!f.rcBookingAt) return officeStatus({ ...f, stage: "ready_check_ready_to_schedule" }, now, lim);
+      if (f.measurementStartedAt) return pick("ready_check.onsite_started", f.measurementStartedAt, { detail: `Booked ${f.rcBookingAt.slice(0, 10)}` });
+      return pick("ready_check.booked", f.enteredStageAt, { due: f.rcBookingAt ? new Date(new Date(f.rcBookingAt).getTime() + DAY).toISOString() : null, detail: f.rcBookingAt ? `Booked ${f.rcBookingAt.slice(0, 10)}` : null });
+    }
     case "ready_check_complete": return f.rcSubmittedAt ? pick("ready_check.evidence_in", f.rcSubmittedAt) : pick("ready_check.done", f.enteredStageAt);
     case "assessment_complete": case "measured_estimate_ready": case "ready_for_installer_quotes": case "awaiting_quote_acceptance": {
       const q = f.quote;

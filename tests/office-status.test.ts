@@ -20,6 +20,7 @@ export const PRACTICE: Record<StatusKey, JobFacts> = {
   "ready_check.pick_times": base("ready_check_ready_to_schedule", { rcAccepted: true, ownerContactedAt: ago(1) }),
   "ready_check.offered": base("ready_check_ready_to_schedule", { rcWindowsOpen: 3, rcOfferAt: ago(0.05) }),
   "ready_check.booked": base("ready_check_scheduled", { rcBookingAt: ahead(2) }),
+  "ready_check.onsite_started": base("ready_check_scheduled", { rcBookingAt: ago(0.5), measurementStartedAt: ago(0.4) }),
   "ready_check.arranging": base("ready_check_ready_to_schedule", { proposalPending: { kind: "ready_check", since: ago(0.5) } }),
   "ready_check.done": base("ready_check_complete"),
   "ready_check.evidence_in": base("ready_check_complete", { rcSubmittedAt: ago(0.1) }),
