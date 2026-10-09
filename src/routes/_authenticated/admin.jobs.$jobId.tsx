@@ -60,11 +60,13 @@ export const Route = createFileRoute("/_authenticated/admin/jobs/$jobId")({
   validateSearch: (s: Record<string, unknown>): { section?: RecordGroup } => { const v = parseJobSection(s['section']); return v ? { section: v } : {}; },
   component: JobDetail,
 });
+import { JobDeleteControls } from "@/components/portal/JobDeleteControls";
 
 function JobDetail() {
   const { jobId } = Route.useParams();
   const { data: job, error, refetch } = useJob(jobId);
   const [updating, setUpdating] = useState(false);
+  const [classifying, setClassifying] = useState(false);
   const [eligibilityOpen, setEligibilityOpen] = useState(false);
   const [open, setOpen] = useState<Set<RecordGroup>>(new Set());
   const toggle = (g: RecordGroup) => setOpen((s) => { const n = new Set(s); if (n.has(g)) n.delete(g); else n.add(g); return n; });
@@ -86,7 +88,9 @@ function JobDetail() {
       <Link to="/admin/operations" className="mb-2 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Overview</Link>
       <JobIdentity jobId={jobId} job={job} onOpen={openTarget} />
       <CompactJobStatus jobId={jobId} onOpen={openTarget} />
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-bold">Current blockers</h2><Button size="sm" onClick={() => setUpdating(!updating)} aria-expanded={updating} aria-controls="job-update-controls">Update job</Button></div>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-bold">Current blockers</h2><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => setClassifying(!classifying)} aria-expanded={classifying} aria-controls="job-classification">Change classification</Button><Button size="sm" onClick={() => setUpdating(!updating)} aria-expanded={updating} aria-controls="job-update-controls">Update job</Button></div></div>
+      {classifying && <div id="job-classification"><EligibilityForm jobId={jobId} /></div>}
+      <JobDeleteControls jobId={jobId} />
       <CurrentJobBlockers jobId={jobId} />
       {updating && <section id="job-update-controls" aria-label="Guarded job controls" className="my-3 border-y border-line py-3">
         <h2 className="text-sm font-bold">Existing guarded controls</h2>

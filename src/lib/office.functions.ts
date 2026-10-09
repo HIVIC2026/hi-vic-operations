@@ -227,3 +227,14 @@ export const listDeletedJobs = createServerFn({ method: "GET" }).middleware([req
     if (error) throw new Error(`Deleted jobs could not be loaded: ${error.message}`);
     return (data ?? []).map((j) => ({ id: j.id, jobNumber: j.job_number, deletedAt: j.deleted_at, reason: j.deleted_reason, owner: (j.owners as { full_name: string | null } | null)?.full_name ?? null, suburb: (j.properties as { suburb: string | null } | null)?.suburb ?? null }));
   });
+
+/** Whether one job is deleted (office only). */
+export const getJobDeleteState = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
+  .handler(async ({ context, data }) => {
+    await requireAdmin(context.supabase);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: j, error } = await supabaseAdmin.from("jobs").select("deleted_at, deleted_reason").eq("id", data.jobId).maybeSingle();
+    if (error || !j) throw new Error("Job delete state could not be loaded");
+    return { deletedAt: j.deleted_at, reason: j.deleted_reason };
+  });
