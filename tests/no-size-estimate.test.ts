@@ -13,7 +13,7 @@ test("owner size entered later blocks stale typical estimate", () => expect(noSi
 test("wrong area or insulation blocks", () => { expect(noSizeEstimateBlocker({ ...ok, areaM2: 140 })).not.toBeNull(); expect(noSizeEstimateBlocker({ ...ok, insulation: "present" })).not.toBeNull(); expect(noSizeEstimateBlocker({ ...ok, followup: true })).not.toBeNull(); });
 test("measured/owner estimates unaffected", () => expect(noSizeEstimateBlocker({ ...ok, areaSource: "owner_estimate", automaticInitial: false })).toBeNull());
 test("sender render equals the approved no-size template", () => {
-  const f = { estimateUrl: "https://estimate.homeinsulationvictoria.com.au/estimate/tok123", campaignUrl: "https://estimate.homeinsulationvictoria.com.au/estimate/tok123/campaign", unsubscribeUrl: "https://estimate.homeinsulationvictoria.com.au/unsubscribe/tok123", estimatedTotal: 1234, veuDiscount: 1470, grossTotal: 2704, firstName: "A", address: "1 St VIC 3000", reference: "HV-1", existingInsulationPresent: false };
+  const f = { estimateUrl: "https://estimate.homeinsulationvictoria.com.au/estimate/tok123", campaignUrl: "https://estimate.homeinsulationvictoria.com.au/estimate/tok123/campaign", unsubscribeUrl: "https://estimate.homeinsulationvictoria.com.au/api/public/unsubscribe?t=abcdefghijklmnopqrstuv", estimatedTotal: 1234, veuDiscount: 1470, grossTotal: 2704, firstName: "A", address: "1 St VIC 3000", reference: "HV-1", existingInsulationPresent: false };
   const a = renderStep3SaveSpot({ ...f, areaM2: 150, areaIsTypical: true }), b = renderStep3SaveSpotNoSize(f);
   expect(a.html).toBe(b.html); expect(a.plainText).toBe(b.plainText); expect(a.subject).toBe(b.subject);
 });
