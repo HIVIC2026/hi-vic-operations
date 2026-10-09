@@ -5,7 +5,7 @@ import { z } from "zod";
 import { withRequestMeta, withStartLimitStatus, withVisitorId } from "./request-meta";
 import { mayRelaxRequiredSteps } from "./onboarding-security.core";
 import {
-  INSTALLER_AGREEMENT_TITLE, INSTALLER_AGREEMENT_VERSION, installerAgreementView, applyMaterialReset, isInstallerRevisionTimestamp, normaliseInstallerDraft, type InstData,
+  installerAgreementView, applyMaterialReset, isInstallerRevisionTimestamp, normaliseInstallerDraft, type InstData,
 } from "./installer-onboarding.core";
 import { performInstallerSign, signedData } from "./installer-sign.core";
 

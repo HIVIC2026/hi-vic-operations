@@ -5,7 +5,7 @@ import { z } from "zod";
 import { withRequestMeta, withStartLimitStatus, withVisitorId } from "./request-meta";
 import { mayRelaxRequiredSteps } from "./onboarding-security.core";
 import {
-  REC_AGREEMENT_TITLE, REC_AGREEMENT_VERSION, recAgreementView, applyMaterialReset,
+  recAgreementView, applyMaterialReset,
   blockedMandatoryStep, canonicalStepKey, REC_INVALID_LINK_MESSAGE, isRecRevisionTimestamp, type RecData,
 } from "./rec-onboarding.core";
 
