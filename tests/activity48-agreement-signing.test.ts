@@ -30,6 +30,13 @@ const rules = [
 ] as const;
 describe('complete applicant contracts', () => {
  for (const [name, text] of [['Installer', it], ['REC', rt]]) {
+  test(`${name}: life-support permits either qualifying document and retains timing and delivery`, () => {
+   expect(text).not.toMatch(/written consent and (?:the )?medical plan/);
+   expect(text).toContain('Where life support applies, written consent or a medical plan must be obtained');
+   expect(text).toContain('Where life support applies, written consent or a medical plan must be obtained BEFORE the PIESA starts, attached to the PIESA and received by the Installer before installation.');
+   expect(text).toContain('with applicable life-support written consent or a medical plan attached');
+   if (name === 'REC') expect(text).toContain('supplied in time for the Installer to receive the qualifying document before installation.');
+  });
   for (const [rule, ...requirements] of rules) test(`${name}: ${rule}`, () => { for (const requirement of requirements) expect(text).toContain(requirement); });
   test(`${name}: schedule incorporated exactly once before acknowledgements`, () => { const s = activity48AgreementScheduleText(); expect(text.split(s)).toHaveLength(2); expect(text.indexOf(s)).toBeLessThan(text.indexOf('ACKNOWLEDGEMENTS')); expect(text).toContain(`Schedule version: ${ACTIVITY48_AGREEMENT_SCHEDULE_VERSION}`); });
  }
