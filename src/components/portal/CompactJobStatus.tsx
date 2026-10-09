@@ -6,7 +6,7 @@ import type { OperationRow } from "@/lib/operations-preview.core";
 import type { PortalTarget } from "@/lib/portal-presentation.core";
 import { getJobBlockers } from "@/lib/portal.functions";
 import { BlockersPanel } from "./panels";
-import { communicationPurposeLabel, latestConfirmedSend } from "@/lib/portal-presentation.core";
+import { communicationPurposeLabel, latestConfirmedSend, taskTags } from "@/lib/portal-presentation.core";
 
 export function CurrentJobBlockers({ jobId }: { jobId: string }) {
   const query = useQuery({ queryKey: ["blockers", jobId], queryFn: () => getJobBlockers({ data: { jobId } }) });
@@ -23,7 +23,7 @@ export function JobStatusSummary({ row, loadedAt, onOpen }: { row: OperationRow;
     <p className="mt-2 text-sm"><span className="text-sub">Eligibility · </span><b>{row.eligibilityLabel}</b></p>
     {row.savedSpot && <p className="mt-1 text-sm font-semibold text-hiv-green">{row.spotSavedOpen ? "Spot saved — waiting for installer availability" : "Spot saved"}</p>}
     <div className="mt-3 flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-bold">Current action</h2><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => onOpen(target)}>Open current records</Button><Button size="sm" variant="outline" onClick={() => onOpen("correspondence")}>Communication records</Button></div></div>
-    <ul className="mt-1 space-y-1 text-sm">{row.tasks.map((t,i) => <li key={i} className={t.blocked || t.overdue ? "text-rose" : "text-ink"}><b>{t.party}</b> · {t.label}{t.dueAt && <span className="ml-2 text-xs">{t.overdue ? "Overdue" : "Due"} {fmtDate(t.dueAt)}</span>}</li>)}</ul>
+    <ul className="mt-1 space-y-1 text-sm">{row.tasks.map((t,i) => <li key={i} className={t.blocked || t.overdue ? "text-rose" : "text-ink"}><b>{t.party}</b> · {t.label}{taskTags(t, fmtDate).map((g) => <span key={g.text} className="ml-2 text-xs font-semibold">{g.text}</span>)}</li>)}</ul>
     {!row.tasks.length && <p className="text-sm text-sub">No outstanding task recorded.</p>}
     <p className="mt-2 text-xs text-sub">Last email or text sent · {sent ? `${communicationPurposeLabel(sent)} · ${fmtDate(sent.at!)}` : "None confirmed"}</p>
     <p className="mt-1 text-xs text-sub">Status loaded {fmtDate(loadedAt)}</p>

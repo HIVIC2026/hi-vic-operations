@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { ArrowUpRight } from "lucide-react";
 import { evidenceApplicability, type OperationRow } from "@/lib/operations-preview.core";
-import { communicationPurposeLabel, communicationStatusLabel, evidenceStatusLabel, latestCommunicationEvent, latestConfirmedSend } from "@/lib/portal-presentation.core";
+import { communicationPurposeLabel, communicationStatusLabel, evidenceRowLabel, latestCommunicationEvent, taskTags, latestConfirmedSend } from "@/lib/portal-presentation.core";
 import { cn } from "@/lib/utils";
 import { RowDeleteButton } from "./JobDeleteControls";
 
@@ -22,10 +22,10 @@ export function RecordDetail({ r }: { r: OperationRow }) {
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
         <div className="min-w-0">
           <h3 className="text-xs font-bold uppercase tracking-wide text-sub">Next step</h3>
-          {r.tasks.length ? <ul className="mt-1 space-y-1">{r.tasks.map((t, i) => <li key={i} className="break-words"><span className="font-semibold">{t.label}</span> <span className="text-sub">· {t.party}</span>{(t.overdue || t.blocked || t.dueAt) && <span className={cn("ml-2 rounded-full px-2 py-0.5 text-xs font-semibold", t.overdue || t.blocked ? "bg-danger-soft text-rose" : "bg-mist text-sub")}>{t.blocked ? "Blocked" : t.overdue ? `Overdue${t.dueAt ? ` · ${when(t.dueAt)}` : ""}` : `Due ${when(t.dueAt)}`}</span>}</li>)}</ul> : <p className="mt-1 text-sub">No outstanding task recorded.</p>}
+          {r.tasks.length ? <ul className="mt-1 space-y-1">{r.tasks.map((t, i) => <li key={i} className="break-words"><span className="font-semibold">{t.label}</span> <span className="text-sub">· {t.party}</span>{taskTags(t, (iso) => when(iso)!).map((g) => <span key={g.text} className={cn("ml-2 rounded-full px-2 py-0.5 text-xs font-semibold", g.tone === "bad" ? "bg-danger-soft text-rose" : "bg-mist text-sub")}>{g.text}</span>)}</li>)}</ul> : <p className="mt-1 text-sub">No outstanding task recorded.</p>}
         </div>
         <div className="flex flex-wrap gap-2 sm:justify-end">
-          <Link to="/admin/jobs/$jobId" params={{ jobId: r.id }} className="inline-flex h-10 items-center gap-1 rounded-full bg-hiv-blue px-4 font-semibold text-paper hover:opacity-90">Open job<ArrowUpRight className="h-4 w-4" /></Link>
+          <Link to="/admin/jobs/$jobId" params={{ jobId: r.id }} className="inline-flex h-10 items-center gap-1 rounded-full bg-action px-4 font-semibold text-action-foreground hover:opacity-90">Open job<ArrowUpRight className="h-4 w-4" /></Link>
           <RowDeleteButton jobId={r.id} jobNumber={r.jobNumber} />
         </div>
       </div>
@@ -37,7 +37,7 @@ export function RecordDetail({ r }: { r: OperationRow }) {
       </dl>
       <p className="border-t border-line pt-3"><span className="text-sub">Last email or text sent: </span><b>{confirmed ? `${communicationPurposeLabel(confirmed)} · ${when(confirmed.at)}` : "None confirmed"}</b>{failed && <span className="mt-1 block text-rose">Latest attempt failed: {communicationPurposeLabel(failed)}{when(failed.recordedAt) ? ` · ${when(failed.recordedAt)}` : ""}</span>}</p>
       <Fold title="Eligibility details"><p><b>{r.eligibilityLabel}</b></p><p className="mt-1 text-sub">{r.eligibilityReason ?? "No reason recorded."}</p></Fold>
-      <Fold title={`Evidence checklist · ${evidence.length}`}>{evidence.length ? <ul className="divide-y divide-line">{evidence.map((e, i) => <li key={i} className="flex flex-wrap justify-between gap-2 py-1.5"><span className="min-w-0 break-words">{e.label}</span><span className={cn("text-xs", e.when === "current" && (e.status === "outstanding" || e.status === "rejected") ? "font-semibold text-rose" : "text-sub")}>{e.when === "future" ? "Later stage" : evidenceStatusLabel(e.status)}</span></li>)}</ul> : <p className="text-sub">No evidence requirements recorded.</p>}</Fold>
+      <Fold title={`Evidence checklist · ${evidence.length}`}>{evidence.length ? <ul className="divide-y divide-line">{evidence.map((e, i) => <li key={i} className="flex flex-wrap justify-between gap-2 py-1.5"><span className="min-w-0 break-words">{e.label}</span><span className={cn("text-xs", e.when === "current" && (e.status === "outstanding" || e.status === "rejected") ? "font-semibold text-rose" : "text-sub")}>{evidenceRowLabel(e.status, e.when)}</span></li>)}</ul> : <p className="text-sub">No evidence requirements recorded.</p>}</Fold>
       <Fold title={`Communication history · ${r.communications.length}`}>{r.communications.length ? <ul className="divide-y divide-line">{[...r.communications].reverse().map((c, i) => <li key={i} className="flex flex-wrap justify-between gap-2 py-1.5"><span>{communicationPurposeLabel(c)}</span><span className="text-xs text-sub">{communicationStatusLabel(c)} · {when(c.at) ?? when(c.recordedAt) ?? "time not recorded"}</span></li>)}</ul> : <p className="text-sub">No messages recorded.</p>}
         {r.communications.length > 0 && <details className="mt-2 text-xs text-sub"><summary className="cursor-pointer">Technical audit detail</summary><ul className="mt-1 space-y-0.5 break-all">{r.communications.map((c, i) => <li key={i}>{c.purpose} · {c.status} · sent {c.at ?? "—"} · recorded {c.recordedAt ?? "—"}{c.error ? ` · ${c.error}` : ""}</li>)}</ul></details>}
       </Fold>
