@@ -3,13 +3,16 @@ import { InstallerFactsLine } from "@/components/portal/installer-job-facts";
 import { Badge } from "@/components/ui/badge";
 import { listInterests } from "@/lib/interest.functions";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ChevronDown, Plus, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/portal/AppShell";
 import { type JobRow } from "@/components/portal/JobCard";
 import { StaffJobRow } from "@/components/portal/StaffJobRow";
-import { PIPELINE_PHASES, phaseForStage, type Phase } from "@/lib/workflow";
+import { PIPELINE_PHASES, type Phase } from "@/lib/workflow";
+import { boardPhase } from "@/lib/board-phase.core";
+import { getBoardStages } from "@/lib/office.functions";
+import type { OfficeStage } from "@/lib/office-status.core";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -73,6 +76,10 @@ function Pipeline() {
     retryDelay: (attempt) => Math.min(1_000 * 2 ** attempt, 8_000),
     staleTime: 30_000,
   });
+  const loadBoardStages = useServerFn(getBoardStages);
+  const { data: boardStages, error: boardStagesError } = useQuery({ queryKey: ["board-stages"], queryFn: () => loadBoardStages({ data: { includeTest: true } }), staleTime: 30_000, retry: 2 });
+  // Column = facts-based office stage. Until facts load, stored Ready Check stages are not shown in Ready Check.
+  const phaseOf = useCallback((j: JobRow) => boardPhase(j.stage, boardStages ? ((boardStages[j.id!] ?? null) as OfficeStage | null) : undefined), [boardStages]);
   useEffect(() => {
     let active = true;
     void Promise.allSettled([sweep(), advance()]).then((results) => {
@@ -96,8 +103,8 @@ function Pipeline() {
     const s = q.toLowerCase();
     return jobs.filter((j) => source === "all" || j.channel === source).filter((j) => !s || [j.job_number, j.property_address, j.owner_name, j.electrician_name, j.installer_name].some((v) => v?.toLowerCase().includes(s)));
   }, [jobs, q, source]);
-  const visibleJobs = useMemo(() => filterVisibleJobs(filtered, phase, phaseForStage), [filtered, phase]);
-  const byPhase = (p: Phase) => filtered.filter((j) => phaseForStage(j.stage) === p);
+  const visibleJobs = useMemo(() => filterVisibleJobs(filtered, phase, (_s, j) => phaseOf(j)), [filtered, phase, phaseOf]);
+  const byPhase = (p: Phase) => filtered.filter((j) => phaseOf(j) === p);
   const loadInterests = useServerFn(listInterests);
   const { data: interests = [] } = useQuery({ queryKey: ["calculator-interests"], queryFn: () => loadInterests(), staleTime: 30_000 });
   const shownInterests = useMemo(() => {
@@ -212,7 +219,11 @@ function Pipeline() {
         pipelinePending ? (
           <div role="status" className="rounded-md border bg-card px-5 py-10 text-center text-sm font-medium text-muted-foreground">Loading pipeline…</div>
         ) : (
-          <PipelineBoard jobs={boardJobs} />
+          <>
+            {boardStagesError && <div role="alert" className="mb-3 rounded-lg border-2 border-danger bg-danger-soft px-4 py-3 text-sm font-semibold text-danger">Ready Check bookings could not be checked, so Ready Check jobs are not shown: {(boardStagesError as Error).message}</div>}
+            {!boardStages && !boardStagesError && <p role="status" className="mb-3 text-sm text-muted-foreground">Checking real Ready Check bookings…</p>}
+            <PipelineBoard jobs={boardJobs} phaseOf={phaseOf} />
+          </>
         )
       ) : pipelinePending ? (
         <div role="status" className="rounded-md border bg-card px-5 py-10 text-center text-sm font-medium text-muted-foreground">Loading enquiries…</div>
@@ -270,7 +281,7 @@ function NewEnquiry() {
   );
 }
 
-function PipelineBoard({ jobs }: { jobs: JobRow[] }) {
+function PipelineBoard({ jobs, phaseOf }: { jobs: JobRow[]; phaseOf: (j: JobRow) => Phase | null }) {
   const columns = PIPELINE_PHASES.filter((p) => p.key !== "complete");
   const jobIds = useMemo(() => jobs.map((j) => j.id!).filter(Boolean), [jobs]);
   const { data: readyCheckBookings } = useQuery({
@@ -287,7 +298,7 @@ function PipelineBoard({ jobs }: { jobs: JobRow[] }) {
     <div className="-mx-4 overflow-x-auto px-4 pb-6 sm:-mx-7 sm:px-7">
       <div className="flex min-w-max items-start gap-4">
         {columns.map((col) => {
-          const cards = jobs.filter((j) => phaseForStage(j.stage) === col.key);
+          const cards = jobs.filter((j) => phaseOf(j) === col.key);
           return (
             <section key={col.key} className="flex w-72 shrink-0 flex-col" aria-label={`${col.label} (${cards.length})`}>
               <h3 className="mb-3 flex items-center gap-2 px-1 text-sm font-bold text-foreground">
@@ -295,7 +306,7 @@ function PipelineBoard({ jobs }: { jobs: JobRow[] }) {
                 <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-bold text-muted-foreground">{cards.length}</span>
               </h3>
               <div className="flex min-h-24 flex-col gap-3 rounded-xl border border-dashed border-border bg-muted/30 p-2">
-                {cards.map((j) => <BoardCard key={j.id} job={j} readyCheckAt={readyCheckBookings?.get(j.id!) ?? null} />)}
+                {cards.map((j) => <BoardCard key={j.id} job={j} readyCheckAt={col.key === "ready_check" ? readyCheckBookings?.get(j.id!) ?? null : null} />)}
                 {cards.length === 0 && <p className="px-2 py-6 text-center text-xs text-muted-foreground">No jobs here</p>}
               </div>
             </section>
@@ -308,7 +319,7 @@ function PipelineBoard({ jobs }: { jobs: JobRow[] }) {
 
 function BoardCard({ job, readyCheckAt }: { job: JobRow; readyCheckAt?: string | null }) {
   const step = nextStep(job);
-  const booked = job.stage === "ready_check_scheduled";
+  const booked = !!readyCheckAt; // a real Ready Check booking, never the stored stage alone
   return (
     <Link to="/admin/jobs/$jobId" params={{ jobId: job.id! }} className="block rounded-xl border bg-card p-4 shadow-sm transition hover:border-primary/40 hover:shadow-md">
       <div className="flex items-center justify-between gap-2">
