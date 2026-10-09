@@ -28,6 +28,8 @@ async function existing(jobId: string) {
   return data ?? [];
 }
 
+import { captureResume } from "./capture-resume.core";
+
 export async function captureStatus(token: unknown) {
   const r = await resolve(token);
   if (r.state !== "ok") return { state: r.state };
@@ -38,7 +40,13 @@ export async function captureStatus(token: unknown) {
   const mediaReview = (reviews?.[0]?.metadata as { outcome?: string } | null)?.outcome ?? null;
   const files = await existing(r.link.job_id);
   const suburb = (r.job.properties as { suburb: string | null } | null)?.suburb ?? null;
-  return { state: "ok" as const, suburb, reference: r.job.job_number, originalMedia: media, mediaReview, received: files.length, remaining: Math.max(0, CAPTURE_MAX_FILES - files.length) };
+  // Resume facts for the email's "Send my insulation details" link: a saved spot or a recorded qualifying Yes
+  // must not show the four choices again. Read failures throw (fail closed), never "not answered".
+  const { data: resp, error: respError } = await admin.from("lead_campaign_responses").select("spot_saved_at, opted_out_at").eq("job_id", r.link.job_id).maybeSingle();
+  if (respError) throw new Error("Saved spot check unavailable. Please try again.");
+  const c = await (await import("./launch-campaign.server")).campaignLink(token);
+  const resume = captureResume({ spotSaved: !!resp?.spot_saved_at && !resp?.opted_out_at, ownerQualified: !!c?.ownerQualified });
+  return { state: "ok" as const, suburb, reference: r.job.job_number, originalMedia: media, mediaReview, resume, received: files.length, remaining: Math.max(0, CAPTURE_MAX_FILES - files.length) };
 }
 
 export async function startCapture(token: unknown, f: { fileName: string; mime: string; size: number }) {

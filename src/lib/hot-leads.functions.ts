@@ -68,3 +68,13 @@ export const sendHotLeadTestToJo = createServerFn({ method: "POST" }).middleware
     const [r] = await (await import("./hot-leads-send.server")).sendSaveMySpot([data.jobId], context.userId, { mode: "test_to_jo" });
     return r!;
   });
+
+/** Render-only twin of sendHotLeadTestToJo: same TEST-link preparation (fresh Group B TEST homeowner for Group B), never sends. */
+export const previewHotLeadTestCopy = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid() }).parse(d))
+  .handler(async ({ context, data }) => {
+    const { requireAdmin } = await import("./workflow.server");
+    await requireAdmin(context.supabase);
+    const [r] = await (await import("./hot-leads-send.server")).sendSaveMySpot([data.jobId], context.userId, { mode: "test_preview" });
+    return r!;
+  });
