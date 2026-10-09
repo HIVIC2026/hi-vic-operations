@@ -26,7 +26,7 @@ const related = (v: unknown): Row => obj(Array.isArray(v) ? v[0] : v);
 export async function loadOperationsPreview(admin: SupabaseClient<Database>) {
   const jobs = await all('jobs', (a, b) => admin.from('jobs')
     .select('id, job_number, stage, source, business_unit, channel, offer_dispatch_override, commercial_model, originating_installer_business_id, created_at, last_activity_at, hold_reason, hold_revisit_at, cancelled_reason, installation_completed_at, eligibility_outcome, eligibility_reason, eligibility_decision_source, eligibility_review_required, eligibility_decision_rules, owners(full_name), properties(address_line, suburb, state, postcode, enrichment)')
-    .eq('business_unit', 'hivic').or('source.is.null,source.neq.qa_test').order('id').range(a, b));
+    .eq('business_unit', 'hivic').is('deleted_at', null).or('source.is.null,source.neq.qa_test').order('id').range(a, b));
   const ids = jobs.map(j => String(j['id']));
   async function byJobs(label: string, q: (ids: string[], a: number, b: number) => Result) {
     const rows: Row[] = [];

@@ -57,12 +57,12 @@ export async function tradeHome(userId: string) {
   const jobIds = [...new Set((asg ?? []).map((a) => a.job_id))];
   const none = ["00000000-0000-0000-0000-000000000000"];
   const [{ data: jobs }, { data: books }, { data: missing }] = await Promise.all([
-    admin.from("jobs").select("id, job_number, stage, source, channel, qa_archived_at, installer_quoted, installer_site_check, installer_site_check_date, installer_quoted_price_inc_gst, installer_price_includes, owners(full_name), properties(address_line, suburb, postcode)").in("id", jobIds.length ? jobIds : none),
+    admin.from("jobs").select("id, job_number, stage, source, channel, qa_archived_at, deleted_at, installer_quoted, installer_site_check, installer_site_check_date, installer_quoted_price_inc_gst, installer_price_includes, owners(full_name), properties(address_line, suburb, postcode)").in("id", jobIds.length ? jobIds : none),
     admin.from("bookings").select("job_id, kind, status, scheduled_start, scheduled_end").in("job_id", jobIds.length ? jobIds : none).in("status", ["confirmed", "completed"]).order("scheduled_start"),
     admin.from("evidence_requirements").select("job_id").in("job_id", jobIds.length ? jobIds : none).eq("required", true).in("status", ["outstanding", "rejected"]),
   ]);
   const mine = c.kind === "installer" ? ["ready_check", "installation"] : ["assessment", "rectification"];
-  const live = (jobs ?? []).filter((j) => !j.qa_archived_at && !["cancelled"].includes(j.stage) && (!c.isTest || j.source === "qa_test"));
+  const live = (jobs ?? []).filter((j) => !j.qa_archived_at && !j.deleted_at && !["cancelled"].includes(j.stage) && (!c.isTest || j.source === "qa_test"));
   const byId = new Map(live.map((j) => [j.id, j]));
   const miss = new Map<string, number>(); for (const r of missing ?? []) miss.set(r.job_id, (miss.get(r.job_id) ?? 0) + 1);
   const label = (j: (typeof live)[number]) => { const o = j.owners as { full_name: string | null } | null; const p = j.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null; return { owner: o?.full_name ?? null, surname: surname(o?.full_name), suburb: p?.suburb ?? null, address: fullAddress(p?.address_line, p?.suburb, p?.postcode) }; };
@@ -103,11 +103,11 @@ export async function tradeHome(userId: string) {
   const { data: ended } = await (c.boss ? histQ : histQ.eq("user_id", userId));
   const histIds = [...new Set([...(ended ?? []).map((a) => a.job_id), ...(jobs ?? []).filter((j) => j.stage === "cancelled").map((j) => j.id)])].filter((id) => !byId.has(id));
   const { data: histJobs } = histIds.length
-    ? await admin.from("jobs").select("id, job_number, stage, source, qa_archived_at, updated_at, properties(suburb)").in("id", histIds).in("stage", ["complete", "cancelled"])
+    ? await admin.from("jobs").select("id, job_number, stage, source, qa_archived_at, deleted_at, updated_at, properties(suburb)").in("id", histIds).in("stage", ["complete", "cancelled"])
     : { data: [] as never[] };
   const done = [
     ...jobsTabbed.filter((j) => j.tab === "done").map((j) => ({ jobId: j.jobId, jobNumber: j.jobNumber, suburb: j.suburb, reason: doneReason(j.stage), open: true })),
-    ...(histJobs ?? []).filter((j) => !j.qa_archived_at && (!c.isTest || j.source === "qa_test")).map((j) => ({ jobId: j.id, jobNumber: j.job_number, suburb: (j.properties as { suburb: string | null } | null)?.suburb ?? null, reason: doneReason(j.stage), open: false })),
+    ...(histJobs ?? []).filter((j) => !j.qa_archived_at && !j.deleted_at && (!c.isTest || j.source === "qa_test")).map((j) => ({ jobId: j.id, jobNumber: j.job_number, suburb: (j.properties as { suburb: string | null } | null)?.suburb ?? null, reason: doneReason(j.stage), open: false })),
   ];
   return { kind: c.kind, boss: c.boss, business: c.biz.name, firstName: c.firstName, isTest: c.isTest, week, offers: offerList, yourMove, coming, jobs: jobsTabbed, done, month: c.boss ? { jobs: month.length, earned: month.reduce((t, r) => t + (r.amount ?? 0), 0) } : null };
 }

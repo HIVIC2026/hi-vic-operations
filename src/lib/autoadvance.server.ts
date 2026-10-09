@@ -51,6 +51,8 @@ export async function loadAdvanceFacts(jobId: string): Promise<AdvanceFacts> {
 /** Never throws for workflow reasons: a job that can't advance simply stays where it is with its blockers visible. */
 export async function autoAdvanceJob(jobId: string, actorId: string | null, _reason: string): Promise<AdvanceResult | null> {
   try {
+    const { data: del, error: delErr } = await admin.from("jobs").select("deleted_at").eq("id", jobId).maybeSingle();
+    if (delErr || !del || del.deleted_at) return null; // deleted (or unreadable) jobs never auto-progress
     const { autoDecideEligibility } = await import("./eligibility.server");
     await autoDecideEligibility(jobId);
     try { const { tryTeamAssign } = await import("./teaming.server"); await tryTeamAssign(jobId, actorId); } catch (e) { if (!(e instanceof WorkflowError)) console.error("team-up auto-assign failed", e); }

@@ -5237,6 +5237,9 @@ export type Database = {
           commercial_model_set_by: string | null
           created_at: string
           customer_relationship_owner: string
+          deleted_at: string | null
+          deleted_by: string | null
+          deleted_reason: string | null
           electrician_choice: string | null
           eligibility_decision_rules: Json
           eligibility_decision_source: string | null
@@ -5294,6 +5297,9 @@ export type Database = {
           commercial_model_set_by?: string | null
           created_at?: string
           customer_relationship_owner?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          deleted_reason?: string | null
           electrician_choice?: string | null
           eligibility_decision_rules?: Json
           eligibility_decision_source?: string | null
@@ -5351,6 +5357,9 @@ export type Database = {
           commercial_model_set_by?: string | null
           created_at?: string
           customer_relationship_owner?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          deleted_reason?: string | null
           electrician_choice?: string | null
           eligibility_decision_rules?: Json
           eligibility_decision_source?: string | null

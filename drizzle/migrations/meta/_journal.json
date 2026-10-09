@@ -1030,6 +1030,13 @@
       "when": 1791457571012,
       "tag": "0146_perf_property_facts_job_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 147,
+      "version": "7",
+      "when": 1791507081712,
+      "tag": "0147_job_soft_delete",
+      "breakpoints": true
     }
   ]
 }

@@ -188,3 +188,53 @@ export const getPartnersOverview = createServerFn({ method: "GET" }).middleware(
     }).sort((a, b) => b.liveJobs - a.liveJobs || a.name.localeCompare(b.name));
     return { cards, applications: apps.count ?? 0 };
   });
+
+/** Office admin "Delete job": recoverable soft delete for any job. Signed, financial and audit records are kept. */
+export const deleteJob = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: z.string().uuid(), reason: z.string().trim().min(3).max(1000) }).parse(d))
+  .handler(async ({ context, data }) => {
+    await requireAdmin(context.supabase);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { logEvent } = await import("./workflow.server");
+    const now = new Date().toISOString();
+    const { data: row, error } = await supabaseAdmin.from("jobs").update({ deleted_at: now, deleted_by: context.userId, deleted_reason: data.reason }).eq("id", data.jobId).is("deleted_at", null).select("id, job_number, stage").maybeSingle();
+    if (error) throw new Error(`Job could not be deleted: ${error.message}`);
+    if (!row) throw new Error("Job not found or already deleted");
+    await logEvent(data.jobId, context.userId, "job_deleted", `Job deleted by office: ${data.reason}`, { reason: data.reason, stage_at_delete: row.stage, deleted_at: now }, { internal: true });
+    return { ok: true, jobNumber: row.job_number };
+  });
+
+/** Office admin "Restore job": undoes a soft delete. */
+export const restoreJob = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: z.string().uuid(), reason: z.string().trim().min(3).max(1000) }).parse(d))
+  .handler(async ({ context, data }) => {
+    await requireAdmin(context.supabase);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { logEvent } = await import("./workflow.server");
+    const { data: row, error } = await supabaseAdmin.from("jobs").update({ deleted_at: null, deleted_by: null, deleted_reason: null }).eq("id", data.jobId).not("deleted_at", "is", null).select("id").maybeSingle();
+    if (error) throw new Error(`Job could not be restored: ${error.message}`);
+    if (!row) throw new Error("Job not found or not deleted");
+    await logEvent(data.jobId, context.userId, "job_restored", `Job restored by office: ${data.reason}`, { reason: data.reason }, { internal: true });
+    return { ok: true };
+  });
+
+/** Deleted jobs (office only). */
+export const listDeletedJobs = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireAdmin(context.supabase);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin.from("jobs").select("id, job_number, deleted_at, deleted_reason, owners(full_name), properties(suburb)").not("deleted_at", "is", null).order("deleted_at", { ascending: false }).limit(500);
+    if (error) throw new Error(`Deleted jobs could not be loaded: ${error.message}`);
+    return (data ?? []).map((j) => ({ id: j.id, jobNumber: j.job_number, deletedAt: j.deleted_at, reason: j.deleted_reason, owner: (j.owners as { full_name: string | null } | null)?.full_name ?? null, suburb: (j.properties as { suburb: string | null } | null)?.suburb ?? null }));
+  });
+
+/** Whether one job is deleted (office only). */
+export const getJobDeleteState = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
+  .handler(async ({ context, data }) => {
+    await requireAdmin(context.supabase);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: j, error } = await supabaseAdmin.from("jobs").select("deleted_at, deleted_reason").eq("id", data.jobId).maybeSingle();
+    if (error || !j) throw new Error("Job delete state could not be loaded");
+    return { deletedAt: j.deleted_at, reason: j.deleted_reason };
+  });
