@@ -126,7 +126,12 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
 
   // Jo's test copy of a real lead: real wording/facts, but every link points at a TEST job.
   let linkJobId = jobId, linkToken = link.token;
-  if (mode === "test_to_jo") {
+  if (mode === "test_to_jo" && sendGroup === "onsite") {
+    // Group B test copies must open a Group B TEST homeowner who has not answered yet. HV-1609 is a likely-eligible
+    // TEST job with a saved spot, so its links skipped the four insulation choices and showed "Spot saved".
+    try { const f = await (await import("./group-b-test-fixture.server")).createGroupBTestLink(JO_TEST_LINK_JOB); linkJobId = f.jobId; linkToken = f.token; }
+    catch { return r("failed", "TEST Group B homeowner unavailable for the test copy."); }
+  } else if (mode === "test_to_jo") {
     const { data: tj } = await admin.from("jobs").select("id, source").eq("job_number", JO_TEST_LINK_JOB).maybeSingle();
     const { data: tl } = tj?.source === "qa_test" ? await admin.from("customer_estimate_links").select("token").eq("job_id", tj.id).eq("purpose", "step3_estimate").eq("status", "active").maybeSingle() : { data: null };
     if (!tj || !tl?.token) return r("failed", "TEST job links unavailable for the test copy.");
