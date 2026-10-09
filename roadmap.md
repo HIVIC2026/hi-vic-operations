@@ -1,6 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Narrow installer warranty correction (Jo, 9 Oct 20:05 UTC; supersedes 20:00)
-- [ ] Restore twelve-month workmanship cover; separate minimum five-year product defects warranty under table 48-3 with written details/Australian contact; bump signing version, align summaries and validate isolated checks. Preserve signed history; no workflow/reacceptance development, production writes, notices or publication.
+- [x] Restored twelve-month workmanship cover and separate minimum five-year product defects warranty under table 48-3 with written product details/Australian contact; signing version v1.17 → v1.18 and linked summaries aligned. 68 focused tests / 282 assertions passed, including isolated PGlite signing/history checks; automatic build OK. Previously activatable versions retained. No workflow/reacceptance development, production writes, notices or publication.
 ## Existing-insulation Save your spot follow-up (Jo 8 Oct 23:11 UTC)
 - [x] Traced gap: office review recorded only; separate guarded one-owner preview/send now uses Step 3 follow-up with primary-snapshot removal clarification. Initial Group B/no-insulation email hashes unchanged; declarations/prices/locks preserved.
 - [x] Renderer/regression, isolated actual sender and PGlite campaign-handler checks pass; desktop/phone excluded/included prices verified; preview build OK. No sends, queues, activation or publication. Hosted delivery/office-button replay unverified; see docs/GROUP_B_FOLLOWUP_REMOVAL_QA.md.
