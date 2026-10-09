@@ -4,7 +4,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { LAUNCH_CAMPAIGN, LAUNCH_COPY_APPROVED, launchGroup, savedPriceFromEstimate } from "./launch-campaign.core";
 import { renderLaunchCampaignEmail } from "./estimate-email";
 import { renderStep3Likely, renderStep3SaveSpot } from "./step3-emails";
-import { noSizeEstimateBlocker } from "./no-size-estimate.core";
+import { noSizeEstimateBlocker, initialReplyWindowOk } from "./no-size-estimate.core";
 import { CUSTOMER_BASE } from "./engagement.core";
 import { reservationAllowed, withUnsubscribe } from "./emailsafety.core";
 import { groupBMediaForJob } from "./group-b-media.server";
@@ -56,7 +56,8 @@ async function followupAllowed(token: string) {
 
 async function sendOne(jobId: string, actorId: string | null, realOn: boolean, testOpts: TestSendOptions, followup = false): Promise<HotSendResult> {
   const mode = testOpts.mode ?? "send";
-  const { data: job } = await admin.from("jobs").select("id, job_number, source, stage, eligibility_outcome, estimated_area_m2, estimated_area_unknown, owners(full_name, email), properties(address_line, suburb, postcode)").eq("id", jobId).maybeSingle();
+  const { data: job, error: jobError } = await admin.from("jobs").select("id, job_number, source, stage, created_at, eligibility_outcome, estimated_area_m2, estimated_area_unknown, owners(full_name, email), properties(address_line, suburb, postcode)").eq("id", jobId).maybeSingle();
+  if (jobError) return { jobId, jobNumber: null, outcome: "blocked", detail: "Could not read the job. Try again; nothing sent." };
   if (!job) return { jobId, jobNumber: null, outcome: "failed", detail: "Job not found" };
   const r = (outcome: HotSendResult["outcome"], detail: string): HotSendResult => ({ jobId, jobNumber: job.job_number, outcome, detail });
   const isTest = job.source === "qa_test";
@@ -73,17 +74,29 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     admin.from("customer_estimate_links").select("id, token").eq("job_id", jobId).eq("purpose", "step3_estimate").eq("status", "active").maybeSingle(),
     admin.from("indicative_estimates").select("id, area_m2, area_source, insulation_declared, scenarios, snapshot").eq("job_id", jobId).eq("status", "current").maybeSingle(),
   ]);
-  if (followup && (optError || responseError || linkError || estimateError)) return r("blocked", "Could not verify the current follow-up records. Try again; nothing sent.");
+  // Fail closed for every send: an unreadable opt-out, response, link or estimate never counts as "none".
+  if (optError || responseError || linkError || estimateError) return r("blocked", followup ? "Could not verify the current follow-up records. Try again; nothing sent." : "Could not verify opt-out, saved spot, link or estimate records. Try again; nothing sent.");
   if (opt?.opted_out_at || resp?.opted_out_at) return r("skipped", "Owner opted out.");
   if (resp?.spot_saved_at && !(isTest && testOpts.subjectPrefix)) return r("skipped", "Spot already saved.");
   if (!link?.token) return r("skipped", "No secure estimate link yet.");
   const price = savedPriceFromEstimate(est ?? null);
   if (!price || !price.areaM2) return r("skipped", "No current preliminary price.");
   const assumed = est?.area_source === "typical_default";
-  if (assumed) { const b = noSizeEstimateBlocker({ areaSource: est?.area_source ?? null, areaM2: price.areaM2, ownerArea: job.estimated_area_unknown ? null : Number(job.estimated_area_m2) || null, insulation: price.insulation, followup, automaticInitial: isTest || mode !== "send" || testOpts.automaticInitial === true }); if (b) return r("skipped", b); }
+  if (assumed) {
+    // The caller flag alone never qualifies: a real send must also be a NEW enquiry whose initial intake just completed.
+    let automaticInitial = isTest || mode !== "send";
+    if (!automaticInitial && testOpts.automaticInitial === true) {
+      const { data: intake, error: intakeError } = await admin.from("post_intake_work").select("status, completed_at").eq("job_id", jobId).order("completed_at", { ascending: false, nullsFirst: false }).limit(1).maybeSingle();
+      if (intakeError) return r("blocked", "Could not verify the initial enquiry. Try again; nothing sent.");
+      automaticInitial = initialReplyWindowOk({ jobCreatedAt: job.created_at, intakeStatus: intake?.status ?? null, intakeCompletedAt: intake?.completed_at ?? null, now: new Date() });
+    }
+    const b = noSizeEstimateBlocker({ areaSource: est?.area_source ?? null, areaM2: price.areaM2, ownerArea: job.estimated_area_unknown ? null : Number(job.estimated_area_m2) || null, insulation: price.insulation, followup, automaticInitial });
+    if (b) return r("skipped", b);
+  }
   if (followup && (price.insulation !== "present" || !(await followupAllowed(link.token)))) return r("blocked", "A qualifying declaration or approved below-R2 review and current existing-insulation estimate are required.");
   const { discountIsWholeVeecs } = await import("./estimate.core");
-  const { data: cfg } = await admin.from("retail_estimator_settings").select("indicative_veec_value").eq("is_current", true).maybeSingle();
+  const { data: cfg, error: cfgError } = await admin.from("retail_estimator_settings").select("indicative_veec_value").eq("is_current", true).maybeSingle();
+  if (cfgError || !cfg) return r("blocked", "Could not read current estimator settings. Try again; nothing sent.");
   if (!discountIsWholeVeecs(price.discount, price.total, Number(cfg?.indicative_veec_value))) return r("blocked", "Discount is not a whole number of VEECs. Recalculate the estimate first.");
   if (!isTest) {
     const { hasCurrentOwnerContactConsent } = await import("./comms.server");
