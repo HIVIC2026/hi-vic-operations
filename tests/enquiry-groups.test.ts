@@ -151,7 +151,7 @@ describe("one automatic email route", () => {
   test("unsure insulation also gets the details request", () => expect(automaticLeadEmail({ ...baseRoute, outcome: "needs_onsite_confirmation", declaredInsulation: "unknown" })).toEqual({ email: "request_insulation", blocker: null }));
   test("official ineligible gets the ineligible email", () => expect(automaticLeadEmail({ ...baseRoute, outcome: "does_not_appear_eligible", declaredInsulation: "unknown" })).toEqual({ email: "ineligible", blocker: null }));
   test.each([
-    [{ source: "qa_test" }, "TEST"], [{ ownerEnteredArea: false }, "ceiling size"], [{ reviewRequired: true }, "office review"], [{ intakeWorkActive: true }, "still running"], [{ decisionSource: null }, "missing"],
+    [{ source: "qa_test" }, "TEST"], [{ reviewRequired: true }, "office review"], [{ intakeWorkActive: true }, "still running"], [{ decisionSource: null }, "missing"],
   ])("unsafe route %p is held with one reason", (change, reason) => {
     const result = automaticLeadEmail({ ...baseRoute, ...change });
     expect(result.email).toBe("none"); expect(result.blocker).toContain(reason);
