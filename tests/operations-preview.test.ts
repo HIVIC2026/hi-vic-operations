@@ -91,7 +91,7 @@ describe("isolated operations presentation", () => {
     expect(route).toContain('/_authenticated/admin/operations-preview');
     expect(readFileSync("src/routes/_authenticated/admin.tsx", "utf8")).toContain('.admin');
     expect(endpoint).toContain('.middleware([requireSupabaseAuth])'); expect(endpoint.indexOf('await requireAdmin')).toBeLessThan(endpoint.indexOf('client.server'));
-    expect(server).toContain(".eq('business_unit', 'hivic').or('source.is.null,source.neq.qa_test')");
+    expect(server).toContain(".eq('business_unit', 'hivic').is('deleted_at', null).or('source.is.null,source.neq.qa_test')");
     expect(server).not.toMatch(/\.(insert|update|delete|upsert|rpc)\(|maybeAutoRoute|sendSaveMySpot|fetch\(/);
     expect(readFileSync("src/lib/office-nav.ts", "utf8")).not.toMatch(/key: "[^"]+", label: "[^"]+", to: "\/admin\/operations-preview"/);
   });
