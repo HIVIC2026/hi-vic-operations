@@ -150,7 +150,7 @@ export function communicationStatusLabel(c: { status: string; at: string | null 
   if (c.status === "blocked_prelaunch") return "Not sent — sending paused";
   if (["queued", "pending"].includes(c.status)) return "Waiting to send — not sent";
   if (c.status === "held") return "Held — not sent";
-  if (c.status === "recorded") return "Logged only — not sent";
+  if (c.status === "recorded") return "Recorded — send not confirmed";
   if (c.status === "received") return "Received";
   return "Status unavailable";
 }
@@ -169,4 +169,20 @@ export function latestCommunicationEvent<T extends CommFactView>(history: T[]): 
 
 export function evidenceStatusLabel(status: string): string {
   return ({ outstanding: "Not yet provided", uploaded: "Uploaded — to check", verified: "Checked", rejected: "Rejected — needs redoing", not_required: "Not needed" } as Record<string, string>)[status] ?? "Status unavailable";
+}
+
+/** Factual task tags: blocked and overdue can both be true; a missing or invalid due date is never printed. */
+export function taskTags(t: { blocked?: boolean; overdue?: boolean; dueAt?: string | null }, fmt: (iso: string) => string): { text: string; tone: "bad" | "plain" }[] {
+  const due = t.dueAt && okTime(t.dueAt) ? fmt(t.dueAt) : null;
+  const out: { text: string; tone: "bad" | "plain" }[] = [];
+  if (t.blocked) out.push({ text: "Blocked", tone: "bad" });
+  if (t.overdue) out.push({ text: due ? `Overdue · ${due}` : "Overdue", tone: "bad" });
+  else if (due) out.push({ text: `Due ${due}`, tone: "plain" });
+  return out;
+}
+
+/** Evidence row: the actual status always shows; later-stage items only add a qualifier. */
+export function evidenceRowLabel(status: string, when: "current" | "future" | string): string {
+  const s = evidenceStatusLabel(status);
+  return when === "future" ? (status === "outstanding" ? "Later stage" : `${s} · later stage`) : s;
 }
