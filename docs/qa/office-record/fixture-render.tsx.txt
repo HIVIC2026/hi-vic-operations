@@ -1,0 +1,21 @@
+import { test, mock } from "bun:test";
+import { writeFileSync } from "node:fs";
+const realRouter = { ...(await import("/dev-server/node_modules/@tanstack/react-router/dist/esm/index.js")) };
+mock.module("@tanstack/react-router", () => ({ ...realRouter, Link: ({ children, className }: any) => <a href="#" className={className}>{children}</a> }));
+mock.module("/dev-server/src/components/portal/JobDeleteControls.tsx", () => ({ RowDeleteButton: () => <button className="inline-flex h-10 items-center rounded-full border border-line px-4 font-semibold text-rose">Delete</button>, JobDeleteControls: () => null }));
+test("render", async () => {
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const { RecordDetail } = await import("/dev-server/src/components/portal/RecordDetail.tsx");
+  const { JobStatusSummary } = await import("/dev-server/src/components/portal/CompactJobStatus.tsx");
+  const row: any = {
+    id: "00000000-0000-0000-0000-00000000f1x7", jobNumber: "HV-9999 (FIXTURE)", channel: "hivic_sourced", originatingInstaller: null, assignedInstaller: null,
+    bucket: "Leads", process: "Insulation review", eligibilityLabel: "Needs Onsite Confirmation", eligibilityReason: "Fictitious example: existing insulation to confirm onsite.",
+    savedSpot: true, spotSavedOpen: true, mediaState: "5 photos/videos — office review", facts: { stage: "preliminary_estimate_ready" },
+    tasks: [{ label: "Review received insulation photos/video", party: "Office", blocked: true, overdue: true, dueAt: "2026-10-07T00:00:00Z" }, { label: "Confirm spot saved", party: "Office", dueAt: "not-a-date" }],
+    evidence: [{ label: "Before photos of ceiling space", status: "uploaded", gate: "assessment" }, { label: "Completed installation photos", status: "verified", gate: "installation" }, { label: "Post-install video", status: "outstanding", gate: "installation" }],
+    communications: [{ purpose: "save_my_spot", status: "sent", at: "2026-10-05T01:00:00Z", recordedAt: "2026-10-05T00:59:00Z" }, { purpose: "existing_leads_launch_v1", status: "blocked_prelaunch", at: null, recordedAt: "2026-10-08T02:00:00Z" }, { purpose: "email", status: "recorded", at: null, recordedAt: "2026-10-08T03:00:00Z" }],
+  };
+  const css = await (await fetch("http://localhost:8080/src/styles.css?direct")).text();
+  const body = renderToStaticMarkup(<div className="portal-theme mx-auto max-w-5xl p-4"><p className="text-xs text-sub">FIXTURE — fictitious data, not a real customer</p><JobStatusSummary row={row} loadedAt="2026-10-09T01:00:00Z" onOpen={() => {}} /><RecordDetail r={row} /></div>);
+  writeFileSync("/tmp/fixture/page.html", `<!doctype html><html><head><meta name="viewport" content="width=device-width"><style>${css}</style></head><body class="bg-background">${body.replace(/<details/g, "<details open")}</body></html>`);
+});
