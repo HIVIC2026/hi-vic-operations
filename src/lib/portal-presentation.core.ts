@@ -128,3 +128,45 @@ export function onsiteMarkFor(key: string, e: OnsiteFacts | null | undefined, rL
   }
   return null;
 }
+
+// ---- Office record presentation (labels only; never decides workflow) ----
+export type CommFactView = { purpose: string; status: string; at: string | null; recordedAt?: string | null; error?: string | null; actionKey?: string | null };
+const okTime = (at: string | null | undefined) => !!at && Number.isFinite(Date.parse(at));
+
+/** Plain name for what a message was. */
+export function communicationPurposeLabel(c: { purpose: string; actionKey?: string | null }): string {
+  const k = c.actionKey ?? "";
+  if (c.purpose === "existing_leads_launch_v1") return k.includes(":insulation_details:") ? "Insulation details email" : k.includes(":save_my_spot") ? "Save your spot email" : "Launch campaign email";
+  const map: Record<string, string> = { email: "Email", sms: "Text message", step3_estimate: "Estimate email", preliminary_ineligible: "Not eligible email", save_my_spot: "Save your spot email", save_my_spot_no_size: "Save your spot email", spot_saved: "Spot saved confirmation" };
+  return map[c.purpose] ?? "Message";
+}
+
+/** Plain status. Only a sent/delivered row with a real sent time counts as sent; nothing else is called delivered. */
+export function communicationStatusLabel(c: { status: string; at: string | null }): string {
+  if ((c.status === "sent" || c.status === "delivered") && okTime(c.at)) return c.status === "delivered" ? "Delivered" : "Sent";
+  if (c.status === "sent" || c.status === "delivered") return "Sent time missing — not confirmed";
+  if (["failed", "bounced", "undelivered"].includes(c.status)) return "Failed";
+  if (["sending", "sent_unknown", "delivered_unrecorded"].includes(c.status)) return "Outcome unknown — do not resend";
+  if (c.status === "blocked_prelaunch") return "Not sent — sending paused";
+  if (["queued", "pending"].includes(c.status)) return "Waiting to send — not sent";
+  if (c.status === "held") return "Held — not sent";
+  if (c.status === "recorded") return "Logged only — not sent";
+  if (c.status === "received") return "Received";
+  return "Status unavailable";
+}
+
+/** Latest message actually confirmed sent (real sent time). A newer queued/blocked row never hides it. */
+export function latestConfirmedSend<T extends CommFactView>(history: T[]): T | null {
+  const sent = history.filter((c) => (c.status === "sent" || c.status === "delivered") && okTime(c.at));
+  return sent.sort((a, b) => Date.parse(a.at!) - Date.parse(b.at!)).at(-1) ?? null;
+}
+
+/** Latest recorded event (by its recorded time), whatever its status. */
+export function latestCommunicationEvent<T extends CommFactView>(history: T[]): T | null {
+  const key = (c: T) => c.recordedAt ?? c.at ?? "";
+  return [...history].sort((a, b) => key(a).localeCompare(key(b))).at(-1) ?? null;
+}
+
+export function evidenceStatusLabel(status: string): string {
+  return ({ outstanding: "Not yet provided", uploaded: "Uploaded — to check", verified: "Checked", rejected: "Rejected — needs redoing", not_required: "Not needed" } as Record<string, string>)[status] ?? "Status unavailable";
+}
