@@ -134,7 +134,7 @@ export async function tradeCancelVisit(jobId: string, userId: string, reason: st
 /** Timer: trade no-show 4h after start with no arrival and no evidence -> needs attention; reliability drops. */
 export async function sweepTradeNoShows(now = new Date()) {
   const from = new Date(now.getTime() - 7 * 86_400_000).toISOString(), to = new Date(now.getTime() - 4 * 3_600_000).toISOString();
-  const { data } = await admin.from("bookings").select("id, job_id, kind, scheduled_start, business_id, assignment_id, contractor_id, jobs!inner(source)").eq("status", "confirmed").gte("scheduled_start", from).lte("scheduled_start", to);
+  const { data } = await admin.from("bookings").select("id, job_id, kind, scheduled_start, business_id, assignment_id, contractor_id, jobs!inner(deleted_at, source)").is("jobs.deleted_at", null).eq("status", "confirmed").gte("scheduled_start", from).lte("scheduled_start", to);
   let flagged = 0;
   for (const raw of data ?? []) {
     if ((raw.jobs as { source?: string | null } | null)?.source === "qa_test") continue; // Test Centre jobs never enter automation

@@ -43,7 +43,7 @@ export async function recCandidatesFor(jobId: string): Promise<{ postcode: strin
     admin.from("partner_offers").select("business_id, status, offered_at, responded_at").in("kind", ["piesa", "rectification"]).gte("offered_at", since).in("business_id", ids.length ? ids : NONE),
     admin.from("partner_relationships").select("electrician_business_id, installer_business_id").eq("active", true),
     windows.length
-      ? admin.from("bookings").select("business_id, scheduled_start, scheduled_end, jobs(properties(postcode))").eq("status", "confirmed").in("business_id", ids.length ? ids : NONE)
+      ? admin.from("bookings").select("business_id, scheduled_start, scheduled_end, jobs!inner(deleted_at, properties(postcode))").is("jobs.deleted_at", null).eq("status", "confirmed").in("business_id", ids.length ? ids : NONE)
           .gte("scheduled_start", new Date(Math.min(...windows.map((w) => w.s)) - 86_400_000).toISOString())
           .lte("scheduled_start", new Date(Math.max(...windows.map((w) => w.e)) + 86_400_000).toISOString())
       : Promise.resolve({ data: [] as { business_id: string | null; scheduled_start: string; scheduled_end: string | null; jobs: unknown }[] }),
