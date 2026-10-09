@@ -2,10 +2,11 @@ import { melbourneToday as melbourneTodayCore } from "./melbourne-time.core";
 // Pure rules for the portal REC (electrician) onboarding + partner agreement signing.
 // No I/O. Used by the public form (live validation) and the server (authoritative checks).
 import { REC_AGREEMENT_SECTIONS } from "./rec-agreement.text";
+import { activity48AgreementScheduleText } from "./activity48-agreement-schedule.text";
 
-export const REC_AGREEMENT_VERSION = "HI-VIC-A48-REC-2.5-2026-10-05";
+export const REC_AGREEMENT_VERSION = "HI-VIC-A48-REC-2.6-2026-10-09";
 /** Earlier signed agreements remain valid for office activation; only new signatures use the current version. */
-export const ACTIVATABLE_REC_VERSIONS: readonly string[] = ["HI-VIC-A48-REC-2.3-2026-10-01", "HI-VIC-A48-REC-2.4-2026-10-03", REC_AGREEMENT_VERSION];
+export const ACTIVATABLE_REC_VERSIONS: readonly string[] = ["HI-VIC-A48-REC-2.3-2026-10-01", "HI-VIC-A48-REC-2.4-2026-10-03", "HI-VIC-A48-REC-2.5-2026-10-05", REC_AGREEMENT_VERSION];
 export const REC_AGREEMENT_TITLE = "Activity 48 Registered Electrical Contractor Partner Agreement";
 export const AP_ENTITY = "DC Construction Solutions Pty Ltd ABN 44 671 613 979 trading as Home Insulation Victoria";
 export const MIN_PL_COVER = 5_000_000;
@@ -15,6 +16,7 @@ export const ACKNOWLEDGEMENTS = [
   { key: "authority", text: "I am authorised to bind the REC to this agreement." },
   { key: "personnel", text: "The REC will ensure every nominated electrician and staff member on Home Insulation Victoria jobs complies with the obligations that apply to them." },
   { key: "compliance", text: "I understand the REC and its personnel must comply with current VEU, Code of Conduct, PIESA, electrical-safety and Home Insulation Victoria requirements." },
+  { key: "schedule", text: "I have reviewed and accept the incorporated versioned Schedule 4 — Activity 48 Compliance and Evidence, including our role-owned evidence, safety and retention responsibilities. The AP retains its own statutory duties." },
   { key: "records", text: "I confirm the REC will provide truthful records and evidence and cooperate with Home Insulation Victoria, ESC and ESV compliance checks." },
   { key: "no_bypass", text: "I understand that rectification, electrical upgrades, attendance and other work identified through or required for a Home Insulation Victoria Activity 48 job must be quoted, approved by the owner, scheduled and completed through the Home Insulation Victoria workflow and must not be taken off-platform or dealt with directly, except for the minimum work lawfully necessary to make an immediate danger safe." },
   { key: "customer_owner", text: "I understand the customer is Home Insulation Victoria's customer. I will not quote, invoice or accept payment from them separately for any work connected to a Home Insulation Victoria job, and I will not approach them for other work. Routine communication goes through the Home Insulation Victoria portal, subject only to the agreement's narrow immediate-safety and legally required exceptions." },
@@ -431,7 +433,7 @@ export function scheduleText(d: RecData): string {
   for (const it of RECT_ITEMS) lines.push(`${it.label}: ${money(d.rectification_rates?.[it.key] ?? null)} / ${it.unit}`);
   for (const it of d.custom_rectification_rates ?? []) lines.push(`${it.description.trim()}: ${money(it.price)} / ${it.unit.trim()} (custom approved item ${customRateCode(it.id)})`);
   lines.push(`Certificate of Electrical Safety: ${d.coes_fee_choice === "separate" ? `${money(d.coes_fee)} separate fee` : "included"}`);
-  return lines.join("\n");
+  return [...lines, "", activity48AgreementScheduleText()].join("\n");
 }
 
 /** Exact text the partner signs: header, all clauses, schedules and acknowledgements. */
