@@ -27,3 +27,20 @@ describe("office record presentation", () => {
     expect(evidenceStatusLabel("??")).toBe("Status unavailable");
   });
 });
+
+import { taskTags, evidenceRowLabel } from "../src/lib/portal-presentation.core";
+test("recorded never reads as sent or as not sent, with or without times", () => {
+  for (const at of [null, "2026-10-01T00:00:00Z", "bad"]) { const l = communicationStatusLabel({ status: "recorded", at }); expect(l).toBe("Recorded — send not confirmed"); expect(l).not.toMatch(/^(Sent|Delivered)/); }
+});
+test("blocked and overdue both show, with the due date", () => {
+  expect(taskTags({ blocked: true, overdue: true, dueAt: "2026-10-01T00:00:00Z" }, () => "1 Oct").map((t) => t.text)).toEqual(["Blocked", "Overdue · 1 Oct"]);
+});
+test("missing or invalid due date is never printed", () => {
+  for (const dueAt of [null, undefined, "", "not-a-date"]) { const t = taskTags({ overdue: true, dueAt }, () => "X").map((x) => x.text); expect(t).toEqual(["Overdue"]); expect(taskTags({ dueAt }, () => "X")).toEqual([]); }
+});
+test("later-stage evidence keeps its real status", () => {
+  expect(evidenceRowLabel("verified", "future")).toBe("Checked · later stage");
+  expect(evidenceRowLabel("uploaded", "future")).toBe("Uploaded — to check · later stage");
+  expect(evidenceRowLabel("outstanding", "future")).toBe("Later stage");
+  expect(evidenceRowLabel("outstanding", "current")).toBe("Not yet provided");
+});
