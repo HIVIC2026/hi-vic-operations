@@ -11,6 +11,7 @@
 
 - `docs/HIV_WORKFLOW_SOURCE_OF_TRUTH.md` + `src/config/workflow-decisions.ts` override older prompts/comments/labels; run `bun scripts/scan-retired-terms.ts` before workflow work. Pending DB changes live in `docs/pending-migrations/` and are proven on PGlite (`tests/helpers/pglite-*.ts`) before any live run. Why: stop retired rules returning and keep untested SQL off the live database.
 # Project rules
+- Installer legal terms render through the canonical agreement sections and signing version; version bumps retain previously activatable signed versions and historic PDFs read stored text only. Why: prospective corrections must never rewrite signed contracts or silently revoke existing approvals.
 - PIISA schema/prefill/copy changes require observed IDs and current-definition validation; media is not structured product data. Why: protect crew/statutory output.
 - PIISA pins read-back definitions; signatures use audit-owned IDs, never historic fallback. Expected day uses capture; products/post-work use same-audit review before output. Why: no inferred facts.
 - PIISA AP uses authoritative config and readback before sharing; blank repair requires observed unsigned capture fields. Why: no installer substitution or signed-history mutation.

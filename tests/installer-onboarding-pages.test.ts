@@ -73,7 +73,7 @@ describe("installer visible pages", () => {
     expect(blocked.some((x) => x.page === "insurance")).toBe(true);
     expect(blocked.some((x) => x.page === "install_pricing")).toBe(true);
     expect(blocked.map((x) => x.key)).toEqual(expect.arrayContaining(["review", "acknowledgements", "signer-name", "signer-position", "signer-email"]));
-    expect(INSTALLER_AGREEMENT_VERSION).toBe("HI-VIC-A48-INST-1.16-2026-10-05");
+    expect(INSTALLER_AGREEMENT_VERSION).toBe("HI-VIC-A48-INST-1.17-2026-10-09");
   });
   test("pink access-charges note is removed and fee copy hides internal overrides", () => {
     const route = readFileSync("src/routes/installer-onboarding.tsx", "utf8");
