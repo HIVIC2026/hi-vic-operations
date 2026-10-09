@@ -182,7 +182,7 @@ function mergeEvidence(existing: unknown, input: EnquiryInput): Json {
   const base = existing && typeof existing === "object" && !Array.isArray(existing) ? (existing as Record<string, unknown>) : {};
   const old = (base['base44'] as { raw?: unknown } | undefined)?.raw;
   const raw = retainOriginalMedia(old, buildBase44Raw(input));
-  return { ...base, base44: { ...buildBase44Evidence(input), raw } } as Json;
+  return { ...base, base44: { ...buildBase44Evidence(input), raw } } as unknown as Json;
 }
 
 /** Consent + media are stored before Gate 1/intelligence run. Media failures never fail the enquiry. */
