@@ -3,7 +3,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { LAUNCH_CAMPAIGN, LAUNCH_COPY_APPROVED, launchGroup, savedPriceFromEstimate } from "./launch-campaign.core";
 import { renderLaunchCampaignEmail } from "./estimate-email";
-import { renderStep3Likely, renderStep3SaveSpot, renderStep3SaveSpotNoSize } from "./step3-emails";
+import { renderStep3Likely, renderStep3SaveSpot } from "./step3-emails";
 import { noSizeEstimateBlocker } from "./no-size-estimate.core";
 import { CUSTOMER_BASE } from "./engagement.core";
 import { reservationAllowed, withUnsubscribe } from "./emailsafety.core";
@@ -80,7 +80,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   const price = savedPriceFromEstimate(est ?? null);
   if (!price || !price.areaM2) return r("skipped", "No current preliminary price.");
   const assumed = est?.area_source === "typical_default";
-  if (assumed) { const b = noSizeEstimateBlocker({ areaSource: est?.area_source ?? null, areaM2: price.areaM2, ownerArea: job.estimated_area_unknown ? null : Number(job.estimated_area_m2) || null, insulation: price.insulation, followup }); if (b) return r("skipped", b); }
+  if (assumed) { const b = noSizeEstimateBlocker({ areaSource: est?.area_source ?? null, areaM2: price.areaM2, ownerArea: job.estimated_area_unknown ? null : Number(job.estimated_area_m2) || null, insulation: price.insulation, followup, automaticInitial: isTest || testOpts.automaticInitial === true }); if (b) return r("skipped", b); }
   if (followup && (price.insulation !== "present" || !(await followupAllowed(link.token)))) return r("blocked", "A qualifying declaration or approved below-R2 review and current existing-insulation estimate are required.");
   const { discountIsWholeVeecs } = await import("./estimate.core");
   const { data: cfg } = await admin.from("retail_estimator_settings").select("indicative_veec_value").eq("is_current", true).maybeSingle();
@@ -138,9 +138,10 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   // Likely-eligible owners get the Jo-APPROVED "Save your spot (likely eligible)" email (7 Oct 2026, FINAL).
   const referralUrl = sendGroup === "likely" ? await (await import("./referral.server")).referralUrlForJob(linkJobId).catch(() => null) : null;
   const mail = sendGroup === "likely"
-    ? (() => { const m = (isTest && testOpts.variant === "likely_estimate" ? renderStep3Likely : assumed ? renderStep3SaveSpot : renderStep3SaveSpot)({
+    ? (() => { const m = (isTest && testOpts.variant === "likely_estimate" ? renderStep3Likely : renderStep3SaveSpot)({
         estimateUrl: `${base}/estimate/${linkToken}`, campaignUrl, unsubscribeUrl, referralUrl,
         estimatedTotal: price.total, veuDiscount: price.discount, grossTotal: price.gross, areaM2: price.areaM2,
+        ...(assumed ? { areaIsTypical: true } : {}),
         firstName, address: fullAddress, reference: job.job_number, existingInsulationPresent: (price.insulation ?? est?.insulation_declared) === "present",
         ...(followup ? { removal: removalFromScenario(Array.isArray(est?.scenarios) ? est.scenarios[0] : null) } : {}),
         ...(installation === undefined ? {} : { installation }),
