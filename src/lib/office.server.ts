@@ -27,7 +27,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
   const now = Date.now();
   const scope = <T extends { in: (c: string, v: string[]) => T }>(q: T) => (opts.onlyIds ? q.in("job_id", opts.onlyIds) : q);
   const jobQ = () => {
-    let q = admin.from("jobs").select("id, job_number, stage, source, created_at, last_activity_at, hold_revisit_at, cancelled_reason, next_action, installation_completed_at, qa_archived_at, offer_dispatch_override, owners(full_name), properties(suburb, postcode)");
+    let q = admin.from("jobs").select("id, job_number, stage, source, created_at, last_activity_at, hold_revisit_at, cancelled_reason, next_action, installation_completed_at, qa_archived_at, deleted_at, offer_dispatch_override, owners(full_name), properties(suburb, postcode)");
     if (opts.onlyIds) q = q.in("id", opts.onlyIds);
     return q;
   };
@@ -37,7 +37,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
   ]);
   if (settingsRes.error) throw new Error(`Could not load time limits: ${settingsRes.error.message}`);
   const lim = limits((settingsRes.data?.office_time_limits ?? {}) as Record<string, unknown>);
-  const live = jobs.filter((j) => (opts.includeTest ? true : j["source"] !== "qa_test") && !j["qa_archived_at"]);
+  const live = jobs.filter((j) => (opts.includeTest ? true : j["source"] !== "qa_test") && !j["qa_archived_at"] && !j["deleted_at"]);
   const ids = live.map((j) => String(j["id"]));
   const want = (r: Row) => !opts.onlyIds || opts.onlyIds.includes(String(r["job_id"]));
   const [stageEv, camp, links, wins, offers, books, props, quotes, inv, piesa, rcs, ev, veec, payoutEv, deadlines, invErr, esc, outbox, comms, emails, snoozes, apps, creds] = await Promise.all([
