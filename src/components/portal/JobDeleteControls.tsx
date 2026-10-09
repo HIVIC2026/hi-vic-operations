@@ -30,3 +30,18 @@ export function JobDeleteControls({ jobId }: { jobId: string }) {
     </div>
   );
 }
+
+/** Compact Delete button for one list row. */
+export function RowDeleteButton({ jobId, jobNumber }: { jobId: string; jobNumber: string }) {
+  const del = useAction(deleteJob);
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  if (!open) return <Button size="sm" variant="destructive" aria-label={`Delete ${jobNumber}`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(true); }}>Delete</Button>;
+  return (
+    <form className="flex flex-wrap items-center gap-1" onClick={(e) => e.stopPropagation()} onSubmit={async (e) => { e.preventDefault(); if (await del({ jobId, reason }, `${jobNumber} deleted`)) setOpen(false); }}>
+      <input aria-label={`Reason for deleting ${jobNumber}`} className="h-9 min-w-[10rem] rounded-md border border-line px-2 text-sm" placeholder="Reason" value={reason} onChange={(e) => setReason(e.target.value)} required minLength={3} />
+      <Button type="submit" size="sm" variant="destructive" disabled={reason.trim().length < 3}>Delete {jobNumber}</Button>
+      <Button type="button" size="sm" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+    </form>
+  );
+}

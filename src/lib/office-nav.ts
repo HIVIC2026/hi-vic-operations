@@ -41,6 +41,7 @@ export const SECTION_TABS: Record<OfficeSection, OfficeTab[]> = {
     { label: "Compliance", to: "/admin/compliance" },
     { label: "Owner paperwork", to: "/admin/owner-paperwork" },
     { label: "Test centre", to: "/admin/test-centre" },
+    { label: "Deleted jobs", to: "/admin/deleted" },
   ],
 };
 

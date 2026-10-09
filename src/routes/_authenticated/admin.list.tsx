@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/portal/AppShell";
 import { listByStatus } from "@/lib/office.functions";
 import { fmtDate } from "@/lib/workflow";
+import { RowDeleteButton } from "@/components/portal/JobDeleteControls";
 
 type S = { status?: string; stage?: string; late?: boolean; test?: boolean };
 export const Route = createFileRoute("/_authenticated/admin/list")({
@@ -29,7 +30,7 @@ function JobList() {
           {data.rows.length === 0 ? <p className="rounded-[22px] border bg-card p-5 text-sm text-muted-foreground">No jobs here.</p> : (
             <div className="overflow-x-auto rounded-[22px] border bg-card shadow-sm">
               <table className="w-full min-w-[720px] text-sm">
-                <thead className="border-b text-left text-xs text-muted-foreground"><tr><th className="p-3">Job</th><th className="p-3">Owner</th><th className="p-3">Suburb</th><th className="p-3">Status</th><th className="p-3">Waiting on</th><th className="p-3 text-right">Days in status</th><th className="p-3">Due</th></tr></thead>
+                <thead className="border-b text-left text-xs text-muted-foreground"><tr><th className="p-3">Job</th><th className="p-3">Owner</th><th className="p-3">Suburb</th><th className="p-3">Status</th><th className="p-3">Waiting on</th><th className="p-3 text-right">Days in status</th><th className="p-3">Due</th><th className="p-3"><span className="sr-only">Delete</span></th></tr></thead>
                 <tbody>
                   {data.rows.map((r) => (
                     <tr key={r.id} className="border-b last:border-0 hover:bg-workspace-mist">
@@ -38,6 +39,7 @@ function JobList() {
                       <td className="p-3">{r.status}{r.detail ? <span className="text-muted-foreground"> · {r.detail}</span> : null}</td>
                       <td className="p-3">{r.waitingOn}</td><td className="p-3 text-right tabular-nums">{r.daysIn}</td>
                       <td className={`p-3 ${r.late ? "font-semibold text-danger" : ""}`}>{r.dueAt ? fmtDate(r.dueAt) : "—"}{r.late ? " · late" : ""}</td>
+                      <td className="p-3"><RowDeleteButton jobId={r.id} jobNumber={r.jobNumber} /></td>
                     </tr>
                   ))}
                 </tbody>
