@@ -3,7 +3,7 @@ import { originalEnquiryMedia, groupBInvitationBlocker } from "../src/lib/group-
 import { buildBase44Raw, retainOriginalMedia } from "../src/lib/enquiry.core";
 
 test("media-choice intent alone is not an attachment when the manifest confirms zero", () => {
-  for (const media_choice of ["yes", "no", "unsure"]) expect(originalEnquiryMedia({answers:{media_choice},media:[]},[])).toEqual({excluded:false,received:false,uncertain:false,pendingSync:false,count:0});
+  for (const media_choice of ["yes", "no", "unsure"]) expect(originalEnquiryMedia({answers:{media_choice},media:[],original_media_verification:{complete:true}},[])).toEqual({excluded:false,received:false,uncertain:false,pendingSync:false,count:0});
 });
 for (const [name,mime] of [["roof.jpg","image/jpeg"],["roof.mov","video/quicktime"]]) test(`${mime}: pending reference and imported document both exclude`, () => {
   const raw = {media:[{source_id:"1",name,mime_type:mime}]};
@@ -12,11 +12,11 @@ for (const [name,mime] of [["roof.jpg","image/jpeg"],["roof.mov","video/quicktim
   expect(originalEnquiryMedia(raw,[doc,doc])).toMatchObject({excluded:true,pendingSync:false,count:1});
 });
 test("unrelated compliance photos and PDFs do not exclude", () => {
-  expect(originalEnquiryMedia({media:[{source_id:"pdf",name:"agreement.pdf",mime_type:"application/pdf"}]},[{kind:"customer_agreement",mime_type:"image/jpeg",storage_path:"J/compliance/signature.jpg"}]).excluded).toBe(false);
+  expect(originalEnquiryMedia({media:[{source_id:"pdf",name:"agreement.pdf",mime_type:"application/pdf"}],original_media_verification:{complete:true}},[{kind:"customer_agreement",mime_type:"image/jpeg",storage_path:"J/compliance/signature.jpg"}]).excluded).toBe(false);
 });
 test("missing legacy manifest, opaque refs and read failures hold without claiming evidence received", () => {
   for (const raw of [{answers:{media_choice:"no"}},{media:[{id:"opaque"}]},null]) expect(originalEnquiryMedia(raw,[])).toMatchObject({excluded:true,received:false,uncertain:true});
-  expect(originalEnquiryMedia({media:[]},[],true).excluded).toBe(true);
+  expect(originalEnquiryMedia({media:[],original_media_verification:{complete:true}},[],true).excluded).toBe(true);
 });
 test("raw photo URLs exclude, and every repeated route/reminder has the same blocker", () => {
   const state = originalEnquiryMedia({answers:{photos:["https://example.test/photo.jpg"]}},[]);
@@ -30,12 +30,12 @@ test("snapshot retains actual attachment identity before copy, without signed UR
 });
 test("repeat empty sync retains pending attachments; legacy uncertainty survives later empty manifest", () => {
   const previous = {media:[{source_id:"first",name:"roof.jpg",mime_type:"image/jpeg"}]};
-  const retained = retainOriginalMedia(previous,buildBase44Raw({media:[]}));
+  const retained = retainOriginalMedia(previous,buildBase44Raw({media:[],media_manifest_complete:true}));
   expect(retained.media).toEqual(previous.media);
   expect(originalEnquiryMedia(retained,[]).excluded).toBe(true);
-  const legacy = retainOriginalMedia({answers:{media_choice:"no"}},buildBase44Raw({media:[]}));
+  const legacy = retainOriginalMedia({answers:{media_choice:"no"}},buildBase44Raw({media:[],media_manifest_complete:true}));
   expect(originalEnquiryMedia(legacy,[])).toMatchObject({excluded:true,uncertain:true});
-  expect(originalEnquiryMedia(retainOriginalMedia(legacy,buildBase44Raw({media:[]})),[]).excluded).toBe(true);
-  const rawRef = retainOriginalMedia({answers:{photos:["https://example.test/original.jpg"]}},buildBase44Raw({media:[],base44_answers:{media_choice:"no"}}));
+  expect(originalEnquiryMedia(retainOriginalMedia(legacy,buildBase44Raw({media:[],media_manifest_complete:true})),[]).excluded).toBe(true);
+  const rawRef = retainOriginalMedia({answers:{photos:["https://example.test/original.jpg"]}},buildBase44Raw({media:[],media_manifest_complete:true,base44_answers:{media_choice:"no"}}));
   expect(originalEnquiryMedia(rawRef,[])).toMatchObject({received:true,pendingSync:true,excluded:true});
 });
