@@ -14,7 +14,8 @@ mock.module("@/integrations/supabase/client.server", () => ({supabaseAdmin:{from
 mock.module("../src/lib/launch-campaign.server",()=>({campaignLink:async()=>qualified?{group:"onsite",criteriaPassed:true,ownerQualified:!reviewed,mediaReview:reviewed?"below_r2":null,job:{id}}:null,campaignPermission:()=>qualified}));
 mock.module("../src/lib/group-b-media.server",()=>({groupBMediaForJob:async()=>{originalMediaReads++;throw new Error("Invitation exclusion must not gate qualified follow-up");}}));
 mock.module("../src/lib/comms.server",()=>({hasCurrentOwnerContactConsent:async()=>true,customerCommsEnabled:async()=>enabled}));
-mock.module("../src/lib/estimate.core",()=>({discountIsWholeVeecs:()=>true}));
+const realEstimate = await import("../src/lib/estimate.core");
+mock.module("../src/lib/estimate.core",()=>({...realEstimate,discountIsWholeVeecs:()=>true}));
 mock.module("../src/lib/emailsafety.server",()=>({unsubscribeUrlForJob:async()=>"https://estimate.homeinsulationvictoria.com.au/api/public/unsubscribe?t="+"A".repeat(43)}));
 mock.module("../src/lib/referral.server",()=>({referralUrlForJob:async()=>null}));
 mock.module("../src/lib/workflow.server",()=>({logEvent:async()=>{}}));
