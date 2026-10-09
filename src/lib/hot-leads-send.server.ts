@@ -195,6 +195,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     const blocker = groupBInvitationBlocker(await groupBMediaForJob(jobId));
     if (blocker) { await finish("failed", "not_sent", blocker); return r("blocked", blocker); }
   }
+  if (!isTest && mode === "send" && sendGroup === "onsite" && !followup && !(await groupBGlobalsOn())) { await finish("failed", "not_sent", GROUP_B_GLOBALS_OFF); return r("blocked", GROUP_B_GLOBALS_OFF); }
   { const { jobDeletedBlocker } = await import("./job-live.server"); const del = await jobDeletedBlocker(jobId); if (del) { await finish("failed", "not_sent", del); return r("blocked", del); } }
   try {
     if (isTest) {
@@ -232,7 +233,19 @@ export async function maybeAutoSendSaveSpot(jobId: string): Promise<void> {
   }
 }
 
+/** Group B real delivery requires BOTH global switches on (customer_comms_enabled + delivery enabled). Unreadable = off. */
+export async function groupBGlobalsOn(): Promise<boolean> {
+  const [{ data: w, error: we }, { data: d, error: de }] = await Promise.all([
+    admin.from("workflow_settings").select("customer_comms_enabled").limit(1).maybeSingle(),
+    admin.from("customer_delivery_settings").select("enabled").eq("id", 1).maybeSingle(),
+  ]);
+  if (we || de || !w || !d) return false;
+  return (w as { customer_comms_enabled: boolean | null }).customer_comms_enabled === true && (d as { enabled: boolean | null }).enabled === true;
+}
+export const GROUP_B_GLOBALS_OFF = "Customer emails are switched off — Group B invitation not sent.";
+
 export async function sendAutomaticInsulationDetails(jobId: string): Promise<HotSendResult> {
+  if (!(await groupBGlobalsOn())) return { jobId, jobNumber: null, outcome: "blocked", detail: GROUP_B_GLOBALS_OFF };
   const blocker = groupBInvitationBlocker(await groupBMediaForJob(jobId));
   if (blocker) return { jobId, jobNumber: null, outcome: "blocked", detail: blocker };
   const { INSULATION_DETAILS_REAL_SEND_APPROVED } = await import("./hot-leads.core");
