@@ -41,6 +41,7 @@ import { Route as AuthenticatedAdminCampaignEmailsRouteImport } from './routes/_
 import { Route as AuthenticatedAdminCommunicationsRouteImport } from './routes/_authenticated/admin.communications'
 import { Route as AuthenticatedAdminComplianceRouteImport } from './routes/_authenticated/admin.compliance'
 import { Route as AuthenticatedAdminCoverageRouteImport } from './routes/_authenticated/admin.coverage'
+import { Route as AuthenticatedAdminDeletedRouteImport } from './routes/_authenticated/admin.deleted'
 import { Route as AuthenticatedAdminElectricianRatesRouteImport } from './routes/_authenticated/admin.electrician-rates'
 import { Route as AuthenticatedAdminEnquiryGroupsRouteImport } from './routes/_authenticated/admin.enquiry-groups'
 import { Route as AuthenticatedAdminHotLeadsRouteImport } from './routes/_authenticated/admin.hot-leads'
@@ -270,6 +271,12 @@ const AuthenticatedAdminCoverageRoute =
   AuthenticatedAdminCoverageRouteImport.update({
     id: '/coverage',
     path: '/coverage',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminDeletedRoute =
+  AuthenticatedAdminDeletedRouteImport.update({
+    id: '/deleted',
+    path: '/deleted',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminElectricianRatesRoute =
@@ -669,6 +676,7 @@ export interface FileRoutesByFullPath {
   '/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
   '/admin/compliance': typeof AuthenticatedAdminComplianceRoute
   '/admin/coverage': typeof AuthenticatedAdminCoverageRoute
+  '/admin/deleted': typeof AuthenticatedAdminDeletedRoute
   '/admin/electrician-rates': typeof AuthenticatedAdminElectricianRatesRoute
   '/admin/enquiry-groups': typeof AuthenticatedAdminEnquiryGroupsRoute
   '/admin/hot-leads': typeof AuthenticatedAdminHotLeadsRoute
@@ -763,6 +771,7 @@ export interface FileRoutesByTo {
   '/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
   '/admin/compliance': typeof AuthenticatedAdminComplianceRoute
   '/admin/coverage': typeof AuthenticatedAdminCoverageRoute
+  '/admin/deleted': typeof AuthenticatedAdminDeletedRoute
   '/admin/electrician-rates': typeof AuthenticatedAdminElectricianRatesRoute
   '/admin/enquiry-groups': typeof AuthenticatedAdminEnquiryGroupsRoute
   '/admin/hot-leads': typeof AuthenticatedAdminHotLeadsRoute
@@ -863,6 +872,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
   '/_authenticated/admin/compliance': typeof AuthenticatedAdminComplianceRoute
   '/_authenticated/admin/coverage': typeof AuthenticatedAdminCoverageRoute
+  '/_authenticated/admin/deleted': typeof AuthenticatedAdminDeletedRoute
   '/_authenticated/admin/electrician-rates': typeof AuthenticatedAdminElectricianRatesRoute
   '/_authenticated/admin/enquiry-groups': typeof AuthenticatedAdminEnquiryGroupsRoute
   '/_authenticated/admin/hot-leads': typeof AuthenticatedAdminHotLeadsRoute
@@ -963,6 +973,7 @@ export interface FileRouteTypes {
     | '/admin/communications'
     | '/admin/compliance'
     | '/admin/coverage'
+    | '/admin/deleted'
     | '/admin/electrician-rates'
     | '/admin/enquiry-groups'
     | '/admin/hot-leads'
@@ -1057,6 +1068,7 @@ export interface FileRouteTypes {
     | '/admin/communications'
     | '/admin/compliance'
     | '/admin/coverage'
+    | '/admin/deleted'
     | '/admin/electrician-rates'
     | '/admin/enquiry-groups'
     | '/admin/hot-leads'
@@ -1156,6 +1168,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/communications'
     | '/_authenticated/admin/compliance'
     | '/_authenticated/admin/coverage'
+    | '/_authenticated/admin/deleted'
     | '/_authenticated/admin/electrician-rates'
     | '/_authenticated/admin/enquiry-groups'
     | '/_authenticated/admin/hot-leads'
@@ -1489,6 +1502,13 @@ declare module '@tanstack/react-router' {
       path: '/coverage'
       fullPath: '/admin/coverage'
       preLoaderRoute: typeof AuthenticatedAdminCoverageRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/deleted': {
+      id: '/_authenticated/admin/deleted'
+      path: '/deleted'
+      fullPath: '/admin/deleted'
+      preLoaderRoute: typeof AuthenticatedAdminDeletedRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/electrician-rates': {
@@ -1956,6 +1976,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminCommunicationsRoute: typeof AuthenticatedAdminCommunicationsRoute
   AuthenticatedAdminComplianceRoute: typeof AuthenticatedAdminComplianceRoute
   AuthenticatedAdminCoverageRoute: typeof AuthenticatedAdminCoverageRoute
+  AuthenticatedAdminDeletedRoute: typeof AuthenticatedAdminDeletedRoute
   AuthenticatedAdminElectricianRatesRoute: typeof AuthenticatedAdminElectricianRatesRoute
   AuthenticatedAdminEnquiryGroupsRoute: typeof AuthenticatedAdminEnquiryGroupsRoute
   AuthenticatedAdminHotLeadsRoute: typeof AuthenticatedAdminHotLeadsRoute
@@ -1990,6 +2011,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminCommunicationsRoute: AuthenticatedAdminCommunicationsRoute,
   AuthenticatedAdminComplianceRoute: AuthenticatedAdminComplianceRoute,
   AuthenticatedAdminCoverageRoute: AuthenticatedAdminCoverageRoute,
+  AuthenticatedAdminDeletedRoute: AuthenticatedAdminDeletedRoute,
   AuthenticatedAdminElectricianRatesRoute:
     AuthenticatedAdminElectricianRatesRoute,
   AuthenticatedAdminEnquiryGroupsRoute: AuthenticatedAdminEnquiryGroupsRoute,
