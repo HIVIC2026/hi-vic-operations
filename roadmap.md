@@ -1,4 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Narrow installer warranty correction (Jo, 9 Oct 20:00 UTC)
+- [ ] Update canonical installer terms and signing version; align directly linked summaries; validate isolated signing/history checks. No production writes, notices or publication.
 ## Existing-insulation Save your spot follow-up (Jo 8 Oct 23:11 UTC)
 - [x] Traced gap: office review recorded only; separate guarded one-owner preview/send now uses Step 3 follow-up with primary-snapshot removal clarification. Initial Group B/no-insulation email hashes unchanged; declarations/prices/locks preserved.
 - [x] Renderer/regression, isolated actual sender and PGlite campaign-handler checks pass; desktop/phone excluded/included prices verified; preview build OK. No sends, queues, activation or publication. Hosted delivery/office-button replay unverified; see docs/GROUP_B_FOLLOWUP_REMOVAL_QA.md.
