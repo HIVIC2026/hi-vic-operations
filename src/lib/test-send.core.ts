@@ -4,7 +4,7 @@
 
 export const TEST_ALLOWLIST = {
   sms: ["+61477511901"] as const,
-  email: ["jolowexo@hotmail.com", "jo@actpropertyinspections.com.au"] as const,
+  email: ["jolowexo@hotmail.com", "jo@actpropertyinspections.com.au", "sweet_sunshine231@hotmail.com"] as const, // last: Jo, verified project owner (10 Oct 2026)
 };
 
 /** 04xx / 614xx / +614xx -> +614xxxxxxxx. Anything else returns null. */
