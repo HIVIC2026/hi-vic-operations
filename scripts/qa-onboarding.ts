@@ -33,7 +33,19 @@ try {
     const link = randomBytes(32).toString("base64url"); const tag = `${p.trade}${p.width}${p.mode[0]}${stamp.slice(11, 19).replace(/-/g, "")}`.toLowerCase();
     const { data: a, error } = await db.from("onboarding_authorisations").insert({ token_hash: sha(link), trade: p.trade, purpose: "qa_test", allow_incomplete_sign: p.mode === "flow", max_uses: 1, expires_at: new Date(Date.now() + 1800e3).toISOString(), issued_by: actor.id, note: `daily QA onboarding ${stamp}` }).select("id").single();
     if (error) throw new Error(`could not issue TEST link: ${error.message}`);
-    apps.push({ ...p, link, tag, authId: a.id, route: p.trade === "rec" ? "electrician-onboarding" : "installer-onboarding", key: p.trade === "rec" ? "hivic_rec_onboarding_token" : "hivic_installer_onboarding_token" });
+    let resume: string | undefined;
+    if (p.trade === "installer") {
+      // Installer pages only start the server draft on the first save, and page 1 needs a verified address (outside lookup,
+      // never typed here). Same path as installer-test: consume this run's own qa_test link and start the TEST draft, then
+      // open the browser with ?resume= so the relaxed TEST rules apply from page 1.
+      const sec = await import("../src/lib/onboarding-security.server");
+      const auth = await sec.consumeAuthorisation(admin as never, link, "installer");
+      if (auth?.purpose !== "qa_test") throw new Error("SAFETY STOP: link is not qa_test");
+      resume = randomBytes(32).toString("base64url");
+      const { error: se } = await db.from("rec_onboarding_applications").insert({ resume_token_hash: sha(resume), step_key: "business", partner_type: "installer", test_mode: true, authorisation_id: auth.id, allow_incomplete_sign: auth.allow_incomplete_sign });
+      if (se) throw new Error(`could not start TEST installer draft: ${se.message}`);
+    }
+    apps.push({ ...p, link, resume, tag, authId: a.id, route: p.trade === "rec" ? "electrician-onboarding" : "installer-onboarding", key: p.trade === "rec" ? "hivic_rec_onboarding_token" : "hivic_installer_onboarding_token" });
   }
   const manifest = `${outDir}/.manifest.json`;
   writeFileSync(manifest, JSON.stringify({ base: "http://localhost:8080", outDir, budget: budget - 30, apps }));

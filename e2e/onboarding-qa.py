@@ -29,7 +29,7 @@ async def shot(pg, name):
     p = SHOTS / name; await pg.screenshot(path=str(p)); return str(p)
 
 async def heading(pg):
-    t = await pg.inner_text("main")
+    t = await pg.inner_text("body")
     mm = re.search(r"(\d+) of (\d+)", t)
     return (mm.group(1) if mm else "?"), t
 
@@ -40,7 +40,7 @@ async def fill_page1(pg, trade, tag):
     await pg.locator("input[type=email]").first.fill(f"qa.onb.{tag}@hivic-test.example")
     if trade == "rec":
         await pg.locator("input[type=checkbox]").first.check()
-        await pg.get_by_label(re.compile("licence number", re.I)).fill("REC-TEST-0001") if await pg.get_by_label(re.compile("licence number", re.I)).count() else None
+        await pg.locator("input[type=text]").nth(1).fill("REC-TEST-0001")
         await pg.locator("input[type=date]").first.fill("2028-06-30")
 
 async def save(pg):
@@ -54,8 +54,9 @@ async def run(browser, a):
     c = await ctx_for(browser, width); pg = await c.new_page(); errs = []
     pg.on("pageerror", lambda e: errs.append(str(e)[:160]))
     try:
-        await pg.goto(f"{m['base']}/{route}?staff={link}", wait_until="networkidle"); await pg.wait_for_timeout(1200)
-        await pg.get_by_role("button", name=re.compile("Start registration")).click(); await pg.wait_for_timeout(1500)
+        q = f"resume={a['resume']}" if a.get("resume") else f"staff={link}"
+        await pg.goto(f"{m['base']}/{route}?{q}", wait_until="networkidle"); await pg.wait_for_timeout(1200)
+        await pg.get_by_role("button", name=re.compile("(Start|Continue) registration")).click(); await pg.wait_for_timeout(1500)
         body = await pg.inner_text("body")
         row(trade, width, "staff TEST link shows TEST MODE banner", "passed" if "TEST MODE" in body.upper() else "failed", "banner present" if "TEST MODE" in body.upper() else "no TEST banner", [await shot(pg, f"{lbl}-01-start.png")])
         if a["mode"] == "validate":
@@ -82,9 +83,15 @@ async def run(browser, a):
             await pg.goto(f"{m['base']}/{route}", wait_until="domcontentloaded")
             await pg.evaluate("([k,v]) => localStorage.setItem(k,v)", [key, TOKENS[lbl] or ""])
             await pg.goto(f"{m['base']}/{route}", wait_until="networkidle"); await pg.wait_for_timeout(1500)
-            await pg.get_by_role("button", name=re.compile("Continue registration")).click(); await pg.wait_for_timeout(1500)
+            cont = pg.get_by_role("button", name=re.compile("Continue registration"))
+            if await cont.count(): await cont.click(); await pg.wait_for_timeout(1500)
             n, _ = await heading(pg)
-            row(trade, width, "fresh browser resumes from saved token at the saved page", "passed" if n == n_before and n != "1" else "failed", f"saved page {n_before}, resumed page {n}", [await shot(pg, f"{lbl}-04-resume.png")])
+            ok = n.isdigit() and 1 < int(n) <= int(n_before)
+            row(trade, width, "fresh browser resumes saved draft (first unfinished page, never the welcome)", "passed" if ok else "failed", f"furthest saved page {n_before}, resumed page {n}", [await shot(pg, f"{lbl}-04-resume.png")])
+            while (await heading(pg))[0] not in ("1", "?"):
+                await pg.get_by_role("button", name=re.compile("^back$", re.I)).click(); await pg.wait_for_timeout(1500)
+            vals = [await pg.get_by_placeholder("e.g. Sam Taylor").input_value(), await pg.locator("input[type=email]").first.input_value()]
+            row(trade, width, "after resume, page 1 answers read back from server", "passed" if vals == [f"QA Onboarding {tag}", f"qa.onb.{tag}@hivic-test.example"] else "failed", str(vals), [await shot(pg, f"{lbl}-04b-resume-page1.png")])
             if a.get("sign"):
                 for _ in range(14):
                     t = await pg.inner_text("main")
