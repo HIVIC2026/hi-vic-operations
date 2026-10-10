@@ -7,4 +7,4 @@
 - [Cooling-off pending](mem://constraints/no-cooling-off) — owner paperwork lawyer-approved 6 Oct; cooling-off + full Customer Agreement still pending
 - [Owner e-signing only](mem://constraints/owner-esign) — every owner/landlord form e-signed in portal (code + ticks + typed name); signed PDF to job file + emailed copy
 - [Owner-agreed installer price](mem://features/owner-agreed-price) — Jo 7 Oct 9:25pm: tick "The owner has agreed to my price" → owner link "Confirm your insulation job" + "As agreed with [installer]"; unquoted → "Your confirmed quote"; exact PIESA fixes note on quote/booking/email/signed Gate B
-- [No-size Save my spot copy](mem://features/no-size-save-spot-copy) — Jo 10 Oct: exact demand wording + "SAVE MY SPOT" button; saved page "Your spot has been saved"; real no-size sends still held
+- [No-size Save my spot](mem://features/no-size-save-spot-copy) — Jo 10 Oct: same as normal Save your spot, only adds labelled 150 m² assumption; no bespoke copy
