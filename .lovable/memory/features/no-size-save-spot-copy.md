@@ -1,8 +1,7 @@
 ---
-name: No-size Save my spot copy
-description: Jo 10 Oct 2026 exact wording for the no-ceiling-size Save my spot email and saved confirmation
+name: No-size Save my spot
+description: Jo 10 Oct 2026 — no-size email/page identical to normal Save your spot except the labelled 150 m² assumption
 type: feature
 ---
-Email (no-size only) replaces the batch paragraph with: "We’re receiving hundreds of enquiries and are currently collecting saved spots while we organise installer availability. Save your spot to let us know you’d like to proceed, and we’ll contact you to arrange your free Ready Check when capacity is available." Button: "SAVE MY SPOT".
-Saved page: heading "Your spot has been saved"; line "We’ll be in touch to arrange your free Ready Check when capacity is available. No payment is required at this stage."
-Owner-entered-size email unchanged. Real typical-size sends remain held until separately authorised.
+No bespoke copy. Reuse the normal approved Save your spot email, CTA, secure page and "Spot saved." confirmation exactly.
+Only difference: show 150 m² as estimated (not measured) plus "You didn’t provide a ceiling size, so we’ve used an average size of 150 m² for this preliminary estimate. Your final price will depend on the measured ceiling area." Prices calculate from the assumed area; owner's true size stays unknown. Real no-size sends remain held.

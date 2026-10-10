@@ -49,7 +49,6 @@ globalThis.fetch = (async (u: unknown) => { fetchCalls.push(String(u)); return n
 
 const { campaignPage, saveCampaignSpot, SAVE_SPOT_VERSION } = await import("../src/lib/launch-campaign.server");
 const { renderStep3SaveSpotNoSize, renderStep3SaveSpot, STEP3_SAVESPOT_SAMPLE } = await import("../src/lib/step3-emails");
-const { NO_SIZE_DEMAND_COPY } = await import("../src/lib/estimate-email");
 
 const J = "00000000-0000-4000-8000-00000000c150";
 const TOKEN = "T".repeat(43);
@@ -70,23 +69,22 @@ beforeEach(() => {
 const { areaM2: _a, areaIsTypical: _t, ...facts } = STEP3_SAVESPOT_SAMPLE;
 const email = renderStep3SaveSpotNoSize({ ...facts, estimateUrl: URL_BASE, campaignUrl: `${URL_BASE}/campaign`, estimatedTotal: 3716.24, veuDiscount: 1481.76, grossTotal: 5198 });
 
-test("no-size email: demand copy, SAVE MY SPOT to the secure page, 150 m² assumption, prices, calculator, no payment", () => {
+test("no-size email = normal Save your spot plus only the labelled 150 m² assumption", () => {
+  const normal = renderStep3SaveSpot({ ...STEP3_SAVESPOT_SAMPLE, estimateUrl: URL_BASE, campaignUrl: `${URL_BASE}/campaign`, estimatedTotal: 3716.24, veuDiscount: 1481.76, grossTotal: 5198 });
+  expect(email.subject).toBe(normal.subject);
+  const extra = email.plainText.split("\n").filter((l) => !normal.plainText.split("\n").includes(l));
+  expect(extra).toEqual(["Ceiling: 150 m² (typical-home assumption)", "You didn’t provide a ceiling size, so we’ve used an average size of 150 m² for this preliminary estimate. Your final price will depend on the measured ceiling area."]);
   for (const out of [email.html, email.plainText]) {
-    expect(out).toContain(out === email.html ? "We’re receiving hundreds of enquiries" : NO_SIZE_DEMAND_COPY);
     expect(out).toContain("You didn’t provide a ceiling size, so we’ve used an average size of 150 m² for this preliminary estimate.");
     expect(out).toContain("$1,482"); expect(out).toContain("$3,716");
     expect(out).toContain("No payment required. No obligation to proceed with installation.");
     expect(out).toContain("calculator");
   }
   expect(email.html).toContain(`href="${URL_BASE}/campaign"`);
-  expect(email.html).toContain(">SAVE MY SPOT<");
-  expect(email.plainText).toContain(`SAVE MY SPOT: ${URL_BASE}/campaign`);
+  expect(email.html).toContain("Save my spot →");
+  expect(email.plainText).toContain(`Save my spot: ${URL_BASE}/campaign`);
 });
 
-test("owner-entered-size Save my spot email is unchanged (no demand swap)", () => {
-  const sized = renderStep3SaveSpot(STEP3_SAVESPOT_SAMPLE);
-  expect(sized.html).not.toContain("hundreds of enquiries"); expect(sized.html).toContain("Save my spot →");
-});
 
 test("opening the secure page does not save; the typical estimate shows as assumed", async () => {
   const page = JSON.parse((await campaignPage(TOKEN, false))!);
@@ -138,10 +136,9 @@ test("stale typical estimate (owner size now known) is not shown or saved", asyn
   expect(db["lead_campaign_responses"]!.length).toBe(0);
 });
 
-test("success page copy shown only from the persisted saved state", () => {
+test("normal saved confirmation shown only from the persisted saved state", () => {
   const s = readFileSync("src/routes/estimate_.$token.campaign.tsx", "utf8");
-  expect(s).toContain("Your spot has been saved");
-  expect(s).toContain("We’ll be in touch to arrange your free Ready Check when capacity is available. No payment is required at this stage.");
+  expect(s).toContain(">Spot saved.</h1>");
   expect(s).toContain(": data.response?.spot_saved_at ? ");
 });
 

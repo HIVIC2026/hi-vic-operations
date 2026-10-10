@@ -60,8 +60,7 @@ function Result({ group, videoPriority, token, rebate, customer, suburb, home, r
   };
   return <section className="estimate-offset rounded-[22px] border border-estimate-blue-soft bg-white p-6 shadow-[0_18px_50px_rgba(34,55,107,0.09)] sm:p-8">
     <OwnerHouse level={1} size="sm" className="mx-auto" />
-    <h1 className="mt-4 text-center font-display text-3xl font-extrabold text-estimate-navy">Your spot has been saved</h1>
-    <p className="mt-2 text-center text-estimate-navy">We’ll be in touch to arrange your free Ready Check when capacity is available. No payment is required at this stage.</p>
+    <h1 className="mt-4 text-center font-display text-3xl font-extrabold text-estimate-navy">Spot saved.</h1>
     <div className="mt-5 rounded-xl bg-estimate-heads-up p-4 text-estimate-navy">
       <p className="font-bold">Smart move{firstName ? `, ${firstName}` : ""}. Your spot is saved.</p>
       <p className="mt-0.5 font-bold text-estimate-logo-green">Your {$(rebate)} rebate is waiting.</p>
@@ -122,7 +121,7 @@ function CampaignDesign({ saveAllowed, ownerQualified, reviewStatus, group, toke
         <div className="flex items-end justify-between gap-3 border-t border-estimate-line pt-3"><span className="text-sm font-extrabold">You pay about</span><span className="font-display text-[34px] font-extrabold leading-none">{money(p.total)}</span></div>
       </div>
       {p.insulation !== "none" && <><p className="mt-3 text-sm font-bold leading-relaxed">{removal}</p><p className="mt-3 text-sm leading-relaxed">{EXISTING_PRELIMINARY}</p></>}
-      <p className="mt-3 text-xs leading-relaxed text-estimate-navy/75">Based on {p.address ? `${p.address} and ` : ""}a {p.areaM2} m² ceiling{p.areaAssumed ? " (assumed average size — you didn’t provide a ceiling size; your final price depends on the measured area)" : ""}. {p.insulation === "none" ? removal : ""} <Link to="/estimate/$token/calculator" params={{ token }} className="font-bold text-estimate-blue">Try a different size →</Link></p>
+      <p className="mt-3 text-xs leading-relaxed text-estimate-navy/75">Based on {p.address ? `${p.address} and ` : ""}a {p.areaM2} m² ceiling{p.areaAssumed ? " (estimated, not measured). You didn’t provide a ceiling size, so we’ve used an average size of 150 m² for this preliminary estimate. Your final price will depend on the measured ceiling area" : ""}. {p.insulation === "none" ? removal : ""} <Link to="/estimate/$token/calculator" params={{ token }} className="font-bold text-estimate-blue">Try a different size →</Link></p>
       <h2 className="mt-5 font-display text-[11px] font-extrabold uppercase tracking-[0.13em]">What you get</h2>
       <ul className="mt-2 space-y-2">{gets.map(([t, d]) => <li key={t} className="text-[13.5px] leading-snug"><span className="font-extrabold text-estimate-logo-green">✓</span>&nbsp; <strong>{t}</strong><br /><span className="text-estimate-navy/75">{d}</span></li>)}</ul>
     </section>

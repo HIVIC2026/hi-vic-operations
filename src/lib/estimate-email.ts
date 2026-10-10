@@ -34,9 +34,6 @@ const LIKELY_NEXT_STEP_INSTRUCTION = "Your installer measures the ceiling, asses
 const SAVE_SPOT_INSTRUCTION = "We have been inundated with requests from homeowners all over Victoria. As one of only two Accredited Persons for this activity, and with limited capacity of suitably qualified installers, we need to take on approvals in batches. Save your spot to join the line and we will be in touch as soon as the next installer is available in your area.";
 /** The locked small line under the likely-email button; the Save your spot version swaps it for Jo's exact wording (7 Oct). */
 const LIKELY_SMALL_PRINT = "Confirm your request on the next page. An installer from our panel will then contact you to arrange a time.";
-/** No-ceiling-size Save my spot only (Jo, 10 Oct 2026): exact demand wording and capitalised button. */
-export const NO_SIZE_DEMAND_COPY = "We’re receiving hundreds of enquiries and are currently collecting saved spots while we organise installer availability. Save your spot to let us know you’d like to proceed, and we’ll contact you to arrange your free Ready Check when capacity is available.";
-export const NO_SIZE_BUTTON = "SAVE MY SPOT";
 const SAVE_SPOT_SMALL_PRINT = "We will be in touch to book your free Ready Check as soon as we can.";
 /** The locked likely-email hero closing sentence; the Save your spot version swaps it for Jo's exact wording (7 Oct, 03:24 UTC). */
 const LIKELY_HERO_SENTENCE = "A more comfortable home could be closer than you think. We’ll coordinate the installer, electrical checks and paperwork.";
@@ -545,15 +542,14 @@ export function renderSaveSpotFromLikelyEmail(input: EstimateEmailInput & { camp
   const card0 = base.html.match(/<table data-likely-next-step="true"[\s\S]*?No obligation to proceed with installation\.<\/p><\/td><\/tr><\/table>/)?.[0];
   if (!card0) throw new Error("Save-spot render: next-step card missing");
   let card = must(card0, "Free Insulation Measure-Up &amp; Eligibility Check", "Save your spot");
-  const noSize = input.areaIsTypical === true;
-  card = must(card, LIKELY_NEXT_STEP_INSTRUCTION, noSize ? escape(NO_SIZE_DEMAND_COPY) : SAVE_SPOT_INSTRUCTION);
-  card = must(card, "Arrange my free measure-up &amp; eligibility check →", noSize ? NO_SIZE_BUTTON : "Save my spot →");
+  card = must(card, LIKELY_NEXT_STEP_INSTRUCTION, SAVE_SPOT_INSTRUCTION);
+  card = must(card, "Arrange my free measure-up &amp; eligibility check →", "Save my spot →");
   card = must(card, /href="[^"]*"/, `href="${escape(input.campaignUrl)}"`);
   card = must(card, LIKELY_SMALL_PRINT, SAVE_SPOT_SMALL_PRINT);
   let html = base.html.replace(card0, () => card);
   let text = must(base.plainText, /FREE INSULATION MEASURE-UP & ELIGIBILITY CHECK\n/, "SAVE YOUR SPOT\n");
-  text = must(text, LIKELY_NEXT_STEP_INSTRUCTION, noSize ? NO_SIZE_DEMAND_COPY : SAVE_SPOT_INSTRUCTION);
-  text = must(text, /Arrange my free measure-up & eligibility check: .*/, `${noSize ? NO_SIZE_BUTTON : "Save my spot"}: ${input.campaignUrl}`);
+  text = must(text, LIKELY_NEXT_STEP_INSTRUCTION, SAVE_SPOT_INSTRUCTION);
+  text = must(text, /Arrange my free measure-up & eligibility check: .*/, `Save my spot: ${input.campaignUrl}`);
   text = must(text, LIKELY_SMALL_PRINT, SAVE_SPOT_SMALL_PRINT);
   return { subject: base.subject, previewText: base.previewText, html, plainText: text };
 }
