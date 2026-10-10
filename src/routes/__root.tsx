@@ -58,7 +58,7 @@ function ErrorComponent({ error, reset }: { error: unknown; reset: () => void })
 }
 
 // Runs before any page file: if the main page file itself fails to load (stale version), reload once per 30s.
-const EARLY_RECOVERY = "(function(){function r(){try{var k='hiv-early-reload-at',t=+(sessionStorage.getItem(k)||0);if(Date.now()-t<30000)return;sessionStorage.setItem(k,String(Date.now()))}catch(e){}location.reload()}window.addEventListener('error',function(e){var t=e.target;if(t&&t.tagName==='SCRIPT'&&t.type==='module')r();else if(/Importing a module script failed|Failed to fetch dynamically imported module/i.test(e.message||''))r()},true)})();";
+const EARLY_RECOVERY = "(function(){function r(){try{var k='hiv-early-reload-at',t=+(sessionStorage.getItem(k)||0);if(Date.now()-t<30000)return;sessionStorage.setItem(k,String(Date.now()))}catch(e){}location.reload()}window.addEventListener('error',function(e){var t=e.target;if(t&&t.tagName==='SCRIPT'&&t.type==='module')r();else if(/Importing a module script failed|Failed to fetch dynamically imported module|e\\[t\\?\\?`default`\\]|reading 'default'/i.test(e.message||''))r()},true)})();";
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
