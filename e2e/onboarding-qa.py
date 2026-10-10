@@ -1,7 +1,8 @@
 """Daily QA: REC + installer onboarding click-through on single-use qa_test staff links (TEST mode applications).
-Reads a manifest from scripts/qa-onboarding.ts. Only localhost is reachable from the browser (everything else aborted);
+Reads a manifest from scripts/qa-onboarding.ts. Only the exact --base origin is reachable from the browser (everything else aborted);
 address fields are never typed (the address lookup is an outside service), so nothing leaves the sandbox from the page."""
 import asyncio, json, re, sys, time
+from urllib.parse import urlsplit
 from pathlib import Path
 from playwright.async_api import async_playwright
 
@@ -9,9 +10,11 @@ m = json.loads(Path(sys.argv[1]).read_text())
 OUT = Path(m["outDir"]); SHOTS = OUT / "screens"; SHOTS.mkdir(parents=True, exist_ok=True)
 DEADLINE = time.time() + m["budget"]
 rows = []
+_b = urlsplit(m["base"]); ORIGIN = f"{_b.scheme}://{_b.netloc}"
+ENV = m.get("environment", "unknown")
 
 def row(trade, width, action, status, detail, shots=()):
-    rows.append({"trade": trade, "width": width, "action": action, "status": status, "detail": detail, "screenshots": list(shots)})
+    rows.append({"environment": ENV, "origin": ORIGIN, "trade": trade, "width": width, "action": action, "status": status, "detail": detail, "screenshots": list(shots)})
     (OUT / ".browser.json").write_text(json.dumps({"rows": rows, "tokens": TOKENS, "external_requests_blocked": BLOCKED}))
 
 TOKENS = {}; BLOCKED = []
@@ -20,7 +23,8 @@ async def ctx_for(browser, width):
     c = await browser.new_context(viewport={"width": width, "height": 1800})
     async def guard(route):
         u = route.request.url
-        if u.startswith("http://localhost:8080"): await route.continue_()
+        o = urlsplit(u)
+        if f"{o.scheme}://{o.netloc}" == ORIGIN: await route.continue_()  # exact origin, no prefix/lookalike match
         else: BLOCKED.append(u[:120]); await route.abort()
     await c.route("**/*", guard)
     return c
