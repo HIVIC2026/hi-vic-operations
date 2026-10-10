@@ -1,3 +1,4 @@
+import { noSizeEstimateBlocker } from "./no-size-estimate.core";
 import { fullAddress } from "./address";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { declaredExtras } from "./enquiry.core";
@@ -70,20 +71,31 @@ export async function campaignPage(token: unknown, testMode = false) {
   const { data: availability } = await admin.from("customer_delivery_settings").select("ready_check_available_postcodes").eq("id", 1).maybeSingle();
   // v8: the page carries the full approved design, so it gets the same snapshot numbers the email used.
   const [{ data: est }, { data: cfg }] = await Promise.all([
-    admin.from("indicative_estimates").select("id, area_m2, insulation_declared, scenarios, snapshot").eq("job_id", c.job.id).eq("status", "current").maybeSingle(),
+    admin.from("indicative_estimates").select("id, area_m2, area_source, insulation_declared, scenarios, snapshot").eq("job_id", c.job.id).eq("status", "current").maybeSingle(),
     admin.from("retail_estimator_settings").select("indicative_veec_value, piesa_assessment_inc_gst, ap_management_inc_gst, r5_install_inc_gst_per_m2").eq("is_current", true).maybeSingle(),
   ]);
-  const p = savedPriceFromEstimate(est ?? null);
+  const typical = typicalEstimateCheck(c.job, est ?? null);
+  const p = typical.blocker ? null : savedPriceFromEstimate(est ?? null);
   const removal = removalFromScenario(Array.isArray(est?.scenarios) ? est.scenarios[0] : null);
   const veecValue = Number(cfg?.indicative_veec_value) || 70;
   const snapshot = est?.snapshot as { settings?: { piesa_assessment_inc_gst?: number; ap_management_inc_gst?: number; r5_install_inc_gst_per_m2?: number; indicative_veec_value?: number } } | null;
   const fees = snapshot?.settings ?? cfg;
   const assessmentFee = Number(fees?.piesa_assessment_inc_gst ?? 349), apFee = Number(fees?.ap_management_inc_gst ?? 349);
   const snapshotVeec = Number(fees?.indicative_veec_value ?? veecValue);
-  const pricing = p && p.areaM2 ? { gross: p.gross, discount: p.discount, total: p.total, areaM2: p.areaM2, assessmentFee, apFee, ratePerM2: Number(fees?.r5_install_inc_gst_per_m2 ?? 30), installation: p.gross - assessmentFee - apFee - (removal.kind === "included" ? removal.amount : 0), removal, veecs: Math.round(p.discount / snapshotVeec), veecValue: snapshotVeec, address, insulation: p.insulation ?? est?.insulation_declared ?? null } : null;
+  const pricing = p && p.areaM2 ? { gross: p.gross, discount: p.discount, total: p.total, areaM2: p.areaM2, assessmentFee, apFee, ratePerM2: Number(fees?.r5_install_inc_gst_per_m2 ?? 30), installation: p.gross - assessmentFee - apFee - (removal.kind === "included" ? removal.amount : 0), removal, veecs: Math.round(p.discount / snapshotVeec), veecValue: snapshotVeec, address, insulation: p.insulation ?? est?.insulation_declared ?? null, areaAssumed: typical.assumed } : null;
   const { referralUrlForJob } = await import("./referral.server");
   const referralUrl = await referralUrlForJob(c.job.id);
   return estimate ? JSON.stringify({ group: c.group, saveAllowed: campaignPermission(c, response?.desk_check_status), media: c.media, mediaReview: c.mediaReview, ownerQualified: c.ownerQualified, estimate, pricing, response: response ?? null, referralUrl, bookingAvailable: !!property?.postcode && (availability?.ready_check_available_postcodes ?? []).includes(property.postcode), owner: { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null }, home: { suburb: property?.suburb ?? null, short: [property?.address_line, property?.suburb].filter(Boolean).join(", ") || null }, initialValues: { address, areaM2: c.job.estimated_area_m2 == null ? null : Number(c.job.estimated_area_m2), insulation } }) : null;
+}
+
+/** Version of the save action recorded with every first save (no-size journey, 10 Oct 2026). */
+export const SAVE_SPOT_VERSION = "save-spot-2026-10-10";
+
+function typicalEstimateCheck(job: { estimated_area_m2: number | string | null }, est: { area_m2: number | string | null; area_source?: string | null; insulation_declared: string | null } | null) {
+  const assumed = est?.area_source === "typical_default";
+  if (!assumed) return { assumed: false, blocker: null as string | null };
+  const ownerArea = Number(job.estimated_area_m2) || null;
+  return { assumed: true, blocker: noSizeEstimateBlocker({ areaSource: "typical_default", areaM2: est?.area_m2 == null ? null : Number(est.area_m2), ownerArea, insulation: est?.insulation_declared ?? null, followup: false, automaticInitial: true }) };
 }
 
 export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; insulation: "none" | "present" | "unknown" | null } | null) {
@@ -92,7 +104,11 @@ export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; 
   const { data: review, error: reviewError } = await admin.from("lead_campaign_responses").select("desk_check_status").eq("job_id", c.job.id).maybeSingle();
   if (reviewError || !campaignPermission(c, review?.desk_check_status)) throw new Error("Our office needs to check your insulation before offering Save my spot.");
   const now = new Date().toISOString();
-  const { data: est } = await admin.from("indicative_estimates").select("id, area_m2, insulation_declared, scenarios").eq("job_id", c.job.id).eq("status", "current").maybeSingle();
+  const { data: est, error: estError } = await admin.from("indicative_estimates").select("id, area_m2, area_source, insulation_declared, scenarios").eq("job_id", c.job.id).eq("status", "current").maybeSingle();
+  if (estError) throw new Error("We couldn't save your place. Please try again.");
+  const typical = typicalEstimateCheck(c.job, est ?? null);
+  // A typical (assumed 150 m²) estimate is valid only while the owner's real size stays unknown; never save a stale one.
+  if (typical.blocker && !calc) throw new Error("Your estimate is being updated. Please check back soon.");
   let price = savedPriceFromEstimate(est ?? null);
   if (c.group === "onsite" && calc?.insulation === "none") throw new Error("Keep your existing-insulation answer for this estimate. A declaration or preliminary review does not mean insulation is absent.");
   // Owner calculator: snapshot exactly what the calculator showed, recomputed server-side from the same pure core.
@@ -126,8 +142,9 @@ export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; 
   const { data: row } = await admin.from("lead_campaign_responses").select("opted_out_at, spot_saved_at").eq("job_id", c.job.id).maybeSingle();
   if (row?.opted_out_at) throw new Error("This enquiry has already been taken off the list.");
   if (!row?.spot_saved_at) throw new Error("We couldn't save your place. Please try again.");
-  if (firstSave) await logEvent(c.job.id, null, "campaign_spot_saved", price ? `Owner saved a place for a free Ready Check at $${Math.floor(price.total)} (rebate $${Math.floor(price.discount)})` : "Owner saved a place for a free Ready Check", { campaign: LAUNCH_CAMPAIGN, ...snapshot }, { internal: true });
-  if (firstSave) await queueSpotSavedConfirmations(c.job.id, String(token));
+  // The spot is now durably saved. Follow-on bookkeeping must never turn a real save into a failure message.
+  if (firstSave) await logEvent(c.job.id, null, "campaign_spot_saved", price ? `Owner saved a place for a free Ready Check at $${Math.floor(price.total)} (rebate $${Math.floor(price.discount)})` : "Owner saved a place for a free Ready Check", { campaign: LAUNCH_CAMPAIGN, save_version: SAVE_SPOT_VERSION, saved_at: row.spot_saved_at, area_assumed: !calc && typical.assumed, ...snapshot }, { internal: true }).catch((e) => console.error("spot saved event", e));
+  if (firstSave) await queueSpotSavedConfirmations(c.job.id, String(token)).catch((e) => console.error("spot saved confirmations", e));
   // Spot saved → only now does the job move on to the free Ready Check (Jo, 8 Oct).
   {
     const { data: j } = await admin.from("jobs").select("stage").eq("id", c.job.id).maybeSingle();
