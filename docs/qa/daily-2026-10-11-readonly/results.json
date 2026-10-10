@@ -1,0 +1,114 @@
+[
+ {
+  "persona": "anonymous clean context",
+  "page": "installer",
+  "route": "/installer-onboarding?sample=review",
+  "width": 390,
+  "started": "2026-10-10T19:52:16Z",
+  "ended": "2026-10-10T19:52:20Z",
+  "label": "LIVE deployed-client SAMPLE VIEW ONLY",
+  "banner": false,
+  "version": "HI-VIC-A48-INST-1.19-2026-10-09",
+  "schedule": "A48-COMPLIANCE-1.0-2026-10-09",
+  "agreement_chars": 51254,
+  "workmanship_12": ".\nDefects and workmanship warranty. For twelve months after completion of each Job, the Installer must return and correct any defect caused by its workmanship at its own cost within a reasonable time after notice. This twelve-month period does not exclude, restrict or modify any non-excludable guara",
+  "product_5": "ions, AP and installer contacts and the minimum five-year product warranty-against-defects document. The Installer supplies manufacturer, product, warranty and installation details to the AP at completion and provides reasonable claim support, including an Australian warranty contact where the warra",
+  "acl": "s, occupational health and safety laws, Australian Consumer Law and all binding replacements or amendments.\n\n2. Definitions and priority\nActivity 48 means the VEU ceiling-insulation prescribed activity and any successor or replacement activity applying to the work. Schedule 4 \u2014 Activity 48 Complianc",
+  "life_support": "n Victoria. Where life support applies, written consent or a medical plan must be obtained before the PIESA starts, attached to the PIESA and received by the Installer before installation. On multi-day work the lead must check every PIISA item remains compliant at the start of each day.\nSame-day sub",
+  "superseded_5yr_workmanship": [],
+  "horizontal_overflow": false,
+  "page_errors": [],
+  "nonget_aborted": [
+   "https://estimate.homeinsulationvictoria.com.au/__l5e/trackevents",
+   "https://estimate.homeinsulationvictoria.com.au/__l5e/trackevents"
+  ],
+  "external_aborted": [
+   "https://fonts.googleapis.com/css2"
+  ],
+  "screenshot": "screens/installer-sample-review-390.png"
+ },
+ {
+  "persona": "anonymous clean context",
+  "page": "rec",
+  "route": "/electrician-onboarding?sample=review",
+  "width": 390,
+  "started": "2026-10-10T19:52:20Z",
+  "ended": "2026-10-10T19:52:24Z",
+  "label": "LIVE deployed-client SAMPLE VIEW ONLY",
+  "banner": true,
+  "version": "HI-VIC-A48-REC-2.6-2026-10-09",
+  "schedule": "A48-COMPLIANCE-1.0-2026-10-09",
+  "agreement_chars": 50206,
+  "workmanship_12": "ed for an unrelated fault.\nDefects. For 12 months after completion of each Job, the REC must return and correct any defect in its workmanship at its own cost within a reasonable time after notice. This does not limit any guarantee under the Australian Consumer Law.\n\n18. Conflicts, incentives and imp",
+  "product_5": "ions, AP and installer contacts and the minimum five-year product warranty-against-defects document. The Installer supplies manufacturer, product, warranty and installation details to the AP at completion and provides reasonable claim support, including an Australian warranty contact where the warra",
+  "acl": "s, occupational health and safety laws, Australian Consumer Law and all binding replacements or amendments. AS 3999 and insulation-installer competency requirements apply to the REC only to the extent a current law, Scheme rule or approved electrical scope expressly makes them applicable to its elec",
+  "life_support": "rent PIESA. Where life support applies, written consent or a medical plan must be obtained BEFORE the PIESA starts, attached to the PIESA and supplied in time for the Installer to receive the qualifying document before installation.\nThe completed PIESA must be provided through Home Insulation Victor",
+  "superseded_5yr_workmanship": [],
+  "horizontal_overflow": false,
+  "page_errors": [],
+  "nonget_aborted": [
+   "https://estimate.homeinsulationvictoria.com.au/__l5e/trackevents",
+   "https://estimate.homeinsulationvictoria.com.au/__l5e/trackevents"
+  ],
+  "external_aborted": [
+   "https://fonts.googleapis.com/css2"
+  ],
+  "screenshot": "screens/rec-sample-review-390.png"
+ },
+ {
+  "persona": "anonymous clean context",
+  "page": "installer",
+  "route": "/installer-onboarding?sample=review",
+  "width": 1280,
+  "started": "2026-10-10T19:52:24Z",
+  "ended": "2026-10-10T19:52:28Z",
+  "label": "LIVE deployed-client SAMPLE VIEW ONLY",
+  "banner": false,
+  "version": "HI-VIC-A48-INST-1.19-2026-10-09",
+  "schedule": "A48-COMPLIANCE-1.0-2026-10-09",
+  "agreement_chars": 51254,
+  "workmanship_12": ".\nDefects and workmanship warranty. For twelve months after completion of each Job, the Installer must return and correct any defect caused by its workmanship at its own cost within a reasonable time after notice. This twelve-month period does not exclude, restrict or modify any non-excludable guara",
+  "product_5": "ions, AP and installer contacts and the minimum five-year product warranty-against-defects document. The Installer supplies manufacturer, product, warranty and installation details to the AP at completion and provides reasonable claim support, including an Australian warranty contact where the warra",
+  "acl": "s, occupational health and safety laws, Australian Consumer Law and all binding replacements or amendments.\n\n2. Definitions and priority\nActivity 48 means the VEU ceiling-insulation prescribed activity and any successor or replacement activity applying to the work. Schedule 4 \u2014 Activity 48 Complianc",
+  "life_support": "n Victoria. Where life support applies, written consent or a medical plan must be obtained before the PIESA starts, attached to the PIESA and received by the Installer before installation. On multi-day work the lead must check every PIISA item remains compliant at the start of each day.\nSame-day sub",
+  "superseded_5yr_workmanship": [],
+  "horizontal_overflow": false,
+  "page_errors": [],
+  "nonget_aborted": [
+   "https://estimate.homeinsulationvictoria.com.au/__l5e/trackevents",
+   "https://estimate.homeinsulationvictoria.com.au/__l5e/trackevents"
+  ],
+  "external_aborted": [
+   "https://fonts.googleapis.com/css2"
+  ],
+  "screenshot": "screens/installer-sample-review-1280.png"
+ },
+ {
+  "persona": "anonymous clean context",
+  "page": "rec",
+  "route": "/electrician-onboarding?sample=review",
+  "width": 1280,
+  "started": "2026-10-10T19:52:29Z",
+  "ended": "2026-10-10T19:52:33Z",
+  "label": "LIVE deployed-client SAMPLE VIEW ONLY",
+  "banner": true,
+  "version": "HI-VIC-A48-REC-2.6-2026-10-09",
+  "schedule": "A48-COMPLIANCE-1.0-2026-10-09",
+  "agreement_chars": 50206,
+  "workmanship_12": "ed for an unrelated fault.\nDefects. For 12 months after completion of each Job, the REC must return and correct any defect in its workmanship at its own cost within a reasonable time after notice. This does not limit any guarantee under the Australian Consumer Law.\n\n18. Conflicts, incentives and imp",
+  "product_5": "ions, AP and installer contacts and the minimum five-year product warranty-against-defects document. The Installer supplies manufacturer, product, warranty and installation details to the AP at completion and provides reasonable claim support, including an Australian warranty contact where the warra",
+  "acl": "s, occupational health and safety laws, Australian Consumer Law and all binding replacements or amendments. AS 3999 and insulation-installer competency requirements apply to the REC only to the extent a current law, Scheme rule or approved electrical scope expressly makes them applicable to its elec",
+  "life_support": "rent PIESA. Where life support applies, written consent or a medical plan must be obtained BEFORE the PIESA starts, attached to the PIESA and supplied in time for the Installer to receive the qualifying document before installation.\nThe completed PIESA must be provided through Home Insulation Victor",
+  "superseded_5yr_workmanship": [],
+  "horizontal_overflow": false,
+  "page_errors": [],
+  "nonget_aborted": [
+   "https://estimate.homeinsulationvictoria.com.au/__l5e/trackevents",
+   "https://estimate.homeinsulationvictoria.com.au/__l5e/trackevents"
+  ],
+  "external_aborted": [
+   "https://fonts.googleapis.com/css2"
+  ],
+  "screenshot": "screens/rec-sample-review-1280.png"
+ }
+]
