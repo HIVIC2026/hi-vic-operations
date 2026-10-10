@@ -1,4 +1,4 @@
-import { noSizeEstimateBlocker } from "./no-size-estimate.core";
+import { typicalEstimateCheck } from "./no-size-estimate.core";
 import { fullAddress } from "./address";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { declaredExtras } from "./enquiry.core";
@@ -90,13 +90,6 @@ export async function campaignPage(token: unknown, testMode = false) {
 
 /** Version of the save action recorded with every first save (no-size journey, 10 Oct 2026). */
 export const SAVE_SPOT_VERSION = "save-spot-2026-10-10";
-
-function typicalEstimateCheck(job: { estimated_area_m2: number | string | null; estimated_area_unknown?: boolean | null }, est: { area_m2: number | string | null; area_source?: string | null; insulation_declared: string | null } | null) {
-  const assumed = est?.area_source === "typical_default";
-  if (!assumed) return { assumed: false, blocker: null as string | null };
-  const ownerArea = job.estimated_area_unknown ? null : Number(job.estimated_area_m2) || null;
-  return { assumed: true, blocker: noSizeEstimateBlocker({ areaSource: "typical_default", areaM2: est?.area_m2 == null ? null : Number(est.area_m2), ownerArea, insulation: est?.insulation_declared ?? null, followup: false, automaticInitial: true }) };
-}
 
 export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; insulation: "none" | "present" | "unknown" | null } | null) {
   const c = await campaignLink(token);
