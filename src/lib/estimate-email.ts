@@ -31,10 +31,10 @@ export type EstimateEmail = { subject: string; previewText: string; html: string
 const BASE = "https://estimate.homeinsulationvictoria.com.au";
 /** The locked likely-email pink-box paragraph; the Save your spot version swaps it for Jo's exact wording (7 Oct). */
 const LIKELY_NEXT_STEP_INSTRUCTION = "Your installer measures the ceiling, assesses any existing insulation, confirms eligibility and prepares the job scope so we can confirm your quote.";
-const SAVE_SPOT_INSTRUCTION = "We have been inundated with requests from homeowners all over Victoria. As one of only two Accredited Persons for this activity, and with limited capacity of suitably qualified installers, we need to take on approvals in batches. Save your spot to join the line and we will be in touch as soon as the next installer is available in your area.";
+export const SAVE_SPOT_INSTRUCTION = "We have been inundated with requests from homeowners all over Victoria. As one of only two Accredited Persons for this activity, and with limited capacity of suitably qualified installers, we need to take on approvals in batches. Save your spot to join the line and we will be in touch as soon as the next installer is available in your area.";
 /** The locked small line under the likely-email button; the Save your spot version swaps it for Jo's exact wording (7 Oct). */
 const LIKELY_SMALL_PRINT = "Confirm your request on the next page. An installer from our panel will then contact you to arrange a time.";
-const SAVE_SPOT_SMALL_PRINT = "We will be in touch to book your free Ready Check as soon as we can.";
+export const SAVE_SPOT_SMALL_PRINT = "We will be in touch to book your free Ready Check as soon as we can.";
 /** The locked likely-email hero closing sentence; the Save your spot version swaps it for Jo's exact wording (7 Oct, 03:24 UTC). */
 const LIKELY_HERO_SENTENCE = "A more comfortable home could be closer than you think. We’ll coordinate the installer, electrical checks and paperwork.";
 /** Retired from Save your spot (Jo, 7 Oct 17:27 UTC: only four pink-box swaps). Kept for reference only. */
