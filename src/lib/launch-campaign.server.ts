@@ -15,7 +15,7 @@ export async function campaignLink(token: unknown) {
   if (!isWellFormedToken(token)) return null;
   const { data: link } = await admin.from("customer_estimate_links").select("id, job_id, status, expires_at").eq("token", token).eq("purpose", LINK_PURPOSE).maybeSingle();
   if (!link || !linkUsable(link)) return null;
-  const { data: job } = await admin.from("jobs").select("id, source, stage, eligibility_outcome, eligibility_review_required, eligibility_decision_source, eligibility_decision_rules, estimated_area_m2, owners(full_name), properties(address_line, suburb, state, postcode, enrichment)").eq("id", link.job_id).maybeSingle();
+  const { data: job } = await admin.from("jobs").select("id, source, stage, eligibility_outcome, eligibility_review_required, eligibility_decision_source, eligibility_decision_rules, estimated_area_m2, estimated_area_unknown, owners(full_name), properties(address_line, suburb, state, postcode, enrichment)").eq("id", link.job_id).maybeSingle();
   if (!job || job.eligibility_review_required || job.stage === "cancelled" || job.stage === "complete" || (job.source !== "base44" && job.source !== "qa_test")) return null;
   // Until Jo approves the final copy and explicitly starts the campaign, only isolated qa_test jobs can use it.
   if (!LAUNCH_COPY_APPROVED && job.source !== "qa_test") return null;
@@ -91,10 +91,10 @@ export async function campaignPage(token: unknown, testMode = false) {
 /** Version of the save action recorded with every first save (no-size journey, 10 Oct 2026). */
 export const SAVE_SPOT_VERSION = "save-spot-2026-10-10";
 
-function typicalEstimateCheck(job: { estimated_area_m2: number | string | null }, est: { area_m2: number | string | null; area_source?: string | null; insulation_declared: string | null } | null) {
+function typicalEstimateCheck(job: { estimated_area_m2: number | string | null; estimated_area_unknown?: boolean | null }, est: { area_m2: number | string | null; area_source?: string | null; insulation_declared: string | null } | null) {
   const assumed = est?.area_source === "typical_default";
   if (!assumed) return { assumed: false, blocker: null as string | null };
-  const ownerArea = Number(job.estimated_area_m2) || null;
+  const ownerArea = job.estimated_area_unknown ? null : Number(job.estimated_area_m2) || null;
   return { assumed: true, blocker: noSizeEstimateBlocker({ areaSource: "typical_default", areaM2: est?.area_m2 == null ? null : Number(est.area_m2), ownerArea, insulation: est?.insulation_declared ?? null, followup: false, automaticInitial: true }) };
 }
 
