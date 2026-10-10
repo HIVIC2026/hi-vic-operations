@@ -7,7 +7,6 @@
   "started": "2026-10-10T19:52:16Z",
   "ended": "2026-10-10T19:52:20Z",
   "label": "LIVE deployed-client SAMPLE VIEW ONLY",
-  "banner": false,
   "version": "HI-VIC-A48-INST-1.19-2026-10-09",
   "schedule": "A48-COMPLIANCE-1.0-2026-10-09",
   "agreement_chars": 51254,
@@ -25,7 +24,14 @@
   "external_aborted": [
    "https://fonts.googleapis.com/css2"
   ],
-  "screenshot": "screens/installer-sample-review-390.png"
+  "screenshot": "screens/installer-sample-review-390.png",
+  "banner_case_sensitive_detected": false,
+  "banner_verified_manually": true,
+  "banner_text": "Sample preview \u2014 no data is saved and no application, invitation or signature is submitted.",
+  "banner_basis": "agent code-view of screens/installer-sample-review-390.png",
+  "back_navigation": "NOT_TESTED",
+  "status": "SAMPLE VIEW ONLY \u2014 raw checks recorded; normal server agreement/signing BLOCKED",
+  "origin_filter_note": "startsWith canonical prefix, not exact-origin allowlist; not server isolation"
  },
  {
   "persona": "anonymous clean context",
@@ -35,7 +41,6 @@
   "started": "2026-10-10T19:52:20Z",
   "ended": "2026-10-10T19:52:24Z",
   "label": "LIVE deployed-client SAMPLE VIEW ONLY",
-  "banner": true,
   "version": "HI-VIC-A48-REC-2.6-2026-10-09",
   "schedule": "A48-COMPLIANCE-1.0-2026-10-09",
   "agreement_chars": 50206,
@@ -53,7 +58,14 @@
   "external_aborted": [
    "https://fonts.googleapis.com/css2"
   ],
-  "screenshot": "screens/rec-sample-review-390.png"
+  "screenshot": "screens/rec-sample-review-390.png",
+  "banner_case_sensitive_detected": true,
+  "banner_verified_manually": "not needed; automated detector matched",
+  "banner_text": "SAMPLE PREVIEW (detector match; screenshot not manually viewed)",
+  "banner_basis": "case-sensitive text detector",
+  "back_navigation": "NOT_TESTED",
+  "status": "SAMPLE VIEW ONLY \u2014 raw checks recorded; normal server agreement/signing BLOCKED",
+  "origin_filter_note": "startsWith canonical prefix, not exact-origin allowlist; not server isolation"
  },
  {
   "persona": "anonymous clean context",
@@ -63,7 +75,6 @@
   "started": "2026-10-10T19:52:24Z",
   "ended": "2026-10-10T19:52:28Z",
   "label": "LIVE deployed-client SAMPLE VIEW ONLY",
-  "banner": false,
   "version": "HI-VIC-A48-INST-1.19-2026-10-09",
   "schedule": "A48-COMPLIANCE-1.0-2026-10-09",
   "agreement_chars": 51254,
@@ -81,7 +92,14 @@
   "external_aborted": [
    "https://fonts.googleapis.com/css2"
   ],
-  "screenshot": "screens/installer-sample-review-1280.png"
+  "screenshot": "screens/installer-sample-review-1280.png",
+  "banner_case_sensitive_detected": false,
+  "banner_verified_manually": "unknown",
+  "banner_text": "unknown (1280 screenshot not manually viewed)",
+  "banner_basis": "none",
+  "back_navigation": "NOT_TESTED",
+  "status": "SAMPLE VIEW ONLY \u2014 raw checks recorded; normal server agreement/signing BLOCKED",
+  "origin_filter_note": "startsWith canonical prefix, not exact-origin allowlist; not server isolation"
  },
  {
   "persona": "anonymous clean context",
@@ -91,7 +109,6 @@
   "started": "2026-10-10T19:52:29Z",
   "ended": "2026-10-10T19:52:33Z",
   "label": "LIVE deployed-client SAMPLE VIEW ONLY",
-  "banner": true,
   "version": "HI-VIC-A48-REC-2.6-2026-10-09",
   "schedule": "A48-COMPLIANCE-1.0-2026-10-09",
   "agreement_chars": 50206,
@@ -109,6 +126,13 @@
   "external_aborted": [
    "https://fonts.googleapis.com/css2"
   ],
-  "screenshot": "screens/rec-sample-review-1280.png"
+  "screenshot": "screens/rec-sample-review-1280.png",
+  "banner_case_sensitive_detected": true,
+  "banner_verified_manually": "not needed; automated detector matched",
+  "banner_text": "SAMPLE PREVIEW (detector match; screenshot not manually viewed)",
+  "banner_basis": "case-sensitive text detector",
+  "back_navigation": "NOT_TESTED",
+  "status": "SAMPLE VIEW ONLY \u2014 raw checks recorded; normal server agreement/signing BLOCKED",
+  "origin_filter_note": "startsWith canonical prefix, not exact-origin allowlist; not server isolation"
  }
 ]
