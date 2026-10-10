@@ -8,7 +8,7 @@ const STALE_KEY = "hiv-stale-reload-at";
 const HARD_KEY = "hiv-stale-hard-at";
 
 export const isStaleChunkError = (e: unknown) =>
-  /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|evaluating 'e\[t\?\?`default`\]'|reading 'default'/i.test(
+  /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module/i.test(
     String((e as Error)?.message ?? e),
   );
 
