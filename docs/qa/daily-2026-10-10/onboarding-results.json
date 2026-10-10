@@ -1,0 +1,447 @@
+{
+  "started": "2026-10-10T05:01:37.515Z",
+  "finished": "2026-10-10T05:04:42.173Z",
+  "environment": "local preview sandbox (localhost:8080) on the shared production backend",
+  "source_revision": "17368bd63a60eae9ca13f7c95855703ca259230d",
+  "budget_s": 540,
+  "browser_rows": [
+    {
+      "trade": "rec",
+      "width": 390,
+      "action": "staff TEST link shows TEST MODE banner",
+      "status": "passed",
+      "detail": "banner present",
+      "screenshots": [
+        "/mnt/documents/portal-qa/2026-10-10T05-01-37-onboarding/screens/rec-390-01-start.png"
+      ]
+    },
+    {
+      "trade": "rec",
+      "width": 390,
+      "action": "Save & continue with empty required fields is refused",
+      "status": "passed",
+      "detail": "still on page 1; error text shown",
+      "screenshots": [
+        "/mnt/documents/portal-qa/2026-10-10T05-01-37-onboarding/screens/rec-390-02-validation.png"
+      ]
+    },
+    {
+      "trade": "rec",
+      "width": 390,
+      "action": "page 1 completed then saved (non-relaxed)",
+      "status": "passed",
+      "detail": "now on page 2",
+      "screenshots": [
+        "/mnt/documents/portal-qa/2026-10-10T05-01-37-onboarding/screens/rec-390-03-page2.png"
+      ]
+    },
+    {
+      "trade": "rec",
+      "width": 390,
+      "action": "no page errors",
+      "status": "passed",
+      "detail": "none",
+      "screenshots": []
+    },
+    {
+      "trade": "rec",
+      "width": 390,
+      "action": "staff TEST link shows TEST MODE banner",
+      "status": "passed",
+      "detail": "banner present",
+      "screenshots": [
+        "/mnt/documents/portal-qa/2026-10-10T05-01-37-onboarding/screens/rec-390-01-start.png"
+      ]
+    },
+    {
+      "trade": "rec",
+      "width": 390,
+      "action": "fill page 1, Save & continue",
+      "status": "passed",
+      "detail": "now on page 2",
+      "screenshots": [
+        "/mnt/documents/portal-qa/2026-10-10T05-01-37-onboarding/screens/rec-390-02-page2.png"
+      ]
+    },
+    {
+      "trade": "rec",
+      "width": 390,
+      "action": "Back keeps saved answers on page 1",
+      "status": "passed",
+      "detail": "page 1, values ['QA Onboarding rec390f050137', 'qa.onb.rec390f050137@hivic-test.example']",
+      "screenshots": [
+        "/mnt/documents/portal-qa/2026-10-10T05-01-37-onboarding/screens/rec-390-03-back.png"
+      ]
+    },
+    {
+      "trade": "rec",
+      "width": 390,
+      "action": "fresh browser resumes saved draft (first unfinished page, never the welcome)",
+      "status": "passed",
+      "detail": "furthest saved page 3, resumed page 2",
+      "screenshots": [
+        "/mnt/documents/portal-qa/2026-10-10T05-01-37-onboarding/screens/rec-390-04-resume.png"
+      ]
+    },
+    {
+      "trade": "rec",
+      "width": 390,
+      "action": "after resume, page 1 answers read back from server",
+      "status": "passed",
+      "detail": "['QA Onboarding rec390f050137', 'qa.onb.rec390f050137@hivic-test.example']",
+      "screenshots": [
+        "/mnt/documents/portal-qa/2026-10-10T05-01-37-onboarding/screens/rec-390-04b-resume-page1.png"
+      ]
+    },
+    {
+      "trade": "rec",
+      "width": 390,
+      "action": "no page errors",
+      "status": "passed",
+      "detail": "none",
+      "screenshots": []
+    },
+    {
+      "trade": "rec",
+      "width": 1280,
+      "action": "staff TEST link shows TEST MODE banner",
+      "status": "passed",
+      "detail": "banner present",
+      "screenshots": [
+        "/mnt/documents/portal-qa/2026-10-10T05-01-37-onboarding/screens/rec-1280-01-start.png"
+      ]
+    },
+    {
+      "trade": "rec",
+      "width": 1280,
+      "action": "fill page 1, Save & continue",
+      "status": "passed",
+      "detail": "now on page 2",
+      "screenshots": [
+        "/mnt/documents/portal-qa/2026-10-10T05-01-37-onboarding/screens/rec-1280-02-page2.png"
+      ]
+    },
+    {
+      "trade": "rec",
+      "width": 1280,
+      "action": "Back keeps saved answers on page 1",
+      "status": "passed",
+      "detail": "page 1, values ['QA Onboarding rec1280f050137', 'qa.onb.rec1280f050137@hivic-test.example']",
+      "screenshots": [
+        "/mnt/documents/portal-qa/2026-10-10T05-01-37-onboarding/screens/rec-1280-03-back.png"
+      ]
+    },
+    {
+      "trade": "rec",
+      "width": 1280,
+      "action": "fresh browser resumes saved draft (first unfinished page, never the welcome)",
+      "status": "passed",
+      "detail": "furthest saved page 3, resumed page 2",
+      "screenshots": [
+        "/mnt/documents/portal-qa/2026-10-10T05-01-37-onboarding/screens/rec-1280-04-resume.png"
+      ]
+    },
+    {
+      "trade": "rec",
+      "width": 1280,
+      "action": "after resume, page 1 answers read back from server",
+      "status": "passed",
+      "detail": "['QA Onboarding rec1280f050137', 'qa.onb.rec1280f050137@hivic-test.example']",
+      "screenshots": [
+        "/mnt/documents/portal-qa/2026-10-10T05-01-37-onboarding/screens/rec-1280-04b-resume-page1.png"
+      ]
+    },
+    {
+      "trade": "rec",
+      "width": 1280,
+      "action": "final signing on relaxed TEST draft",
+      "status": "blocked",
+      "detail": "sign not reachable; always-required service-area page needs a verified address (outside lookup not called):  required I confirm our REC can provide all three electrical services listed above, as required for each job. * Victorian service starting location * Choose a verified Victorian address Travel radius * 25 km 50 km 75 km 100 km Anywhere in Victoria Need to exclude a particular area? • Enter your service starting location. • Sorry, your service area needs to be in Victoria. • Choose a travel radius.",
+      "screenshots": [
+        "/mnt/documents/portal-qa/2026-10-10T05-01-37-onboarding/screens/rec-1280-05-sign-page.png",
+        "/mnt/documents/portal-qa/2026-10-10T05-01-37-onboarding/screens/rec-1280-06-sign-blocked.png"
+      ]
+    },
+    {
+      "trade": "rec",
+      "width": 1280,
+      "action": "no page errors",
+      "status": "passed",
+      "detail": "none",
+      "screenshots": []
+    },
+    {
+      "trade": "installer",
+      "width": 390,
+      "action": "staff TEST link shows TEST MODE banner",
+      "status": "passed",
+      "detail": "banner present",
+      "screenshots": [
+        "/mnt/documents/portal-qa/2026-10-10T05-01-37-onboarding/screens/installer-390-01-start.png"
+      ]
+    },
+    {
+      "trade": "installer",
+      "width": 390,
+      "action": "Save & continue with empty required fields is refused",
+      "status": "passed",
+      "detail": "still on page 1; error text shown",
+      "screenshots": [
+        "/mnt/documents/portal-qa/2026-10-10T05-01-37-onboarding/screens/installer-390-02-validation.png"
+      ]
+    },
+    {
+      "trade": "installer",
+      "width": 390,
+      "action": "page 1 completed then saved (non-relaxed)",
+      "status": "blocked",
+      "detail": "now on page 1; installer page 1 requires a verified business address (outside lookup not called)",
+      "screenshots": [
+        "/mnt/documents/portal-qa/2026-10-10T05-01-37-onboarding/screens/installer-390-03-page2.png"
+      ]
+    },
+    {
+      "trade": "installer",
+      "width": 390,
+      "action": "no page errors",
+      "status": "passed",
+      "detail": "none",
+      "screenshots": []
+    },
+    {
+      "trade": "installer",
+      "width": 390,
+      "action": "staff TEST link shows TEST MODE banner",
+      "status": "passed",
+      "detail": "banner present",
+      "screenshots": [
+        "/mnt/documents/portal-qa/2026-10-10T05-01-37-onboarding/screens/installer-390-01-start.png"
+      ]
+    },
+    {
+      "trade": "installer",
+      "width": 390,
+      "action": "fill page 1, Save & continue",
+      "status": "passed",
+      "detail": "now on page 2",
+      "screenshots": [
+        "/mnt/documents/portal-qa/2026-10-10T05-01-37-onboarding/screens/installer-390-02-page2.png"
+      ]
+    },
+    {
+      "trade": "installer",
+      "width": 390,
+      "action": "Back keeps saved answers on page 1",
+      "status": "passed",
+      "detail": "page 1, values ['QA Onboarding installer390f050137', 'qa.onb.installer390f050137@hivic-test.example']",
+      "screenshots": [
+        "/mnt/documents/portal-qa/2026-10-10T05-01-37-onboarding/screens/installer-390-03-back.png"
+      ]
+    },
+    {
+      "trade": "installer",
+      "width": 390,
+      "action": "fresh browser resumes saved draft (first unfinished page, never the welcome)",
+      "status": "passed",
+      "detail": "furthest saved page 3, resumed page 1",
+      "screenshots": [
+        "/mnt/documents/portal-qa/2026-10-10T05-01-37-onboarding/screens/installer-390-04-resume.png"
+      ]
+    },
+    {
+      "trade": "installer",
+      "width": 390,
+      "action": "after resume, page 1 answers read back from server",
+      "status": "passed",
+      "detail": "['QA Onboarding installer390f050137', 'qa.onb.installer390f050137@hivic-test.example']",
+      "screenshots": [
+        "/mnt/documents/portal-qa/2026-10-10T05-01-37-onboarding/screens/installer-390-04b-resume-page1.png"
+      ]
+    },
+    {
+      "trade": "installer",
+      "width": 390,
+      "action": "no page errors",
+      "status": "passed",
+      "detail": "none",
+      "screenshots": []
+    },
+    {
+      "trade": "installer",
+      "width": 1280,
+      "action": "staff TEST link shows TEST MODE banner",
+      "status": "passed",
+      "detail": "banner present",
+      "screenshots": [
+        "/mnt/documents/portal-qa/2026-10-10T05-01-37-onboarding/screens/installer-1280-01-start.png"
+      ]
+    },
+    {
+      "trade": "installer",
+      "width": 1280,
+      "action": "fill page 1, Save & continue",
+      "status": "passed",
+      "detail": "now on page 2",
+      "screenshots": [
+        "/mnt/documents/portal-qa/2026-10-10T05-01-37-onboarding/screens/installer-1280-02-page2.png"
+      ]
+    },
+    {
+      "trade": "installer",
+      "width": 1280,
+      "action": "Back keeps saved answers on page 1",
+      "status": "passed",
+      "detail": "page 1, values ['QA Onboarding installer1280f050137', 'qa.onb.installer1280f050137@hivic-test.example']",
+      "screenshots": [
+        "/mnt/documents/portal-qa/2026-10-10T05-01-37-onboarding/screens/installer-1280-03-back.png"
+      ]
+    },
+    {
+      "trade": "installer",
+      "width": 1280,
+      "action": "fresh browser resumes saved draft (first unfinished page, never the welcome)",
+      "status": "passed",
+      "detail": "furthest saved page 3, resumed page 1",
+      "screenshots": [
+        "/mnt/documents/portal-qa/2026-10-10T05-01-37-onboarding/screens/installer-1280-04-resume.png"
+      ]
+    },
+    {
+      "trade": "installer",
+      "width": 1280,
+      "action": "after resume, page 1 answers read back from server",
+      "status": "passed",
+      "detail": "['QA Onboarding installer1280f050137', 'qa.onb.installer1280f050137@hivic-test.example']",
+      "screenshots": [
+        "/mnt/documents/portal-qa/2026-10-10T05-01-37-onboarding/screens/installer-1280-04b-resume-page1.png"
+      ]
+    },
+    {
+      "trade": "installer",
+      "width": 1280,
+      "action": "final signing on relaxed TEST draft (browser)",
+      "status": "blocked",
+      "detail": "Please complete the \"Work & coverage\" page before signing — the always-required page needs a verified address from the outside address lookup, which this run never calls",
+      "screenshots": [
+        "/mnt/documents/portal-qa/2026-10-10T05-01-37-onboarding/screens/installer-1280-05-sign-page.png",
+        "/mnt/documents/portal-qa/2026-10-10T05-01-37-onboarding/screens/installer-1280-06-sign-result.png"
+      ]
+    },
+    {
+      "trade": "installer",
+      "width": 1280,
+      "action": "no page errors",
+      "status": "passed",
+      "detail": "none",
+      "screenshots": []
+    }
+  ],
+  "external_requests_blocked": [
+    "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&family=Outfit:wg",
+    "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&family=Outfit:wg",
+    "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&family=Outfit:wg",
+    "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&family=Outfit:wg",
+    "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&family=Outfit:wg",
+    "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&family=Outfit:wg",
+    "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&family=Outfit:wg",
+    "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&family=Outfit:wg",
+    "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&family=Outfit:wg",
+    "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&family=Outfit:wg",
+    "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&family=Outfit:wg",
+    "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&family=Outfit:wg",
+    "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&family=Outfit:wg",
+    "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&family=Outfit:wg"
+  ],
+  "readback": [
+    {
+      "trade": "rec",
+      "width": 390,
+      "mode": "validate",
+      "found": true,
+      "test_mode": true,
+      "status": "draft",
+      "step_key": "business",
+      "answers_persisted": true,
+      "signed_at": null,
+      "agreement_version": null,
+      "enquiry_source": null,
+      "enquiry_email_test_domain": null,
+      "resume_token_seen": true
+    },
+    {
+      "trade": "rec",
+      "width": 390,
+      "mode": "flow",
+      "found": true,
+      "test_mode": true,
+      "status": "draft",
+      "step_key": "about",
+      "answers_persisted": true,
+      "signed_at": null,
+      "agreement_version": null,
+      "enquiry_source": null,
+      "enquiry_email_test_domain": null,
+      "resume_token_seen": true
+    },
+    {
+      "trade": "rec",
+      "width": 1280,
+      "mode": "flow",
+      "found": true,
+      "test_mode": true,
+      "status": "draft",
+      "step_key": "services",
+      "answers_persisted": true,
+      "signed_at": null,
+      "agreement_version": null,
+      "enquiry_source": null,
+      "enquiry_email_test_domain": null,
+      "resume_token_seen": true
+    },
+    {
+      "trade": "installer",
+      "width": 390,
+      "mode": "validate",
+      "found": true,
+      "test_mode": true,
+      "status": "draft",
+      "step_key": "business",
+      "answers_persisted": false,
+      "signed_at": null,
+      "agreement_version": null,
+      "enquiry_source": null,
+      "enquiry_email_test_domain": null,
+      "resume_token_seen": true
+    },
+    {
+      "trade": "installer",
+      "width": 390,
+      "mode": "flow",
+      "found": true,
+      "test_mode": true,
+      "status": "draft",
+      "step_key": "installers",
+      "answers_persisted": true,
+      "signed_at": null,
+      "agreement_version": null,
+      "enquiry_source": null,
+      "enquiry_email_test_domain": null,
+      "resume_token_seen": true
+    },
+    {
+      "trade": "installer",
+      "width": 1280,
+      "mode": "flow",
+      "found": true,
+      "test_mode": true,
+      "status": "draft",
+      "step_key": "review",
+      "answers_persisted": true,
+      "signed_at": null,
+      "agreement_version": null,
+      "enquiry_source": null,
+      "enquiry_email_test_domain": null,
+      "resume_token_seen": true
+    }
+  ]
+}
