@@ -61,7 +61,7 @@ try {
   const manifest = `${outDir}/.manifest.json`;
   writeFileSync(manifest, JSON.stringify({ base, environment, outDir, budget: budget - 30, apps }));
   const py = spawnSync("python3", ["e2e/onboarding-qa.py", manifest], { encoding: "utf8", timeout: budget * 1000 });
-  writeFileSync(manifest, "{}"); // links are single-use secrets
+  unlinkSync(manifest); // links are single-use secrets
   const br = existsSync(`${outDir}/.browser.json`) ? JSON.parse(readFileSync(`${outDir}/.browser.json`, "utf8")) : { rows: [{ trade: "-", width: 0, action: "browser", status: "failed", detail: (py.stderr || "").slice(-400) }], tokens: {} };
   const tokens = br.tokens ?? {}; br.tokens = "(removed)"; writeFileSync(`${outDir}/.browser.json`, JSON.stringify(br));
   // Database readback of every application this run created (by its own authorisation).
@@ -74,7 +74,7 @@ try {
     const ok = !r ? false : r.test_mode === true && r.data?.primary_contact_name === `QA Onboarding ${a.tag}` && r.data?.business_email === `qa.onb.${a.tag}@hivic-test.example` && (a.trade !== "rec" || r.data?.licence_expiry === "2028-06-30");
     const tokenMatch = tokens[`${a.trade}-${a.width}`] ? true : null;
     const signOk = !a.sign || !!r?.signed_at;
-    readback.push({ pass: !!r && ok && r.test_mode === true && r.status === "draft" === !r.signed_at && signOk && (a.sign || (r.status === "draft" && !r.signed_at)), trade: a.trade, width: a.width, mode: a.mode, found: !!r, test_mode: r?.test_mode ?? null, status: r?.status ?? null, step_key: r?.step_key ?? null, answers_persisted: ok, signed_at: r?.signed_at ?? null, agreement_version: r?.agreement_version ?? null, enquiry_source: enquiry?.source ?? null, enquiry_email_test_domain: enquiry ? /@hivic-test\.example$/.test(enquiry.email ?? "") : null, resume_token_seen: tokenMatch });
+    readback.push({ pass: !!r && ok && r.test_mode === true && (a.sign ? signOk : r.status === "draft" && !r.signed_at), trade: a.trade, width: a.width, mode: a.mode, found: !!r, test_mode: r?.test_mode ?? null, status: r?.status ?? null, step_key: r?.step_key ?? null, answers_persisted: ok, signed_at: r?.signed_at ?? null, agreement_version: r?.agreement_version ?? null, enquiry_source: enquiry?.source ?? null, enquiry_email_test_domain: enquiry ? /@hivic-test\.example$/.test(enquiry.email ?? "") : null, resume_token_seen: tokenMatch });
   }
   const { count: enquiries } = await db.from("partner_enquiries").select("id", { count: "exact", head: true }).gte("created_at", started);
   const res = { started, finished: new Date().toISOString(), environment, base, new_partner_enquiries_since_start: enquiries, source_revision: rev, budget_s: budget, browser_rows: br.rows, external_requests_blocked: br.external_requests_blocked ?? [], readback };

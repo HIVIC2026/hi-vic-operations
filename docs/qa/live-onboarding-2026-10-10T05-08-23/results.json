@@ -1,0 +1,371 @@
+{
+  "started": "2026-10-10T05:08:23.084Z",
+  "finished": "2026-10-10T05:09:47.486Z",
+  "environment": "LIVE published canonical site (shared production backend)",
+  "base": "https://estimate.homeinsulationvictoria.com.au",
+  "new_partner_enquiries_since_start": 0,
+  "source_revision": "574612236e4f5a29ba0e7ba639a6f31322bbb0bf",
+  "budget_s": 300,
+  "browser_rows": [
+    {
+      "environment": "LIVE published canonical site (shared production backend)",
+      "origin": "https://estimate.homeinsulationvictoria.com.au",
+      "trade": "rec",
+      "width": 390,
+      "action": "staff TEST link shows TEST MODE banner",
+      "status": "passed",
+      "detail": "banner present",
+      "screenshots": [
+        "docs/qa/live-onboarding-2026-10-10T05-08-23/screens/rec-390-01-start.png"
+      ]
+    },
+    {
+      "environment": "LIVE published canonical site (shared production backend)",
+      "origin": "https://estimate.homeinsulationvictoria.com.au",
+      "trade": "rec",
+      "width": 390,
+      "action": "fill page 1, Save & continue",
+      "status": "passed",
+      "detail": "now on page 2",
+      "screenshots": [
+        "docs/qa/live-onboarding-2026-10-10T05-08-23/screens/rec-390-02-page2.png"
+      ]
+    },
+    {
+      "environment": "LIVE published canonical site (shared production backend)",
+      "origin": "https://estimate.homeinsulationvictoria.com.au",
+      "trade": "rec",
+      "width": 390,
+      "action": "Back keeps saved answers on page 1",
+      "status": "passed",
+      "detail": "page 1, values ['QA Onboarding rec390f050823', 'qa.onb.rec390f050823@hivic-test.example']",
+      "screenshots": [
+        "docs/qa/live-onboarding-2026-10-10T05-08-23/screens/rec-390-03-back.png"
+      ]
+    },
+    {
+      "environment": "LIVE published canonical site (shared production backend)",
+      "origin": "https://estimate.homeinsulationvictoria.com.au",
+      "trade": "rec",
+      "width": 390,
+      "action": "fresh browser resumes saved draft (first unfinished page, never the welcome)",
+      "status": "passed",
+      "detail": "furthest saved page 3, resumed page 2",
+      "screenshots": [
+        "docs/qa/live-onboarding-2026-10-10T05-08-23/screens/rec-390-04-resume.png"
+      ]
+    },
+    {
+      "environment": "LIVE published canonical site (shared production backend)",
+      "origin": "https://estimate.homeinsulationvictoria.com.au",
+      "trade": "rec",
+      "width": 390,
+      "action": "after resume, page 1 answers read back from server",
+      "status": "passed",
+      "detail": "['QA Onboarding rec390f050823', 'qa.onb.rec390f050823@hivic-test.example']",
+      "screenshots": [
+        "docs/qa/live-onboarding-2026-10-10T05-08-23/screens/rec-390-04b-resume-page1.png"
+      ]
+    },
+    {
+      "environment": "LIVE published canonical site (shared production backend)",
+      "origin": "https://estimate.homeinsulationvictoria.com.au",
+      "trade": "rec",
+      "width": 390,
+      "action": "no page errors",
+      "status": "passed",
+      "detail": "none",
+      "screenshots": []
+    },
+    {
+      "environment": "LIVE published canonical site (shared production backend)",
+      "origin": "https://estimate.homeinsulationvictoria.com.au",
+      "trade": "rec",
+      "width": 1280,
+      "action": "staff TEST link shows TEST MODE banner",
+      "status": "passed",
+      "detail": "banner present",
+      "screenshots": [
+        "docs/qa/live-onboarding-2026-10-10T05-08-23/screens/rec-1280-01-start.png"
+      ]
+    },
+    {
+      "environment": "LIVE published canonical site (shared production backend)",
+      "origin": "https://estimate.homeinsulationvictoria.com.au",
+      "trade": "rec",
+      "width": 1280,
+      "action": "fill page 1, Save & continue",
+      "status": "passed",
+      "detail": "now on page 2",
+      "screenshots": [
+        "docs/qa/live-onboarding-2026-10-10T05-08-23/screens/rec-1280-02-page2.png"
+      ]
+    },
+    {
+      "environment": "LIVE published canonical site (shared production backend)",
+      "origin": "https://estimate.homeinsulationvictoria.com.au",
+      "trade": "rec",
+      "width": 1280,
+      "action": "Back keeps saved answers on page 1",
+      "status": "passed",
+      "detail": "page 1, values ['QA Onboarding rec1280f050823', 'qa.onb.rec1280f050823@hivic-test.example']",
+      "screenshots": [
+        "docs/qa/live-onboarding-2026-10-10T05-08-23/screens/rec-1280-03-back.png"
+      ]
+    },
+    {
+      "environment": "LIVE published canonical site (shared production backend)",
+      "origin": "https://estimate.homeinsulationvictoria.com.au",
+      "trade": "rec",
+      "width": 1280,
+      "action": "fresh browser resumes saved draft (first unfinished page, never the welcome)",
+      "status": "passed",
+      "detail": "furthest saved page 3, resumed page 2",
+      "screenshots": [
+        "docs/qa/live-onboarding-2026-10-10T05-08-23/screens/rec-1280-04-resume.png"
+      ]
+    },
+    {
+      "environment": "LIVE published canonical site (shared production backend)",
+      "origin": "https://estimate.homeinsulationvictoria.com.au",
+      "trade": "rec",
+      "width": 1280,
+      "action": "after resume, page 1 answers read back from server",
+      "status": "passed",
+      "detail": "['QA Onboarding rec1280f050823', 'qa.onb.rec1280f050823@hivic-test.example']",
+      "screenshots": [
+        "docs/qa/live-onboarding-2026-10-10T05-08-23/screens/rec-1280-04b-resume-page1.png"
+      ]
+    },
+    {
+      "environment": "LIVE published canonical site (shared production backend)",
+      "origin": "https://estimate.homeinsulationvictoria.com.au",
+      "trade": "rec",
+      "width": 1280,
+      "action": "no page errors",
+      "status": "passed",
+      "detail": "none",
+      "screenshots": []
+    },
+    {
+      "environment": "LIVE published canonical site (shared production backend)",
+      "origin": "https://estimate.homeinsulationvictoria.com.au",
+      "trade": "installer",
+      "width": 390,
+      "action": "staff TEST link shows TEST MODE banner",
+      "status": "passed",
+      "detail": "banner present",
+      "screenshots": [
+        "docs/qa/live-onboarding-2026-10-10T05-08-23/screens/installer-390-01-start.png"
+      ]
+    },
+    {
+      "environment": "LIVE published canonical site (shared production backend)",
+      "origin": "https://estimate.homeinsulationvictoria.com.au",
+      "trade": "installer",
+      "width": 390,
+      "action": "fill page 1, Save & continue",
+      "status": "passed",
+      "detail": "now on page 2",
+      "screenshots": [
+        "docs/qa/live-onboarding-2026-10-10T05-08-23/screens/installer-390-02-page2.png"
+      ]
+    },
+    {
+      "environment": "LIVE published canonical site (shared production backend)",
+      "origin": "https://estimate.homeinsulationvictoria.com.au",
+      "trade": "installer",
+      "width": 390,
+      "action": "Back keeps saved answers on page 1",
+      "status": "passed",
+      "detail": "page 1, values ['QA Onboarding installer390f050823', 'qa.onb.installer390f050823@hivic-test.example']",
+      "screenshots": [
+        "docs/qa/live-onboarding-2026-10-10T05-08-23/screens/installer-390-03-back.png"
+      ]
+    },
+    {
+      "environment": "LIVE published canonical site (shared production backend)",
+      "origin": "https://estimate.homeinsulationvictoria.com.au",
+      "trade": "installer",
+      "width": 390,
+      "action": "fresh browser resumes saved draft (first unfinished page, never the welcome)",
+      "status": "passed",
+      "detail": "furthest saved page 3, resumed page 1",
+      "screenshots": [
+        "docs/qa/live-onboarding-2026-10-10T05-08-23/screens/installer-390-04-resume.png"
+      ]
+    },
+    {
+      "environment": "LIVE published canonical site (shared production backend)",
+      "origin": "https://estimate.homeinsulationvictoria.com.au",
+      "trade": "installer",
+      "width": 390,
+      "action": "after resume, page 1 answers read back from server",
+      "status": "passed",
+      "detail": "['QA Onboarding installer390f050823', 'qa.onb.installer390f050823@hivic-test.example']",
+      "screenshots": [
+        "docs/qa/live-onboarding-2026-10-10T05-08-23/screens/installer-390-04b-resume-page1.png"
+      ]
+    },
+    {
+      "environment": "LIVE published canonical site (shared production backend)",
+      "origin": "https://estimate.homeinsulationvictoria.com.au",
+      "trade": "installer",
+      "width": 390,
+      "action": "no page errors",
+      "status": "passed",
+      "detail": "none",
+      "screenshots": []
+    },
+    {
+      "environment": "LIVE published canonical site (shared production backend)",
+      "origin": "https://estimate.homeinsulationvictoria.com.au",
+      "trade": "installer",
+      "width": 1280,
+      "action": "staff TEST link shows TEST MODE banner",
+      "status": "passed",
+      "detail": "banner present",
+      "screenshots": [
+        "docs/qa/live-onboarding-2026-10-10T05-08-23/screens/installer-1280-01-start.png"
+      ]
+    },
+    {
+      "environment": "LIVE published canonical site (shared production backend)",
+      "origin": "https://estimate.homeinsulationvictoria.com.au",
+      "trade": "installer",
+      "width": 1280,
+      "action": "fill page 1, Save & continue",
+      "status": "passed",
+      "detail": "now on page 2",
+      "screenshots": [
+        "docs/qa/live-onboarding-2026-10-10T05-08-23/screens/installer-1280-02-page2.png"
+      ]
+    },
+    {
+      "environment": "LIVE published canonical site (shared production backend)",
+      "origin": "https://estimate.homeinsulationvictoria.com.au",
+      "trade": "installer",
+      "width": 1280,
+      "action": "Back keeps saved answers on page 1",
+      "status": "passed",
+      "detail": "page 1, values ['QA Onboarding installer1280f050823', 'qa.onb.installer1280f050823@hivic-test.example']",
+      "screenshots": [
+        "docs/qa/live-onboarding-2026-10-10T05-08-23/screens/installer-1280-03-back.png"
+      ]
+    },
+    {
+      "environment": "LIVE published canonical site (shared production backend)",
+      "origin": "https://estimate.homeinsulationvictoria.com.au",
+      "trade": "installer",
+      "width": 1280,
+      "action": "fresh browser resumes saved draft (first unfinished page, never the welcome)",
+      "status": "passed",
+      "detail": "furthest saved page 3, resumed page 1",
+      "screenshots": [
+        "docs/qa/live-onboarding-2026-10-10T05-08-23/screens/installer-1280-04-resume.png"
+      ]
+    },
+    {
+      "environment": "LIVE published canonical site (shared production backend)",
+      "origin": "https://estimate.homeinsulationvictoria.com.au",
+      "trade": "installer",
+      "width": 1280,
+      "action": "after resume, page 1 answers read back from server",
+      "status": "passed",
+      "detail": "['QA Onboarding installer1280f050823', 'qa.onb.installer1280f050823@hivic-test.example']",
+      "screenshots": [
+        "docs/qa/live-onboarding-2026-10-10T05-08-23/screens/installer-1280-04b-resume-page1.png"
+      ]
+    },
+    {
+      "environment": "LIVE published canonical site (shared production backend)",
+      "origin": "https://estimate.homeinsulationvictoria.com.au",
+      "trade": "installer",
+      "width": 1280,
+      "action": "no page errors",
+      "status": "passed",
+      "detail": "none",
+      "screenshots": []
+    }
+  ],
+  "external_requests_blocked": [
+    "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&family=Outfit:wg",
+    "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&family=Outfit:wg",
+    "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&family=Outfit:wg",
+    "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&family=Outfit:wg",
+    "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&family=Outfit:wg",
+    "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&family=Outfit:wg",
+    "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&family=Outfit:wg",
+    "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&family=Outfit:wg",
+    "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&family=Outfit:wg",
+    "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&family=Outfit:wg",
+    "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&family=Outfit:wg",
+    "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&family=Outfit:wg"
+  ],
+  "readback": [
+    {
+      "pass": true,
+      "trade": "rec",
+      "width": 390,
+      "mode": "flow",
+      "found": true,
+      "test_mode": true,
+      "status": "draft",
+      "step_key": "about",
+      "answers_persisted": true,
+      "signed_at": null,
+      "agreement_version": null,
+      "enquiry_source": null,
+      "enquiry_email_test_domain": null,
+      "resume_token_seen": true
+    },
+    {
+      "pass": true,
+      "trade": "rec",
+      "width": 1280,
+      "mode": "flow",
+      "found": true,
+      "test_mode": true,
+      "status": "draft",
+      "step_key": "about",
+      "answers_persisted": true,
+      "signed_at": null,
+      "agreement_version": null,
+      "enquiry_source": null,
+      "enquiry_email_test_domain": null,
+      "resume_token_seen": true
+    },
+    {
+      "pass": true,
+      "trade": "installer",
+      "width": 390,
+      "mode": "flow",
+      "found": true,
+      "test_mode": true,
+      "status": "draft",
+      "step_key": "installers",
+      "answers_persisted": true,
+      "signed_at": null,
+      "agreement_version": null,
+      "enquiry_source": null,
+      "enquiry_email_test_domain": null,
+      "resume_token_seen": true
+    },
+    {
+      "pass": true,
+      "trade": "installer",
+      "width": 1280,
+      "mode": "flow",
+      "found": true,
+      "test_mode": true,
+      "status": "draft",
+      "step_key": "installers",
+      "answers_persisted": true,
+      "signed_at": null,
+      "agreement_version": null,
+      "enquiry_source": null,
+      "enquiry_email_test_domain": null,
+      "resume_token_seen": true
+    }
+  ]
+}
