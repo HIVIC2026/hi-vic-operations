@@ -1,5 +1,7 @@
 // Daily QA (Jo 10 Oct): REC + installer onboarding fields / Back / resume / save persistence and final signing,
-//   bun scripts/qa-onboarding.ts [--budget 540]
+//   bun scripts/qa-onboarding.ts [--budget 540] [--base http://localhost:8080 | https://estimate.homeinsulationvictoria.com.au] [--live-subset]
+// Exit status is 0 only when every row PASSED; any failed/blocked/not_run row (or readback mismatch) exits 1.
+// Signing is only counted as PASS when the database shows signed_at set (browser text alone never counts).
 // TEST only: every application starts from a single-use staff link with purpose qa_test (same path as the office
 // "Test link"), so it is test_mode and can never be approved as a real partner. No existing record is changed, so
 // there is nothing to restore; the run only creates fresh TEST drafts and, on signing, a TEST-sourced partner enquiry.
@@ -10,11 +12,17 @@ import { createHash, randomBytes } from "node:crypto";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 
 const budget = Number(process.argv[process.argv.indexOf("--budget") + 1]) || 540;
+const arg = (k: string) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : undefined; };
+const BASES: Record<string, string> = { "http://localhost:8080": "local preview sandbox (localhost:8080) on the shared production backend", "https://estimate.homeinsulationvictoria.com.au": "LIVE published canonical site (shared production backend)" };
+const base = arg("--base") ?? "http://localhost:8080";
+if (!(base in BASES)) { console.error(`BLOCKED: --base must be exactly one of ${Object.keys(BASES).join(", ")}`); process.exit(1); }
+const environment = BASES[base];
+const liveSubset = process.argv.includes("--live-subset");
 const LOCK = "/tmp/portal-qa.lock";
 if (existsSync(LOCK)) { const pid = Number(readFileSync(LOCK, "utf8")); try { process.kill(pid, 0); console.error(`BLOCKED: another QA run (pid ${pid})`); process.exit(1); } catch { /* stale */ } }
 writeFileSync(LOCK, String(process.pid));
 const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-const outDir = `/mnt/documents/portal-qa/${stamp}-onboarding`;
+const outDir = liveSubset ? `docs/qa/live-onboarding-${stamp}` : `/mnt/documents/portal-qa/${stamp}-onboarding`;
 mkdirSync(`${outDir}/screens`, { recursive: true });
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 const db = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -24,7 +32,10 @@ const rev = execSync("git rev-parse HEAD").toString().trim();
 try {
   const { data: actor } = await db.from("profiles").select("id").eq("email", "admin@hivic.test").single();
   if (!actor) throw new Error("BLOCKED: TEST office account admin@hivic.test missing");
-  const plan = [
+  const plan = liveSubset ? [
+    { trade: "rec", width: 390, mode: "flow" }, { trade: "rec", width: 1280, mode: "flow" },
+    { trade: "installer", width: 390, mode: "flow" }, { trade: "installer", width: 1280, mode: "flow" },
+  ] : [
     { trade: "rec", width: 390, mode: "validate" }, { trade: "rec", width: 390, mode: "flow" }, { trade: "rec", width: 1280, mode: "flow", sign: true },
     { trade: "installer", width: 390, mode: "validate" }, { trade: "installer", width: 390, mode: "flow" }, { trade: "installer", width: 1280, mode: "flow", sign: true },
   ];
@@ -48,9 +59,9 @@ try {
     apps.push({ ...p, link, resume, tag, authId: a.id, route: p.trade === "rec" ? "electrician-onboarding" : "installer-onboarding", key: p.trade === "rec" ? "hivic_rec_onboarding_token" : "hivic_installer_onboarding_token" });
   }
   const manifest = `${outDir}/.manifest.json`;
-  writeFileSync(manifest, JSON.stringify({ base: "http://localhost:8080", outDir, budget: budget - 30, apps }));
+  writeFileSync(manifest, JSON.stringify({ base, environment, outDir, budget: budget - 30, apps }));
   const py = spawnSync("python3", ["e2e/onboarding-qa.py", manifest], { encoding: "utf8", timeout: budget * 1000 });
-  writeFileSync(manifest, "{}"); // links are single-use secrets
+  unlinkSync(manifest); // links are single-use secrets
   const br = existsSync(`${outDir}/.browser.json`) ? JSON.parse(readFileSync(`${outDir}/.browser.json`, "utf8")) : { rows: [{ trade: "-", width: 0, action: "browser", status: "failed", detail: (py.stderr || "").slice(-400) }], tokens: {} };
   const tokens = br.tokens ?? {}; br.tokens = "(removed)"; writeFileSync(`${outDir}/.browser.json`, JSON.stringify(br));
   // Database readback of every application this run created (by its own authorisation).
@@ -62,13 +73,18 @@ try {
     if (r?.partner_enquiry_id) enquiry = (await db.from("partner_enquiries").select("source, email").eq("id", r.partner_enquiry_id).maybeSingle()).data;
     const ok = !r ? false : r.test_mode === true && r.data?.primary_contact_name === `QA Onboarding ${a.tag}` && r.data?.business_email === `qa.onb.${a.tag}@hivic-test.example` && (a.trade !== "rec" || r.data?.licence_expiry === "2028-06-30");
     const tokenMatch = tokens[`${a.trade}-${a.width}`] ? true : null;
-    readback.push({ trade: a.trade, width: a.width, mode: a.mode, found: !!r, test_mode: r?.test_mode ?? null, status: r?.status ?? null, step_key: r?.step_key ?? null, answers_persisted: ok, signed_at: r?.signed_at ?? null, agreement_version: r?.agreement_version ?? null, enquiry_source: enquiry?.source ?? null, enquiry_email_test_domain: enquiry ? /@hivic-test\.example$/.test(enquiry.email ?? "") : null, resume_token_seen: tokenMatch });
+    const signOk = !a.sign || !!r?.signed_at;
+    readback.push({ pass: !!r && ok && r.test_mode === true && (a.sign ? signOk : r.status === "draft" && !r.signed_at), trade: a.trade, width: a.width, mode: a.mode, found: !!r, test_mode: r?.test_mode ?? null, status: r?.status ?? null, step_key: r?.step_key ?? null, answers_persisted: ok, signed_at: r?.signed_at ?? null, agreement_version: r?.agreement_version ?? null, enquiry_source: enquiry?.source ?? null, enquiry_email_test_domain: enquiry ? /@hivic-test\.example$/.test(enquiry.email ?? "") : null, resume_token_seen: tokenMatch });
   }
-  const res = { started, finished: new Date().toISOString(), environment: "local preview sandbox (localhost:8080) on the shared production backend", source_revision: rev, budget_s: budget, browser_rows: br.rows, external_requests_blocked: br.external_requests_blocked ?? [], readback };
+  const { count: enquiries } = await db.from("partner_enquiries").select("id", { count: "exact", head: true }).gte("created_at", started);
+  const res = { started, finished: new Date().toISOString(), environment, base, new_partner_enquiries_since_start: enquiries, source_revision: rev, budget_s: budget, browser_rows: br.rows, external_requests_blocked: br.external_requests_blocked ?? [], readback };
   writeFileSync(`${outDir}/results.json`, JSON.stringify(res, null, 2));
   for (const r of br.rows) console.log(`${r.status.toUpperCase().padEnd(7)} ${r.trade}@${r.width} ${r.action} — ${r.detail}`);
   for (const r of readback) console.log("READBACK", JSON.stringify(r));
   console.log(`Results: ${outDir}/results.json`);
+  const bad = br.rows.filter((r: { status: string }) => r.status !== "passed").length + readback.filter((r) => !r.pass).length + (enquiries ? 1 : 0);
+  console.log(bad ? `OVERALL: NOT ALL PASSED (${bad} non-pass rows)` : "OVERALL: all rows in this subset passed (not a whole-portal pass)");
+  process.exitCode = bad ? 1 : 0;
 } finally {
   try { unlinkSync(LOCK); } catch { /* none */ }
 }
