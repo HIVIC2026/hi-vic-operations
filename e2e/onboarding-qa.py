@@ -40,7 +40,7 @@ async def fill_page1(pg, trade, tag):
     await pg.locator("input[type=email]").first.fill(f"qa.onb.{tag}@hivic-test.example")
     if trade == "rec":
         await pg.locator("input[type=checkbox]").first.check()
-        await pg.locator("input[type=text]").nth(1).fill("REC-TEST-0001")
+        await pg.locator("xpath=//label[contains(.,'licence number')]/following-sibling::input").first.fill("REC-TEST-0001")
         await pg.locator("input[type=date]").first.fill("2028-06-30")
 
 async def save(pg):
@@ -56,7 +56,8 @@ async def run(browser, a):
     try:
         q = f"resume={a['resume']}" if a.get("resume") else f"staff={link}"
         await pg.goto(f"{m['base']}/{route}?{q}", wait_until="networkidle"); await pg.wait_for_timeout(1200)
-        await pg.get_by_role("button", name=re.compile("(Start|Continue) registration")).click(); await pg.wait_for_timeout(1500)
+        sb0 = pg.get_by_role("button", name=re.compile("(Start|Continue) registration"))
+        if await sb0.count(): await sb0.click(); await pg.wait_for_timeout(1500)
         body = await pg.inner_text("body")
         row(trade, width, "staff TEST link shows TEST MODE banner", "passed" if "TEST MODE" in body.upper() else "failed", "banner present" if "TEST MODE" in body.upper() else "no TEST banner", [await shot(pg, f"{lbl}-01-start.png")])
         if a["mode"] == "validate":
