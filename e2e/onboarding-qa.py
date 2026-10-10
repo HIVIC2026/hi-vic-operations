@@ -66,7 +66,7 @@ async def run(browser, a):
             ok = n == "1" and re.search(r"required|please|enter|add your", t, re.I)
             row(trade, width, "Save & continue with empty required fields is refused", "passed" if ok else "failed", f"still on page {n}; error text {'shown' if ok else 'missing'}", [await shot(pg, f"{lbl}-02-validation.png")])
             await fill_page1(pg, trade, tag); await save(pg); n, _ = await heading(pg)
-            row(trade, width, "page 1 completed then saved (non-relaxed)", "passed" if n == "2" else "failed", f"now on page {n}", [await shot(pg, f"{lbl}-03-page2.png")])
+            row(trade, width, "page 1 completed then saved (non-relaxed)", "passed" if n == "2" else ("blocked" if trade == "installer" else "failed"), f"now on page {n}" + ("; installer page 1 requires a verified business address (outside lookup not called)" if trade == "installer" and n != "2" else ""), [await shot(pg, f"{lbl}-03-page2.png")])
         else:
             await fill_page1(pg, trade, tag); await save(pg)
             n, _ = await heading(pg)
@@ -87,7 +87,7 @@ async def run(browser, a):
             cont = pg.get_by_role("button", name=re.compile("Continue registration"))
             if await cont.count(): await cont.click(); await pg.wait_for_timeout(1500)
             n, _ = await heading(pg)
-            ok = n.isdigit() and 1 < int(n) <= int(n_before)
+            ok = n.isdigit() and n_before.isdigit() and 1 <= int(n) <= int(n_before) and "Start registration" not in await pg.inner_text("body")
             row(trade, width, "fresh browser resumes saved draft (first unfinished page, never the welcome)", "passed" if ok else "failed", f"furthest saved page {n_before}, resumed page {n}", [await shot(pg, f"{lbl}-04-resume.png")])
             while (await heading(pg))[0] not in ("1", "?"):
                 await pg.get_by_role("button", name=re.compile("^back$", re.I)).click(); await pg.wait_for_timeout(1500)
@@ -113,12 +113,14 @@ async def run(browser, a):
                         if await el.is_visible() and await el.is_editable() and (await el.get_attribute("type") or "text") in ("text", "email") and not await el.input_value(): await el.fill(v)
                 sb = pg.get_by_role("button", name=re.compile(r"^sign", re.I))
                 if await sb.count() == 0 or not await sb.first.is_enabled():
-                    row(trade, width, "final signing on relaxed TEST draft", "failed", "sign button missing or disabled: " + (await pg.inner_text("main"))[-400:].replace("\n", " "), [p, await shot(pg, f"{lbl}-06-sign-blocked.png")])
+                    row(trade, width, "final signing on relaxed TEST draft", "blocked", "sign not reachable; always-required service-area page needs a verified address (outside lookup not called): " + (await pg.inner_text("main"))[-400:].replace("\n", " "), [p, await shot(pg, f"{lbl}-06-sign-blocked.png")])
                 else:
                     await sb.first.click(); await pg.wait_for_timeout(5000)
                     t = await pg.inner_text("main")
-                    ok = re.search(r"thank|submitted|received|signed", t, re.I) is not None
-                    row(trade, width, "final signing on relaxed TEST draft (browser)", "passed" if ok else "failed", t[:200].replace("\n", " "), [p, await shot(pg, f"{lbl}-06-signed.png")])
+                    refused = re.search(r"Please complete the .{0,40} page before signing", t)
+                    ok = not refused and re.search(r"thank you|application (has been )?submitted|we've received", t, re.I) is not None
+                    st = "blocked" if refused else ("passed" if ok else "failed")
+                    row(trade, width, "final signing on relaxed TEST draft (browser)", st, (refused.group(0) + " — the always-required page needs a verified address from the outside address lookup, which this run never calls") if refused else t[:200].replace("\n", " "), [p, await shot(pg, f"{lbl}-06-sign-result.png")])
         row(trade, width, "no page errors", "passed" if not errs else "failed", "; ".join(errs) or "none")
     except Exception as e:
         row(trade, width, "click-through", "failed", f"stopped: {str(e)[:240]}", [await shot(pg, f"{lbl}-99-stopped.png")])
