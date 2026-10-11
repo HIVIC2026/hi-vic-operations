@@ -1,3 +1,13 @@
+-- 0149_security_owner_quote_rls.sql  (STAGED — DO NOT APPLY without Jo's written approval; see README_DO_NOT_APPLY.md).
+--
+-- APPLICATION INSTRUCTIONS:
+--   1) Apply FIRST (security-first), before 0202. Requires auth.users (Supabase) and the 0114 release_state column.
+--   2) Apply via the approved controlled process against a verified-backed database — never ad hoc.
+--   3) Effect: owners can no longer read issued quotes unless release_state IS NULL or 'released'
+--      (closes the queued-quote exposure); installer/electrician/admin/history access is preserved.
+--   4) Post-apply (read-only) check: the issued+queued quotes are no longer owner-visible.
+-- ROLLBACK: see 0149_security_owner_quote_rls.rollback.sql (restores the 0126 policy and 0133 autolink).
+--
 -- Local security patch, 10 Oct 2026.
 -- Owner auth auto-linking must require a confirmed auth email and an owner email-code proof.
 -- Homeowners must not see queued/held/draft quotes or their line items through direct Supabase queries.
