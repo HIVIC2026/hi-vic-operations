@@ -34,6 +34,7 @@ async function currentReadyCheck(jobId: string) {
     .from("ready_checks")
     .select("id, version, status, submitted_at, external_mitti_id, installer_user_id, attended_at")
     .eq("job_id", jobId)
+    .neq("status", "superseded") // a superseded version is never the current Ready Check
     .order("version", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -45,6 +46,15 @@ async function currentReadyCheck(jobId: string) {
     .eq("source_role", "installer")
     .maybeSingle();
   return { rc, m };
+}
+
+/** Submitted portal Ready Check answers (ready_check_observations), keyed by the canonical field keys. */
+async function portalAnswers(readyCheckId: string): Promise<Record<string, unknown>> {
+  const { data, error } = await admin.from("ready_check_observations").select("field_key, value").eq("ready_check_id", readyCheckId);
+  if (error) throw new Error(`Ready Check answers could not be read: ${error.message}`);
+  const out: Record<string, unknown> = {};
+  for (const r of data ?? []) out[r.field_key] = r.value;
+  return out;
 }
 
 export async function gatherEvidence(jobId: string): Promise<ReadyCheckEvidence> {
@@ -66,33 +76,41 @@ export async function gatherEvidence(jobId: string): Promise<ReadyCheckEvidence>
   const num = (k: string) => (typeof snap[k] === "number" ? (snap[k] as number) : null);
   const ref = rc?.id ?? m?.id ?? null;
   const version = rc ? rc.version : m ? 1 : null;
+  // Portal Ready Check (installer-submitted in the portal, no Mitti form): its submitted answers are the record the
+  // office reviews. The office still decides; this only lets the existing review card see what was submitted.
+  const portal = rc && rc.status === "submitted" && !!rc.submitted_at && !rc.external_mitti_id ? await portalAnswers(rc.id) : null;
+  const pStr = (k: string) => (portal && typeof portal[k] === "string" ? (portal[k] as string) : null);
+  const pNum = (k: string) => (portal && typeof portal[k] === "number" ? (portal[k] as number) : null);
+  const pInsulation = pStr("insulation.existing");
+  const pRemoval = pStr("removal.required");
   return {
     readyCheck: {
       ref,
       version,
       final: rc ? rc.status === "submitted" && !!rc.submitted_at : m?.status === "complete",
-      submissionRef: rc?.external_mitti_id ?? m?.external_id ?? null,
+      submissionRef: rc?.external_mitti_id ?? (portal && rc ? `portal:${rc.id}` : null) ?? m?.external_id ?? null,
     },
     currentVersion: version,
     attendance: {
       installer: !!(rc?.installer_user_id ?? m?.completed_by ?? m?.measured_by_name),
-      attendedAt: !!(rc?.attended_at ?? m?.completed_at ?? m?.measured_on),
+      attendedAt: !!(rc?.attended_at ?? pStr("attendance.attended_at") ?? m?.completed_at ?? m?.measured_on),
       geotagPhoto: cats.some((f) => f.geo),
       ceilingMedia: hasCat("before_ceiling_space"),
     },
-    measure: { areaM2: m?.measured_area_m2 ?? null, method: m?.measurement_method ?? null },
+    // Area/method: the office-reviewed measurement wins; the portal answer is shown when no measurement row exists.
+    measure: { areaM2: m?.measured_area_m2 ?? pNum("measure.eligible_area_m2"), method: m?.measurement_method ?? pStr("measure.method") },
     insulation: {
-      existing: m?.insulation_present == null ? null : m.insulation_present ? "present" : "none",
-      type: str("insulation.type") ?? str("insulation_type"),
-      depthMm: num("insulation.depth_mm") ?? num("insulation_depth_mm"),
-      rValue: m?.existing_r_value ?? null,
+      existing: m?.insulation_present == null ? (pInsulation === "none" || pInsulation === "present" || pInsulation === "unknown" ? pInsulation : null) : m.insulation_present ? "present" : "none",
+      type: str("insulation.type") ?? str("insulation_type") ?? pStr("insulation.type"),
+      depthMm: num("insulation.depth_mm") ?? num("insulation_depth_mm") ?? pNum("insulation.depth_mm"),
+      rValue: m?.existing_r_value ?? pNum("insulation.r_value"),
       photos: hasCat("existing_insulation_r_value"),
     },
-    removal: m?.removal_required == null ? null : m.removal_required ? "yes" : "no",
-    access: { level: m?.access_difficulty ?? null, evidence: hasCat("access_manhole") },
+    removal: m?.removal_required == null ? (pRemoval === "yes" || pRemoval === "no" ? pRemoval : pRemoval ? "uncertain" : null) : m.removal_required ? "yes" : "no",
+    access: { level: m?.access_difficulty ?? pStr("access.level"), evidence: hasCat("access_manhole") },
     electrical: {
-      downlightCount: num("elec.downlight_count") ?? num("downlight_count"),
-      downlightType: str("elec.downlight_type") ?? str("downlight_type"),
+      downlightCount: num("elec.downlight_count") ?? num("downlight_count") ?? pNum("elec.downlight_count"),
+      downlightType: str("elec.downlight_type") ?? str("downlight_type") ?? pStr("elec.downlight_type"),
     },
     conflicts: Array.isArray(m?.review_flags)
       ? (m!.review_flags as unknown[]).filter((x): x is string => typeof x === "string")

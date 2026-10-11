@@ -21,6 +21,8 @@ export type NeedsJob = {
   tradeChoice?: { kind: "ready_check" | "piesa" | "rectification"; name: string | null; status: "declined" | "expired" } | null;
   /** Office picks first: nothing sent yet ("choose"), or offered but nobody took it within the set hours ("no_taker"). */
   offerChoice?: { kind: "ready_check" | "piesa"; state: "choose" | "no_taker"; hours: number } | null;
+  /** Homeowner asked for a different installer/electrician (open reassignment request, one per job). */
+  reassignment?: { role: "installer" | "electrician"; reason: string; since: string | null } | null;
 };
 export type PartnerItem = { key: string; title: string; why: string; dueAt: string | null; href: string };
 
@@ -63,6 +65,7 @@ export function buildNeedsMe(i: { now: number; jobs: NeedsJob[]; partners: Partn
     if (!isMappedStage(j.stage) || !s || j.statusCount !== 1) reasons.push({ rule: "i_nothing_lost", why: !s ? `Stage "${j.stage}" has no status rule` : `Matched ${j.statusCount} statuses`, urgency: 100, action: "Fix status" });
     for (const f of j.failures) reasons.push({ rule: "e_failure", why: f, urgency: 95, action: "Fix it" });
     if (j.tradeChoice) reasons.push({ rule: "a_waiting_on_us", why: `${j.tradeChoice.name ?? "The trade you chose"} ${j.tradeChoice.status === "declined" ? "said no" : "didn't answer in time"}`, urgency: 88, action: "Pick another" });
+    if (j.reassignment) reasons.push({ rule: "a_waiting_on_us", why: `Owner asked for a different ${j.reassignment.role} — review and reassign`, urgency: 87, action: "Review request" });
     const oc = j.offerChoice;
     const ocWhat = oc?.kind === "piesa" ? "safety check" : "Ready Check";
     if (oc?.state === "choose") reasons.push({ rule: "a_waiting_on_us", why: `Choose trades for this job — the ${ocWhat} offer hasn't gone out (Office picks first)`, urgency: 89, action: "Choose trades" });
