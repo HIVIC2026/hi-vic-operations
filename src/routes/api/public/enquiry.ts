@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { BASE44_KEY_ID, verifyEd25519 } from "@/lib/enquiry.core";
+import { BASE44_KEY_ID, verifyBase44Webhook } from "@/lib/enquiry.core";
 
 // Base44 website -> Home Insulation Victoria portal. Header `x-hivic-signature` = base64 Ed25519 signature of the exact raw
 // UTF-8 body, verified against the trusted Base44 public key (no shared secret). Optional `x-hivic-key-id: base44-v1`.
@@ -12,13 +12,25 @@ export const Route = createFileRoute("/api/public/enquiry")({
         if (keyId && keyId !== BASE44_KEY_ID) return Response.json({ error: "Unknown key id" }, { status: 401 });
         const body = await request.text();
         if (body.length > 400_000) return Response.json({ error: "Payload too large" }, { status: 413 });
-        // Verify BEFORE parsing anything.
-        if (!(await verifyEd25519(body, request.headers.get("x-hivic-signature")))) {
+        // Verify BEFORE parsing anything. Base44 legacy signs the raw body; the new protocol signs timestamp + nonce + raw body.
+        const signed = await verifyBase44Webhook(body, request.headers);
+        if (!signed.ok) {
           return Response.json({ error: "Invalid signature" }, { status: 401 });
         }
 
         const { enquirySchema, upsertEnquiry } = await import("@/lib/enquiry.server");
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        if (signed.protocol === "timestamped") {
+          const { error: nonceError } = await (supabaseAdmin as any).from("signed_webhook_nonces").insert({ source: "base44", purpose: "enquiry", nonce: signed.nonce, signed_at: signed.timestamp });
+          if (nonceError) {
+            // Staged 0202 not applied: accept on the verified signature + timestamp window (the same trust as the legacy
+            // protocol, which is accepted anyway) rather than rejecting every timestamped request. A duplicate nonce
+            // (replay) or any other error is still rejected.
+            const { isMissingDbObject } = await import("@/lib/schema-compat.core");
+            if (!isMissingDbObject(nonceError)) return Response.json({ error: "Invalid signature" }, { status: 401 });
+            console.warn("signed_webhook_nonces not deployed (staged 0202); replay store unavailable");
+          }
+        }
         let json: unknown;
         try {
           json = JSON.parse(body);
@@ -28,9 +40,9 @@ export const Route = createFileRoute("/api/public/enquiry")({
         const parsed = enquirySchema.safeParse(json);
         if (!parsed.success) {
           await supabaseAdmin.from("external_sync_logs").insert({ system: "base44", direction: "inbound", entity_type: "enquiry", status: "error", error: parsed.error.message });
-          return Response.json({ error: "Validation failed", issues: parsed.error.flatten() }, { status: 400 });
+          return Response.json({ error: "Validation failed" }, { status: 400 });
         }
-        const ref = { external_enquiry_id: parsed.data.external_enquiry_id ?? null, source_reference: parsed.data.source_reference ?? null, key_id: keyId ?? null };
+        const ref = { external_enquiry_id: parsed.data.external_enquiry_id ?? null, source_reference: parsed.data.source_reference ?? null, key_id: keyId ?? null, signature_protocol: signed.protocol };
         try {
           const result = await upsertEnquiry(parsed.data, "base44", null);
           await supabaseAdmin.from("external_sync_logs").insert({ system: "base44", direction: "inbound", entity_type: "job", entity_id: result.job_id, status: "synced", payload: { ...ref, created: result.created, preliminary_outcome: parsed.data.preliminary_outcome ?? parsed.data.eligibility_outcome ?? null, life_support_status: parsed.data.life_support_status ?? null } });
