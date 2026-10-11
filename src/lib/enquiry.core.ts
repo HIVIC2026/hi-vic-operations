@@ -31,6 +31,48 @@ export async function verifyEd25519(rawBody: string, signatureB64: string | null
   }
 }
 
+export const SIGNED_WEBHOOK_TIMESTAMP_WINDOW_MS = 5 * 60_000;
+export const WEBHOOK_NONCE_RE = /^[A-Za-z0-9_-]{16,128}$/;
+
+export function signedWebhookMessage(rawBody: string, timestamp: string, nonce: string) {
+  return `${timestamp}.${nonce}.${rawBody}`;
+}
+
+export function signedWebhookTimestampOk(timestamp: string | null | undefined, now = Date.now(), windowMs = SIGNED_WEBHOOK_TIMESTAMP_WINDOW_MS): boolean {
+  if (!timestamp) return false;
+  const trimmed = timestamp.trim();
+  const n = /^\d+$/.test(trimmed) ? Number(trimmed) : Date.parse(trimmed);
+  const ms = n < 10_000_000_000 ? n * 1000 : n;
+  return Number.isFinite(ms) && Math.abs(now - ms) <= windowMs;
+}
+
+export async function verifySignedWebhook(rawBody: string, headers: Headers, publicKeySpkiB64 = BASE44_PUBLIC_KEY_SPKI_B64, now = Date.now()): Promise<{ ok: true; timestamp: string; nonce: string } | { ok: false; reason: "missing" | "stale" | "bad_nonce" | "bad_signature" }> {
+  const timestamp = headers.get("x-hivic-timestamp");
+  const nonce = headers.get("x-hivic-nonce");
+  if (!timestamp || !nonce) return { ok: false, reason: "missing" };
+  if (!signedWebhookTimestampOk(timestamp, now)) return { ok: false, reason: "stale" };
+  if (!WEBHOOK_NONCE_RE.test(nonce)) return { ok: false, reason: "bad_nonce" };
+  const ok = await verifyEd25519(signedWebhookMessage(rawBody, timestamp, nonce), headers.get("x-hivic-signature"), publicKeySpkiB64);
+  return ok ? { ok: true, timestamp, nonce } : { ok: false, reason: "bad_signature" };
+}
+
+export type Base44WebhookVerification =
+  | { ok: true; protocol: "timestamped"; timestamp: string; nonce: string }
+  | { ok: true; protocol: "legacy" }
+  | { ok: false; reason: "missing" | "stale" | "bad_nonce" | "bad_signature" };
+
+/** Backward-compatible Base44 verifier.
+ * Legacy Base44 signs the exact raw body. The new protocol signs timestamp.nonce.body and adds DB replay protection.
+ */
+export async function verifyBase44Webhook(rawBody: string, headers: Headers, publicKeySpkiB64 = BASE44_PUBLIC_KEY_SPKI_B64, now = Date.now()): Promise<Base44WebhookVerification> {
+  const hasTimestampedHeaders = !!headers.get("x-hivic-timestamp") || !!headers.get("x-hivic-nonce");
+  if (hasTimestampedHeaders) {
+    const signed = await verifySignedWebhook(rawBody, headers, publicKeySpkiB64, now);
+    return signed.ok ? { ...signed, protocol: "timestamped" } : signed;
+  }
+  return await verifyEd25519(rawBody, headers.get("x-hivic-signature"), publicKeySpkiB64) ? { ok: true, protocol: "legacy" } : { ok: false, reason: "bad_signature" };
+}
+
 export type PreliminaryEligibility = "likely_eligible" | "needs_onsite_confirmation" | "does_not_appear_eligible";
 
 export const PRELIM_NEXT_ACTION: Record<PreliminaryEligibility, string> = {
