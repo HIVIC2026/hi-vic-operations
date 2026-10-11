@@ -20,7 +20,8 @@ export const TRANSITIONS: Partial<Record<Stage, Stage[]>> = {
   // measured_estimate_ready from new_enquiry/eligibility_review: ONLY the installer-intake commercial route (readyCheckBlockers).
   eligibility_review: ["ready_check_ready_to_schedule", "ready_check_complete", "preliminary_estimate_ready", "measured_estimate_ready"],
   // Ready Check pathway. NO electrician-review stage between ready_check_complete and measured_estimate_ready.
-  preliminary_estimate_ready: ["ready_check_awaiting_acceptance", "ready_check_ready_to_schedule"],
+  // ready_check_complete: an accepted measure-up already on file (autoadvance planStep plans exactly this; entry blockers still apply).
+  preliminary_estimate_ready: ["ready_check_awaiting_acceptance", "ready_check_ready_to_schedule", "ready_check_complete"],
   ready_check_awaiting_acceptance: ["ready_check_ready_to_schedule"],
   ready_check_awaiting_payment: ["ready_check_ready_to_schedule"],
   ready_check_ready_to_schedule: ["ready_check_scheduled", "eligibility_review", "ready_check_complete"],
@@ -133,6 +134,13 @@ async function paymentGateEnabled(): Promise<boolean> {
   return (data as { payment_option_gate_enabled?: boolean }).payment_option_gate_enabled === true;
 }
 
+/** Is the approved payment-option gate live for THIS job (global switch, or a live qa_test job)? Read-only. */
+export async function paymentGateActiveForJob(jobId: string): Promise<boolean> {
+  const { paymentGateEnabledFor } = await import("./payment-gate.core");
+  const [globalEnabled, { data: job }] = await Promise.all([paymentGateEnabled(), admin.from("jobs").select("source, qa_archived_at").eq("id", jobId).single()]);
+  return paymentGateEnabledFor({ globalEnabled, jobSource: job?.source, qaArchived: !!job?.qa_archived_at });
+}
+
 /** Owner-approved CURRENT confirmed installation quote: the newest issued/accepted version must be the accepted one. */
 export async function currentApprovedQuote(jobId: string) {
   const { data } = await admin.from("quotes").select("id, status, customer_total_inc_gst").eq("job_id", jobId).eq("kind", "installation")
@@ -186,6 +194,9 @@ export async function piesaRequestFacts(jobId: string) {
   return { readyCheckComplete: (rc ?? 0) > 0, verifiedEligible: eligible, currentQuoteApproved: !!quote, payment, installerIntakeQualified: intake };
 }
 
+/** The one Ready Check entry blocker that depends on the booking row itself (confirmBooking pre-checks everything else). */
+export const READY_CHECK_BOOKING_RECORD_BLOCKER = "Record the Ready Check date, time, assigned installer and installer business before scheduling.";
+
 /** Ready Check pathway guards (pure rules in readycheck.core.ts). */
 async function readyCheckBlockers(jobId: string, to: Stage): Promise<string[]> {
   const out: string[] = [];
@@ -196,7 +207,7 @@ async function readyCheckBlockers(jobId: string, to: Stage): Promise<string[]> {
       && (business.business_type === "eec_installer" || business.capabilities?.includes("installer"));
     if (!certifiedInstaller) out.push("Assign an approved EEC Certified Insulation Installer before scheduling the Ready Check.");
     const { data: booking } = await admin.from("bookings").select("id, scheduled_start, contractor_id, assignment_id, business_id").eq("job_id", jobId).eq("kind", "ready_check").eq("status", "confirmed").order("created_at", { ascending: false }).limit(1).maybeSingle();
-    if (!booking?.scheduled_start || booking.assignment_id !== assignment?.id || booking.contractor_id !== assignment?.user_id || booking.business_id !== assignment?.business_id) out.push("Record the Ready Check date, time, assigned installer and installer business before scheduling.");
+    if (!booking?.scheduled_start || booking.assignment_id !== assignment?.id || booking.contractor_id !== assignment?.user_id || booking.business_id !== assignment?.business_id) out.push(READY_CHECK_BOOKING_RECORD_BLOCKER);
   }
   if (to === "measured_estimate_ready" && (await (await import("./installer-intake.server")).isIntakeJob(jobId))) {
     // Installer-intake commercial route (Jo, 8 Oct 2026): owner quote stage on office-checked eligibility + qualifying
@@ -255,6 +266,17 @@ export async function installBookingBlocker(jobId: string): Promise<string | nul
   const { data: b } = await admin.from("bookings").select("status, kind").eq("id", id).maybeSingle();
   if (!b || b.kind !== "installation" || b.status !== "completed") return INSTALL_BOOKING_BLOCKER;
   return null;
+}
+
+export const CONFIRMED_INSTALL_BOOKING_BLOCKER = "No confirmed installation booking — the installation must be booked and confirmed in the portal before it can be marked complete.";
+export const INSTALL_BOOKING_READ_FAILED = "The installation booking could not be checked — please try again.";
+
+/** P0: the confirmed installation booking that allows "Installation complete". Fails closed on a read error. */
+export async function confirmedInstallBooking(jobId: string): Promise<{ booking: { id: string; scheduled_start: string | null } | null; blocker: string | null }> {
+  const { data, error } = await admin.from("bookings").select("id, scheduled_start").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle();
+  if (error) return { booking: null, blocker: INSTALL_BOOKING_READ_FAILED };
+  if (!data) return { booking: null, blocker: CONFIRMED_INSTALL_BOOKING_BLOCKER };
+  return { booking: data as { id: string; scheduled_start: string | null }, blocker: null };
 }
 
 export async function stageEntryBlockers(jobId: string, to: Stage, actorId: string | null = null): Promise<string[]> {
@@ -414,15 +436,14 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
     blockers.push(...(await piisaPanel(jobId, todayMelbourne())).blockers);
   }
   if (to === "ap_review" || to === "ready_for_veec") {
-    const { data: reqs } = await admin
+    // P0: mandatory evidence gate fails closed (a read error or a missing installation checklist never passes).
+    const { data: reqs, error: reqErr } = await admin
       .from("evidence_requirements")
-      .select("label,status,required")
+      .select("label,status,required,gate")
       .eq("job_id", jobId)
       .eq("required", true);
-    for (const r of reqs ?? []) {
-      if (to === "ap_review" && !["uploaded", "verified"].includes(r.status)) blockers.push(`Evidence missing: ${r.label}`);
-      if (to === "ready_for_veec" && r.status !== "verified") blockers.push(`Evidence not verified: ${r.label}`);
-    }
+    const { evidenceStageBlockers } = await import("./ap-review-evidence.core");
+    blockers.push(...evidenceStageBlockers(to, reqs ?? null, !!reqErr));
   }
   if (to === "ready_for_veec") {
     const { data: checks } = await admin
@@ -456,12 +477,18 @@ export async function transition(
   }
   const blockers = await stageEntryBlockers(jobId, to, actorId);
   if (blockers.length) throw new WorkflowError(`Blocked: ${blockers.join(" • ")}`);
-  const { error } = await admin
-    .from("jobs")
-    .update({ stage: to, next_action: opts.nextAction ?? DEFAULT_NEXT_ACTION[to] })
-    .eq("id", jobId);
-  if (error) throw new Error(error.message);
-  await logEvent(jobId, actorId, "stage_changed", summary, details, { from, to });
+  const { error } = await admin.rpc("commit_guarded_stage", {
+    _job: jobId,
+    _expected: from,
+    _to: to,
+    _actor: actorId,
+    _summary: summary,
+    _details: details as Json,
+    _next: opts.nextAction ?? DEFAULT_NEXT_ACTION[to],
+  } as never);
+  // A concurrent stage change is a workflow outcome (re-evaluate), not a crash: callers that tolerate WorkflowError
+  // (autoAdvanceJob, sweeps) must not abort or lose retries because two triggers raced.
+  if (error) throw /changed concurrently|Terminal job cannot progress/i.test(error.message) ? new WorkflowError(error.message) : new Error(error.message);
   if (to === "piesa_and_install_window_pending" && from !== to) {
     // Quote accepted AND payment gate passed (entry blockers above). Hold only — never a booking.
     const { createInstallHold } = await import("./install-holds.server");

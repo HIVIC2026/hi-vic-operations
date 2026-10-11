@@ -67,3 +67,13 @@ export function rcProgress(obs: Observations, evidence: RcEvidence[]): RcProgres
     outstandingCount: missingAnswers.length + missing.length + rejected.length + awaitingReview.length,
   };
 }
+
+/** P1: what still stops an explicit "Submit for review" (same progress model; uploaded-awaiting-review is allowed —
+ *  the office reviews after submission). Submitting never verifies, completes, signs or moves the job stage. */
+export function rcSubmitBlockers(p: RcProgress): string[] {
+  return [
+    ...p.missingAnswers.map((l) => `Answer needed: ${l}`),
+    ...p.evidence.missing.map((l) => `Photo or video needed: ${l}`),
+    ...p.evidence.rejected.map((l) => `Rejected — upload again: ${l}`),
+  ];
+}

@@ -15,7 +15,7 @@ export async function resolveOwnerJob(token: unknown) {
   const jobId = l.job_id;
   const [{ data: j }, { data: quotes }, { data: bookings }, { data: invoices }, { data: est }, { data: rc }, { data: ws }] = await Promise.all([
     admin.from("jobs").select("job_number, stage, channel, external_refs, owners(full_name), properties(address_line, suburb, state, postcode)").eq("id", jobId).single(),
-    admin.from("quotes").select("id, kind, status, option_label, customer_total_inc_gst, veec_discount_inc_gst, subtotal_inc_gst, sent_at, accepted_at, version, quote_items(description, quantity, line_total_inc_gst, sort)").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted"]).order("created_at", { ascending: false }),
+    admin.from("quotes").select("id, kind, status, release_state, option_label, customer_total_inc_gst, veec_discount_inc_gst, subtotal_inc_gst, sent_at, accepted_at, version, quote_items(description, quantity, line_total_inc_gst, sort)").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted"]).order("created_at", { ascending: false }),
     admin.from("bookings").select("kind, status, scheduled_start, contractor_id, business_id").eq("job_id", jobId).in("status", ["confirmed", "completed"]).order("scheduled_start"),
     admin.from("invoices").select("total_paid, amount_paid").eq("job_id", jobId),
     admin.from("indicative_estimates").select("applied_discount").eq("job_id", jobId).is("superseded_at", null).order("created_at", { ascending: false }).limit(1).maybeSingle(),
@@ -26,7 +26,10 @@ export async function resolveOwnerJob(token: unknown) {
   const { data: spot } = await admin.from("lead_campaign_responses").select("spot_saved_at, opted_out_at, media_received_at, video_requested, saved_veu_discount, saved_total").eq("job_id", jobId).maybeSingle();
   const { data: consent } = await admin.from("owner_esc_consents").select("status, scheduled_start").eq("job_id", jobId).eq("status", "awaiting_owner").order("created_at", { ascending: false }).limit(1).maybeSingle();
   const stage = j.stage as string;
-  const quote = (quotes ?? []).find((q) => q.status === "accepted") ?? (quotes ?? [])[0] ?? null;
+  // Held/queued quotes are office-only until released (source of truth: nothing goes to the owner while queued).
+  const { ownerVisibleQuotes } = await import("./owner-quote-visibility.core");
+  const shown = ownerVisibleQuotes(quotes ?? []);
+  const quote = shown.find((q) => q.status === "accepted") ?? shown[0] ?? null;
   const rebate = quote ? n(quote.veec_discount_inc_gst) : n(est?.applied_discount);
   const now = Date.now();
   const upcoming = (bookings ?? []).find((b) => b.status === "confirmed" && b.scheduled_start && new Date(b.scheduled_start).getTime() > now - 6 * 3600_000) ?? null;
@@ -93,8 +96,10 @@ export async function cancelOwnerJob(token: unknown): Promise<{ ok: boolean; rea
   if (!j) return { ok: false, reason: "Link not recognised." };
   if (j.stage === "cancelled") return { ok: true };
   if (!ownerCanCancel(j.stage, (bk ?? []).map((b) => b.kind))) return { ok: false, reason: "Your safety check is booked, so this can't be cancelled here. Reply to any of our emails and we'll help." };
-  const { error } = await admin.from("jobs").update({ stage: "cancelled", cancelled_reason: "Owner cancelled from My job", next_action: "Owner cancelled. Tell any assigned trade." }).eq("id", l.job_id).eq("stage", j.stage);
+  const { data: moved, error } = await admin.from("jobs").update({ stage: "cancelled", cancelled_reason: "Owner cancelled from My job", next_action: "Owner cancelled. Tell any assigned trade." }).eq("id", l.job_id).eq("stage", j.stage).select("id");
   if (error) throw new Error(error.message);
+  // Nothing changed (the stage moved between the read and the update): report it, touch nothing else.
+  if (!moved?.length) return { ok: false, reason: "Your job has just changed. Refresh the page and try again." };
   if (bk?.length) await admin.from("bookings").update({ status: "cancelled" }).in("id", bk.map((b) => b.id));
   const { logEvent } = await import("./workflow.server");
   await logEvent(l.job_id, null, "owner_cancelled_job", "Owner cancelled their job from My job (before the safety check was booked). No charge.", { bookings_cancelled: bk?.length ?? 0, trades_to_notify: true }, { from: j.stage as never, to: "cancelled" });

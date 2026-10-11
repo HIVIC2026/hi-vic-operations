@@ -86,7 +86,8 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
     });
   } catch (e) { throw new WorkflowError(e instanceof Error ? e.message : "Could not price this quote."); }
 
-  await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued"]);
+  // Earlier open quotes are superseded only AFTER the new quote and its lines are saved (below): a failure part-way
+  // never withdraws the owner's current quote without a replacement.
   const ownSubtotal = r2(calc.lines.reduce((a, l) => a + l.line_total_inc_gst, 0));
   const subtotal = r2(ownSubtotal + rectTotal);
   // Jo, 5 Oct 2026: same basis as the calculator — whole VEECs (Eq 48.1 rounded down, property postcode) × consumer
@@ -120,14 +121,19 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
     customer_total_inc_gst: customerTotal, created_by: actorId,
   }).select("id").single();
   if (error || !q) throw new Error(error?.message);
-  await admin.from("quote_items").insert([
+  const { error: itemsError } = await admin.from("quote_items").insert([
     ...calc.lines.map((l) => ({ ...l, quote_id: q.id })),
     ...rectLines.map((l, i) => ({ ...l, quote_id: q.id, sort: 100 + i })),
   ]);
-  await admin.from("quote_internals").insert({
+  const { error: internalsError } = itemsError ? { error: null } : await admin.from("quote_internals").insert({
     quote_id: q.id, cost_ex_gst: calc.installerCostEx, ap_margin_ex_gst: calc.installerMarkup.markupEx, ap_fee_ex_gst: r2((jobRow.ap_fee_override_inc_gst != null ? Number(jobRow.ap_fee_override_inc_gst) : Number(rs.ap_management_inc_gst)) / gstMul), // job AP fee override wins
     calc_snapshot: { pricing_rule: HIV_PRICING_RULE, installer_markup: calc.installerMarkup, measurement_id: qi.measurementId, area_m2: qi.areaM2, removal_m2: qi.removalM2, rate_card_version: card.version, pricing_version: settings.version, access: qi.access, discount_notes: discountNotes(rules), discount_cap_applied: rules.cappedAtMax, discount_reduced_for_minimum: rules.reducedForMin },
   });
+  if (itemsError || internalsError) {
+    await admin.from("quotes").update({ status: "superseded" }).eq("id", q.id); // withdraw the incomplete new quote; the previous one stays current
+    throw new Error(`Quote lines could not be saved: ${(itemsError ?? internalsError)!.message}`);
+  }
+  await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued"]).neq("id", q.id);
   const summary = release.state === "held" ? (release.reason ?? "Quote held for office review") : release.state === "queued" ? "Installation quote ready to send — queued behind the launch switches" : "Installation quote automatically released to the owner";
   await logEvent(jobId, actorId, release.state === "held" ? "installation_quote_held" : release.state === "queued" ? "installation_quote_queued" : "installation_quote_released", summary, { quote_ids: [q.id], rate_card: card.name, pricing_rule: HIV_PRICING_RULE, release_state: release.state }, { internal: release.state !== "released" });
   return [q.id];
