@@ -3,7 +3,7 @@
 import type { Json } from "@/integrations/supabase/types";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
-import { RC_DRAFT_FIELDS, fromObservations, knownPrefill, rcProgress, toObservations, type RcDraftValues, type RcEvidence } from "./ready-check-draft.core";
+import { RC_DRAFT_FIELDS, fromObservations, knownPrefill, rcProgress, rcSubmitBlockers, toObservations, type RcDraftValues, type RcEvidence } from "./ready-check-draft.core";
 import type { Observations } from "./readycheck.core";
 
 async function latestRc(jobId: string) {
@@ -66,6 +66,41 @@ export async function saveRcDraft(jobId: string, userId: string, businessId: str
   if (ue) throw new WorkflowError(ue.message);
   await logEvent(jobId, userId, "ready_check_draft_saved", `Ready Check draft saved (${set.length} answer${set.length === 1 ? "" : "s"}) — not submitted`, { ready_check_id: rc.id, answered: set.map((s) => s.field_key) }, { internal: true });
   return loadRcDraft(jobId);
+}
+
+/** P1: explicit installer "Submit for review". draft -> submitted (+ submitted_at) on the existing ready_checks row
+ *  (schema 0043 already defines 'submitted'; office views already read submitted_at). Only when every required
+ *  answer and assessment-gate evidence item is entered. Compare-and-set on status; a repeat submit is a no-op.
+ *  Does NOT change the job stage, verify eligibility, create quotes or send anything. */
+export async function submitRcDraft(jobId: string, userId: string) {
+  const rc = await latestRc(jobId);
+  if (!rc) throw new WorkflowError("Save the Ready Check before submitting it.");
+  if (rc.status === "submitted") return loadRcDraft(jobId);
+  const blockers = rcSubmitBlockers(rcProgress(await observations(rc.id), await rcEvidence(jobId)));
+  if (blockers.length) throw new WorkflowError(`Not ready to submit: ${blockers.join(" • ")}`);
+  const now = new Date().toISOString();
+  const { data, error } = await admin.from("ready_checks").update({ status: "submitted", submitted_at: now, updated_at: now }).eq("id", rc.id).eq("status", "draft").select("id");
+  if (error) throw new WorkflowError(error.message);
+  if (!data?.length) { const again = await latestRc(jobId); if (again?.status === "submitted") return loadRcDraft(jobId); throw new WorkflowError("The Ready Check changed while submitting — reload and try again."); }
+  await logEvent(jobId, userId, "ready_check_submitted", "Ready Check submitted by the installer for Home Insulation Victoria review", { ready_check_id: rc.id, version: rc.version }, { internal: true });
+  return loadRcDraft(jobId);
+}
+
+/** Office-only: reopen a SUBMITTED portal Ready Check so the installer can correct answers (the saved error message
+ *  already tells installers to ask for this). submitted -> draft only if still submitted; refused while a current
+ *  "eligible" verification relies on it (record "needs review" first). Never moves the job or sends anything. */
+export async function reopenRcDraft(jobId: string, actorId: string, reason: string) {
+  if (!reason || reason.trim().length < 3) throw new WorkflowError("A reason is required.");
+  const rc = await latestRc(jobId);
+  if (!rc || rc.status !== "submitted") throw new WorkflowError("There is no submitted Ready Check to reopen.");
+  if (rc.external_mitti_id) throw new WorkflowError("This Ready Check came from Mitti — correct it there.");
+  const { verifiedEligible } = await import("./verified-eligibility.server");
+  if (await verifiedEligible(jobId)) throw new WorkflowError("Eligibility is recorded as verified on this Ready Check. Record \"Needs office review\" first, then reopen it.");
+  const { data, error } = await admin.from("ready_checks").update({ status: "draft", submitted_at: null, updated_at: new Date().toISOString() }).eq("id", rc.id).eq("status", "submitted").select("id");
+  if (error) throw new WorkflowError(error.message);
+  if (!data?.length) throw new WorkflowError("The Ready Check changed — reload and try again.");
+  await logEvent(jobId, actorId, "ready_check_reopened", `Ready Check reopened for the installer to correct: ${reason.trim()}`, { ready_check_id: rc.id, version: rc.version }, { internal: true });
+  return { ok: true as const };
 }
 
 /** Original-condition answers still missing for an installer-intake job (feeds the existing pre-start works lock). */

@@ -29,3 +29,28 @@ export const saveReadyCheckDraft = createServerFn({ method: "POST" }).middleware
     const { saveRcDraft } = await import("./ready-check-draft.server");
     return saveRcDraft(data.jobId, context.userId, biz, data.values);
   });
+
+/** P1: explicit "Submit for review" — same caller rule as save (the job's installer business only). */
+export const submitReadyCheckDraft = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: ok, error } = await context.supabase.rpc("can_access_job", { _job: data.jobId });
+    if (error || !ok) throw new Error("Not your job.");
+    const { assignedInstallerBusiness } = await import("./piisa-a3.server");
+    const biz = await assignedInstallerBusiness(data.jobId);
+    if (!biz) throw new Error("No installer business is assigned to this job.");
+    const { data: mem } = await context.supabase.rpc("is_business_member", { _biz: biz });
+    if (!mem) throw new Error("Only the job's installer business can submit its Ready Check.");
+    const { submitRcDraft } = await import("./ready-check-draft.server");
+    return submitRcDraft(data.jobId, context.userId);
+  });
+
+/** Office only: reopen a submitted portal Ready Check for correction (see reopenRcDraft). */
+export const reopenReadyCheckDraft = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: z.string().uuid(), reason: z.string().trim().min(3).max(1000) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { requireAdmin } = await import("./workflow.server");
+    await requireAdmin(context.supabase);
+    const { reopenRcDraft } = await import("./ready-check-draft.server");
+    return reopenRcDraft(data.jobId, context.userId, data.reason);
+  });
