@@ -91,3 +91,20 @@ describe("STEP 24.1 office Reopen — reason requirement (mirrors reopenRcDraft 
     expect(uiCanConfirm("Fix area", true)).toBe(false);
   });
 });
+
+// STEP 28 reconciliation: the office "Reopen Ready Check" entry is additionally gated in the UI so it is only
+// offered once the installer has SUBMITTED. The server (reopenRcDraft) remains the real safeguard — it throws
+// "There is no submitted Ready Check to reopen." for any non-submitted status — but the UI should not offer a
+// futile action. canReopen mirrors ready-check-office.tsx: status must equal "submitted".
+describe("STEP 28 office Reopen — submitted-only UI gate (mirrors ready-check-office canReopen)", () => {
+  const canReopen = (status: "none" | "draft" | "submitted") => status === "submitted";
+  test("a not-started Ready Check cannot be reopened from the UI", () => {
+    expect(canReopen("none")).toBe(false);
+  });
+  test("a draft (installer still editing) cannot be reopened from the UI", () => {
+    expect(canReopen("draft")).toBe(false);
+  });
+  test("a submitted Ready Check can be reopened from the UI", () => {
+    expect(canReopen("submitted")).toBe(true);
+  });
+});

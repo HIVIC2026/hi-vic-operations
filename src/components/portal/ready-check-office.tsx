@@ -3,17 +3,34 @@
 // restrictions and state-transition safeguards are enforced server-side (see reopenRcDraft); this UI only
 // collects the reason and confirmation. It never moves the job, sends anything or edits answers.
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { Button, Section } from "@/components/trade/trade-ui";
 import { Input } from "@/components/ui/input";
 import { useAction } from "@/hooks/use-me";
-import { reopenReadyCheckDraft } from "@/lib/ready-check-draft.functions";
+import { getReadyCheckDraft, reopenReadyCheckDraft } from "@/lib/ready-check-draft.functions";
 import { refreshInstallerJob } from "@/components/trade/job-cache";
 
 /** Office/admin reopen of a SUBMITTED portal Ready Check so the installer can correct answers. */
 export function OfficeReadyCheckReopen({ jobId }: { jobId: string }) {
   const qc = useQueryClient();
   const reopen = useAction(reopenReadyCheckDraft);
+  const load = useServerFn(getReadyCheckDraft);
+  // Read-only status so the office only sees "Reopen" once the installer has SUBMITTED.
+  // The server (reopenRcDraft) is the real safeguard; this just avoids a futile call and shows state.
+  const { data: draft } = useQuery({
+    queryKey: ["rc-draft", jobId],
+    queryFn: () => load({ data: { jobId } }),
+    retry: false,
+  });
+  const status = draft?.status ?? "none";
+  const canReopen = status === "submitted";
+  const stateLabel =
+    status === "submitted"
+      ? "Submitted — awaiting office review"
+      : status === "draft"
+        ? "Draft (installer can still edit)"
+        : "Not started";
   const [confirming, setConfirming] = useState(false);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -46,6 +63,9 @@ export function OfficeReadyCheckReopen({ jobId }: { jobId: string }) {
         in the job history with your reason. It is refused while eligibility is recorded as verified
         (record &quot;Needs office review&quot; first) and for Ready Checks that came from Mitti.
       </p>
+      <p className="mt-2 text-xs text-muted-foreground" data-rc-state-label>
+        Ready Check status: {stateLabel}
+      </p>
       {!confirming ? (
         <div className="mt-3">
           <Button
@@ -53,12 +73,18 @@ export function OfficeReadyCheckReopen({ jobId }: { jobId: string }) {
             size="sm"
             variant="outline"
             data-rc-reopen-open
+            disabled={!canReopen}
             onClick={() => {
               setConfirming(true);
             }}
           >
             Reopen Ready Check
           </Button>
+          {!canReopen && (
+            <p className="mt-1 text-xs text-muted-foreground" data-rc-reopen-unavailable>
+              Reopening is only available once the installer has submitted the Ready Check.
+            </p>
+          )}
         </div>
       ) : (
         <div className="mt-3 space-y-2" data-rc-reopen-form>
