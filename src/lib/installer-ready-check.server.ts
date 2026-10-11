@@ -54,6 +54,7 @@ export async function bookOwnReadyCheck(jobId: string, userId: string, startIso:
   const { confirmBooking } = await import("./booking.server");
   await confirmBooking(jobId, "ready_check", new Date(startIso).toISOString(), userId, "installer (time agreed with the owner)");
   await admin.from("jobs").update({ next_action: READY_CHECK_BOOKED }).eq("id", jobId);
+  await (await import("./mitti-create.server")).onReadyCheckBooked(jobId, userId).catch((e) => console.error("ready check form not scheduled", (e as Error).message)); // T3: confirmed booking starts the form in the background
   await logEvent(jobId, userId, "installer_ready_check_self_booked", "Installer booked the Ready Check at a time agreed with the owner (nothing sent to the owner)", { starts_at: startIso });
   return { ok: true };
 }
@@ -104,6 +105,7 @@ export async function takeOwnerReadyCheckTime(jobId: string, userId: string, win
   catch (e) { await admin.from("ready_check_windows").update({ status: "open", taken_by: null, taken_at: null }).eq("id", windowId); throw e; }
   await admin.from("ready_check_windows").update({ status: "closed" }).eq("job_id", jobId).eq("status", "open");
   await admin.from("jobs").update({ next_action: READY_CHECK_BOOKED }).eq("id", jobId);
+  await (await import("./mitti-create.server")).onReadyCheckBooked(jobId, userId).catch((e) => console.error("ready check form not scheduled", (e as Error).message)); // T3: confirmed booking starts the form in the background
   return { ok: true };
 }
 

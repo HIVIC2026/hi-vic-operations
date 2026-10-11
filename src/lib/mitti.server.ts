@@ -73,7 +73,7 @@ async function templateIds() {
 export const PIESA_BOOKING_MISSING = "The PIESA form can only be created once a PIESA visit is confirmed in the portal.";
 
 /** opts.assignee: hand the Ready Check to this specific approved worker (auto-assign); opts.readyCheck forces the installer Ready Check form. */
-export async function createAssignMittiAudit(jobId: string, actorId: string | null, call: MittiCall = realMittiCall, opts: { assignee?: { userId: string; fullName: string | null; email: string }; readyCheck?: boolean } = {}) {
+export async function createAssignMittiAudit(jobId: string, actorId: string | null, call: MittiCall = realMittiCall, opts: { assignee?: { userId: string; fullName: string | null; email: string }; readyCheck?: boolean; officeOverride?: boolean } = {}) {
   const { data: job } = await admin.from("jobs").select("id,job_number,business_unit,stage,estimated_area_m2,life_support,life_support_status,property_id,owner_id,channel").eq("id", jobId).single();
   if (!job) throw new WorkflowError("Job not found.");
   const scope = await jobScope(jobId);
@@ -107,8 +107,25 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
   const prof = (asg as unknown as { profiles: { full_name: string | null; email: string | null } | null }).profiles;
   const address = formatPropertyAddress(prop);
   let r;
+  // T3: atomic per-job/per-form claim ("mitti_audit_create_started" row with a deterministic primary key; see
+  // mitti-create-claim.core.ts). Only the create POST is non-idempotent, so it is tracked: a failure before it
+  // releases the claim; a failure during/after it without an audit id keeps the claim (outcome uncertain).
+  const kind = measureOnly ? "ready_check" as const : "piesa" as const;
+  const claims = await import("./mitti-create.server");
+  const claimId = existingAuditId ? null : await claims.claimMittiCreate(jobId, kind, actorId,
+    `Mitti ${measureOnly ? "measure-up" : "assessment"} creation started for ${prof?.email ?? "assigned trade"}`,
+    { template_id: templateId, scope: scope.scope }, { officeOverride: opts.officeOverride === true });
+  const base = mittiApi(call);
+  const seen = { createAttempted: false, createdId: null as string | null };
+  const api: typeof base = { ...base, createAudit: async (body) => {
+    seen.createAttempted = true;
+    const out = await base.createAudit(body);
+    const id = out?.audit_id ?? out?.id;
+    seen.createdId = id ? String(id) : null;
+    return out;
+  } };
   try {
-    r = await createOrReuseAudit(mittiApi(call), {
+    r = await createOrReuseAudit(api, {
       businessUnit: job.business_unit, stage: job.stage, jobNumber: job.job_number, existingAuditId,
       electricianEmail: prof?.email ?? null, templateId, assigneeRole: role,
       prefill: {
@@ -124,6 +141,26 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Mitti error";
+    if (claimId) {
+      const { createOutcome } = await import("./mitti-create-claim.core");
+      const outcome = createOutcome(seen);
+      if (outcome === "not_created") await claims.releaseMittiCreate(jobId, kind, claimId, actorId, msg);
+      else if (outcome === "created") {
+        // Mitti made the form but a later step (share / owner) failed: store it so every retry REUSES it.
+        if (measureOnly) {
+          if (m && m.status !== "complete") await admin.from("ceiling_measurements").update({ external_source: "mitti", external_id: seen.createdId }).eq("id", m.id);
+          else await admin.from("ceiling_measurements").insert({ job_id: jobId, status: "draft", is_current: true, source_role: "installer", created_by: actorId, external_source: "mitti", external_id: seen.createdId });
+        } else if (a) await admin.from("assessments").update({ external_mitti_id: seen.createdId, mitti_template_id: templateId }).eq("id", a.id);
+        else { await admin.from("assessments").insert({ job_id: jobId, assessor_id: asg.user_id, external_mitti_id: seen.createdId, mitti_template_id: templateId, mitti_last_error: msg, mitti_sync_status: "error", mitti_scope: scope.scope }); throw wrap(e); }
+      } else {
+        await claims.recordMittiCreateUncertain(jobId, kind, claimId, actorId, msg);
+        if (!measureOnly) {
+          if (a) await admin.from("assessments").update({ mitti_last_error: msg }).eq("id", a.id);
+          else await admin.from("assessments").insert({ job_id: jobId, assessor_id: asg.user_id, mitti_last_error: msg, mitti_sync_status: "error", mitti_scope: scope.scope });
+        }
+        throw new claims.MittiOutcomeUncertain();
+      }
+    }
     if (!measureOnly) {
       if (a) await admin.from("assessments").update({ mitti_last_error: msg }).eq("id", a.id);
       else await admin.from("assessments").insert({ job_id: jobId, assessor_id: asg.user_id, mitti_last_error: msg, mitti_sync_status: "error", mitti_scope: scope.scope });
