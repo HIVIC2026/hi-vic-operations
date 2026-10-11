@@ -9,8 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { getManualCommunicationHistoryFn, prepareManualEmailFn, recordManualCommunicationFn } from "@/lib/manual-communication.functions";
-import { MANUAL_OUTCOME_LABEL, MANUAL_OUTCOME_ORDER, planManualRecord, type ManualOutcome, type PreparedApprovedEmail } from "@/lib/manual-communication.core";
+import { MANUAL_NEXT_LABEL, MANUAL_OUTCOME_LABEL, MANUAL_OUTCOME_ORDER, planManualRecord, previewDisplayText, type AssumedSizeEstimate, type ManualLeadView, type ManualOutcome, type PreparedApprovedEmail } from "@/lib/manual-communication.core";
 
+const money = (n: number) => `$${Math.round(n).toLocaleString("en-AU")}`;
 const when = (iso: string) => new Date(iso).toLocaleString("en-AU", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
 const OUTCOME_HELP: Record<ManualOutcome, string> = {
   sent_manually: "You sent the approved email from your own mailbox.",
@@ -34,6 +35,23 @@ async function copyToClipboard(text: string, html?: string): Promise<boolean> {
 function usePreparedEmail(jobId: string, enabled = true) {
   const prepare = useServerFn(prepareManualEmailFn);
   return useQuery({ queryKey: ["manual-email", jobId], queryFn: () => prepare({ data: { jobId } }), enabled, staleTime: 60_000, refetchOnWindowFocus: false, retry: false });
+}
+
+/** Latest Office-recorded outcome on a lead (STEP 32). Follow-up required is shown as the pending next action;
+ *  phone/not sent never hide the outstanding email action, which stays in the row's main text. */
+export function ManualLeadNote({ m }: { m: ManualLeadView }) {
+  if (!m.latest) return null;
+  const pending = m.latest.kind === "followup_pending";
+  // Keep manual-send provenance visible even when a later phone/follow-up record is the latest one.
+  const sentAt = m.latest.kind === "sent_manually" ? null : [m.saveSpotSentAt, m.ineligibleSentAt].filter((x): x is string => !!x).sort().at(-1) ?? null;
+  return (
+    <>
+      {sentAt && <div data-manual-note="sent_manually" className="mt-1 text-xs text-muted-foreground">{MANUAL_NEXT_LABEL.sent_manually} · {when(sentAt)}</div>}
+      <div data-manual-note={m.latest.kind} className={pending ? "mt-1 rounded-md border border-warning/40 bg-warning/5 p-1.5 text-xs font-semibold" : "mt-1 text-xs text-muted-foreground"}>
+        {MANUAL_NEXT_LABEL[m.latest.kind]} · {when(m.latest.at)}{m.latest.note ? `: ${m.latest.note}` : ""}
+      </div>
+    </>
+  );
 }
 
 /** Two separate Office actions for one lead: prepare/copy the approved email, and record the outcome. */
@@ -60,9 +78,37 @@ function CopyRow({ label, value, copyLabel, onCopy }: { label: string; value: st
   );
 }
 
+/** Missing ceiling size: Office-only figures on the clearly labelled assumption. No copy action – it is not an email. */
+function InternalEstimate({ e }: { e: AssumedSizeEstimate }) {
+  return (
+    <section data-internal-estimate aria-label="Internal indicative estimate" className="space-y-2 rounded-md border border-info/40 bg-info/5 p-3 text-sm">
+      <div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">Internal indicative estimate · office use only</h3><Pill t="warn">Assumed size – not verified</Pill></div>
+      <p className="font-semibold">{e.areaLabel}</p>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+        <dt>Estimated VEU rebate</dt><dd className="font-semibold">{money(e.rebate)}</dd>
+        <dt>Estimated cost after rebate</dt><dd className="font-semibold">{money(e.estimatedCost)}</dd>
+        <dt>Before rebate</dt><dd>{money(e.grossBeforeRebate)} <span className="text-xs text-muted-foreground">(installation {money(e.installation)} · assessment {money(e.assessmentFee)} · AP management {money(e.apFee)}, incl. GST)</span></dd>
+      </dl>
+      <p className="text-xs text-muted-foreground">{e.assumption}</p>
+    </section>
+  );
+}
+
 function PrepareEmailDialog({ jobId, jobNumber, onClose, onRecord, onPrepared }: { jobId: string; jobNumber: string | null; onClose: () => void; onRecord: () => void; onPrepared: (e: PreparedApprovedEmail) => void }) {
   const { data, isLoading, error, refetch } = usePreparedEmail(jobId);
-  useEffect(() => { if (data?.ok) onPrepared(data); }, [data, onPrepared]);
+  // Only an email with its real links can be recorded as "Sent manually".
+  useEffect(() => { if (data?.ok && data.linksReady) onPrepared(data); }, [data, onPrepared]);
+  const prepare = useServerFn(prepareManualEmailFn);
+  const qc = useQueryClient();
+  const [issuing, setIssuing] = useState(false);
+  const [issueError, setIssueError] = useState<string | null>(null);
+  const issueLinks = async () => {
+    setIssuing(true);
+    setIssueError(null);
+    try { qc.setQueryData(["manual-email", jobId], await prepare({ data: { jobId, issueLinks: true } })); }
+    catch (e) { setIssueError(e instanceof Error ? e.message : "Could not create the sending links. Try again."); }
+    finally { setIssuing(false); }
+  };
   const [copied, setCopied] = useState<string | null>(null);
   const copy = async (what: string, text: string, html?: string) => setCopied((await copyToClipboard(text, html)) ? `${what} copied.` : "Copy failed – select the text and copy it yourself.");
   return (
@@ -74,27 +120,45 @@ function PrepareEmailDialog({ jobId, jobNumber, onClose, onRecord, onPrepared }:
         </DialogHeader>
         {isLoading ? <p role="status" className="text-sm">Preparing the approved email…</p>
           : error || !data ? <div role="alert" className="text-sm text-destructive">Could not prepare the email. <Button variant="link" size="sm" onClick={() => refetch()}>Try again</Button></div>
-          : !data.ok ? <div role="alert" className="rounded-md border border-warning/40 bg-warning/5 p-3 text-sm"><strong>No email to copy.</strong> {data.reason}</div>
+          : !data.ok ? (
+            <div className="min-w-0 space-y-3">
+              <div role="alert" className="rounded-md border border-warning/40 bg-warning/5 p-3 text-sm"><strong>No email to copy.</strong> {data.reason}</div>
+              {data.internalEstimate && <InternalEstimate e={data.internalEstimate} />}
+            </div>
+          )
           : (
             <div className="min-w-0 space-y-3 text-sm">
               <div className="flex flex-wrap items-center gap-2"><Pill t="good">Approved wording</Pill><span>{data.templateLabel}</span></div>
               {data.notices.map((n) => <p key={n} role="status" className="rounded-md border border-warning/40 bg-warning/5 p-2">{n}</p>)}
+              {!data.linksReady && (
+                <div role="status" data-links-pending className="space-y-2 rounded-md border border-warning/40 bg-warning/5 p-3">
+                  <p><strong>Preview only.</strong> This lead has no unsubscribe or referral link yet, so those links show as “[link created before sending]” and the body can't be copied. Opening the preview created nothing.</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button size="sm" disabled={issuing} onClick={issueLinks}>{issuing ? "Creating links…" : "Create sending links"}</Button>
+                    <span className="text-xs text-muted-foreground">Issues the lead's own links only. Sends nothing and records nothing.</span>
+                  </div>
+                  {issueError && <p role="alert" className="text-destructive">{issueError}</p>}
+                </div>
+              )}
               <CopyRow label="To" value={data.to} copyLabel="Copy recipient" onCopy={() => copy("Recipient", data.to)} />
               <CopyRow label="Subject" value={data.subject} copyLabel="Copy subject" onCopy={() => copy("Subject", data.subject)} />
               <div>
                 <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs font-semibold uppercase text-muted-foreground">Full email body</span>
                   <span className="flex flex-wrap gap-2">
-                    <Button size="sm" onClick={() => copy("Email body (formatted)", data.plainText, data.html)}>Copy email body</Button>
-                    <Button size="sm" variant="outline" onClick={() => copy("Email body (plain text)", data.plainText)}>Copy as plain text</Button>
+                    <Button size="sm" disabled={!data.linksReady} onClick={() => copy("Email body (formatted)", data.plainText, data.html)}>Copy email body</Button>
+                    <Button size="sm" variant="outline" disabled={!data.linksReady} onClick={() => copy("Email body (plain text)", data.plainText)}>Copy as plain text</Button>
                   </span>
                 </div>
-                <pre aria-label="Full email body" className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/30 p-3 font-sans text-sm [overflow-wrap:anywhere]">{data.plainText}</pre>
+                {/* Without its links the body is shown with plain markers (never a fake link) and the designed view is withheld. */}
+                <pre aria-label="Full email body" className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/30 p-3 font-sans text-sm [overflow-wrap:anywhere]">{data.linksReady ? data.plainText : previewDisplayText(data.plainText)}</pre>
               </div>
-              <details>
-                <summary className="cursor-pointer font-semibold">How the email looks</summary>
-                <iframe title="Approved email preview" sandbox="" srcDoc={data.html} className="mt-2 h-[60vh] w-full rounded-md border bg-background" />
-              </details>
+              {data.linksReady && (
+                <details>
+                  <summary className="cursor-pointer font-semibold">How the email looks</summary>
+                  <iframe title="Approved email preview" sandbox="" srcDoc={data.html} className="mt-2 h-[60vh] w-full rounded-md border bg-background" />
+                </details>
+              )}
               {copied && <p role="status" className="font-semibold">{copied}</p>}
             </div>
           )}
@@ -118,7 +182,8 @@ function RecordOutcomeDialog({ jobId, jobNumber, prepared, onClose }: { jobId: s
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const needsEmail = outcome ? planManualRecord(outcome).needsApprovedEmail : false;
   const fetched = usePreparedEmail(jobId, needsEmail && !prepared);
-  const email = prepared ?? (fetched.data?.ok ? fetched.data : null);
+  // Only the approved email with its real links (never preview placeholders) can be recorded as sent.
+  const email = prepared ?? (fetched.data?.ok && fetched.data.linksReady ? fetched.data : null);
   const canSave = !!outcome && !busy && (needsEmail ? !!email : note.trim().length >= 3);
   const save = async () => {
     if (!outcome || !canSave) return;
@@ -129,7 +194,8 @@ function RecordOutcomeDialog({ jobId, jobNumber, prepared, onClose }: { jobId: s
       setMsg({ ok: true, text: `Recorded “${r.label}” against ${r.jobNumber ?? "this job"} at ${when(r.recordedAt)}. Manual record only – the portal sent nothing.` });
       setOutcome(null);
       setNote("");
-      await Promise.all([qc.invalidateQueries({ queryKey: ["manual-comms", jobId] }), qc.invalidateQueries({ queryKey: ["manual-email", jobId] })]);
+      // Leads status follows recorded outcomes (STEP 32), so refresh the list as well as this lead.
+      await Promise.all([qc.invalidateQueries({ queryKey: ["manual-comms", jobId] }), qc.invalidateQueries({ queryKey: ["manual-email", jobId] }), qc.invalidateQueries({ queryKey: ["leads-one-list"] })]);
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : "Could not record the outcome. Try again." });
     } finally {
@@ -161,7 +227,7 @@ function RecordOutcomeDialog({ jobId, jobNumber, prepared, onClose }: { jobId: s
                 <details className="mt-1"><summary className="cursor-pointer text-xs">Show the full body</summary><pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap font-sans text-xs [overflow-wrap:anywhere]">{email.plainText}</pre></details>
               </div>
             )
-            : <p role="alert" className="rounded-md border border-warning/40 bg-warning/5 p-3 text-sm">“Sent manually” records the approved email you prepared here, and none is available for this lead: {fetched.data && !fetched.data.ok ? fetched.data.reason : "it could not be prepared."} If you already contacted the owner another way, choose “Follow-up required” and describe what happened.</p>
+            : <p role="alert" className="rounded-md border border-warning/40 bg-warning/5 p-3 text-sm">“Sent manually” records the approved email you prepared here, and none is available for this lead: {fetched.data && !fetched.data.ok ? fetched.data.reason : fetched.data?.ok && !fetched.data.linksReady ? "its sending links haven't been created yet – open “Prepare email to copy”, create the links and copy it first." : "it could not be prepared."} If you already contacted the owner another way, choose “Follow-up required” and describe what happened.</p>
         )}
         {outcome && !needsEmail && (
           <div className="space-y-1 text-sm">

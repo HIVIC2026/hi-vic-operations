@@ -4,13 +4,14 @@ import { z } from "zod";
 
 // A1 manual customer communication (STEP 17). Office (admin) only. Nothing here sends email/SMS.
 
-/** Renders the lead's approved email for Office to copy and send by hand. Writes no send record. */
+/** Renders the lead's approved email for Office to copy and send by hand. Writes no send record and, unless
+ *  `issueLinks` (the explicit "Create sending links" step), creates no unsubscribe/referral token either. */
 export const prepareManualEmailFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid() }).parse(d))
+  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), issueLinks: z.boolean().optional() }).parse(d))
   .handler(async ({ context, data }) => {
     const { requireAdmin } = await import("./workflow.server");
     await requireAdmin(context.supabase);
-    return (await import("./manual-communication.server")).prepareManualEmail(data.jobId, context.userId ?? null);
+    return (await import("./manual-communication.server")).prepareManualEmail(data.jobId, context.userId ?? null, { issueLinks: data.issueLinks === true });
   });
 
 /** Records the outcome of a communication Office handled outside the portal (record only). */

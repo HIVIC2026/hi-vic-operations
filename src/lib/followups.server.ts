@@ -287,21 +287,33 @@ export async function sendPreliminaryIneligibleEmail(jobId: string, actorId: str
   }
 }
 
-/** The exact ineligible email the sender delivers; shared so the Office copy below can never drift from it. */
-async function renderPreliminaryIneligibleMail(jobId: string, reason: string | null, reference: string | null) {
+/** The exact ineligible email the sender delivers; shared so the Office copy below can never drift from it.
+ *  `links` (preview only) supplies existing or placeholder links instead of creating tokens. */
+async function renderPreliminaryIneligibleMail(jobId: string, reason: string | null, reference: string | null, links?: { referralUrl: string; unsubscribeUrl: string }) {
   const { renderIneligibleEmail } = await import("./ineligible-email");
-  return withUnsubscribe(renderIneligibleEmail({ referralUrl: await referralUrlForJob(jobId), reason, reference }), await unsubscribeUrlForJob(jobId));
+  const referralUrl = links ? links.referralUrl : await referralUrlForJob(jobId);
+  return withUnsubscribe(renderIneligibleEmail({ referralUrl, reason, reference }), links ? links.unsubscribeUrl : await unsubscribeUrlForJob(jobId));
 }
 
-/** STEP 17 (A1 manual sending): render-only twin of sendPreliminaryIneligibleEmail for Office to copy. Same official
- *  result, consent, owner and renderer; it never checks the delivery switch/provider, reserves a key, delivers or
- *  records anything. Contact suppression is applied by the caller (manual-communication.server.ts). */
-export async function prepareIneligibleEmailForOffice(jobId: string): Promise<{ ok: true; to: string; subject: string; html: string; plainText: string } | { ok: false; reason: string }> {
+/** STEP 17/32 (A1 manual sending): render-only twin of sendPreliminaryIneligibleEmail for Office to copy. Same official
+ *  result, consent, owner and renderer; it never reserves a key, delivers or records anything. By default it creates no
+ *  link token (existing links or placeholders, linksReady=false when any is missing); `issueLinks` is the explicit
+ *  Office "Create sending links" step. The global lock and contact suppression are applied by the caller
+ *  (manual-communication.server.ts). */
+export async function prepareIneligibleEmailForOffice(jobId: string, opts: { issueLinks?: boolean } = {}): Promise<{ ok: true; to: string; subject: string; html: string; plainText: string; linksReady: boolean } | { ok: false; reason: string }> {
   const official = await officialOutcomeForDelivery(jobId);
   if (official.kind !== "ineligible") return { ok: false, reason: official.kind === "hold" ? official.reason : "official_not_ineligible" };
   if (!(await hasCurrentOwnerContactConsent(jobId))) return { ok: false, reason: "no_consent" };
   const owner = await ownerEmail(jobId);
   if (!owner.email) return { ok: false, reason: "no_owner_email" };
-  const mail = await renderPreliminaryIneligibleMail(jobId, official.reason, owner.reference);
-  return { ok: true, to: owner.email, subject: mail.subject, html: mail.html, plainText: mail.plainText };
+  let links: { referralUrl: string; unsubscribeUrl: string } | undefined;
+  let linksReady = true;
+  if (!opts.issueLinks) {
+    const p = await import("./preview-links.server");
+    const [referral, unsubscribe] = await Promise.all([p.existingReferralUrl(jobId), p.existingUnsubscribeUrl(jobId)]);
+    linksReady = !!referral && !!unsubscribe;
+    links = { referralUrl: referral ?? p.PREVIEW_REFERRAL_URL, unsubscribeUrl: unsubscribe ?? p.PREVIEW_UNSUBSCRIBE_URL };
+  }
+  const mail = await renderPreliminaryIneligibleMail(jobId, official.reason, owner.reference, links);
+  return { ok: true, to: owner.email, subject: mail.subject, html: mail.html, plainText: mail.plainText, linksReady };
 }

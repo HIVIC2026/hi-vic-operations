@@ -5,6 +5,7 @@ import { emailTypo, hotCoverage, hotRegion, hotStatus, sharedEmailFlags, HOT_EXC
 import { LAUNCH_CAMPAIGN, savedPriceFromEstimate } from "./launch-campaign.core";
 import { discountIsWholeVeecs } from "./estimate.core";
 import { TEST_ALLOWLIST } from "./test-send.core";
+import { MANUAL_SENT_EVENT, manualSendReference } from "./manual-communication.core";
 
 const need = <T>(result: { data: T; error: { message: string } | null }, label: string): T => {
   if (result.error) throw new Error(`${label}: ${result.error.message}`);
@@ -86,19 +87,23 @@ export async function loadHotLeads(group: HotList = "likely") {
     return { id: j.id, jobNumber: j.job_number, source: j.source, eligibility: j.eligibility_outcome, name: owner.full_name, email: owner.email, address: property.address_line, suburb: property.suburb || addressSuburb, postcode: property.postcode, area: Number(estimate.area_m2), region: hotRegion(property.postcode), ...coverage, price: saved?.total ?? null, discount: saved?.discount ?? null, priceCheck, wholeVeecs, installation: value?.primary.by_access.standard.installation ?? null, veecs: value ? Math.floor(value.ghg.ghgReduction) : null };
   });
   const ids = rows.map((r) => r.id);
-  const [sendsR, respR, optR, linkR, consentR] = ids.length ? await Promise.all([
+  const [sendsR, respR, optR, linkR, consentR, manualR] = ids.length ? await Promise.all([
     admin.from("customer_email_sends").select("job_id,status,sent_at,created_at").eq("purpose", LAUNCH_CAMPAIGN).in("job_id", ids),
     admin.from("lead_campaign_responses").select("job_id,spot_saved_at,opted_out_at").in("job_id", ids),
     admin.from("customer_email_optouts").select("job_id,opted_out_at").in("job_id", ids),
     admin.from("customer_estimate_links").select("job_id,status").eq("purpose", "step3_estimate").eq("status", "active").in("job_id", ids),
     admin.from("owner_contact_consents").select("job_id,consent_status,created_at").in("job_id", ids).order("created_at", { ascending: false }),
-  ]) : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }];
+    // STEP 32: a recorded "Sent manually" Save your spot email counts as sent here, so the same email is never offered again.
+    admin.from("job_communications").select("job_id,created_at").eq("source_event", MANUAL_SENT_EVENT).eq("source_reference", manualSendReference("save_my_spot")).in("job_id", ids),
+  ]) : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [], error: null }];
   const consent = new Map<string, string>();
   for (const c of consentR.data ?? []) if (c.job_id && !consent.has(c.job_id)) consent.set(c.job_id, c.consent_status);
   const sent = new Map((sendsR.data ?? []).filter((x) => ["sent", "delivered_unrecorded", "sending"].includes(x.status)).map((x) => [x.job_id, x.sent_at ?? x.created_at]));
   const resp = new Map((respR.data ?? []).map((x) => [x.job_id, x]));
   const opt = new Map((optR.data ?? []).filter((x) => x.opted_out_at).map((x) => [x.job_id, x.opted_out_at as string]));
   const linked = new Set((linkR.data ?? []).map((x) => x.job_id));
+  if (manualR.error) throw new Error(`Manual email records: ${manualR.error.message}`);
+  const manualSent = new Map((manualR.data ?? []).map((x) => [x.job_id, x.created_at]));
   const shared = sharedEmailFlags(rows);
   const list = rows.map((r) => {
     const flags: string[] = [];
@@ -112,12 +117,13 @@ export async function loadHotLeads(group: HotList = "likely") {
     else if (!r.wholeVeecs) flags.push("Price is not a whole number of VEECs. Recalculate before sending.");
     else if (!r.priceCheck) flags.push("Saved estimate does not match the current price settings. Recalculate before sending.");
     const hold = group !== "test" && HOT_HOLD_REGIONS.has(r.region);
-    const sentAt = sent.get(r.id) ?? null;
+    const manualSentAt = manualSent.get(r.id) ?? null;
+    const sentAt = sent.get(r.id) ?? manualSentAt;
     const spotSavedAt = resp.get(r.id)?.spot_saved_at ?? null;
     const optedOutAt = resp.get(r.id)?.opted_out_at ?? opt.get(r.id) ?? null;
     const status = hotStatus({ sentAt, spotSavedAt, optedOutAt });
     const send = hold ? "hold" as const : "ready" as const;
-    const note = HOT_MAYBE_EMAILED_BY_HAND[r.jobNumber ?? ""] ?? null;
+    const note = (!sent.get(r.id) && manualSentAt ? "Emailed by hand by the office (recorded) – not sent by the portal, and the portal won't send it again." : null) ?? HOT_MAYBE_EMAILED_BY_HAND[r.jobNumber ?? ""] ?? null;
     return { ...r, send, flags, note, status, sentAt, spotSavedAt, optedOutAt, defaultTicked: group === "likely" && send === "ready" && !flags.length && status === "not_sent" };
   });
   const regionOrder = ["Melbourne metro", "Geelong", "Mornington Peninsula", "Ballarat / Macedon", "Goulburn & Hume", "Western Victoria", "Gippsland", "Bendigo / Loddon", "Far East Gippsland", "Other Victoria"];

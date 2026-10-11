@@ -16,7 +16,7 @@ import { MANUAL_SENT_EVENT, manualSendReference } from "./manual-communication.c
 export const HOT_SEND_BATCH = 10;
 /** Last TEST send detail per job (Resend id), for reporting. */
 export const testSendIds = new Map<string, string>();
-export type HotSendResult = { jobId: string; jobNumber: string | null; outcome: "sent" | "skipped" | "blocked" | "failed"; detail: string; preview?: { to: string; subject: string; html: string; plainText: string }; linkJobId?: string; linkToken?: string; sendGroup?: string };
+export type HotSendResult = { jobId: string; jobNumber: string | null; outcome: "sent" | "skipped" | "blocked" | "failed"; detail: string; preview?: { to: string; subject: string; html: string; plainText: string; /** false = preview placeholders stand in for links the lead doesn't have yet. */ linksReady: boolean }; linkJobId?: string; linkToken?: string; sendGroup?: string };
 
 /** Real customers: ONLY this Save my spot campaign, approved by Jo (8 Oct 2026). The global customer
  *  comms switch stays off, so every other customer email remains blocked. Contact consent is still checked per lead. */
@@ -27,8 +27,10 @@ export async function realSendingOn() {
 void LAUNCH_COPY_APPROVED;
 
 /** TEST-only overrides (qa_test jobs): link host and group. Ignored for real jobs.
- *  mode "preview" renders without sending; "test_to_jo" sends a real lead's email to Jo's inbox only, with TEST-job links. */
-export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string; /** TEST only: send the Step 3 likely-eligible email instead, same facts. */ variant?: "likely_estimate"; mode?: "send" | "preview" | "test_to_jo" | "test_preview"; automaticInsulation?: boolean; /** Set only by the post-Gate-1 router: the owner's own first reply. */ automaticInitial?: boolean };
+ *  mode "preview" renders without sending and without creating any link token (missing links become placeholders);
+ *  "manual_copy" is the same render but issues the lead's missing unsubscribe/referral links for an Office hand-send (STEP 32);
+ *  "test_to_jo" sends a real lead's email to Jo's inbox only, with TEST-job links. */
+export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string; /** TEST only: send the Step 3 likely-eligible email instead, same facts. */ variant?: "likely_estimate"; mode?: "send" | "preview" | "manual_copy" | "test_to_jo" | "test_preview"; automaticInsulation?: boolean; /** Set only by the post-Gate-1 router: the owner's own first reply. */ automaticInitial?: boolean };
 /** Jo's own inbox for "send me a test of this lead". */
 export const JO_TEST_INBOX = "jolowexo@hotmail.com";
 /** TEST job whose links go into Jo's test copies, so pressing them never touches the real lead. */
@@ -133,7 +135,8 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
 
   // Jo's test copy of a real lead: real wording/facts, but every link points at a TEST job.
   let linkJobId = jobId, linkToken = link.token;
-  // "test_preview" prepares exactly the same TEST links as "test_to_jo" but renders only: no provider call.
+  // "test_preview" prepares exactly the same TEST links as "test_to_jo" but renders only: no provider call and (STEP 32)
+  // no unsubscribe/referral token creation – missing ones are preview placeholders.
   const testCopy = mode === "test_to_jo" || mode === "test_preview";
   if (testCopy && sendGroup === "onsite") {
     // Group B test copies must open a Group B TEST homeowner who has not answered yet. HV-1609 is a likely-eligible
@@ -146,10 +149,21 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     if (!tj || !tl?.token) return r("failed", "TEST job links unavailable for the test copy.");
     linkJobId = tj.id; linkToken = tl.token;
   }
-  const { unsubscribeUrlForJob } = await import("./emailsafety.server");
   const base = CUSTOMER_BASE; // one setting: customer links always use the live domain, never the login-walled preview
-  // Creates the lead's unsubscribe token if it doesn't have one yet.
-  const unsubscribeUrl = (await unsubscribeUrlForJob(linkJobId)).replace(CUSTOMER_BASE, base);
+  // Previews never create tokens (STEP 32): reuse an existing link, otherwise show a placeholder and say so.
+  const readOnlyLinks = mode === "preview" || mode === "test_preview";
+  const previewLinks = readOnlyLinks ? await import("./preview-links.server") : null;
+  let linksReady = true;
+  let unsubscribeUrl: string;
+  if (previewLinks) {
+    const existing = await previewLinks.existingUnsubscribeUrl(linkJobId);
+    if (!existing) linksReady = false;
+    unsubscribeUrl = existing ?? previewLinks.PREVIEW_UNSUBSCRIBE_URL;
+  } else {
+    const { unsubscribeUrlForJob } = await import("./emailsafety.server");
+    // Creates the lead's unsubscribe token if it doesn't have one yet.
+    unsubscribeUrl = (await unsubscribeUrlForJob(linkJobId)).replace(CUSTOMER_BASE, base);
+  }
   const prop = job.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
   const snapshot = est?.snapshot as { settings?: { piesa_assessment_inc_gst?: number; ap_management_inc_gst?: number }; scenarios?: { by_access?: { standard?: { installation?: number } } }[] } | null;
   const installation = snapshot?.scenarios?.[0]?.by_access?.standard?.installation;
@@ -159,7 +173,11 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   const fullAddress = (await import("./address")).fullAddress(prop?.address_line, prop?.suburb, prop?.postcode);
   const firstName = owner?.full_name?.trim().split(/\s+/)[0] ?? null;
   // Likely-eligible owners get the Jo-APPROVED "Save your spot (likely eligible)" email (7 Oct 2026, FINAL).
-  const referralUrl = sendGroup === "likely" ? await (await import("./referral.server")).referralUrlForJob(linkJobId).catch(() => null) : null;
+  let referralUrl: string | null = null;
+  if (sendGroup === "likely" && previewLinks) {
+    referralUrl = await previewLinks.existingReferralUrl(linkJobId).catch(() => null);
+    if (!referralUrl) { linksReady = false; referralUrl = previewLinks.PREVIEW_REFERRAL_URL; }
+  } else if (sendGroup === "likely") referralUrl = await (await import("./referral.server")).referralUrlForJob(linkJobId).catch(() => null);
   const mail = sendGroup === "likely"
     ? (() => { const m = (isTest && testOpts.variant === "likely_estimate" ? renderStep3Likely : renderStep3SaveSpot)({
         estimateUrl: `${base}/estimate/${linkToken}`, campaignUrl, unsubscribeUrl, referralUrl,
@@ -179,8 +197,8 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     ...(assessmentFee === undefined ? {} : { assessmentFee }),
     ...(apFee === undefined ? {} : { apFee }),
   }), unsubscribeUrl);
-  if (mode === "preview") return { ...r("sent", "Preview only — not sent"), preview: { to, subject: mail.subject, html: mail.html, plainText: mail.plainText } };
-  if (mode === "test_preview") return { ...r("sent", "TEST copy rendered only — not sent"), preview: { to: JO_TEST_INBOX, subject: `[TEST of ${job.job_number}] ${mail.subject}`, html: mail.html, plainText: mail.plainText }, linkJobId, linkToken, sendGroup };
+  if (mode === "preview" || mode === "manual_copy") return { ...r("sent", "Preview only — not sent"), preview: { to, subject: mail.subject, html: mail.html, plainText: mail.plainText, linksReady } };
+  if (mode === "test_preview") return { ...r("sent", "TEST copy rendered only — not sent"), preview: { to: JO_TEST_INBOX, subject: `[TEST of ${job.job_number}] ${mail.subject}`, html: mail.html, plainText: mail.plainText, linksReady }, linkJobId, linkToken, sendGroup };
   if (mode === "test_to_jo") {
     const subject = `[TEST of ${job.job_number}] ${mail.subject}`;
     const t = await resendSend(JO_TEST_INBOX, subject, mail.html, mail.plainText, `save-spot-test:${jobId}:${Date.now()}`, null);

@@ -1,4 +1,4 @@
-# STEP 17 isolated browser check (sealed fixture; never reaches a live service).
+# STEP 17/32 isolated browser check (sealed fixture; never reaches a live service).
 # Run: bunx vite --config vite.portal-browser.config.ts  then  python3 tests/manual-communication.browser.py
 import asyncio, os, re
 from playwright.async_api import async_playwright
@@ -17,6 +17,17 @@ async def main():
       d = p.get_by_role('dialog')
       await d.get_by_text('testy.owner@example.test', exact=True).wait_for()
       await d.get_by_text(exp['subject'], exact=True).wait_for()
+      # STEP 32: opening the preview creates nothing – no links yet, so placeholders and the body can't be copied.
+      await d.locator('[data-links-pending]').wait_for()
+      shown = await d.get_by_label('Full email body').evaluate('e => e.textContent')
+      assert '[link created before sending]' in shown and 'PREVIEW_ONLY_link_issued_before_sending' not in shown, 'placeholder link visible'
+      assert await d.get_by_text('How the email looks').count() == 0
+      assert await d.get_by_role('button', name='Copy email body', exact=True).is_disabled() and await d.get_by_role('button', name='Copy as plain text').is_disabled()
+      assert await p.evaluate('window.__prepareArgs') == [{'jobId': 'lead-a'}]
+      await p.screenshot(path=f'{SHOTS}/0-preview-no-links-{w}.png')
+      await d.get_by_role('button', name='Create sending links').click()
+      await d.locator('[data-links-pending]').wait_for(state='detached')
+      assert await p.evaluate('window.__prepareArgs') == [{'jobId': 'lead-a'}, {'jobId': 'lead-a', 'issueLinks': True}]
       assert await d.get_by_label('Full email body').evaluate('e => e.textContent') == exp['plainText']
       await d.get_by_text('Approved wording').wait_for()
       # Long links must wrap: nothing in the dialog may overflow sideways, and every copy button stays on screen.
@@ -68,6 +79,20 @@ async def main():
       r = p.get_by_role('dialog'); await r.get_by_role('radio', name=re.compile('^Sent manually')).check()
       await r.get_by_text('none is available for this lead', exact=False).wait_for(); assert await r.get_by_role('button', name='Record outcome').is_disabled()
       print('PASS', w, 'Group B wording unavailable; Sent manually blocked')
+      await p.keyboard.press('Escape')
+      # 5. Missing ceiling size: internal estimate on the labelled 150 m² assumption; nothing to copy.
+      row_c = p.locator('tr[data-lead="c"]')
+      await row_c.locator('[data-manual-note="followup_pending"]').filter(has_text='Next action: follow-up pending').wait_for()
+      await row_c.get_by_role('button', name='Prepare email to copy').click()
+      d = p.get_by_role('dialog'); await d.get_by_text('No email to copy.').wait_for()
+      est = d.locator('[data-internal-estimate]'); await est.wait_for()
+      await est.get_by_text('Assumed size – not verified').wait_for()
+      await est.get_by_text('Assumed size: 150 m² (typical Victorian home) – not measured and not provided by the owner').wait_for()
+      await est.get_by_text('office use only', exact=False).first.wait_for()
+      assert await d.get_by_role('button', name='Copy subject').count() == 0 and await d.get_by_label('Full email body').count() == 0
+      assert await d.evaluate('e => e.scrollWidth <= e.clientWidth + 1'), 'dialog overflows horizontally'
+      await p.screenshot(path=f'{SHOTS}/4-missing-size-{w}.png')
+      print('PASS', w, 'missing size: internal 150 m² estimate labelled as an assumption; no email to copy; follow-up shown as pending')
       if w == 390: assert await p.evaluate('document.documentElement.scrollWidth <= window.innerWidth + 1'), 'horizontal overflow'
       assert not errors, errors; await c.close()
     await b.close()

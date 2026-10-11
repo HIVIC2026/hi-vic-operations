@@ -56,6 +56,9 @@ describe("Save my spot preview (what Office copies for a likely-eligible lead)",
     expect(r?.preview?.plainText.length).toBeGreaterThan(200);
     expect(r?.preview?.plainText).toContain(TOKEN);
     expect(r?.preview?.html).toContain(TOKEN);
+    // No unsubscribe/referral link exists yet: placeholders, linksReady=false, and nothing created (STEP 32).
+    expect(r?.preview?.linksReady).toBe(false);
+    expect(r?.preview?.plainText).toContain("PREVIEW_ONLY_link_issued_before_sending");
     expect(writes).toEqual([]);
     expect(recorded).toBe(0);
   });
@@ -82,9 +85,11 @@ describe("Ineligible result: Office copy vs real sender", () => {
       jobs: { source: "base44", eligibility_outcome: "does_not_appear_eligible", eligibility_reason: "The home was built less than 5 years ago.", eligibility_decision_source: "system", eligibility_review_required: false, external_enquiry_id: "B44-77", owners: { email: "owner@home.test.au" } },
     };
   });
-  test("the Office copy is byte-identical to what the sender delivers", async () => {
+  test("the Office copy is byte-identical to what the sender delivers (existing links, read-only preview)", async () => {
+    tables["customer_email_optouts"] = { token: "C".repeat(43) };
+    tables["customer_referral_tokens"] = { token: "A".repeat(43) };
     const office = await prepareIneligibleEmailForOffice(JOB);
-    expect(office.ok).toBe(true);
+    expect(office).toMatchObject({ ok: true, linksReady: true });
     expect(writes).toEqual([]);
     expect(recorded).toBe(0);
     let delivered: { to: string; subject: string; html: string; text: string } | null = null;
@@ -94,6 +99,23 @@ describe("Ineligible result: Office copy vs real sender", () => {
     const d = delivered as unknown as { to: string; subject: string; html: string; text: string };
     if (!office.ok) throw new Error("expected ok");
     expect({ to: office.to, subject: office.subject, html: office.html, text: office.plainText }).toEqual({ to: d.to, subject: d.subject, html: d.html, text: d.text });
+  });
+  test("the 'Create sending links' copy is byte-identical to what the sender delivers", async () => {
+    const office = await prepareIneligibleEmailForOffice(JOB, { issueLinks: true });
+    let delivered: { to: string; subject: string; html: string; text: string } | null = null;
+    const adapter = { provider: "fake", deliver: async (m: { to: string; subject: string; html: string; text: string }) => { delivered = m; return { providerMessageId: "p1" }; } };
+    await sendPreliminaryIneligibleEmail(JOB, null, adapter as never);
+    const d = delivered as unknown as { to: string; subject: string; html: string; text: string };
+    if (!office.ok) throw new Error("expected ok");
+    expect(office.linksReady).toBe(true);
+    expect({ subject: office.subject, html: office.html, text: office.plainText }).toEqual({ subject: d.subject, html: d.html, text: d.text });
+  });
+  test("preview without existing links shows placeholders, is not copy-ready and writes nothing", async () => {
+    const office = await prepareIneligibleEmailForOffice(JOB);
+    if (!office.ok) throw new Error("expected ok");
+    expect(office.linksReady).toBe(false);
+    expect(office.html).toContain("PREVIEW_ONLY_link_issued_before_sending");
+    expect(writes).toEqual([]); expect(recorded).toBe(0);
   });
   test("a recorded manual send stops the real ineligible sender", async () => {
     tables["job_communications"] = { id: "manual-2" };
