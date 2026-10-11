@@ -10336,6 +10336,33 @@ export type Database = {
         }
         Relationships: []
       }
+      signed_webhook_nonces: {
+        Row: {
+          id: string
+          nonce: string
+          purpose: string
+          received_at: string
+          signed_at: string | null
+          source: string
+        }
+        Insert: {
+          id?: string
+          nonce: string
+          purpose: string
+          received_at?: string
+          signed_at?: string | null
+          source: string
+        }
+        Update: {
+          id?: string
+          nonce?: string
+          purpose?: string
+          received_at?: string
+          signed_at?: string | null
+          source?: string
+        }
+        Relationships: []
+      }
       sms_messages: {
         Row: {
           body: string
@@ -11775,6 +11802,10 @@ export type Database = {
       job_authority_expires_at: { Args: { _job: string }; Returns: string }
       job_authority_status: { Args: { _job: string }; Returns: string }
       job_deposit_cleared: { Args: { _job: string }; Returns: boolean }
+      link_confirmed_owner_account: {
+        Args: { _email: string; _user_id: string }
+        Returns: boolean
+      }
       list_onboarding_start_blocks: {
         Args: never
         Returns: {
@@ -11789,6 +11820,14 @@ export type Database = {
         }[]
       }
       my_job_role: { Args: { _job: string }; Returns: string }
+      owner_quote_released: {
+        Args: {
+          _release_state: string
+          _sent_at: string
+          _status: Database["public"]["Enums"]["quote_status"]
+        }
+        Returns: boolean
+      }
       place_install_hold: {
         Args: {
           _area: number
@@ -11804,6 +11843,16 @@ export type Database = {
       publish_owner_prices: {
         Args: { _actor: string; _prices: Json; _reason: string }
         Returns: number
+      }
+      quote_visible_to_current_user: {
+        Args: {
+          _job_id: string
+          _kind: Database["public"]["Enums"]["quote_kind"]
+          _release_state: string
+          _sent_at: string
+          _status: Database["public"]["Enums"]["quote_status"]
+        }
+        Returns: boolean
       }
       record_eligibility_verification: {
         Args: {
