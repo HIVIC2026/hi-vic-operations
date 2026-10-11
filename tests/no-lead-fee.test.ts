@@ -22,7 +22,7 @@ describe("C03 no lead fee", () => {
     for (const p of active) for (const line of readFileSync(p, "utf8").split("\n")) if (/lead fee/i.test(line)) expect(/no lead fee|does not charge installers or electricians a lead fee|charge a lead fee\?/i.test(line)).toBe(true);
   });
   test("new installer agreement version contains the no-fee position and no fee clause", () => {
-    expect(INSTALLER_AGREEMENT_VERSION).toBe("HI-VIC-A48-INST-1.16-2026-10-05");
+    expect(INSTALLER_AGREEMENT_VERSION).toBe("HI-VIC-A48-INST-1.19-2026-10-09");
     const all = INSTALLER_AGREEMENT_SECTIONS.flatMap((s) => s.paras).join("\n");
     expect(all).toContain(NO);
     expect(all).not.toMatch(/\$220|deducted from the Installer's payout/);
