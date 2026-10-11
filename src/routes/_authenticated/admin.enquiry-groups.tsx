@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
 import { AppShell } from "@/components/portal/AppShell";
+import { ManualCommunicationActions } from "@/components/portal/manual-communication";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getEnquiryGroups, getLeadMedia, removeLeadsFn, reviewLeadMediaFn, existingInsulationSaveSpotFn } from "@/lib/enquiry-groups.functions";
@@ -131,7 +132,7 @@ function LeadsPage() {
             <Button size="sm" variant="outline" onClick={() => setOpenId(openId === row.id ? null : row.id)}>{openId === row.id ? "Hide photos" : `View ${row.mediaCount} photo${row.mediaCount === 1 ? "" : "s"}/video`}</Button>
             {openId === row.id && <MediaReview row={row} onDone={() => refetch()} />}
           </div>
-        ) : tab === "removed" ? "Removed by office" : row.mediaOutcome === "below_r2" && row.status !== "spot_saved" && row.status !== "ineligible" ? <ExistingInsulationFollowup jobId={row.id} onDone={() => refetch()} /> : row.status === "needs_attention" ? row.attentionReason ?? row.reason : row.status === "spot_saved" ? "Continue from the saved-spot queue" : row.status === "ineligible" ? "No action unless the owner replies" : "Waiting for the homeowner"}</td></tr>)}
+        ) : tab === "removed" ? "Removed by office" : row.mediaOutcome === "below_r2" && row.status !== "spot_saved" && row.status !== "ineligible" ? <ExistingInsulationFollowup jobId={row.id} onDone={() => refetch()} /> : row.status === "needs_attention" ? row.attentionReason ?? row.reason : row.status === "spot_saved" ? "Continue from the saved-spot queue" : row.status === "ineligible" ? "No action unless the owner replies" : "Waiting for the homeowner"}{tab !== "photos" && tab !== "removed" && row.kind === "job" && <ManualCommunicationActions jobId={row.id} jobNumber={row.jobNumber} />}</td></tr>)}
       </tbody></table></div>
       <div className="flex items-center justify-end gap-2"><Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((value) => value - 1)}>Previous</Button><span className="text-sm">Page {Math.min(page, pages - 1) + 1} of {pages}</span><Button variant="outline" size="sm" disabled={page + 1 >= pages} onClick={() => setPage((value) => value + 1)}>Next</Button></div>
     </>}

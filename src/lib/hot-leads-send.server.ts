@@ -11,11 +11,12 @@ import { groupBMediaForJob } from "./group-b-media.server";
 import { groupBInvitationBlocker } from "./group-b-media.core";
 import { logEvent } from "./workflow.server";
 import { removalFromScenario } from "./estimate-removal.core";
+import { MANUAL_SENT_EVENT, manualSendReference } from "./manual-communication.core";
 
 export const HOT_SEND_BATCH = 10;
 /** Last TEST send detail per job (Resend id), for reporting. */
 export const testSendIds = new Map<string, string>();
-export type HotSendResult = { jobId: string; jobNumber: string | null; outcome: "sent" | "skipped" | "blocked" | "failed"; detail: string; preview?: { to: string; subject: string; html: string }; linkJobId?: string; linkToken?: string; sendGroup?: string };
+export type HotSendResult = { jobId: string; jobNumber: string | null; outcome: "sent" | "skipped" | "blocked" | "failed"; detail: string; preview?: { to: string; subject: string; html: string; plainText: string }; linkJobId?: string; linkToken?: string; sendGroup?: string };
 
 /** Real customers: ONLY this Save my spot campaign, approved by Jo (8 Oct 2026). The global customer
  *  comms switch stays off, so every other customer email remains blocked. Contact consent is still checked per lead. */
@@ -114,6 +115,12 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   if (followup && existingSendError) return r("blocked", "Could not check previous delivery. Nothing sent; try again.");
   if (followup && mode === "send" && ex) return r("skipped", "A follow-up attempt already exists. Check its delivery record before any further action.");
   if (mode === "send" && ex && !reservationAllowed(ex)) return r("skipped", "Already sent to this home.");
+  if (mode === "send") {
+    // STEP 17: Office already sent this email by hand (recorded "Sent manually") – the portal never sends it again.
+    const { data: manual, error: manualError } = await admin.from("job_communications").select("id").eq("job_id", jobId).eq("source_event", MANUAL_SENT_EVENT).eq("source_reference", manualSendReference("save_my_spot")).limit(1).maybeSingle();
+    if (manualError) return r("blocked", "Could not check the office's manual email records. Try again; nothing sent.");
+    if (manual) return r("skipped", "The office already sent this email by hand (recorded manual send).");
+  }
   let sendId = ex?.id ?? null;
   if (mode === "send") {
     if (ex) await admin.from("customer_email_sends").update({ status: "sending", error: null, created_at: new Date().toISOString() }).eq("id", ex.id);
@@ -172,8 +179,8 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     ...(assessmentFee === undefined ? {} : { assessmentFee }),
     ...(apFee === undefined ? {} : { apFee }),
   }), unsubscribeUrl);
-  if (mode === "preview") return { ...r("sent", "Preview only — not sent"), preview: { to, subject: mail.subject, html: mail.html } };
-  if (mode === "test_preview") return { ...r("sent", "TEST copy rendered only — not sent"), preview: { to: JO_TEST_INBOX, subject: `[TEST of ${job.job_number}] ${mail.subject}`, html: mail.html }, linkJobId, linkToken, sendGroup };
+  if (mode === "preview") return { ...r("sent", "Preview only — not sent"), preview: { to, subject: mail.subject, html: mail.html, plainText: mail.plainText } };
+  if (mode === "test_preview") return { ...r("sent", "TEST copy rendered only — not sent"), preview: { to: JO_TEST_INBOX, subject: `[TEST of ${job.job_number}] ${mail.subject}`, html: mail.html, plainText: mail.plainText }, linkJobId, linkToken, sendGroup };
   if (mode === "test_to_jo") {
     const subject = `[TEST of ${job.job_number}] ${mail.subject}`;
     const t = await resendSend(JO_TEST_INBOX, subject, mail.html, mail.plainText, `save-spot-test:${jobId}:${Date.now()}`, null);

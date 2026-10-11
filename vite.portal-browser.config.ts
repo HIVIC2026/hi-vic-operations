@@ -19,6 +19,7 @@ export default defineConfig({ root, plugins: [react(), tailwindcss()], resolve: 
   { find: "@/lib/onsite-ready-check.functions", replacement: fileURLToPath(new URL("./tests/installer-intake-functions-stub.ts", import.meta.url)) },
   { find: "@/lib/job-electrician.functions", replacement: fileURLToPath(new URL("./tests/installer-intake-functions-stub.ts", import.meta.url)) },
   { find: "@/lib/piisa-a3.functions", replacement: fileURLToPath(new URL("./tests/piisa-crew-functions-stub.ts", import.meta.url)) },
+  { find: "@/lib/manual-communication.functions", replacement: fileURLToPath(new URL("./tests/manual-communication-functions-stub.ts", import.meta.url)) },
   { find: "@/integrations/supabase/client", replacement: fileURLToPath(new URL("./tests/portal-browser-supabase-stub.ts", import.meta.url)) },
   { find: "@/hooks/use-me", replacement: fileURLToPath(new URL("./tests/portal-browser-use-me-stub.ts", import.meta.url)) },
   { find: "./assignment", replacement: fileURLToPath(new URL("./tests/portal-browser-assignment-stub.tsx", import.meta.url)) },

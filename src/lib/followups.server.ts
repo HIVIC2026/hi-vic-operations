@@ -15,6 +15,7 @@ import { referralUrlForJob } from "./referral.server";
 import type { DeliveryAdapter } from "./delivery.core";
 import { reservationAllowed, statusAfterDelivery, withUnsubscribe } from "./emailsafety.core";
 import { suppressionFor, unsubscribeUrlForJob } from "./emailsafety.server";
+import { MANUAL_SENT_EVENT, manualSendReference } from "./manual-communication.core";
 
 type OfficialOutcome = { kind: "eligible"; mode: "likely" | "onsite" } | { kind: "ineligible"; reason: string | null } | { kind: "hold"; reason: string };
 
@@ -253,6 +254,9 @@ export async function sendPreliminaryIneligibleEmail(jobId: string, actorId: str
   if (!to) return { sent: false as const, reason: "no_owner_email" };
   const suppressed = await suppressionFor(jobId, "preliminary_ineligible", to);
   if (suppressed) return { sent: false as const, reason: suppressed };
+  // STEP 17: Office already sent this email by hand (recorded "Sent manually") – never send it again.
+  const { data: manual, error: manualError } = await admin.from("job_communications").select("id").eq("job_id", jobId).eq("source_event", MANUAL_SENT_EVENT).eq("source_reference", manualSendReference("ineligible_result")).limit(1).maybeSingle();
+  if (manualError || manual) return { sent: false as const, reason: manualError ? "manual_send_check_failed" : "manual_send_recorded" };
   const { data: ex } = await admin.from("customer_email_sends").select("id, status, created_at").eq("idempotency_key", key).maybeSingle();
   if (ex?.status === "sent") return { sent: false as const, reason: "already_sent" };
   if (ex && !reservationAllowed(ex)) return { sent: false as const, reason: "already_sent" };
@@ -265,8 +269,7 @@ export async function sendPreliminaryIneligibleEmail(jobId: string, actorId: str
   }
   let delivered = false;
   try {
-    const { renderIneligibleEmail } = await import("./ineligible-email");
-    const mail = withUnsubscribe(renderIneligibleEmail({ referralUrl: await referralUrlForJob(jobId), reason: official.reason, reference: owner.reference }), await unsubscribeUrlForJob(jobId));
+    const mail = await renderPreliminaryIneligibleMail(jobId, official.reason, owner.reference);
     const r = await adapter.deliver({ to, subject: mail.subject, html: mail.html, text: mail.plainText, idempotencyKey: key, purpose: INELIGIBLE_PURPOSE });
     delivered = true;
     const communicationId = await recordCommunication({ jobId, direction: "outbound", channel: "email", recipients: [to], subject: mail.subject, body: mail.plainText, provider: adapter.provider, providerMessageId: r.providerMessageId, visibility: "customer", sourceEvent: INELIGIBLE_PURPOSE, sourceReference: key, createdBy: actorId, deliveryStatus: "sent" });
@@ -282,4 +285,23 @@ export async function sendPreliminaryIneligibleEmail(jobId: string, actorId: str
     await admin.from("customer_email_sends").update({ status: st, error: `${st === "failed" ? "" : "sent_unknown: "}${(e as Error).message.slice(0, 280)}` }).eq("id", sendId!);
     return { sent: false as const, reason: st === "failed" ? "delivery_failed" : "delivered_unrecorded" };
   }
+}
+
+/** The exact ineligible email the sender delivers; shared so the Office copy below can never drift from it. */
+async function renderPreliminaryIneligibleMail(jobId: string, reason: string | null, reference: string | null) {
+  const { renderIneligibleEmail } = await import("./ineligible-email");
+  return withUnsubscribe(renderIneligibleEmail({ referralUrl: await referralUrlForJob(jobId), reason, reference }), await unsubscribeUrlForJob(jobId));
+}
+
+/** STEP 17 (A1 manual sending): render-only twin of sendPreliminaryIneligibleEmail for Office to copy. Same official
+ *  result, consent, owner and renderer; it never checks the delivery switch/provider, reserves a key, delivers or
+ *  records anything. Contact suppression is applied by the caller (manual-communication.server.ts). */
+export async function prepareIneligibleEmailForOffice(jobId: string): Promise<{ ok: true; to: string; subject: string; html: string; plainText: string } | { ok: false; reason: string }> {
+  const official = await officialOutcomeForDelivery(jobId);
+  if (official.kind !== "ineligible") return { ok: false, reason: official.kind === "hold" ? official.reason : "official_not_ineligible" };
+  if (!(await hasCurrentOwnerContactConsent(jobId))) return { ok: false, reason: "no_consent" };
+  const owner = await ownerEmail(jobId);
+  if (!owner.email) return { ok: false, reason: "no_owner_email" };
+  const mail = await renderPreliminaryIneligibleMail(jobId, official.reason, owner.reference);
+  return { ok: true, to: owner.email, subject: mail.subject, html: mail.html, plainText: mail.plainText };
 }
