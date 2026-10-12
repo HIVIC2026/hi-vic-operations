@@ -91,7 +91,7 @@ export async function campaignPage(token: unknown, testMode = false) {
 /** Version of the save action recorded with every first save (no-size journey, 10 Oct 2026). */
 export const SAVE_SPOT_VERSION = "save-spot-2026-10-10";
 
-export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; insulation: "none" | "present" | "unknown" | null } | null) {
+export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; insulation: "none" | "present" | "unknown" | null } | null, choice?: "original" | "updated") {
   const c = await campaignLink(token);
   if (!c) throw new Error("This link is no longer available.");
   const { data: review, error: reviewError } = await admin.from("lead_campaign_responses").select("desk_check_status").eq("job_id", c.job.id).maybeSingle();
@@ -100,8 +100,21 @@ export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; 
   const { data: est, error: estError } = await admin.from("indicative_estimates").select("id, area_m2, area_source, insulation_declared, scenarios").eq("job_id", c.job.id).eq("status", "current").maybeSingle();
   if (estError) throw new Error("We couldn't save your place. Please try again.");
   const typical = typicalEstimateCheck(c.job, est ?? null);
+  const reviewedUnderR2 = c.mediaReview === "below_r2" && c.criteriaPassed;
+  if (choice === "updated" && !calc) throw new Error("Enter a ceiling size to save the updated estimate.");
+  if (choice === "original") {
+    // Jo, 12 Oct: the original offered estimate, never recalculated. Fail clearly when it can't be recovered.
+    const { originalEstimateBlocker } = await import("./save-spot-offer.core");
+    const b = originalEstimateBlocker({ estimate: est ? { area_m2: est.area_m2, area_source: est.area_source, insulation_declared: est.insulation_declared, hasPrice: !!savedPriceFromEstimate(est) } : null, ownerAreaKnown: !c.job.estimated_area_unknown && Number(c.job.estimated_area_m2) > 0, reviewedUnderR2 });
+    if (b) throw new Error(b);
+    calc = null;
+  } else if (calc && est) {
+    // The calculator never changes recorded insulation facts; only the size is the owner's input.
+    const { calculatorInsulation } = await import("./save-spot-offer.core");
+    calc = { areaM2: calc.areaM2, insulation: calculatorInsulation(est.insulation_declared) };
+  }
   // A typical (assumed 150 m²) estimate is valid only while the owner's real size stays unknown; never save a stale one.
-  if (typical.blocker && !calc) throw new Error("Your estimate is being updated. Please check back soon.");
+  if (typical.blocker && !calc && !(choice === "original" && reviewedUnderR2)) throw new Error("Your estimate is being updated. Please check back soon.");
   let price = savedPriceFromEstimate(est ?? null);
   if (c.group === "onsite" && calc?.insulation === "none") throw new Error("Keep your existing-insulation answer for this estimate. A declaration or preliminary review does not mean insulation is absent.");
   // Owner calculator: snapshot exactly what the calculator showed, recomputed server-side from the same pure core.
@@ -122,7 +135,7 @@ export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; 
       await logEvent(c.job.id, null, "owner_calculator_change", note, { area_m2: calc.areaM2, insulation: calc.insulation, previous_area_m2: c.job.estimated_area_m2, estimate: price }, { internal: true });
     }
   }
-  const snapshot = { saved_estimate_id: price?.estimateId ?? null, saved_total: price?.total ?? null, saved_veu_discount: price?.discount ?? null, saved_gross_total: price?.gross ?? null, saved_area_m2: price?.areaM2 ?? null, saved_insulation: price?.insulation ?? null, saved_estimate_url: `/estimate/${String(token)}/${calc ? "calculator" : "campaign"}` };
+  const snapshot = { saved_estimate_id: price?.estimateId ?? null, saved_total: price?.total ?? null, saved_veu_discount: price?.discount ?? null, saved_gross_total: price?.gross ?? null, saved_area_m2: price?.areaM2 ?? null, saved_insulation: price?.insulation ?? null, saved_estimate_url: `/estimate/${String(token)}/${calc ? "calculator?choice=updated" : choice === "original" ? "calculator?choice=original" : "campaign"}` };
   // Idempotent: ON CONFLICT (job_id) DO NOTHING, then fill an existing unsaved row. Double taps / two devices both succeed.
   const ins = await admin.from("lead_campaign_responses").upsert({ job_id: c.job.id, estimate_link_id: c.link.id, campaign: LAUNCH_CAMPAIGN, spot_saved_at: now, video_requested: c.group === "onsite", desk_check_status: c.group === "onsite" ? "pending" : "not_needed", updated_at: now, ...snapshot }, { onConflict: "job_id", ignoreDuplicates: true }).select("id");
   let firstSave = !ins.error && (ins.data?.length ?? 0) > 0;
@@ -132,11 +145,20 @@ export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; 
     const upd = await query.select("id");
     firstSave = !upd.error && (upd.data?.length ?? 0) > 0;
   }
+  if (!firstSave && choice) {
+    // Already saved: an explicit new choice replaces the selected estimate snapshot only (the spot and its time stay).
+    const { data: cur } = await admin.from("lead_campaign_responses").select("saved_estimate_url, saved_total, saved_area_m2").eq("job_id", c.job.id).maybeSingle();
+    const same = cur?.saved_estimate_url === snapshot.saved_estimate_url && Number(cur?.saved_total) === Number(snapshot.saved_total) && Number(cur?.saved_area_m2) === Number(snapshot.saved_area_m2);
+    if (!same) {
+      await admin.from("lead_campaign_responses").update({ updated_at: now, ...snapshot }).eq("job_id", c.job.id).is("opted_out_at", null).not("spot_saved_at", "is", null);
+      await logEvent(c.job.id, null, "save_my_spot_estimate_choice", `Owner chose the ${choice} estimate${price ? ` ($${Math.floor(price.total)}, rebate $${Math.floor(price.discount)})` : ""}`, { choice, area_assumed: choice === "original" && typical.assumed, estimate_area_source: est?.area_source ?? null, ...snapshot }, { internal: true }).catch(() => null);
+    }
+  }
   const { data: row } = await admin.from("lead_campaign_responses").select("opted_out_at, spot_saved_at").eq("job_id", c.job.id).maybeSingle();
   if (row?.opted_out_at) throw new Error("This enquiry has already been taken off the list.");
   if (!row?.spot_saved_at) throw new Error("We couldn't save your place. Please try again.");
   // The spot is now durably saved. Follow-on bookkeeping must never turn a real save into a failure message.
-  if (firstSave) await logEvent(c.job.id, null, "campaign_spot_saved", price ? `Owner saved a place for a free Ready Check at $${Math.floor(price.total)} (rebate $${Math.floor(price.discount)})` : "Owner saved a place for a free Ready Check", { campaign: LAUNCH_CAMPAIGN, save_version: SAVE_SPOT_VERSION, saved_at: row.spot_saved_at, area_assumed: !calc && typical.assumed, ...snapshot }, { internal: true }).catch((e) => console.error("spot saved event", e));
+  if (firstSave) await logEvent(c.job.id, null, "campaign_spot_saved", price ? `Owner saved a place for a free Ready Check at $${Math.floor(price.total)} (rebate $${Math.floor(price.discount)})` : "Owner saved a place for a free Ready Check", { campaign: LAUNCH_CAMPAIGN, save_version: SAVE_SPOT_VERSION, saved_at: row.spot_saved_at, choice: choice ?? (calc ? "updated" : "original"), estimate_area_source: est?.area_source ?? null, area_assumed: !calc && typical.assumed, ...snapshot }, { internal: true }).catch((e) => console.error("spot saved event", e));
   if (firstSave) await queueSpotSavedConfirmations(c.job.id, String(token)).catch((e) => console.error("spot saved confirmations", e));
   // Spot saved → only now does the job move on to the free Ready Check (Jo, 8 Oct).
   {

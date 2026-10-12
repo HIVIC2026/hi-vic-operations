@@ -10,8 +10,8 @@ export const getLaunchCampaignPage = createServerFn({ method: "POST" }).middlewa
   .handler(async ({ data, context }) => (await import("./launch-campaign.server")).campaignPage(data.token, context.assessmentTestMode));
 
 export const saveMySpot = createServerFn({ method: "POST" }).middleware([withRequestMeta])
-  .inputValidator((d) => z.object({ token, calc: z.object({ areaM2: z.number().min(20).max(1000), insulation: z.enum(["none", "present", "unknown"]).nullable() }).nullish() }).parse(d))
-  .handler(async ({ data }) => (await import("./launch-campaign.server")).saveCampaignSpot(data.token, data.calc ?? null));
+  .inputValidator((d) => z.object({ token, calc: z.object({ areaM2: z.number().min(20).max(1000), insulation: z.enum(["none", "present", "unknown"]).nullable() }).nullish(), choice: z.enum(["original", "updated"]).optional() }).parse(d))
+  .handler(async ({ data }) => (await import("./launch-campaign.server")).saveCampaignSpot(data.token, data.calc ?? null, data.choice));
 
 export const takeMeOffList = createServerFn({ method: "POST" }).middleware([withRequestMeta])
   .inputValidator((d) => z.object({ token }).parse(d))
