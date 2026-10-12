@@ -31,6 +31,13 @@ During STEP81 UAT, `ffsadmin.uat` (`bc6ce692-3360-48f3-9c8d-3b68fbdc7b6a`) opene
 ## 6. Runtime origin of the stray row — NOT production-reachable
 - Every application insert of a `business_admin` membership uses the **service-role** client and runs behind an **admin/office gate**. The test-account provisioner (`src/lib/test-accounts.functions.ts`) is guarded by `requireTestAdmin` → `has_role('admin')` (*"Admin only."*) and **only links a user as admin of the business it itself creates (keyed by `spec.name`)** — it has **no path** that links ffsadmin to an unrelated existing business.
 - **Decisive signal: `added_by = null`.** Every committed code path sets `added_by = context.userId`; this row has `added_by = null`, so it was **not** produced by application code. It is a **direct manual/ad-hoc DB insert** made during the STEP81 session.
+  Evidence — every `business_admin` membership insert in the codebase stamps the actor:
+  - `src/lib/test-accounts.functions.ts:158` — `upsert({ … member_role: "business_admin", active: true, added_by: context.userId }, …)`
+  - `src/lib/test-approval.server.ts:34` — `upsert({ … member_role: "business_admin", active: true, added_by: p.actorId }, …)`
+  - `src/lib/partner-activation.functions.ts:175` — `upsert({ … member_role: "business_admin", active: true, added_by: actorId }, …)`
+  - `src/lib/jo-tradie.server.ts:57` — `upsert({ … member_role: "business_admin", active: true, added_by: actorId }, …)`
+  - `src/lib/pilot.functions.ts:216` — `upsert({ … member_role: data.memberRole, active: true, added_by: context.userId }, …)`
+  No committed insert path leaves `added_by` null, so `added_by = null` is airtight evidence of an out-of-band manual insert.
 - **Conclusion:** no user-reachable self-service path, and no reachable server bug, can create a cross-business `business_admin` membership. The bypass exists **only** under hand-inserted test data — **isolated test conditions**, not production.
 
 ## 7. Remediation
@@ -49,4 +56,5 @@ During STEP81 UAT, `ffsadmin.uat` (`bc6ce692-3360-48f3-9c8d-3b68fbdc7b6a`) opene
 ## 9. W0-merge recommendation & residual risk
 - **Recommendation: SAFE to merge W4 to W0.** W4 adds only a test + this report; it changes no production code, migrations, or RLS. There is nothing in W4 that can weaken access.
 - **Residual risk: LOW.** The only defect was hand-inserted local test data. **Release action for W0 seed hygiene:** ensure the stray `790…104` membership is not carried into any shared/seeded dataset (deactivate or omit). No product fix is owed.
+  **Note for W0:** the live shared UAT row is intentionally left `active = true` to preserve the reproduction for W0 review. **W0 must apply the documented fixture correction (deactivate/remove `business_members.id = 79000000-…-000000000104`) after confirming the reproduction**, so it is not left enabled indefinitely.
 - **Commit SHA:** `afb33e70b2a140b69c938903b68cf2559aaf225a` (W4 local: test + report only; no app code).
