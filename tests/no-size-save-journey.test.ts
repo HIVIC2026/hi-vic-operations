@@ -62,7 +62,7 @@ beforeEach(() => {
     owner_contact_consents: [{ job_id: J, consent_status: "granted" }],
     customer_email_optouts: [], lead_campaign_responses: [], workflow_events: [], job_communications: [], customer_delivery_settings: [],
     indicative_estimates: [{ id: "e150", job_id: J, status: "current", area_m2: 150, area_source: "typical_default", insulation_declared: "none", scenarios: [scenario], snapshot: null }],
-    retail_estimator_settings: [{ is_current: true, indicative_veec_value: 61.74, piesa_assessment_inc_gst: 349, ap_management_inc_gst: 349, r5_install_inc_gst_per_m2: 30 }],
+    retail_estimator_settings: [{ is_current: true, indicative_veec_value: 61.74, piesa_assessment_inc_gst: 349, ap_management_inc_gst: 349, r5_install_inc_gst_per_m2: 30, removal_inc_gst_per_m2: 15, id: "s1", version: 2 }],
   };
 });
 
