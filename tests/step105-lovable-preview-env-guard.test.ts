@@ -100,4 +100,20 @@ describe("STEP 105 — Lovable Preview is no longer classified as local", () => 
   it("T10: server/test runtimes report no hostname, so nothing is inferred for them", () => {
     expect(currentHostname()).toBeNull();
   });
+
+  it("T11: the editor preview host <uuid>.lovableproject.com is this project's preview; look-alikes are not", () => {
+    const EDITOR = "fb35adfe-10bf-4d4c-987d-28567ca1ddeb.lovableproject.com";
+    expect(isAuthorisedLovablePreviewHost(EDITOR)).toBe(true);
+    expect(resolveGuardedSupabaseEndpoint(PROD, { hostname: EDITOR, env: { NODE_ENV: "development" } })).toBe(PROD);
+    expect(() => resolveGuardedSupabaseEndpoint(OTHER_PROD, { hostname: EDITOR, env: {} }))
+      .toThrowError(/un-authorised Supabase endpoint/);
+    for (const host of [
+      "00000000-0000-4000-8000-000000000000.lovableproject.com",
+      "evil.fb35adfe-10bf-4d4c-987d-28567ca1ddeb.lovableproject.com",
+      "fb35adfe-10bf-4d4c-987d-28567ca1ddeb.lovableproject.com.evil.com",
+      "fb35adfe-10bf-4d4c-987d-28567ca1ddeb.example.com",
+    ]) {
+      expect(isAuthorisedLovablePreviewHost(host)).toBe(false);
+    }
+  });
 });
