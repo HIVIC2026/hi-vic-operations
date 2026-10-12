@@ -7,6 +7,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import { intakeProgressGate } from "../src/lib/installer-progress.core";
+import { clearanceRecorderAllowed } from "../src/lib/clearance-guard.core";
 
 const M = (f: string) => readFileSync(`drizzle/migrations/${f}`, "utf8");
 /** The exact `create or replace function public.<name>` statement from a migration file (source-faithful, no retyping). */
@@ -27,6 +28,7 @@ const U = {
   installerA: "00000000-0000-4000-8000-000000000004", installerB: "00000000-0000-4000-8000-000000000005", electricianA: "00000000-0000-4000-8000-000000000006",
   ffsBossA: "00000000-0000-4000-8000-000000000007", ffsBossB: "00000000-0000-4000-8000-000000000008", workerA: "00000000-0000-4000-8000-000000000009",
   unapproved: "00000000-0000-4000-8000-00000000000a",
+  recAdminNoRole: "00000000-0000-4000-8000-00000000000b", // admin of the electrician business, added with trade role "none"
 };
 const BIZ = { instA: "00000000-0000-4000-8000-0000000000b1", instB: "00000000-0000-4000-8000-0000000000b2", elecA: "00000000-0000-4000-8000-0000000000b3" };
 const OWN = { a: "00000000-0000-4000-8000-0000000000c1", b: "00000000-0000-4000-8000-0000000000c2" };
@@ -58,7 +60,8 @@ async function database(canAccessFrom: "0147" | "0023") {
     INSERT INTO public.job_assignments VALUES
       ('${JOB.a}','${U.installerA}','${BIZ.instA}','installer',true), ('${JOB.a}','${U.electricianA}','${BIZ.elecA}','electrician',true),
       ('${JOB.b}','${U.installerB}','${BIZ.instB}','installer',true), ('${JOB.deleted}','${U.installerA}','${BIZ.instA}','installer',true);
-    INSERT INTO public.business_members VALUES ('${BIZ.instA}','${U.ffsBossA}','business_admin',true), ('${BIZ.instB}','${U.ffsBossB}','business_admin',true), ('${BIZ.instA}','${U.workerA}','member',true);
+    INSERT INTO public.business_members VALUES ('${BIZ.instA}','${U.ffsBossA}','business_admin',true), ('${BIZ.instB}','${U.ffsBossB}','business_admin',true), ('${BIZ.instA}','${U.workerA}','member',true),
+      ('${BIZ.elecA}','${U.recAdminNoRole}','business_admin',true);
   `);
   const as = async <T,>(uid: string, sql: string, params: unknown[] = []) => db.transaction(async (tx) => {
     await tx.exec("SET LOCAL ROLE authenticated");
@@ -66,8 +69,9 @@ async function database(canAccessFrom: "0147" | "0023") {
     return (await tx.query<T>(sql, params)).rows;
   });
   const role = async (uid: string, job: string) => (await as<{ r: string | null }>(uid, "SELECT public.my_job_role($1) AS r", [job]))[0]!.r;
+  const hasElectrician = async (uid: string) => (await as<{ ok: boolean }>(uid, "SELECT public.has_role($1, 'electrician') AS ok", [uid]))[0]!.ok;
   const access = async (uid: string, job: string) => (await as<{ ok: boolean }>(uid, "SELECT public.can_access_job($1) AS ok", [job]))[0]!.ok;
-  return { db, as, role, access };
+  return { db, as, role, access, hasElectrician };
 }
 
 const db147 = await database("0147");
@@ -140,5 +144,19 @@ describe("A3 intake-progress gate on the real can_access_job", () => {
       await expect(intakeProgressGate(rpcFor(U[who]), loadJob, JOB.a)).rejects.toThrow("Not your job.");
     }
     expect(reads).toBe(1);
+  });
+});
+
+describe("A4 regulated electrical result: who may record it (requireJobRole + clearance guard)", () => {
+  const recorder = async (uid: string, job: string) => clearanceRecorderAllowed({ jobRole: await db147.role(uid, job), hasElectricianRole: await db147.hasElectrician(uid) });
+  test("the gap: an electrician business's admin without the electrician role reaches job A as 'electrician' (0115)", async () => {
+    expect(await db147.role(U.recAdminNoRole, JOB.a)).toBe("electrician");
+    expect(await db147.hasElectrician(U.recAdminNoRole)).toBe(false);
+  });
+  test("closed: only Office or the licensed electrician on the job may record the PIESA / assessment result", async () => {
+    expect(await recorder(U.electricianA, JOB.a)).toBe(true);
+    expect(await recorder(U.office, JOB.a)).toBe(true);
+    for (const who of ["recAdminNoRole", "ffsBossA", "installerA", "ownerA", "workerA", "unapproved"] as const) expect(await recorder(U[who], JOB.a)).toBe(false);
+    expect(await recorder(U.electricianA, JOB.b)).toBe(false); // not their job
   });
 });

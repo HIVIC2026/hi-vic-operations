@@ -29,6 +29,15 @@ const clean = <T extends Record<string, unknown>>(o: T) => Object.fromEntries(Ob
 
 const uuid = z.string().uuid();
 
+/** STEP 73 (A4): regulated electrical results need Office or the licensed-electrician app role (clearance-guard.core.ts). */
+async function requireClearanceRecorder(sb: { rpc: (...a: never[]) => unknown }, jobRole: string, userId: string) {
+  if (jobRole === "admin") return;
+  const r = sb as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }> };
+  const { data, error } = await r.rpc("has_role", { _user_id: userId, _role: "electrician" });
+  const { clearanceRecorderAllowed, CLEARANCE_RECORDER_REFUSED } = await import("./clearance-guard.core");
+  if (error || !clearanceRecorderAllowed({ jobRole, hasElectricianRole: data === true })) throw new WorkflowError(CLEARANCE_RECORDER_REFUSED);
+}
+
 // ---------- Gate 1 ----------
 export const createEnquiry = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => enquirySchema.parse(d))
@@ -481,7 +490,8 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
     rectWindows: z.array(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), slot: z.enum(["8-10", "10-12", "12-14", "14-16"]) })).max(5).optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    const jobRole = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    await requireClearanceRecorder(context.supabase as never, jobRole, context.userId);
     const { data: a } = await admin.from("assessments").select("*").eq("job_id", data.jobId).maybeSingle();
     if (!a) throw new WorkflowError("Start the assessment first.");
     if (a.status === "complete") throw new WorkflowError("Electrical assessment is already complete.");
@@ -540,7 +550,8 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
 export const recordPiesa = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, kind: z.enum(["post_rectification", "reassessment"]), outcome: z.enum(["pass", "fail"]), completedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), notes: z.string().max(2000).optional() }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    const jobRole = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    await requireClearanceRecorder(context.supabase as never, jobRole, context.userId);
     if (new Date(data.completedDate) > new Date()) throw new WorkflowError("PIESA date cannot be in the future.");
     const stage = await getStage(data.jobId);
     if (data.kind === "post_rectification") {

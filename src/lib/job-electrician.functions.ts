@@ -15,6 +15,10 @@ export const getJobElectrician = createServerFn({ method: "POST" }).middleware([
 export const switchJobElectricianToHivic = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    // STEP 73 (A3): only the job's installer side may use this; checked before any job state is read, so another
+    // business can't learn the job's quote/invoice/electrician state from the error it gets.
+    const { requireJobRole } = await import("./workflow.server");
+    await requireJobRole(context.supabase, data.jobId, ["installer"]);
     const { switchJobToHivic } = await import("./job-electrician.server");
     return switchJobToHivic(data.jobId, context.userId);
   });
