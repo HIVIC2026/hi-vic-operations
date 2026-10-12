@@ -1,5 +1,12 @@
 import "./lib/error-capture";
 import { requestContext } from "./lib/background.server";
+// STEP 110/111: register the AsyncLocalStorage-backed hostname source with the Supabase
+// env-guard (server boot only). env-guard.ts itself must stay browser-safe, so the
+// node:async_hooks-backed read lives here via the adapter, not in the shared guard.
+// Explicit call (not a bare side-effect import): "sideEffects": false would tree-shake it.
+import { installEnvGuardServerAdapter } from "@/integrations/supabase/env-guard.server";
+
+installEnvGuardServerAdapter();
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage, renderReloadPage } from "./lib/error-page";

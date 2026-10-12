@@ -88,22 +88,40 @@ export function currentHostname(): string | null {
   }
 }
 
+// STEP 110/111 — server-side hostname resolution WITHOUT a static server import.
+//
+// Server functions and server-rendered routes have no `window`, so `currentHostname()` returns
+// null there and the mode fell through to 'local', refusing the cloud endpoint for every
+// server path (Office Pipeline, Ready Check bookings, auth middleware, interest/journey
+// clients). The hosted Preview and the published app both serve the browser bundle AND the
+// server functions from the SAME host, so the server can safely read the request host.
+//
+// This module MUST stay browser-safe: it must never statically import a server-only module
+// (background.server.ts imports node:async_hooks, which crashes the browser bundle — the
+// STEP 109 blank-Preview incident). Instead, the server-only adapter
+// (env-guard.server.ts, imported once by src/server.ts at server boot) registers a
+// hostname SOURCE here. The source is a resolver function, NOT a mutable hostname value:
+// the hostname itself stays request-scoped inside AsyncLocalStorage at all times.
+//
+// Resolution order: explicit override → browser (SSR render) → registered server source
+// → legacy setRequestHost fallback → null. Never throws; a null simply falls back to the
+// existing env-based classification.
+type ServerHostnameSource = () => string | null | undefined;
+
+let serverHostnameSource: ServerHostnameSource | null = null;
+
 /**
- * STEP 106 — server-side hostname resolution.
- *
- * Server functions and server-rendered routes have no `window`, so `currentHostname()` returns
- * null there and the mode fell through to 'local', refusing the cloud endpoint for every
- * server path (Office Pipeline, Ready Check bookings, auth middleware, interest/journey
- * clients). The hosted Preview and the published app both serve the browser bundle AND the
- * server functions from the SAME host, so the server can safely read the request host.
- *
- * Resolution order: explicit override → browser (SSR render) → per-request host → null.
- * Never throws; a null simply falls back to the existing env-based classification.
+ * Server-only adapter registration. Called once at server boot by
+ * src/integrations/supabase/env-guard.server.ts (imported by src/server.ts).
+ * The registered source reads the per-request AsyncLocalStorage store; this module
+ * never touches AsyncLocalStorage itself.
  */
-import { requestContext } from "@/lib/background.server";
+export function registerServerHostnameSource(source: ServerHostnameSource | null): void {
+  serverHostnameSource = source;
+}
 
 let activeRequestHost: string | null = null;
-/** Set by the request middleware for the duration of one request. Not an env var, not a header trust. */
+/** Legacy fallback (STEP 106): set by the request middleware for the duration of one request. Not an env var, not a header trust. */
 export function setRequestHost(host: string | null | undefined): void {
   activeRequestHost = host ? host : null;
 }
@@ -117,10 +135,10 @@ export function resolveHostname(): string | null {
   // Browser (page + SSR render) wins when present.
   const win = currentHostname();
   if (win) return win;
-  // Server: first try AsyncLocalStorage request context, then fallback to legacy setRequestHost
-  const store = requestContext.getStore();
-  if (store?.hostname) return store.hostname;
-  // Fallback for backward compatibility
+  // Server: registered request-scoped source (AsyncLocalStorage, read via the server adapter),
+  // then the legacy setRequestHost fallback.
+  const fromServer = serverHostnameSource?.();
+  if (fromServer) return fromServer;
   return activeHost();
 }
 
