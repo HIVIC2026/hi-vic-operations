@@ -157,7 +157,7 @@ export const getMyIntakeProgress = createServerFn({ method: "POST" }).middleware
     await requireSupplyingInstaller(context.supabase as never, context.userId, data.jobId);
     const m = await import("./installer-intake.server");
     if (!(await m.isIntakeJob(data.jobId))) return { applies: false as const };
-    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    // `admin` is already imported at the top of this handler for the channel guard above.
     const id = data.jobId;
     const [s, { data: job }, { data: qs }, { data: pr }, { data: bks }, { data: ev }, { data: ap }, { data: veec }, { data: dl }] = await Promise.all([
       m.installerIntakeState(id),
