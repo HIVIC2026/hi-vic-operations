@@ -3,7 +3,7 @@ import { READY_CHECK_FEE, effectiveReadyCheckFee } from "./readycheck.core";
 /** Pure customer outcome email renderers: no data access, delivery, or side effects. */
 import { CUSTOMER_BRAND, CUSTOMER_WHAT_COULD_CHANGE } from "./customer-quote-system";
 import { isWellFormedToken } from "./estimatelink.core";
-import { EXISTING_PRELIMINARY, removalNote, type EstimateRemoval } from "./estimate-removal.core";
+import { EXISTING_PRELIMINARY, REMOVAL_BUDGET_EMAIL_NOTE, removalNote, type EstimateRemoval } from "./estimate-removal.core";
 
 export type CustomerOutcome = "likely" | "onsite" | "ineligible";
 import { renderStep3SaveSpot } from "./step3-emails";
@@ -526,7 +526,7 @@ export function renderLaunchCampaignEmail(input: LaunchCampaignEmailInput): Esti
     .replace("your home looks likely to qualify for a VEU ceiling insulation rebate.", intro)
     .replace("Your estimated VEU rebate", "Your potential VEU rebate")
     .replace("Your estimated cost after rebate", "Estimated cost if eligible")
-    .replace("Estimate only. Eligibility, measurements and final pricing confirmed after assessment.", "This price excludes existing insulation removal — it may be able to stay. If removal is needed, we’ll confirm the cost before you proceed. Estimate only; eligibility and final price subject to assessment.")
+    .replace("Estimate only. Eligibility, measurements and final pricing confirmed after assessment.", `${REMOVAL_BUDGET_EMAIL_NOTE} Estimate only; eligibility and final price subject to assessment.`)
     .replace(SAVE_SPOT_INSTRUCTION, instruction)
     .replace(SAVE_SPOT_SMALL_PRINT, small);
   const html = replace(base.html)
