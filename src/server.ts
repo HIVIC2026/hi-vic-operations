@@ -4,6 +4,10 @@ import { requestContext } from "./lib/background.server";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage, renderReloadPage } from "./lib/error-page";
 import { isConnectionTeardown } from "./lib/http-abort";
+// STEP 106: publish the request host so the Supabase env-guard classifies hosted
+// Preview/production correctly instead of falling through to 'local'.
+// This runs for every request (SSR, server functions) and is server-only.
+import { setRequestHost } from "@/integrations/supabase/env-guard";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -75,12 +79,23 @@ function detachedGetRequest(request: Request, url: string): Request {
 
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
+    // STEP 106: publish the host of the request the server is actually serving,
+    // so the env-guard resolves 'lovable-preview' / 'production' instead of 'local'.
+    let hostname: string | undefined;
+    try {
+      hostname = new URL(request.url).hostname;
+    } catch {
+      // ignore URL parse errors
+    }
+
     try {
       const incoming = detachedPageRequest(request);
       const handler = await getServerEntry();
       const c = ctx as { waitUntil?: (p: Promise<unknown>) => void } | undefined;
       const waitUntil = typeof c?.waitUntil === "function" ? c.waitUntil.bind(c) : undefined;
-      const response = await requestContext.run({ waitUntil }, () => handler.fetch(incoming, env, ctx));
+      
+      // Create AsyncLocalStorage context with hostname for this request
+      const response = await requestContext.run({ waitUntil, hostname }, () => handler.fetch(incoming, env, ctx));
 
       return await normalizeCatastrophicSsrResponse(response);
     } catch (error) {

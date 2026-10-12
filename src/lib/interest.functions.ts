@@ -9,6 +9,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
+// STEP 106: request host publishing for env-guard classification (public submission path)
+import { withRequestMeta } from "./request-meta";
 // STEP 95: non-generated endpoint safety guard (same resolver as STEP 91A). See @/integrations/supabase/env-guard.ts
 import { resolveGuardedSupabaseEndpoint } from "@/integrations/supabase/env-guard";
 import {
@@ -66,6 +68,7 @@ async function requireAdmin(supabase: SupabaseClient<Database>) {
 }
 
 export const registerInterest = createServerFn({ method: "POST" })
+  .middleware([withRequestMeta])
   .inputValidator((input: InterestDraft) => input)
   .handler(async ({ data }): Promise<InterestResult> => {
     const parsed = parseInterest(data);

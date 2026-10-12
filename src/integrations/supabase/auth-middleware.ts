@@ -50,11 +50,11 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
     }
     
     const request = getRequest();
+    const hostname = request.url ? new URL(request.url).hostname : null;
 
     if (!request?.headers) {
       throw new Error('Unauthorized: No request headers available');
     }
-
 
     const authHeader = request.headers.get('authorization');
 
@@ -76,7 +76,7 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
     }
 
     const supabase = createClient<Database>(
-      resolveGuardedSupabaseEndpoint(SUPABASE_URL!),
+      resolveGuardedSupabaseEndpoint(SUPABASE_URL!, { hostname }),
       SUPABASE_PUBLISHABLE_KEY!,
       {
         global: {

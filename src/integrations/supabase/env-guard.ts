@@ -23,7 +23,25 @@ export const LOVABLE_PREVIEW_AUTHORISATION = Object.freeze({
   projectId: 'fb35adfe-10bf-4d4c-987d-28567ca1ddeb',
   previewHost: 'id-preview--fb35adfe-10bf-4d4c-987d-28567ca1ddeb.lovable.app',
   supabaseProjectHost: 'wvuffpykgnqliikhodzl.supabase.co',
+  // STEP 106 — the ACTUAL runtime hostname the Lovable editor Preview executes at
+  // (observed in the running Preview). Lovable serves this project's Preview on the bare
+  // `<project-id>.lovableproject.com` host as well as the `id-preview--<id>.lovable.app`
+  // host, and both host the same project. Authorised explicitly, never by pattern.
+  actualPreviewHosts: [
+    'id-preview--fb35adfe-10bf-4d4c-987d-28567ca1ddeb.lovable.app',
+    'fb35adfe-10bf-4d4c-987d-28567ca1ddeb.lovableproject.com',
+  ],
 });
+
+// STEP 107 — verified production hosts for this project (from codebase constants).
+// These hosts are used for hostname-based production detection because the browser
+// production bundle compiles process.env to {}, so NODE_ENV/DEPLOY_ENV cannot be trusted
+// in client code. Only these narrowly authorised hosts may trigger 'production' mode.
+// All other hosts fall through to 'local' (fail closed) unless env vars explicitly set production.
+export const PRODUCTION_AUTHORISED_HOSTS = Object.freeze([
+  'estimate.homeinsulationvictoria.com.au',
+  'homeinsulationvictoria.com.au',
+]);
 
 /** Lovable hosting zones — mirrors the zone list in the Lovable-generated previewAuthStorage.ts. */
 const LOVABLE_HOSTED_ZONES = [
@@ -71,17 +89,61 @@ export function currentHostname(): string | null {
 }
 
 /**
- * Extract the project id from a Lovable preview hostname, reading it only from the
- * platform-controlled `id-preview--<uuid>` / `preview--<uuid>` position (same rule the
- * Lovable-generated previewAuthStorage.ts uses), so an arbitrary host cannot claim another
- * project's identity.
+ * STEP 106 — server-side hostname resolution.
+ *
+ * Server functions and server-rendered routes have no `window`, so `currentHostname()` returns
+ * null there and the mode fell through to 'local', refusing the cloud endpoint for every
+ * server path (Office Pipeline, Ready Check bookings, auth middleware, interest/journey
+ * clients). The hosted Preview and the published app both serve the browser bundle AND the
+ * server functions from the SAME host, so the server can safely read the request host.
+ *
+ * Resolution order: explicit override → browser (SSR render) → per-request host → null.
+ * Never throws; a null simply falls back to the existing env-based classification.
+ */
+import { requestContext } from "@/lib/background.server";
+
+let activeRequestHost: string | null = null;
+/** Set by the request middleware for the duration of one request. Not an env var, not a header trust. */
+export function setRequestHost(host: string | null | undefined): void {
+  activeRequestHost = host ? host : null;
+}
+export function activeHost(): string | null {
+  return activeRequestHost;
+}
+
+
+/** Best available hostname across browser and server runtimes. */
+export function resolveHostname(): string | null {
+  // Browser (page + SSR render) wins when present.
+  const win = currentHostname();
+  if (win) return win;
+  // Server: first try AsyncLocalStorage request context, then fallback to legacy setRequestHost
+  const store = requestContext.getStore();
+  if (store?.hostname) return store.hostname;
+  // Fallback for backward compatibility
+  return activeHost();
+}
+
+/**
+ * Extract the project id from a Lovable preview hostname.
+ *
+ * Reads the id from the platform-controlled `id-preview--<uuid>` / `preview--<uuid>` position
+ * (same rule the Lovable-generated previewAuthStorage.ts uses), and — STEP 106 — also from the
+ * bare `<uuid>.<zone>` position, because the Lovable editor Preview for this project actually
+ * executes at `fb35adfe-…lovableproject.com` with no prefix.
+ *
+ * Still narrow: the zone must be a Lovable hosting zone, and the id must be a v4 UUID at the
+ * platform-assigned position. An arbitrary host cannot claim another project's identity.
  */
 export function lovablePreviewProjectId(hostname: string | null | undefined): string | null {
   if (!hostname) return null;
   const host = hostname.toLowerCase();
   if (!LOVABLE_HOSTED_ZONES.some((z) => host === z || host.endsWith('.' + z))) return null;
-  const m = new RegExp(`^(?:id-preview(?:-[a-z0-9]+)?|preview)--(${UUID_PATTERN})(?:-dev)?(?=\\.|$)`, 'i').exec(host);
-  return m?.[1]?.toLowerCase() ?? null;
+  const prefixed = new RegExp(`^(?:id-preview(?:-[a-z0-9]+)?|preview)--(${UUID_PATTERN})(?:-dev)?(?=\\.|$)`, 'i').exec(host);
+  if (prefixed?.[1]) return prefixed[1].toLowerCase();
+  // Bare form: <uuid>.<zone> — the label is exactly the project id and nothing else.
+  const bare = new RegExp(`^(${UUID_PATTERN})(?:-dev)?(?=\\.|$)`, 'i').exec(host);
+  return bare?.[1]?.toLowerCase() ?? null;
 }
 
 /**
@@ -92,7 +154,8 @@ export function lovablePreviewProjectId(hostname: string | null | undefined): st
 export function isAuthorisedLovablePreviewHost(hostname: string | null | undefined): boolean {
   if (!hostname) return false;
   const host = hostname.toLowerCase();
-  if (host === LOVABLE_PREVIEW_AUTHORISATION.previewHost) return true;
+  // STEP 106: both real Preview surfaces are authorised explicitly (never by pattern).
+  if (LOVABLE_PREVIEW_AUTHORISATION.actualPreviewHosts.includes(host)) return true;
   return lovablePreviewProjectId(host) === LOVABLE_PREVIEW_AUTHORISATION.projectId;
 }
 
@@ -109,19 +172,27 @@ export function isAuthorisedPreviewSupabaseEndpoint(url: string): boolean {
  * Detect the runtime mode without relying on NODE_ENV alone.
  * - test: Vitest/Jest set VITEST / NODE_ENV=test.
  * - lovable-preview: the page is served from THIS project's Lovable preview surface (STEP 105).
- * - production: explicit DEPLOY_ENV=production or NODE_ENV=production.
+ * - production: explicit DEPLOY_ENV=production or NODE_ENV=production, OR the page is served
+ *   from a verified production hostname for this project (STEP 107).
  * - local: everything else (default dev).
  *
  * NOTE (STEP 105): Lovable builds the Preview with NODE_ENV=development, so without the
  * hostname check above the Preview fell through to 'local' and the guard refused the very
  * Supabase project Lovable itself configured.
+ *
+ * NOTE (STEP 107): In the browser production bundle, process.env is compiled to {}, so
+ * NODE_ENV/DEPLOY_ENV are not available. Hostname-based detection allows production mode
+ * to be correctly resolved for the published application without requiring ALLOW_PROD_SUPABASE
+ * in the browser bundle (which would be a security risk if leaked).
  */
 export function detectRuntimeMode(
   env: Record<string, string | undefined> = process.env,
-  hostname: string | null = currentHostname(),
+  hostname: string | null = resolveHostname(),
 ): RuntimeMode {
   if (env['VITEST'] || env['NODE_ENV'] === 'test') return 'test';
   if (isAuthorisedLovablePreviewHost(hostname)) return 'lovable-preview';
+  // STEP 107: hostname-based production detection (works when env vars are stripped).
+  if (hostname && PRODUCTION_AUTHORISED_HOSTS.includes(hostname.toLowerCase())) return 'production';
   if (env['DEPLOY_ENV'] === 'production' || env['NODE_ENV'] === 'production') return 'production';
   return 'local';
 }
@@ -148,7 +219,7 @@ export function resolveGuardedSupabaseEndpoint(
   opts?: { mode?: RuntimeMode; env?: Record<string, string | undefined>; hostname?: string | null },
 ): string {
   const env = opts?.env ?? process.env;
-  const mode = opts?.mode ?? detectRuntimeMode(env, opts?.hostname ?? currentHostname());
+  const mode = opts?.mode ?? detectRuntimeMode(env, opts?.hostname ?? resolveHostname());
 
   if (!url) {
     // Fail closed: never let a missing endpoint silently resolve to a fallback.
