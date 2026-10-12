@@ -80,7 +80,8 @@ export async function acceptReadyCheck(token: unknown, meta: RequestMeta = {}, p
     if (b.length) throw new Error(b.join(" "));
   }
   const { pricingForJob } = await import("./pricing-cohort.server");
-  const fee = (await pricingForJob(ctx.link.job_id)).readyCheckFeeIncGst; // fails closed when the price version is unknown
+  const { effectiveReadyCheckFee } = await import("./readycheck.core");
+  const fee = effectiveReadyCheckFee((await pricingForJob(ctx.link.job_id)).readyCheckFeeIncGst); // fails closed when the price version is unknown
   const remaining = readyCheckRemaining(cost, fee);
   const snapshot = {
     estimate_id: ctx.estimate.id, estimate_input_signature: ctx.estimate.input_signature, settings_version: ctx.estimate.settings_version,

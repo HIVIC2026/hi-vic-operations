@@ -1,5 +1,5 @@
 import { AMOUNT_LH, HEADER_ART_W, HEADING_ART, amountArtWidth, emailArtUrl } from "./email-art.core";
-import { READY_CHECK_FEE } from "./readycheck.core";
+import { READY_CHECK_FEE, effectiveReadyCheckFee } from "./readycheck.core";
 /** Pure customer outcome email renderers: no data access, delivery, or side effects. */
 import { CUSTOMER_BRAND, CUSTOMER_WHAT_COULD_CHANGE } from "./customer-quote-system";
 import { isWellFormedToken } from "./estimatelink.core";
@@ -149,9 +149,7 @@ export function renderEstimateEmail(input: EstimateEmailInput): EstimateEmail {
 }
 
 function readyCheckFeeOf(input: Pick<EstimateEmailInput, "readyCheckFeeIncGst">): number {
-  const fee = input.readyCheckFeeIncGst ?? READY_CHECK_FEE;
-  if (!Number.isFinite(fee) || fee < 0) throw new Error("Ready Check fee must be a finite non-negative value.");
-  return fee;
+  return effectiveReadyCheckFee(input.readyCheckFeeIncGst ?? READY_CHECK_FEE);
 }
 
 /**

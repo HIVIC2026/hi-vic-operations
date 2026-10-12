@@ -1,3 +1,4 @@
+import { effectiveReadyCheckFee } from "@/lib/readycheck.core";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -83,7 +84,7 @@ function OwnerCalculatorPage() {
         <Button type="button" disabled={busy || ceilingM2 <= 0} onClick={() => setPending({ choice: "updated", areaM2: ceilingM2 })} className="min-h-12 w-full bg-estimate-green text-estimate-white hover:bg-estimate-accent">Save My Spot — Updated Estimate</Button>
         <Button type="button" variant="outline" disabled={busy || !orig} onClick={() => setPending({ choice: "original", areaM2: 0 })} className="min-h-12 w-full border-estimate-green text-estimate-navy">Save My Spot — Original Estimate{orig ? ` (${money(orig.total)})` : ""}</Button>
       </>}
-      <p className="text-center text-xs text-estimate-navy/75">{(data.cohortPricing?.readyCheckFeeIncGst ?? 0) > 0 ? "Saving your spot needs no payment and has no obligation." : "No payment, no obligation."} Changing the size here doesn't change your recorded insulation details.</p>
+      <p className="text-center text-xs text-estimate-navy/75">{effectiveReadyCheckFee(data.cohortPricing?.readyCheckFeeIncGst) > 0 ? "Saving your spot needs no payment and has no obligation." : "No payment, no obligation."} Changing the size here doesn't change your recorded insulation details.</p>
       {error && keep !== "original" && <p role="alert" className="text-center text-sm text-danger">{error}</p>}
     </div>}
   /></>;
