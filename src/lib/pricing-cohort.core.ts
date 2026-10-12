@@ -36,6 +36,10 @@ export class PricingCohortUnknownError extends Error {
   constructor(msg = "This customer's price version cannot be confirmed, so no price is shown. Office review required.") { super(msg); this.name = "PricingCohortUnknownError"; }
 }
 
+/** Jo 12 Oct 2026 23:12 UTC: Ready Check stays FREE ($0 inc GST) for ALL customers. Every resolved price forces 0. */
+export const READY_CHECK_FEE_LOCKED_FREE = true;
+const free = <T extends PricingRates>(r: T): T => (READY_CHECK_FEE_LOCKED_FREE ? { ...r, readyCheckFeeIncGst: 0 } : r);
+
 const fin = (n: unknown) => typeof n === "number" && Number.isFinite(n) && n >= 0;
 function assertRates(r: PricingRates): PricingRates {
   if (![r.r5InstallIncGstPerM2, r.removalIncGstPerM2, r.piesaIncGst, r.apIncGst, r.readyCheckFeeIncGst].every(fin)) throw new PricingCohortUnknownError("Price version is incomplete. Office review required.");
@@ -54,7 +58,7 @@ export function resolveCustomerPricing(facts: CohortFacts | null | undefined, le
   }
   if (!facts || facts.spotSavedAt === undefined || facts.snapshot === undefined) throw new PricingCohortUnknownError();
   if (facts.snapshot) {
-    return { ...assertRates(facts.snapshot), cohort: facts.snapshot.cohort, savedTotalsAuthoritative: facts.snapshot.cohort === "legacy_saved_spot" };
+    return { ...assertRates(free(facts.snapshot)), cohort: facts.snapshot.cohort, savedTotalsAuthoritative: facts.snapshot.cohort === "legacy_saved_spot" };
   }
   if (facts.spotSavedAt) {
     // Saved before the cutover with no snapshot = cutover sweep missed it → never charge new prices.
@@ -62,7 +66,7 @@ export function resolveCustomerPricing(facts: CohortFacts | null | undefined, le
     // Saved after cutover but no snapshot row (save trigger must create one) → still fail closed.
     throw new PricingCohortUnknownError();
   }
-  return { ...assertRates(cutover.newSettings), cohort: "current", savedTotalsAuthoritative: false };
+  return { ...assertRates(free(cutover.newSettings)), cohort: "current", savedTotalsAuthoritative: false };
 }
 
 const money = (n: number) => `$${Number.isInteger(n) ? n.toLocaleString("en-AU") : n.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -128,7 +132,7 @@ export const showRemovalBudgetNote = (insulation: string | null | undefined) => 
  */
 export const PUBLIC_CALCULATOR_PRICING: "legacy" | "new" = "legacy";
 export function publicCalculatorPricing(v: "legacy" | "new" = PUBLIC_CALCULATOR_PRICING): { r5InstallIncGstPerM2: number; readyCheckFeeIncGst: number; cohort: "pre_cutover" | "current" } {
-  return v === "new" ? { r5InstallIncGstPerM2: 33, readyCheckFeeIncGst: 99, cohort: "current" } : { r5InstallIncGstPerM2: 30, readyCheckFeeIncGst: 0, cohort: "pre_cutover" };
+  return v === "new" ? { r5InstallIncGstPerM2: 33, readyCheckFeeIncGst: 0, cohort: "current" } : { r5InstallIncGstPerM2: 30, readyCheckFeeIncGst: 0, cohort: "pre_cutover" };
 }
 
 /**

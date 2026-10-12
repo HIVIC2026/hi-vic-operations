@@ -1,4 +1,4 @@
--- STAGED — DO NOT APPLY AUTOMATICALLY. Jo 12 Oct 2026: new pricing ($99 inc GST Ready Check, R5 $33/m² inc GST)
+-- STAGED — DO NOT APPLY AUTOMATICALLY. Jo 12 Oct 2026: new pricing (R5 $33/m² inc GST; Ready Check FREE $0 per Jo 12 Oct 23:12 UTC — $99 withdrawn)
 -- with exact protection for every job that saved its spot before the cutover.
 -- Part A (schema, additive, inert): installs the fee column, cohort tables and functions. Changes NO prices.
 -- Part B (activation) is a separate explicit call: SELECT public.activate_pricing_cutover(<actor>, <reason>);
@@ -98,8 +98,8 @@ BEGIN
   VALUES (nxt, false, 33, cur.removal_inc_gst_per_m2, cur.piesa_assessment_inc_gst, cur.ap_management_inc_gst, cur.access_standard_multiplier,
     cur.access_moderate_multiplier, cur.access_difficult_multiplier, cur.indicative_veec_value, cur.veec_value_source_label, cur.veec_value_source_url,
     cur.veec_value_checked_at, cur.minimum_customer_copayment_inc_gst, cur.spec_version, cur.spec_source_url,
-    'New pricing (Jo 12 Oct 2026): R5 $30/m² + GST = $33 inc GST; Ready Check $99 inc GST. ' || trim(_reason), _actor, cur.veec_buy_price,
-    cur.max_discount_metro_inc_gst, cur.max_discount_regional_inc_gst, 99)
+    'New pricing (Jo 12 Oct 2026): R5 $30/m² + GST = $33 inc GST; Ready Check stays free. ' || trim(_reason), _actor, cur.veec_buy_price,
+    cur.max_discount_metro_inc_gst, cur.max_discount_regional_inc_gst, 0)
   RETURNING id INTO new_id;
   INSERT INTO public.pricing_cutover (legacy_settings_id, new_settings_id, protected_count, protected_md5, actor_id, reason)
   VALUES (cur.id, new_id, (SELECT count(DISTINCT job_id) FROM public.lead_campaign_responses WHERE spot_saved_at IS NOT NULL), h, _actor, trim(_reason)) RETURNING id INTO cid;
