@@ -187,3 +187,24 @@ export function doneReason(stage: string): string {
 export function intakeProgressApplies(job: { channel?: string | null; originating_installer_business_id?: string | null } | null | undefined): boolean {
   return !!job && job.channel === "installer_sourced" && !!job.originating_installer_business_id;
 }
+
+/** Caller's RLS-scoped Supabase rpc (context.supabase.rpc), injected so the access order is unit-testable. */
+export type AccessRpc = (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error?: unknown }>;
+
+/**
+ * STEP 73 (A3): server-side order for the installer intake-progress read.
+ * 1. Job access FIRST (RLS `can_access_job`: office, the job's owner, an active assignment or the assigned business's admin).
+ *    A caller who can't access the job is refused before anything about the job is read, so another business's installer
+ *    can't learn whether a job exists or is installer-sourced.
+ * 2. Only then the STEP 71 guard: a non-intake (Home Insulation Victoria-sourced) job returns "does not apply".
+ * 3. An intake job still goes through `requireSupplyingInstaller` (installer role + member of the supplying business).
+ */
+export async function intakeProgressGate(
+  rpc: AccessRpc,
+  loadJob: (jobId: string) => Promise<{ channel?: string | null; originating_installer_business_id?: string | null } | null>,
+  jobId: string,
+): Promise<{ applies: boolean }> {
+  const { data: ok, error } = await rpc("can_access_job", { _job: jobId });
+  if (error || !ok) throw new Error("Not your job.");
+  return { applies: intakeProgressApplies(await loadJob(jobId)) };
+}
