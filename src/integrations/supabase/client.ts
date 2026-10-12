@@ -2,8 +2,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 import { brokeredPreviewStorage } from './previewAuthStorage';
-// STEP 91A: non-generated endpoint safety guard. See ./env-guard.ts
-import { resolveGuardedSupabaseEndpoint } from './env-guard';
 
 function isNewSupabaseApiKey(value: string): boolean {
   return value.startsWith('sb_publishable_') || value.startsWith('sb_secret_');
@@ -47,15 +45,13 @@ export function createSupabaseClient(options?: { storageKey?: string }) {
   }
 
   const qaStorageKey = options?.storageKey ?? (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('hivic-qa-auth-storage-key') ?? undefined : undefined);
-  // STEP 91A: refuse accidental production endpoints in local/test; production must be intentional.
-  const GUARDED_URL = resolveGuardedSupabaseEndpoint(SUPABASE_URL);
   const auth = {
     storage: qaStorageKey ? sessionStorage : brokeredPreviewStorage(),
     ...(qaStorageKey ? { storageKey: qaStorageKey } : {}),
     persistSession: true,
     autoRefreshToken: true,
   };
-  return createClient<Database>(GUARDED_URL, SUPABASE_PUBLISHABLE_KEY, {
+  return createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     global: {
       fetch: createSupabaseFetch(SUPABASE_PUBLISHABLE_KEY),
     },

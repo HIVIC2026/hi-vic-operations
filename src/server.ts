@@ -1,20 +1,9 @@
 import "./lib/error-capture";
 import { requestContext } from "./lib/background.server";
-// STEP 110/111: register the AsyncLocalStorage-backed hostname source with the Supabase
-// env-guard (server boot only). env-guard.ts itself must stay browser-safe, so the
-// node:async_hooks-backed read lives here via the adapter, not in the shared guard.
-// Explicit call (not a bare side-effect import): "sideEffects": false would tree-shake it.
-import { installEnvGuardServerAdapter } from "@/integrations/supabase/env-guard.server";
-
-installEnvGuardServerAdapter();
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage, renderReloadPage } from "./lib/error-page";
 import { isConnectionTeardown } from "./lib/http-abort";
-// STEP 106: publish the request host so the Supabase env-guard classifies hosted
-// Preview/production correctly instead of falling through to 'local'.
-// This runs for every request (SSR, server functions) and is server-only.
-import { setRequestHost } from "@/integrations/supabase/env-guard";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -86,8 +75,6 @@ function detachedGetRequest(request: Request, url: string): Request {
 
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
-    // STEP 106: publish the host of the request the server is actually serving,
-    // so the env-guard resolves 'lovable-preview' / 'production' instead of 'local'.
     const hostname: string | null = (() => {
       try {
         return new URL(request.url).hostname;

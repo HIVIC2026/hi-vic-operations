@@ -1,20 +1,18 @@
 // STEP 110/111 — regression test for the STEP 109 blank-Preview incident.
 //
-// env-guard.ts statically imported background.server.ts (node:async_hooks), which the
-// bundler externalized for the browser and crashed the whole Lovable Preview before React
-// mounted. This test walks the STATIC import graph of the browser-reachable entry modules
-// and fails if any module in that graph:
+// A shared browser-reachable module once statically imported background.server.ts
+// (node:async_hooks), which the bundler externalized for the browser and crashed the whole
+// Lovable Preview before React mounted. This test walks the STATIC import graph of the
+// browser-reachable entry modules and fails if any module in that graph:
 //   1. statically imports a `node:*` specifier, or
 //   2. statically imports src/lib/background.server.ts (the node:async_hooks carrier), or
-//   3. is env-guard.ts while statically importing node:/background.server.
 //
 // Compiler boundary (verified against the STEP 110 production build): TanStack Start strips
 // the server closures of `*.functions.ts` createServerFn modules from the client bundle, so
 // static imports FROM a *.functions.ts file INTO a *.server.ts file never reach the browser
 // (.output/public contains no AsyncLocalStorage / upsertEnquiry / node: imports). That edge
-// shape is therefore exempt. The STEP 109 pattern — a SHARED module (env-guard.ts) that
-// browser code like client.ts imports directly pulling in server-only code — is NOT exempt
-// and is exactly what these tests catch.
+// shape is therefore exempt. A SHARED module that browser code imports directly pulling in
+// server-only code is NOT exempt and is exactly what these tests catch.
 //
 // `import type` statements and dynamic `import()` are ignored (they do not put the target
 // module into the browser bundle's evaluation path at load time).
@@ -103,31 +101,9 @@ describe("STEP 110/111: browser-bundle safety (no node:/server-only imports in c
     expect(offender).toBeUndefined();
   });
 
-  test("env-guard.ts statically imports no node: builtin and no server-only module", () => {
-    const guard = join(SRC, "integrations/supabase/env-guard.ts");
-    const specs = staticImports(guard).filter((s) => s.startsWith("node:") || s.includes("background.server") || s.endsWith(".server"));
-    expect(specs).toEqual([]);
-  });
-
-  test("server requests resolve a request-scoped hostname through the registered ALS adapter (no process-global)", () => {
-    // Simulates server boot: register the adapter, then a request sets a hostname in
-    // AsyncLocalStorage. resolveHostname() must return THAT request's hostname while the
-    // request is in flight, and null (no stale/global value) afterwards.
-    const { requestContext } = require("@/lib/background.server") as typeof import("@/lib/background.server");
-    // Explicit install (server.ts calls this at boot); idempotent, safe to call again.
-    const { installEnvGuardServerAdapter } = require("@/integrations/supabase/env-guard.server") as typeof import("@/integrations/supabase/env-guard.server");
-    installEnvGuardServerAdapter();
-    const guard = require("@/integrations/supabase/env-guard") as typeof import("@/integrations/supabase/env-guard");
-
-    const PREVIEW = "fb35adfe-10bf-4d4c-987d-28567ca1ddeb.lovableproject.com";
-    let inside: { resolved: string | null; mode: string } | undefined;
-    requestContext.run({ hostname: PREVIEW }, () => {
-      inside = { resolved: guard.resolveHostname(), mode: guard.detectRuntimeMode({}) };
-    });
-    expect(inside?.resolved).toBe(PREVIEW);
-    expect(inside?.mode).toBe("lovable-preview");
-    // After the request completes, nothing leaks: no request, no hostname.
-    expect(guard.resolveHostname()).toBe(null);
-    expect(guard.detectRuntimeMode({})).toBe("local");
+  test("removed custom Supabase env guard is absent from the browser graph", () => {
+    const { files } = browserGraph(ENTRIES);
+    const offender = files.find((f) => /src\/integrations\/supabase\/env-guard(\.server)?\.ts$/.test(f));
+    expect(offender).toBeUndefined();
   });
 });

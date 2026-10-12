@@ -6,6 +6,19 @@ import { readdirSync } from "node:fs";
 
 const files = readdirSync("tests").filter((f) => /\.test\.tsx?$/.test(f)).sort().map((f) => `./tests/${f}`);
 const concurrency = Number(process.argv[2] ?? 6);
+const isolatedEnv = {
+  ...process.env,
+  SUPABASE_URL: "http://127.0.0.1:54321",
+  VITE_SUPABASE_URL: "http://127.0.0.1:54321",
+  SUPABASE_PROJECT_ID: "local-test-isolated",
+  VITE_SUPABASE_PROJECT_ID: "local-test-isolated",
+  SUPABASE_PUBLISHABLE_KEY: "sb_publishable_local_test_isolated",
+  VITE_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_local_test_isolated",
+  SUPABASE_SERVICE_ROLE_KEY: "sb_secret_local_test_isolated",
+  NODE_ENV: "test",
+  VITEST: "1",
+};
+delete isolatedEnv.ALLOW_PROD_SUPABASE;
 let pass = 0, fail = 0;
 const failed: string[] = [];
 const crashes: string[] = [];
@@ -18,7 +31,7 @@ async function worker() {
     // Bun 1.3.3 occasionally segfaults inside the PGlite (WASM) engine under load. That is a
     // runtime crash, not a test result, so a crashed file is re-run (max 2 retries) and reported.
     for (let attempt = 0; attempt < 3; attempt++) {
-      p = Bun.spawn(["bun", "test", "--timeout", "30000", f], { stdout: "pipe", stderr: "pipe" });
+      p = Bun.spawn(["bun", "test", "--timeout", "30000", f], { stdout: "pipe", stderr: "pipe", env: isolatedEnv });
       out = (await new Response(p.stdout).text()) + (await new Response(p.stderr).text());
       await p.exited;
       if (!/Bun has crashed/.test(out)) break;

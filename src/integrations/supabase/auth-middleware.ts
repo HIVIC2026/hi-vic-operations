@@ -3,8 +3,6 @@ import { createMiddleware } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from './types'
-// STEP 91A: non-generated endpoint safety guard. See ./env-guard.ts
-import { resolveGuardedSupabaseEndpoint } from './env-guard'
 
 
 
@@ -50,7 +48,6 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
     }
     
     const request = getRequest();
-    const hostname = request.url ? new URL(request.url).hostname : null;
 
     if (!request?.headers) {
       throw new Error('Unauthorized: No request headers available');
@@ -76,7 +73,7 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
     }
 
     const supabase = createClient<Database>(
-      resolveGuardedSupabaseEndpoint(SUPABASE_URL!, { hostname }),
+      SUPABASE_URL!,
       SUPABASE_PUBLISHABLE_KEY!,
       {
         global: {

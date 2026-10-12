@@ -2,8 +2,6 @@
 import { createMiddleware } from "@tanstack/react-start";
 import { getCookie, getRequest, setCookie, setResponseStatus } from "@tanstack/react-start/server";
 import { START_LIMIT_MESSAGE, VISITOR_COOKIE, isVisitorId, newResumeToken } from "./onboarding-security.core";
-// STEP 106: publish request host for env-guard classification (server-side only)
-import { setRequestHost } from "@/integrations/supabase/env-guard";
 
 export const withRequestMeta = createMiddleware({ type: "function" }).server(async ({ next }) => {
   const req = getRequest();
@@ -11,8 +9,6 @@ export const withRequestMeta = createMiddleware({ type: "function" }).server(asy
   // Rate limiting trusts only the edge-set header; x-forwarded-for can be supplied by the caller.
   const edgeIp = req?.headers.get("cf-connecting-ip")?.trim() || null;
   const hostname = req ? new URL(req.url).hostname : "";
-  // STEP 106: publish the request host so env-guard can classify server functions correctly.
-  if (hostname) setRequestHost(hostname);
   const assessmentTestMode = hostname === "localhost" || hostname === "127.0.0.1" || hostname.includes("-preview--") || hostname.includes("-dev.lovable.app");
   return next({ context: { ip, edgeIp, userAgent: req?.headers.get("user-agent") ?? null, assessmentTestMode } });
 });
