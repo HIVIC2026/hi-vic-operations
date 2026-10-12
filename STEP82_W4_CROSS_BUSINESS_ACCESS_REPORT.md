@@ -49,4 +49,4 @@ During STEP81 UAT, `ffsadmin.uat` (`bc6ce692-3360-48f3-9c8d-3b68fbdc7b6a`) opene
 ## 9. W0-merge recommendation & residual risk
 - **Recommendation: SAFE to merge W4 to W0.** W4 adds only a test + this report; it changes no production code, migrations, or RLS. There is nothing in W4 that can weaken access.
 - **Residual risk: LOW.** The only defect was hand-inserted local test data. **Release action for W0 seed hygiene:** ensure the stray `790…104` membership is not carried into any shared/seeded dataset (deactivate or omit). No product fix is owed.
-- **Commit SHA:** _recorded below after commit._
+- **Commit SHA:** `afb33e70b2a140b69c938903b68cf2559aaf225a` (W4 local: test + report only; no app code).
