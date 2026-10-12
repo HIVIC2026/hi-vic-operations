@@ -6,7 +6,7 @@
 // question as role `authenticated` with auth.uid() = the caller. Synthetic data only; no network, no providers.
 // Stubbed: the TanStack wrapper and auth middleware (the handler receives the caller's client directly), autoAdvanceJob
 // (runs after the guards), and the service-role rpc has_contact_release (always false: redaction path). The service-role
-// table client is the shared PGlite PostgREST shim over the same database.
+// table client is the shared PGlite PostgREST shim over the same database. Also covers pilot.functions addTeamMember.
 import { describe, expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
@@ -145,6 +145,7 @@ mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: adm
 mock.module("../src/lib/autoadvance.server", () => ({ autoAdvanceJob: async () => null, autoAdvanceOpenJobs: async () => ({}), loadAdvanceFacts: async () => ({}) }));
 
 const portal = await import("../src/lib/portal.functions");
+const pilot = await import("../src/lib/pilot.functions");
 const records = await import("../src/lib/admin-records.functions");
 const { CLEARANCE_RECORDER_REFUSED } = await import("../src/lib/clearance-guard.core");
 const NO_PERMISSION = "You don't have permission for this action on this job.";
@@ -292,3 +293,40 @@ describe("E2 · business approval is not part of the job-role SQL (characterisat
   });
 });
 
+describe("B2 · the electrician app role cannot be self-granted by a partner business admin (addTeamMember)  [STEP 80 fix]", () => {
+  const grant = (uid: string, email: string) => call(pilot.addTeamMember, uid, { businessId: BIZ.recA, email, memberRole: "business_admin", tradeRole: "electrician" });
+  const roles = async (uid: string) => (await db.query<{ role: string }>("select role::text from user_roles where user_id = $1 order by role", [uid])).rows.map((r) => r.role);
+  test("setup: the REC admin has a portal profile and listed THEMSELVES as a (pending) electrician worker", async () => {
+    await db.exec(`INSERT INTO public.profiles (id, business_id, email) VALUES ('${U.recAdmin}', '${BIZ.recA}', 'recadmin@step80.test'), ('${U.licensed}', '${BIZ.recA}', 'licensed@step80.test'),
+      ('${U.licensedNoLicenceRecord}', null, 'removed@step80.test');
+      INSERT INTO public.partner_workers (business_id, trade_role, approval_status, email, full_legal_name, licence_number) VALUES
+        ('${BIZ.recA}', 'electrician', 'pending', 'recadmin@step80.test', 'Rec Admin', 'MADE-UP-123'),
+        ('${BIZ.recA}', 'electrician', 'approved', 'licensed@step80.test', 'Lee Licensed', 'A12345');
+      INSERT INTO public.partner_workers (business_id, trade_role, approval_status, removed_at, email, full_legal_name, licence_number) VALUES
+        ('${BIZ.recA}', 'electrician', 'approved', now(), 'removed@step80.test', 'Rem Oved', 'A99999');`);
+    expect(await roles(U.recAdmin)).toEqual([]);
+  });
+  test("a PENDING electrician listing does not give the electrician role; nothing is written", async () => {
+    const r = await outcome(grant(U.recAdmin, "recadmin@step80.test"));
+    expect(r).toEqual({ ok: false, error: "Home Insulation Victoria hasn't approved this electrician yet. Add them as an electrician once they're approved." });
+    expect(await roles(U.recAdmin)).toEqual([]);
+    expect((await db.query("select 1 from partner_workers where email = 'recadmin@step80.test' and profile_id is not null")).rows.length).toBe(0);
+    // ...so the regulated-result guard still refuses them.
+    expect(await outcome(call(portal.saveAssessment, U.recAdmin, { jobId: JOB.e, patch: { piesa_outcome: "pass" } }))).toEqual({ ok: false, error: CLEARANCE_RECORDER_REFUSED });
+  });
+  test("a REMOVED electrician listing does not give the role either", async () => {
+    const r = await outcome(grant(U.recAdmin, "removed@step80.test"));
+    expect(r.ok).toBe(false);
+    expect((await db.query(`select 1 from business_members where user_id = '${U.licensedNoLicenceRecord}'`)).rows.length).toBe(0); // refused before any write
+  });
+  test("an APPROVED electrician listing is still granted by the business admin (no regression)", async () => {
+    await db.exec(`DELETE FROM public.user_roles WHERE user_id = '${U.licensed}'`);
+    expect((await outcome(grant(U.recAdmin, "licensed@step80.test"))).ok).toBe(true);
+    expect(await roles(U.licensed)).toEqual(["electrician"]);
+  });
+  test("Office keeps its existing ability (it decides approval itself)", async () => {
+    expect((await outcome(grant(U.office, "recadmin@step80.test"))).ok).toBe(true);
+    expect(await roles(U.recAdmin)).toEqual(["electrician"]);
+    await db.exec(`DELETE FROM public.user_roles WHERE user_id = '${U.recAdmin}'`);
+  });
+});
