@@ -10,6 +10,7 @@ import { RegisterInterest } from "./register-interest";
 import { extractPostcode, suburbFromLine, type AddressSuggestion } from "@/lib/address.core";
 import { AddressCombobox } from "./address-combobox";
 import { Button } from "@/components/ui/button";
+import { effectiveReadyCheckFee } from "@/lib/readycheck.core";
 import { REMOVAL_BUDGET_NOTE, calculatorTotals, installRateLabel, readyCheckFeeLabel, showRemovalBudgetNote } from "@/lib/pricing-cohort.core";
 
 /** The public site lives in Base44 — this page only ever points there. */
@@ -83,7 +84,8 @@ function WhatCouldChange() {
 }
 
 /** What the price on screen actually covers — the same lines the owner is later quoted. */
-function WhatIsIncluded({ readyCheckFeeIncGst, pricingCohort, ratePerM2 }: { readyCheckFeeIncGst: number; pricingCohort: PricingCohortProp; ratePerM2: number }) {
+function WhatIsIncluded({ readyCheckFeeIncGst: rawFee, pricingCohort, ratePerM2 }: { readyCheckFeeIncGst: number; pricingCohort: PricingCohortProp; ratePerM2: number }) {
+  const readyCheckFeeIncGst = effectiveReadyCheckFee(rawFee);
   const paid = readyCheckFeeIncGst > 0;
   const rows = INTEREST_INCLUDED.map((row, i) => i === 0 && paid
     ? { label: `Home Insulation Ready Check — ${readyCheckFeeLabel({ readyCheckFeeIncGst })}`, detail: `${readyCheckFeeLabel({ readyCheckFeeIncGst })}, included once in the total above. We confirm your ceiling size, access and what is needed before anyone is booked — no surprises, no second visits.` }
@@ -129,7 +131,8 @@ type PublicCalculatorProps = {
   footer?: ReactNode;
 };
 
-export function PublicCalculator({ settings, initialValues, heading, resultAction, hideRegistration = false, compactHeader = false, footer, readyCheckFeeIncGst = 0, pricingCohort = "pre_cutover" }: PublicCalculatorProps) {
+export function PublicCalculator({ settings, initialValues, heading, resultAction, hideRegistration = false, compactHeader = false, footer, readyCheckFeeIncGst: rawReadyCheckFee = 0, pricingCohort = "pre_cutover" }: PublicCalculatorProps) {
+  const readyCheckFeeIncGst = effectiveReadyCheckFee(rawReadyCheckFee);
   const paidCheck = readyCheckFeeIncGst > 0;
   const [addressText, setAddressText] = useState(initialValues?.address ?? "");
   const [picked, setPicked] = useState<AddressSuggestion | null>(null);
