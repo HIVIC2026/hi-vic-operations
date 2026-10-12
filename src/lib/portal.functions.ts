@@ -216,7 +216,9 @@ const MEASURE_EVIDENCE = ["measurement", "existing_insulation_r_value"];
 export const saveAssessment = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, patch: assessmentPatch }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    const jobRole = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    // STEP 80: the draft carries the PIESA outcome/safety answers that completeAssessment later signs off – same rule.
+    await requireClearanceRecorder(context.supabase as never, jobRole, context.userId);
     const { data: existing } = await admin.from("assessments").select("id,status").eq("job_id", data.jobId).maybeSingle();
     if (existing?.status === "complete") throw new WorkflowError("Assessment is complete and locked. Ask Home Insulation Victoria to reopen.");
     if (existing) await admin.from("assessments").update(clean(data.patch)).eq("id", existing.id);
@@ -897,8 +899,10 @@ export const completeInstallation = createServerFn({ method: "POST" }).middlewar
 export const submitDeclaration = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, kind: z.enum(["installer_declaration", "electrician_declaration"]), statement: z.string().trim().min(10).max(4000) }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireJobRole(context.supabase, data.jobId, ["admin", data.kind === "installer_declaration" ? "installer" : "electrician"]);
+    const jobRole = await requireJobRole(context.supabase, data.jobId, ["admin", data.kind === "installer_declaration" ? "installer" : "electrician"]);
     if (data.kind === "installer_declaration") throw new WorkflowError("Installer declarations are signed in the final VEEC assignment step (approved wording only).");
+    // STEP 80: an electrician declaration is an electrician attestation – Office or the licensed-electrician app role only.
+    await requireClearanceRecorder(context.supabase as never, jobRole, context.userId);
     await admin.from("declarations").upsert({ job_id: data.jobId, kind: data.kind, declared_by: context.userId, statement: data.statement, declared_at: new Date().toISOString() }, { onConflict: "job_id,kind" });
     await logEvent(data.jobId, context.userId, "declaration_submitted", `${data.kind.replace("_", " ")} signed`);
     await autoAdvanceJob(data.jobId, context.userId, "declaration signed");
