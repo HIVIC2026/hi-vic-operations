@@ -5,7 +5,7 @@
 // Mitti stays hidden until the office ticks "Mitti account invited" for the business.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
-import { ONSITE_CONSENT_SOURCE, TEST_MITTI_ASSIGNEE, onsiteProblems, onsiteState, retryable, type OnsiteInput, type OnsiteState } from "./onsite-ready-check.core";
+import { ONSITE_CONSENT_SOURCE, TEST_MITTI_ASSIGNEE, onsiteProblems, onsiteState, type OnsiteInput, type OnsiteState } from "./onsite-ready-check.core";
 import type { ElectricianPlan } from "./job-electrician.core";
 import type { MittiCall } from "./mitti.core";
 import { laterReadyCheckProblems, type LaterReadyCheck } from "./later-ready-check.core";
@@ -58,6 +58,7 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
       await confirmBooking(job.id, "ready_check", later?.startsAt ?? new Date().toISOString(), userId, later ? "installer (supplied appointment)" : "installer (on site now)");
       booking = "confirmed";
       await admin.from("jobs").update({ next_action: later ? "Attend booked Ready Check" : "Ready Check on site now" }).eq("id", job.id);
+      if (later) await (await import("./mitti-create.server")).onReadyCheckBooked(job.id, userId).catch((e) => console.error("ready check form not scheduled", (e as Error).message)); // T3: confirmed booking starts the form in the background
     } catch (error) {
       if (!later) throw error;
       booking = "blocked";
@@ -68,30 +69,28 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
     await logEvent(job.id, userId, "onsite_waiting_paperwork_a", "On-site Ready Check held: the owner hasn't signed paperwork A yet", {}, { internal: true });
   }
   if (later) return { jobId: job.id, jobNumber: job.job_number, booking, state: { kind: "office" as const, message: "Job added. Check the appointment status on the job." } };
-  const state = await onsiteFormFor(job.id, userId, call);
+  // T3: never wait for Mitti inside the installer's save. Read the state; if a form is needed, create it in the background.
+  const state = await onsiteFormFor(job.id, userId, call, true);
   return { jobId: job.id, jobNumber: job.job_number, booking, state };
 }
 
-/** Status for "Getting your form ready…". Creates the Mitti form once; afterwards only reads what's stored. */
-export async function onsiteFormFor(jobId: string, userId: string, call?: MittiCall, force = false): Promise<OnsiteState> {
+/**
+ * Status for "Getting your form ready…". T3: the status read (poll) is strictly read-only and never calls Mitti.
+ * `request` (the explicit start / "Try again" action) schedules creation in the background and returns at once;
+ * duplicates are prevented by the atomic claim inside createAssignMittiAudit.
+ */
+export async function onsiteFormFor(jobId: string, userId: string, call?: MittiCall, request = false): Promise<OnsiteState> {
   const { data: j } = await admin.from("jobs").select("channel, originating_installer_business_id, source").eq("id", jobId).maybeSingle();
   if (!j || j.channel !== "installer_sourced" || !j.originating_installer_business_id) throw new WorkflowError("This job isn't one of your customers.");
   const { requireMember } = await import("./pilot.server");
   await requireMember(userId, j.originating_installer_business_id);
   const facts = await factsFor(jobId, j.originating_installer_business_id);
-  let state = onsiteState(facts);
-  if (state.kind !== "preparing" && !(state.kind === "retry" && (force || (facts.lastError && retryable(facts.lastError))))) return state;
+  const state = onsiteState(facts);
+  if (!request || (state.kind !== "preparing" && state.kind !== "retry")) return state;
   const { data: prof } = await admin.from("profiles").select("full_name, email").eq("id", userId).maybeSingle();
-  try {
-    const { createAssignMittiAudit, realMittiCall } = await import("./mitti.server");
-    const r = await createAssignMittiAudit(jobId, userId, call ?? realMittiCall, { readyCheck: true, assignee: { userId, fullName: prof?.full_name ?? null, email: j.source === "qa_test" ? TEST_MITTI_ASSIGNEE : prof?.email ?? "" } });
-    state = onsiteState({ ...facts, auditId: r.auditId, lastError: null });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "Mitti error";
-    await logEvent(jobId, userId, "mitti_access_needed", `On-site Ready Check form could not be created: ${msg}`, {}, { internal: true });
-    state = onsiteState({ ...facts, lastError: msg });
-  }
-  return state;
+  const { scheduleReadyCheckFormCreation } = await import("./mitti-create.server");
+  await scheduleReadyCheckFormCreation(jobId, userId, { userId, fullName: prof?.full_name ?? null, email: j.source === "qa_test" ? TEST_MITTI_ASSIGNEE : prof?.email ?? "" }, call);
+  return onsiteState({ ...facts, lastError: null });
 }
 
 async function factsFor(jobId: string, businessId: string) {

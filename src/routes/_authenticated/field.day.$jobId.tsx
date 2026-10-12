@@ -123,7 +123,7 @@ function PrepareForm({ jobId, onDone }: { jobId: string; onDone: () => void }) {
     <div className="mt-3" data-prepare-form>
       <button type="button" disabled={busy} className={greenBtn} onClick={async () => {
         setBusy(true); setMsg(null);
-        try { const s = await get({ data: { jobId, retry: false } }); if (s.kind === "open") { window.location.href = s.url; return; } setMsg(s.kind === "preparing" ? "Still getting it ready — try again in a minute." : s.message); onDone(); }
+        try { const s = await get({ data: { jobId, retry: true } }); if (s.kind === "open") { window.location.href = s.url; return; } setMsg(s.kind === "preparing" ? "Still getting it ready — try again in a minute." : s.message); onDone(); }
         catch { setMsg("Couldn't check the form just now. Try again in a minute."); }
         finally { setBusy(false); }
       }}>{busy ? "Checking…" : "Get my Ready Check form"}</button>

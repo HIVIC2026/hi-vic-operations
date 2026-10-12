@@ -276,6 +276,7 @@ export async function respondToReadyCheckOffer(offerId: string, userId: string, 
   try {
     const { confirmBooking } = await import("./booking.server");
     await confirmBooking(o.job_id, "ready_check", w!.starts_at, userId, "installer (owner's chosen time)");
+    await (await import("./mitti-create.server")).onReadyCheckBooked(o.job_id, userId).catch((e) => console.error("ready check form not scheduled", (e as Error).message)); // T3: confirmed booking starts the form in the background
     return { ok: true, booked: true };
   } catch (e) {
     await logEvent(o.job_id, userId, "ready_check_window_booking_blocked", `Owner's time taken but booking not confirmed: ${(e as Error).message}`, { window_id: windowId }, { internal: true });

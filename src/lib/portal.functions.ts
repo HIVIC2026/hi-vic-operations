@@ -442,8 +442,9 @@ export const createMittiAssessment = createServerFn({ method: "POST" }).middlewa
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const { createAssignMittiAudit } = await import("./mitti.server");
-    return createAssignMittiAudit(data.jobId, context.userId);
+    const { createAssignMittiAudit, realMittiCall } = await import("./mitti.server");
+    // T3: the office's explicit action may supersede an earlier attempt whose result is unknown (>= 10 min old, recorded).
+    return createAssignMittiAudit(data.jobId, context.userId, realMittiCall, { officeOverride: true });
   });
 
 export const syncFromMitti = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
