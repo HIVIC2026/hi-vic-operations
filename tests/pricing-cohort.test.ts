@@ -35,24 +35,24 @@ describe("cohort resolution", () => {
 });
 
 describe("breakdown arithmetic", () => {
-  test("new cohort 150 m² assumption: installation 4950 + PIESA + AP + 99 once", () => {
+  test("new cohort 150 m² assumption: installation 4950 + PIESA + AP, Ready Check $0", () => {
     const b = customerBreakdown(NEW, 150, 0, 1500);
-    expect(b.installation).toBe(4950); expect(b.gross).toBe(4950 + 349 + 349 + 99); expect(b.total).toBe(b.gross - 1500);
-    expect(b.payableNow).toBe(99); expect(b.remaining).toBe(b.total - 99);
+    expect(b.installation).toBe(4950); expect(b.gross).toBe(4950 + 349 + 349); expect(b.total).toBe(b.gross - 1500);
+    expect(b.payableNow).toBe(0); expect(b.remaining).toBe(b.total);
   });
   test("removal $15/m² only on the area needing removal", () => {
     const b = customerBreakdown(NEW, 150, 40, 1500);
-    expect(b.removal).toBe(600); expect(b.gross).toBe(4950 + 600 + 349 + 349 + 99);
+    expect(b.removal).toBe(600); expect(b.gross).toBe(4950 + 600 + 349 + 349);
   });
   test("legacy cohort breakdown has no Ready Check fee", () => {
     const b = customerBreakdown(LEGACY, 150, 0, 1500);
     expect(b.readyCheck).toBe(0); expect(b.gross).toBe(4500 + 698); expect(b.remaining).toBe(b.total);
   });
-  test("Ready Check fee is subtracted from the remaining balance exactly once", () => {
-    expect(readyCheckRemaining(4247, 99)).toBe(4148); expect(readyCheckRemaining(4247)).toBe(4247);
+  test("remaining balance never deducts a Ready Check fee (free)", () => {
+    expect(readyCheckRemaining(4247, 99)).toBe(4247); expect(readyCheckRemaining(4247)).toBe(4247);
   });
   test("labels", () => {
-    expect(readyCheckFeeLabel(NEW)).toBe("$99 including GST"); expect(readyCheckFeeLabel(LEGACY)).toBe("free");
+    expect(readyCheckFeeLabel(NEW)).toBe("free"); expect(readyCheckFeeLabel(LEGACY)).toBe("free");
     expect(installRateLabel({ r5InstallIncGstPerM2: 33, cohort: "current" })).toBe("$30 per m² plus GST ($33 per m² including GST)");
     expect(installRateLabel({ r5InstallIncGstPerM2: 30, cohort: "legacy_saved_spot" })).toBe("$30 per m² including GST");
   });
@@ -69,32 +69,31 @@ describe("breakdown arithmetic", () => {
 
 const LINK = "https://estimate.homeinsulationvictoria.com.au/estimate/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const legacyInput = { estimateUrl: LINK, outcome: "likely" as const, firstName: "Test", estimatedTotal: 3698, veuDiscount: 1500, areaM2: 150, installationPrice: 4500, installationRatePerM2: 30, assessmentFee: 349, apFee: 349, grossProjectTotal: 5198, amountPayableNow: 0, estimatedRemainingBalance: 3698, apCount: 2 };
-const newInput = { ...legacyInput, estimatedTotal: 4247, installationPrice: 4950, installationRatePerM2: 33, grossProjectTotal: 5747, amountPayableNow: 99, estimatedRemainingBalance: 4148, readyCheckFeeIncGst: 99, pricingCohort: "current" as const, areaIsTypical: true };
+const newInput = { ...legacyInput, estimatedTotal: 4247, installationPrice: 4950, installationRatePerM2: 33, grossProjectTotal: 5648, amountPayableNow: 0, estimatedRemainingBalance: 4148, estimatedTotal: 4148, readyCheckFeeIncGst: 99, pricingCohort: "current" as const, areaIsTypical: true };
 
 describe("emails", () => {
   test("legacy/protected email is byte-identical with or without explicit fee 0", () => {
     expect(renderEstimateEmail({ ...legacyInput, readyCheckFeeIncGst: 0 })).toEqual(renderEstimateEmail(legacyInput));
     expect(renderEstimateEmail(legacyInput).html).toContain(">FREE<");
   });
-  test("new cohort email discloses $99 and the ex/inc GST rate, no free Ready Check left", () => {
+  test("new cohort email (stale fee 99) keeps the Ready Check FREE and shows $33/m² prices", () => {
     const m = renderEstimateEmail(newInput);
-    expect(m.html).toContain("$99 including GST"); expect(m.html).toContain("$30 per m² plus GST ($33 per m² including GST)");
-    expect(m.html).not.toMatch(/>FREE<|free measure-up/i); expect(m.plainText).not.toMatch(/: FREE\b/);
+    expect(m.html).not.toContain("$99"); expect(m.html).toContain(">FREE<"); expect(m.html).toContain("4,950");
     expect(m.html).toContain("150 m²");
   });
-  test("save-spot: legacy keeps free Ready Check; new says saving is free but check is $99", () => {
+  test("save-spot: legacy and new (stale 99) both keep the free Ready Check", () => {
     const l = renderSaveSpotFromLikelyEmail({ ...legacyInput, campaignUrl: LINK + "/campaign" });
     expect(l.html).toContain("your free Ready Check");
     const n = renderSaveSpotFromLikelyEmail({ ...newInput, campaignUrl: LINK + "/campaign" });
-    expect(n.html).toContain("Saving your spot is free and needs no payment.");
-    expect(n.html).toContain("your Ready Check ($99 including GST)"); expect(n.html).toContain(LINK + "/campaign");
+    expect(n.html).toContain("your free Ready Check"); expect(n.html).not.toContain("$99"); expect(n.html).toContain(LINK + "/campaign");
   });
-  test("payable now must equal the cohort fee; gross must include it once", () => {
-    expect(() => renderEstimateEmail({ ...newInput, amountPayableNow: 0, estimatedRemainingBalance: 4247 })).toThrow();
-    expect(() => renderEstimateEmail({ ...newInput, grossProjectTotal: 5648, estimatedTotal: 4148 })).toThrow();
+  test("stale totals that include a $99 fee are refused, never rendered", () => {
+    expect(() => renderEstimateEmail({ ...newInput, amountPayableNow: 99, estimatedRemainingBalance: 4148, grossProjectTotal: 5747, estimatedTotal: 4247 })).toThrow();
+    expect(() => renderEstimateEmail({ ...newInput, grossProjectTotal: 5747, estimatedTotal: 4247, estimatedRemainingBalance: 4247 })).toThrow();
   });
-  test("transform refuses to leave free wording in a paid email", () => {
-    expect(() => applyReadyCheckFee({ subject: "x", previewText: "x", html: "Book your free measure-up now", plainText: "" }, { readyCheckFeeIncGst: 99 }, false)).toThrow();
+  test("fee transform with 99 returns the free email untouched", () => {
+    const m = { subject: "x", previewText: "x", html: "Book your free measure-up now", plainText: "" };
+    expect(applyReadyCheckFee(m, { readyCheckFeeIncGst: 99 }, false)).toBe(m);
   });
 });
 
@@ -204,16 +203,16 @@ describe("calculators", () => {
   });
   test("itemised partial removal is added once at $15/m² of the removal area only", () => {
     const t = calculatorTotals({ pre_discount_total: 5198, estimated_customer_total: 3698, applied_discount: 1500 }, 99, 40 * 15);
-    expect(t.gross).toBe(5198 + 99 + 600); expect(t.total).toBe(3698 + 99 + 600);
+    expect(t.gross).toBe(5198 + 600); expect(t.total).toBe(3698 + 600);
   });
-  test("new-price calculator: $33/m², $99 once, ex/inc GST rate wording, no free Ready Check", () => {
+  test("new-price calculator (stale 99): $33/m² ex/inc GST wording, Ready Check free, no $99", () => {
     const h = html("unknown", 99, 33, "current");
-    expect(h).toContain("$99 including GST"); expect(h).toContain("$30 per m² plus GST ($33 per m² including GST)");
-    expect(h).not.toMatch(/free Ready Check|Ready Check — free/i);
+    expect(h).not.toContain("$99"); expect(h).toContain("$30 per m² plus GST ($33 per m² including GST)");
+    expect(h).toMatch(/Ready Check — free/);
     const loc = lookupLocation("3121")!;
     const st = whatIfEstimate(150, loc, "none", { ...CALC, r5_install_inc_gst_per_m2: 33 })!.scenarios[0]!.by_access.standard;
     const t = calculatorTotals(st, 99);
-    expect(t.gross).toBe(4950 + 349 + 349 + 99);
+    expect(t.gross).toBe(4950 + 349 + 349);
     expect(h).toContain(`data-testid="public-calculator-final"`);
   });
   test("protected / pre-cutover calculator keeps $30/m² and free Ready Check", () => {
@@ -222,10 +221,10 @@ describe("calculators", () => {
     expect(publicCalculatorPricing("legacy")).toEqual({ r5InstallIncGstPerM2: 30, readyCheckFeeIncGst: 0, cohort: "pre_cutover" });
     expect(publicCalculatorPricing("new")).toEqual({ r5InstallIncGstPerM2: 33, readyCheckFeeIncGst: 0, cohort: "current" });
   });
-  test("saved price gets the fee once for new cohort and is unchanged for protected", () => {
+  test("saved price is unchanged whatever fee is passed", () => {
     const p = { total: 3698, gross: 5198, discount: 1500 };
     expect(withReadyCheckFee(p, 0)).toBe(p);
-    expect(withReadyCheckFee(p, 99)).toEqual({ total: 3797, gross: 5297, discount: 1500 });
+    expect(withReadyCheckFee(p, 99)).toEqual(p);
   });
   test("re-choosing on an already-saved spot never overwrites saved fields (source guard)", () => {
     const src = readFileSync(new URL("../src/lib/launch-campaign.server.ts", import.meta.url), "utf8");
