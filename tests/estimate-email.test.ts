@@ -221,7 +221,7 @@ describe("launch campaign email drafts", () => {
     const email = renderLaunchCampaignEmail({ group: "onsite", campaignUrl, unsubscribeUrl, firstName: "Michael", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150, address: "28 Sample Road, Bendigo VIC 3550" });
     expect(email.subject).toBe("Michael — your preliminary insulation estimate");
     for (const text of ["your home could qualify", "JUMP THE QUEUE", "below R2", "Our office will assess", "$3,379", "$1,470", "data-likely-savings", "data-likely-itemised", "What could change this price?"]) expect(email.html).toContain(text);
-    for (const text of ["installer capacity is limited", "behind eligible homes", "move you into the eligible queue", "save your spot", "Send my insulation details", "This price excludes existing insulation removal", "it may be able to stay"]) {
+    for (const text of ["installer capacity is limited", "behind eligible homes", "move you into the eligible queue", "save your spot", "Send my insulation details", "Please budget $15 per m² including GST for the areas that need removal only", "confirm the area and cost before you approve any removal"]) {
       expect(email.html).toContain(text);
       expect(email.plainText).toContain(text);
     }
