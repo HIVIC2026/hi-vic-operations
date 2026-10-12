@@ -176,3 +176,60 @@ describe("staged migration on PGlite", () => {
     expect((await db.query<any>(`SELECT count(*)::int n FROM information_schema.columns WHERE column_name = 'ready_check_fee_inc_gst'`)).rows[0].n).toBe(0);
   });
 });
+
+// ---------------- Calculators (Jo 12 Oct 22:41) ----------------
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { PublicCalculator } from "../src/components/portal/public-calculator";
+import { REMOVAL_BUDGET_NOTE, calculatorTotals, publicCalculatorPricing, showRemovalBudgetNote, withReadyCheckFee } from "../src/lib/pricing-cohort.core";
+import { whatIfEstimate, type RetailSettings } from "../src/lib/estimate.core";
+import { lookupLocation } from "../src/lib/activity48.core";
+
+const CALC: RetailSettings = { id: "t", version: 1, r5_install_inc_gst_per_m2: 30, removal_inc_gst_per_m2: 15, piesa_assessment_inc_gst: 349, ap_management_inc_gst: 349, access_standard_multiplier: 1, access_moderate_multiplier: 1.1, access_difficult_multiplier: 1.25, indicative_veec_value: 70, veec_value_source_label: "x", veec_value_source_url: "x", veec_value_checked_at: "2026-09-29", minimum_customer_copayment_inc_gst: 200, spec_version: "25.0", spec_source_url: "x" };
+const html = (insulation: "none" | "present" | "unknown", fee: number, rate = 30, cohort: "pre_cutover" | "current" = "pre_cutover") =>
+  renderToStaticMarkup(createElement(PublicCalculator, { settings: { ...CALC, r5_install_inc_gst_per_m2: rate }, initialValues: { address: "1 Test St, Richmond VIC 3121", areaM2: 150, insulation }, hideRegistration: true, readyCheckFeeIncGst: fee, pricingCohort: cohort }));
+
+describe("calculators", () => {
+  test("removal note shows exactly for 'Some there' and not for none", () => {
+    expect(showRemovalBudgetNote("present")).toBe(true); expect(showRemovalBudgetNote("none")).toBe(false); expect(showRemovalBudgetNote("unknown")).toBe(false);
+    const enc = (t: string) => t.replace(/’/g, "’");
+    expect(html("present", 0)).toContain(enc(REMOVAL_BUDGET_NOTE));
+    expect(html("none", 0)).not.toContain("removal-budget-note");
+  });
+  test("'Some there' never adds whole-ceiling removal to the calculator total", () => {
+    const loc = lookupLocation("3121")!;
+    const present = whatIfEstimate(150, loc, "present", CALC)!.scenarios[0]!.by_access.standard;
+    const none = whatIfEstimate(150, loc, "none", CALC)!.scenarios[0]!.by_access.standard;
+    expect(present.pre_discount_total).toBe(none.pre_discount_total);
+  });
+  test("itemised partial removal is added once at $15/m² of the removal area only", () => {
+    const t = calculatorTotals({ pre_discount_total: 5198, estimated_customer_total: 3698, applied_discount: 1500 }, 99, 40 * 15);
+    expect(t.gross).toBe(5198 + 99 + 600); expect(t.total).toBe(3698 + 99 + 600);
+  });
+  test("new-price calculator: $33/m², $99 once, ex/inc GST rate wording, no free Ready Check", () => {
+    const h = html("unknown", 99, 33, "current");
+    expect(h).toContain("$99 including GST"); expect(h).toContain("$30 per m² plus GST ($33 per m² including GST)");
+    expect(h).not.toMatch(/free Ready Check|Ready Check — free/i);
+    const loc = lookupLocation("3121")!;
+    const st = whatIfEstimate(150, loc, "none", { ...CALC, r5_install_inc_gst_per_m2: 33 })!.scenarios[0]!.by_access.standard;
+    const t = calculatorTotals(st, 99);
+    expect(t.gross).toBe(4950 + 349 + 349 + 99);
+    expect(h).toContain(`data-testid="public-calculator-final"`);
+  });
+  test("protected / pre-cutover calculator keeps $30/m² and free Ready Check", () => {
+    const h = html("unknown", 0);
+    expect(h).toContain("Ready Check — free"); expect(h).not.toContain("$99");
+    expect(publicCalculatorPricing("legacy")).toEqual({ r5InstallIncGstPerM2: 30, readyCheckFeeIncGst: 0, cohort: "pre_cutover" });
+    expect(publicCalculatorPricing("new")).toEqual({ r5InstallIncGstPerM2: 33, readyCheckFeeIncGst: 99, cohort: "current" });
+  });
+  test("saved price gets the fee once for new cohort and is unchanged for protected", () => {
+    const p = { total: 3698, gross: 5198, discount: 1500 };
+    expect(withReadyCheckFee(p, 0)).toBe(p);
+    expect(withReadyCheckFee(p, 99)).toEqual({ total: 3797, gross: 5297, discount: 1500 });
+  });
+  test("re-choosing on an already-saved spot never overwrites saved fields (source guard)", () => {
+    const src = readFileSync(new URL("../src/lib/launch-campaign.server.ts", import.meta.url), "utf8");
+    expect(src).not.toContain(`update({ updated_at: now, ...snapshot })`);
+    expect(src).toContain("pricingForJob(c.job.id)");
+  });
+});
