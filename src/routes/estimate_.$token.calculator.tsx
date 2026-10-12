@@ -14,7 +14,7 @@ import { SPOT_SAVED_BODY, SPOT_SAVED_HEADING, type SpotChoice } from "@/lib/save
 // the only action is the same idempotent Save my spot as the email.
 export const Route = createFileRoute("/estimate_/$token/calculator")({
   ssr: false,
-  validateSearch: (s: Record<string, unknown>): { keep?: "original" } => (s.keep === "original" ? { keep: "original" } : {}),
+  validateSearch: (s: Record<string, unknown>): { keep?: "original" } => (s["keep"] === "original" ? { keep: "original" } : {}),
   headers: () => ({ "Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex, nofollow" }),
   head: () => ({ meta: [{ title: "Your insulation calculator — Home Insulation Victoria" }, { name: "description", content: "Try a different ceiling size and see your updated insulation savings." }, { property: "og:title", content: "Your insulation calculator — Home Insulation Victoria" }, { property: "og:description", content: "Try a different ceiling size and see your updated savings." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex, nofollow" }, { name: "referrer", content: "no-referrer" }] }),
   component: OwnerCalculatorPage,
