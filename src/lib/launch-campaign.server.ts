@@ -126,6 +126,9 @@ export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; 
   }
   // A typical (assumed 150 m²) estimate is valid only while the owner's real size stays unknown; never save a stale one.
   if (typical.blocker && !calc && !(choice === "original" && reviewedUnderR2)) throw new Error("Your estimate is being updated. Please check back soon.");
+  const { pricingForJob, withCohortRates } = await import("./pricing-cohort.server");
+  const { withReadyCheckFee } = await import("./pricing-cohort.core");
+  const cohort = await pricingForJob(c.job.id); // unknown price version fails closed: nothing is saved
   let price = savedPriceFromEstimate(est ?? null);
   if (c.group === "onsite" && calc?.insulation === "none") throw new Error("Keep your existing-insulation answer for this estimate. A declaration or preliminary review does not mean insulation is absent.");
   // Owner calculator: snapshot exactly what the calculator showed, recomputed server-side from the same pure core.
@@ -133,7 +136,7 @@ export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; 
     const { resolvePublicEstimate } = await import("./estimatelink.server");
     const pub = await resolvePublicEstimate(token, false) as { estimate?: { calc?: { location: never; settings: never } | null } } | null;
     const cc = pub?.estimate?.calc;
-    const shown = cc ? whatIfEstimate(calc.areaM2, cc.location, calc.insulation, cc.settings) : null;
+    const shown = cc ? whatIfEstimate(calc.areaM2, cc.location, calc.insulation, withCohortRates(cc.settings as never, cohort)) : null;
     price = savedPriceFromCalculator(shown as never, calc.areaM2, calc.insulation) ?? price;
     const property = c.job.properties as { enrichment: Record<string, unknown> | null } | null;
     const base44 = (property?.enrichment?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } };
@@ -148,6 +151,7 @@ export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; 
       await logEvent(c.job.id, null, "owner_calculator_change", note, { area_m2: calc.areaM2, insulation: calc.insulation, previous_area_m2: c.job.estimated_area_m2, estimate: price }, { internal: true });
     }
   }
+  price = withReadyCheckFee(price, cohort.readyCheckFeeIncGst); // fee once; 0 for legacy/protected
   const snapshot = { saved_estimate_id: price?.estimateId ?? null, saved_total: price?.total ?? null, saved_veu_discount: price?.discount ?? null, saved_gross_total: price?.gross ?? null, saved_area_m2: price?.areaM2 ?? null, saved_insulation: price?.insulation ?? null, saved_estimate_url: `/estimate/${String(token)}/${calc ? "calculator?choice=updated" : choice === "original" ? "calculator?choice=original" : "campaign"}` };
   // Idempotent: ON CONFLICT (job_id) DO NOTHING, then fill an existing unsaved row. Double taps / two devices both succeed.
   const ins = await admin.from("lead_campaign_responses").upsert({ job_id: c.job.id, estimate_link_id: c.link.id, campaign: LAUNCH_CAMPAIGN, spot_saved_at: now, video_requested: c.group === "onsite", desk_check_status: c.group === "onsite" ? "pending" : "not_needed", updated_at: now, ...snapshot }, { onConflict: "job_id", ignoreDuplicates: true }).select("id");
@@ -159,11 +163,11 @@ export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; 
     firstSave = !upd.error && (upd.data?.length ?? 0) > 0;
   }
   if (!firstSave && choice) {
-    // Already saved: an explicit new choice replaces the selected estimate snapshot only (the spot and its time stay).
+    // Already saved: the original saved price stays authoritative; a different choice is only recorded for office review.
     const { data: cur } = await admin.from("lead_campaign_responses").select("saved_estimate_url, saved_total, saved_area_m2").eq("job_id", c.job.id).maybeSingle();
     const same = cur?.saved_estimate_url === snapshot.saved_estimate_url && Number(cur?.saved_total) === Number(snapshot.saved_total) && Number(cur?.saved_area_m2) === Number(snapshot.saved_area_m2);
     if (!same) {
-      await admin.from("lead_campaign_responses").update({ updated_at: now, ...snapshot }).eq("job_id", c.job.id).is("opted_out_at", null).not("spot_saved_at", "is", null);
+      // Jo 12 Oct (pricing): an existing saved price is never overwritten. The new choice is recorded for the office only.
       await logEvent(c.job.id, null, "save_my_spot_estimate_choice", `Owner chose the ${choice} estimate${price ? ` ($${Math.floor(price.total)}, rebate $${Math.floor(price.discount)})` : ""}`, { choice, area_assumed: choice === "original" && typical.assumed, estimate_area_source: est?.area_source ?? null, ...snapshot }, { internal: true }).catch(() => null);
     }
   }
