@@ -31,15 +31,19 @@ export type PreparedManualEmail =
   | { ok: false; jobId: string; jobNumber: string | null; reason: string; internalEstimate: AssumedSizeEstimate | null };
 export type PreparedApprovedEmail = Extract<PreparedManualEmail, { ok: true }>;
 
-/** Picks the approved email from the single post-Gate-1 route (`automaticLeadEmail`). Group B and held typical-size estimates are never offered. */
-export function manualTemplateFor(x: { route: AutomaticLeadEmail; routeBlocker: string | null; typicalSizeEstimate: boolean }): { template: ManualEmailTemplate } | { blocked: string } {
+/** Picks the approved email from the single post-Gate-1 route (`automaticLeadEmail`). Jo (12 Oct 2026): Office may prepare
+ *  the approved no-size Save my spot copy, and the reviewed-under-R2 variant for Group B homes whose media the office
+ *  recorded as below R2. Group B without that review is still never offered. */
+export function manualTemplateFor(x: { route: AutomaticLeadEmail; routeBlocker: string | null; typicalSizeEstimate?: boolean; reviewedUnderR2?: boolean }): { template: ManualEmailTemplate } | { blocked: string } {
   switch (x.route) {
-    case "offer_spot": return x.typicalSizeEstimate ? { blocked: TYPICAL_SIZE_MANUAL_BLOCKED } : { template: "save_my_spot" };
+    case "offer_spot": return { template: "save_my_spot" };
     case "ineligible": return { template: "ineligible_result" };
-    case "request_insulation": return { blocked: GROUP_B_MANUAL_BLOCKED };
+    case "request_insulation": return x.reviewedUnderR2 ? { template: "save_my_spot" } : { blocked: GROUP_B_MANUAL_BLOCKED };
     case "none": return { blocked: x.routeBlocker ? `${x.routeBlocker} – no approved email to prepare.` : NO_MANUAL_EMAIL };
   }
 }
+/** Office already recorded "Sent manually" for this email – preparing it again is refused (no duplicate). */
+export const MANUAL_ALREADY_SENT = "Office already recorded sending this email by hand. It won't be prepared again – check the communication history.";
 
 /** 43-character preview placeholder for a link the lead doesn't have yet (passes the link validators, plainly not real).
  *  A preview carrying it is never copyable and can never be recorded as sent. */

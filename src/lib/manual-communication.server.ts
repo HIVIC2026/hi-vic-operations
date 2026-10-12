@@ -13,8 +13,8 @@ import { selectCurrentEstimate, type AreaTier } from "./intelligence.core";
 import { LAUNCH_CAMPAIGN } from "./launch-campaign.core";
 import { communicationOrigin } from "./portal-presentation.core";
 import {
-  GLOBAL_LOCK_MANUAL_BLOCKED, MANUAL_OUTCOME_LABEL, MANUAL_SENDER, MANUAL_SOURCE_EVENT, MANUAL_TEMPLATE_LABEL, SYSTEM_ALREADY_SENT, SYSTEM_SENT_STATUSES, TYPICAL_SIZE_MANUAL_BLOCKED,
-  assumedSizeEstimate, manualOutcomeOf, manualReasonText, missingSizeContactBlocker, manualRecordBlocker, manualRecordContent, manualSuppression, manualTemplateFor, planManualRecord,
+  GLOBAL_LOCK_MANUAL_BLOCKED, MANUAL_ALREADY_SENT, MANUAL_OUTCOME_LABEL, MANUAL_SENDER, MANUAL_SOURCE_EVENT, MANUAL_TEMPLATE_LABEL, SYSTEM_ALREADY_SENT, SYSTEM_SENT_STATUSES, manualSendReference,
+  manualOutcomeOf, manualReasonText, manualRecordBlocker, manualRecordContent, manualSuppression, manualTemplateFor, planManualRecord,
   type AssumedSizeEstimate, type ManualEmailTemplate, type ManualRecordInput, type PreparedManualEmail,
 } from "./manual-communication.core";
 
@@ -65,7 +65,18 @@ export async function prepareManualEmail(jobId: string, actorId: string | null, 
   const { selectLeadEmailRoute } = await import("./lead-email-routing.server");
   const route = await selectLeadEmailRoute(jobId);
   if (!route) return no("Job not found.");
-  const pick = manualTemplateFor({ route: route.email, routeBlocker: route.blocker, typicalSizeEstimate: false });
+  // Reviewed-under-R2 (variant 3) only from the office's recorded media review – never from uploaded media alone.
+  let review: { mediaReview: string | null; criteriaPassed: boolean } = { mediaReview: null, criteriaPassed: false };
+  if (route.email === "request_insulation") {
+    const { data: link, error: le } = await admin.from("customer_estimate_links").select("token").eq("job_id", jobId).eq("purpose", "step3_estimate").eq("status", "active").maybeSingle();
+    if (le) return no("Could not read the secure link. Nothing prepared; try again.");
+    if (link?.token) {
+      const { campaignLink } = await import("./launch-campaign.server");
+      const c = await campaignLink(link.token).catch(() => null);
+      if (c) review = { mediaReview: c.mediaReview, criteriaPassed: c.criteriaPassed };
+    }
+  }
+  const pick = manualTemplateFor({ route: route.email, routeBlocker: route.blocker, reviewedUnderR2: review.mediaReview === "below_r2" && review.criteriaPassed });
   if ("blocked" in pick) return no(pick.blocked);
 
   // The ineligible copy never bypasses the global communications lock (STEP 32). The Save my spot campaign keeps its
@@ -78,38 +89,34 @@ export async function prepareManualEmail(jobId: string, actorId: string | null, 
   const { data: sends, error: sendError } = await admin.from("customer_email_sends").select("id").eq("job_id", jobId).eq("purpose", SEND_PURPOSE[pick.template]).in("status", SYSTEM_SENT_STATUSES).limit(1);
   if (sendError) return no("Could not check the portal's delivery history. Nothing prepared; try again.");
   if ((sends ?? []).length > 0) return no(SYSTEM_ALREADY_SENT);
+  const { data: manualSent, error: manualError } = await admin.from("job_communications").select("id").eq("job_id", jobId).eq("source_event", `${MANUAL_SOURCE_EVENT}:sent_manually`).eq("source_reference", manualSendReference(pick.template)).limit(1);
+  if (manualError) return no("Could not check the office's manual email records. Nothing prepared; try again.");
+  if ((manualSent ?? []).length > 0) return no(MANUAL_ALREADY_SENT);
 
-  // Missing ceiling size (STEP 32): Office gets an INTERNAL estimate on the clearly labelled 150 m² assumption; the
-  // approved typical-size email stays automatic-first-reply only (src/lib/AGENTS.md), so nothing is offered to copy.
-  // The owner's contact status is checked first, so a closed job, opt-out, saved spot or missing consent shows its own reason.
+  let variantLabel: string | null = null;
+  let variant: import("./save-spot-offer.core").SaveSpotVariant | null = null;
   if (pick.template === "save_my_spot") {
     const size = await ceilingSize(jobId);
     if (!size) return no("Could not read the ceiling size records. Nothing prepared; try again.");
-    if (size.unavailable) {
-      const [{ data: j, error: je }, { data: opt, error: oe }, { data: resp, error: re }] = await Promise.all([
-        admin.from("jobs").select("stage").eq("id", jobId).maybeSingle(),
-        admin.from("customer_email_optouts").select("opted_out_at").eq("job_id", jobId).maybeSingle(),
-        admin.from("lead_campaign_responses").select("opted_out_at, spot_saved_at").eq("job_id", jobId).maybeSingle(),
-      ]);
-      if (je || oe || re) return no("Could not verify the owner's contact status. Nothing prepared; try again.");
-      const { hasCurrentOwnerContactConsent } = await import("./comms.server");
-      const contact = missingSizeContactBlocker({ stage: j?.stage ?? null, optedOut: !!opt?.opted_out_at || !!resp?.opted_out_at, spotSaved: !!resp?.spot_saved_at, consent: await hasCurrentOwnerContactConsent(jobId) });
-      if (contact) return no(contact);
-      const internal = await internalAssumedEstimate(size.postcode);
-      return no(internal ? TYPICAL_SIZE_MANUAL_BLOCKED : `${TYPICAL_SIZE_MANUAL_BLOCKED} An internal estimate couldn't be calculated (current prices or this postcode's VEU data are missing).`, internal);
-    }
-    const { data: est, error: estError } = await admin.from("indicative_estimates").select("area_source").eq("job_id", jobId).eq("status", "current").maybeSingle();
+    const { data: est, error: estError } = await admin.from("indicative_estimates").select("area_source, insulation_declared").eq("job_id", jobId).eq("status", "current").maybeSingle();
     if (estError) return no("Could not read the current estimate. Nothing prepared; try again.");
-    if (est?.area_source === "typical_default") return no(STALE_TYPICAL);
+    if (!est) return no("No current preliminary estimate. Nothing prepared.");
+    const assumed = est.area_source === "typical_default";
+    if (assumed && !size.unavailable) return no(STALE_TYPICAL);
+    if (!assumed && size.unavailable) return no("The estimate has a ceiling size but none is on record. Recalculate the estimate before preparing an email.");
+    const { pickSaveSpotVariant, SAVE_SPOT_VARIANT_LABEL } = await import("./save-spot-offer.core");
+    const v = pickSaveSpotVariant({ route: route.email, insulation: est.insulation_declared, mediaReview: review.mediaReview, criteriaPassed: review.criteriaPassed, areaAssumed: assumed });
+    if ("blocked" in v) return no(v.blocked);
+    variant = v.variant; variantLabel = SAVE_SPOT_VARIANT_LABEL[v.variant];
   }
 
   const notices: string[] = [];
   let mail: { to: string; subject: string; html: string; plainText: string; linksReady: boolean };
-  if (pick.template === "save_my_spot") {
-    // Existing render path: "preview" creates nothing; "manual_copy" only issues missing links, and only after every
-    // opt-out/consent/saved-spot/price guard of the sender has passed. Neither reserves, sends or records.
-    const { sendSaveMySpot } = await import("./hot-leads-send.server");
-    const [r] = await sendSaveMySpot([jobId], actorId, { mode: opts.issueLinks ? "manual_copy" : "preview" });
+  if (pick.template === "save_my_spot" && variant) {
+    // Render only: "preview" creates nothing; "manual_copy" only issues missing links, after every opt-out/consent/
+    // saved-spot/price guard of the sender has passed. Neither reserves, sends or records.
+    const { prepareOfficeSaveSpot } = await import("./hot-leads-send.server");
+    const r = await prepareOfficeSaveSpot(jobId, actorId, variant, !!opts.issueLinks);
     if (!r?.preview) return no(r?.detail ?? "Could not prepare the email.");
     mail = r.preview;
   } else {
@@ -131,7 +138,7 @@ export async function prepareManualEmail(jobId: string, actorId: string | null, 
   const { data: prior } = await admin.from("job_communications").select("created_at").eq("job_id", jobId).eq("source_event", `${MANUAL_SOURCE_EVENT}:sent_manually`).order("created_at", { ascending: false }).limit(1);
   const last = prior?.[0]?.created_at;
   if (last) notices.push(`Office already recorded sending this lead an email by hand on ${melbourne(last)}. Check before sending again.`);
-  return { ok: true, jobId, jobNumber, template: pick.template, templateLabel: MANUAL_TEMPLATE_LABEL[pick.template], to: mail.to, subject: mail.subject, plainText: mail.plainText, html: mail.html, notices, linksReady: mail.linksReady };
+  return { ok: true, jobId, jobNumber, template: pick.template, templateLabel: variantLabel ?? MANUAL_TEMPLATE_LABEL[pick.template], to: mail.to, subject: mail.subject, plainText: mail.plainText, html: mail.html, notices, linksReady: mail.linksReady };
 }
 
 export type ManualRecordRequest = ManualRecordInput & { jobId: string };
