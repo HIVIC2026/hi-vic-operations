@@ -131,7 +131,9 @@ export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; 
     const note = ownerCalculatorChangeNote({ areaM2: c.job.estimated_area_m2 == null ? null : Number(c.job.estimated_area_m2), insulation: beforeIns }, calc);
     if (note) {
       // Store the new size on the EXISTING job only — never a new job or enquiry.
-      await admin.from("jobs").update({ estimated_area_m2: calc.areaM2 }).eq("id", c.job.id);
+      // Explicit Updated/Original choice (Jo, 12 Oct): the job's original facts stay so the original estimate stays
+      // recoverable; the chosen size lives in the saved snapshot and this event.
+      if (!choice) await admin.from("jobs").update({ estimated_area_m2: calc.areaM2 }).eq("id", c.job.id);
       await logEvent(c.job.id, null, "owner_calculator_change", note, { area_m2: calc.areaM2, insulation: calc.insulation, previous_area_m2: c.job.estimated_area_m2, estimate: price }, { internal: true });
     }
   }
