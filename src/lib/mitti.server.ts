@@ -17,6 +17,7 @@ import { todayMelbourne } from "./eligibility.server";
 import { officialPrefillContext } from "./official-forms.server";
 import { draftInstallerQuoteFromReadyCheck } from "./installer-quote.server";
 import { applyCobrand } from "./pilot.server";
+import { MITTI_FETCH_TIMEOUT_MS, timeoutSignal } from "./network-timeout.core";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Any = any;
@@ -30,6 +31,7 @@ export const realMittiCall: MittiCall = async (method, path, body) => {
       method,
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json", ...(body ? { "Content-Type": "application/json" } : {}) },
       ...(body ? { body: JSON.stringify(body) } : {}),
+      signal: timeoutSignal(MITTI_FETCH_TIMEOUT_MS),
     });
   } catch {
     throw new MittiError("Mitti could not be reached. Try again shortly.");
@@ -52,7 +54,7 @@ export type MittiMediaFetch = (auditId: string, mediaId: string) => Promise<{ by
 export const realMittiMedia: MittiMediaFetch = async (auditId, mediaId) => {
   const token = process.env["MITTI_API_TOKEN"];
   if (!token) throw new MittiError("Mitti is not configured. Add the MITTI_API_TOKEN secret.");
-  const res = await fetch(`${MITTI_BASE_URL}/audits/${encodeURIComponent(auditId)}/media/${encodeURIComponent(mediaId)}`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => null);
+  const res = await fetch(`${MITTI_BASE_URL}/audits/${encodeURIComponent(auditId)}/media/${encodeURIComponent(mediaId)}`, { headers: { Authorization: `Bearer ${token}` }, signal: timeoutSignal(MITTI_FETCH_TIMEOUT_MS) }).catch(() => null);
   if (!res || !res.ok) throw new MittiError(`Mitti signature image could not be downloaded (${res?.status ?? "network"}).`);
   const contentType = res.headers.get("content-type") ?? "";
   if (!/^image\//.test(contentType)) throw new MittiError("Mitti returned something that is not an image for the signature.");
@@ -219,7 +221,7 @@ async function saveMittiReport(jobId: string, actorId: string | null, auditId: s
       else await new Promise((res) => setTimeout(res, 2000));
     }
     if (!url) throw new Error("report not ready");
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: timeoutSignal(MITTI_FETCH_TIMEOUT_MS) });
     if (!res.ok) throw new Error(`download ${res.status}`);
     const buf = await res.arrayBuffer();
     const stamp = (modifiedAt ?? new Date().toISOString()).replace(/[^0-9]/g, "").slice(0, 14);

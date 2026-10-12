@@ -3,6 +3,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { OFFICE_REPLY_TO, officeEmailBlocker, officeEmailCopy, type OfficeRecipient } from "./office-email.core";
 import { simpleEmail } from "./simple-email.core";
 import type { SendResult } from "./test-send.server";
+import { RESEND_FETCH_TIMEOUT_MS, timeoutSignal } from "./network-timeout.core";
 
 const FROM = "Home Insulation Victoria <jobs@homeinsulationvictoria.com.au>";
 export type OfficeEmailRecord = { applicationId?: string | null; enquiryId?: string | null; businessId?: string | null };
@@ -23,6 +24,7 @@ export async function sendOfficeEmail(p: { actorId: string; recipient: OfficeRec
         method: "POST",
         headers: { Authorization: `Bearer ${gw}`, "X-Connection-Api-Key": key, "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
         body: JSON.stringify({ from: FROM, to: [to], reply_to: OFFICE_REPLY_TO, subject: c.subject, html: mail.html, text: mail.text }),
+        signal: timeoutSignal(RESEND_FETCH_TIMEOUT_MS),
       });
       const t = await res.text();
       r = res.ok ? { channel: "email", to, status: "sent", detail: "Accepted by the email service" } : { channel: "email", to, status: "failed", detail: res.status === 422 || res.status === 400 ? "The email service refused this address or message." : `The email service didn't accept it (error ${res.status}). Please try again shortly.` };

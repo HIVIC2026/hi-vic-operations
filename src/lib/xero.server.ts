@@ -8,6 +8,7 @@ import {
   invoiceIdemKey, LOCK_STALE_MS, pickXeroTenant, type XeroMode, type XeroTenant, melbourneDate, quoteGuard, XERO_DUE_DATE_UPDATES_ENABLED, xeroReference, type XeroCall,
 } from "./xero.core";
 import { clearInstallDueDatePatch, ensureInvoice, installDueDatePatch, paymentPatch, xeroDueDate, type InvoiceRow, type InvoiceStore } from "./invoice.lifecycle";
+import { XERO_FETCH_TIMEOUT_MS, timeoutSignal } from "./network-timeout.core";
 
 const GATEWAY = "https://connector-gateway.lovable.dev/xero";
 
@@ -31,6 +32,7 @@ async function rawFetch(path: string, init: { method?: string; body?: unknown; h
       ...(tenantId ? { "xero-tenant-id": tenantId } : {}),
       ...(init.headers ?? {}),
     },
+    signal: timeoutSignal(XERO_FETCH_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`Xero ${res.status}: ${(await res.text()).slice(0, 500)}`);
   return res.json();

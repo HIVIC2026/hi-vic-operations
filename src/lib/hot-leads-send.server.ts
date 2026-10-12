@@ -12,6 +12,7 @@ import { groupBInvitationBlocker } from "./group-b-media.core";
 import { logEvent } from "./workflow.server";
 import { removalFromScenario } from "./estimate-removal.core";
 import { MANUAL_SENT_EVENT, manualSendReference } from "./manual-communication.core";
+import { RESEND_FETCH_TIMEOUT_MS, timeoutSignal } from "./network-timeout.core";
 
 export const HOT_SEND_BATCH = 10;
 /** Last TEST send detail per job (Resend id), for reporting. */
@@ -294,6 +295,7 @@ async function resendSend(to: string, subject: string, html: string, text: strin
     method: "POST",
     headers: { Authorization: `Bearer ${gw}`, "X-Connection-Api-Key": key, "Content-Type": "application/json", "Idempotency-Key": idem.slice(0, 250) },
     body: JSON.stringify({ from: CAMPAIGN_FROM, to: [to], reply_to: "info@homeinsulationvictoria.com.au", subject, html, text, ...(unsubscribeUrl ? { headers: { "List-Unsubscribe": `<${unsubscribeUrl}>` } } : {}) }),
+    signal: timeoutSignal(RESEND_FETCH_TIMEOUT_MS),
   });
   const t = await res.text();
   if (!res.ok) return { ok: false, id: null, detail: `Email service error ${res.status}: ${t.slice(0, 200)}` };

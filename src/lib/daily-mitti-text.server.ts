@@ -6,6 +6,7 @@ import { melbourneMidnight } from "./daily-brief.core";
 import { addYmd } from "./melbourne-time.core";
 import { isTestPartner, normaliseAuMobile } from "./test-send.core";
 import { SET_PASSWORD_BASE } from "./set-password-link.core";
+import { TWILIO_FETCH_TIMEOUT_MS, timeoutSignal } from "./network-timeout.core";
 
 const db = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
 const MITTI = "https://app.au.mitti.com/inspections/";
@@ -118,7 +119,7 @@ async function refreshDelivery(date: string) {
   const { data } = await db.from("trade_text_log").select("id, provider_sid").eq("melbourne_date", date).eq("status", "sent").not("provider_sid", "is", null);
   for (const r of data ?? []) {
     try {
-      const res = await fetch(`https://connector-gateway.lovable.dev/twilio/Messages/${r.provider_sid}.json`, { headers: { Authorization: `Bearer ${process.env["LOVABLE_API_KEY"]}`, "X-Connection-Api-Key": process.env["TWILIO_API_KEY"] ?? "" } });
+      const res = await fetch(`https://connector-gateway.lovable.dev/twilio/Messages/${r.provider_sid}.json`, { headers: { Authorization: `Bearer ${process.env["LOVABLE_API_KEY"]}`, "X-Connection-Api-Key": process.env["TWILIO_API_KEY"] ?? "" }, signal: timeoutSignal(TWILIO_FETCH_TIMEOUT_MS) });
       if (!res.ok) continue;
       const st = ((await res.json()) as { status?: string }).status;
       if (st === "delivered") await db.from("trade_text_log").update({ status: "delivered", updated_at: new Date().toISOString() }).eq("id", r.id);
