@@ -265,3 +265,10 @@ describe("stale $99 at every direct boundary becomes free", () => {
   });
   test("negative/invalid fee still rejected", () => { expect(() => effectiveReadyCheckFee(-1)).toThrow(); expect(() => effectiveReadyCheckFee(NaN)).toThrow(); });
 });
+
+describe("calculator render with stale 99", () => {
+  test("public calculator given 99 shows free Ready Check, no $99, removal note kept", () => {
+    const h = html("present", 99, 33, "current");
+    expect(h).not.toContain("$99"); expect(h).toContain(REMOVAL_BUDGET_NOTE); expect(h).not.toContain("ready-check-fee-line");
+  });
+});
