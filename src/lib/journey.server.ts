@@ -2,6 +2,8 @@
 // source='qa_test', every person is on the TEST domain, and each step re-checks that before acting.
 // Shared by the daily endpoint and the browser runner (which adds screenshots on top of the same steps).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+// STEP 95: non-generated endpoint safety guard (same resolver as STEP 91A). See @/integrations/supabase/env-guard.ts
+import { resolveGuardedSupabaseEndpoint } from "@/integrations/supabase/env-guard";
 import { JOURNEY_STEPS, expectedEstimate, recipientsOutsideAllowlist, summarise, type JourneyResult, type JourneyStepKey, type StepResult } from "./journey-test.core";
 
 export const JOURNEY_ACTOR_EMAIL = "admin@hivic.test";
@@ -28,7 +30,8 @@ export async function personaClient(email: string) {
   if (sessions.has(email)) return sessions.get(email) as import("@supabase/supabase-js").SupabaseClient;
   const { createClient } = await import("@supabase/supabase-js");
   const key = process.env["SUPABASE_PUBLISHABLE_KEY"]!;
-  const sb = createClient(process.env["SUPABASE_URL"]!, key, { auth: { persistSession: false, autoRefreshToken: false, storage: undefined }, global: { fetch: (input, init) => { const h = new Headers(init?.headers); if (key.startsWith("sb_") && h.get("Authorization") === `Bearer ${key}`) h.delete("Authorization"); h.set("apikey", key); return fetch(input, { ...init, headers: h }); } } });
+  // STEP 95: reject an unintended production Supabase endpoint in local/test mode (fail closed on missing config).
+  const sb = createClient(resolveGuardedSupabaseEndpoint(process.env["SUPABASE_URL"]!), key, { auth: { persistSession: false, autoRefreshToken: false, storage: undefined }, global: { fetch: (input, init) => { const h = new Headers(init?.headers); if (key.startsWith("sb_") && h.get("Authorization") === `Bearer ${key}`) h.delete("Authorization"); h.set("apikey", key); return fetch(input, { ...init, headers: h }); } } });
   const { data: link, error } = await admin.auth.admin.generateLink({ type: "magiclink", email });
   if (error || !link.properties?.hashed_token) throw new Error(`TEST sign-in for ${email}: ${error?.message ?? "no token"}`);
   const v = await sb.auth.verifyOtp({ token_hash: link.properties.hashed_token, type: "magiclink" });

@@ -17,12 +17,25 @@ const docText = (k: "piesa" | "piisa") => {
 describe("template records", () => {
   for (const k of ["piesa", "piisa"] as const) {
     test(`${k}: stored original matches its SHA-256`, () => expect(createHash("sha256").update(readFileSync(OFFICIAL_TEMPLATES[k].originalFile)).digest("hex")).toBe(OFFICIAL_TEMPLATES[k].sha256));
-    test(`${k}: source confirmed, not approved, blocked from use`, () => {
+    test(`${k}: source confirmed`, () => {
       const t = OFFICIAL_TEMPLATES[k];
-      expect(t.approved).toBe(false); expect(t.sourceUrlStatus).toBe("confirmed"); expect(t.retrievalDateStatus).toBe("confirmed"); expect(t.retrievalDate).toBe("2026-10-02"); expect(t.publication).toBe("© DEECA March 2026"); expect(t.sourceUrl).toMatch(/^https:\/\/www\.energy\.vic\.gov\.au\//);
-      expect(officialFormUseBlocker(k)).toMatch(/approved/);
+      expect(t.sourceUrlStatus).toBe("confirmed"); expect(t.retrievalDateStatus).toBe("confirmed"); expect(t.retrievalDate).toBe("2026-10-02"); expect(t.publication).toBe("© DEECA March 2026"); expect(t.sourceUrl).toMatch(/^https:\/\/www\.energy\.vic\.gov\.au\//);
+      // Fail-closed holds independently of approval: an unconfirmed source still blocks live use.
       expect(officialFormUseBlocker(k, { ...t, sourceUrl: null, sourceUrlStatus: "NEEDS CONFIRMATION" })).toMatch(/source web address/);
-      expect(officialFormUseBlocker(k, { ...t, approved: { by: "jo", at: "x" } })).toBeNull();
+      expect(officialFormUseBlocker(k, { ...t, superseded: true })).toMatch(/superseded/);
+    });
+    // STEP 97: the PIISA mapping is approved by the project owner (official DEECA template). PIESA is unchanged.
+    test(`${k}: ${k === "piisa" ? "approved mapping is usable live" : "not approved, blocked from use"}`, () => {
+      const t = OFFICIAL_TEMPLATES[k];
+      if (k === "piisa") {
+        const a = t.approved as { by: string; at: string };
+        expect(a.by.length).toBeGreaterThan(0); expect(Number.isNaN(Date.parse(a.at))).toBe(false);
+        expect(officialFormUseBlocker(k)).toBeNull();
+      } else {
+        expect(t.approved).toBe(false);
+        expect(officialFormUseBlocker(k)).toMatch(/approved/);
+        expect(officialFormUseBlocker(k, { ...t, approved: { by: "jo", at: "x" } })).toBeNull();
+      }
     });
   }
 });
@@ -198,7 +211,13 @@ describe("PIISA installation-day gate", () => {
   const base = (over: Partial<Parameters<typeof piisaGate>[0]> = {}) => piisaGate({ today: "2026-10-10", installDate: "2026-10-10", piisa: copy("piisa", { ...piisaPass(), "p8.date": "2026-10-10" }, "2026-10-10"), piesa: copy("piesa", piesaPass(), "2026-10-01"),
     facts, piesaReceivedAt: "2026-10-02T00:00:00Z", conductiveExistingInsulation: false, conductivityEvidence: "f1", hazardResolution: null, formUse: { piesa: null, piisa: null }, ...over });
   test("happy path passes", () => { const r = base(); expect(r.blockers).toEqual([]); expect(r.due).toBe("passed"); });
-  test("forms stay blocked for live use by default", () => expect(base({ formUse: undefined }).blockers.some((b) => b.includes("can't be used yet"))).toBe(true));
+  // STEP 97: the PIISA mapping is approved by the project owner, so live use is no longer blocked by approval.
+  // Fail-closed is preserved — an unapproved or superseded mapping still blocks immediately.
+  test("approved PIISA is usable by default; fail-closed still holds", () => {
+    expect(base({ formUse: undefined }).blockers).toEqual([]);
+    expect(base({ formUse: { piesa: null, piisa: officialFormUseBlocker("piisa", { ...OFFICIAL_TEMPLATES.piisa, approved: false }) } }).blockers.some((b) => b.includes("can't be used yet"))).toBe(true);
+    expect(base({ formUse: { piesa: null, piisa: officialFormUseBlocker("piisa", { ...OFFICIAL_TEMPLATES.piisa, superseded: true }) } }).blockers.some((b) => b.includes("superseded"))).toBe(true);
+  });
   test("missing PIISA: installer responsible, due states", () => {
     expect(base({ piisa: null }).responsible).toBe("installer");
     expect(base({ piisa: null, today: "2026-10-09" }).due).toBe("due_on_installation_day");

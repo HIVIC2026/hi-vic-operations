@@ -1,7 +1,8 @@
 // Official DEECA PIESA / PIISA (March 2026 Word forms) — the locked item-by-item mapping, template records,
 // printed-rule enforcement and signed-snapshot hashing. PURE: no I/O.
 // Every label/statement below is copied verbatim from the uploaded Word forms and is checked against the
-// stored originals (docs/official-forms/) by tests/official-forms.test.ts. Nothing here approves a mapping.
+// stored originals (docs/official-forms/) by tests/official-forms.test.ts.
+// `approved` records whether the *mapping* may be used live; it never approves a completed form.
 import { sha256Hex } from "./sha256.core";
 
 export type OfficialKey = "piesa" | "piisa";
@@ -43,7 +44,12 @@ export const OFFICIAL_TEMPLATES: Record<OfficialKey, TemplateRecord> = {
     dateInspected: "2026-10-02", publication: "© DEECA March 2026", formVersion: "not printed", effectiveDatePrinted: "not printed",
     sha256: "bea62330fa766d3da29137a494d01f9e3e80a883cb5126b2fffb6fa07ad46dea",
     originalFile: "docs/official-forms/VEU-pre-installation-installer-safety-assessment-form-_3.docx",
-    mappingVersion: "piisa-map-2.0.0", approved: false, superseded: false, effectiveFrom: null,
+    // Approved by the project owner (STEP 97): PIISA is an official DEECA template and this mapping is a faithful
+    // transcription of it, so template approval by Office/Installer users is not required.
+    // This flag records only that the *mapping* may be used live. It does NOT weaken any per-installation control:
+    // every installation still requires a completed and signed PIISA, checked for signature, integrity, staleness
+    // and installation-day validity (see evaluatePiisa / snapshotProblems / piisaGate).
+    mappingVersion: "piisa-map-2.0.0", approved: { by: "Jo Lowe", at: "2026-10-12T15:32:45Z" }, superseded: false, effectiveFrom: null,
   },
 };
 /** Earlier mapping (old PDFs, 30 Sep 2026) — superseded and never usable. */

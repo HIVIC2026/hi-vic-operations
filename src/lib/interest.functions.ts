@@ -9,6 +9,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
+// STEP 95: non-generated endpoint safety guard (same resolver as STEP 91A). See @/integrations/supabase/env-guard.ts
+import { resolveGuardedSupabaseEndpoint } from "@/integrations/supabase/env-guard";
 import {
   INTEREST_STATUSES,
   parseInterest,
@@ -43,7 +45,8 @@ export type InterestRow = {
 /** Publishable-key client for the anon insert. Opaque sb_ keys need apikey only. */
 function publishableClient() {
   const key = process.env["SUPABASE_PUBLISHABLE_KEY"]!;
-  return createClient<Database>(process.env["SUPABASE_URL"]!, key, {
+  // STEP 95: reject an unintended production Supabase endpoint in local/test mode (fail closed on missing config).
+  return createClient<Database>(resolveGuardedSupabaseEndpoint(process.env["SUPABASE_URL"]!), key, {
     auth: { persistSession: false, autoRefreshToken: false, storage: undefined },
     global: {
       fetch: (input, init) => {
