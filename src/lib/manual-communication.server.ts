@@ -7,8 +7,7 @@
 // "manual", Office-only visibility). Nothing here sends, changes approval flags or the comms lock, writes the owner's
 // details or touches lead_campaign_responses ("Save my spot" stays owner-driven).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import type { LocationVariables } from "./activity48.core";
-import { TRUSTED_ESTIMATE_TIERS, pickArea, type RetailSettings } from "./estimate.core";
+import { TRUSTED_ESTIMATE_TIERS, pickArea } from "./estimate.core";
 import { selectCurrentEstimate, type AreaTier } from "./intelligence.core";
 import { LAUNCH_CAMPAIGN } from "./launch-campaign.core";
 import { communicationOrigin } from "./portal-presentation.core";
@@ -40,18 +39,6 @@ async function ceilingSize(jobId: string): Promise<{ unavailable: boolean; postc
   });
   const p = j.properties as { postcode: string | null } | { postcode: string | null }[] | null;
   return { unavailable: area.source === "typical_default", postcode: (Array.isArray(p) ? p[0]?.postcode : p?.postcode) ?? null };
-}
-
-/** Office-only estimate on the assumed 150 m² with the current prices. Reads only; null when prices or VEU data are missing. */
-async function internalAssumedEstimate(postcode: string | null): Promise<AssumedSizeEstimate | null> {
-  const pc = (postcode ?? "").trim();
-  if (!pc) return null;
-  const [{ data: s }, { data: loc }] = await Promise.all([
-    admin.from("retail_estimator_settings").select("*").eq("is_current", true).maybeSingle(),
-    admin.from("veu_location_variables").select("*").eq("postcode", pc).maybeSingle(),
-  ]);
-  if (!s || !loc) return null;
-  return assumedSizeEstimate(loc as unknown as LocationVariables, s as unknown as RetailSettings);
 }
 
 /** The lead's approved A1 email, rendered exactly as the portal sender would, for Office to copy. Fails closed. */
