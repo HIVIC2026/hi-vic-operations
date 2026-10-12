@@ -81,7 +81,11 @@ export function lovablePreviewProjectId(hostname: string | null | undefined): st
   const host = hostname.toLowerCase();
   if (!LOVABLE_HOSTED_ZONES.some((z) => host === z || host.endsWith('.' + z))) return null;
   const m = new RegExp(`^(?:id-preview(?:-[a-z0-9]+)?|preview)--(${UUID_PATTERN})(?:-dev)?(?=\\.|$)`, 'i').exec(host);
-  return m?.[1]?.toLowerCase() ?? null;
+  if (m?.[1]) return m[1].toLowerCase();
+  // Editor preview surface: `<uuid>.lovableproject.com` / `<uuid>.lovableproject-dev.com`.
+  // The whole first label must be the platform-assigned project UUID (no other subdomain form).
+  const editor = new RegExp(`^(${UUID_PATTERN})\\.(?:lovableproject\\.com|lovableproject-dev\\.com)$`, 'i').exec(host);
+  return editor?.[1]?.toLowerCase() ?? null;
 }
 
 /**
