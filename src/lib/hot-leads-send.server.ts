@@ -32,7 +32,7 @@ void LAUNCH_COPY_APPROVED;
  *  mode "preview" renders without sending and without creating any link token (missing links become placeholders);
  *  "manual_copy" is the same render but issues the lead's missing unsubscribe/referral links for an Office hand-send (STEP 32);
  *  "test_to_jo" sends a real lead's email to Jo's inbox only, with TEST-job links. */
-export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string; /** TEST only: send the Step 3 likely-eligible email instead, same facts. */ variant?: "likely_estimate"; mode?: "send" | "preview" | "manual_copy" | "test_to_jo" | "test_preview"; automaticInsulation?: boolean; /** Set only by the post-Gate-1 router: the owner's own first reply. */ automaticInitial?: boolean };
+export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string; /** TEST only: send the Step 3 likely-eligible email instead, same facts. */ variant?: "likely_estimate"; mode?: "send" | "preview" | "manual_copy" | "test_to_jo" | "test_preview"; automaticInsulation?: boolean; /** Set only by the post-Gate-1 router: the owner's own first reply. */ automaticInitial?: boolean; /** Office manual copy only (Jo, 12 Oct): render the approved three-variant email. Never sends. */ officeVariant?: import("./save-spot-offer.core").SaveSpotVariant };
 /** Jo's own inbox for "send me a test of this lead". */
 export const JO_TEST_INBOX = "jolowexo@hotmail.com";
 /** TEST job whose links go into Jo's test copies, so pressing them never touches the real lead. */
@@ -47,6 +47,11 @@ export async function sendSaveMySpot(jobIds: string[], actorId: string | null, t
 }
 
 /** One office-triggered follow-up; never available to initial campaigns or automation. */
+/** Office "Prepare email to copy" (Jo, 12 Oct): the approved three-variant email, render only. All contact guards apply. */
+export async function prepareOfficeSaveSpot(jobId: string, actorId: string | null, variant: import("./save-spot-offer.core").SaveSpotVariant, issueLinks: boolean): Promise<HotSendResult> {
+  return sendOne(jobId, actorId, false, { mode: issueLinks ? "manual_copy" : "preview", officeVariant: variant }, variant === "reviewed_under_r2").catch((e) => ({ jobId, jobNumber: null, outcome: "blocked" as const, detail: (e as Error).message }));
+}
+
 export async function sendExistingInsulationSaveSpot(jobId: string, actorId: string, preview = false): Promise<HotSendResult> {
   return sendOne(jobId, actorId, false, { mode: preview ? "preview" : "send" }, true);
 }
@@ -87,7 +92,13 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   const price = savedPriceFromEstimate(est ?? null);
   if (!price || !price.areaM2) return r("skipped", "No current preliminary price.");
   const assumed = est?.area_source === "typical_default";
-  if (assumed) {
+  const office = !!testOpts.officeVariant;
+  if (office && mode !== "preview" && mode !== "manual_copy") return r("blocked", "Office copies are never sent by the portal.");
+  if (office) {
+    const { originalEstimateBlocker } = await import("./save-spot-offer.core");
+    const b = originalEstimateBlocker({ estimate: est ? { area_m2: est.area_m2, area_source: est.area_source, insulation_declared: est.insulation_declared, hasPrice: true } : null, ownerAreaKnown: !job.estimated_area_unknown && Number(job.estimated_area_m2) > 0, reviewedUnderR2: testOpts.officeVariant === "reviewed_under_r2" });
+    if (b) return r("skipped", assumed ? "The saved estimate's assumed size no longer applies. Recalculate the estimate first." : b);
+  } else if (assumed) {
     // Real typical-size sends are held (no proven original-enquiry claim); previews and TEST records still render.
     const automaticInitial = isTest || mode !== "send" ? true : initialReplyQualifies({ originalInitialClaim: null });
     if (!automaticInitial && testOpts.automaticInitial === true) return r("skipped", NO_SIZE_REAL_SEND_HELD);
@@ -185,11 +196,25 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   const firstName = owner?.full_name?.trim().split(/\s+/)[0] ?? null;
   // Likely-eligible owners get the Jo-APPROVED "Save your spot (likely eligible)" email (7 Oct 2026, FINAL).
   let referralUrl: string | null = null;
-  if (sendGroup === "likely" && previewLinks) {
+  if ((sendGroup === "likely" || office) && previewLinks) {
     referralUrl = await previewLinks.existingReferralUrl(linkJobId).catch(() => null);
     if (!referralUrl) { linksReady = false; referralUrl = previewLinks.PREVIEW_REFERRAL_URL; }
-  } else if (sendGroup === "likely") referralUrl = await (await import("./referral.server")).referralUrlForJob(linkJobId).catch(() => null);
-  const mail = sendGroup === "likely"
+  } else if (sendGroup === "likely" || office) referralUrl = await (await import("./referral.server")).referralUrlForJob(linkJobId).catch(() => null);
+  const mail = office
+    ? await (async () => {
+      const o = await import("./save-spot-offer.core");
+      const removal = removalFromScenario(Array.isArray(est?.scenarios) ? est.scenarios[0] : null);
+      const fees = { assessment: Number(assessmentFee), ap: Number(apFee) };
+      if (!Number.isFinite(fees.assessment) || !Number.isFinite(fees.ap) || installation === undefined) throw new Error("The estimate has no itemised prices. Recalculate it first.");
+      const links = o.saveSpotLinks(linkToken, base);
+      return o.renderSaveSpotOfferEmail({
+        variant: testOpts.officeVariant!, assumedArea: assumed, address: fullAddress ?? "", areaM2: price.areaM2!, firstName, reference: job.job_number,
+        installation: Number(installation), assessmentFee: fees.assessment, apFee: fees.ap, gross: price.gross, discount: price.discount, customer: price.total,
+        removal: testOpts.officeVariant === "reviewed_under_r2" ? removal : removal.kind === "included" ? removal : { kind: "excluded" },
+        apCount: 2, ...links, unsubscribeUrl, referralUrl,
+      });
+    })()
+    : sendGroup === "likely"
     ? (() => { const m = (isTest && testOpts.variant === "likely_estimate" ? renderStep3Likely : renderStep3SaveSpot)({
         estimateUrl: `${base}/estimate/${linkToken}`, campaignUrl, unsubscribeUrl, referralUrl,
         estimatedTotal: price.total, veuDiscount: price.discount, grossTotal: price.gross, areaM2: price.areaM2,
