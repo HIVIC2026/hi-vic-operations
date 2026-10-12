@@ -75,7 +75,18 @@ export async function campaignPage(token: unknown, testMode = false) {
     admin.from("retail_estimator_settings").select("indicative_veec_value, piesa_assessment_inc_gst, ap_management_inc_gst, r5_install_inc_gst_per_m2").eq("is_current", true).maybeSingle(),
   ]);
   const typical = typicalEstimateCheck(c.job, est ?? null);
-  const p = typical.blocker ? null : savedPriceFromEstimate(est ?? null);
+  // Versioned pricing: protected saved spots keep original rates + free Ready Check; unknown version fails closed (no page).
+  const { pricingForJob, withCohortRates } = await import("./pricing-cohort.server");
+  const { withReadyCheckFee } = await import("./pricing-cohort.core");
+  let cohort: Awaited<ReturnType<typeof pricingForJob>>;
+  try { cohort = await pricingForJob(c.job.id); } catch { return null; }
+  const calcBlock = (estimate as { estimate?: { calc?: { settings?: Record<string, number> } | null } } | null)?.estimate?.calc;
+  if (calcBlock?.settings) calcBlock.settings = withCohortRates(calcBlock.settings as never, cohort);
+  const cohortPricing = { readyCheckFeeIncGst: cohort.readyCheckFeeIncGst, cohort: cohort.cohort };
+  // Protected customers: the exact saved totals are authoritative (never recomputed).
+  const savedExact = cohort.savedTotalsAuthoritative && response?.saved_total != null ? { total: Number(response.saved_total), discount: Number(response.saved_veu_discount) } : null;
+  const p0 = typical.blocker ? null : withReadyCheckFee(savedPriceFromEstimate(est ?? null), cohort.readyCheckFeeIncGst);
+  const p = p0 && savedExact ? { ...p0, total: savedExact.total, discount: savedExact.discount } : p0;
   const removal = removalFromScenario(Array.isArray(est?.scenarios) ? est.scenarios[0] : null);
   const veecValue = Number(cfg?.indicative_veec_value) || 70;
   const snapshot = est?.snapshot as { settings?: { piesa_assessment_inc_gst?: number; ap_management_inc_gst?: number; r5_install_inc_gst_per_m2?: number; indicative_veec_value?: number } } | null;
@@ -85,7 +96,7 @@ export async function campaignPage(token: unknown, testMode = false) {
   const pricing = p && p.areaM2 ? { gross: p.gross, discount: p.discount, total: p.total, areaM2: p.areaM2, assessmentFee, apFee, ratePerM2: Number(fees?.r5_install_inc_gst_per_m2 ?? 30), installation: p.gross - assessmentFee - apFee - (removal.kind === "included" ? removal.amount : 0), removal, veecs: Math.round(p.discount / snapshotVeec), veecValue: snapshotVeec, address, insulation: p.insulation ?? est?.insulation_declared ?? null, areaAssumed: typical.assumed } : null;
   const { referralUrlForJob } = await import("./referral.server");
   const referralUrl = await referralUrlForJob(c.job.id);
-  return estimate ? JSON.stringify({ group: c.group, saveAllowed: campaignPermission(c, response?.desk_check_status), media: c.media, mediaReview: c.mediaReview, ownerQualified: c.ownerQualified, estimate, pricing, response: response ?? null, referralUrl, bookingAvailable: !!property?.postcode && (availability?.ready_check_available_postcodes ?? []).includes(property.postcode), owner: { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null }, home: { suburb: property?.suburb ?? null, short: [property?.address_line, property?.suburb].filter(Boolean).join(", ") || null }, initialValues: { address, areaM2: c.job.estimated_area_m2 == null ? null : Number(c.job.estimated_area_m2), insulation } }) : null;
+  return estimate ? JSON.stringify({ cohortPricing, group: c.group, saveAllowed: campaignPermission(c, response?.desk_check_status), media: c.media, mediaReview: c.mediaReview, ownerQualified: c.ownerQualified, estimate, pricing, response: response ?? null, referralUrl, bookingAvailable: !!property?.postcode && (availability?.ready_check_available_postcodes ?? []).includes(property.postcode), owner: { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null }, home: { suburb: property?.suburb ?? null, short: [property?.address_line, property?.suburb].filter(Boolean).join(", ") || null }, initialValues: { address, areaM2: c.job.estimated_area_m2 == null ? null : Number(c.job.estimated_area_m2), insulation } }) : null;
 }
 
 /** Version of the save action recorded with every first save (no-size journey, 10 Oct 2026). */

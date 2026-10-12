@@ -20,7 +20,7 @@ export const Route = createFileRoute("/estimate_/$token/calculator")({
   component: OwnerCalculatorPage,
 });
 
-type PageData = { pricing?: { total: number; discount: number; gross: number; areaM2: number; areaAssumed: boolean } | null; estimate: { estimate: CustomerData }; response: { spot_saved_at: string | null; opted_out_at: string | null } | null; owner: { firstName: string | null }; initialValues: { address: string; areaM2: number | null; insulation: InsulationDeclared } } | null;
+type PageData = { cohortPricing?: { readyCheckFeeIncGst: number; cohort: "pre_cutover" | "legacy_saved_spot" | "current" }; pricing?: { total: number; discount: number; gross: number; areaM2: number; areaAssumed: boolean } | null; estimate: { estimate: CustomerData }; response: { spot_saved_at: string | null; opted_out_at: string | null } | null; owner: { firstName: string | null }; initialValues: { address: string; areaM2: number | null; insulation: InsulationDeclared } } | null;
 
 function OwnerCalculatorPage() {
   const { token } = Route.useParams();
@@ -72,6 +72,8 @@ function OwnerCalculatorPage() {
     {keep === "original" && <section className="estimate-offset mx-auto max-w-[760px] px-4 pt-6">{saved && !pending ? savedBox : confirmBox}{error && <p role="alert" className="mt-2 text-center text-sm text-danger">{error}</p>}</section>}
     <PublicCalculator
     settings={data.estimate.estimate.calc.settings}
+    readyCheckFeeIncGst={data.cohortPricing?.readyCheckFeeIncGst ?? 0}
+    pricingCohort={data.cohortPricing?.cohort ?? "pre_cutover"}
     initialValues={data.initialValues}
     heading={`${data.owner.firstName ? `${data.owner.firstName}, try` : "Try"} a different ceiling size`}
     hideRegistration
@@ -81,7 +83,7 @@ function OwnerCalculatorPage() {
         <Button type="button" disabled={busy || ceilingM2 <= 0} onClick={() => setPending({ choice: "updated", areaM2: ceilingM2 })} className="min-h-12 w-full bg-estimate-green text-estimate-white hover:bg-estimate-accent">Save My Spot — Updated Estimate</Button>
         <Button type="button" variant="outline" disabled={busy || !orig} onClick={() => setPending({ choice: "original", areaM2: 0 })} className="min-h-12 w-full border-estimate-green text-estimate-navy">Save My Spot — Original Estimate{orig ? ` (${money(orig.total)})` : ""}</Button>
       </>}
-      <p className="text-center text-xs text-estimate-navy/75">No payment, no obligation. Changing the size here doesn't change your recorded insulation details.</p>
+      <p className="text-center text-xs text-estimate-navy/75">{(data.cohortPricing?.readyCheckFeeIncGst ?? 0) > 0 ? "Saving your spot needs no payment and has no obligation." : "No payment, no obligation."} Changing the size here doesn't change your recorded insulation details.</p>
       {error && keep !== "original" && <p role="alert" className="text-center text-sm text-danger">{error}</p>}
     </div>}
   /></>;
