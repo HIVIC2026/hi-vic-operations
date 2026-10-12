@@ -60,6 +60,10 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
   const rate = (...codes: string[]) => { for (const c of codes) { const it = items.find((i) => i.code === c); if (it) return Number(it.unit_price_ex_gst); } return null; };
   const { data: rs } = await admin.from("retail_estimator_settings").select("r5_install_inc_gst_per_m2, removal_inc_gst_per_m2, piesa_assessment_inc_gst, ap_management_inc_gst, access_standard_multiplier, access_moderate_multiplier, access_difficult_multiplier, minimum_customer_copayment_inc_gst, indicative_veec_value").eq("is_current", true).maybeSingle();
   if (!rs) throw new WorkflowError("Owner prices are not set – cannot quote.");
+  { // Versioned pricing: protected saved-spot jobs keep their original rates; unknown version fails closed.
+    const { pricingForJob, withCohortRates } = await import("./pricing-cohort.server");
+    Object.assign(rs, withCohortRates(rs, await pricingForJob(jobId)));
+  }
   // Region decides which program maximum applies; an unlisted postcode uses the lower metro cap (fails safe).
   const { data: prop } = await admin.from("properties").select("postcode").eq("id", jobRow.property_id).maybeSingle();
   const loc = prop?.postcode ? lookupLocation(String(prop.postcode).trim()) : null;
