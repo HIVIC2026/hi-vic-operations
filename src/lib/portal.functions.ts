@@ -29,6 +29,15 @@ const clean = <T extends Record<string, unknown>>(o: T) => Object.fromEntries(Ob
 
 const uuid = z.string().uuid();
 
+/** STEP 73 (A4): regulated electrical results need Office or the licensed-electrician app role (clearance-guard.core.ts). */
+async function requireClearanceRecorder(sb: { rpc: (...a: never[]) => unknown }, jobRole: string, userId: string) {
+  if (jobRole === "admin") return;
+  const r = sb as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }> };
+  const { data, error } = await r.rpc("has_role", { _user_id: userId, _role: "electrician" });
+  const { clearanceRecorderAllowed, CLEARANCE_RECORDER_REFUSED } = await import("./clearance-guard.core");
+  if (error || !clearanceRecorderAllowed({ jobRole, hasElectricianRole: data === true })) throw new WorkflowError(CLEARANCE_RECORDER_REFUSED);
+}
+
 // ---------- Gate 1 ----------
 export const createEnquiry = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => enquirySchema.parse(d))
@@ -207,7 +216,9 @@ const MEASURE_EVIDENCE = ["measurement", "existing_insulation_r_value"];
 export const saveAssessment = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, patch: assessmentPatch }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    const jobRole = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    // STEP 80: the draft carries the PIESA outcome/safety answers that completeAssessment later signs off – same rule.
+    await requireClearanceRecorder(context.supabase as never, jobRole, context.userId);
     const { data: existing } = await admin.from("assessments").select("id,status").eq("job_id", data.jobId).maybeSingle();
     if (existing?.status === "complete") throw new WorkflowError("Assessment is complete and locked. Ask Home Insulation Victoria to reopen.");
     if (existing) await admin.from("assessments").update(clean(data.patch)).eq("id", existing.id);
@@ -442,8 +453,9 @@ export const createMittiAssessment = createServerFn({ method: "POST" }).middlewa
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const { createAssignMittiAudit } = await import("./mitti.server");
-    return createAssignMittiAudit(data.jobId, context.userId);
+    const { createAssignMittiAudit, realMittiCall } = await import("./mitti.server");
+    // T3: the office's explicit action may supersede an earlier attempt whose result is unknown (>= 10 min old, recorded).
+    return createAssignMittiAudit(data.jobId, context.userId, realMittiCall, { officeOverride: true });
   });
 
 export const syncFromMitti = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -480,7 +492,8 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
     rectWindows: z.array(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), slot: z.enum(["8-10", "10-12", "12-14", "14-16"]) })).max(5).optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    const jobRole = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    await requireClearanceRecorder(context.supabase as never, jobRole, context.userId);
     const { data: a } = await admin.from("assessments").select("*").eq("job_id", data.jobId).maybeSingle();
     if (!a) throw new WorkflowError("Start the assessment first.");
     if (a.status === "complete") throw new WorkflowError("Electrical assessment is already complete.");
@@ -539,7 +552,8 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
 export const recordPiesa = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, kind: z.enum(["post_rectification", "reassessment"]), outcome: z.enum(["pass", "fail"]), completedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), notes: z.string().max(2000).optional() }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    const jobRole = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    await requireClearanceRecorder(context.supabase as never, jobRole, context.userId);
     if (new Date(data.completedDate) > new Date()) throw new WorkflowError("PIESA date cannot be in the future.");
     const stage = await getStage(data.jobId);
     if (data.kind === "post_rectification") {
@@ -885,8 +899,10 @@ export const completeInstallation = createServerFn({ method: "POST" }).middlewar
 export const submitDeclaration = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, kind: z.enum(["installer_declaration", "electrician_declaration"]), statement: z.string().trim().min(10).max(4000) }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireJobRole(context.supabase, data.jobId, ["admin", data.kind === "installer_declaration" ? "installer" : "electrician"]);
+    const jobRole = await requireJobRole(context.supabase, data.jobId, ["admin", data.kind === "installer_declaration" ? "installer" : "electrician"]);
     if (data.kind === "installer_declaration") throw new WorkflowError("Installer declarations are signed in the final VEEC assignment step (approved wording only).");
+    // STEP 80: an electrician declaration is an electrician attestation – Office or the licensed-electrician app role only.
+    await requireClearanceRecorder(context.supabase as never, jobRole, context.userId);
     await admin.from("declarations").upsert({ job_id: data.jobId, kind: data.kind, declared_by: context.userId, statement: data.statement, declared_at: new Date().toISOString() }, { onConflict: "job_id,kind" });
     await logEvent(data.jobId, context.userId, "declaration_submitted", `${data.kind.replace("_", " ")} signed`);
     await autoAdvanceJob(data.jobId, context.userId, "declaration signed");

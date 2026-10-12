@@ -7,22 +7,29 @@ import { automaticLeadEmail } from "./enquiry-groups.core";
 
 export type LeadEmailRouteResult = { route: "offer_spot" | "request_insulation" | "ineligible" | "none"; sent: boolean; reason: string };
 
+/** Read-only: the single post-Gate-1 selector's choice for this job (null = job not found). Sends nothing.
+ *  Shared by the automatic router below and the Office manual-email preparation (STEP 17). */
+export async function selectLeadEmailRoute(jobId: string) {
+  const [{ data: job }, { data: work }] = await Promise.all([
+    admin.from("jobs").select("source, channel, eligibility_outcome, eligibility_decision_source, eligibility_review_required, estimated_area_m2, estimated_area_unknown, properties(enrichment)").eq("id", jobId).maybeSingle(),
+    admin.from("post_intake_work").select("id").eq("job_id", jobId).in("status", ["queued", "processing", "retry"]).limit(1).maybeSingle(),
+  ]);
+  if (!job) return null;
+  const property = job.properties as { enrichment: Record<string, unknown> | null } | null;
+  const base44 = (property?.enrichment?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } };
+  return automaticLeadEmail({
+    source: job.source, channel: job.channel, decisionSource: job.eligibility_decision_source,
+    reviewRequired: !!job.eligibility_review_required, outcome: job.eligibility_outcome,
+    intakeWorkActive: !!work, declaredInsulation: normaliseInsulation(declaredExtras(base44.raw?.answers ?? null).existing_insulation),
+    ownerEnteredArea: !job.estimated_area_unknown && Number(job.estimated_area_m2) > 0,
+  });
+}
+
 /** The single post-Gate-1 email selector. Individual senders retain delivery, consent, opt-out and idempotency guards. */
 export async function maybeAutoRouteLeadEmail(jobId: string): Promise<LeadEmailRouteResult> {
   try {
-    const [{ data: job }, { data: work }] = await Promise.all([
-      admin.from("jobs").select("source, channel, eligibility_outcome, eligibility_decision_source, eligibility_review_required, estimated_area_m2, estimated_area_unknown, properties(enrichment)").eq("id", jobId).maybeSingle(),
-      admin.from("post_intake_work").select("id").eq("job_id", jobId).in("status", ["queued", "processing", "retry"]).limit(1).maybeSingle(),
-    ]);
-    if (!job) return { route: "none", sent: false, reason: "Job not found" };
-    const property = job.properties as { enrichment: Record<string, unknown> | null } | null;
-    const base44 = (property?.enrichment?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } };
-    const route = automaticLeadEmail({
-      source: job.source, channel: job.channel, decisionSource: job.eligibility_decision_source,
-      reviewRequired: !!job.eligibility_review_required, outcome: job.eligibility_outcome,
-      intakeWorkActive: !!work, declaredInsulation: normaliseInsulation(declaredExtras(base44.raw?.answers ?? null).existing_insulation),
-      ownerEnteredArea: !job.estimated_area_unknown && Number(job.estimated_area_m2) > 0,
-    });
+    const route = await selectLeadEmailRoute(jobId);
+    if (!route) return { route: "none", sent: false, reason: "Job not found" };
     if (route.email === "none") return { route: "none", sent: false, reason: route.blocker ?? "No email route" };
     if (route.email === "offer_spot") {
       const { syncStep3 } = await import("./estimatelink.server");

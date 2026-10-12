@@ -1,4 +1,5 @@
 import { melbourneToday } from "./melbourne-time.core";
+import { communicationOrigin } from "./portal-presentation.core";
 // Pure Job File rules (no I/O): document index, correspondence, timeline, role visibility, retention, job pack plan.
 // Files are INDEXED IN PLACE from existing records/private storage – never copied into folders.
 
@@ -160,7 +161,9 @@ export function searchItems<T>(items: T[], q: string, fields: (i: T) => (string 
 }
 
 // ---------- Correspondence ----------
-export type Correspondence = { id: string; at: string; direction: "inbound" | "outbound" | "internal"; channel: string; from: string | null; subject: string | null; body: string; status: string; source: "portal_message" | "job_communication"; audience: Audience[]; internal: boolean };
+export type Correspondence = { id: string; at: string; direction: "inbound" | "outbound" | "internal"; channel: string; from: string | null; subject: string | null; body: string; status: string; source: "portal_message" | "job_communication"; audience: Audience[]; internal: boolean;
+  /** job_communications only: Office-recorded (provider "manual") vs sent by a portal sender. Presentation only. */
+  manual?: boolean; originLabel?: string | null };
 
 export function buildCorrespondence(messages: Row[], comms: Row[], senderRole: (userId: string | null) => Role | null): Correspondence[] {
   const out: Correspondence[] = [];
@@ -172,9 +175,10 @@ export function buildCorrespondence(messages: Row[], comms: Row[], senderRole: (
   }
   for (const c of comms) {
     const vis = String(c["visibility"]);
+    const origin = communicationOrigin({ provider: s(c["provider"]), direction: s(c["direction"]), delivery_status: s(c["delivery_status"]), sent_at: s(c["sent_at"]) });
     out.push({ id: `job_communications:${c["id"]}`, at: String(c["sent_at"] ?? c["received_at"] ?? c["created_at"]), direction: c["direction"] as Correspondence["direction"], channel: String(c["channel"]),
       from: s(c["sender_text"]) ?? s(c["sender_user_id"]), subject: s(c["subject"]), body: String(c["body"] ?? ""), status: String(c["delivery_status"]), source: "job_communication",
-      internal: vis === "internal", audience: vis === "customer" ? ["owner"] : vis === "trade" ? ["electrician", "installer"] : [] });
+      internal: vis === "internal", audience: vis === "customer" ? ["owner"] : vis === "trade" ? ["electrician", "installer"] : [], manual: origin.manual, originLabel: origin.label });
   }
   return out.sort((a, b) => a.at.localeCompare(b.at));
 }

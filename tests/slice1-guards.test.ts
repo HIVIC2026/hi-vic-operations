@@ -43,7 +43,7 @@ const REVIEWED: Record<string, string> = {
   ownerReconfirmVariationFn: "verified owner code session; variation must belong to the session job",
   ownerSignConsentFn: "verified owner code session scoped to its own job",
   getMyIntakeJob: "requireSupplyingInstaller(): can_access_job + installer role + member of the job's originating business",
-  getMyIntakeProgress: "requireSupplyingInstaller(): can_access_job + installer role + member of the job's originating business",
+  getMyIntakeProgress: "intakeProgressGate(): can_access_job BEFORE the job is read (STEP 73); intake jobs then requireSupplyingInstaller(): can_access_job + installer role + member of the job's originating business",
   myTeamCompliance: "scoped to caller's own business memberships (read through RLS) or their own worker row",
 };
 describe("server-side role guards", () => {

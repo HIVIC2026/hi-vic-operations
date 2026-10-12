@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin } from "./workflow.server";
+import { intakeProgressGate, type AccessRpc } from "./installer-progress.core";
 
 // Admin-only: the auto-drafted owner quote from an installer's Ready Check, and the office "send" step.
 export const getInstallerQuoteDraft = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -149,10 +150,18 @@ export const saveMyIntakeJob = createServerFn({ method: "POST" }).middleware([re
 export const getMyIntakeProgress = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    // STEP 73 (A3): job access (RLS) is checked before the job is read; then the STEP 71 non-intake guard; then the
+    // supplying-installer check for intake jobs.
+    const rpc = ((fn, args) => (context.supabase as unknown as { rpc: AccessRpc }).rpc(fn, args)) as AccessRpc;
+    const gate = await intakeProgressGate(rpc, async (jobId) => (await admin.from("jobs").select("channel, originating_installer_business_id").eq("id", jobId).maybeSingle()).data, data.jobId);
+    if (!gate.applies) {
+      return { applies: false as const };
+    }
     await requireSupplyingInstaller(context.supabase as never, context.userId, data.jobId);
     const m = await import("./installer-intake.server");
     if (!(await m.isIntakeJob(data.jobId))) return { applies: false as const };
-    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    // `admin` is already imported at the top of this handler for the access gate above.
     const id = data.jobId;
     const [s, { data: job }, { data: qs }, { data: pr }, { data: bks }, { data: ev }, { data: ap }, { data: veec }, { data: dl }] = await Promise.all([
       m.installerIntakeState(id),
