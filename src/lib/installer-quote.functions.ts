@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin } from "./workflow.server";
+import { intakeProgressApplies } from "./installer-progress.core";
 
 // Admin-only: the auto-drafted owner quote from an installer's Ready Check, and the office "send" step.
 export const getInstallerQuoteDraft = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -151,7 +152,7 @@ export const getMyIntakeProgress = createServerFn({ method: "POST" }).middleware
   .handler(async ({ data, context }) => {
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { data: jobChannel } = await admin.from("jobs").select("channel, originating_installer_business_id").eq("id", data.jobId).maybeSingle();
-    if (!jobChannel || jobChannel.channel !== "installer_sourced" || !jobChannel.originating_installer_business_id) {
+    if (!intakeProgressApplies(jobChannel)) {
       return { applies: false as const };
     }
     await requireSupplyingInstaller(context.supabase as never, context.userId, data.jobId);

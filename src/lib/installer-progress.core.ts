@@ -175,3 +175,15 @@ export function installerTab(place: "offers" | "needs_me" | "coming_up" | "movin
 export function doneReason(stage: string): string {
   return stage === "cancelled" ? "Cancelled" : stage === "complete" ? "Job complete" : "Closed";
 }
+
+/**
+ * W3 A3: the installer intake progress card applies ONLY to installer-sourced jobs that carry an originating installer business.
+ * Standard Home Insulation Victoria-sourced jobs have no intake record, so the read must return "does not apply" BEFORE the
+ * supplying-installer guard runs — otherwise `requireSupplyingInstaller` throws "Only the installer who supplied this job can
+ * update it." on a null `originating_installer_business_id`, surfacing as 'Couldn't load current job progress' on the UI.
+ * Pure predicate so the guard is regression-tested without executing the server function. Five-role isolation is enforced
+ * separately by `requireSupplyingInstaller`, which still runs whenever this returns true.
+ */
+export function intakeProgressApplies(job: { channel?: string | null; originating_installer_business_id?: string | null } | null | undefined): boolean {
+  return !!job && job.channel === "installer_sourced" && !!job.originating_installer_business_id;
+}
