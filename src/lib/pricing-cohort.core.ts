@@ -115,3 +115,34 @@ export function scopeDifference(s: CohortSnapshot, measuredAreaM2: number): { ch
 export function mayReprice(quoteStatus: string): boolean {
   return !["issued", "accepted"].includes(quoteStatus);
 }
+
+// ---------------- Calculators (public + owner-specific) ----------------
+
+/** Jo, 12 Oct 2026 — exact wording, shown directly under the existing-insulation answer whenever "Some there" is chosen. */
+export const REMOVAL_BUDGET_NOTE = "Existing insulation may need to be removed. Please budget an additional $15 per m², including GST, only for the areas that require removal. We’ll confirm the area and cost at your Ready Check.";
+export const showRemovalBudgetNote = (insulation: string | null | undefined) => insulation === "present";
+
+/**
+ * Which price version the anonymous public calculator shows. It has no job, so it cannot hold a protected customer.
+ * Flip to "new" ONLY in the same release as activate_pricing_cutover (activation step, not before).
+ */
+export const PUBLIC_CALCULATOR_PRICING: "legacy" | "new" = "legacy";
+export function publicCalculatorPricing(v: "legacy" | "new" = PUBLIC_CALCULATOR_PRICING): { r5InstallIncGstPerM2: number; readyCheckFeeIncGst: number; cohort: "pre_cutover" | "current" } {
+  return v === "new" ? { r5InstallIncGstPerM2: 33, readyCheckFeeIncGst: 99, cohort: "current" } : { r5InstallIncGstPerM2: 30, readyCheckFeeIncGst: 0, cohort: "pre_cutover" };
+}
+
+/**
+ * Calculator totals: the install-only scenario (never whole-ceiling removal) plus the Ready Check fee ONCE.
+ * Removal stays excluded unless an explicit itemised amount is supplied, and is then added once.
+ */
+export function calculatorTotals(standard: { pre_discount_total: number; estimated_customer_total: number; applied_discount: number }, readyCheckFeeIncGst: number, itemisedRemovalIncGst = 0) {
+  if (!(readyCheckFeeIncGst >= 0) || !(itemisedRemovalIncGst >= 0)) throw new Error("Invalid calculator extras.");
+  const extra = r2(readyCheckFeeIncGst + itemisedRemovalIncGst);
+  return { gross: r2(standard.pre_discount_total + extra), total: r2(standard.estimated_customer_total + extra), rebate: standard.applied_discount, readyCheck: readyCheckFeeIncGst, removal: itemisedRemovalIncGst };
+}
+
+/** Saved-spot price from a calculator/estimate: adds the cohort's Ready Check fee once. Fee 0 (legacy/protected) returns it unchanged. */
+export function withReadyCheckFee<T extends { total: number; gross: number }>(price: T | null, readyCheckFeeIncGst: number): T | null {
+  if (!price || readyCheckFeeIncGst === 0) return price;
+  return { ...price, total: r2(price.total + readyCheckFeeIncGst), gross: r2(price.gross + readyCheckFeeIncGst) };
+}
