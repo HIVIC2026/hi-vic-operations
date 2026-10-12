@@ -139,11 +139,12 @@ export function lovablePreviewProjectId(hostname: string | null | undefined): st
   if (!hostname) return null;
   const host = hostname.toLowerCase();
   if (!LOVABLE_HOSTED_ZONES.some((z) => host === z || host.endsWith('.' + z))) return null;
-  const prefixed = new RegExp(`^(?:id-preview(?:-[a-z0-9]+)?|preview)--(${UUID_PATTERN})(?:-dev)?(?=\\.|$)`, 'i').exec(host);
-  if (prefixed?.[1]) return prefixed[1].toLowerCase();
-  // Bare form: <uuid>.<zone> — the label is exactly the project id and nothing else.
-  const bare = new RegExp(`^(${UUID_PATTERN})(?:-dev)?(?=\\.|$)`, 'i').exec(host);
-  return bare?.[1]?.toLowerCase() ?? null;
+  const m = new RegExp(`^(?:id-preview(?:-[a-z0-9]+)?|preview)--(${UUID_PATTERN})(?:-dev)?(?=\\.|$)`, 'i').exec(host);
+  if (m?.[1]) return m[1].toLowerCase();
+  // Editor preview surface: `<uuid>.lovableproject.com` / `<uuid>.lovableproject-dev.com`.
+  // The whole first label must be the platform-assigned project UUID (no other subdomain form).
+  const editor = new RegExp(`^(${UUID_PATTERN})\\.(?:lovableproject\\.com|lovableproject-dev\\.com)$`, 'i').exec(host);
+  return editor?.[1]?.toLowerCase() ?? null;
 }
 
 /**

@@ -81,12 +81,13 @@ export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     // STEP 106: publish the host of the request the server is actually serving,
     // so the env-guard resolves 'lovable-preview' / 'production' instead of 'local'.
-    let hostname: string | undefined;
-    try {
-      hostname = new URL(request.url).hostname;
-    } catch {
-      // ignore URL parse errors
-    }
+    const hostname: string | null = (() => {
+      try {
+        return new URL(request.url).hostname;
+      } catch {
+        return null;
+      }
+    })();
 
     try {
       const incoming = detachedPageRequest(request);
