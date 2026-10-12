@@ -7,9 +7,9 @@ const hash = (v: unknown) => createHash("sha256").update(JSON.stringify(v)).dige
 test("approved no-insulation email stays byte identical", () => {
   expect(hash(renderStep3SaveSpot(S))).toBe("26df58bffb07b3eb6cc809dfb0f7789e6b15529d8602ddfd8ac4c69d163a18bb");
 });
-test("initial existing-insulation invitation stays byte identical", () => {
+test("existing-insulation invitation locked after Jo 12 Oct 23:18 removal sentence", () => {
   const initial = renderLaunchCampaignEmail({group:"onsite",campaignUrl:"https://estimate.homeinsulationvictoria.com.au/estimate/"+"A".repeat(43)+"/campaign",unsubscribeUrl:S.unsubscribeUrl,firstName:S.firstName,estimatedTotal:S.estimatedTotal,veuDiscount:S.veuDiscount,grossTotal:S.grossTotal,areaM2:S.areaM2,insulation:"present",installation:S.installation,assessmentFee:S.assessmentFee,apFee:S.apFee});
-  expect(hash(initial)).toBe("218833412b142e1ef02aa0d4a47f83956a7f3086bb89171a38b073b4792e7c86");
+  expect(hash(initial)).toBe("098c029d28810c91705e74b14542c4fbaac56442f11133ca6a43089fccd4e887");
 });
 test("primary zero-removal snapshot excludes removal; alternative price cannot override it", () => {
   expect(removalFromScenario({ removal: 0, removal_m2: 0 })).toEqual({kind:"excluded"});
