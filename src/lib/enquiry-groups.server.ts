@@ -1,3 +1,4 @@
+import { effectiveReadyCheckFee } from "./readycheck.core";
 // Read-only loader + draft preparation for office enquiry email groups. Scans EVERY website enquiry (paged, no silent cap)
 // plus calculator registrations, and classifies each with the pure rules in enquiry-groups.core.ts. Writes nothing.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
@@ -223,7 +224,6 @@ function renderDraft(r: EnquiryGroupRow, sel: Selected, ctx: Ctx): Draft | { err
   const s = withCohortRates(ctx.settings, pricing);
   const e = computeEstimate(area, loc, r.declaredInsulation, s);
   const st = e.primary.by_access.standard;
-  const { effectiveReadyCheckFee } = await import("./readycheck.core");
   const fee = effectiveReadyCheckFee(pricing.readyCheckFeeIncGst);
   const gross = Math.round((st.pre_discount_total + fee) * 100) / 100;
   const total = Math.round((st.estimated_customer_total + fee) * 100) / 100;

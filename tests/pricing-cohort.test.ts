@@ -4,7 +4,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import { PricingCohortUnknownError, customerBreakdown, installRateLabel, mayReprice, protectedSavedTotals, readyCheckFeeLabel, resolveCustomerPricing, scopeDifference, type CohortSnapshot, type PricingRates } from "../src/lib/pricing-cohort.core";
-import { readyCheckRemaining } from "../src/lib/readycheck.core";
+import { readyCheckRemaining, effectiveReadyCheckFee } from "../src/lib/readycheck.core";
 import { applyReadyCheckFee, renderEstimateEmail, renderSaveSpotFromLikelyEmail } from "../src/lib/estimate-email";
 
 const LEGACY: PricingRates = { settingsId: "l", settingsVersion: 2, r5InstallIncGstPerM2: 30, removalIncGstPerM2: 15, piesaIncGst: 349, apIncGst: 349, readyCheckFeeIncGst: 0 };
@@ -241,4 +241,27 @@ describe("Ready Check stays free (Jo 12 Oct 23:12 UTC)", () => {
     expect(resolveCustomerPricing({ spotSavedAt: null, snapshot: null }, LEGACY, cut).r5InstallIncGstPerM2).toBe(33);
   });
   test("public calculator new pricing has $0 Ready Check", () => { expect(publicCalculatorPricing("new").readyCheckFeeIncGst).toBe(0); });
+});
+
+describe("stale $99 at every direct boundary becomes free", () => {
+  test("readyCheckFeeLabel(99) is free", () => { expect(readyCheckFeeLabel({ readyCheckFeeIncGst: 99 })).toBe("free"); });
+  test("customerBreakdown with 99 rates: no fee in gross, payableNow 0, $33/m² kept", () => {
+    const b = customerBreakdown(NEW, 150, 40, 1500);
+    expect(b.readyCheck).toBe(0); expect(b.payableNow).toBe(0); expect(b.installation).toBe(4950); expect(b.removal).toBe(600);
+    expect(b.gross).toBe(4950 + 600 + 349 + 349); expect(b.remaining).toBe(b.total);
+  });
+  test("calculatorTotals(99) adds only itemised removal", () => {
+    const t = calculatorTotals({ pre_discount_total: 5198, estimated_customer_total: 3698, applied_discount: 1500 }, 99, 600);
+    expect(t.readyCheck).toBe(0); expect(t.gross).toBe(5798); expect(t.total).toBe(4298);
+  });
+  test("withReadyCheckFee(99) returns the saved price unchanged", () => {
+    const p = { total: 3698, gross: 5198, discount: 1500 }; expect(withReadyCheckFee(p, 99)).toEqual(p);
+  });
+  test("readyCheckRemaining(cost, 99) never deducts a fee (no payment collected)", () => { expect(readyCheckRemaining(4247, 99)).toBe(4247); });
+  test("email with readyCheckFeeIncGst 99 renders free, no $99", () => {
+    const m = renderEstimateEmail({ ...newInput, amountPayableNow: 0, grossProjectTotal: 5648, estimatedRemainingBalance: 4148, estimatedTotal: 4148 });
+    expect(m.html).not.toContain("$99"); expect(m.plainText).not.toContain("$99");
+    const same = applyReadyCheckFee(m, { readyCheckFeeIncGst: 99 }, false); expect(same).toBe(m);
+  });
+  test("negative/invalid fee still rejected", () => { expect(() => effectiveReadyCheckFee(-1)).toThrow(); expect(() => effectiveReadyCheckFee(NaN)).toThrow(); });
 });
