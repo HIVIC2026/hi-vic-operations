@@ -197,6 +197,28 @@ Reproduce with `STEP105_BROWSER_EVIDENCE/step105-cdp-harness.mjs` (CDP driver) +
 - `main` is the branch Lovable has connected (established in STEP 102), and `cabb1cc6` already proved
   that pushing to it lands in the Lovable editor, so this commit is expected to appear the same way.
 
+### 5.1 Sync confirmation (Task 10)
+
+```
+$ gh api repos/jetzhang123/hi-vic-operations/commits/main
+31d7627c874da84212cb3070e06f06571bf2661d | 2026-10-12T16:44:41Z | STEP105: classify Lovable-hosted Preview as its own runtime mode
+
+$ git push origin HEAD:main
+   cabb1cc6..31d7627c  HEAD -> main          # fast-forward, 0 behind / 1 ahead before push
+$ git rev-list --left-right --count origin/main...HEAD
+0	0                                        # local and GitHub main identical
+```
+
+`main` is GitHub's authoritative head for the Lovable-connected branch, so the new commit **is**
+available to Lovable and will be picked up by the editor's normal sync.
+
+**Not verified by me:** the rendered Preview itself. Both preview hosts are gated by the Lovable
+editor session and answered `HTTP 401` to an unauthenticated probe
+(`id-preview--fb35adfe-….lovable.app` → 401, `preview--hi-vic-operations.lovable.app` → 401), so the
+final "error banner is gone" confirmation has to be made inside your logged-in Lovable editor.
+Everything that could be verified without that session (guard classification, tests, types, build,
+real-browser decision table) was.
+
 ## 6. Constraints — compliance
 
 | Constraint | Status |
