@@ -23,7 +23,7 @@ describe("cohort resolution", () => {
   });
   test("new enquiry after cutover gets $33/m² and $99", () => {
     const p = resolveCustomerPricing({ spotSavedAt: null, snapshot: null }, LEGACY, CUT);
-    expect(p.r5InstallIncGstPerM2).toBe(33); expect(p.readyCheckFeeIncGst).toBe(99);
+    expect(p.r5InstallIncGstPerM2).toBe(33); expect(p.readyCheckFeeIncGst).toBe(0);
   });
   test("saved spot without a snapshot fails closed", () => {
     expect(() => resolveCustomerPricing({ spotSavedAt: "2026-10-05T01:00:00Z", snapshot: null }, LEGACY, CUT)).toThrow(PricingCohortUnknownError);
@@ -143,7 +143,7 @@ describe("staged migration on PGlite", () => {
     expect(rows.length).toBe(2); expect(rows.every((r) => r.cohort === "legacy_saved_spot" && r.r5_install_inc_gst_per_m2 === "30.00" && r.ready_check_fee_inc_gst === "0.00")).toBe(true);
     expect(rows[0].saved_total).toBe("3698");
     const v = (await db.query<any>(`SELECT version, is_current, r5_install_inc_gst_per_m2 r5, ready_check_fee_inc_gst f FROM public.retail_estimator_settings ORDER BY version`)).rows;
-    expect(v.map((x) => [x.version, x.is_current, x.r5, x.f])).toEqual([[1, false, "30.00", "0.00"], [2, true, "30.00", "0.00"], [3, false, "33.00", "99.00"]]);
+    expect(v.map((x) => [x.version, x.is_current, x.r5, x.f])).toEqual([[1, false, "30.00", "0.00"], [2, true, "30.00", "0.00"], [3, false, "33.00", "0.00"]]);
     expect((await db.query<{ h: string }>(FP)).rows[0]!.h).toBe(before);
     expect((await db.query<any>(`SELECT count(*)::int n FROM public.saved_spot_price_backup`)).rows[0].n).toBe(2);
   });
@@ -152,7 +152,7 @@ describe("staged migration on PGlite", () => {
     await db.query(`SELECT public.activate_pricing_cutover($1, 'TEST cutover', null)`, [ACTOR]);
     await db.exec(`UPDATE public.lead_campaign_responses SET spot_saved_at = now(), saved_total = 4247, saved_gross_total = 5747, saved_veu_discount = 1500, saved_area_m2 = 150 WHERE job_id = '00000000-0000-4000-8000-000000000003'`);
     const r = (await db.query<any>(`SELECT cohort, r5_install_inc_gst_per_m2 r5, ready_check_fee_inc_gst f FROM public.job_pricing_cohorts WHERE job_id = '00000000-0000-4000-8000-000000000003'`)).rows[0];
-    expect([r.cohort, r.r5, r.f]).toEqual(["current", "33.00", "99.00"]);
+    expect([r.cohort, r.r5, r.f]).toEqual(["current", "33.00", "0.00"]);
     await expect(db.exec(`UPDATE public.job_pricing_cohorts SET ready_check_fee_inc_gst = 99 WHERE job_id = '00000000-0000-4000-8000-000000000001'`)).rejects.toThrow(/permanent/);
   });
   test("race: fingerprint mismatch aborts the whole activation; double activation refused", async () => {
@@ -220,7 +220,7 @@ describe("calculators", () => {
     const h = html("unknown", 0);
     expect(h).toContain("Ready Check — free"); expect(h).not.toContain("$99");
     expect(publicCalculatorPricing("legacy")).toEqual({ r5InstallIncGstPerM2: 30, readyCheckFeeIncGst: 0, cohort: "pre_cutover" });
-    expect(publicCalculatorPricing("new")).toEqual({ r5InstallIncGstPerM2: 33, readyCheckFeeIncGst: 99, cohort: "current" });
+    expect(publicCalculatorPricing("new")).toEqual({ r5InstallIncGstPerM2: 33, readyCheckFeeIncGst: 0, cohort: "current" });
   });
   test("saved price gets the fee once for new cohort and is unchanged for protected", () => {
     const p = { total: 3698, gross: 5198, discount: 1500 };
@@ -232,4 +232,13 @@ describe("calculators", () => {
     expect(src).not.toContain(`update({ updated_at: now, ...snapshot })`);
     expect(src).toContain("pricingForJob(c.job.id)");
   });
+});
+
+describe("Ready Check stays free (Jo 12 Oct 23:12 UTC)", () => {
+  test("a $99 settings row or snapshot still resolves to $0", () => {
+    const cut = { cutoverAt: "2026-10-13T00:00:00Z", newSettings: { ...NEW, readyCheckFeeIncGst: 99 } };
+    expect(resolveCustomerPricing({ spotSavedAt: null, snapshot: null }, LEGACY, cut).readyCheckFeeIncGst).toBe(0);
+    expect(resolveCustomerPricing({ spotSavedAt: null, snapshot: null }, LEGACY, cut).r5InstallIncGstPerM2).toBe(33);
+  });
+  test("public calculator new pricing has $0 Ready Check", () => { expect(publicCalculatorPricing("new").readyCheckFeeIncGst).toBe(0); });
 });
