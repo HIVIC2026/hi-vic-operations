@@ -149,6 +149,11 @@ export const saveMyIntakeJob = createServerFn({ method: "POST" }).middleware([re
 export const getMyIntakeProgress = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const { data: jobChannel } = await admin.from("jobs").select("channel, originating_installer_business_id").eq("id", data.jobId).maybeSingle();
+    if (!jobChannel || jobChannel.channel !== "installer_sourced" || !jobChannel.originating_installer_business_id) {
+      return { applies: false as const };
+    }
     await requireSupplyingInstaller(context.supabase as never, context.userId, data.jobId);
     const m = await import("./installer-intake.server");
     if (!(await m.isIntakeJob(data.jobId))) return { applies: false as const };
