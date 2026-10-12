@@ -24,9 +24,10 @@ describe("manualTemplateFor – only approved A1 emails can be prepared", () => 
   });
   test("Group B insulation-details wording is never offered", () => {
     for (const typical of [false, true]) expect(manualTemplateFor({ route: "request_insulation", routeBlocker: null, typicalSizeEstimate: typical })).toEqual({ blocked: GROUP_B_MANUAL_BLOCKED });
+    expect(manualTemplateFor({ route: "request_insulation", routeBlocker: null, reviewedUnderR2: true })).toEqual({ template: "save_my_spot" });
   });
   test("held typical-size estimate is not offered (existing hold stays in force)", () => {
-    expect(manualTemplateFor({ route: "offer_spot", routeBlocker: null, typicalSizeEstimate: true })).toEqual({ blocked: TYPICAL_SIZE_MANUAL_BLOCKED });
+    expect(manualTemplateFor({ route: "offer_spot", routeBlocker: null, typicalSizeEstimate: true })).toEqual({ template: "save_my_spot" }); // Jo 12 Oct: no-size office copy approved
   });
   test("no route → the router's own reason, never a catch-all email", () => {
     const r = manualTemplateFor({ route: "none", routeBlocker: "Eligibility needs office review", typicalSizeEstimate: false });
