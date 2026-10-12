@@ -29,8 +29,10 @@ export type ReadyCheckAcceptanceState = {
 };
 
 /** The Ready Check is free, so the full estimated project amount remains. */
-export function readyCheckRemaining(costAfterDiscountIncGst: number): number {
-  return Math.max(0, round2(costAfterDiscountIncGst - READY_CHECK_FEE));
+export function readyCheckRemaining(costAfterDiscountIncGst: number, feeIncGst: number = READY_CHECK_FEE): number {
+  // The fee is collected once; the remaining balance never includes it again. Legacy/protected = 0.
+  if (!Number.isFinite(feeIncGst) || feeIncGst < 0) throw new Error("Invalid Ready Check fee");
+  return Math.max(0, round2(costAfterDiscountIncGst - feeIncGst));
 }
 
 export function acceptanceIsCurrent(acceptedEstimateId: string, currentEstimateId: string | null): boolean {

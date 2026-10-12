@@ -7,7 +7,8 @@ import { SUPPRESSING_EVENTS } from "./emailsafety.server";
 import { normaliseInsulation } from "./eligibility.core";
 import { declaredExtras } from "./enquiry.core";
 import { currentRetailSettings } from "./estimate.server";
-import { READY_CHECK_FEE } from "./readycheck.core";
+import { pricingForJob, pricingForNewEnquiry, withCohortRates } from "./pricing-cohort.server";
+import type { ResolvedPricing } from "./pricing-cohort.core";
 import { renderEstimateEmail, renderIneligibleOutcomeEmail, renderInsulationVideoEmail } from "./estimate-email";
 import { CUSTOMER_BASE } from "./engagement.core";
 import type { LocationVariables } from "./activity48.core";
@@ -201,7 +202,7 @@ async function locations(postcodes: string[]) {
 
 type Draft = { subject: string; previewText: string; html: string; plainText: string; area: { m2: number | null; label: string } };
 type Selected = { group: EnquiryGroup; otherReason: OtherReason | null; assumedAreaM2: number };
-type Ctx = { settings: Awaited<ReturnType<typeof currentRetailSettings>>; loc: Map<string, LocationVariables> };
+type Ctx = { settings: Awaited<ReturnType<typeof currentRetailSettings>>; loc: Map<string, LocationVariables>; pricing: Map<string, ResolvedPricing> };
 
 function renderDraft(r: EnquiryGroupRow, sel: Selected, ctx: Ctx): Draft | { error: string } {
   const firstName = r.name?.trim().split(/\s+/)[0] ?? null;
@@ -217,16 +218,29 @@ function renderDraft(r: EnquiryGroupRow, sel: Selected, ctx: Ctx): Draft | { err
   const m2 = assumed ? sel.assumedAreaM2 : r.area.m2;
   if (m2 == null) return { error: "No usable area" };
   const area: AreaCandidate = assumed ? { m2, source: "typical_default", basis: "assumed", id: null, label: `Assumed area: ${m2} m²` } : { m2, source: r.area.source === "measured" ? "accepted_measurement" : r.area.source === "estimated" ? "area_estimate" : "owner_estimate", basis: r.area.source, id: null, label: r.areaLabel };
-  const e = computeEstimate(area, loc, r.declaredInsulation, ctx.settings);
+  const pricing = ctx.pricing.get(r.id);
+  if (!pricing) return { error: "This customer's price version cannot be confirmed – estimate cannot be rendered" };
+  const s = withCohortRates(ctx.settings, pricing);
+  const e = computeEstimate(area, loc, r.declaredInsulation, s);
   const st = e.primary.by_access.standard;
-  const s = ctx.settings;
+  const fee = pricing.readyCheckFeeIncGst;
+  const gross = Math.round((st.pre_discount_total + fee) * 100) / 100;
+  const total = Math.round((st.estimated_customer_total + fee) * 100) / 100;
   const mail = renderEstimateEmail({
     estimateUrl: placeholderLink, outcome: "likely", firstName, reference: r.reference,
-    estimatedTotal: st.estimated_customer_total, veuDiscount: e.applied_discount, areaM2: m2,
+    estimatedTotal: total, veuDiscount: e.applied_discount, areaM2: m2,
     installationPrice: st.installation, installationRatePerM2: s.r5_install_inc_gst_per_m2, assessmentFee: s.piesa_assessment_inc_gst, apFee: s.ap_management_inc_gst,
-    grossProjectTotal: st.pre_discount_total, amountPayableNow: READY_CHECK_FEE, estimatedRemainingBalance: Math.max(0, st.estimated_customer_total - READY_CHECK_FEE), areaIsTypical: assumed,
+    grossProjectTotal: gross, amountPayableNow: fee, estimatedRemainingBalance: Math.max(0, Math.round((total - fee) * 100) / 100), areaIsTypical: assumed,
+    readyCheckFeeIncGst: fee, pricingCohort: pricing.cohort,
   });
   return { ...mail, area: { m2, label: assumed ? `Assumed area: ${m2} m²` : r.areaLabel } };
+}
+
+/** Per-row price version; unreadable versions are left out so the row fails closed (no estimate rendered). */
+async function cohortPricing(rows: EnquiryGroupRow[]) {
+  const out = new Map<string, ResolvedPricing>();
+  await Promise.all(rows.map(async (r) => { try { out.set(r.id, r.kind === "job" ? await pricingForJob(r.id) : await pricingForNewEnquiry()); } catch { /* fail closed */ } }));
+  return out;
 }
 
 /** Staff-reviewed draft preparation. Works with communications OFF. Revalidates the current group and contact facts. Writes nothing. */
@@ -238,8 +252,8 @@ export async function prepareEnquiryEmails(ids: string[], sel: Selected, withHtm
   const want = [...new Set(ids)];
   const chosen = want.map((id) => byId.get(id)).filter((r): r is NonNullable<typeof r> => !!r);
   const ctx: Ctx = tpl.key && (sel.group === "likely_size" || sel.group === "likely_no_size")
-    ? { settings: await currentRetailSettings(), loc: await locations(chosen.map((r) => String(r.postcode ?? "").trim())) }
-    : { settings: null, loc: new Map() };
+    ? { settings: await currentRetailSettings(), loc: await locations(chosen.map((r) => String(r.postcode ?? "").trim())), pricing: await cohortPricing(chosen) }
+    : { settings: null, loc: new Map(), pricing: new Map() };
   const seen = new Set<string>();
   const drafts: { id: string; name: string | null; email: string; jobNumber: string | null; subject: string; previewText: string; plainText: string; html: string | null; area: { m2: number | null; label: string }; link: string; holds: string[] }[] = [];
   const excluded: { id: string; name: string | null; email: string | null; reason: string }[] = [];

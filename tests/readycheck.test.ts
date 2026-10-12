@@ -21,7 +21,7 @@ describe("free Ready Check", () => {
     expect(READY_CHECK_FEE).toBe(0);
     expect(migration).toContain("UNIQUE (job_id, estimate_id)");
     expect(readyCheckRemaining(3716.24)).toBe(3716.24);
-    expect(server).toContain("ready_check_amount_inc_gst: 0");
+    expect(server).toContain("pricingForJob(ctx.link.job_id)"); // fee comes from the versioned price cohort (Jo 12 Oct); legacy = 0
     expect(server).not.toContain("apply_ready_check_test_payment");
   });
   test("payment advances once to scheduling, never PIESA/Xero/invoice/deposit", () => {
