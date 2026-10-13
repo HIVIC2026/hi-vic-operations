@@ -60,7 +60,7 @@ export async function campaignPage(token: unknown, testMode = false) {
   if (!c) return null;
   const { resolvePublicEstimate } = await import("./estimatelink.server");
   const [{ data: response }, estimate] = await Promise.all([
-    admin.from("lead_campaign_responses").select("spot_saved_at, opted_out_at, media_received_at, desk_check_status, queue_priority, saved_total, saved_veu_discount").eq("job_id", c.job.id).maybeSingle(),
+    admin.from("lead_campaign_responses").select("spot_saved_at, opted_out_at, media_received_at, desk_check_status, queue_priority, saved_total, saved_veu_discount, saved_area_m2").eq("job_id", c.job.id).maybeSingle(),
     resolvePublicEstimate(token, testMode),
   ]);
   const owner = c.job.owners as { full_name: string | null } | null;
