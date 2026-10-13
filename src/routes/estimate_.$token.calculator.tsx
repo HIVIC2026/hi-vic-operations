@@ -49,11 +49,14 @@ function OwnerCalculatorPage() {
   };
   const money = (n: number) => n.toLocaleString("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 });
 
-  if (isLoading) return <div className="estimate-brand min-h-screen bg-estimate-canvas"><p role="status" className="py-16 text-center text-sm text-muted-foreground">Loading your calculator…</p></div>;
-  if (isError || !data || !data.estimate.estimate.calc) return <div className="estimate-brand min-h-screen bg-estimate-canvas"><section className="estimate-offset mx-auto max-w-[760px] rounded-2xl border bg-white p-8 text-center"><h1 className="font-display text-2xl font-bold">This link isn't available</h1><p className="mt-2 text-sm">Please contact Home Insulation Victoria and we'll help.</p></section></div>;
-  if (data.response?.opted_out_at) return <div className="estimate-brand min-h-screen bg-estimate-canvas"><section className="estimate-offset mx-auto max-w-[760px] rounded-[22px] border bg-white p-8 text-center"><h1 className="font-display text-3xl font-extrabold text-estimate-navy">You're off the list</h1></section></div>;
+  const mode = ownerCalculatorMode({ data, loading: isLoading, error: isError });
+  if (mode === "loading") return <div className="estimate-brand min-h-screen bg-estimate-canvas"><p role="status" className="py-16 text-center text-sm text-muted-foreground">Loading your calculator…</p></div>;
+  if (mode === "unavailable" || !data) return <div className="estimate-brand min-h-screen bg-estimate-canvas"><section className="estimate-offset mx-auto max-w-[760px] rounded-2xl border bg-white p-8 text-center"><h1 className="font-display text-2xl font-bold">This link isn't available</h1><p className="mt-2 text-sm">Please contact Home Insulation Victoria and we'll help.</p></section></div>;
+  if (mode === "opted_out") return <div className="estimate-brand min-h-screen bg-estimate-canvas"><section className="estimate-offset mx-auto max-w-[760px] rounded-[22px] border bg-white p-8 text-center"><h1 className="font-display text-3xl font-extrabold text-estimate-navy">You're off the list</h1></section></div>;
+  // Already saved: show the approved saved state only — no re-save prompt, no calculator CTAs, figures only from the saved snapshot.
+  if (mode === "saved") return <div className="estimate-brand min-h-screen bg-estimate-canvas"><section className="estimate-offset mx-auto max-w-[760px] px-4 py-8"><SavedSpotPanel response={data.response} savedChoice={savedChoice} /></section></div>;
 
-  const saved = !!data.response?.spot_saved_at;
+  const calcData = data.estimate.estimate.calc!;
   const orig = data.pricing ?? null;
   const confirmBox = pending && <div role="dialog" aria-label="Confirm your choice" className="rounded-xl border-2 border-estimate-green bg-white p-4 text-center">
     <p className="font-extrabold text-estimate-navy">{pending.choice === "original"
@@ -64,13 +67,8 @@ function OwnerCalculatorPage() {
       <Button type="button" variant="outline" disabled={busy} onClick={() => setPending(null)} className="min-h-12 flex-1">Not yet</Button>
     </div>
   </div>;
-  const savedBox = <div className="rounded-xl border border-estimate-green bg-estimate-mint p-4 text-center" data-testid="spot-saved">
-    <h2 className="inline-flex items-center gap-2 font-display text-xl font-extrabold text-estimate-navy"><CheckCircle2 aria-hidden="true" className="size-5 text-estimate-green" />{SPOT_SAVED_HEADING}</h2>
-    <p className="mt-2 text-sm text-estimate-navy">{SPOT_SAVED_BODY}</p>
-    {savedChoice && <p className="mt-2 text-xs text-estimate-navy/75">Saved with the {savedChoice} estimate.</p>}
-  </div>;
   return <>
-    {keep === "original" && <section className="estimate-offset mx-auto max-w-[760px] px-4 pt-6">{saved && !pending ? savedBox : confirmBox}{error && <p role="alert" className="mt-2 text-center text-sm text-danger">{error}</p>}</section>}
+    {keep === "original" && <section className="estimate-offset mx-auto max-w-[760px] px-4 pt-6">{confirmBox}{error && <p role="alert" className="mt-2 text-center text-sm text-danger">{error}</p>}</section>}
     <PublicCalculator
     settings={data.estimate.estimate.calc.settings}
     readyCheckFeeIncGst={data.cohortPricing?.readyCheckFeeIncGst ?? 0}
