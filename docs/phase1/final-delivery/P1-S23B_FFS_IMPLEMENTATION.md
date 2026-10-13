@@ -184,9 +184,11 @@ disabled (`env -u NODE_OPTIONS`) inside the isolated worktree, using the project
 
 ## 14. Final commit SHA
 
-- Implementation commit: **`6c2abd6de952843d4f6ab41ab50f042f5a3623ed`** (`6c2abd6d`)
-- Documentation commit (this file): recorded after push in the branch head (see §15).
-- Parent: `0eabf6f2` — the branch is a clean single-step child of the verified integration commit.
+- Implementation commit: **`6c2abd6de952843d4f6ab41ab50f042f5a3623ed`** (`6c2abd6d`) — code + tests
+- Documentation commit (this file): **`fe245e138b67907b0def3e5a2fae3a937f327f9c`** (`fe245e13`)
+- Parent: `0eabf6f2` — the branch is a clean two-commit child of the verified integration commit.
+- The branch head after this file's SHA note was filled in is the third commit on the branch; the
+  remote head is reported in the task close-out. Both commits above are the delivered content.
 
 ## 15. GitHub push confirmation
 
