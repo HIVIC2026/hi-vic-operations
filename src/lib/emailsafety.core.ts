@@ -9,6 +9,8 @@ export const ESTIMATE_STAGES = new Set(["new_enquiry", "eligibility_review", "aw
 /** One-time preliminary outcome email is only relevant before the job moves on. */
 export const INELIGIBLE_STAGES = new Set(["new_enquiry", "eligibility_review", "on_hold"]);
 export const BACKLOG_MAX_AGE_MS = 14 * 86_400_000;
+/** Engagement events that permanently stop marketing/follow-up email for a job. */
+export const SUPPRESSING_EVENTS = ["email_bounced", "email_complained", "complaint", "opted_out", "payment_received", "quote_declined", "booking_completed"];
 
 const TEST_EMAIL = /@(?:[^@]*\.)?(?:example\.(?:com|org|net)|test|invalid|localhost)$|@mailinator\.com$|\+qa@|^qa[._-]/i;
 export const isTestRecipient = (email: string | null | undefined) => !email || TEST_EMAIL.test(email.trim());

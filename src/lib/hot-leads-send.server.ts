@@ -13,6 +13,7 @@ import { logEvent } from "./workflow.server";
 import { removalFromScenario } from "./estimate-removal.core";
 import { MANUAL_SENT_EVENT, manualSendReference } from "./manual-communication.core";
 import { RESEND_FETCH_TIMEOUT_MS, timeoutSignal } from "./network-timeout.core";
+import { AUTO_REPLY_OFF } from "./enquiry-auto-reply.core";
 import { classifyProviderStatus, SENT_UNKNOWN_PREFIX, UNCERTAIN_SEND_DETAIL, type ResendAttempt } from "./save-spot-delivery.core";
 
 export const HOT_SEND_BATCH = 10;
@@ -32,7 +33,7 @@ void LAUNCH_COPY_APPROVED;
  *  mode "preview" renders without sending and without creating any link token (missing links become placeholders);
  *  "manual_copy" is the same render but issues the lead's missing unsubscribe/referral links for an Office hand-send (STEP 32);
  *  "test_to_jo" sends a real lead's email to Jo's inbox only, with TEST-job links. */
-export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string; /** TEST only: send the Step 3 likely-eligible email instead, same facts. */ variant?: "likely_estimate"; mode?: "send" | "preview" | "manual_copy" | "test_to_jo" | "test_preview"; automaticInsulation?: boolean; /** Set only by the post-Gate-1 router: the owner's own first reply. */ automaticInitial?: boolean; /** Office manual copy only (Jo, 12 Oct): render the approved three-variant email. Never sends. */ officeVariant?: import("./save-spot-offer.core").SaveSpotVariant };
+export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string; /** TEST only: send the Step 3 likely-eligible email instead, same facts. */ variant?: "likely_estimate"; mode?: "send" | "preview" | "manual_copy" | "test_to_jo" | "test_preview"; automaticInsulation?: boolean; /** Set only by the post-Gate-1 router: the owner's own first reply. */ automaticInitial?: boolean; /** S20-R01: set only by the automatic Group B invitation for a NEW enquiry while the master switch is off; the new-enquiry gate is re-checked before the provider call. */ newEnquiryAutoReply?: boolean; /** Office manual copy only (Jo, 12 Oct): render the approved three-variant email. Never sends. */ officeVariant?: import("./save-spot-offer.core").SaveSpotVariant };
 /** Jo's own inbox for "send me a test of this lead". */
 export const JO_TEST_INBOX = "jolowexo@hotmail.com";
 /** TEST job whose links go into Jo's test copies, so pressing them never touches the real lead. */
@@ -269,7 +270,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     const blocker = groupBInvitationBlocker(await groupBMediaForJob(jobId));
     if (blocker) { await finish("failed", "not_sent", blocker); return r("blocked", blocker); }
   }
-  if (!isTest && mode === "send" && sendGroup === "onsite" && !followup && !(await groupBGlobalsOn())) { await finish("failed", "not_sent", GROUP_B_GLOBALS_OFF); return r("blocked", GROUP_B_GLOBALS_OFF); }
+  if (!isTest && mode === "send" && sendGroup === "onsite" && !followup && !(await groupBGlobalsOn()) && !(testOpts.newEnquiryAutoReply === true && (await (await import("./enquiry-auto-reply.server")).newEnquiryAutoReplyGate(jobId)).allowed)) { await finish("failed", "not_sent", GROUP_B_GLOBALS_OFF); return r("blocked", GROUP_B_GLOBALS_OFF); }
   { const { jobDeletedBlocker } = await import("./job-live.server"); const del = await jobDeletedBlocker(jobId); if (del) { await finish("failed", "not_sent", del); return r("blocked", del); } }
   // STEP 56: true from the moment the real provider call starts until it is known to have been refused. While true, no
   // error path may record "failed" (a failed row is resendable): the outcome is recorded as delivered_unrecorded instead.
@@ -343,12 +344,36 @@ export async function groupBGlobalsOn(): Promise<boolean> {
 export const GROUP_B_GLOBALS_OFF = "Customer emails are switched off — Group B invitation not sent.";
 
 export async function sendAutomaticInsulationDetails(jobId: string): Promise<HotSendResult> {
-  if (!(await groupBGlobalsOn())) return { jobId, jobNumber: null, outcome: "blocked", detail: GROUP_B_GLOBALS_OFF };
+  // S20-R01: with the master switch off, only a NEW enquiry may get it, and only while automatic enquiry emails are on
+  // (enquiry-auto-reply.core.ts). The scheduled backlog worker never sends this email.
+  let newEnquiryAutoReply = false;
+  if (!(await groupBGlobalsOn())) {
+    const { newEnquiryAutoReplyGate } = await import("./enquiry-auto-reply.server");
+    const gate = await newEnquiryAutoReplyGate(jobId);
+    if (!gate.allowed) return { jobId, jobNumber: null, outcome: "blocked", detail: gate.reason === AUTO_REPLY_OFF ? GROUP_B_GLOBALS_OFF : gate.reason };
+    newEnquiryAutoReply = true;
+  }
   const blocker = groupBInvitationBlocker(await groupBMediaForJob(jobId));
   if (blocker) return { jobId, jobNumber: null, outcome: "blocked", detail: blocker };
   const { INSULATION_DETAILS_REAL_SEND_APPROVED } = await import("./hot-leads.core");
   if (!INSULATION_DETAILS_REAL_SEND_APPROVED) return { jobId, jobNumber: null, outcome: "blocked", detail: "Insulation email awaits final visual approval" };
-  return sendOne(jobId, null, true, { group: "onsite", automaticInsulation: true });
+  return sendOne(jobId, null, true, { group: "onsite", automaticInsulation: true, ...(newEnquiryAutoReply ? { newEnquiryAutoReply: true } : {}) });
+}
+
+/** S20-R01: the email service Save my spot already uses (Resend via the connector gateway), as a DeliveryAdapter for the
+ *  automatic ineligible reply when no Base44 bridge is configured. A definite refusal is DeliveryRejectedError ("failed",
+ *  retryable); any unknown outcome is a plain error, which the sender records as delivered_unrecorded (never retried). */
+export function resendDeliveryAdapter(): import("./delivery.core").DeliveryAdapter {
+  return {
+    provider: "resend",
+    async deliver(msg) {
+      const { DeliveryRejectedError } = await import("./delivery.core");
+      const d = await resendSend(msg.to, msg.subject, msg.html, msg.text, msg.idempotencyKey, null);
+      if (d.outcome === "accepted") return { providerMessageId: d.id };
+      if (d.outcome === "rejected" || d.outcome === "not_attempted") throw new DeliveryRejectedError(d.detail);
+      throw new Error(d.detail); // unknown outcome: recorded delivered_unrecorded ("sent_unknown: …") and never retried
+    },
+  };
 }
 
 const CAMPAIGN_FROM = "Home Insulation Victoria <jobs@homeinsulationvictoria.com.au>";

@@ -47,8 +47,8 @@ export async function maybeAutoRouteLeadEmail(jobId: string): Promise<LeadEmailR
       const result = await sendAutomaticInsulationDetails(jobId);
       return { route: route.email, sent: result.outcome === "sent", reason: result.detail };
     }
-    const { sendPreliminaryIneligibleEmail } = await import("./followups.server");
-    const result = await sendPreliminaryIneligibleEmail(jobId, null);
+    const { sendDecisionIneligibleEmail } = await import("./followups.server");
+    const result = await sendDecisionIneligibleEmail(jobId);
     return { route: route.email, sent: result.sent, reason: result.sent ? "Sent" : result.reason };
   } catch (error) {
     console.warn("automatic lead email route failed", (error as Error).message.slice(0, 200));

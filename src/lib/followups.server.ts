@@ -17,7 +17,7 @@ import { reservationAllowed, statusAfterDelivery, withUnsubscribe } from "./emai
 import { suppressionFor, unsubscribeUrlForJob } from "./emailsafety.server";
 import { MANUAL_SENT_EVENT, manualSendReference } from "./manual-communication.core";
 
-type OfficialOutcome = { kind: "eligible"; mode: "likely" | "onsite" } | { kind: "ineligible"; reason: string | null } | { kind: "hold"; reason: string };
+type OfficialOutcome = { kind: "eligible"; mode: "likely" | "onsite" } | { kind: "ineligible"; reason: string | null; decisionSource: "system" | "admin" } | { kind: "hold"; reason: string };
 
 /** Delivery may use only a completed, recorded system/admin Gate 1 decision. */
 async function officialOutcomeForDelivery(jobId: string): Promise<OfficialOutcome> {
@@ -32,7 +32,7 @@ async function officialOutcomeForDelivery(jobId: string): Promise<OfficialOutcom
   if (job.eligibility_review_required) return { kind: "hold", reason: "eligibility_review_required" };
   if (job.eligibility_outcome === "likely_eligible") return { kind: "eligible", mode: "likely" };
   if (job.eligibility_outcome === "needs_onsite_confirmation") return { kind: "eligible", mode: "onsite" };
-  if (job.eligibility_outcome === "does_not_appear_eligible") return { kind: "ineligible", reason: typeof job.eligibility_reason === "string" ? job.eligibility_reason : null };
+  if (job.eligibility_outcome === "does_not_appear_eligible") return { kind: "ineligible", reason: typeof job.eligibility_reason === "string" ? job.eligibility_reason : null, decisionSource: job.eligibility_decision_source };
   return { kind: "hold", reason: "official_decision_not_recorded" };
 }
 
@@ -240,12 +240,27 @@ export async function processPendingInitialEstimateEmails(limit = 20, adapterIn?
 export const INELIGIBLE_PURPOSE = "preliminary_ineligible" as const;
 export const ineligibleKey = (jobId: string) => `${INELIGIBLE_PURPOSE}:${jobId}`;
 
+/** S20-R01: the automatic reply to ONE enquiry's official ineligible decision (lead-email-routing only – never the
+ *  scheduled backlog worker). Master switch on: the existing path, unchanged. Master switch off: only a NEW enquiry
+ *  while automatic enquiry emails are on (enquiry-auto-reply.core.ts), delivered through the same email service (Resend)
+ *  Save my spot already uses – never the Base44 bridge, whose unclear outcomes are recorded as retryable refusals.
+ *  Every sender rule below still applies. */
+export async function sendDecisionIneligibleEmail(jobId: string) {
+  if (await customerCommsEnabled()) return sendPreliminaryIneligibleEmail(jobId, null);
+  const { newEnquiryAutoReplyGate } = await import("./enquiry-auto-reply.server");
+  const gate = await newEnquiryAutoReplyGate(jobId);
+  if (!gate.allowed) return { sent: false as const, reason: gate.reason };
+  const adapter = (await import("./hot-leads-send.server")).resendDeliveryAdapter();
+  return sendPreliminaryIneligibleEmail(jobId, null, adapter, { newEnquiryAutoReply: true });
+}
+
 /** Legacy export name retained. Sends only a confirmed official ineligible result; never schedules follow-ups or resends. */
-export async function sendPreliminaryIneligibleEmail(jobId: string, actorId: string | null = null, adapterIn?: DeliveryAdapter | null) {
+export async function sendPreliminaryIneligibleEmail(jobId: string, actorId: string | null = null, adapterIn?: DeliveryAdapter | null, opts: { newEnquiryAutoReply?: boolean } = {}) {
   const official = await officialOutcomeForDelivery(jobId);
   if (official.kind !== "ineligible") return { sent: false as const, reason: official.kind === "hold" ? official.reason : "official_not_ineligible" };
   const adapter = adapterIn === undefined ? await configuredDeliveryAdapter() : adapterIn;
-  if (!(await customerCommsEnabled())) return { sent: false as const, reason: "comms_disabled" };
+  // The master switch, or (S20-R01, decision trigger only) the new-enquiry gate re-checked here – the flag alone never permits.
+  if (!(await customerCommsEnabled()) && !(opts.newEnquiryAutoReply === true && (await (await import("./enquiry-auto-reply.server")).newEnquiryAutoReplyGate(jobId)).allowed)) return { sent: false as const, reason: "comms_disabled" };
   if (!(await hasCurrentOwnerContactConsent(jobId))) return { sent: false as const, reason: "no_consent" };
   if (!adapter) return { sent: false as const, reason: "provider_not_configured" };
   const key = ineligibleKey(jobId);
@@ -261,15 +276,22 @@ export async function sendPreliminaryIneligibleEmail(jobId: string, actorId: str
   if (ex?.status === "sent") return { sent: false as const, reason: "already_sent" };
   if (ex && !reservationAllowed(ex)) return { sent: false as const, reason: "already_sent" };
   let sendId = ex?.id ?? null;
-  if (ex) await admin.from("customer_email_sends").update({ status: "sending", error: null, created_at: new Date().toISOString() }).eq("id", ex.id);
-  else {
+  if (ex) {
+    // S20-R01: re-reserve a confirmed failure atomically (as Save my spot does) – two decisions that read the same failed
+    // row at the same moment can't both send.
+    const { data: again, error: againError } = await admin.from("customer_email_sends").update({ status: "sending", error: null, created_at: new Date().toISOString() }).eq("id", ex.id).eq("status", "failed").select("id");
+    if (againError || !again?.length) return { sent: false as const, reason: "already_sent" };
+  } else {
     const { data, error } = await admin.from("customer_email_sends").insert({ job_id: jobId, estimate_link_id: null, purpose: INELIGIBLE_PURPOSE, idempotency_key: key }).select("id").single();
     if (error) return { sent: false as const, reason: "already_sent" };
     sendId = data.id;
   }
   let delivered = false;
   try {
-    const mail = await renderPreliminaryIneligibleMail(jobId, official.reason, owner.reference);
+    // S20-R01: an automatic reply to an OFFICE decision never includes the Office's free-text reason (an internal note,
+    // not reviewed for the customer); the email uses its standard wording. System Gate 1 reasons are unchanged.
+    const reason = opts.newEnquiryAutoReply === true && official.decisionSource !== "system" ? null : official.reason;
+    const mail = await renderPreliminaryIneligibleMail(jobId, reason, owner.reference);
     const r = await adapter.deliver({ to, subject: mail.subject, html: mail.html, text: mail.plainText, idempotencyKey: key, purpose: INELIGIBLE_PURPOSE });
     delivered = true;
     const communicationId = await recordCommunication({ jobId, direction: "outbound", channel: "email", recipients: [to], subject: mail.subject, body: mail.plainText, provider: adapter.provider, providerMessageId: r.providerMessageId, visibility: "customer", sourceEvent: INELIGIBLE_PURPOSE, sourceReference: key, createdBy: actorId, deliveryStatus: "sent" });
