@@ -1,0 +1,462 @@
+{
+ "start": "2026-10-13T03:27:22.986850Z",
+ "end": "2026-10-13T03:29:05.892241Z",
+ "rows": [
+  {
+   "step": "public-calculator",
+   "width": 390,
+   "bad": [],
+   "errors": [],
+   "readycheck": [
+    "stimate and arrange your free Ready Check."
+   ],
+   "saved_box": false,
+   "confirm": false,
+   "assumed": false,
+   "prices": [],
+   "removal15": false,
+   "buttons": [
+    "100 m\u00b2",
+    "125 m\u00b2",
+    "150 m\u00b2",
+    "200 m\u00b2",
+    "None",
+    "Some there",
+    "Not sure",
+    "Change"
+   ],
+   "hscroll": false,
+   "posts": [
+    "s://estimate.homeinsulationvictoria.com.au/__l5e/trackevents"
+   ],
+   "ok": true
+  },
+  {
+   "step": "public-calculator",
+   "width": 1280,
+   "bad": [],
+   "errors": [],
+   "readycheck": [
+    "We'll confirm it at the free Ready Check",
+    "stimate and arrange your free Ready Check."
+   ],
+   "saved_box": false,
+   "confirm": false,
+   "assumed": false,
+   "prices": [],
+   "removal15": false,
+   "buttons": [
+    "100 m\u00b2",
+    "125 m\u00b2",
+    "150 m\u00b2",
+    "200 m\u00b2",
+    "None\nBare ceiling or just the plaster",
+    "Some there\nSome insulation already installed",
+    "Not sure\nWe'll confirm it at the free Ready Check",
+    "Change"
+   ],
+   "hscroll": false,
+   "posts": [
+    "s://estimate.homeinsulationvictoria.com.au/__l5e/trackevents"
+   ],
+   "ok": true
+  },
+  {
+   "step": "HV-2219-revised",
+   "width": 390,
+   "reload_same": true,
+   "bad": [],
+   "errors": [],
+   "readycheck": [],
+   "saved_box": false,
+   "confirm": false,
+   "assumed": false,
+   "prices": [],
+   "removal15": false,
+   "buttons": [
+    "Start again",
+    "100 m\u00b2",
+    "125 m\u00b2",
+    "150 m\u00b2",
+    "200 m\u00b2",
+    "None",
+    "Some there",
+    "Not sure"
+   ],
+   "hscroll": false,
+   "posts": [
+    "8e00bc588af89cc966f38b9ea3a9cc2c27681e13aed683b0b74206ba9c20",
+    "s://estimate.homeinsulationvictoria.com.au/__l5e/trackevents"
+   ],
+   "ok": true
+  },
+  {
+   "step": "HV-2219-revised",
+   "width": 1280,
+   "reload_same": true,
+   "bad": [],
+   "errors": [],
+   "readycheck": [
+    "We'll confirm it at the free Ready Check"
+   ],
+   "saved_box": false,
+   "confirm": false,
+   "assumed": false,
+   "prices": [],
+   "removal15": false,
+   "buttons": [
+    "Start again",
+    "100 m\u00b2",
+    "125 m\u00b2",
+    "150 m\u00b2",
+    "200 m\u00b2",
+    "None\nBare ceiling or just the plaster",
+    "Some there\nSome insulation already installed",
+    "Not sure\nWe'll confirm it at the free Ready Check"
+   ],
+   "hscroll": false,
+   "posts": [
+    "8e00bc588af89cc966f38b9ea3a9cc2c27681e13aed683b0b74206ba9c20",
+    "s://estimate.homeinsulationvictoria.com.au/__l5e/trackevents"
+   ],
+   "ok": true
+  },
+  {
+   "step": "HV-2219-original",
+   "width": 390,
+   "reload_same": true,
+   "bad": [],
+   "errors": [],
+   "readycheck": [],
+   "saved_box": false,
+   "confirm": true,
+   "assumed": true,
+   "prices": [
+    "$1,470",
+    "$3,728"
+   ],
+   "removal15": false,
+   "buttons": [
+    "Yes, save my spot",
+    "Not yet",
+    "Start again",
+    "100 m\u00b2",
+    "125 m\u00b2",
+    "150 m\u00b2",
+    "200 m\u00b2",
+    "None"
+   ],
+   "hscroll": false,
+   "posts": [
+    "8e00bc588af89cc966f38b9ea3a9cc2c27681e13aed683b0b74206ba9c20",
+    "s://estimate.homeinsulationvictoria.com.au/__l5e/trackevents"
+   ],
+   "ok": true
+  },
+  {
+   "step": "HV-2219-original",
+   "width": 1280,
+   "reload_same": true,
+   "bad": [],
+   "errors": [],
+   "readycheck": [
+    "We'll confirm it at the free Ready Check"
+   ],
+   "saved_box": false,
+   "confirm": true,
+   "assumed": true,
+   "prices": [
+    "$1,470",
+    "$3,728"
+   ],
+   "removal15": false,
+   "buttons": [
+    "Yes, save my spot",
+    "Not yet",
+    "Start again",
+    "100 m\u00b2",
+    "125 m\u00b2",
+    "150 m\u00b2",
+    "200 m\u00b2",
+    "None\nBare ceiling or just the plaster"
+   ],
+   "hscroll": false,
+   "posts": [
+    "8e00bc588af89cc966f38b9ea3a9cc2c27681e13aed683b0b74206ba9c20",
+    "s://estimate.homeinsulationvictoria.com.au/__l5e/trackevents"
+   ],
+   "ok": true
+  },
+  {
+   "step": "HV-2211-revised",
+   "width": 390,
+   "reload_same": true,
+   "bad": [],
+   "errors": [],
+   "readycheck": [],
+   "saved_box": false,
+   "confirm": false,
+   "assumed": false,
+   "prices": [],
+   "removal15": false,
+   "buttons": [
+    "Start again",
+    "100 m\u00b2",
+    "125 m\u00b2",
+    "150 m\u00b2",
+    "200 m\u00b2",
+    "None",
+    "Some there",
+    "Not sure"
+   ],
+   "hscroll": false,
+   "posts": [
+    "8e00bc588af89cc966f38b9ea3a9cc2c27681e13aed683b0b74206ba9c20",
+    "s://estimate.homeinsulationvictoria.com.au/__l5e/trackevents"
+   ],
+   "ok": true
+  },
+  {
+   "step": "HV-2211-revised",
+   "width": 1280,
+   "reload_same": true,
+   "bad": [],
+   "errors": [],
+   "readycheck": [
+    "We'll confirm it at the free Ready Check"
+   ],
+   "saved_box": false,
+   "confirm": false,
+   "assumed": false,
+   "prices": [],
+   "removal15": false,
+   "buttons": [
+    "Start again",
+    "100 m\u00b2",
+    "125 m\u00b2",
+    "150 m\u00b2",
+    "200 m\u00b2",
+    "None\nBare ceiling or just the plaster",
+    "Some there\nSome insulation already installed",
+    "Not sure\nWe'll confirm it at the free Ready Check"
+   ],
+   "hscroll": false,
+   "posts": [
+    "8e00bc588af89cc966f38b9ea3a9cc2c27681e13aed683b0b74206ba9c20",
+    "s://estimate.homeinsulationvictoria.com.au/__l5e/trackevents"
+   ],
+   "ok": true
+  },
+  {
+   "step": "HV-2211-original",
+   "width": 390,
+   "reload_same": true,
+   "bad": [],
+   "errors": [],
+   "readycheck": [],
+   "saved_box": false,
+   "confirm": true,
+   "assumed": true,
+   "prices": [
+    "$1,470",
+    "$3,728"
+   ],
+   "removal15": false,
+   "buttons": [
+    "Yes, save my spot",
+    "Not yet",
+    "Start again",
+    "100 m\u00b2",
+    "125 m\u00b2",
+    "150 m\u00b2",
+    "200 m\u00b2",
+    "None"
+   ],
+   "hscroll": false,
+   "posts": [
+    "8e00bc588af89cc966f38b9ea3a9cc2c27681e13aed683b0b74206ba9c20",
+    "s://estimate.homeinsulationvictoria.com.au/__l5e/trackevents"
+   ],
+   "ok": true
+  },
+  {
+   "step": "HV-2211-original",
+   "width": 1280,
+   "reload_same": true,
+   "bad": [],
+   "errors": [],
+   "readycheck": [
+    "We'll confirm it at the free Ready Check"
+   ],
+   "saved_box": false,
+   "confirm": true,
+   "assumed": true,
+   "prices": [
+    "$1,470",
+    "$3,728"
+   ],
+   "removal15": false,
+   "buttons": [
+    "Yes, save my spot",
+    "Not yet",
+    "Start again",
+    "100 m\u00b2",
+    "125 m\u00b2",
+    "150 m\u00b2",
+    "200 m\u00b2",
+    "None\nBare ceiling or just the plaster"
+   ],
+   "hscroll": false,
+   "posts": [
+    "8e00bc588af89cc966f38b9ea3a9cc2c27681e13aed683b0b74206ba9c20",
+    "s://estimate.homeinsulationvictoria.com.au/__l5e/trackevents"
+   ],
+   "ok": true
+  },
+  {
+   "step": "HV-2221-revised",
+   "width": 390,
+   "reload_same": true,
+   "bad": [],
+   "errors": [],
+   "readycheck": [],
+   "saved_box": false,
+   "confirm": false,
+   "assumed": false,
+   "prices": [],
+   "removal15": false,
+   "buttons": [
+    "Start again",
+    "100 m\u00b2",
+    "125 m\u00b2",
+    "150 m\u00b2",
+    "200 m\u00b2",
+    "None",
+    "Some there",
+    "Not sure"
+   ],
+   "hscroll": false,
+   "posts": [
+    "8e00bc588af89cc966f38b9ea3a9cc2c27681e13aed683b0b74206ba9c20",
+    "s://estimate.homeinsulationvictoria.com.au/__l5e/trackevents"
+   ],
+   "ok": true
+  },
+  {
+   "step": "HV-2221-revised",
+   "width": 1280,
+   "reload_same": true,
+   "bad": [],
+   "errors": [],
+   "readycheck": [
+    "We'll confirm it at the free Ready Check"
+   ],
+   "saved_box": false,
+   "confirm": false,
+   "assumed": false,
+   "prices": [],
+   "removal15": false,
+   "buttons": [
+    "Start again",
+    "100 m\u00b2",
+    "125 m\u00b2",
+    "150 m\u00b2",
+    "200 m\u00b2",
+    "None\nBare ceiling or just the plaster",
+    "Some there\nSome insulation already installed",
+    "Not sure\nWe'll confirm it at the free Ready Check"
+   ],
+   "hscroll": false,
+   "posts": [
+    "8e00bc588af89cc966f38b9ea3a9cc2c27681e13aed683b0b74206ba9c20",
+    "s://estimate.homeinsulationvictoria.com.au/__l5e/trackevents"
+   ],
+   "ok": true
+  },
+  {
+   "step": "HV-2221-original",
+   "width": 390,
+   "reload_same": true,
+   "bad": [],
+   "errors": [],
+   "readycheck": [],
+   "saved_box": false,
+   "confirm": true,
+   "assumed": true,
+   "prices": [
+    "$1,470",
+    "$3,728"
+   ],
+   "removal15": false,
+   "buttons": [
+    "Yes, save my spot",
+    "Not yet",
+    "Start again",
+    "100 m\u00b2",
+    "125 m\u00b2",
+    "150 m\u00b2",
+    "200 m\u00b2",
+    "None"
+   ],
+   "hscroll": false,
+   "posts": [
+    "8e00bc588af89cc966f38b9ea3a9cc2c27681e13aed683b0b74206ba9c20",
+    "s://estimate.homeinsulationvictoria.com.au/__l5e/trackevents"
+   ],
+   "ok": true
+  },
+  {
+   "step": "HV-2221-original",
+   "width": 1280,
+   "reload_same": true,
+   "bad": [],
+   "errors": [],
+   "readycheck": [
+    "We'll confirm it at the free Ready Check"
+   ],
+   "saved_box": false,
+   "confirm": true,
+   "assumed": true,
+   "prices": [
+    "$1,470",
+    "$3,728"
+   ],
+   "removal15": false,
+   "buttons": [
+    "Yes, save my spot",
+    "Not yet",
+    "Start again",
+    "100 m\u00b2",
+    "125 m\u00b2",
+    "150 m\u00b2",
+    "200 m\u00b2",
+    "None\nBare ceiling or just the plaster"
+   ],
+   "hscroll": false,
+   "posts": [
+    "8e00bc588af89cc966f38b9ea3a9cc2c27681e13aed683b0b74206ba9c20",
+    "s://estimate.homeinsulationvictoria.com.au/__l5e/trackevents"
+   ],
+   "ok": true
+  }
+ ],
+ "client_fingerprint": {
+  "index-BnGhh3UR.js": "4b1c67fbebd5c80e7dca9ebaed8c34b18cba320604b4d4edc9b4c404f2675501",
+  "estimate_._token.video-B4ZSUTvq.js": "06facddf3a3fc2274b2806a9537c38f65bdd278beeb77cd486937fb3ad395e48",
+  "TradeShell-fhc5Pq4n.js": "unchanged",
+  "operations-query-CDmrXud9.js": "unchanged"
+ },
+ "server_only": "UNKNOWN",
+ "saves_clicked": 0,
+ "failed": [
+  "saved-resume: HV-2219 and HV-2211 show 'Save your spot using the original estimate\u2026' + 'Yes, save my spot' instead of the saved state, phone+desktop, after reload",
+  "HV-2211 (saved 180 m\u00b2) is offered the 150 m\u00b2 original $3,728 again",
+  "logo image broken on personal calculator",
+  "address shows 'We couldn't find a Victorian match' for prefilled TEST address"
+ ],
+ "blocked": [
+  "all 13 signed-in routes x phone/desktop: platform refused minting TEST sessions via admin link; not bypassed",
+  "office pipeline counts/drilldown and deleted-job checks",
+  "quote/sign/upload/approve/sendback/payment/Mitti/Xero"
+ ]
+}
