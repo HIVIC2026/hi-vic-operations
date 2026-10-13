@@ -1,0 +1,392 @@
+{
+ "start": "2026-10-13T03:38:17.916226Z",
+ "end": "2026-10-13T03:41:15.407060Z",
+ "rows": [
+  {
+   "step": "HV-2219-revised",
+   "width": 390,
+   "reload_same": true,
+   "bad": [],
+   "errors": [],
+   "readycheck": [
+    "e now in our queue for a free Ready Check. We\u2019ll contact you when installer avail"
+   ],
+   "saved_box": true,
+   "confirm": false,
+   "assumed": false,
+   "prices": [
+    "$1,470",
+    "$3,728"
+   ],
+   "removal15": false,
+   "buttons": [],
+   "hscroll": false,
+   "posts": [
+    "ZXRMYXVuY2hDYW1wYWlnblBhZ2VfY3JlYXRlU2VydmVyRm5faGFuZGxlciJ9"
+   ],
+   "blocked": [
+    "https://fonts.googleapis.com"
+   ],
+   "saved_text": [
+    "Saved estimate: $3,728 after an estimated $1,470 rebate (150 m\u00b2)."
+   ],
+   "ok": true
+  },
+  {
+   "step": "HV-2219-revised",
+   "width": 1280,
+   "reload_same": true,
+   "bad": [],
+   "errors": [],
+   "readycheck": [
+    "e now in our queue for a free Ready Check. We\u2019ll contact you when installer avail"
+   ],
+   "saved_box": true,
+   "confirm": false,
+   "assumed": false,
+   "prices": [
+    "$1,470",
+    "$3,728"
+   ],
+   "removal15": false,
+   "buttons": [],
+   "hscroll": false,
+   "posts": [
+    "ZXRMYXVuY2hDYW1wYWlnblBhZ2VfY3JlYXRlU2VydmVyRm5faGFuZGxlciJ9"
+   ],
+   "blocked": [
+    "https://fonts.googleapis.com"
+   ],
+   "saved_text": [
+    "Saved estimate: $3,728 after an estimated $1,470 rebate (150 m\u00b2)."
+   ],
+   "ok": true
+  },
+  {
+   "step": "HV-2219-original",
+   "width": 390,
+   "reload_same": true,
+   "bad": [],
+   "errors": [],
+   "readycheck": [
+    "e now in our queue for a free Ready Check. We\u2019ll contact you when installer avail"
+   ],
+   "saved_box": true,
+   "confirm": false,
+   "assumed": false,
+   "prices": [
+    "$1,470",
+    "$3,728"
+   ],
+   "removal15": false,
+   "buttons": [],
+   "hscroll": false,
+   "posts": [
+    "ZXRMYXVuY2hDYW1wYWlnblBhZ2VfY3JlYXRlU2VydmVyRm5faGFuZGxlciJ9"
+   ],
+   "blocked": [
+    "https://fonts.googleapis.com"
+   ],
+   "saved_text": [
+    "Saved estimate: $3,728 after an estimated $1,470 rebate (150 m\u00b2)."
+   ],
+   "ok": true
+  },
+  {
+   "step": "HV-2219-original",
+   "width": 1280,
+   "reload_same": true,
+   "bad": [],
+   "errors": [],
+   "readycheck": [
+    "e now in our queue for a free Ready Check. We\u2019ll contact you when installer avail"
+   ],
+   "saved_box": true,
+   "confirm": false,
+   "assumed": false,
+   "prices": [
+    "$1,470",
+    "$3,728"
+   ],
+   "removal15": false,
+   "buttons": [],
+   "hscroll": false,
+   "posts": [
+    "ZXRMYXVuY2hDYW1wYWlnblBhZ2VfY3JlYXRlU2VydmVyRm5faGFuZGxlciJ9"
+   ],
+   "blocked": [
+    "https://fonts.googleapis.com"
+   ],
+   "saved_text": [
+    "Saved estimate: $3,728 after an estimated $1,470 rebate (150 m\u00b2)."
+   ],
+   "ok": true
+  },
+  {
+   "step": "HV-2211-revised",
+   "width": 390,
+   "reload_same": true,
+   "bad": [],
+   "errors": [],
+   "readycheck": [
+    "e now in our queue for a free Ready Check. We\u2019ll contact you when installer avail"
+   ],
+   "saved_box": true,
+   "confirm": false,
+   "assumed": false,
+   "prices": [
+    "$1,750",
+    "$4,348"
+   ],
+   "removal15": false,
+   "buttons": [],
+   "hscroll": false,
+   "posts": [
+    "ZXRMYXVuY2hDYW1wYWlnblBhZ2VfY3JlYXRlU2VydmVyRm5faGFuZGxlciJ9"
+   ],
+   "blocked": [
+    "https://fonts.googleapis.com"
+   ],
+   "saved_text": [
+    "Saved estimate: $4,348 after an estimated $1,750 rebate (180 m\u00b2)."
+   ],
+   "ok": true
+  },
+  {
+   "step": "HV-2211-revised",
+   "width": 1280,
+   "reload_same": true,
+   "bad": [],
+   "errors": [],
+   "readycheck": [
+    "e now in our queue for a free Ready Check. We\u2019ll contact you when installer avail"
+   ],
+   "saved_box": true,
+   "confirm": false,
+   "assumed": false,
+   "prices": [
+    "$1,750",
+    "$4,348"
+   ],
+   "removal15": false,
+   "buttons": [],
+   "hscroll": false,
+   "posts": [
+    "ZXRMYXVuY2hDYW1wYWlnblBhZ2VfY3JlYXRlU2VydmVyRm5faGFuZGxlciJ9"
+   ],
+   "blocked": [
+    "https://fonts.googleapis.com"
+   ],
+   "saved_text": [
+    "Saved estimate: $4,348 after an estimated $1,750 rebate (180 m\u00b2)."
+   ],
+   "ok": true
+  },
+  {
+   "step": "HV-2211-original",
+   "width": 390,
+   "reload_same": true,
+   "bad": [],
+   "errors": [],
+   "readycheck": [
+    "e now in our queue for a free Ready Check. We\u2019ll contact you when installer avail"
+   ],
+   "saved_box": true,
+   "confirm": false,
+   "assumed": false,
+   "prices": [
+    "$1,750",
+    "$4,348"
+   ],
+   "removal15": false,
+   "buttons": [],
+   "hscroll": false,
+   "posts": [
+    "ZXRMYXVuY2hDYW1wYWlnblBhZ2VfY3JlYXRlU2VydmVyRm5faGFuZGxlciJ9"
+   ],
+   "blocked": [
+    "https://fonts.googleapis.com"
+   ],
+   "saved_text": [
+    "Saved estimate: $4,348 after an estimated $1,750 rebate (180 m\u00b2)."
+   ],
+   "ok": true
+  },
+  {
+   "step": "HV-2211-original",
+   "width": 1280,
+   "reload_same": true,
+   "bad": [],
+   "errors": [],
+   "readycheck": [
+    "e now in our queue for a free Ready Check. We\u2019ll contact you when installer avail"
+   ],
+   "saved_box": true,
+   "confirm": false,
+   "assumed": false,
+   "prices": [
+    "$1,750",
+    "$4,348"
+   ],
+   "removal15": false,
+   "buttons": [],
+   "hscroll": false,
+   "posts": [
+    "ZXRMYXVuY2hDYW1wYWlnblBhZ2VfY3JlYXRlU2VydmVyRm5faGFuZGxlciJ9"
+   ],
+   "blocked": [
+    "https://fonts.googleapis.com"
+   ],
+   "saved_text": [
+    "Saved estimate: $4,348 after an estimated $1,750 rebate (180 m\u00b2)."
+   ],
+   "ok": true
+  },
+  {
+   "step": "HV-2221-revised",
+   "width": 390,
+   "reload_same": true,
+   "bad": [],
+   "errors": [],
+   "readycheck": [],
+   "saved_box": false,
+   "confirm": false,
+   "assumed": false,
+   "prices": [],
+   "removal15": false,
+   "buttons": [
+    "Start again",
+    "100 m\u00b2",
+    "125 m\u00b2",
+    "150 m\u00b2",
+    "200 m\u00b2",
+    "None",
+    "Some there",
+    "Not sure"
+   ],
+   "hscroll": false,
+   "posts": [
+    "ZXRMYXVuY2hDYW1wYWlnblBhZ2VfY3JlYXRlU2VydmVyRm5faGFuZGxlciJ9",
+    "http://localhost:8080/__lovable/error-collector"
+   ],
+   "blocked": [
+    "https://fonts.googleapis.com",
+    "https://homeinsulationvictoria.com.au"
+   ],
+   "saved_text": [],
+   "ok": true
+  },
+  {
+   "step": "HV-2221-revised",
+   "width": 1280,
+   "reload_same": true,
+   "bad": [],
+   "errors": [],
+   "readycheck": [
+    "We'll confirm it at the free Ready Check"
+   ],
+   "saved_box": false,
+   "confirm": false,
+   "assumed": false,
+   "prices": [],
+   "removal15": false,
+   "buttons": [
+    "Start again",
+    "100 m\u00b2",
+    "125 m\u00b2",
+    "150 m\u00b2",
+    "200 m\u00b2",
+    "None\nBare ceiling or just the plaster",
+    "Some there\nSome insulation already installed",
+    "Not sure\nWe'll confirm it at the free Ready Check"
+   ],
+   "hscroll": false,
+   "posts": [
+    "ZXRMYXVuY2hDYW1wYWlnblBhZ2VfY3JlYXRlU2VydmVyRm5faGFuZGxlciJ9",
+    "http://localhost:8080/__lovable/error-collector"
+   ],
+   "blocked": [
+    "https://fonts.googleapis.com",
+    "https://homeinsulationvictoria.com.au"
+   ],
+   "saved_text": [],
+   "ok": true
+  },
+  {
+   "step": "HV-2221-original",
+   "width": 390,
+   "reload_same": true,
+   "bad": [],
+   "errors": [],
+   "readycheck": [],
+   "saved_box": false,
+   "confirm": true,
+   "assumed": true,
+   "prices": [
+    "$1,470",
+    "$3,728"
+   ],
+   "removal15": false,
+   "buttons": [
+    "Yes, save my spot",
+    "Not yet",
+    "Start again",
+    "100 m\u00b2",
+    "125 m\u00b2",
+    "150 m\u00b2",
+    "200 m\u00b2",
+    "None"
+   ],
+   "hscroll": false,
+   "posts": [
+    "ZXRMYXVuY2hDYW1wYWlnblBhZ2VfY3JlYXRlU2VydmVyRm5faGFuZGxlciJ9",
+    "http://localhost:8080/__lovable/error-collector"
+   ],
+   "blocked": [
+    "https://fonts.googleapis.com",
+    "https://homeinsulationvictoria.com.au"
+   ],
+   "saved_text": [],
+   "ok": true
+  },
+  {
+   "step": "HV-2221-original",
+   "width": 1280,
+   "reload_same": true,
+   "bad": [],
+   "errors": [],
+   "readycheck": [
+    "We'll confirm it at the free Ready Check"
+   ],
+   "saved_box": false,
+   "confirm": true,
+   "assumed": true,
+   "prices": [
+    "$1,470",
+    "$3,728"
+   ],
+   "removal15": false,
+   "buttons": [
+    "Yes, save my spot",
+    "Not yet",
+    "Start again",
+    "100 m\u00b2",
+    "125 m\u00b2",
+    "150 m\u00b2",
+    "200 m\u00b2",
+    "None\nBare ceiling or just the plaster"
+   ],
+   "hscroll": false,
+   "posts": [
+    "ZXRMYXVuY2hDYW1wYWlnblBhZ2VfY3JlYXRlU2VydmVyRm5faGFuZGxlciJ9",
+    "http://localhost:8080/__lovable/error-collector"
+   ],
+   "blocked": [
+    "https://fonts.googleapis.com",
+    "https://homeinsulationvictoria.com.au"
+   ],
+   "saved_text": [],
+   "ok": true
+  }
+ ]
+}

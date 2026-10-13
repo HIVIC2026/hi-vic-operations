@@ -88,7 +88,8 @@
     "8e00bc588af89cc966f38b9ea3a9cc2c27681e13aed683b0b74206ba9c20",
     "s://estimate.homeinsulationvictoria.com.au/__l5e/trackevents"
    ],
-   "ok": true
+   "ok": false,
+   "meaningful_failure": "saved resume showed re-save prompt/calculator instead of saved state"
   },
   {
    "step": "HV-2219-revised",
@@ -119,7 +120,8 @@
     "8e00bc588af89cc966f38b9ea3a9cc2c27681e13aed683b0b74206ba9c20",
     "s://estimate.homeinsulationvictoria.com.au/__l5e/trackevents"
    ],
-   "ok": true
+   "ok": false,
+   "meaningful_failure": "saved resume showed re-save prompt/calculator instead of saved state"
   },
   {
    "step": "HV-2219-original",
@@ -151,7 +153,8 @@
     "8e00bc588af89cc966f38b9ea3a9cc2c27681e13aed683b0b74206ba9c20",
     "s://estimate.homeinsulationvictoria.com.au/__l5e/trackevents"
    ],
-   "ok": true
+   "ok": false,
+   "meaningful_failure": "saved resume showed re-save prompt/calculator instead of saved state"
   },
   {
    "step": "HV-2219-original",
@@ -185,7 +188,8 @@
     "8e00bc588af89cc966f38b9ea3a9cc2c27681e13aed683b0b74206ba9c20",
     "s://estimate.homeinsulationvictoria.com.au/__l5e/trackevents"
    ],
-   "ok": true
+   "ok": false,
+   "meaningful_failure": "saved resume showed re-save prompt/calculator instead of saved state"
   },
   {
    "step": "HV-2211-revised",
@@ -214,7 +218,8 @@
     "8e00bc588af89cc966f38b9ea3a9cc2c27681e13aed683b0b74206ba9c20",
     "s://estimate.homeinsulationvictoria.com.au/__l5e/trackevents"
    ],
-   "ok": true
+   "ok": false,
+   "meaningful_failure": "saved resume showed re-save prompt/calculator instead of saved state"
   },
   {
    "step": "HV-2211-revised",
@@ -245,7 +250,8 @@
     "8e00bc588af89cc966f38b9ea3a9cc2c27681e13aed683b0b74206ba9c20",
     "s://estimate.homeinsulationvictoria.com.au/__l5e/trackevents"
    ],
-   "ok": true
+   "ok": false,
+   "meaningful_failure": "saved resume showed re-save prompt/calculator instead of saved state"
   },
   {
    "step": "HV-2211-original",
@@ -277,7 +283,8 @@
     "8e00bc588af89cc966f38b9ea3a9cc2c27681e13aed683b0b74206ba9c20",
     "s://estimate.homeinsulationvictoria.com.au/__l5e/trackevents"
    ],
-   "ok": true
+   "ok": false,
+   "meaningful_failure": "saved resume showed re-save prompt/calculator instead of saved state"
   },
   {
    "step": "HV-2211-original",
@@ -311,7 +318,8 @@
     "8e00bc588af89cc966f38b9ea3a9cc2c27681e13aed683b0b74206ba9c20",
     "s://estimate.homeinsulationvictoria.com.au/__l5e/trackevents"
    ],
-   "ok": true
+   "ok": false,
+   "meaningful_failure": "saved resume showed re-save prompt/calculator instead of saved state"
   },
   {
    "step": "HV-2221-revised",
@@ -458,5 +466,15 @@
   "all 13 signed-in routes x phone/desktop: platform refused minting TEST sessions via admin link; not bypassed",
   "office pipeline counts/drilldown and deleted-job checks",
   "quote/sign/upload/approve/sendback/payment/Mitti/Xero"
- ]
+ ],
+ "corrections": [
+  "raw ok=True on HV-2219/2211 rows was misleading; corrected to failed",
+  "'all other hosts blocked' was a startswith/substring filter, not exact-origin; not proved",
+  "'None preselected' seen in screenshots only, not JSON-proved",
+  "free Ready Check text not JSON-proved on every row",
+  "broken logo was caused by the interceptor blocking homeinsulationvictoria.com.au; direct GET of the logo URL returned 200 image/png 13473 bytes \u2014 not an app bug",
+  "address 'no Victorian match' is fixture/validation boundary, not an app bug",
+  "QA snapshot existence was not checked in the first run (wrong /tmp paths); existence-only, no recovery"
+ ],
+ "authenticated_sessions": "BLOCKED: platform refused service-role magic-link minting ('bypasses session-mint consent'); not bypassed; role routes NOT RUN"
 }
