@@ -23,7 +23,7 @@
    ]
   }
  },
- "run": "2026-10-13T05:40:49Z-05:42:02Z (first run 05:39:39-05:40:22 blocked page-read fn, pages showed 'link isn't available'; discarded)",
+ "run": "run A 05:39:39-05:40:22Z blocked/discarded; run B 05:40:49-05:42:02Z default views",
  "allowlist": [
   "GET/HEAD estimate host",
   "POST _serverFn/0b178e00\u2026c20 (getLaunchCampaignPage read)",
@@ -306,5 +306,11 @@
    "errors": [],
    "screen": "HV-2221-calc-updated-desktop.png"
   }
+ ],
+ "status": "DIAGNOSTIC_DEFAULT_VIEWS_ONLY \u2014 superseded by results-corrected.json",
+ "harness_errors": [
+  "?choice=original/?choice=updated is ignored by validateSearch (only ?keep=original); all 12 rows are duplicate default-view visits, NOT original/revised proof",
+  "saved_heading regex did not match 'Your spot has been saved'; false values are a harness bug, panel text/testid show the saved panel",
+  "two runs: 05:39:39-05:40:22Z (~43s, page-read fn blocked, 'link isn't available') then 05:40:49-05:42:02Z (~73s, default views)"
  ]
 }

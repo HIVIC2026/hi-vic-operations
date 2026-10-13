@@ -1,0 +1,921 @@
+{
+ "env": "LIVE https://estimate.homeinsulationvictoria.com.au (client fingerprint 05:39:04-06Z index-DDnZ9Rrz.js c55ebc4c\u20262182, video B05SAXMp 149cc5a8\u20262086; server-only UNKNOWN)",
+ "run_start": "05:44:33.464",
+ "run_end": "05:45:56.797",
+ "role": "public token link, no sign-in",
+ "routes": [
+  "calculator?keep=original",
+  "calculator (no query)"
+ ],
+ "sequence": "per job: visit keep -> reload -> visit normal -> reload -> back (keep) -> forward (normal)",
+ "allowlist": [
+  "GET/HEAD estimate host",
+  "POST _serverFn/0b178e00\u2026c20 (getLaunchCampaignPage read)",
+  "GET homeinsulationvictoria.com.au logo"
+ ],
+ "aborted": {
+  "GET https://fonts.googleapis.com/css2": 36,
+  "POST https://estimate.homeinsulationvictoria.com.au/__l5e/trackevents": 41
+ },
+ "summary": {
+  "checkpoints": 36,
+  "passed": 36,
+  "failed": 0
+ },
+ "db_readback": {
+  "at": "05:46:03Z",
+  "view_count": {
+   "HV-2211": "52->64",
+   "HV-2219": "47->59",
+   "HV-2221": "50->62"
+  },
+  "saved_rows": "2211/2219 unchanged; 2221 still no response",
+  "test_job_communications_since_05_44": "0",
+  "global_unrelated": "customer_email_sends 211->212 = real Base44 repeat enquiry HV-2181 save_my_spot_email_sent 05:46:02Z (normal intake, not this run); workflow +11 = HV-2181 intake + scheduled Mitti sync on other jobs"
+ },
+ "not_run": [
+  "Save/confirm clicks",
+  "entered-size price journey",
+  "address lookup",
+  "installer/REC/office/owner signing/payment/pipeline",
+  "full portal-qa"
+ ],
+ "checkpoints": [
+  {
+   "t": "05:44:38.006",
+   "job": "HV-2211",
+   "route": "keep_original",
+   "viewport": "390",
+   "step": "visit",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator?keep=original",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "heading_regex": true,
+    "testid_spot_saved": true,
+    "exact_saved_figures": true,
+    "no_save_cta": true,
+    "no_dialog": true,
+    "no_150_fallback": true
+   },
+   "logo_loaded": [],
+   "result": "PASS",
+   "screen": "HV-2211-keep_original-390-visit.png",
+   "errors": []
+  },
+  {
+   "t": "05:44:39.948",
+   "job": "HV-2211",
+   "route": "keep_original",
+   "viewport": "390",
+   "step": "reload",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator?keep=original",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "heading_regex": true,
+    "testid_spot_saved": true,
+    "exact_saved_figures": true,
+    "no_save_cta": true,
+    "no_dialog": true,
+    "no_150_fallback": true
+   },
+   "logo_loaded": [],
+   "result": "PASS",
+   "screen": "HV-2211-keep_original-390-reload.png",
+   "errors": []
+  },
+  {
+   "t": "05:44:41.977",
+   "job": "HV-2211",
+   "route": "normal",
+   "viewport": "390",
+   "step": "visit",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "heading_regex": true,
+    "testid_spot_saved": true,
+    "exact_saved_figures": true,
+    "no_save_cta": true,
+    "no_dialog": true,
+    "no_150_fallback": true
+   },
+   "logo_loaded": [],
+   "result": "PASS",
+   "screen": "HV-2211-normal-390-visit.png",
+   "errors": []
+  },
+  {
+   "t": "05:44:43.893",
+   "job": "HV-2211",
+   "route": "normal",
+   "viewport": "390",
+   "step": "reload",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "heading_regex": true,
+    "testid_spot_saved": true,
+    "exact_saved_figures": true,
+    "no_save_cta": true,
+    "no_dialog": true,
+    "no_150_fallback": true
+   },
+   "logo_loaded": [],
+   "result": "PASS",
+   "screen": "HV-2211-normal-390-reload.png",
+   "errors": []
+  },
+  {
+   "t": "05:44:45.810",
+   "job": "HV-2211",
+   "route": "keep_original",
+   "viewport": "390",
+   "step": "back",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator?keep=original",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "heading_regex": true,
+    "testid_spot_saved": true,
+    "exact_saved_figures": true,
+    "no_save_cta": true,
+    "no_dialog": true,
+    "no_150_fallback": true
+   },
+   "logo_loaded": [],
+   "result": "PASS",
+   "screen": "HV-2211-keep_original-390-back.png",
+   "errors": []
+  },
+  {
+   "t": "05:44:47.794",
+   "job": "HV-2211",
+   "route": "normal",
+   "viewport": "390",
+   "step": "forward",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "heading_regex": true,
+    "testid_spot_saved": true,
+    "exact_saved_figures": true,
+    "no_save_cta": true,
+    "no_dialog": true,
+    "no_150_fallback": true
+   },
+   "logo_loaded": [],
+   "result": "PASS",
+   "screen": "HV-2211-normal-390-forward.png",
+   "errors": []
+  },
+  {
+   "t": "05:44:49.720",
+   "job": "HV-2219",
+   "route": "keep_original",
+   "viewport": "390",
+   "step": "visit",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator?keep=original",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "heading_regex": true,
+    "testid_spot_saved": true,
+    "exact_saved_figures": true,
+    "no_save_cta": true,
+    "no_dialog": true
+   },
+   "logo_loaded": [],
+   "result": "PASS",
+   "screen": "HV-2219-keep_original-390-visit.png",
+   "errors": []
+  },
+  {
+   "t": "05:44:51.577",
+   "job": "HV-2219",
+   "route": "keep_original",
+   "viewport": "390",
+   "step": "reload",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator?keep=original",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "heading_regex": true,
+    "testid_spot_saved": true,
+    "exact_saved_figures": true,
+    "no_save_cta": true,
+    "no_dialog": true
+   },
+   "logo_loaded": [],
+   "result": "PASS",
+   "screen": "HV-2219-keep_original-390-reload.png",
+   "errors": []
+  },
+  {
+   "t": "05:44:53.429",
+   "job": "HV-2219",
+   "route": "normal",
+   "viewport": "390",
+   "step": "visit",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "heading_regex": true,
+    "testid_spot_saved": true,
+    "exact_saved_figures": true,
+    "no_save_cta": true,
+    "no_dialog": true
+   },
+   "logo_loaded": [],
+   "result": "PASS",
+   "screen": "HV-2219-normal-390-visit.png",
+   "errors": []
+  },
+  {
+   "t": "05:44:55.359",
+   "job": "HV-2219",
+   "route": "normal",
+   "viewport": "390",
+   "step": "reload",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "heading_regex": true,
+    "testid_spot_saved": true,
+    "exact_saved_figures": true,
+    "no_save_cta": true,
+    "no_dialog": true
+   },
+   "logo_loaded": [],
+   "result": "PASS",
+   "screen": "HV-2219-normal-390-reload.png",
+   "errors": []
+  },
+  {
+   "t": "05:44:57.214",
+   "job": "HV-2219",
+   "route": "keep_original",
+   "viewport": "390",
+   "step": "back",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator?keep=original",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "heading_regex": true,
+    "testid_spot_saved": true,
+    "exact_saved_figures": true,
+    "no_save_cta": true,
+    "no_dialog": true
+   },
+   "logo_loaded": [],
+   "result": "PASS",
+   "screen": "HV-2219-keep_original-390-back.png",
+   "errors": []
+  },
+  {
+   "t": "05:44:59.093",
+   "job": "HV-2219",
+   "route": "normal",
+   "viewport": "390",
+   "step": "forward",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "heading_regex": true,
+    "testid_spot_saved": true,
+    "exact_saved_figures": true,
+    "no_save_cta": true,
+    "no_dialog": true
+   },
+   "logo_loaded": [],
+   "result": "PASS",
+   "screen": "HV-2219-normal-390-forward.png",
+   "errors": []
+  },
+  {
+   "t": "05:45:01.635",
+   "job": "HV-2221",
+   "route": "keep_original",
+   "viewport": "390",
+   "step": "visit",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator?keep=original",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "no_spot_saved": true,
+    "dialog_present": true,
+    "dialog_exact_text": true
+   },
+   "logo_loaded": [
+    true
+   ],
+   "result": "PASS",
+   "screen": "HV-2221-keep_original-390-visit.png",
+   "errors": []
+  },
+  {
+   "t": "05:45:04.101",
+   "job": "HV-2221",
+   "route": "keep_original",
+   "viewport": "390",
+   "step": "reload",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator?keep=original",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "no_spot_saved": true,
+    "dialog_present": true,
+    "dialog_exact_text": true
+   },
+   "logo_loaded": [
+    true
+   ],
+   "result": "PASS",
+   "screen": "HV-2221-keep_original-390-reload.png",
+   "errors": []
+  },
+  {
+   "t": "05:45:06.701",
+   "job": "HV-2221",
+   "route": "normal",
+   "viewport": "390",
+   "step": "visit",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "no_spot_saved": true,
+    "no_dialog": true,
+    "calculator_heading": true
+   },
+   "logo_loaded": [
+    true
+   ],
+   "result": "PASS",
+   "screen": "HV-2221-normal-390-visit.png",
+   "errors": []
+  },
+  {
+   "t": "05:45:09.347",
+   "job": "HV-2221",
+   "route": "normal",
+   "viewport": "390",
+   "step": "reload",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "no_spot_saved": true,
+    "no_dialog": true,
+    "calculator_heading": true
+   },
+   "logo_loaded": [
+    true
+   ],
+   "result": "PASS",
+   "screen": "HV-2221-normal-390-reload.png",
+   "errors": []
+  },
+  {
+   "t": "05:45:11.836",
+   "job": "HV-2221",
+   "route": "keep_original",
+   "viewport": "390",
+   "step": "back",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator?keep=original",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "no_spot_saved": true,
+    "dialog_present": true,
+    "dialog_exact_text": true
+   },
+   "logo_loaded": [
+    true
+   ],
+   "result": "PASS",
+   "screen": "HV-2221-keep_original-390-back.png",
+   "errors": []
+  },
+  {
+   "t": "05:45:14.300",
+   "job": "HV-2221",
+   "route": "normal",
+   "viewport": "390",
+   "step": "forward",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "no_spot_saved": true,
+    "no_dialog": true,
+    "calculator_heading": true
+   },
+   "logo_loaded": [
+    true
+   ],
+   "result": "PASS",
+   "screen": "HV-2221-normal-390-forward.png",
+   "errors": []
+  },
+  {
+   "t": "05:45:17.728",
+   "job": "HV-2211",
+   "route": "keep_original",
+   "viewport": "1280",
+   "step": "visit",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator?keep=original",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "heading_regex": true,
+    "testid_spot_saved": true,
+    "exact_saved_figures": true,
+    "no_save_cta": true,
+    "no_dialog": true,
+    "no_150_fallback": true
+   },
+   "logo_loaded": [],
+   "result": "PASS",
+   "screen": "HV-2211-keep_original-1280-visit.png",
+   "errors": []
+  },
+  {
+   "t": "05:45:19.758",
+   "job": "HV-2211",
+   "route": "keep_original",
+   "viewport": "1280",
+   "step": "reload",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator?keep=original",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "heading_regex": true,
+    "testid_spot_saved": true,
+    "exact_saved_figures": true,
+    "no_save_cta": true,
+    "no_dialog": true,
+    "no_150_fallback": true
+   },
+   "logo_loaded": [],
+   "result": "PASS",
+   "screen": "HV-2211-keep_original-1280-reload.png",
+   "errors": []
+  },
+  {
+   "t": "05:45:21.930",
+   "job": "HV-2211",
+   "route": "normal",
+   "viewport": "1280",
+   "step": "visit",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "heading_regex": true,
+    "testid_spot_saved": true,
+    "exact_saved_figures": true,
+    "no_save_cta": true,
+    "no_dialog": true,
+    "no_150_fallback": true
+   },
+   "logo_loaded": [],
+   "result": "PASS",
+   "screen": "HV-2211-normal-1280-visit.png",
+   "errors": []
+  },
+  {
+   "t": "05:45:23.924",
+   "job": "HV-2211",
+   "route": "normal",
+   "viewport": "1280",
+   "step": "reload",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "heading_regex": true,
+    "testid_spot_saved": true,
+    "exact_saved_figures": true,
+    "no_save_cta": true,
+    "no_dialog": true,
+    "no_150_fallback": true
+   },
+   "logo_loaded": [],
+   "result": "PASS",
+   "screen": "HV-2211-normal-1280-reload.png",
+   "errors": []
+  },
+  {
+   "t": "05:45:25.925",
+   "job": "HV-2211",
+   "route": "keep_original",
+   "viewport": "1280",
+   "step": "back",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator?keep=original",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "heading_regex": true,
+    "testid_spot_saved": true,
+    "exact_saved_figures": true,
+    "no_save_cta": true,
+    "no_dialog": true,
+    "no_150_fallback": true
+   },
+   "logo_loaded": [],
+   "result": "PASS",
+   "screen": "HV-2211-keep_original-1280-back.png",
+   "errors": []
+  },
+  {
+   "t": "05:45:27.921",
+   "job": "HV-2211",
+   "route": "normal",
+   "viewport": "1280",
+   "step": "forward",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "heading_regex": true,
+    "testid_spot_saved": true,
+    "exact_saved_figures": true,
+    "no_save_cta": true,
+    "no_dialog": true,
+    "no_150_fallback": true
+   },
+   "logo_loaded": [],
+   "result": "PASS",
+   "screen": "HV-2211-normal-1280-forward.png",
+   "errors": []
+  },
+  {
+   "t": "05:45:29.974",
+   "job": "HV-2219",
+   "route": "keep_original",
+   "viewport": "1280",
+   "step": "visit",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator?keep=original",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "heading_regex": true,
+    "testid_spot_saved": true,
+    "exact_saved_figures": true,
+    "no_save_cta": true,
+    "no_dialog": true
+   },
+   "logo_loaded": [],
+   "result": "PASS",
+   "screen": "HV-2219-keep_original-1280-visit.png",
+   "errors": []
+  },
+  {
+   "t": "05:45:32.091",
+   "job": "HV-2219",
+   "route": "keep_original",
+   "viewport": "1280",
+   "step": "reload",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator?keep=original",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "heading_regex": true,
+    "testid_spot_saved": true,
+    "exact_saved_figures": true,
+    "no_save_cta": true,
+    "no_dialog": true
+   },
+   "logo_loaded": [],
+   "result": "PASS",
+   "screen": "HV-2219-keep_original-1280-reload.png",
+   "errors": []
+  },
+  {
+   "t": "05:45:34.218",
+   "job": "HV-2219",
+   "route": "normal",
+   "viewport": "1280",
+   "step": "visit",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "heading_regex": true,
+    "testid_spot_saved": true,
+    "exact_saved_figures": true,
+    "no_save_cta": true,
+    "no_dialog": true
+   },
+   "logo_loaded": [],
+   "result": "PASS",
+   "screen": "HV-2219-normal-1280-visit.png",
+   "errors": []
+  },
+  {
+   "t": "05:45:36.335",
+   "job": "HV-2219",
+   "route": "normal",
+   "viewport": "1280",
+   "step": "reload",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "heading_regex": true,
+    "testid_spot_saved": true,
+    "exact_saved_figures": true,
+    "no_save_cta": true,
+    "no_dialog": true
+   },
+   "logo_loaded": [],
+   "result": "PASS",
+   "screen": "HV-2219-normal-1280-reload.png",
+   "errors": []
+  },
+  {
+   "t": "05:45:38.282",
+   "job": "HV-2219",
+   "route": "keep_original",
+   "viewport": "1280",
+   "step": "back",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator?keep=original",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "heading_regex": true,
+    "testid_spot_saved": true,
+    "exact_saved_figures": true,
+    "no_save_cta": true,
+    "no_dialog": true
+   },
+   "logo_loaded": [],
+   "result": "PASS",
+   "screen": "HV-2219-keep_original-1280-back.png",
+   "errors": []
+  },
+  {
+   "t": "05:45:40.560",
+   "job": "HV-2219",
+   "route": "normal",
+   "viewport": "1280",
+   "step": "forward",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "heading_regex": true,
+    "testid_spot_saved": true,
+    "exact_saved_figures": true,
+    "no_save_cta": true,
+    "no_dialog": true
+   },
+   "logo_loaded": [],
+   "result": "PASS",
+   "screen": "HV-2219-normal-1280-forward.png",
+   "errors": []
+  },
+  {
+   "t": "05:45:43.232",
+   "job": "HV-2221",
+   "route": "keep_original",
+   "viewport": "1280",
+   "step": "visit",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator?keep=original",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "no_spot_saved": true,
+    "dialog_present": true,
+    "dialog_exact_text": true
+   },
+   "logo_loaded": [
+    true
+   ],
+   "result": "PASS",
+   "screen": "HV-2221-keep_original-1280-visit.png",
+   "errors": []
+  },
+  {
+   "t": "05:45:45.944",
+   "job": "HV-2221",
+   "route": "keep_original",
+   "viewport": "1280",
+   "step": "reload",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator?keep=original",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "no_spot_saved": true,
+    "dialog_present": true,
+    "dialog_exact_text": true
+   },
+   "logo_loaded": [
+    true
+   ],
+   "result": "PASS",
+   "screen": "HV-2221-keep_original-1280-reload.png",
+   "errors": []
+  },
+  {
+   "t": "05:45:48.591",
+   "job": "HV-2221",
+   "route": "normal",
+   "viewport": "1280",
+   "step": "visit",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "no_spot_saved": true,
+    "no_dialog": true,
+    "calculator_heading": true
+   },
+   "logo_loaded": [
+    true
+   ],
+   "result": "PASS",
+   "screen": "HV-2221-normal-1280-visit.png",
+   "errors": []
+  },
+  {
+   "t": "05:45:51.238",
+   "job": "HV-2221",
+   "route": "normal",
+   "viewport": "1280",
+   "step": "reload",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "no_spot_saved": true,
+    "no_dialog": true,
+    "calculator_heading": true
+   },
+   "logo_loaded": [
+    true
+   ],
+   "result": "PASS",
+   "screen": "HV-2221-normal-1280-reload.png",
+   "errors": []
+  },
+  {
+   "t": "05:45:53.998",
+   "job": "HV-2221",
+   "route": "keep_original",
+   "viewport": "1280",
+   "step": "back",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator?keep=original",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "no_spot_saved": true,
+    "dialog_present": true,
+    "dialog_exact_text": true
+   },
+   "logo_loaded": [
+    true
+   ],
+   "result": "PASS",
+   "screen": "HV-2221-keep_original-1280-back.png",
+   "errors": []
+  },
+  {
+   "t": "05:45:56.668",
+   "job": "HV-2221",
+   "route": "normal",
+   "viewport": "1280",
+   "step": "forward",
+   "url": "https://estimate.homeinsulationvictoria.com.au/estimate/<T>/calculator",
+   "status": 200,
+   "assertions": {
+    "http200": true,
+    "not_unavailable": true,
+    "no_hscroll": true,
+    "no_page_errors": true,
+    "no_spot_saved": true,
+    "no_dialog": true,
+    "calculator_heading": true
+   },
+   "logo_loaded": [
+    true
+   ],
+   "result": "PASS",
+   "screen": "HV-2221-normal-1280-forward.png",
+   "errors": []
+  }
+ ]
+}
