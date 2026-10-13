@@ -11765,6 +11765,28 @@ export type Database = {
         }
         Returns: string
       }
+      get_my_profile: {
+        Args: never
+        Returns: {
+          business_id: string | null
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          licence_number: string | null
+          mitti_checked_at: string | null
+          mitti_checked_email: string | null
+          mitti_user_id: string | null
+          phone: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "profiles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       has_contact_release: {
         Args: { _job: string; _user: string }
         Returns: boolean
