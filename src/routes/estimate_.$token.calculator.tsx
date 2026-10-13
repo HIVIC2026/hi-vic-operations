@@ -3,13 +3,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { CheckCircle2 } from "lucide-react";
 import { PublicCalculator } from "@/components/portal/public-calculator";
 import { Button } from "@/components/ui/button";
 import { getLaunchCampaignPage, saveMySpot } from "@/lib/launch-campaign.functions";
 import type { CustomerData } from "@/components/portal/estimate";
 import type { InsulationDeclared } from "@/lib/estimate.core";
-import { SPOT_SAVED_BODY, SPOT_SAVED_HEADING, type SpotChoice } from "@/lib/save-spot-offer.core";
+import type { SpotChoice } from "@/lib/save-spot-offer.core";
+import { ownerCalculatorMode, SavedSpotPanel, type SavedResponse } from "@/components/portal/owner-calculator-view";
 
 // Owner-specific calculator opened from campaign emails. Never registers interest or creates a job/enquiry:
 // the only action is the same idempotent Save my spot as the email.
@@ -21,7 +21,7 @@ export const Route = createFileRoute("/estimate_/$token/calculator")({
   component: OwnerCalculatorPage,
 });
 
-type PageData = { cohortPricing?: { readyCheckFeeIncGst: number; cohort: "pre_cutover" | "legacy_saved_spot" | "current" }; pricing?: { total: number; discount: number; gross: number; areaM2: number; areaAssumed: boolean } | null; estimate: { estimate: CustomerData }; response: { spot_saved_at: string | null; opted_out_at: string | null } | null; owner: { firstName: string | null }; initialValues: { address: string; areaM2: number | null; insulation: InsulationDeclared } } | null;
+type PageData = { cohortPricing?: { readyCheckFeeIncGst: number; cohort: "pre_cutover" | "legacy_saved_spot" | "current" }; pricing?: { total: number; discount: number; gross: number; areaM2: number; areaAssumed: boolean } | null; estimate: { estimate: CustomerData }; response: SavedResponse | null; owner: { firstName: string | null }; initialValues: { address: string; areaM2: number | null; insulation: InsulationDeclared } } | null;
 
 function OwnerCalculatorPage() {
   const { token } = Route.useParams();
@@ -49,11 +49,14 @@ function OwnerCalculatorPage() {
   };
   const money = (n: number) => n.toLocaleString("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 });
 
-  if (isLoading) return <div className="estimate-brand min-h-screen bg-estimate-canvas"><p role="status" className="py-16 text-center text-sm text-muted-foreground">Loading your calculator…</p></div>;
-  if (isError || !data || !data.estimate.estimate.calc) return <div className="estimate-brand min-h-screen bg-estimate-canvas"><section className="estimate-offset mx-auto max-w-[760px] rounded-2xl border bg-white p-8 text-center"><h1 className="font-display text-2xl font-bold">This link isn't available</h1><p className="mt-2 text-sm">Please contact Home Insulation Victoria and we'll help.</p></section></div>;
-  if (data.response?.opted_out_at) return <div className="estimate-brand min-h-screen bg-estimate-canvas"><section className="estimate-offset mx-auto max-w-[760px] rounded-[22px] border bg-white p-8 text-center"><h1 className="font-display text-3xl font-extrabold text-estimate-navy">You're off the list</h1></section></div>;
+  const mode = ownerCalculatorMode({ data, loading: isLoading, error: isError });
+  if (mode === "loading") return <div className="estimate-brand min-h-screen bg-estimate-canvas"><p role="status" className="py-16 text-center text-sm text-muted-foreground">Loading your calculator…</p></div>;
+  if (mode === "unavailable" || !data) return <div className="estimate-brand min-h-screen bg-estimate-canvas"><section className="estimate-offset mx-auto max-w-[760px] rounded-2xl border bg-white p-8 text-center"><h1 className="font-display text-2xl font-bold">This link isn't available</h1><p className="mt-2 text-sm">Please contact Home Insulation Victoria and we'll help.</p></section></div>;
+  if (mode === "opted_out") return <div className="estimate-brand min-h-screen bg-estimate-canvas"><section className="estimate-offset mx-auto max-w-[760px] rounded-[22px] border bg-white p-8 text-center"><h1 className="font-display text-3xl font-extrabold text-estimate-navy">You're off the list</h1></section></div>;
+  // Already saved: show the approved saved state only — no re-save prompt, no calculator CTAs, figures only from the saved snapshot.
+  if (mode === "saved") return <div className="estimate-brand min-h-screen bg-estimate-canvas"><section className="estimate-offset mx-auto max-w-[760px] px-4 py-8"><SavedSpotPanel response={data.response} savedChoice={savedChoice} /></section></div>;
 
-  const saved = !!data.response?.spot_saved_at;
+  const calcData = data.estimate.estimate.calc!;
   const orig = data.pricing ?? null;
   const confirmBox = pending && <div role="dialog" aria-label="Confirm your choice" className="rounded-xl border-2 border-estimate-green bg-white p-4 text-center">
     <p className="font-extrabold text-estimate-navy">{pending.choice === "original"
@@ -64,22 +67,16 @@ function OwnerCalculatorPage() {
       <Button type="button" variant="outline" disabled={busy} onClick={() => setPending(null)} className="min-h-12 flex-1">Not yet</Button>
     </div>
   </div>;
-  const savedBox = <div className="rounded-xl border border-estimate-green bg-estimate-mint p-4 text-center" data-testid="spot-saved">
-    <h2 className="inline-flex items-center gap-2 font-display text-xl font-extrabold text-estimate-navy"><CheckCircle2 aria-hidden="true" className="size-5 text-estimate-green" />{SPOT_SAVED_HEADING}</h2>
-    <p className="mt-2 text-sm text-estimate-navy">{SPOT_SAVED_BODY}</p>
-    {savedChoice && <p className="mt-2 text-xs text-estimate-navy/75">Saved with the {savedChoice} estimate.</p>}
-  </div>;
   return <>
-    {keep === "original" && <section className="estimate-offset mx-auto max-w-[760px] px-4 pt-6">{saved && !pending ? savedBox : confirmBox}{error && <p role="alert" className="mt-2 text-center text-sm text-danger">{error}</p>}</section>}
+    {keep === "original" && <section className="estimate-offset mx-auto max-w-[760px] px-4 pt-6">{confirmBox}{error && <p role="alert" className="mt-2 text-center text-sm text-danger">{error}</p>}</section>}
     <PublicCalculator
-    settings={data.estimate.estimate.calc.settings}
+    settings={calcData.settings}
     readyCheckFeeIncGst={data.cohortPricing?.readyCheckFeeIncGst ?? 0}
     pricingCohort={data.cohortPricing?.cohort ?? "pre_cutover"}
     initialValues={data.initialValues}
     heading={`${data.owner.firstName ? `${data.owner.firstName}, try` : "Try"} a different ceiling size`}
     hideRegistration
     resultAction={({ ceilingM2 }) => <div className="mt-4 space-y-2" data-testid="owner-calc-action">
-      {saved && !pending && keep !== "original" && savedBox}
       {pending && keep !== "original" ? confirmBox : <>
         <Button type="button" disabled={busy || ceilingM2 <= 0} onClick={() => setPending({ choice: "updated", areaM2: ceilingM2 })} className="min-h-12 w-full bg-estimate-green text-estimate-white hover:bg-estimate-accent">Save My Spot — Updated Estimate</Button>
         <Button type="button" variant="outline" disabled={busy || !orig} onClick={() => setPending({ choice: "original", areaM2: 0 })} className="min-h-12 w-full border-estimate-green text-estimate-navy">Save My Spot — Original Estimate{orig ? ` (${money(orig.total)})` : ""}</Button>

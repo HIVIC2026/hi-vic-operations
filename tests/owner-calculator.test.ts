@@ -13,7 +13,7 @@ describe("owner calculator (opened from an owner token)", () => {
     expect(route).toContain("hideRegistration");
     expect(route).not.toMatch(/RegisterInterest|interest\.functions|registerInterest|Register my interest|Demand is high/);
     expect(route).toContain("saveMySpot");
-    expect(route).toContain("SPOT_SAVED_HEADING");
+    expect(route).toContain("SavedSpotPanel"); // approved SPOT_SAVED_HEADING/BODY render via owner-calculator-view
     const save = server.slice(server.indexOf("export async function saveCampaignSpot"), server.indexOf("export async function savedSpotForJob"));
     expect(save).not.toMatch(/from\("(jobs|calculator_interests|owners|properties)"\)\.(insert|upsert)/);
     expect(save).toMatch(/from\("jobs"\)\.update\(\{ estimated_area_m2/);
