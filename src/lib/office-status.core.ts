@@ -234,3 +234,89 @@ export function timeLeft(dueAt: string | null, now: number): string | null {
   const txt = abs >= DAY ? `${Math.round(abs / DAY)} day${Math.round(abs / DAY) === 1 ? "" : "s"}` : `${Math.max(1, Math.round(abs / HOUR))} hour${Math.round(abs / HOUR) === 1 ? "" : "s"}`;
   return ms >= 0 ? `${txt} left` : `${txt} late`;
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+// GAP-05 (P1-R2-S06): Base44 enquiry-transfer reconciliation — PURE & PRESENTATION-ONLY.
+// Turns already-logged `external_sync_logs` rows (system "base44", direction "inbound")
+// into a daily reconciliation summary for the office. It records nothing, writes nothing,
+// provisions nothing, and moves no job. Transfer success is recognised ONLY from a recorded
+// "synced" row — an initiated HTTP request is never treated as success. Failures are grouped
+// by external enquiry id so the office can investigate/replay through existing infrastructure.
+export type SyncLogRow = {
+  system?: string | null;
+  direction?: string | null;
+  entity_type?: string | null;
+  entity_id?: string | null;
+  status?: string | null; // "synced" | "error" (sync_status enum)
+  created_at?: string | null;
+  payload?: unknown | null; // may carry { external_enquiry_id, created, ... }
+  error?: string | null;
+};
+
+export type TransferReconciliation = {
+  windowStartIso: string;
+  received: number;             // distinct enquiries recorded as synced in-window
+  failed: number;               // distinct enquiries whose latest in-window record is an error
+  retryable: number;            // failed enquiries carrying an external id (safe to replay idempotently)
+  unidentifiedFailures: number; // error rows with no external id (cannot be auto-matched)
+  failedExternalIds: string[];  // external enquiry ids whose latest state is failed — needs attention
+  totalRows: number;            // raw base44/inbound rows considered in-window
+};
+
+/** Read an external enquiry id out of a sync-log payload, if present. Defensive against any shape. */
+function payloadExternalId(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") return null;
+  const v = (payload as Record<string, unknown>)["external_enquiry_id"];
+  return typeof v === "string" && v.trim() ? v.trim() : null;
+}
+
+/**
+ * Reconcile Base44 inbound enquiry transfers over a window ending now.
+ * - Only considers rows the system actually recorded (system "base44", direction "inbound").
+ * - Idempotent/duplicate-safe: rows are keyed by external_enquiry_id when present (duplicate
+ *   deliveries of the same enquiry collapse to one), falling back to entity_id, then row identity.
+ * - Last-write-wins per enquiry: a later "synced" supersedes an earlier "error" (recovery), and vice versa.
+ * - Pure: no clock side effects beyond the injected `now`; never infers success from a mere attempt.
+ */
+export function reconcileBase44Transfers(
+  rows: readonly SyncLogRow[] | null | undefined,
+  opts: { now: number; windowMs?: number } = { now: Date.now() },
+): TransferReconciliation {
+  const windowMs = opts.windowMs ?? 24 * 60 * 60 * 1000; // default: trailing 24h (daily)
+  const windowStart = opts.now - windowMs;
+  const windowStartIso = new Date(windowStart).toISOString();
+
+  const inWindow = (rows ?? []).filter((r) => {
+    if (!r || r.system !== "base44" || r.direction !== "inbound") return false;
+    const t = r.created_at ? new Date(r.created_at).getTime() : NaN;
+    return Number.isFinite(t) && t >= windowStart && t <= opts.now;
+  });
+
+  // Collapse to the latest record per enquiry key.
+  type State = { status: string; at: number; externalId: string | null };
+  const latest = new Map<string, State>();
+  let anon = 0;
+  for (const r of inWindow) {
+    const externalId = payloadExternalId(r.payload);
+    const key = externalId ?? (r.entity_id ? `job:${r.entity_id}` : `row:${anon++}`);
+    const at = r.created_at ? new Date(r.created_at).getTime() : 0;
+    const status = r.status === "synced" ? "synced" : "error"; // anything non-synced is a failure for reconciliation
+    const prev = latest.get(key);
+    if (!prev || at >= prev.at) latest.set(key, { status, at, externalId });
+  }
+
+  let received = 0;
+  let failed = 0;
+  let retryable = 0;
+  let unidentifiedFailures = 0;
+  const failedExternalIds: string[] = [];
+  for (const s of latest.values()) {
+    if (s.status === "synced") { received++; continue; }
+    failed++;
+    if (s.externalId) { retryable++; if (!failedExternalIds.includes(s.externalId)) failedExternalIds.push(s.externalId); }
+    else unidentifiedFailures++;
+  }
+  failedExternalIds.sort();
+
+  return { windowStartIso, received, failed, retryable, unidentifiedFailures, failedExternalIds, totalRows: inWindow.length };
+}
