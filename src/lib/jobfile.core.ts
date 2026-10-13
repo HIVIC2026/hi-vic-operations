@@ -1,5 +1,6 @@
 import { melbourneToday } from "./melbourne-time.core";
 import { communicationOrigin } from "./portal-presentation.core";
+import { FFS_PROGRESS_EVENT } from "./ffs-progress.core";
 // Pure Job File rules (no I/O): document index, correspondence, timeline, role visibility, retention, job pack plan.
 // Files are INDEXED IN PLACE from existing records/private storage – never copied into folders.
 
@@ -216,6 +217,12 @@ export function buildTimeline(p: { events: Row[]; correspondence: Correspondence
     }
   }
   for (const e of p.events) {
+    // P1-FA02 (owner decision, 14 Oct 2026): FFS is not a user-facing role. Its field-progress
+    // events are excluded from every user-facing timeline and job pack here, at the single
+    // presentation boundary where workflow_events become timeline items. The dormant write path
+    // in src/lib/ffs-progress.* and the stored rows are untouched — this filter hides, never
+    // deletes, and does not touch any other event type (internal or otherwise).
+    if (e["event_type"] === FFS_PROGRESS_EVENT) continue;
     const internal = e["internal"] === true;
     out.push({ id: `workflow_events:${e["id"]}`, at: String(e["created_at"]), actor: s(e["actor_id"]), source: "workflow", summary: String(e["summary"] ?? e["event_type"]),
       detail: { event_type: e["event_type"], from: e["from_stage"], to: e["to_stage"], ...(e["details"] as object ?? {}) }, tags: [...tagEvent(String(e["event_type"])), ...(internal ? ["internal" as const] : [])],

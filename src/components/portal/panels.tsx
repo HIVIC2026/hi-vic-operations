@@ -21,6 +21,7 @@ import {
 import { EVIDENCE_STATUS_LABEL, STAGE_LABEL, aud, fmtDate, fmtDateTime } from "@/lib/workflow";
 import { ASSISTANCE_LABEL } from "@/lib/authority";
 import { QUICK_ACTIONS } from "@/lib/messaging.core";
+import { FFS_PROGRESS_EVENT } from "@/lib/ffs-progress.core";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -282,7 +283,10 @@ export function MessagesPanel({ jobId, isAdmin, role }: { jobId: string; isAdmin
 export function TimelinePanel({ jobId }: { jobId: string }) {
   const { data } = useQuery({
     queryKey: ["events", jobId],
-    queryFn: async () => (await supabase.from("workflow_events").select("*, profiles(full_name)").eq("job_id", jobId).order("created_at", { ascending: false })).data ?? [],
+    // P1-FA02 (owner decision, 14 Oct 2026): FFS field-progress events are not user-facing and are
+    // filtered out here, at the presentation boundary. Every other event type (internal included)
+    // keeps rendering unchanged. Non-admin viewers never receive internal rows anyway (RLS).
+    queryFn: async () => ((await supabase.from("workflow_events").select("*, profiles(full_name)").eq("job_id", jobId).order("created_at", { ascending: false })).data ?? []).filter((e) => e.event_type !== FFS_PROGRESS_EVENT),
   });
   return (
     <Section title="History">

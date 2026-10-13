@@ -213,21 +213,24 @@ describe("TEST 8 — the result stays available after a later retrieval", () => 
   });
 });
 
-describe("TEST 9 — the office can see the recorded FFS result", () => {
-  test("the existing job timeline shows it to an admin with result, note, actor and time", async () => {
+describe("TEST 9 — the recorded FFS result is persisted but never user-visible (P1-FA02)", () => {
+  test("the stored event keeps its full data, yet no user-facing timeline renders it — admin included", async () => {
     reset();
     await recordFfsProgress(FFS_BOSS, JOB, { result: "awaiting_access", note: "Owner not home; left a card." });
+    // Persistence is unchanged by P1-FA02: one internal event with result, note, actor, time, business.
+    const stored = ffsEvents()[0]!;
+    expect(String(stored["summary"])).toContain("FFS update");
+    expect(String(stored["summary"])).toContain("Couldn't get access");
+    expect(stored["actor_id"]).toBe(FFS_BOSS);
+    expect(stored["created_at"]).toBeTruthy();
+    expect(JSON.stringify(stored["details"])).toContain("Owner not home; left a card.");
+    expect(JSON.stringify(stored["details"])).toContain("awaiting_access");
+    expect(JSON.stringify(stored["details"])).toContain("FFS Partner A");
+    // P1-FA02 (owner decision, 14 Oct 2026): FFS is not a user-facing role, so the presentation
+    // boundary excludes the event from every timeline — the office admin included.
     const rows = events().map((e) => ({ ...e, details: e["details"] ?? {} }));
     const items = visibleTo(buildTimeline({ events: rows as never, correspondence: [], bookings: [], evidence: [] }), "admin");
-    const mine = items.find((i) => i.id.startsWith("workflow_events:"));
-    expect(mine).toBeTruthy();
-    expect(mine!.summary).toContain("FFS update");
-    expect(mine!.summary).toContain("Couldn't get access");
-    expect(mine!.at).toBeTruthy();
-    expect(mine!.actor).toBe(FFS_BOSS);
-    expect(JSON.stringify(mine!.detail)).toContain("Owner not home; left a card.");
-    expect(JSON.stringify(mine!.detail)).toContain("awaiting_access");
-    expect(JSON.stringify(mine!.detail)).toContain("FFS Partner A");
+    expect(items.filter((i) => i.id.startsWith("workflow_events:"))).toHaveLength(0);
   });
   test("it is NOT shown to the homeowner, installer or electrician (internal)", async () => {
     reset();

@@ -39,7 +39,6 @@ import { JobStatusCard } from "@/components/trade/job-status";
 import { SourceBadge } from "@/components/portal/badges";
 import { InstallerProgressCard } from "@/components/trade/intake-progress";
 import { ReadyCheckDraft } from "@/components/trade/ReadyCheckDraft";
-import { FfsProgressCard } from "@/components/trade/ffs-progress";
 import { addApprovedRectItem, addOtherRectItem, completeAssessment, completeInstallation, getAssignedRecRates, recordPiesa, removeRectItem, saveAssessment, submitForApReview } from "@/lib/portal.functions";
 import { aud } from "@/lib/workflow";
 import { Input } from "@/components/ui/input";
@@ -95,9 +94,6 @@ function FieldJob() {
         {role === "installer" && <InstallerFlow jobId={jobId} stage={job.stage!} />}
         {role === "installer" && ["assessment_complete", "rectification_required", "awaiting_owner_rectification_approval", "ready_for_installer_quotes", "awaiting_quote_acceptance"].includes(job.stage!) && <PartnerProposalForm jobId={jobId} />}
         {(role === "electrician" || role === "installer") && ["ready_check_scheduled", "piesa_scheduled", "rectification_booked", "installation_booked"].includes(job.stage!) && <TradeVisitCard jobId={jobId} />}
-        {/* P1-S23B: FFS partners have no trade role on the job (my_job_role is null) — their recorder is
-            the only write surface here, and the server refuses anyone without an assigned business admin. */}
-        {!role && <FfsProgressCard jobId={jobId} />}
         <VisitContactsCard jobId={jobId} />
         <details className="rounded-[18px] border border-line bg-paper p-[19px] shadow-card"><summary className="cursor-pointer text-sm font-semibold text-hiv-blue">History, documents and messages</summary><div className="mt-3 space-y-4"><WhoHasTheBall jobId={jobId} /><ClearTimeline jobId={jobId} initial={5} /><OwnerEligibilityPanel jobId={jobId} /><WorkerLinksPanel jobId={jobId} /><MessagesPanel jobId={jobId} isAdmin={false} {...(role === "electrician" || role === "installer" ? { role } : {})} /></div></details>
       </div>
