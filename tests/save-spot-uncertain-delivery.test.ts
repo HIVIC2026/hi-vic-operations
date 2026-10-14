@@ -103,7 +103,7 @@ beforeEach(() => {
       eligibility_outcome: "likely_eligible", eligibility_decision_source: "system", eligibility_review_required: false, estimated_area_m2: 120, estimated_area_unknown: false,
       owners: { full_name: "Sam Sample", email: "sam.sample@example.test" }, properties: { address_line: "1 Fixture Street", suburb: "Testville", postcode: "3000", enrichment: { base44: { raw: { answers: { existing_insulation: "none" } } } } } }],
     customer_estimate_links: [{ id: "l1", job_id: J, token: "T".repeat(43), purpose: "step3_estimate", status: "active" }],
-    indicative_estimates: [{ id: "e1", job_id: J, status: "current", area_m2: 120, area_source: "owner_estimate", insulation_declared: "none", scenarios: [{ by_access: { standard: { estimated_customer_total: 3716.24, applied_discount: 1481.76, pre_discount_total: 5198 } } }], snapshot: null }],
+    indicative_estimates: [{ id: "e1", job_id: J, status: "current", area_m2: 120, area_source: "owner_estimate", insulation_declared: "none", scenarios: [{ by_access: { standard: { estimated_customer_total: 3716.24, applied_discount: 1481.76, pre_discount_total: 5198 } } }], snapshot: { settings: { piesa_assessment_inc_gst: 349, ap_management_inc_gst: 349 }, scenarios: [{ by_access: { standard: { installation: 4500 } } }] } }],
     retail_estimator_settings: [{ is_current: true, indicative_veec_value: 61.74 }],
     owner_contact_consents: [{ job_id: J, consent_status: "granted", created_at: "2026-10-01T00:00:00Z" }],
     workflow_settings: [{ id: 1, customer_comms_enabled: false }],
