@@ -1,5 +1,6 @@
 // Exercise the actual office follow-up sender without external delivery or hosted data.
 import { beforeEach, expect, mock, test } from "bun:test";
+import { REMOVAL_BUDGET_EMAIL_NOTE } from "../src/lib/estimate-removal.core";
 let qualified = true, enabled = false, reviewed = true;
 let originalMediaReads = 0, writes = 0;
 const token = "A".repeat(43), id = "00000000-0000-4000-8000-000000000001";
@@ -23,13 +24,13 @@ const {sendExistingInsulationSaveSpot} = await import("../src/lib/hot-leads-send
 beforeEach(()=>{qualified=true;enabled=false;reviewed=true;writes=0;originalMediaReads=0;delete data.customer_email_sends;});
 test("office below-R2 preview uses follow-up renderer despite original media",async()=>{
   const r = await sendExistingInsulationSaveSpot(id,id,true);
-  expect(r.preview?.html).toContain("This estimate does not include removal of existing insulation.");
+  expect(r.preview?.html).toContain(REMOVAL_BUDGET_EMAIL_NOTE);
   expect(r.preview?.html).toContain("Save my spot →");
   expect(originalMediaReads).toBe(0);expect(writes).toBe(0);
 });
 test("audited qualifying owner declaration uses the same truthful renderer",async()=>{
   reviewed=false;const r=await sendExistingInsulationSaveSpot(id,id,true);
-  expect(r.preview?.html).toContain("This estimate does not include removal of existing insulation.");
+  expect(r.preview?.html).toContain(REMOVAL_BUDGET_EMAIL_NOTE);
 });
 test("unqualified review cannot prepare the follow-up",async()=>{
   qualified=false;const r=await sendExistingInsulationSaveSpot(id,id,true);
