@@ -2,6 +2,8 @@
 // The real recordCommunication (comms.server) runs against an in-memory fake, so the stored row shape is what's asserted.
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
+import { DEFAULT_ESTIMATED_AREA_M2 } from "../src/lib/estimate.core";
+import { renderSaveSpotOfferEmail, type SaveSpotOfferFacts } from "../src/lib/save-spot-offer.core";
 
 const JOB = "00000000-0000-4000-8000-0000000000a1", ACTOR = "00000000-0000-4000-8000-0000000000ff";
 type Op = { table: string; op: string; arg: unknown };
@@ -23,10 +25,23 @@ mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { f
 
 let route: { email: string; blocker: string | null } | null = { email: "offer_spot", blocker: null };
 mock.module("../src/lib/lead-email-routing.server", () => ({ selectLeadEmailRoute: async () => route }));
-const saveSpotCalls: unknown[] = [];
-const SAVE_SPOT_OK = { jobId: JOB, jobNumber: "HV-9001", outcome: "sent", detail: "Preview only — not sent", preview: { to: "owner@home.test.au", subject: "Save your spot", html: "<p>Hi</p>", plainText: "Hi Sam, your preliminary price and link.", linksReady: true } };
-let saveSpotResult: unknown = SAVE_SPOT_OK;
-mock.module("../src/lib/hot-leads-send.server", () => ({ sendSaveMySpot: async (...a: unknown[]) => { saveSpotCalls.push(a); return [saveSpotResult]; } }));
+
+// Jo-approved (12 Oct 2026) "Prepare email to copy" sender. prepareManualEmail renders ONLY through this; it never sends.
+// The fake mirrors the real sender's fail-closed itemised-price guard so the pass-through contract is genuine: when the
+// current estimate has no itemised snapshot the real sender returns this exact block, and prepareManualEmail surfaces it.
+const officeSaveSpotCalls: unknown[] = [];
+const OFFICE_SAVE_SPOT_OK = { jobId: JOB, jobNumber: "HV-9001", outcome: "sent", detail: "Preview only — not sent", preview: { to: "owner@home.test.au", subject: "Save your spot", html: "<p>Hi</p>", plainText: "Hi Sam, your preliminary price and link.", linksReady: true } };
+const ITEMISED_PRICE_BLOCKED = { jobId: JOB, jobNumber: "HV-9001", outcome: "blocked", detail: "The estimate has no itemised prices. Recalculate it first." };
+let officeSaveSpotResult: unknown = OFFICE_SAVE_SPOT_OK;
+mock.module("../src/lib/hot-leads-send.server", () => ({
+  sendSaveMySpot: async () => [],
+  prepareOfficeSaveSpot: async (...a: unknown[]) => {
+    officeSaveSpotCalls.push(a);
+    const est = (rows["indicative_estimates"] as { one?: { snapshot?: unknown } } | undefined)?.one;
+    if (!est || est.snapshot == null) return ITEMISED_PRICE_BLOCKED;
+    return officeSaveSpotResult;
+  },
+}));
 const INELIGIBLE_OK = { ok: true, to: "owner@home.test.au", subject: "Your Home Insulation Victoria eligibility result", html: "<p>Result</p>", plainText: "Your eligibility result and referral link.", linksReady: true };
 let ineligible: unknown = INELIGIBLE_OK;
 const ineligibleCalls: unknown[] = [];
@@ -40,13 +55,17 @@ const writes = () => ops.filter((o) => ["insert", "update", "upsert", "delete"].
 
 const SETTINGS = { id: "s", version: 2, r5_install_inc_gst_per_m2: 30, removal_inc_gst_per_m2: 0, piesa_assessment_inc_gst: 349, ap_management_inc_gst: 349, access_standard_multiplier: 1, access_moderate_multiplier: 1, access_difficult_multiplier: 1, indicative_veec_value: 70, minimum_customer_copayment_inc_gst: 200, is_current: true };
 const { V25_LOCATIONS } = await import("../src/lib/activity48.core");
+// A consistent itemised snapshot (4500 + 349 + 349 = 5198 pre-rebate) used by the happy-path owner-size estimate.
+const DEFAULT_SNAPSHOT = { settings: { piesa_assessment_inc_gst: 349, ap_management_inc_gst: 349 }, scenarios: [{ by_access: { standard: { installation: 4500 } } }] };
 
 beforeEach(() => {
-  ops = []; saveSpotCalls.length = 0; ineligibleCalls.length = 0; suppression = null;
-  route = { email: "offer_spot", blocker: null }; saveSpotResult = SAVE_SPOT_OK; ineligible = INELIGIBLE_OK;
+  ops = []; officeSaveSpotCalls.length = 0; ineligibleCalls.length = 0; suppression = null;
+  route = { email: "offer_spot", blocker: null }; officeSaveSpotResult = OFFICE_SAVE_SPOT_OK; ineligible = INELIGIBLE_OK;
   rows = {
     jobs: { one: { id: JOB, job_number: "HV-9001", owners: { email: " Owner@Home.test.au " }, estimated_area_m2: 120, estimated_area_unknown: false, properties: { postcode: "3000" } } },
-    indicative_estimates: { one: { area_source: "owner_estimate" } },
+    // The current estimate records "no existing insulation" (insulation_declared: "none") and carries an itemised snapshot,
+    // so the approved Save my spot email variant can be selected and rendered.
+    indicative_estimates: { one: { area_source: "owner_estimate", insulation_declared: "none", area_m2: 120, snapshot: DEFAULT_SNAPSHOT } },
     workflow_settings: { one: { customer_comms_enabled: true } },
     owner_contact_consents: { one: { consent_status: "granted" } },
     retail_estimator_settings: { one: SETTINGS }, veu_location_variables: { one: V25_LOCATIONS.get("3000") },
@@ -57,12 +76,13 @@ describe("prepareManualEmail", () => {
   test("likely eligible: renders through the existing Save my spot PREVIEW path only and writes nothing", async () => {
     const r = await prepareManualEmail(JOB, ACTOR);
     expect(r).toMatchObject({ ok: true, template: "save_my_spot", to: "owner@home.test.au", subject: "Save your spot", plainText: "Hi Sam, your preliminary price and link.", html: "<p>Hi</p>", notices: [], linksReady: true });
-    expect(saveSpotCalls).toEqual([[[JOB], ACTOR, { mode: "preview" }]]);
+    // The manual workflow calls the render-only Office sender with the resolved variant; it never passes a "send" mode.
+    expect(officeSaveSpotCalls).toEqual([[JOB, ACTOR, "no_insulation_owner_size", false]]);
     expect(writes()).toEqual([]);
   });
   test("'Create sending links' is a separate explicit step (mode manual_copy / issueLinks)", async () => {
     await prepareManualEmail(JOB, ACTOR, { issueLinks: true });
-    expect(saveSpotCalls).toEqual([[[JOB], ACTOR, { mode: "manual_copy" }]]);
+    expect(officeSaveSpotCalls).toEqual([[JOB, ACTOR, "no_insulation_owner_size", true]]);
     route = { email: "ineligible", blocker: null };
     ineligible = { ...INELIGIBLE_OK, linksReady: false };
     await prepareManualEmail(JOB, ACTOR);
@@ -82,11 +102,11 @@ describe("prepareManualEmail", () => {
     expect(ineligibleCalls).toEqual([]);
     route = { email: "request_insulation", blocker: null };
     expect((await prepareManualEmail(JOB, ACTOR, { issueLinks: true })).ok).toBe(false);
-    expect(saveSpotCalls).toEqual([]);
+    expect(officeSaveSpotCalls).toEqual([]);
     expect(writes()).toEqual([]);
   });
   test("preview without links is passed through as not ready (no copy, no 'Sent manually')", async () => {
-    saveSpotResult = { ...SAVE_SPOT_OK, preview: { ...SAVE_SPOT_OK.preview, linksReady: false } };
+    officeSaveSpotResult = { ...OFFICE_SAVE_SPOT_OK, preview: { ...OFFICE_SAVE_SPOT_OK.preview, linksReady: false } };
     expect(await prepareManualEmail(JOB, ACTOR)).toMatchObject({ ok: true, linksReady: false });
   });
   test("Group B route never renders, offers its wording or an internal estimate", async () => {
@@ -94,67 +114,63 @@ describe("prepareManualEmail", () => {
     const r = await prepareManualEmail(JOB, ACTOR);
     expect(r).toMatchObject({ ok: false, internalEstimate: null });
     expect(!r.ok && r.reason).toContain("Group B");
-    expect(saveSpotCalls).toEqual([]); expect(ineligibleCalls).toEqual([]); expect(writes()).toEqual([]);
+    expect(officeSaveSpotCalls).toEqual([]); expect(ineligibleCalls).toEqual([]); expect(writes()).toEqual([]);
   });
-  test("missing ceiling size: INTERNAL 150 m² estimate (labelled assumption), no email, nothing written", async () => {
+  test("no ceiling size but no existing insulation: Office may prepare the assumed-size indicative email (owner-approved OPTION A)", async () => {
     rows["jobs"] = { one: { ...(rows["jobs"]!.one as object), estimated_area_m2: null, estimated_area_unknown: true } };
-    rows["indicative_estimates"] = { one: { area_source: "typical_default" } };
+    rows["indicative_estimates"] = { one: { area_source: "typical_default", insulation_declared: "none", area_m2: DEFAULT_ESTIMATED_AREA_M2, snapshot: DEFAULT_SNAPSHOT } };
     const r = await prepareManualEmail(JOB, ACTOR);
-    expect(r.ok).toBe(false);
-    if (r.ok) throw new Error("unreachable");
-    expect(r.reason).toContain("never from an office list");
-    expect(r.internalEstimate).toMatchObject({ areaM2: 150, assessmentFee: 349, apFee: 349 });
-    expect(r.internalEstimate?.areaLabel).toContain("Assumed size: 150 m²");
-    expect(r.internalEstimate?.rebate).toBeGreaterThan(0);
-    expect(saveSpotCalls).toEqual([]);
+    expect(r).toMatchObject({ ok: true, template: "save_my_spot" });
+    expect(r.ok && r.templateLabel).toContain("assumed ceiling size");
+    // The assumed-area variant is selected and handed to the render-only sender; nothing is written or sent.
+    expect(officeSaveSpotCalls).toEqual([[JOB, ACTOR, "no_insulation_assumed_size", false]]);
     expect(writes()).toEqual([]);
-    expect(ops.some((o) => o.table === "jobs" && o.op === "update")).toBe(false);
   });
-  test("missing size: a closed job, opt-out, saved spot or missing consent shows its real reason – no internal estimate", async () => {
-    const noSize = { ...(rows["jobs"]!.one as object), estimated_area_m2: null, estimated_area_unknown: true };
+  test("contact guards (opt-out, saved spot, closed job, no consent) block manual prep and nothing is sent", async () => {
+    const now = "2026-10-11T00:00:00Z";
     const cases: [Record<string, { one?: unknown }>, string][] = [
-      [{ lead_campaign_responses: { one: { spot_saved_at: "2026-10-11T00:00:00Z", opted_out_at: null } } }, "Spot already saved."],
-      [{ customer_email_optouts: { one: { opted_out_at: "2026-10-11T00:00:00Z" } } }, "Owner opted out."],
+      [{ customer_email_optouts: { one: { opted_out_at: now } } }, "Owner opted out."],
+      [{ lead_campaign_responses: { one: { spot_saved_at: now } } }, "Spot already saved."],
+      [{ jobs: { one: { ...(rows["jobs"]!.one as object), stage: "cancelled" } } }, "Job is closed."],
       [{ owner_contact_consents: { one: { consent_status: "withdrawn" } } }, "No current contact consent."],
-      [{ jobs: { one: { ...noSize, stage: "cancelled" } } }, "Job is closed."],
     ];
     for (const [extra, reason] of cases) {
-      rows["jobs"] = { one: noSize };
-      delete rows["lead_campaign_responses"]; delete rows["customer_email_optouts"]; rows["owner_contact_consents"] = { one: { consent_status: "granted" } };
+      // The real sender refuses these; prepareManualEmail surfaces the refusal unchanged and never writes.
+      officeSaveSpotResult = { jobId: JOB, jobNumber: "HV-9001", outcome: "skipped", detail: reason };
       Object.assign(rows, extra);
       expect(await prepareManualEmail(JOB, ACTOR)).toMatchObject({ ok: false, reason, internalEstimate: null });
+      expect(writes()).toEqual([]);
     }
-    expect(saveSpotCalls).toEqual([]); expect(writes()).toEqual([]);
   });
   test("a real size always wins over the assumption (owner size, research estimate or measure-up)", async () => {
-    rows["jobs"] = { one: { ...(rows["jobs"]!.one as object), estimated_area_m2: null, estimated_area_unknown: true } };
     rows["property_area_estimates"] = { many: [{ id: "pe1", tier: "B", net_m2: 132, created_at: "2026-10-01T00:00:00Z" }] };
     const r = await prepareManualEmail(JOB, ACTOR);
     expect(r).toMatchObject({ ok: true, template: "save_my_spot" });
   });
   test("a saved typical-size estimate after a real size is known asks for a recalculation (no estimate shown)", async () => {
-    rows["indicative_estimates"] = { one: { area_source: "typical_default" } };
+    rows["jobs"] = { one: { ...(rows["jobs"]!.one as object), estimated_area_m2: 120, estimated_area_unknown: false } };
+    rows["indicative_estimates"] = { one: { area_source: "typical_default", insulation_declared: "none", area_m2: 120, snapshot: DEFAULT_SNAPSHOT } };
     const r = await prepareManualEmail(JOB, ACTOR);
     expect(r).toMatchObject({ ok: false, internalEstimate: null });
     expect(!r.ok && r.reason).toContain("Recalculate");
   });
-  test("internal estimate is withheld (not invented) when prices or VEU data are missing", async () => {
-    rows["jobs"] = { one: { ...(rows["jobs"]!.one as object), estimated_area_m2: null, estimated_area_unknown: true } };
-    delete rows["veu_location_variables"];
+  test("an estimate with no itemised prices is withheld (not invented) and nothing is sent", async () => {
+    rows["indicative_estimates"] = { one: { area_source: "owner_estimate", insulation_declared: "none", area_m2: 120 } }; // no snapshot
     const r = await prepareManualEmail(JOB, ACTOR);
     expect(r).toMatchObject({ ok: false, internalEstimate: null });
-    expect(!r.ok && r.reason).toContain("couldn't be calculated");
+    expect(!r.ok && r.reason).toContain("itemised prices");
+    expect(writes()).toEqual([]);
   });
   test("an existing portal send (sent / sending / uncertain) blocks a manual duplicate", async () => {
     rows["customer_email_sends"] = { many: [{ id: "s1" }] };
     const r = await prepareManualEmail(JOB, ACTOR);
     expect(!r.ok && r.reason).toContain("already sent");
-    expect(saveSpotCalls).toEqual([]);
+    expect(officeSaveSpotCalls).toEqual([]);
     const statusFilter = ops.find((o) => o.table === "customer_email_sends" && o.op === "in");
     expect(statusFilter?.arg).toEqual(["status", ["sent", "sending", "delivered_unrecorded"]]);
   });
   test("Save my spot guard refusals are passed through, with no email", async () => {
-    saveSpotResult = { jobId: JOB, jobNumber: "HV-9001", outcome: "skipped", detail: "No current contact consent." };
+    officeSaveSpotResult = { jobId: JOB, jobNumber: "HV-9001", outcome: "skipped", detail: "No current contact consent." };
     const r = await prepareManualEmail(JOB, ACTOR);
     expect(r).toMatchObject({ ok: false, reason: "No current contact consent." });
   });
@@ -175,7 +191,7 @@ describe("prepareManualEmail", () => {
     expect(await prepareManualEmail(JOB, ACTOR)).toMatchObject({ ok: false, reason: "No current contact consent from the owner – do not email." });
     ineligible = { ok: false, reason: "eligibility_review_required" };
     expect(await prepareManualEmail(JOB, ACTOR)).toMatchObject({ ok: false, reason: "Eligibility needs office review first." });
-    expect(saveSpotCalls).toEqual([]);
+    expect(officeSaveSpotCalls).toEqual([]);
     expect(writes()).toEqual([]);
   });
   test("global communications disabled: no ineligible copy (lock never bypassed); approved Save my spot campaign unchanged", async () => {
@@ -191,10 +207,12 @@ describe("prepareManualEmail", () => {
     expect(await prepareManualEmail(JOB, ACTOR)).toMatchObject({ ok: true, template: "save_my_spot" });
     expect(writes()).toEqual([]);
   });
-  test("a previous manual send shows a notice", async () => {
-    rows["job_communications"] = { many: [{ created_at: "2026-10-11T23:00:00Z" }] };
+  test("a previous manual 'Sent manually' record blocks re-preparation (no duplicate, nothing sent)", async () => {
+    rows["job_communications"] = { many: [{ created_at: "2026-10-11T23:00:00Z", source_event: "manual_office_communication:sent_manually", source_reference: "template:save_my_spot" }] };
     const r = await prepareManualEmail(JOB, ACTOR);
-    expect(r.ok && r.notices[0]).toContain("already recorded");
+    expect(r).toMatchObject({ ok: false, reason: "Office already recorded sending this email by hand. It won't be prepared again – check the communication history." });
+    expect(officeSaveSpotCalls).toEqual([]);
+    expect(writes()).toEqual([]);
   });
 });
 
@@ -261,6 +279,31 @@ describe("manualCommunicationHistory", () => {
   });
 });
 
+describe("assumed-size indicative email disclosure (owner-approved OPTION A)", () => {
+  // Exercises the REAL renderer with a representative assumed-area fixture. OPTION A requires the email to clearly state:
+  // (1) the ceiling area is assumed not measured, (2) the estimate is indicative, (3) actual measurement needs confirmation,
+  // (4) final pricing needs confirmation. It must also never send.
+  test("the assumed-size email clearly discloses assumption, indicative pricing, and confirmation needs", () => {
+    const facts: SaveSpotOfferFacts = {
+      variant: "no_insulation_assumed_size", assumedArea: true,
+      address: "1 Fixture Street, Testville VIC 3000", areaM2: DEFAULT_ESTIMATED_AREA_M2, firstName: "Sam", reference: "HV-9001",
+      installation: 4500, assessmentFee: 349, apFee: 349, gross: 5198, discount: 1481.76, customer: 3716.24,
+      removal: { kind: "excluded" }, apCount: 2,
+      calculatorUrl: "https://estimate.homeinsulationvictoria.com.au/estimate/TOKEN/calculator",
+      originalSaveUrl: "https://estimate.homeinsulationvictoria.com.au/estimate/TOKEN/calculator?keep=original",
+      unsubscribeUrl: "https://estimate.homeinsulationvictoria.com.au/api/public/unsubscribe?t=abcdefghijklmnopqrstuvwxyz12345", referralUrl: null,
+    };
+    const mail = renderSaveSpotOfferEmail(facts);
+    const body = `${mail.html}\n${mail.plainText}`;
+    expect(body).toMatch(/assumed/i);                                  // (1) assumed area
+    expect(body).toMatch(/not a measurement|not measured/i);           // (1) not measured
+    expect(body).toMatch(/preliminary estimate|indicative/i);          // (2) indicative
+    expect(body).toMatch(/confirm your actual ceiling area|Ready Check/i); // (3) measurement confirmation
+    expect(body).toMatch(/final price|final pricing/i);                // (4) final pricing confirmation
+    expect(mail.subject).toMatch(/rebate/i);
+  });
+});
+
 describe("static safety guards", () => {
   // Code only: comments may name what the module deliberately does NOT do.
   const code = (f: string) => readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
@@ -278,9 +321,13 @@ describe("static safety guards", () => {
     expect(fns.match(/requireAdmin\(context\.supabase\)/g)?.length).toBe(3);
   });
   test("every Save my spot call from the manual workflow is render-only (preview / manual_copy, never send)", () => {
-    const calls = server.match(/sendSaveMySpot\([^)]*\)/g) ?? [];
+    const calls = server.match(/prepareOfficeSaveSpot\([^)]*\)/g) ?? [];
     expect(calls.length).toBe(1);
-    for (const c of calls) { expect(c).toContain('mode: opts.issueLinks ? "manual_copy" : "preview"'); expect(c).not.toMatch(/"send"|test_to_jo/); }
+    for (const c of calls) {
+      // The manual workflow passes a boolean issueLinks flag, never an explicit "send" / "test_to_jo" mode.
+      expect(c).not.toMatch(/"send"|test_to_jo|mode:\s*"send"/);
+      expect(c).toContain("!!opts.issueLinks");
+    }
   });
   test("copying stays in the browser (no server call, no record)", () => {
     const copyFn = ui.slice(ui.indexOf("async function copyToClipboard"), ui.indexOf("function usePreparedEmail"));
