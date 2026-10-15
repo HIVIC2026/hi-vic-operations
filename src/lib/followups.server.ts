@@ -6,9 +6,10 @@ import { refreshIndicativeEstimate } from "./estimate.server";
 import { LINK_PURPOSE, linkAllowed, linkUsable } from "./estimatelink.core";
 import { groupBMediaForJob } from "./group-b-media.server";
 import { groupBInvitationBlocker } from "./group-b-media.core";
-import { renderEstimateEmail } from "./estimate-email";
+import { renderEstimateEmail, type EstimateEmail } from "./estimate-email";
 import { renderFollowupEmail } from "./followup-email";
-import { clickUrl, dedupe, estimateUrl, isActiveFollowupKind, pixelUrl, planFollowup, planInitialFollowups, retryAt, sendBlocker, type ActiveFollowupKind } from "./engagement.core";
+import { renderJoOutcomeEmail, type JoInsulation, type JoOutcome } from "./jo-outcome-email.core";
+import { clickUrl, CUSTOMER_BASE, dedupe, estimateUrl, isActiveFollowupKind, pixelUrl, planFollowup, planInitialFollowups, retryAt, sendBlocker, type ActiveFollowupKind } from "./engagement.core";
 import { issueTrackingTokens, jobSummary, recordEngagement } from "./engagement.server";
 import { configuredDeliveryAdapter } from "./delivery.server";
 import { referralUrlForJob } from "./referral.server";
@@ -92,6 +93,69 @@ async function deliverTracked(x: { jobId: string; linkId: string; linkToken: str
   }
 }
 
+/** This repo's insulation vocabulary -> Jo's. Anything unrecognised stays "unknown" (never assumed). */
+function joInsulation(v: string | null | undefined): JoInsulation | null {
+  return v === "none" || v === "present" ? v : "unknown";
+}
+
+/**
+ * P1-R3-S92 (GAP-1): the Jo-approved outcome email for this job, or null when no Jo template applies.
+ *
+ * The template is chosen by the single canonical selector (`selectJoTemplate`), not by this sender.
+ * Jo's placeholders are bound to the EXISTING authorised pages for this customer:
+ *   Save my spot  -> /estimate/{token}/campaign   (the existing Save-my-spot page)
+ *   Upload media  -> /estimate/{token}/video      (the existing Group B upload page)
+ *   Calculator    -> /estimate/{token}#calculator (the customer's own estimate page)
+ * Returns null (fail closed) so the caller keeps its existing renderer when Jo has no approved email
+ * for this outcome — e.g. an unreviewed existing-insulation home.
+ */
+function joOutcomeMail(
+  input: { outcome: JoOutcome; insulation: JoInsulation | null; ceilingSizeKnown: boolean; deskCheckStatus: string | null | undefined;
+    figures: import("./jo-outcome-email.core").JoOutcomeEmailInput["figures"]; reason?: string | null;
+    readyCheckFeeIncGst?: number | null; pricingCohort?: "pre_cutover" | "legacy_saved_spot" | "current"; installationRatePerM2?: number | null },
+  u: { estimateUrl: string },
+  recipient: { firstName: string | null; address: string | null; reference: string | null },
+): EstimateEmail | null {
+  const desk = input.deskCheckStatus === "looks_eligible" ? ("looks_eligible" as const) : null;
+  return renderJoOutcomeEmail({
+    outcome: input.outcome,
+    insulation: input.insulation,
+    ceilingSizeKnown: input.ceilingSizeKnown,
+    ...(desk ? { deskCheckStatus: desk } : {}),
+    recipient: {
+      firstName: recipient.firstName?.trim().split(/\s+/)[0] ?? "there",
+      propertyAddress: recipient.address ?? "your property",
+      enquiryReference: recipient.reference ?? "",
+    },
+    ...(input.figures ? { figures: input.figures } : {}),
+    ...(input.reason !== undefined ? { reason: input.reason } : {}),
+    links: {
+      saveMySpotUrl: `${u.estimateUrl.replace(/\/$/, "")}/campaign`,
+      uploadMediaUrl: `${u.estimateUrl.replace(/\/$/, "")}/video`,
+      reviewResultUrl: u.estimateUrl.replace(/\/$/, ""),
+      calculatorUrl: `${u.estimateUrl.replace(/\/$/, "")}#calculator`,
+    },
+    ...(input.readyCheckFeeIncGst === undefined || input.readyCheckFeeIncGst === null ? {} : { readyCheckFeeIncGst: input.readyCheckFeeIncGst }),
+    ...(input.pricingCohort ? { pricingCohort: input.pricingCohort } : {}),
+    ...(input.installationRatePerM2 === undefined || input.installationRatePerM2 === null ? {} : { installationRatePerM2: input.installationRatePerM2 }),
+  });
+}
+
+/** The owner's name/address/reference for Jo's greeting, read read-only. Shared with the T8 invitation. */
+export async function joRecipientFacts(jobId: string, fallbackReference: string | null) {
+  const { data } = await admin.from("jobs").select("external_enquiry_id, owners(full_name), properties(address_line, suburb, postcode)").eq("id", jobId).maybeSingle();
+  const owner = data?.owners as { full_name: string | null } | { full_name: string | null }[] | null;
+  const prop = data?.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | { address_line: string | null; suburb: string | null; postcode: string | null }[] | null;
+  const p = Array.isArray(prop) ? prop[0] : prop;
+  const { fullAddress } = await import("./address");
+  const address = p ? fullAddress(p.address_line, p.suburb, p.postcode) : null;
+  return {
+    firstName: (Array.isArray(owner) ? owner[0]?.full_name : owner?.full_name)?.trim().split(/\s+/)[0] ?? null,
+    address: address || null,
+    reference: data?.external_enquiry_id ?? fallbackReference,
+  };
+}
+
 /** Initial Step 3 estimate email. Idempotent per secure link + current estimate version. */
 export async function sendInitialEstimateEmail(jobId: string, actorId: string | null, adapterIn?: DeliveryAdapter | null) {
   const official = await officialOutcomeForDelivery(jobId);
@@ -128,7 +192,33 @@ export async function sendInitialEstimateEmail(jobId: string, actorId: string | 
     estimatedRemainingBalance: Math.max(0, standard.estimated_customer_total - settings.piesa_assessment_inc_gst),
     areaIsTypical: e.area.source === "typical_default",
   } : {};
-  const r = await deliverTracked({ jobId, linkId: link!.id, linkToken: link!.token, purpose: "step3_estimate", key, adapter: adapter!, to, actorId, render: (u) => renderEstimateEmail({ ...u, ...values, outcome: view.mode === "onsite" ? "onsite" : "likely", reasons: view.onsiteDrivers, reference: owner.reference, existingInsulationPresent: view.insulationDeclared === "present" }) });
+  // P1-R3-S92 (GAP-1): the outcome email is chosen by selectJoTemplate(). Jo's templates 1–6 replace the
+  // legacy renderer; when none applies (fail closed) the existing renderer is untouched.
+  const { data: deskRow } = await admin.from("lead_campaign_responses").select("desk_check_status").eq("job_id", jobId).maybeSingle();
+  const areaSource = (e?.area?.source ?? null) as string | null;
+  const joFacts = {
+    outcome: (view.mode === "onsite" ? "needs_onsite_confirmation" : "likely_eligible") as JoOutcome,
+    insulation: joInsulation(view.insulationDeclared),
+    ceilingSizeKnown: areaSource !== "typical_default",
+    deskCheckStatus: (deskRow as { desk_check_status?: string | null } | null)?.desk_check_status ?? null,
+    figures: e && standard && settings ? {
+      veuRebate: e.applied_discount,
+      customerTotal: standard.estimated_customer_total,
+      totalBeforeRebate: standard.pre_discount_total,
+      installation: standard.installation,
+      piesaFee: settings.piesa_assessment_inc_gst,
+      apFee: settings.ap_management_inc_gst,
+      ceilingAreaM2: e.area.m2,
+      areaEstimated: areaSource === "typical_default",
+    } : undefined,
+    // The Ready Check fee is locked free (readycheck.core), so Jo's copy is rendered untouched.
+    ...(settings && typeof settings.r5_install_inc_gst_per_m2 === "number" ? { installationRatePerM2: settings.r5_install_inc_gst_per_m2 } : {}),
+  };
+  const who = await joRecipientFacts(jobId, owner.reference);
+  const r = await deliverTracked({ jobId, linkId: link!.id, linkToken: link!.token, purpose: "step3_estimate", key, adapter: adapter!, to, actorId, render: (u) =>
+    joOutcomeMail(joFacts as never, u, who)
+    ?? renderEstimateEmail({ ...u, ...values, outcome: view.mode === "onsite" ? "onsite" : "likely", reasons: view.onsiteDrivers, reference: owner.reference, existingInsulationPresent: view.insulationDeclared === "present" }),
+  });
   if (!r.sent) return r;
   const at = new Date().toISOString();
   await recordEngagement({ jobId, linkId: link!.id, type: "email_sent", source: adapter!.provider, metadata: { purpose: "step3_estimate" }, dedupeKey: dedupe.sent(key), at });
@@ -312,8 +402,32 @@ export async function sendPreliminaryIneligibleEmail(jobId: string, actorId: str
 /** The exact ineligible email the sender delivers; shared so the Office copy below can never drift from it.
  *  `links` (preview only) supplies existing or placeholder links instead of creating tokens. */
 async function renderPreliminaryIneligibleMail(jobId: string, reason: string | null, reference: string | null, links?: { referralUrl: string; unsubscribeUrl: string }) {
+  // P1-R3-S92 (GAP-1): T7 is Jo's approved ineligible email, selected by selectJoTemplate().
   const { renderIneligibleEmail } = await import("./ineligible-email");
   const referralUrl = links ? links.referralUrl : await referralUrlForJob(jobId);
+  const who = await joRecipientFacts(jobId, reference);
+  const { data: link } = await admin.from("customer_estimate_links").select("token").eq("job_id", jobId).eq("purpose", LINK_PURPOSE).eq("status", "active").maybeSingle();
+  const base = link?.token ? `${CUSTOMER_BASE}/estimate/${link.token}` : null;
+  if (base) {
+    const jo = renderJoOutcomeEmail({
+      outcome: "does_not_appear_eligible",
+      insulation: null,
+      ceilingSizeKnown: false,
+      recipient: {
+        firstName: who.firstName ?? "there",
+        propertyAddress: who.address ?? "your property",
+        enquiryReference: who.reference ?? "",
+      },
+      reason,
+      links: {
+        saveMySpotUrl: `${base}/campaign`,
+        uploadMediaUrl: `${base}/video`,
+        reviewResultUrl: base,
+        calculatorUrl: `${base}#calculator`,
+      },
+    });
+    if (jo) return withUnsubscribe(jo, links ? links.unsubscribeUrl : await unsubscribeUrlForJob(jobId));
+  }
   return withUnsubscribe(renderIneligibleEmail({ referralUrl, reason, reference }), links ? links.unsubscribeUrl : await unsubscribeUrlForJob(jobId));
 }
 

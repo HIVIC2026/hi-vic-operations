@@ -54,7 +54,14 @@ describe("duplicate prevention", () => {
   test("senders wire the guards", () => {
     const f = readFileSync("src/lib/followups.server.ts", "utf8");
     expect(f.match(/delivered = true/g)?.length).toBe(2);
-    expect(f.match(/withUnsubscribe\(/g)?.length).toBe(2);
+    // P1-R3-S92: three customer email paths in this file — the Jo-rendered ineligible result (T7),
+    // the follow-up and the outcome email. Every one of them is still wrapped in withUnsubscribe,
+    // so the invariant (no customer email ships without a working unsubscribe link) is unchanged.
+    expect(f.match(/withUnsubscribe\(/g)?.length).toBe(3);
+    // Every withUnsubscribe call must pair with a real delivered subject: no ship-without-unsubscribe path.
+    expect((f.match(/withUnsubscribe\(/g) ?? []).length).toBeGreaterThanOrEqual(
+      (f.match(/adapter\.deliver\(/g) ?? []).length,
+    );
     expect(f.match(/suppressionFor\(/g)?.length).toBe(3);
     expect(f).not.toMatch(/10 \* 60_000/);
   });
