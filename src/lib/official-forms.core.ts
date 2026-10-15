@@ -576,20 +576,32 @@ export function buildSignedSnapshot(input: {
   return { ...body, hash: sha(canon(body)) };
 }
 
-/** A signed snapshot stays valid only if untampered, on the current mapping, and the answers haven't changed since. */
+/** A signed snapshot stays valid only if untampered, on the current mapping, and the answers haven't changed since.
+ *  S74 / DEF07: a malformed / empty stored snapshot (e.g. `{}`) must fail CLOSED as invalid, never throw. */
 export function snapshotProblems(snap: SignedSnapshot, current?: OfficialAnswers): string[] {
   const out: string[] = [];
+  if (!snap || typeof snap !== "object") { out.push("Signed copy is missing or malformed."); return out; }
   const { hash, ...body } = snap;
   if (sha(canon(body)) !== hash) out.push("Signed copy has been altered since it was signed.");
   const t = OFFICIAL_TEMPLATES[snap.key];
+  if (!t) { out.push("Signed copy references an unknown official form."); return out; }
   if (snap.mappingVersion !== t.mappingVersion || snap.templateSha256 !== t.sha256) out.push("Signed copy uses a different template or mapping version.");
   if (sha(canon(snap.document)) !== snap.documentSha256) out.push("Completed document hash does not match.");
   if (current && canon(renderOfficialDocument(snap.key, current)) !== canon(snap.document)) out.push("Form answers changed after signing — the signed copy is no longer valid.");
   return out;
 }
 
-/** Rebuilds answers from a signed document (item id → value). */
-export const answersFromDocument = (doc: SignedSnapshot["document"]): OfficialAnswers => Object.fromEntries(doc.filter((d) => d.value != null).map((d) => [d.id, d.value]));
+/** Rebuilds answers from a signed document (item id → value).
+ *  S74 / DEF07: a signed copy whose stored snapshot is malformed — missing / null / non-array
+ *  `document` (e.g. a `{}` snapshot) or a document containing non-object rows — MUST NOT raise an
+ *  unhandled application exception. We return NO answers instead, so the downstream evaluator
+ *  (`evaluatePiesa` / `evaluatePiisa`) sees every required answer as unanswered and FAILS CLOSED:
+ *  the record is treated as incomplete, never as a valid signed form, and cannot satisfy statutory
+ *  compliance or progress the job. Valid document arrays are processed exactly as before. */
+export const answersFromDocument = (doc: SignedSnapshot["document"]): OfficialAnswers =>
+  Array.isArray(doc)
+    ? Object.fromEntries(doc.filter((d) => d && typeof d === "object" && d.id != null && d.value != null).map((d) => [d.id, d.value]))
+    : {};
 export const documentSha = (doc: SignedSnapshot["document"]) => sha(canon(doc));
 
 export const PRINTED_RULE_IDS = {
