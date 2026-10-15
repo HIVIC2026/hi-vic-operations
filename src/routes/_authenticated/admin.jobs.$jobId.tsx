@@ -33,7 +33,7 @@ import { JobIdentity, RecordDisclosure, SubHeading, usePortalTargetNavigation, t
 import { AllDocuments, Correspondence, ExportJobPack, JobTimeline, RetentionCard, SectionDocuments } from "@/components/portal/jobfile";
 import type { PortalTarget } from "@/lib/portal-presentation.core";
 import { checkMittiAccess } from "@/lib/mitti-membership.functions";
-import { MITTI_ACCESS_LABEL, mittiAccessOf, mittiCheckedLabel, mittiInviteLine, type MittiMemberRow } from "@/lib/mitti-membership.core";
+import { MITTI_ACCESS_LABEL, mittiAccessOf, mittiCheckedLabel, mittiInviteLine, mittiOverrideAccepted, type MittiMemberRow } from "@/lib/mitti-membership.core";
 
 import { useAction } from "@/hooks/use-me";
 import { useServerFn } from "@tanstack/react-start";
@@ -297,8 +297,8 @@ function Assignments({ jobId }: { jobId: string }) {
           <p className="text-sm font-semibold">{pending.name} is not confirmed in the Home Insulation Victoria Mitti organisation.</p>
           <p className="mt-1 text-xs text-muted-foreground">They cannot be sent the {pending.role === "electrician" ? "electrical safety (PIESA)" : "Ready Check / installer safety"} form until invited with their exact email. Assigning anyway is recorded with your reason.</p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <Input value={why} onChange={(e) => setWhy(e.target.value)} placeholder="Why assign them anyway? (required)" className="h-9 max-w-sm" />
-            <Button size="sm" onClick={async () => { await assign({ jobId, userId: pending.userId, role: pending.role, mittiOverrideReason: why }, "Assigned with a recorded exception"); setPending(null); }}>Assign anyway</Button>
+            <Input value={why} onChange={(e) => setWhy(e.target.value)} placeholder="Why assign them anyway? (required)" minLength={5} className="h-9 max-w-sm" />
+            <Button size="sm" disabled={!mittiOverrideAccepted(why)} onClick={async () => { const res = await assign({ jobId, userId: pending.userId, role: pending.role, mittiOverrideReason: why }, "Assigned with a recorded exception"); if (res?.ok === true) setPending(null); }}>Assign anyway</Button>
             <Button size="sm" variant="outline" onClick={() => setPending(null)}>Cancel</Button>
           </div>
         </div>
