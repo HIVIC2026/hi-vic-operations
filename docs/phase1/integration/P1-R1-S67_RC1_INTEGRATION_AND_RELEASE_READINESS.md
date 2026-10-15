@@ -186,3 +186,64 @@ ISOLATED_DB_ONLY: YES (hivic-s69d1-isolated; shared local DB & prod-ref stack un
 matrix update. No push, no merge, no deploy, no production writes, no shared-DB reset. `FINAL_VERDICT` for the
 S69 addendum: **S69_MIGRATION_RECONCILIATION_INTEGRATED (partial against S69's own MIGRATION_PARTIAL — prod
 verification still outstanding).**
+
+---
+
+# S67 MASTER STATUS — S72 Final Integration Audit (this execution)
+
+**Step:** P1-R1-S72-S67-FINAL-INTEGRATION-AUDIT-AND-HANDOFF-01 · **Executor:** R2 (verification) · **Date:** 2026-10-16 AEDT
+Independent, evidence-based verification of the integrated RC1 baseline. Prior S70 (§1–7) and S69 (§8–14)
+sections above are **preserved unchanged**. Full detail lives in the companion files
+`P1-R1-S67_RELEASE_READINESS_MATRIX.md`, `P1-R1-S67_PENDING_INTEGRATIONS.md`,
+`P1-R1-S67_EMAIL_TEST_FAILURE_ANALYSIS.md`.
+
+## 15. Baseline (verified)
+- Branch `integration/p1-rc1-s67`, **HEAD `38fb2a47ab322f7f0b5b26aed33267f9498b1107`**, working tree clean (0 changes).
+- Ancestry from COM04 baseline `d49af17e`: `b2dcc567`(COM08) → `b7298214`+`499ffe758d`(COM09) → `57637837`+`aee3bc05`(S65) → `976fef82`+`1eac14db`(S70) → `18305b56`+`1b2f495b`+`38fb2a47`(S69). COM04 guard `9a0adf29` is an ancestor. S69/S70 are cherry-picks (`-x` provenance) — expected non-ancestors of their source SHAs.
+
+## 16. Component verdicts (git+source verified; no summary-trusting)
+| Component | Status |
+|---|---|
+| COM04 Save-My-Spot safety | **INTEGRATED** — runtime `realSendingOn()` = `save_my_spot_real_send_enabled AND customer_comms_enabled` (both default OFF); no compile-time bypass in the send path (`SAVE_SPOT_REAL_SEND_APPROVED` is now dead code). Fail-closed **preserved/strengthened**. |
+| COM08 eight templates | **INTEGRATED / TESTED** — `jo-email-templates.core.ts`, in the 3188-pass suite. |
+| COM09 personal estimate + CTA | **INTEGRATED** (routes, token resolver, frozen snapshot, guards) — **send orchestration NOT WIRED** to the Template-8 builder. |
+| S65 enquiry remediation | **INTEGRATED (code)** — `src/lib/enquiry.server.ts` present. |
+| **S64 electrician basic result** | **NOT_INTEGRATED** — impl `53b44d4d` on `r2/p1-rc1-electrician-basic-result`, not an ancestor; no `ElectricianManualResult` in `src`. |
+| **S66 DEF07 PIESA snapshot** | **NOT COMPLETED / ABSENT** — no commit; do not fabricate statutory snapshots. |
+| S69 migration reconciliation | **INTEGRATED** (docs + `0205` idempotency fix; journal untouched; 0149/0202 = REPORTED_PRODUCTION). |
+| S70 tracked-`.env` hygiene | **INTEGRATED (partial)** — `.gitignore`+`.env.example`; `.env` still tracked (untrack deferred on Lovable Cloud dependency). |
+
+## 17. Email test failures (s20r01) — root cause + comms-safety verdict
+3 failures are a **stale test vs COM04 hardening**: the test (last edit `c04641e8`, 13 Oct) predates the
+runtime guard `9a0adf29` (15 Oct). `realSendingOn()` now needs both switches true; the test sets
+`customer_comms_enabled=false` and never sets `save_my_spot_real_send_enabled`, so Save-my-spot correctly
+sends nothing → `sent:true`/`calls.length==3` assertions fail. **Production behavior is correct and MORE
+fail-closed; the test expectation is outdated.** COM04 guarantee **preserved**. Severity: safety LOW / process
+MEDIUM. Remediation: **test-only** update (needs authorization) — do **not** relax the guard. Full evidence in
+`P1-R1-S67_EMAIL_TEST_FAILURE_ANALYSIS.md`.
+
+## 18. This-execution verification (fresh, not reused)
+- `bunx tsc --noEmit` → **PASS** (exit 0).
+- `bun run build` → **PASS** (exit 0).
+- `bun run test` (isolated) → **334 files · 3188 pass · 3 fail**; sole failing file `s20r01-automatic-enquiry-emails.test.ts`.
+- `bun test tests/s20r01-…` → 16 pass / 3 fail (loopback env; fetch stubbed — no network, no sends).
+
+## 19. Local UAT & browser
+- **LOCAL_UAT_ENVIRONMENT = BLOCKED:** no `env-guard.ts` in this branch + tracked `.env` → hosted
+  `wvuffpykgnqliikhodzl`; a plain `vite dev`/preview would repoint to **production** (prohibited). Shared local
+  stack must not be reset; S64 launcher absent. Requires an isolated loopback Supabase + migrations + fixtures,
+  coordinated with other agents, before any browser run.
+- **BROWSER UAT: NOT EXECUTED.** Handoff matrix in `RELEASE_READINESS_MATRIX.md` §2. R5 electrician browser UAT
+  is **NOT assigned** — recorded as not started, not completed.
+
+## 20. Master result fields
+```
+BRANCH: integration/p1-rc1-s67   HEAD_SHA: 38fb2a47ab322f7f0b5b26aed33267f9498b1107   WORKTREE_STATUS: CLEAN
+COM04: INTEGRATED (fail-closed, switches OFF)    COM08: INTEGRATED/TESTED    COM09: INTEGRATED (send NOT WIRED)
+S65: INTEGRATED(code)    S64: NOT_INTEGRATED (53b44d4d)    S66: NOT_COMPLETED/ABSENT
+S69: INTEGRATED (0149/0202=REPORTED_PRODUCTION)  S70: INTEGRATED (partial; .env tracked)
+TYPESCRIPT: PASS   BUILD: PASS   AUTOMATED_TESTS: 3188 pass / 3 fail (s20r01, outdated)   EMAIL failures: outdated test, prod correct
+COMMUNICATIONS_SAFETY_VERDICT: PASS (fail-closed preserved)   LOCAL_UAT: BLOCKED   BROWSER_UAT: NOT_STARTED
+PRODUCTION_WRITES: NONE   REMOTE_PUSH: NONE   MIGRATIONS_APPLIED: 0   .env UNTRACKED: NO (deferred)
+FINAL_VERDICT: S67_INTEGRATION_COMPLETE_UAT_BLOCKED   (integration PARTIAL: S64/S66 absent, COM09 unwired)
+```
