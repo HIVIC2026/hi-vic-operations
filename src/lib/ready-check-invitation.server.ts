@@ -27,8 +27,16 @@ import {
 } from "./ready-check-invitation.core";
 import type { DeliveryAdapter } from "./delivery.core";
 
+/** The frozen saved-pricing figures, surfaced read-only so Office can verify them before sending. */
+export type ReadyCheckSavedPricing = {
+  customerTotal: number; veuRebate: number; totalBeforeRebate: number;
+  installation: number; piesaFee: number; apFee: number;
+  ceilingAreaM2: number; savedAt: string | null;
+  personalEstimateUrl: string; readyCheckBookingUrl: string | null;
+};
+
 export type PreparedReadyCheckInvitation =
-  | { ok: true; jobId: string; jobNumber: string | null; to: string; subject: string; html: string; plainText: string; savedAt: string | null; snapshot: { customerTotal: number; veuRebate: number; totalBeforeRebate: number; ceilingAreaM2: number; personalEstimateUrl: string; readyCheckBookingUrl: string | null } }
+  | { ok: true; jobId: string; jobNumber: string | null; to: string; subject: string; html: string; plainText: string; savedAt: string | null; snapshot: ReadyCheckSavedPricing }
   | { ok: false; jobId: string; jobNumber: string | null; reason: string };
 
 export type SentReadyCheckInvitation = { sent: true; jobId: string; jobNumber: string | null; communicationId: string | number } | { sent: false; jobId: string; jobNumber: string | null; reason: string };
@@ -113,7 +121,9 @@ export async function prepareReadyCheckInvitation(jobId: string, actor: OfficeAc
     subject: mail.subject, html: mail.html, plainText: mail.plainText, savedAt: snapshot.savedAt,
     snapshot: {
       customerTotal: snapshot.customerTotal, veuRebate: snapshot.veuRebate, totalBeforeRebate: snapshot.totalBeforeRebate,
-      ceilingAreaM2: snapshot.ceilingAreaM2, personalEstimateUrl: snapshot.personalEstimateUrl, readyCheckBookingUrl: snapshot.readyCheckBookingUrl ?? null,
+      installation: snapshot.installation, piesaFee: snapshot.piesaFee, apFee: snapshot.apFee,
+      ceilingAreaM2: snapshot.ceilingAreaM2, savedAt: snapshot.savedAt,
+      personalEstimateUrl: snapshot.personalEstimateUrl, readyCheckBookingUrl: snapshot.readyCheckBookingUrl ?? null,
     },
   };
 }
@@ -219,9 +229,16 @@ export async function loadReadyCheckCandidates(): Promise<ReadyCheckCandidate[]>
     .limit(200);
   if (error) throw new Error(error.message);
   // A saved spot with no opt-out; anything else is not invitation material.
-  const saved = ((data ?? []) as unknown as Array<{ job_id: string; spot_saved_at: string | null; opted_out_at: string | null; saved_total: number | null; saved_area_m2: number | null }>)
+  // PostgREST returns numeric columns as strings, so coerce before the values reach the UI.
+  const saved = ((data ?? []) as unknown as Array<{ job_id: string; spot_saved_at: string | null; opted_out_at: string | null; saved_total: number | string | null; saved_area_m2: number | string | null }>)
     .filter((r) => !!r.spot_saved_at && !r.opted_out_at)
-    .sort((a, b) => String(a.spot_saved_at).localeCompare(String(b.spot_saved_at)));
+    .sort((a, b) => String(a.spot_saved_at).localeCompare(String(b.spot_saved_at)))
+    .map((r) => ({
+      job_id: r.job_id,
+      spot_saved_at: r.spot_saved_at,
+      saved_total: r.saved_total == null ? null : Number(r.saved_total),
+      saved_area_m2: r.saved_area_m2 == null ? null : Number(r.saved_area_m2),
+    }));
   const ids = saved.map((r) => r.job_id);
   if (!ids.length) return [];
   const { fullAddress } = await import("./address");

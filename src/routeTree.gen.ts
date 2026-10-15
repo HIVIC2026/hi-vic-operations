@@ -58,6 +58,7 @@ import { Route as AuthenticatedAdminPartnersRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminPartnersOverviewRouteImport } from './routes/_authenticated/admin.partners-overview'
 import { Route as AuthenticatedAdminPipelineRouteImport } from './routes/_authenticated/admin.pipeline'
 import { Route as AuthenticatedAdminPricingRouteImport } from './routes/_authenticated/admin.pricing'
+import { Route as AuthenticatedAdminReadyCheckRouteImport } from './routes/_authenticated/admin.ready-check'
 import { Route as AuthenticatedAdminTeamUpsRouteImport } from './routes/_authenticated/admin.team-ups'
 import { Route as AuthenticatedAdminTemplatesRouteImport } from './routes/_authenticated/admin.templates'
 import { Route as AuthenticatedAdminTestCentreRouteImport } from './routes/_authenticated/admin.test-centre'
@@ -371,6 +372,12 @@ const AuthenticatedAdminPricingRoute =
   AuthenticatedAdminPricingRouteImport.update({
     id: '/pricing',
     path: '/pricing',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminReadyCheckRoute =
+  AuthenticatedAdminReadyCheckRouteImport.update({
+    id: '/ready-check',
+    path: '/ready-check',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminTeamUpsRoute =
@@ -699,6 +706,7 @@ export interface FileRoutesByFullPath {
   '/admin/partners-overview': typeof AuthenticatedAdminPartnersOverviewRoute
   '/admin/pipeline': typeof AuthenticatedAdminPipelineRoute
   '/admin/pricing': typeof AuthenticatedAdminPricingRoute
+  '/admin/ready-check': typeof AuthenticatedAdminReadyCheckRoute
   '/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
   '/admin/templates': typeof AuthenticatedAdminTemplatesRoute
   '/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
@@ -795,6 +803,7 @@ export interface FileRoutesByTo {
   '/admin/partners-overview': typeof AuthenticatedAdminPartnersOverviewRoute
   '/admin/pipeline': typeof AuthenticatedAdminPipelineRoute
   '/admin/pricing': typeof AuthenticatedAdminPricingRoute
+  '/admin/ready-check': typeof AuthenticatedAdminReadyCheckRoute
   '/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
   '/admin/templates': typeof AuthenticatedAdminTemplatesRoute
   '/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
@@ -897,6 +906,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/partners-overview': typeof AuthenticatedAdminPartnersOverviewRoute
   '/_authenticated/admin/pipeline': typeof AuthenticatedAdminPipelineRoute
   '/_authenticated/admin/pricing': typeof AuthenticatedAdminPricingRoute
+  '/_authenticated/admin/ready-check': typeof AuthenticatedAdminReadyCheckRoute
   '/_authenticated/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
   '/_authenticated/admin/templates': typeof AuthenticatedAdminTemplatesRoute
   '/_authenticated/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
@@ -999,6 +1009,7 @@ export interface FileRouteTypes {
     | '/admin/partners-overview'
     | '/admin/pipeline'
     | '/admin/pricing'
+    | '/admin/ready-check'
     | '/admin/team-ups'
     | '/admin/templates'
     | '/admin/test-centre'
@@ -1095,6 +1106,7 @@ export interface FileRouteTypes {
     | '/admin/partners-overview'
     | '/admin/pipeline'
     | '/admin/pricing'
+    | '/admin/ready-check'
     | '/admin/team-ups'
     | '/admin/templates'
     | '/admin/test-centre'
@@ -1196,6 +1208,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/partners-overview'
     | '/_authenticated/admin/pipeline'
     | '/_authenticated/admin/pricing'
+    | '/_authenticated/admin/ready-check'
     | '/_authenticated/admin/team-ups'
     | '/_authenticated/admin/templates'
     | '/_authenticated/admin/test-centre'
@@ -1636,6 +1649,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminPricingRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/ready-check': {
+      id: '/_authenticated/admin/ready-check'
+      path: '/ready-check'
+      fullPath: '/admin/ready-check'
+      preLoaderRoute: typeof AuthenticatedAdminReadyCheckRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/team-ups': {
       id: '/_authenticated/admin/team-ups'
       path: '/team-ups'
@@ -2012,6 +2032,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminPartnersOverviewRoute: typeof AuthenticatedAdminPartnersOverviewRoute
   AuthenticatedAdminPipelineRoute: typeof AuthenticatedAdminPipelineRoute
   AuthenticatedAdminPricingRoute: typeof AuthenticatedAdminPricingRoute
+  AuthenticatedAdminReadyCheckRoute: typeof AuthenticatedAdminReadyCheckRoute
   AuthenticatedAdminTeamUpsRoute: typeof AuthenticatedAdminTeamUpsRoute
   AuthenticatedAdminTemplatesRoute: typeof AuthenticatedAdminTemplatesRoute
   AuthenticatedAdminTestCentreRoute: typeof AuthenticatedAdminTestCentreRoute
@@ -2050,6 +2071,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
     AuthenticatedAdminPartnersOverviewRoute,
   AuthenticatedAdminPipelineRoute: AuthenticatedAdminPipelineRoute,
   AuthenticatedAdminPricingRoute: AuthenticatedAdminPricingRoute,
+  AuthenticatedAdminReadyCheckRoute: AuthenticatedAdminReadyCheckRoute,
   AuthenticatedAdminTeamUpsRoute: AuthenticatedAdminTeamUpsRoute,
   AuthenticatedAdminTemplatesRoute: AuthenticatedAdminTemplatesRoute,
   AuthenticatedAdminTestCentreRoute: AuthenticatedAdminTestCentreRoute,
