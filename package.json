@@ -87,7 +87,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.5.8",
+    "@electric-sql/pglite": "^0.5.9",
     "@eslint/js": "^9.32.0",
     "@happy-dom/global-registrator": "^20.14.5",
     "@lovable.dev/vite-tanstack-config": "2.25.3",

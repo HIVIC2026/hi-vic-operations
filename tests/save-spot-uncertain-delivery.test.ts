@@ -106,7 +106,7 @@ beforeEach(() => {
     indicative_estimates: [{ id: "e1", job_id: J, status: "current", area_m2: 120, area_source: "owner_estimate", insulation_declared: "none", scenarios: [{ by_access: { standard: { estimated_customer_total: 3716.24, applied_discount: 1481.76, pre_discount_total: 5198 } } }], snapshot: { settings: { piesa_assessment_inc_gst: 349, ap_management_inc_gst: 349 }, scenarios: [{ by_access: { standard: { installation: 4500 } } }] } }],
     retail_estimator_settings: [{ is_current: true, indicative_veec_value: 61.74 }],
     owner_contact_consents: [{ job_id: J, consent_status: "granted", created_at: "2026-10-01T00:00:00Z" }],
-    workflow_settings: [{ id: 1, customer_comms_enabled: false }],
+    workflow_settings: [{ id: 1, save_my_spot_real_send_enabled: true, customer_comms_enabled: true }],
     customer_email_optouts: [], lead_campaign_responses: [], job_communications: [], customer_email_sends: [], ceiling_measurements: [], property_area_estimates: [], customer_referral_tokens: [], post_intake_work: [],
   });
 });
@@ -344,14 +344,17 @@ describe("global communications disabled (customer_comms_enabled = false)", () =
     expect(calls.length).toBe(0);
     expect(T.customer_email_sends).toEqual([]);
   });
-  test("the uncertain-outcome protection applies to the initial campaign under its separate Jo approval; nothing changes the switch", async () => {
-    // The initial Save my spot campaign is the one Jo-approved exception to the global switch (SAVE_SPOT_REAL_SEND_APPROVED);
-    // STEP 56 does not change that approval. It only guarantees an unknown outcome is never resent.
-    mode = "timeout"; await auto();
-    mode = "ok"; await auto(); await office();
-    await resolve("delivered", "Resend shows delivered");
-    expect(calls.length).toBe(1);
-    expect(T.workflow_settings).toEqual([{ id: 1, customer_comms_enabled: false }]);
+  test("the Save my spot initial campaign is blocked when the global switch is off (COM-04 fail-closed); nothing changes the switch", async () => {
+    // COM-04 requires BOTH switches ON: save_my_spot_real_send_enabled AND customer_comms_enabled.
+    // With the global switch off the initial campaign is blocked before any reservation or provider call.
+    T.workflow_settings = [{ id: 1, save_my_spot_real_send_enabled: true, customer_comms_enabled: false }];
+    mode = "timeout";
+    const r = await auto();
+    expect(r.sent).toBe(false);
+    expect(String(r.reason)).toContain("switched off");
+    expect(calls.length).toBe(0);
+    expect(T.customer_email_sends).toEqual([]);
+    expect(T.workflow_settings).toEqual([{ id: 1, save_my_spot_real_send_enabled: true, customer_comms_enabled: false }]);
     expect(writes.some((w) => w.endsWith(":workflow_settings"))).toBe(false);
   });
 });
