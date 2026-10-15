@@ -23,9 +23,13 @@ export type HotSendResult = { jobId: string; jobNumber: string | null; /** "unce
 
 /** Real customers: ONLY this Save my spot campaign, approved by Jo (8 Oct 2026). The global customer
  *  comms switch stays off, so every other customer email remains blocked. Contact consent is still checked per lead. */
+/** Real customers: ONLY this Save my spot campaign, approved by Jo (8 Oct 2026). The global customer
+ *  comms switch stays off, so every other customer email remains blocked. Contact consent is still checked per lead. */
 export async function realSendingOn() {
-  const { SAVE_SPOT_REAL_SEND_APPROVED } = await import("./hot-leads.core");
-  return SAVE_SPOT_REAL_SEND_APPROVED;
+  const { data, error } = await admin.from("workflow_settings").select("save_my_spot_real_send_enabled, customer_comms_enabled").limit(1).maybeSingle();
+  if (error || !data) return false;
+  const ws = data as { save_my_spot_real_send_enabled: boolean | null; customer_comms_enabled: boolean | null };
+  return ws.save_my_spot_real_send_enabled === true && ws.customer_comms_enabled === true;
 }
 void LAUNCH_COPY_APPROVED;
 

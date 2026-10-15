@@ -5,7 +5,7 @@ import { normaliseInsulation } from './eligibility.core';
 import { formatPropertyAddress } from './address';
 import { insulationOnly, type StoredAudit } from './enquiry-groups.core';
 import { verificationStale, type StoredVerification } from './verified-eligibility.core';
-import { SAVE_SPOT_REAL_SEND_APPROVED, INSULATION_DETAILS_REAL_SEND_APPROVED } from './hot-leads.core';
+import { INSULATION_DETAILS_REAL_SEND_APPROVED } from './hot-leads.core';
 import { buildOperationsPreview, sendingControlState, type OperationInput, type AutomationControl } from './operations-preview.core';
 import { officePicks } from './offer-dispatch.core';
 type Row = Record<string, unknown>;
@@ -51,7 +51,7 @@ export async function loadOperationsPreview(admin: SupabaseClient<Database>) {
     byJobs('stage timestamps', (c,a,b) => admin.from('workflow_events').select('job_id, to_stage, created_at').in('job_id',c).eq('event_type','stage_changed').order('created_at').order('id').range(a,b)),
     byJobs('operational handoff records', (c,a,b) => admin.from('ready_check_acceptances').select('job_id').in('job_id',c).order('id').range(a,b)),
     byJobs('assigned installers', (c,a,b) => admin.from('job_assignments').select('job_id, role, user_id, businesses(name)').in('job_id',c).eq('active',true).eq('role','installer').order('id').range(a,b)),
-    admin.from('workflow_settings').select('customer_comms_enabled, auto_send_quote, auto_send_mitti, auto_send_installer, auto_send_rec, offer_dispatch_mode, payment_option_gate_enabled').eq('id',1).maybeSingle(),
+    admin.from('workflow_settings').select('customer_comms_enabled, save_my_spot_real_send_enabled, auto_send_quote, auto_send_mitti, auto_send_installer, auto_send_rec, offer_dispatch_mode, payment_option_gate_enabled').eq('id',1).maybeSingle(),
     admin.from('customer_delivery_settings').select('enabled').eq('id',1).maybeSingle(),
   ]);
   if (cfg.error) throw new Error(`Automation settings could not load: ${cfg.error.message}`);
@@ -115,7 +115,7 @@ export async function loadOperationsPreview(admin: SupabaseClient<Database>) {
   return buildOperationsPreview(inputs,[
     control('Customer messages',c?.customer_comms_enabled,'Global permission only; consent and sending rules still apply.'),
     control('Customer delivery adapter',delivery.data?.enabled,'Setting only; connection health not tested.'),
-    control('Save my spot',c && delivery.data ? SAVE_SPOT_REAL_SEND_APPROVED && c.customer_comms_enabled && delivery.data.enabled : null,'Approved path; global controls, estimate, consent, coverage and duplicate guards still apply.'),
+    control('Save my spot',c && delivery.data ? c.save_my_spot_real_send_enabled === true && c.customer_comms_enabled === true && delivery.data.enabled === true : null,'Approved path; global controls, estimate, consent, coverage and duplicate guards still apply.'),
     {label:'Insulation-details email',state:c && delivery.data ? sendingControlState(INSULATION_DETAILS_REAL_SEND_APPROVED,c.customer_comms_enabled,delivery.data.enabled) : 'Unknown',detail:'Approved by Jo 9 Oct; still needs global customer messages permission and delivery adapter permission.'},
     control('Quotes',c?c.auto_send_quote&&c.customer_comms_enabled:null,'Requires release rules and customer messages permission.'),
     control('Mitti',c?.auto_send_mitti,'Setting only; forms and connection not tested.'),

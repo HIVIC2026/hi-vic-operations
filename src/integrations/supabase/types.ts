@@ -11072,6 +11072,7 @@ export type Database = {
           rec_offer_business_hours: number
           rec_offer_expiry_hours: number
           safety_check_payment_inc_gst: number
+  save_my_spot_real_send_enabled: boolean
           sms_message_switches: Json
           updated_at: string
           urgency_amber_days: number
@@ -11110,6 +11111,7 @@ export type Database = {
           office_time_limits?: Json
           owner_resign_after_install?: boolean
           partner_lead_fee_inc_gst?: number
+  save_my_spot_real_send_enabled?: boolean
           payment_option_gate_enabled?: boolean
           photo_max_distance_m?: number
           piesa_install_window_days?: number
@@ -11131,6 +11133,7 @@ export type Database = {
           auto_send_rec?: boolean
           current_veec_price?: number
           customer_comms_enabled?: boolean
+  save_my_spot_real_send_enabled?: boolean
           daily_mitti_text_enabled?: boolean
           daily_mitti_text_time?: string
           due_owner_flag_days?: number
