@@ -145,32 +145,48 @@ describe("decision → email mapping (the existing single post-Gate-1 router)", 
   });
 });
 
-describe("automatic enquiry emails OFF (production today)", () => {
-  test("only the already-approved Save my spot goes; Group B and ineligible stay off – no provider call for them", async () => {
+describe("automatic enquiry emails OFF (production today: master switch off)", () => {
+  test("nothing sends while the master switch is OFF — Save my spot, Group B and ineligible all blocked, no provider call", async () => {
+    // Option A / COM-04: Save my spot is no longer a master-off exemption; it needs BOTH switches.
+    expect(await maybeAutoRouteLeadEmail(L)).toMatchObject({ route: "offer_spot", sent: false, reason: "Sending is switched off." });
     expect(await maybeAutoRouteLeadEmail(B)).toMatchObject({ route: "request_insulation", sent: false, reason: GROUP_B_GLOBALS_OFF });
     expect(await maybeAutoRouteLeadEmail(I)).toMatchObject({ route: "ineligible", sent: false, reason: C.AUTO_REPLY_OFF });
-    expect(calls.length).toBe(0);
-    expect(await maybeAutoRouteLeadEmail(L)).toMatchObject({ route: "offer_spot", sent: true }); // existing approved behaviour, unchanged
-    expect(calls.map((c) => c.idem)).toEqual([KEYS.L]);
+    expect(calls.length).toBe(0); // no provider call for any outcome while the master switch is off
+  });
+  test("missing Save-my-spot switch fails closed even with the master switch ON", async () => {
+    autoOn(); // automatic enquiry emails on (delivery enabled + start time)
+    T.workflow_settings = [{ id: 1, customer_comms_enabled: true, save_my_spot_real_send_enabled: false }];
+    expect(await maybeAutoRouteLeadEmail(L)).toMatchObject({ route: "offer_spot", sent: false, reason: "Sending is switched off." });
+    expect(calls.length).toBe(0); // both switches are required for real Save-my-spot sending
+  });
+  test("both switches ON authorizes real Save-my-spot sending (COM-04 Option A positive path)", async () => {
+    autoOn();
+    T.workflow_settings = [{ id: 1, customer_comms_enabled: true, save_my_spot_real_send_enabled: true }];
+    expect((await maybeAutoRouteLeadEmail(L)).sent).toBe(true);
+    expect(calls.map((c) => c.idem)).toEqual([KEYS.L]); // exactly one provider call under the Save-my-spot key
+    expect(sentRow(KEYS.L)).toMatchObject({ status: "sent", provider: "resend" });
   });
 });
 
-describe("automatic enquiry emails ON – new enquiry", () => {
-  test("each outcome sends its email ONCE through the email service and records the outcome", async () => {
-    autoOn();
-    for (const j of [L, B, I]) expect((await maybeAutoRouteLeadEmail(j)).sent).toBe(true);
-    expect(calls.map((c) => c.url)).toEqual(Array(3).fill("https://connector-gateway.lovable.dev/resend/emails"));
-    expect(calls.map((c) => c.idem)).toEqual([KEYS.L, KEYS.B, KEYS.I]);
+describe("automatic enquiry emails ON – new enquiry (master off: S20-R01 auto-reply path)", () => {
+  test("insulation + ineligible each send ONCE via the master-off path; Save my spot stays gated (Option A)", async () => {
+    autoOn(); // master switch stays OFF; this scenario exercises the S20-R01 new-enquiry path only
+    expect((await maybeAutoRouteLeadEmail(L)).sent).toBe(false); // Save my spot now needs BOTH switches (COM-04)
+    expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(true);
+    expect((await maybeAutoRouteLeadEmail(I)).sent).toBe(true);
+    expect(calls.map((c) => c.url)).toEqual(Array(2).fill("https://connector-gateway.lovable.dev/resend/emails"));
+    expect(calls.map((c) => c.idem)).toEqual([KEYS.B, KEYS.I]);
     for (const c of calls) { expect(c.body.to).toEqual([TO]); expect(String(c.body.subject).length).toBeGreaterThan(5); expect(String(c.body.html)).toContain("unsubscribe"); expect(c.signal).toBe(true); }
-    for (const [k, i] of [[KEYS.L, 1], [KEYS.B, 2], [KEYS.I, 3]] as const) expect(sentRow(k)).toMatchObject({ status: "sent", provider: "resend", provider_message_id: `re_${i}` });
-    expect(comms.map((c) => c.providerMessageId)).toEqual(["re_1", "re_2", "re_3"]); // customer-visible communication record per email
+    expect(sentRow(KEYS.B)).toMatchObject({ status: "sent", provider: "resend", provider_message_id: "re_1" });
+    expect(sentRow(KEYS.I)).toMatchObject({ status: "sent", provider: "resend", provider_message_id: "re_2" });
+    expect(comms.map((c) => c.providerMessageId)).toEqual(["re_1", "re_2"]); // one customer-visible communication record per email
     expect(comms.every((c) => c.provider === "resend" && JSON.stringify(c.recipients) === JSON.stringify([TO]))).toBe(true);
   });
   test("a repeated decision (Office re-decides, post-intake retries) never sends a second email", async () => {
     autoOn();
-    for (const j of [L, B, I]) await maybeAutoRouteLeadEmail(j);
+    for (const j of [L, B, I]) await maybeAutoRouteLeadEmail(j); // L gated (Option A); B + I send once
     for (const j of [L, B, I]) expect((await maybeAutoRouteLeadEmail(j)).sent).toBe(false);
-    expect(calls.length).toBe(3);
+    expect(calls.length).toBe(2); // exactly one provider call each for B and I; Save my spot gated while master off
   });
   test("the email service refuses (422): recorded failed; unknown outcome (timeout): delivered_unrecorded and never retried", async () => {
     autoOn();

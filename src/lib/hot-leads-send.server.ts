@@ -21,10 +21,10 @@ export const HOT_SEND_BATCH = 10;
 export const testSendIds = new Map<string, string>();
 export type HotSendResult = { jobId: string; jobNumber: string | null; /** "uncertain" (STEP 56): the email service may have accepted it; recorded as delivered_unrecorded, never retried automatically. */ outcome: "sent" | "skipped" | "blocked" | "failed" | "uncertain"; detail: string; preview?: { to: string; subject: string; html: string; plainText: string; /** false = preview placeholders stand in for links the lead doesn't have yet. */ linksReady: boolean }; linkJobId?: string; linkToken?: string; sendGroup?: string };
 
-/** Real customers: ONLY this Save my spot campaign, approved by Jo (8 Oct 2026). The global customer
- *  comms switch stays off, so every other customer email remains blocked. Contact consent is still checked per lead. */
-/** Real customers: ONLY this Save my spot campaign, approved by Jo (8 Oct 2026). The global customer
- *  comms switch stays off, so every other customer email remains blocked. Contact consent is still checked per lead. */
+/** Real customers: this Save my spot campaign, approved by Jo (8 Oct 2026), now requires BOTH runtime
+ *  switches — `customer_comms_enabled` (master) AND `save_my_spot_real_send_enabled` — via `realSendingOn()`
+ *  below (S86 / COM-04 owner Option A; guard 9a0adf29). It is NO LONGER a master-off exception. Contact
+ *  consent, opt-out, saved-spot and once-per-home checks still apply per lead. Fail-closed on error/missing. */
 export async function realSendingOn() {
   const { data, error } = await admin.from("workflow_settings").select("save_my_spot_real_send_enabled, customer_comms_enabled").limit(1).maybeSingle();
   if (error || !data) return false;
