@@ -104,3 +104,85 @@ STARTUP_REGRESSION: NOT_VERIFIED  # vite dev intentionally not run (would repoin
 
 **Local commits (this branch only):** `976fef82` — "chore(security): S70 tracked-env audit + safe remediation
 artifacts" (cherry-picked, `-x`). No push, no merge, no deploy.
+
+---
+
+# S67 ADDENDUM — S69 Migration Reconciliation Integration
+
+**Date:** 2026-10-16 · **Executor:** R2 (owner-authorized local integration)
+**Source:** branch `p1-s69-migration-reconciliation` commits `afe67dd9` + `590b8379` (author pchypopulal)
+**Authoritative numbering baseline:** COM-04 `release/p1-rc1-com04` @ `d49af17e`
+
+## 8. S69 docs integrated
+Cherry-picked `-x` onto this branch → `18305b56` (reconciliation + inventory) and `1b2f495b` (reconciled
+`05_PENDING_MIGRATIONS_WARNING_RECONCILED`). Pure docs under `docs/phase1/release/`; **no `.gitignore`/`.env`
+collision** with the S70 change. S69 verdict `MIGRATION_PARTIAL` preserved as-is.
+
+## 9. Canonical migration identifiers (preserved, not renumbered)
+| Number | Canonical identity | Status |
+|---|---|---|
+| `0203` | `profiles_least_privilege` (reassigned from a stale `rec_offer_batch_lock` label; "0150" is a stale alias) | STAGED / NOT_APPLIED |
+| `0204` | **RESERVED** for T6 `external_action_executor` (no file) | RESERVED |
+| `0205` | `save_my_spot_real_send_enabled` (forward-only rename of original 0204) | STAGED — **idempotency repaired** (see §10) |
+| `0149` | owner-quote RLS | **REPORTED_PRODUCTION** (not independently verified) |
+| `0202` | signed webhook nonces | **REPORTED_PRODUCTION** (not independently verified) |
+
+No migration number was reused or renumbered. Drizzle journal untouched at idx 148.
+
+## 10. `0205` idempotency repair + isolated rehearsal
+**Defect (S69-found):** `ALTER TABLE workflow_settings ADD COLUMN save_my_spot_real_send_enabled boolean
+NOT NULL DEFAULT false;` had no `IF NOT EXISTS` → re-apply aborts ("column already exists").
+**Fix:** `ADD COLUMN IF NOT EXISTS …` — column type/default/semantics unchanged (`boolean NOT NULL DEFAULT
+false`), COM-04 fail-closed default preserved. Rollback file already idempotent (`DROP COLUMN IF EXISTS`).
+
+Rehearsed in a **fresh disposable** Supabase-image PostgreSQL 17.11 (`hivic-s69d1-isolated`, host `:54393`;
+shared local DB untouched; never production):
+- Reproduced original failure: bare `ADD COLUMN` 2nd apply → `ERROR: … already exists`.
+- Corrected `0205` apply #1 → exit 0; column `boolean null=NO default=false`; seed `id=1 → false` (COM-04 OFF).
+- Corrected `0205` apply #2 → `NOTICE … already exists, skipping` (no error); column present; value still false. **Idempotent.**
+
+## 11. `0202` verification (isolated; shared local DB not reset)
+Verified in the same disposable Supabase DB (which carries the real `anon`/`authenticated`/`service_role`
+roles the minimal S69 PGlite harness lacked):
+- Apply #1 exit 0; apply #2 exit 0 → **idempotent** (`CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`,
+  `ENABLE ROW LEVEL SECURITY`, REVOKE/GRANT re-runnable).
+- `signed_webhook_nonces` created; **RLS enabled**; service_role INSERT succeeds; anon SELECT → `permission
+  denied for table` (RLS + table revoke); duplicate `(source,purpose,nonce)` → `signed_webhook_nonces_unique`
+  violation (23505) → **replay rejection works**.
+- **Actual shared local Supabase schema NOT written/reset** (no safe read path without shared-DB credentials
+  or agent coordination). `0202` is `REPORTED_PRODUCTION` and its `VERIFIED_LOCAL` state is *absent* locally
+  per S69 → local≠prod divergence; production apply requires an independent prod check.
+- `0203`/`0149` not rehearsed (richer schema deps `auth.uid`/`is_admin`/`admin_all`); both structurally
+  `CREATE OR REPLACE`-guarded.
+
+## 12. `rec_offer_batch_lock` investigation
+**No migration file named/containing `rec_offer_batch_lock` exists anywhere in git history** (`git log --all
+-S 'rec_offer_batch_lock'` returns only the S69 docs that *mention* it; `--name-only` finds no file). It was a
+stale 10-Oct-doc label for number `0203`, since reassigned to `profiles_least_privilege`. **Disposition:
+UNKNOWN; not renumbered, not reused.** Follow-up: owner decision to reconcile labels (§13 of S69).
+
+## 13. Release-readiness matrix — migration/production-config rows
+| Area | Implementation | Automated evidence | Browser | Known blockers | Release readiness |
+|---|---|---|---|---|---|
+| Migrations 0149/0202 | reported applied to prod | not independently verifiable (no prod read access) | n/a | production schema not confirmed | NOT READY (needs owner prod check) |
+| 0203 profiles least-privilege | staged | structurally guarded; not rehearsed | n/a | not applied; number-reuse history | NOT READY |
+| 0205 save-my-spot send switch | staged, **now idempotent** | isolated apply×2 PASS, default OFF | n/a | apply is prod-gated (COM-04) | STAGED-READY (guarded) |
+| Production configuration | tracked `.env` public-only | S70 audit | n/a | `.env` untrack deferred | NOT DEPLOYED |
+
+## 14. S69 addendum result fields
+```
+S69_INTEGRATION: COMPLETE      # docs cherry-picked; 0205 repaired; 0202/0205 rehearsed isolated; rec_offer investigated
+MIGRATION_IDEMPOTENCY_FIXED: 0205 (ADD COLUMN IF NOT EXISTS) — proven idempotent
+0202_LOCAL_STATUS: NOT_APPLIED (shared DB untouched); VERIFIED_ISOLATED applies idempotently, replay rejected
+0149_STATUS: REPORTED_PRODUCTION (not VERIFIED_PRODUCTION — no independent prod evidence)
+0202_STATUS: REPORTED_PRODUCTION (not VERIFIED_PRODUCTION)
+REC_OFFER_BATCH_LOCK: UNKNOWN (no file in git history; stale 0203 label; not renumbered)
+DRIZZLE_JOURNAL: UNCHANGED_AT_IDX_148
+PRODUCTION_MIGRATION_EXECUTED: NO
+ISOLATED_DB_ONLY: YES (hivic-s69d1-isolated; shared local DB & prod-ref stack untouched)
+```
+
+**Local commits (S69 addendum):** `18305b56`, `1b2f495b` (docs), plus the `0205` idempotency repair and this
+matrix update. No push, no merge, no deploy, no production writes, no shared-DB reset. `FINAL_VERDICT` for the
+S69 addendum: **S69_MIGRATION_RECONCILIATION_INTEGRATED (partial against S69's own MIGRATION_PARTIAL — prod
+verification still outstanding).**
