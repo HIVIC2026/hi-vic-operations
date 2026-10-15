@@ -73,6 +73,13 @@ export type JoRecipient = {
 export type SavedPricingSnapshot = Readonly<JoEstimateFigures> & {
   readonly savedAt: string;
   readonly personalEstimateUrl: string; // customer-specific link, saved pricing preserved
+  /**
+   * COM-09 (DEP-2): customer-specific URL for the EXISTING Ready Check booking workflow.
+   * Optional so COM-08 snapshots (which predate the binding) still render; when present the
+   * "Book my Ready Check" CTA becomes a real link. Opening it never auto-books — the customer
+   * must still view the estimate and explicitly accept + pick times.
+   */
+  readonly readyCheckBookingUrl?: string;
 };
 
 export type JoRenderResult = { templateId: JoTemplateId; subject: string; body: string; ctas: JoCta[] };
@@ -294,6 +301,11 @@ function renderReadyCheckInvitation(r: JoRecipient, snap: SavedPricingSnapshot):
   const sizeLine = snap.areaEstimated
     ? `Ceiling size used in your quote: ${snap.ceilingAreaM2} m² — estimated`
     : `Ceiling size used in your quote: ${snap.ceilingAreaM2} m²`;
+  // COM-09 (DEP-2): bind the "Book my Ready Check" CTA to the customer's own existing booking workflow when a
+  // URL is supplied. Opening the link does not book; the customer still confirms on that page.
+  const bookCta = snap.readyCheckBookingUrl
+    ? `[Book my Ready Check →](${snap.readyCheckBookingUrl})`
+    : `[Book my Ready Check →]`;
   return [
     `Hi ${r.firstName},`, "",
     "You saved your spot. Now it’s your turn!", "",
@@ -311,7 +323,7 @@ function renderReadyCheckInvitation(r: JoRecipient, snap: SavedPricingSnapshot):
     includesTable(true, snap), "",
     "### Book your free Ready Check", "",
     "Your installer will measure the ceiling, assess any existing insulation, check access and confirm the job scope so we can finalise your quote.", "",
-    "[Book my Ready Check →]", "",
+    bookCta, "",
     "Confirm your request on the next page. An installer from our panel will then contact you to arrange a suitable time.", "",
     "No payment required. No obligation to proceed with installation.", "",
     "### What could change this price?", "",
