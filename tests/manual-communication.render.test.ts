@@ -34,6 +34,7 @@ mock.module("../src/lib/workflow.server", () => ({ ...realWorkflow, logEvent: as
 const realEstimate = await import("../src/lib/estimate.core");
 mock.module("../src/lib/estimate.core", () => ({ ...realEstimate, discountIsWholeVeecs: () => true }));
 
+process.env["HIVIC_COM04_ENV"] = "production"; // S102: production send path with a stubbed/forbidden provider
 const { sendSaveMySpot } = await import("../src/lib/hot-leads-send.server");
 const { prepareIneligibleEmailForOffice, sendPreliminaryIneligibleEmail } = await import("../src/lib/followups.server");
 

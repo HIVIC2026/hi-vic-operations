@@ -15,6 +15,7 @@ import { configuredDeliveryAdapter } from "./delivery.server";
 import { referralUrlForJob } from "./referral.server";
 import type { DeliveryAdapter } from "./delivery.core";
 import { reservationAllowed, statusAfterDelivery, withUnsubscribe } from "./emailsafety.core";
+import { testRecipientBoundary } from "./comms-test-recipient.core";
 import { suppressionFor, unsubscribeUrlForJob } from "./emailsafety.server";
 import { MANUAL_SENT_EVENT, manualSendReference } from "./manual-communication.core";
 
@@ -174,6 +175,11 @@ export async function sendInitialEstimateEmail(jobId: string, actorId: string | 
   const owner = await ownerEmail(jobId);
   const to = owner.email;
   if (!to) return { sent: false as const, reason: "no_owner_email" };
+  // COM-04 test-recipient boundary (S102): in non-production, a real Step-3 send must target the
+  // allow-list (fail closed without one). qa_test jobs are already held earlier
+  // (officialOutcomeForDelivery), so a null source is treated as a real send. Inactive in production.
+  const boundary = testRecipientBoundary(to, null);
+  if (boundary.status === "blocked") return { sent: false as const, reason: "test_recipient_boundary" };
   const suppressed = await suppressionFor(jobId, "step3_estimate", to);
   if (suppressed) return { sent: false as const, reason: suppressed };
   const e = view.estimate;

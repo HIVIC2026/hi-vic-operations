@@ -42,6 +42,8 @@ export const SECTION_TABS: Record<OfficeSection, OfficeTab[]> = {
     { label: "Users", to: "/admin/users" },
     { label: "Compliance", to: "/admin/compliance" },
     { label: "Owner paperwork", to: "/admin/owner-paperwork" },
+    // P1-R3-S103: Office-configurable automatic Save My Spot sending rules (additional restrictions only).
+    { label: "Automatic sending rules", to: "/admin/save-my-spot-rules" },
     { label: "Test centre", to: "/admin/test-centre" },
     { label: "Deleted jobs", to: "/admin/deleted" },
   ],

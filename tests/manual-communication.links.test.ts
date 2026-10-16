@@ -29,7 +29,7 @@ const realEstimate = await import("../src/lib/estimate.core");
 mock.module("../src/lib/estimate.core", () => ({ ...realEstimate, discountIsWholeVeecs: () => true }));
 let sentPayloads: { subject: string; html: string; text: string }[] = [];
 globalThis.fetch = (async (_u: unknown, init?: { body?: string }) => { sentPayloads.push(JSON.parse(String(init?.body ?? "{}"))); return new Response(JSON.stringify({ id: "re_1" }), { status: 200 }); }) as unknown as typeof fetch;
-process.env["RESEND_API_KEY"] = "test-key"; process.env["LOVABLE_API_KEY"] = "test-gateway";
+process.env["RESEND_API_KEY"] = "test-key"; process.env["LOVABLE_API_KEY"] = "test-gateway"; process.env["HIVIC_COM04_ENV"] = "production"; // S102: production send path with a stubbed provider
 
 const { sendSaveMySpot } = await import("../src/lib/hot-leads-send.server");
 const { prepareIneligibleEmailForOffice, sendPreliminaryIneligibleEmail } = await import("../src/lib/followups.server");

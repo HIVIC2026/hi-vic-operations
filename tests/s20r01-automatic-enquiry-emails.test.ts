@@ -11,6 +11,16 @@ const T: Record<string, Row[]> = {};
 let seq = 0;
 let failSentWrite = false;
 const writes: string[] = [];
+
+// P1-R3-S103: automatic Save-my-spot SELECTION must be explicitly enabled (with no extra filters,
+// i.e. no additional restriction) for the automatic route to reach the sender. It defaults to
+// DISABLED and fails closed; missing / invalid / unreadable configurations are proven in
+// tests/p1-r3-s103-office-automatic-sending-rules.test.ts.
+const S103_AUTO_RULES = { version: 1, enabled: true, activatedAt: "2020-01-01T00:00:00.000Z", updatedAt: "2026-10-01T00:00:00.000Z", updatedBy: "test",
+  rules: { eligibility: { enabled: false, outcomes: [] }, insulation: { enabled: false, values: [] },
+    ceilingArea: { enabled: false, minM2: null, maxM2: null, includeUnknownArea: false },
+    postcode: { enabled: false, mode: "specific", postcodes: [], rangeFrom: null, rangeTo: null },
+    jobStatus: { enabled: false, stages: [] }, enquiryDate: { enabled: false, window: "last_3_days", fromDate: null, toDate: null } } };
 function from(table: string) {
   let op: "select" | "insert" | "update" = "select"; let values: unknown = null; let returning = false;
   const f: [string, string, unknown][] = [];
@@ -84,6 +94,7 @@ globalThis.fetch = (async (u: unknown, init?: RequestInit) => {
 }) as typeof fetch;
 process.env["RESEND_API_KEY"] = "local-test-not-real";
 process.env["LOVABLE_API_KEY"] = "local-test-not-real";
+process.env["HIVIC_COM04_ENV"] = "production"; // S102: these cases exercise the production send path (real recipient, stubbed provider)
 
 const { maybeAutoRouteLeadEmail } = await import("../src/lib/lead-email-routing.server");
 const { processPendingInitialEstimateEmails, sendPreliminaryIneligibleEmail } = await import("../src/lib/followups.server");
@@ -120,10 +131,11 @@ beforeEach(() => {
       { id: "ll", job_id: L, token: "L".repeat(43), purpose: "step3_estimate", status: "active", expires_at: "2027-01-01T00:00:00Z" },
       { id: "lb", job_id: B, token: "B".repeat(43), purpose: "step3_estimate", status: "active", expires_at: "2027-01-01T00:00:00Z" },
     ],
+    veu_location_variables: [{ postcode: "3000" }], // S102: establish service coverage for the automatic offer_spot send
     indicative_estimates: [est("el", L, "none"), est("eb", B, "present")],
     retail_estimator_settings: [{ is_current: true, indicative_veec_value: 61.74 }],
     owner_contact_consents: [L, B, I].map((j) => ({ job_id: j, consent_status: "granted", created_at: ago(HOUR) })),
-    workflow_settings: [{ id: 1, customer_comms_enabled: false }], // the shared master switch stays OFF throughout
+    workflow_settings: [{ id: 1, customer_comms_enabled: false, save_my_spot_auto_rules: S103_AUTO_RULES }], // the shared master switch stays OFF throughout
     customer_delivery_settings: [{ id: 1, enabled: false, jobs_created_after: null, provider: "base44_bridge", endpoint_url: null, hmac_secret: null }],
     customer_email_optouts: [], lead_campaign_responses: [], job_communications: [], customer_email_sends: [], ceiling_measurements: [], property_area_estimates: [],
     customer_referral_tokens: [], post_intake_work: [], customer_engagement_events: [],
@@ -155,13 +167,13 @@ describe("automatic enquiry emails OFF (production today: master switch off)", (
   });
   test("missing Save-my-spot switch fails closed even with the master switch ON", async () => {
     autoOn(); // automatic enquiry emails on (delivery enabled + start time)
-    T.workflow_settings = [{ id: 1, customer_comms_enabled: true, save_my_spot_real_send_enabled: false }];
+    T.workflow_settings = [{ id: 1, customer_comms_enabled: true, save_my_spot_real_send_enabled: false, save_my_spot_auto_rules: S103_AUTO_RULES }];
     expect(await maybeAutoRouteLeadEmail(L)).toMatchObject({ route: "offer_spot", sent: false, reason: "Sending is switched off." });
     expect(calls.length).toBe(0); // both switches are required for real Save-my-spot sending
   });
   test("both switches ON authorizes real Save-my-spot sending (COM-04 Option A positive path)", async () => {
     autoOn();
-    T.workflow_settings = [{ id: 1, customer_comms_enabled: true, save_my_spot_real_send_enabled: true }];
+    T.workflow_settings = [{ id: 1, customer_comms_enabled: true, save_my_spot_real_send_enabled: true, save_my_spot_auto_rules: S103_AUTO_RULES }];
     expect((await maybeAutoRouteLeadEmail(L)).sent).toBe(true);
     expect(calls.map((c) => c.idem)).toEqual([KEYS.L]); // exactly one provider call under the Save-my-spot key
     expect(sentRow(KEYS.L)).toMatchObject({ status: "sent", provider: "resend" });

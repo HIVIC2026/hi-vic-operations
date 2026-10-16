@@ -11,6 +11,16 @@ const T: Record<string, Row[]> = {};
 let seq = 0;
 let failSentWrite = false;
 const writes: string[] = [];
+
+// P1-R3-S103: automatic Save-my-spot SELECTION must be explicitly enabled (with no extra filters,
+// i.e. no additional restriction) for the automatic route to reach the sender. It defaults to
+// DISABLED and fails closed; missing / invalid / unreadable configurations are proven in
+// tests/p1-r3-s103-office-automatic-sending-rules.test.ts.
+const S103_AUTO_RULES = { version: 1, enabled: true, activatedAt: "2020-01-01T00:00:00.000Z", updatedAt: "2026-10-01T00:00:00.000Z", updatedBy: "test",
+  rules: { eligibility: { enabled: false, outcomes: [] }, insulation: { enabled: false, values: [] },
+    ceilingArea: { enabled: false, minM2: null, maxM2: null, includeUnknownArea: false },
+    postcode: { enabled: false, mode: "specific", postcodes: [], rangeFrom: null, rangeTo: null },
+    jobStatus: { enabled: false, stages: [] }, enquiryDate: { enabled: false, window: "last_3_days", fromDate: null, toDate: null } } };
 function from(table: string) {
   let op: "select" | "insert" | "update" = "select"; let values: unknown = null; let returning = false;
   const f: [string, string, unknown][] = [];
@@ -103,10 +113,11 @@ beforeEach(() => {
       eligibility_outcome: "likely_eligible", eligibility_decision_source: "system", eligibility_review_required: false, estimated_area_m2: 120, estimated_area_unknown: false,
       owners: { full_name: "Sam Sample", email: "sam.sample@example.test" }, properties: { address_line: "1 Fixture Street", suburb: "Testville", postcode: "3000", enrichment: { base44: { raw: { answers: { existing_insulation: "none" } } } } } }],
     customer_estimate_links: [{ id: "l1", job_id: J, token: "T".repeat(43), purpose: "step3_estimate", status: "active" }],
+    veu_location_variables: [{ postcode: "3000" }], // S102: establish service coverage for the automatic offer_spot send
     indicative_estimates: [{ id: "e1", job_id: J, status: "current", area_m2: 120, area_source: "owner_estimate", insulation_declared: "none", scenarios: [{ by_access: { standard: { estimated_customer_total: 3716.24, applied_discount: 1481.76, pre_discount_total: 5198 } } }], snapshot: { settings: { piesa_assessment_inc_gst: 349, ap_management_inc_gst: 349 }, scenarios: [{ by_access: { standard: { installation: 4500 } } }] } }],
     retail_estimator_settings: [{ is_current: true, indicative_veec_value: 61.74 }],
     owner_contact_consents: [{ job_id: J, consent_status: "granted", created_at: "2026-10-01T00:00:00Z" }],
-    workflow_settings: [{ id: 1, save_my_spot_real_send_enabled: true, customer_comms_enabled: true }],
+    workflow_settings: [{ id: 1, save_my_spot_real_send_enabled: true, customer_comms_enabled: true, save_my_spot_auto_rules: S103_AUTO_RULES }],
     customer_email_optouts: [], lead_campaign_responses: [], job_communications: [], customer_email_sends: [], ceiling_measurements: [], property_area_estimates: [], customer_referral_tokens: [], post_intake_work: [],
   });
 });
@@ -347,14 +358,14 @@ describe("global communications disabled (customer_comms_enabled = false)", () =
   test("the Save my spot initial campaign is blocked when the global switch is off (COM-04 fail-closed); nothing changes the switch", async () => {
     // COM-04 requires BOTH switches ON: save_my_spot_real_send_enabled AND customer_comms_enabled.
     // With the global switch off the initial campaign is blocked before any reservation or provider call.
-    T.workflow_settings = [{ id: 1, save_my_spot_real_send_enabled: true, customer_comms_enabled: false }];
+    T.workflow_settings = [{ id: 1, save_my_spot_real_send_enabled: true, customer_comms_enabled: false, save_my_spot_auto_rules: S103_AUTO_RULES }];
     mode = "timeout";
     const r = await auto();
     expect(r.sent).toBe(false);
     expect(String(r.reason)).toContain("switched off");
     expect(calls.length).toBe(0);
     expect(T.customer_email_sends).toEqual([]);
-    expect(T.workflow_settings).toEqual([{ id: 1, save_my_spot_real_send_enabled: true, customer_comms_enabled: false }]);
+    expect(T.workflow_settings).toEqual([{ id: 1, save_my_spot_real_send_enabled: true, customer_comms_enabled: false, save_my_spot_auto_rules: S103_AUTO_RULES }]);
     expect(writes.some((w) => w.endsWith(":workflow_settings"))).toBe(false);
   });
 });

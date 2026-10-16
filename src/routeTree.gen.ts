@@ -59,6 +59,7 @@ import { Route as AuthenticatedAdminPartnersOverviewRouteImport } from './routes
 import { Route as AuthenticatedAdminPipelineRouteImport } from './routes/_authenticated/admin.pipeline'
 import { Route as AuthenticatedAdminPricingRouteImport } from './routes/_authenticated/admin.pricing'
 import { Route as AuthenticatedAdminReadyCheckRouteImport } from './routes/_authenticated/admin.ready-check'
+import { Route as AuthenticatedAdminSaveMySpotRulesRouteImport } from './routes/_authenticated/admin.save-my-spot-rules'
 import { Route as AuthenticatedAdminTeamUpsRouteImport } from './routes/_authenticated/admin.team-ups'
 import { Route as AuthenticatedAdminTemplatesRouteImport } from './routes/_authenticated/admin.templates'
 import { Route as AuthenticatedAdminTestCentreRouteImport } from './routes/_authenticated/admin.test-centre'
@@ -378,6 +379,12 @@ const AuthenticatedAdminReadyCheckRoute =
   AuthenticatedAdminReadyCheckRouteImport.update({
     id: '/ready-check',
     path: '/ready-check',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminSaveMySpotRulesRoute =
+  AuthenticatedAdminSaveMySpotRulesRouteImport.update({
+    id: '/save-my-spot-rules',
+    path: '/save-my-spot-rules',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminTeamUpsRoute =
@@ -707,6 +714,7 @@ export interface FileRoutesByFullPath {
   '/admin/pipeline': typeof AuthenticatedAdminPipelineRoute
   '/admin/pricing': typeof AuthenticatedAdminPricingRoute
   '/admin/ready-check': typeof AuthenticatedAdminReadyCheckRoute
+  '/admin/save-my-spot-rules': typeof AuthenticatedAdminSaveMySpotRulesRoute
   '/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
   '/admin/templates': typeof AuthenticatedAdminTemplatesRoute
   '/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
@@ -804,6 +812,7 @@ export interface FileRoutesByTo {
   '/admin/pipeline': typeof AuthenticatedAdminPipelineRoute
   '/admin/pricing': typeof AuthenticatedAdminPricingRoute
   '/admin/ready-check': typeof AuthenticatedAdminReadyCheckRoute
+  '/admin/save-my-spot-rules': typeof AuthenticatedAdminSaveMySpotRulesRoute
   '/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
   '/admin/templates': typeof AuthenticatedAdminTemplatesRoute
   '/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
@@ -907,6 +916,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/pipeline': typeof AuthenticatedAdminPipelineRoute
   '/_authenticated/admin/pricing': typeof AuthenticatedAdminPricingRoute
   '/_authenticated/admin/ready-check': typeof AuthenticatedAdminReadyCheckRoute
+  '/_authenticated/admin/save-my-spot-rules': typeof AuthenticatedAdminSaveMySpotRulesRoute
   '/_authenticated/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
   '/_authenticated/admin/templates': typeof AuthenticatedAdminTemplatesRoute
   '/_authenticated/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
@@ -1010,6 +1020,7 @@ export interface FileRouteTypes {
     | '/admin/pipeline'
     | '/admin/pricing'
     | '/admin/ready-check'
+    | '/admin/save-my-spot-rules'
     | '/admin/team-ups'
     | '/admin/templates'
     | '/admin/test-centre'
@@ -1107,6 +1118,7 @@ export interface FileRouteTypes {
     | '/admin/pipeline'
     | '/admin/pricing'
     | '/admin/ready-check'
+    | '/admin/save-my-spot-rules'
     | '/admin/team-ups'
     | '/admin/templates'
     | '/admin/test-centre'
@@ -1209,6 +1221,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/pipeline'
     | '/_authenticated/admin/pricing'
     | '/_authenticated/admin/ready-check'
+    | '/_authenticated/admin/save-my-spot-rules'
     | '/_authenticated/admin/team-ups'
     | '/_authenticated/admin/templates'
     | '/_authenticated/admin/test-centre'
@@ -1656,6 +1669,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminReadyCheckRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/save-my-spot-rules': {
+      id: '/_authenticated/admin/save-my-spot-rules'
+      path: '/save-my-spot-rules'
+      fullPath: '/admin/save-my-spot-rules'
+      preLoaderRoute: typeof AuthenticatedAdminSaveMySpotRulesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/team-ups': {
       id: '/_authenticated/admin/team-ups'
       path: '/team-ups'
@@ -2033,6 +2053,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminPipelineRoute: typeof AuthenticatedAdminPipelineRoute
   AuthenticatedAdminPricingRoute: typeof AuthenticatedAdminPricingRoute
   AuthenticatedAdminReadyCheckRoute: typeof AuthenticatedAdminReadyCheckRoute
+  AuthenticatedAdminSaveMySpotRulesRoute: typeof AuthenticatedAdminSaveMySpotRulesRoute
   AuthenticatedAdminTeamUpsRoute: typeof AuthenticatedAdminTeamUpsRoute
   AuthenticatedAdminTemplatesRoute: typeof AuthenticatedAdminTemplatesRoute
   AuthenticatedAdminTestCentreRoute: typeof AuthenticatedAdminTestCentreRoute
@@ -2072,6 +2093,8 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminPipelineRoute: AuthenticatedAdminPipelineRoute,
   AuthenticatedAdminPricingRoute: AuthenticatedAdminPricingRoute,
   AuthenticatedAdminReadyCheckRoute: AuthenticatedAdminReadyCheckRoute,
+  AuthenticatedAdminSaveMySpotRulesRoute:
+    AuthenticatedAdminSaveMySpotRulesRoute,
   AuthenticatedAdminTeamUpsRoute: AuthenticatedAdminTeamUpsRoute,
   AuthenticatedAdminTemplatesRoute: AuthenticatedAdminTemplatesRoute,
   AuthenticatedAdminTestCentreRoute: AuthenticatedAdminTestCentreRoute,
