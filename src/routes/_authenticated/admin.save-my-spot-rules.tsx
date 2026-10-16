@@ -61,9 +61,10 @@ const MANDATORY = [
 
 const VERDICT_LABEL: Record<string, string> = {
   eligible: "Matches selection rules — final sending checks pending",
-  mandatory_excluded: "Excluded by a mandatory rule",
+  mandatory_excluded: "Matches filters, but excluded by a mandatory rule",
   needs_office_review: "Needs office review",
-  rule_excluded: "Outside the configured filters",
+  rule_excluded: "Does not match the configured filters",
+  records_unavailable: "Cannot be determined — mandatory records unavailable",
 };
 
 function SaveMySpotRulesPage() {
@@ -294,13 +295,29 @@ function Preview() {
         {d && (
           <>
             {!d.automaticSelectionEnabled && <p className="mt-3 rounded bg-warning-soft px-2 py-1 text-xs text-warning">Automatic selection is OFF, so nothing is sent automatically even where the filters match.</p>}
-            <ul className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {d.recordsUnavailable && (
+              <div role="alert" className="mt-3 rounded border border-danger/40 bg-danger-soft p-3 text-sm">
+                <strong>The preview could not read the mandatory safety records.</strong>
+                <p className="mt-1 text-xs">
+                  No enquiry below can be confirmed as ready, and no enquiry is reported as excluded by a mandatory rule — the
+                  records simply could not be read. Nothing was sent and nothing was changed. {d.recordsError}
+                </p>
+              </div>
+            )}
+            <ul className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
               <Stat label="Match the filters" value={d.counts.matching} />
-              <Stat label="Excluded by a mandatory rule" value={d.counts.mandatoryExcluded} />
+              <Stat label="Matches filters, but excluded by a mandatory rule" value={d.counts.mandatoryExcluded} />
               <Stat label="Needs office review" value={d.counts.needsOfficeReview} />
               <Stat label="Matches selection rules — final sending checks pending" value={d.counts.eligible} />
+              <Stat label="Cannot be determined — records unavailable" value={d.counts.recordsUnavailable} />
             </ul>
             <p className="mt-2 text-xs text-muted-foreground">Checked {d.scanned} recent decided enquiries. Active rules: {d.activeRules.join(" · ")}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              How to read these totals: <strong>Match the filters</strong> is a subset of the {d.scanned} checked — it equals
+              {" "}{d.counts.eligible} ready + {d.counts.mandatoryExcluded} mandatory exclusions + {d.counts.recordsUnavailable}{" "}
+              undetermined. The remaining {d.counts.ruleExcluded} did not match the configured filters and{" "}
+              {d.counts.needsOfficeReview} need office review because a required record is missing.
+            </p>
             <details className="mt-2 rounded border p-2 text-xs text-muted-foreground">
               <summary className="cursor-pointer font-medium text-foreground">What this preview does and does not cover</summary>
               <ul className="mt-2 list-disc space-y-1 pl-5">

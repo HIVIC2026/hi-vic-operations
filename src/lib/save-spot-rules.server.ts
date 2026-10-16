@@ -209,7 +209,7 @@ export async function automaticSaveSpotGate(jobId: string, opts: { route?: strin
 
 // ---------- Office preview (read-only) ----------
 
-export type PreviewVerdict = "eligible" | "mandatory_excluded" | "needs_office_review" | "rule_excluded";
+export type PreviewVerdict = "eligible" | "mandatory_excluded" | "needs_office_review" | "rule_excluded" | "records_unavailable";
 
 export type PreviewRow = {
   jobId: string;
@@ -235,7 +235,11 @@ export type AutomaticRulesPreview = {
   activatedAt: string | null;
   scanned: number;
   scanLimit: number;
-  counts: { matching: number; mandatoryExcluded: number; needsOfficeReview: number; ruleExcluded: number; eligible: number };
+  counts: { matching: number; mandatoryExcluded: number; needsOfficeReview: number; ruleExcluded: number; recordsUnavailable: number; eligible: number };
+  /** True when any mandatory-record batch could not be read. No row may be reported ready on partial data. */
+  recordsUnavailable: boolean;
+  /** Operator-visible detail of which mandatory records failed and how many of their batches. */
+  recordsError: string | null;
   page: number;
   pageSize: number;
   pages: number;
@@ -244,18 +248,67 @@ export type AutomaticRulesPreview = {
 
 type MandatoryFacts = { consentGranted: boolean; optedOut: boolean; alreadySent: boolean; coverage: boolean };
 
+/** Shown on every row whose mandatory status could not be determined. Deliberately distinct from a rule exclusion. */
+export const RECORDS_UNAVAILABLE_REASON = "Preview cannot determine this result: the mandatory safety records could not be read.";
+
+/**
+ * P1-R1-S111: how many ids go into ONE PostgREST request.
+ *
+ * `.in()` values travel in the GET query string. The preview scans up to
+ * `PREVIEW_SCAN_LIMIT = 500` enquiries, and 500 uuid ids build a ~19-20 KB URL, which the gateway
+ * rejects — that made every mandatory-record read fail and the whole preview report
+ * "Mandatory records could not be read." The codebase already bounds the SAME tables: `CHUNK = 150`
+ * in `enquiry-groups.server.ts` and 150 in `operations-preview.server.ts`. 150 ids ≈ 5.9 KB, well under
+ * the common 8 KB request-line limit. Same convention, same size.
+ */
+export const MANDATORY_BATCH_SIZE = 150;
+
+type BatchRead<T> = { rows: T[]; batches: number; failedBatches: number; error: string | null };
+
+/**
+ * Read `values` in bounded batches and COMBINE the successful results.
+ *
+ * A failed batch is never silently dropped: it is counted and its message kept, so the caller can fail
+ * closed and show the operator what went wrong. Partial rows are returned (they are correct for the
+ * batches that succeeded) but are never sufficient on their own — `failedBatches > 0` is the signal.
+ */
+export async function readInBatches<T>(
+  values: string[],
+  read: (batch: string[]) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+): Promise<BatchRead<T>> {
+  const rows: T[] = [];
+  let batches = 0;
+  let failedBatches = 0;
+  let error: string | null = null;
+  for (let i = 0; i < values.length; i += MANDATORY_BATCH_SIZE) {
+    batches += 1;
+    const batch = values.slice(i, i + MANDATORY_BATCH_SIZE);
+    const { data, error: batchError } = await read(batch);
+    if (batchError) {
+      failedBatches += 1;
+      error ??= batchError.message;
+      continue;
+    }
+    rows.push(...(data ?? []));
+  }
+  return { rows, batches, failedBatches, error };
+}
+
 /**
  * The mandatory, non-configurable reasons a preview row can never be automatically sent. Read-only
  * reporting, deliberately in the SAME order as `automaticSaveSpotGate` and then extended with the
  * sender-side controls the gate leaves to `sendOne`. Returns null when nothing mandatory blocks.
+ *
+ * P1-R1-S111: a mandatory-record READ FAILURE is no longer expressed here. It is a different thing —
+ * "we could not look" rather than "this enquiry is excluded" — and it is carried by
+ * `recordsUnavailable` so the Office can tell the two apart. Never call this with unreadable records.
  */
 export function previewMandatoryBlock(x: {
-  readsFailed: boolean; lifecycle: string | null; routeEmail: string; routeBlocker: string | null;
+  lifecycle: string | null; routeEmail: string; routeBlocker: string | null;
   coverage: boolean; com04Ready: boolean; deliveryConfigured: boolean;
   consentGranted: boolean; optedOut: boolean; alreadySent: boolean;
   enabled: boolean; activatedAt: string | null; createdAt: string | null;
 }): string | null {
-  if (x.readsFailed) return "Mandatory records could not be read.";
   if (x.lifecycle) return x.lifecycle;
   if (x.routeEmail !== "offer_spot") return x.routeBlocker ?? "Not on the Save my spot automatic route.";
   if (!x.coverage) return SERVICE_AREA_REASON;
@@ -298,28 +351,51 @@ export async function previewAutomaticSaveSpotMatching(page = 1): Promise<Automa
   const rows = (rowsRaw ?? []) as unknown as CandidateRow[];
   const ids = rows.map((r) => r.id);
 
-  // One bulk coverage read for every scanned postcode (S102 gate: the same positive signal, fail-closed).
+  // One coverage read for every scanned postcode (S102 gate: the same positive signal, fail-closed).
   const distinctPostcodes = [...new Set(rows.map((r) => String(propertyOf(r.properties)?.postcode ?? "").trim()).filter(Boolean))];
 
+  // P1-R1-S111: every id list is read in bounded batches of MANDATORY_BATCH_SIZE. Same five reads, same
+  // filters, same order — only the request size changed. A batch that fails is counted and reported; it is
+  // never dropped silently and never treated as "no rows".
+  const nothing = <T>(): Promise<BatchRead<T>> => Promise.resolve({ rows: [], batches: 0, failedBatches: 0, error: null });
+  type ConsentRow = { job_id: string; consent_status: string };
+  type OptOutRow = { job_id: string; opted_out_at: string | null };
+  type SendRow = { job_id: string; status: string };
+  type PostcodeRow = { postcode: string };
+  type JobRow = { job_id: string };
   const [consents, optouts, sends, postcodes, intakeWork] = await Promise.all([
-    ids.length ? admin.from("owner_contact_consents").select("job_id, consent_status, created_at").in("job_id", ids).order("created_at", { ascending: false }) : { data: [], error: null },
-    ids.length ? admin.from("customer_email_optouts").select("job_id, opted_out_at").in("job_id", ids) : { data: [], error: null },
-    ids.length ? admin.from("customer_email_sends").select("job_id, status").eq("purpose", LAUNCH_CAMPAIGN).in("job_id", ids) : { data: [], error: null },
-    distinctPostcodes.length ? admin.from("veu_location_variables").select("postcode").in("postcode", distinctPostcodes) : { data: [], error: null },
-    ids.length ? admin.from("post_intake_work").select("job_id").in("job_id", ids).in("status", ["queued", "processing", "retry"]) : { data: [], error: null },
+    ids.length ? readInBatches<ConsentRow>(ids, (b) => admin.from("owner_contact_consents").select("job_id, consent_status, created_at").in("job_id", b).order("created_at", { ascending: false })) : nothing<ConsentRow>(),
+    ids.length ? readInBatches<OptOutRow>(ids, (b) => admin.from("customer_email_optouts").select("job_id, opted_out_at").in("job_id", b)) : nothing<OptOutRow>(),
+    ids.length ? readInBatches<SendRow>(ids, (b) => admin.from("customer_email_sends").select("job_id, status").eq("purpose", LAUNCH_CAMPAIGN).in("job_id", b)) : nothing<SendRow>(),
+    distinctPostcodes.length ? readInBatches<PostcodeRow>(distinctPostcodes, (b) => admin.from("veu_location_variables").select("postcode").in("postcode", b)) : nothing<PostcodeRow>(),
+    ids.length ? readInBatches<JobRow>(ids, (b) => admin.from("post_intake_work").select("job_id").in("job_id", b).in("status", ["queued", "processing", "retry"])) : nothing<JobRow>(),
   ]);
-  // Fail closed on any unreadable mandatory record set: no row is reported eligible on partial data.
-  const readsFailed = [consents, optouts, sends, postcodes, intakeWork].some((r) => !!r.error);
+
+  // Fail closed on any unreadable mandatory record set: no row is reported ready on partial data, and the
+  // operator is told which records failed. A read failure is NOT a rule exclusion.
+  const reads: { label: string; read: { batches: number; failedBatches: number; error: string | null } }[] = [
+    { label: "owner contact consents", read: consents },
+    { label: "opt-outs", read: optouts },
+    { label: "existing Save my spot sends", read: sends },
+    { label: "VEU service coverage", read: postcodes },
+    { label: "intake work in progress", read: intakeWork },
+  ];
+  const failedReads = reads.filter((r) => r.read.failedBatches > 0);
+  const recordsUnavailable = failedReads.length > 0;
+  const recordsError = recordsUnavailable
+    ? failedReads.map((r) => `${r.label} (${r.read.failedBatches} of ${r.read.batches} batches failed${r.read.error ? `: ${r.read.error}` : ""})`).join("; ")
+    : null;
+
   const consented = new Map<string, boolean>();
-  for (const c of (consents.data ?? []) as { job_id: string; consent_status: string }[]) {
+  for (const c of consents.rows) {
     if (!consented.has(c.job_id)) consented.set(c.job_id, c.consent_status === "granted");
   }
-  const optedOut = new Set(((optouts.data ?? []) as { job_id: string; opted_out_at: string | null }[]).filter((o) => !!o.opted_out_at).map((o) => o.job_id));
-  const sent = new Set(((sends.data ?? []) as { job_id: string; status: string }[]).filter((s) => s.status !== "failed").map((s) => s.job_id));
-  const covered = new Set(((postcodes.data ?? []) as { postcode: string }[]).map((p) => String(p.postcode).trim()));
-  const intakeActive = new Set(((intakeWork.data ?? []) as { job_id: string }[]).map((w) => w.job_id));
+  const optedOut = new Set(optouts.rows.filter((o) => !!o.opted_out_at).map((o) => o.job_id));
+  const sent = new Set(sends.rows.filter((s) => s.status !== "failed").map((s) => s.job_id));
+  const covered = new Set(postcodes.rows.map((p) => String(p.postcode).trim()));
+  const intakeActive = new Set(intakeWork.rows.map((w) => w.job_id));
 
-  const counts = { matching: 0, mandatoryExcluded: 0, needsOfficeReview: 0, ruleExcluded: 0, eligible: 0 };
+  const counts = { matching: 0, mandatoryExcluded: 0, needsOfficeReview: 0, ruleExcluded: 0, recordsUnavailable: 0, eligible: 0 };
   const all: PreviewRow[] = [];
   for (const row of rows) {
     const facts = candidateFacts(row);
@@ -340,32 +416,48 @@ export async function previewAutomaticSaveSpotMatching(page = 1): Promise<Automa
       ownerEnteredArea: !facts.areaUnknown && (facts.areaM2 ?? 0) > 0,
     });
 
-    const mandatoryBlock = previewMandatoryBlock({
-      readsFailed, lifecycle, routeEmail: route.email, routeBlocker: route.blocker,
-      coverage: mandatory.coverage, com04Ready, deliveryConfigured,
-      consentGranted: mandatory.consentGranted, optedOut: mandatory.optedOut, alreadySent: mandatory.alreadySent,
-      enabled, activatedAt, createdAt: facts.createdAt,
-    });
+    const mandatoryBlock = recordsUnavailable
+      ? null // never conclude a rule exclusion from records we could not read
+      : previewMandatoryBlock({
+        lifecycle, routeEmail: route.email, routeBlocker: route.blocker,
+        coverage: mandatory.coverage, com04Ready, deliveryConfigured,
+        consentGranted: mandatory.consentGranted, optedOut: mandatory.optedOut, alreadySent: mandatory.alreadySent,
+        enabled, activatedAt, createdAt: facts.createdAt,
+      });
 
     const match = matchAutomaticRules(facts, rules, nowMs);
     const unknownOnly = !match.eligible && unknownCategories(facts, rules, match.failedCategories).length === match.failedCategories.length;
+    const filterReason = match.failedCategories.map((c) => CATEGORY_MISMATCH_REASON[c]).join("; ");
     let verdict: PreviewVerdict;
     let reason: string;
+    // P1-R1-S111 counting semantics. Invariants the Office can rely on:
+    //   matching === eligible + mandatoryExcluded + recordsUnavailable
+    //   scanned  === matching + ruleExcluded + needsOfficeReview
+    // "Excluded by a mandatory rule" therefore ONLY ever means "matched the filters AND a mandatory
+    // control excluded it". A filter mismatch is never reported as a mandatory exclusion.
     if (match.eligible) {
       counts.matching += 1;
-      if (mandatoryBlock) { verdict = "mandatory_excluded"; reason = mandatoryBlock; counts.mandatoryExcluded += 1; }
-      else { verdict = "eligible"; reason = "Matches the selection rules only. The final sending checks in the email sender still apply."; counts.eligible += 1; }
-    } else if (mandatoryBlock) {
-      verdict = "mandatory_excluded";
-      reason = `${mandatoryBlock} ${match.failedCategories.map((c) => CATEGORY_MISMATCH_REASON[c]).join("; ")}`.trim();
-      counts.mandatoryExcluded += 1;
+      if (recordsUnavailable) {
+        verdict = "records_unavailable";
+        reason = `${RECORDS_UNAVAILABLE_REASON} This enquiry matches the selection rules; its mandatory checks were not evaluated.`;
+        counts.recordsUnavailable += 1;
+      } else if (mandatoryBlock) {
+        verdict = "mandatory_excluded";
+        reason = mandatoryBlock;
+        counts.mandatoryExcluded += 1;
+      } else {
+        verdict = "eligible";
+        reason = "Matches the selection rules only. The final sending checks in the email sender still apply.";
+        counts.eligible += 1;
+      }
     } else if (unknownOnly) {
+      // Reachable from job facts alone — still accurate while the mandatory records are unavailable.
       verdict = "needs_office_review";
       reason = match.failedCategories.map((c) => CATEGORY_UNKNOWN_REASON[c]).join("; ");
       counts.needsOfficeReview += 1;
     } else {
       verdict = "rule_excluded";
-      reason = match.failedCategories.map((c) => CATEGORY_MISMATCH_REASON[c]).join("; ");
+      reason = filterReason;
       counts.ruleExcluded += 1;
     }
     all.push({
@@ -396,6 +488,8 @@ export async function previewAutomaticSaveSpotMatching(page = 1): Promise<Automa
     scanned: all.length,
     scanLimit: PREVIEW_SCAN_LIMIT,
     counts,
+    recordsUnavailable,
+    recordsError,
     page: current,
     pageSize: PREVIEW_PAGE_SIZE,
     pages,
