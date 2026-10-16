@@ -121,6 +121,7 @@ beforeEach(() => {
       { id: "ll", job_id: L, token: "L".repeat(43), purpose: "step3_estimate", status: "active", expires_at: "2027-01-01T00:00:00Z" },
       { id: "lb", job_id: B, token: "B".repeat(43), purpose: "step3_estimate", status: "active", expires_at: "2027-01-01T00:00:00Z" },
     ],
+    veu_location_variables: [{ postcode: "3000" }], // S102: establish service coverage for the automatic offer_spot send
     indicative_estimates: [est("el", L, "none"), est("eb", B, "present")],
     retail_estimator_settings: [{ is_current: true, indicative_veec_value: 61.74 }],
     owner_contact_consents: [L, B, I].map((j) => ({ job_id: j, consent_status: "granted", created_at: ago(HOUR) })),

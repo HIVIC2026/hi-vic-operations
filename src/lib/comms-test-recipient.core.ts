@@ -19,7 +19,6 @@
 //
 // S99-R6: "real Save-my-spot sends have no recipient allow-list." This closes that gap for approved
 // test/staging WITHOUT a new DB column, a migration, or any production write.
-import { isTestRecipient } from "./emailsafety.core";
 
 export const COMMS_ENV_VAR = "HIVIC_COM04_ENV";
 export const TEST_RECIPIENT_ENV = "HIVIC_COM04_TEST_RECIPIENTS";
@@ -31,6 +30,20 @@ export type TestRecipientDecision =
   | { status: "blocked"; restricted: true; reason: string }; // non-production: fail closed
 
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i;
+
+/**
+ * ONLY explicitly-recognised RFC-reserved test domains bypass the non-production restriction:
+ * example.com / example.org / example.net (RFC 2606) and the .test / .invalid / .localhost TLDs
+ * (RFC 6761). Deliberately NARROW — an address is NOT treated as synthetic merely because it contains
+ * "qa", uses "+qa", or is on a disposable mailbox provider (mailinator, etc.). Those require an
+ * explicit allow-list entry in non-production. The broad `isTestRecipient` used elsewhere in the app
+ * is intentionally NOT reused here (owner PART 2; do not change unrelated application logic).
+ */
+const RESERVED_TEST_DOMAIN = /@(?:[^@]*\.)?(?:example\.(?:com|org|net)|test|invalid|localhost)$/i;
+export const isReservedTestRecipient = (email: string | null | undefined): boolean => {
+  const e = (email ?? "").trim();
+  return !!e && RESERVED_TEST_DOMAIN.test(e);
+};
 
 /** Explicit production opt-in; everything else (including unset) is non-production (fail closed). */
 export function commsEnvironment(env: string | undefined | null = process.env[COMMS_ENV_VAR]): CommsEnvironment {
@@ -76,8 +89,11 @@ export function testRecipientBoundary(
   const hasInvalid = allowlistIsInvalid(entries);
   const norm = (to ?? "").trim().toLowerCase();
   if (!norm) return { status: "blocked", restricted: true, reason: "Non-production test boundary is active and no recipient was resolved." };
-  // Provably-synthetic addresses are never real customers — permitted even without an allow-list.
-  if (isTestRecipient(norm)) return { status: "allowed", restricted: true };
+  // Provably-synthetic addresses (RFC-reserved test domains ONLY) are never real customers — permitted
+  // even without an allow-list. "qa"/"+qa"/disposable-mailbox addresses are NOT assumed synthetic and
+  // require an explicit allow-list entry below, so legitimate synthetic test flows keep working while
+  // no real customer can ever be reached.
+  if (isReservedTestRecipient(norm)) return { status: "allowed", restricted: true };
   // From here the recipient is a REAL address: fail closed unless it is on a valid allow-list.
   if (hasInvalid) return { status: "blocked", restricted: true, reason: `Non-production test boundary is active but ${TEST_RECIPIENT_ENV} contains an invalid address. Fix the allow-list before sending.` };
   if (entries.length === 0) return { status: "blocked", restricted: true, reason: `Non-production test boundary is active and ${TEST_RECIPIENT_ENV} is missing or empty. A real recipient requires an approved allow-list (or set ${COMMS_ENV_VAR}=production for production).` };

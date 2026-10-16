@@ -50,7 +50,7 @@ The automatic path is `maybeAutoSendSaveSpot` → `sendSaveMySpot` → `sendOne`
 |---|---|---|---|
 | 1 Eligibility | only `likely_eligible`; `needs_onsite_confirmation` is **not** treated as fully verified; conflicting evidence / review-required held | `launchGroup` → group `likely`; onsite group blocked from the standard list (`hot-leads-send.server.ts:123`) | ineligible/onsite are not auto-sent as Save-my-spot |
 | 2 Existing insulation | prefer explicit `none`; missing data is **not** assumed `none` | `price.insulation` from `indicative_estimates.insulation_declared` | missing/unknown → no auto-send |
-| 3 Service area | must be in-Victoria + covered | **not enforced from postcode** | **LIMITATION (§7)** — not auto-verified; Office manual review covers |
+| 3 Service area | must be POSITIVELY established from existing records | `serviceCoverageEstablished` → `veu_location_variables.postcode`, enforced in the automatic `offer_spot` router | not established → automatic send **blocked** (left for Office manual review) |
 | 4 Contact permission | granted consent, no opt-out/suppression; missing ≠ permission | `hasCurrentOwnerContactConsent`, opt-out reads, fail-closed on read error | missing consent → skipped |
 | 5 Customer/job status | exclude saved-spot, cancelled/complete, beyond-stage | `stage` check, `spot_saved_at`, `emailSuppression` stages | excluded |
 | 6 Delivery history | once-per-home; provider-accepted = attempted; uncertain never auto-retried | `customer_email_sends` idempotency + `reservationAllowed` + `delivered_unrecorded` never retried | no duplicates / no auto-retry |
@@ -75,7 +75,9 @@ New pure module `src/lib/comms-test-recipient.core.ts`, consulted on the **final
 - `HIVIC_COM04_ENV=production` → boundary **inactive** (unchanged production behaviour).
 - Any other value **or unset** → **non-production**, fail-closed.
 
-**Fail-closed rule:** in non-production a **real** recipient (not an RFC-reserved test address) requires a valid, non-empty allow-list `HIVIC_COM04_TEST_RECIPIENTS`. Missing / empty / invalid allow-list ⇒ a real recipient is **blocked** — a real customer is **never** allowed merely because the allow-list variable is absent (PART 1.2). Provably-synthetic addresses (`example.*`, `.test`, `.invalid`, `.localhost`, mailinator, `+qa@`, `qa…`) are not real customers and remain permitted without an allow-list, so legitimate synthetic test flows are not broken.
+**Fail-closed rule:** in non-production a **real** recipient requires a valid, non-empty allow-list `HIVIC_COM04_TEST_RECIPIENTS`. Missing / empty / invalid allow-list ⇒ a real recipient is **blocked** — a real customer is **never** allowed merely because the allow-list variable is absent (PART 1.2).
+
+**Narrow synthetic definition (final correction, PART 2):** ONLY explicitly-recognised RFC-reserved test domains (`example.com/org/net`, `.test`, `.invalid`, `.localhost`) are treated as synthetic and permitted without an allow-list. An address is **not** assumed synthetic merely because it contains `qa`/`+qa` or uses a disposable mailbox provider (mailinator, etc.) — those now require an explicit allow-list entry. The app-wide broad `isTestRecipient` is deliberately **not** reused here (no unrelated logic changed).
 
 **PART 1.3 (no qa_test bypass):** the boundary itself never special-cases `job.source`. qa_test sends are re-routed to Jo's inbox by the TEST sender (`test-send.core.ts`) **before** any provider contact (PART 1.5), so a qa_test job cannot reach a real customer; the real (non-qa_test) path is always validated by the boundary (PART 1.4).
 
@@ -86,22 +88,25 @@ New pure module `src/lib/comms-test-recipient.core.ts`, consulted on the **final
 ## 5. Exact source changes
 
 **New**
-- `src/lib/comms-test-recipient.core.ts` — `testRecipientBoundary()`, `commsEnvironment()`, `parseTestRecipientAllowlist()`, `allowlistIsInvalid()`.
-- `tests/p1-r3-s102-com04-dual-mode.test.ts` — 25 focused tests.
+- `src/lib/comms-test-recipient.core.ts` — `testRecipientBoundary()`, `commsEnvironment()`, `parseTestRecipientAllowlist()`, `allowlistIsInvalid()`, `isReservedTestRecipient()` (RFC-reserved domains only).
+- `src/lib/service-coverage.server.ts` — `serviceCoverageEstablished(jobId)`: positive VEU-postcode coverage, fail-closed.
+- `tests/p1-r3-s102-com04-dual-mode.test.ts` — 36 focused tests.
 
 **Modified (application)**
 - `src/lib/hot-leads-send.server.ts` — import + early boundary check on real sends (before reservation) **and** a final check immediately before `resendSend(...)`.
 - `src/lib/followups.server.ts` — import + boundary check before the Step-3 `deliverTracked` provider call (qa_test already held by `officialOutcomeForDelivery`).
+- `src/lib/lead-email-routing.server.ts` — **service-area coverage gate** in the automatic `offer_spot` branch (before `sendSaveMySpot`); not-established ⇒ `route:"none"`, `reason:"service_area_not_established"`, no send.
 
-**Modified (tests — declare the production send path so the new boundary doesn't mask delivery-logic coverage)**
-- `tests/s20r01-automatic-enquiry-emails.test.ts`, `tests/group-b-prehandoff.test.ts`, `tests/manual-communication.links.test.ts`, `tests/manual-communication.render.test.ts` — each sets `process.env["HIVIC_COM04_ENV"]="production"` (they exercise real sends to real recipients with a stubbed provider). No assertion was weakened; only the environment is declared.
+**Modified (tests)**
+- `tests/{s20r01-automatic-enquiry-emails, group-b-prehandoff, manual-communication.links, manual-communication.render}.test.ts` — declare `HIVIC_COM04_ENV=production` (real-send positive paths).
+- `tests/{com06-t05-t07, save-spot-uncertain-delivery, s20r01-automatic-enquiry-emails}.test.ts` — seed `veu_location_variables:[{postcode:"3000"}]` so their automatic `offer_spot` scenarios establish coverage (postcode 3000 is a real VEU location). No assertion weakened.
 
 ---
 
 ## 6. Focused test results (mocked providers, no network)
 
-- **New file** `tests/p1-r3-s102-com04-dual-mode.test.ts`: **25 pass / 0 fail** — boundary env separation, missing/empty/invalid allow-list (fail closed), allow-listed / non-allow-listed / test-shaped / qa_test recipients, `realSendingOn` fail-closed (master off, secondary off, 0205 column missing, read error), manual+automatic send gating with **ZERO provider calls**, and pure filter rules (opt-out/stage suppression; idempotency `reservationAllowed`).
-- **Full isolated suite** (`bun ./scripts/test-isolated.ts 8`): **339 files · 3343 pass · 0 fail** (baseline 338/3318; +25 new, nothing broken).
+- **New file** `tests/p1-r3-s102-com04-dual-mode.test.ts`: **36 pass / 0 fail** — boundary env separation, missing/empty/invalid allow-list (fail closed), allow-listed / non-allow-listed / **reserved-domain-only** recipients (qa/+qa/mailinator now blocked), `realSendingOn` fail-closed (master off, secondary off, 0205 column missing, read error), manual+automatic send gating with **ZERO provider calls**, the **service-area coverage gate** on the live `maybeAutoRouteLeadEmail` `offer_spot` path (unknown/missing postcode and VEU read-error ⇒ no auto-send), and pure filter rules (opt-out/stage suppression; idempotency `reservationAllowed`).
+- **Full isolated suite** (`bun ./scripts/test-isolated.ts 8`): **339 files · 3354 pass · 0 fail** (baseline 338/3318; +36 new, nothing broken).
 - **TypeScript:** `tsc --noEmit` → **exit 0, 0 errors**.
 - **Build:** `bun run build` → **exit 0** (SSR + client emitted). Client-bundle secret scan: **no `service_role`/`sb_secret_` value inlined**; only the public publishable key (by design). The known S99 B3-06 note (admin-client *module* shipped to browser, no secret value) is unchanged.
 
@@ -109,7 +114,7 @@ New pure module `src/lib/comms-test-recipient.core.ts`, consulted on the **final
 
 ## 7. Remaining limitations
 
-1. **Filter 3 service-area coverage is not auto-enforced.** The sender reads `properties.postcode/suburb` but there is no existing coverage table/rule it consults, so automatic Save-my-spot does **not** verify service coverage. Per the owner's "do not infer installer availability from postcode alone" and "no new fields", this is left to Office manual review rather than a guessed rule. **Recommend an explicit coverage source before widening automatic send.**
+1. **Filter 3 service-area coverage is now enforced for automatic sending.** `serviceCoverageEstablished` requires a positive VEU Victorian postcode (`veu_location_variables.postcode`); unknown/missing/unreadable ⇒ the automatic `offer_spot` send is blocked and the customer is left for Office manual review. Residual gap: this establishes a *covered VEU location*, not installer availability; a richer coverage source (if the owner wants one) can replace the VEU-table check without changing the gate.
 2. **`needs_onsite_confirmation`** is not auto-sent as a fully-verified Save-my-spot (correctly); a provisional invitation, if ever approved, must preserve that distinction in copy — a business decision, not implemented here.
 3. **0205 column unapplied** ⇒ the COM-04 secondary switch is inoperable in production until applied under the controlled procedure (fail-closed meanwhile).
 4. **No isolated non-production target** exists (Preview shares production) — the boundary mitigates real-customer risk in test/staging but is not a substitute for a separate environment.
@@ -174,7 +179,9 @@ SCHEMA VERIFIED (read-only, hivic-uat-disposable):
   lead_campaign_responses.desk_check_status CHECK, owner_contact_consents.consent_status,
   customer_email_optouts.opted_out_at, customer_email_sends.idempotency_key/status/purpose
 
-TESTS:  new file 25/25; full isolated suite 339 files / 3343 pass / 0 fail
+TESTS:  tests/p1-r3-s102-com04-dual-mode.test.ts = 36 pass / 0 fail
+        full isolated suite (scripts/test-isolated.ts 8) = 339 files / 3354 pass / 0 fail
+        (baseline 338 files / 3318 pass; +36 new, 0 regressions)
 TYPES:  tsc --noEmit exit 0 (0 errors)
 BUILD:  bun run build exit 0; no service_role/sb_secret_ value in client bundle
 

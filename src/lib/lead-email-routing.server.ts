@@ -34,6 +34,11 @@ export async function maybeAutoRouteLeadEmail(jobId: string): Promise<LeadEmailR
     if (route.email === "offer_spot") {
       const { syncStep3 } = await import("./estimatelink.server");
       await syncStep3(jobId, null);
+      // S102 service-area filter (automatic ONLY): a Save-my-spot email is auto-sent only when service
+      // coverage can be POSITIVELY established from existing records. Otherwise the customer is left
+      // for Office manual review — never auto-sent. Manual Office sending is not gated here.
+      const { serviceCoverageEstablished } = await import("./service-coverage.server");
+      if (!(await serviceCoverageEstablished(jobId))) return { route: "none", sent: false, reason: "service_area_not_established" };
       const { sendSaveMySpot } = await import("./hot-leads-send.server");
       const result = (await sendSaveMySpot([jobId], null, route.assumedArea ? { automaticInitial: true } : {}))[0];
       return { route: route.email, sent: result?.outcome === "sent", reason: result?.detail ?? "No send result" };

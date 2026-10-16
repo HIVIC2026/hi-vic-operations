@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 type Row = Record<string, unknown>;
 const T: Record<string, Row[]> = {};
 let failWsSelect = false; // simulate migration-0205 column absent => workflow_settings select errors
+let failVeU = false; // simulate veu_location_variables read error => coverage fails closed
 
 function from(table: string) {
   let op: "select" | "insert" | "update" = "select";
@@ -22,6 +23,7 @@ function from(table: string) {
   const rows = () => (T[table] ??= []);
   const run = () => {
     if (op === "select" && table === "workflow_settings" && failWsSelect) return { data: null, error: { message: 'column "save_my_spot_real_send_enabled" does not exist', code: "42703" } };
+    if (op === "select" && table === "veu_location_variables" && failVeU) return { data: null, error: { message: "veu read failed" } };
     if (op === "insert") {
       const list = (Array.isArray(values) ? values : [values]) as Row[];
       for (const r of list) if (table === "customer_email_sends" && rows().some((x) => x.idempotency_key === r.idempotency_key)) return { data: null, error: { code: "23505", message: "duplicate key" } };
@@ -62,13 +64,18 @@ const realComms = await import("../src/lib/comms.server");
 mock.module("../src/lib/comms.server", () => ({ ...realComms, recordCommunication: async () => "comm-1" }));
 
 const { realSendingOn, sendSaveMySpot, maybeAutoSendSaveSpot } = await import("../src/lib/hot-leads-send.server");
-const { testRecipientBoundary, commsEnvironment, parseTestRecipientAllowlist, allowlistIsInvalid, COMMS_ENV_VAR, TEST_RECIPIENT_ENV } = await import("../src/lib/comms-test-recipient.core");
+const { testRecipientBoundary, commsEnvironment, parseTestRecipientAllowlist, allowlistIsInvalid, isReservedTestRecipient, COMMS_ENV_VAR, TEST_RECIPIENT_ENV } = await import("../src/lib/comms-test-recipient.core");
 const { emailSuppression, reservationAllowed } = await import("../src/lib/emailsafety.core");
+const { serviceCoverageEstablished } = await import("../src/lib/service-coverage.server");
+const { maybeAutoRouteLeadEmail } = await import("../src/lib/lead-email-routing.server");
 
 let fetchCalls = 0;
 const origFetch = globalThis.fetch;
 beforeEach(() => {
   fetchCalls = 0;
+  failVeU = false;
+  failWsSelect = false;
+  for (const k of Object.keys(T)) delete T[k]; // isolate in-memory tables per test
   globalThis.fetch = (async () => { fetchCalls++; return new Response("{}", { status: 200, headers: { "content-type": "application/json" } }); }) as unknown as typeof fetch;
 });
 afterEach(() => { globalThis.fetch = origFetch; delete process.env[COMMS_ENV_VAR]; delete process.env[TEST_RECIPIENT_ENV]; });
@@ -217,5 +224,82 @@ describe("automatic-send filters — pure rules the sender already applies (PART
     expect(reservationAllowed({ status: "sent" })).toBe(false);
     expect(reservationAllowed({ status: "sending" })).toBe(false);
     expect(reservationAllowed({ status: "delivered_unrecorded" })).toBe(false); // uncertain => never auto-retried
+  });
+});
+
+// ---------------- PART 2 (final correction): NARROW synthetic check ----------------
+describe("test-recipient boundary — ONLY reserved test domains bypass (owner PART 2)", () => {
+  test("isReservedTestRecipient: RFC-reserved domains only", () => {
+    expect(isReservedTestRecipient("a@example.com")).toBe(true);
+    expect(isReservedTestRecipient("a@sub.example.org")).toBe(true);
+    expect(isReservedTestRecipient("a@example.net")).toBe(true);
+    expect(isReservedTestRecipient("a@something.test")).toBe(true);
+    expect(isReservedTestRecipient("a@host.invalid")).toBe(true);
+    expect(isReservedTestRecipient("a@localhost")).toBe(true);
+  });
+  test("NOT treated as synthetic merely for qa / +qa / disposable mailbox", () => {
+    expect(isReservedTestRecipient("qa.user@realcompany.com")).toBe(false);
+    expect(isReservedTestRecipient("someone+qa@realcompany.com")).toBe(false);
+    expect(isReservedTestRecipient("someone@mailinator.com")).toBe(false);
+    expect(isReservedTestRecipient("real.customer@example.com.au")).toBe(false); // .com.au is NOT example.com
+  });
+  test("boundary blocks qa/+qa/mailinator in non-production WITHOUT an allow-list (real-looking)", () => {
+    for (const to of ["qa.user@realcompany.com", "someone+qa@realcompany.com", "someone@mailinator.com"]) {
+      expect(testRecipientBoundary(to, "website", { env: "nonproduction", allowlist: "" }).status).toBe("blocked");
+    }
+  });
+  test("boundary allows qa/+qa/mailinator only when explicitly allow-listed", () => {
+    const al = "qa.user@realcompany.com,someone@mailinator.com";
+    expect(testRecipientBoundary("qa.user@realcompany.com", "website", { env: "nonproduction", allowlist: al }).status).toBe("allowed");
+    expect(testRecipientBoundary("someone@mailinator.com", "website", { env: "nonproduction", allowlist: al }).status).toBe("allowed");
+  });
+});
+
+// ---------------- PART 2 (final correction): service-area coverage gate ----------------
+const seedOfferSpotJob = (postcode: string | null) => {
+  T["jobs"] = [{ id: J, job_number: "HIV-S102", source: "base44", channel: "hivic_sourced", stage: "preliminary_estimate_ready", created_at: new Date().toISOString(), eligibility_outcome: "likely_eligible", eligibility_decision_source: "system", eligibility_review_required: false, estimated_area_m2: 120, estimated_area_unknown: false, owners: { full_name: "Sam Sample", email: "sam.sample@example.test" }, properties: { postcode, address_line: "1 Test St", suburb: "Testville", enrichment: { base44: { raw: { answers: { existing_insulation: "none" } } } } } }];
+};
+
+describe("serviceCoverageEstablished (positive coverage only; fail closed)", () => {
+  test("recognised VEU Victorian postcode => established", async () => {
+    seedOfferSpotJob("3000"); T["veu_location_variables"] = [{ postcode: "3000" }];
+    expect(await serviceCoverageEstablished(J)).toBe(true);
+  });
+  test("unknown postcode (not in VEU table) => NOT established", async () => {
+    seedOfferSpotJob("9999"); T["veu_location_variables"] = [{ postcode: "3000" }];
+    expect(await serviceCoverageEstablished(J)).toBe(false);
+  });
+  test("missing postcode => NOT established", async () => {
+    seedOfferSpotJob(null); T["veu_location_variables"] = [{ postcode: "3000" }];
+    expect(await serviceCoverageEstablished(J)).toBe(false);
+  });
+  test("VEU read error => NOT established (fail closed)", async () => {
+    seedOfferSpotJob("3000"); failVeU = true;
+    expect(await serviceCoverageEstablished(J)).toBe(false);
+    failVeU = false;
+  });
+});
+
+describe("automatic Save-my-spot (offer_spot) enforces the coverage gate — the LIVE path", () => {
+  test("offer_spot route WITHOUT established coverage => NOT sent (left for Office manual review), ZERO provider calls", async () => {
+    seedOfferSpotJob("3000"); switches(true, true); process.env[TEST_RECIPIENT_ENV] = "jo@hivic-uat.com"; // veu NOT seeded => unknown coverage
+    const res = await maybeAutoRouteLeadEmail(J);
+    expect(res.route).toBe("none");
+    expect(res.sent).toBe(false);
+    expect(res.reason).toBe("service_area_not_established");
+    expect(fetchCalls).toBe(0);
+  });
+  test("offer_spot route WITH established coverage => proceeds past the gate (not blocked by coverage)", async () => {
+    seedOfferSpotJob("3000"); switches(true, true); T["veu_location_variables"] = [{ postcode: "3000" }]; // coverage established
+    const res = await maybeAutoRouteLeadEmail(J);
+    expect(res.route).toBe("offer_spot"); // reached the send stage
+    expect(res.reason).not.toBe("service_area_not_established");
+    expect(fetchCalls).toBe(0); // no provider configured here; downstream gates (no link) stop it safely
+  });
+  test("missing postcode => coverage gate blocks the automatic send, ZERO provider calls", async () => {
+    seedOfferSpotJob(null); switches(true, true); T["veu_location_variables"] = [{ postcode: "3000" }];
+    const res = await maybeAutoRouteLeadEmail(J);
+    expect(res.reason).toBe("service_area_not_established");
+    expect(fetchCalls).toBe(0);
   });
 });
