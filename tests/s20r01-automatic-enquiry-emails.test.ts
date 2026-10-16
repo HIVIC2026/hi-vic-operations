@@ -84,6 +84,7 @@ globalThis.fetch = (async (u: unknown, init?: RequestInit) => {
 }) as typeof fetch;
 process.env["RESEND_API_KEY"] = "local-test-not-real";
 process.env["LOVABLE_API_KEY"] = "local-test-not-real";
+process.env["HIVIC_COM04_ENV"] = "production"; // S102: these cases exercise the production send path (real recipient, stubbed provider)
 
 const { maybeAutoRouteLeadEmail } = await import("../src/lib/lead-email-routing.server");
 const { processPendingInitialEstimateEmails, sendPreliminaryIneligibleEmail } = await import("../src/lib/followups.server");

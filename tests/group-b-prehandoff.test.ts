@@ -50,7 +50,7 @@ mock.module("../src/lib/emailsafety.server", () => ({ unsubscribeUrlForJob: asyn
 mock.module("../src/lib/job-live.server", () => ({ jobDeletedBlocker: async () => null }));
 mock.module("../src/lib/workflow.server", () => ({ logEvent: async () => {} }));
 globalThis.fetch = (async (u: unknown) => { fetchCalls.push(String(u)); return new Response(JSON.stringify({ id: "intercepted" }), { status: 200 }); }) as typeof fetch;
-process.env["RESEND_API_KEY"] = "test-only"; process.env["LOVABLE_API_KEY"] = "test-only";
+process.env["RESEND_API_KEY"] = "test-only"; process.env["LOVABLE_API_KEY"] = "test-only"; process.env["HIVIC_COM04_ENV"] = "production"; // S102: production send path with a stubbed provider
 
 const { sendAutomaticInsulationDetails, GROUP_B_GLOBALS_OFF } = await import("../src/lib/hot-leads-send.server");
 
