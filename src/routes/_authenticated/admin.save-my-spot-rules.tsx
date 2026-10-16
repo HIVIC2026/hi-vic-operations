@@ -31,6 +31,16 @@ import {
 const TITLE = "Save My Spot — Automatic Sending Rules — Home Insulation Victoria Portal";
 const DESC = "Office-only selection rules for automatic Save My Spot emails. Extra restrictions only: they never send an email and never switch sending on.";
 
+/** Checks the sender applies later that this read-only preview deliberately does NOT model. */
+const NOT_MODELLED = [
+  "a secure estimate link exists",
+  "a current preliminary price exists",
+  "the spot is not already saved",
+  "the whole-VEEC discount check passes",
+  "the approved email template for this outcome",
+  "the live provider is configured and accepts the send",
+];
+
 export const Route = createFileRoute("/_authenticated/admin/save-my-spot-rules")({
   head: () => ({ meta: [{ title: TITLE }, { name: "description", content: DESC }, { property: "og:title", content: TITLE }, { property: "og:description", content: DESC }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: SaveMySpotRulesPage,
@@ -44,13 +54,13 @@ const MANDATORY = [
   "Uncertain-delivery protection (no automatic retry)",
   "Approved templates only",
   "Mandatory eligibility exclusions (the existing automatic route selector)",
-  "Service-area coverage established from existing records (S102)",
+  "Service-area coverage established from existing records (S102) — a Victorian VEU location, not installer availability",
   "Test-recipient boundary (S102)",
   "Sender permissions",
 ];
 
 const VERDICT_LABEL: Record<string, string> = {
-  eligible: "Eligible",
+  eligible: "Matches selection rules — final sending checks pending",
   mandatory_excluded: "Excluded by a mandatory rule",
   needs_office_review: "Needs office review",
   rule_excluded: "Outside the configured filters",
@@ -177,7 +187,7 @@ function Rules() {
             category="postcode"
             enabled={rules.postcode.enabled}
             onToggle={(on) => set("postcode", { enabled: on, ...(on ? {} : { postcodes: [], rangeFrom: null, rangeTo: null }) })}
-            hint="Matches the property postcode only. A postcode match never proves service coverage — the mandatory coverage check still runs."
+            hint="Matches the property postcode only. A postcode match never proves service coverage — the mandatory coverage check still runs, and even that only establishes a Victorian VEU location, not installer availability."
           >
             <div className="flex flex-wrap gap-3">
               {(["specific", "range"] as const).map((mode) => (
@@ -276,8 +286,9 @@ function Preview() {
     <div className="mt-4 space-y-4">
       <Section title="Preview matching customers">
         <p className="mb-3 text-xs text-muted-foreground">
-          Read-only. It shows exactly what the automatic route would do today. It never sends an email, never reserves a send, and
-          never changes a job.
+          Read-only. It shows how the automatic route would <strong>select</strong> customers today.
+          {" "}It is not a promise that an email is sent: the final sending checks run later, in the email sender.
+          It never sends an email, never reserves a send, and never changes a job.
         </p>
         <Button variant="outline" onClick={() => void q.refetch()} disabled={q.isFetching}>{q.isFetching ? "Checking…" : "Preview matching customers"}</Button>
         {d && (
@@ -287,9 +298,17 @@ function Preview() {
               <Stat label="Match the filters" value={d.counts.matching} />
               <Stat label="Excluded by a mandatory rule" value={d.counts.mandatoryExcluded} />
               <Stat label="Needs office review" value={d.counts.needsOfficeReview} />
-              <Stat label="Finally eligible" value={d.counts.eligible} />
+              <Stat label="Matches selection rules — final sending checks pending" value={d.counts.eligible} />
             </ul>
             <p className="mt-2 text-xs text-muted-foreground">Checked {d.scanned} recent decided enquiries. Active rules: {d.activeRules.join(" · ")}</p>
+            <details className="mt-2 rounded border p-2 text-xs text-muted-foreground">
+              <summary className="cursor-pointer font-medium text-foreground">What this preview does and does not cover</summary>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                <li>Scope: the most recent {d.scanLimit} non-deleted enquiries that have an official eligibility decision. Older enquiries are not listed, and this is not a full history report.</li>
+                <li>A postcode in the Victorian VEU location table establishes a covered VEU Victorian location for the rebate. It does <strong>not</strong> confirm installer availability for the home.</li>
+                <li>Not modelled here (checked later, in the sender): {NOT_MODELLED.join("; ")}.</li>
+              </ul>
+            </details>
             <div className="mt-3 overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead><tr className="border-b text-xs text-muted-foreground">

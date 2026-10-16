@@ -234,6 +234,7 @@ export type AutomaticRulesPreview = {
   activeRules: string[];
   activatedAt: string | null;
   scanned: number;
+  scanLimit: number;
   counts: { matching: number; mandatoryExcluded: number; needsOfficeReview: number; ruleExcluded: number; eligible: number };
   page: number;
   pageSize: number;
@@ -353,7 +354,7 @@ export async function previewAutomaticSaveSpotMatching(page = 1): Promise<Automa
     if (match.eligible) {
       counts.matching += 1;
       if (mandatoryBlock) { verdict = "mandatory_excluded"; reason = mandatoryBlock; counts.mandatoryExcluded += 1; }
-      else { verdict = "eligible"; reason = "Matches every configured filter and every mandatory rule."; counts.eligible += 1; }
+      else { verdict = "eligible"; reason = "Matches the selection rules only. The final sending checks in the email sender still apply."; counts.eligible += 1; }
     } else if (mandatoryBlock) {
       verdict = "mandatory_excluded";
       reason = `${mandatoryBlock} ${match.failedCategories.map((c) => CATEGORY_MISMATCH_REASON[c]).join("; ")}`.trim();
@@ -393,6 +394,7 @@ export async function previewAutomaticSaveSpotMatching(page = 1): Promise<Automa
     activeRules: read.state === "ok" ? describeRules(rules) : ["No saved rules — every enquiry is excluded from automatic sending."],
     activatedAt,
     scanned: all.length,
+    scanLimit: PREVIEW_SCAN_LIMIT,
     counts,
     page: current,
     pageSize: PREVIEW_PAGE_SIZE,

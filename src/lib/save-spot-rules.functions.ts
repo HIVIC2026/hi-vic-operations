@@ -36,11 +36,12 @@ const auditEventType = "save_my_spot_auto_rules";
 export const getAutomaticSaveSpotRules = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await requireAdmin(context.supabase);
-    const { readAutomaticRules } = await import("./save-spot-rules.server");
+    const { readAutomaticRules, PREVIEW_SCAN_LIMIT } = await import("./save-spot-rules.server");
     const read = await readAutomaticRules();
     return {
       state: read.state,
       reason: read.state === "ok" ? "Automatic sending rules are saved." : read.reason,
+      previewScanLimit: PREVIEW_SCAN_LIMIT,
       enabled: read.state === "ok" ? read.config.enabled : false,
       activatedAt: read.state === "ok" ? read.config.activatedAt : null,
       updatedAt: read.state === "ok" ? read.config.updatedAt : null,
