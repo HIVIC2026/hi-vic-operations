@@ -6,8 +6,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { Button, Section } from "@/components/trade/trade-ui";
 import { Input } from "@/components/ui/input";
 import { EvidencePanel } from "@/components/portal/panels";
-import { getReadyCheckDraft, saveReadyCheckDraft } from "@/lib/ready-check-draft.functions";
-import { RC_DRAFT_FIELDS, type RcDraftValues } from "@/lib/ready-check-draft.core";
+import { getReadyCheckDraft, saveReadyCheckDraft, submitReadyCheckDraft } from "@/lib/ready-check-draft.functions";
+import { RC_DRAFT_FIELDS, rcSubmitBlockers, type RcDraftValues } from "@/lib/ready-check-draft.core";
 import { refreshInstallerJob } from "./job-cache";
 
 const SECTION: Record<string, string> = { A: "Attendance", B: "Measurement and existing insulation", C: "Access", D: "Electrical observations (not a PIESA)" };
@@ -16,11 +16,12 @@ const opt = (o: string) => OPTION_LABEL[o] ?? o.charAt(0).toUpperCase() + o.slic
 
 export function ReadyCheckDraft({ jobId, evidence = true }: { jobId: string; evidence?: boolean }) {
   const qc = useQueryClient();
-  const load = useServerFn(getReadyCheckDraft), save = useServerFn(saveReadyCheckDraft);
+  const load = useServerFn(getReadyCheckDraft), save = useServerFn(saveReadyCheckDraft), submit = useServerFn(submitReadyCheckDraft);
   const { data, isError, error, refetch, isFetching } = useQuery({ queryKey: ["rc-draft", jobId], queryFn: () => load({ data: { jobId } }), retry: false });
   const [v, setV] = useState<RcDraftValues>({});
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   useEffect(() => { if (data && !dirty && !busy) setV(data.values); }, [data, dirty, busy]);
 
@@ -34,6 +35,16 @@ export function ReadyCheckDraft({ jobId, evidence = true }: { jobId: string; evi
     try { const r = await save({ data: { jobId, values: v } }); qc.setQueryData(["rc-draft", jobId], r); await refreshInstallerJob(qc, jobId); setDirty(false); setMsg({ ok: true, text: "Saved. You can come back and finish it any time — nothing has been submitted." }); }
     catch (e) { setMsg({ ok: false, text: (e as Error).message || "Couldn't save — check your signal and try again." }); }
     finally { setBusy(false); }
+  };
+  // P1: explicit "Submit for review". Blocked by unsaved changes (Save first), locked/submitted state, in-flight work, or any completeness blocker (same model the server enforces).
+  const submitBlockers = rcSubmitBlockers(data.progress);
+  const canSubmit = !locked && !dirty && !busy && !submitting && submitBlockers.length === 0;
+  const onSubmit = async () => {
+    if (!canSubmit) return;
+    setSubmitting(true); setMsg(null);
+    try { const r = await submit({ data: { jobId } }); qc.setQueryData(["rc-draft", jobId], r); await refreshInstallerJob(qc, jobId); setMsg({ ok: true, text: "Submitted to Home Insulation Victoria for review. You can't change it now — ask the office to reopen it if you need to." }); }
+    catch (e) { setMsg({ ok: false, text: (e as Error).message || "Couldn't submit — check your signal and try again." }); }
+    finally { setSubmitting(false); }
   };
   const p = data.progress;
   return (
@@ -75,7 +86,7 @@ export function ReadyCheckDraft({ jobId, evidence = true }: { jobId: string; evi
       {evidence && <EvidencePanel jobId={jobId} role="measure" gates={["assessment"]} />}
       {isError && <p role="alert">Couldn't refresh the Ready Check. Your answers are kept. <Button variant="outline" disabled={isFetching || busy} onClick={() => void refetch()}>Retry</Button></p>}
       {msg && <p role="status" className={`rounded-[12px] border border-line bg-paper p-3 text-sm ${msg.ok ? "" : "text-danger"}`} data-rc-save-msg>{msg.text}</p>}
-      {!locked && <div className="sticky bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-10 md:bottom-3"><Button size="field" className="w-full" disabled={busy || !dirty} aria-busy={busy} onClick={onSave}>{busy ? "Saving…" : dirty ? "Save Ready Check" : "Saved"}</Button></div>}
+      {!locked && <div className="sticky bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-10 space-y-2 md:bottom-3"><Button size="field" className="w-full" disabled={busy || submitting || !dirty} aria-busy={busy} onClick={onSave}>{busy ? "Saving…" : dirty ? "Save Ready Check" : "Saved"}</Button><Button size="field" variant="outline" className="w-full" disabled={!canSubmit} aria-busy={submitting} data-rc-submit onClick={onSubmit}>{submitting ? "Submitting…" : "Submit for review"}</Button>{dirty && <p className="text-center text-xs text-sub" data-rc-submit-hint>Save your changes before you can submit.</p>}{!dirty && submitBlockers.length > 0 && <p className="text-center text-xs text-sub" data-rc-submit-hint>Finish everything above before you can submit for review.</p>}</div>}
     </div>
   );
 }

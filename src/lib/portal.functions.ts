@@ -525,7 +525,8 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
       if (rb.length) throw new WorkflowError(`Rectification times: ${rb.join(" ")}`);
     }
     const stage = await getStage(data.jobId);
-    if (stage !== "assessment_booked") throw new WorkflowError(`Assessment can be completed from "Assessment Booked" (current: ${STAGE_LABEL[stage]}).`);
+    // S64: Phase 1 electrician jobs sit at piesa_scheduled without a Mitti link; allow the manual portal result path to complete from there too.
+    if (!["assessment_booked", "piesa_scheduled"].includes(stage)) throw new WorkflowError(`Assessment can be completed from "Assessment Booked" (current: ${STAGE_LABEL[stage]}).`);
     const now = new Date().toISOString();
     await admin.from("assessments").update({ status: "complete", completed_at: now, assessor_id: a.assessor_id ?? context.userId, mitti_sync_status: a.external_mitti_id ? "synced" : "not_synced" }).eq("id", a.id);
     await admin.from("piesa_records").update({ is_current: false }).eq("job_id", data.jobId).eq("is_current", true);

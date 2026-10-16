@@ -34,6 +34,7 @@ mock.module("../src/lib/workflow.server", () => ({ ...realWorkflow, logEvent: as
 const realEstimate = await import("../src/lib/estimate.core");
 mock.module("../src/lib/estimate.core", () => ({ ...realEstimate, discountIsWholeVeecs: () => true }));
 
+process.env["HIVIC_COM04_ENV"] = "production"; // S102: production send path with a stubbed/forbidden provider
 const { sendSaveMySpot } = await import("../src/lib/hot-leads-send.server");
 const { prepareIneligibleEmailForOffice, sendPreliminaryIneligibleEmail } = await import("../src/lib/followups.server");
 
@@ -46,6 +47,7 @@ describe("Save my spot preview (what Office copies for a likely-eligible lead)",
       customer_estimate_links: { id: "link-1", token: TOKEN },
       indicative_estimates: { id: "est-1", area_m2: 120, area_source: "owner_estimate", insulation_declared: "none", scenarios: [{ by_access: { standard: { estimated_customer_total: 1890, applied_discount: 2100, pre_discount_total: 3990 } } }], snapshot: { settings: { piesa_assessment_inc_gst: 349, ap_management_inc_gst: 349 }, scenarios: [{ by_access: { standard: { installation: 3292 } } }] } },
       retail_estimator_settings: { indicative_veec_value: 70 },
+      workflow_settings: { id: 1, save_my_spot_real_send_enabled: true, customer_comms_enabled: true },
     };
   });
   test("renders recipient, subject, full plain-text body and HTML with the owner's own secure link – and writes nothing", async () => {

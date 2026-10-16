@@ -11,6 +11,7 @@ import { describe, expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import { postgrestShim } from "./helpers/pglite-postgrest-shim";
+import { melbourneToday } from "@/lib/melbourne-time.core";
 
 type Ctx = { supabase: unknown; userId: string };
 type Call = (a: { data: unknown; context: Ctx }) => Promise<unknown>;
@@ -70,6 +71,7 @@ await db.exec(`
   CREATE TABLE public.worker_job_links (job_id uuid, worker_id uuid, business_id uuid, revoked_at timestamptz, expires_at timestamptz);
   CREATE TABLE public.assessments (id uuid primary key default gen_random_uuid(), job_id uuid unique, status text default 'draft', piesa_outcome text default 'pending',
     switchboard_condition text, notes text, assessor_id uuid, external_mitti_id text);
+  CREATE TABLE public.piesa_records (id uuid primary key default gen_random_uuid(), job_id uuid references public.jobs(id), assessment_id uuid references public.assessments(id), outcome text not null, completed_date date not null, signed_off_by uuid, is_current boolean default true, notes text, created_at timestamptz default now());
   CREATE TABLE public.declarations (id uuid primary key default gen_random_uuid(), job_id uuid, kind text, declared_by uuid, statement text, declared_at timestamptz, unique (job_id, kind));
   CREATE TABLE public.workflow_events (id uuid primary key default gen_random_uuid(), job_id uuid, actor_id uuid, event_type text, summary text, details jsonb, from_stage text, to_stage text, internal boolean);
   CREATE TABLE public.job_overview (id uuid primary key, job_number text, owner_name text, owner_phone text, owner_email text, property_address text, property_id uuid, stage text, channel text);
@@ -330,3 +332,93 @@ describe("B2 · the electrician app role cannot be self-granted by a partner bus
     await db.exec(`DELETE FROM public.user_roles WHERE user_id = '${U.recAdmin}'`);
   });
 });
+
+describe("H · electrician manual result path at piesa_scheduled (no Mitti link)", () => {
+  const today = melbourneToday();
+  test("saveAssessment writes a draft from piesa_scheduled", async () => {
+    // First, set the job stage to piesa_scheduled (no Mitti link, external_mitti_id null)
+    await db.exec(`
+      UPDATE public.jobs SET stage = 'piesa_scheduled' WHERE id = '${JOB.e}';
+    `);
+    const r = await outcome(call(portal.saveAssessment, U.licensed, { jobId: JOB.e, patch: { piesa_outcome: "fail", notes: "manual piesa_scheduled draft" } }));
+    expect(r.ok).toBe(true);
+    const d = await draft(JOB.e);
+    expect(d).toEqual({ piesa_outcome: "fail", notes: "manual piesa_scheduled draft", assessor_id: U.licensed });
+  });
+
+  test("completeAssessment proceeds past stage gate from piesa_scheduled (may fail validation)", async () => {
+    await db.exec(`
+      UPDATE public.jobs SET stage = 'piesa_scheduled' WHERE id = '${JOB.e}';
+    `);
+    // Insert minimal assessment with only columns that exist in harness schema
+    await db.exec(`
+      INSERT INTO public.assessments (job_id, piesa_outcome, switchboard_condition, notes)
+      VALUES ('${JOB.e}', 'fail', 'ok', 'manual draft')
+      ON CONFLICT (job_id) DO UPDATE SET
+        piesa_outcome = EXCLUDED.piesa_outcome,
+        switchboard_condition = EXCLUDED.switchboard_condition,
+        notes = EXCLUDED.notes;
+    `);
+    const r = await outcome(call(portal.completeAssessment, U.licensed, { jobId: JOB.e, rectHours: 4, rectWindows: [] }));
+    // Regardless of validation outcome, we must NOT get a stage-gate error.
+    expect(r.ok || !r.error?.includes("Assessment can be completed from")).toBe(true);
+  });
+
+  test("completeAssessment proceeds past stage gate from assessment_booked (regression)", async () => {
+    await db.exec(`
+      UPDATE public.jobs SET stage = 'assessment_booked' WHERE id = '${JOB.e}';
+    `);
+    await db.exec(`
+      INSERT INTO public.assessments (job_id, piesa_outcome, switchboard_condition, notes)
+      VALUES ('${JOB.e}', 'fail', 'ok', 'minimal draft')
+      ON CONFLICT (job_id) DO UPDATE SET
+        piesa_outcome = EXCLUDED.piesa_outcome,
+        switchboard_condition = EXCLUDED.switchboard_condition,
+        notes = EXCLUDED.notes;
+    `);
+    const r = await outcome(call(portal.completeAssessment, U.licensed, { jobId: JOB.e, rectHours: 3, rectWindows: [] }));
+    expect(r.ok || !r.error?.includes("Assessment can be completed from")).toBe(true);
+  });
+
+  test("completeAssessment rejects incomplete assessment from piesa_scheduled", async () => {
+    await db.exec(`
+      UPDATE public.jobs SET stage = 'piesa_scheduled' WHERE id = '${JOB.e}';
+    `);
+    // Insert assessment with piesa_outcome still pending - should fail validation
+    await db.exec(`
+      INSERT INTO public.assessments (job_id, piesa_outcome, switchboard_condition, notes)
+      VALUES ('${JOB.e}', 'pending', 'ok', 'still pending')
+      ON CONFLICT (job_id) DO UPDATE SET
+        piesa_outcome = EXCLUDED.piesa_outcome,
+        switchboard_condition = EXCLUDED.switchboard_condition,
+        notes = EXCLUDED.notes;
+    `);
+    const r = await outcome(call(portal.completeAssessment, U.licensed, { jobId: JOB.e }));
+    expect(r.ok).toBe(false);
+    expect(r.error).toContain("PIESA outcome"); // validation error from completeAssessment
+  });
+
+  test("unassigned electrician cannot save at piesa_scheduled", async () => {
+    await db.exec(`
+      UPDATE public.jobs SET stage = 'piesa_scheduled' WHERE id = '${JOB.e}';
+    `);
+    const r = await outcome(call(portal.saveAssessment, U.ownerA, { jobId: JOB.e, patch: { piesa_outcome: "pass" } }));
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe("You don't have permission for this action on this job.");
+  });
+
+  test("installer cannot save Electrician assessment at piesa_scheduled", async () => {
+    await db.exec(`
+      UPDATE public.jobs SET stage = 'piesa_scheduled' WHERE id = '${JOB.e}';
+    `);
+    const r = await outcome(call(portal.saveAssessment, U.installerOnly, { jobId: JOB.e, patch: { piesa_outcome: "pass" } }));
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe("You don't have permission for this action on this job.");
+  });
+});
+
+/** Helper: expect a non-null value (ts-ignore for bun test) */
+function notNull(): any {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return expect.anything();
+}

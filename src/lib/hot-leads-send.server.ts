@@ -15,17 +15,22 @@ import { MANUAL_SENT_EVENT, manualSendReference } from "./manual-communication.c
 import { RESEND_FETCH_TIMEOUT_MS, timeoutSignal } from "./network-timeout.core";
 import { AUTO_REPLY_OFF } from "./enquiry-auto-reply.core";
 import { classifyProviderStatus, SENT_UNKNOWN_PREFIX, UNCERTAIN_SEND_DETAIL, type ResendAttempt } from "./save-spot-delivery.core";
+import { testRecipientBoundary } from "./comms-test-recipient.core";
 
 export const HOT_SEND_BATCH = 10;
 /** Last TEST send detail per job (Resend id), for reporting. */
 export const testSendIds = new Map<string, string>();
 export type HotSendResult = { jobId: string; jobNumber: string | null; /** "uncertain" (STEP 56): the email service may have accepted it; recorded as delivered_unrecorded, never retried automatically. */ outcome: "sent" | "skipped" | "blocked" | "failed" | "uncertain"; detail: string; preview?: { to: string; subject: string; html: string; plainText: string; /** false = preview placeholders stand in for links the lead doesn't have yet. */ linksReady: boolean }; linkJobId?: string; linkToken?: string; sendGroup?: string };
 
-/** Real customers: ONLY this Save my spot campaign, approved by Jo (8 Oct 2026). The global customer
- *  comms switch stays off, so every other customer email remains blocked. Contact consent is still checked per lead. */
+/** Real customers: this Save my spot campaign, approved by Jo (8 Oct 2026), now requires BOTH runtime
+ *  switches — `customer_comms_enabled` (master) AND `save_my_spot_real_send_enabled` — via `realSendingOn()`
+ *  below (S86 / COM-04 owner Option A; guard 9a0adf29). It is NO LONGER a master-off exception. Contact
+ *  consent, opt-out, saved-spot and once-per-home checks still apply per lead. Fail-closed on error/missing. */
 export async function realSendingOn() {
-  const { SAVE_SPOT_REAL_SEND_APPROVED } = await import("./hot-leads.core");
-  return SAVE_SPOT_REAL_SEND_APPROVED;
+  const { data, error } = await admin.from("workflow_settings").select("save_my_spot_real_send_enabled, customer_comms_enabled").limit(1).maybeSingle();
+  if (error || !data) return false;
+  const ws = data as { save_my_spot_real_send_enabled: boolean | null; customer_comms_enabled: boolean | null };
+  return ws.save_my_spot_real_send_enabled === true && ws.customer_comms_enabled === true;
 }
 void LAUNCH_COPY_APPROVED;
 
@@ -79,6 +84,15 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   const owner = job.owners as { full_name: string | null; email: string | null } | null;
   const to = owner?.email?.trim().toLowerCase();
   if (!to) return r("skipped", "No owner email.");
+  // COM-04 test-recipient boundary (S102): validated on the FINAL resolved recipient before any
+  // reservation or provider call. Real (non-qa_test) sends only — qa_test sends are re-routed to Jo's
+  // inbox by the TEST sender (test-send.core.ts) before any provider contact, so a qa_test job can
+  // never reach a real customer here. In production (HIVIC_COM04_ENV=production) the boundary is
+  // inactive; in non-production it fails closed without a valid allow-list.
+  if (mode === "send" && !isTest) {
+    const boundary = testRecipientBoundary(to, job.source);
+    if (boundary.status === "blocked") return r("blocked", boundary.reason);
+  }
   const [{ data: opt, error: optError }, { data: resp, error: responseError }, { data: link, error: linkError }, { data: est, error: estimateError }] = await Promise.all([
     admin.from("customer_email_optouts").select("opted_out_at").eq("job_id", jobId).maybeSingle(),
     admin.from("lead_campaign_responses").select("opted_out_at, spot_saved_at").eq("job_id", jobId).maybeSingle(),
@@ -286,6 +300,9 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     } else {
       // This one approved campaign sends through the email service directly (the Base44 bridge stays off).
       mayHaveSent = true;
+      // PART 1.4: validate the FINAL resolved recipient immediately before the provider call.
+      const finalBoundary = testRecipientBoundary(to, job.source);
+      if (finalBoundary.status === "blocked") { mayHaveSent = false; await finish("failed", "not_sent", finalBoundary.reason); return r("blocked", finalBoundary.reason); }
       const d = await resendSend(to, mail.subject, mail.html, mail.plainText, key, unsubscribeUrl);
       if (d.outcome === "rejected" || d.outcome === "not_attempted") { mayHaveSent = false; await finish("failed", "resend", d.detail); return r("failed", d.detail); }
       if (d.outcome === "uncertain") {
