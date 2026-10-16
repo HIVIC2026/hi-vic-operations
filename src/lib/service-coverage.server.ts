@@ -12,6 +12,9 @@
 // is a valid, covered VEU service location.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 
+/** Stable, machine-readable reason returned to callers when coverage cannot be positively established. */
+export const SERVICE_AREA_REASON = "service_area_not_established";
+
 /** Resolve the property's postcode from existing records; null if unknown. */
 async function propertyPostcode(jobId: string): Promise<string | null> {
   const { data: job } = await admin.from("jobs").select("properties(postcode)").eq("id", jobId).maybeSingle();

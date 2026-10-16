@@ -84,7 +84,16 @@ const J = "job-s102-1";
 const seedJob = (email: string, source = "website") => {
   T["jobs"] = [{ id: J, job_number: "HIV-S102", source, stage: "new_enquiry", created_at: new Date().toISOString(), eligibility_outcome: "likely_eligible", estimated_area_m2: 180, estimated_area_unknown: false, owners: { full_name: "Real Customer", email }, properties: { address_line: "1 Test St", suburb: "Melbourne", postcode: "3000" } }];
 };
-const switches = (master: boolean, secondary: boolean) => { T["workflow_settings"] = [{ id: 1, customer_comms_enabled: master, save_my_spot_real_send_enabled: secondary }]; };
+// P1-R3-S103: automatic Save-my-spot SELECTION must be explicitly enabled (with no extra filters,
+// i.e. no additional restriction) for the automatic route to reach the sender. It defaults to
+// DISABLED and fails closed; the missing/invalid/unreadable cases are proven in
+// tests/p1-r3-s103-office-automatic-sending-rules.test.ts.
+const s103AutoRules = { version: 1, enabled: true, activatedAt: "2020-01-01T00:00:00.000Z", updatedAt: "2026-10-01T00:00:00.000Z", updatedBy: "test",
+      rules: { eligibility: { enabled: false, outcomes: [] }, insulation: { enabled: false, values: [] },
+        ceilingArea: { enabled: false, minM2: null, maxM2: null, includeUnknownArea: false },
+        postcode: { enabled: false, mode: "specific", postcodes: [], rangeFrom: null, rangeTo: null },
+        jobStatus: { enabled: false, stages: [] }, enquiryDate: { enabled: false, window: "last_3_days", fromDate: null, toDate: null } } };
+const switches = (master: boolean, secondary: boolean) => { T["workflow_settings"] = [{ id: 1, customer_comms_enabled: master, save_my_spot_real_send_enabled: secondary, save_my_spot_auto_rules: s103AutoRules }]; };
 
 // ---------------- PART 1: test-recipient boundary ----------------
 describe("testRecipientBoundary — environment separation (PART 1.6)", () => {

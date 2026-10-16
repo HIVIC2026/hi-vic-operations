@@ -9,6 +9,16 @@ type Row = Record<string, unknown>;
 const T: Record<string, Row[]> = {};
 let seq = 0;
 const writes: string[] = [];
+
+// P1-R3-S103: automatic Save-my-spot SELECTION must be explicitly enabled (with no extra filters,
+// i.e. no additional restriction) for the automatic route to reach the sender. It defaults to
+// DISABLED and fails closed; missing / invalid / unreadable configurations are proven in
+// tests/p1-r3-s103-office-automatic-sending-rules.test.ts.
+const S103_AUTO_RULES = { version: 1, enabled: true, activatedAt: "2020-01-01T00:00:00.000Z", updatedAt: "2026-10-01T00:00:00.000Z", updatedBy: "test",
+  rules: { eligibility: { enabled: false, outcomes: [] }, insulation: { enabled: false, values: [] },
+    ceilingArea: { enabled: false, minM2: null, maxM2: null, includeUnknownArea: false },
+    postcode: { enabled: false, mode: "specific", postcodes: [], rangeFrom: null, rangeTo: null },
+    jobStatus: { enabled: false, stages: [] }, enquiryDate: { enabled: false, window: "last_3_days", fromDate: null, toDate: null } } };
 function from(table: string) {
   let op: "select" | "insert" | "update" = "select"; let values: unknown = null; let returning = false;
   const f: [string, string, unknown][] = [];
@@ -94,7 +104,7 @@ beforeEach(() => {
     retail_estimator_settings: [{ is_current: true, indicative_veec_value: 61.74 }],
     owner_contact_consents: [{ job_id: J, consent_status: "granted", created_at: "2026-10-01T00:00:00Z" }],
     // T05 core: BOTH communication switches ON in an isolated fixture.
-    workflow_settings: [{ id: 1, save_my_spot_real_send_enabled: true, customer_comms_enabled: true }],
+    workflow_settings: [{ id: 1, save_my_spot_real_send_enabled: true, customer_comms_enabled: true, save_my_spot_auto_rules: S103_AUTO_RULES }],
     customer_email_optouts: [], lead_campaign_responses: [], job_communications: [], customer_email_sends: [], ceiling_measurements: [], property_area_estimates: [], customer_referral_tokens: [], post_intake_work: [],
   });
 });
