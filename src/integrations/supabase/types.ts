@@ -11072,6 +11072,8 @@ export type Database = {
           rec_offer_business_hours: number
           rec_offer_expiry_hours: number
           safety_check_payment_inc_gst: number
+          save_my_spot_auto_rules: Json
+          save_my_spot_real_send_enabled: boolean
           sms_message_switches: Json
           updated_at: string
           urgency_amber_days: number
@@ -11118,6 +11120,8 @@ export type Database = {
           rec_offer_business_hours?: number
           rec_offer_expiry_hours?: number
           safety_check_payment_inc_gst?: number
+          save_my_spot_auto_rules?: Json
+          save_my_spot_real_send_enabled?: boolean
           sms_message_switches?: Json
           updated_at?: string
           urgency_amber_days?: number
@@ -11164,6 +11168,8 @@ export type Database = {
           rec_offer_business_hours?: number
           rec_offer_expiry_hours?: number
           safety_check_payment_inc_gst?: number
+          save_my_spot_auto_rules?: Json
+          save_my_spot_real_send_enabled?: boolean
           sms_message_switches?: Json
           updated_at?: string
           urgency_amber_days?: number
