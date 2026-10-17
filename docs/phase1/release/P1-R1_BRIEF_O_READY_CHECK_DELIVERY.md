@@ -26,7 +26,7 @@ Four things were wrong or missing at the browser layer, and all four are now fix
 | 3 | Nothing stopped the portal from writing observations onto a row the **Mitti form owns** — the exact "second data model" risk the brief forbids. | `saveRcDraft` / `submitRcDraft` now refuse a Mitti-owned row with an explicit message; `loadRcDraft` reports `fromMitti`. | `ready-check-draft.server.ts` |
 | 4 | Office could read **"Nothing blocking the move to Ready Check Complete"** while the Ready Check had not even been started — a clear transition presented as finished work. | The message now says what it actually means, plus the authoritative Ready Check state as a *fact*. No workflow permission was touched. | `workflow.server.ts`, `panels.tsx` |
 
-Verified end to end in a **real browser** on the disposable local stack: homeowner → Office dispatch → installer receives → installer accepts → installer fills the native form, uploads two real photos to private storage, submits → Office sees the submitted record, opens the evidence, and reads a correct next step. **37/37 browser checks, twice from a clean fixture.** Plus **17** service/API/DB tests and **37** Brief N regression tests, all green, and `tsc --noEmit` exit 0.
+Verified end to end in a **real browser** on the disposable local stack: homeowner → Office dispatch → installer receives → installer accepts → installer fills the native form, uploads two real photos to private storage, submits → Office sees the submitted record, opens the evidence, and reads a correct next step. **37/37 browser checks in one complete run from a fresh fixture.** (The earlier pass was driven phase by phase while the harness was being written; it recorded 46 checks, one of which failed on a test-harness selector and passed on re-run once the harness was corrected — no product defect.) Plus **17** service/API/DB tests and **37** Brief N regression tests, all green, and `tsc --noEmit` exit 0.
 
 The one thing that is **not** green is the production build, and it is blocked by this sandbox's file broker, not by the source: both the client and the SSR environments compile and bundle successfully (3696 + 823 modules), then Nitro's output-directory housekeeping and static-asset copy are refused by the environment. Exact commands, exit codes and attribution are in §8. It must be re-run once in CI or the Lovable build environment before Preview integration — this report does not claim a passing build.
 
@@ -36,7 +36,7 @@ Nothing left the disposable stack: no push, no merge, no deploy, no Preview sync
 
 ## 2. Exact product changes
 
-Six files, 55 added / 12 removed lines. Everything else in the diff is Brief N's already-committed work.
+Six files, 49 added / 6 removed lines. Everything else in the diff is Brief N's already-committed work.
 
 ### 2.1 `src/routes/_authenticated/field.$jobId.tsx` (+3 / −1)
 
