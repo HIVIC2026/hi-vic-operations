@@ -90,7 +90,9 @@ function FieldJob() {
         {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} expired={!!job.piesa_expired} />}
         {role === "installer" && <InstallerProgressCard jobId={jobId} />}
         {role === "installer" && job.channel === "installer_sourced" && <MyIntakeDetailsCard jobId={jobId} />}
-        {role === "installer" && job.channel === "installer_sourced" && <ReadyCheckDraft jobId={jobId} />}
+        {/* The native Ready Check is the portal's own record for both channels. A Mitti-owned form is
+            detected inside the component and shown as read-only, so this never creates a second record. */}
+        {role === "installer" && <ReadyCheckDraft jobId={jobId} />}
         {role === "installer" && ["piesa_and_install_window_pending"].includes(job.stage!) && !job.electrician_name && <ElectricianChoicePanel jobId={jobId} />}
         {role === "installer" && <InstallerFlow jobId={jobId} stage={job.stage!} />}
         {role === "installer" && ["assessment_complete", "rectification_required", "awaiting_owner_rectification_approval", "ready_for_installer_quotes", "awaiting_quote_acceptance"].includes(job.stage!) && <PartnerProposalForm jobId={jobId} />}

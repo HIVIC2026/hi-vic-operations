@@ -1,0 +1,154 @@
+Overview
+Leads
+Active jobs
+Closed jobs
+Partners
+Templates
+BN
+More
+Overview
+BRIEF-O-FLOW-1
+TEST JOB
+1 Brief N Street, Richmond, VIC 3121
+Owner
+Brief N Owner
+Phone (staff only)
+0400000000
+Email (staff only)
+owner@brief-n.test
+Contact consent
+Granted View evidence
+Eligibility (Gate 1)
+Likely Eligible
+
+No classified live record available; TEST and other-business records are excluded. Use recorded facts and guarded controls below.
+
+Current blockers
+Change classification
+Update job
+Delete job
+No stage checks block the move to Ready Check Complete
+
+Stage checks only — this does not confirm the work for that stage has been done.
+
+Ready Check: submitted by the installer
+
+Eligibility evidence & verified decision
+Home Insulation Victoria customer
+Contacts, source & exceptions
+Electrician unassigned · Installer Brief N Installer A · last activity 17 Oct 2026
+Quotes & payments
+Forms & evidence
+Communications
+History
+Forms & evidence
+Enquiry
+Estimate, website intake and consent
+Ready Check
+Requirements, appointment, booking, Mitti and measure-up
+Choose trades for this job
+Ready Check (installers)
+Safety check (electricians)
+Office picks: nothing goes out until you send it. Owner price: $25 per m² (R5).
+Office picks for this job
+
+3 matching approved trades
+
+Select all
+Brief F Test Installers
+Distance: Covers 3121
+Rate: not recorded
+This week: 0 jobs · 2 open offers
+Capacity: not given
+Accepts: no history
+
+⚠ No agreed rate for this job
+
+Brief N Installers A
+Already offered · accepted
+Distance: Covers 3121
+Rate: not recorded
+This week: 0 jobs · 1 open offer
+Capacity: not given
+Accepts: 100% · avg 0h
+
+⚠ No agreed rate for this job
+
+Brief N Installers B
+Distance: Covers 3121
+Rate: not recorded
+This week: 0 jobs · 0 open offers
+Capacity: not given
+Accepts: no history
+
+⚠ No agreed rate for this job
+
+Send offer to 0 trades
+
+Only ticked trades get it. For the first 24 hours they can take an owner time or decline; then “Suggest another time” opens. Trades already offered keep their offer when you add more.
+
+VISIT SCOPE
+Electrical by electrician, measure-up by installer
+Still required: electrical assessment / PIESA and installer eligibility measure-up
+Ceiling / insulation measure-up
+Not started
+
+No measure-up recorded yet.
+
+Missing: measured ceiling area, existing insulation present/absent, removal required, access difficulty
+
+Eligibility measure-up
+Installer only
+Electrical / PIESA
+Not recorded
+Electrician
+Unassigned
+Assessment date
+—
+Outcome
+—
+30-day deadline
+—
+Rectification
+None open
+Arrange the visit
+
+Waiting for electrician – Home Insulation Victoria is arranging one.
+
+Assessment booking
+
+Not booked yet.
+
+Admin override / set booking directly
+Mitti electrical assessment · PIESA
+Not created
+Audit ID
+—
+Assignee
+—
+Last sync
+—
+Create & assign Mitti assessment
+Sync pending Mitti assessments
+Assessment
+
+Not started by the electrician yet.
+
+Documents in this section (2)
+Reopen Ready Check (office only)
+
+Reopening a submitted Ready Check lets the installer correct their answers. This is recorded in the job history with your reason. It is refused while eligibility is recorded as verified (record "Needs office review" first) and for Ready Checks that came from Mitti.
+
+Ready Check status: Submitted — awaiting office review
+
+Reopen Ready Check
+Quotes & payments
+Exact quotes, payment mirror, signing and source-specific invoice controls
+PIESA
+No PIESA recorded yet
+Installation
+Pre-install ESC controls, PIISA, booking and installation evidence
+AP review & VEECs
+Other evidence, Activity 48 records, compliance review, VEEC lodgement
+Correspondence & history
+Worker links, messages, timeline, audit history, all documents and export

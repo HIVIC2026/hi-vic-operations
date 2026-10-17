@@ -1,4 +1,4 @@
-// Ready Check on the installer's own job page (installer-supplied jobs). Same canonical field model as the Mitti A1
+// Ready Check on the installer's own job page (both channels). Same canonical field model as the Mitti A1
 // form; partial Save + reopen. Evidence uses the job's existing evidence list (uploads kept). Saving never submits.
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -27,6 +27,12 @@ export function ReadyCheckDraft({ jobId, evidence = true }: { jobId: string; evi
 
   if (isError && !data) return <Section title="Ready Check"><p className="text-sm" role="alert">Couldn't load the Ready Check: {(error as Error).message}</p><Button variant="outline" disabled={isFetching} onClick={() => void refetch()}>Retry</Button></Section>;
   if (!data) return <Section title="Ready Check"><p className="text-sm text-sub">Loading…</p></Section>;
+  // Mitti owns this job's Ready Check: show that, and never offer a second editable copy of the same record.
+  if (data.fromMitti) return (
+    <Section title="Ready Check">
+      <p className="text-sm text-sub" data-rc-from-mitti>This job's Ready Check is the Mitti form. Complete or correct it there — the answers and evidence come back to this job.</p>
+    </Section>
+  );
   const locked = data.status === "submitted";
   const set = (k: string, x: string) => { setV((o) => ({ ...o, [k]: x })); setDirty(true); setMsg(null); };
   const onSave = async () => {

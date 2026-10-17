@@ -1,0 +1,224 @@
+[
+ {
+  "phase": "owner",
+  "name": "A1 the homeowner's secure link opens their own estimate",
+  "ok": true,
+  "info": "http://localhost:8080/estimate/nJGf8nXd_EpxW2TVSqw2gzJ-94EmnDVEWRrqFhsX5rA"
+ },
+ {
+  "phase": "owner",
+  "name": "A2 the Ready Check time picker is offered",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "owner",
+  "name": "A3 two times is rejected \u2014 the request cannot be sent",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "owner",
+  "name": "A4 a third time on an already-used day is still rejected (needs 3 different days)",
+  "ok": true,
+  "info": "3 of 5 chosen. Please choose times on at least 3 different days."
+ },
+ {
+  "phase": "owner",
+  "name": "A5 three times on three different days enables the request",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "owner",
+  "name": "A6 the homeowner sees a confirmation of the request",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "owner",
+  "name": "A7 the homeowner is told what happens next",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "office_send",
+  "name": "B1 Office sees the owner's times as the reason to dispatch",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "office_send",
+  "name": "B2 installer A is a matching approved trade",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "office_send",
+  "name": "B3 the send button counts only the ticked trade",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "office_send",
+  "name": "B4 the offer is recorded against installer A",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "offer",
+  "name": "C1 installer sign-in lands on My work",
+  "ok": true,
+  "info": "http://localhost:8080/field"
+ },
+ {
+  "phase": "offer",
+  "name": "C2 the Ready Check offer appears on the installer's phone",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "offer",
+  "name": "C3 the owner's three times are offered",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "offer",
+  "name": "C4 the address is withheld until the installer accepts",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "accept",
+  "name": "D1 taking a time accepts the offer",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "accept",
+  "name": "D2 the address and phone are released only after acceptance",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "installer_rc",
+  "name": "E1 the day page now offers the portal's Ready Check form instead of a dead end",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "installer_rc",
+  "name": "E2 the native Ready Check form opens on the assigned job",
+  "ok": true,
+  "info": "http://localhost:8080/field/fa400000-0000-4000-8000-000000000002"
+ },
+ {
+  "phase": "installer_rc",
+  "name": "E3 an empty form cannot be submitted",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "installer_rc",
+  "name": "E4 the form names the missing answers and the missing photo",
+  "ok": true,
+  "info": "10 items outstanding  ANSWERS STILL NEEDED  Attended at Measured eligible ceiling area (m\u00b2) Measurement method Existing insulation Removal required Access Downl"
+ },
+ {
+  "phase": "installer_rc",
+  "name": "E5 progress saves without submitting",
+  "ok": true,
+  "info": "Saved. You can come back and finish it any time \u2014 nothing has been submitted."
+ },
+ {
+  "phase": "installer_rc",
+  "name": "E6 a saved draft is still not submittable while evidence is missing",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "installer_rc",
+  "name": "E7 a real photo uploads to private storage and is confirmed",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "installer_rc",
+  "name": "E8 the second required Ready Check photo is confirmed",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "installer_rc",
+  "name": "E9 with answers and evidence complete the form can be submitted",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "installer_rc",
+  "name": "E10 the installer sees the submitted state",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "installer_rc",
+  "name": "E11 a submitted Ready Check can no longer be edited",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "office_review",
+  "name": "F1 Office sees the Ready Check as submitted",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "office_review",
+  "name": "F2 Office can now reopen it if the installer must correct something",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "office_review",
+  "name": "F3 the transition hint no longer claims everything is done",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "office_review",
+  "name": "F4 Office can tell workflow availability from Ready Check completion",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "office_review",
+  "name": "F5 Office can see the installer's uploaded evidence on the job",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "office_review",
+  "name": "F6 Office can open the installer's evidence file",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "security",
+  "name": "N1 signed out cannot read the office job page",
+  "ok": true,
+  "info": "http://localhost:8080/auth?next=%2Fadmin%2Fjobs%2Ffa400000-0000-4000-8000-000000000002"
+ },
+ {
+  "phase": "security",
+  "name": "N2 the other business never sees this job or its offer",
+  "ok": true,
+  "info": "http://localhost:8080/field"
+ },
+ {
+  "phase": "security",
+  "name": "N3 the other business cannot open the job page",
+  "ok": true,
+  "info": ""
+ }
+]

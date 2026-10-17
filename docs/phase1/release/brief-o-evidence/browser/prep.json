@@ -1,0 +1,12 @@
+{
+  "run": "2",
+  "jobId": "fa400000-0000-4000-8000-000000000002",
+  "jobNumber": "BRIEF-O-FLOW-2",
+  "token": "nJGf8nXd_EpxW2TVSqw2gzJ-94EmnDVEWRrqFhsX5rA",
+  "estimateId": "9327ff75-76d6-4846-a953-8afaa2636e4a",
+  "expiresAt": "2026-11-16T10:09:11.312+00:00",
+  "syncStep3": {
+    "status": "issued",
+    "mode": "likely"
+  }
+}
