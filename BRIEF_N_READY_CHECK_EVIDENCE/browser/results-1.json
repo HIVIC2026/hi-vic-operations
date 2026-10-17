@@ -1,0 +1,134 @@
+[
+ {
+  "phase": "send",
+  "name": "B1 Office password sign-in lands in the operations app",
+  "ok": true,
+  "info": "http://localhost:8080/admin/needs-me"
+ },
+ {
+  "phase": "send",
+  "name": "B2 the job page offers 'Choose trades for this job' for the Ready Check",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "send",
+  "name": "B3 installer A is a matching approved trade and can be ticked",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "send",
+  "name": "B4 the send button counts only the ticked trade",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "send",
+  "name": "B5 the offer is recorded against installer A ('Already offered \u00b7 pending')",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "send",
+  "name": "B6 installer B was NOT offered",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "accept",
+  "name": "C1 Installer password sign-in lands on My work",
+  "ok": true,
+  "info": "http://localhost:8080/field"
+ },
+ {
+  "phase": "accept",
+  "name": "C2 the Ready Check offer appears on the installer's phone",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "accept",
+  "name": "C3 the offer shows the owner's three times",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "accept",
+  "name": "C4 the address is withheld until the installer accepts",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "accept",
+  "name": "D1 taking a time accepts the offer",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "accept",
+  "name": "D2 the accepted time is confirmed to the installer",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "accept",
+  "name": "D3 the owner's address and phone are released only now",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "booked",
+  "name": "F1 Office sees the accepted offer against installer A",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "booked",
+  "name": "F2 the assigned installer is named on the job",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "booked",
+  "name": "F3 the Ready Check has not been submitted yet",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "booked",
+  "name": "F4 the office cannot reopen before a submission exists",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "review",
+  "name": "F5 Office sees the Ready Check as submitted",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "review",
+  "name": "F6 the reopen control is now offered to the office",
+  "ok": true,
+  "info": ""
+ },
+ {
+  "phase": "security",
+  "name": "N1 signed out cannot read the office job page",
+  "ok": true,
+  "info": "http://localhost:8080/auth?next=%2Fadmin%2Fjobs%2Ffa300000-0000-4000-8000-000000000001"
+ },
+ {
+  "phase": "security",
+  "name": "N2 installer B has no Ready Check offer for this job",
+  "ok": true,
+  "info": "http://localhost:8080/field"
+ },
+ {
+  "phase": "security",
+  "name": "N3 installer B cannot open the job page",
+  "ok": true,
+  "info": "http://localhost:8080/field/fa300000-0000-4000-8000-000000000001 | IB  This job isn't available to you. If it's a new offer, accept it from My work"
+ }
+]
