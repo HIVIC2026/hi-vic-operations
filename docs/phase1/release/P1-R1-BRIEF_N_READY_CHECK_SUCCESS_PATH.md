@@ -335,7 +335,7 @@ Setup required (all untracked / gitignored, removed afterwards):
 * `.env.local` — `VITE_SUPABASE_URL=http://localhost:54331`, `VITE_SUPABASE_PUBLISHABLE_KEY=<local anon JWT>`, plus the server-side `SUPABASE_URL` / `SUPABASE_PUBLISHABLE_KEY` / `SUPABASE_SERVICE_ROLE_KEY` exports in the dev-server shell.
 * GoTrue users created in the **local** auth service only, with fixed ids that match the fixtures: `office@brief-n.test`, `installer-a@brief-n.test`, `installer-b@brief-n.test` (password `BriefN-Test-Pass-1`, `email_confirm: true`). Sign-in goes through the real `signInWithPassword` path.
 
-**Sequence per run** (`BRIEF_N_READY_CHECK_EVIDENCE/browser/run.sh`):
+**Sequence per run** (`docs/phase1/release/brief-n-evidence/browser/run.sh`):
 
 ```
 0  bun tests/brief-n/prep-browser.ts          reset fixtures + owner availability (stage A, service level)
@@ -405,7 +405,9 @@ All commands run from `/Users/jet.zhang/CopilotWorkspace/Loveable/wt-r1-brief-n-
 
 ## 19. Evidence index, limits, and classification
 
-**Evidence directory:** `BRIEF_N_READY_CHECK_EVIDENCE/`
+**Report:** `docs/phase1/release/P1-R1-BRIEF_N_READY_CHECK_SUCCESS_PATH.md`
+
+**Evidence directory:** `docs/phase1/release/brief-n-evidence/`
 
 ```
 browser/journey.py                     the Playwright phase driver (send / accept / booked / review / security)
