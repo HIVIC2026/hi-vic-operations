@@ -15,8 +15,11 @@
 | **Local tests passed** | ✅ **YES** — tsc, unit + integration suites, full build (§5–§7) |
 | **Pushed to GitHub main** | ✅ **YES** — owner-authorised non-force fast-forward; `main` now `6411463e` (§8) |
 | **Lovable Preview synchronised** | ✅ **YES (source)** — Lovable auto-pulled `6411463e`, "In sync / same commit", last synced 22 s after push (§8) |
-| **Form-visible interactive check** | ⛔ **BLOCKED** — owner supplied `deep-test@hivic.test` credentials; app is Lovable-auth-gated and the only authenticated browser is CDP-blocked by a conflicting extension (§9) |
-| **Browser UAT (HV-2594) passed** | ❌ **NO** — not executed; blocked by the browser environment (not by credentials) (§9) |
+| **Form-visible interactive check** | ✅ **PASS (real browser, 19 Oct 2026)** — clean AI-controlled browser found (§12); "Ceiling measure-up" + "Complete measure-up" rendered on HV-2594 (§13.2) |
+| **Measurement completed through the UI** | ✅ **PASS** — 120 m² / Laser / no existing insulation / no removal / Easy access submitted and persisted (§13.3) |
+| **Measured quote generated** | ✅ **PASS** — job moved to *Quote awaiting owner approval · sent Mon 19 Oct* (§13.4) |
+| **Homeowner acceptance → payment → electrician → PIESA → F-1** | ⛔ **BLOCKED** — needs an authenticated TEST homeowner session (`qa.journey.1f577d0e025e@hivic-test.example`); no credentials/`token_hash` available here (§14) |
+| **Browser UAT (HV-2594) fully passed** | ❌ **NO** — steps 1–3 executed & evidenced; steps 4–9 not executed |
 | **F-1 PASS claimed** | ❌ **NO** — `piesa_scheduled → piesa_complete` not executed/verified (not claimed) |
 
 > This brief does **not** claim Phase 1 UAT PASS and does **not** claim F-1.
@@ -186,9 +189,9 @@ previously-passed steps were not repeated. F-1 is NOT EXECUTED and is not claime
 
 | # | Blocker | Needed to clear |
 |---|---|---|
-| 1 | Interactive HV-2594 UAT blocked by a **browser-environment conflict** (Lovable auth-gate + a conflicting extension capturing app tabs in the authenticated browser) | Run the UAT from a **Lovable agent session** (as Brief W did), **or** in the authenticated Chrome disable the conflicting extension (the "OpenClaw Browser Relay" / whichever owns the captured tab) and retry; the fix itself is already deployed & Preview-synced |
-| 2 | HV-2594 UAT not resumed (form-visible, measurement, transitions) | Blocker 1 |
-| 3 | Remaining journey (quote → acceptance → Xero Demo → TEST payment → electrician → PIESA → **F-1**) | Blocker 2; **F-1 not claimed** |
+| 1 | ~~Interactive HV-2594 UAT blocked by a browser-environment conflict~~ | **CLEARED 19 Oct 2026** — an isolated AI-controlled browser was found and driven successfully (§12); the conflict source was identified as three coexisting automation extensions in the human Chrome (§12.2) |
+| 2 | Homeowner acceptance and everything downstream (Xero Demo → TEST payment → electrician → PIESA → **F-1**) | Needs an authenticated TEST homeowner session — see §14 for the minimum owner action |
+| 3 | One HTTP **500** on a `_serverFn` call during "Complete measure-up" (state still advanced correctly) | Needs a Lovable-agent/backend session to read the server log; UI shows no error toast (§13.5) |
 | 4 | Mitti template IDs in workflow settings | Standing owner-only item; until set, Mitti create on a real job is rejected (expected behaviour, not a failure) |
 
 ## 11. Safety compliance
@@ -199,6 +202,131 @@ customer communications · **no** production Xero writes · **no** real payments
 uploads · **no** direct `jobs.stage` manipulation · **no** changes to real customers/partners · **no**
 HV-2594 record touched · no migration · no COM-04 activation. This report-update commit is local only
 (not pushed).
+
+---
+
+## 12. Browser-environment investigation (Brief X — alternative AI browser)
+
+### 12.1 Inventory — what is actually installed on this Mac
+
+| Environment | Present | Verdict for HV-2594 UAT |
+|---|---|---|
+| Human Google Chrome 155 (Default profile) | ✅ | ❌ **Rejected** — automation extensions fight over CDP (§12.2). This was the previous blocker. |
+| `bsk` (browser-skill daemon + extension 0.3.3) | ✅ connected to Chrome 155 | ❌ Same conflict; 8 fresh sessions previously failed with *"Chrome blocked CDP access to another extension's content"* |
+| **Playwright 1.58 + Chrome for Testing 145** (`turix_env`, `chromium-1208`) | ✅ | ⭐ **SELECTED** — clean profile, zero extensions, real Chrome, full CDP + screenshots |
+| Playwright 1.51 (anaconda base) | ✅ | ❌ its pinned `chromium-1161` build is broken (`Chromium Framework` missing → dlopen failure) |
+| `chromium-1234` (Chrome for Testing 151) | ⚠️ present but incomplete (129 MB, framework binary missing) | ❌ unusable |
+| `chromium_headless_shell-*` | ✅ | not needed (headful gives owner-visible login) |
+| **`browser-act`** CLI (stealth/captcha) | ✅ installed | ❌ cloud SaaS: `browser list` returns only remote browsers, requires account/API key; would route credentials through a third party |
+| **AutoGLM Browser Agent** (`autoglm`, AutoGLM.app) | ✅ installed | ❌ drives the **human Chrome via its own extension** (same conflict class) and is a cloud AI agent that ships page content off-machine |
+| OpenClaw / AutoClaw / AutoClaw2 / TuriX / ZCode apps | ✅ installed | ❌ Electron apps, not usable as an isolated automation target; OpenClaw ships the "OpenClaw Browser Relay" extension involved in the conflict |
+| Comet / Dia / ChatGPT Atlas / Arc / Brave / Firefox / Edge | ❌ **not installed** | n/a |
+| Safari | ✅ | ❌ no `safaridriver` authorisation; not used |
+| Local disposable Supabase UAT stack (`hivic-uat-disposable`, kong :54331, db :54332) | ✅ running, 44 fixture jobs, `owner.a/b/c`, `installer`, `electrician`, `office` accounts | 🔵 **fallback** — fully autonomous but exercises a *local equivalent* fixture, not HV-2594 |
+
+### 12.2 Root cause of the previous blocker (now proven)
+
+The human Chrome profile has **three** browser-automation extensions installed simultaneously:
+
+```
+BrowserSkill                (bsk)
+Browser MCP - Automate your browser using VS Code, Cursor, Claude, and more
+OpenClaw Browser Relay
+```
+
+They contend for CDP ownership of the same tabs, which produces the observed
+*"Chrome blocked CDP access to another extension's content"*. A clean, extension-free browser
+instance removes this failure mode entirely — no Chrome setting had to be weakened.
+
+### 12.3 Selected environment
+
+| Attribute | Value |
+|---|---|
+| Binary | `/Users/jet.zhang/Library/Caches/ms-playwright/chromium-1208/chrome-mac-arm64/Google Chrome for Testing.app` → **Chrome for Testing 145.0.7632.6** |
+| Driver | `playwright 1.58` in conda env `turix_env` (`/opt/anaconda3/envs/turix_env/bin/python`) |
+| Launch flags | `--remote-debugging-port=9333 --user-data-dir=/tmp/hvuat/cft-profile --no-sandbox --disable-extensions --disable-blink-features=AutomationControlled` |
+| Control mode | long-lived headful process + `connect_over_cdp("http://127.0.0.1:9333")` from short-lived scripts |
+| Extensions | **none** (so no CDP contention) |
+| Evidence capture | Playwright screenshots + DOM/`localStorage` reads |
+
+Port 9222 was already owned by the human Chrome, so 9333 was used. `--no-sandbox` is required
+because the agent sandbox blocks Chromium's own sandbox (`sandbox initialization failed:
+Operation not permitted`); this is an environment constraint of the agent runtime, not of the app.
+
+### 12.4 How Lovable authentication was passed (authorised flow only)
+
+1. The clean browser was pointed at `https://lovable.dev/login`.
+2. **The owner completed the normal Lovable login in that visible window** (one time).
+3. Detected `lovable-session-id-v2` cookie and the redirect to `lovable.dev/dashboard`.
+4. Navigating to `https://preview--hi-vic-operations.lovable.app/` then passed `auth-bridge` and
+   rendered the real application.
+5. The session persisted in the dedicated profile across browser restarts.
+
+No cookies, tokens or sessions were copied from any other browser; no auth control was bypassed.
+
+### 12.5 How the installer session was created
+
+`/auth` was opened, `deep-test@hivic.test` was pre-filled programmatically, and **the owner typed
+the password directly into the browser window** — the password never entered the agent's context,
+was never written to disk, and was never logged. Login confirmed by
+`sb-wvuffpykgnqliikhodzl-auth-token` in `localStorage` plus auto-return to
+`/field/42fcec2e-4f2d-4e84-b437-3a6c40e02965`.
+
+---
+
+## 13. HV-2594 UAT — executed in the real browser (19 Oct 2026)
+
+Job: **HV-2594** (`42fcec2e-4f2d-4e84-b437-3a6c40e02965`), installer `deep-test@hivic.test`,
+host `https://preview--hi-vic-operations.lovable.app` (Lovable Preview, commit `6411463e`).
+Evidence: `docs/phase1/uat/P1-R1_BRIEF_X_BROWSER_EVIDENCE/`.
+
+| # | Step | Result | Evidence |
+|---|---|---|---|
+| 1 | Lovable gate + installer sign-in | ✅ PASS | `02_installer_signed_in_deep_test.png` |
+| 2 | **"Ceiling measure-up" form visible** | ✅ **PASS** — `<h2>Ceiling measure-up</h2>` rendered with `Complete measure-up`; page shows *"Your Mitti account isn't invited yet, so the Mitti form can't open… You can still enter and save the Ready Check on this page."*, i.e. the Brief X fallback branch (§3) | `03_ceiling_measureup_form_visible_HV2594.png` |
+| 3 | **Complete measurement through the UI** | ✅ **PASS** — 120 m², Laser, existing insulation No, removal No, access Easy; evidence 2/2 already *Verified*; values persisted after reload (read-only block shows 120 / laser / none / no / standard) | `04_…`, `06_…` |
+| 4 | **Measured quote generated** | ✅ **PASS** — header changed to *WAITING ON OWNER · Waiting for the owner to accept the quote*; tracker reads *Quote awaiting owner approval · sent Mon 19 Oct · waiting under a day · Owner* | `05_after_complete_quote_awaiting_owner.png` |
+| 5 | Homeowner acceptance | ⛔ not executed — needs homeowner auth (§14) | — |
+| 6 | Xero Demo invoice (≤1) | ⛔ not executed | — |
+| 7 | TEST payment | ⛔ not executed | — |
+| 8 | Electrician assignment | ⛔ not executed | — |
+| 9 | Manual PIESA + **F-1** | ⛔ **not executed — F-1 NOT claimed** | — |
+
+### 13.1 DEF-01 status
+
+**DEF-01 is fixed and verified in the deployed Preview.** The installer can now complete the
+measure-up for an HIVIC-sourced job when Mitti is unavailable — the exact scenario that was
+impossible before commit `1e93613e`. The "Measured ceiling area is missing" hold reason also
+disappeared from the owner-quote readiness line after the measurement was saved.
+
+### 13.2 Observations worth a follow-up ticket (not blockers for the fix)
+
+* **HTTP 500** on `POST /_serverFn/…` during one "Complete measure-up" click; the job state still
+  advanced correctly and no error toast was rendered. Server-side log is only visible from a
+  Lovable-agent/backend session.
+* Console: `Query data cannot be undefined … ["rc-draft","42fcec2e-…"]` (react-query) on page load.
+* The readiness line still reports *"Existing insulation not confirmed (must be none or below R2.0)"*
+  and *"Installer quote amount is missing"* even after the quote was sent — worth confirming whether
+  that panel is stale or whether a separate installer quote is expected for this non-installer-supplied job.
+
+---
+
+## 14. Minimum owner action to finish the journey
+
+The remaining steps are **authentication**, not code: they need a signed-in TEST **homeowner**
+(`qa.journey.1f577d0e025e@hivic-test.example`, phone `0400 000 003`). Nothing in this environment
+can mint that session (the `/qa-access` route needs a `token_hash` from an admin `generateLink`
+call, i.e. service-role access, which §5 forbids here).
+
+Pick **one**:
+
+1. **Type the homeowner password** into the same browser window after I pre-fill
+   `qa.journey.1f577d0e025e@hivic.test` at `/auth` (password never reaches me), **or**
+2. **Mint a QA magic link** for that address in a Lovable agent session and paste the
+   `/qa-access?token_hash=…` URL — I will open it in the same clean browser and continue, **or**
+3. **Authorise the local fallback** — run the same journey on the running `hivic-uat-disposable`
+   stack (44 fixture jobs, local owner/installer/electrician accounts). Autonomous and zero
+   production risk, but the subject would be a local equivalent fixture, **not HV-2594**.
 
 ---
 
