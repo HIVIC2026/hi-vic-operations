@@ -33,7 +33,8 @@ function useMittiInvited() {
   const load = useServerFn(getMyMittiInvited);
   return useQuery({ queryKey: ["mitti-invited"], queryFn: () => load() }).data?.invited === true;
 }
-import { MeasurementDetails, MeasurementReadOnly, useJobScope, useMeasurements } from "@/components/portal/requirements";
+import { MeasurementDetails, MeasurementForm, MeasurementReadOnly, useJobScope, useMeasurements } from "@/components/portal/requirements";
+import { MEASURE_FIELDS } from "@/lib/scope.core";
 import { useAction } from "@/hooks/use-me";
 import { InstallerFinalDeclaration } from "@/components/portal/assignment";
 import { JobStatusCard } from "@/components/trade/job-status";
@@ -105,7 +106,7 @@ function FieldJob() {
   );
 }
 
-/** Onsite forms are filled in Mitti only. Until the form is connected, trades see a plain setup notice. */
+/** Onsite forms are filled in Mitti. When the Mitti form can't open, the installer measure-up (ready_check) falls back to the manual MeasurementForm; the PIESA form still shows the setup notice. */
 function MittiOnly({ jobId, which }: { jobId: string; which: "ready_check" | "piesa" }) {
   const { data } = useQuery({ queryKey: ["mitti-only", jobId, which], queryFn: async () => {
     const [{ data: a }, { data: m }] = await Promise.all([
@@ -118,7 +119,7 @@ function MittiOnly({ jobId, which }: { jobId: string; which: "ready_check" | "pi
   return (
     <Section title={which === "piesa" ? "Safety check form" : "Ready Check form"}>
       {data && invited ? <><p className="mb-3 text-sm text-sub">Fill it in on site, in order. Your answers come back here automatically.</p><Button asChild size="field" className="w-full"><a href={`https://app.au.mitti.com/inspections/${data}`} target="_blank" rel="noreferrer">Open form in Mitti</a></Button><div className="mt-3"><MittiCard jobId={jobId} isAdmin={false} /></div></>
-        : <p className="text-sm font-medium" data-mitti-unavailable>{!invited ? "Your Mitti account isn't invited yet, so the Mitti form can't open. Home Insulation Victoria has to invite you." : "The Mitti form isn't linked to this job yet — Home Insulation Victoria links it."}{which === "ready_check" ? " You can still enter and save the Ready Check on this page." : ""}</p>}
+        : <><p className="text-sm font-medium" data-mitti-unavailable>{!invited ? "Your Mitti account isn't invited yet, so the Mitti form can't open. Home Insulation Victoria has to invite you." : "The Mitti form isn't linked to this job yet — Home Insulation Victoria links it."}{which === "ready_check" ? " You can still enter and save the Ready Check on this page." : ""}</p>{which === "ready_check" && <MeasurementForm jobId={jobId} editable={[...MEASURE_FIELDS]} title="Ceiling measure-up" showComplete />}</>}
     </Section>
   );
 }
