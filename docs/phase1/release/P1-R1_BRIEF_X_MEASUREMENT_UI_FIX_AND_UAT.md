@@ -18,7 +18,8 @@
 | **Form-visible interactive check** | ✅ **PASS (real browser, 19 Oct 2026)** — clean AI-controlled browser found (§12); "Ceiling measure-up" + "Complete measure-up" rendered on HV-2594 (§13.2) |
 | **Measurement completed through the UI** | ✅ **PASS** — 120 m² / Laser / no existing insulation / no removal / Easy access submitted and persisted (§13.3) |
 | **Measured quote generated** | ✅ **PASS** — job moved to *Quote awaiting owner approval · sent Mon 19 Oct* (§13.4) |
-| **Homeowner acceptance → payment → electrician → PIESA → F-1** | ⛔ **BLOCKED (authentication only)** — homeowner identity verified (§16); the account is password-less by design (magic link / secure link), and both ways to obtain a session need one owner action (§20) |
+| **Homeowner authentication** | ✅ **PASS (19 Oct 2026, 04:04)** — signed in as `qa.journey.1f577d0e025e@hivic-test.example` in the clean browser, password typed by the owner (§22) |
+| **Quote acceptance → payment → electrician → PIESA → F-1** | ⛔ **BLOCKED (business state, not code)** — owner portal shows **"No quotes yet."**; the measured installation quote has never been created/released, and that is an **office** action (§22.2). All later steps therefore NOT EXECUTED; **F-1 not claimed** |
 | **Browser UAT (HV-2594) fully passed** | ❌ **NO** — steps 1–3 executed & evidenced; steps 4–9 not executed |
 | **F-1 PASS claimed** | ❌ **NO** — `piesa_scheduled → piesa_complete` not executed/verified (not claimed) |
 
@@ -471,5 +472,87 @@ real browser.
 
 ---
 
+---
+
+## 22. Homeowner authentication and quote inspection (19 Oct 2026, 04:02–04:07)
+
+### 22.1 Authentication — PASS
+
+| Item | Value |
+|---|---|
+| Method | Normal `/auth` flow in the clean browser. I pre-filled `qa.journey.1f577d0e025e@hivic-test.example`; **the owner typed the password in the visible window** — it never entered agent context, scripts, logs, screenshots or commits |
+| Result | Session `sb-wvuffpykgnqliikhodzl-auth-token` present; landed on `/owner` (evidence `09_homeowner_signed_in.png`, `10_homeowner_portal.png`) |
+| Job visible | HV-2594 · 7 UAT Fixture Rise, Kalkallo · **Measured Estimate Ready** · Likely eligible · *NEXT STEP: Owner to accept measured project quote* · WAITING ON: OWNER |
+| History (owner view) | `Measured estimate ready after installer eligibility measure-up` (19 Oct 3:24) · `Free installer Ready Check completed` (3:24) · `Ceiling measure-up completed (installer) – 120 m²` (3:24) · `Evidence uploaded: Before: ceiling space` (18 Oct 23:20) |
+
+### 22.2 Quote inspection — nothing to accept yet (BLOCKED, business state)
+
+On `/owner/42fcec2e-4f2d-4e84-b437-3a6c40e02965` (evidence `11_owner_job_quote.png`):
+
+* **Quotes: "No quotes yet."** — no accept control, no quote link, no `$` amount anywhere on the page.
+* Xero/payments card: *"No invoice yet – one Xero invoice for the full accepted price is raised when the owner
+  accepts the final installation quote."*
+* Page links contain **no** estimate/quote/token URL — only `tel:` and `mailto:` for the installer.
+
+**Why (code evidence, not assumption):**
+* `QuotesPanel` (`src/components/portal/panels.tsx:339-350`) reads `quotes` rows with `status != superseded`
+  and hides `draft` rows and rows with `release_state = "held"` → an unreleased quote is invisible to the owner.
+* `src/lib/portal.functions.ts:668` comment: *"Installation quotes: the Ready Check path — **office-released
+  measured quote** at `measured_estimate_ready`"*; `owner-myjob.server.ts:46` also expects an `issued` quote
+  at this stage.
+* Quote creation (`src/lib/quotes.server.ts:119`) is actor-driven (`created_by: actorId`) and its release
+  decision uses `auto_send_quote` + `customer_comms_enabled` — **both are `false`** in this environment
+  (Brief T §11), so a newly created quote lands as `draft`/`held` until the office releases it
+  (`approveHeldQuote`, `portal.functions.ts:614`).
+* No automatic step creates the measured quote when the stage becomes `measured_estimate_ready`.
+
+**Classification: EXPECTED BEHAVIOUR / missing office action — not a code defect.** The workflow has not been
+advanced past *"Prepare measured estimate"* (`nextAction` set by `completeMeasurement`,
+`portal.functions.ts:310`) because no office user has done it.
+
+**Also corrected (reporting defect):** the installer page's *"Quote awaiting owner approval · sent Mon 19 Oct"*
+is a **stage-derived label** (`src/lib/job-status.core.ts:71` — `wait("Quote awaiting owner approval", …, quoteSentAt ?? stageSince)`),
+i.e. "sent" = when the stage was entered, **not** an actual sent quote. Recorded as **DEF-05** (§21-style,
+P2, misleading copy) — see the register below.
+
+### 22.3 Result of this step
+
+| Step | Status |
+|---|---|
+| Confirm correct TEST job | ✅ HV-2594 confirmed on the owner side |
+| Confirm correct homeowner | ✅ `qa.journey.1f577d0e025e@hivic-test.example` (owner row of the job) |
+| Confirm the quote exists | ❌ **No quote row available to the owner** |
+| Inspect amount / status | ⛔ not possible — no quote |
+| Accept the quote | ⛔ **NOT EXECUTED / BLOCKED** — nothing to accept; duplicate acceptance impossible |
+| Downstream (Xero Demo, TEST payment, electrician, PIESA, F-1) | ⛔ **NOT EXECUTED** |
+
+### 22.4 Next owner action (supersedes §20 option 1)
+
+The blocking action is now an **office** one, not an authentication one:
+
+1. **Sign in as the office account** (`admin@hivic.test`) in the same clean browser window — password typed by
+   you. I will then: open the Office job page for HV-2594 → create/release the measured installation quote
+   (office-only action) → capture amount and status.
+2. Then **sign back in as the homeowner** (same email, password typed by you) → accept the quote through the
+   normal owner UI → verify persistence, workflow events and office visibility.
+3. Continue Xero Demo (≤1 invoice, tenant confirmed first), TEST payment, electrician assignment, manual
+   PIESA, and finally F-1 — all through the UI, none claimed before executed.
+
+---
+
+## 23. Defect register (updated)
+
+| ID | Summary | Classification | Severity | Location |
+|---|---|---|---|---|
+| **DEF-01** | Installer measure-up impossible when Mitti unavailable | **FIXED & BROWSER-VERIFIED** | P1 (was) | `field.$jobId.tsx` |
+| **DEF-02** | "Couldn't load the Ready Check … data is undefined" + react-query `Query data cannot be undefined` | GENUINE DEFECT | P2 NON-BLOCKING | `ReadyCheckDraft.tsx:20`, `ready-check-draft.functions.ts:5` |
+| **DEF-03** | Owner-quote readiness line shows installer-supplied-job blockers on a `hivic_sourced` job | GENUINE DEFECT | P2 NON-BLOCKING | `ReadyCheckDraft.tsx:61`, `installer-intake.server.ts` |
+| **DEF-04** | `WorkflowError` surfaces as HTTP 500 with no user-visible reason | GENUINE DEFECT (Brief K family) | P2 NON-BLOCKING | `workflow.server.ts:8` + serverFn error mapping |
+| **DEF-05** | Installer journey shows "Quote awaiting owner approval · **sent** Mon 19 Oct" while no quote exists | GENUINE DEFECT (misleading copy) | P2 NON-BLOCKING | `job-status.core.ts:71` (`quoteSentAt ?? stageSince`) |
+| **OBS-01** | HTTP 500 during measure-up completion | UNVERIFIED (probable duplicate-call guard) | — | `portal.functions.ts:279/283/286` |
+| **OBS-02** | Measured quote not created at `measured_estimate_ready` | EXPECTED BEHAVIOUR (office action pending, `auto_send_quote=false`) | — | `quotes.server.ts:119`, `portal.functions.ts:668` |
+
+---
+
 *Commits: fix `1e93613e` + report `6411463e` (both pushed to `main` per §8.2). Report updates §12–§14 are
-`12a66dfd`; §15–§21 are committed locally on `r1/brief-x-measurement-ui` and not pushed.*
+`12a66dfd`; §15–§21 are `e8358e8e`; §22–§23 are committed locally on `r1/brief-x-measurement-ui` and not pushed.*
