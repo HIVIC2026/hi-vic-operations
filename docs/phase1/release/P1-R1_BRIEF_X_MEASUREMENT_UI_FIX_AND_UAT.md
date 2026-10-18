@@ -15,8 +15,8 @@
 | **Local tests passed** | ✅ **YES** — tsc, unit + integration suites, full build (§5–§7) |
 | **Pushed to GitHub main** | ✅ **YES** — owner-authorised non-force fast-forward; `main` now `6411463e` (§8) |
 | **Lovable Preview synchronised** | ✅ **YES (source)** — Lovable auto-pulled `6411463e`, "In sync / same commit", last synced 22 s after push (§8) |
-| **Form-visible interactive check** | ⛔ **BLOCKED** — HV-2594 page requires `deep-test@hivic.test` auth; not mintable from this environment (§9) |
-| **Browser UAT (HV-2594) passed** | ❌ **NO** — not executed; blocked on deep-test authentication (§9) |
+| **Form-visible interactive check** | ⛔ **BLOCKED** — owner supplied `deep-test@hivic.test` credentials; app is Lovable-auth-gated and the only authenticated browser is CDP-blocked by a conflicting extension (§9) |
+| **Browser UAT (HV-2594) passed** | ❌ **NO** — not executed; blocked by the browser environment (not by credentials) (§9) |
 | **F-1 PASS claimed** | ❌ **NO** — `piesa_scheduled → piesa_complete` not executed/verified (not claimed) |
 
 > This brief does **not** claim Phase 1 UAT PASS and does **not** claim F-1.
@@ -150,35 +150,43 @@ the same commit" / "Last synced 22 seconds ago"**. Lovable auto-pulled `6411463e
 `1e93613e`) on the push notification, so the fix is in the Lovable project source and Preview rebuilds
 from it. This is Lovable's own confirmation the new code synchronised — not merely "GitHub push alone".
 
-## 9. HV-2594 browser verification & UAT (§3 second part, §4) — BLOCKED on authentication
+## 9. HV-2594 browser verification & UAT (§3 second part, §4) — BLOCKED (browser environment)
 
-**The fix is deployed and Lovable-synced, but the interactive HV-2594 UAT could not be executed from this
-environment.** Navigating the Preview to
-`https://preview--hi-vic-operations.lovable.app/field/42fcec2e-4f2d-4e84-b437-3a6c40e02965` (HV-2594)
-redirects to the **sign-in page** — there is no `deep-test@hivic.test` session in the browser, and none
-can be minted here:
+**Credentials were supplied and used, but the interactive HV-2594 UAT could not be executed from this
+environment** — the blocker moved from "no credentials" to a **browser-environment conflict**:
 
-- The deep-test password is set **per-run** by `scripts/login-signed-prep.ts` via the **service-role
-  key** (`admin.auth.admin.updateUserById`) against the project Supabase `wvuffpykgnqliikhodzl`. That
-  service-role key lives in the **Lovable agent-sandbox backend env**, which this R1 session does not
-  have, and §5 forbids production/shared-DB access to obtain one.
-- "Email me a sign-in link" delivers a magic link to `deep-test@hivic.test`'s inbox, which is not
-  accessible here.
+- **Owner supplied the TEST login** for `deep-test@hivic.test` (used only to drive the browser; **not
+  exposed, logged, or committed** — no password appears in any file or commit).
+- **The Preview app is Lovable-auth-gated.** Both `preview--hi-vic-operations.lovable.app` and
+  `id-preview--fb35adfe-…lovable.app` redirect a clean browser to `lovable.dev/login` (auth-bridge,
+  `project_id=lovp_1r28gvzn66851bxc7wqx97jm5a`). Only a Lovable-logged-in browser reaches the app's own
+  sign-in.
+- **The only Lovable-logged-in browser (Chrome, via the `bsk` agent) is CDP-blocked on app pages by a
+  conflicting extension.** The app sign-in was reached **once** (one Agent-Window window showed the
+  "Sign in – Home Insulation Victoria" form with Email/Password), confirming the auth path works — but
+  every subsequent navigation/interaction returned *"Chrome blocked CDP access to another extension's
+  content in this tab … Cannot access a chrome-extension:// URL of different extension"* (the Agent
+  Window's app tab is captured by another extension). 8 fresh-session retries all blocked; a JS
+  in-page fill was prepared but no stable window could be held.
+- **No alternative authenticated path:** a clean headless Chromium (playwright-core) cannot pass the
+  auth-gate, and Chrome's `:9222` DevTools endpoint is stale (HTTP `/json/version` empty; recorded WS
+  GUID times out).
 
-Consequently, the following were **NOT executed** (no evidence claimed): opening the HV-2594 installer
-page as deep-test; visually confirming the manual Ceiling measure-up form; completing the measurement
-through the UI; observing the `ready_check_scheduled → ready_check_complete → measured_estimate_ready`
-transitions and `workflow_events`; and the remaining journey (measured quote → homeowner acceptance →
-≤1 Xero Demo invoice → TEST payment → electrician assignment → manual PIESA → F-1).
+Consequently the following were **NOT executed** (no evidence claimed): signing in as deep-test; opening
+the HV-2594 installer page; visually confirming the manual "Ceiling measure-up" form; completing the
+measurement through the UI; observing the `ready_check_scheduled → ready_check_complete →
+measured_estimate_ready` transitions and `workflow_events`; and the remaining journey (measured quote →
+homeowner acceptance → ≤1 Xero Demo invoice → TEST payment → electrician assignment → manual PIESA →
+F-1).
 
-**Per the brief, no new job was created, no installer account changed, and previously-passed steps were
-not repeated. F-1 is NOT EXECUTED and is not claimed.**
+**Per the brief, no new job was created, no installer account changed, no password reset, and
+previously-passed steps were not repeated. F-1 is NOT EXECUTED and is not claimed.**
 
 ## 10. Remaining blockers
 
 | # | Blocker | Needed to clear |
 |---|---|---|
-| 1 | Interactive HV-2594 UAT cannot be authenticated from this R1/CodeBuddy environment | Run the UAT from a **Lovable agent session** (backend env, as Brief W did) or supply owner-provided `deep-test@hivic.test` credentials; the fix itself is already in Preview |
+| 1 | Interactive HV-2594 UAT blocked by a **browser-environment conflict** (Lovable auth-gate + a conflicting extension capturing app tabs in the authenticated browser) | Run the UAT from a **Lovable agent session** (as Brief W did), **or** in the authenticated Chrome disable the conflicting extension (the "OpenClaw Browser Relay" / whichever owns the captured tab) and retry; the fix itself is already deployed & Preview-synced |
 | 2 | HV-2594 UAT not resumed (form-visible, measurement, transitions) | Blocker 1 |
 | 3 | Remaining journey (quote → acceptance → Xero Demo → TEST payment → electrician → PIESA → **F-1**) | Blocker 2; **F-1 not claimed** |
 | 4 | Mitti template IDs in workflow settings | Standing owner-only item; until set, Mitti create on a real job is rejected (expected behaviour, not a failure) |
