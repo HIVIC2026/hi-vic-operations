@@ -18,7 +18,7 @@
 | **Form-visible interactive check** | ✅ **PASS (real browser, 19 Oct 2026)** — clean AI-controlled browser found (§12); "Ceiling measure-up" + "Complete measure-up" rendered on HV-2594 (§13.2) |
 | **Measurement completed through the UI** | ✅ **PASS** — 120 m² / Laser / no existing insulation / no removal / Easy access submitted and persisted (§13.3) |
 | **Measured quote generated** | ✅ **PASS** — job moved to *Quote awaiting owner approval · sent Mon 19 Oct* (§13.4) |
-| **Homeowner acceptance → payment → electrician → PIESA → F-1** | ⛔ **BLOCKED** — needs an authenticated TEST homeowner session (`qa.journey.1f577d0e025e@hivic-test.example`); no credentials/`token_hash` available here (§14) |
+| **Homeowner acceptance → payment → electrician → PIESA → F-1** | ⛔ **BLOCKED (authentication only)** — homeowner identity verified (§16); the account is password-less by design (magic link / secure link), and both ways to obtain a session need one owner action (§20) |
 | **Browser UAT (HV-2594) fully passed** | ❌ **NO** — steps 1–3 executed & evidenced; steps 4–9 not executed |
 | **F-1 PASS claimed** | ❌ **NO** — `piesa_scheduled → piesa_complete` not executed/verified (not claimed) |
 
@@ -321,7 +321,8 @@ call, i.e. service-role access, which §5 forbids here).
 Pick **one**:
 
 1. **Type the homeowner password** into the same browser window after I pre-fill
-   `qa.journey.1f577d0e025e@hivic.test` at `/auth` (password never reaches me), **or**
+   `qa.journey.1f577d0e025e@hivic-test.example` at `/auth` (password never reaches me) — note §16: this
+   TEST persona is created for **password-less** access, so this may not be available, **or**
 2. **Mint a QA magic link** for that address in a Lovable agent session and paste the
    `/qa-access?token_hash=…` URL — I will open it in the same clean browser and continue, **or**
 3. **Authorise the local fallback** — run the same journey on the running `hivic-uat-disposable`
@@ -330,5 +331,145 @@ Pick **one**:
 
 ---
 
-*Commits: fix `1e93613e` + report `6411463e` (both pushed to `main` per §8.2). This report update is
-committed locally on `r1/brief-x-measurement-ui` and not pushed.*
+---
+
+## 15. Baseline re-verification (19 Oct 2026, start of this session)
+
+| Item | Value |
+|---|---|
+| Remote `origin/main` HEAD | `6411463e1bbb55cbcd39e36d6202c0b448d8ea1d` — **unchanged** from the authoritative baseline |
+| Newer relevant changes since | **none** |
+| Local branch | `r1/brief-x-measurement-ui` @ `12a66dfd` (evidence + report from §12–§14) |
+| Preview application | `https://preview--hi-vic-operations.lovable.app/` — live, in sync with `6411463e` |
+| Browser environment reused | ✅ same clean profile (`/tmp/hvuat/cft-profile`), CDP `:9333`, still signed in as `deep-test@hivic.test`, still on `/field/42fcec2e-…` |
+| Previously verified UAT results | preserved (§13) — not repeated |
+
+---
+
+## 16. TEST homeowner identity — verified (correction to §14)
+
+The §14 owner-action text contained a **wrong domain** (`@hivic.test`). The authoritative identity is:
+
+| Field | Value | Source |
+|---|---|---|
+| Email | **`qa.journey.1f577d0e025e@hivic-test.example`** | (a) live UI capture this session; (b) Brief T DB evidence; (c) code constant |
+| Phone | `0400 000 003` | live UI (field-page contact block) |
+| Profile / user id | `eca33ab1-453c-418f-b0df-5ebe847fd569`, role `owner`, owner row `0ba59648-56f6-461a-8d09-66efea8d0b14` (`user_id` linked) | `docs/…/P1-R1_BRIEF_T_INTEGRATION_AND_UI_DRIVEN_UAT.md` §11 |
+| Job link | `jobs.owner_id = 0ba59648…` for HV-2594 `42fcec2e-4f2d-4e84-b437-3a6c40e02965` | Brief T §10 |
+| Domain constant | `TEST_DOMAIN = "@hivic-test.example"` (`src/lib/journey.server.ts:11`); `qa-access` also rejects any address not ending in it (`src/routes/qa-access.tsx:22`) | code |
+| **Intended authentication** | **Password-less**: one-time **magic link** (`generateLink type:"magiclink"`, `journey.server.ts:24-32`, "no password, no email sent") or the product's **secure customer link `/my-job/<token>`** (the mechanism Brief T §13 actually used) | code + Brief T |
+
+**Conclusion:** `qa.journey.1f577d0e025e@hivic.test` (§14) was a transcription error and **is not** the
+fixture account. The two domains are not interchangeable. No account was created, no email changed, no
+password reset, no RLS/ownership touched.
+
+---
+
+## 17. HTTP 500 investigation
+
+**Observation (previous session):** one `POST /_serverFn/…` returned 500 during the "Complete measure-up"
+sequence, while the measurement persisted, the stage advanced and no error toast appeared.
+
+**What the code shows** (`src/lib/portal.functions.ts:275-317`, `completeMeasurement`):
+
+| Guard | Line | Throws when |
+|---|---|---|
+| stage must be in `SITE_STAGES` | 279 | the job has already left the site stages (it lands in `measured_estimate_ready`) |
+| installer task `measure_up` still open | 283 | measure-up already complete |
+| `m.status !== "complete"` | 286 | measurement already accepted |
+| missing measure fields | 288 | incomplete form |
+| evidence required | 289 | no evidence uploaded |
+
+All of these throw `WorkflowError` (`src/lib/workflow.server.ts:8`) — a plain `Error` subclass with **no
+status mapping anywhere in the app**, so TanStack Start returns **HTTP 500** and the client surfaces a
+generic failure instead of the business reason.
+
+**Assessment (evidence-based, not assumed):**
+* The state changes that only `completeMeasurement` can perform **did** happen (stage advanced,
+  `WAITING ON OWNER / Quote awaiting owner approval`), so at least one call committed successfully.
+* The "Complete measure-up" control was clicked more than once across the automated attempts; after the
+  job left `SITE_STAGES` any further call can only hit the guard at line 279 → `WorkflowError` → **500**.
+* **Most probable root cause:** a repeat/duplicate completion call rejected by an idempotency guard.
+  **Classification: UNVERIFIED (probable)** — the exact failing server function and its body could not be
+  captured because (a) the request/response body was not persisted to disk in the previous session and
+  (b) server logs are only readable from a Lovable-agent/backend session.
+* **"Query data cannot be undefined" is a separate issue** (see DEF-02, §21): it is the
+  `["rc-draft", jobId]` query used by `ReadyCheckDraft` (`src/components/trade/ReadyCheckDraft.tsx:20`),
+  unrelated to the completion call.
+* **Duplicate side effects:** not observable from here — no DB access (§11). Must be confirmed from the
+  Office job history (single `measurement_completed` event expected) once an office session exists.
+* No repeat of the measurement completion was performed on HV-2594 (instruction §8).
+
+---
+
+## 18. Quote-readiness investigation ("on hold" messages)
+
+Live capture on `/field/42fcec2e-…` (screenshot
+`docs/phase1/uat/P1-R1_BRIEF_X_BROWSER_EVIDENCE/07_quote_readiness_on_hold.png`):
+
+> **Owner quote: on hold —** Not an installer-supplied job; Office has not checked owner and property
+> eligibility yet; Existing insulation not confirmed (must be none or below R2.0); Installer quote amount
+> is missing. *The owner quote and the Ready Check are tracked separately.*
+
+**Findings:**
+* Source: `ReadyCheckDraft.tsx:61` renders `data.commercial.blockers`, produced by
+  `installerIntakeState()` (`src/lib/installer-intake.server.ts`), i.e. the **commercial readiness gate for
+  `installer_sourced` jobs** (`installerIntakeQualified` returns `false` unless `channel === "installer_sourced"`).
+* HV-2594 is `channel = hivic_sourced`. The very first blocker — *"Not an installer-supplied job"* — states
+  that the gate does not apply to this job's route.
+* Therefore the messages are **not stale data and not missing business values**: they are an
+  **inapplicable panel rendered on the wrong route**. Classification: **GENUINE DEFECT — P2 NON-BLOCKING**
+  (see DEF-03, §21). The real owner quote is a separate object and is already *"awaiting owner approval"*.
+
+---
+
+## 19. Downstream UAT status (§7 items)
+
+| Step | Status | Note |
+|---|---|---|
+| Homeowner identity verified | ✅ PASS | §16 |
+| Homeowner authentication | ⛔ **BLOCKED** | password-less account; needs one owner action (§20) |
+| Quote inspection / acceptance | ⛔ **NOT EXECUTED** | blocked by the above |
+| Xero Demo invoice (≤1) | ⛔ **NOT EXECUTED** | not reached; tenant/routing still to be confirmed before any call |
+| TEST payment | ⛔ **NOT EXECUTED** | not reached |
+| Electrician assignment | ⛔ **NOT EXECUTED** | not reached |
+| Manual PIESA | ⛔ **NOT EXECUTED** | not reached |
+| **F-1** (`piesa_scheduled → piesa_complete`) | ⛔ **NOT EXECUTED / NOT CLAIMED** | requires an office session and the preceding steps |
+
+---
+
+## 20. Exact owner action required
+
+One of the following (all are authorised product mechanisms; none bypasses auth or RLS):
+
+1. **Sign in as the office account `admin@hivic.test` in the clean browser window** ("Google Chrome for
+   Testing", port 9333) — password typed by you, never reaching me. This unlocks everything at once:
+   *"Show link (admin only)"* on the job's estimate panel → the owner secure link `/my-job/<token>`
+   (`src/components/portal/estimate.tsx:318`) → owner quote acceptance (TEST code is displayed on the page,
+   nothing is sent), plus Office visibility, workflow-event history (also confirms §17 duplicate check),
+   electrician assignment and manual PIESA/F-1.
+2. **Paste a `/qa-access?token_hash=…` magic link** for `qa.journey.1f577d0e025e@hivic-test.example`, minted
+   in a Lovable-agent session (service-role `generateLink`) — I open it in the same browser and continue.
+   This grants homeowner access only; Office-side steps would still need option 1.
+3. **Type the homeowner password** at `/auth` (only if that account actually has one — §16 says it is
+   designed password-less).
+
+Nothing else is blocked by code: the fix, the measurement and the measured quote are all verified in the
+real browser.
+
+---
+
+## 21. Defect register (this session)
+
+| ID | Summary | Classification | Severity | Location | Recommended minimal fix |
+|---|---|---|---|---|---|
+| **DEF-01** | Installer measure-up impossible on HIVIC-sourced jobs when Mitti is unavailable | **FIXED & BROWSER-VERIFIED** | P1 (was) | `src/routes/_authenticated/field.$jobId.tsx` | shipped as `1e93613e`, live on Preview |
+| **DEF-02** | Installer job page: "Couldn't load the Ready Check … data is undefined" + react-query `Query data cannot be undefined` for `["rc-draft", jobId]` | GENUINE DEFECT | **P2 NON-BLOCKING** | `src/components/trade/ReadyCheckDraft.tsx:20`, `src/lib/ready-check-draft.functions.ts:5` (`loadRcDraft` always returns an object, so the client receives `undefined` — serialisation/transport) | Make the serverFn response non-optional and render an explicit empty state instead of an error |
+| **DEF-03** | Owner-quote readiness line shows installer-supplied-job blockers on a `hivic_sourced` job ("Not an installer-supplied job …") | GENUINE DEFECT | **P2 NON-BLOCKING** (cosmetic/misleading) | `src/components/trade/ReadyCheckDraft.tsx:61`, `src/lib/installer-intake.server.ts` | Hide or annotate the commercial readiness line when `channel !== "installer_sourced"` |
+| **DEF-04** | Business rejections (`WorkflowError`) surface as HTTP 500 with no user-visible reason | GENUINE DEFECT (same family as Brief K) | **P2 NON-BLOCKING** | `src/lib/workflow.server.ts:8` + serverFn error mapping | Map `WorkflowError` to a 4xx payload carrying `message`, and render it in the UI |
+| **OBS-01** | HTTP 500 during measure-up completion | **UNVERIFIED (probable duplicate-call guard)** | — | `src/lib/portal.functions.ts:279/283/286` | Confirm from server logs / Office event history; no code change proposed yet |
+
+---
+
+*Commits: fix `1e93613e` + report `6411463e` (both pushed to `main` per §8.2). Report updates §12–§14 are
+`12a66dfd`; §15–§21 are committed locally on `r1/brief-x-measurement-ui` and not pushed.*
