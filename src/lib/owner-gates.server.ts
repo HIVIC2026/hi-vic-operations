@@ -2,7 +2,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { SAFETY_CHECK_FEE_DEFAULT, balanceSplit } from "./payment-gate.core";
-import { GATE_DOCS, paymentChoices, type PaymentMoney, answerVars, evaluateOwnerGates, fillTemplate, gateDoc, ownerGateBlockers, ownerToSign, quoteAcceptanceReady, type GateDocKey, type GateFacts, type GateResult } from "./owner-gates.core";
+import { GATE_DOCS, paymentChoices, type PaymentMoney, answerVars, evaluateOwnerGates, fillTemplate, gateDoc, ownerStageGateBlockers, ownerToSign, quoteAcceptanceReady, type GateDocKey, type GateFacts, type GateResult } from "./owner-gates.core";
 import { agreementSigned, assignmentStatus, logEvent, WorkflowError } from "./workflow.server";
 
 async function sha256(s: string) {
@@ -61,7 +61,9 @@ export async function ownerGates(jobId: string): Promise<{ facts: GateFacts; gat
 }
 
 export async function ownerGateStageBlockers(jobId: string, to: string): Promise<string[]> {
-  return ownerGateBlockers((await ownerGates(jobId)).gates, to);
+  const { facts, gates } = await ownerGates(jobId);
+  // The qa_test exemption and the fail-closed rule for real jobs live in one place (owner-gates.core).
+  return ownerStageGateBlockers(gates, to, facts.isTest);
 }
 
 /** Gate A must be complete before any trade is offered the job or sees the owner's details. */
