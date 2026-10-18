@@ -656,6 +656,33 @@ Turning the switch on is an owner-only, production-affecting decision and was **
 
 ---
 
+---
+
+## 25. Customer-communications pre-enablement check (separate deliverable)
+
+The owner intends to enable customer communications before Phase 1 handover, so no TEST-only release
+mechanism will be built. The targeted check (impact, historical backlog, send paths, template approval,
+safe-validation option, blockers) and the proposed two-step enablement plan are in:
+
+**`docs/phase1/release/P1-R1_BRIEF_X_COMMS_ENABLEMENT_PRECHECK_AND_PLAN.md`**
+
+Headline results, all from live read-only office UI plus source inspection — **no switch changed, nothing
+sent, no code changed, no deploy**:
+
+* `/admin/operations-preview`: **"Automation paused · 7 controls"**, **"Connection health unverified"**.
+  Customer messages **Paused**; **customer delivery adapter Paused**; Quotes Paused; Save my spot Paused;
+  Insulation-details email Paused; **Mitti Enabled** (pre-existing); installer/electrician offers Paused.
+* `customer_comms_enabled` is a **master permission** — on its own it delivers nothing; the delivery
+  adapter is a second, independent lock and is off.
+* Enabling it does **not** retroactively send: `releaseQueuedQuotes` only touches `status='issued'` +
+  `queued` (drafts are untouched); reminder sweeps only enqueue and skip `qa_test`.
+* **"Measured quote (after Ready Check)" template is unapproved** ("live sending held"), as are the
+  booking/ESC, pre-install, VEEC-signing and completion emails → real quote email is blocked (B1–B6).
+* **HV-2594 can be validated first, safely**: `qa_test` is excluded from the real-send paths, the owner
+  address is synthetic, and with the adapter off nothing can leave the system.
+
+---
+
 *Commits: fix `1e93613e` + report `6411463e` (both pushed to `main` per §8.2). Report updates §12–§14 are
-`12a66dfd`; §15–§21 are `e8358e8e`; §22–§23 are `b7b5816d`; §24 is committed locally on
-`r1/brief-x-measurement-ui` and not pushed.*
+`12a66dfd`; §15–§21 are `e8358e8e`; §22–§23 are `b7b5816d`; §24 is `1f064f0c`; §25 and the enablement
+plan document are committed locally on `r1/brief-x-measurement-ui` and not pushed.*
