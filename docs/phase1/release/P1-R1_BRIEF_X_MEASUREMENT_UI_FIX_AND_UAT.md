@@ -550,9 +550,112 @@ The blocking action is now an **office** one, not an authentication one:
 | **DEF-04** | `WorkflowError` surfaces as HTTP 500 with no user-visible reason | GENUINE DEFECT (Brief K family) | P2 NON-BLOCKING | `workflow.server.ts:8` + serverFn error mapping |
 | **DEF-05** | Installer journey shows "Quote awaiting owner approval · **sent** Mon 19 Oct" while no quote exists | GENUINE DEFECT (misleading copy) | P2 NON-BLOCKING | `job-status.core.ts:71` (`quoteSentAt ?? stageSince`) |
 | **OBS-01** | HTTP 500 during measure-up completion | UNVERIFIED (probable duplicate-call guard) | — | `portal.functions.ts:279/283/286` |
-| **OBS-02** | Measured quote not created at `measured_estimate_ready` | EXPECTED BEHAVIOUR (office action pending, `auto_send_quote=false`) | — | `quotes.server.ts:119`, `portal.functions.ts:668` |
+| **OBS-02** | Measured quote not created at `measured_estimate_ready` | **EXPECTED BEHAVIOUR — now browser-verified from both sides** (office "No quotes yet." + owner "No quotes yet."; office must generate it) | — | `quotes.server.ts:119`, `portal.functions.ts:668` |
+| **OBS-03** | Even after office generates the quote it stays invisible to the owner | **EXPECTED BEHAVIOUR (launch switch)** — `customer_comms_enabled=false` ⇒ `draft/queued`, office-only; no UI promotes queued→issued | — | `quote-release.core.ts:28-30`, `owner-quote-visibility.core.ts:6`, `quotes.server.ts:211-214` |
+
+---
+
+---
+
+## 24. Office round — quote inspection and preparation (19 Oct 2026, 04:13–04:35)
+
+Authenticated as the TEST office account `admin@hivic.test` (owner typed the password in the visible
+`Google Chrome for Testing` window; the password never entered agent context, scripts, logs, screenshots
+or commits). Evidence: `15_office_signed_in_admin.png` … `20_admin_enquiry_estimate.png`.
+
+### 24.1 Existing quotes on HV-2594 (step 2)
+
+`/admin/jobs/42fcec2e-…` → **Quotes & payments**:
+
+| Check | Result |
+|---|---|
+| `Quotes` panel | **"No quotes yet."** |
+| `Internal pricing (admin only)` table | empty (no rows) |
+| Xero invoice & payments | **"No invoice yet"** |
+| Electronic signing | item 1 "Not signed – the customer signs when accepting the installation quote" |
+| Instalment plan | "Owner has not approved the current confirmed quote" |
+
+**Conclusion: no draft, held or issued quote exists. There is nothing to duplicate, and nothing to accept.**
+This matches the homeowner side (§22) and supersedes the inference in OBS-02 with direct browser evidence.
+
+### 24.2 Measured facts, quote basis and status (step 3)
+
+Office **Ready Check** tab (`18_admin_readycheck_measurement.png`):
+
+| Fact | Value |
+|---|---|
+| Ceiling / insulation measure-up | **Accepted** · Source installer Bhavdeep (TEST) · Completed 19 Oct 2026 |
+| Measured area | **120 m²** |
+| Removal | **No** (0 m²) |
+| Existing insulation | **No** · existing R-value `—` |
+| Access | **easy** → standard access loading (×1.0) |
+| Still outstanding | electrical assessment / PIESA (electrician unassigned) |
+
+Owner prices read from `/admin/pricing` (`19_admin_pricing_settings.png`, read-only):
+
+| Input | Value |
+|---|---|
+| Owner installation price per m² (inc GST) | **$30.00** |
+| Owner removal price per m² (inc GST) | $15.00 (not used — no removal) |
+| Moderate / difficult access loading | ×1.10 / ×1.25 (not used — access easy) |
+| Owner PIESA price (inc GST) | **$349.00** |
+| Accredited Provider fee (inc GST) | **$349.00** |
+| VEEC buy price | **$70.00** |
+
+Quote lines per `priceHivQuote` (`src/lib/hiv-quote.core.ts:38-41`) and the app's own current indicative
+estimate (`20_admin_enquiry_estimate.png`, "Step 3 · Indicative estimate · Current v2 · Area: 120 m² —
+Accepted ceiling measure-up (measured)"):
+
+| Line | Basis | Amount (inc GST) |
+|---|---|---|
+| R5.0 ceiling insulation supply & install | 120 m² × $30.00 (access standard ×1.0) | **$3,600.00** |
+| Removal & disposal | 0 m² | $0.00 |
+| PIESA (mandatory) | flat | **$349.00** |
+| Accredited Provider fee | flat | **$349.00** |
+| **Subtotal** | | **$4,298.00** |
+| VEU / VEEC discount | 16 VEECs × $70.00 (Eq 48.1: 0.00576 × 120 × 25 × 0.98 = 16.9344 → floor **16**; postcode 3064 = Metropolitan / Mild / zone 4) | **−$1,120.00** |
+| **Customer total** | minimum $200 contribution not triggered | **$3,178.00** |
+
+The app's own estimate states exactly the same figures ("Estimated project total $4,298",
+"Estimated VEU / VEEC discount −$1,120", "YOUR ESTIMATED COST AFTER DISCOUNT $3,178"), so the quote-vs-estimate
+variance is **0%** — well inside the 15% tolerance, i.e. the generated quote will **not** be held
+(`confirmedQuoteDecision`, `quote-release.core.ts:17-31`).
+
+### 24.3 Release behaviour — why the owner still cannot accept (structural, not a defect)
+
+`/admin/pricing` and the Enquiry tab prove the launch switch state in this environment:
+
+* "**Customer communications OFF** — link has not been sent"
+* "Customer engagement … **Email: Not sent**"
+
+With `customer_comms_enabled = false`, `confirmedQuoteDecision` returns `{ state: "queued", status: "draft" }`
+(`quote-release.core.ts:28-30`). `owner-quote-visibility.core.ts` states the rule explicitly: *"Held and
+queued quotes are office-only"*, and `ownerPanelQuotes` filters `status !== "draft"` plus
+`release_state !== "released"`. Consequences verified in code:
+
+1. A generated quote lands as **draft / queued** and is shown to office as **"Ready to send"**
+   (`admin.jobs.$jobId.tsx:398`) — invisible to the owner.
+2. The automatic sweep `releaseQueuedQuotes` (`quotes.server.ts:211-214`) only touches rows with
+   `status = "issued"` **and** both switches true — a queued **draft** is never promoted by it.
+3. `approveHeldQuote` (office "Approve" button) only acts on `release_state = "held"` drafts; there is
+   **no office UI control that promotes a queued draft to issued**.
+
+**Therefore: while the customer-communications switch is off, no measured quote can reach the owner, so
+owner acceptance — and everything after it (Xero Demo, TEST payment, electrician, PIESA, F-1) — is
+structurally unreachable in Preview. This is expected launch-switch behaviour, not a code defect.**
+Turning the switch on is an owner-only, production-affecting decision and was **not** done
+(safety rule: "Enable COM-04" / "modify production configuration" are forbidden).
+
+### 24.4 Step 4–7 status this round
+
+* No quote created yet — waiting for owner confirmation of the amount/basis above.
+* No duplicate quote possible (none exists).
+* No customer communication triggered (comms OFF, and no send action taken).
+* No Xero invoice created, no payment processed.
+* No code changed; no workflow guard bypassed; no previously passed UAT step repeated.
 
 ---
 
 *Commits: fix `1e93613e` + report `6411463e` (both pushed to `main` per §8.2). Report updates §12–§14 are
-`12a66dfd`; §15–§21 are `e8358e8e`; §22–§23 are committed locally on `r1/brief-x-measurement-ui` and not pushed.*
+`12a66dfd`; §15–§21 are `e8358e8e`; §22–§23 are `b7b5816d`; §24 is committed locally on
+`r1/brief-x-measurement-ui` and not pushed.*
