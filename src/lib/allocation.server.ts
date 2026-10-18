@@ -128,7 +128,9 @@ export async function agreedElectricianRates(businessIds: string[], kind: "piesa
 export async function startPiesaAllocation(jobId: string, actorId: string | null, kind: "piesa" | "rectification" = "piesa", opts: { rateToConfirm?: boolean; onlyBusiness?: string | string[]; adding?: boolean } = {}) {
   const [facts, { count: elec }, { count: open }] = await Promise.all([
     piesaRequestFacts(jobId),
-    admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true),
+    // Only an electrician who actually CONFIRMED a visit counts as "already accepted": a pre-assignment
+    // (e.g. a Test Centre persona row) is not a booking, so it must not block new PIESA offers.
+    admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true).not("booking_confirmed_at", "is", null),
     admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", kind).eq("status", "pending"),
   ]);
   const blockers = piesaOfferBlockers({ ...facts, hasActiveElectrician: !!elec, hasOpenOffers: !!open && !opts.adding });
@@ -483,7 +485,8 @@ export async function submitOwnerPiesaWindows(jobId: string, userId: string, pic
   if (b.length) throw new WorkflowError(b.join(" "));
   const [{ data: job }, { count: elec }, w] = await Promise.all([
     admin.from("jobs").select("stage, source").eq("id", jobId).single(),
-    admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true),
+    // Same rule as PIESA offers: only a confirmed booking means an electrician is already arranging this visit.
+    admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true).not("booking_confirmed_at", "is", null),
     currentWindowRound(jobId),
   ]);
   if (!job || !["measured_quote_accepted", "piesa_and_install_window_pending"].includes(job.stage)) throw new WorkflowError("PIESA times can be chosen once the quote has been accepted.");
@@ -512,7 +515,8 @@ export async function submitOwnerPiesaWindows(jobId: string, userId: string, pic
 export async function ownerPiesaWindowState(jobId: string) {
   const [{ data: job }, { count: elec }, w, { data: rows }, { count: asked }] = await Promise.all([
     admin.from("jobs").select("stage").eq("id", jobId).single(),
-    admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true),
+    // Only a confirmed booking means an electrician is already arranging this visit (see startPiesaAllocation).
+    admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true).not("booking_confirmed_at", "is", null),
     currentWindowRound(jobId),
     admin.from("appointment_proposals").select("id, starts_at, ends_at, status, piesa_window_round").eq("job_id", jobId).not("piesa_window_round", "is", null).order("starts_at"),
     admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "piesa_more_times_requested"),
