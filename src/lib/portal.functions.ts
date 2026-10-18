@@ -588,7 +588,9 @@ export const generateInstallerQuotes = createServerFn({ method: "POST" }).middle
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const stage = await getStage(data.jobId);
-    if (!["ready_for_installer_quotes", "awaiting_quote_acceptance"].includes(stage)) throw new WorkflowError("Quotes can only be generated once the job is Ready for Installer Quotes.");
+    // measured_estimate_ready is the Ready Check path (measure-up done, owner waiting); the quote stays there until
+    // the owner accepts it, which moves the job to measured_quote_accepted.
+    if (!["ready_for_installer_quotes", "awaiting_quote_acceptance", "measured_estimate_ready"].includes(stage)) throw new WorkflowError("Quotes can only be generated once the job is Ready for Installer Quotes.");
     // Check the gates BEFORE issuing quotes so none are issued to the owner while the job is blocked.
     const pre = (await stageEntryBlockers(data.jobId, "awaiting_quote_acceptance")).filter((b) => b !== "No installation quotes issued.");
     if (pre.length) throw new WorkflowError(`Blocked: ${pre.join(" • ")}`);
