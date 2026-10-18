@@ -592,7 +592,9 @@ export const generateInstallerQuotes = createServerFn({ method: "POST" }).middle
     // the owner accepts it, which moves the job to measured_quote_accepted.
     if (!["ready_for_installer_quotes", "awaiting_quote_acceptance", "measured_estimate_ready"].includes(stage)) throw new WorkflowError("Quotes can only be generated once the job is Ready for Installer Quotes.");
     // Check the gates BEFORE issuing quotes so none are issued to the owner while the job is blocked.
-    const pre = (await stageEntryBlockers(data.jobId, "awaiting_quote_acceptance")).filter((b) => b !== "No installation quotes issued.");
+    // The Ready Check path quotes before the PIESA, so its gate is the stage the owner's acceptance leads to.
+    const gateStage = stage === "measured_estimate_ready" ? "measured_quote_accepted" : "awaiting_quote_acceptance";
+    const pre = (await stageEntryBlockers(data.jobId, gateStage)).filter((b) => b !== "No installation quotes issued.");
     if (pre.length) throw new WorkflowError(`Blocked: ${pre.join(" • ")}`);
     await genInstaller(data.jobId, context.userId);
     { const { applyCobrand } = await import("./pilot.server"); await applyCobrand(data.jobId); }
