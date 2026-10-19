@@ -11,7 +11,7 @@ export const TEMPLATE_CATEGORIES: { key: TemplateCategory; label: string }[] = [
 
 /** What the detail pane mounts for the selected entry (only the selected one is mounted). */
 export type TemplateView =
-  | { kind: "sample_email"; sample: "likely" | "savespot" | "savespotNoSize" | "onsite" | "ineligible" | "reminder3" | "coverage" }
+  | { kind: "sample_email"; sample: "likely" | "savespot" | "savespotNoSize" | "onsite" | "ineligible" | "reminder3" | "coverage" | "measured_quote" | "booking_consent" | "pre_install_pack" | "assignment_signing" | "completion_pack" }
   | { kind: "partner_invitation"; templateKey: "rec_invitation" | "installer_invitation" }
   | { kind: "partner_email"; email: "welcome" | "changes" | "decline" }
   | { kind: "plain_email"; email: "partner_login" }
@@ -47,7 +47,13 @@ const EMAIL: TemplateEntry[] = [
   commEntry("ineligible_result", { kind: "sample_email", sample: "ineligible" }, "Not recorded"),
   commEntry("estimate_unopened_3d", { kind: "sample_email", sample: "reminder3" }, "Not recorded"),
   commEntry("area_unavailable", { kind: "sample_email", sample: "coverage" }, "Not recorded"),
-  ...(["measured_quote", "booking_consent", "pre_install_pack", "assignment_signing", "completion_pack"] as const).map((k) => commEntry(k, { kind: "review_only" }, "Not recorded")),
+  ...([
+    ["measured_quote", "measured_quote"],
+    ["booking_consent", "booking_consent"],
+    ["pre_install_pack", "pre_install_pack"],
+    ["assignment_signing", "assignment_signing"],
+    ["completion_pack", "completion_pack"],
+  ] as const).map(([k, sample]) => commEntry(k, { kind: "sample_email", sample }, "Draft wording for review — not approved; live sending held")),
   { id: "email:rec_invitation", category: "email", group: "Partner emails", title: "REC partnership invitation", purpose: "Invites licensed electricians to apply.", audience: "Electrician / REC", trigger: "Office sends manually (download or copy)", approval: "Not recorded", view: { kind: "partner_invitation", templateKey: "rec_invitation" } },
   { id: "email:installer_invitation", category: "email", group: "Partner emails", title: "Installer partnership invitation", purpose: "Invites insulation installers to apply.", audience: "Installer", trigger: "Office sends manually (download or copy)", approval: "Approved copy (project record)", view: { kind: "partner_invitation", templateKey: "installer_invitation" } },
   { id: "email:partner_welcome", category: "email", group: "Partner emails", title: "Partner welcome", purpose: "Tells an approved partner to set their password.", audience: "Approved installer / electrician", trigger: "When the office approves an application", approval: "Approved by Jo, 8 Oct 2026", view: { kind: "partner_email", email: "welcome" } },

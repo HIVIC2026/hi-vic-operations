@@ -47,8 +47,15 @@ describe("Template selection", () => {
   test("email inventory distinguishes exact builders, stored reviews and original tool", () => {
     const emails = entriesFor("email");
     expect(emails.length).toBe(19);
-    expect(emails.filter((e) => e.view.kind === "review_only").map((e) => e.reviewKey)).toEqual(["measured_quote", "booking_consent", "pre_install_pack", "assignment_signing", "completion_pack"]);
-    expect(emails.filter((e) => ["sample_email", "partner_invitation", "partner_email", "plain_email"].includes(e.view.kind)).length).toBe(13);
+    // P1-R2-S02: the five later-stage lifecycle templates now mount the existing sample_email
+    // renderer (draft wording preview) instead of a bare review_only placeholder, so no email
+    // entry is review_only any more. Their stored review-version keys are still wired (reviewKey).
+    expect(emails.filter((e) => e.view.kind === "review_only").length).toBe(0);
+    expect(emails.filter((e) => e.view.kind === "sample_email").map((e) => e.reviewKey)).toEqual(
+      expect.arrayContaining(["measured_quote", "booking_consent", "pre_install_pack", "assignment_signing", "completion_pack"]),
+    );
+    // 13 pre-S02 (sample/partner/plain) + the 5 lifecycle sample_email renderers = 18.
+    expect(emails.filter((e) => ["sample_email", "partner_invitation", "partner_email", "plain_email"].includes(e.view.kind)).length).toBe(18);
     expect(emails.filter((e) => e.view.kind === "open_original").length).toBe(1);
   });
 });

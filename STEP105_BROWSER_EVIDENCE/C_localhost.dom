@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+    <meta charset="utf-8">
+    <title>STEP 105 env-guard browser check</title>
+  </head>
+  <body style="margin:0">
+    <div id="root" style="font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;padding:24px;color:#111;background:#fff">
+      <h1 style="font-size:18px;margin:0 0 4px">STEP 105 env-guard live browser check</h1>
+      <div><b>document hostname:</b> <span id="host">127.0.0.1</span></div>
+      <div><b>currentHostname():</b> 127.0.0.1</div>
+      <div><b>detected runtime mode (NODE_ENV=development):</b> <span id="mode" style="font-weight:700">local</span></div>
+      <table style="margin-top:12px;border-collapse:collapse;width:100%">
+        <tbody><tr><th style="text-align:left;border-bottom:1px solid #999">env</th>
+            <th style="text-align:left;border-bottom:1px solid #999">endpoint</th>
+            <th style="text-align:left;border-bottom:1px solid #999">mode</th>
+            <th style="text-align:left;border-bottom:1px solid #999">result</th></tr>
+        <tr>
+            <td style="padding:2px 8px 2px 0;vertical-align:top">NODE_ENV=development (Lovable Preview build)</td>
+            <td style="padding:2px 8px 2px 0;vertical-align:top">https://wvuffpykgnqliikhodzl.supabase.co</td>
+            <td style="padding:2px 8px 2px 0;vertical-align:top">local</td>
+            <td style="padding:2px 0;vertical-align:top">REFUSED -&gt; [env-guard] Refusing a production Supabase host (*.supabase.co) in local mode. Local/test safety cannot be overridden by ALLOW_PROD_SUPABASE. Use a local endpoint (127.0.0.1).</td>
+          </tr><tr>
+            <td style="padding:2px 8px 2px 0;vertical-align:top">NODE_ENV=development (Lovable Preview build)</td>
+            <td style="padding:2px 8px 2px 0;vertical-align:top">https://someotherproject.supabase.co</td>
+            <td style="padding:2px 8px 2px 0;vertical-align:top">local</td>
+            <td style="padding:2px 0;vertical-align:top">REFUSED -&gt; [env-guard] Refusing a production Supabase host (*.supabase.co) in local mode. Local/test safety cannot be overridden by ALLOW_PROD_SUPABASE. Use a local endpoint (127.0.0.1).</td>
+          </tr><tr>
+            <td style="padding:2px 8px 2px 0;vertical-align:top">NODE_ENV=development (Lovable Preview build)</td>
+            <td style="padding:2px 8px 2px 0;vertical-align:top">https://db.internal.example</td>
+            <td style="padding:2px 8px 2px 0;vertical-align:top">local</td>
+            <td style="padding:2px 0;vertical-align:top">ALLOWED -&gt; https://db.internal.example</td>
+          </tr><tr>
+            <td style="padding:2px 8px 2px 0;vertical-align:top">NODE_ENV=development (Lovable Preview build)</td>
+            <td style="padding:2px 8px 2px 0;vertical-align:top">http://127.0.0.1:54321</td>
+            <td style="padding:2px 8px 2px 0;vertical-align:top">local</td>
+            <td style="padding:2px 0;vertical-align:top">ALLOWED -&gt; http://127.0.0.1:54321</td>
+          </tr><tr>
+            <td style="padding:2px 8px 2px 0;vertical-align:top">NODE_ENV=production + ALLOW_PROD_SUPABASE=1</td>
+            <td style="padding:2px 8px 2px 0;vertical-align:top">https://wvuffpykgnqliikhodzl.supabase.co</td>
+            <td style="padding:2px 8px 2px 0;vertical-align:top">production</td>
+            <td style="padding:2px 0;vertical-align:top">ALLOWED -&gt; https://wvuffpykgnqliikhodzl.supabase.co</td>
+          </tr><tr>
+            <td style="padding:2px 8px 2px 0;vertical-align:top">NODE_ENV=production + ALLOW_PROD_SUPABASE=1</td>
+            <td style="padding:2px 8px 2px 0;vertical-align:top">https://someotherproject.supabase.co</td>
+            <td style="padding:2px 8px 2px 0;vertical-align:top">production</td>
+            <td style="padding:2px 0;vertical-align:top">ALLOWED -&gt; https://someotherproject.supabase.co</td>
+          </tr><tr>
+            <td style="padding:2px 8px 2px 0;vertical-align:top">NODE_ENV=production + ALLOW_PROD_SUPABASE=1</td>
+            <td style="padding:2px 8px 2px 0;vertical-align:top">https://db.internal.example</td>
+            <td style="padding:2px 8px 2px 0;vertical-align:top">production</td>
+            <td style="padding:2px 0;vertical-align:top">ALLOWED -&gt; https://db.internal.example</td>
+          </tr><tr>
+            <td style="padding:2px 8px 2px 0;vertical-align:top">NODE_ENV=production + ALLOW_PROD_SUPABASE=1</td>
+            <td style="padding:2px 8px 2px 0;vertical-align:top">http://127.0.0.1:54321</td>
+            <td style="padding:2px 8px 2px 0;vertical-align:top">production</td>
+            <td style="padding:2px 0;vertical-align:top">ALLOWED -&gt; http://127.0.0.1:54321</td>
+          </tr>
+      </tbody></table>
+    </div>
+  
+
+</body></html>

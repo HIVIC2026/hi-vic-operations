@@ -6,6 +6,7 @@ import { OfficeAllocationPanel } from "@/components/portal/allocation";
 import { ChooseTradePanel } from "@/components/portal/choose-trade";
 import { OfficeInstalmentPlanCard } from "@/components/portal/instalment-plan";
 import { VerifiedEligibilityCard } from "@/components/portal/verified-eligibility";
+import { OfficeReadyCheckReopen } from "@/components/portal/ready-check-office";
 import { AdminEstimateCard } from "@/components/portal/estimate";
 import { AdminBookingOverride, AdminPartnerPanel, AppointmentPanel } from "@/components/portal/partner";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -33,7 +34,7 @@ import { JobIdentity, RecordDisclosure, SubHeading, usePortalTargetNavigation, t
 import { AllDocuments, Correspondence, ExportJobPack, JobTimeline, RetentionCard, SectionDocuments } from "@/components/portal/jobfile";
 import type { PortalTarget } from "@/lib/portal-presentation.core";
 import { checkMittiAccess } from "@/lib/mitti-membership.functions";
-import { MITTI_ACCESS_LABEL, mittiAccessOf, mittiCheckedLabel, mittiInviteLine, type MittiMemberRow } from "@/lib/mitti-membership.core";
+import { MITTI_ACCESS_LABEL, mittiAccessOf, mittiCheckedLabel, mittiInviteLine, mittiOverrideAccepted, type MittiMemberRow } from "@/lib/mitti-membership.core";
 
 import { useAction } from "@/hooks/use-me";
 import { useServerFn } from "@tanstack/react-start";
@@ -126,7 +127,7 @@ function JobDetail() {
           <div id="panel-intake-consent" className="scroll-mt-4"><IntakeSummary jobId={jobId} /></div><SectionDocuments jobId={jobId} categories={["Property"]} />
         </RecordDisclosure>
         <RecordDisclosure {...g("ready_check")} title="Ready Check" summary="Requirements, appointment, booking, Mitti and measure-up">
-          <ChooseTradePanel jobId={jobId} /><RequirementCards jobId={jobId} isAdmin job={job} /><AppointmentPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="assessment" canBook={false} isAdmin /><AdminBookingOverride jobId={jobId} /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /><SectionDocuments jobId={jobId} categories={["Measure-up"]} />
+          <ChooseTradePanel jobId={jobId} /><RequirementCards jobId={jobId} isAdmin job={job} /><AppointmentPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="assessment" canBook={false} isAdmin /><AdminBookingOverride jobId={jobId} /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /><SectionDocuments jobId={jobId} categories={["Measure-up"]} /><OfficeReadyCheckReopen jobId={jobId} />
         </RecordDisclosure>
         <RecordDisclosure {...g("quote")} title="Quotes & payments" summary="Exact quotes, payment mirror, signing and source-specific invoice controls">
           <div id="target-quotes" data-portal-focus="target" tabIndex={-1} className="scroll-mt-4 outline-none"><AdminQuotes jobId={jobId} /></div><InstallerIntakeReviewPanel jobId={jobId} /><InstallerQuoteDraftPanel jobId={jobId} /><InstallerLedInvoicePanel jobId={jobId} /><div id="panel-deposit-request" className="scroll-mt-4"><PaymentsPanel jobId={jobId} isAdmin /></div><OfficeInstalmentPlanCard jobId={jobId} /><SectionDocuments jobId={jobId} categories={["Quotes", "Payments"]} />
@@ -297,8 +298,8 @@ function Assignments({ jobId }: { jobId: string }) {
           <p className="text-sm font-semibold">{pending.name} is not confirmed in the Home Insulation Victoria Mitti organisation.</p>
           <p className="mt-1 text-xs text-muted-foreground">They cannot be sent the {pending.role === "electrician" ? "electrical safety (PIESA)" : "Ready Check / installer safety"} form until invited with their exact email. Assigning anyway is recorded with your reason.</p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <Input value={why} onChange={(e) => setWhy(e.target.value)} placeholder="Why assign them anyway? (required)" className="h-9 max-w-sm" />
-            <Button size="sm" onClick={async () => { await assign({ jobId, userId: pending.userId, role: pending.role, mittiOverrideReason: why }, "Assigned with a recorded exception"); setPending(null); }}>Assign anyway</Button>
+            <Input value={why} onChange={(e) => setWhy(e.target.value)} placeholder="Why assign them anyway? (required)" minLength={5} className="h-9 max-w-sm" />
+            <Button size="sm" disabled={!mittiOverrideAccepted(why)} onClick={async () => { const res = await assign({ jobId, userId: pending.userId, role: pending.role, mittiOverrideReason: why }, "Assigned with a recorded exception"); if (res?.ok === true) setPending(null); }}>Assign anyway</Button>
             <Button size="sm" variant="outline" onClick={() => setPending(null)}>Cancel</Button>
           </div>
         </div>

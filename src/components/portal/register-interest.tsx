@@ -27,14 +27,64 @@ type Props = {
 
 const lightInput =
   "h-11 w-full rounded-xl border border-estimate-line bg-estimate-white px-4 text-[0.95rem] text-estimate-navy placeholder:text-estimate-navy/50 focus-visible:border-estimate-blue focus-visible:outline-none";
+/** Same box, red edge, shown once the answer in it is wrong. */
+const lightInputInvalid = lightInput.replace("border-estimate-line", "border-danger");
 
-function Row({ id, label, children }: { id: string; label: string; children: React.ReactNode }) {
+/** Which answer a problem belongs to, so the message can sit next to the field it is about. */
+type InterestField = "address" | "fullName" | "mobile" | "email" | "consent";
+type InterestFieldErrors = Partial<Record<InterestField, string | undefined>>;
+
+/** Screen order (top to bottom) — the first unanswered box is the one that gets focus. */
+const FIELD_ORDER: InterestField[] = ["address", "fullName", "mobile", "email", "consent"];
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Server keys are the saved draft's names; map them back to the box on screen. */
+const SERVER_FIELD: Record<string, InterestField> = {
+  fullName: "fullName",
+  mobile: "mobile",
+  email: "email",
+  consent: "consent",
+  addressLine: "address",
+  postcode: "address",
+  suburb: "address",
+};
+
+/** Points at the refusal the server sent for the named field, or nothing extra to say. */
+function errorsFromServer(errors: Record<string, string | undefined>) {
+  const mapped: InterestFieldErrors = {};
+  const loose: string[] = [];
+  for (const [key, message] of Object.entries(errors)) {
+    if (!message) continue;
+    const field = SERVER_FIELD[key];
+    if (field && !mapped[field]) mapped[field] = message;
+    else loose.push(message);
+  }
+  return { mapped, loose };
+}
+
+function Row({
+  id,
+  label,
+  children,
+  error,
+}: {
+  id: string;
+  label: string;
+  children: React.ReactNode;
+  error?: string | undefined;
+}) {
   return (
     <div>
       <label htmlFor={id} className="text-[0.65rem] font-extrabold uppercase tracking-[0.12em] text-estimate-navy/70">
         {label}
       </label>
       <div className="mt-1">{children}</div>
+      {error ? (
+        <p id={`${id}-error`} role="alert" className="mt-1 text-xs font-bold text-danger">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -52,8 +102,43 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
   const [consent, setConsent] = useState(false);
   const [honeypot, setHoneypot] = useState("");
   const [busy, setBusy] = useState(false);
+  /** Whole-form problems (the server said no, or a bot filled the hidden box). */
   const [error, setError] = useState("");
+  /** Per-answer problems, shown next to the box they belong to. */
+  const [fieldErrors, setFieldErrors] = useState<InterestFieldErrors>({});
+  const [focusField, setFocusField] = useState<InterestField | null>(null);
   const [done, setDone] = useState("");
+
+  const nameRef = useRef<HTMLInputElement | null>(null);
+  const mobileRef = useRef<HTMLInputElement | null>(null);
+  const emailRef = useRef<HTMLInputElement | null>(null);
+  const consentRef = useRef<HTMLInputElement | null>(null);
+
+  /** Drop a message as soon as the person starts fixing that answer. */
+  const clearField = (field: InterestField) =>
+    setFieldErrors((prev) => (prev[field] ? { ...prev, [field]: undefined } : prev));
+
+  const focusFirstProblem = (errors: InterestFieldErrors) => {
+    const first = FIELD_ORDER.find((field) => errors[field]);
+    if (first) setFocusField(first);
+    return first;
+  };
+
+  // Run after the refused submit has rendered — the address box may only just have opened —
+  // so the first problem is both on screen (scrolled to) and announced once.
+  useEffect(() => {
+    if (!focusField) return;
+    const inputs = { fullName: nameRef, mobile: mobileRef, email: emailRef, consent: consentRef };
+    const el =
+      focusField === "address"
+        ? document.getElementById("register-address")
+        : (inputs[focusField]?.current ?? null);
+    if (el) {
+      el.focus();
+      if (typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "center" });
+    }
+    setFocusField(null);
+  }, [focusField]);
 
   // Follow the address typed above until the person edits it here.
   const addressTouched = useRef(false);
@@ -69,27 +154,29 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
     setError("");
     const trimmedLine = line.trim();
     const foundPostcode = postcodeNow.trim() || extractPostcode(trimmedLine);
+    // Same rules and same wording as before — only the answers are checked together now so
+    // every missing box is marked at once instead of one message describing whichever came first.
+    const next: InterestFieldErrors = {};
     if (trimmedLine.length >= 5 && foundPostcode.length !== 4) {
-      setEditing(true);
-      setError("Please include your postcode in the address, for example 34 Watsons Road, Bundoora VIC 3757.");
-      return;
+      if (!editing) setEditing(true);
+      next.address =
+        "Please include your postcode in the address, for example 34 Watsons Road, Bundoora VIC 3757.";
     }
     if (fullName.trim().length < 2) {
-      setError("Please enter your name so we know who to ask for.");
-      return;
+      next.fullName = "Please enter your name so we know who to ask for.";
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      setError("Please enter a valid email address.");
-      return;
+    if (!EMAIL_RE.test(email.trim())) {
+      next.email = "Please enter a valid email address.";
     }
     if (mobile.replace(/\D/g, "").length < 9) {
-      setError("Please enter a valid mobile number.");
-      return;
+      next.mobile = "Please enter a valid mobile number.";
     }
     if (!consent) {
-      setError("Please tick the box so we can contact you.");
-      return;
+      next.consent = "Please tick the box so we can contact you.";
     }
+    setFieldErrors(next);
+    if (focusFirstProblem(next)) return;
+    // Nothing left to say to the person — hand the draft to the office.
     setBusy(true);
     try {
       const result = await register({
@@ -113,8 +200,14 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
           setError("We couldn't save that — please check the details and try again. If it keeps happening, message us through the contact page on our website and we'll register you.");
           return;
         }
-        const first = Object.values(result.errors).find(Boolean);
-        setError(first || "We couldn't save that — please check the details and try again.");
+        // Put the server's reason next to the box it is about when we know which one it is.
+        const { mapped, loose } = errorsFromServer(result.errors);
+        setFieldErrors(mapped);
+        const firstProblem = focusFirstProblem(mapped);
+        const summary = loose[0];
+        if (summary) setError(summary);
+        else if (!firstProblem)
+          setError("We couldn't save that — please check the details and try again.");
         return;
       }
       setDone(fullName.trim().split(/\s+/)[0] || "there");
@@ -176,11 +269,14 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
                 <AddressCombobox
                   id="register-address"
                   value={line}
+                  invalid={!!fieldErrors.address}
+                  describedBy={fieldErrors.address ? "register-address-error" : undefined}
                   onChange={(next) => {
                     addressTouched.current = true;
                     setLine(next);
                     setPostcodeNow(extractPostcode(next));
                     setSuburbNow(suburbFromLine(next));
+                    clearField("address");
                   }}
                   onPick={(suggestion) => {
                     addressTouched.current = true;
@@ -189,10 +285,20 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
                     setSuburbNow(suggestion.suburb);
                     setEditing(false);
                     setError("");
+                    clearField("address");
                   }}
                   placeholder="e.g. 34 Watsons Road, Bundoora"
                   ariaLabel="Property address"
                 />
+                {fieldErrors.address ? (
+                  <p
+                    id="register-address-error"
+                    role="alert"
+                    className="mt-1 text-xs font-bold text-danger"
+                  >
+                    {fieldErrors.address}
+                  </p>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => setEditing(false)}
@@ -219,54 +325,90 @@ export function RegisterInterest({ address, suburb, postcode, ceilingM2, insulat
           </div>
 
           <div className="grid gap-3 sm:grid-cols-3">
-            <Row id="ri-name" label="Full name">
+            <Row id="ri-name" label="Full name" error={fieldErrors.fullName}>
               <input
                 id="ri-name"
+                ref={nameRef}
                 name="fullName"
                 autoComplete="name"
+                aria-required="true"
+                aria-invalid={!!fieldErrors.fullName}
+                aria-describedby={fieldErrors.fullName ? "ri-name-error" : undefined}
                 value={fullName}
-                onChange={(event) => setFullName(event.target.value)}
+                onChange={(event) => {
+                  setFullName(event.target.value);
+                  clearField("fullName");
+                }}
                 placeholder="Jane Doe"
-                className={lightInput}
+                className={fieldErrors.fullName ? lightInputInvalid : lightInput}
               />
             </Row>
-            <Row id="ri-mobile" label="Mobile">
+            <Row id="ri-mobile" label="Mobile" error={fieldErrors.mobile}>
               <input
                 id="ri-mobile"
+                ref={mobileRef}
                 name="mobile"
                 type="tel"
                 inputMode="tel"
                 autoComplete="tel"
+                aria-required="true"
+                aria-invalid={!!fieldErrors.mobile}
+                aria-describedby={fieldErrors.mobile ? "ri-mobile-error" : undefined}
                 value={mobile}
-                onChange={(event) => setMobile(event.target.value)}
+                onChange={(event) => {
+                  setMobile(event.target.value);
+                  clearField("mobile");
+                }}
                 placeholder="0400 000 000"
-                className={lightInput}
+                className={fieldErrors.mobile ? lightInputInvalid : lightInput}
               />
             </Row>
-            <Row id="ri-email" label="Email">
+            <Row id="ri-email" label="Email" error={fieldErrors.email}>
               <input
                 id="ri-email"
+                ref={emailRef}
                 name="email"
                 type="email"
                 inputMode="email"
                 autoComplete="email"
+                aria-required="true"
+                aria-invalid={!!fieldErrors.email}
+                aria-describedby={fieldErrors.email ? "ri-email-error" : undefined}
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  clearField("email");
+                }}
                 placeholder="jane@example.com"
-                className={lightInput}
+                className={fieldErrors.email ? lightInputInvalid : lightInput}
               />
             </Row>
           </div>
 
-          <label className="flex cursor-pointer items-start gap-2 text-[0.7rem] leading-relaxed text-estimate-navy/75">
-            <input
-              type="checkbox"
-              checked={consent}
-              onChange={(event) => setConsent(event.target.checked)}
-              className="mt-0.5 size-4 shrink-0 accent-estimate-green"
-            />
-            <span>{INTEREST_CONSENT_STATEMENT}</span>
-          </label>
+          <div>
+            <label className="flex cursor-pointer items-start gap-2 text-[0.7rem] leading-relaxed text-estimate-navy/75">
+              <input
+                id="ri-consent"
+                ref={consentRef}
+                type="checkbox"
+                checked={consent}
+                aria-required="true"
+                aria-invalid={!!fieldErrors.consent}
+                aria-describedby={fieldErrors.consent ? "ri-consent-error" : undefined}
+                onChange={(event) => {
+                  setConsent(event.target.checked);
+                  clearField("consent");
+                }}
+                className="mt-0.5 size-4 shrink-0 accent-estimate-green"
+              />
+              <span>{INTEREST_CONSENT_STATEMENT}</span>
+            </label>
+            {fieldErrors.consent ? (
+              <p id="ri-consent-error" role="alert" className="mt-1 text-xs font-bold text-danger">
+                {fieldErrors.consent}
+              </p>
+            ) : null}
+          </div>
 
           {error && (
             <p role="alert" className="rounded-xl bg-estimate-blush px-3.5 py-2 text-xs font-bold text-estimate-navy">

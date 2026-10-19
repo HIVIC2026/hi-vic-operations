@@ -4,6 +4,7 @@ import { renderFollowupEmail } from "./followup-email";
 import { renderCoverageUnavailableEmail } from "./coverage-email";
 import { renderEstimateEmail, renderIneligibleOutcomeEmail } from "./estimate-email";
 import { renderStep3SaveSpot, renderStep3SaveSpotNoSize, STEP3_SAVESPOT_SAMPLE } from "./step3-emails";
+import { renderMeasuredQuoteEmail, renderBookingConsentEmail, renderPreInstallPackEmail, renderAssignmentSigningEmail, renderCompletionPackEmail, LIFECYCLE_SAMPLE } from "./lifecycle-emails";
 import { withUnsubscribe } from "./emailsafety.core";
 import type { RetailSettings } from "./estimate.core";
 
@@ -64,5 +65,27 @@ export const samples = {
   }), unsubscribeUrl),
   reminder3: withUnsubscribe(renderFollowupEmail({ kind: "estimate_unopened_3d", estimateUrl, referralUrl }), unsubscribeUrl),
   coverage: withUnsubscribe(renderCoverageUnavailableEmail({ firstName: "Alex", suburb: "Fraser Rise", postcode: "3336", missing: ["installer"], reference: "SAMPLE-1001" }), unsubscribeUrl),
+  // P1-R2-S02 later-stage lifecycle previews (draft wording; nothing sends). Sample figures only.
+  measured_quote: withUnsubscribe(renderMeasuredQuoteEmail({
+    ...LIFECYCLE_SAMPLE, measuredAreaM2: 150, piesaFee: "$349.00", supplyInstall: "$4,500.00", apFee: "$349.00",
+    veecCount: 21, veuDiscount: "$1,481.76", totalIncGst: "$3,716.24",
+    acceptUrl: "https://estimate.homeinsulationvictoria.com.au/quote/sample-secure-link", areaChangedOver15pct: false,
+  }), unsubscribeUrl),
+  booking_consent: withUnsubscribe(renderBookingConsentEmail({
+    ...LIFECYCLE_SAMPLE, installDate: "Tuesday 20 October 2026", installTime: "8:00am–12:00pm",
+    installerBusiness: "Sample Insulation Co", firstHalfAmount: "$1,858.12",
+    bookingUrl: "https://estimate.homeinsulationvictoria.com.au/booking/sample-secure-link",
+  }), unsubscribeUrl),
+  pre_install_pack: withUnsubscribe(renderPreInstallPackEmail({
+    ...LIFECYCLE_SAMPLE, installDate: "Tuesday 20 October 2026",
+    documentsUrl: "https://estimate.homeinsulationvictoria.com.au/documents/sample-secure-link",
+  }), unsubscribeUrl),
+  assignment_signing: withUnsubscribe(renderAssignmentSigningEmail({
+    ...LIFECYCLE_SAMPLE, signingUrl: "https://estimate.homeinsulationvictoria.com.au/sign/sample-secure-link",
+  }), unsubscribeUrl),
+  completion_pack: withUnsubscribe(renderCompletionPackEmail({
+    ...LIFECYCLE_SAMPLE, coesIncluded: false,
+    completionUrl: "https://estimate.homeinsulationvictoria.com.au/completion/sample-secure-link",
+  }), unsubscribeUrl),
 };
-export const OUTCOME_LABELS = { likely: "Likely eligible", savespot: "Save your spot", savespotNoSize: "Save your spot — no ceiling size", onsite: "Needs onsite confirmation", ineligible: "Does not appear eligible", reminder3: "Reminder: 3 days, unopened", coverage: "Service availability update" } as const;
+export const OUTCOME_LABELS = { likely: "Likely eligible", savespot: "Save your spot", savespotNoSize: "Save your spot — no ceiling size", onsite: "Needs onsite confirmation", ineligible: "Does not appear eligible", reminder3: "Reminder: 3 days, unopened", coverage: "Service availability update", measured_quote: "Measured quote", booking_consent: "Booking confirmation + consent", pre_install_pack: "Pre-installation pack", assignment_signing: "VEEC assignment signing", completion_pack: "Completion pack" } as const;

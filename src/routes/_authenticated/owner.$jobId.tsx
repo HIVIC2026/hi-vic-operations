@@ -18,6 +18,8 @@ import { STAGE_ORDER } from "@/lib/workflow";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
+import { OwnerJobUnavailable } from "@/components/portal/owner-job-unavailable";
+import { ownerJobView } from "@/lib/owner-job-view.core";
 
 export const Route = createFileRoute("/_authenticated/owner/$jobId")({
   head: () => ({ meta: [{ title: "My job – Home Insulation Victoria" }, { name: "description", content: "Approve quotes, pay deposits and book dates." }, { property: "og:title", content: "My job – Home Insulation Victoria" }, { property: "og:description", content: "Approve quotes, pay deposits and book dates." }] }),
@@ -26,8 +28,10 @@ export const Route = createFileRoute("/_authenticated/owner/$jobId")({
 
 function OwnerJob() {
   const { jobId } = Route.useParams();
-  const { data: job } = useJob(jobId);
-  if (!job) return <AppShell><p className="text-muted-foreground">Loading…</p></AppShell>;
+  const { data: job, isError, refetch } = useJob(jobId);
+  // STEP 80: a refused or missing job ends in one neutral message instead of "Loading…" forever.
+  if (ownerJobView({ hasJob: !!job, isError }) === "unavailable") return <AppShell><OwnerJobUnavailable onRetry={() => void refetch()} /></AppShell>;
+  if (!job) return <AppShell><p role="status" className="text-muted-foreground">Loading…</p></AppShell>;
   const s = job.stage!;
   const pct = Math.max(5, Math.round(((STAGE_ORDER.indexOf(s) + 1) / STAGE_ORDER.length) * 100));
   const bookKind = s === "rectification_scheduling" || s === "rectification_booked" ? "rectification" : s === "installation_scheduling" || s === "installation_booked" ? "installation" : null; // legacy assessment bookings retired

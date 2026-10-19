@@ -46,7 +46,8 @@ Apply order: **0149 → 0202** (security-first; otherwise independent).
 
 ## Other staged files (not part of this plan)
 
-- 0150 (D6) and 0204 (T6) are staged and unapplied.
+- 0150 (D6) is staged and unapplied; 0204 (T6) remains reserved in the README plan (no file).
+- 0205 — `0205_save_my_spot_real_send_enabled.sql` (COM-04 Save My Spot send control; forward-only rename of the original 0204 file, kept 0204 free for T6). Staged and unapplied.
 - 0200/0201 are superseded by the applied 0147/0148.
 - Numbers 0131 and 0147 are reused by different migrations — always refer to the full filename.
 

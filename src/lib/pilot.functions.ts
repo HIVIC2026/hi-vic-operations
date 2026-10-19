@@ -211,8 +211,11 @@ export const addTeamMember = createServerFn({ method: "POST" }).middleware([requ
     const normalizedEmail = data.email.trim().toLowerCase();
     const { data: worker } = data.tradeRole === "none"
       ? { data: null }
-      : await admin.from("partner_workers").select("id, full_legal_name, licence_number, trade_role, account_status").eq("business_id", data.businessId).ilike("email", exactLike(normalizedEmail)).eq("trade_role", data.tradeRole).maybeSingle();
+      : await admin.from("partner_workers").select("id, full_legal_name, licence_number, trade_role, account_status, approval_status, removed_at").eq("business_id", data.businessId).ilike("email", exactLike(normalizedEmail)).eq("trade_role", data.tradeRole).maybeSingle();
     if (data.tradeRole !== "none" && !worker) throw new WorkflowError("That worker is not listed in this business's approved onboarding. Home Insulation Victoria must review additions first.");
+    // STEP 80: the electrician app role lets its holder record regulated electrical results (clearance-guard.core.ts), so a
+    // partner may grant it only to an electrician Home Insulation Victoria has approved and not removed. Office unchanged.
+    if (!adminUser && data.tradeRole === "electrician" && (worker?.approval_status !== "approved" || worker?.removed_at)) throw new WorkflowError("Home Insulation Victoria hasn't approved this electrician yet. Add them as an electrician once they're approved.");
     await admin.from("business_members").upsert({ business_id: data.businessId, user_id: p.id, member_role: data.memberRole, active: true, added_by: context.userId }, { onConflict: "business_id,user_id" });
     if (!p.business_id) await admin.from("profiles").update({ business_id: data.businessId, ...(worker?.full_legal_name ? { full_name: worker.full_legal_name } : {}), ...(worker?.licence_number ? { licence_number: worker.licence_number } : {}) }).eq("id", p.id);
     // Trade roles give job access only through assignments. Partners may grant their own staff a trade role; Home Insulation Victoria approval still gates the business.

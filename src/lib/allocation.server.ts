@@ -128,7 +128,9 @@ export async function agreedElectricianRates(businessIds: string[], kind: "piesa
 export async function startPiesaAllocation(jobId: string, actorId: string | null, kind: "piesa" | "rectification" = "piesa", opts: { rateToConfirm?: boolean; onlyBusiness?: string | string[]; adding?: boolean } = {}) {
   const [facts, { count: elec }, { count: open }] = await Promise.all([
     piesaRequestFacts(jobId),
-    admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true),
+    // Only an electrician who actually CONFIRMED a visit counts as "already accepted": a pre-assignment
+    // (e.g. a Test Centre persona row) is not a booking, so it must not block new PIESA offers.
+    admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true).not("booking_confirmed_at", "is", null),
     admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", kind).eq("status", "pending"),
   ]);
   const blockers = piesaOfferBlockers({ ...facts, hasActiveElectrician: !!elec, hasOpenOffers: !!open && !opts.adding });
@@ -138,7 +140,20 @@ export async function startPiesaAllocation(jobId: string, actorId: string | null
   // Offers started: move the accepted-quote job to the PIESA stage so electricians can accept a time.
   if (kind === "piesa" && res.offered > 0) {
     const { data: j } = await admin.from("jobs").select("stage").eq("id", jobId).single();
-    if (j?.stage === "measured_quote_accepted") await (await import("./workflow.server")).transition(jobId, "piesa_and_install_window_pending", actorId, "PIESA offers sent to electricians", { kind });
+    if (j?.stage === "measured_quote_accepted") {
+      try {
+        await (await import("./workflow.server")).transition(jobId, "piesa_and_install_window_pending", actorId, "PIESA offers sent to electricians", { kind });
+      } catch (e) {
+        // The job could not enter the PIESA stage (an owner-paperwork or safety-check-payment entry gate is not met).
+        // Withdraw the offers just created so the job is never left holding offers no electrician could accept. The old
+        // order inserted the offers first: when the stage move failed they were stranded, and because a fresh allocation
+        // is refused while offers are open ("PIESA offers are already open for this job.") the job could never catch up —
+        // the electrician then saw "This job is no longer ready for this visit." The gate's own message is rethrown so
+        // the office sees exactly what is outstanding.
+        await admin.from("partner_offers").update({ status: "withdrawn", superseded_at: new Date().toISOString() }).eq("job_id", jobId).eq("kind", kind).eq("status", "pending");
+        throw e;
+      }
+    }
   }
   return res;
 }
@@ -279,6 +294,15 @@ export async function respondToRecOffer(offerId: string, userId: string, accept:
     const { piesaRequestBlockers } = await import("./payment-gate.core");
     const gate = piesaRequestBlockers(await piesaRequestFacts(o.job_id));
     if (gate.length) throw new WorkflowError(`This job is not ready for a PIESA: ${gate.join(" ")}`);
+    // Self-heal a stranded allocation: an earlier offer may have been created while the job could not yet enter the
+    // PIESA stage (a stage-entry gate — owner paperwork or the safety-check payment — was not met then). The database
+    // acceptance is guarded on the job being exactly at piesa_and_install_window_pending, so the offer would be stuck
+    // and the electrician would see "This job is no longer ready for this visit." Bring the job up to the PIESA stage
+    // first; the guarded, idempotent move re-checks every gate, so a genuinely blocked job still surfaces exactly what
+    // is outstanding instead of failing opaquely.
+    const { data: j } = await admin.from("jobs").select("stage").eq("id", o.job_id).single();
+    if (j?.stage === "measured_quote_accepted")
+      await (await import("./workflow.server")).transition(o.job_id, "piesa_and_install_window_pending", userId, "PIESA offers sent to electricians", { kind: o.kind });
   }
   if (proposalId && o.kind === "piesa") {
     // Tapping one of the owner's times: accept + take the time in one locked database step; first tap wins.
@@ -483,7 +507,8 @@ export async function submitOwnerPiesaWindows(jobId: string, userId: string, pic
   if (b.length) throw new WorkflowError(b.join(" "));
   const [{ data: job }, { count: elec }, w] = await Promise.all([
     admin.from("jobs").select("stage, source").eq("id", jobId).single(),
-    admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true),
+    // Same rule as PIESA offers: only a confirmed booking means an electrician is already arranging this visit.
+    admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true).not("booking_confirmed_at", "is", null),
     currentWindowRound(jobId),
   ]);
   if (!job || !["measured_quote_accepted", "piesa_and_install_window_pending"].includes(job.stage)) throw new WorkflowError("PIESA times can be chosen once the quote has been accepted.");
@@ -512,7 +537,8 @@ export async function submitOwnerPiesaWindows(jobId: string, userId: string, pic
 export async function ownerPiesaWindowState(jobId: string) {
   const [{ data: job }, { count: elec }, w, { data: rows }, { count: asked }] = await Promise.all([
     admin.from("jobs").select("stage").eq("id", jobId).single(),
-    admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true),
+    // Only a confirmed booking means an electrician is already arranging this visit (see startPiesaAllocation).
+    admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true).not("booking_confirmed_at", "is", null),
     currentWindowRound(jobId),
     admin.from("appointment_proposals").select("id, starts_at, ends_at, status, piesa_window_round").eq("job_id", jobId).not("piesa_window_round", "is", null).order("starts_at"),
     admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "piesa_more_times_requested"),

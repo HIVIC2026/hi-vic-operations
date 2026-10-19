@@ -93,7 +93,8 @@ describe("request path", () => {
     expect(src).not.toMatch(/runPropertyIntelligence|autoDecideEligibility|autoAdvanceJob/);
     expect(src.match(/enqueueInitialGate1\(/g)).toHaveLength(2);
     expect(src.match(/runAfterResponse\(\(\) => processPostIntakeWork/g)).toHaveLength(2);
-    expect(readFileSync("src/server.ts", "utf8")).toMatch(/requestContext\.run\(\{ waitUntil \}/);
+    // STEP 106 added `hostname` to the per-request AsyncLocalStorage store; STEP 110/111 keeps it.
+    expect(readFileSync("src/server.ts", "utf8")).toMatch(/requestContext\.run\(\{ waitUntil, hostname \}/);
   });
 });
 

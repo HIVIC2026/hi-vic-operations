@@ -3,6 +3,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { normaliseAuMobile, normaliseEmail, testSendBlocker } from "./test-send.core";
 import { brandSmsBody } from "./sms.core";
+import { RESEND_FETCH_TIMEOUT_MS, timeoutSignal } from "./network-timeout.core";
 
 export const TEST_APP_BASE = "https://id-preview--fb35adfe-10bf-4d4c-987d-28567ca1ddeb.lovable.app";
 const FROM_EMAIL = "Home Insulation Victoria <jobs@homeinsulationvictoria.com.au>";
@@ -66,6 +67,7 @@ export async function sendTestEmail(ctx: Ctx, to: string, subject: string, html:
         method: "POST",
         headers: { Authorization: `Bearer ${gw()}`, "X-Connection-Api-Key": resend, "Content-Type": "application/json", "Idempotency-Key": await idemKey(norm, subject, html) },
         body: JSON.stringify({ from: FROM_EMAIL, to: [norm], subject: subject.startsWith("[TEST") ? subject : `[TEST] ${subject}`, html, text }),
+        signal: timeoutSignal(RESEND_FETCH_TIMEOUT_MS),
       });
       const t = await res.text();
       r = res.ok ? { channel: "email", to: norm, status: "sent", detail: `Resend accepted${(() => { try { const id = (JSON.parse(t) as { id?: string }).id; return id ? ` (id ${id})` : ""; } catch { return ""; } })()}` } : { channel: "email", to: norm, status: "failed", detail: `Resend ${res.status}: ${t.slice(0, 300)}` };

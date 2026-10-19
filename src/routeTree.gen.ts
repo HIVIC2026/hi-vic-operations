@@ -30,6 +30,7 @@ import { Route as AuthenticatedPartnerRouteImport } from './routes/_authenticate
 import { Route as EligibilityTokenRouteImport } from './routes/eligibility.$token'
 import { Route as EstimateTokenRouteImport } from './routes/estimate.$token'
 import { Route as JoinTokenRouteImport } from './routes/join.$token'
+import { Route as MyEstimateTokenRouteImport } from './routes/my-estimate.$token'
 import { Route as MyJobTokenRouteImport } from './routes/my-job.$token'
 import { Route as RateOfferTokenRouteImport } from './routes/rate-offer.$token'
 import { Route as TimesTokenRouteImport } from './routes/times.$token'
@@ -57,6 +58,8 @@ import { Route as AuthenticatedAdminPartnersRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminPartnersOverviewRouteImport } from './routes/_authenticated/admin.partners-overview'
 import { Route as AuthenticatedAdminPipelineRouteImport } from './routes/_authenticated/admin.pipeline'
 import { Route as AuthenticatedAdminPricingRouteImport } from './routes/_authenticated/admin.pricing'
+import { Route as AuthenticatedAdminReadyCheckRouteImport } from './routes/_authenticated/admin.ready-check'
+import { Route as AuthenticatedAdminSaveMySpotRulesRouteImport } from './routes/_authenticated/admin.save-my-spot-rules'
 import { Route as AuthenticatedAdminTeamUpsRouteImport } from './routes/_authenticated/admin.team-ups'
 import { Route as AuthenticatedAdminTemplatesRouteImport } from './routes/_authenticated/admin.templates'
 import { Route as AuthenticatedAdminTestCentreRouteImport } from './routes/_authenticated/admin.test-centre'
@@ -212,6 +215,11 @@ const JoinTokenRoute = JoinTokenRouteImport.update({
   path: '/join/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MyEstimateTokenRoute = MyEstimateTokenRouteImport.update({
+  id: '/my-estimate/$token',
+  path: '/my-estimate/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MyJobTokenRoute = MyJobTokenRouteImport.update({
   id: '/my-job/$token',
   path: '/my-job/$token',
@@ -365,6 +373,18 @@ const AuthenticatedAdminPricingRoute =
   AuthenticatedAdminPricingRouteImport.update({
     id: '/pricing',
     path: '/pricing',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminReadyCheckRoute =
+  AuthenticatedAdminReadyCheckRouteImport.update({
+    id: '/ready-check',
+    path: '/ready-check',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminSaveMySpotRulesRoute =
+  AuthenticatedAdminSaveMySpotRulesRouteImport.update({
+    id: '/save-my-spot-rules',
+    path: '/save-my-spot-rules',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminTeamUpsRoute =
@@ -666,6 +686,7 @@ export interface FileRoutesByFullPath {
   '/eligibility/$token': typeof EligibilityTokenRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/join/$token': typeof JoinTokenRoute
+  '/my-estimate/$token': typeof MyEstimateTokenRoute
   '/my-job/$token': typeof MyJobTokenRoute
   '/rate-offer/$token': typeof RateOfferTokenRoute
   '/times/$token': typeof TimesTokenRoute
@@ -692,6 +713,8 @@ export interface FileRoutesByFullPath {
   '/admin/partners-overview': typeof AuthenticatedAdminPartnersOverviewRoute
   '/admin/pipeline': typeof AuthenticatedAdminPipelineRoute
   '/admin/pricing': typeof AuthenticatedAdminPricingRoute
+  '/admin/ready-check': typeof AuthenticatedAdminReadyCheckRoute
+  '/admin/save-my-spot-rules': typeof AuthenticatedAdminSaveMySpotRulesRoute
   '/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
   '/admin/templates': typeof AuthenticatedAdminTemplatesRoute
   '/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
@@ -761,6 +784,7 @@ export interface FileRoutesByTo {
   '/eligibility/$token': typeof EligibilityTokenRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/join/$token': typeof JoinTokenRoute
+  '/my-estimate/$token': typeof MyEstimateTokenRoute
   '/my-job/$token': typeof MyJobTokenRoute
   '/rate-offer/$token': typeof RateOfferTokenRoute
   '/times/$token': typeof TimesTokenRoute
@@ -787,6 +811,8 @@ export interface FileRoutesByTo {
   '/admin/partners-overview': typeof AuthenticatedAdminPartnersOverviewRoute
   '/admin/pipeline': typeof AuthenticatedAdminPipelineRoute
   '/admin/pricing': typeof AuthenticatedAdminPricingRoute
+  '/admin/ready-check': typeof AuthenticatedAdminReadyCheckRoute
+  '/admin/save-my-spot-rules': typeof AuthenticatedAdminSaveMySpotRulesRoute
   '/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
   '/admin/templates': typeof AuthenticatedAdminTemplatesRoute
   '/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
@@ -862,6 +888,7 @@ export interface FileRoutesById {
   '/eligibility/$token': typeof EligibilityTokenRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/join/$token': typeof JoinTokenRoute
+  '/my-estimate/$token': typeof MyEstimateTokenRoute
   '/my-job/$token': typeof MyJobTokenRoute
   '/rate-offer/$token': typeof RateOfferTokenRoute
   '/times/$token': typeof TimesTokenRoute
@@ -888,6 +915,8 @@ export interface FileRoutesById {
   '/_authenticated/admin/partners-overview': typeof AuthenticatedAdminPartnersOverviewRoute
   '/_authenticated/admin/pipeline': typeof AuthenticatedAdminPipelineRoute
   '/_authenticated/admin/pricing': typeof AuthenticatedAdminPricingRoute
+  '/_authenticated/admin/ready-check': typeof AuthenticatedAdminReadyCheckRoute
+  '/_authenticated/admin/save-my-spot-rules': typeof AuthenticatedAdminSaveMySpotRulesRoute
   '/_authenticated/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
   '/_authenticated/admin/templates': typeof AuthenticatedAdminTemplatesRoute
   '/_authenticated/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
@@ -963,6 +992,7 @@ export interface FileRouteTypes {
     | '/eligibility/$token'
     | '/estimate/$token'
     | '/join/$token'
+    | '/my-estimate/$token'
     | '/my-job/$token'
     | '/rate-offer/$token'
     | '/times/$token'
@@ -989,6 +1019,8 @@ export interface FileRouteTypes {
     | '/admin/partners-overview'
     | '/admin/pipeline'
     | '/admin/pricing'
+    | '/admin/ready-check'
+    | '/admin/save-my-spot-rules'
     | '/admin/team-ups'
     | '/admin/templates'
     | '/admin/test-centre'
@@ -1058,6 +1090,7 @@ export interface FileRouteTypes {
     | '/eligibility/$token'
     | '/estimate/$token'
     | '/join/$token'
+    | '/my-estimate/$token'
     | '/my-job/$token'
     | '/rate-offer/$token'
     | '/times/$token'
@@ -1084,6 +1117,8 @@ export interface FileRouteTypes {
     | '/admin/partners-overview'
     | '/admin/pipeline'
     | '/admin/pricing'
+    | '/admin/ready-check'
+    | '/admin/save-my-spot-rules'
     | '/admin/team-ups'
     | '/admin/templates'
     | '/admin/test-centre'
@@ -1158,6 +1193,7 @@ export interface FileRouteTypes {
     | '/eligibility/$token'
     | '/estimate/$token'
     | '/join/$token'
+    | '/my-estimate/$token'
     | '/my-job/$token'
     | '/rate-offer/$token'
     | '/times/$token'
@@ -1184,6 +1220,8 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/partners-overview'
     | '/_authenticated/admin/pipeline'
     | '/_authenticated/admin/pricing'
+    | '/_authenticated/admin/ready-check'
+    | '/_authenticated/admin/save-my-spot-rules'
     | '/_authenticated/admin/team-ups'
     | '/_authenticated/admin/templates'
     | '/_authenticated/admin/test-centre'
@@ -1254,6 +1292,7 @@ export interface RootRouteChildren {
   EligibilityTokenRoute: typeof EligibilityTokenRoute
   EstimateTokenRoute: typeof EstimateTokenRoute
   JoinTokenRoute: typeof JoinTokenRoute
+  MyEstimateTokenRoute: typeof MyEstimateTokenRoute
   MyJobTokenRoute: typeof MyJobTokenRoute
   RateOfferTokenRoute: typeof RateOfferTokenRoute
   TimesTokenRoute: typeof TimesTokenRoute
@@ -1425,6 +1464,13 @@ declare module '@tanstack/react-router' {
       path: '/join/$token'
       fullPath: '/join/$token'
       preLoaderRoute: typeof JoinTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/my-estimate/$token': {
+      id: '/my-estimate/$token'
+      path: '/my-estimate/$token'
+      fullPath: '/my-estimate/$token'
+      preLoaderRoute: typeof MyEstimateTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/my-job/$token': {
@@ -1614,6 +1660,20 @@ declare module '@tanstack/react-router' {
       path: '/pricing'
       fullPath: '/admin/pricing'
       preLoaderRoute: typeof AuthenticatedAdminPricingRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/ready-check': {
+      id: '/_authenticated/admin/ready-check'
+      path: '/ready-check'
+      fullPath: '/admin/ready-check'
+      preLoaderRoute: typeof AuthenticatedAdminReadyCheckRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/save-my-spot-rules': {
+      id: '/_authenticated/admin/save-my-spot-rules'
+      path: '/save-my-spot-rules'
+      fullPath: '/admin/save-my-spot-rules'
+      preLoaderRoute: typeof AuthenticatedAdminSaveMySpotRulesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/team-ups': {
@@ -1992,6 +2052,8 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminPartnersOverviewRoute: typeof AuthenticatedAdminPartnersOverviewRoute
   AuthenticatedAdminPipelineRoute: typeof AuthenticatedAdminPipelineRoute
   AuthenticatedAdminPricingRoute: typeof AuthenticatedAdminPricingRoute
+  AuthenticatedAdminReadyCheckRoute: typeof AuthenticatedAdminReadyCheckRoute
+  AuthenticatedAdminSaveMySpotRulesRoute: typeof AuthenticatedAdminSaveMySpotRulesRoute
   AuthenticatedAdminTeamUpsRoute: typeof AuthenticatedAdminTeamUpsRoute
   AuthenticatedAdminTemplatesRoute: typeof AuthenticatedAdminTemplatesRoute
   AuthenticatedAdminTestCentreRoute: typeof AuthenticatedAdminTestCentreRoute
@@ -2030,6 +2092,9 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
     AuthenticatedAdminPartnersOverviewRoute,
   AuthenticatedAdminPipelineRoute: AuthenticatedAdminPipelineRoute,
   AuthenticatedAdminPricingRoute: AuthenticatedAdminPricingRoute,
+  AuthenticatedAdminReadyCheckRoute: AuthenticatedAdminReadyCheckRoute,
+  AuthenticatedAdminSaveMySpotRulesRoute:
+    AuthenticatedAdminSaveMySpotRulesRoute,
   AuthenticatedAdminTeamUpsRoute: AuthenticatedAdminTeamUpsRoute,
   AuthenticatedAdminTemplatesRoute: AuthenticatedAdminTemplatesRoute,
   AuthenticatedAdminTestCentreRoute: AuthenticatedAdminTestCentreRoute,
@@ -2157,6 +2222,7 @@ const rootRouteChildren: RootRouteChildren = {
   EligibilityTokenRoute: EligibilityTokenRoute,
   EstimateTokenRoute: EstimateTokenRoute,
   JoinTokenRoute: JoinTokenRoute,
+  MyEstimateTokenRoute: MyEstimateTokenRoute,
   MyJobTokenRoute: MyJobTokenRoute,
   RateOfferTokenRoute: RateOfferTokenRoute,
   TimesTokenRoute: TimesTokenRoute,

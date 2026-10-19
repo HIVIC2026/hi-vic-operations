@@ -9,6 +9,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
+import { withRequestMeta } from "./request-meta";
 import {
   INTEREST_STATUSES,
   parseInterest,
@@ -63,6 +64,7 @@ async function requireAdmin(supabase: SupabaseClient<Database>) {
 }
 
 export const registerInterest = createServerFn({ method: "POST" })
+  .middleware([withRequestMeta])
   .inputValidator((input: InterestDraft) => input)
   .handler(async ({ data }): Promise<InterestResult> => {
     const parsed = parseInterest(data);

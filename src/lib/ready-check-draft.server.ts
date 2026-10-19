@@ -12,6 +12,14 @@ async function latestRc(jobId: string) {
   return data;
 }
 
+/** Authoritative Ready Check state for a job, or null when nothing has been recorded yet.
+ *  `fromMitti` marks a row the Mitti form owns: the portal draft must never edit or submit it. */
+export async function readyCheckState(jobId: string) {
+  const rc = await latestRc(jobId);
+  if (!rc) return null;
+  return { status: rc.status as "draft" | "submitted", submittedAt: rc.submitted_at as string | null, fromMitti: !!rc.external_mitti_id };
+}
+
 async function observations(rcId: string): Promise<Observations> {
   const { data, error } = await admin.from("ready_check_observations").select("field_key, value").eq("ready_check_id", rcId);
   if (error) throw new WorkflowError(error.message);
@@ -39,6 +47,8 @@ export async function loadRcDraft(jobId: string) {
   const progress = rcProgress(obs, await rcEvidence(jobId));
   return {
     readyCheckId: rc?.id ?? null, status: (rc?.status ?? "none") as "none" | "draft" | "submitted", savedAt: rc?.updated_at ?? null,
+    // A Mitti-owned row is read-only here: the portal must never write to a form Mitti owns.
+    fromMitti: !!rc?.external_mitti_id,
     values, prefilled, suppliedAreaHint: st.areaProvenance === "installer_provisional" ? st.areaM2 : null,
     progress, coordination: st.coordination, commercial: { ready: st.readiness.ready, blockers: st.readiness.blockers, releaseBlockers: st.releaseBlockers },
   };
@@ -50,6 +60,8 @@ export async function saveRcDraft(jobId: string, userId: string, businessId: str
   if (problems.length) throw new WorkflowError(problems.join(" • "));
   let rc = await latestRc(jobId);
   if (rc?.status === "submitted") throw new WorkflowError("This Ready Check was already submitted — ask Home Insulation Victoria to reopen it.");
+  // A form Mitti owns stays Mitti's: writing observations onto that row would corrupt its sync.
+  if (rc?.external_mitti_id) throw new WorkflowError("This Ready Check came from Mitti — complete or correct it there.");
   if (!rc) {
     const { data, error } = await admin.from("ready_checks").insert({ job_id: jobId, version: 1, status: "draft", installer_user_id: userId, installer_business_id: businessId }).select("id, version, status, submitted_at, updated_at, external_mitti_id").single();
     if (error) { // parallel first save: reuse the row the other tab created
@@ -76,6 +88,7 @@ export async function submitRcDraft(jobId: string, userId: string) {
   const rc = await latestRc(jobId);
   if (!rc) throw new WorkflowError("Save the Ready Check before submitting it.");
   if (rc.status === "submitted") return loadRcDraft(jobId);
+  if (rc.external_mitti_id) throw new WorkflowError("This Ready Check came from Mitti — submit it there.");
   const blockers = rcSubmitBlockers(rcProgress(await observations(rc.id), await rcEvidence(jobId)));
   if (blockers.length) throw new WorkflowError(`Not ready to submit: ${blockers.join(" • ")}`);
   const now = new Date().toISOString();

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { installerProgress, installerTab, type ProgressFacts } from "../src/lib/installer-progress.core";
+import { installerProgress, installerTab, intakeProgressApplies, type ProgressFacts } from "../src/lib/installer-progress.core";
 
 const base: ProgressFacts = { coordination: "hivic_managed", quoted: "no", eligibility: "unresolved", quoteHeld: [], quoteStatus: "none", reconfirmationRequired: false, electricianPayer: "hivic", electricalCleared: false, installationCompleted: false, quoteDelivery: "none", evidence: [], evidenceApprovedAt: null, veecStatus: null, stage: "new_enquiry" };
 const st = (f: ProgressFacts) => Object.fromEntries(installerProgress(f).steps.map((s) => [s.key, s.state]));
@@ -29,4 +29,17 @@ describe("Jobs tabs", () => {
   test("Done only from final stage", () => { expect(installerTab("moving", "complete")).toBe("done"); expect(installerTab("moving", "ready_for_veec")).toBe("progress"); });
   test("needs_me/offers → Action needed", () => { expect(installerTab("needs_me", "new_enquiry")).toBe("action"); expect(installerTab("offers", "x")).toBe("action"); });
   test("held/moving → In progress, never Done", () => expect(installerTab("moving", "on_hold")).toBe("progress"));
+});
+
+describe("W3 A3 — intake progress read applies only to installer-sourced intake jobs (guards 'Couldn't load current job progress')", () => {
+  test("installer-sourced with an originating business → applies, so the supplying-installer guard still runs", () =>
+    expect(intakeProgressApplies({ channel: "installer_sourced", originating_installer_business_id: "biz-1" })).toBe(true));
+  test("standard HIV-sourced job → does NOT apply (would otherwise throw 'Only the installer who supplied this job can update it')", () =>
+    expect(intakeProgressApplies({ channel: "hivic_sourced", originating_installer_business_id: null })).toBe(false));
+  test("installer-sourced but null originating business → does NOT apply", () =>
+    expect(intakeProgressApplies({ channel: "installer_sourced", originating_installer_business_id: null })).toBe(false));
+  test("missing/failed job row → does NOT apply, never throws", () => {
+    expect(intakeProgressApplies(null)).toBe(false);
+    expect(intakeProgressApplies(undefined)).toBe(false);
+  });
 });

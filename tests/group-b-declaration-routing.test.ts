@@ -17,9 +17,15 @@ CREATE TABLE documents(job_id uuid, kind text, mime_type text, storage_path text
 CREATE TABLE evidence_files(job_id uuid, mime_type text, storage_path text);
 CREATE TABLE customer_engagement_events(job_id uuid, event_type text, metadata jsonb, occurred_at timestamptz DEFAULT now());
 ALTER TABLE customer_delivery_settings ADD IF NOT EXISTS ready_check_available_postcodes text[];
-CREATE TABLE retail_estimator_settings(is_current boolean, indicative_veec_value numeric, piesa_assessment_inc_gst numeric, ap_management_inc_gst numeric, r5_install_inc_gst_per_m2 numeric);
+-- Pricing fixture parity (P1-FA05A): retail_estimator_settings must carry the full column set the
+-- pricing reader converts (id/version/removal_inc_gst_per_m2/ready_check_fee_inc_gst) or toRates
+-- yields NaN and the campaign page fails closed by design; the staged 0200 cohort tables exist and
+-- stay empty (no active cutover = the legacy pricing path).
+CREATE TABLE retail_estimator_settings(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), version integer NOT NULL UNIQUE DEFAULT 1, is_current boolean, indicative_veec_value numeric, piesa_assessment_inc_gst numeric, ap_management_inc_gst numeric, r5_install_inc_gst_per_m2 numeric, removal_inc_gst_per_m2 numeric, ready_check_fee_inc_gst numeric);
+CREATE TABLE pricing_cutover(id uuid DEFAULT gen_random_uuid(), cutover_at timestamptz, new_settings_id uuid, rolled_back_at timestamptz);
+CREATE TABLE job_pricing_cohorts(job_id uuid PRIMARY KEY, cohort text, spot_saved_at timestamptz, settings_id uuid, settings_version integer, r5_install_inc_gst_per_m2 numeric, removal_inc_gst_per_m2 numeric, piesa_assessment_inc_gst numeric, ap_management_inc_gst numeric, ready_check_fee_inc_gst numeric, saved_total numeric, saved_gross_total numeric, saved_veu_discount numeric, saved_area_m2 numeric);
 INSERT INTO customer_delivery_settings(id) VALUES (1);
-INSERT INTO retail_estimator_settings VALUES(true,70,349,349,30);
+INSERT INTO retail_estimator_settings(is_current,indicative_veec_value,piesa_assessment_inc_gst,ap_management_inc_gst,r5_install_inc_gst_per_m2,removal_inc_gst_per_m2,ready_check_fee_inc_gst) VALUES(true,70,349,349,30,15,0);
 `);
 const shim = postgrestShim(db);
 const admin = { from(table: string) {
@@ -104,8 +110,14 @@ for (const state of ["ineligible","closed","opted_out","expired","revoked","wron
 });
 test("declaration cannot erase existing insulation through calculator save", async () => {
   await recordInsulationDeclaration(token,"loose_fill_only",true);
-  await expect(saveCampaignSpot(token,{areaM2:120,insulation:"none"})).rejects.toThrow();
-  expect((await db.query("SELECT saved_insulation,spot_saved_at FROM lead_campaign_responses")).rows[0]).toEqual({saved_insulation:null,spot_saved_at:null});
+  // The calculator can change the size, never the recorded insulation fact: the server rewrites the
+  // submitted "none" to the declared "present" (calculatorInsulation), so the spot saves with the
+  // declaration intact. (This expectation used to hold only because the incomplete pricing fixture
+  // made every save fail closed at the unknown-price-version guard before reaching the rewrite.)
+  await saveCampaignSpot(token,{areaM2:120,insulation:"none"});
+  const row = (await db.query("SELECT saved_insulation,spot_saved_at FROM lead_campaign_responses")).rows[0];
+  expect(row).toMatchObject({saved_insulation:"present"});
+  expect(row.spot_saved_at).not.toBeNull();
 });
 test("current negative office finding overrides an earlier qualifying Yes", async () => {
   await recordInsulationDeclaration(token,"below_r2",true);

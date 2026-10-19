@@ -135,7 +135,7 @@ export async function upsertEnquiry(input: Omit<EnquiryInput, "estimated_area_m2
       await logEvent(existingJob.id, actorId, "repeat_enquiry_attached", `Same owner filled in the calculator again; attached to this job instead of creating a new one.${sizeNote}`, { repeat_external_enquiry_id: repeatOf, previous_area_m2: before, area_m2: after });
     }
     await logEvent(existingJob.id, actorId, "enquiry_updated", `Enquiry updated from ${source}`, plan?.details ?? {});
-    if (source === "base44") await completeIntake(existingJob.id, owner!.id, input as EnquiryInput);
+    if (source === "base44" || source === "qa_test") await completeIntake(existingJob.id, owner!.id, input as EnquiryInput);
     if (source === "qa_test") return { job_id: existingJob.id, job_number: existingJob.job_number, created: false, post_intake: "none" as const };
     const queued = await enqueueInitialGate1(existingJob.id, await eligibilityFactsVersion(input), addrChanged ? "address changed" : "eligibility facts changed");
     if (queued !== "none") runAfterResponse(() => processPostIntakeWork({ jobId: existingJob.id })); // best-effort; scheduled worker is the durable fallback
@@ -168,7 +168,7 @@ export async function upsertEnquiry(input: Omit<EnquiryInput, "estimated_area_m2
   await logEvent(job.id, actorId, "job_source_recorded",
     origin.channel === "installer_sourced" ? "Job source: Installer-sourced (attribution locked)" : "Job source: Home Insulation Victoria-sourced",
     origin.channel === "installer_sourced" ? { channel: origin.channel, originating_installer_business_id: origin.businessId, originating_installer_user_id: origin.userId, commercial_model: "not_configured" } : { channel: origin.channel });
-  if (source === "base44") await completeIntake(job.id, owner!.id, input as EnquiryInput);
+  if (source === "base44" || source === "qa_test") await completeIntake(job.id, owner!.id, input as EnquiryInput);
   // QA records stay permanently isolated from live post-intake automation.
   if (source === "qa_test") return { job_id: job.id, job_number: job.job_number, created: true, post_intake: "none" as const };
   // Durable hand-off: initial Property Intelligence + the first official Gate 1 run in the post-intake processor.

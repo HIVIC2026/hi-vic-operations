@@ -3,6 +3,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { deriveScope, type MeasurementLike } from "./scope.core";
 import { WorkflowError, getStage, logEvent, piesaStatus, transition } from "./workflow.server";
 import { deriveRectificationItems, generateRectificationQuote } from "./quotes.server";
+import { PIESA_ADVANCE_STAGE, piesaAdvanceDecision, piesaClearsElectrical, piesaNeedsRectification } from "./piesa-advance.core";
 
 export async function currentMeasurement(jobId: string) {
   const { data } = await admin.from("ceiling_measurements").select("*").eq("job_id", jobId).eq("is_current", true).maybeSingle();
@@ -30,10 +31,15 @@ export async function jobScope(jobId: string) {
  * After either requirement completes: if BOTH are satisfied and the job is in assessment booked,
  * move to assessment_complete and run the existing rectification / quote-readiness path.
  * Otherwise stay put with next_action saying exactly what is missing.
+ *
+ * Phase 1 electrician path (S64): the manual PIESA result is recorded at `piesa_scheduled`, so the same
+ * completion must move that job on to `piesa_complete` — the only forward transition the stage graph allows.
+ * Nothing moves until the assessment is complete, its outcome is recorded and a current PIESA record exists.
  */
 export async function advanceSiteRequirements(jobId: string, actorId: string) {
   const s = await jobScope(jobId);
   const stage = await getStage(jobId);
+  if (stage === PIESA_ADVANCE_STAGE) return advanceAfterPiesa(jobId, actorId, s.scope);
   if (stage !== "assessment_booked") return { advanced: false, scope: s.scope };
   if (s.scope !== "COMPLETE") {
     await admin.from("jobs").update({ next_action: s.nextAction }).eq("id", jobId);
@@ -56,5 +62,42 @@ export async function advanceSiteRequirements(jobId: string, actorId: string) {
     await transition(jobId, "ready_for_installer_quotes", actorId, "No rectification required – ready for installer quotes");
   }
   await logEvent(jobId, actorId, "site_requirements_complete", "Measure-up and electrical/PIESA requirements both complete", { measurement_id: s.measurementRow?.id }, { internal: true });
+  return { advanced: true, scope: "COMPLETE" as const };
+}
+
+/**
+ * `piesa_scheduled` → `piesa_complete` after a completed manual PIESA result.
+ * The stage means "the PIESA visit is complete", not "the PIESA passed": a fail also lands here and is
+ * rectified from `piesa_complete`. A standing guard (for example an unresolved PIESA Part 7 hazard)
+ * keeps the job where it is and puts the reason in front of Office instead of throwing after the
+ * assessment was already recorded.
+ */
+async function advanceAfterPiesa(jobId: string, actorId: string, scope: string) {
+  const [{ data: a }, electrical] = await Promise.all([
+    admin.from("assessments").select("id, status, piesa_outcome").eq("job_id", jobId).maybeSingle(),
+    electricalState(jobId),
+  ]);
+  const decision = piesaAdvanceDecision({
+    stage: PIESA_ADVANCE_STAGE,
+    assessmentStatus: a?.status,
+    outcome: a?.piesa_outcome,
+    hasCurrentPiesa: electrical.hasCurrentPiesa,
+  });
+  if (decision.action === "hold") return { advanced: false, scope, held: decision.reason };
+  try {
+    await transition(jobId, "piesa_complete", actorId, `PIESA ${decision.outcome} recorded – safety check complete`, { assessment_id: a?.id, piesa_outcome: decision.outcome });
+  } catch (e) {
+    if (!(e instanceof WorkflowError)) throw e;
+    await admin.from("jobs").update({ next_action: e.message.replace(/^Blocked:\s*/, "") }).eq("id", jobId);
+    return { advanced: false, scope, held: e.message };
+  }
+  const rectCount = await deriveRectificationItems(jobId, actorId);
+  await admin.from("compliance_checks").update({ status: piesaClearsElectrical(decision.outcome, rectCount) ? "pass" : "pending" }).eq("job_id", jobId).eq("check_key", "electrical_assessment");
+  if (piesaNeedsRectification(decision.outcome, rectCount)) {
+    await admin.from("evidence_requirements").update({ required: true, status: "outstanding" }).eq("job_id", jobId).eq("category", "rectification_completion");
+  } else {
+    await admin.from("compliance_checks").update({ status: "pass" }).eq("job_id", jobId).eq("check_key", "rectification");
+  }
+  await logEvent(jobId, actorId, "site_requirements_complete", `PIESA ${decision.outcome} recorded – safety check complete`, { assessment_id: a?.id, rectification_items: rectCount }, { internal: true });
   return { advanced: true, scope: "COMPLETE" as const };
 }

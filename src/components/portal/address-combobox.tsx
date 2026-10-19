@@ -29,11 +29,26 @@ type Props = {
   /** "dark" renders the input and status note legibly on the navy register panel. */
   tone?: "light" | "dark";
   ariaLabel?: string;
+  /** Marks the box red and points at the refusal shown next to it. */
+  invalid?: boolean | undefined;
+  describedBy?: string | undefined;
   /** Never search (sample/preview screens): plain typing only, no network. */
   offline?: boolean;
 };
 
-export function AddressCombobox({ id, value, onChange, onPick, placeholder, className, tone = "light", ariaLabel, offline = false }: Props) {
+export function AddressCombobox({
+  id,
+  value,
+  onChange,
+  onPick,
+  placeholder,
+  className,
+  tone = "light",
+  ariaLabel,
+  invalid,
+  describedBy,
+  offline = false,
+}: Props) {
   const [items, setItems] = useState<AddressSuggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
@@ -113,6 +128,15 @@ export function AddressCombobox({ id, value, onChange, onPick, placeholder, clas
     setNote("");
   };
 
+  // A refused answer swaps the grey edge for the danger token rather than adding a second border class.
+  const boxClass =
+    className ??
+    (tone === "dark"
+      ? "h-11 w-full rounded-xl border border-white/15 bg-white/10 pl-9 pr-10 text-[0.95rem] text-white placeholder:text-white/60 focus-visible:border-white/40 focus-visible:bg-white/15 focus-visible:outline-none"
+      : invalid
+        ? "h-11 w-full rounded-lg border-2 border-danger bg-estimate-white pl-9 pr-10 text-base font-bold text-estimate-navy"
+        : "h-11 w-full rounded-lg border-2 border-estimate-line bg-estimate-white pl-9 pr-10 text-base font-bold text-estimate-navy");
+
   return (
     <div ref={boxRef} className="relative">
       <div className="relative">
@@ -132,6 +156,8 @@ export function AddressCombobox({ id, value, onChange, onPick, placeholder, clas
           value={value}
           placeholder={placeholder}
           aria-label={ariaLabel}
+          aria-invalid={!!invalid}
+          aria-describedby={describedBy}
           onChange={(event) => {
             onChange(event.target.value);
             setOpen(true);
@@ -157,12 +183,7 @@ export function AddressCombobox({ id, value, onChange, onPick, placeholder, clas
             }
             if (event.key === "Escape") setOpen(false);
           }}
-          className={`${
-            className ??
-            (tone === "dark"
-              ? "h-11 w-full rounded-xl border border-white/15 bg-white/10 pl-9 pr-10 text-[0.95rem] text-white placeholder:text-white/60 focus-visible:border-white/40 focus-visible:bg-white/15 focus-visible:outline-none"
-              : "h-11 w-full rounded-lg border-2 border-estimate-line bg-estimate-white pl-9 pr-10 text-base font-bold text-estimate-navy")
-          } ${tone === "dark" ? "placeholder:font-normal focus-visible:outline-none" : "placeholder:font-normal placeholder:text-estimate-navy/85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"}`}
+          className={`${boxClass} ${tone === "dark" ? "placeholder:font-normal focus-visible:outline-none" : "placeholder:font-normal placeholder:text-estimate-navy/85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"}`}
         />
         {busy && (
           <Loader2 aria-hidden="true" className={`absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin ${tone === "dark" ? "text-white" : "text-estimate-blue"}`} />

@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -11072,6 +11072,8 @@ export type Database = {
           rec_offer_business_hours: number
           rec_offer_expiry_hours: number
           safety_check_payment_inc_gst: number
+          save_my_spot_auto_rules: Json
+          save_my_spot_real_send_enabled: boolean
           sms_message_switches: Json
           updated_at: string
           urgency_amber_days: number
@@ -11118,6 +11120,8 @@ export type Database = {
           rec_offer_business_hours?: number
           rec_offer_expiry_hours?: number
           safety_check_payment_inc_gst?: number
+          save_my_spot_auto_rules?: Json
+          save_my_spot_real_send_enabled?: boolean
           sms_message_switches?: Json
           updated_at?: string
           urgency_amber_days?: number
@@ -11164,6 +11168,8 @@ export type Database = {
           rec_offer_business_hours?: number
           rec_offer_expiry_hours?: number
           safety_check_payment_inc_gst?: number
+          save_my_spot_auto_rules?: Json
+          save_my_spot_real_send_enabled?: boolean
           sms_message_switches?: Json
           updated_at?: string
           urgency_amber_days?: number
@@ -11764,6 +11770,28 @@ export type Database = {
           _suburb: string
         }
         Returns: string
+      }
+      get_my_profile: {
+        Args: never
+        Returns: {
+          business_id: string | null
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          licence_number: string | null
+          mitti_checked_at: string | null
+          mitti_checked_email: string | null
+          mitti_user_id: string | null
+          phone: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "profiles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       has_contact_release: {
         Args: { _job: string; _user: string }

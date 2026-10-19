@@ -21,8 +21,9 @@ import { ClearTimeline, WhoHasTheBall } from "@/components/portal/waiting";
 import { WorkerLinksPanel } from "@/components/portal/workers";
 import { OwnerEligibilityPanel } from "@/components/portal/owner-eligibility";
 import { BlockersPanel, BookingPanel, EvidencePanel, MessagesPanel, useJob } from "@/components/portal/panels";
-import { Button, Section, YesNo } from "@/components/trade/trade-ui";
+import { Button, Section } from "@/components/trade/trade-ui";
 import { MittiCard, MittiSyncedFields } from "@/components/portal/mitti";
+import { ElectricianManualResult } from "@/components/portal/electrician-manual-result";
 import { useServerFn } from "@tanstack/react-start";
 import { getMyMittiInvited } from "@/lib/trade-view.functions";
 import { getMyIntakeProgress } from "@/lib/installer-quote.functions";
@@ -32,7 +33,8 @@ function useMittiInvited() {
   const load = useServerFn(getMyMittiInvited);
   return useQuery({ queryKey: ["mitti-invited"], queryFn: () => load() }).data?.invited === true;
 }
-import { MeasurementDetails, MeasurementReadOnly, useJobScope, useMeasurements } from "@/components/portal/requirements";
+import { MeasurementDetails, MeasurementForm, MeasurementReadOnly, useJobScope, useMeasurements } from "@/components/portal/requirements";
+import { MEASURE_FIELDS } from "@/lib/scope.core";
 import { useAction } from "@/hooks/use-me";
 import { InstallerFinalDeclaration } from "@/components/portal/assignment";
 import { JobStatusCard } from "@/components/trade/job-status";
@@ -89,7 +91,9 @@ function FieldJob() {
         {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} expired={!!job.piesa_expired} />}
         {role === "installer" && <InstallerProgressCard jobId={jobId} />}
         {role === "installer" && job.channel === "installer_sourced" && <MyIntakeDetailsCard jobId={jobId} />}
-        {role === "installer" && job.channel === "installer_sourced" && <ReadyCheckDraft jobId={jobId} />}
+        {/* The native Ready Check is the portal's own record for both channels. A Mitti-owned form is
+            detected inside the component and shown as read-only, so this never creates a second record. */}
+        {role === "installer" && <ReadyCheckDraft jobId={jobId} />}
         {role === "installer" && ["piesa_and_install_window_pending"].includes(job.stage!) && !job.electrician_name && <ElectricianChoicePanel jobId={jobId} />}
         {role === "installer" && <InstallerFlow jobId={jobId} stage={job.stage!} />}
         {role === "installer" && ["assessment_complete", "rectification_required", "awaiting_owner_rectification_approval", "ready_for_installer_quotes", "awaiting_quote_acceptance"].includes(job.stage!) && <PartnerProposalForm jobId={jobId} />}
@@ -102,7 +106,7 @@ function FieldJob() {
   );
 }
 
-/** Onsite forms are filled in Mitti only. Until the form is connected, trades see a plain setup notice. */
+/** Onsite forms are filled in Mitti. When the Mitti form can't open, the installer measure-up (ready_check) falls back to the manual MeasurementForm; the PIESA form still shows the setup notice. */
 function MittiOnly({ jobId, which }: { jobId: string; which: "ready_check" | "piesa" }) {
   const { data } = useQuery({ queryKey: ["mitti-only", jobId, which], queryFn: async () => {
     const [{ data: a }, { data: m }] = await Promise.all([
@@ -115,7 +119,7 @@ function MittiOnly({ jobId, which }: { jobId: string; which: "ready_check" | "pi
   return (
     <Section title={which === "piesa" ? "Safety check form" : "Ready Check form"}>
       {data && invited ? <><p className="mb-3 text-sm text-sub">Fill it in on site, in order. Your answers come back here automatically.</p><Button asChild size="field" className="w-full"><a href={`https://app.au.mitti.com/inspections/${data}`} target="_blank" rel="noreferrer">Open form in Mitti</a></Button><div className="mt-3"><MittiCard jobId={jobId} isAdmin={false} /></div></>
-        : <p className="text-sm font-medium" data-mitti-unavailable>{!invited ? "Your Mitti account isn't invited yet, so the Mitti form can't open. Home Insulation Victoria has to invite you." : "The Mitti form isn't linked to this job yet — Home Insulation Victoria links it."}{which === "ready_check" ? " You can still enter and save the Ready Check on this page." : ""}</p>}
+        : <><p className="text-sm font-medium" data-mitti-unavailable>{!invited ? "Your Mitti account isn't invited yet, so the Mitti form can't open. Home Insulation Victoria has to invite you." : "The Mitti form isn't linked to this job yet — Home Insulation Victoria links it."}{which === "ready_check" ? " You can still enter and save the Ready Check on this page." : ""}</p>{which === "ready_check" && <MeasurementForm jobId={jobId} editable={[...MEASURE_FIELDS]} title="Ceiling measure-up" showComplete />}</>}
     </Section>
   );
 }
@@ -144,16 +148,6 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
     if (!r) return;
     setSaved(new Date(r.savedAt).toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit" }));
   };
-  const num = (k: string) => (e: React.FocusEvent<HTMLInputElement>) => put(k, e.target.value === "" ? null : Number(e.target.value));
-  const Yn = ({ k, label }: { k: string; label: string }) => (
-    <div className="flex items-center justify-between gap-3"><Label>{label}</Label><YesNo label={label} value={f[k] as boolean | null} disabled={locked} onChange={(v) => put(k, v)} /></div>
-  );
-  const Num = ({ k, label, step = "1" }: { k: string; label: string; step?: string }) => (
-    <div><Label>{label}</Label><Input className="h-12 text-base" type="number" inputMode="decimal" step={step} defaultValue={(f[k] as number | null) ?? ""} key={String(f[k])} disabled={locked} onBlur={num(k)} /></div>
-  );
-  const Choice = ({ k, label, opts }: { k: string; label: string; opts: [string, string][] }) => (
-    <div><Label>{label}</Label><div className={`mt-1 grid gap-2`} style={{ gridTemplateColumns: `repeat(${opts.length}, minmax(0,1fr))` }}>{opts.map(([v, l]) => <Button key={v} type="button" size="field" variant={f[k] === v ? "default" : "outline"} disabled={locked} onClick={() => put(k, v)}>{l}</Button>)}</div></div>
-  );
   const assessing = ["assessment_booking", "assessment_booked", "piesa_scheduled"].includes(stage) && !locked;
   const { data: scope } = useJobScope(jobId);
   const measureBlock = !scope || !assessing ? null : scope.measurement.state === "accepted" ? <MeasurementReadOnly jobId={jobId} canFlag /> : <Section title="Installer eligibility measure-up"><p className="text-sm text-sub">The installer does the measure-up, not you.</p></Section>;
@@ -177,7 +171,17 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
           {!locked && <Button size="field" className="w-full" disabled={needsPlan && rectPlanProblems(plan).length > 0} onClick={finish}><Check /> Complete PIESA</Button>}
         </>
       )}
-      {!a?.external_mitti_id && assessing && <MittiOnly jobId={jobId} which="piesa" />}
+      {!a?.external_mitti_id && assessing && (
+        <>
+          {measureBlock}
+          {/* S64: no Mitti form linked — manual entry through the same saveAssessment/completeAssessment chain. */}
+          <ElectricianManualResult value={f} locked={locked} savedAt={saved} onPut={put} />
+          {!locked && <EvidencePanel jobId={jobId} role="electrician" gates={["electrical"]} />}
+          {!locked && <OtherItems jobId={jobId} editable />}
+          {planBlock}
+          {!locked && <Button size="field" className="w-full" disabled={needsPlan && rectPlanProblems(plan).length > 0} onClick={finish}><Check /> Complete PIESA</Button>}
+        </>
+      )}
       {!a?.external_mitti_id && locked && <Section title="Safety check"><p className="text-sm text-sub">Safety check complete.</p></Section>}
     </>
   );

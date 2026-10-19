@@ -75,12 +75,22 @@ function detachedGetRequest(request: Request, url: string): Request {
 
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
+    const hostname: string | null = (() => {
+      try {
+        return new URL(request.url).hostname;
+      } catch {
+        return null;
+      }
+    })();
+
     try {
       const incoming = detachedPageRequest(request);
       const handler = await getServerEntry();
       const c = ctx as { waitUntil?: (p: Promise<unknown>) => void } | undefined;
       const waitUntil = typeof c?.waitUntil === "function" ? c.waitUntil.bind(c) : undefined;
-      const response = await requestContext.run({ waitUntil }, () => handler.fetch(incoming, env, ctx));
+      
+      // Create AsyncLocalStorage context with hostname for this request
+      const response = await requestContext.run({ waitUntil, hostname }, () => handler.fetch(incoming, env, ctx));
 
       return await normalizeCatastrophicSsrResponse(response);
     } catch (error) {

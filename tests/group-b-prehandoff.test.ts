@@ -50,7 +50,7 @@ mock.module("../src/lib/emailsafety.server", () => ({ unsubscribeUrlForJob: asyn
 mock.module("../src/lib/job-live.server", () => ({ jobDeletedBlocker: async () => null }));
 mock.module("../src/lib/workflow.server", () => ({ logEvent: async () => {} }));
 globalThis.fetch = (async (u: unknown) => { fetchCalls.push(String(u)); return new Response(JSON.stringify({ id: "intercepted" }), { status: 200 }); }) as typeof fetch;
-process.env["RESEND_API_KEY"] = "test-only"; process.env["LOVABLE_API_KEY"] = "test-only";
+process.env["RESEND_API_KEY"] = "test-only"; process.env["LOVABLE_API_KEY"] = "test-only"; process.env["HIVIC_COM04_ENV"] = "production"; // S102: production send path with a stubbed provider
 
 const { sendAutomaticInsulationDetails, GROUP_B_GLOBALS_OFF } = await import("../src/lib/hot-leads-send.server");
 
@@ -84,17 +84,40 @@ for (const [name, arrange] of prehandoff) {
   });
 }
 
-const entry: [string, () => void][] = [
-  ["only workflow switch on", () => { dReads = [{ data: { enabled: false }, error: null }]; }],
-  ["only delivery switch on", () => { wReads = [{ data: { customer_comms_enabled: false }, error: null }]; }],
-  ["settings read failure", () => { wReads = [{ data: null, error: { message: "down" } }]; }],
+// S20-R01: with the master switch off, the route entry also asks the new-enquiry gate (a second delivery-settings read).
+// Here no automatic-email start time is set (and the owner address is a test one), so every case is still refused.
+const { AUTO_REPLY_NO_START } = await import("../src/lib/enquiry-auto-reply.core");
+const OFF_D: Read = { data: { enabled: false }, error: null };
+const entry: [string, () => void, string][] = [
+  ["only workflow switch on", () => { dReads = [OFF_D, OFF_D]; }, GROUP_B_GLOBALS_OFF],
+  ["only delivery switch on (no automatic-email start time)", () => { wReads = [{ data: { customer_comms_enabled: false }, error: null }]; }, AUTO_REPLY_NO_START],
+  ["settings read failure", () => { wReads = [{ data: null, error: { message: "down" } }]; dReads = [ON_D, { data: null, error: { message: "down" } }]; }, "Automatic email settings or the enquiry could not be read – nothing sent."],
 ];
-for (const [name, arrange] of entry) {
+for (const [name, arrange, detail] of entry) {
   test(`route entry with ${name} -> blocked before reservation, zero provider calls`, async () => {
     arrange();
     const r = await sendAutomaticInsulationDetails(J);
-    expect(r.outcome).toBe("blocked"); expect(r.detail).toBe(GROUP_B_GLOBALS_OFF);
-    expect([wCount, dCount]).toEqual([1, 1]); expect(mediaReads).toBe(0);
+    expect(r.outcome).toBe("blocked"); expect(r.detail).toBe(detail);
+    expect([wCount, dCount]).toEqual([1, 2]); expect(mediaReads).toBe(0);
     expect(sends).toEqual([]); expect(fetchCalls).toEqual([]);
   });
 }
+
+test("S20-R01: master off, NEW enquiry with automatic emails on -> sends once; switching them off before the provider call blocks", async () => {
+  const saved = rows["jobs"];
+  rows["jobs"] = { ...(saved as object), created_at: new Date(Date.now() - 3_600_000).toISOString(), owners: { full_name: "TEST Owner", email: "jet.zhezhang@gmail.com" } };
+  const AUTO_D: Read = { data: { enabled: true, jobs_created_after: new Date(Date.now() - 7_200_000).toISOString() }, error: null };
+  try {
+    wReads = [{ data: { customer_comms_enabled: false }, error: null }, { data: { customer_comms_enabled: false }, error: null }];
+    dReads = [AUTO_D, AUTO_D, AUTO_D, AUTO_D];
+    expect((await sendAutomaticInsulationDetails(J)).outcome).toBe("sent");
+    expect(fetchCalls).toEqual(["https://connector-gateway.lovable.dev/resend/emails"]);
+    sends = []; fetchCalls.length = 0; wCount = 0; dCount = 0;
+    wReads = [{ data: { customer_comms_enabled: false }, error: null }, { data: { customer_comms_enabled: false }, error: null }];
+    dReads = [AUTO_D, AUTO_D, AUTO_D, { data: { enabled: false, jobs_created_after: null }, error: null }]; // switched off mid-flight
+    const r = await sendAutomaticInsulationDetails(J);
+    expect(r).toMatchObject({ outcome: "blocked", detail: GROUP_B_GLOBALS_OFF });
+    expect(sends).toHaveLength(1); expect(sends[0]).toMatchObject({ status: "failed", provider: "not_sent" });
+    expect(fetchCalls).toEqual([]);
+  } finally { rows["jobs"] = saved; }
+});

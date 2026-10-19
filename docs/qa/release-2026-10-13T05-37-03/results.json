@@ -1,0 +1,316 @@
+{
+ "env": "LIVE https://estimate.homeinsulationvictoria.com.au",
+ "fingerprint": {
+  "window": "2026-10-13T05:39:04Z-05:39:06Z",
+  "scratch": "/tmp/fp.enSI5i",
+  "home": "200 8564B",
+  "files": {
+   "index-DDnZ9Rrz.js": [
+    356901,
+    "c55ebc4c3e9ac51736aed8833df40f98488b73029ccef8426be07e223b082182"
+   ],
+   "TradeShell-fhc5Pq4n.js": [
+    6174,
+    "844988b33731e2eb08fed19fa61043bcc683b6cf52adec0e8f27c212a4f0d6d1"
+   ],
+   "operations-query-CDmrXud9.js": [
+    360,
+    "a26d339e87a184b7738b3583cfbf256cfeaa7543c98ee2f16d9197b1b1f31c32"
+   ],
+   "estimate_._token.video-B05SAXMp.js": [
+    10954,
+    "149cc5a8411c3e4935885804ce9355f5cde326582edefde75f537d4ee8b92086"
+   ]
+  }
+ },
+ "run": "run A 05:39:39-05:40:22Z blocked/discarded; run B 05:40:49-05:42:02Z default views",
+ "allowlist": [
+  "GET/HEAD estimate host",
+  "POST _serverFn/0b178e00\u2026c20 (getLaunchCampaignPage read)",
+  "GET logo"
+ ],
+ "aborted": {
+  "GET https://fonts.googleapis.com/css2": 30,
+  "POST https://estimate.homeinsulationvictoria.com.au/__l5e/trackevents": 42
+ },
+ "db": {
+  "view_count": {
+   "HV-2211": "42->52",
+   "HV-2219": "37->47",
+   "HV-2221": "40->50"
+  },
+  "qa_test_engagement_events": "+2",
+  "saved_response_rows": "unchanged byte-for-byte",
+  "sends": "211->211",
+  "outbox_pending": "0->0",
+  "unrelated": "1 base44 campaign response + 3 base44 workflow events 05:39:39-48Z from real activity, not this run"
+ },
+ "results": [
+  {
+   "job": "HV-2211",
+   "route": "calc-original",
+   "viewport": "phone",
+   "status": 200,
+   "hscroll": false,
+   "logo": [],
+   "testids": [
+    "spot-saved"
+   ],
+   "saved_heading": false,
+   "has150": false,
+   "nums": [
+    "$4,348",
+    "$1,750",
+    "180 m\u00b2"
+   ],
+   "snippet": "Your spot has been saved |  | You\u2019re now in our queue for a free Ready Check. We\u2019ll contact you when installer availability is confirmed in your area. There\u2019s nothing to pay now, and you\u2019re under no obligation to proceed. Your eligibility, ceiling area and final price will be confirmed before you decide to go ahead. |  | Saved estimate: $4,348 after an estimated $1,750 rebate (180 m\u00b2).",
+   "errors": [],
+   "screen": "HV-2211-calc-original-phone.png"
+  },
+  {
+   "job": "HV-2211",
+   "route": "calc-updated",
+   "viewport": "phone",
+   "status": 200,
+   "hscroll": false,
+   "logo": [],
+   "testids": [
+    "spot-saved"
+   ],
+   "saved_heading": false,
+   "has150": false,
+   "nums": [
+    "$4,348",
+    "$1,750",
+    "180 m\u00b2"
+   ],
+   "snippet": "Your spot has been saved |  | You\u2019re now in our queue for a free Ready Check. We\u2019ll contact you when installer availability is confirmed in your area. There\u2019s nothing to pay now, and you\u2019re under no obligation to proceed. Your eligibility, ceiling area and final price will be confirmed before you decide to go ahead. |  | Saved estimate: $4,348 after an estimated $1,750 rebate (180 m\u00b2).",
+   "errors": [],
+   "screen": "HV-2211-calc-updated-phone.png"
+  },
+  {
+   "job": "HV-2219",
+   "route": "calc-original",
+   "viewport": "phone",
+   "status": 200,
+   "hscroll": false,
+   "logo": [],
+   "testids": [
+    "spot-saved"
+   ],
+   "saved_heading": false,
+   "has150": true,
+   "nums": [
+    "$3,728",
+    "$1,470",
+    "150 m\u00b2"
+   ],
+   "snippet": "Your spot has been saved |  | You\u2019re now in our queue for a free Ready Check. We\u2019ll contact you when installer availability is confirmed in your area. There\u2019s nothing to pay now, and you\u2019re under no obligation to proceed. Your eligibility, ceiling area and final price will be confirmed before you decide to go ahead. |  | Saved estimate: $3,728 after an estimated $1,470 rebate (150 m\u00b2).",
+   "errors": [],
+   "screen": "HV-2219-calc-original-phone.png"
+  },
+  {
+   "job": "HV-2219",
+   "route": "calc-updated",
+   "viewport": "phone",
+   "status": 200,
+   "hscroll": false,
+   "logo": [],
+   "testids": [
+    "spot-saved"
+   ],
+   "saved_heading": false,
+   "has150": true,
+   "nums": [
+    "$3,728",
+    "$1,470",
+    "150 m\u00b2"
+   ],
+   "snippet": "Your spot has been saved |  | You\u2019re now in our queue for a free Ready Check. We\u2019ll contact you when installer availability is confirmed in your area. There\u2019s nothing to pay now, and you\u2019re under no obligation to proceed. Your eligibility, ceiling area and final price will be confirmed before you decide to go ahead. |  | Saved estimate: $3,728 after an estimated $1,470 rebate (150 m\u00b2).",
+   "errors": [],
+   "screen": "HV-2219-calc-updated-phone.png"
+  },
+  {
+   "job": "HV-2221",
+   "route": "calc-original",
+   "viewport": "phone",
+   "status": 200,
+   "hscroll": false,
+   "logo": [
+    true
+   ],
+   "testids": [],
+   "saved_heading": false,
+   "has150": true,
+   "nums": [
+    "100 m\u00b2",
+    "125 m\u00b2",
+    "150 m\u00b2",
+    "200 m\u00b2",
+    "150 m\u00b2"
+   ],
+   "snippet": "FREE ESTIMATE \u00b7 NO OBLIGATION |  | Jo, try a different ceiling size |  | Three quick answers \u2014 your estimate and VEU discount appear instantly. |  | Start again | 1 | WHERE IS THE PROPERTY? |  | We couldn't find a Victorian match \u2014 we only work with Victorian properties. Keep typing, or type your full address including the postcode. |  | Metropolitan \u00b7 Mild | 2 | HOW BIG IS YOUR CEILING? | 100 m\u00b2 | 125 m\u00b2 | 150 m\u00b2 | 200 m\u00b2 | m\u00b2 |  | Not s",
+   "errors": [],
+   "screen": "HV-2221-calc-original-phone.png"
+  },
+  {
+   "job": "HV-2221",
+   "route": "calc-updated",
+   "viewport": "phone",
+   "status": 200,
+   "hscroll": false,
+   "logo": [
+    true
+   ],
+   "testids": [],
+   "saved_heading": false,
+   "has150": true,
+   "nums": [
+    "100 m\u00b2",
+    "125 m\u00b2",
+    "150 m\u00b2",
+    "200 m\u00b2",
+    "150 m\u00b2"
+   ],
+   "snippet": "FREE ESTIMATE \u00b7 NO OBLIGATION |  | Jo, try a different ceiling size |  | Three quick answers \u2014 your estimate and VEU discount appear instantly. |  | Start again | 1 | WHERE IS THE PROPERTY? |  | We couldn't find a Victorian match \u2014 we only work with Victorian properties. Keep typing, or type your full address including the postcode. |  | Metropolitan \u00b7 Mild | 2 | HOW BIG IS YOUR CEILING? | 100 m\u00b2 | 125 m\u00b2 | 150 m\u00b2 | 200 m\u00b2 | m\u00b2 |  | Not s",
+   "errors": [],
+   "screen": "HV-2221-calc-updated-phone.png"
+  },
+  {
+   "job": "HV-2211",
+   "route": "calc-original",
+   "viewport": "desktop",
+   "status": 200,
+   "hscroll": false,
+   "logo": [],
+   "testids": [
+    "spot-saved"
+   ],
+   "saved_heading": false,
+   "has150": false,
+   "nums": [
+    "$4,348",
+    "$1,750",
+    "180 m\u00b2"
+   ],
+   "snippet": "Your spot has been saved |  | You\u2019re now in our queue for a free Ready Check. We\u2019ll contact you when installer availability is confirmed in your area. There\u2019s nothing to pay now, and you\u2019re under no obligation to proceed. Your eligibility, ceiling area and final price will be confirmed before you decide to go ahead. |  | Saved estimate: $4,348 after an estimated $1,750 rebate (180 m\u00b2).",
+   "errors": [],
+   "screen": "HV-2211-calc-original-desktop.png"
+  },
+  {
+   "job": "HV-2211",
+   "route": "calc-updated",
+   "viewport": "desktop",
+   "status": 200,
+   "hscroll": false,
+   "logo": [],
+   "testids": [
+    "spot-saved"
+   ],
+   "saved_heading": false,
+   "has150": false,
+   "nums": [
+    "$4,348",
+    "$1,750",
+    "180 m\u00b2"
+   ],
+   "snippet": "Your spot has been saved |  | You\u2019re now in our queue for a free Ready Check. We\u2019ll contact you when installer availability is confirmed in your area. There\u2019s nothing to pay now, and you\u2019re under no obligation to proceed. Your eligibility, ceiling area and final price will be confirmed before you decide to go ahead. |  | Saved estimate: $4,348 after an estimated $1,750 rebate (180 m\u00b2).",
+   "errors": [],
+   "screen": "HV-2211-calc-updated-desktop.png"
+  },
+  {
+   "job": "HV-2219",
+   "route": "calc-original",
+   "viewport": "desktop",
+   "status": 200,
+   "hscroll": false,
+   "logo": [],
+   "testids": [
+    "spot-saved"
+   ],
+   "saved_heading": false,
+   "has150": true,
+   "nums": [
+    "$3,728",
+    "$1,470",
+    "150 m\u00b2"
+   ],
+   "snippet": "Your spot has been saved |  | You\u2019re now in our queue for a free Ready Check. We\u2019ll contact you when installer availability is confirmed in your area. There\u2019s nothing to pay now, and you\u2019re under no obligation to proceed. Your eligibility, ceiling area and final price will be confirmed before you decide to go ahead. |  | Saved estimate: $3,728 after an estimated $1,470 rebate (150 m\u00b2).",
+   "errors": [],
+   "screen": "HV-2219-calc-original-desktop.png"
+  },
+  {
+   "job": "HV-2219",
+   "route": "calc-updated",
+   "viewport": "desktop",
+   "status": 200,
+   "hscroll": false,
+   "logo": [],
+   "testids": [
+    "spot-saved"
+   ],
+   "saved_heading": false,
+   "has150": true,
+   "nums": [
+    "$3,728",
+    "$1,470",
+    "150 m\u00b2"
+   ],
+   "snippet": "Your spot has been saved |  | You\u2019re now in our queue for a free Ready Check. We\u2019ll contact you when installer availability is confirmed in your area. There\u2019s nothing to pay now, and you\u2019re under no obligation to proceed. Your eligibility, ceiling area and final price will be confirmed before you decide to go ahead. |  | Saved estimate: $3,728 after an estimated $1,470 rebate (150 m\u00b2).",
+   "errors": [],
+   "screen": "HV-2219-calc-updated-desktop.png"
+  },
+  {
+   "job": "HV-2221",
+   "route": "calc-original",
+   "viewport": "desktop",
+   "status": 200,
+   "hscroll": false,
+   "logo": [
+    true
+   ],
+   "testids": [],
+   "saved_heading": false,
+   "has150": true,
+   "nums": [
+    "100 m\u00b2",
+    "125 m\u00b2",
+    "150 m\u00b2",
+    "200 m\u00b2",
+    "150 m\u00b2"
+   ],
+   "snippet": "FREE ESTIMATE \u00b7 NO OBLIGATION |  | Jo, try a different ceiling size |  | Three quick answers \u2014 your estimate and VEU discount appear instantly. |  | Start again | 1 | WHERE IS THE PROPERTY? |  | We couldn't find a Victorian match \u2014 we only work with Victorian properties. Keep typing, or type your full address including the postcode. |  | Metropolitan \u00b7 Mild | 2 | HOW BIG IS YOUR CEILING? | 100 m\u00b2 | 125 m\u00b2 | 150 m\u00b2 | 200 m\u00b2 | m\u00b2 |  | Not s",
+   "errors": [],
+   "screen": "HV-2221-calc-original-desktop.png"
+  },
+  {
+   "job": "HV-2221",
+   "route": "calc-updated",
+   "viewport": "desktop",
+   "status": 200,
+   "hscroll": false,
+   "logo": [
+    true
+   ],
+   "testids": [],
+   "saved_heading": false,
+   "has150": true,
+   "nums": [
+    "100 m\u00b2",
+    "125 m\u00b2",
+    "150 m\u00b2",
+    "200 m\u00b2",
+    "150 m\u00b2"
+   ],
+   "snippet": "FREE ESTIMATE \u00b7 NO OBLIGATION |  | Jo, try a different ceiling size |  | Three quick answers \u2014 your estimate and VEU discount appear instantly. |  | Start again | 1 | WHERE IS THE PROPERTY? |  | We couldn't find a Victorian match \u2014 we only work with Victorian properties. Keep typing, or type your full address including the postcode. |  | Metropolitan \u00b7 Mild | 2 | HOW BIG IS YOUR CEILING? | 100 m\u00b2 | 125 m\u00b2 | 150 m\u00b2 | 200 m\u00b2 | m\u00b2 |  | Not s",
+   "errors": [],
+   "screen": "HV-2221-calc-updated-desktop.png"
+  }
+ ],
+ "status": "DIAGNOSTIC_DEFAULT_VIEWS_ONLY \u2014 superseded by results-corrected.json",
+ "harness_errors": [
+  "?choice=original/?choice=updated is ignored by validateSearch (only ?keep=original); all 12 rows are duplicate default-view visits, NOT original/revised proof",
+  "saved_heading regex did not match 'Your spot has been saved'; false values are a harness bug, panel text/testid show the saved panel",
+  "two runs: 05:39:39-05:40:22Z (~43s, page-read fn blocked, 'link isn't available') then 05:40:49-05:42:02Z (~73s, default views)"
+ ]
+}

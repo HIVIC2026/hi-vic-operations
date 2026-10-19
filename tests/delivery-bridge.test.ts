@@ -67,7 +67,11 @@ describe("post-intake + worker wiring", () => {
     expect(pi.indexOf('status: "complete"')).toBeLessThan(pi.indexOf("await maybeAutoRouteLeadEmail"));
     const router = src("src/lib/lead-email-routing.server.ts");
     expect(router).toMatch(/try \{[\s\S]*\} catch/);
-    expect(router).toContain("sendPreliminaryIneligibleEmail");
+    // S20-R01: the router calls the decision wrapper, which runs the same guarded ineligible sender.
+    expect(router).toContain("sendDecisionIneligibleEmail");
+    const fu = src("src/lib/followups.server.ts");
+    const wrapper = fu.slice(fu.indexOf("export async function sendDecisionIneligibleEmail"), fu.indexOf("export async function sendPreliminaryIneligibleEmail"));
+    expect(wrapper).toContain("sendPreliminaryIneligibleEmail(jobId, null)");
     const fn = pi.slice(pi.indexOf("export async function attemptCustomerEmail"));
     expect(fn).toMatch(/try \{[\s\S]*\} catch/);
     expect(fn).toContain('view.mode === "none_ineligible"');

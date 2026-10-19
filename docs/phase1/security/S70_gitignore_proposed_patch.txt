@@ -1,0 +1,23 @@
+# PROPOSED .gitignore additions — P1-R3-S70 (do NOT apply the untrack step without owner sign-off)
+#
+# Apply the ignore rules below. They are safe and non-breaking on their own
+# (git keeps already-tracked files until explicitly untracked).
+#
+# ── Add to .gitignore ──────────────────────────────────────────────
+# Environment files (keep the example template tracked)
+.env
+.env.*
+!.env.example
+# ───────────────────────────────────────────────────────────────────
+#
+# OWNER DECISION (separate, deliberate step — NOT done automatically here):
+# To stop tracking the existing committed .env while keeping it on disk:
+#
+#     git rm --cached .env
+#     git commit -m "chore(security): stop tracking .env; add .env.example (S70)"
+#
+# ⚠ Assess startup dependencies first: CI / Lovable Cloud / other worktrees may
+#   rely on the tracked .env for the PUBLIC publishable config. Provide the same
+#   values via .env.example + environment before untracking, so Bun tests,
+#   TypeScript, build and local Supabase continue to resolve SUPABASE_URL /
+#   SUPABASE_PUBLISHABLE_KEY. Secrets (SERVICE_ROLE / CRON) are already env-only.

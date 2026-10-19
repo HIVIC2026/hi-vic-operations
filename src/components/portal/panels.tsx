@@ -21,6 +21,7 @@ import {
 import { EVIDENCE_STATUS_LABEL, STAGE_LABEL, aud, fmtDate, fmtDateTime } from "@/lib/workflow";
 import { ASSISTANCE_LABEL } from "@/lib/authority";
 import { QUICK_ACTIONS } from "@/lib/messaging.core";
+import { FFS_PROGRESS_EVENT } from "@/lib/ffs-progress.core";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -58,8 +59,17 @@ export function BlockersPanel({ jobId, quietWhenClear = false, partner = false }
   if (!data) return null;
   if (!data.blockers.length)
     return quietWhenClear ? null : (
-      <div className="flex items-center gap-2 rounded-xl border border-success/30 bg-success-soft p-3 text-sm font-medium text-success">
-        <CheckCircle2 className="h-4 w-4" /> {data.next ? `Nothing blocking the move to ${STAGE_LABEL[data.next]}` : "No further stage"}
+      <div className="rounded-xl border border-success/30 bg-success-soft p-3 text-sm text-success">
+        <div className="flex items-center gap-2 font-medium">
+          <CheckCircle2 className="h-4 w-4" /> {data.next ? `No stage checks block the move to ${STAGE_LABEL[data.next]}` : "No further stage"}
+        </div>
+        {/* A clear transition is not the same as finished work. Say which one this is. */}
+        <p className="mt-1 text-xs font-normal text-sub">Stage checks only — this does not confirm the work for that stage has been done.</p>
+        {data.readyCheck && (
+          <p className="mt-1 text-xs font-normal text-foreground" data-rc-fact>
+            Ready Check: {data.readyCheck.status === "submitted" ? "submitted by the installer" : data.readyCheck.status === "draft" ? "started, not submitted" : "not started"}
+          </p>
+        )}
       </div>
     );
   if (partner) return (
@@ -282,7 +292,10 @@ export function MessagesPanel({ jobId, isAdmin, role }: { jobId: string; isAdmin
 export function TimelinePanel({ jobId }: { jobId: string }) {
   const { data } = useQuery({
     queryKey: ["events", jobId],
-    queryFn: async () => (await supabase.from("workflow_events").select("*, profiles(full_name)").eq("job_id", jobId).order("created_at", { ascending: false })).data ?? [],
+    // P1-FA02 (owner decision, 14 Oct 2026): FFS field-progress events are not user-facing and are
+    // filtered out here, at the presentation boundary. Every other event type (internal included)
+    // keeps rendering unchanged. Non-admin viewers never receive internal rows anyway (RLS).
+    queryFn: async () => ((await supabase.from("workflow_events").select("*, profiles(full_name)").eq("job_id", jobId).order("created_at", { ascending: false })).data ?? []).filter((e) => e.event_type !== FFS_PROGRESS_EVENT),
   });
   return (
     <Section title="History">

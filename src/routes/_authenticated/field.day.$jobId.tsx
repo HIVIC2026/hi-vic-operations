@@ -72,11 +72,18 @@ function DayPage() {
                 <ul className="mt-2 space-y-2 text-sm">{["Submitted form and result", data.kind === "safety_check" ? "Electrical findings" : "Measurements", "Required photo and document status", "The next step for this job"].map((t) => <li key={t} className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-hiv-green" />{t}</li>)}</ul>
               </aside>
             </div>
+          ) : data.kind === "ready_check" && data.channel !== "installer_sourced" ? (
+            // HIV-sourced Ready Checks are recorded on the job page in the portal's own form; no Mitti form is needed.
+            <section className={card} data-native-rc-handoff>
+              <h2 className="font-display text-xl font-bold">Your Ready Check form</h2>
+              <p className="mt-1 text-sm">Enter the measurements, photos and answers on the job page. You can save as you go — nothing is submitted until you send it.</p>
+              <Link to="/field/$jobId" params={{ jobId }} className={`${greenBtn} mt-4`} data-open-native-rc>Open the Ready Check form</Link>
+            </section>
           ) : (
             <section className={`${card} border-rose bg-pink`} data-mitti-setup>
               <h2 className="font-display text-xl font-bold">Your form is being set up.</h2>
               <p className="mt-1 text-sm">Home Insulation Victoria is preparing the onsite form. It will appear on this job when ready.</p>
-              {data.kind === "ready_check" && data.channel === "installer_sourced" && <PrepareForm jobId={jobId} onDone={() => refetch()} />}
+              {data.kind === "ready_check" && <PrepareForm jobId={jobId} onDone={() => refetch()} />}
             </section>
           )}
           {back}
@@ -123,7 +130,7 @@ function PrepareForm({ jobId, onDone }: { jobId: string; onDone: () => void }) {
     <div className="mt-3" data-prepare-form>
       <button type="button" disabled={busy} className={greenBtn} onClick={async () => {
         setBusy(true); setMsg(null);
-        try { const s = await get({ data: { jobId, retry: false } }); if (s.kind === "open") { window.location.href = s.url; return; } setMsg(s.kind === "preparing" ? "Still getting it ready — try again in a minute." : s.message); onDone(); }
+        try { const s = await get({ data: { jobId, retry: true } }); if (s.kind === "open") { window.location.href = s.url; return; } setMsg(s.kind === "preparing" ? "Still getting it ready — try again in a minute." : s.message); onDone(); }
         catch { setMsg("Couldn't check the form just now. Try again in a minute."); }
         finally { setBusy(false); }
       }}>{busy ? "Checking…" : "Get my Ready Check form"}</button>

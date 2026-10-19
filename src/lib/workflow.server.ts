@@ -508,5 +508,11 @@ export async function nextStepBlockers(jobId: string) {
     blockers.unshift(`PIESA 30-day window expired on ${piesa.install_deadline}. Reassessment required.`);
   if ((await assignmentStatus(jobId)) === "variation_required" && !blockers.some((b) => b.startsWith("Assignment variation")))
     blockers.unshift("Assignment variation must be reconfirmed by the customer.");
-  return { stage, next, blockers };
+  // A stage move can be unblocked while the work that move implies is still outstanding. The Ready Check is the
+  // clearest case: "ready_check_complete" has no entry guard, so Office needs the actual submission state to
+  // read alongside the transition hint. Reported as a fact, never folded into `blockers` (no permission change).
+  const readyCheck = stage === "ready_check_scheduled" || next === "ready_check_complete"
+    ? await (await import("./ready-check-draft.server")).readyCheckState(jobId)
+    : null;
+  return { stage, next, blockers, readyCheck };
 }
