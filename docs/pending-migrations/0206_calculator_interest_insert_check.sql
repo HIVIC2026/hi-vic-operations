@@ -10,7 +10,7 @@ CREATE POLICY "anyone can register interest" ON public.calculator_interests FOR 
     AND length(email) BETWEEN 3 AND 320 AND position('@' in email) > 1
     AND length(btrim(address_line)) BETWEEN 1 AND 300
     AND length(suburb) <= 120
-    AND postcode ~ '^[0-9]{4}$'
-    AND ceiling_m2 > 0 AND ceiling_m2 <= 2000
+    AND postcode ~ '^([0-9]{4})?$'
+    AND ceiling_m2 >= 0 AND ceiling_m2 <= 2000
     AND length(consent_version) BETWEEN 1 AND 100
   );
