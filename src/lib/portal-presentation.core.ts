@@ -155,6 +155,14 @@ export function communicationStatusLabel(c: { status: string; at: string | null 
   return "Status unavailable";
 }
 
+/** job_communications origin for staff (STEP 17): provider "manual" (the column default) is an Office record, never a
+ *  portal send; anything else came from a portal sender and keeps the confirmed-send wording above. */
+export function communicationOrigin(row: { provider?: string | null; direction?: string | null; delivery_status?: string | null; sent_at?: string | null }): { manual: boolean; label: string } {
+  if ((row.provider ?? "manual") === "manual") return { manual: true, label: "Recorded by Office – not sent by the portal" };
+  if (row.direction === "inbound") return { manual: false, label: "Received by the portal" };
+  return { manual: false, label: `From the portal · ${communicationStatusLabel({ status: row.delivery_status ?? "", at: row.sent_at ?? null })}` };
+}
+
 /** Latest message actually confirmed sent (real sent time). A newer queued/blocked row never hides it. */
 export function latestConfirmedSend<T extends CommFactView>(history: T[]): T | null {
   const sent = history.filter((c) => (c.status === "sent" || c.status === "delivered") && okTime(c.at));
