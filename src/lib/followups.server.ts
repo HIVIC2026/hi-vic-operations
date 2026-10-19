@@ -356,7 +356,7 @@ export const ineligibleKey = (jobId: string) => `${INELIGIBLE_PURPOSE}:${jobId}`
 export async function sendDecisionIneligibleEmail(jobId: string, ctx: import("./manual-backlog.core").LeadRouteContext = {}) {
   const { isManualBacklog } = await import("./manual-backlog.core");
   // Manually-approved ENQ_01 backlog only: the master switch must be on (no new-enquiry gate fallback).
-  if (isManualBacklog(ctx)) return (await customerCommsEnabled()) ? sendPreliminaryIneligibleEmail(jobId, null, undefined, { manualBacklog: ctx.manualBacklog }) : { sent: false as const, reason: "comms_disabled" };
+  if (isManualBacklog(ctx)) return (await customerCommsEnabled()) ? sendPreliminaryIneligibleEmail(jobId, null, undefined, { manualBacklog: ctx.manualBacklog! }) : { sent: false as const, reason: "comms_disabled" };
   if (await customerCommsEnabled()) return sendPreliminaryIneligibleEmail(jobId, null);
   const { newEnquiryAutoReplyGate } = await import("./enquiry-auto-reply.server");
   const gate = await newEnquiryAutoReplyGate(jobId);
