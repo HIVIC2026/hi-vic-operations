@@ -4,6 +4,7 @@ import { EnquiriesWorkspace, type EnquiryView } from "@/components/portal/Enquir
 
 const VIEWS: EnquiryView[] = [
   "all",
+  "new",
   "spot_saved",
   "offered_spot",
   "insulation_requested",
@@ -14,7 +15,8 @@ const VIEWS: EnquiryView[] = [
 ];
 
 export const Route = createFileRoute("/_authenticated/admin/enquiries")({
-  validateSearch: (s: Record<string, unknown>): { status?: EnquiryView; q?: string } => ({
+  validateSearch: (s: Record<string, unknown>): { status?: EnquiryView; q?: string; page: number } => ({
+    page: Math.max(0, Number(s["page"]) || 0),
     ...(VIEWS.includes(s["status"] as EnquiryView) ? { status: s["status"] as EnquiryView } : {}),
     ...(typeof s["q"] === "string" && s["q"] ? { q: s["q"] } : {}),
   }),
@@ -37,18 +39,20 @@ export const Route = createFileRoute("/_authenticated/admin/enquiries")({
 });
 
 function EnquiriesPage() {
-  const { status = "all", q = "" } = Route.useSearch();
+  const { status = "all", q = "", page } = Route.useSearch();
   const navigate = Route.useNavigate();
   return (
     <AppShell wide>
       <EnquiriesWorkspace
         view={status}
         q={q}
+        page={page}
+        onPage={next => void navigate({ search: prev => ({ ...prev, page: next }), resetScroll: false })}
         onView={(next) =>
-          void navigate({ search: (prev) => ({ ...prev, status: next }), resetScroll: false })
+          void navigate({ search: (prev) => ({ ...prev, status: next, page: 0 }), resetScroll: false })
         }
         onQ={(next) =>
-          void navigate({ search: (prev) => ({ ...prev, q: next }), resetScroll: false })
+          void navigate({ search: (prev) => ({ ...prev, q: next, page: 0 }), resetScroll: false })
         }
       />
     </AppShell>
