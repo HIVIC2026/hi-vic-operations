@@ -77,14 +77,33 @@ function IneligibleRetry({ row }: { row: CommunicationHistoryRow }) {
       void cache.invalidateQueries({ queryKey: ["enquiry-response-overview"] });
     },
   });
-  return <div className="mt-2 space-y-1">
-    <Button size="sm" variant="outline" disabled={action.isPending || action.data?.outcome === "sent"}
-      onClick={() => {
-        if (window.confirm(`Retry only the failed ineligible email for ${row.jobNumber ?? "this job"}? All current sending checks still apply.`)) action.mutate();
-      }}>{action.isPending ? "Retrying…" : "Retry ineligible email"}</Button>
-    {action.data && <p role="status">{action.data.outcome === "sent" ? "Sent" : "Blocked"}: {action.data.detail}</p>}
-    {action.error && <p role="alert">Retry could not be confirmed. Refresh history before trying again.</p>}
-  </div>;
+  return (
+    <div className="mt-2 space-y-1">
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={action.isPending || action.data?.outcome === "sent"}
+        onClick={() => {
+          if (
+            window.confirm(
+              `Retry only the failed ineligible email for ${row.jobNumber ?? "this job"}? All current sending checks still apply.`,
+            )
+          )
+            action.mutate();
+        }}
+      >
+        {action.isPending ? "Retrying…" : "Retry ineligible email"}
+      </Button>
+      {action.data && (
+        <p role="status">
+          {action.data.outcome === "sent" ? "Sent" : "Blocked"}: {action.data.detail}
+        </p>
+      )}
+      {action.error && (
+        <p role="alert">Retry could not be confirmed. Refresh history before trying again.</p>
+      )}
+    </div>
+  );
 }
 
 function HistoryTable({ filter }: { filter: "all" | "sent" | "failed" }) {
@@ -172,16 +191,20 @@ function HistoryTable({ filter }: { filter: "all" | "sent" | "failed" }) {
                       {r.source === "auto" ? "Automatic sender" : "Job email"}
                     </span>
                   )}
-                  {r.source === "auto" && r.statusLabel === "failed" && r.purpose === "preliminary_ineligible" ? (
+                  {r.source === "auto" &&
+                  r.statusLabel === "failed" &&
+                  r.purpose === "preliminary_ineligible" ? (
                     <IneligibleRetry row={r} />
-                  ) : r.status === "failed" && (
-                    <Link
-                      to="/admin/communications"
-                      search={{ tab: "failed" }}
-                      className="ml-2 font-semibold text-primary underline"
-                    >
-                      How to retry
-                    </Link>
+                  ) : (
+                    r.status === "failed" && (
+                      <Link
+                        to="/admin/communications"
+                        search={{ tab: "failed" }}
+                        className="ml-2 font-semibold text-primary underline"
+                      >
+                        How to retry
+                      </Link>
+                    )
                   )}
                 </td>
               </tr>

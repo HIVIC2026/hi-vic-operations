@@ -11,9 +11,12 @@ export const retryFailedIneligibleEmail = createServerFn({ method: "POST" })
     const { retryFailedIneligible } = await import("./ineligible-retry.core");
     return retryFailedIneligible(data.jobId, {
       read: async () => {
-        const { data: row, error } = await admin.from("customer_email_sends")
+        const { data: row, error } = await admin
+          .from("customer_email_sends")
           .select("job_id, purpose, status, idempotency_key")
-          .eq("id", data.sendId).eq("job_id", data.jobId).maybeSingle();
+          .eq("id", data.sendId)
+          .eq("job_id", data.jobId)
+          .maybeSingle();
         if (error) throw new Error("Could not verify the failed send. Nothing retried.");
         return row;
       },
