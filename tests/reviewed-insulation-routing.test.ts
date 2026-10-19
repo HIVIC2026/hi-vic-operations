@@ -32,7 +32,7 @@ test("both approved facts choose guarded T3/T4, never a repeat request", async (
   expect(await maybeAutoRouteLeadEmail("job")).toEqual({ route: "offer_spot", sent: true, reason: "stub" });
   expect(calls).toEqual(["T3/T4"]);
   // Selector + T3/T4 re-check each read the LATEST review only.
-  expect(reviewOrders).toEqual([["occurred_at", { ascending: false }], ["occurred_at", { ascending: false }]]);
+  expect(reviewOrders).toEqual([["occurred_at", { ascending: false }], ["occurred_at", { ascending: false }], ["occurred_at", { ascending: false }]]);
 });
 test("latest no_insulation review routes the actual router to T1/T2 (offer_spot), never T5/T6", async () => {
   outcome = "no_insulation"; media = true;

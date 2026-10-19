@@ -5,7 +5,7 @@ import { postgrestShim } from "./helpers/pglite-postgrest-shim";
 import { GATE1_RULESET_VERSION } from "../src/lib/eligibility.core";
 const db = await launchCampaignDb();
 await db.exec(`
-ALTER TABLE jobs ADD source text, ADD channel text DEFAULT 'hivic_sourced', ADD stage text, ADD eligibility_outcome text, ADD eligibility_review_required boolean DEFAULT false,
+ALTER TABLE jobs ADD created_at timestamptz DEFAULT now(), ADD job_number text DEFAULT 'HV-TEST-UNLISTED', ADD source text, ADD channel text DEFAULT 'hivic_sourced', ADD stage text, ADD eligibility_outcome text, ADD eligibility_review_required boolean DEFAULT false,
  ADD eligibility_decision_source text, ADD eligibility_decision_rules jsonb, ADD estimated_area_m2 numeric, ADD estimated_area_unknown boolean DEFAULT false, ADD owners jsonb, ADD properties jsonb;
 ALTER TABLE customer_estimate_links ADD token text, ADD purpose text, ADD status text, ADD expires_at timestamptz;
 CREATE TABLE owner_contact_consents(job_id uuid, consent_status text, created_at timestamptz DEFAULT now());
@@ -16,7 +16,7 @@ CREATE TABLE workflow_events(id uuid DEFAULT gen_random_uuid(), job_id uuid, eve
 CREATE TABLE indicative_estimates(id uuid DEFAULT gen_random_uuid(), job_id uuid, status text, area_m2 numeric, area_source text, insulation_declared text, scenarios jsonb, snapshot jsonb);
 CREATE TABLE documents(job_id uuid, kind text, mime_type text, storage_path text, source_system text, external_id text);
 CREATE TABLE evidence_files(job_id uuid, mime_type text, storage_path text);
-CREATE TABLE customer_engagement_events(job_id uuid, event_type text, metadata jsonb, occurred_at timestamptz DEFAULT now());
+CREATE TABLE customer_engagement_events(job_id uuid, event_type text, source text DEFAULT 'office', metadata jsonb, occurred_at timestamptz DEFAULT now());
 ALTER TABLE customer_delivery_settings ADD IF NOT EXISTS ready_check_available_postcodes text[];
 -- Pricing fixture parity (P1-FA05A): retail_estimator_settings must carry the full column set the
 -- pricing reader converts (id/version/removal_inc_gst_per_m2/ready_check_fee_inc_gst) or toRates

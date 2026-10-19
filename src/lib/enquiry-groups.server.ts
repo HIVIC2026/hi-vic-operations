@@ -15,6 +15,7 @@ import { originalEnquiryMedia, groupBInvitationBlocker, type GroupBMediaState } 
 import { signFile } from "./file-links.server";
 import { formatPropertyAddress } from "./address";
 import { LAUNCH_CAMPAIGN } from "./launch-campaign.core";
+import { uncertainSend, sendKindFromKey, uncertainAttentionReason, type SendKind } from "./save-spot-delivery.core";
 import {
   classifyEnquiry, enquiryStatus, contactExclusion, primaryByContact, propertyKey, contactKey, sendHolds, templateFor, AREA_LABEL, ASSUMED_REFERENCE_AREA_M2,
   type EnquiryClass, type EnquiryStatus, type EnquiryGroup, type OtherReason, type StoredAudit, type MediaReviewOutcome,
@@ -52,6 +53,7 @@ export type EnquiryGroupRow = EnquiryClass & {
   id: string; kind: "job" | "calculator"; jobNumber: string | null; reference: string | null; name: string | null; email: string | null; phone: string | null; address: string | null; postcode: string | null;
   createdAt: string; stage: string | null; areaLabel: string; declaredInsulation: "none" | "present" | "unknown" | null; hardFailures: string[];
   lastEmail: { purpose: string; status: string; at: string | null; error: string | null } | null;
+  emailOutcomeUnknown: { sendId: string; at: string | null; kind: SendKind; detail: string | null } | null;
   consent: string | null; optedOut: boolean; bounced: boolean; source: string | null; isPrimaryForContact: boolean; sentPurposes: string[];
   status: EnquiryStatus; attentionReason: string | null; outcomeAt: string | null;
   /** Homeowner photos/videos attached to the website enquiry (intake_media), and whether the office has reviewed them. */
@@ -72,7 +74,7 @@ export async function loadEnquiryGroups(visibleIds: string[]) {
     byJobs(ids, (c, f, t) => admin.from("property_area_estimates").select("id, job_id, tier, net_m2, created_at").in("job_id", c).in("tier", TRUSTED_ESTIMATE_TIERS).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("evidence_files").select("job_id, mime_type, storage_path").in("job_id", c).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("post_intake_work").select("job_id").in("job_id", c).in("status", ["queued", "processing", "retry"]).range(f, t)),
-    byJobs(ids, (c, f, t) => admin.from("customer_email_sends").select("job_id, purpose, status, sent_at, created_at, error, idempotency_key").in("job_id", c).order("created_at", { ascending: true }).range(f, t)),
+    byJobs(ids, (c, f, t) => admin.from("customer_email_sends").select("id, job_id, purpose, status, sent_at, created_at, error, idempotency_key").in("job_id", c).order("created_at", { ascending: true }).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("owner_contact_consents").select("job_id, consent_status, created_at").in("job_id", c).order("created_at", { ascending: true }).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("customer_email_optouts").select("job_id, opted_out_at").in("job_id", c).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("customer_engagement_events").select("job_id").in("job_id", c).in("event_type", SUPPRESSING_EVENTS).range(f, t)),
@@ -106,6 +108,7 @@ export async function loadEnquiryGroups(visibleIds: string[]) {
     const best = selectCurrentEstimate((eBy.get(j.id) ?? []).map((e) => ({ id: e.id, tier: e.tier as AreaTier, net_m2: e.net_m2 == null ? null : Number(e.net_m2), created_at: e.created_at })));
     const js = sBy.get(j.id) ?? [];
     const last = js[js.length - 1];
+    const unknown = js.findLast(s => s.purpose === LAUNCH_CAMPAIGN && uncertainSend(s, Date.now()));
     const audit = (j.eligibility_decision_rules ?? null) as StoredAudit;
     const mediaOutcome = outcomeBy.get(j.id) ?? null;
     const groupBMedia = originalEnquiryMedia(b44.raw, [...(mediaBy.get(j.id) ?? []), ...(evidenceBy.get(j.id) ?? [])]);
@@ -120,6 +123,7 @@ export async function loadEnquiryGroups(visibleIds: string[]) {
       address: formatPropertyAddress(p) || null, postcode: p?.postcode ?? null, propKey: propertyKey(p?.address_line, p?.postcode), createdAt: j.created_at, stage: j.stage,
       areaLabel: AREA_LABEL[c.area.source], declaredInsulation, hardFailures: audit?.hard_failures ?? [],
       lastEmail: last ? { purpose: last.purpose, status: last.status, at: last.sent_at ?? last.created_at, error: last.error } : null,
+      emailOutcomeUnknown: unknown ? { sendId: unknown.id, at: unknown.created_at, kind: sendKindFromKey(unknown.idempotency_key), detail: unknown.error } : null,
       consent: cBy.get(j.id)?.slice(-1)[0]?.consent_status ?? null, optedOut: optSet.has(j.id), bounced: bounceSet.has(j.id), source: j.source,
       isPrimaryForContact: false, sentPurposes: [...new Set(js.filter((s) => SENT.includes(s.status)).map((s) => s.purpose))],
       status: (() => {
@@ -140,7 +144,8 @@ export async function loadEnquiryGroups(visibleIds: string[]) {
   for (const r of rows) {
     r.isPrimaryForContact = contactKey(r.email, r.propKey) === null || primary.has(r.id);
     if (r.status === "needs_attention") {
-      r.attentionReason = !r.isPrimaryForContact ? "Duplicate enquiry for the same contact and property"
+      r.attentionReason = r.emailOutcomeUnknown ? uncertainAttentionReason(r.emailOutcomeUnknown.kind)
+        : !r.isPrimaryForContact ? "Duplicate enquiry for the same contact and property"
         : r.lastEmail?.status === "failed" ? `Email failed: ${r.lastEmail.error ?? "delivery error"}`
         : r.optedOut ? "Owner opted out"
         : r.bounced ? "Email bounced or was suppressed"
