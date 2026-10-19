@@ -53,8 +53,9 @@ describe("staff portal presentation helpers", () => {
     expect(intake).toContain('id="target-intake-consent" data-portal-focus="target"');
     expect(workspace).toContain("new MutationObserver");
     expect(workspace).toContain("cleanup.current?.()");
-    expect(list).toContain('className="group mb-3 rounded-md border bg-card sm:hidden"');
-    expect(list).toContain('className="mb-3 hidden flex-wrap items-center gap-2 rounded-md border bg-card p-3 sm:flex"');
+    // One responsive filter bar for every breakpoint (replaced the duplicated mobile/desktop copies).
+    expect(list).toContain('className="mb-3 flex flex-wrap items-center gap-2 rounded-md border bg-card p-3"');
+    expect(list).toContain("{filterFields}");
     expect(workspace).toContain("{mounted && children}");
     expect(workspace).toContain("hidden={!open}");
   });

@@ -35,8 +35,7 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
           <Link to="/admin/needs-me" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><ListTodo className="h-4 w-4" /> Needs me</Link>
           <Link to="/admin" search={{ tab: "enquiries" }} className={link} activeProps={active} activeOptions={{ exact: true, includeSearch: true }} onClick={() => setMobileOpen(false)}><MailCheck className="h-4 w-4" /> Enquiries</Link>
           <Link to="/admin/enquiry-groups" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><MailCheck className="h-4 w-4" /> Enquiry email groups</Link>
-           <Link to="/admin/hot-leads" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><MailCheck className="h-4 w-4" /> Hot leads</Link>
-           <Link to="/admin/launch-campaign" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><MailCheck className="h-4 w-4" /> Spot saved</Link>
+           <Link to="/admin/launch-campaign" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><MailCheck className="h-4 w-4" /> Save my spot follow-ups</Link>
           <Link to="/admin" search={{ tab: "quotes" }} className={link} activeProps={active} activeOptions={{ exact: true, includeSearch: true }} onClick={() => setMobileOpen(false)}><FileCheck2 className="h-4 w-4" /> Pending quote approval</Link>
           <Link to="/admin" search={{ tab: "jobs" }} className={link} activeProps={active} activeOptions={{ exact: true, includeSearch: true }} onClick={() => setMobileOpen(false)}><BriefcaseBusiness className="h-4 w-4" /> Active jobs</Link>
           <Link to="/admin" search={{ tab: "ineligible" }} className={link} activeProps={active} activeOptions={{ exact: true, includeSearch: true }} onClick={() => setMobileOpen(false)}><X className="h-4 w-4" /> Ineligible</Link>

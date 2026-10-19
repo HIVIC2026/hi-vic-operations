@@ -4,6 +4,7 @@ import { nextStep } from "@/lib/nextstep.core";
 import { AlertTriangle, HeartPulse } from "lucide-react";
 import { fmtDateTime } from "@/lib/workflow";
 import { Pill, SourceBadge } from "./badges";
+import { JobFactsLine } from "./job-facts-line";
 import type { JobRow } from "./JobCard";
 import { supplementalEligibilityLabel } from "@/lib/portal-presentation.core";
 
@@ -19,6 +20,7 @@ export function StaffJobRow({ job, coverage, select }: { job: JobRow; coverage?:
       <div className="min-w-0">
         <Link to="/admin/jobs/$jobId" params={{ jobId: job.id! }} className="block break-words font-semibold after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring">{job.property_address}</Link>
         <div className="break-words text-xs text-muted-foreground"><span className="font-bold text-primary">{job.job_number}</span> · {job.owner_name}{job.life_support && <HeartPulse className="ml-1 inline h-3.5 w-3.5 text-danger" aria-label="Life support" />}</div>
+        <div className="mt-1"><JobFactsLine job={job} /></div>
       </div>
       <div className="flex min-w-0 flex-wrap gap-1"><SourceBadge channel={job.channel} business={job.originating_business_name} /><Pill t={step.tone}>{step.label}</Pill>{elig}</div>
       <div className="min-w-0 text-sm">

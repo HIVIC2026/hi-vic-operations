@@ -1354,6 +1354,25 @@ export const getAdminPipeline = createServerFn({ method: "POST" }).middleware([r
     admin.from("job_assignments").select("job_id,user_id,assigned_at,active").eq("active", true),
     admin.from("messages").select("job_id,sender_id,created_at,internal"),
   ]);
+  // Presentation-only enrichment for the Office cards: the customer's CURRENT indicative estimate already
+  // stores ceiling area + declared insulation, and intake media is already attached to the job. Read-only,
+  // no recalculation, no new aggregation service, and the same rows the job page shows.
+  const [{ data: ests }, { data: mediaDocs }, { data: intakeEvidence }] = await Promise.all([
+    admin.from("indicative_estimates").select("job_id,area_m2,area_source,insulation_declared").eq("status", "current"),
+    admin.from("documents").select("job_id").eq("kind", "intake_media"),
+    admin.from("evidence_files").select("job_id,storage_path,mime_type").like("storage_path", "%/intake/%"),
+  ]);
+  const estBy = new Map((ests ?? []).map((e) => [e.job_id, e]));
+  const mediaBy = new Map<string, number>();
+  for (const d of mediaDocs ?? []) if (d.job_id) mediaBy.set(d.job_id, (mediaBy.get(d.job_id) ?? 0) + 1);
+  for (const f of intakeEvidence ?? []) {
+    if (!f.job_id || !f.storage_path) continue;
+    if (/^(image|video)\//i.test(f.mime_type ?? "") && f.storage_path.startsWith(`${f.job_id}/intake/`)) {
+      mediaBy.set(f.job_id, (mediaBy.get(f.job_id) ?? 0) + 1);
+    }
+  }
+  // null (not 0) when the media read failed, so the card can say "not checked" instead of claiming "no media".
+  const mediaKnown = mediaDocs !== null;
   const { stuckReasons } = await import("./stuck.core");
   const { commsStatus } = await import("./comms-status.core");
   const now = new Date();
@@ -1373,9 +1392,17 @@ export const getAdminPipeline = createServerFn({ method: "POST" }).middleware([r
     const id = j.id!;
     const pays = rcBy.get(id) ?? [];
     const paid = pays.find((p) => p.status === "paid");
+    const est = estBy.get(id);
+    const declared = est?.insulation_declared;
     return {
       ...j,
       installer_facts: factBy.get(id) ?? null,
+      enquiry_facts: {
+        ceilingM2: est?.area_m2 == null ? null : Number(est.area_m2),
+        ceilingAssumed: est?.area_source === "typical_default",
+        insulation: declared === "none" || declared === "present" || declared === "unknown" ? (declared as "none" | "present" | "unknown") : null,
+        mediaCount: mediaKnown ? mediaBy.get(id) ?? 0 : null,
+      },
       comms_status: commsStatus(asgBy.get(id) ?? [], msgBy.get(id) ?? [], new Date()),
       stuck_reasons: stuckReasons({
         stage: j.stage,

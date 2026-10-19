@@ -5,7 +5,17 @@ import type { Database } from "@/integrations/supabase/types";
 import { fmtDateTime } from "@/lib/workflow";
 import { Pill, SourceBadge } from "./badges";
 
-export type JobRow = Omit<Database["public"]["Views"]["job_overview"]["Row"], "authority_status" | "authority_expires_at" | "deposit_cleared"> & Partial<Pick<Database["public"]["Views"]["job_overview"]["Row"], "authority_status" | "authority_expires_at" | "deposit_cleared">> & { stuck_reasons?: string[]; comms_status?: { label: string; tone: "good" | "warn" | "bad" | "neutral" } | null; installer_facts?: import("@/lib/bulk-import.core").InstallerJobFacts | null };
+/** Read-only facts the Office needs at a glance. Every value comes from an existing record; null = not provided. */
+export type JobEnquiryFacts = {
+  ceilingM2: number | null;
+  /** true when the ceiling size is the typical default, not the customer's own figure. */
+  ceilingAssumed: boolean;
+  insulation: "none" | "present" | "unknown" | null;
+  /** null = the media read failed; never render that as "no media". */
+  mediaCount: number | null;
+};
+
+export type JobRow = Omit<Database["public"]["Views"]["job_overview"]["Row"], "authority_status" | "authority_expires_at" | "deposit_cleared"> & Partial<Pick<Database["public"]["Views"]["job_overview"]["Row"], "authority_status" | "authority_expires_at" | "deposit_cleared">> & { stuck_reasons?: string[]; comms_status?: { label: string; tone: "good" | "warn" | "bad" | "neutral" } | null; installer_facts?: import("@/lib/bulk-import.core").InstallerJobFacts | null; enquiry_facts?: JobEnquiryFacts | null };
 
 export function JobCard({ job, to, coverage }: { job: JobRow; to: "/admin/jobs/$jobId" | "/field/$jobId" | "/owner/$jobId"; coverage?: "serviceable" | "unserviceable" | "partial" | "not_configured" }) {
   const stuck = job.stuck_reasons ?? [];
