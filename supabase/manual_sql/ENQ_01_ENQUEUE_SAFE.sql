@@ -32,7 +32,7 @@ universe as (
   where j.deleted_at is null
     and j.source = 'base44'
     and j.channel = 'hivic_sourced'
-    and j.stage not in ('complete', 'cancelled', 'on_hold')
+    and j.stage in ('new_enquiry', 'eligibility_review', 'preliminary_estimate_ready', 'on_hold')
     and coalesce(j.eligibility_review_required, false) = false
     and j.eligibility_decision_source in ('system', 'admin')
     and j.eligibility_outcome in ('likely_eligible', 'needs_onsite_confirmation', 'does_not_appear_eligible')
@@ -77,11 +77,17 @@ eligible as (
     and s.delivery_enabled is true
     and coalesce(trim(u.email), '') ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'
     -- Only the three automatic categories. A: no insulation. C: present/unknown with media proven absent.
+    -- MANDATORY STAGE SAFETY (never bypassed by the trusted backlog context; must match ENQ_00 exactly):
+    --   first-response routes T1/T2/T5/T6 -> stage in (new_enquiry, eligibility_review, preliminary_estimate_ready)
+    --   ineligible route T7               -> stage in (new_enquiry, eligibility_review, on_hold)
     and (
-      (u.eligibility_outcome = 'likely_eligible' and u.insulation_declared = 'none')
-      or u.eligibility_outcome = 'does_not_appear_eligible'
+      (u.eligibility_outcome = 'likely_eligible' and u.insulation_declared = 'none'
+          and u.stage in ('new_enquiry', 'eligibility_review', 'preliminary_estimate_ready'))
+      or (u.eligibility_outcome = 'does_not_appear_eligible'
+          and u.stage in ('new_enquiry', 'eligibility_review', 'on_hold'))
       or (u.eligibility_outcome in ('likely_eligible', 'needs_onsite_confirmation')
           and u.insulation_declared in ('present', 'unknown')
+          and u.stage in ('new_enquiry', 'eligibility_review', 'preliminary_estimate_ready')
           and m.media_docs = 0 and m.intake_evidence = 0
           and m.manifest is not null and jsonb_array_length(m.manifest) = 0
           and m.manifest_complete and not m.manifest_flagged_uncertain)
