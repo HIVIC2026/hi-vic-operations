@@ -21,12 +21,11 @@
 --
 -- P1-S77: `sender_hold` predicts the sender rules that will REFUSE an A/B/C row even after it is enqueued, so the
 -- AUTO_SEND count is the number that can actually go out with the current code and settings:
---   TYPICAL_SIZE_HELD      A/C with no owner-entered ceiling size: real typical-size (150 m2) first replies are held
---                          (src/lib/no-size-estimate.core.ts — initialReplyQualifies() is false). T1/T5 cannot
---                          send automatically until Jo/Zhe release that hold.
---   BACKLOG_CUTOFF_NOT_SET B: customer_delivery_settings.jobs_created_after is empty → every T7 is held.
---   BACKLOG_BEFORE_CUTOFF  B: enquiry created before jobs_created_after → T7 permanently suppressed.
---   BACKLOG_TOO_OLD        B: enquiry older than 14 days → T7 permanently suppressed (emailsafety.core.ts).
+--   TYPICAL_SIZE_HELD      C with no owner-entered ceiling size: the labelled 150 m2 assumption is only for homes
+--                          with no insulation (noSizeEstimateBlocker), so T5 stays held.
+--   (A no-size T1 is NOT held for rows ENQ_01 enqueues: the worker gives ENQUIRY_BACKLOG_MANUAL items a trusted
+--    context, src/lib/manual-backlog.core.ts, which releases only the "proven new" hold — still the labelled 150 m2.)
+--   (B T7 jobs_created_after / 14-day timing is NOT applied to ENQUIRY_BACKLOG_MANUAL items — emailsafety.core.ts.)
 --   STAGE_MOVED_ON         B: stage is not new_enquiry / eligibility_review / on_hold → T7 suppressed.
 -- Rows with a sender_hold read HELD_BY_SENDER_RULE instead of AUTO_SEND. Service-area coverage and the Office
 -- automatic-sending rules (S102/S103) are checked by the app at send time and are not predicted here.
@@ -161,24 +160,17 @@ scored as (
       else 'None'
     end as proposed_template,
     case
-      when c.category in ('A_ELIGIBLE_NO_INSULATION', 'C_INSULATION_UNKNOWN')
+      when c.category = 'C_INSULATION_UNKNOWN'
         and (c.area_m2 is null or coalesce(c.area_source, '') = 'typical_default' or c.area_m2 <= 0)
         then 'TYPICAL_SIZE_HELD'
-      when c.category = 'B_INELIGIBLE' and (select jobs_created_after from cfg) is null then 'BACKLOG_CUTOFF_NOT_SET'
-      when c.category = 'B_INELIGIBLE' and c.created_at < (select jobs_created_after from cfg) then 'BACKLOG_BEFORE_CUTOFF'
-      when c.category = 'B_INELIGIBLE' and c.created_at < now() - interval '14 days' then 'BACKLOG_TOO_OLD'
       when c.category = 'B_INELIGIBLE' and c.stage not in ('new_enquiry', 'eligibility_review', 'on_hold') then 'STAGE_MOVED_ON'
       else null
     end as sender_hold,
     case
-      when c.category in ('A_ELIGIBLE_NO_INSULATION', 'C_INSULATION_UNKNOWN')
+      when c.category = 'C_INSULATION_UNKNOWN'
         and (c.area_m2 is null or coalesce(c.area_source, '') = 'typical_default' or c.area_m2 <= 0)
         then 'HELD_BY_SENDER_RULE'
-      when c.category = 'B_INELIGIBLE' and (
-             (select jobs_created_after from cfg) is null
-             or c.created_at < (select jobs_created_after from cfg)
-             or c.created_at < now() - interval '14 days'
-             or c.stage not in ('new_enquiry', 'eligibility_review', 'on_hold'))
+      when c.category = 'B_INELIGIBLE' and c.stage not in ('new_enquiry', 'eligibility_review', 'on_hold')
         then 'HELD_BY_SENDER_RULE'
       when c.category in ('A_ELIGIBLE_NO_INSULATION', 'B_INELIGIBLE', 'C_INSULATION_UNKNOWN')
         then case when c.failed_sends > 0 then 'AUTO_SEND_RETRY' else 'AUTO_SEND' end
