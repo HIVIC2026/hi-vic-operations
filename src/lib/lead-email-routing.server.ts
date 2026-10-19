@@ -58,6 +58,21 @@ export async function maybeAutoRouteLeadEmail(jobId: string, ctx: import("./manu
       return { route: route.email, sent: result?.outcome === "sent", reason: result?.detail ?? "No send result" };
     }
     if (route.email === "request_insulation") {
+      // Re-read both office-owned review facts before requesting evidence again. Missing/error reads
+      // never establish approval; the existing media blocker still holds received/uncertain uploads.
+      const [response, reviews] = await Promise.all([
+        admin.from("lead_campaign_responses").select("desk_check_status").eq("job_id", jobId).maybeSingle(),
+        admin.from("customer_engagement_events").select("metadata").eq("job_id", jobId).eq("event_type", "intake_media_reviewed").order("occurred_at", { ascending: false }).limit(1),
+      ]);
+      if (response.error || reviews.error) return { route: "none", sent: false, reason: "Could not verify insulation review — held for Office review" };
+      const latest = reviews.data?.[0]?.metadata as { outcome?: string } | null | undefined;
+      if (response.data?.desk_check_status === "looks_eligible" && latest?.outcome === "below_r2") {
+        // Reuse the guarded follow-up, not the invitation. It rechecks current review, consent,
+        // estimate/link, switches and prior attempts; no trust/date exceptions are forwarded.
+        const { sendExistingInsulationSaveSpot } = await import("./hot-leads-send.server");
+        const result = await sendExistingInsulationSaveSpot(jobId, null, false);
+        return { route: "offer_spot", sent: result.outcome === "sent", reason: result.detail };
+      }
       const blocker = groupBInvitationBlocker(await groupBMediaForJob(jobId));
       if (blocker) return { route: "none", sent: false, reason: blocker };
       const { syncStep3 } = await import("./estimatelink.server");
