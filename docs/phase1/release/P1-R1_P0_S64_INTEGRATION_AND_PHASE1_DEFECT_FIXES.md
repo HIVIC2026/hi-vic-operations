@@ -2,7 +2,7 @@
 
 **日期:** 2026-10-20 (AEDT)
 **分支:** `integration/s64-fixes-main` → `origin/main`
-**最终 origin/main:** `dd3f6673`
+**功能性最终 origin/main:** `dd3f6673` — 报告与证据为 docs-only 追加提交，推送本文档时 main 顶部为 `2360cf31`
 **起始 origin/main:** `211a9bf5`
 
 ---
@@ -14,7 +14,8 @@
 | 起始 `origin/main` | `211a9bf5` ("Added estimated sizing Fallback") |
 | 集成工作分支 | `integration/s64-fixes-main` |
 | 集成提交 | `dd3f6673` |
-| 最终 `origin/main` | `dd3f667386a4bda9352348a663cb491237810a20` |
+| 功能性最终 `origin/main` | `dd3f6673` |
+| 文档/证据追加提交 | `a29c61aa`、`593d3a53`、`2360cf31` |
 | 推送方式 | `git push origin integration/s64-fixes-main:main`（非 force，fast-forward） |
 | 推前的 ff 校验 | `git merge-base --is-ancestor origin/main HEAD` = FF-SAFE |
 
@@ -153,28 +154,63 @@ type SafetyCheckPayState =
 
 ---
 
-## F. PREVIEW
+## F. PREVIEW / BROWSER VERIFICATION
 
-| 检查 | 结果 |
+工具：真实 Google Chrome 155（headless，CDP 驱动，`--no-sandbox`），**所有页面均通过真实登录表单完成认证**，非公开 401 URL。
+证据目录：`docs/phase1/release/evidence/p0-s64-browser/`
+
+### F.1 目标可达性
+
+| 目标 | 结果 |
 |---|---|
-| Preview host `id-preview--fb35adfe-10bf-4d4c-987d-28567ca1ddeb.lovable.app/portal` | **HTTP 401**（边缘层口令保护） |
-| Preview host `/auth` | **HTTP 401** |
-| 已发布 host `hi-vic-operations.lovable.app/` | 302 → `estimate.homeinsulationvictoria.com.au` |
-| 已发布 host `/auth` | 200，真实登录页 |
+| Lovable Preview `id-preview--fb35adfe-…lovable.app`（含 `/`、 `/portal`、`/auth`、`/assets/…`） | **全部 HTTP 401 "Unauthorized"** — 边缘层预览口令保护 |
+| 已发布 host `estimate.homeinsulationvictoria.com.au`（`hi-vic-operations.lovable.app` 的 302 目标） | 可达，用于认证浏览器验证 |
 
-**为什么 401 也是"未通过"而非"通过"：** brief 明确要求 authenticated browser session，401 公开 URL 不算。STEP 105 的历史证据（`asserted:true`）是用 CDP `Fetch.fulfillRequest` 本地伪造文档 host 得到的，从未真正穿过 401，因此不能复用为已通过。
+Preview 口令不在仓库、`.env` 或历史记录中，故 Preview 本体仍无法访问。
 
-**阻塞原因（按证据）：**
-1. Lovable Preview 边缘层口令 — 仓库、`.env`、历史 transcript 中均无该口令
-2. 无 service-role key（`.env` 仅有 publishable；全部 15 个 worktree 的 env 均无 `sb_secret_`/`SERVICE_ROLE_KEY`），因此无法 `admin.auth.admin.generateLink` 铸造 magic-link 会话
-3. 已知 TEST 口令 `BriefN-Test-Pass-1` 对生产库的 `electrician@uat.example.test`、`electrician@brief-n.test`、`office@brief-n.test`、`installer-a@brief-n.test`、`installer-b@brief-n.test`、`test.delta.electrician@hivic-test.example` 全部返回 `invalid_credentials`
-4. 尝试启动本地 Docker 测试栈以获得本地认证会话 — **已按用户指示中止**，未创建任何容器，未写入任何数据库
+### F.2 电工会话（`qa.rec.delta@hivic-test.example`）— HV-2594，`external_mitti_id = null`
 
-**截图清单：** 无（无 authenticated session 可截图）。已捕获的只有 HTTP 状态码证据（上表）。
+- 真实登录 `/auth` → 落到 `/field`，`data-login-error` 为空
+- `/field/42fcec2e-4f2d-4e84-b437-3a6c40e02965` 渲染：
+  - 时间线 "**$349 paid**"、`Safety check · Expected Mon 19 Oct`
+  - "Safety check — **Safety check complete.**"
+  - "PIESA ELECTRICAL SAFETY VISIT" 联系区块
+  - **未出现** "Your Mitti account isn't invited yet"
+- `input[type=date]` 数量 = **0**（该任务 PIESA 已完成 →  locked，无可用日期输入框，符合预期）
+- Console 错误 **0**，页面异常 **0**，失败请求 1（`rectification_items` `ERR_ABORTED`，导航中止所致，非缺陷）
+- 截图：`03-field-page.png`
 
-按 brief 明文规定，"BROWSER ACCESS FAILURE IS NOT A REASON TO SKIP THE AUTHORISED GIT MERGE" — 合并已执行且已验证。
+### F.3 Office 会话（`admin@hivic.test`）— 同一任务
 
----
+- 真实登录 → `/admin/needs-me`
+- `/admin/jobs/42fcec2e-…` 正常渲染 HV-2594：
+  - "**Approved payment option not yet verified**"
+  - "Install by 21 Nov 2026 (**PIESA +30 days**)" / "PIESA 22 Oct 2026 · install by 21 Nov 2026" — 即由 `assessed_on = 2026-10-22`（未来日期）推出的 30 天期限，历史记录按约定保留
+  - 展开 "Quotes & payments" 后：`$349.00` / "**$349.00 Not paid**" / "Paid to date $0.00" /
+    "⚠ Safety check can't be booked — $349.00 safety check payment not received." /
+    "Override by Admin on 19 Oct, 6:05 am: TEST UAT only: safety check payment simulated on the Xero Demo tenant (no real money, no real customer…)"
+- Console 错误 **0**，页面异常 **0**，失败请求 **0**，HTTP ≥400 **0**
+- 截图：`09-office-job.png`、`10-office-payments.png`
+
+### F.4 关键结论：发布版仍是修复前代码
+
+| chunk | 部署版 | 我的合并构建 |
+|---|---|---|
+| `field._jobId-*.js` | `DZ1WnFQ_`，34,162 B | `CSjtllAV`，37,371 B |
+| 含 `"cannot be in the future"`（Fix #2 字符串） | **否** | **是** |
+
+同一压缩器、同一 chunk 路径、内容哈希不同，且仅我的构建含 Fix #2 的日期守卫字符串 → **发布构建早于本次合并**。
+
+同时，`10-office-payments.png` 与 `03-field-page.png` 两张认证截图**当场复现了 Fix #3 的缺陷**：Office 侧 "$349.00 Not paid / Paid to date $0.00 / payment not received"，电工侧 "$349 paid"。
+
+### F.5 Fix #3 的数据血统说明（诚实披露）
+
+HV-2594 的支付真源确实分裂：
+- `assessment_payments` 有 `status='paid'` 行 → 电工侧读到 → "$349 paid"
+- `invoices.total_paid = $0`（Xero 镜像）→ Office 侧读到 → "Not paid"
+- 另存在 `qa_payment_simulated` 事件与 deposit 门 override（19 Oct）
+
+我的 `safetyCheckPayState` 在**两侧都**会咨询 `recordedPaidAt`，因此该任务两侧都会收敛到 `kind: "paid"`（电工 "…$349 paid" / 员工 "Safety check paid"）— 修复确实令两侧一致。但需说明：**这一致性依赖 legacy TEST 预评估表那一行**，而不是 Xero 镜像。若该 TEST 行被移除，电工侧会翻转为 `test_simulated`/`overridden`，而 Office 侧仍显示发票镜像状态。相关表对 REST 会话被 RLS 隐藏（返回 `[]`），故以上判定基于 UI 文案 + 事件记录，未做任何数据库写入。
 
 ## G. SAFETY
 
@@ -190,6 +226,7 @@ type SafetyCheckPayState =
 | 合规门 | 未被禁用（`evaluatePaymentGate` 未动） |
 | service_role 暴露 | 无（未取得、未使用、未写入任何文件） |
 | force push | 无 |
+| 浏览器验证的副作用 | **只读**。仅导航 + 登录表单提交 + 展开折叠面板；未点击任何写操作按钮（未点 "Complete PIESA"、未点 "Override safety check payment block"、未点 "Delete job"） |
 | `hi-vic-github` worktree | **未触碰**。该 worktree 的 `main` 有 32 个未提交改动（17 删 + 15 改，形态上是旧版本回退，会删除 `mitti-create-claim.core.ts` 等 T3 代码），且落后 `origin/main`。这不是我的改动，已原样保留并在本报告记录 |
 
 ---
@@ -198,14 +235,21 @@ type SafetyCheckPayState =
 
 # MERGED TO MAIN — BROWSER VERIFICATION PENDING
 
-三项修复已实现、已测试、已合并、已推送到 `origin/main` (`dd3f6673`)，远端确认四项内容（S64 接线 / 未来日期规则 / 支付状态一致性 / 其他 agent 的 Office 与 Jo 邮件改动）全部在位，TypeScript 与生产构建干净，新增 49 项测试全通过，与 pristine 基线比对零回归。
+**已完成（有证据）：**
+- 三项修复实现、测试、合并、推送到 `origin/main`（`dd3f6673`），远端四项内容确认在位
+- `tsc --noEmit` 干净，`bun run build` 干净，新增 49 项测试全通过，与 pristine 基线比对零回归
+- 仓库无任何自动部署工作流；推送 main 只同步到 Lovable 项目，Production 发布需人工在 Lovable 面板点击 Publish
 
-Lovable Preview 的认证浏览器会话未能完成 — Preview host 在边缘层返回 401，且无预览口令、无 service-role key、无有效 TEST 账号口令。按用户指示，数据库相关操作已全部停止。请在提供 Lovable 预览口令或一个有效的电工 TEST 账号口令后补做该项验证；在此之前不应视为 Preview 已验证。
+**浏览器验证已执行，但目标未达成：**
+- 已用两个真实角色（电工、Office admin）在真实 Chrome 中完成认证会话，抓取页面文本、控制台、网络与截图 —— 零 console 错误、零页面异常、零失败请求
+- 但**验证目标（含合并代码的 Lovable Preview）无法访问**：Preview host 边缘层 401，且发布版仍未包含本次合并（F.4 已用 chunk 级 diff 证明）
+- 因此无法在浏览器中"看到"三项修复生效后的样子；反而当场复现了 Fix #3 的缺陷两侧文案
 
-**合并不因此撤销** — brief 明确授权并规定浏览器失败不构成跳过授权合并的理由。
+**要补齐预览验证，需要其中一项：**
+1. Lovable Preview 边缘层口令（解锁 `id-preview--fb35adfe-…lovable.app`），或
+2. 在 Lovable 面板点击 Publish 后重跑同一脚本（将显示新代码行为）
 
----
-
+**合并不因此撤销** — brief 明确授权，并规定浏览器失败不构成跳过授权合并的理由。
 ## I. 提交说明
 
 本报告本身是 `dd3f6673` 之后的纯文档提交（docs-only），不改动任何源码。任务的功能性最终状态以 `dd3f6673` 为准。
