@@ -108,6 +108,7 @@ function Rules() {
 
   return (
     <div className="space-y-4">
+      <p role="status" className="rounded-md border p-3 text-sm font-semibold">Automatic first responses: {loaded.firstResponses.on ? "ON" : "OFF"} — {loaded.firstResponses.reason}</p>
       <Section title="Automatic selection">
         <div className="flex items-start justify-between gap-3">
           <div>

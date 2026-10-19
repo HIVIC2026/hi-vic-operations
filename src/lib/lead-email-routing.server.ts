@@ -30,6 +30,15 @@ export async function selectLeadEmailRoute(jobId: string) {
 /** The single post-Gate-1 email selector. Individual senders retain delivery, consent, opt-out and idempotency guards. */
 export async function maybeAutoRouteLeadEmail(jobId: string, ctx: import("./manual-backlog.core").LeadRouteContext = {}): Promise<LeadEmailRouteResult> {
   try {
+    const { readAutomaticRules } = await import('./save-spot-rules.server');
+    const { automaticFirstResponseStatus } = await import('./automatic-first-response.core');
+    const activation = await readAutomaticRules();
+    const status = automaticFirstResponseStatus(activation.state === 'ok' && activation.config.enabled, activation.state === 'ok' ? activation.config.activatedAt : null);
+    if (!status.on) return { route: 'none', sent: false, reason: status.reason };
+    const held = await admin.from('post_intake_work').select('id').eq('job_id', jobId).eq('reason', 'ENQUIRY_BACKLOG_MANUAL').eq('facts_version', 'enquiry-backlog-manual').eq('status', 'failed').limit(1);
+    if (held.error || held.data?.length) return { route: 'none', sent: false, reason: 'Backlog held for explicit Office release.' };
+    const latestReview = await admin.from('customer_engagement_events').select('metadata').eq('job_id', jobId).eq('event_type', 'intake_media_reviewed').eq('source', 'office').order('occurred_at', { ascending: false }).limit(1);
+    if (latestReview.error || (latestReview.data?.[0]?.metadata as { manualOnly?: boolean } | undefined)?.manualOnly) return { route: 'none', sent: false, reason: 'Office review recorded; manual next action only.' };
     const { isManualBacklog } = await import("./manual-backlog.core");
     const manualBacklog = isManualBacklog(ctx);
     // Legacy exclusion lists (explicit owner decisions) are checked BEFORE any route or sender call.

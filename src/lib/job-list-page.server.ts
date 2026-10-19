@@ -42,8 +42,7 @@ function scope<T extends ScopeChain<T>>(q: T, archived: string[], mode: JobMode,
     cur = cur.or('source.eq.qa_test,office_removed.eq.true,contact_rank.gt.1');
   } else {
     cur = cur.neq("source", "qa_test");
-    if (mode === "active") cur = cur.not("stage", "in", OPEN_STAGES).or("eligibility_outcome.is.null,eligibility_outcome.neq.does_not_appear_eligible");
-    else if (closedView === "completed") cur = cur.eq("stage", "complete");
+    if (closedView === "completed") cur = cur.eq("stage", "complete");
     else if (closedView === "cancelled") cur = cur.eq("stage", "cancelled");
     else if (closedView === "ineligible") cur = cur.not("stage", "in", OPEN_STAGES).eq("eligibility_outcome", "does_not_appear_eligible");
   }

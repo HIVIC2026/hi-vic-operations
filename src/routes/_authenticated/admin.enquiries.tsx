@@ -15,7 +15,7 @@ const VIEWS: EnquiryView[] = [
 ];
 
 export const Route = createFileRoute("/_authenticated/admin/enquiries")({
-  validateSearch: (s: Record<string, unknown>): { status?: EnquiryView; q?: string; page: number } => ({
+  validateSearch: (s: Record<string, unknown>): { status?: EnquiryView; q?: string; page?: number } => ({
     page: Math.max(0, Number(s["page"]) || 0),
     ...(VIEWS.includes(s["status"] as EnquiryView) ? { status: s["status"] as EnquiryView } : {}),
     ...(typeof s["q"] === "string" && s["q"] ? { q: s["q"] } : {}),
@@ -39,7 +39,7 @@ export const Route = createFileRoute("/_authenticated/admin/enquiries")({
 });
 
 function EnquiriesPage() {
-  const { status = "all", q = "", page } = Route.useSearch();
+  const { status = "all", q = "", page = 0 } = Route.useSearch();
   const navigate = Route.useNavigate();
   return (
     <AppShell wide>

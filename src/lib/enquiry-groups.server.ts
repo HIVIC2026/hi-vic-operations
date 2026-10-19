@@ -227,7 +227,7 @@ function renderDraft(r: EnquiryGroupRow, sel: Selected, ctx: Ctx): Draft | { err
 /** Staff-reviewed draft preparation. Works with communications OFF. Revalidates the current group and contact facts. Writes nothing. */
 export async function prepareEnquiryEmails(ids: string[], sel: Selected, withHtmlFor?: string) {
   const tpl = templateFor(sel.group, sel.otherReason);
-  const [{ rows, jobsCreatedAfter }, ws] = await Promise.all([loadEnquiryGroups(), admin.from("workflow_settings").select("customer_comms_enabled").limit(1).maybeSingle()]);
+  const [{ rows, jobsCreatedAfter }, ws] = await Promise.all([loadEnquiryGroups(ids), admin.from("workflow_settings").select("customer_comms_enabled").limit(1).maybeSingle()]);
   const commsEnabled = must(ws, "Communication settings")?.customer_comms_enabled === true;
   const byId = new Map(rows.map((r) => [r.id, r]));
   const want = [...new Set(ids)];

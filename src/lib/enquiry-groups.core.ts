@@ -107,7 +107,7 @@ const INFO_ONLY = new Set(["life_support", "occupancy", "area", "preliminary", "
 
 /** Insulation-details group: existing insulation (present OR unsure) is the ONLY open item; every other required gate passed. */
 export function insulationOnly(audit: StoredAudit, declared: EnquiryInput["declaredInsulation"]): { ok: true } | { ok: false; why: string; missing: boolean } {
-  const rules = Array.isArray(audit?.rules) ? audit!.rules! : [];
+  const rules = Array.isArray(audit?.rules) ? audit.rules : [];
   if (!rules.length) return { ok: false, why: "Screening reasons were not recorded", missing: false };
   const canonical = normaliseInsulation(declared ?? null);
   if (canonical === "none") return { ok: false, why: "Owner declared no insulation – screening disagrees", missing: false };
