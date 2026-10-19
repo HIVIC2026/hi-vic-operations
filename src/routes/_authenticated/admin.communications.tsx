@@ -1,17 +1,23 @@
 // ONE Communications workspace: overview, outgoing, sent history, failures and campaign review.
 // Every section reuses an existing read/sender; nothing here changes queues, switches, consent or statuses.
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useMemo } from "react";
 import { AppShell } from "@/components/portal/AppShell";
 import { EnquiryResponseOverview } from "@/components/portal/EnquiryResponseOverview";
 import { CampaignsPanel } from "@/components/portal/CampaignsPanel";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { ListPagination } from "@/components/portal/ListPagination";
 import { getEnquiryResponseOverview } from "@/lib/enquiry-response.functions";
 import {
   getCommunicationHistory,
   type CommunicationHistoryRow,
 } from "@/lib/communications-centre.functions";
+import { type CommFilter } from "@/lib/communications-centre.core";
+import { parseListControls, type ListSearchSpec } from "@/lib/list-paging.core";
+import { useListControls } from "@/hooks/use-list-controls";
 import { cn } from "@/lib/utils";
 import { retryFailedIneligibleEmail } from "@/lib/ineligible-retry.functions";
 
@@ -24,10 +30,16 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "campaigns", label: "Campaigns" },
 ];
 
+/** Page, page size and the search term live in the URL, so a tab can be shared or reloaded. */
+const LIST_SPEC: ListSearchSpec = { scopeKey: "listFilter", scopes: ["all"], defaultScope: "all" };
+
 export const Route = createFileRoute("/_authenticated/admin/communications")({
-  validateSearch: (s: Record<string, unknown>): { tab?: Tab; key?: string } => ({
+  validateSearch: (s: Record<string, unknown>) => ({
     ...(TABS.some((t) => t.key === s["tab"]) ? { tab: s["tab"] as Tab } : {}),
     ...(typeof s["key"] === "string" ? { key: s["key"] } : {}),
+    ...(s["page"] !== undefined ? { page: Number(s["page"]) || 1 } : {}),
+    ...(s["size"] !== undefined ? { size: Number(s["size"]) || 20 } : {}),
+    ...(typeof s["q"] === "string" ? { q: s["q"].slice(0, 120) } : {}),
   }),
   // The old communications page was a template draft editor. Drafts now live only in Templates.
   beforeLoad: ({ search }) => {
@@ -106,112 +118,170 @@ function IneligibleRetry({ row }: { row: CommunicationHistoryRow }) {
   );
 }
 
-function HistoryTable({ filter }: { filter: "all" | "sent" | "failed" }) {
+function HistoryTable({ filter, label }: { filter: CommFilter; label: string }) {
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
+  // Page, page size and the search term are the URL. Switching tab drops them, so a new tab starts at
+  // page 1 rather than inheriting page 7 from the tab the office just left.
+  const controls = useMemo(() => parseListControls(search, LIST_SPEC), [search]);
+  const ui = useListControls(controls, LIST_SPEC, (next) =>
+    void navigate({ search: { ...(search.tab ? { tab: search.tab } : {}), ...next }, resetScroll: false }),
+  );
   const load = useServerFn(getCommunicationHistory);
-  const { data, isPending, error } = useQuery({
-    queryKey: ["communication-history", filter],
-    queryFn: () => load({ data: { filter } }),
+  const {
+    data,
+    isPending,
+    isFetching,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
+    // The control set is part of the key, so a slow page 1 can never overwrite a fast page 2.
+    queryKey: ["communication-history", filter, controls],
+    queryFn: () =>
+      load({
+        data: {
+          filter,
+          search: controls.search,
+          page: controls.page,
+          pageSize: controls.pageSize,
+        },
+      }),
+    placeholderData: keepPreviousData,
     staleTime: 30_000,
+    retry: 2,
   });
-  if (isPending)
-    return (
-      <p role="status" className="rounded-md border bg-card p-6 text-sm">
-        Loading email history…
-      </p>
-    );
-  if (error || !data)
-    return (
-      <p
-        role="alert"
-        className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm"
-      >
-        Email history could not be loaded. Nothing has been changed.
-      </p>
-    );
+  const busy = isFetching && !isPending;
+
   return (
     <div className="space-y-3">
-      <p className="text-xs text-sub">
-        {data.rows.length} records shown
-        {data.scope.truncated ? ` (the most recent ${data.scope.limit} per send log)` : ""}. Sent{" "}
-        {data.counts.sent} · Queued {data.counts.queued} · Failed {data.counts.failed}.
-      </p>
-      <div className="overflow-x-auto rounded-md border bg-card">
-        <table className="w-full min-w-[900px] text-left text-sm">
-          <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
-            <tr>
-              <th className="p-3">Customer</th>
-              <th className="p-3">Email</th>
-              <th className="p-3">Status</th>
-              <th className="p-3">When</th>
-              <th className="p-3">Detail</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {data.rows.length === 0 && (
-              <tr>
-                <td colSpan={5} className="p-8 text-center text-muted-foreground">
-                  No communications in this view.
-                </td>
-              </tr>
-            )}
-            {data.rows.map((r) => (
-              <tr key={r.id} className="align-top hover:bg-muted/30">
-                <td className="p-3">
-                  <Link
-                    to="/admin/jobs/$jobId"
-                    params={{ jobId: r.jobId }}
-                    className="font-semibold text-primary underline"
-                  >
-                    {r.customer ?? r.jobNumber ?? "Record"}
-                  </Link>
-                  <div className="text-xs text-muted-foreground">
-                    {r.jobNumber} · {r.address ?? "No address"}
-                  </div>
-                </td>
-                <td className="p-3 text-xs">
-                  {r.email ?? "—"}
-                  <div className="text-muted-foreground">{r.purpose}</div>
-                </td>
-                <td className="p-3">
-                  <span
-                    className={cn(
-                      "inline-block rounded-full px-2 py-0.5 text-xs font-semibold",
-                      TONE[r.status],
-                    )}
-                  >
-                    {r.status === "other" ? r.statusLabel || "recorded" : r.status}
-                  </span>
-                </td>
-                <td className="p-3 text-xs">{when(r.at)}</td>
-                <td className="p-3 text-xs">
-                  {r.error ? (
-                    <span className="font-semibold text-danger">{r.error}</span>
-                  ) : (
-                    <span className="text-muted-foreground">
-                      {r.source === "auto" ? "Automatic sender" : "Job email"}
-                    </span>
-                  )}
-                  {r.source === "auto" &&
-                  r.statusLabel === "failed" &&
-                  r.purpose === "preliminary_ineligible" ? (
-                    <IneligibleRetry row={r} />
-                  ) : (
-                    r.status === "failed" && (
-                      <Link
-                        to="/admin/communications"
-                        search={{ tab: "failed" }}
-                        className="ml-2 font-semibold text-primary underline"
-                      >
-                        How to retry
-                      </Link>
-                    )
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <label className="block text-sm">
+          <span className="mb-1 block text-xs font-semibold uppercase text-sub">Search {label}</span>
+          <Input
+            value={ui.term}
+            onChange={(e) => ui.setTerm(e.target.value)}
+            placeholder="Purpose, subject or error"
+            className="w-full min-w-[16rem] sm:w-80"
+            aria-label={`Search ${label} by purpose, subject or error`}
+          />
+        </label>
+        <p role="status" aria-live="polite" className="pb-2 text-xs text-sub">
+          {isPending
+            ? "Loading…"
+            : `${data?.total ?? 0} matching · Sent ${data?.counts.sent ?? 0} · Queued ${data?.counts.queued ?? 0} · Failed ${data?.counts.failed ?? 0}`}
+          {busy ? " · Updating…" : ""}
+        </p>
       </div>
+      {isPending ? (
+        <p role="status" className="rounded-md border bg-card p-6 text-sm">
+          Loading email history…
+        </p>
+      ) : isError || !data ? (
+        <p
+          role="alert"
+          className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm"
+        >
+          Email history could not be loaded. Nothing has been changed.{" "}
+          <Button variant="link" onClick={() => void refetch()}>
+            Try again
+          </Button>
+          {error instanceof Error ? <span className="ml-2 text-xs text-sub">{error.message}</span> : null}
+        </p>
+      ) : (
+        <>
+          <p className="text-xs text-sub">
+            Showing the most recent {data.scope.limit} records per send log
+            {data.scope.truncated ? " (older records are beyond this window)" : ""}.
+          </p>
+          <div className="overflow-x-auto rounded-md border bg-card">
+            <table className="w-full min-w-[900px] text-left text-sm">
+              <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
+                <tr>
+                  <th className="p-3">Customer</th>
+                  <th className="p-3">Email</th>
+                  <th className="p-3">Status</th>
+                  <th className="p-3">When</th>
+                  <th className="p-3">Detail</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {data.rows.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="p-8 text-center text-muted-foreground">
+                      {controls.search
+                        ? `No communications match “${controls.search}” in this view.`
+                        : "No communications in this view."}
+                    </td>
+                  </tr>
+                )}
+                {data.rows.map((r) => (
+                  <tr key={r.id} className="align-top hover:bg-muted/30">
+                    <td className="p-3">
+                      <Link
+                        to="/admin/jobs/$jobId"
+                        params={{ jobId: r.jobId }}
+                        className="font-semibold text-primary underline"
+                      >
+                        {r.customer ?? r.jobNumber ?? "Record"}
+                      </Link>
+                      <div className="text-xs text-muted-foreground">
+                        {r.jobNumber} · {r.address ?? "No address"}
+                      </div>
+                    </td>
+                    <td className="p-3 text-xs">
+                      {r.email ?? "—"}
+                      <div className="text-muted-foreground">{r.purpose}</div>
+                    </td>
+                    <td className="p-3">
+                      <span
+                        className={cn(
+                          "inline-block rounded-full px-2 py-0.5 text-xs font-semibold",
+                          TONE[r.status],
+                        )}
+                      >
+                        {r.status === "other" ? r.statusLabel || "recorded" : r.status}
+                      </span>
+                    </td>
+                    <td className="p-3 text-xs">{when(r.at)}</td>
+                    <td className="p-3 text-xs">
+                      {r.error ? (
+                        <span className="font-semibold text-danger">{r.error}</span>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          {r.source === "auto" ? "Automatic sender" : "Job email"}
+                        </span>
+                      )}
+                      {r.source === "auto" &&
+                      r.statusLabel === "failed" &&
+                      r.purpose === "preliminary_ineligible" ? (
+                        <IneligibleRetry row={r} />
+                      ) : (
+                        r.status === "failed" && (
+                          <Link
+                            to="/admin/communications"
+                            search={{ tab: "failed" }}
+                            className="ml-2 font-semibold text-primary underline"
+                          >
+                            How to retry
+                          </Link>
+                        )
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <ListPagination
+            paged={data}
+            busy={busy}
+            label={label}
+            onPage={(page) => ui.setPage(page)}
+            onPageSize={(pageSize) => ui.setPageSize(pageSize)}
+          />
+        </>
+      )}
     </div>
   );
 }
@@ -274,7 +344,7 @@ function Overview() {
           The most recent recorded sends — history, not outstanding work.
         </p>
         <div className="mt-3">
-          <HistoryTable filter="all" />
+          <HistoryTable filter="all" label="Email history" />
         </div>
       </section>
     </div>
@@ -329,7 +399,7 @@ function CommunicationsPage() {
         </div>
       )}
 
-      {tab === "sent" && <HistoryTable filter="sent" />}
+      {tab === "sent" && <HistoryTable filter="sent" label="Sent history" />}
       {tab === "failed" && (
         <div className="space-y-4">
           <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm">
@@ -337,7 +407,7 @@ function CommunicationsPage() {
             idempotency; already-answered or opted-out customers are never re-sent.
           </div>
           <EnquiryResponseOverview />
-          <HistoryTable filter="failed" />
+          <HistoryTable filter="failed" label="Failed emails" />
         </div>
       )}
       {tab === "campaigns" && (

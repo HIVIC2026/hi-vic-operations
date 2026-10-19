@@ -1,12 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/portal/AppShell";
-import { EnquiriesWorkspace, ENQUIRY_SPEC } from "@/components/portal/EnquiriesWorkspace";
-import { listControlsToSearch, parseListControls } from "@/lib/list-paging.core";
+import { EnquiriesWorkspace, type EnquiryView } from "@/components/portal/EnquiriesWorkspace";
+
+const VIEWS: EnquiryView[] = [
+  "all",
+  "new",
+  "spot_saved",
+  "offered_spot",
+  "insulation_requested",
+  "ineligible",
+  "needs_attention",
+  "photos",
+  "removed",
+];
 
 export const Route = createFileRoute("/_authenticated/admin/enquiries")({
-  // The view, page, size, search, sort and direction all live in the URL. Defaults are dropped, so the
-  // default view stays on a clean link and anything filtered is fully described by its own URL.
-  validateSearch: (s: Record<string, unknown>) => listControlsToSearch(parseListControls(s, ENQUIRY_SPEC), ENQUIRY_SPEC),
+  validateSearch: (s: Record<string, unknown>): { status?: EnquiryView; q?: string } => ({
+    ...(VIEWS.includes(s["status"] as EnquiryView) ? { status: s["status"] as EnquiryView } : {}),
+    ...(typeof s["q"] === "string" && s["q"] ? { q: s["q"] } : {}),
+  }),
   head: () => ({
     meta: [
       { title: "Enquiries — Home Insulation Victoria Office" },
@@ -26,13 +38,19 @@ export const Route = createFileRoute("/_authenticated/admin/enquiries")({
 });
 
 function EnquiriesPage() {
-  const controls = parseListControls(Route.useSearch(), ENQUIRY_SPEC);
+  const { status = "all", q = "" } = Route.useSearch();
   const navigate = Route.useNavigate();
   return (
     <AppShell wide>
       <EnquiriesWorkspace
-        controls={controls}
-        navigate={(search) => void navigate({ search, resetScroll: false })}
+        view={status}
+        q={q}
+        onView={(next) =>
+          void navigate({ search: (prev) => ({ ...prev, status: next }), resetScroll: false })
+        }
+        onQ={(next) =>
+          void navigate({ search: (prev) => ({ ...prev, q: next }), resetScroll: false })
+        }
       />
     </AppShell>
   );

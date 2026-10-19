@@ -15,14 +15,10 @@ import { originalEnquiryMedia, groupBInvitationBlocker, type GroupBMediaState } 
 import { signFile } from "./file-links.server";
 import { formatPropertyAddress } from "./address";
 import { LAUNCH_CAMPAIGN } from "./launch-campaign.core";
-import { searchFilter } from "./list-query.core";
 import {
   classifyEnquiry, enquiryStatus, contactExclusion, primaryByContact, propertyKey, contactKey, sendHolds, templateFor, AREA_LABEL, ASSUMED_REFERENCE_AREA_M2, isNewEnquiry,
   type EnquiryClass, type EnquiryStatus, type EnquiryGroup, type OtherReason, type StoredAudit, type MediaReviewOutcome, effectiveInsulation, noInsulationReviewBlocker,
 } from "./enquiry-groups.core";
-import { paginate, toPage, toPageSize } from "./list-paging.core";
-import { toDirection, toEnum } from "./list-query.core";
-import { ENQUIRY_SEARCH_COLUMNS, ENQUIRY_SORT_KEYS, ENQUIRY_VIEW_KEYS, ENQUIRY_VIEWS, type EnquiryPageView } from "./enquiry-list-page.core";
 
 const MEDIA_OUTCOMES: MediaReviewOutcome[] = ["below_r2", "over_r2", "unclear", "no_insulation"];
 
@@ -68,38 +64,15 @@ export type EnquiryGroupRow = EnquiryClass & {
   mediaOutcome: MediaReviewOutcome | null;
 };
 
-const ENQUIRY_SELECT =
-  "id, job_number, external_enquiry_id, stage, hold_reason, source, created_at, eligibility_set_at, eligibility_outcome, eligibility_decision_source, eligibility_review_required, eligibility_decision_rules, estimated_area_m2, estimated_area_unknown, owners(full_name, email, phone), properties(address_line, suburb, state, postcode, enrichment)";
-
-/**
- * Every website enquiry, with the search term and the ordering applied by the DATABASE. Search runs
- * before the page is chosen, so a search never downloads rows the office did not ask for. `id` is the
- * stable tie-breaker that stops equal sort keys moving a record from one page to another.
- */
-export async function websiteEnquiries(query: { search?: string; sort?: string; ascending?: boolean } = {}) {
-  const run = (from: number, to: number) => {
-    let q = admin.from("jobs").select(ENQUIRY_SELECT).eq("source", WEBSITE_SOURCE).eq("channel", WEBSITE_CHANNEL);
-    const f = searchFilter(query.search ?? "", [...ENQUIRY_SEARCH_COLUMNS]);
-    if (f) q = q.or(f);
-    return q.order(query.sort ?? "created_at", { ascending: query.ascending ?? true, nullsFirst: false }).order("id").range(from, to);
-  };
-  return all(run);
-}
-
 export async function loadEnquiryGroups() {
-  return classifyWebsiteEnquiries(await websiteEnquiries());
-}
-
-/**
- * Classifies the enquiries it is handed and returns the whole set. Both entry points share this so a
- * page and a full read can never disagree about what an enquiry's group or status is.
- */
-export async function classifyWebsiteEnquiries(jobs: Awaited<ReturnType<typeof websiteEnquiries>>) {
+  const jobs = await all((f, t) => admin.from("jobs")
+    .select("id, job_number, external_enquiry_id, stage, hold_reason, source, created_at, eligibility_set_at, eligibility_outcome, eligibility_decision_source, eligibility_review_required, eligibility_decision_rules, estimated_area_m2, estimated_area_unknown, owners(full_name, email, phone), properties(address_line, suburb, state, postcode, enrichment)")
+    .eq("source", WEBSITE_SOURCE).eq("channel", WEBSITE_CHANNEL).order("created_at", { ascending: true }).order("id").range(f, t));
   const ids = jobs.map((j) => j.id);
   const [meas, ests, docs, work, sends, consents, optouts, events, interests, cfg, responses, media, reviewed, removedRows] = await Promise.all([
     byJobs(ids, (c, f, t) => admin.from("ceiling_measurements").select("job_id, verified_area_m2, measured_area_m2").in("job_id", c).eq("is_current", true).eq("status", "complete").range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("property_area_estimates").select("id, job_id, tier, net_m2, created_at").in("job_id", c).in("tier", TRUSTED_ESTIMATE_TIERS).range(f, t)),
-    byJobs(ids, (c, f, t) => admin.from("evidence_files").select("job_id, mime_type, storage_path").in("job_id", c).like("storage_path", "%/intake/%").range(f, t)),
+    byJobs(ids, (c, f, t) => admin.from("evidence_files").select("job_id, mime_type, storage_path").in("job_id", c).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("post_intake_work").select("job_id").in("job_id", c).in("status", ["queued", "processing", "retry"]).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("customer_email_sends").select("job_id, purpose, status, sent_at, created_at, error, idempotency_key").in("job_id", c).order("created_at", { ascending: true }).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("owner_contact_consents").select("job_id, consent_status, created_at").in("job_id", c).order("created_at", { ascending: true }).range(f, t)),
@@ -216,70 +189,6 @@ export async function classifyWebsiteEnquiries(jobs: Awaited<ReturnType<typeof w
       testHidden: outside.testHidden, installerSourced: outside.installerSourced, otherSources: outside.otherSources,
     },
     jobsCreatedAfter: deliveryCfg?.jobs_created_after ?? null,
-  };
-}
-
-/**
- * Which view a classified row belongs to. The tile counts and the list MUST come from this one
- * function: the "New — no email sent" tile and the New list are otherwise two different definitions.
- */
-export function inEnquiryView(row: EnquiryGroupRow, view: EnquiryPageView): boolean {
-  if (view === "removed") return !!row.removed;
-  if (row.removed) return false;
-  if (view === "all") return true;
-  if (view === "new") return isNewEnquiry(row);
-  if (view === "photos") return row.mediaCount > 0 && !row.mediaChecked;
-  return row.status === view;
-}
-
-/**
- * One server-paginated page of the enquiries workspace.
- *
- * Search and ordering are applied by the database, the view is applied to the whole filtered set, and
- * only the rows on the requested page are shipped to the browser. Every tile count is taken from that
- * same filtered set, so a count never depends on which page happens to be open.
- *
- * Known limit: the enquiry view is derived from ten related tables (measurements, estimates, media,
- * sends, consents…), so their narrow inputs are still read for every candidate row. Rows, however,
- * are never all downloaded and sliced.
- */
-export async function loadEnquiryPage(params: {
-  view: string;
-  search?: string;
-  sort?: string;
-  direction?: "asc" | "desc";
-  page?: number;
-  pageSize?: number;
-}) {
-  const view = ENQUIRY_VIEW_KEYS.includes(params.view) ? (params.view as EnquiryPageView) : "all";
-  const search = params.search ?? "";
-  const sortKey = toEnum(params.sort, ENQUIRY_SORT_KEYS, "created_at") ?? "created_at";
-  // Newest first by default: an enquiries worklist is read newest-first, and the URL carries the choice.
-  const ascending = toDirection(params.direction) === "asc";
-  const size = toPageSize(params.pageSize);
-  const wanted = toPage(params.page ?? 1);
-
-  const { rows: classified, scope, jobsCreatedAfter } = await classifyWebsiteEnquiries(
-    await websiteEnquiries({ search, sort: sortKey, ascending }),
-  );
-
-  // Every view count comes from one pass over the filtered set, independent of the requested page.
-  const counts: Record<string, number> = {};
-  for (const v of ENQUIRY_VIEWS) counts[v] = classified.filter((r) => inEnquiryView(r, v)).length;
-
-  const matching = classified.filter((r) => inEnquiryView(r, view));
-  const page = paginate(matching, wanted, size);
-  return {
-    rows: page.rows,
-    page: page.page,
-    pageSize: page.pageSize,
-    total: page.total,
-    totalPages: page.totalPages,
-    from: page.from,
-    to: page.to,
-    counts,
-    scope,
-    jobsCreatedAfter,
   };
 }
 
