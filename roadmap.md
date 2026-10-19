@@ -324,10 +324,10 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Verify page-only reads, New/search/paging and boundaries.
 - [x] Verify four manual-only review choices and required reason.
 - [x] Verify OFF, 643 held rows and zero QA communications.
-- [x] Verify authenticated preview and T1–T7 fixtures; no publish. T7 remote logo loading and broader historic tests remain publish blockers.
+- [x] Verify authenticated preview and T1–T7 fixtures; no publish. Remaining logo and historic-test blockers resolved in final verification below.
 
 ## Final pre-publish blockers (Jo, 19 Oct 23:19 UTC)
-- [ ] Use trusted embedded T7 logo and visually verify offline; keep central renderer.
-- [ ] Visually verify actual Active rows, Enquiries and Closed without mutations.
-- [ ] Audit and run safe historic regressions; fix concrete failures, check compilation and retired terms.
-- [ ] Read-only final proof: 643 held, zero runnable/new outbound records, activation unset. Never publish or send.
+- [x] Trusted embedded T7 logo verified offline at 390/1280; central renderer retained, ineligible wording and links checked.
+- [x] Authenticated Active (20 actual rows, read-back confirms progression), Enquiries (50 rows) and Closed visually checked; no mutations or temperature labels.
+- [x] 874 tests across 60 isolated files pass with local/mocked data and blocked unmocked network; preview build/typecheck OK and retired-term scan passes. Fixed uncertain-email warning and stale area-provenance regressions; updated historical fixtures without weakening guards. Live-provider, live-database and write-based journeys excluded.
+- [x] Read-only safety read at 23:33:10 UTC: 643 held, zero runnable, zero new email/communication records since 23:19:39 UTC, activation unset; no publishing or sending.
