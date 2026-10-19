@@ -6,6 +6,7 @@ import { Button, Section, YesNo } from "@/components/trade/trade-ui";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { melbourneToday } from "@/lib/melbourne-time.core";
 
 /** Assessment fields used by the manual entry form. Extend as needed for future fields. */
 type AssessmentFields = {
@@ -56,7 +57,7 @@ export function ElectricianManualResult({ value, locked, savedAt, onPut }: {
         <Yn k="life_support_confirmed" label="Life support onsite" />
         <div><Label>Hazards</Label><Textarea className="mt-1" value={hazards} disabled={locked} onChange={(e) => setHazards(e.target.value)} onBlur={() => onPut("hazards", hazards === "" ? null : hazards)} /></div>
         <div><Label>Notes</Label><Textarea className="mt-1" value={notes} disabled={locked} onChange={(e) => setNotes(e.target.value)} onBlur={() => onPut("notes", notes === "" ? null : notes)} /></div>
-        <div><Label>Assessment date</Label><Input className="mt-1 h-12" type="date" value={(value.assessed_on as string) ?? ""} disabled={locked} onChange={(e) => onPut("assessed_on", e.target.value || null)} /></div>
+        <div><Label>Assessment date</Label><Input className="mt-1 h-12" type="date" value={(value.assessed_on as string) ?? ""} disabled={locked} max={melbourneToday()} onChange={(e) => onPut("assessed_on", e.target.value || null)} /><p className="mt-1 text-xs text-sub">The date you carried out the check. It cannot be in the future — the install deadline runs 30 days from it.</p></div>
         <Yn k="no_rectification_confirmed" label="No rectification required" />
         <Choice k="piesa_outcome" label="PIESA outcome" opts={[["pass", "Pass"], ["fail", "Fail"]]} />
       </div>

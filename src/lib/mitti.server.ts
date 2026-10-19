@@ -14,6 +14,7 @@ import { shortAnswersFromEntries } from "./official-short.core";
 import { expandPiesa } from "./official-expand.core";
 import { formatPropertyAddress } from "./address";
 import { todayMelbourne } from "./eligibility.server";
+import { refuseFuturePiesaDate } from "./piesa-date.core";
 import { officialPrefillContext } from "./official-forms.server";
 import { draftInstallerQuoteFromReadyCheck } from "./installer-quote.server";
 import { applyCobrand } from "./pilot.server";
@@ -264,10 +265,15 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
       if (plan.locked) locked = true;
       else {
         const { electrical } = splitPatch(plan.patch);
+        // Same PIESA date rule as the manual path. External data is not trusted: a future (or malformed)
+        // Mitti date is dropped from the write and surfaced as a review issue instead of stretching the
+        // 30-day install deadline. Everything else in the sync still lands.
+        const refused = refuseFuturePiesaDate(electrical as Record<string, unknown>);
+        const safeElectrical = refused.patch as typeof electrical;
         const now = new Date().toISOString();
         await admin.from("assessments").update({
-          ...electrical, mitti_sync_status: plan.syncStatus, mitti_completed: plan.completed, mitti_modified_at: plan.modifiedAt,
-          mitti_raw_snapshot: plan.snapshot as unknown as Json, mitti_validation_issues: plan.issues as unknown as Json, mitti_last_error: null,
+          ...safeElectrical, mitti_sync_status: plan.syncStatus, mitti_completed: plan.completed, mitti_modified_at: plan.modifiedAt,
+          mitti_raw_snapshot: plan.snapshot as unknown as Json, mitti_validation_issues: [...plan.issues, ...refused.issues] as unknown as Json, mitti_last_error: null,
           ...(plan.completed ? { mitti_synced_at: now } : {}),
         }).eq("id", a.id).neq("status", "complete");
         // Printed PIESA rules, checked server-side on every sync (blockers stay as review issues; nothing is completed here).
@@ -275,7 +281,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         const prefillCtx = await officialPrefillContext(jobId, todayMelbourne(), null);
         const expanded = expandPiesa(shortAnswersFromEntries("piesa", (plan.snapshot ?? []) as { label: string; value: string | null }[]), { lifeSupportDeclared: prefillCtx.lifeSupportDeclared, today: todayMelbourne() });
         const ev = evaluatePiesa(expanded.answers);
-        issues = [...plan.issues, ...expanded.flagged.map((f) => `Official form: ${f}`), ...ev.blockers.map((b) => `Official form: ${b.message}${b.confirmation ? ` [${b.confirmation}]` : ""}`)];
+        issues = [...plan.issues, ...refused.issues, ...expanded.flagged.map((f) => `Official form: ${f}`), ...ev.blockers.map((b) => `Official form: ${b.message}${b.confirmation ? ` [${b.confirmation}]` : ""}`)];
         completed = plan.completed;
         for (const o of plan.others) {
           const { data: ex } = await admin.from("rectification_items").select("id,status").eq("job_id", jobId).eq("external_key", o.external_key).maybeSingle();

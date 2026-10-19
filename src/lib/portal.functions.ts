@@ -24,6 +24,7 @@ import { requireMittiAccess } from "./mitti-membership.server";
 import { mittiAssignBlocker, mittiOverrideAccepted } from "./mitti-membership.core";
 import { signFile } from "./file-links.server";
 import { melbourneToday } from "@/lib/melbourne-time.core";
+import { piesaDateBlockers } from "./piesa-date.core";
 
 const clean = <T extends Record<string, unknown>>(o: T) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as never;
 
@@ -222,6 +223,11 @@ export const saveAssessment = createServerFn({ method: "POST" }).middleware([req
   .inputValidator((d) => z.object({ jobId: uuid, patch: assessmentPatch }).parse(d))
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    // Server-side PIESA date rule (same one recordPiesa enforces): no future assessment dates.
+    if (data.patch.assessed_on !== undefined && data.patch.assessed_on !== null) {
+      const b = piesaDateBlockers(data.patch.assessed_on);
+      if (b.length) throw new WorkflowError(b[0]!);
+    }
     const { data: existing } = await admin.from("assessments").select("id,status").eq("job_id", data.jobId).maybeSingle();
     if (existing?.status === "complete") throw new WorkflowError("Assessment is complete and locked. Ask Home Insulation Victoria to reopen.");
     if (existing) await admin.from("assessments").update(clean(data.patch)).eq("id", existing.id);
@@ -510,6 +516,9 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
     if (a.piesa_outcome === "pending") missing.push("PIESA outcome");
     if (!a.assessed_on) missing.push("assessment date");
     if (missing.length) throw new WorkflowError(`Still needed: ${missing.join(", ")}`);
+    // Defence in depth: even a value written before this guard existed cannot be completed with a future date.
+    const dateBlockers = piesaDateBlockers(a.assessed_on);
+    if (dateBlockers.length) throw new WorkflowError(dateBlockers[0]!);
     const { data: ev } = await admin.from("evidence_requirements").select("label,status,gate,category").eq("job_id", data.jobId).eq("required", true);
     const evMissing = (ev ?? [])
       .filter((e) => a.piesa_outcome === "pass" && e.category === "piesa_signoff")
@@ -575,7 +584,8 @@ export const recordPiesa = createServerFn({ method: "POST" }).middleware([requir
   }).parse(d))
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
-    if (data.completedDate > melbourneToday()) throw new WorkflowError("PIESA date cannot be in the future."); // Melbourne calendar date, not UTC
+    const dateBlockers = piesaDateBlockers(data.completedDate); // Melbourne calendar date, not UTC
+    if (dateBlockers.length) throw new WorkflowError(dateBlockers[0]!);
     const stage = await getStage(data.jobId);
     if (data.kind === "post_rectification") {
       if (stage !== "rectification_booked") throw new WorkflowError("Rectification must be booked first.");
@@ -1445,7 +1455,7 @@ export const getInvoiceInternals = createServerFn({ method: "POST" }).middleware
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const { data: inv } = await admin.from("invoices").select("id, xero_contact_id, xero_invoice_id, xero_reference, xero_invoice_status, last_synced_at, last_sync_error, sync_lock_at, xero_update_pending, deposit_request_raised_at, deposit_request_raised_by, deposit_request_amount, deposit_request_pct").eq("job_id", data.jobId);
-    const { data: ov } = await admin.from("payment_overrides").select("id, invoice_id, reason, created_at, overridden_by").eq("job_id", data.jobId);
+    const { data: ov } = await admin.from("payment_overrides").select("id, invoice_id, reason, created_at, overridden_by, gate").eq("job_id", data.jobId);
     const ids = [...new Set([...(ov ?? []).map((o) => o.overridden_by), ...(inv ?? []).map((i) => i.deposit_request_raised_by).filter((x): x is string => !!x)])];
     const { data: profs } = ids.length ? await admin.from("profiles").select("id, full_name").in("id", ids) : { data: [] };
     const { data: jb } = await admin.from("jobs").select("business_unit").eq("id", data.jobId).maybeSingle();

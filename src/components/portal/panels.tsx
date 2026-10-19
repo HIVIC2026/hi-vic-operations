@@ -404,6 +404,8 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
         {(data ?? []).map((i) => {
           const x = internals?.invoices.find((v) => v.id === i.id);
           const ov = internals?.overrides.filter((o) => o.invoice_id === i.id) ?? [];
+          // Only the deposit-gate override speaks about the safety check payment.
+          const safetyOverrides = ov.filter((o) => o.gate === "deposit");
           const remaining = Math.max(0, Number(i.total_inc_gst) - Number(i.total_paid));
           return (
             <div key={i.id} className="rounded-lg border p-3 text-sm">
@@ -414,6 +416,7 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
               <dl className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
                 <div><dt className="text-xs text-muted-foreground">Total accepted price (inc GST)</dt><dd className="font-medium">{aud(i.total_inc_gst)}</dd></div>
                 <div><dt className="text-xs text-muted-foreground">Safety check payment</dt><dd className="font-medium" data-testid="safety-check-payment">{aud(i.deposit_amount)} {Number(i.total_paid) >= Number(i.deposit_amount) ? <span className="text-xs text-success">Paid</span> : <span className="text-xs text-danger">Not paid</span>}</dd></div>
+                {safetyOverrides.length > 0 && <div className="sm:col-span-3" data-testid="safety-check-payment-override"><p className="rounded bg-warning-soft px-2 py-1 text-xs font-semibold text-warning">Payment block overridden — the safety check payment has not been received. The job is allowed to proceed on the office's recorded override.</p></div>}
                 <div><dt className="text-xs text-muted-foreground">Balance (two halves)</dt><dd className="font-medium">{(() => { const b = balanceSplit(i.total_inc_gst, i.deposit_amount); return `${aud(b.firstHalf)} install booked · ${aud(b.secondHalf)} install day`; })()}</dd></div>
                 <div><dt className="text-xs text-muted-foreground">Paid to date</dt><dd className="font-medium">{aud(i.total_paid)}</dd></div>
                 <div><dt className="text-xs text-muted-foreground">Remaining balance</dt><dd className="font-medium">{aud(remaining)} {i.balance_paid_at && <span className="text-xs text-success">fully paid {fmtDate(i.balance_paid_at)}</span>}</dd></div>
