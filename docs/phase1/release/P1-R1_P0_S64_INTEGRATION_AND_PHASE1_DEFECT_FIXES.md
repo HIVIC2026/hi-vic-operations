@@ -2,7 +2,7 @@
 
 **日期:** 2026-10-20 (AEDT)
 **分支:** `integration/s64-fixes-main` → `origin/main`
-**最终 origin/main:** `593d3a53`（功能提交 `dd3f6673` + 报告/证据提交 `593d3a53`）
+**功能性最终 origin/main:** `dd3f6673` — 报告与证据为 docs-only 追加提交，推送本文档时 main 顶部为 `2360cf31`
 **起始 origin/main:** `211a9bf5`
 
 ---
@@ -14,9 +14,8 @@
 | 起始 `origin/main` | `211a9bf5` ("Added estimated sizing Fallback") |
 | 集成工作分支 | `integration/s64-fixes-main` |
 | 集成提交 | `dd3f6673` |
-| 最终 `origin/main` | `593d3a535e8fe317381f42f8af8ea5adfc2b1df4` |
-| 功能性提交 | `dd3f6673` |
-| 文档/证据提交 | `a29c61aa`、`593d3a53` |
+| 功能性最终 `origin/main` | `dd3f6673` |
+| 文档/证据追加提交 | `a29c61aa`、`593d3a53`、`2360cf31` |
 | 推送方式 | `git push origin integration/s64-fixes-main:main`（非 force，fast-forward） |
 | 推前的 ff 校验 | `git merge-base --is-ancestor origin/main HEAD` = FF-SAFE |
 
