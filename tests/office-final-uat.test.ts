@@ -23,7 +23,9 @@ describe("D1 — confirmed first-response paging", () => {
     expect(read("src/components/portal/EnquiriesWorkspace.tsx")).not.toContain("rows.filter(isNewEnquiry)");
   });
   test("New survives route validation", () => {
-    expect(read("src/routes/_authenticated/admin.enquiries.tsx")).toContain("parseListControls(s, enquiriesSpec)");
+    const route = read("src/routes/_authenticated/admin.enquiries.tsx");
+    expect(route).toContain('"new"');
+    expect(route).toContain('VIEWS.includes(s["status"] as EnquiryView)');
     expect(read("src/lib/enquiry-list-page.core.ts")).toMatch(/"all",\s*"new",\s*\.\.\.STATUS_ORDER/);
   });
   test("search is passed into paging before enrichment", () => {
@@ -58,7 +60,7 @@ describe("D2 — list loaders avoid the measured bottlenecks", () => {
     const src = read("src/lib/enquiry-groups.server.ts");
     expect(src).toContain("loadEnquiryGroups(visibleIds: string[])");
     expect(src).toContain('.in("id", visibleIds)');
-    expect(src).toContain("ids.slice(i, i + 4)");
+    expect(src).toContain("ids.slice(i, i + CHUNK)");
     expect(src).not.toContain('.select("source, channel")');
   });
   test("active jobs: independent reads are batched and sends are purpose-filtered", () => {

@@ -62,7 +62,7 @@ beforeEach(async () => {
   await db.query("UPDATE customer_estimate_links SET token=$1,purpose='step3_estimate',status='active',expires_at=now()+interval '1 day'", [token]);
   await db.query("INSERT INTO owner_contact_consents VALUES($1,'granted',now())", [LAUNCH_ID.job]);
   await db.query("INSERT INTO workflow_events(job_id,event_type) VALUES($1,'spot_saved_confirmation_queued')", [LAUNCH_ID.job]);
-  await db.query("INSERT INTO indicative_estimates(job_id,status,area_m2,insulation_declared,scenarios) VALUES($1,'current',120,'present',$2)", [LAUNCH_ID.job,JSON.stringify([{by_access:{standard:{estimated_customer_total:2500,applied_discount:1400,pre_discount_total:3900}}}])]);
+  await db.query("INSERT INTO indicative_estimates(job_id,status,area_source,area_m2,insulation_declared,scenarios) VALUES($1,'current','owner_estimate',120,'present',$2)", [LAUNCH_ID.job,JSON.stringify([{by_access:{standard:{estimated_customer_total:2500,applied_discount:1400,pre_discount_total:3900}}}])]);
 });
 for (const type of ["loose_fill_only", "below_r2"] as const) test(`${type}: actual declaration→page→save→repeat, keeps existing insulation and price`, async () => {
   expect((await campaignLink(token))?.ownerQualified).toBe(false);

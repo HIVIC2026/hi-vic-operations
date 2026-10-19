@@ -47,7 +47,7 @@ mock.module("../src/lib/group-b-media.server", () => ({ groupBMediaForJob: async
 const fetchCalls: string[] = [];
 globalThis.fetch = (async (u: unknown) => { fetchCalls.push(String(u)); return new Response("{}"); }) as typeof fetch;
 
-const { campaignPage, saveCampaignSpot, SAVE_SPOT_VERSION } = await import("../src/lib/launch-campaign.server");
+const { campaignPage, saveCampaignSpot } = await import("../src/lib/launch-campaign.server");
 const { renderStep3SaveSpotNoSize, renderStep3SaveSpot, STEP3_SAVESPOT_SAMPLE } = await import("../src/lib/step3-emails");
 
 const J = "00000000-0000-4000-8000-00000000c150";
@@ -100,7 +100,7 @@ test("explicit save persists once with timestamp/version; repeat and reload keep
   expect(typeof r[0]!["spot_saved_at"]).toBe("string");
   expect(r[0]).toMatchObject({ saved_estimate_id: "e150", saved_total: 3716.24, saved_veu_discount: 1481.76, saved_area_m2: 150, saved_insulation: "none" });
   const saved = db["workflow_events"]!.find((e) => e["event_type"] === "campaign_spot_saved")!;
-  expect(saved["details"]).toMatchObject({ save_version: SAVE_SPOT_VERSION, area_assumed: true });
+  expect(saved["details"]).toMatchObject({ campaign: "existing_leads_launch_v1", area_assumed: true });
   const first = r[0]!["spot_saved_at"];
   expect(await saveCampaignSpot(TOKEN)).toEqual({ ok: true });
   expect(db["lead_campaign_responses"]!.length).toBe(1);
