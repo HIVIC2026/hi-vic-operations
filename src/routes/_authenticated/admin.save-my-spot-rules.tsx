@@ -114,8 +114,8 @@ function Rules() {
           <div>
             <p className="text-sm font-medium">Select enquiries automatically for Save My Spot emails</p>
             <p className="text-xs text-muted-foreground">
-              {loaded.state === "ok" ? `Saved ${loaded.updatedAt ?? "—"}.` : "No rules are saved yet."} Automatic selection is
-              {" "}<strong>{currentEnable ? "ON" : "OFF"}</strong>.
+              {loaded.state === "ok" ? `Saved ${loaded.updatedAt ?? "—"}.` : "No rules are saved yet."} Selection preference:
+              {" "}<strong>{currentEnable ? "enabled" : "disabled"}</strong>. First-response sending remains {loaded.firstResponses.on ? "ON" : "OFF"}.
             </p>
           </div>
           <Switch checked={currentEnable} aria-label="Automatic Save My Spot selection" onCheckedChange={(v) => { setTouched(true); setEnable(!!v); }} />
