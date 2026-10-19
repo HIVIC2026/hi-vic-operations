@@ -1,4 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Urgent Base44 delivery failure (Jo, 19 Oct 09:35 UTC)
+- [ ] Diagnose actual bridge payload/400 response; minimally repair delivery and redact recorded rejection reasons. Preserve templates, workflow and idempotency; no backlog retries.
+- [ ] Run focused delivery checks and inspect automatic build/typecheck; use one existing safe TEST send only if supported, otherwise report verification blocker. No publication.
 ## Enquiry office work buckets (Jo, 19 Oct 08:13 UTC)
 - [ ] Add exclusive display-only Enquiry work filters and counts while preserving factual top-level lanes and progressed records.
 - [ ] Run focused enquiry tests and read-only current-count reconciliation; report preview verification and gaps. No data writes, sends or publication.
