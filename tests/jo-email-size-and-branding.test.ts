@@ -152,7 +152,9 @@ describe("D. property-research area is never described as homeowner-provided", (
 describe("E. T1–T8 use the shared Spot Saved branded layout", () => {
   const brandChecks = (html: string) => {
     expect(html.startsWith("<!doctype html")).toBe(true);
-    expect(html).toContain("hiv-logo");
+    // Header = the Spot Saved art row, or (T7, no rebate) the same logo alone — never logo+badge.
+    expect(/email-art|\bhiv-logo\b/.test(html)).toBe(true);
+    expect(html).not.toContain('class="lx-badge"');
     expect(html).toContain('class="hiv-main lx-main"');
     expect(html).toContain("Home Insulation Victoria");
     expect(html).toContain("DC Construction Solutions Pty Ltd trading as Home Insulation Victoria");
@@ -200,6 +202,27 @@ describe("E. T1–T8 use the shared Spot Saved branded layout", () => {
       expect(m.html.match(/Don’t want these emails\?/g)?.length).toBe(1);
       expect(m.html).toContain("Remove my enquiry");
     }
+  });
+  test("header reuses the Spot Saved art: email-art for T1–T6/T8, logo-only for T7, never a badge", () => {
+    const t2 = render({ outcome: "likely_eligible", insulation: "none", ceilingSizeKnown: true, figures: figures(210, false) });
+    expect(t2.html).toContain("/api/public/email-art/");
+    expect(t2.html).toContain("/headline.png");
+    expect(t2.html).not.toContain('class="lx-badge"');
+
+    const t7 = render({ outcome: "does_not_appear_eligible", insulation: null, reason: "Built after 2010." });
+    expect(t7.html).toContain("hiv-logo");
+    expect(t7.html).not.toContain("/api/public/email-art/");
+    expect(t7.html).not.toContain('class="lx-badge"');
+
+    const t8 = renderJoReadyCheckInvitationEmail(RECIPIENT, {
+      ...figures(150, true),
+      savedAt: "2026-10-19T00:00:00Z",
+      personalEstimateUrl: "https://estimate.homeinsulationvictoria.com.au/my-estimate/tok",
+      readyCheckBookingUrl: "https://estimate.homeinsulationvictoria.com.au/estimate/tok",
+    });
+    expect(t8.html).toContain("/api/public/email-art/");
+    expect(t8.html).toContain("/spot.png");
+    expect(t8.html).not.toContain('class="lx-badge"');
   });
   test("T7 keeps no estimate section and T8 keeps the Ready Check sections", () => {
     const t7 = render({
