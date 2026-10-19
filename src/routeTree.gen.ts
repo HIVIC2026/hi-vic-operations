@@ -37,6 +37,7 @@ import { Route as TimesTokenRouteImport } from './routes/times.$token'
 import { Route as WTokenRouteImport } from './routes/w.$token'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminApQueueRouteImport } from './routes/_authenticated/admin.ap-queue'
+import { Route as AuthenticatedAdminBoardRouteImport } from './routes/_authenticated/admin.board'
 import { Route as AuthenticatedAdminBusinessesRouteImport } from './routes/_authenticated/admin.businesses'
 import { Route as AuthenticatedAdminCampaignEmailsRouteImport } from './routes/_authenticated/admin.campaign-emails'
 import { Route as AuthenticatedAdminCommunicationsRouteImport } from './routes/_authenticated/admin.communications'
@@ -44,6 +45,7 @@ import { Route as AuthenticatedAdminComplianceRouteImport } from './routes/_auth
 import { Route as AuthenticatedAdminCoverageRouteImport } from './routes/_authenticated/admin.coverage'
 import { Route as AuthenticatedAdminDeletedRouteImport } from './routes/_authenticated/admin.deleted'
 import { Route as AuthenticatedAdminElectricianRatesRouteImport } from './routes/_authenticated/admin.electrician-rates'
+import { Route as AuthenticatedAdminEnquiriesRouteImport } from './routes/_authenticated/admin.enquiries'
 import { Route as AuthenticatedAdminEnquiryGroupsRouteImport } from './routes/_authenticated/admin.enquiry-groups'
 import { Route as AuthenticatedAdminHotLeadsRouteImport } from './routes/_authenticated/admin.hot-leads'
 import { Route as AuthenticatedAdminInterestsRouteImport } from './routes/_authenticated/admin.interests'
@@ -94,6 +96,8 @@ import { Route as EstimateTokenVideoRouteImport } from './routes/estimate_.$toke
 import { Route as TETokenRouteImport } from './routes/t.e.$token'
 import { Route as TOFileRouteImport } from './routes/t.o.$file'
 import { Route as AuthenticatedAdminJobsJobIdRouteImport } from './routes/_authenticated/admin.jobs.$jobId'
+import { Route as AuthenticatedAdminJobsActiveRouteImport } from './routes/_authenticated/admin.jobs.active'
+import { Route as AuthenticatedAdminJobsClosedRouteImport } from './routes/_authenticated/admin.jobs.closed'
 import { Route as AuthenticatedFieldBusinessAgreementRouteImport } from './routes/_authenticated/field.business_.agreement'
 import { Route as AuthenticatedFieldBusinessBankRouteImport } from './routes/_authenticated/field.business_.bank'
 import { Route as AuthenticatedFieldBusinessDetailsRouteImport } from './routes/_authenticated/field.business_.details'
@@ -252,6 +256,11 @@ const AuthenticatedAdminApQueueRoute =
     path: '/ap-queue',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminBoardRoute = AuthenticatedAdminBoardRouteImport.update({
+  id: '/board',
+  path: '/board',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
 const AuthenticatedAdminBusinessesRoute =
   AuthenticatedAdminBusinessesRouteImport.update({
     id: '/businesses',
@@ -292,6 +301,12 @@ const AuthenticatedAdminElectricianRatesRoute =
   AuthenticatedAdminElectricianRatesRouteImport.update({
     id: '/electrician-rates',
     path: '/electrician-rates',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminEnquiriesRoute =
+  AuthenticatedAdminEnquiriesRouteImport.update({
+    id: '/enquiries',
+    path: '/enquiries',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminEnquiryGroupsRoute =
@@ -571,6 +586,18 @@ const AuthenticatedAdminJobsJobIdRoute =
     path: '/jobs/$jobId',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminJobsActiveRoute =
+  AuthenticatedAdminJobsActiveRouteImport.update({
+    id: '/jobs/active',
+    path: '/jobs/active',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminJobsClosedRoute =
+  AuthenticatedAdminJobsClosedRouteImport.update({
+    id: '/jobs/closed',
+    path: '/jobs/closed',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedFieldBusinessAgreementRoute =
   AuthenticatedFieldBusinessAgreementRouteImport.update({
     id: '/business_/agreement',
@@ -699,6 +726,7 @@ export interface FileRoutesByFullPath {
   '/times/$token': typeof TimesTokenRoute
   '/w/$token': typeof WTokenRoute
   '/admin/ap-queue': typeof AuthenticatedAdminApQueueRoute
+  '/admin/board': typeof AuthenticatedAdminBoardRoute
   '/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
   '/admin/campaign-emails': typeof AuthenticatedAdminCampaignEmailsRoute
   '/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
@@ -706,6 +734,7 @@ export interface FileRoutesByFullPath {
   '/admin/coverage': typeof AuthenticatedAdminCoverageRoute
   '/admin/deleted': typeof AuthenticatedAdminDeletedRoute
   '/admin/electrician-rates': typeof AuthenticatedAdminElectricianRatesRoute
+  '/admin/enquiries': typeof AuthenticatedAdminEnquiriesRoute
   '/admin/enquiry-groups': typeof AuthenticatedAdminEnquiryGroupsRoute
   '/admin/hot-leads': typeof AuthenticatedAdminHotLeadsRoute
   '/admin/interests': typeof AuthenticatedAdminInterestsRoute
@@ -757,6 +786,8 @@ export interface FileRoutesByFullPath {
   '/owner/': typeof AuthenticatedOwnerIndexRoute
   '/partner/': typeof AuthenticatedPartnerIndexRoute
   '/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
+  '/admin/jobs/active': typeof AuthenticatedAdminJobsActiveRoute
+  '/admin/jobs/closed': typeof AuthenticatedAdminJobsClosedRoute
   '/field/business/agreement': typeof AuthenticatedFieldBusinessAgreementRoute
   '/field/business/bank': typeof AuthenticatedFieldBusinessBankRoute
   '/field/business/details': typeof AuthenticatedFieldBusinessDetailsRoute
@@ -798,6 +829,7 @@ export interface FileRoutesByTo {
   '/times/$token': typeof TimesTokenRoute
   '/w/$token': typeof WTokenRoute
   '/admin/ap-queue': typeof AuthenticatedAdminApQueueRoute
+  '/admin/board': typeof AuthenticatedAdminBoardRoute
   '/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
   '/admin/campaign-emails': typeof AuthenticatedAdminCampaignEmailsRoute
   '/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
@@ -805,6 +837,7 @@ export interface FileRoutesByTo {
   '/admin/coverage': typeof AuthenticatedAdminCoverageRoute
   '/admin/deleted': typeof AuthenticatedAdminDeletedRoute
   '/admin/electrician-rates': typeof AuthenticatedAdminElectricianRatesRoute
+  '/admin/enquiries': typeof AuthenticatedAdminEnquiriesRoute
   '/admin/enquiry-groups': typeof AuthenticatedAdminEnquiryGroupsRoute
   '/admin/hot-leads': typeof AuthenticatedAdminHotLeadsRoute
   '/admin/interests': typeof AuthenticatedAdminInterestsRoute
@@ -856,6 +889,8 @@ export interface FileRoutesByTo {
   '/owner': typeof AuthenticatedOwnerIndexRoute
   '/partner': typeof AuthenticatedPartnerIndexRoute
   '/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
+  '/admin/jobs/active': typeof AuthenticatedAdminJobsActiveRoute
+  '/admin/jobs/closed': typeof AuthenticatedAdminJobsClosedRoute
   '/field/business/agreement': typeof AuthenticatedFieldBusinessAgreementRoute
   '/field/business/bank': typeof AuthenticatedFieldBusinessBankRoute
   '/field/business/details': typeof AuthenticatedFieldBusinessDetailsRoute
@@ -903,6 +938,7 @@ export interface FileRoutesById {
   '/times/$token': typeof TimesTokenRoute
   '/w/$token': typeof WTokenRoute
   '/_authenticated/admin/ap-queue': typeof AuthenticatedAdminApQueueRoute
+  '/_authenticated/admin/board': typeof AuthenticatedAdminBoardRoute
   '/_authenticated/admin/businesses': typeof AuthenticatedAdminBusinessesRoute
   '/_authenticated/admin/campaign-emails': typeof AuthenticatedAdminCampaignEmailsRoute
   '/_authenticated/admin/communications': typeof AuthenticatedAdminCommunicationsRoute
@@ -910,6 +946,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/coverage': typeof AuthenticatedAdminCoverageRoute
   '/_authenticated/admin/deleted': typeof AuthenticatedAdminDeletedRoute
   '/_authenticated/admin/electrician-rates': typeof AuthenticatedAdminElectricianRatesRoute
+  '/_authenticated/admin/enquiries': typeof AuthenticatedAdminEnquiriesRoute
   '/_authenticated/admin/enquiry-groups': typeof AuthenticatedAdminEnquiryGroupsRoute
   '/_authenticated/admin/hot-leads': typeof AuthenticatedAdminHotLeadsRoute
   '/_authenticated/admin/interests': typeof AuthenticatedAdminInterestsRoute
@@ -961,6 +998,8 @@ export interface FileRoutesById {
   '/_authenticated/owner/': typeof AuthenticatedOwnerIndexRoute
   '/_authenticated/partner/': typeof AuthenticatedPartnerIndexRoute
   '/_authenticated/admin/jobs/$jobId': typeof AuthenticatedAdminJobsJobIdRoute
+  '/_authenticated/admin/jobs/active': typeof AuthenticatedAdminJobsActiveRoute
+  '/_authenticated/admin/jobs/closed': typeof AuthenticatedAdminJobsClosedRoute
   '/_authenticated/field/business_/agreement': typeof AuthenticatedFieldBusinessAgreementRoute
   '/_authenticated/field/business_/bank': typeof AuthenticatedFieldBusinessBankRoute
   '/_authenticated/field/business_/details': typeof AuthenticatedFieldBusinessDetailsRoute
@@ -1008,6 +1047,7 @@ export interface FileRouteTypes {
     | '/times/$token'
     | '/w/$token'
     | '/admin/ap-queue'
+    | '/admin/board'
     | '/admin/businesses'
     | '/admin/campaign-emails'
     | '/admin/communications'
@@ -1015,6 +1055,7 @@ export interface FileRouteTypes {
     | '/admin/coverage'
     | '/admin/deleted'
     | '/admin/electrician-rates'
+    | '/admin/enquiries'
     | '/admin/enquiry-groups'
     | '/admin/hot-leads'
     | '/admin/interests'
@@ -1066,6 +1107,8 @@ export interface FileRouteTypes {
     | '/owner/'
     | '/partner/'
     | '/admin/jobs/$jobId'
+    | '/admin/jobs/active'
+    | '/admin/jobs/closed'
     | '/field/business/agreement'
     | '/field/business/bank'
     | '/field/business/details'
@@ -1107,6 +1150,7 @@ export interface FileRouteTypes {
     | '/times/$token'
     | '/w/$token'
     | '/admin/ap-queue'
+    | '/admin/board'
     | '/admin/businesses'
     | '/admin/campaign-emails'
     | '/admin/communications'
@@ -1114,6 +1158,7 @@ export interface FileRouteTypes {
     | '/admin/coverage'
     | '/admin/deleted'
     | '/admin/electrician-rates'
+    | '/admin/enquiries'
     | '/admin/enquiry-groups'
     | '/admin/hot-leads'
     | '/admin/interests'
@@ -1165,6 +1210,8 @@ export interface FileRouteTypes {
     | '/owner'
     | '/partner'
     | '/admin/jobs/$jobId'
+    | '/admin/jobs/active'
+    | '/admin/jobs/closed'
     | '/field/business/agreement'
     | '/field/business/bank'
     | '/field/business/details'
@@ -1211,6 +1258,7 @@ export interface FileRouteTypes {
     | '/times/$token'
     | '/w/$token'
     | '/_authenticated/admin/ap-queue'
+    | '/_authenticated/admin/board'
     | '/_authenticated/admin/businesses'
     | '/_authenticated/admin/campaign-emails'
     | '/_authenticated/admin/communications'
@@ -1218,6 +1266,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/coverage'
     | '/_authenticated/admin/deleted'
     | '/_authenticated/admin/electrician-rates'
+    | '/_authenticated/admin/enquiries'
     | '/_authenticated/admin/enquiry-groups'
     | '/_authenticated/admin/hot-leads'
     | '/_authenticated/admin/interests'
@@ -1269,6 +1318,8 @@ export interface FileRouteTypes {
     | '/_authenticated/owner/'
     | '/_authenticated/partner/'
     | '/_authenticated/admin/jobs/$jobId'
+    | '/_authenticated/admin/jobs/active'
+    | '/_authenticated/admin/jobs/closed'
     | '/_authenticated/field/business_/agreement'
     | '/_authenticated/field/business_/bank'
     | '/_authenticated/field/business_/details'
@@ -1529,6 +1580,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminApQueueRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/board': {
+      id: '/_authenticated/admin/board'
+      path: '/board'
+      fullPath: '/admin/board'
+      preLoaderRoute: typeof AuthenticatedAdminBoardRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/businesses': {
       id: '/_authenticated/admin/businesses'
       path: '/businesses'
@@ -1576,6 +1634,13 @@ declare module '@tanstack/react-router' {
       path: '/electrician-rates'
       fullPath: '/admin/electrician-rates'
       preLoaderRoute: typeof AuthenticatedAdminElectricianRatesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/enquiries': {
+      id: '/_authenticated/admin/enquiries'
+      path: '/enquiries'
+      fullPath: '/admin/enquiries'
+      preLoaderRoute: typeof AuthenticatedAdminEnquiriesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/enquiry-groups': {
@@ -1928,6 +1993,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminJobsJobIdRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/jobs/active': {
+      id: '/_authenticated/admin/jobs/active'
+      path: '/jobs/active'
+      fullPath: '/admin/jobs/active'
+      preLoaderRoute: typeof AuthenticatedAdminJobsActiveRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/jobs/closed': {
+      id: '/_authenticated/admin/jobs/closed'
+      path: '/jobs/closed'
+      fullPath: '/admin/jobs/closed'
+      preLoaderRoute: typeof AuthenticatedAdminJobsClosedRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/field/business_/agreement': {
       id: '/_authenticated/field/business_/agreement'
       path: '/business/agreement'
@@ -2052,6 +2131,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminApQueueRoute: typeof AuthenticatedAdminApQueueRoute
+  AuthenticatedAdminBoardRoute: typeof AuthenticatedAdminBoardRoute
   AuthenticatedAdminBusinessesRoute: typeof AuthenticatedAdminBusinessesRoute
   AuthenticatedAdminCampaignEmailsRoute: typeof AuthenticatedAdminCampaignEmailsRoute
   AuthenticatedAdminCommunicationsRoute: typeof AuthenticatedAdminCommunicationsRoute
@@ -2059,6 +2139,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminCoverageRoute: typeof AuthenticatedAdminCoverageRoute
   AuthenticatedAdminDeletedRoute: typeof AuthenticatedAdminDeletedRoute
   AuthenticatedAdminElectricianRatesRoute: typeof AuthenticatedAdminElectricianRatesRoute
+  AuthenticatedAdminEnquiriesRoute: typeof AuthenticatedAdminEnquiriesRoute
   AuthenticatedAdminEnquiryGroupsRoute: typeof AuthenticatedAdminEnquiryGroupsRoute
   AuthenticatedAdminHotLeadsRoute: typeof AuthenticatedAdminHotLeadsRoute
   AuthenticatedAdminInterestsRoute: typeof AuthenticatedAdminInterestsRoute
@@ -2085,10 +2166,13 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminWorkersRoute: typeof AuthenticatedAdminWorkersRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminJobsJobIdRoute: typeof AuthenticatedAdminJobsJobIdRoute
+  AuthenticatedAdminJobsActiveRoute: typeof AuthenticatedAdminJobsActiveRoute
+  AuthenticatedAdminJobsClosedRoute: typeof AuthenticatedAdminJobsClosedRoute
 }
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminApQueueRoute: AuthenticatedAdminApQueueRoute,
+  AuthenticatedAdminBoardRoute: AuthenticatedAdminBoardRoute,
   AuthenticatedAdminBusinessesRoute: AuthenticatedAdminBusinessesRoute,
   AuthenticatedAdminCampaignEmailsRoute: AuthenticatedAdminCampaignEmailsRoute,
   AuthenticatedAdminCommunicationsRoute: AuthenticatedAdminCommunicationsRoute,
@@ -2097,6 +2181,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminDeletedRoute: AuthenticatedAdminDeletedRoute,
   AuthenticatedAdminElectricianRatesRoute:
     AuthenticatedAdminElectricianRatesRoute,
+  AuthenticatedAdminEnquiriesRoute: AuthenticatedAdminEnquiriesRoute,
   AuthenticatedAdminEnquiryGroupsRoute: AuthenticatedAdminEnquiryGroupsRoute,
   AuthenticatedAdminHotLeadsRoute: AuthenticatedAdminHotLeadsRoute,
   AuthenticatedAdminInterestsRoute: AuthenticatedAdminInterestsRoute,
@@ -2126,6 +2211,8 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminWorkersRoute: AuthenticatedAdminWorkersRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   AuthenticatedAdminJobsJobIdRoute: AuthenticatedAdminJobsJobIdRoute,
+  AuthenticatedAdminJobsActiveRoute: AuthenticatedAdminJobsActiveRoute,
+  AuthenticatedAdminJobsClosedRoute: AuthenticatedAdminJobsClosedRoute,
 }
 
 const AuthenticatedAdminRouteWithChildren =

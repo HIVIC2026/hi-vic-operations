@@ -110,14 +110,41 @@ export const TEMPLATE_ENTRIES: TemplateEntry[] = [...EMAIL, ...MITTI, ...COMPLIA
 
 export function entriesFor(cat: TemplateCategory) { return TEMPLATE_ENTRIES.filter((e) => e.category === cat); }
 
+export type TemplateStanding = "approved" | "draft" | "reference" | "historical";
+export const TEMPLATE_STANDING: { key: TemplateStanding; label: string; hint: string }[] = [
+  { key: "approved", label: "Current approved", hint: "Approval is recorded in source." },
+  { key: "draft", label: "Drafts & unrecorded", hint: "No recorded approval — not to be treated as current wording." },
+  { key: "reference", label: "Reference & versioned", hint: "Official registers/documents; approval lives in their stored versions." },
+  { key: "historical", label: "Historical", hint: "Superseded wording kept for history only." },
+];
+
+/**
+ * One standing per template, derived ONLY from the metadata already in the register.
+ * "Customer emails" is the pre-15-Oct catalogue retained for history; Jo's approved homeowner emails
+ * are a separate group, so historical wording can never look current.
+ */
+export function templateStanding(e: TemplateEntry): TemplateStanding {
+  if (e.group === "Customer emails") return "historical";
+  const a = e.approval.trim();
+  if (/^approved/i.test(a)) return "approved";
+  if (/^draft|^not recorded/i.test(a)) return "draft";
+  return "reference";
+}
+
+export function entriesForStanding(cat: TemplateCategory, standing: TemplateStanding | undefined) {
+  const list = entriesFor(cat);
+  return standing ? list.filter((e) => templateStanding(e) === standing) : list;
+}
+
 /** Selected entry for a category; an id from another category (or unknown) falls back to the category's first entry. */
 export function selectTemplate(cat: TemplateCategory, id: string | undefined): TemplateEntry {
   const list = entriesFor(cat);
   return list.find((e) => e.id === id) ?? list[0]!;
 }
 
-export function parseTemplateSearch(s: Record<string, unknown>): { cat: TemplateCategory; t?: string } {
+export function parseTemplateSearch(s: Record<string, unknown>): { cat: TemplateCategory; t?: string; standing?: TemplateStanding } {
   const cat = TEMPLATE_CATEGORIES.some((c) => c.key === s["cat"]) ? (s["cat"] as TemplateCategory) : "email";
   const t = typeof s["t"] === "string" && s["t"].length < 80 ? s["t"] : undefined;
-  return t ? { cat, t } : { cat };
+  const standing = TEMPLATE_STANDING.some((x) => x.key === s["standing"]) ? (s["standing"] as TemplateStanding) : undefined;
+  return { cat, ...(t ? { t } : {}), ...(standing ? { standing } : {}) };
 }

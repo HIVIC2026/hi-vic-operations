@@ -13,7 +13,7 @@ import { Btn, Pill, btnClass, fieldInput } from "./kit";
 import { MittiFormCard } from "./mitti-forms";
 import { useAction } from "@/hooks/use-me";
 import { cn } from "@/lib/utils";
-import { TEMPLATE_CATEGORIES, entriesFor, registerFor, selectTemplate, type TemplateCategory, type TemplateEntry } from "@/lib/template-hub.core";
+import { TEMPLATE_CATEGORIES, TEMPLATE_STANDING, entriesFor, entriesForStanding, registerFor, templateStanding, type TemplateCategory, type TemplateEntry, type TemplateStanding } from "@/lib/template-hub.core";
 import { ACTIVITY_48_FORMS, MITTI_FORM_ORDER } from "@/lib/template-catalog";
 import { samples } from "@/lib/step3-email-samples";
 import { PARTNER_TEMPLATES, renderPartnerTemplate } from "@/lib/partner-templates";
@@ -29,19 +29,30 @@ import { parseFormFields } from "@/lib/assignment.core";
 
 const SAMPLE_LINK = "https://estimate.homeinsulationvictoria.com.au/portal";
 
-export function TemplatesHub({ cat, t }: { cat: TemplateCategory; t?: string }) {
+export function TemplatesHub({ cat, t, standing }: { cat: TemplateCategory; t?: string; standing?: TemplateStanding }) {
   const navigate = useNavigate();
-  const list = entriesFor(cat);
-  const selected = selectTemplate(cat, t);
-  const choose = (id: string) => navigate({ to: "/admin/templates", search: { cat, t: id }, replace: true });
+  const list = entriesForStanding(cat, standing);
+  const selected = (list.find((e) => e.id === t) ?? list[0] ?? entriesFor(cat)[0])!;
+  const choose = (id: string) => navigate({ to: "/admin/templates", search: { cat, t: id, ...(standing ? { standing } : {}) }, replace: true });
   const groups = [...new Set(list.map((e) => e.group))];
   return (
     <div>
-      <header className="mb-4"><h1 className="font-display text-[26px] font-bold leading-tight">Templates</h1><p className="mt-1 text-sm text-sub">Every email, Mitti form and compliance wording in one place. Viewing here never sends, saves or connects anything.</p></header>
-      <nav aria-label="Template categories" className="mb-4 flex gap-1 border-b border-line">
+      <header className="mb-4"><h1 className="font-display text-[26px] font-bold leading-tight">Templates</h1><p className="mt-1 text-sm text-sub">The ONE register of every approved email, Mitti form and compliance wording. Viewing here never sends, saves or connects anything.</p></header>
+      <nav aria-label="Template categories" className="mb-3 flex gap-1 border-b border-line">
         {TEMPLATE_CATEGORIES.map((c) => <Link key={c.key} to="/admin/templates" search={{ cat: c.key }} aria-current={c.key === cat ? "page" : undefined} className={cn("-mb-px border-b-2 px-3 py-2 text-sm font-semibold", c.key === cat ? "border-hiv-blue text-ink" : "border-transparent text-sub hover:text-ink")}>{c.label} <span className="text-xs font-normal text-sub">{entriesFor(c.key).length}</span></Link>)}
       </nav>
-      <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+      <div role="tablist" aria-label="Template standing" className="mb-4 flex flex-wrap gap-1.5">
+        <Link to="/admin/templates" search={{ cat }} role="tab" aria-selected={!standing} className={cn("rounded-full border px-3 py-1 text-xs font-semibold", !standing ? "border-hiv-blue bg-mist text-ink" : "border-line text-sub hover:text-ink")}>All <span className="font-normal">{entriesFor(cat).length}</span></Link>
+        {TEMPLATE_STANDING.map((s) => (
+          <Link key={s.key} to="/admin/templates" search={{ cat, standing: s.key }} role="tab" aria-selected={standing === s.key} title={s.hint} className={cn("rounded-full border px-3 py-1 text-xs font-semibold", standing === s.key ? "border-hiv-blue bg-mist text-ink" : "border-line text-sub hover:text-ink")}>
+            {s.label} <span className="font-normal">{entriesFor(cat).filter((e) => templateStanding(e) === s.key).length}</span>
+          </Link>
+        ))}
+      </div>
+      {standing === "historical" && <p className="mb-3 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-xs">These templates are superseded. They are kept for history and are never used for a new send.</p>}
+      {standing === "draft" && <p className="mb-3 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-xs">No recorded approval. Do not treat these as current office wording.</p>}
+      {list.length === 0 ? <p className="rounded-md border bg-card p-6 text-sm text-sub">No templates in this standing.</p> : null}
+      {list.length > 0 && <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
         <div>
           <label className="block lg:hidden"><span className="sr-only">Choose a template</span>
             <select aria-label="Choose a template" className={fieldInput} value={selected.id} onChange={(e) => choose(e.target.value)}>
@@ -55,7 +66,7 @@ export function TemplatesHub({ cat, t }: { cat: TemplateCategory; t?: string }) 
           </div>
         </div>
         <section aria-label="Selected template" className="min-w-0"><TemplateDetail key={selected.id} entry={selected} /></section>
-      </div>
+      </div>}
     </div>
   );
 }

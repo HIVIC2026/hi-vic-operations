@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, LogOut, Search } from "lucide-react";
 import { getJobRightNow, searchOffice } from "@/lib/office.functions";
-import { OFFICE_HEADINGS, OFFICE_TOOLS, SECTION_TABS, isEnquiryPage, sectionFor, tabActive, type OfficeTab } from "@/lib/office-nav";
+import { MORE_SECTIONS, OFFICE_HEADINGS, OFFICE_TOOLS, sectionFor } from "@/lib/office-nav";
 import { OFFICE_STAGES, timeLeft } from "@/lib/office-status.core";
 import { aud } from "@/lib/workflow";
 import { cn } from "@/lib/utils";
@@ -12,10 +12,6 @@ import { Button } from "@/components/ui/button";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 
 const HEADINGS = OFFICE_HEADINGS;
-
-function TabLink({ t, active, small = false }: { t: OfficeTab; active: boolean; small?: boolean }) {
-  return <Link to={t.to} search={(t.search ?? {}) as never} aria-current={active ? "page" : undefined} className={cn("whitespace-nowrap rounded-[8px] border px-2.5 py-1 font-semibold transition-colors", small ? "text-xs" : "text-[13px]", active ? "border-line bg-paper text-ink shadow-card" : "border-transparent text-sub hover:text-ink")}>{t.label}</Link>;
-}
 
 function OfficeSearch() {
   const [q, setQ] = useState("");
@@ -56,10 +52,12 @@ function AvatarMenu({ name, onSignOut }: { name: string; onSignOut: () => void }
         <div className="absolute right-0 top-11 z-50 max-h-[75vh] w-72 overflow-y-auto rounded-lg border bg-card p-1 shadow-lg" onClick={() => setOpen(false)}>
           <p className="px-3 pb-1 pt-2 text-xs font-bold text-muted-foreground">Office tools</p>
           {OFFICE_TOOLS.map((t) => <Link key={t.label} to={t.to} search={(t.search ?? {}) as never} className={item}>{t.label}</Link>)}
-          <p className="px-3 pb-1 pt-2 text-xs font-bold text-muted-foreground">Money</p>
-          {SECTION_TABS.money.map((t) => <Link key={t.label} to={t.to} search={(t.search ?? {}) as never} className={item}>{t.label}</Link>)}
-          <p className="px-3 pb-1 pt-2 text-xs font-bold text-muted-foreground">Settings</p>
-          {SECTION_TABS.settings.map((t) => <Link key={t.label} to={t.to} className={item}>{t.label}</Link>)}
+          {MORE_SECTIONS.map((section) => (
+            <div key={section.label}>
+              <p className="px-3 pb-1 pt-2 text-xs font-bold text-muted-foreground">{section.label}</p>
+              {section.tabs.map((t) => <Link key={t.label} to={t.to} search={(t.search ?? {}) as never} className={item}>{t.label}</Link>)}
+            </div>
+          ))}
           <p className="px-3 pb-1 pt-3 text-xs font-bold text-muted-foreground">Public forms</p>
           <a href="/calculator" target="_blank" rel="noopener" className={item}>Customer calculator</a>
           <a href="/electrician-onboarding" target="_blank" rel="noopener" className={item}>Electrician application form</a>
@@ -75,13 +73,11 @@ function AvatarMenu({ name, onSignOut }: { name: string; onSignOut: () => void }
 export function OfficeTopBar({ name, onSignOut }: { name: string; onSignOut: () => void }) {
   const loc = useRouterState({ select: (s) => ({ pathname: s.location.pathname, search: s.location.search as Record<string, unknown> }) });
   const section = sectionFor(loc.pathname, loc.search);
-  const isJob = loc.pathname.startsWith("/admin/jobs/");
-  const tabs = isJob ? [] : SECTION_TABS[section];
   return (
     <>
       <header className="sticky top-0 z-40 border-b border-line bg-paper">
         <div className="mx-auto grid max-w-[1180px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 px-4 py-2.5 sm:px-[26px]">
-          <Link to="/admin/operations" className="flex min-w-0 shrink-0 items-center gap-2" aria-label="Home Insulation Victoria — Overview">
+          <Link to="/admin/enquiries" className="flex min-w-0 shrink-0 items-center gap-2" aria-label="Home Insulation Victoria — Enquiries">
             <img src={logo.url} alt="Home Insulation Victoria" className="h-9 w-auto shrink-0" />
           </Link>
           <nav aria-label="Office" className="hidden min-w-0 items-center gap-1 overflow-x-auto md:flex">
@@ -93,11 +89,10 @@ export function OfficeTopBar({ name, onSignOut }: { name: string; onSignOut: () 
           </nav>
           <div className="col-start-3 flex min-w-0 items-center justify-end gap-2"><div className="hidden lg:block lg:w-64"><OfficeSearch /></div><AvatarMenu name={name} onSignOut={onSignOut} /></div>
         </div>
-        {tabs.length > 0 && <div className="border-t border-line bg-canvas"><div className="mx-auto flex max-w-[1180px] items-center gap-1 overflow-x-auto px-4 py-1.5 sm:px-[26px]">{tabs.map((t) => <TabLink key={t.label} t={t} small active={tabActive(t, loc.pathname, loc.search)} />)}</div></div>}
         <div className="border-t border-line px-4 py-2 lg:hidden"><OfficeSearch /></div>
       </header>
       <nav aria-label="Office menu" className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-paper pb-[env(safe-area-inset-bottom)] md:hidden">
-        <div className="grid grid-cols-6">
+        <div className="grid grid-cols-5">
           {HEADINGS.map((h) => (
             <Link key={h.key} to={h.to} search={(h.search ?? {}) as never} aria-current={section === h.key ? "page" : undefined} className={cn("flex min-h-14 flex-col items-center justify-center gap-0.5 px-1 text-center text-[10px] font-semibold", section === h.key ? "text-hiv-blue" : "text-sub")}>
               <span className="flex items-center gap-1">{h.label}</span>

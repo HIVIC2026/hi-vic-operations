@@ -135,7 +135,10 @@ describe("Part B — one template source; superseded templates unreachable", () 
     expect(isRetiredCommunicationKey("estimate_unopened_3d")).toBe(false);
     const fn = code("src/lib/customer-communications.functions.ts");
     expect(fn.match(/isRetiredCommunicationKey\(/g)?.length).toBe(2);
-    expect(code("src/routes/_authenticated/admin.communications.tsx")).toContain("filter(([k]) => !isRetiredCommunicationKey(k))");
+    // Draft review moved into the ONE Templates location; Communications no longer edits templates.
+    expect(code("src/components/portal/CustomerDraftReview.tsx")).toContain("filter(([k]) => !isRetiredCommunicationKey(k))");
+    expect(code("src/routes/_authenticated/admin.communications.tsx")).not.toContain("saveCustomerCommunicationDraft");
+    expect(code("src/routes/_authenticated/admin.templates.tsx")).toContain("CustomerDraftReview");
   });
 
   test("legacy preview / copy-editing pages redirect to Templates and cannot save copy", () => {

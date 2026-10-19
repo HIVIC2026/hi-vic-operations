@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { readFileSync } from "fs";
 
 const functions = readFileSync("src/lib/portal.functions.ts", "utf8");
-const pipeline = readFileSync("src/routes/_authenticated/admin.index.tsx", "utf8");
+const pipeline = readFileSync("src/routes/_authenticated/admin.board.tsx", "utf8");
 const schema = readFileSync("drizzle/migrations/0000_hivic_core_schema.sql", "utf8");
 
 describe("admin pipeline visibility", () => {

@@ -6,15 +6,18 @@ import { buildOperationsPreview, type OperationInput } from "../src/lib/operatio
 const now = Date.parse("2026-10-08T08:35:00Z");
 const make = (id: string): OperationInput => ({ id, jobNumber: `TEST-${id}`, owner: "TEST", address: "TEST address", source: "website", channel: "hivic_sourced", businessUnit: "hivic", originatingInstaller: null, assignedInstaller: null, eligibility: "likely_eligible", eligibilityReason: null, verifiedEligibility: null, insulation: "none", mediaCount: 0, mediaReview: null, actualHandoff: false, evidence: [], communications: [], failures: [], facts: { id, stage: "preliminary_estimate_ready", createdAt: "2026-09-01T00:00:00Z", lastActivityAt: null, enteredStageAt: null } });
 describe("phase 3 presentation mapping", () => {
-  test("canonical category navigation maps without legacy action totals", () => {
-    expect(OFFICE_HEADINGS.map(h => h.key)).toEqual(["overview", "leads", "active", "closed", "partners", "templates"]);
-    expect(sectionFor("/admin/operations", { category: "active" })).toBe("active");
-    expect(sectionFor("/admin/operations", { category: "closed" })).toBe("closed");
-    expect(sectionFor("/admin/enquiry-groups")).toBe("leads");
-    expect(sectionFor("/admin/jobs/test")).toBe("overview");
-    expect(OFFICE_TOOLS.some(t => t.to === "/admin/ap-queue")).toBe(true);
-    expect(OFFICE_TOOLS.some(t => t.to === "/admin/needs-me")).toBe(true);
-    expect(tabActive(OFFICE_HEADINGS[2] ?? { label: "missing", to: "/admin" }, "/admin/operations", { category: "closed" })).toBe(false);
+  test("one primary navigation maps to the five consolidated workspaces", () => {
+    expect(OFFICE_HEADINGS.map((h) => h.key)).toEqual(["enquiries", "active", "closed", "communications", "templates"]);
+    expect(sectionFor("/admin/enquiries")).toBe("enquiries");
+    expect(sectionFor("/admin/enquiry-groups")).toBe("enquiries");
+    expect(sectionFor("/admin/jobs/active")).toBe("active");
+    expect(sectionFor("/admin/jobs/closed")).toBe("closed");
+    expect(sectionFor("/admin/communications")).toBe("communications");
+    expect(sectionFor("/admin/templates")).toBe("templates");
+    expect(sectionFor("/admin/board")).toBe("more");
+    expect(OFFICE_TOOLS.some((t) => t.to === "/admin/ap-queue")).toBe(true);
+    expect(OFFICE_TOOLS.some((t) => t.to === "/admin/needs-me")).toBe(true);
+    expect(tabActive(OFFICE_HEADINGS[1] ?? { label: "missing", to: "/admin" }, "/admin/enquiries", { status: "all" })).toBe(false);
   });
   test("every classified row remains in exactly one canonical category", () => {
     const a = make("lead"), b = make("active"), c = make("closed"), d = make("unknown");

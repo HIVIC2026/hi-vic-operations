@@ -47,7 +47,7 @@ describe("staff portal presentation helpers", () => {
     const panels = readFileSync("src/components/portal/panels.tsx", "utf8");
     const intake = readFileSync("src/components/portal/intake.tsx", "utf8");
     const detail = readFileSync("src/routes/_authenticated/admin.jobs.$jobId.tsx", "utf8");
-    const list = readFileSync("src/routes/_authenticated/admin.index.tsx", "utf8");
+    const list = readFileSync("src/routes/_authenticated/admin.board.tsx", "utf8");
     expect(row).toContain("supplementalEligibilityLabel(job, step.label)");
     expect(panels).toContain('id="target-deposit-request" data-portal-focus="target"');
     expect(intake).toContain('id="target-intake-consent" data-portal-focus="target"');

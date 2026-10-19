@@ -86,7 +86,7 @@ function JobDetail() {
   return (
     <AppShell wide>
       <div className="mx-auto max-w-5xl">
-      <Link to="/admin/operations" className="mb-2 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Overview</Link>
+      <Link to="/admin/enquiries" className="mb-2 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Enquiries</Link>
       <JobIdentity jobId={jobId} job={job} onOpen={openTarget} />
       <CompactJobStatus jobId={jobId} onOpen={openTarget} />
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-bold">Current blockers</h2><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => setClassifying(!classifying)} aria-expanded={classifying} aria-controls="job-classification">Change classification</Button><Button size="sm" onClick={() => setUpdating(!updating)} aria-expanded={updating} aria-controls="job-update-controls">Update job</Button></div></div>

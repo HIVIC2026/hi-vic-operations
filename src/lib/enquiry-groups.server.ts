@@ -49,7 +49,7 @@ const must = <T>(r: { data: T; error: { message: string } | null }, what: string
 
 export type EnquiryGroupRow = EnquiryClass & {
   removed?: boolean;
-  id: string; kind: "job" | "calculator"; jobNumber: string | null; reference: string | null; name: string | null; email: string | null; address: string | null; postcode: string | null;
+  id: string; kind: "job" | "calculator"; jobNumber: string | null; reference: string | null; name: string | null; email: string | null; phone: string | null; address: string | null; postcode: string | null;
   createdAt: string; stage: string | null; areaLabel: string; declaredInsulation: "none" | "present" | "unknown" | null; hardFailures: string[];
   lastEmail: { purpose: string; status: string; at: string | null; error: string | null } | null;
   consent: string | null; optedOut: boolean; bounced: boolean; source: string | null; isPrimaryForContact: boolean; sentPurposes: string[];
@@ -62,7 +62,7 @@ export type EnquiryGroupRow = EnquiryClass & {
 
 export async function loadEnquiryGroups() {
   const jobs = await all((f, t) => admin.from("jobs")
-    .select("id, job_number, external_enquiry_id, stage, hold_reason, source, created_at, eligibility_set_at, eligibility_outcome, eligibility_decision_source, eligibility_review_required, eligibility_decision_rules, estimated_area_m2, estimated_area_unknown, owners(full_name, email), properties(address_line, suburb, state, postcode, enrichment)")
+    .select("id, job_number, external_enquiry_id, stage, hold_reason, source, created_at, eligibility_set_at, eligibility_outcome, eligibility_decision_source, eligibility_review_required, eligibility_decision_rules, estimated_area_m2, estimated_area_unknown, owners(full_name, email, phone), properties(address_line, suburb, state, postcode, enrichment)")
     .eq("source", WEBSITE_SOURCE).eq("channel", WEBSITE_CHANNEL).order("created_at", { ascending: true }).order("id").range(f, t));
   const outside = await all((f, t) => admin.from("jobs").select("source, channel").or(`source.neq.${WEBSITE_SOURCE},channel.neq.${WEBSITE_CHANNEL}`).range(f, t));
   const ids = jobs.map((j) => j.id);
@@ -97,7 +97,7 @@ export async function loadEnquiryGroups() {
   const workSet = new Set(work.map((w) => w.job_id)), optSet = new Set(optouts.filter((o) => o.opted_out_at).map((o) => o.job_id)), bounceSet = new Set(events.map((e) => e.job_id));
 
   const rows: (EnquiryGroupRow & { propKey: string })[] = jobs.map((j) => {
-    const owner = j.owners as { full_name: string | null; email: string | null } | null;
+    const owner = j.owners as { full_name: string | null; email: string | null; phone: string | null } | null;
     const p = j.properties as { address_line: string | null; suburb: string | null; state: string | null; postcode: string | null; enrichment: Record<string, unknown> | null } | null;
     const b44 = (p?.enrichment?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } };
     const declaredInsulation = normaliseInsulation(declaredExtras(b44.raw?.answers ?? null).existing_insulation);
@@ -115,7 +115,7 @@ export async function loadEnquiryGroups() {
       videoCount: groupBMedia.count,
     });
     return {
-      ...c, ...(c.group === "insulation_check" && groupBMedia.excluded ? { nextAction: groupBMedia.received ? "Review existing photos/video" : "Check original media sync", reason: groupBInvitationBlocker(groupBMedia) ?? c.reason } : {}), id: j.id, kind: "job", jobNumber: j.job_number, reference: j.external_enquiry_id, name: owner?.full_name ?? null, email: owner?.email ?? null,
+      ...c, ...(c.group === "insulation_check" && groupBMedia.excluded ? { nextAction: groupBMedia.received ? "Review existing photos/video" : "Check original media sync", reason: groupBInvitationBlocker(groupBMedia) ?? c.reason } : {}), id: j.id, kind: "job", jobNumber: j.job_number, reference: j.external_enquiry_id, name: owner?.full_name ?? null, email: owner?.email ?? null, phone: owner?.phone ?? null,
       address: formatPropertyAddress(p) || null, postcode: p?.postcode ?? null, propKey: propertyKey(p?.address_line, p?.postcode), createdAt: j.created_at, stage: j.stage,
       areaLabel: AREA_LABEL[c.area.source], declaredInsulation, hardFailures: audit?.hard_failures ?? [],
       lastEmail: last ? { purpose: last.purpose, status: last.status, at: last.sent_at ?? last.created_at, error: last.error } : null,
