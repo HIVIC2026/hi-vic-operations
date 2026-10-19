@@ -7,6 +7,11 @@ summary**. It supersedes any conflicting current-status claim in older reports; 
 reports themselves are preserved unmodified (supersession notes were added where an older report
 stated a now-outdated *current* status). Production deployment has **NOT** been performed.
 
+> **UPDATE 2026-10-20 (final acceptance closure): §G supersedes §B rows RC-2/RC-4/RC-10, the §B test-suite
+> line and the §F verdict.** Phase 1 technical acceptance has since been **PASSED**; see
+> `P1_FINAL_ACCEPTANCE_AND_CLOSURE.md` (commit `c22adf2e`). §A–§E below are retained as the record of the
+> state at `63ef6cae` and are not rewritten.
+
 **Sources of record (all verified 2026-10-20):**
 - `P1_C10-C13_CLIENT_DECISION_RECOVERY_2026-10-20.md` (decision recovery, this directory)
 - `P1-QA_PHASE1_FULL_TEST_FAILURE_TRIAGE_REPORT.md` (full test triage, this directory; + addendum)
@@ -67,3 +72,32 @@ stated a now-outdated *current* status). Production deployment has **NOT** been 
 - **Overall verdict: PRODUCTION RELEASE PENDING — OWNER APPROVAL REQUIRED (C13).** No verified open application defect remains from the RC register, but technical release readiness is **not** declared PASS: RC-4 is NOT YET REVERIFIED, the full suite has not been re-run since `63ef6cae`, and production-side verification has never been performed. This register must not be read as "READY TO PUBLISH".
 
 *Historical reports with superseded current-status statements retain their original text; supersession references have been added to `P1-R1-S67_RC1_INTEGRATION_AND_RELEASE_READINESS.md`, `P1-R1-S69_PRODUCTION_MIGRATION_RECONCILIATION.md`, `P1-R1_P0_S64_INTEGRATION_AND_PHASE1_DEFECT_FIXES.md`, `docs/phase1/uat/PIESA_S64_VERIFICATION_2026-10-20.md` and `docs/phase1/final-delivery/P1-FA02_FFS_UI_DEACTIVATION.md`.*
+
+---
+
+## G. UPDATE 2026-10-20 — FINAL ACCEPTANCE CLOSURE (supersedes §B RC-2/RC-4/RC-10, §B test suite, §F verdict)
+
+**Baseline:** `origin/main` = `fa0d1139` on entry; corrections `fa0d1139` (RC-4, RC-10) and `c22adf2e`
+(RC-2, RC-8). Full record: `P1_FINAL_ACCEPTANCE_AND_CLOSURE.md`.
+
+| Item | Status at closure | Evidence |
+|---|---|---|
+| RC-1 | **FIXED AND VERIFIED** (`63ef6cae`) | 47/47 (`a4-clearance-guard` 9 + `a4-step80` 38), guard before every DB access |
+| RC-2 | **FIXED AND VERIFIED** (`c22adf2e`) — supersedes the §C "DEFERRED — PHASE 2" entry | `brief-o-ready-check-delivery` 17/17 (was 10 fail). Restores the `43dfc9fb` ownership guard that `bdf1da3c` deleted. Guard only; no Mitti integration, no sync, no calls. |
+| RC-4 | **FIXED AND VERIFIED** (`fa0d1139`) — supersedes "VERIFICATION REQUIRED" | `brief-s-f1-piesa-advance` 14/14 incl. idempotency; no duplicate transition |
+| RC-8 / DEF-07 | **FIXED AND VERIFIED** (`c22adf2e`) — supersedes "defer" | `def07-malformed-signed-snapshot` 10/10 (was 6 fail); malformed snapshot now fails closed instead of throwing from the PIESA/PIISA gate |
+| RC-10 | **FIXED AND VERIFIED** (`fa0d1139`) — supersedes "CANCELLED — REMAINING VISIBILITY RISK" | `p1-fa02-ffs-ui-deactivation` 11/11; filter restored at the `buildTimeline` boundary, covering timelines and job-pack JSON/CSV |
+| Test suite | **3,727 registered / 3,608 pass / 119 fail** (instrumented, per file). Project runner: 3,747 / 3,628 / 119. Failure count moved 148 → 119 from `63ef6cae`, exactly the 29 cases fixed (RC-4 8, RC-10 5, RC-8 6, RC-2 10); zero files newly failing. All 119 remaining failures are classified non-blocking in `P1_FINAL_ACCEPTANCE_AND_CLOSURE.md` §4 (RC-3 40, RC-5 18, RC-6 26, RC-7 15, RC-9 19, harness 1). | supersedes the §B "3,603 / 160 / 38" line |
+| TypeScript | **PASS** — `bunx tsc --noEmit` exit 0, 0 lines | final tree |
+| Production build | **PASS** — `env -u NODE_OPTIONS bun run build` exit 0; `.output/server/index.mjs`, `.output/public/{_headers,assets}` produced | final tree |
+| Production Publish | **NOT PERFORMED** | by instruction |
+| C13 | **OWNER AUTHORIZATION REQUIRED** | unchanged |
+
+**Verdict (supersedes §F):** PHASE 1 DEVELOPMENT — **CLOSED** · PHASE 1 TECHNICAL ACCEPTANCE — **PASSED** ·
+PHASE 1 PRODUCTION RELEASE — **PENDING OWNER AUTHORIZATION (C13)**.
+
+Disclosed gaps that constrain what may be claimed (do not block technical acceptance): no browser verification
+was performed in the closure task; the PIESA advance transition has never been browser-verified; `a3-a4-role-isolation-db`
+cannot execute (module-load failure from the Enquiries rollback) so its own cases carry no evidence; the
+production-domain running version has never been verified; 119 failures remain with non-blocking dispositions
+(not a green suite).
