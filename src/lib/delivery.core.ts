@@ -35,14 +35,49 @@ export function bridgeBody(msg: DeliveryMessage) {
   return JSON.stringify({ to: msg.to, subject: msg.subject, html: msg.html, text: msg.text, idempotency_key: msg.idempotencyKey, purpose: msg.purpose });
 }
 
+/** Keep rejection reasons, not echoed credentials, recipient details or message content. */
+export function bridgeRejectionReason(raw: string, sensitive: string[]): string {
+  let reason = raw;
+  try {
+    const value: unknown = JSON.parse(raw);
+    const parts: string[] = [];
+    const collect = (v: unknown, depth: number): void => {
+      if (depth > 3) return;
+      if (typeof v === "string") parts.push(v);
+      else if (v && typeof v === "object" && !Array.isArray(v)) {
+        const fields = v as Record<string, unknown>;
+        for (const key of ["error", "message", "reason", "code"]) collect(fields[key], depth + 1);
+      }
+    };
+    collect(value, 0);
+    reason = parts.join("; ") || "No readable rejection reason";
+  } catch { /* Some bridges return a plain-text reason. */ }
+  for (const value of sensitive.filter(Boolean).sort((a, b) => b.length - a.length)) {
+    reason = reason.split(value).join("[redacted]");
+  }
+  return reason
+    .replace(/https?:\/\/[^\s<>"']+/gi, "[redacted URL]")
+    .replace(/[^\s<>"']+@[^\s<>"']+/g, "[redacted email]")
+    .replace(/\bBearer\s+\S+/gi, "Bearer [redacted]")
+    .replace(/\b(?:secret|token|signature|authorization|api[_-]?key)\b\s*[:=]\s*\S+/gi, "credential=[redacted]")
+    .replace(/[A-Za-z0-9_+/.=-]{32,}/g, "[redacted token]")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ").trim().slice(0, 220) || "Empty rejection response";
+}
+
 /** Adapter over a validated config. fetchImpl injectable for tests. Never logs or returns the secret. */
 export function bridgeAdapter(cfg: Base44BridgeConfig, fetchImpl: typeof fetch = fetch): DeliveryAdapter {
   return {
     provider: "base44_bridge",
     async deliver(msg: DeliveryMessage) {
       const body = bridgeBody(msg);
-      const res = await fetchImpl(cfg.url, { method: "POST", headers: { "Content-Type": "application/json", "x-hivic-signature": await hmacHex(cfg.secret, body), "Idempotency-Key": msg.idempotencyKey }, body, signal: AbortSignal.timeout(20_000) });
-      if (!res.ok) throw new DeliveryRejectedError(`Base44 delivery bridge returned ${res.status}`);
+      const signature = await hmacHex(cfg.secret, body);
+      const res = await fetchImpl(cfg.url, { method: "POST", headers: { "Content-Type": "application/json", "x-hivic-signature": signature, "Idempotency-Key": msg.idempotencyKey }, body, signal: AbortSignal.timeout(20_000) });
+      if (!res.ok) {
+        const raw = await res.text().catch(() => "Rejection response unavailable");
+        const reason = bridgeRejectionReason(raw, [cfg.secret, signature, cfg.url, msg.to, msg.html, msg.text, msg.subject, msg.idempotencyKey]);
+        throw new DeliveryRejectedError(`Base44 delivery bridge returned ${res.status}: ${reason}`);
+      }
       const j = (await res.json().catch(() => ({}))) as { message_id?: string };
       return { providerMessageId: j.message_id ?? null };
     },
