@@ -9,6 +9,7 @@ import { GlobalRegistrator } from "@happy-dom/global-registrator";
 GlobalRegistrator.register();
 const { render, cleanup } = await import("@testing-library/react");
 import { ElectricianManualResult, manualResultEntry } from "@/components/portal/electrician-manual-result";
+import { melbourneToday } from "@/lib/melbourne-time.core";
 
 describe("ElectricianManualResult render branch", () => {
   // afterEach(() => cleanup());
@@ -60,12 +61,35 @@ describe("ElectricianManualResult render branch", () => {
     expect(container.textContent).not.toContain("Saved");
   });
 
-  test("fields are disabled when locked", () => {
-    const { container } = render(<ElectricianManualResult value={{}} locked={true} savedAt={null} onPut={(k, v) => {}} />);
-    // When locked, Choice buttons should be disabled
-    const buttons = container.querySelectorAll('button');
-    for (const btn of buttons) {
-      expect(btn.hasAttribute('disabled')).toBe(true);
-    }
-  });
+test("fields are disabled when locked", () => {
+  const { container } = render(<ElectricianManualResult value={{}} locked={true} savedAt={null} onPut={(k, v) => {}} />);
+  // When locked, Choice buttons should be disabled
+  const buttons = container.querySelectorAll('button');
+  for (const btn of buttons) {
+    expect(btn.hasAttribute('disabled')).toBe(true);
+  }
+});
+
+// S64 integration + future-date rule: the manual form is the only way to set assessed_on without Mitti,
+// so the input itself must refuse a date past the Melbourne calendar day.
+test("assessment date input is capped at today (Australia/Melbourne)", () => {
+  const { container } = render(<ElectricianManualResult value={{}} locked={false} savedAt={null} onPut={(k, v) => {}} />);
+  const date = container.querySelector('input[type="date"]') as HTMLInputElement | null;
+  expect(date).not.toBeNull();
+  expect(date!.getAttribute('max')).toBe(melbourneToday());
+  expect(container.textContent).toContain("cannot be in the future");
+});
+
+test("an existing assessment date is shown back to the electrician", () => {
+  const { container } = render(<ElectricianManualResult value={{ assessed_on: "2026-10-18" }} locked={false} savedAt={null} onPut={(k, v) => {}} />);
+  const date = container.querySelector('input[type="date"]') as HTMLInputElement | null;
+  expect(date!.value).toBe("2026-10-18");
+});
+
+test("a locked (completed) assessment renders no editable control", () => {
+  const { container } = render(<ElectricianManualResult value={{ assessed_on: "2026-10-18" }} locked={true} savedAt={null} onPut={(k, v) => {}} />);
+  for (const el of container.querySelectorAll('input, button, textarea')) {
+    expect(el.hasAttribute('disabled')).toBe(true);
+  }
+});
 });

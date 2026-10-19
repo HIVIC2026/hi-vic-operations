@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { chaseMode, forViewer, jobStatusLine, jobTimeline, needsChasing, reminderRequestMessage, toneFor, type StatusFacts } from "../src/lib/job-status.core";
 
 const now = new Date("2026-10-08T02:00:00Z"); // Thu 8 Oct, Melbourne noon-ish
-const base = (p: Partial<StatusFacts>): StatusFacts => ({ stage: "new_enquiry", stageSince: null, now, staff: false, bookings: [], quoteSentAt: null, quoteAcceptedAt: null, safetyPaidAt: null, ownerTimesChosenAt: null, rectQuoteSentAt: null, paidInFullAt: null, apApprovedAt: null, payout: null, ...p });
+const base = (p: Partial<StatusFacts>): StatusFacts => ({ stage: "new_enquiry", stageSince: null, now, staff: false, bookings: [], quoteSentAt: null, quoteAcceptedAt: null, safetyPaidAt: null, ownerTimesChosenAt: null, rectQuoteSentAt: null, paidInFullAt: null, apApprovedAt: null, safetyPay: { kind: "unknown" }, payout: null, ...p });
 const daysAgo = (d: number) => new Date(now.getTime() - d * 86_400_000).toISOString();
 
 describe("trade job status line (Jo 7 Oct)", () => {

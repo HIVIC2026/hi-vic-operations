@@ -148,6 +148,12 @@ export type JoOutcomeEmailInput = JoOutcomeFacts & {
   /** T7 only: the ineligibility reasons shown to the customer. */
   reason?: string | null;
   links: JoOutcomeLinks;
+  /**
+   * Preview-only safe artwork source. When set (Office Templates preview), the header renders this
+   * image — which draws the SAME campaign artwork as a real send — without needing a real customer
+   * estimate token. The live send path never sets this, so it is unaffected.
+   */
+  previewArtSrc?: string | null;
   /** Historical input only: Ready Check is free and Jo's copy stays untouched. */
   readyCheckFeeIncGst?: number | null;
   /** "current" = new-version cohort: adds the ex/inc GST supply rate wording. */
@@ -327,8 +333,10 @@ function originAndToken(url: string | null | undefined): { origin: string; token
   }
 }
 
-/** Spot Saved's header art row for this customer, or the plain logo when no rebate art applies. */
-function joHeader(url: string | null | undefined, kind: "headline" | "spot", alt: string): string {
+/** Spot Saved's header art row for this customer, or the plain logo when no rebate art applies.
+ *  `previewArtSrc` (Office preview only) lets the same artwork render without a real token. */
+function joHeader(url: string | null | undefined, kind: "headline" | "spot", alt: string, previewArtSrc?: string | null): string {
+  if (previewArtSrc) return campaignArtImg(previewArtSrc, alt);
   const ot = originAndToken(url);
   return ot ? campaignArtImg(emailArtUrl(ot.origin, ot.token, kind), alt) : JO_LOGO_HEADER;
 }
@@ -548,7 +556,7 @@ export const INELIGIBLE_FALLBACK_REASON =
  * never substitutes the public calculator and never changes the personal-estimate or booking URLs.
  * The booking CTA keeps the customer on the EXISTING /estimate/{token} workflow, which never auto-books.
  */
-export function renderJoReadyCheckInvitationEmail(recipient: JoRecipient, snapshot: SavedPricingSnapshot): JoT8Email {
+export function renderJoReadyCheckInvitationEmail(recipient: JoRecipient, snapshot: SavedPricingSnapshot, previewArtSrc?: string | null): JoT8Email {
   const rendered = renderJoReadyCheckInvitation(recipient, snapshot);
   let body = rendered.body;
   // Jo leaves the two CTAs as markdown links carrying the customer's own URLs.
@@ -568,7 +576,7 @@ export function renderJoReadyCheckInvitationEmail(recipient: JoRecipient, snapsh
     subject: rendered.subject,
     previewText: rendered.subject,
     html: joShell(
-      joHeader(snapshot.personalEstimateUrl, "spot", firstHeadline(content)),
+      joHeader(snapshot.personalEstimateUrl, "spot", firstHeadline(content), previewArtSrc),
       rendered.subject,
       `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:separate;"><tr><td style="${F}">${joBodyToHtml(content)}</td></tr></table>`,
       reference,
@@ -590,7 +598,7 @@ function assemble(
   const { content: bodyCopy, reference } = splitJoFooter(body);
   const content = joBodyToHtml(bodyCopy);
   // T1–T6 reuse the Spot Saved header art; T7 has no rebate, so it keeps the same logo alone.
-  const header = id === "ineligible" ? JO_LOGO_HEADER : joHeader(input.links.reviewResultUrl, "headline", firstHeadline(bodyCopy));
+  const header = id === "ineligible" ? JO_LOGO_HEADER : joHeader(input.links.reviewResultUrl, "headline", firstHeadline(bodyCopy), input.previewArtSrc);
   const html = joShell(
     header,
     subject,

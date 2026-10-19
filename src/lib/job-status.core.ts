@@ -1,6 +1,10 @@
 // "Where is this job up to?" for trades (Jo, 7 Oct 2026). One plain status line + a progress timeline, from real facts only.
 // Pure. Staff (non-owner) logins never see payment amounts.
 import { DEFAULT_DUE, type DueSettings } from "./waiting.core";
+import { safetyCheckPayLabel, type SafetyCheckPayState } from "./payment-gate.core";
+
+export type { SafetyCheckPayState };
+export { safetyCheckPayLabel };
 
 export type Tone = "ok" | "amber" | "rose";
 export type Who = "Owner" | "You" | "Home Insulation Victoria" | string;
@@ -13,6 +17,8 @@ export type StatusFacts = {
   rectQuoteSentAt: string | null;
   paidInFullAt: string | null; firstHalfPaidAt?: string | null; fixesPaidAt?: string | null;
   apApprovedAt: string | null;
+  /** What the $349 safety check payment actually is: received, overridden, TEST-simulated, due or unknown. */
+  safetyPay: SafetyCheckPayState;
   payout: { kind: "coming"; on: string } | { kind: "checking" } | { kind: "paid"; on: string } | null;
   settings?: DueSettings | null;
 };
@@ -110,7 +116,7 @@ export function jobTimeline(f: StatusFacts): TimelineStep[] {
   const raw: { key: string; label: string; done: string | null; expected: string | null; skip?: boolean }[] = [
     { key: "ready_check", label: "Ready Check", done: rc?.start ?? null, expected: conf("ready_check")?.start ?? null },
     { key: "quote", label: "Quote accepted", done: f.quoteAcceptedAt, expected: null },
-    { key: "safety_paid", label: f.staff ? "Safety check paid" : "$349 paid", done: f.safetyPaidAt, expected: null },
+    { key: "safety_paid", label: safetyCheckPayLabel(f.safetyPay, f.staff), done: f.safetyPay.kind === "paid" ? f.safetyPaidAt : null, expected: null },
     { key: "safety_check", label: "Safety check", done: piesa?.start ?? null, expected: conf("assessment")?.start ?? null },
     { key: "fixes", label: "Electrical fixes (if any)", done: rect?.start ?? null, expected: conf("rectification")?.start ?? null, skip: !!piesa && !fixesNeeded },
     { key: "fixes_paid", label: f.staff ? "Fixes paid" : "Fix costs paid", done: f.fixesPaidAt ?? null, expected: null, skip: !fixesNeeded && !f.fixesPaidAt },

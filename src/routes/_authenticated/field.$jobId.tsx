@@ -21,8 +21,9 @@ import { ClearTimeline, WhoHasTheBall } from "@/components/portal/waiting";
 import { WorkerLinksPanel } from "@/components/portal/workers";
 import { OwnerEligibilityPanel } from "@/components/portal/owner-eligibility";
 import { BlockersPanel, BookingPanel, EvidencePanel, MessagesPanel, useJob } from "@/components/portal/panels";
-import { Button, Section, YesNo } from "@/components/trade/trade-ui";
+import { Button, Section } from "@/components/trade/trade-ui";
 import { MittiCard, MittiSyncedFields } from "@/components/portal/mitti";
+import { ElectricianManualResult, manualResultEntry } from "@/components/portal/electrician-manual-result";
 import { useServerFn } from "@tanstack/react-start";
 import { getMyMittiInvited } from "@/lib/trade-view.functions";
 import { getMyIntakeProgress } from "@/lib/installer-quote.functions";
@@ -145,17 +146,13 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
     if (!r) return;
     setSaved(new Date(r.savedAt).toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit" }));
   };
-  const num = (k: string) => (e: React.FocusEvent<HTMLInputElement>) => put(k, e.target.value === "" ? null : Number(e.target.value));
-  const Yn = ({ k, label }: { k: string; label: string }) => (
-    <div className="flex items-center justify-between gap-3"><Label>{label}</Label><YesNo label={label} value={f[k] as boolean | null} disabled={locked} onChange={(v) => put(k, v)} /></div>
-  );
-  const Num = ({ k, label, step = "1" }: { k: string; label: string; step?: string }) => (
-    <div><Label>{label}</Label><Input className="h-12 text-base" type="number" inputMode="decimal" step={step} defaultValue={(f[k] as number | null) ?? ""} key={String(f[k])} disabled={locked} onBlur={num(k)} /></div>
-  );
-  const Choice = ({ k, label, opts }: { k: string; label: string; opts: [string, string][] }) => (
-    <div><Label>{label}</Label><div className={`mt-1 grid gap-2`} style={{ gridTemplateColumns: `repeat(${opts.length}, minmax(0,1fr))` }}>{opts.map(([v, l]) => <Button key={v} type="button" size="field" variant={f[k] === v ? "default" : "outline"} disabled={locked} onClick={() => put(k, v)}>{l}</Button>)}</div></div>
-  );
   const assessing = ["assessment_booking", "assessment_booked", "piesa_scheduled"].includes(stage) && !locked;
+  // Manual PIESA pathway (S64, owner ruling G-E1): no Mitti form linked to this job. Editable while the
+  // assessment is open; a completed one shows as a locked record. The Mitti branch above stays authoritative
+  // whenever assessments.external_mitti_id is set.
+  const manualPath = !a?.external_mitti_id;
+  const canEnter = manualPath && manualResultEntry(a);
+  const showManual = manualPath && (assessing || locked);
   const { data: scope } = useJobScope(jobId);
   const measureBlock = !scope || !assessing ? null : scope.measurement.state === "accepted" ? <MeasurementReadOnly jobId={jobId} canFlag /> : <Section title="Installer eligibility measure-up"><p className="text-sm text-sub">The installer does the measure-up, not you.</p></Section>;
 
@@ -178,8 +175,18 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
           {!locked && <Button size="field" className="w-full" disabled={needsPlan && rectPlanProblems(plan).length > 0} onClick={finish}><Check /> Complete PIESA</Button>}
         </>
       )}
-      {!a?.external_mitti_id && assessing && <MittiOnly jobId={jobId} which="piesa" />}
-      {!a?.external_mitti_id && locked && <Section title="Safety check"><p className="text-sm text-sub">Safety check complete.</p></Section>}
+      {showManual && (
+        <>
+          {measureBlock}
+          {/* S64 (owner ruling G-E1): no Mitti form linked — the same saveAssessment/completeAssessment chain, entered here. */}
+          {canEnter && <ElectricianManualResult value={f} locked={locked} savedAt={saved} onPut={put} />}
+          {assessing && <EvidencePanel jobId={jobId} role="electrician" gates={["electrical"]} />}
+          {assessing && <OtherItems jobId={jobId} editable />}
+          {planBlock}
+          {assessing && <Button size="field" className="w-full" disabled={needsPlan && rectPlanProblems(plan).length > 0} onClick={finish}><Check /> Complete PIESA</Button>}
+          {locked && <Section title="Safety check"><p className="text-sm text-sub">Safety check complete.</p></Section>}
+        </>
+      )}
     </>
   );
 }
@@ -222,7 +229,7 @@ function PiesaForm({ jobId, kind, title }: { jobId: string; kind: "post_rectific
     <Section title={title}>
       {post && <div className="mb-3"><EvidencePanel jobId={jobId} role="electrician" gates={["electrical"]} /></div>}
       <Label>PIESA completion date</Label>
-      <Input className="mb-3 h-12" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      <Input className="mb-3 h-12" type="date" value={date} max={melbourneToday()} onChange={(e) => setDate(e.target.value)} />
       {post && (
         <div className="mb-3 rounded-lg border p-3">
           <label className="flex items-start gap-2 text-sm font-medium">
@@ -230,7 +237,7 @@ function PiesaForm({ jobId, kind, title }: { jobId: string; kind: "post_rectific
             <span>I confirm Section C of the completed PIESA has been completed and signed for this rectification work.</span>
           </label>
           <Label>Section C signed date</Label>
-          <Input className="h-12" type="date" value={sectionCDate} onChange={(e) => setSectionCDate(e.target.value)} />
+          <Input className="h-12" type="date" value={sectionCDate} max={melbourneToday()} onChange={(e) => setSectionCDate(e.target.value)} />
           <p className="mt-1 text-xs text-sub">Upload the signed PIESA / CoES evidence above before recording a pass.</p>
         </div>
       )}

@@ -137,6 +137,72 @@ export function evaluatePaymentGate(i: PaymentGateInput): PaymentGateResult {
 export const safetyCheckBlocker = (fee?: number | string | null) =>
   `Safety check can't be booked — ${aud(feeCents(fee))} safety check payment not received.`;
 
+// ---------- What the money actually is (display only; the gate logic above is unchanged) ----------
+
+/**
+ * The five states a safety check payment can honestly be in. The point of the union is that an
+ * administrative override is NOT money: the old trade timeline rendered "paid" whenever the gate had
+ * been cleared by an override, while Office's payment mirror read $0.00 received. Both were "right"
+ * about different facts and contradicted each other.
+ */
+export type SafetyCheckPayState =
+  | { kind: "paid"; paidAt: string | null }
+  | { kind: "overridden"; at: string | null }
+  | { kind: "test_simulated" }
+  | { kind: "unpaid" }
+  | { kind: "unknown" };
+
+export type SafetyCheckPayInput = {
+  /** The amount that must be received for the safety check payment. */
+  requiredAmount?: number | string | null;
+  /** invoices.total_paid (Xero-mirrored), when there is one. */
+  invoicePaid?: number | string | null;
+  /** Audited office overrides on this invoice's deposit gate. */
+  overrideCount: number;
+  /** TEST journeys only: an audited qa_payment_simulated event exists for this job. */
+  qaSimulated?: boolean;
+  /** The recorded $349 pre-assessment payment row (assessment_payments.status = 'paid'), when there is one. */
+  recordedPaidAt?: string | null;
+};
+
+/**
+ * Single-source status for the safety check payment. Money actually received always wins; an override or
+ * a TEST simulation is only reported when nothing was received, and is always reported as such — never as
+ * "paid". `unknown` means we hold no payment information at all (no invoice yet), which is also not "paid".
+ */
+export function safetyCheckPayState(i: SafetyCheckPayInput): SafetyCheckPayState {
+  const paid = i.invoicePaid == null ? 0 : cents(i.invoicePaid);
+  const required = i.requiredAmount == null ? 0 : cents(i.requiredAmount);
+  if (required > 0 && paid >= required) return { kind: "paid", paidAt: i.recordedPaidAt ?? null };
+  if (i.recordedPaidAt) return { kind: "paid", paidAt: i.recordedPaidAt };
+  if (i.qaSimulated) return { kind: "test_simulated" };
+  if (i.overrideCount > 0) return { kind: "overridden", at: null };
+  if (i.requiredAmount == null && i.recordedPaidAt == null && !i.qaSimulated && i.overrideCount === 0) return { kind: "unknown" };
+  return { kind: "unpaid" };
+}
+
+/** Timeline/step wording. `staff` hides amounts from non-owner staff logins, as before. */
+export function safetyCheckPayLabel(s: SafetyCheckPayState, staff: boolean): string {
+  switch (s.kind) {
+    case "paid": return staff ? "Safety check paid" : "$349 paid";
+    case "overridden": return "Payment requirement overridden";
+    case "test_simulated": return "TEST payment (simulated)";
+    case "unpaid": return staff ? "Safety check payment due" : "$349 due";
+    case "unknown": return staff ? "Safety check payment to confirm" : "Safety check payment to confirm";
+  }
+}
+
+/** One-line explanation for the Office/owner panels, so the two portals cannot disagree. */
+export function safetyCheckPayNote(s: SafetyCheckPayState, staff: boolean): string | null {
+  switch (s.kind) {
+    case "paid": return null;
+    case "overridden": return "Payment block overridden by the office — no money has been received for the safety check payment.";
+    case "test_simulated": return staff ? "TEST simulated payment — no money received." : "TEST simulated payment — no real money has been received.";
+    case "unpaid": return null;
+    case "unknown": return "No payment information yet — an invoice is raised when the owner accepts the quote.";
+  }
+}
+
 export type PiesaRequestFacts = {
   readyCheckComplete: boolean;
   verifiedEligible: boolean;
