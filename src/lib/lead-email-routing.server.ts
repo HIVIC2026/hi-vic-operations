@@ -30,6 +30,11 @@ export async function maybeAutoRouteLeadEmail(jobId: string, ctx: import("./manu
   try {
     const { isManualBacklog } = await import("./manual-backlog.core");
     const manualBacklog = isManualBacklog(ctx);
+    // Legacy exclusion lists (explicit owner decisions) are checked BEFORE any route or sender call.
+    const { data: numbered } = await admin.from("jobs").select("job_number").eq("id", jobId).maybeSingle();
+    const { legacyExclusionReason } = await import("./hot-leads.core");
+    const excluded = legacyExclusionReason(numbered?.job_number);
+    if (excluded) return { route: "none", sent: false, reason: excluded };
     const route = await selectLeadEmailRoute(jobId);
     if (!route) return { route: "none", sent: false, reason: "Job not found" };
     if (route.email === "none") return { route: "none", sent: false, reason: route.blocker ?? "No email route" };

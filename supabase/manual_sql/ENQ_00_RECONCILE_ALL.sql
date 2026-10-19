@@ -119,6 +119,9 @@ classified as (
   select
     f.*,
     case
+      -- LEGACY EXCLUSIONS (must match HOT_EXCLUDED_JOBS / HOT_HIDDEN_DUPLICATES in src/lib/hot-leads.core.ts):
+      when f.job_number in ('HV-1059', 'HV-1061', 'HV-1063', 'HV-1257', 'HV-1291', 'HV-1161', 'HV-1437') then 'K_LEGACY_EXCLUDED' -- LEGACY_EXCLUDED_LIST
+      when f.job_number in ('HV-1225', 'HV-1242', 'HV-1286', 'HV-1475', 'HV-1180') then 'K_HIDDEN_DUPLICATE' -- HIDDEN_DUPLICATE_LIST
       when f.answered_sends > 0 or f.manual_sends > 0 then 'F_ALREADY_RESPONDED'
       when f.inflight_sends > 0 then 'J_OTHER_BLOCKER'
       when f.optouts > 0 or f.response_optouts > 0 then 'G_OPTOUT_OR_NO_CONSENT'
