@@ -233,7 +233,25 @@ HV-2594 的支付真源确实分裂：
 
 ## H. FINAL VERDICT
 
-# MERGED TO MAIN — BROWSER VERIFICATION PENDING
+# S64 — CLOSED / PREVIEW VERIFIED / PRODUCTION RELEASE PENDING
+
+> **状态更新 2026-10-20（Australia/Melbourne）**
+> 原判定 `MERGED TO MAIN — BROWSER VERIFICATION PENDING` 已被后续验收复核取代。
+> 见 `docs/phase1/uat/PIESA_S64_VERIFICATION_2026-10-20.md`（提交 `c5cbd3a3`）：
+> - **Fix #1 Manual PIESA：VERIFIED FIXED** —— 在 Lovable Preview 以 Electrician TEST 账号
+>   （`qa.rec.delta@hivic-test.example`）实测，测试工单 `86bbf6fb…` 实际渲染出
+>   `Electrical assessment · manual entry`，全文无 "isn't invited"；HV-2594 已完成 → 保持锁定。
+> - **Fix #2 未来日期：VERIFIED FIXED** —— 隔离环境（PGlite 内存 PostgreSQL，全程零网络）调用真实
+>   `saveAssessment` handler，明天/+30 天被拒且数据库逐字段未变，昨天/今天正常写入（10 pass / 0 fail）。
+>
+> **三段式状态含义**：`CLOSED` = 两个修复的验收证据齐备、无需再开发；
+> `PREVIEW VERIFIED` = 已在 Lovable Preview 实测确认；
+> `PRODUCTION RELEASE PENDING` = **生产发布仍待 owner 在 Lovable 面板执行 Publish**，
+> Production 域名（`estimate.homeinsulationvictoria.com.au`）运行版本本次**未验证**（门户需应用账号登录，
+> 且按约束不得提交真实 PIESA），故不声明生产侧 PASS。
+>
+> **DATABASE RELEASE GATE — PASS**（基于 Lovable AI 生产数据库核查报告），记录在
+> `docs/phase1/release/P1-R1-S69_PRODUCTION_MIGRATION_RECONCILIATION.md`。
 
 **已完成（有证据）：**
 - 三项修复实现、测试、合并、推送到 `origin/main`（`dd3f6673`），远端四项内容确认在位

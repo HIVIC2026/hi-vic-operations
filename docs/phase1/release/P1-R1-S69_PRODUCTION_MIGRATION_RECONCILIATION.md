@@ -7,6 +7,17 @@
 **Isolated worktree/branch:** `wt-r1-s69-migration-reconciliation` / `p1-s69-migration-reconciliation`
 **Verdict:** `MIGRATION_PARTIAL`
 
+> ## DATABASE RELEASE GATE — `PASS`
+> **Updated:** 2026-10-20 (Australia/Melbourne) · **Basis:** Lovable AI 生产数据库核查报告
+>
+> 数据库发布门判定为 **PASS**，依据是 Lovable AI 对生产库的核查报告。这填补了下文 §3.6
+> 记录的「生产只读核查不可用」缺口。
+>
+> **归属与限制（保持证据诚实）**：该门判定直接采信上述外部报告，**本环境未做独立复核**——
+> 仓库 `.env` 仍只暴露 publishable key，无 service-role key、无直连 Postgres 连接串，
+> §3.6 的技术约束并未改变。因此 §3.1/§3.2 中 0149/0202 的状态标签仍为
+> `REPORTED_PRODUCTION`，**不因本次门判定而升级为「已独立验证」**。
+
 ---
 
 ## 1. Executive summary
@@ -58,6 +69,7 @@ The reconciliation established the actual migration state and resolved several d
 ### 3.6 Production read-only verification: **NOT AVAILABLE**
 - The repo `.env` exposes only `SUPABASE_URL` + a *publishable* key — **no service-role key and no direct Postgres connection string**. Schema introspection (`pg_policies`, `information_schema`) of production is therefore impossible from this environment. No attempt was made to reach production.
 - Consequently, 0149/0202 production status is **REPORTED_PRODUCTION only** and is explicitly **not** claimed as independently verified.
+- **2026-10-20 update:** the project owner supplied the **Lovable AI production database check report**, on the basis of which the **Database Release Gate is recorded as `PASS`** (see the header block above). This closes the *gate*, but it does **not** reclassify 0149/0202 — the status labels in §3.1/§3.2 remain `REPORTED_PRODUCTION`, and the gate verdict rests on the external report's authority rather than on an independent check from this environment.
 
 ## 4. Drizzle journal status
 **`DRIZZLE_JOURNAL_STATUS: UNCHANGED_AT_IDX_148`** (149 entries; 0149/0202/0203/0205 are staged-only and intentionally not registered; journal not edited).

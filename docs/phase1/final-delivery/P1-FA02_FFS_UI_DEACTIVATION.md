@@ -1,5 +1,12 @@
 # P1-FA02 — FFS User Interface Deactivation
 
+> **SUPERSEDED STATUS (2026-10-20):** FFS remains **cancelled** — this deactivation stands.
+> However, the 2026-10-20 full test triage (`docs/phase1/release/P1-QA_PHASE1_FULL_TEST_FAILURE_TRIAGE_REPORT.md`,
+> group RC-10) shows a **remaining visibility risk**: `buildTimeline` (`src/lib/jobfile.core.ts`)
+> still emits the cancelled internal FFS event type into user-facing timelines and job packs.
+> Recorded in the current register `docs/phase1/release/P1_PHASE1_RELEASE_STATUS_2026-10-20.md` §B.
+> The historical findings below are preserved unmodified.
+
 Agent: R3 — Feature Developer
 Date: 2026-10-14 (Australia/Melbourne)
 Baseline: `origin/main` = **`9251fc01`** (P1-S24 final integration; R1 audit P1-FA01 audited this same commit)

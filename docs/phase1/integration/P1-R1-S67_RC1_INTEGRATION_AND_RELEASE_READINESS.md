@@ -1,5 +1,13 @@
 # P1-R1-S67 · RC1 Integration Report — S70 ENV REMEDIATION ADDENDUM
 
+> **SUPERSEDED STATUS (2026-10-20):** the migration rows below marked `NOT READY`
+> (0149/0202 reported-applied, 0203 staged) predate the Lovable AI production database
+> check report. The **DATABASE RELEASE GATE is now recorded as `PASS`** (evidence limits
+> preserved; 0149 remains `REPORTED_PRODUCTION`) — see
+> `docs/phase1/release/P1-R1-S69_PRODUCTION_MIGRATION_RECONCILIATION.md` and the current
+> register `docs/phase1/release/P1_PHASE1_RELEASE_STATUS_2026-10-20.md`.
+> The dated findings below are preserved unmodified as the historical record.
+
 **STEP:** P1-R1-S67-RC1-INTEGRATION-AND-RELEASE-READINESS-01 — S67 ADDENDUM (S70 integration)
 **Executor for this addendum:** R2 — Database & Security Engineer (owner-authorized local integration)
 **Date:** 2026-10-16 (AEDT)
