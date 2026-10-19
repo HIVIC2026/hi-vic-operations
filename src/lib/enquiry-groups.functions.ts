@@ -2,13 +2,15 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin } from "./workflow.server";
+import { ENQUIRY_VIEWS } from './enquiry-list-page.core';
+import type { EnquiryPageView } from './enquiry-list-page.core';
 
 export const getEnquiryGroups = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({}).passthrough().parse(d ?? {}))
-  .handler(async ({ context }) => {
+  .inputValidator((d: unknown) => z.object({ view: z.string().default('all').refine(v => ENQUIRY_VIEWS.includes(v as EnquiryPageView)), search: z.string().max(300).default(''), page: z.number().int().min(1).default(1) }).parse(d ?? {}))
+  .handler(async ({ context, data }) => {
     await requireAdmin(context.supabase);
-    const { loadEnquiryGroups } = await import("./enquiry-groups.server");
-    const r = await loadEnquiryGroups();
+    const { loadOfficeEnquiryPage } = await import("./office-enquiry-page.server");
+    const r = await loadOfficeEnquiryPage(data.view as EnquiryPageView, data.search, data.page);
     return {
       rows: r.rows.map((x) => ({
         id: x.id, kind: x.kind, jobNumber: x.jobNumber, reference: x.reference, name: x.name, email: x.email, phone: x.phone, address: x.address, createdAt: x.createdAt, stage: x.stage,
@@ -17,7 +19,7 @@ export const getEnquiryGroups = createServerFn({ method: "POST" }).middleware([r
         attentionReason: x.attentionReason ?? (x.status === "needs_attention" ? x.reason : null), outcomeAt: x.outcomeAt,
         mediaCount: x.mediaCount, mediaChecked: x.mediaChecked, mediaOutcome: x.mediaOutcome, removed: !!x.removed,
       })),
-      scope: r.scope,
+      counts: r.counts, total: r.total, page: r.page, pageSize: r.pageSize, totalPages: r.totalPages,
     };
   });
 
@@ -47,11 +49,11 @@ export const getLeadMedia = createServerFn({ method: "POST" }).middleware([requi
   });
 
 export const reviewLeadMediaFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), outcome: z.enum(["below_r2", "over_r2", "unclear"]) }).parse(d))
+  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), outcome: z.enum(["no_insulation", "below_r2", "over_r2", "unclear"]), reason: z.string().max(500).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const { reviewLeadMedia } = await import("./enquiry-groups.server");
-    return reviewLeadMedia(data.jobId, data.outcome, context.userId ?? null);
+    return reviewLeadMedia(data.jobId, data.outcome, context.userId ?? null, data.reason);
   });
 
 export const removeLeadsFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

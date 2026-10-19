@@ -20,7 +20,7 @@ import {
   type EnquiryClass, type EnquiryStatus, type EnquiryGroup, type OtherReason, type StoredAudit, type MediaReviewOutcome,
 } from "./enquiry-groups.core";
 
-const MEDIA_OUTCOMES: MediaReviewOutcome[] = ["below_r2", "over_r2", "unclear"];
+const MEDIA_OUTCOMES: MediaReviewOutcome[] = ["no_insulation", "below_r2", "over_r2", "unclear"];
 
 const PAGE = 1000;
 const CHUNK = 150;
@@ -60,11 +60,11 @@ export type EnquiryGroupRow = EnquiryClass & {
   mediaOutcome: MediaReviewOutcome | null;
 };
 
-export async function loadEnquiryGroups() {
+export async function loadEnquiryGroups(visibleIds?: string[]) {
   const jobs = await all((f, t) => admin.from("jobs")
     .select("id, job_number, external_enquiry_id, stage, hold_reason, source, created_at, eligibility_set_at, eligibility_outcome, eligibility_decision_source, eligibility_review_required, eligibility_decision_rules, estimated_area_m2, estimated_area_unknown, owners(full_name, email, phone), properties(address_line, suburb, state, postcode, enrichment)")
-    .eq("source", WEBSITE_SOURCE).eq("channel", WEBSITE_CHANNEL).order("created_at", { ascending: true }).order("id").range(f, t));
-  const outside = await all((f, t) => admin.from("jobs").select("source, channel").or(`source.neq.${WEBSITE_SOURCE},channel.neq.${WEBSITE_CHANNEL}`).range(f, t));
+    .eq("source", WEBSITE_SOURCE).eq("channel", WEBSITE_CHANNEL).in("id", visibleIds ?? []).order("created_at", { ascending: true }).order("id").range(f, t));
+  const outside: { source: string; channel: string }[] = [];
   const ids = jobs.map((j) => j.id);
   const [meas, ests, docs, work, sends, consents, optouts, events, interests, cfg, responses, media, reviewed] = await Promise.all([
     byJobs(ids, (c, f, t) => admin.from("ceiling_measurements").select("job_id, verified_area_m2, measured_area_m2").in("job_id", c).eq("is_current", true).eq("status", "complete").range(f, t)),
@@ -75,7 +75,7 @@ export async function loadEnquiryGroups() {
     byJobs(ids, (c, f, t) => admin.from("owner_contact_consents").select("job_id, consent_status, created_at").in("job_id", c).order("created_at", { ascending: true }).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("customer_email_optouts").select("job_id, opted_out_at").in("job_id", c).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("customer_engagement_events").select("job_id").in("job_id", c).in("event_type", SUPPRESSING_EVENTS).range(f, t)),
-    all((f, t) => admin.from("calculator_interests").select("id, created_at, full_name, email, address_line, suburb, postcode, ceiling_m2, insulation_declared, status").order("created_at").range(f, t)),
+    Promise.resolve([] as { email: string; address_line: string; postcode: string }[]),
     admin.from("customer_delivery_settings").select("jobs_created_after").eq("id", 1).maybeSingle(),
     byJobs(ids, (c, f, t) => admin.from("lead_campaign_responses").select("job_id, spot_saved_at").in("job_id", c).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("documents").select("job_id, kind, mime_type, storage_path, source_system, external_id").in("job_id", c).eq("kind", "intake_media").range(f, t)),
@@ -161,7 +161,7 @@ export async function loadEnquiryGroups() {
     if (jobContacts.has(contactKey(i.email, pk))) { calculatorMatched++; continue; }
     void i;
   }
-  const visibleRows = rows.filter((r) => r.kind === "job" && r.isPrimaryForContact);
+  const visibleRows = visibleIds ? rows : rows.filter((r) => r.kind === "job" && r.isPrimaryForContact);
   const bySource = (pred: (o: { source: string; channel: string }) => boolean) => outside.filter(pred).length;
   return {
     rows: visibleRows,
@@ -283,14 +283,16 @@ export async function loadLeadMedia(jobId: string) {
 
 /** Records the office photo/video review (Jo, 8 Oct): below_r2 → Save my spot offer; over_r2 → ineligible; unclear → more pictures.
  *  Writes one permanent engagement event; the latest event decides the lead's group. Never changes the Gate 1 audit. */
-export async function reviewLeadMedia(jobId: string, outcome: MediaReviewOutcome, by: string | null) {
+export async function reviewLeadMedia(jobId: string, outcome: MediaReviewOutcome, by: string | null, reason?: string) {
   if (!MEDIA_OUTCOMES.includes(outcome)) throw new Error("Unknown review outcome.");
+  const { mediaReviewPlan } = await import('./office-media-review.core');
+  const plan = mediaReviewPlan(outcome, reason);
   const job = must(await admin.from("jobs").select("id, job_number").eq("id", jobId).maybeSingle(), "Job");
   if (!job) throw new Error("Job not found.");
   const now = new Date();
   const ins = await admin.from("customer_engagement_events").insert({
     job_id: jobId, event_type: "intake_media_reviewed", occurred_at: now.toISOString(), source: "office",
-    metadata: { outcome, by }, dedupe_key: `intake_media_reviewed:${jobId}:${now.getTime()}`,
+    metadata: { ...plan, by }, dedupe_key: `intake_media_reviewed:${jobId}:${now.getTime()}`,
   });
   if (ins.error) throw new Error(`Review could not be saved: ${ins.error.message}`);
   return { ok: true as const, outcome };

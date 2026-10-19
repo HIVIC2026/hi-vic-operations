@@ -6,7 +6,7 @@ import { JOB_LIST_COLUMNS } from "./job-list-columns";
 
 /** The raw job_overview read every job LIST shares; filter, search, sort and paging build on top. */
 export const jobOverview = (count?: "exact") =>
-  admin.from("job_overview").select(JOB_LIST_COLUMNS, count ? { count } : undefined);
+  admin.from("office_job_list" as "job_overview").select(JOB_LIST_COLUMNS, count ? { count } : undefined);
 export type JobOverviewRow = NonNullable<Awaited<ReturnType<typeof jobOverview>>["data"]>[number];
 
 /** Office-archived TEST journeys never appear on a board. Tiny list, read once per board load. */
