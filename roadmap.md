@@ -1,7 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Ready Check FREE correction (Jo, 19 Oct 03:11 UTC)
-- [ ] Audit all active Ready Check price/payment surfaces; enforce $0 and remove customer payment steps/links only.
-- [ ] Run affected tests and inspect automatic build/typecheck results; no migrations, sends or publication.
+- [x] Audit active Ready Check price/payment surfaces; enforce $0 for stored customer state and acceptance, remove dormant paid-email transform and legacy payment wording.
+- [x] Focused free-pricing and customer-state tests pass; automatic build OK. Broader pricing/office tests have five unrelated wording/navigation/source failures, left unchanged to preserve scope. No migrations, sends or publication.
 ## Life-support agreement correction (Jo, 9 Oct 20:21 UTC)
 - [x] Corrected life-support documents to written consent OR a medical plan in current unsigned agreements/schedule; retained conditional applicability, pre-PIESA timing, attachment and installer receipt. Current version identifiers unchanged; 80 focused tests / 458 assertions passed, automatic build OK. No DB actions, sends or publication.
 ## Partner agreement Guide V1.2 corrections (Jo, 9 Oct 20:13 UTC)
