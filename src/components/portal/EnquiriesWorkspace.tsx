@@ -289,9 +289,9 @@ export function EnquiriesWorkspace({
         ),
     );
   }, [rows, photoRows, newRows, removedRows, view, q]);
-  // Fallback variant (owner request): no paging — every matching enquiry is rendered at once.
-  // The pre-pagination implementation sliced `matching` into 50-row pages here.
-  const visible = matching;
+  const pages = Math.max(1, Math.ceil(matching.length / PAGE));
+  const safePage = Math.min(page, pages - 1);
+  const visible = matching.slice(safePage * PAGE, safePage * PAGE + PAGE);
   const officeReview = view === "needs_attention" || view === "photos";
 
   return (
@@ -604,7 +604,27 @@ export function EnquiriesWorkspace({
             </table>
           </div>
 
-          {/* Pager removed for this fallback variant: every matching enquiry is rendered at once. */}
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={safePage === 0}
+              onClick={() => setPage(safePage - 1)}
+            >
+              Previous
+            </Button>
+            <span className="text-sm">
+              Page {safePage + 1} of {pages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={safePage + 1 >= pages}
+              onClick={() => setPage(safePage + 1)}
+            >
+              Next
+            </Button>
+          </div>
         </>
       )}
     </div>
