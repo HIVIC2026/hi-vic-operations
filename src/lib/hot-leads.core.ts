@@ -48,6 +48,13 @@ export const HOT_HOLD_REGIONS = new Set(["Bendigo / Loddon", "Far East Gippsland
 export const HOT_EXCLUDED_JOBS = new Set(["HV-1059", "HV-1061", "HV-1063", "HV-1257", "HV-1291", "HV-1161"]);
 /** Older duplicate records Jo asked to hide (newest kept). */
 export const HOT_HIDDEN_DUPLICATES = new Set(["HV-1225", "HV-1242", "HV-1286", "HV-1475", "HV-1180"]);
+/** Automatic/backlog sends must never reach these explicit owner decisions (mirrored in ENQ_00/ENQ_01). */
+export function legacyExclusionReason(jobNumber: string | null | undefined): "LEGACY_EXCLUDED" | "HIDDEN_DUPLICATE" | null {
+  const n = (jobNumber ?? "").trim();
+  if (HOT_EXCLUDED_JOBS.has(n)) return "LEGACY_EXCLUDED";
+  if (HOT_HIDDEN_DUPLICATES.has(n)) return "HIDDEN_DUPLICATE";
+  return null;
+}
 
 const TYPO_DOMAINS = new Set(["gmai.com", "gmial.com", "gmal.com", "gmail.co", "gmail.con", "gnail.com", "hotmial.com", "hotmai.com", "hotmail.con", "outlok.com", "yaho.com", "yahoo.con", "bigpond.con", "iclod.com", "icloud.con"]);
 export function emailTypo(email: string | null | undefined): string | null {
