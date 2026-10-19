@@ -278,7 +278,7 @@ export function EnquiriesWorkspace({
             ? removedRows.length
             : counts[key];
   const matching = useMemo(() => {
-    const term = q.trim().toLowerCase();
+    const term = (q ?? "").trim().toLowerCase();
     const base =
       view === "photos"
         ? photoRows
@@ -429,7 +429,7 @@ export function EnquiriesWorkspace({
             <Input
               aria-label="Search enquiries"
               placeholder="Search name, address, email, phone or job number"
-              value={q}
+              value={q ?? ""}
               onChange={(event) => {
                 onQ(event.target.value);
                 setPage(0);
