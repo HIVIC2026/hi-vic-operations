@@ -159,18 +159,26 @@ scored as (
       when c.category = 'E_AMBIGUOUS' then 'None — needs a human decision'
       else 'None'
     end as proposed_template,
+    -- MANDATORY STAGE SAFETY (must match ENQ_01 exactly; never bypassed by the trusted backlog context):
+    --   A/C (T1/T2/T5/T6) -> new_enquiry, eligibility_review, preliminary_estimate_ready
+    --   B (T7)            -> new_enquiry, eligibility_review, on_hold
     case
+      when c.category in ('A_ELIGIBLE_NO_INSULATION', 'C_INSULATION_UNKNOWN')
+        and c.stage not in ('new_enquiry', 'eligibility_review', 'preliminary_estimate_ready') then 'STAGE_MOVED_ON'
+      when c.category = 'B_INELIGIBLE' and c.stage not in ('new_enquiry', 'eligibility_review', 'on_hold') then 'STAGE_MOVED_ON'
       when c.category = 'C_INSULATION_UNKNOWN'
         and (c.area_m2 is null or coalesce(c.area_source, '') = 'typical_default' or c.area_m2 <= 0)
         then 'TYPICAL_SIZE_HELD'
-      when c.category = 'B_INELIGIBLE' and c.stage not in ('new_enquiry', 'eligibility_review', 'on_hold') then 'STAGE_MOVED_ON'
       else null
     end as sender_hold,
     case
-      when c.category = 'C_INSULATION_UNKNOWN'
-        and (c.area_m2 is null or coalesce(c.area_source, '') = 'typical_default' or c.area_m2 <= 0)
+      when c.category in ('A_ELIGIBLE_NO_INSULATION', 'C_INSULATION_UNKNOWN')
+        and c.stage not in ('new_enquiry', 'eligibility_review', 'preliminary_estimate_ready')
         then 'HELD_BY_SENDER_RULE'
       when c.category = 'B_INELIGIBLE' and c.stage not in ('new_enquiry', 'eligibility_review', 'on_hold')
+        then 'HELD_BY_SENDER_RULE'
+      when c.category = 'C_INSULATION_UNKNOWN'
+        and (c.area_m2 is null or coalesce(c.area_source, '') = 'typical_default' or c.area_m2 <= 0)
         then 'HELD_BY_SENDER_RULE'
       when c.category in ('A_ELIGIBLE_NO_INSULATION', 'B_INELIGIBLE', 'C_INSULATION_UNKNOWN')
         then case when c.failed_sends > 0 then 'AUTO_SEND_RETRY' else 'AUTO_SEND' end
