@@ -28,7 +28,15 @@ import {
   type JoTemplateId,
   type SavedPricingSnapshot,
 } from "./jo-email-templates.core";
-import { applyReadyCheckFee, escape, PRIVACY_URL, PUBLIC_CALCULATOR_URL, type EstimateEmail } from "./estimate-email";
+import {
+  applyCampaignFonts,
+  applyReadyCheckFee,
+  escape,
+  PRIVACY_URL,
+  PUBLIC_CALCULATOR_URL,
+  V2_THEME,
+  type EstimateEmail,
+} from "./estimate-email";
 import { REMOVE_ENQUIRY_HTML_SLOT, REMOVE_ENQUIRY_TEXT_SLOT } from "./emailsafety.core";
 
 /** Jo's footer link row, verbatim placeholders (P1-S77: bound to real links, never shown as bracketed text). */
@@ -218,10 +226,12 @@ function joBodyToHtml(body: string): string {
   const lines = body.split("\n");
   const blocks: string[] = [];
   let i = 0;
+  // Presentation only: the short line directly after "Hi {name}," is the template's headline.
+  // The copy is untouched; long T7 sentences stay body text.
+  let heroNext = false;
   while (i < lines.length) {
     const line = lines[i]!;
     if (!line.trim()) { i++; continue; }
-    if (line.trim() === JO_FOOTER_LINKS_LINE) { blocks.push(footerLinksHtml()); i++; continue; }
     if (line.startsWith("### ")) {
       const heading = line.slice(4).trim();
       const card: string[] = [`<p style="margin:0 0 10px;${FH}color:${INK};font-size:19px;line-height:1.25;font-weight:800;">${escape(heading)}</p>`];
@@ -249,16 +259,87 @@ function joBodyToHtml(body: string): string {
       blocks.push(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${MIST}" style="width:100%;border-collapse:separate;background-color:${MIST};border-radius:16px;"><tr><td style="padding:17px 18px;${F}">${tableHtml(rows)}</td></tr></table>`);
       continue;
     }
+    const greeting = /^Hi\b.*,$/.test(line.trim());
+    if (heroNext) {
+      heroNext = false;
+      if (!greeting && line.trim().length <= 70) {
+        blocks.push(heroHtml(line));
+        i++;
+        continue;
+      }
+    }
     blocks.push(paragraphHtml(line));
+    if (greeting) heroNext = true;
     i++;
   }
   return blocks.join("");
 }
 
-/** Jo's footer link row as real links. "Remove my enquiry" is filled with the secure opt-out link by withUnsubscribe(). */
-function footerLinksHtml(): string {
-  const a = (href: string, label: string) => `<a href="${escape(href)}" style="color:#3C51C4;text-decoration:underline;">${escape(label)}</a>`;
-  return `<p style="margin:0 0 8px;${F}color:${INK};font-size:12.5px;line-height:1.6;">${a(JO_CONTACT_URL, "Contact us")} · ${a(PRIVACY_URL, "Privacy")} · ${REMOVE_ENQUIRY_HTML_SLOT}</p>`;
+// ---------------------------------------------------------------------------
+// Shared Spot-Saved visual system
+// ---------------------------------------------------------------------------
+//
+// Jo's T1–T8 keep her approved COPY verbatim; only the presentation is shared with the existing
+// Spot Saved email: the same 640px rounded shell, logo header, Outfit/Figtree stacks, green
+// button, white footer row and mobile rules. No Spot Saved confirmation wording is added.
+
+/** Footer entity line, exactly as Jo's approved footer already states it. */
+const JO_ENTITY = "DC Construction Solutions Pty Ltd trading as Home Insulation Victoria";
+
+/** Small header pill per template — presentation only, never customer copy. */
+const JO_BADGE: Record<JoTemplateId, string> = {
+  eligible_no_insulation_size_unknown: "Preliminary quote",
+  eligible_no_insulation_size_known: "Preliminary quote",
+  eligible_below_r2_reviewed_size_unknown: "Reviewed quote",
+  eligible_below_r2_reviewed_size_known: "Reviewed quote",
+  potentially_eligible_unknown_size_unknown: "Next step",
+  potentially_eligible_unknown_size_known: "Next step",
+  ineligible: "Result",
+  ready_check_invitation: "Ready Check",
+};
+
+/**
+ * Jo's body ends with the approved sign-off block (entity, reference, footer links). Split it out so
+ * the identical words render once, inside the branded footer row — never duplicated in the body.
+ */
+function splitJoFooter(body: string): { content: string; reference: string | null } {
+  const marker = `\n\n${JO_SIGN_OFF}\n\n`;
+  const at = body.lastIndexOf(marker);
+  if (at < 0) return { content: body, reference: null };
+  const tail = body.slice(at + marker.length).split("\n");
+  const refLine = tail.find((l) => l.startsWith("Reference: "));
+  return {
+    content: body.slice(0, at),
+    reference: refLine ? refLine.slice("Reference: ".length).trim() : null,
+  };
+}
+
+/** Branded footer row: Jo's existing entity, links and reference, styled like Spot Saved. */
+function joFooterHtml(reference: string | null): string {
+  const a = (href: string, label: string) =>
+    `<a href="${escape(href)}" style="color:#3C51C4;text-decoration:underline;">${escape(label)}</a>`;
+  return [
+    `<p style="margin:0 0 5px;${FH}color:${INK};font-size:14px;line-height:1.4;font-weight:800;text-align:center;">${escape(JO_SIGN_OFF)}</p>`,
+    `<p style="margin:0 0 9px;${F}color:#5A6785;font-size:12px;line-height:1.5;text-align:center;">${escape(JO_ENTITY)}</p>`,
+    `<p style="margin:0;${F}color:${INK};font-size:12px;line-height:1.6;text-align:center;">${a(JO_CONTACT_URL, "Contact us")} · ${a(PRIVACY_URL, "Privacy")} · ${REMOVE_ENQUIRY_HTML_SLOT}</p>`,
+    reference
+      ? `<p style="margin:7px 0 0;${F}color:#5A6785;font-size:10.5px;line-height:1.4;text-align:center;">Reference: ${escape(reference)}</p>`
+      : "",
+  ].join("");
+}
+
+/** Wrap rendered content in the same shell the Spot Saved email uses. `pixel` stays null (unchanged). */
+function joShell(id: JoTemplateId, subject: string, content: string, reference: string | null): string {
+  const header = `<tr><td class="lx-pad" style="padding:22px 36px 2px;">${V2_THEME.header(JO_BADGE[id])}</td></tr>`;
+  const body = `<tr><td class="lx-pad" style="padding:10px 36px 26px;${F}">${content}</td></tr>`;
+  return applyCampaignFonts(
+    V2_THEME.shell(`${header}${body}${V2_THEME.footerRow(joFooterHtml(reference))}`, subject, null),
+  );
+}
+
+/** The short line after the greeting, styled as the template headline (copy unchanged). */
+function heroHtml(line: string): string {
+  return `<p class="lx-h1" style="margin:0 0 12px;${FH}color:${INK};font-size:26px;line-height:1.25;font-weight:800;">${inline(line)}</p>`;
 }
 
 /** A CTA token line becomes the shared approved button; anything else is a paragraph. */
@@ -273,6 +354,10 @@ function paragraphHtml(line: string): string {
   const m = new RegExp(`^(.*?)${TOKEN_INLINE.source}`).exec(line);
   if (m) {
     return `<p style="margin:0;${F}color:${INK};font-size:14px;line-height:1.55;text-align:center;">${inline(m[1]!)} <a href="${escape(m[3]!)}" style="color:#2F6BFF;font-weight:800;text-decoration:underline;">${escape(m[4]!)}</a></p>`;
+  }
+  // The headline saving figure gets the branded amount treatment (same copy, different presentation).
+  if (/^\*\*(You could save|Potential VEU rebate):? .+\*\*$/.test(line)) {
+    return `<p style="margin:4px 0 8px;${FH}color:${INK};font-size:24px;line-height:1.25;font-weight:800;">${inline(line)}</p>`;
   }
   return `<p style="margin:0 0 8px;${F}color:${INK};font-size:15px;line-height:1.6;">${inline(line)}</p>`;
 }
@@ -347,12 +432,18 @@ export function renderJoReadyCheckInvitationEmail(recipient: JoRecipient, snapsh
     (_m, href: string) => ctaToken("link", href, "Open the calculator →"),
   );
   if (missingCta(rendered.ctas, body)) throw new Error("The Ready Check booking link is missing for this customer; nothing was prepared.");
+  const { content, reference } = splitJoFooter(body);
   return {
     templateId: "ready_check_invitation",
     ctas: rendered.ctas,
     subject: rendered.subject,
     previewText: rendered.subject,
-    html: `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:separate;"><tr><td class="lx-pad" style="padding:24px 30px;${F}">${joBodyToHtml(body)}</td></tr></table>`,
+    html: joShell(
+      "ready_check_invitation",
+      rendered.subject,
+      `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:separate;"><tr><td style="${F}">${joBodyToHtml(content)}</td></tr></table>`,
+      reference,
+    ),
     plainText: plainTextOf(body),
   };
 }
@@ -367,8 +458,14 @@ function assemble(
   input: JoOutcomeEmailInput,
 ): JoWiredEmail {
   const previewText = subject;
-  const content = joBodyToHtml(body);
-  const html = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:separate;"><tr><td class="lx-pad" style="padding:24px 30px;${F}">${content}</td></tr></table>`;
+  const { content: bodyCopy, reference } = splitJoFooter(body);
+  const content = joBodyToHtml(bodyCopy);
+  const html = joShell(
+    id,
+    subject,
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:separate;"><tr><td style="${F}">${content}</td></tr></table>`,
+    reference,
+  );
   // Jo's body is already the plain-text email; only the CTA markers need stripping.
   const plainText = plainTextOf(body);
   const mail: EstimateEmail = { subject, previewText, html, plainText };

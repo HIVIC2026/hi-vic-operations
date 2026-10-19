@@ -370,7 +370,10 @@ describe("T1–T7 render through Jo's one shell with real links", () => {
       cta: `${T}/video`,
     },
   ];
-  const shellOf = (html: string) => html.slice(0, 400);
+  // The subject (and therefore <title>) legitimately differs per template; everything else in the
+  // shared shell must be identical.
+  const shellOf = (html: string) =>
+    html.replace(/<title>[^<]*<\/title>/, "<title></title>").slice(0, 400);
   const t1 = withUnsubscribe(
     renderJoOutcomeEmail({ ...cases[0]!.facts, recipient, figures: fig(false), links })!,
     UNSUB,

@@ -206,6 +206,16 @@ function renderDraft(r: EnquiryGroupRow, sel: Selected, ctx: Ctx): Draft | { err
   const assumed = sel.group === "likely_no_size" || (sel.group === "insulation_check" && r.area.m2 == null);
   const m2 = assumed ? sel.assumedAreaM2 : r.area.m2;
   if (m2 == null) return { error: "No usable area" };
+  // Jo's approved T1–T6 copy has only two truthful size statements: the homeowner's own size
+  // ("based on the size you provided") or the labelled 150 m² assumption. A property-research or
+  // measured area is neither, and neutral wording would be unapproved customer copy, so it is held
+  // for recalculation instead of being described as the owner's own size.
+  if (!assumed && r.area.source !== "declared") {
+    const from = r.area.source === "estimated" ? "property research" : "a measurement";
+    return {
+      error: `The ceiling size came from ${from}, not the homeowner. Jo's approved email only states an owner-provided size or the labelled 150 m² assumption. Recalculate with the owner's size (or the assumption); nothing prepared.`,
+    };
+  }
   const area: AreaCandidate = assumed ? { m2, source: "typical_default", basis: "assumed", id: null, label: `Assumed area: ${m2} m²` } : { m2, source: r.area.source === "measured" ? "accepted_measurement" : r.area.source === "estimated" ? "area_estimate" : "owner_estimate", basis: r.area.source, id: null, label: r.areaLabel };
   const e = computeEstimate(area, loc, r.declaredInsulation, ctx.settings);
   const st = e.primary.by_access.standard;

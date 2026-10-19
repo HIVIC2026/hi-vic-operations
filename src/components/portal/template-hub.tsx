@@ -90,20 +90,27 @@ function JoSample({ templateId }: { templateId: JoTemplateId }) {
   const mail = useMemo(() => {
     const raw = (() => { try {
       const recipient = { firstName: "Alex", propertyAddress: "12 Sample St, Melbourne VIC 3000", enquiryReference: "HV-0000" };
-      const figures = { veuRebate: 2600, customerTotal: 1900, totalBeforeRebate: 4500, installation: 3800, piesaFee: 350, apFee: 350, ceilingAreaM2: 150, areaEstimated: true };
+      // Sample data only: size-known templates preview as homeowner-provided (210 m²); size-unknown
+      // templates preview the approved 150 m² assumption. Neither value is used for a real send.
+      const ceilingSizeKnown = templateId.endsWith("size_known");
+      const figures = { veuRebate: 2600, customerTotal: 1900, totalBeforeRebate: 4500, installation: 3800, piesaFee: 350, apFee: 350, ceilingAreaM2: ceilingSizeKnown ? 210 : 150, areaEstimated: !ceilingSizeKnown };
       const links = { saveMySpotUrl: SAMPLE_LINK, uploadMediaUrl: SAMPLE_LINK, reviewResultUrl: SAMPLE_LINK, calculatorUrl: SAMPLE_LINK };
       if (templateId === "ready_check_invitation") return renderJoReadyCheckInvitationEmail(recipient, { ...figures, savedAt: "2026-10-19T00:00:00Z", personalEstimateUrl: SAMPLE_LINK, readyCheckBookingUrl: SAMPLE_LINK });
       if (templateId === "ineligible") return renderJoOutcomeEmail({ outcome: "does_not_appear_eligible", insulation: null, ceilingSizeKnown: false, recipient, reason: "[The official ineligibility reason appears here]", links });
       const outcome = templateId.startsWith("eligible") ? "likely_eligible" : templateId.startsWith("potentially") ? "needs_onsite_confirmation" : "likely_eligible";
       const insulation = templateId.startsWith("eligible_no_insulation") ? "none" : templateId.startsWith("eligible_below_r2") ? "present" : "unknown";
-      const ceilingSizeKnown = templateId.endsWith("size_known");
       const deskCheckStatus = templateId.startsWith("eligible_below_r2") ? "looks_eligible" : null;
       return renderJoOutcomeEmail({ outcome, insulation, ceilingSizeKnown, deskCheckStatus, recipient, figures, links });
     } catch { return null; } })();
     return raw ? withUnsubscribe(raw, SAMPLE_UNSUBSCRIBE) : null;
   }, [templateId]);
   if (!mail) return <p className="text-sm text-rose">This template could not be previewed with sample data.</p>;
-  return <HtmlEmail subject={mail.subject} html={mail.html} note="Sample values only. Rendered by the same function every real send uses." />;
+  const areaNote = templateId.endsWith("size_known")
+    ? " Sample ceiling area: 210 m² provided by the homeowner."
+    : templateId === "ineligible"
+      ? ""
+      : " Sample ceiling area: 150 m² assumed (homeowner did not provide one).";
+  return <HtmlEmail subject={mail.subject} html={mail.html} note={`Sample values only.${areaNote} Rendered by the same function every real send uses.`} />;
 }
 
 function TemplateDetail({ entry }: { entry: TemplateEntry }) {
