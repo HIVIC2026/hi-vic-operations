@@ -35,18 +35,28 @@ type Res<T> = PromiseLike<{ data: T[] | null; error: { message: string } | null 
 async function all<T>(q: (from: number, to: number) => Res<T>): Promise<T[]> {
   const out: T[] = [];
   for (let from = 0; ; from += PAGE) {
-    const { data, error } = await q(from, from + PAGE - 1);
+    let res = await q(from, from + PAGE - 1);
+    // A dropped connection ("fetch failed") is transient for a read: retry twice with a short pause.
+    for (let attempt = 1; res.error && /fetch failed/i.test(res.error.message) && attempt <= 2; attempt++) {
+      await new Promise((r) => setTimeout(r, 300 * attempt));
+      res = await q(from, from + PAGE - 1);
+    }
+    const { data, error } = res;
     if (error) throw new Error(`Enquiry groups could not load: ${error.message}`);
     out.push(...(data ?? []));
     if (!data || data.length < PAGE) return out;
   }
 }
+/** Max chunk reads in flight at once; unbounded fan-out exhausted connections and failed the whole page. */
+const PARALLEL = 4;
 async function byJobs<T>(ids: string[], q: (chunk: string[], from: number, to: number) => Res<T>): Promise<T[]> {
   if (!ids.length) return [];
   const chunks: string[][] = [];
   for (let i = 0; i < ids.length; i += CHUNK) chunks.push(ids.slice(i, i + CHUNK));
-  // Chunks are independent: run them together instead of waiting for each one in turn.
-  const parts = await Promise.all(chunks.map((c) => all((f, t) => q(c, f, t))));
+  const parts: T[][] = [];
+  for (let i = 0; i < chunks.length; i += PARALLEL) {
+    parts.push(...(await Promise.all(chunks.slice(i, i + PARALLEL).map((c) => all((f, t) => q(c, f, t))))));
+  }
   return parts.flat();
 }
 const must = <T>(r: { data: T; error: { message: string } | null }, what: string): T => { if (r.error) throw new Error(`${what} unavailable: ${r.error.message}`); return r.data; };
