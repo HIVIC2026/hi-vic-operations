@@ -22,9 +22,9 @@ export function stuckReasons(s: StuckSignals, now: Date, idleDays = 7): string[]
   if (!s.stage || CLOSED.includes(s.stage)) return [];
   const out: string[] = [];
   for (const e of s.invoiceSyncErrors) out.push(`Xero sync failed: ${e.slice(0, 120)}`);
-  if (s.readyCheckFailed) out.push("Legacy Ready Check payment failed – review the historical record");
+  if (s.readyCheckFailed) out.push("Legacy Ready Check record needs review");
   if (s.readyCheckPaidAt && EARLY.includes(s.stage) && now.getTime() - Date.parse(s.readyCheckPaidAt) > 24 * HOUR)
-    out.push("Legacy Ready Check payment was recorded over 24h ago but the job did not move");
+    out.push("Legacy Ready Check request was recorded over 24h ago but the job did not move");
   for (const b of s.confirmedBookings) {
     if ((PRE_BOOKED[b.kind] ?? []).includes(s.stage)) out.push(`${b.kind[0]!.toUpperCase()}${b.kind.slice(1)} booking confirmed but stage not updated to ${BOOKED_STAGE[b.kind]!.replace(/_/g, " ")}`);
   }

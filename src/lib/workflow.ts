@@ -45,7 +45,7 @@ export const STAGE_LABEL: Record<Stage, string> = {
   eligibility_review: "Eligibility Review",
   preliminary_estimate_ready: "Preliminary Estimate Ready",
   ready_check_awaiting_acceptance: "Ready Check – Awaiting Acceptance",
-  ready_check_awaiting_payment: "Ready Check – Legacy Payment Record",
+  ready_check_awaiting_payment: "Ready Check – not booked yet",
   ready_check_ready_to_schedule: "Ready Check – not booked yet",
   ready_check_scheduled: "Ready Check booked",
   ready_check_complete: "Ready Check Complete",

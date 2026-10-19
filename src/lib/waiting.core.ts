@@ -74,7 +74,7 @@ const inst = (f: WaitingFacts) => f.installerName ?? "the installer";
 const RULES: Record<string, Rule> = {
   preliminary_estimate_ready: { party: "Owner", say: () => "Waiting on the owner to book the free Ready Check.", due: "owner" },
   ready_check_awaiting_acceptance: { party: "Owner", say: () => "Waiting on the owner to accept the Ready Check.", due: "owner" },
-  ready_check_awaiting_payment: { party: "Owner", say: () => "Waiting on the owner (older Ready Check payment record).", due: "owner" },
+  ready_check_awaiting_payment: { party: "Owner", say: () => "Waiting on the owner to book the free Ready Check.", due: "owner" },
   ready_check_scheduled: { party: "Installer", who: inst, say: (_f, w) => `Waiting on ${w} to do the Ready Check and submit the measure-up.`, bookingKind: "ready_check", due: "endOfBookingDay" },
   measured_estimate_ready: { party: "Owner", say: () => "Waiting on the owner to accept the measured estimate.", due: "owner" },
   piesa_scheduled: { party: "Electrician", who: elec, say: (_f, w) => `Waiting on ${w} to do the onsite PIESA and submit results + rectification quote.`, bookingKind: "assessment", due: "endOfBookingDay" },

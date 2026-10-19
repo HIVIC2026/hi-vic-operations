@@ -10,7 +10,7 @@ const NOT_INSTALLED = new Set(["PGRST205", "42P01"]);
 type SettingsRow = { id: string; version: number; r5_install_inc_gst_per_m2: number; removal_inc_gst_per_m2: number; piesa_assessment_inc_gst: number; ap_management_inc_gst: number; ready_check_fee_inc_gst?: number | null };
 const toRates = (r: SettingsRow): PricingRates => ({
   settingsId: r.id, settingsVersion: Number(r.version), r5InstallIncGstPerM2: Number(r.r5_install_inc_gst_per_m2), removalIncGstPerM2: Number(r.removal_inc_gst_per_m2),
-  piesaIncGst: Number(r.piesa_assessment_inc_gst), apIncGst: Number(r.ap_management_inc_gst), readyCheckFeeIncGst: Number(r.ready_check_fee_inc_gst ?? 0),
+  piesaIncGst: Number(r.piesa_assessment_inc_gst), apIncGst: Number(r.ap_management_inc_gst), readyCheckFeeIncGst: 0,
 });
 
 export async function loadCutover(): Promise<Cutover> {
@@ -34,7 +34,7 @@ export async function pricingForJob(jobId: string): Promise<ResolvedPricing> {
   const snapshot: CohortSnapshot | null = snap ? {
     cohort: snap.cohort, spotSavedAt: snap.spot_saved_at, settingsId: snap.settings_id, settingsVersion: Number(snap.settings_version),
     r5InstallIncGstPerM2: Number(snap.r5_install_inc_gst_per_m2), removalIncGstPerM2: Number(snap.removal_inc_gst_per_m2), piesaIncGst: Number(snap.piesa_assessment_inc_gst),
-    apIncGst: Number(snap.ap_management_inc_gst), readyCheckFeeIncGst: Number(snap.ready_check_fee_inc_gst),
+    apIncGst: Number(snap.ap_management_inc_gst), readyCheckFeeIncGst: 0,
     savedTotal: snap.saved_total == null ? null : Number(snap.saved_total), savedGrossTotal: snap.saved_gross_total == null ? null : Number(snap.saved_gross_total),
     savedVeuDiscount: snap.saved_veu_discount == null ? null : Number(snap.saved_veu_discount), savedAreaM2: snap.saved_area_m2 == null ? null : Number(snap.saved_area_m2),
   } : null;

@@ -33,8 +33,8 @@ type Identity = { id: string; input_signature: string; settings_version: number 
 function publicState(a: Record<string, unknown>, current: Identity): ReadyCheckAcceptanceState {
   return {
     acceptanceId: String(a["id"]), estimateId: String(a["estimate_id"]), acceptedAt: String(a["accepted_at"]),
-    paymentId: null, paymentStatus: "accepted", amountIncGst: Number(a["ready_check_amount_inc_gst"] ?? 0),
-    estimatedRemainingBalanceIncGst: Number(a["estimated_remaining_balance_inc_gst"]), paidAt: null,
+    paymentId: null, paymentStatus: "accepted", amountIncGst: READY_CHECK_FEE,
+    estimatedRemainingBalanceIncGst: readyCheckRemaining(Number(a["cost_after_discount_inc_gst"])), paidAt: null,
     stale: !current || !acceptanceIsCurrent(String(a["estimate_id"]), current.id)
       || String(a["estimate_input_signature"]) !== current.input_signature
       || Number(a["estimate_settings_version"]) !== current.settings_version,
@@ -79,9 +79,7 @@ export async function acceptReadyCheck(token: unknown, meta: RequestMeta = {}, p
     const b = piesaWindowBlockers(picks);
     if (b.length) throw new Error(b.join(" "));
   }
-  const { pricingForJob } = await import("./pricing-cohort.server");
-  const { effectiveReadyCheckFee } = await import("./readycheck.core");
-  const fee = effectiveReadyCheckFee((await pricingForJob(ctx.link.job_id)).readyCheckFeeIncGst); // fails closed when the price version is unknown
+  const fee = READY_CHECK_FEE;
   const remaining = readyCheckRemaining(cost, fee);
   const snapshot = {
     estimate_id: ctx.estimate.id, estimate_input_signature: ctx.estimate.input_signature, settings_version: ctx.estimate.settings_version,
