@@ -1343,129 +1343,36 @@ export const autoAdvancePipeline = createServerFn({ method: "POST" }).middleware
 /** Admin-only pipeline read. Verify the caller with their RLS-scoped client, then load the complete board. */
 export const getAdminPipeline = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   await requireAdmin(context.supabase);
-  const { data, error } = await admin.from("job_overview").select(JOB_LIST_COLUMNS).order("last_activity_at", { ascending: false });
+  const { archivedQaJobIds, enrichPipeline, jobOverview } = await import("./job-pipeline.server");
+  const archivedQaIds = new Set(await archivedQaJobIds());
+  // `id` is the stable tie-breaker: without it, rows sharing a last_activity_at can swap places
+  // between requests and the same record can appear on two pages at once.
+  const { data, error } = await jobOverview().order("last_activity_at", { ascending: false }).order("id");
   if (error) throw new Error(`Pipeline could not be loaded: ${error.message}`);
-  // Independent reads run together (previously three sequential phases).
-  const [{ data: inv }, { data: rc }, { data: bk }, { data: asg }] = await Promise.all([
-    admin.from("invoices").select("job_id,last_sync_error").not("last_sync_error", "is", null),
-    admin.from("ready_check_payments").select("job_id,status,paid_at"),
-    admin.from("bookings").select("job_id,kind,scheduled_start").eq("status", "confirmed"),
-    admin.from("job_assignments").select("job_id,user_id,assigned_at,active").eq("active", true),
-  ]);
-  // commsStatus() returns null for jobs with no active trade assignment, so messages for those jobs are
-  // never read. Fetch messages only for assigned jobs (was: every message row, the dominant dashboard cost).
-  const assignedJobIds = [...new Set((asg ?? []).map((a) => a.job_id))];
-  const msgIds: string[][] = [];
-  for (let i = 0; i < assignedJobIds.length; i += 100) msgIds.push(assignedJobIds.slice(i, i + 100));
-  const msgParts = await Promise.all(
-    msgIds.map((ids) =>
-      admin.from("messages").select("job_id,sender_id,created_at,internal").in("job_id", ids),
-    ),
-  );
-  const msgs = msgParts.flatMap(
-    (r) => (r.data ?? []) as { job_id: string; sender_id: string | null; created_at: string; internal: boolean | null }[],
-  );
-  const { LAUNCH_CAMPAIGN } = await import("./launch-campaign.core");
-  // Presentation-only enrichment for the Office cards: the customer's CURRENT indicative estimate already
-  // stores ceiling area + declared insulation, and intake media is already attached to the job. Read-only,
-  // no recalculation, no new aggregation service, and the same rows the job page shows.
-  // The send log is filtered to the three purposes the office status actually reads (was: every send row).
-  const [
-    { data: ests },
-    { data: mediaDocs },
-    { data: intakeEvidence },
-    { data: campRows },
-    { data: sendRows },
-    { data: archivedRows },
-    { data: facts },
-  ] = await Promise.all([
-    admin.from("indicative_estimates").select("job_id,area_m2,area_source,insulation_declared").eq("status", "current"),
-    admin.from("documents").select("job_id").eq("kind", "intake_media"),
-    admin.from("evidence_files").select("job_id,storage_path,mime_type").like("storage_path", "%/intake/%"),
-    admin.from("lead_campaign_responses").select("job_id,spot_saved_at,opted_out_at"),
-    admin
-      .from("customer_email_sends")
-      .select("job_id,purpose,status,idempotency_key")
-      .in("purpose", [LAUNCH_CAMPAIGN, "preliminary_ineligible", "insulation_video_request"]),
-    admin.from("jobs").select("id").not("qa_archived_at", "is", null),
-    admin
-      .from("jobs")
-      .select("id, installer_quoted, installer_site_check, installer_site_check_date, installer_quoted_price_inc_gst, installer_price_includes")
-      .eq("channel", "installer_sourced"),
-  ]);
-  const { enquiryStatus } = await import("./enquiry-groups.core");
-  const SENT_STATUSES = ["sent", "delivered_unrecorded", "sending"];
-  const savedSet = new Set((campRows ?? []).filter((c) => c.spot_saved_at && !c.opted_out_at).map((c) => c.job_id));
-  const sendsByJob = new Map<string, { purpose: string; status: string; key: string | null }[]>();
-  for (const s of sendRows ?? []) {
-    const a = sendsByJob.get(s.job_id);
-    const row = { purpose: s.purpose as string, status: s.status as string, key: (s.idempotency_key as string | null) ?? null };
-    if (a) a.push(row); else sendsByJob.set(s.job_id, [row]);
-  }
-  const estBy = new Map((ests ?? []).map((e) => [e.job_id, e]));
-  const mediaBy = new Map<string, number>();
-  for (const d of mediaDocs ?? []) if (d.job_id) mediaBy.set(d.job_id, (mediaBy.get(d.job_id) ?? 0) + 1);
-  for (const f of intakeEvidence ?? []) {
-    if (!f.job_id || !f.storage_path) continue;
-    if (/^(image|video)\//i.test(f.mime_type ?? "") && f.storage_path.startsWith(`${f.job_id}/intake/`)) {
-      mediaBy.set(f.job_id, (mediaBy.get(f.job_id) ?? 0) + 1);
-    }
-  }
-  // null (not 0) when the media read failed, so the card can say "not checked" instead of claiming "no media".
-  const mediaKnown = mediaDocs !== null;
-  const { stuckReasons } = await import("./stuck.core");
-  const { commsStatus } = await import("./comms-status.core");
-  const now = new Date();
-  const archivedQaIds = new Set((archivedRows ?? []).map((j) => j.id));
-  // Installer-sourced jobs: site check done? and the installer's own price (Jo, 7 Oct).
-  const factBy = new Map((facts ?? []).map((f) => [f.id, { quoted: f.installer_quoted as "yes" | "no" | null, site_check: (f.installer_site_check as "yes" | "no" | null), site_check_date: f.installer_site_check_date, quoted_price_inc_gst: f.installer_quoted_price_inc_gst == null ? null : Number(f.installer_quoted_price_inc_gst), price_includes: f.installer_price_includes }]));
-  // P0-B perf: group per-job rows ONCE (O(rows)) so building the board is O(jobs), not O(jobs × rows).
-  // Output is identical (arrays keep their original order because rows are appended in iteration order).
-  const groupByJob = <T extends { job_id: string }>(arr: T[] | null): Map<string, T[]> => {
-    const m = new Map<string, T[]>();
-    for (const r of arr ?? []) { const a = m.get(r.job_id); if (a) a.push(r); else m.set(r.job_id, [r]); }
-    return m;
-  };
-  const invBy = groupByJob(inv), rcBy = groupByJob(rc), bkBy = groupByJob(bk), asgBy = groupByJob(asg), msgBy = groupByJob(msgs);
-  return (data ?? []).filter((j) => j.id != null && !archivedQaIds.has(j.id)).map((j) => {
-    const id = j.id!;
-    const pays = rcBy.get(id) ?? [];
-    const paid = pays.find((p) => p.status === "paid");
-    const est = estBy.get(id);
-    const declared = est?.insulation_declared;
-    return {
-      ...j,
-      installer_facts: factBy.get(id) ?? null,
-      enquiry_facts: {
-        ceilingM2: est?.area_m2 == null ? null : Number(est.area_m2),
-        ceilingAssumed: est?.area_source === "typical_default",
-        insulation: declared === "none" || declared === "present" || declared === "unknown" ? (declared as "none" | "present" | "unknown") : null,
-        mediaCount: mediaKnown ? mediaBy.get(id) ?? 0 : null,
-      },
-      comms_status: commsStatus(asgBy.get(id) ?? [], msgBy.get(id) ?? [], new Date()),
-      office_status: (() => {
-        const sent = (sendsByJob.get(id) ?? []).filter((s) => SENT_STATUSES.includes(s.status));
-        const campSent = sent.filter((s) => s.purpose === LAUNCH_CAMPAIGN);
-        return enquiryStatus({
-          spotSaved: savedSet.has(id),
-          ineligible: j.eligibility_outcome === "does_not_appear_eligible" || j.stage === "on_hold",
-          ineligibleEmailSent: sent.some((s) => s.purpose === "preliminary_ineligible"),
-          campaignSent: campSent.length > 0,
-          insulationEmailSent: sent.some((s) => s.purpose === "insulation_video_request"),
-          campaignGroup: campSent.length ? (campSent.some((s) => /:b(:|$)/.test(s.key ?? "")) ? "onsite" : "likely") : null,
-        });
-      })(),
-      stuck_reasons: stuckReasons({
-        stage: j.stage,
-        lastActivityAt: j.last_activity_at,
-        invoiceSyncErrors: (invBy.get(id) ?? []).map((i) => i.last_sync_error as string),
-        readyCheckFailed: !paid && pays.some((p) => p.status === "failed"),
-        readyCheckPaidAt: paid?.paid_at ?? null,
-        confirmedBookings: bkBy.get(id) ?? [],
-      }, now),
-    };
-  });
+  return enrichPipeline((data ?? []).filter((j) => j.id != null && !archivedQaIds.has(j.id)));
 });
+
+/**
+ * One server-paginated page of the Active / Closed jobs list. The database applies
+ * filter -> search -> sort -> page; the count comes from a separate exact count so the tile totals
+ * never depend on which page is open. Only the rows on this page are enriched and sent.
+ */
+export const getJobListPage = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    mode: z.enum(["active", "closed"]),
+    closedView: z.enum(["completed", "cancelled", "ineligible", "test"]).default("completed"),
+    stage: z.string().max(40).default("all"),
+    search: z.string().max(120).default(""),
+    sort: z.string().max(40).default("last_activity_at"),
+    direction: z.enum(["asc", "desc"]).default("desc"),
+    page: z.number().int().min(1).max(100_000).default(1),
+    pageSize: z.number().int().min(1).max(100).default(20),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { loadJobListPage } = await import("./job-list-page.server");
+    return loadJobListPage(data);
+  });
 
 export const getGate1Evidence = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))

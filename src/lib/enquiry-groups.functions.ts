@@ -2,6 +2,19 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin } from "./workflow.server";
+import type { EnquiryGroupRow } from "./enquiry-groups.server";
+
+/**
+ * The wire shape of one enquiry row. Shared by the full read and the paged read, so the two can never
+ * drift apart and the office never sees a field on one screen that is missing on another.
+ */
+const wireRow = (x: EnquiryGroupRow) => ({
+  id: x.id, kind: x.kind, jobNumber: x.jobNumber, reference: x.reference, name: x.name, email: x.email, phone: x.phone, address: x.address, createdAt: x.createdAt, stage: x.stage,
+  group: x.group, otherReason: x.otherReason, reason: x.reason, area: x.area, areaLabel: x.areaLabel, videoState: x.videoState, nextAction: x.nextAction, lastEmail: x.lastEmail, declaredInsulation: x.declaredInsulation,
+  duplicate: x.kind === "job" && !x.isPrimaryForContact, status: x.status,
+  attentionReason: x.attentionReason ?? (x.status === "needs_attention" ? x.reason : null), outcomeAt: x.outcomeAt,
+  mediaCount: x.mediaCount, mediaChecked: x.mediaChecked, mediaOutcome: x.mediaOutcome, removed: !!x.removed,
+});
 
 export const getEnquiryGroups = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({}).passthrough().parse(d ?? {}))
@@ -9,16 +22,27 @@ export const getEnquiryGroups = createServerFn({ method: "POST" }).middleware([r
     await requireAdmin(context.supabase);
     const { loadEnquiryGroups } = await import("./enquiry-groups.server");
     const r = await loadEnquiryGroups();
-    return {
-      rows: r.rows.map((x) => ({
-        id: x.id, kind: x.kind, jobNumber: x.jobNumber, reference: x.reference, name: x.name, email: x.email, phone: x.phone, address: x.address, createdAt: x.createdAt, stage: x.stage,
-        group: x.group, otherReason: x.otherReason, reason: x.reason, area: x.area, areaLabel: x.areaLabel, videoState: x.videoState, nextAction: x.nextAction, lastEmail: x.lastEmail, declaredInsulation: x.declaredInsulation,
-        duplicate: x.kind === "job" && !x.isPrimaryForContact, status: x.status,
-        attentionReason: x.attentionReason ?? (x.status === "needs_attention" ? x.reason : null), outcomeAt: x.outcomeAt,
-        mediaCount: x.mediaCount, mediaChecked: x.mediaChecked, mediaOutcome: x.mediaOutcome, removed: !!x.removed,
-      })),
-      scope: r.scope,
-    };
+    return { rows: r.rows.map(wireRow), scope: r.scope };
+  });
+
+/**
+ * One server-paginated page of the enquiries workspace. Search and ordering run in the database, the
+ * view is applied to the whole filtered set, and only this page's rows are sent to the browser.
+ */
+export const getEnquiryPage = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    view: z.string().max(40).default("all"),
+    search: z.string().max(120).default(""),
+    sort: z.string().max(40).default("created_at"),
+    direction: z.enum(["asc", "desc"]).default("desc"),
+    page: z.number().int().min(1).max(100_000).default(1),
+    pageSize: z.number().int().min(1).max(100).default(20),
+  }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { loadEnquiryPage } = await import("./enquiry-groups.server");
+    const r = await loadEnquiryPage(data);
+    return { ...r, rows: r.rows.map(wireRow) };
   });
 
 export const prepareEnquiryEmailsFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
