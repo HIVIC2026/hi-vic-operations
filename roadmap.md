@@ -1,7 +1,8 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Urgent Base44 delivery failure (Jo, 19 Oct 09:35 UTC)
-- [ ] Diagnose actual bridge payload/400 response; minimally repair delivery and redact recorded rejection reasons. Preserve templates, workflow and idempotency; no backlog retries.
-- [ ] Run focused delivery checks and inspect automatic build/typecheck; use one existing safe TEST send only if supported, otherwise report verification blocker. No publication.
+- [x] Inspected exact payload and response handling; signed recipient-free probe returned 400 Invalid recipient. Added bounded redacted rejection reasons; preserved payload, templates, workflow and idempotency. No backlog retries.
+- [x] 17 focused delivery tests and affected-file lint pass; automatic build OK. No existing TEST-only Base44 sender found (existing TEST sender uses Resend), so no email sent. No publication.
+- [ ] Correct actual receiver contract mismatch only after Base44 receiving function source/validation contract is available; original failure bodies were discarded, so empty-probe validation does not prove the cause of real requests. Separate typecheck result not established by current harness log.
 ## Enquiry office work buckets (Jo, 19 Oct 08:13 UTC)
 - [ ] Add exclusive display-only Enquiry work filters and counts while preserving factual top-level lanes and progressed records.
 - [ ] Run focused enquiry tests and read-only current-count reconciliation; report preview verification and gaps. No data writes, sends or publication.
