@@ -150,11 +150,17 @@ describe("regression: nothing here changes an email, a payment or a workflow", (
       expect(src).not.toMatch(/\.(insert|update|upsert|delete)\(/);
       expect(src).not.toContain("createServerFn");
     }
-    // enquiry-groups.server.ts keeps its two pre-existing writers untouched; nothing else may write
-    expect(ENQUIRIES.match(/\.insert\(/g) ?? []).toHaveLength(1);
-    expect(ENQUIRIES.match(/\.update\(/g) ?? []).toHaveLength(1);
-    expect(ENQUIRIES).toContain("export async function reviewLeadMedia");
-    expect(ENQUIRIES).toContain("export async function removeLeads");
+    // The whole read + paging path writes nothing: from the database read to the paged loader.
+    const readPath = ENQUIRIES.slice(
+      ENQUIRIES.indexOf("export async function websiteEnquiries"),
+      ENQUIRIES.indexOf("function renderDraft"),
+    );
+    expect(readPath).not.toMatch(/\.(insert|update|upsert|delete)\(/);
+    // enquiry-groups.server.ts keeps exactly its three pre-existing office actions as the only writers.
+    for (const fn of ["reviewLeadMedia", "noInsulationSaveSpot", "removeLeads"]) {
+      expect(ENQUIRIES).toContain(`export async function ${fn}`);
+    }
+    expect(ENQUIRIES.match(/\.(insert|update|upsert|delete)\(/g) ?? []).toHaveLength(3);
   });
 
   test("the enquiry group rules and the existing full pipeline read are untouched", () => {
