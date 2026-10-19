@@ -26,7 +26,9 @@
 --   (A no-size T1 is NOT held for rows ENQ_01 enqueues: the worker gives ENQUIRY_BACKLOG_MANUAL items a trusted
 --    context, src/lib/manual-backlog.core.ts, which releases only the "proven new" hold — still the labelled 150 m2.)
 --   (B T7 jobs_created_after / 14-day timing is NOT applied to ENQUIRY_BACKLOG_MANUAL items — emailsafety.core.ts.)
---   STAGE_MOVED_ON         B: stage is not new_enquiry / eligibility_review / on_hold → T7 suppressed.
+--   STAGE_MOVED_ON         mandatory backlog stage rule (same lists as ENQ_01, never bypassed):
+--                          A/C not in new_enquiry / eligibility_review / preliminary_estimate_ready;
+--                          B not in new_enquiry / eligibility_review / on_hold.
 -- Rows with a sender_hold read HELD_BY_SENDER_RULE instead of AUTO_SEND. Service-area coverage and the Office
 -- automatic-sending rules (S102/S103) are checked by the app at send time and are not predicted here.
 -- ===================================================================================================
