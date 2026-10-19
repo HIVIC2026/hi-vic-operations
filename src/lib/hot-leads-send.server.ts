@@ -215,7 +215,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     referralUrl = await previewLinks.existingReferralUrl(linkJobId).catch(() => null);
     if (!referralUrl) { linksReady = false; referralUrl = previewLinks.PREVIEW_REFERRAL_URL; }
   } else if (sendGroup === "likely" || office) referralUrl = await (await import("./referral.server")).referralUrlForJob(linkJobId).catch(() => null);
-  const mail = office
+  const mailBase = office
     ? await (async () => {
       const o = await import("./save-spot-offer.core");
       const removal = removalFromScenario(Array.isArray(est?.scenarios) ? est.scenarios[0] : null);
@@ -248,6 +248,34 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     ...(assessmentFee === undefined ? {} : { assessmentFee }),
     ...(apFee === undefined ? {} : { apFee }),
   }), unsubscribeUrl);
+  // COM-08 (S92): render Jo's authoritative template (T1–T6) first; fail closed to the existing approved
+  // renderer when no Jo template applies or the estimate lacks the itemised figures Jo's copy needs.
+  const joMail = await (async () => {
+    if (office || followup || (isTest && testOpts.variant === "likely_estimate")) return null;
+    if (!Number.isFinite(Number(installation)) || !Number.isFinite(Number(assessmentFee)) || !Number.isFinite(Number(apFee)) || !Number.isFinite(Number(price.areaM2))) return null;
+    try {
+      const { renderJoOutcomeEmail } = await import("./jo-outcome-email.core");
+      let deskCheckStatus: "looks_eligible" | "not_eligible" | "needs_onsite_check" | null = null;
+      try {
+        const { data: lcr } = await admin.from("lead_campaign_responses").select("desk_check_status").eq("job_id", jobId).maybeSingle();
+        const d = (lcr as { desk_check_status?: string | null } | null)?.desk_check_status;
+        if (d === "looks_eligible" || d === "not_eligible" || d === "needs_onsite_check") deskCheckStatus = d;
+      } catch { deskCheckStatus = null; }
+      const outcome = job.eligibility_outcome === "likely_eligible" ? "likely_eligible"
+        : job.eligibility_outcome === "needs_onsite_confirmation" ? "needs_onsite_confirmation"
+        : job.eligibility_outcome === "does_not_appear_eligible" ? "does_not_appear_eligible" : null;
+      const insulation = price.insulation === "none" || price.insulation === "present" ? price.insulation : "unknown";
+      const ceilingSizeKnown = !assumed && Number(price.areaM2) > 0;
+      const rendered = renderJoOutcomeEmail({
+        outcome, insulation, ceilingSizeKnown, deskCheckStatus,
+        recipient: { firstName: firstName ?? "there", propertyAddress: fullAddress ?? "", enquiryReference: job.job_number ?? "" },
+        figures: { veuRebate: Number(price.discount), customerTotal: Number(price.total), totalBeforeRebate: Number(price.gross), installation: Number(installation), piesaFee: Number(assessmentFee), apFee: Number(apFee), ceilingAreaM2: Number(price.areaM2), areaEstimated: assumed },
+        links: { saveMySpotUrl: campaignUrl, uploadMediaUrl: `${base}/estimate/${linkToken}/video`, reviewResultUrl: `${base}/estimate/${linkToken}`, calculatorUrl: `${base}/estimate/${linkToken}#calculator` },
+      });
+      return rendered ? withUnsubscribe(rendered, unsubscribeUrl) : null;
+    } catch { return null; }
+  })();
+  const mail = joMail ?? mailBase;
   if (mode === "preview" || mode === "manual_copy") return { ...r("sent", "Preview only — not sent"), preview: { to, subject: mail.subject, html: mail.html, plainText: mail.plainText, linksReady } };
   if (mode === "test_preview") return { ...r("sent", "TEST copy rendered only — not sent"), preview: { to: JO_TEST_INBOX, subject: `[TEST of ${job.job_number}] ${mail.subject}`, html: mail.html, plainText: mail.plainText, linksReady }, linkJobId, linkToken, sendGroup };
   if (mode === "test_to_jo") {

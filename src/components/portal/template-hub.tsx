@@ -1,4 +1,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
+import { useMemo } from "react";
+import { renderJoOutcomeEmail, renderJoReadyCheckInvitationEmail } from "@/lib/jo-outcome-email.core";
+import type { JoTemplateId } from "@/lib/jo-email-templates.core";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowUpRight, Download } from "lucide-react";
@@ -68,6 +71,25 @@ function Facts({ entry }: { entry: TemplateEntry }) {
   );
 }
 
+function JoSample({ templateId }: { templateId: JoTemplateId }) {
+  const mail = useMemo(() => {
+    try {
+      const recipient = { firstName: "Alex", propertyAddress: "12 Sample St, Melbourne VIC 3000", enquiryReference: "HV-0000" };
+      const figures = { veuRebate: 2600, customerTotal: 1900, totalBeforeRebate: 4500, installation: 3800, piesaFee: 350, apFee: 350, ceilingAreaM2: 150, areaEstimated: true };
+      const links = { saveMySpotUrl: SAMPLE_LINK, uploadMediaUrl: SAMPLE_LINK, reviewResultUrl: SAMPLE_LINK, calculatorUrl: SAMPLE_LINK };
+      if (templateId === "ready_check_invitation") return renderJoReadyCheckInvitationEmail(recipient, { ...figures, savedAt: "2026-10-19T00:00:00Z", personalEstimateUrl: SAMPLE_LINK, readyCheckBookingUrl: SAMPLE_LINK });
+      if (templateId === "ineligible") return renderJoOutcomeEmail({ outcome: "does_not_appear_eligible", insulation: null, ceilingSizeKnown: false, recipient, reason: "[The official ineligibility reason appears here]", links });
+      const outcome = templateId.startsWith("eligible") ? "likely_eligible" : templateId.startsWith("potentially") ? "needs_onsite_confirmation" : "likely_eligible";
+      const insulation = templateId.startsWith("eligible_no_insulation") ? "none" : templateId.startsWith("eligible_below_r2") ? "present" : "unknown";
+      const ceilingSizeKnown = templateId.endsWith("size_known");
+      const deskCheckStatus = templateId.startsWith("eligible_below_r2") ? "looks_eligible" : null;
+      return renderJoOutcomeEmail({ outcome, insulation, ceilingSizeKnown, deskCheckStatus, recipient, figures, links });
+    } catch { return null; }
+  }, [templateId]);
+  if (!mail) return <p className="text-sm text-rose">This template could not be previewed with sample data.</p>;
+  return <HtmlEmail subject={mail.subject} html={mail.html} note="Sample values only. Rendered by the same function every real send uses." />;
+}
+
 function TemplateDetail({ entry }: { entry: TemplateEntry }) {
   const v = entry.view;
   return (
@@ -83,6 +105,7 @@ function TemplateDetail({ entry }: { entry: TemplateEntry }) {
       {v.kind === "compliance_template" && <ComplianceVersions templateKey={v.templateKey} />}
       {v.kind === "register" && <RegisterDetail index={v.index} mitti={v.mitti} />}
       {v.kind === "owner_paperwork" && <OwnerPaperwork gate={v.gate} />}
+      {v.kind === "jo_sample" && <JoSample templateId={v.templateId} />}
     </div>
   );
 }

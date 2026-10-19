@@ -3,6 +3,7 @@
 // nothing here holds wording, decides approval or changes workflow. Unknown metadata says so.
 import { ACTIVITY_48_FORMS, COMPLIANCE_TEMPLATE_KEYS, CUSTOMER_COMMUNICATION_CATALOG, MITTI_FORM_ORDER } from "./template-catalog";
 import type { FormKey } from "./mitti-forms.core";
+import type { JoTemplateId } from "./jo-email-templates.core";
 
 export type TemplateCategory = "email" | "mitti" | "compliance";
 export const TEMPLATE_CATEGORIES: { key: TemplateCategory; label: string }[] = [
@@ -20,7 +21,8 @@ export type TemplateView =
   | { kind: "mitti"; formKey: FormKey }
   | { kind: "compliance_template"; templateKey: string }
   | { kind: "register"; index: number; mitti: FormKey[] }
-  | { kind: "owner_paperwork"; gate: "A" | "B" | "C" | "D" };
+  | { kind: "owner_paperwork"; gate: "A" | "B" | "C" | "D" }
+  | { kind: "jo_sample"; templateId: JoTemplateId };
 
 export type TemplateEntry = {
   id: string; category: TemplateCategory; group: string; title: string;
@@ -38,7 +40,26 @@ const commEntry = (key: string, view: TemplateView, approval: string): TemplateE
   return { id: `email:${key}`, category: "email", group: "Customer emails", title: c[1], purpose: c[2], audience: "Homeowner", trigger: `Stage ${c[3]}`, approval, reviewKey: key, view };
 };
 
+// Jo Lowe's eight approved homeowner emails (P1-R3-COM-08, 15 Oct 2026). These are the SAME definitions
+// the sending workflow selects from (selectJoTemplate / renderJoOutcomeEmail), so Office shows what is sent.
+const JO_EMAIL: TemplateEntry[] = ([
+  ["eligible_no_insulation_size_unknown", "Eligible — no existing insulation (size unknown)"],
+  ["eligible_no_insulation_size_known", "Eligible — no existing insulation (size known)"],
+  ["eligible_below_r2_reviewed_size_unknown", "Existing insulation below R2, reviewed (size unknown)"],
+  ["eligible_below_r2_reviewed_size_known", "Existing insulation below R2, reviewed (size known)"],
+  ["potentially_eligible_unknown_size_unknown", "Potentially eligible — insulation to confirm (size unknown)"],
+  ["potentially_eligible_unknown_size_known", "Potentially eligible — insulation to confirm (size known)"],
+  ["ineligible", "Ineligible result"],
+  ["ready_check_invitation", "Ready Check invitation"],
+] as const).map(([id, title]): TemplateEntry => ({
+  id: `email:jo:${id}`, category: "email", group: "Jo's approved homeowner emails (15 Oct 2026)", title,
+  purpose: "Jo Lowe's approved homeowner email. The preview is rendered by the SAME function every real send uses.",
+  audience: "Homeowner", trigger: "Initial-enquiry routing / Office decision", approval: "Approved by Jo Lowe, 15 Oct 2026",
+  view: { kind: "jo_sample", templateId: id },
+}));
+
 const EMAIL: TemplateEntry[] = [
+  ...JO_EMAIL,
   commEntry("likely_estimate", { kind: "sample_email", sample: "likely" }, "Locked as approved (project record, 1 Oct 2026)"),
    { id: "email:save_my_spot", category: "email", group: "Customer emails", title: "Save your spot", purpose: "Provides an estimate and invites the homeowner to save a spot while installer capacity is arranged.", audience: "Homeowner (likely eligible, no insulation, ceiling size entered)", trigger: "Office bulk send from leads after Jo presses Send", approval: "Approved final by Jo Lowe, 7 Oct 2026", view: { kind: "sample_email", sample: "savespot" } },
   { id: "email:save_my_spot_no_size", category: "email", group: "Customer emails", title: "Save your spot — no ceiling size", purpose: "Same email using a clearly stated assumed average of 150 m² plus the usual size-check calculator link.", audience: "Homeowner (eligible, no ceiling size given)", trigger: "Separate template; nothing sends it automatically", approval: "Requested by Jo, 8 Oct 2026 — no stored approval record", view: { kind: "sample_email", sample: "savespotNoSize" } },
