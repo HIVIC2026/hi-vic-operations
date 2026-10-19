@@ -19,8 +19,14 @@ export type ManualBacklogTrust = typeof MANUAL_BACKLOG_TRUST;
 export type LeadRouteContext = { manualBacklog?: ManualBacklogTrust };
 
 /** The trusted context for a claimed worker item, or an empty (normal) context. */
-export function routeContextForWorkItem(item: { reason: string | null | undefined; facts_version: string | null | undefined }): LeadRouteContext {
-  return item.reason === MANUAL_BACKLOG_REASON && item.facts_version === MANUAL_BACKLOG_FACTS_VERSION ? { manualBacklog: MANUAL_BACKLOG_TRUST } : {};
+export function routeContextForWorkItem(item: {
+  reason: string | null | undefined;
+  facts_version: string | null | undefined;
+}): LeadRouteContext {
+  return item.reason === MANUAL_BACKLOG_REASON &&
+    item.facts_version === MANUAL_BACKLOG_FACTS_VERSION
+    ? { manualBacklog: MANUAL_BACKLOG_TRUST }
+    : {};
 }
 
 /** True only for the exact Symbol issued above; strings, booleans and look-alike symbols are rejected. */
