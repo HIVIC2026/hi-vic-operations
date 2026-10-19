@@ -31,6 +31,7 @@ import {
 import {
   applyCampaignFonts,
   applyReadyCheckFee,
+  campaignArtImg,
   campaignButton,
   escape,
   PRIVACY_URL,
@@ -38,6 +39,8 @@ import {
   V2_THEME,
   type EstimateEmail,
 } from "./estimate-email";
+import { emailArtUrl } from "./email-art.core";
+import { CUSTOMER_BRAND } from "./customer-quote-system";
 import { REMOVE_ENQUIRY_HTML_SLOT, REMOVE_ENQUIRY_TEXT_SLOT } from "./emailsafety.core";
 
 /** Jo's footer link row, verbatim placeholders (P1-S77: bound to real links, never shown as bracketed text). */
@@ -287,17 +290,48 @@ function joBodyToHtml(body: string): string {
 /** Footer entity line, exactly as Jo's approved footer already states it. */
 const JO_ENTITY = "DC Construction Solutions Pty Ltd trading as Home Insulation Victoria";
 
-/** Small header pill per template — presentation only, never customer copy. */
-const JO_BADGE: Record<JoTemplateId, string> = {
-  eligible_no_insulation_size_unknown: "Preliminary quote",
-  eligible_no_insulation_size_known: "Preliminary quote",
-  eligible_below_r2_reviewed_size_unknown: "Reviewed quote",
-  eligible_below_r2_reviewed_size_known: "Reviewed quote",
-  potentially_eligible_unknown_size_unknown: "Next step",
-  potentially_eligible_unknown_size_known: "Next step",
-  ineligible: "Result",
-  ready_check_invitation: "Ready Check",
-};
+/**
+ * Header: the SAME composition the existing Spot Saved email uses — the per-owner campaign art
+ * image (logo + caps line + headline drawn into one image) rendered by `campaignArtImg`.
+ *
+ * We deliberately do NOT use the `V2_THEME.header` logo+badge arrangement Jo rejected.
+ *
+ * The art endpoint only draws a rebate headline when the job has a current estimate, so the
+ * ineligible template (no estimate / no rebate) falls back to the identical logo on its own.
+ */
+const JO_LOGO_HEADER = `<tr><td class="lx-pad" style="padding:22px 36px 2px;"><img class="lx-logo hiv-logo" src="${escape(CUSTOMER_BRAND.logoUrl)}" alt="Home Insulation Victoria" width="142" height="61" style="display:block;width:142px;height:auto;max-width:100%;border:0;"></td></tr>`;
+
+/** The origin + estimate token from a customer estimate URL (`/estimate/{token}` or `/my-estimate/{token}`). */
+function originAndToken(url: string | null | undefined): { origin: string; token: string } | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    const parts = u.pathname.split("/").filter(Boolean);
+    const at = parts.findIndex((p) => p === "estimate" || p === "my-estimate");
+    const token = at >= 0 ? parts[at + 1] : undefined;
+    return token ? { origin: u.origin, token } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Spot Saved's header art row for this customer, or the plain logo when no rebate art applies. */
+function joHeader(url: string | null | undefined, kind: "headline" | "spot", alt: string): string {
+  const ot = originAndToken(url);
+  return ot ? campaignArtImg(emailArtUrl(ot.origin, ot.token, kind), alt) : JO_LOGO_HEADER;
+}
+
+/** Jo's first heading, verbatim, as the header image's accessible/fallback text. */
+function firstHeadline(body: string): string {
+  for (const raw of body.split("\n")) {
+    const line = raw.trim();
+    if (!line || line === JO_SIGN_OFF || line === JO_FOOTER_LINKS_LINE) continue;
+    if (line.startsWith("### ")) return line.slice(4).trim();
+    const plain = line.replace(new RegExp(TOKEN_INLINE.source, "g"), "$3").replace(/\*\*/g, "").trim();
+    if (plain) return plain;
+  }
+  return "Home Insulation Victoria";
+}
 
 /**
  * Jo's body ends with the approved sign-off block (entity, reference, footer links). Split it out so
@@ -330,8 +364,7 @@ function joFooterHtml(reference: string | null): string {
 }
 
 /** Wrap rendered content in the same shell the Spot Saved email uses. `pixel` stays null (unchanged). */
-function joShell(id: JoTemplateId, subject: string, content: string, reference: string | null): string {
-  const header = `<tr><td class="lx-pad" style="padding:22px 36px 2px;">${V2_THEME.header(JO_BADGE[id])}</td></tr>`;
+function joShell(header: string, subject: string, content: string, reference: string | null): string {
   const body = `<tr><td class="lx-pad" style="padding:10px 36px 26px;${F}">${content}</td></tr>`;
   return applyCampaignFonts(
     V2_THEME.shell(`${header}${body}${V2_THEME.footerRow(joFooterHtml(reference))}`, subject, null),
@@ -435,7 +468,7 @@ export function renderJoReadyCheckInvitationEmail(recipient: JoRecipient, snapsh
     subject: rendered.subject,
     previewText: rendered.subject,
     html: joShell(
-      "ready_check_invitation",
+      joHeader(snapshot.personalEstimateUrl, "spot", firstHeadline(content)),
       rendered.subject,
       `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:separate;"><tr><td style="${F}">${joBodyToHtml(content)}</td></tr></table>`,
       reference,
@@ -456,8 +489,10 @@ function assemble(
   const previewText = subject;
   const { content: bodyCopy, reference } = splitJoFooter(body);
   const content = joBodyToHtml(bodyCopy);
+  // T1–T6 reuse the Spot Saved header art; T7 has no rebate, so it keeps the same logo alone.
+  const header = id === "ineligible" ? JO_LOGO_HEADER : joHeader(input.links.reviewResultUrl, "headline", firstHeadline(bodyCopy));
   const html = joShell(
-    id,
+    header,
     subject,
     `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:separate;"><tr><td style="${F}">${content}</td></tr></table>`,
     reference,
