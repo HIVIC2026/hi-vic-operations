@@ -1,4 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Enquiry office work buckets (Jo, 19 Oct 08:13 UTC)
+- [ ] Add exclusive display-only Enquiry work filters and counts while preserving factual top-level lanes and progressed records.
+- [ ] Run focused enquiry tests and read-only current-count reconciliation; report preview verification and gaps. No data writes, sends or publication.
 ## Ready Check FREE correction (Jo, 19 Oct 03:11 UTC)
 - [x] Audit active Ready Check price/payment surfaces; enforce $0 for stored customer state and acceptance, remove dormant paid-email transform and legacy payment wording.
 - [x] Focused free-pricing and customer-state tests pass; automatic build OK. Broader pricing/office tests have five unrelated wording/navigation/source failures, left unchanged to preserve scope. No migrations, sends or publication.
