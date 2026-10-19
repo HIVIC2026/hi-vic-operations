@@ -261,3 +261,28 @@ column as follows. The technical observations (code evidence, failing tests) rem
 | RC-4 (PIESA F-1 advance) | P1 | **NOT YET REVERIFIED** (owner states F-1 was previously resolved; current evidence = 8/14 unit failures + no browser verification — verification required, not automatic reopening) |
 | RC-10 (FFS events on user timelines) | P1 | **CANCELLED FEATURE — REMAINING VISIBILITY RISK RECORDED** (FFS functionality is cancelled; current evidence shows `buildTimeline` still emits FFS events to user-facing audiences — residual risk documented in the release register; no code change under the documentation task) |
 | RC-3/5/6/7/8/9 | P2 | Non-blocking; owner-closed workstreams (Enquiries, Communications, Email Templates) not reopened |
+
+---
+
+## ADDENDUM — POST-RC1 CORRECTION UPDATE (2026-10-20)
+
+The RC-1 row in the reconciliation table above is now superseded (it was accurate at the time
+it was written; later same-day commits changed the state).
+
+- **RC-1 original failures:** 13 (`a4-step80-regulated-result-authz-db.test.ts` 9 + `a4-clearance-guard.test.ts` 4).
+- **RC-1 correction:** **VERIFIED FIXED** — commit `63ef6cae4eff42058ce77264117e03d8c1d92d18`
+  (`fix(p1): enforce electrician authorization for manual PIESA`), pushed to `origin/main` after this report's
+  baseline `c5cbd3a3`. The `clearanceRecorderAllowed` guard is wired into `saveAssessment`, `completeAssessment`,
+  `recordPiesa` and `submitDeclaration("electrician_declaration")` before any read/write (fail-closed); the
+  `addTeamMember` privilege-escalation path and `switchJobElectricianToHivic` access check are corrected.
+- **Targeted RC-1 tests after correction: 47 PASS / 0 FAIL** — independently re-run on `origin/main` @ `63ef6cae`
+  in an isolated PGlite/loopback environment on 2026-10-20 (38 in a4-step80 + 9 in a4-clearance-guard).
+- **S64 targeted regression tests: PASS** (`piesa-future-date-runtime` 10/10; `p1-s64-date-payment-*` 38/38).
+- **TypeScript: PASS** (independently confirmed, 0 errors); **production build: PASS** (per the RC-1 correction report).
+- **Full-suite results: NOT RERUN.** The historical totals above (3,603 / 160 / 38 at `c5cbd3a3`) remain the
+  measured record. The 160 failures **included the 13 RC-1 failures now corrected**; a current suite total has
+  not been measured, so 160 − 13 = 147 is only an arithmetic projection, not a result, and is not claimed as such.
+- Correction report of record: `docs/phase1/release/P1-RC1_PIESA_AUTHORIZATION_CORRECTION_2026-10-20.md`.
+- Current statuses live in `docs/phase1/release/P1_PHASE1_RELEASE_STATUS_2026-10-20.md` (RC-1 FIXED AND VERIFIED;
+  remaining limitations — licence expiry, missing licence records, partner business approval status not enforced
+  by the guard — are recorded there as policy/data gaps, not resolved compliance matters).

@@ -10,6 +10,13 @@
 > 未应用迁移、未切换 feature flag、未启用客户通信、未发送邮件/短信、未触发 Xero/Mitti、
 > 未提交/推送/合并/发布、未删除未跟踪文件、未 reset 工作区。唯一产出为本报告。
 
+> **STATUS NOTE (later, 2026-10-20):** 本报告成文于 `c5cbd3a3`。同日 main 前移：文档整合提交 `d0e29ec7`，
+> 以及 **RC-1 PIESA 授权修正 `63ef6cae`（FIXED AND VERIFIED，13/13 定向用例 + 47/47 全绿，详见
+> `P1-RC1_PIESA_AUTHORIZATION_CORRECTION_2026-10-20.md`）**。因此下文 §F「方案 A」中的推荐发布范围应读作
+> **「发布当前最新 `origin/main`」**（当前至少 `63ef6cae`），而非固定在 `c5cbd3a3` —— 正按本报告 §G 的告诫：
+> 发布前须核对更新的技术发现。C10–C13 四项决策判定本身不受影响（C13 仍 BLOCKED — OWNER APPROVAL REQUIRED）。
+> 当前权威状态见 `P1_PHASE1_RELEASE_STATUS_2026-10-20.md`。
+
 ---
 
 ## 0. 为什么上一轮审计会得出"四项均未解决"
