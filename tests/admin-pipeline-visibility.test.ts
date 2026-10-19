@@ -13,9 +13,12 @@ describe("admin pipeline visibility", () => {
 
     expect(implementation).toContain(".middleware([requireSupabaseAuth])");
     expect(implementation.indexOf("await requireAdmin(context.supabase)")).toBeGreaterThan(-1);
-    expect(implementation.indexOf('admin.from("job_overview")')).toBeGreaterThan(
+    // the job_overview read moved into its own server module; it is still imported, and therefore
+    // reachable, only after the caller has been verified as an admin.
+    expect(implementation.indexOf('await import("./job-pipeline.server")')).toBeGreaterThan(
       implementation.indexOf("await requireAdmin(context.supabase)"),
     );
+    expect(functions).toContain("admin.from(\"job_overview\")");
     expect(implementation).toContain("if (error) throw new Error");
   });
 
