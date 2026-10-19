@@ -23,9 +23,12 @@ export const dispatchEnquiryBacklog = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ attempted: number; results: DispatchResult[] }> => {
     const { requireAdmin } = await import("./workflow.server");
     await requireAdmin(context.supabase);
-    const { dispatchableJobIds, DISPATCH_BATCH } = await import("./enquiry-dispatch.server");
+    const { dispatchableJobIds, ensureEstimateLinks, DISPATCH_BATCH } = await import("./enquiry-dispatch.server");
     const ids = await dispatchableJobIds(Math.min(data.limit, DISPATCH_BATCH));
     if (ids.length === 0) return { attempted: 0, results: [] };
+    // (Re)issue the secure Step-3 link first — never sends, only prepares the link the sender requires.
+    // Historical backlog links expired after 30 days and were never renewed, which made every send skip.
+    await ensureEstimateLinks(ids, context.userId);
     const { sendSaveMySpot } = await import("./hot-leads-send.server");
     const results = await sendSaveMySpot(ids, context.userId);
     return {
@@ -47,10 +50,12 @@ export const retryFailedEnquirySend = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ outcome: string; detail: string }> => {
     const { requireAdmin } = await import("./workflow.server");
     await requireAdmin(context.supabase);
-    const { isRetryable } = await import("./enquiry-dispatch.server");
+    const { isRetryable, ensureEstimateLinks } = await import("./enquiry-dispatch.server");
     // This endpoint must never work as a generic "email this home" button.
     const allowed = await isRetryable(data.jobId);
     if (!allowed.ok) return { outcome: "blocked", detail: allowed.reason };
+    // Same as a fresh dispatch: renew the expired link before the sender reads it. No send happens here.
+    await ensureEstimateLinks([data.jobId], context.userId);
     const [r] = await (
       await import("./hot-leads-send.server")
     ).sendSaveMySpot([data.jobId], context.userId);

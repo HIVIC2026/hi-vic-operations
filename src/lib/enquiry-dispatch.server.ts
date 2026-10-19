@@ -55,7 +55,11 @@ export async function candidateJobIds(limit = DISPATCH_POOL): Promise<string[]> 
 }
 
 /** Filter candidates down to homes that have not been answered, are not in flight, are not suppressed,
- *  and still hold a current preliminary estimate plus an active estimate link.
+ *  and still hold a current preliminary estimate.
+ *  NOTE: the secure estimate link is deliberately NOT required here. It is created/renewed by
+ *  `ensureEstimateLinks()` immediately before a send (see dispatchEnquiryBacklog / dispatchableIdsWithLink),
+ *  because the 30-day link TTL had silently expired every historical backlog link — the readiness check
+ *  required a live link, but nothing ever (re)issued one, so "Ready to send" was permanently 0.
  *  Fails closed: an unreadable history never makes a home look sendable. Order is preserved. */
 export async function sendableFrom(candidates: string[]): Promise<string[]> {
   if (candidates.length === 0) return [];
@@ -63,9 +67,8 @@ export async function sendableFrom(candidates: string[]): Promise<string[]> {
   const inflight = new Set<string>();
   const suppressed = new Set<string>();
   const hasEstimate = new Set<string>();
-  const hasLink = new Set<string>();
   for (const part of chunk(candidates)) {
-    const [sends, optouts, responses, estimates, links] = await Promise.all([
+    const [sends, optouts, responses, estimates] = await Promise.all([
       admin.from("customer_email_sends").select("job_id, status").in("job_id", part),
       admin.from("customer_email_optouts").select("job_id, opted_out_at").in("job_id", part),
       admin.from("lead_campaign_responses").select("job_id, opted_out_at").in("job_id", part),
@@ -74,14 +77,8 @@ export async function sendableFrom(candidates: string[]): Promise<string[]> {
         .select("job_id")
         .eq("status", "current")
         .in("job_id", part),
-      admin
-        .from("customer_estimate_links")
-        .select("job_id")
-        .eq("purpose", "step3_estimate")
-        .eq("status", "active")
-        .in("job_id", part),
     ]);
-    const error = sends.error ?? optouts.error ?? responses.error ?? estimates.error ?? links.error;
+    const error = sends.error ?? optouts.error ?? responses.error ?? estimates.error;
     if (error) fail("who is safe to email");
     for (const s of sends.data ?? []) {
       if (s.status === "sent" || s.status === "delivered_unrecorded") sent.add(s.job_id);
@@ -90,16 +87,37 @@ export async function sendableFrom(candidates: string[]): Promise<string[]> {
     for (const o of optouts.data ?? []) if (o.opted_out_at) suppressed.add(o.job_id);
     for (const r of responses.data ?? []) if (r.opted_out_at) suppressed.add(r.job_id);
     for (const e of estimates.data ?? []) hasEstimate.add(e.job_id);
-    for (const l of links.data ?? []) hasLink.add(l.job_id);
   }
   return candidates.filter(
     (id) =>
       !sent.has(id) &&
       !inflight.has(id) &&
       !suppressed.has(id) &&
-      hasEstimate.has(id) &&
-      hasLink.has(id),
+      hasEstimate.has(id),
   );
+}
+
+/** (Re)issue the secure Step-3 estimate link for each id, then return only the ids that now hold a usable
+ *  link. Idempotent and never sends anything: `syncStep3` reuses a live link and otherwise issues a fresh
+ *  one (its 30-day TTL is the only reason historical backlog links stop working). A failure is contained to
+ *  that one home — the caller still gets a per-home outcome instead of a whole-batch abort. */
+export async function ensureEstimateLinks(jobIds: string[], actorId: string | null = null): Promise<Set<string>> {
+  if (jobIds.length === 0) return new Set();
+  const { syncStep3 } = await import("./estimatelink.server");
+  const { linkUsable } = await import("./estimatelink.core");
+  const now = Date.now();
+  for (const id of jobIds) {
+    try { await syncStep3(id, actorId); } catch { /* contained per-home; verified below */ }
+  }
+  const { data, error } = await admin
+    .from("customer_estimate_links")
+    .select("job_id, status, expires_at")
+    .eq("purpose", "step3_estimate")
+    .in("job_id", jobIds);
+  if (error) fail("the prepared estimate links");
+  const usable = new Set<string>();
+  for (const l of data ?? []) if (linkUsable(l, now)) usable.add(l.job_id);
+  return usable;
 }
 
 /** The exact ids one dispatch would attempt, capped to a single batch. */
