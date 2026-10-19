@@ -16,14 +16,11 @@ import { signFile } from "./file-links.server";
 import { formatPropertyAddress } from "./address";
 import { LAUNCH_CAMPAIGN } from "./launch-campaign.core";
 import {
-  classifyEnquiry, enquiryStatus, contactExclusion, primaryByContact, propertyKey, contactKey, sendHolds, templateFor, AREA_LABEL, ASSUMED_REFERENCE_AREA_M2, isNewEnquiry,
-  type EnquiryClass, type EnquiryStatus, type EnquiryGroup, type OtherReason, type StoredAudit, type MediaReviewOutcome, effectiveInsulation, noInsulationReviewBlocker,
+  classifyEnquiry, enquiryStatus, contactExclusion, primaryByContact, propertyKey, contactKey, sendHolds, templateFor, AREA_LABEL, ASSUMED_REFERENCE_AREA_M2,
+  type EnquiryClass, type EnquiryStatus, type EnquiryGroup, type OtherReason, type StoredAudit, type MediaReviewOutcome,
 } from "./enquiry-groups.core";
-import { matchesTerm, paginate, toPage, toPageSize } from "./list-paging.core";
-import { searchWords, toDirection, toEnum } from "./list-query.core";
-import { ENQUIRY_SORT_KEYS, ENQUIRY_VIEW_KEYS, ENQUIRY_VIEWS, type EnquiryPageView } from "./enquiry-list-page.core";
 
-const MEDIA_OUTCOMES: MediaReviewOutcome[] = ["below_r2", "over_r2", "unclear", "no_insulation"];
+const MEDIA_OUTCOMES: MediaReviewOutcome[] = ["below_r2", "over_r2", "unclear"];
 
 const PAGE = 1000;
 /** Fewer, larger `.in()` chunks: 500 ids keeps the URL well inside PostgREST limits while cutting round trips by ~70%. */
@@ -67,38 +64,15 @@ export type EnquiryGroupRow = EnquiryClass & {
   mediaOutcome: MediaReviewOutcome | null;
 };
 
-const ENQUIRY_SELECT =
-  "id, job_number, external_enquiry_id, stage, hold_reason, source, created_at, eligibility_set_at, eligibility_outcome, eligibility_decision_source, eligibility_review_required, eligibility_decision_rules, estimated_area_m2, estimated_area_unknown, owners(full_name, email, phone), properties(address_line, suburb, state, postcode, enrichment)";
-
-/**
- * Every website enquiry, with the ordering applied by the DATABASE. The office's search term is
- * deliberately NOT a PostgREST `or=(...)` here: this PostgREST build rejects embedded resource
- * references inside or= — PGRST100 "failed to parse logic tree" on owners.x / properties.x —
- * which turned every search into a blank page. The full set is classified anyway (the view tiles
- * count it), so loadEnquiryPage applies the term over the same fields the office sees. `id` is
- * the stable tie-breaker that stops equal sort keys moving a record from one page to another.
- */
-export async function websiteEnquiries(query: { sort?: string; ascending?: boolean } = {}) {
-  const run = (from: number, to: number) =>
-    admin.from("jobs").select(ENQUIRY_SELECT).eq("source", WEBSITE_SOURCE).eq("channel", WEBSITE_CHANNEL)
-      .order(query.sort ?? "created_at", { ascending: query.ascending ?? true, nullsFirst: false }).order("id").range(from, to);
-  return all(run);
-}
-
 export async function loadEnquiryGroups() {
-  return classifyWebsiteEnquiries(await websiteEnquiries());
-}
-
-/**
- * Classifies the enquiries it is handed and returns the whole set. Both entry points share this so a
- * page and a full read can never disagree about what an enquiry's group or status is.
- */
-export async function classifyWebsiteEnquiries(jobs: Awaited<ReturnType<typeof websiteEnquiries>>) {
+  const jobs = await all((f, t) => admin.from("jobs")
+    .select("id, job_number, external_enquiry_id, stage, hold_reason, source, created_at, eligibility_set_at, eligibility_outcome, eligibility_decision_source, eligibility_review_required, eligibility_decision_rules, estimated_area_m2, estimated_area_unknown, owners(full_name, email, phone), properties(address_line, suburb, state, postcode, enrichment)")
+    .eq("source", WEBSITE_SOURCE).eq("channel", WEBSITE_CHANNEL).order("created_at", { ascending: true }).order("id").range(f, t));
   const ids = jobs.map((j) => j.id);
   const [meas, ests, docs, work, sends, consents, optouts, events, interests, cfg, responses, media, reviewed, removedRows] = await Promise.all([
     byJobs(ids, (c, f, t) => admin.from("ceiling_measurements").select("job_id, verified_area_m2, measured_area_m2").in("job_id", c).eq("is_current", true).eq("status", "complete").range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("property_area_estimates").select("id, job_id, tier, net_m2, created_at").in("job_id", c).in("tier", TRUSTED_ESTIMATE_TIERS).range(f, t)),
-    byJobs(ids, (c, f, t) => admin.from("evidence_files").select("job_id, mime_type, storage_path").in("job_id", c).like("storage_path", "%/intake/%").range(f, t)),
+    byJobs(ids, (c, f, t) => admin.from("evidence_files").select("job_id, mime_type, storage_path").in("job_id", c).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("post_intake_work").select("job_id").in("job_id", c).in("status", ["queued", "processing", "retry"]).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("customer_email_sends").select("job_id, purpose, status, sent_at, created_at, error, idempotency_key").in("job_id", c).order("created_at", { ascending: true }).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("owner_contact_consents").select("job_id, consent_status, created_at").in("job_id", c).order("created_at", { ascending: true }).range(f, t)),
@@ -155,7 +129,7 @@ export async function classifyWebsiteEnquiries(jobs: Awaited<ReturnType<typeof w
     const groupBMedia = originalEnquiryMedia(b44.raw, [...(mediaBy.get(j.id) ?? []), ...(evidenceBy.get(j.id) ?? [])]);
     const c = classifyEnquiry({
       kind: "job", stage: j.stage, holdReason: j.hold_reason, outcome: j.eligibility_outcome, decisionSource: j.eligibility_decision_source,
-      reviewRequired: !!j.eligibility_review_required, audit, intakeWorkActive: workSet.has(j.id), declaredInsulation: effectiveInsulation(declaredInsulation, mediaOutcome), officeInsulation: mediaOutcome,
+      reviewRequired: !!j.eligibility_review_required, audit, intakeWorkActive: workSet.has(j.id), declaredInsulation, officeInsulation: mediaOutcome,
       area: { measured: m ? Number(m.verified_area_m2 ?? m.measured_area_m2) : null, estimated: best?.net_m2 ?? null, declared: j.estimated_area_m2 == null ? null : Number(j.estimated_area_m2), declaredUnknown: j.estimated_area_unknown },
       videoCount: groupBMedia.count,
     });
@@ -176,7 +150,7 @@ export async function classifyWebsiteEnquiries(jobs: Awaited<ReturnType<typeof w
           campaignGroup: camp.length ? (camp.some((s) => /:b(:|$)/.test(s.idempotency_key ?? "")) ? "onsite" : "likely") : null,
         });
       })(), attentionReason: null, outcomeAt: j.eligibility_set_at ?? null,
-      groupBMedia, mediaCount: groupBMedia.count, mediaChecked: mediaOutcome === "below_r2" || mediaOutcome === "over_r2" || mediaOutcome === "no_insulation", mediaOutcome,
+      groupBMedia, mediaCount: groupBMedia.count, mediaChecked: mediaOutcome === "below_r2" || mediaOutcome === "over_r2", mediaOutcome,
       removed: removedSet.has(j.id),
     };
   });
@@ -215,81 +189,6 @@ export async function classifyWebsiteEnquiries(jobs: Awaited<ReturnType<typeof w
       testHidden: outside.testHidden, installerSourced: outside.installerSourced, otherSources: outside.otherSources,
     },
     jobsCreatedAfter: deliveryCfg?.jobs_created_after ?? null,
-  };
-}
-
-/**
- * Which view a classified row belongs to. The tile counts and the list MUST come from this one
- * function: the "New — no email sent" tile and the New list are otherwise two different definitions.
- */
-export function inEnquiryView(row: EnquiryGroupRow, view: EnquiryPageView): boolean {
-  if (view === "removed") return !!row.removed;
-  if (row.removed) return false;
-  if (view === "all") return true;
-  if (view === "new") return isNewEnquiry(row);
-  if (view === "photos") return row.mediaCount > 0 && !row.mediaChecked;
-  return row.status === view;
-}
-
-/**
- * One server-paginated page of the enquiries workspace.
- *
- * Ordering is applied by the database; the search term and view are applied to the whole
- * classified set, and only the rows on the requested page are shipped to the browser. Every tile
- * count is taken from that same filtered set, so a count never depends on which page happens to
- * be open.
- *
- * Known limit: the enquiry view is derived from ten related tables (measurements, estimates,
- * media, sends, consents…), so the classified set is materialised on the server for the tile
- * counts. The browser still only ever receives the one page of rows. The search term filters
- * that materialised set (see websiteEnquiries for why it cannot be a PostgREST or=).
- */
-export async function loadEnquiryPage(params: {
-  view: string;
-  search?: string;
-  sort?: string;
-  direction?: "asc" | "desc";
-  page?: number;
-  pageSize?: number;
-}) {
-  const view = ENQUIRY_VIEW_KEYS.includes(params.view) ? (params.view as EnquiryPageView) : "all";
-  const search = params.search ?? "";
-  const sortKey = toEnum(params.sort, ENQUIRY_SORT_KEYS, "created_at") ?? "created_at";
-  // Newest first by default: an enquiries worklist is read newest-first, and the URL carries the choice.
-  const ascending = toDirection(params.direction) === "asc";
-  const size = toPageSize(params.pageSize);
-  const wanted = toPage(params.page ?? 1);
-
-  const { rows: unfiltered, scope, jobsCreatedAfter } = await classifyWebsiteEnquiries(
-    await websiteEnquiries({ sort: sortKey, ascending }),
-  );
-
-  // The office's search term matches ANY word across the fields the row shows (job number, name,
-  // email, phone, address, postcode). It cannot run inside a PostgREST or= — embedded owners.*/
-  // properties.* references are rejected by this PostgREST build (PGRST100) — and the classified
-  // set is materialised for the view-tile counts regardless, so filter it here.
-  const words = searchWords(search);
-  const classified = words.length
-    ? unfiltered.filter((r) => words.some((w) => matchesTerm(w, [r.jobNumber, r.reference, r.name, r.email, r.phone, r.address, r.postcode])))
-    : unfiltered;
-
-  // Every view count comes from one pass over the filtered set, independent of the requested page.
-  const counts: Record<string, number> = {};
-  for (const v of ENQUIRY_VIEWS) counts[v] = classified.filter((r) => inEnquiryView(r, v)).length;
-
-  const matching = classified.filter((r) => inEnquiryView(r, view));
-  const page = paginate(matching, wanted, size);
-  return {
-    rows: page.rows,
-    page: page.page,
-    pageSize: page.pageSize,
-    total: page.total,
-    totalPages: page.totalPages,
-    from: page.from,
-    to: page.to,
-    counts,
-    scope,
-    jobsCreatedAfter,
   };
 }
 
@@ -413,40 +312,15 @@ export async function loadLeadMedia(jobId: string) {
  *  Writes one permanent engagement event; the latest event decides the lead's group. Never changes the Gate 1 audit. */
 export async function reviewLeadMedia(jobId: string, outcome: MediaReviewOutcome, by: string | null) {
   if (!MEDIA_OUTCOMES.includes(outcome)) throw new Error("Unknown review outcome.");
-  const job = must(await admin.from("jobs").select("id, job_number, source, stage, eligibility_outcome, eligibility_decision_source").eq("id", jobId).maybeSingle(), "Job");
+  const job = must(await admin.from("jobs").select("id, job_number").eq("id", jobId).maybeSingle(), "Job");
   if (!job) throw new Error("Job not found.");
-  const blocker = outcome === "no_insulation" ? noInsulationReviewBlocker(job) : null;
-  if (blocker) throw new Error(blocker);
   const now = new Date();
   const ins = await admin.from("customer_engagement_events").insert({
     job_id: jobId, event_type: "intake_media_reviewed", occurred_at: now.toISOString(), source: "office",
     metadata: { outcome, by }, dedupe_key: `intake_media_reviewed:${jobId}:${now.getTime()}`,
   });
   if (ins.error) throw new Error(`Review could not be saved: ${ins.error.message}`);
-  if (outcome === "no_insulation") {
-    // Official admin decision from reviewed media. The homeowner's raw Base44 answer is NOT rewritten;
-    // the estimate/routing read this review as the effective insulation fact.
-    const reason = "Office reviewed the submitted photos/video: no ceiling insulation visible.";
-    const upd = await admin.from("jobs").update({ eligibility_outcome: "likely_eligible", eligibility_decision_source: "admin", eligibility_review_required: false, eligibility_reason: reason }).eq("id", jobId);
-    if (upd.error) throw new Error(`Decision could not be saved: ${upd.error.message}`);
-    const { logEvent } = await import("./workflow.server");
-    await logEvent(jobId, by, "eligibility_decided", reason, { outcome: "likely_eligible", source: "admin", media_review: "no_insulation", raw_answer_preserved: true }, { internal: true });
-    const { syncStep3 } = await import("./estimatelink.server");
-    await syncStep3(jobId, by);
-  }
   return { ok: true as const, outcome };
-}
-
-/** ONE job: Office "no_insulation" review → normal guarded Save my spot sender (T1/T2). Never forced. */
-export async function noInsulationSaveSpot(jobId: string, by: string | null, preview: boolean) {
-  const latest = must(await admin.from("customer_engagement_events").select("metadata").eq("job_id", jobId).eq("event_type", "intake_media_reviewed").order("occurred_at", { ascending: false }).limit(1), "Review");
-  const outcome = (latest?.[0]?.metadata as { outcome?: string } | null | undefined)?.outcome ?? null;
-  if (outcome !== "no_insulation") return { outcome: "blocked" as const, detail: "Latest Office photo review is not 'No insulation visible'." };
-  const { syncStep3 } = await import("./estimatelink.server");
-  await syncStep3(jobId, by);
-  const { sendSaveMySpot } = await import("./hot-leads-send.server");
-  const r = (await sendSaveMySpot([jobId], by, preview ? { mode: "preview" } : {}))[0];
-  return { outcome: r?.outcome ?? "failed", detail: r?.detail ?? "No send result" };
 }
 
 /** Office removes fake/junk leads (Jo, 8 Oct): job is cancelled, permanently noted, and shown only under "Removed". */

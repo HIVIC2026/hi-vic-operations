@@ -1,42 +1,34 @@
 // ONE authoritative Enquiries workspace.
-//
-// The list is paged by the SERVER: the database applies the search and the ordering, the office view is
-// applied to the whole filtered set, and only the rows for the current page are sent. Reuses the
-// existing enquiry-groups read + actions. Presentation only: the office-facing outcomes are a single
-// label per enquiry (mapped from the canonical enquiryStatus), never a competing status system.
+// Reuses the existing enquiry-groups read + actions. Presentation only: the office-facing outcomes are a
+// single label per enquiry (mapped from the canonical enquiryStatus), never a competing status system.
 import { Link } from "@tanstack/react-router";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ListPagination } from "@/components/portal/ListPagination";
 import {
   existingInsulationSaveSpotFn,
-  getEnquiryPage,
+  getEnquiryGroups,
   getLeadMedia,
   removeLeadsFn,
   reviewLeadMediaFn,
 } from "@/lib/enquiry-groups.functions";
 import {
   MEDIA_OUTCOME_LABEL,
+  STATUS_ORDER,
+  isNewEnquiry,
   type EnquiryStatus,
   type MediaReviewOutcome,
 } from "@/lib/enquiry-groups.core";
-import {
-  ENQUIRY_SORT_KEYS,
-  ENQUIRY_SORT_LABEL,
-  ENQUIRY_VIEWS,
-  type EnquiryPageView,
-} from "@/lib/enquiry-list-page.core";
-import { useListControls } from "@/hooks/use-list-controls";
 import { OFFICE_ENQUIRY_LABEL } from "@/lib/office-nav";
 import { cn } from "@/lib/utils";
-import type { ListControls, ListSearchSpec } from "@/lib/list-paging.core";
 
-type Data = Awaited<ReturnType<typeof getEnquiryPage>>;
+export type EnquiryView = EnquiryStatus | "all" | "new" | "photos" | "removed";
+
+type Data = Awaited<ReturnType<typeof getEnquiryGroups>>;
 type Row = Data["rows"][number];
-
+const PAGE = 50;
 const when = (value: string | null | undefined) =>
   value
     ? new Date(value).toLocaleString("en-AU", {
@@ -194,14 +186,6 @@ function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
               >
                 {MEDIA_OUTCOME_LABEL.unclear}
               </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={busy !== null}
-                onClick={() => act("no_insulation")}
-              >
-                {MEDIA_OUTCOME_LABEL.no_insulation}
-              </Button>
             </div>
           )}
         </>
@@ -210,8 +194,8 @@ function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
   );
 }
 
-const VIEW_ORDER = ENQUIRY_VIEWS;
-const VIEW_LABEL: Record<EnquiryPageView, string> = {
+const VIEW_ORDER: EnquiryView[] = ["all", "new", ...STATUS_ORDER, "photos", "removed"];
+const VIEW_LABEL: Record<EnquiryView, string> = {
   all: "All enquiries",
   new: "New · no email sent",
   ...OFFICE_ENQUIRY_LABEL,
@@ -219,59 +203,35 @@ const VIEW_LABEL: Record<EnquiryPageView, string> = {
   removed: "Removed",
 };
 
-/** The view tile is the page-local filter, so it travels in the URL like every other control. */
-export const ENQUIRY_SPEC: ListSearchSpec = {
-  scopeKey: "status",
-  scopes: ENQUIRY_VIEWS,
-  defaultScope: "all",
-};
-
 export function EnquiriesWorkspace({
-  controls,
-  navigate,
+  view,
+  q,
+  onView,
+  onQ,
 }: {
-  controls?: ListControls;
-  navigate: (search: Record<string, string | number>) => void;
+  view: EnquiryView;
+  q: string;
+  onView: (next: EnquiryView) => void;
+  onQ: (next: string) => void;
 }) {
-  const ui = useListControls(controls, ENQUIRY_SPEC, navigate);
-  const current = ui.current;
-  const view = current.scope as EnquiryPageView;
-  const load = useServerFn(getEnquiryPage);
-  const {
-    data,
-    isPending,
-    isFetching,
-    error,
-    refetch,
-  } = useQuery({
-    // The whole control set is the key, so React Query drops a response that arrives after the office
-    // has already moved on: a slow page 1 can never overwrite a fast page 2.
-    queryKey: ["enquiries-workspace-page", current],
-    queryFn: () =>
-      load({
-        data: {
-          view,
-          search: current.search,
-          sort: current.sort || "created_at",
-          direction: current.direction,
-          page: current.page,
-          pageSize: current.pageSize,
-        },
-      }),
-    placeholderData: keepPreviousData,
-    staleTime: 30_000,
+  const load = useServerFn(getEnquiryGroups);
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ["enquiries-workspace"],
+    queryFn: () => load({ data: {} }),
+    staleTime: 60_000,
   });
+  const [page, setPage] = useState(0);
   const [openId, setOpenId] = useState<string | null>(null);
   const remove = useServerFn(removeLeadsFn);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [removing, setRemoving] = useState(false);
   const [removeMsg, setRemoveMsg] = useState<string | null>(null);
   const [removeReason, setRemoveReason] = useState("Fake or test enquiry");
-  const visible = useMemo(() => data?.rows ?? [], [data]);
-  const counts = (data?.counts ?? {}) as Record<EnquiryPageView, number>;
-  const busy = isFetching && !isPending;
+  const allRows = useMemo(() => data?.rows ?? [], [data]);
+  const rows = useMemo(() => allRows.filter((row) => !row.removed), [allRows]);
+  const removedRows = useMemo(() => allRows.filter((row) => row.removed), [allRows]);
   const doRemove = async () => {
-    const ids = [...picked].filter((id) => visible.some((r) => r.id === id && r.kind === "job"));
+    const ids = [...picked].filter((id) => rows.some((r) => r.id === id && r.kind === "job"));
     if (!ids.length) return;
     const reason = removeReason.trim() || "Fake or test enquiry";
     setRemoving(true);
@@ -286,7 +246,52 @@ export function EnquiriesWorkspace({
       setRemoving(false);
     }
   };
-  const viewCount = (key: EnquiryPageView) => counts[key] ?? 0;
+  const counts = useMemo(
+    () =>
+      Object.fromEntries(
+        STATUS_ORDER.map((key) => [key, rows.filter((row) => row.status === key).length]),
+      ) as Record<EnquiryStatus, number>,
+    [rows],
+  );
+  const photoRows = useMemo(
+    () => rows.filter((row) => row.mediaCount > 0 && !row.mediaChecked),
+    [rows],
+  );
+  // One definition for the "New — no email sent" view, shared by the tile count and the list.
+  const newRows = useMemo(() => rows.filter(isNewEnquiry), [rows]);
+  const viewCount = (key: EnquiryView) =>
+    key === "all"
+      ? rows.length
+      : key === "new"
+        ? newRows.length
+        : key === "photos"
+          ? photoRows.length
+          : key === "removed"
+            ? removedRows.length
+            : counts[key];
+  const matching = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    const base =
+      view === "photos"
+        ? photoRows
+        : view === "removed"
+          ? removedRows
+          : view === "new"
+            ? newRows
+            : view === "all"
+              ? rows
+              : rows.filter((row) => row.status === view);
+    return base.filter(
+      (row) =>
+        !term ||
+        [row.name, row.email, row.phone, row.address, row.jobNumber, row.reference].some((value) =>
+          value?.toLowerCase().includes(term),
+        ),
+    );
+  }, [rows, photoRows, newRows, removedRows, view, q]);
+  const pages = Math.max(1, Math.ceil(matching.length / PAGE));
+  const safePage = Math.min(page, pages - 1);
+  const visible = matching.slice(safePage * PAGE, safePage * PAGE + PAGE);
   const officeReview = view === "needs_attention" || view === "photos";
 
   return (
@@ -311,7 +316,7 @@ export function EnquiriesWorkspace({
         </div>
       </header>
 
-      {isPending ? (
+      {isLoading ? (
         <p role="status" className="rounded-md border bg-card p-6 text-sm">
           Loading enquiries…
         </p>
@@ -348,7 +353,8 @@ export function EnquiriesWorkspace({
                 variant={view === key ? "default" : "outline"}
                 className="h-auto min-h-20 flex-col items-start px-4 py-3 text-left"
                 onClick={() => {
-                  ui.setScope(key);
+                  onView(key);
+                  setPage(0);
                   setPicked(new Set());
                 }}
               >
@@ -369,14 +375,14 @@ export function EnquiriesWorkspace({
                 search={{ status: "needs_attention" }}
                 className="font-semibold text-primary underline"
               >
-                Eligibility &amp; sending decisions ({viewCount("needs_attention")})
+                Eligibility &amp; sending decisions ({counts.needs_attention})
               </Link>
               <Link
                 to="/admin/enquiries"
                 search={{ status: "photos" }}
                 className="font-semibold text-primary underline"
               >
-                Photos/videos ({viewCount("photos")})
+                Photos/videos ({photoRows.length})
               </Link>
               <Link
                 to="/admin/board"
@@ -413,37 +419,16 @@ export function EnquiriesWorkspace({
 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <Input
-              type="search"
               aria-label="Search enquiries"
               placeholder="Search name, address, email, phone or job number"
-              value={ui.term}
-              onChange={(event) => ui.setTerm(event.target.value)}
+              value={q}
+              onChange={(event) => {
+                onQ(event.target.value);
+                setPage(0);
+              }}
               className="max-w-md"
             />
             <div className="flex flex-wrap items-center gap-2">
-              <label className="flex items-center gap-1.5 text-xs text-sub">
-                Sort
-                <select
-                  aria-label="Sort enquiries"
-                  value={current.sort || "created_at"}
-                  onChange={(e) => ui.setSort(e.target.value)}
-                  className="h-9 rounded-md border bg-background px-2 text-xs"
-                >
-                  {ENQUIRY_SORT_KEYS.map((key) => (
-                    <option key={key} value={key}>
-                      {ENQUIRY_SORT_LABEL[key]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <Button
-                size="sm"
-                variant="outline"
-                aria-label={current.direction === "asc" ? "Sort descending" : "Sort ascending"}
-                onClick={ui.toggleDirection}
-              >
-                {current.direction === "asc" ? "Oldest first" : "Newest first"}
-              </Button>
               {view !== "removed" && (
                 <Input
                   aria-label="Reason for removing"
@@ -462,9 +447,7 @@ export function EnquiriesWorkspace({
                   {removing ? "Removing…" : `Remove selected (${picked.size})`}
                 </Button>
               )}
-              <span className="text-sm text-sub">
-                {busy ? "Updating…" : `${data?.total ?? 0} matching`}
-              </span>
+              <span className="text-sm text-sub">{matching.length} shown</span>
             </div>
           </div>
           {removeMsg && (
@@ -474,7 +457,7 @@ export function EnquiriesWorkspace({
           )}
 
           <div className="overflow-x-auto rounded-md border bg-card">
-            <table aria-busy={busy} className="w-full min-w-[1100px] text-left text-sm">
+            <table className="w-full min-w-[1100px] text-left text-sm">
               <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
                 <tr>
                   <th className="w-10 p-3">
@@ -509,10 +492,7 @@ export function EnquiriesWorkspace({
                 {visible.length === 0 && (
                   <tr>
                     <td colSpan={8} className="p-8 text-center text-muted-foreground">
-                      No enquiries match this view or search.{" "}
-                      <Button variant="link" onClick={ui.clear}>
-                        Clear search
-                      </Button>
+                      No enquiries match this view or search.
                     </td>
                   </tr>
                 )}
@@ -624,13 +604,27 @@ export function EnquiriesWorkspace({
             </table>
           </div>
 
-          <ListPagination
-            paged={data}
-            busy={busy}
-            onPage={ui.setPage}
-            onPageSize={ui.setPageSize}
-            label="enquiries"
-          />
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={safePage === 0}
+              onClick={() => setPage(safePage - 1)}
+            >
+              Previous
+            </Button>
+            <span className="text-sm">
+              Page {safePage + 1} of {pages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={safePage + 1 >= pages}
+              onClick={() => setPage(safePage + 1)}
+            >
+              Next
+            </Button>
+          </div>
         </>
       )}
     </div>
