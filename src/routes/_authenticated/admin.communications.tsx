@@ -1,7 +1,7 @@
 // ONE Communications workspace: overview, outgoing, sent history, failures and campaign review.
 // Every section reuses an existing read/sender; nothing here changes queues, switches, consent or statuses.
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/portal/AppShell";
 import { EnquiryResponseOverview } from "@/components/portal/EnquiryResponseOverview";
@@ -13,6 +13,7 @@ import {
   type CommunicationHistoryRow,
 } from "@/lib/communications-centre.functions";
 import { cn } from "@/lib/utils";
+import { retryFailedIneligibleEmail } from "@/lib/ineligible-retry.functions";
 
 type Tab = "overview" | "outgoing" | "sent" | "failed" | "campaigns";
 const TABS: { key: Tab; label: string }[] = [
@@ -65,6 +66,26 @@ const TONE: Record<CommunicationHistoryRow["status"], string> = {
   failed: "bg-danger-soft text-danger",
   other: "bg-muted text-muted-foreground",
 };
+
+function IneligibleRetry({ row }: { row: CommunicationHistoryRow }) {
+  const retry = useServerFn(retryFailedIneligibleEmail);
+  const cache = useQueryClient();
+  const action = useMutation({
+    mutationFn: () => retry({ data: { jobId: row.jobId, sendId: row.id.slice(5) } }),
+    onSuccess: () => {
+      void cache.invalidateQueries({ queryKey: ["communication-history"] });
+      void cache.invalidateQueries({ queryKey: ["enquiry-response-overview"] });
+    },
+  });
+  return <div className="mt-2 space-y-1">
+    <Button size="sm" variant="outline" disabled={action.isPending || action.data?.outcome === "sent"}
+      onClick={() => {
+        if (window.confirm(`Retry only the failed ineligible email for ${row.jobNumber ?? "this job"}? All current sending checks still apply.`)) action.mutate();
+      }}>{action.isPending ? "Retrying…" : "Retry ineligible email"}</Button>
+    {action.data && <p role="status">{action.data.outcome === "sent" ? "Sent" : "Blocked"}: {action.data.detail}</p>}
+    {action.error && <p role="alert">Retry could not be confirmed. Refresh history before trying again.</p>}
+  </div>;
+}
 
 function HistoryTable({ filter }: { filter: "all" | "sent" | "failed" }) {
   const load = useServerFn(getCommunicationHistory);
@@ -151,7 +172,9 @@ function HistoryTable({ filter }: { filter: "all" | "sent" | "failed" }) {
                       {r.source === "auto" ? "Automatic sender" : "Job email"}
                     </span>
                   )}
-                  {r.status === "failed" && (
+                  {r.source === "auto" && r.statusLabel === "failed" && r.purpose === "preliminary_ineligible" ? (
+                    <IneligibleRetry row={r} />
+                  ) : r.status === "failed" && (
                     <Link
                       to="/admin/communications"
                       search={{ tab: "failed" }}

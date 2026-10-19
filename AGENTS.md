@@ -15,7 +15,7 @@
 - PIISA schema/prefill/copy changes require observed IDs and current-definition validation; media is not structured product data. Why: protect crew/statutory output.
 - PIISA pins read-back definitions; signatures use audit-owned IDs, never historic fallback. Expected day uses capture; products/post-work use same-audit review before output. Why: no inferred facts.
 - PIISA AP uses authoritative config and readback before sharing; blank repair requires observed unsigned capture fields. Why: no installer substitution or signed-history mutation.
-- Emails reuse Step 3; no drift.
+- Emails reuse Step 3; ineligible retries are admin-only, one failed record, existing sender. Why: preserve gates.
 - Staff labels/disclosure targets use pure `src/lib/portal-presentation.core.ts`, never workflow or eligibility decisions. Why: presentation must not duplicate domain rules.
 - Domain, workflow, payment, compliance and integration rules live in `src/lib/AGENTS.md`; read it before changing `src/lib`. Why: keeps this file small.
 - Server functions are literal `createServerFn(...).middleware(...).inputValidator(...).handler(...)` chains; never import `@tanstack/react-start/server` in `*.functions.ts`. Why: factories/that import break the client bundle.
@@ -31,7 +31,7 @@
 
 - Office operations categories and compact job status reuse the operations read classifier and one shared Query cache; legacy preview remains direct-link. Why: unique counts and factual precedence must agree without navigation polling.
 - Installer Add job shares CustomerFields and guarded import handlers; legacy bookmarks redirect there. Quote-removal events stay separate from measured facts; `intake-quote-details.core.ts` validates shared quote inputs. Why: one intake, no double counting.
-- Intake serializes files, keeps partial uploads/provenance, locks pending inputs and protects dirty drafts. Why: safe retries.
+- Intake serializes files, retains partial uploads/provenance and locks pending/dirty drafts. Why: safe retries.
 - Group B guards are shared; follow-up removal uses snapshot facts; initial email stays separate. Why: no repeat requests or price drift.
 - Portal QA = `bun run portal-qa` only; gaps NOT_RUN, never PASS. Why: honest bounded checks.
 - The /admin board places jobs by the facts-based office classifier (`board-phase.core.ts` via `getBoardStages`), never the stored stage alone. Why: stored Ready Check stages without a real Ready Check must not appear in Ready Check.
