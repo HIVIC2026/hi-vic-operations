@@ -1,6 +1,6 @@
 // Actual router, isolated reads and stubbed senders only. No hosted writes or delivery.
 import { beforeEach, expect, mock, test } from "bun:test";
-let desk: string | null, outcome: string | null, media: boolean, readError: boolean;
+let desk: string | null, outcome: string | null, media: boolean, readError: boolean, insulation: string;
 let calls: string[], reviewOrders: unknown[], senderResult: { outcome: string; detail: string };
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from(table: string) {
   let fields = "";
@@ -9,7 +9,7 @@ mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { f
     if (table === "customer_engagement_events") return { data: outcome ? [{ metadata: { outcome } }] : [], error: null };
     if (table === "post_intake_work") return { data: null, error: null };
     if (table === "jobs" && fields === "job_number") return { data: { job_number: "HV-ORDINARY" }, error: null };
-    return { data: { source: "base44", channel: "hivic", eligibility_outcome: "needs_onsite_confirmation", eligibility_decision_source: "system", eligibility_review_required: false, estimated_area_m2: 150, estimated_area_unknown: false, properties: { enrichment: { base44: { raw: { answers: { existing_insulation: "present" } } } } } }, error: null };
+    return { data: { source: "base44", channel: "hivic_sourced", eligibility_outcome: "needs_onsite_confirmation", eligibility_decision_source: "system", eligibility_review_required: false, estimated_area_m2: 150, estimated_area_unknown: false, properties: { enrichment: { base44: { raw: { answers: { existing_insulation: insulation } } } } } }, error: null };
   };
   const q = { select(s: string) { fields = s; return q; }, eq() { return q; }, in() { return q; },
     order(key: string, options: unknown) { reviewOrders.push([key, options]); return q; }, limit() { return q; },
@@ -23,7 +23,7 @@ mock.module("../src/lib/hot-leads-send.server", () => ({
   sendAutomaticInsulationDetails: async () => { calls.push("T5/T6"); return { outcome: "sent", detail: "stub" }; },
 }));
 const { maybeAutoRouteLeadEmail } = await import("../src/lib/lead-email-routing.server");
-beforeEach(() => { desk = null; outcome = null; media = false; readError = false; calls = []; reviewOrders = []; senderResult = { outcome: "sent", detail: "stub" }; });
+beforeEach(() => { desk = null; outcome = null; media = false; readError = false; insulation = "present"; calls = []; reviewOrders = []; senderResult = { outcome: "sent", detail: "stub" }; });
 test("both approved facts choose guarded T3/T4, never a repeat request", async () => {
   desk = "looks_eligible"; outcome = "below_r2"; media = true;
   expect(await maybeAutoRouteLeadEmail("job")).toEqual({ route: "offer_spot", sent: true, reason: "stub" });
@@ -45,8 +45,11 @@ test("received media without BOTH current approvals stays held", async () => {
   expect(calls).toEqual([]);
 });
 test("ordinary no-media request keeps T5/T6", async () => {
-  expect((await maybeAutoRouteLeadEmail("job")).route).toBe("request_insulation");
-  expect(calls).toEqual(["sync", "T5/T6"]);
+  for (const value of ["present", "unknown"]) {
+    insulation = value; calls = [];
+    expect((await maybeAutoRouteLeadEmail("job")).route).toBe("request_insulation");
+    expect(calls).toEqual(["sync", "T5/T6"]);
+  }
 });
 test("failed review reads hold without any sender call", async () => {
   readError = true;
