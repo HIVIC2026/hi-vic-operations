@@ -191,7 +191,7 @@ function renderDraft(r: EnquiryGroupRow, sel: Selected, ctx: Ctx): Draft | { err
   // so a draft can never show a superseded template. Preview links/unsubscribe are placeholders; nothing is issued.
   const firstName = r.name?.trim().split(/\s+/)[0] ?? "there";
   const placeholderLink = `${CUSTOMER_BASE}/estimate/${PREVIEW_TOKEN}`;
-  const links = { saveMySpotUrl: `${placeholderLink}/campaign`, uploadMediaUrl: `${placeholderLink}/video`, reviewResultUrl: placeholderLink, calculatorUrl: `${placeholderLink}#calculator` };
+  const links = { saveMySpotUrl: `${placeholderLink}/campaign`, uploadMediaUrl: `${placeholderLink}/video`, reviewResultUrl: placeholderLink, calculatorUrl: `${placeholderLink}/calculator` };
   const recipient = { firstName, propertyAddress: r.address ?? "your property", enquiryReference: r.reference ?? r.jobNumber ?? "" };
   const previewUnsubscribe = `${CUSTOMER_BASE}/api/public/unsubscribe?t=${PREVIEW_TOKEN}`;
   const done = (mail: ReturnType<typeof renderJoOutcomeEmail>, area: Draft["area"]): Draft | { error: string } =>

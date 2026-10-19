@@ -2,7 +2,7 @@
 // and a once-per-home idempotency key. TEST (qa_test) jobs go only to Jo's allowlist via the test sender.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { LAUNCH_CAMPAIGN, LAUNCH_COPY_APPROVED, launchGroup, savedPriceFromEstimate } from "./launch-campaign.core";
-import { noSizeEstimateBlocker, initialReplyQualifies, NO_SIZE_REAL_SEND_HELD } from "./no-size-estimate.core";
+import { noSizeEstimateBlocker, NO_SIZE_REAL_SEND_HELD } from "./no-size-estimate.core";
 import { CUSTOMER_BASE } from "./engagement.core";
 import { reservationAllowed, withUnsubscribe } from "./emailsafety.core";
 import { groupBMediaForJob } from "./group-b-media.server";
@@ -215,8 +215,12 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   // is held for manual review and nothing is sent or previewed as if it would be.
   const figuresOk = Number.isFinite(Number(installation)) && Number.isFinite(Number(assessmentFee)) && Number.isFinite(Number(apFee)) && Number.isFinite(Number(price.areaM2));
   if (office && !figuresOk) return r("blocked", "The estimate has no itemised prices. Recalculate it first.");
+  // Known size: priced on exactly the owner's own size and worded "based on the size you provided". No size: the
+  // labelled 150 m² assumption only. Any other basis (research area, mismatch) fails closed.
+  const { joAreaBasis } = await import("./jo-area-basis.core");
+  const areaBasis = joAreaBasis({ areaSource: est?.area_source ?? null, areaM2: price.areaM2, ownerAreaM2: job.estimated_area_unknown ? null : Number(job.estimated_area_m2) || null });
   const joMail = await (async () => {
-    if (!figuresOk) return null;
+    if (!figuresOk || !areaBasis.ok) return null;
     const jo = await import("./jo-outcome-email.core");
     let facts: import("./jo-outcome-email.core").JoOutcomeFacts;
     if (office) {
@@ -231,7 +235,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
       const desk = (lcr as { desk_check_status?: string | null } | null)?.desk_check_status ?? null;
       const reviewed = !lcrError && !!c && c.criteriaPassed && (c.mediaReview === "below_r2" || desk === "looks_eligible") && desk !== "not_eligible" && desk !== "needs_onsite_check";
       if (!reviewed) return null;
-      facts = { outcome: "likely_eligible", insulation: "present", ceilingSizeKnown: !assumed, deskCheckStatus: "looks_eligible" };
+      facts = { outcome: "likely_eligible", insulation: "present", ceilingSizeKnown: areaBasis.ceilingSizeKnown, deskCheckStatus: "looks_eligible" };
     } else {
       let deskCheckStatus: "looks_eligible" | "not_eligible" | "needs_onsite_check" | null = null;
       try {
@@ -245,13 +249,13 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
       // This sender never sends the ineligible result (T7 belongs to the ineligible sender).
       if (outcome === "does_not_appear_eligible" || outcome === null) return null;
       const insulation = price.insulation === "none" || price.insulation === "present" ? price.insulation : "unknown";
-      facts = { outcome, insulation, ceilingSizeKnown: !assumed && Number(price.areaM2) > 0, deskCheckStatus };
+      facts = { outcome, insulation, ceilingSizeKnown: areaBasis.ceilingSizeKnown, deskCheckStatus };
     }
     try {
       const rendered = jo.renderJoOutcomeEmail({
         ...facts,
         recipient: { firstName: firstName ?? "there", propertyAddress: fullAddress ?? "", enquiryReference: job.job_number ?? "" },
-        figures: { veuRebate: Number(price.discount), customerTotal: Number(price.total), totalBeforeRebate: Number(price.gross), installation: Number(installation), piesaFee: Number(assessmentFee), apFee: Number(apFee), ceilingAreaM2: Number(price.areaM2), areaEstimated: assumed },
+        figures: { veuRebate: Number(price.discount), customerTotal: Number(price.total), totalBeforeRebate: Number(price.gross), installation: Number(installation), piesaFee: Number(assessmentFee), apFee: Number(apFee), ceilingAreaM2: areaBasis.areaM2, areaEstimated: areaBasis.areaEstimated },
         links: { saveMySpotUrl: campaignUrl, uploadMediaUrl: `${base}/estimate/${linkToken}/video`, reviewResultUrl: `${base}/estimate/${linkToken}`, calculatorUrl: `${base}/estimate/${linkToken}/calculator` },
       });
       if (!rendered) return null;
@@ -264,7 +268,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     } catch { return null; }
   })();
   if (!joMail) {
-    const held = "No approved Jo template applies to this enquiry — held for manual review; nothing sent.";
+    const held = areaBasis.ok ? "No approved Jo template applies to this enquiry — held for manual review; nothing sent." : areaBasis.reason;
     // A reservation made above is released as a clean pre-delivery failure (never left "sending").
     if (mode === "send" && sendId) await admin.from("customer_email_sends").update({ status: "failed", provider: "not_sent", error: held }).eq("id", sendId);
     return r("blocked", held);

@@ -6,7 +6,8 @@ import { emailSuppression, unsubscribeUrl, type EmailPurpose } from "./emailsafe
 /** Engagement events that permanently stop marketing/follow-up email for a job. */
 export const SUPPRESSING_EVENTS = ["email_bounced", "email_complained", "complaint", "opted_out", "payment_received", "quote_declined", "booking_completed"];
 
-export async function suppressionFor(jobId: string, purpose: EmailPurpose, recipient: string | null): Promise<string | null> {
+export async function suppressionFor(jobId: string, purpose: EmailPurpose, recipient: string | null, ctx: import("./manual-backlog.core").LeadRouteContext = {}): Promise<string | null> {
+  const { isManualBacklog } = await import("./manual-backlog.core");
   const [{ data: job }, { data: opt }, { data: bounce }, { data: cfg }] = await Promise.all([
     admin.from("jobs").select("stage, source, created_at").eq("id", jobId).maybeSingle(),
     admin.from("customer_email_optouts").select("opted_out_at").eq("job_id", jobId).maybeSingle(),
@@ -14,7 +15,7 @@ export async function suppressionFor(jobId: string, purpose: EmailPurpose, recip
     admin.from("customer_delivery_settings").select("jobs_created_after").eq("id", 1).maybeSingle(),
   ]);
   if (!job) return "job_not_found";
-  return emailSuppression({ purpose, optedOut: !!opt?.opted_out_at, bounced: !!bounce, stage: job.stage, jobSource: job.source, jobCreatedAt: job.created_at, recipient, jobsCreatedAfter: cfg?.jobs_created_after ?? null });
+  return emailSuppression({ purpose, optedOut: !!opt?.opted_out_at, bounced: !!bounce, stage: job.stage, jobSource: job.source, jobCreatedAt: job.created_at, recipient, jobsCreatedAfter: cfg?.jobs_created_after ?? null, manualBacklogIneligible: purpose === "preliminary_ineligible" && isManualBacklog(ctx) });
 }
 
 /** One opaque unsubscribe token per job. Throws when it cannot be issued — callers must then not send. */

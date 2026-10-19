@@ -52,12 +52,13 @@ export const ACCESS_LEVELS: Access[] = ["standard", "moderate", "difficult"];
 export type AreaCandidate = { m2: number; source: "accepted_measurement" | "area_estimate" | "owner_estimate" | "typical_default"; basis: string; id: string | null; label: string };
 /** Typical Victorian home ceiling size used only when nothing better is known, so every customer always sees an estimated ceiling size. Matches the Government's published 150 m² benchmark example. */
 export const DEFAULT_ESTIMATED_AREA_M2 = 150;
-/** Strongest preliminary area: accepted current measurement > trusted area estimate > job (owner) estimate > typical-home default (clearly labelled, never presented as measured). */
+/** Strongest preliminary area: accepted current measurement > job (owner) estimate > trusted area estimate > typical-home default (clearly labelled, never presented as measured). */
 export function pickArea(c: { measurement?: { id: string; m2: number | null; label?: string } | null; estimate?: { id: string; m2: number | null; tier: string } | null; owner?: number | null }): AreaCandidate {
   const ok = (v: number | null | undefined): v is number => typeof v === "number" && Number.isFinite(v) && v > 0;
   if (c.measurement && ok(c.measurement.m2)) return { m2: c.measurement.m2, source: "accepted_measurement", basis: "measured", id: c.measurement.id, label: c.measurement.label ?? "Accepted ceiling measure-up" };
-  if (c.estimate && ok(c.estimate.m2)) return { m2: c.estimate.m2, source: "area_estimate", basis: `researched (tier ${c.estimate.tier})`, id: c.estimate.id, label: `Property research estimate (tier ${c.estimate.tier})` };
+  // Owner-supplied size beats any research area for the preliminary enquiry quote (Jo, 19 Oct 2026).
   if (ok(c.owner)) return { m2: c.owner, source: "owner_estimate", basis: "declared", id: null, label: "Your estimate" };
+  if (c.estimate && ok(c.estimate.m2)) return { m2: c.estimate.m2, source: "area_estimate", basis: `researched (tier ${c.estimate.tier})`, id: c.estimate.id, label: `Property research estimate (tier ${c.estimate.tier})` };
   return { m2: DEFAULT_ESTIMATED_AREA_M2, source: "typical_default", basis: "typical default", id: null, label: `Typical Victorian home estimate (${DEFAULT_ESTIMATED_AREA_M2} m²)` };
 }
 /** Tiers trusted for Step 3 pricing. Tier E (aerial/Solar ground footprint) and F are excluded – footprint is not ceiling area. */
