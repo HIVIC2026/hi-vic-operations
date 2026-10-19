@@ -17,7 +17,7 @@ import { formatPropertyAddress } from "./address";
 import { LAUNCH_CAMPAIGN } from "./launch-campaign.core";
 import {
   classifyEnquiry, enquiryStatus, contactExclusion, primaryByContact, propertyKey, contactKey, sendHolds, templateFor, AREA_LABEL, ASSUMED_REFERENCE_AREA_M2,
-  type EnquiryClass, type EnquiryStatus, type EnquiryGroup, type OtherReason, type StoredAudit, type MediaReviewOutcome,
+  type EnquiryClass, type EnquiryStatus, type EnquiryGroup, type OtherReason, type StoredAudit, type MediaReviewOutcome, effectiveInsulation, noInsulationReviewBlocker,
 } from "./enquiry-groups.core";
 
 const MEDIA_OUTCOMES: MediaReviewOutcome[] = ["below_r2", "over_r2", "unclear", "no_insulation"];
@@ -312,8 +312,10 @@ export async function loadLeadMedia(jobId: string) {
  *  Writes one permanent engagement event; the latest event decides the lead's group. Never changes the Gate 1 audit. */
 export async function reviewLeadMedia(jobId: string, outcome: MediaReviewOutcome, by: string | null) {
   if (!MEDIA_OUTCOMES.includes(outcome)) throw new Error("Unknown review outcome.");
-  const job = must(await admin.from("jobs").select("id, job_number").eq("id", jobId).maybeSingle(), "Job");
+  const job = must(await admin.from("jobs").select("id, job_number, source, stage, eligibility_outcome, eligibility_decision_source").eq("id", jobId).maybeSingle(), "Job");
   if (!job) throw new Error("Job not found.");
+  const blocker = outcome === "no_insulation" ? noInsulationReviewBlocker(job) : null;
+  if (blocker) throw new Error(blocker);
   const now = new Date();
   const ins = await admin.from("customer_engagement_events").insert({
     job_id: jobId, event_type: "intake_media_reviewed", occurred_at: now.toISOString(), source: "office",

@@ -42,6 +42,14 @@ export type StoredAudit = { ruleset_version?: string; rules?: StoredRule[]; hard
 /** Office photo/video review outcome (Jo, 8 Oct 2026): below R2 → offer Save my spot; over R2 → ineligible; unclear → ask for more pictures. */
 export type MediaReviewOutcome = "below_r2" | "over_r2" | "unclear" | "no_insulation";
 
+/** "No insulation visible" may only be recorded on a website enquiry still awaiting its first reply that is not officially ineligible. */
+export function noInsulationReviewBlocker(j: { source: string | null; stage: string | null; eligibility_outcome: string | null; eligibility_decision_source: string | null }): string | null {
+  if (j.source === "qa_test") return "TEST job — no-insulation review not allowed.";
+  if (!["new_enquiry", "eligibility_review", "preliminary_estimate_ready"].includes(j.stage ?? "")) return "Only enquiries awaiting a first reply can be reviewed as no insulation.";
+  if (j.eligibility_outcome === "does_not_appear_eligible" && (j.eligibility_decision_source === "admin" || j.eligibility_decision_source === "system")) return "Job is officially not eligible.";
+  return null;
+}
+
 /** Effective insulation fact for estimate/routing. Only the LATEST authoritative Office review "no_insulation"
  *  overrides; every other case keeps the homeowner's raw declared answer exactly. */
 export function effectiveInsulation<T extends "none" | "present" | "unknown" | null>(declared: T, latestReviewOutcome: string | null | undefined): T | "none" {
