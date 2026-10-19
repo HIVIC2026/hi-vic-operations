@@ -29,15 +29,6 @@ const clean = <T extends Record<string, unknown>>(o: T) => Object.fromEntries(Ob
 
 const uuid = z.string().uuid();
 
-/** STEP 73 (A4): regulated electrical results need Office or the licensed-electrician app role (clearance-guard.core.ts). */
-async function requireClearanceRecorder(sb: { rpc: (...a: never[]) => unknown }, jobRole: string, userId: string) {
-  if (jobRole === "admin") return;
-  const r = sb as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }> };
-  const { data, error } = await r.rpc("has_role", { _user_id: userId, _role: "electrician" });
-  const { clearanceRecorderAllowed, CLEARANCE_RECORDER_REFUSED } = await import("./clearance-guard.core");
-  if (error || !clearanceRecorderAllowed({ jobRole, hasElectricianRole: data === true })) throw new WorkflowError(CLEARANCE_RECORDER_REFUSED);
-}
-
 // ---------- Gate 1 ----------
 export const createEnquiry = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => enquirySchema.parse(d))
@@ -137,6 +128,20 @@ export const assignContractor = createServerFn({ method: "POST" }).middleware([r
     const { data: hasRole } = await admin.from("user_roles").select("id").eq("user_id", data.userId).eq("role", data.role).maybeSingle();
     if (!hasRole) throw new WorkflowError(`User does not hold the ${data.role} role.`);
     const { data: prof } = await admin.from("profiles").select("full_name, business_id").eq("id", data.userId).single();
+    if (data.role === "electrician") {
+      // Phase 2 compliance: Office direct assignment must enforce the same mandatory REC / electrician eligibility
+      // as the automatic and team paths (pilot.functions assignElectrician / teaming.server tryTeamAssign).
+      const { electricianWorkEligibility } = await import("./pilot.core");
+      const businessId = prof?.business_id ?? null;
+      if (!businessId) throw new WorkflowError("The electrician must belong to an approved REC business.");
+      const [{ data: business }, { data: creds }, { data: workers }] = await Promise.all([
+        admin.from("businesses").select("*").eq("id", businessId).maybeSingle(),
+        admin.from("business_credentials").select("kind,label,expires_at,critical,verification").eq("business_id", businessId),
+        admin.from("partner_workers").select("trade_role,licence_expires_on,approval_status,removed_at").eq("business_id", businessId).eq("trade_role", "electrician"),
+      ]);
+      const blocker = electricianWorkEligibility(business as never, creds as never, workers as never);
+      if (blocker) throw new WorkflowError(`Electrician assignment blocked: ${blocker}`);
+    }
     // Every Mitti form (Ready Check, PIESA, installer safety form) can only be handed to a member of
     // our Mitti organisation, so office learns that here instead of at send time.
     const { row: member, access } = await requireMittiAccess(data.userId, data.role);
@@ -216,9 +221,7 @@ const MEASURE_EVIDENCE = ["measurement", "existing_insulation_r_value"];
 export const saveAssessment = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, patch: assessmentPatch }).parse(d))
   .handler(async ({ data, context }) => {
-    const jobRole = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
-    // STEP 80: the draft carries the PIESA outcome/safety answers that completeAssessment later signs off – same rule.
-    await requireClearanceRecorder(context.supabase as never, jobRole, context.userId);
+    await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
     const { data: existing } = await admin.from("assessments").select("id,status").eq("job_id", data.jobId).maybeSingle();
     if (existing?.status === "complete") throw new WorkflowError("Assessment is complete and locked. Ask Home Insulation Victoria to reopen.");
     if (existing) await admin.from("assessments").update(clean(data.patch)).eq("id", existing.id);
@@ -307,8 +310,10 @@ export const completeMeasurement = createServerFn({ method: "POST" }).middleware
     }).eq("id", m.id);
     await logEvent(data.jobId, context.userId, "measurement_completed", `Ceiling measure-up completed (${m.source_role}${own ? "" : `, completed by ${role}`}) – ${Number(m.measured_area_m2)} m²${verification["verified_at"] ? ` · installer-supplied ${m.supplied_area_m2 ?? "—"} m², variance ${verification["variance_m2"] ?? "—"} m² (${verification["variance_pct"] ?? "—"}%)` : ""}`, { measurement_id: m.id, source_role: m.source_role, supplemented_fields: m.supplemented_fields, ...verification });
     if ((await getStage(data.jobId)) === "ready_check_scheduled") {
-      await transition(data.jobId, "ready_check_complete", context.userId, "Free installer Ready Check completed", { measurement_id: m.id, measured_area_m2: m.measured_area_m2 }, { nextAction: "Prepare measured estimate" });
-      await transition(data.jobId, "measured_estimate_ready", context.userId, "Measured estimate ready after installer eligibility measure-up", { measurement_id: m.id });
+      await transition(data.jobId, "ready_check_complete", context.userId, "Free installer Ready Check completed", { measurement_id: m.id, measured_area_m2: m.measured_area_m2 }, { nextAction: "Office records verified eligibility, then prepares the measured quote" });
+      // The measured-estimate stage needs the office's verified-eligibility record, which can only be made now that the
+      // Ready Check is final, so the old hard second transition always threw AFTER the first had committed. The office
+      // now records eligibility and prepares the measured quote (generateInstallerQuotes), which moves the stage.
       return { advanced: true, scope: "MEASURE_UP_ONLY" as const };
     }
     const res = await advanceSiteRequirements(data.jobId, context.userId);
@@ -398,7 +403,7 @@ export const addOtherRectItem = createServerFn({ method: "POST" }).middleware([r
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
     const stage = await getStage(data.jobId);
-    if (!["assessment_booked", "assessment_booking", "assessment_complete", "rectification_required", "awaiting_owner_rectification_approval"].includes(stage))
+    if (!["piesa_scheduled", "assessment_booked", "assessment_booking", "assessment_complete", "rectification_required", "awaiting_owner_rectification_approval"].includes(stage))
       throw new WorkflowError("Other items can only be added before the owner approves rectification.");
     await admin.from("rectification_items").insert({ job_id: data.jobId, description: data.description, quantity: data.quantity, is_other: true, other_unit_price_inc_gst: data.unitPriceIncGst, explanation: data.explanation, added_by: context.userId });
     await logEvent(data.jobId, context.userId, "rectification_other_added", `Other rectification item added: ${data.description}`, { explanation: data.explanation });
@@ -424,7 +429,7 @@ export const addApprovedRectItem = createServerFn({ method: "POST" }).middleware
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
     const stage = await getStage(data.jobId);
-    if (!["assessment_booked", "assessment_booking", "assessment_complete", "rectification_required", "awaiting_owner_rectification_approval"].includes(stage)) throw new WorkflowError("Approved items can only be added before the owner approves rectification.");
+    if (!["piesa_scheduled", "assessment_booked", "assessment_booking", "assessment_complete", "rectification_required", "awaiting_owner_rectification_approval"].includes(stage)) throw new WorkflowError("Approved items can only be added before the owner approves rectification.");
     const { data: assigned } = await admin.from("job_assignments").select("business_id").eq("job_id", data.jobId).eq("role", "electrician").eq("active", true).maybeSingle();
     if (!assigned?.business_id) throw new WorkflowError("No REC business is assigned to this job.");
     const { data: cards } = await admin.from("rate_cards").select("id,rate_card_items(code,description)").eq("business_id", assigned.business_id).eq("kind", "electrical").eq("is_active", true).order("version", { ascending: false }).limit(1);
@@ -492,8 +497,7 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
     rectWindows: z.array(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), slot: z.enum(["8-10", "10-12", "12-14", "14-16"]) })).max(5).optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    const jobRole = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
-    await requireClearanceRecorder(context.supabase as never, jobRole, context.userId);
+    await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
     const { data: a } = await admin.from("assessments").select("*").eq("job_id", data.jobId).maybeSingle();
     if (!a) throw new WorkflowError("Start the assessment first.");
     if (a.status === "complete") throw new WorkflowError("Electrical assessment is already complete.");
@@ -525,14 +529,23 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
       if (rb.length) throw new WorkflowError(`Rectification times: ${rb.join(" ")}`);
     }
     const stage = await getStage(data.jobId);
-    // S64: Phase 1 electrician jobs sit at piesa_scheduled without a Mitti link; allow the manual portal result path to complete from there too.
-    if (!["assessment_booked", "piesa_scheduled"].includes(stage)) throw new WorkflowError(`Assessment can be completed from "Assessment Booked" (current: ${STAGE_LABEL[stage]}).`);
+    // Current model: the PIESA is booked at piesa_scheduled. assessment_booked is the retired legacy stage, kept for old jobs.
+    if (stage !== "assessment_booked" && stage !== "piesa_scheduled") throw new WorkflowError(`The PIESA can be completed once it is booked (current: ${STAGE_LABEL[stage]}).`);
+    if (stage === "piesa_scheduled") {
+      // Check the guarded stage move BEFORE writing anything, so a blocked completion leaves no half-recorded PIESA.
+      const entry = await stageEntryBlockers(data.jobId, "piesa_complete", context.userId);
+      if (entry.length) throw new WorkflowError(`PIESA cannot be completed yet: ${entry.join(" ")}`);
+    }
     const now = new Date().toISOString();
     await admin.from("assessments").update({ status: "complete", completed_at: now, assessor_id: a.assessor_id ?? context.userId, mitti_sync_status: a.external_mitti_id ? "synced" : "not_synced" }).eq("id", a.id);
     await admin.from("piesa_records").update({ is_current: false }).eq("job_id", data.jobId).eq("is_current", true);
     await admin.from("piesa_records").insert({ job_id: data.jobId, assessment_id: a.id, kind: "initial", outcome: a.piesa_outcome, completed_date: a.assessed_on!, signed_off_by: context.userId, external_mitti_id: a.external_mitti_id });
     await logEvent(data.jobId, context.userId, "electrical_assessment_complete", `Electrical assessment complete – PIESA ${a.piesa_outcome} (${s.label})`, { scope: s.scope });
-    const res = await advanceSiteRequirements(data.jobId, context.userId);
+    let res: { advanced: boolean; scope: string };
+    if (stage === "piesa_scheduled") {
+      await transition(data.jobId, "piesa_complete", context.userId, `PIESA complete – ${a.piesa_outcome}${rectCount ? `, ${rectCount} rectification item(s) listed` : ", no rectification required"}`, { piesa_outcome: a.piesa_outcome, rectification_items: rectCount ?? 0 });
+      res = { advanced: true, scope: s.scope };
+    } else res = await advanceSiteRequirements(data.jobId, context.userId);
     if (rectCount && data.rectWindows?.length) {
       const { windowBounds } = await import("./piesa-windows.core");
       const { data: rq } = await admin.from("quotes").select("id").eq("job_id", data.jobId).eq("kind", "rectification").eq("status", "draft").order("created_at", { ascending: false }).limit(1).maybeSingle();
@@ -551,11 +564,18 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
 
 /** Rectification complete + new PIESA; also the reassessment path when the 30-day window expired. */
 export const recordPiesa = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid, kind: z.enum(["post_rectification", "reassessment"]), outcome: z.enum(["pass", "fail"]), completedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), notes: z.string().max(2000).optional() }).parse(d))
+  .inputValidator((d) => z.object({
+    jobId: uuid,
+    kind: z.enum(["post_rectification", "reassessment"]),
+    outcome: z.enum(["pass", "fail"]),
+    completedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    notes: z.string().max(2000).optional(),
+    sectionCCompleted: z.boolean().optional(),
+    sectionCSignedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  }).parse(d))
   .handler(async ({ data, context }) => {
-    const jobRole = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
-    await requireClearanceRecorder(context.supabase as never, jobRole, context.userId);
-    if (new Date(data.completedDate) > new Date()) throw new WorkflowError("PIESA date cannot be in the future.");
+    await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    if (data.completedDate > melbourneToday()) throw new WorkflowError("PIESA date cannot be in the future."); // Melbourne calendar date, not UTC
     const stage = await getStage(data.jobId);
     if (data.kind === "post_rectification") {
       if (stage !== "rectification_booked") throw new WorkflowError("Rectification must be booked first.");
@@ -564,6 +584,9 @@ export const recordPiesa = createServerFn({ method: "POST" }).middleware([requir
       if (data.outcome === "pass") {
         const { data: ps } = await admin.from("evidence_requirements").select("status").eq("job_id", data.jobId).eq("category", "piesa_signoff").single();
         if (ps && !["uploaded", "verified"].includes(ps.status)) throw new WorkflowError("Upload the PIESA / electrical safety sign-off first.");
+        const { sectionCBlockers } = await import("./rectification.core");
+        const sc = sectionCBlockers(clean({ outcome: data.outcome, completedDate: data.completedDate, sectionCCompleted: data.sectionCCompleted, sectionCSignedDate: data.sectionCSignedDate }));
+        if (sc.length) throw new WorkflowError(`Section C: ${sc.join(" ")}`);
       }
       await admin.from("rectification_items").update({ status: "completed" }).eq("job_id", data.jobId).eq("status", "required");
     } else {
@@ -571,7 +594,16 @@ export const recordPiesa = createServerFn({ method: "POST" }).middleware([requir
       if (!p?.piesa_expired && stage !== "assessment_complete") throw new WorkflowError("Reassessment is only needed when the PIESA window has expired.");
     }
     await admin.from("piesa_records").update({ is_current: false }).eq("job_id", data.jobId).eq("is_current", true);
-    await admin.from("piesa_records").insert({ job_id: data.jobId, kind: data.kind, outcome: data.outcome, completed_date: data.completedDate, signed_off_by: context.userId, notes: data.notes ?? null });
+    await admin.from("piesa_records").insert({
+      job_id: data.jobId,
+      kind: data.kind,
+      outcome: data.outcome,
+      completed_date: data.completedDate,
+      signed_off_by: context.userId,
+      notes: data.notes ?? null,
+      ...(data.kind === "post_rectification" ? { rectification_completed_at: `${data.completedDate}T00:00:00.000Z` } : {}),
+      ...(data.kind === "post_rectification" && data.outcome === "pass" ? { section_c_signed_at: `${data.sectionCSignedDate!}T00:00:00.000Z` } : {}),
+    });
     await logEvent(data.jobId, context.userId, "piesa_recorded", `PIESA (${data.kind.replace("_", " ")}) ${data.outcome} on ${data.completedDate}`);
     if (data.kind === "post_rectification" && data.outcome === "pass") {
       await admin.from("compliance_checks").update({ status: "pass", checked_at: new Date().toISOString() }).eq("job_id", data.jobId).in("check_key", ["rectification", "electrical_assessment"]);
@@ -588,18 +620,21 @@ export const generateInstallerQuotes = createServerFn({ method: "POST" }).middle
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const stage = await getStage(data.jobId);
-    // measured_estimate_ready is the Ready Check path (measure-up done, owner waiting); the quote stays there until
-    // the owner accepts it, which moves the job to measured_quote_accepted.
-    if (!["ready_for_installer_quotes", "awaiting_quote_acceptance", "measured_estimate_ready"].includes(stage)) throw new WorkflowError("Quotes can only be generated once the job is Ready for Installer Quotes.");
+    // Ready Check path (Jo 7 Oct: office-released measured quote at measured_estimate_ready): after the Ready Check is
+    // complete and the office has recorded verified eligibility, this office action prepares the measured quote and
+    // moves ready_check_complete -> measured_estimate_ready through the guarded transition. The legacy path stays.
+    const measuredPath = stage === "ready_check_complete" || stage === "measured_estimate_ready";
+    if (!["ready_for_installer_quotes", "awaiting_quote_acceptance", "ready_check_complete", "measured_estimate_ready"].includes(stage)) throw new WorkflowError("Quotes can only be generated once the Ready Check is complete (or the job is Ready for Installer Quotes).");
     // Check the gates BEFORE issuing quotes so none are issued to the owner while the job is blocked.
-    // The Ready Check path quotes before the PIESA, so its gate is the stage the owner's acceptance leads to.
-    const gateStage = stage === "measured_estimate_ready" ? "measured_quote_accepted" : "awaiting_quote_acceptance";
-    const pre = (await stageEntryBlockers(data.jobId, gateStage)).filter((b) => b !== "No installation quotes issued.");
+    const pre = measuredPath
+      ? await stageEntryBlockers(data.jobId, "measured_estimate_ready") // verified eligibility + accepted installer measure-up (PIESA comes after acceptance)
+      : (await stageEntryBlockers(data.jobId, "awaiting_quote_acceptance")).filter((b) => b !== "No installation quotes issued.");
     if (pre.length) throw new WorkflowError(`Blocked: ${pre.join(" • ")}`);
     await genInstaller(data.jobId, context.userId);
     { const { applyCobrand } = await import("./pilot.server"); await applyCobrand(data.jobId); }
     const { data: released } = await admin.from("quotes").select("id").eq("job_id", data.jobId).eq("kind", "installation").eq("status", "issued").order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (stage === "ready_for_installer_quotes" && released) await transition(data.jobId, "awaiting_quote_acceptance", context.userId, "Installation quote released to owner");
+    if (stage === "ready_check_complete") await transition(data.jobId, "measured_estimate_ready", context.userId, "Measured quote prepared by the office after verified eligibility");
     await autoAdvanceJob(data.jobId, context.userId, "quotes generated");
     return { ok: true };
   });
@@ -658,6 +693,8 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
     await context.authorize(q.job_id);
     if (q.status === "expired") throw new WorkflowError("This quote has expired. Please contact us for an updated quote.");
     if (q.status !== "issued") throw new WorkflowError("This quote is no longer open.");
+    // A held or queued installation quote is not the owner's to action (it was never released to them).
+    if (q.kind === "installation") { const { ownerQuoteReleased, QUOTE_NOT_RELEASED } = await import("./owner-quote-visibility.core"); if (!ownerQuoteReleased(q)) throw new WorkflowError(QUOTE_NOT_RELEASED); }
     // Exact-version acceptance: if the owner's screen shows a version (any manual adjustment bumps it),
     // accepting an older version is rejected instead of silently approving changed pricing.
     if (data.accept && data.expectedVersion != null && data.expectedVersion !== q.version)
@@ -732,7 +769,12 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
         await logEvent(q.job_id, context.userId, "rectification_windows_declined", "Owner said none of the electrician's times work — contacts will be shared for the rectification visit when scheduling opens");
       }
     }
-    if (!pickedWindow) await admin.from("quotes").update({ status: "accepted", accepted_at: new Date().toISOString(), accepted_by: context.userId }).eq("id", q.id);
+    if (!pickedWindow) {
+      // Only a still-open quote can become accepted: a quote superseded/expired meanwhile is never flipped back.
+      const { data: won, error: ae } = await admin.from("quotes").update({ status: "accepted", accepted_at: new Date().toISOString(), accepted_by: context.userId }).eq("id", q.id).eq("status", "issued").select("id");
+      if (ae) throw new Error(ae.message);
+      if (!won?.length) { const { QUOTE_CHANGED_WHILE_ACCEPTING } = await import("./owner-quote-visibility.core"); throw new WorkflowError(QUOTE_CHANGED_WHILE_ACCEPTING); }
+    }
     await admin.from("quotes").update({ status: "superseded" }).eq("job_id", q.job_id).eq("kind", q.kind).eq("status", "issued");
     if (priorAccepted.length) await admin.from("quotes").update({ status: "superseded" }).in("id", priorAccepted).eq("status", "accepted"); // intake reconfirmation: replaced (no invoice on it — checked above)
     if (pickedWindow) await logEvent(q.job_id, context.userId, "rectification_window_picked", `Owner picked the rectification time ${new Date(pickedWindow).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })}; it becomes the confirmed booking when rectification scheduling opens`, { quote_id: q.id, starts_at: pickedWindow });
@@ -768,14 +810,25 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
     if (measuredPath) {
       // Ready Check path: next is the safety check payment, then the owner picks safety check times.
       await transition(q.job_id, "measured_quote_accepted", context.userId, "Owner accepted the measured quote – safety check payment due next");
-      await createInvoiceForQuote(q.id, context.userId);
+      await invoiceAfterAcceptance(q.id, q.job_id, context.userId);
       await autoAdvanceJob(q.job_id, context.userId, "measured quote accepted");
       return { ok: true };
     }
     await transition(q.job_id, "awaiting_deposit_payment", context.userId, "Owner accepted final installation quote – approved payment option due");
-    await createInvoiceForQuote(q.id, context.userId);
+    await invoiceAfterAcceptance(q.id, q.job_id, context.userId);
     await advanceAfterDeposit(q.job_id, context.userId);
     return { ok: true };
+}
+
+/** The acceptance (signature + stage move) is already committed here. An invoice / Xero push failure must not turn the
+ *  owner's completed acceptance into an error they cannot retry (the quote is no longer "issued"); record it for office,
+ *  which recovers with Retry Xero push (local invoice row exists) or Sync. */
+async function invoiceAfterAcceptance(quoteId: string, jobId: string, actorId: string) {
+  try { await createInvoiceForQuote(quoteId, actorId); }
+  catch (e) {
+    const { data: inv } = await admin.from("invoices").select("id").eq("quote_id", quoteId).maybeSingle();
+    await logEvent(jobId, actorId, "invoice_create_failed", `Quote accepted but the invoice step failed – office action needed: ${(e as Error)?.message ?? e}`, { quote_id: quoteId, invoice_id: inv?.id ?? null, local_invoice_exists: !!inv }, { internal: true }).catch(() => null);
+  }
 }
 
 // ---------- Payments (Xero mirror + gates) ----------
@@ -812,11 +865,19 @@ export const overrideDepositGate = createServerFn({ method: "POST" }).middleware
   .inputValidator((d) => z.object({ invoiceId: uuid, reason: z.string().trim().min(5).max(1000) }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
+    try { await requireHivicInvoice(data.invoiceId); } catch (e) { throw new WorkflowError((e as Error).message); }
     const { data: inv } = await admin.from("invoices").select("id, job_id, status, deposit_paid_at, total_paid").eq("id", data.invoiceId).single();
     if (!inv) throw new WorkflowError("Invoice not found");
+    // While the payment rule is pending activation an override cannot clear anything: refuse instead of recording a
+    // misleading "overridden" audit row that has no effect.
+    const { paymentGateActiveForJob } = await import("./workflow.server");
+    if (!(await paymentGateActiveForJob(inv.job_id))) throw new WorkflowError("Payment rule pending activation – a deposit override has no effect until the payment gate is switched on. Nothing was recorded.");
+    const { count: existing } = await admin.from("payment_overrides").select("id", { count: "exact", head: true }).eq("invoice_id", inv.id).eq("gate", "deposit");
+    if (existing) throw new WorkflowError("The deposit gate is already overridden for this invoice.");
     let ov;
     try { ov = buildDepositOverride(inv as never, data.reason, context.userId, await getStage(inv.job_id)); } catch (e) { throw new WorkflowError((e as Error).message); }
-    await admin.from("payment_overrides").insert(ov as never);
+    const { error: ovErr } = await admin.from("payment_overrides").insert(ov as never);
+    if (ovErr) throw new WorkflowError(`Override not recorded: ${ovErr.message}`);
     await logEvent(inv.job_id, context.userId, "payment_override", `Deposit gate overridden by admin: ${ov.reason}`, { invoice_id: data.invoiceId, before: ov.before_state, after: ov.after_state });
     await advanceAfterDeposit(inv.job_id, context.userId);
     return { ok: true };
@@ -845,6 +906,9 @@ export const simulateXeroPayment = createServerFn({ method: "POST" }).middleware
     if (process.env["XERO_API_KEY"]) throw new WorkflowError("Xero is connected – use Sync from Xero.");
     const { data: inv } = await admin.from("invoices").select("job_id").eq("id", data.invoiceId).single();
     if (!inv) throw new WorkflowError("Invoice not found");
+    // Testing tool: never writes a fake payment onto a real customer job (production shares this database).
+    const { data: sj } = await admin.from("jobs").select("source, qa_archived_at").eq("id", inv.job_id).single();
+    if (sj?.source !== "qa_test" || sj.qa_archived_at) throw new WorkflowError("Simulated payments are only allowed on live test (qa_test) jobs.");
     await logEvent(inv.job_id, context.userId, "payment_simulated", `Simulated Xero payment total ${data.amountPaid} (testing)`, {}, { internal: true });
     await applyPaidAmount(data.invoiceId, data.amountPaid, context.userId);
     await advanceAfterDeposit(inv.job_id, context.userId);
@@ -861,11 +925,22 @@ export const createBooking = createServerFn({ method: "POST" }).middleware([requ
     const blocked = directBookingBlocker(data.kind, role, data.overrideReason);
     if (blocked) throw new WorkflowError(blocked);
     const { confirmBooking } = await import("./booking.server");
-    if (data.kind === "assessment") {
+    // D-12: an assessment booking here is always an admin override (directBookingBlocker refuses everyone else).
+    // confirmBooking checks every gate before it writes, so the override's own writes (superseding open proposals,
+    // the homeowner-visible override event) happen only AFTER it succeeds. A refused override changes nothing
+    // and leaves only an internal (office-only) diagnostic event.
+    const override = data.kind === "assessment";
+    try {
+      await confirmBooking(data.jobId, data.kind, data.start, context.userId, role === "admin" && override ? "admin (override)" : role, data.notes);
+    } catch (e) {
+      if (override) await logEvent(data.jobId, context.userId, "admin_booking_override_refused", `Admin override refused: ${(e as Error).message}`, { reason: data.overrideReason, start: data.start }, { internal: true })
+        .catch((le) => console.error("override refusal log skipped", (le as Error).message));
+      throw e;
+    }
+    if (override) {
       await admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", data.jobId).eq("kind", "assessment").eq("status", "proposed");
       await logEvent(data.jobId, context.userId, "admin_booking_override", `Admin override: assessment booking set directly for ${new Date(data.start).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })}`, { reason: data.overrideReason, start: data.start });
     }
-    await confirmBooking(data.jobId, data.kind, data.start, context.userId, role === "admin" && data.kind === "assessment" ? "admin (override)" : role, data.notes);
     return { ok: true };
   });
 
@@ -877,6 +952,18 @@ export const cancelBooking = createServerFn({ method: "POST" }).middleware([requ
     const { data: rows } = await admin.from("bookings").update({ status: "cancelled" }).eq("job_id", data.jobId).eq("kind", data.kind).in("status", ["proposed", "confirmed"]).select("id");
     if (!rows?.length) throw new WorkflowError(`No active ${data.kind} booking to cancel.`);
     await logEvent(data.jobId, context.userId, "booking_cancelled", `${data.kind} booking cancelled: ${data.reason}`, { booking_ids: rows.map((r) => r.id) });
+    if (data.kind === "assessment" && (await getStage(data.jobId)) === "piesa_scheduled") {
+      // D-11: "PIESA Scheduled" is only entered by a confirmed PIESA booking (confirmBooking). With that booking cancelled,
+      // step back along the existing piesa_scheduled → piesa_and_install_window_pending transition, through the central
+      // guarded transition (TRANSITIONS, entry blockers, commit_guarded_stage). If the move is refused, the cancellation
+      // still stands and the office gets an internal note with the reason; nothing is forced.
+      try {
+        await transition(data.jobId, "piesa_and_install_window_pending", context.userId, "PIESA booking cancelled – a new PIESA time is needed", { booking_ids: rows.map((r) => r.id) });
+      } catch (e) {
+        await logEvent(data.jobId, context.userId, "piesa_stage_not_reverted", `PIESA booking cancelled, but the job could not move back to PIESA pending and stays at PIESA Scheduled: ${(e as Error).message}`, { booking_ids: rows.map((r) => r.id) }, { internal: true })
+          .catch((le) => console.error("D-11 stage note skipped", (le as Error).message));
+      }
+    }
     if (data.kind === "installation") {
       await clearInstallDueDate(data.jobId, context.userId);
       const { regenerateEscNotification } = await import("./esc.server");
@@ -890,12 +977,15 @@ export const completeInstallation = createServerFn({ method: "POST" }).middlewar
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, data.jobId, ["admin", "installer"]);
-    const { data: unlockBooking } = await admin.from("bookings").select("id, scheduled_start").eq("job_id", data.jobId).eq("kind", "installation").eq("status", "confirmed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle();
+    // P0: no confirmed installation booking = no completion (checked BEFORE any stage change; fails closed).
+    const { confirmedInstallBooking } = await import("./workflow.server");
+    const { booking: unlockBooking, blocker } = await confirmedInstallBooking(data.jobId);
+    if (blocker || !unlockBooking) throw new WorkflowError(blocker ?? "No confirmed installation booking.");
     await transition(data.jobId, "evidence_outstanding", context.userId, "Installation marked complete by installer");
     await admin.from("jobs").update({ installation_completed_at: new Date().toISOString() }).eq("id", data.jobId);
     await admin.from("bookings").update({ status: "completed" }).eq("job_id", data.jobId).eq("kind", "installation").eq("status", "confirmed");
     // Gap 4: record exactly which confirmed install booking unlocked installation (AP review requires it completed).
-    if (unlockBooking) await logEvent(data.jobId, context.userId, "install_unlocked_by_booking", "Installation recorded against the confirmed install booking", { booking_id: unlockBooking.id, scheduled_start: unlockBooking.scheduled_start }, { internal: true });
+    await logEvent(data.jobId, context.userId, "install_unlocked_by_booking", "Installation recorded against the confirmed install booking", { booking_id: unlockBooking.id, scheduled_start: unlockBooking.scheduled_start }, { internal: true });
     await logEvent(data.jobId, context.userId, ASSIGNMENT_EVENTS.INSTALLATION_COMPLETED, "Eligible installation undertaken");
     await autoAdvanceJob(data.jobId, context.userId, "installation completed");
     return { ok: true };
@@ -904,10 +994,8 @@ export const completeInstallation = createServerFn({ method: "POST" }).middlewar
 export const submitDeclaration = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, kind: z.enum(["installer_declaration", "electrician_declaration"]), statement: z.string().trim().min(10).max(4000) }).parse(d))
   .handler(async ({ data, context }) => {
-    const jobRole = await requireJobRole(context.supabase, data.jobId, ["admin", data.kind === "installer_declaration" ? "installer" : "electrician"]);
+    await requireJobRole(context.supabase, data.jobId, ["admin", data.kind === "installer_declaration" ? "installer" : "electrician"]);
     if (data.kind === "installer_declaration") throw new WorkflowError("Installer declarations are signed in the final VEEC assignment step (approved wording only).");
-    // STEP 80: an electrician declaration is an electrician attestation – Office or the licensed-electrician app role only.
-    await requireClearanceRecorder(context.supabase as never, jobRole, context.userId);
     await admin.from("declarations").upsert({ job_id: data.jobId, kind: data.kind, declared_by: context.userId, statement: data.statement, declared_at: new Date().toISOString() }, { onConflict: "job_id,kind" });
     await logEvent(data.jobId, context.userId, "declaration_submitted", `${data.kind.replace("_", " ")} signed`);
     await autoAdvanceJob(data.jobId, context.userId, "declaration signed");
@@ -1180,10 +1268,8 @@ export const setHold = createServerFn({ method: "POST" }).middleware([requireSup
       await admin.from("jobs").update({ stage: job.prior_stage, prior_stage: null, hold_reason: null }).eq("id", data.jobId);
       await logEvent(data.jobId, context.userId, "stage_changed", "Job resumed", {}, { from: "on_hold", to: job.prior_stage });
     } else {
-      if (!data.reason || data.reason.length < 3) throw new WorkflowError("A reason is required.");
-      const to: Stage = data.action === "hold" ? "on_hold" : "cancelled";
-      await admin.from("jobs").update({ stage: to, prior_stage: job.stage === "on_hold" ? job.prior_stage : job.stage, hold_reason: data.action === "hold" ? data.reason : null, cancelled_reason: data.action === "cancel" ? data.reason : null }).eq("id", data.jobId);
-      await logEvent(data.jobId, context.userId, "stage_changed", `${to === "on_hold" ? "Put on hold" : "Cancelled"}: ${data.reason}`, {}, { from: job.stage, to });
+      const { applyHoldOrCancel } = await import("./job-disposition.server");
+      await applyHoldOrCancel(data.jobId, data.action, data.reason ?? "", context.userId);
     }
     return { ok: true };
   });

@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { AppShell } from "@/components/portal/AppShell";
 import { Button } from "@/components/ui/button";
+import { useReasonDialog } from "@/components/portal/reason-dialog";
 import { approvePaperworkFn, approvePaperworkTemplateFn, getResignSwitchFn, paperworkCatalogueFn, setResignSwitchFn } from "@/lib/owner-gates.functions";
 import { templateEditHref } from "@/lib/owner-paperwork.core";
 
@@ -28,6 +29,7 @@ function Page() {
   const { data } = useQuery({ queryKey: ["paperwork-catalogue"], queryFn: () => load() });
   const [view, setView] = useState<string | null>(null);
   const [err, setErr] = useState("");
+  const reason = useReasonDialog();
   const docs = (data?.docs ?? []) as Doc[];
   const bodies = (data?.bodies ?? {}) as Record<string, string>;
   return (
@@ -49,7 +51,8 @@ function Page() {
             <td className="space-y-1 py-2">
               {d.status !== "Approved" && !(d.managedIn === "Templates" && !d.templateId) && <Button size="sm" variant="outline" onClick={async () => {
                 setErr("");
-                if (window.prompt(`Approve "${d.title}" ${d.version} as final wording? Only do this once Jo has approved the exact text. Type APPROVE`) !== "APPROVE") return;
+                const typed = await reason.ask({ title: `Approve "${d.title}" ${d.version}?`, description: "Only do this once Jo has approved the exact text. Type APPROVE to confirm.", placeholder: "Type APPROVE", requireExact: "APPROVE" });
+                if (typed !== "APPROVE") return;
                 try {
                   if (d.managedIn === "Templates") await approveTpl({ data: { id: d.templateId!, confirm: "APPROVE" } });
                   else await approve({ data: { key: d.key as never, version: d.version, confirm: "APPROVE" } });
@@ -60,6 +63,7 @@ function Page() {
               {d.managedIn === "Templates" && <a href={templateEditHref(d.key)} className="block text-xs font-semibold text-primary underline">Edit wording</a>}</td>
           </tr>))}</tbody>
       </table>
+      {reason.dialog}
     </AppShell>
   );
 }
@@ -68,6 +72,7 @@ function ResignSwitch() {
   const get = useServerFn(getResignSwitchFn);
   const set = useServerFn(setResignSwitchFn);
   const qc = useQueryClient();
+  const reason = useReasonDialog();
   const { data } = useQuery({ queryKey: ["resign-switch"], queryFn: () => get() });
   const [err, setErr] = useState("");
   if (!data) return null;
@@ -79,12 +84,13 @@ function ResignSwitch() {
         <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${data.on ? "bg-success/15 text-success" : "bg-muted"}`}>{data.on ? "On" : "Off"}</span>
         <Button size="sm" variant="outline" onClick={async () => {
           setErr("");
-          const reason = window.prompt(`Turn ${data.on ? "OFF" : "ON"}? Give a short reason for the record.`);
-          if (!reason || reason.trim().length < 5) return;
-          try { await set({ data: { on: !data.on, reason } }); await qc.invalidateQueries({ queryKey: ["resign-switch"] }); } catch (e) { setErr(e instanceof Error ? e.message : "Failed"); }
+          const r2 = await reason.ask({ title: `Turn ${data.on ? "OFF" : "ON"} owner re-signing?`, description: "Give a short reason for the record.", placeholder: "Reason (required)", minLength: 5 });
+          if (!r2) return;
+          try { await set({ data: { on: !data.on, reason: r2 } }); await qc.invalidateQueries({ queryKey: ["resign-switch"] }); } catch (e) { setErr(e instanceof Error ? e.message : "Failed"); }
         }}>Turn {data.on ? "off" : "on"}</Button>
       </div>
       {err && <p role="alert" className="mt-2 text-sm text-destructive">{err}</p>}
+      {reason.dialog}
     </section>
   );
 }

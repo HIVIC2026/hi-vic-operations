@@ -1,4 +1,3 @@
-import { effectiveReadyCheckFee } from "./readycheck.core";
 // Read-only loader + draft preparation for office enquiry email groups. Scans EVERY website enquiry (paged, no silent cap)
 // plus calculator registrations, and classifies each with the pure rules in enquiry-groups.core.ts. Writes nothing.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
@@ -8,8 +7,7 @@ import { SUPPRESSING_EVENTS } from "./emailsafety.server";
 import { normaliseInsulation } from "./eligibility.core";
 import { declaredExtras } from "./enquiry.core";
 import { currentRetailSettings } from "./estimate.server";
-import { pricingForJob, pricingForNewEnquiry, withCohortRates } from "./pricing-cohort.server";
-import type { ResolvedPricing } from "./pricing-cohort.core";
+import { READY_CHECK_FEE } from "./readycheck.core";
 import { renderEstimateEmail, renderIneligibleOutcomeEmail, renderInsulationVideoEmail } from "./estimate-email";
 import { CUSTOMER_BASE } from "./engagement.core";
 import type { LocationVariables } from "./activity48.core";
@@ -17,8 +15,6 @@ import { originalEnquiryMedia, groupBInvitationBlocker, type GroupBMediaState } 
 import { signFile } from "./file-links.server";
 import { formatPropertyAddress } from "./address";
 import { LAUNCH_CAMPAIGN } from "./launch-campaign.core";
-import { MANUAL_SOURCE_EVENT, manualLeadView, withManualSends, type ManualLeadView } from "./manual-communication.core";
-import { sendKindFromKey, uncertainAttentionReason, uncertainSend, type SendKind } from "./save-spot-delivery.core";
 import {
   classifyEnquiry, enquiryStatus, contactExclusion, primaryByContact, propertyKey, contactKey, sendHolds, templateFor, AREA_LABEL, ASSUMED_REFERENCE_AREA_M2,
   type EnquiryClass, type EnquiryStatus, type EnquiryGroup, type OtherReason, type StoredAudit, type MediaReviewOutcome,
@@ -62,11 +58,6 @@ export type EnquiryGroupRow = EnquiryClass & {
   mediaCount: number; mediaChecked: boolean; groupBMedia: GroupBMediaState;
   /** Latest office photo/video review outcome, if any. below_r2/over_r2 are final; unclear keeps the lead in the review list. */
   mediaOutcome: MediaReviewOutcome | null;
-  /** Office-recorded manual communication (STEP 32): manual sends complete their email action; the latest record is shown. */
-  manual: ManualLeadView;
-  /** STEP 56: a Save my spot email whose delivery outcome is unknown (delivered_unrecorded or a stale "sending"). It is never
-   *  resent automatically; the Office resolves it after checking the email service. */
-  emailOutcomeUnknown: { sendId: string; at: string | null; detail: string | null; kind: SendKind } | null;
 };
 
 export async function loadEnquiryGroups() {
@@ -80,7 +71,7 @@ export async function loadEnquiryGroups() {
     byJobs(ids, (c, f, t) => admin.from("property_area_estimates").select("id, job_id, tier, net_m2, created_at").in("job_id", c).in("tier", TRUSTED_ESTIMATE_TIERS).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("evidence_files").select("job_id, mime_type, storage_path").in("job_id", c).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("post_intake_work").select("job_id").in("job_id", c).in("status", ["queued", "processing", "retry"]).range(f, t)),
-    byJobs(ids, (c, f, t) => admin.from("customer_email_sends").select("id, job_id, purpose, status, sent_at, created_at, error, idempotency_key").in("job_id", c).order("created_at", { ascending: true }).range(f, t)),
+    byJobs(ids, (c, f, t) => admin.from("customer_email_sends").select("job_id, purpose, status, sent_at, created_at, error, idempotency_key").in("job_id", c).order("created_at", { ascending: true }).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("owner_contact_consents").select("job_id, consent_status, created_at").in("job_id", c).order("created_at", { ascending: true }).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("customer_email_optouts").select("job_id, opted_out_at").in("job_id", c).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("customer_engagement_events").select("job_id").in("job_id", c).in("event_type", SUPPRESSING_EVENTS).range(f, t)),
@@ -92,7 +83,6 @@ export async function loadEnquiryGroups() {
   ]);
   const removedRows = await byJobs(ids, (c, f, t) => admin.from("workflow_events").select("job_id").in("job_id", c).eq("event_type", "lead_removed").range(f, t));
   const removedSet = new Set(removedRows.map((r) => r.job_id));
-  const manualRows = await byJobs(ids, (c, f, t) => admin.from("job_communications").select("job_id, source_event, source_reference, created_at, body").in("job_id", c).like("source_event", `${MANUAL_SOURCE_EVENT}:%`).order("created_at").range(f, t));
   const savedSet = new Set(responses.filter((r) => r.spot_saved_at).map((r) => r.job_id));
   const deliveryCfg = must(cfg, "Delivery settings");
   const group = <T extends { job_id: string | null }>(rows: T[]) => { const m = new Map<string, T[]>(); for (const r of rows) if (r.job_id) m.set(r.job_id, [...(m.get(r.job_id) ?? []), r]); return m; };
@@ -104,11 +94,8 @@ export async function loadEnquiryGroups() {
     const o = (r.metadata as { outcome?: string } | null)?.outcome;
     if (o && MEDIA_OUTCOMES.includes(o as MediaReviewOutcome)) outcomeBy.set(r.job_id, o as MediaReviewOutcome);
   }
-  const manualByJob = new Map<string, { source_event: string | null; source_reference: string | null; created_at: string; body: string }[]>();
-  for (const r of manualRows) manualByJob.set(r.job_id, [...(manualByJob.get(r.job_id) ?? []), r]);
   const workSet = new Set(work.map((w) => w.job_id)), optSet = new Set(optouts.filter((o) => o.opted_out_at).map((o) => o.job_id)), bounceSet = new Set(events.map((e) => e.job_id));
 
-  const loadedAt = Date.now();
   const rows: (EnquiryGroupRow & { propKey: string })[] = jobs.map((j) => {
     const owner = j.owners as { full_name: string | null; email: string | null } | null;
     const p = j.properties as { address_line: string | null; suburb: string | null; state: string | null; postcode: string | null; enrichment: Record<string, unknown> | null } | null;
@@ -120,8 +107,6 @@ export async function loadEnquiryGroups() {
     const last = js[js.length - 1];
     const audit = (j.eligibility_decision_rules ?? null) as StoredAudit;
     const mediaOutcome = outcomeBy.get(j.id) ?? null;
-    const manual = manualLeadView(manualByJob.get(j.id) ?? []);
-    const unknownSend = (sBy.get(j.id) ?? []).filter((s) => s.purpose === LAUNCH_CAMPAIGN && uncertainSend(s, loadedAt)).slice(-1)[0] ?? null;
     const groupBMedia = originalEnquiryMedia(b44.raw, [...(mediaBy.get(j.id) ?? []), ...(evidenceBy.get(j.id) ?? [])]);
     const c = classifyEnquiry({
       kind: "job", stage: j.stage, holdReason: j.hold_reason, outcome: j.eligibility_outcome, decisionSource: j.eligibility_decision_source,
@@ -139,16 +124,13 @@ export async function loadEnquiryGroups() {
       status: (() => {
         const sent = js.filter((s) => SENT.includes(s.status));
         const camp = sent.filter((s) => s.purpose === LAUNCH_CAMPAIGN);
-        const st = enquiryStatus(withManualSends({
+        return enquiryStatus({
           spotSaved: savedSet.has(j.id), ineligible: c.otherReason === "not_eligible",
           ineligibleEmailSent: sent.some((s) => s.purpose === "preliminary_ineligible"),
           campaignSent: camp.length > 0, insulationEmailSent: sent.some((s) => s.purpose === "insulation_video_request"),
           campaignGroup: camp.length ? (camp.some((s) => /:b(:|$)/.test(s.idempotency_key ?? "")) ? "onsite" : "likely") : null,
-        }, manual));
-        // STEP 56: an unknown Save my spot outcome is an exception for the Office, unless the owner has already saved their spot.
-        return unknownSend && st !== "spot_saved" ? "needs_attention" as const : st;
-      })(), attentionReason: null, outcomeAt: j.eligibility_set_at ?? null, manual,
-      emailOutcomeUnknown: unknownSend ? { sendId: unknownSend.id, at: unknownSend.created_at ?? null, detail: unknownSend.error ?? null, kind: sendKindFromKey(unknownSend.idempotency_key) } : null,
+        });
+      })(), attentionReason: null, outcomeAt: j.eligibility_set_at ?? null,
       groupBMedia, mediaCount: groupBMedia.count, mediaChecked: mediaOutcome === "below_r2" || mediaOutcome === "over_r2", mediaOutcome,
       removed: removedSet.has(j.id),
     };
@@ -157,8 +139,7 @@ export async function loadEnquiryGroups() {
   for (const r of rows) {
     r.isPrimaryForContact = contactKey(r.email, r.propKey) === null || primary.has(r.id);
     if (r.status === "needs_attention") {
-      r.attentionReason = r.emailOutcomeUnknown ? uncertainAttentionReason(r.emailOutcomeUnknown.kind)
-        : !r.isPrimaryForContact ? "Duplicate enquiry for the same contact and property"
+      r.attentionReason = !r.isPrimaryForContact ? "Duplicate enquiry for the same contact and property"
         : r.lastEmail?.status === "failed" ? `Email failed: ${r.lastEmail.error ?? "delivery error"}`
         : r.optedOut ? "Owner opted out"
         : r.bounced ? "Email bounced or was suppressed"
@@ -203,7 +184,7 @@ async function locations(postcodes: string[]) {
 
 type Draft = { subject: string; previewText: string; html: string; plainText: string; area: { m2: number | null; label: string } };
 type Selected = { group: EnquiryGroup; otherReason: OtherReason | null; assumedAreaM2: number };
-type Ctx = { settings: Awaited<ReturnType<typeof currentRetailSettings>>; loc: Map<string, LocationVariables>; pricing: Map<string, ResolvedPricing> };
+type Ctx = { settings: Awaited<ReturnType<typeof currentRetailSettings>>; loc: Map<string, LocationVariables> };
 
 function renderDraft(r: EnquiryGroupRow, sel: Selected, ctx: Ctx): Draft | { error: string } {
   const firstName = r.name?.trim().split(/\s+/)[0] ?? null;
@@ -219,29 +200,16 @@ function renderDraft(r: EnquiryGroupRow, sel: Selected, ctx: Ctx): Draft | { err
   const m2 = assumed ? sel.assumedAreaM2 : r.area.m2;
   if (m2 == null) return { error: "No usable area" };
   const area: AreaCandidate = assumed ? { m2, source: "typical_default", basis: "assumed", id: null, label: `Assumed area: ${m2} m²` } : { m2, source: r.area.source === "measured" ? "accepted_measurement" : r.area.source === "estimated" ? "area_estimate" : "owner_estimate", basis: r.area.source, id: null, label: r.areaLabel };
-  const pricing = ctx.pricing.get(r.id);
-  if (!pricing) return { error: "This customer's price version cannot be confirmed – estimate cannot be rendered" };
-  const s = withCohortRates(ctx.settings, pricing);
-  const e = computeEstimate(area, loc, r.declaredInsulation, s);
+  const e = computeEstimate(area, loc, r.declaredInsulation, ctx.settings);
   const st = e.primary.by_access.standard;
-  const fee = effectiveReadyCheckFee(pricing.readyCheckFeeIncGst);
-  const gross = Math.round((st.pre_discount_total + fee) * 100) / 100;
-  const total = Math.round((st.estimated_customer_total + fee) * 100) / 100;
+  const s = ctx.settings;
   const mail = renderEstimateEmail({
     estimateUrl: placeholderLink, outcome: "likely", firstName, reference: r.reference,
-    estimatedTotal: total, veuDiscount: e.applied_discount, areaM2: m2,
+    estimatedTotal: st.estimated_customer_total, veuDiscount: e.applied_discount, areaM2: m2,
     installationPrice: st.installation, installationRatePerM2: s.r5_install_inc_gst_per_m2, assessmentFee: s.piesa_assessment_inc_gst, apFee: s.ap_management_inc_gst,
-    grossProjectTotal: gross, amountPayableNow: fee, estimatedRemainingBalance: Math.max(0, Math.round((total - fee) * 100) / 100), areaIsTypical: assumed,
-    readyCheckFeeIncGst: fee, pricingCohort: pricing.cohort,
+    grossProjectTotal: st.pre_discount_total, amountPayableNow: READY_CHECK_FEE, estimatedRemainingBalance: Math.max(0, st.estimated_customer_total - READY_CHECK_FEE), areaIsTypical: assumed,
   });
   return { ...mail, area: { m2, label: assumed ? `Assumed area: ${m2} m²` : r.areaLabel } };
-}
-
-/** Per-row price version; unreadable versions are left out so the row fails closed (no estimate rendered). */
-async function cohortPricing(rows: EnquiryGroupRow[]) {
-  const out = new Map<string, ResolvedPricing>();
-  await Promise.all(rows.map(async (r) => { try { out.set(r.id, r.kind === "job" ? await pricingForJob(r.id) : await pricingForNewEnquiry()); } catch { /* fail closed */ } }));
-  return out;
 }
 
 /** Staff-reviewed draft preparation. Works with communications OFF. Revalidates the current group and contact facts. Writes nothing. */
@@ -253,8 +221,8 @@ export async function prepareEnquiryEmails(ids: string[], sel: Selected, withHtm
   const want = [...new Set(ids)];
   const chosen = want.map((id) => byId.get(id)).filter((r): r is NonNullable<typeof r> => !!r);
   const ctx: Ctx = tpl.key && (sel.group === "likely_size" || sel.group === "likely_no_size")
-    ? { settings: await currentRetailSettings(), loc: await locations(chosen.map((r) => String(r.postcode ?? "").trim())), pricing: await cohortPricing(chosen) }
-    : { settings: null, loc: new Map(), pricing: new Map() };
+    ? { settings: await currentRetailSettings(), loc: await locations(chosen.map((r) => String(r.postcode ?? "").trim())) }
+    : { settings: null, loc: new Map() };
   const seen = new Set<string>();
   const drafts: { id: string; name: string | null; email: string; jobNumber: string | null; subject: string; previewText: string; plainText: string; html: string | null; area: { m2: number | null; label: string }; link: string; holds: string[] }[] = [];
   const excluded: { id: string; name: string | null; email: string | null; reason: string }[] = [];

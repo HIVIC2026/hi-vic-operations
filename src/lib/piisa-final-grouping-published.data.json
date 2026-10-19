@@ -1778,7 +1778,7 @@
     "media": [
       {
         "id": "70794536-ee35-491d-b5ac-b940463b59ce",
-        "token": "f03076f347075a3f649db503eaa943aa3dc50bddfb148aa6a3c8a995239c5ee0",
+        "token": "0000000000000000000000000000000000000000000000000000000000000000",
         "filename": "IMG_1377 (002).PNG",
         "media_type": "MEDIA_TYPE_IMAGE"
       }
@@ -1798,7 +1798,7 @@
     "archived": false,
     "metadata_image": {
       "id": "70794536-ee35-491d-b5ac-b940463b59ce",
-      "token": "f03076f347075a3f649db503eaa943aa3dc50bddfb148aa6a3c8a995239c5ee0",
+      "token": "0000000000000000000000000000000000000000000000000000000000000000",
       "filename": "IMG_1377 (002).PNG",
       "media_type": "MEDIA_TYPE_IMAGE"
     },

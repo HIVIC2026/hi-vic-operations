@@ -51,6 +51,11 @@ export function planStep(stage: Stage, f: AdvanceFacts): Step {
     case "assessment_booked":
       // Retired legacy electrician-assessment path: never auto-advance; office moves the job back to the Ready Check.
       return stop("Retired legacy stage – Home Insulation Victoria must move this job to the free Ready Check");
+    case "piesa_complete":
+      // No rectification: the same unlock as after payment (installation_scheduling entry still needs a passing current
+      // PIESA, the accepted quote, a verified payment option and a valid 30-day window). Rectification found at the PIESA
+      // is routed by Home Insulation Victoria (variation vs rectification scheduling is not automated).
+      return f.openRectItems > 0 ? stop("Rectification listed at the PIESA – Home Insulation Victoria must route the rectification") : t("installation_scheduling", "PIESA complete, no rectification – installation scheduling unlocked");
     case "assessment_complete":
       return f.openRectItems > 0 ? t("rectification_required", `${f.openRectItems} rectification item(s) required`) : t("ready_for_installer_quotes", "No rectification required – ready for installer quotes");
     case "rectification_required":

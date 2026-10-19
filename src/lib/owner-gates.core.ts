@@ -192,16 +192,6 @@ export function ownerGateBlockers(results: GateResult[], to: string): string[] {
   return results.filter((r) => need.has(r.gate)).flatMap((r) => r.blockers);
 }
 
-/** Stage-entry owner-paperwork blockers. Synthetic qa_test jobs skip these gates for the PORTAL journey, mirroring
- *  the qa_test exception in quote-release-gate.core.ts (which lets a qa_test quote reach the portal while real
- *  customer comms stay disabled for everyone). Real jobs are unchanged and stay fail-closed on every gate. Trade
- *  contact sharing is unaffected: Gate A is still enforced separately (gateAComplete) wherever owner details are
- *  exposed to trades, so nothing is leaked by this exception. */
-export function ownerStageGateBlockers(gates: GateResult[], to: string, isTest: boolean): string[] {
-  if (isTest) return [];
-  return ownerGateBlockers(gates, to);
-}
-
 /** Gates the job's current stage already depends on and that are not complete — Needs me shows these. */
 export function blockedGateNow(results: GateResult[], stage: string): GateResult | null {
   const need = new Set(gatesForStage(stage));

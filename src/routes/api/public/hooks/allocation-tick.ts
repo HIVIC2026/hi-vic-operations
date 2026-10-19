@@ -128,6 +128,17 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           console.error("allocation tick: mitti sync failed", (e as Error).message);
           (out as Record<string, unknown>)['mitti'] = "failed"; // Mitti outages must not fail the whole tick
         }
+        try {
+          // T6 Outbox executor worker entry point (leased claiming, same executor as the external-actions cron hook).
+          // Claim uses SKIP LOCKED + leases, so running both entry points cannot double-send. While staged migration
+          // 0204 is not applied the executor reports unavailable instead of failing the tick (fail closed).
+          const { processExternalActionOutbox } = await import("@/lib/external-action-outbox.server");
+          (out as Record<string, unknown>)['externalActions'] = await processExternalActionOutbox(20);
+        } catch (e) {
+          console.error("allocation tick: external action outbox failed", (e as Error).message);
+          out['ok'] = false;
+          (out as Record<string, unknown>)['externalActions'] = "failed";
+        }
         return Response.json(out, { status: out['ok'] ? 200 : 500 });
       },
     },

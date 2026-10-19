@@ -1,6 +1,7 @@
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { readMyProfile, type ProfileClient } from "@/lib/my-profile";
 import { SignInCard } from "@/components/portal/SignInCard";
 import { NoAccess, RoleChooser } from "@/components/portal/NoAccess";
 import { portalDestination } from "@/lib/set-password-link.core";
@@ -26,7 +27,7 @@ export function Portal() {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return null;
       const [{ data: profile }, { data: roles }] = await Promise.all([
-        supabase.from("profiles").select("business_id").eq("id", u.user.id).maybeSingle(),
+        readMyProfile(supabase as unknown as ProfileClient, u.user.id), // D-6: own row via get_my_profile()
         supabase.from("user_roles").select("role").eq("user_id", u.user.id),
       ]);
       return { email: u.user.email ?? "", roles: (roles ?? []).map((r) => String(r.role)), hasBusiness: !!profile?.business_id };

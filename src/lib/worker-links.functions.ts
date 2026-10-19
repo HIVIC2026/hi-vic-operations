@@ -232,7 +232,7 @@ export const addWorkerApprovedRectificationItem = createServerFn({ method: "POST
     const { admin, l, w } = await resolveLink(data.token);
     if (w.trade_role !== "electrician") throw new Error("Only approved electrician staff can add electrical rectification items.");
     const { data: job } = await admin.from("jobs").select("stage").eq("id", l.job_id).maybeSingle();
-    if (!job || !["assessment_booked", "assessment_booking", "assessment_complete", "rectification_required"].includes(job.stage)) throw new Error("Approved items can only be added before the rectification quote is issued for owner approval.");
+    if (!job || !["piesa_scheduled", "assessment_booked", "assessment_booking", "assessment_complete", "rectification_required"].includes(job.stage)) throw new Error("Approved items can only be added before the rectification quote is issued for owner approval.");
     const { data: cards } = await admin.from("rate_cards").select("id,rate_card_items(code,description)").eq("business_id", l.business_id).eq("kind", "electrical").eq("is_active", true).order("version", { ascending: false }).limit(1);
     const approved = (cards?.[0]?.rate_card_items as { code: string; description: string }[] | undefined)?.find((item) => item.code === data.rateCode);
     if (!approved) throw new Error("That item is not on your REC business's approved rate card.");

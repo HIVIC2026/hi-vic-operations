@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { readMyProfile, type ProfileClient } from "@/lib/my-profile";
 
 export type AppRole = "admin" | "electrician" | "installer" | "owner" | "property_manager";
 
@@ -12,7 +13,7 @@ export function useMe() {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return null;
       const [{ data: profile }, { data: roles }] = await Promise.all([
-        supabase.from("profiles").select("*").eq("id", u.user.id).maybeSingle(),
+        readMyProfile(supabase as unknown as ProfileClient, u.user.id), // D-6: own row via get_my_profile()
         supabase.from("user_roles").select("role").eq("user_id", u.user.id),
       ]);
       return { user: u.user, profile, roles: (roles ?? []).map((r) => r.role as AppRole) };

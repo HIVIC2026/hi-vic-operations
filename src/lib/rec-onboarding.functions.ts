@@ -5,7 +5,7 @@ import { z } from "zod";
 import { withRequestMeta, withStartLimitStatus, withVisitorId } from "./request-meta";
 import { mayRelaxRequiredSteps } from "./onboarding-security.core";
 import {
-  recAgreementView, applyMaterialReset,
+  REC_AGREEMENT_TITLE, REC_AGREEMENT_VERSION, agreementText, applyMaterialReset,
   blockedMandatoryStep, canonicalStepKey, REC_INVALID_LINK_MESSAGE, isRecRevisionTimestamp, type RecData,
 } from "./rec-onboarding.core";
 
@@ -139,8 +139,8 @@ export const getRecAgreement = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { app } = await findApp(data.token);
     const d = { ...(app.data as RecData), insurance_uploaded: !!app.insurance_certificate_path };
-    const view = recAgreementView(app, d);
-    return { ...view, sha256: await sha256(view.text), updated_at: String(app.updated_at) };
+    const text = app.agreement_text ?? agreementText(d);
+    return { title: REC_AGREEMENT_TITLE, version: REC_AGREEMENT_VERSION, text, sha256: await sha256(text), updated_at: String(app.updated_at) };
   });
 
 export const signRecAgreement = createServerFn({ method: "POST" })

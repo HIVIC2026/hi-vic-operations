@@ -30,7 +30,6 @@ import { Route as AuthenticatedPartnerRouteImport } from './routes/_authenticate
 import { Route as EligibilityTokenRouteImport } from './routes/eligibility.$token'
 import { Route as EstimateTokenRouteImport } from './routes/estimate.$token'
 import { Route as JoinTokenRouteImport } from './routes/join.$token'
-import { Route as MyEstimateTokenRouteImport } from './routes/my-estimate.$token'
 import { Route as MyJobTokenRouteImport } from './routes/my-job.$token'
 import { Route as RateOfferTokenRouteImport } from './routes/rate-offer.$token'
 import { Route as TimesTokenRouteImport } from './routes/times.$token'
@@ -58,8 +57,6 @@ import { Route as AuthenticatedAdminPartnersRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminPartnersOverviewRouteImport } from './routes/_authenticated/admin.partners-overview'
 import { Route as AuthenticatedAdminPipelineRouteImport } from './routes/_authenticated/admin.pipeline'
 import { Route as AuthenticatedAdminPricingRouteImport } from './routes/_authenticated/admin.pricing'
-import { Route as AuthenticatedAdminReadyCheckRouteImport } from './routes/_authenticated/admin.ready-check'
-import { Route as AuthenticatedAdminSaveMySpotRulesRouteImport } from './routes/_authenticated/admin.save-my-spot-rules'
 import { Route as AuthenticatedAdminTeamUpsRouteImport } from './routes/_authenticated/admin.team-ups'
 import { Route as AuthenticatedAdminTemplatesRouteImport } from './routes/_authenticated/admin.templates'
 import { Route as AuthenticatedAdminTestCentreRouteImport } from './routes/_authenticated/admin.test-centre'
@@ -104,6 +101,7 @@ import { Route as AuthenticatedFieldDayJobIdRouteImport } from './routes/_authen
 import { Route as AuthenticatedFieldOfferOfferIdRouteImport } from './routes/_authenticated/field.offer.$offerId'
 import { Route as ApiPublicHooksAllocationTickRouteImport } from './routes/api/public/hooks/allocation-tick'
 import { Route as ApiPublicHooksCustomerFollowupsRouteImport } from './routes/api/public/hooks/customer-followups'
+import { Route as ApiPublicHooksExternalActionsRouteImport } from './routes/api/public/hooks/external-actions'
 import { Route as ApiPublicHooksPostIntakeRouteImport } from './routes/api/public/hooks/post-intake'
 import { Route as ApiPublicReferralsRecordSubmissionRouteImport } from './routes/api/public/referrals/record-submission'
 import { Route as ApiPublicReferralsTrackClickRouteImport } from './routes/api/public/referrals/track-click'
@@ -213,11 +211,6 @@ const EstimateTokenRoute = EstimateTokenRouteImport.update({
 const JoinTokenRoute = JoinTokenRouteImport.update({
   id: '/join/$token',
   path: '/join/$token',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MyEstimateTokenRoute = MyEstimateTokenRouteImport.update({
-  id: '/my-estimate/$token',
-  path: '/my-estimate/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MyJobTokenRoute = MyJobTokenRouteImport.update({
@@ -373,18 +366,6 @@ const AuthenticatedAdminPricingRoute =
   AuthenticatedAdminPricingRouteImport.update({
     id: '/pricing',
     path: '/pricing',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminReadyCheckRoute =
-  AuthenticatedAdminReadyCheckRouteImport.update({
-    id: '/ready-check',
-    path: '/ready-check',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminSaveMySpotRulesRoute =
-  AuthenticatedAdminSaveMySpotRulesRouteImport.update({
-    id: '/save-my-spot-rules',
-    path: '/save-my-spot-rules',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminTeamUpsRoute =
@@ -630,6 +611,12 @@ const ApiPublicHooksCustomerFollowupsRoute =
     path: '/api/public/hooks/customer-followups',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksExternalActionsRoute =
+  ApiPublicHooksExternalActionsRouteImport.update({
+    id: '/api/public/hooks/external-actions',
+    path: '/api/public/hooks/external-actions',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksPostIntakeRoute =
   ApiPublicHooksPostIntakeRouteImport.update({
     id: '/api/public/hooks/post-intake',
@@ -686,7 +673,6 @@ export interface FileRoutesByFullPath {
   '/eligibility/$token': typeof EligibilityTokenRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/join/$token': typeof JoinTokenRoute
-  '/my-estimate/$token': typeof MyEstimateTokenRoute
   '/my-job/$token': typeof MyJobTokenRoute
   '/rate-offer/$token': typeof RateOfferTokenRoute
   '/times/$token': typeof TimesTokenRoute
@@ -713,8 +699,6 @@ export interface FileRoutesByFullPath {
   '/admin/partners-overview': typeof AuthenticatedAdminPartnersOverviewRoute
   '/admin/pipeline': typeof AuthenticatedAdminPipelineRoute
   '/admin/pricing': typeof AuthenticatedAdminPricingRoute
-  '/admin/ready-check': typeof AuthenticatedAdminReadyCheckRoute
-  '/admin/save-my-spot-rules': typeof AuthenticatedAdminSaveMySpotRulesRoute
   '/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
   '/admin/templates': typeof AuthenticatedAdminTemplatesRoute
   '/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
@@ -760,6 +744,7 @@ export interface FileRoutesByFullPath {
   '/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
+  '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
   '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
@@ -784,7 +769,6 @@ export interface FileRoutesByTo {
   '/eligibility/$token': typeof EligibilityTokenRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/join/$token': typeof JoinTokenRoute
-  '/my-estimate/$token': typeof MyEstimateTokenRoute
   '/my-job/$token': typeof MyJobTokenRoute
   '/rate-offer/$token': typeof RateOfferTokenRoute
   '/times/$token': typeof TimesTokenRoute
@@ -811,8 +795,6 @@ export interface FileRoutesByTo {
   '/admin/partners-overview': typeof AuthenticatedAdminPartnersOverviewRoute
   '/admin/pipeline': typeof AuthenticatedAdminPipelineRoute
   '/admin/pricing': typeof AuthenticatedAdminPricingRoute
-  '/admin/ready-check': typeof AuthenticatedAdminReadyCheckRoute
-  '/admin/save-my-spot-rules': typeof AuthenticatedAdminSaveMySpotRulesRoute
   '/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
   '/admin/templates': typeof AuthenticatedAdminTemplatesRoute
   '/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
@@ -858,6 +840,7 @@ export interface FileRoutesByTo {
   '/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
+  '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
   '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
@@ -888,7 +871,6 @@ export interface FileRoutesById {
   '/eligibility/$token': typeof EligibilityTokenRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/join/$token': typeof JoinTokenRoute
-  '/my-estimate/$token': typeof MyEstimateTokenRoute
   '/my-job/$token': typeof MyJobTokenRoute
   '/rate-offer/$token': typeof RateOfferTokenRoute
   '/times/$token': typeof TimesTokenRoute
@@ -915,8 +897,6 @@ export interface FileRoutesById {
   '/_authenticated/admin/partners-overview': typeof AuthenticatedAdminPartnersOverviewRoute
   '/_authenticated/admin/pipeline': typeof AuthenticatedAdminPipelineRoute
   '/_authenticated/admin/pricing': typeof AuthenticatedAdminPricingRoute
-  '/_authenticated/admin/ready-check': typeof AuthenticatedAdminReadyCheckRoute
-  '/_authenticated/admin/save-my-spot-rules': typeof AuthenticatedAdminSaveMySpotRulesRoute
   '/_authenticated/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
   '/_authenticated/admin/templates': typeof AuthenticatedAdminTemplatesRoute
   '/_authenticated/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
@@ -962,6 +942,7 @@ export interface FileRoutesById {
   '/_authenticated/field/offer/$offerId': typeof AuthenticatedFieldOfferOfferIdRoute
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
+  '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
   '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
@@ -992,7 +973,6 @@ export interface FileRouteTypes {
     | '/eligibility/$token'
     | '/estimate/$token'
     | '/join/$token'
-    | '/my-estimate/$token'
     | '/my-job/$token'
     | '/rate-offer/$token'
     | '/times/$token'
@@ -1019,8 +999,6 @@ export interface FileRouteTypes {
     | '/admin/partners-overview'
     | '/admin/pipeline'
     | '/admin/pricing'
-    | '/admin/ready-check'
-    | '/admin/save-my-spot-rules'
     | '/admin/team-ups'
     | '/admin/templates'
     | '/admin/test-centre'
@@ -1066,6 +1044,7 @@ export interface FileRouteTypes {
     | '/field/offer/$offerId'
     | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/customer-followups'
+    | '/api/public/hooks/external-actions'
     | '/api/public/hooks/post-intake'
     | '/api/public/referrals/record-submission'
     | '/api/public/referrals/track-click'
@@ -1090,7 +1069,6 @@ export interface FileRouteTypes {
     | '/eligibility/$token'
     | '/estimate/$token'
     | '/join/$token'
-    | '/my-estimate/$token'
     | '/my-job/$token'
     | '/rate-offer/$token'
     | '/times/$token'
@@ -1117,8 +1095,6 @@ export interface FileRouteTypes {
     | '/admin/partners-overview'
     | '/admin/pipeline'
     | '/admin/pricing'
-    | '/admin/ready-check'
-    | '/admin/save-my-spot-rules'
     | '/admin/team-ups'
     | '/admin/templates'
     | '/admin/test-centre'
@@ -1164,6 +1140,7 @@ export interface FileRouteTypes {
     | '/field/offer/$offerId'
     | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/customer-followups'
+    | '/api/public/hooks/external-actions'
     | '/api/public/hooks/post-intake'
     | '/api/public/referrals/record-submission'
     | '/api/public/referrals/track-click'
@@ -1193,7 +1170,6 @@ export interface FileRouteTypes {
     | '/eligibility/$token'
     | '/estimate/$token'
     | '/join/$token'
-    | '/my-estimate/$token'
     | '/my-job/$token'
     | '/rate-offer/$token'
     | '/times/$token'
@@ -1220,8 +1196,6 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/partners-overview'
     | '/_authenticated/admin/pipeline'
     | '/_authenticated/admin/pricing'
-    | '/_authenticated/admin/ready-check'
-    | '/_authenticated/admin/save-my-spot-rules'
     | '/_authenticated/admin/team-ups'
     | '/_authenticated/admin/templates'
     | '/_authenticated/admin/test-centre'
@@ -1267,6 +1241,7 @@ export interface FileRouteTypes {
     | '/_authenticated/field/offer/$offerId'
     | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/customer-followups'
+    | '/api/public/hooks/external-actions'
     | '/api/public/hooks/post-intake'
     | '/api/public/referrals/record-submission'
     | '/api/public/referrals/track-click'
@@ -1292,7 +1267,6 @@ export interface RootRouteChildren {
   EligibilityTokenRoute: typeof EligibilityTokenRoute
   EstimateTokenRoute: typeof EstimateTokenRoute
   JoinTokenRoute: typeof JoinTokenRoute
-  MyEstimateTokenRoute: typeof MyEstimateTokenRoute
   MyJobTokenRoute: typeof MyJobTokenRoute
   RateOfferTokenRoute: typeof RateOfferTokenRoute
   TimesTokenRoute: typeof TimesTokenRoute
@@ -1309,6 +1283,7 @@ export interface RootRouteChildren {
   TOFileRoute: typeof TOFileRoute
   ApiPublicHooksAllocationTickRoute: typeof ApiPublicHooksAllocationTickRoute
   ApiPublicHooksCustomerFollowupsRoute: typeof ApiPublicHooksCustomerFollowupsRoute
+  ApiPublicHooksExternalActionsRoute: typeof ApiPublicHooksExternalActionsRoute
   ApiPublicHooksPostIntakeRoute: typeof ApiPublicHooksPostIntakeRoute
   ApiPublicReferralsRecordSubmissionRoute: typeof ApiPublicReferralsRecordSubmissionRoute
   ApiPublicReferralsTrackClickRoute: typeof ApiPublicReferralsTrackClickRoute
@@ -1464,13 +1439,6 @@ declare module '@tanstack/react-router' {
       path: '/join/$token'
       fullPath: '/join/$token'
       preLoaderRoute: typeof JoinTokenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/my-estimate/$token': {
-      id: '/my-estimate/$token'
-      path: '/my-estimate/$token'
-      fullPath: '/my-estimate/$token'
-      preLoaderRoute: typeof MyEstimateTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/my-job/$token': {
@@ -1660,20 +1628,6 @@ declare module '@tanstack/react-router' {
       path: '/pricing'
       fullPath: '/admin/pricing'
       preLoaderRoute: typeof AuthenticatedAdminPricingRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/ready-check': {
-      id: '/_authenticated/admin/ready-check'
-      path: '/ready-check'
-      fullPath: '/admin/ready-check'
-      preLoaderRoute: typeof AuthenticatedAdminReadyCheckRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/save-my-spot-rules': {
-      id: '/_authenticated/admin/save-my-spot-rules'
-      path: '/save-my-spot-rules'
-      fullPath: '/admin/save-my-spot-rules'
-      preLoaderRoute: typeof AuthenticatedAdminSaveMySpotRulesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/team-ups': {
@@ -1984,6 +1938,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksCustomerFollowupsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/external-actions': {
+      id: '/api/public/hooks/external-actions'
+      path: '/api/public/hooks/external-actions'
+      fullPath: '/api/public/hooks/external-actions'
+      preLoaderRoute: typeof ApiPublicHooksExternalActionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/post-intake': {
       id: '/api/public/hooks/post-intake'
       path: '/api/public/hooks/post-intake'
@@ -2052,8 +2013,6 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminPartnersOverviewRoute: typeof AuthenticatedAdminPartnersOverviewRoute
   AuthenticatedAdminPipelineRoute: typeof AuthenticatedAdminPipelineRoute
   AuthenticatedAdminPricingRoute: typeof AuthenticatedAdminPricingRoute
-  AuthenticatedAdminReadyCheckRoute: typeof AuthenticatedAdminReadyCheckRoute
-  AuthenticatedAdminSaveMySpotRulesRoute: typeof AuthenticatedAdminSaveMySpotRulesRoute
   AuthenticatedAdminTeamUpsRoute: typeof AuthenticatedAdminTeamUpsRoute
   AuthenticatedAdminTemplatesRoute: typeof AuthenticatedAdminTemplatesRoute
   AuthenticatedAdminTestCentreRoute: typeof AuthenticatedAdminTestCentreRoute
@@ -2092,9 +2051,6 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
     AuthenticatedAdminPartnersOverviewRoute,
   AuthenticatedAdminPipelineRoute: AuthenticatedAdminPipelineRoute,
   AuthenticatedAdminPricingRoute: AuthenticatedAdminPricingRoute,
-  AuthenticatedAdminReadyCheckRoute: AuthenticatedAdminReadyCheckRoute,
-  AuthenticatedAdminSaveMySpotRulesRoute:
-    AuthenticatedAdminSaveMySpotRulesRoute,
   AuthenticatedAdminTeamUpsRoute: AuthenticatedAdminTeamUpsRoute,
   AuthenticatedAdminTemplatesRoute: AuthenticatedAdminTemplatesRoute,
   AuthenticatedAdminTestCentreRoute: AuthenticatedAdminTestCentreRoute,
@@ -2222,7 +2178,6 @@ const rootRouteChildren: RootRouteChildren = {
   EligibilityTokenRoute: EligibilityTokenRoute,
   EstimateTokenRoute: EstimateTokenRoute,
   JoinTokenRoute: JoinTokenRoute,
-  MyEstimateTokenRoute: MyEstimateTokenRoute,
   MyJobTokenRoute: MyJobTokenRoute,
   RateOfferTokenRoute: RateOfferTokenRoute,
   TimesTokenRoute: TimesTokenRoute,
@@ -2239,6 +2194,7 @@ const rootRouteChildren: RootRouteChildren = {
   TOFileRoute: TOFileRoute,
   ApiPublicHooksAllocationTickRoute: ApiPublicHooksAllocationTickRoute,
   ApiPublicHooksCustomerFollowupsRoute: ApiPublicHooksCustomerFollowupsRoute,
+  ApiPublicHooksExternalActionsRoute: ApiPublicHooksExternalActionsRoute,
   ApiPublicHooksPostIntakeRoute: ApiPublicHooksPostIntakeRoute,
   ApiPublicReferralsRecordSubmissionRoute:
     ApiPublicReferralsRecordSubmissionRoute,

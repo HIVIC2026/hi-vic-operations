@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAction, useMe } from "@/hooks/use-me";
 import { getMargins, getOwnerPrices, setOwnerPrices } from "@/lib/owner-prices.functions";
 import { setCurrentVeecPrice } from "@/lib/profit.functions";
+import { PRICING_MISSING_DESC, PRICING_MISSING_TITLE, pricingLoadState } from "@/lib/uxfix-state.core";
 
 const TITLE = "Prices & Margins – Home Insulation Victoria Portal";
 const DESC = "Office-only owner prices, VEEC prices and each trade's margin at current prices.";
@@ -44,8 +45,17 @@ function Prices() {
   const [sale, setSale] = useState("");
   const c = q.data?.current;
   useEffect(() => { if (c) { setF({ r5: String(c.r5), removal: String(c.removal), moderate: String(c.moderate), difficult: String(c.difficult), piesa: String(c.piesa), apFee: String(c.apFee), veecBuy: String(c.veecBuy) }); setSale(String(c.veecSale)); } }, [c]);
-  if (q.error) return <p className="text-sm text-destructive">{(q.error as Error).message}</p>;
-  if (!c) return <p className="text-sm text-muted-foreground">Loading…</p>;
+  const loadState = pricingLoadState({ error: q.error, isLoading: q.isLoading, hasCurrent: !!c });
+  if (loadState === "error") return <p className="text-sm text-destructive">{(q.error as Error).message}</p>;
+  if (loadState === "loading") return <p className="text-sm text-muted-foreground">Loading…</p>;
+  if (loadState === "missing") return (
+    <div className="rounded-lg border border-dashed p-4 text-sm" data-testid="pricing-missing-config">
+      <p className="font-semibold">{PRICING_MISSING_TITLE}</p>
+      <p className="mt-1 text-muted-foreground">{PRICING_MISSING_DESC}</p>
+    </div>
+  );
+  // loadState === "ready" guarantees a current price row exists; narrow for TS.
+  if (!c) return null;
   const nums = Object.fromEntries(FIELDS.map(([k]) => [k, Number(f[k])])) as Record<Key, number>;
   const valid = FIELDS.every(([k]) => Number.isFinite(nums[k]) && nums[k] > 0) && nums.moderate >= 1 && nums.difficult >= 1 && reason.trim().length >= 3;
   return (

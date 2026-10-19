@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -10336,33 +10336,6 @@ export type Database = {
         }
         Relationships: []
       }
-      signed_webhook_nonces: {
-        Row: {
-          id: string
-          nonce: string
-          purpose: string
-          received_at: string
-          signed_at: string | null
-          source: string
-        }
-        Insert: {
-          id?: string
-          nonce: string
-          purpose: string
-          received_at?: string
-          signed_at?: string | null
-          source: string
-        }
-        Update: {
-          id?: string
-          nonce?: string
-          purpose?: string
-          received_at?: string
-          signed_at?: string | null
-          source?: string
-        }
-        Relationships: []
-      }
       sms_messages: {
         Row: {
           body: string
@@ -11072,8 +11045,6 @@ export type Database = {
           rec_offer_business_hours: number
           rec_offer_expiry_hours: number
           safety_check_payment_inc_gst: number
-          save_my_spot_auto_rules: Json
-          save_my_spot_real_send_enabled: boolean
           sms_message_switches: Json
           updated_at: string
           urgency_amber_days: number
@@ -11120,8 +11091,6 @@ export type Database = {
           rec_offer_business_hours?: number
           rec_offer_expiry_hours?: number
           safety_check_payment_inc_gst?: number
-          save_my_spot_auto_rules?: Json
-          save_my_spot_real_send_enabled?: boolean
           sms_message_switches?: Json
           updated_at?: string
           urgency_amber_days?: number
@@ -11168,8 +11137,6 @@ export type Database = {
           rec_offer_business_hours?: number
           rec_offer_expiry_hours?: number
           safety_check_payment_inc_gst?: number
-          save_my_spot_auto_rules?: Json
-          save_my_spot_real_send_enabled?: boolean
           sms_message_switches?: Json
           updated_at?: string
           urgency_amber_days?: number
@@ -11771,28 +11738,6 @@ export type Database = {
         }
         Returns: string
       }
-      get_my_profile: {
-        Args: never
-        Returns: {
-          business_id: string | null
-          created_at: string
-          email: string | null
-          full_name: string | null
-          id: string
-          licence_number: string | null
-          mitti_checked_at: string | null
-          mitti_checked_email: string | null
-          mitti_user_id: string | null
-          phone: string | null
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "profiles"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       has_contact_release: {
         Args: { _job: string; _user: string }
         Returns: boolean
@@ -11830,10 +11775,6 @@ export type Database = {
       job_authority_expires_at: { Args: { _job: string }; Returns: string }
       job_authority_status: { Args: { _job: string }; Returns: string }
       job_deposit_cleared: { Args: { _job: string }; Returns: boolean }
-      link_confirmed_owner_account: {
-        Args: { _email: string; _user_id: string }
-        Returns: boolean
-      }
       list_onboarding_start_blocks: {
         Args: never
         Returns: {
@@ -11848,14 +11789,6 @@ export type Database = {
         }[]
       }
       my_job_role: { Args: { _job: string }; Returns: string }
-      owner_quote_released: {
-        Args: {
-          _release_state: string
-          _sent_at: string
-          _status: Database["public"]["Enums"]["quote_status"]
-        }
-        Returns: boolean
-      }
       place_install_hold: {
         Args: {
           _area: number
@@ -11871,16 +11804,6 @@ export type Database = {
       publish_owner_prices: {
         Args: { _actor: string; _prices: Json; _reason: string }
         Returns: number
-      }
-      quote_visible_to_current_user: {
-        Args: {
-          _job_id: string
-          _kind: Database["public"]["Enums"]["quote_kind"]
-          _release_state: string
-          _sent_at: string
-          _status: Database["public"]["Enums"]["quote_status"]
-        }
-        Returns: boolean
       }
       record_eligibility_verification: {
         Args: {

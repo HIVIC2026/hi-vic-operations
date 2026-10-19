@@ -6,7 +6,6 @@ import { OfficeAllocationPanel } from "@/components/portal/allocation";
 import { ChooseTradePanel } from "@/components/portal/choose-trade";
 import { OfficeInstalmentPlanCard } from "@/components/portal/instalment-plan";
 import { VerifiedEligibilityCard } from "@/components/portal/verified-eligibility";
-import { OfficeReadyCheckReopen } from "@/components/portal/ready-check-office";
 import { AdminEstimateCard } from "@/components/portal/estimate";
 import { AdminBookingOverride, AdminPartnerPanel, AppointmentPanel } from "@/components/portal/partner";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -34,7 +33,7 @@ import { JobIdentity, RecordDisclosure, SubHeading, usePortalTargetNavigation, t
 import { AllDocuments, Correspondence, ExportJobPack, JobTimeline, RetentionCard, SectionDocuments } from "@/components/portal/jobfile";
 import type { PortalTarget } from "@/lib/portal-presentation.core";
 import { checkMittiAccess } from "@/lib/mitti-membership.functions";
-import { MITTI_ACCESS_LABEL, mittiAccessOf, mittiCheckedLabel, mittiInviteLine, mittiOverrideAccepted, type MittiMemberRow } from "@/lib/mitti-membership.core";
+import { MITTI_ACCESS_LABEL, mittiAccessOf, mittiCheckedLabel, mittiInviteLine, type MittiMemberRow } from "@/lib/mitti-membership.core";
 
 import { useAction } from "@/hooks/use-me";
 import { useServerFn } from "@tanstack/react-start";
@@ -44,6 +43,8 @@ import {
   setCommercialModel, setComplianceCheck, setEligibility, setHold, updateVeec, draftVeecReply, markVeecReplySent, listComplianceRecords, recordComplianceItem,
 } from "@/lib/portal.functions";
 import { ELIGIBILITY_LABEL, aud, fmtDate, type EligibilityOutcome } from "@/lib/workflow";
+import { useReasonDialog } from "@/components/portal/reason-dialog";
+import { officeQuoteStatusLabel } from "@/lib/office-quote-status.core";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -127,7 +128,7 @@ function JobDetail() {
           <div id="panel-intake-consent" className="scroll-mt-4"><IntakeSummary jobId={jobId} /></div><SectionDocuments jobId={jobId} categories={["Property"]} />
         </RecordDisclosure>
         <RecordDisclosure {...g("ready_check")} title="Ready Check" summary="Requirements, appointment, booking, Mitti and measure-up">
-          <ChooseTradePanel jobId={jobId} /><RequirementCards jobId={jobId} isAdmin job={job} /><AppointmentPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="assessment" canBook={false} isAdmin /><AdminBookingOverride jobId={jobId} /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /><SectionDocuments jobId={jobId} categories={["Measure-up"]} /><OfficeReadyCheckReopen jobId={jobId} />
+          <ChooseTradePanel jobId={jobId} /><RequirementCards jobId={jobId} isAdmin job={job} /><AppointmentPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="assessment" canBook={false} isAdmin /><AdminBookingOverride jobId={jobId} /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /><SectionDocuments jobId={jobId} categories={["Measure-up"]} />
         </RecordDisclosure>
         <RecordDisclosure {...g("quote")} title="Quotes & payments" summary="Exact quotes, payment mirror, signing and source-specific invoice controls">
           <div id="target-quotes" data-portal-focus="target" tabIndex={-1} className="scroll-mt-4 outline-none"><AdminQuotes jobId={jobId} /></div><InstallerIntakeReviewPanel jobId={jobId} /><InstallerQuoteDraftPanel jobId={jobId} /><InstallerLedInvoicePanel jobId={jobId} /><div id="panel-deposit-request" className="scroll-mt-4"><PaymentsPanel jobId={jobId} isAdmin /></div><OfficeInstalmentPlanCard jobId={jobId} /><SectionDocuments jobId={jobId} categories={["Quotes", "Payments"]} />
@@ -157,9 +158,9 @@ function JobDetail() {
         <RecordDisclosure {...g("history")} title="Correspondence & history" summary="Worker links, messages, timeline, audit history, all documents and export">
           <OwnerEligibilityPanel jobId={jobId} /><WorkerLinksPanel jobId={jobId} /><MessagesPanel jobId={jobId} isAdmin /><div id="target-correspondence" tabIndex={-1} className="scroll-mt-4 outline-none"><Correspondence jobId={jobId} /></div>
           <SubHeading>What's happened</SubHeading>
-          <div id="target-history" tabIndex={-1} className="scroll-mt-4 outline-none"><ClearTimeline jobId={jobId} /></div>
+          <div id="target-history" tabIndex={-1} className="scroll-mt-4 outline-none"><ClearTimeline jobId={jobId} admin /></div>
           <AdminVisitHistory jobId={jobId} />
-          <details className="rounded-md border p-3"><summary className="cursor-pointer text-sm font-medium">Detailed and raw audit history</summary><div className="mt-3 space-y-4"><JobTimeline jobId={jobId} /><TimelinePanel jobId={jobId} /></div></details>
+          <details className="rounded-md border p-3"><summary className="cursor-pointer text-sm font-medium">Detailed and raw audit history</summary><div className="mt-3 space-y-4"><JobTimeline jobId={jobId} /><TimelinePanel jobId={jobId} admin /></div></details>
           <SubHeading>All documents</SubHeading>
           <div id="target-documents" tabIndex={-1} className="scroll-mt-4 outline-none"><AllDocuments jobId={jobId} /></div><ExportJobPack jobId={jobId} />
         </RecordDisclosure>
@@ -298,8 +299,8 @@ function Assignments({ jobId }: { jobId: string }) {
           <p className="text-sm font-semibold">{pending.name} is not confirmed in the Home Insulation Victoria Mitti organisation.</p>
           <p className="mt-1 text-xs text-muted-foreground">They cannot be sent the {pending.role === "electrician" ? "electrical safety (PIESA)" : "Ready Check / installer safety"} form until invited with their exact email. Assigning anyway is recorded with your reason.</p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <Input value={why} onChange={(e) => setWhy(e.target.value)} placeholder="Why assign them anyway? (required)" minLength={5} className="h-9 max-w-sm" />
-            <Button size="sm" disabled={!mittiOverrideAccepted(why)} onClick={async () => { const res = await assign({ jobId, userId: pending.userId, role: pending.role, mittiOverrideReason: why }, "Assigned with a recorded exception"); if (res?.ok === true) setPending(null); }}>Assign anyway</Button>
+            <Input value={why} onChange={(e) => setWhy(e.target.value)} placeholder="Why assign them anyway? (required)" className="h-9 max-w-sm" />
+            <Button size="sm" onClick={async () => { await assign({ jobId, userId: pending.userId, role: pending.role, mittiOverrideReason: why }, "Assigned with a recorded exception"); setPending(null); }}>Assign anyway</Button>
             <Button size="sm" variant="outline" onClick={() => setPending(null)}>Cancel</Button>
           </div>
         </div>
@@ -311,16 +312,18 @@ function Assignments({ jobId }: { jobId: string }) {
 
 function HoldControls({ jobId, stage }: { jobId: string; stage: string }) {
   const act = useAction(setHold);
+  const reason = useReasonDialog();
   return (
     <Section title="Exceptions">
       <div className="flex flex-wrap gap-2">
         {stage === "on_hold" ? <Button onClick={() => act({ jobId, action: "resume" }, "Resumed")}>Resume job</Button> : stage !== "cancelled" && (
           <>
-            <Button variant="outline" onClick={() => { const r = prompt("Reason for hold"); if (r) act({ jobId, action: "hold", reason: r }, "On hold"); }}>Put on hold</Button>
-            <Button variant="destructive" onClick={() => { const r = prompt("Reason for cancelling"); if (r) act({ jobId, action: "cancel", reason: r }, "Cancelled"); }}>Cancel job</Button>
+            <Button variant="outline" onClick={async () => { const r = await reason.ask({ title: "Put job on hold", description: "A reason is required for the audit record.", placeholder: "Reason for hold", minLength: 1 }); if (r) act({ jobId, action: "hold", reason: r }, "On hold"); }}>Put on hold</Button>
+            <Button variant="destructive" onClick={async () => { const r = await reason.ask({ title: "Cancel job", description: "A reason is required for the audit record.", placeholder: "Reason for cancelling", minLength: 1 }); if (r) act({ jobId, action: "cancel", reason: r }, "Cancelled"); }}>Cancel job</Button>
           </>
         )}
       </div>
+      {reason.dialog}
     </Section>
   );
 }
@@ -395,7 +398,7 @@ function AdminQuotes({ jobId }: { jobId: string }) {
                 return (
                   <Fragment key={q.id}>
                     <tr className="border-t">
-                      <td className="p-2">{q.option_label} {q.manually_adjusted && <Pill t="warn">adjusted</Pill>}{q.release_hold_reason && <p className="mt-1 text-xs font-medium text-danger">{q.release_hold_reason}</p>}</td><td className="p-2">{q.release_state === "queued" ? "Ready to send" : q.release_state === "held" ? "Held" : q.status}</td>
+                      <td className="p-2">{q.option_label} {q.manually_adjusted && <Pill t="warn">adjusted</Pill>}{q.release_hold_reason && <p className="mt-1 text-xs font-medium text-danger">{q.release_hold_reason}</p>}</td><td className="p-2">{officeQuoteStatusLabel(q)}</td>
                       <td className="p-2">{aud(int?.cost_ex_gst)}</td><td className="p-2">{aud(int?.ap_margin_ex_gst)}</td><td className="p-2">{aud(int?.ap_fee_ex_gst)}</td>
                       <td className="p-2 font-semibold">{aud(q.customer_total_inc_gst)}</td>
                       <td className="p-2"><div className="flex gap-2">{q.status === "issued" && <Button size="sm" variant="outline" onClick={() => { setEditing(editing === q.id ? null : q.id); setEdits({}); setReason(""); }}>Adjust</Button>}{q.release_state === "held" && <Button size="sm" onClick={async () => { await approve({ quoteId: q.id }, "Quote approved"); await queryClient.invalidateQueries({ queryKey: ["adminquotes", jobId] }); }}>Approve</Button>}</div></td>

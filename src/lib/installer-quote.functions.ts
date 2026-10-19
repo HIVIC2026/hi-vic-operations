@@ -2,7 +2,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin } from "./workflow.server";
-import { intakeProgressGate, type AccessRpc } from "./installer-progress.core";
 
 // Admin-only: the auto-drafted owner quote from an installer's Ready Check, and the office "send" step.
 export const getInstallerQuoteDraft = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -96,12 +95,18 @@ export const getMyIntakeReadyCheck = createServerFn({ method: "POST" }).middlewa
   });
 
 // ---- Supplying installer: add/update what they know on their own received job (Jo, 8 Oct). ----
-async function requireSupplyingInstaller(supabase: { rpc: (...a: never[]) => unknown }, userId: string, jobId: string): Promise<string> {
+/** An installer who can access this job (assigned or supplying). Does NOT require the supplying business. */
+async function requireJobInstaller(supabase: { rpc: (...a: never[]) => unknown }, userId: string, jobId: string) {
   const sb = supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }> };
   const { data: ok, error } = await sb.rpc("can_access_job", { _job: jobId });
   if (error || !ok) throw new Error("Not your job.");
   const { data: inst } = await sb.rpc("has_role", { _user_id: userId, _role: "installer" });
   if (!inst) throw new Error("Only installers can update this job.");
+  return sb;
+}
+
+async function requireSupplyingInstaller(supabase: { rpc: (...a: never[]) => unknown }, userId: string, jobId: string): Promise<string> {
+  const sb = await requireJobInstaller(supabase, userId, jobId);
   const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
   const { data: job } = await admin.from("jobs").select("originating_installer_business_id").eq("id", jobId).maybeSingle();
   const biz = job?.originating_installer_business_id;
@@ -150,18 +155,13 @@ export const saveMyIntakeJob = createServerFn({ method: "POST" }).middleware([re
 export const getMyIntakeProgress = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
-    // STEP 73 (A3): job access (RLS) is checked before the job is read; then the STEP 71 non-intake guard; then the
-    // supplying-installer check for intake jobs.
-    const rpc = ((fn, args) => (context.supabase as unknown as { rpc: AccessRpc }).rpc(fn, args)) as AccessRpc;
-    const gate = await intakeProgressGate(rpc, async (jobId) => (await admin.from("jobs").select("channel, originating_installer_business_id").eq("id", jobId).maybeSingle()).data, data.jobId);
-    if (!gate.applies) {
-      return { applies: false as const };
-    }
-    await requireSupplyingInstaller(context.supabase as never, context.userId, data.jobId);
+    // D-1: any installer with access may learn "not an intake job" (Home Insulation Victoria-sourced jobs then show the
+    // normal status card); the supplying-installer restriction applies only to installer-sourced (intake) jobs.
+    await requireJobInstaller(context.supabase as never, context.userId, data.jobId);
     const m = await import("./installer-intake.server");
     if (!(await m.isIntakeJob(data.jobId))) return { applies: false as const };
-    // `admin` is already imported at the top of this handler for the access gate above.
+    await requireSupplyingInstaller(context.supabase as never, context.userId, data.jobId);
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const id = data.jobId;
     const [s, { data: job }, { data: qs }, { data: pr }, { data: bks }, { data: ev }, { data: ap }, { data: veec }, { data: dl }] = await Promise.all([
       m.installerIntakeState(id),

@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { CalendarPlus, Check, MapPin, Phone, Zap } from "lucide-react";
 import { TradeShell, aud, card, ghostBtn } from "@/components/trade/TradeShell";
 import { getTradeOffer, replyTradeOffer, takeTradeTime } from "@/lib/trade-view.functions";
@@ -28,13 +28,27 @@ function OfferPage() {
   const [tooSlow, setTooSlow] = useState(false);
   const [mode, setMode] = useState<"tiles" | "cant" | "cant_sent" | "declined">("tiles");
   const [note, setNote] = useState("");
+  const [fail, setFail] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const flight = useRef(false); // one booking/reply at a time, even for same-tick double taps
   const rc = data?.kind === "ready_check";
   if (error) return <TradeShell installer={false}><p role="alert" className={card}>{(error as Error).message}</p></TradeShell>;
   if (!data) return <TradeShell installer={false}><p className="text-sm">Loading the job…</p></TradeShell>;
   const what = rc ? "Ready Check" : "Safety check";
   const tap = async (id: string, start: string) => {
-    setBusy(id);
-    try { const r = await take({ data: { offerId, windowId: id } }); if (r.tooSlow) setTooSlow(true); else setTook(start); await refetch(); } finally { setBusy(null); }
+    if (busy || flight.current) return;
+    flight.current = true; setBusy(id); setFail(null);
+    try { const r = await take({ data: { offerId, windowId: id } }); if (r.tooSlow) setTooSlow(true); else setTook(start); await refetch(); }
+    catch (e) { setFail(`That time couldn't be booked: ${(e as Error).message || "check your signal and try again."}`); }
+    finally { setBusy(null); flight.current = false; }
+  };
+  // Reply actions ("Suggest another time" / "Not for me"): one tap = one send; failures are shown, never silent.
+  const send = async (r: "cant_make" | "not_for_me", after: () => void | Promise<unknown>) => {
+    if (sending || busy || flight.current) return;
+    flight.current = true; setSending(true); setFail(null);
+    try { await reply({ data: { offerId, reply: r, note: r === "cant_make" ? note.trim() || null : null } }); await after(); }
+    catch (e) { setFail(`Couldn't send that: ${(e as Error).message || "check your signal and try again."}`); }
+    finally { setSending(false); flight.current = false; }
   };
   const value = rc ? roughInstallValue(data.ratePerM2, data.area) : null;
   if (data.status === "accepted" && data.locked) {
@@ -44,7 +58,6 @@ function OfferPage() {
         {took && <section className="rounded-[19px] border border-line bg-mint p-5 text-ink md:p-[23px]">
           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-action text-action-foreground"><Check className="h-6 w-6" /></span>
           <p className="mt-2 font-display text-[26px] font-bold leading-tight">Job accepted</p>
-          
           <p className="mt-2 text-sm font-bold">{t.day} · {t.window}</p>
         </section>}
         <section className="rounded-[19px] border border-mist-line bg-mist p-5 text-ink md:p-[23px]">
@@ -95,7 +108,7 @@ function OfferPage() {
           <h2 className="font-display text-lg font-bold">Suggest another time</h2>
           <p className="mt-1 text-sm">Tell us a time that works and we'll check with the owner.</p>
           <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} maxLength={300} placeholder="e.g. Thursday morning" className="mt-3 w-full rounded-2xl border border-estimate-line p-3 text-base" />
-          <button type="button" className={`${ghostBtn} mt-3`} onClick={async () => { await reply({ data: { offerId, reply: "cant_make", note: note.trim() || null } }); setMode("cant_sent"); }}>Send to the office</button>
+          <button type="button" className={`${ghostBtn} mt-3`} disabled={sending} aria-busy={sending} onClick={() => send("cant_make", () => setMode("cant_sent"))}>{sending ? "Sending…" : "Send to the office"}</button>
         </section>
       ) : mode === "cant_sent" ? (
         <section className={card}><p className="font-bold">Thanks, we've got it.</p><p className="text-sm">We'll check with the owner and come back to you. The times below are still open if one works.</p></section>
@@ -103,11 +116,13 @@ function OfferPage() {
       <section className="space-y-2">
         <p className="font-display text-base font-bold">Pick a time to accept</p>
         <p className="text-sm text-sub">The first trade to accept gets the job.</p>
+        {fail && <p role="alert" className="rounded-[12px] border border-danger/40 bg-paper p-3 text-sm text-danger" data-offer-error>{fail}</p>}
+        {data.windows.length === 0 && <p className={`${card} text-sm`} data-no-times>No times are open on this offer right now. Suggest a time or check back soon.</p>}
         <div className="grid grid-cols-2 gap-2">{data.windows.map((w) => { const t = dayTile(w.start); return (
-          <button key={w.id} type="button" disabled={!!busy} onClick={() => tap(w.id, w.start)} className="flex min-h-20 flex-col items-center justify-center rounded-[18px] border border-line bg-paper hover:border-action p-3 font-bold"><span className="text-sm">{t.day}</span><span className="font-display text-lg font-bold">{busy === w.id ? "Booking…" : t.window}</span></button>); })}</div>
-        <div className="flex justify-between px-1 pt-1 text-sm font-bold text-estimate-blue">
-          {data.canSuggest ? <button type="button" onClick={() => setMode("cant")}>Suggest another time</button> : <span />}
-          <button type="button" onClick={async () => { await reply({ data: { offerId, reply: "not_for_me", note: null } }); setMode("declined"); await refetch(); }}>Not for me</button>
+          <button key={w.id} type="button" disabled={!!busy || sending} onClick={() => tap(w.id, w.start)} className="flex min-h-20 flex-col items-center justify-center rounded-[18px] border border-line bg-paper hover:border-action p-3 font-bold"><span className="text-sm">{t.day}</span><span className="font-display text-lg font-bold">{busy === w.id ? "Booking…" : t.window}</span></button>); })}</div>
+        <div className="flex justify-between gap-2 pt-1 text-sm font-bold text-estimate-blue">
+          {data.canSuggest ? <button type="button" className="min-h-11 px-1" disabled={sending || !!busy} onClick={() => setMode("cant")}>Suggest another time</button> : <span />}
+          <button type="button" className="min-h-11 px-1" disabled={sending || !!busy} data-not-for-me onClick={() => send("not_for_me", async () => { setMode("declined"); await refetch(); })}>{sending && mode !== "cant" ? "Sending…" : "Not for me"}</button>
         </div>
         {!data.canSuggest && <p className="pt-1 text-xs text-sub">Can't make these? If nobody takes it, you can suggest another time from {data.suggestUnlockLabel}.</p>}
         <p className="pt-2 text-center text-xs text-sub">Address shows once you accept.</p>

@@ -61,7 +61,7 @@ const KIND: { k: string; l: string; icon: typeof FileText; match: (t: { source: 
 const iconFor = (t: { source: string; tags: string[] }) => t.source === "message" || t.source.startsWith("communication") ? MessageSquare : t.source === "booking" ? CalendarClock : t.tags.includes("money") ? Wallet : t.tags.includes("trades") ? Wrench : FileText;
 
 /** What happened, when, by whom – newest first, plain language. */
-export function ClearTimeline({ jobId, initial = 8 }: { jobId: string; initial?: number }) {
+export function ClearTimeline({ jobId, initial = 8, admin = false }: { jobId: string; initial?: number; admin?: boolean }) {
   const { data, error } = useJobFile(jobId);
   const [f, setF] = useState("all");
   const [all, setAll] = useState(false);
@@ -85,7 +85,7 @@ export function ClearTimeline({ jobId, initial = 8 }: { jobId: string; initial?:
                   <span className="text-xs font-semibold text-muted-foreground">{fmt(t.at)}</span>
                   <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${chip(t.actorRole)}`}>{t.actorRole ?? "System"}</span>
                   <span className="text-xs text-muted-foreground">{t.actor}</span>
-                  {t.internal && <span className="rounded-full bg-warning-soft px-2 py-0.5 text-[10px] font-bold uppercase">Internal</span>}
+                  {t.internal && admin && <span className="rounded-full bg-warning-soft px-2 py-0.5 text-[10px] font-bold uppercase">Internal</span>}
                 </div>
                 <div className="text-sm font-medium">{t.summary}</div>
                 {note && note !== t.summary && <blockquote className="mt-1 rounded-lg bg-muted/60 px-3 py-1.5 text-sm italic">“{note.slice(0, 400)}”</blockquote>}

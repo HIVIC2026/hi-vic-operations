@@ -3,6 +3,7 @@ import { RectWindowChoice, useRectWindows } from "./rectification-times";
 import { useRef, useState } from "react";
 import { balanceSplit, requiredDepositCents } from "@/lib/payment-gate.core";
 import { QUOTE_EXPIRED_OWNER_MESSAGE, quoteExpiresAt, quoteIsExpired } from "@/lib/quote-expiry.core";
+import { ownerPanelQuotes } from "@/lib/owner-quote-visibility.core";
 import { veecDiscountLabel } from "@/lib/estimate.core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -21,7 +22,6 @@ import {
 import { EVIDENCE_STATUS_LABEL, STAGE_LABEL, aud, fmtDate, fmtDateTime } from "@/lib/workflow";
 import { ASSISTANCE_LABEL } from "@/lib/authority";
 import { QUICK_ACTIONS } from "@/lib/messaging.core";
-import { FFS_PROGRESS_EVENT } from "@/lib/ffs-progress.core";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,6 +30,8 @@ import { AcceptanceFlow } from "./assignment";
 import { AuthorityBadge, PaymentBadge, Pill } from "./badges";
 import { openFileViewer } from "@/components/portal/file-viewer";
 import { allowedUpload } from "@/lib/upload-safety.core";
+import { useReasonDialog } from "./reason-dialog";
+import { officeQuoteStatusLabel } from "@/lib/office-quote-status.core";
 
 export function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
@@ -59,17 +61,8 @@ export function BlockersPanel({ jobId, quietWhenClear = false, partner = false }
   if (!data) return null;
   if (!data.blockers.length)
     return quietWhenClear ? null : (
-      <div className="rounded-xl border border-success/30 bg-success-soft p-3 text-sm text-success">
-        <div className="flex items-center gap-2 font-medium">
-          <CheckCircle2 className="h-4 w-4" /> {data.next ? `No stage checks block the move to ${STAGE_LABEL[data.next]}` : "No further stage"}
-        </div>
-        {/* A clear transition is not the same as finished work. Say which one this is. */}
-        <p className="mt-1 text-xs font-normal text-sub">Stage checks only — this does not confirm the work for that stage has been done.</p>
-        {data.readyCheck && (
-          <p className="mt-1 text-xs font-normal text-foreground" data-rc-fact>
-            Ready Check: {data.readyCheck.status === "submitted" ? "submitted by the installer" : data.readyCheck.status === "draft" ? "started, not submitted" : "not started"}
-          </p>
-        )}
+      <div className="flex items-center gap-2 rounded-xl border border-success/30 bg-success-soft p-3 text-sm font-medium text-success">
+        <CheckCircle2 className="h-4 w-4" /> {data.next ? `Nothing blocking the move to ${STAGE_LABEL[data.next]}` : "No further stage"}
       </div>
     );
   if (partner) return (
@@ -140,6 +133,7 @@ function EvidenceRow({ req, canUpload, isAdmin }: { req: Req; canUpload: boolean
   const reqUpload = useServerFn(requestEvidenceUpload);
   const confirm = useServerFn(confirmEvidenceUpload);
   const verify = useAction(verifyEvidence);
+  const reason = useReasonDialog();
   const openUrl = useServerFn(getEvidenceUrl);
   const onFile = async (f: File) => {
     if (uploadLock.current) return;
@@ -227,11 +221,12 @@ function EvidenceRow({ req, canUpload, isAdmin }: { req: Req; canUpload: boolean
         {isAdmin && req.status === "uploaded" && (
           <>
             <Button size="sm" disabled={productReview && products.some((p) => !p.brand.trim() || !p.model.trim() || !(Number(p.rValue) > 0))} onClick={() => verify({ requirementId: req.id, status: "verified", ...(productReview ? { ...(installedArea ? { installedAreaM2: Number(installedArea) } : {}), actualProducts: products.map((p) => ({ brand: p.brand, model: p.model, rValue: Number(p.rValue) })) } : {}) }, "Verified")}>Verify</Button>
-            <Button size="sm" variant="outline" onClick={() => { const n = prompt("Reason for rejection"); if (n) verify({ requirementId: req.id, status: "rejected", notes: n }, "Rejected"); }}>Reject</Button>
+            <Button size="sm" variant="outline" onClick={async () => { const n = await reason.ask({ title: "Reject uploaded evidence", description: "A reason is required for the audit record.", placeholder: "Reason for rejection", minLength: 1 }); if (n) verify({ requirementId: req.id, status: "rejected", notes: n }, "Rejected"); }}>Reject</Button>
           </>
         )}
         {isAdmin && req.status === "outstanding" && !req.required && null}
       </div>
+      {reason.dialog}
     </div>
   );
 }
@@ -263,7 +258,7 @@ export function MessagesPanel({ jobId, isAdmin, role }: { jobId: string; isAdmin
           return (
             <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
               <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${m.internal ? "bg-warning-soft" : mine ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                <div className={`text-[11px] ${mine && !m.internal ? "text-primary-foreground/80" : "text-muted-foreground"}`}>{mine ? "You" : m.sender_label ?? (m.profiles as { full_name: string | null } | null)?.full_name ?? "System"} · {fmtDateTime(m.created_at)}{m.internal && " · internal"}</div>
+                <div className={`text-[11px] ${mine && !m.internal ? "text-primary-foreground/80" : "text-muted-foreground"}`}>{mine ? "You" : m.sender_label ?? (m.profiles as { full_name: string | null } | null)?.full_name ?? "System"} · {fmtDateTime(m.created_at)}{m.internal && isAdmin && " · internal"}</div>
                 <div className="whitespace-pre-wrap">{m.body}</div>
               </div>
             </div>
@@ -289,13 +284,10 @@ export function MessagesPanel({ jobId, isAdmin, role }: { jobId: string; isAdmin
   );
 }
 
-export function TimelinePanel({ jobId }: { jobId: string }) {
+export function TimelinePanel({ jobId, admin = false }: { jobId: string; admin?: boolean }) {
   const { data } = useQuery({
     queryKey: ["events", jobId],
-    // P1-FA02 (owner decision, 14 Oct 2026): FFS field-progress events are not user-facing and are
-    // filtered out here, at the presentation boundary. Every other event type (internal included)
-    // keeps rendering unchanged. Non-admin viewers never receive internal rows anyway (RLS).
-    queryFn: async () => ((await supabase.from("workflow_events").select("*, profiles(full_name)").eq("job_id", jobId).order("created_at", { ascending: false })).data ?? []).filter((e) => e.event_type !== FFS_PROGRESS_EVENT),
+    queryFn: async () => (await supabase.from("workflow_events").select("*, profiles(full_name)").eq("job_id", jobId).order("created_at", { ascending: false })).data ?? [],
   });
   return (
     <Section title="History">
@@ -304,7 +296,7 @@ export function TimelinePanel({ jobId }: { jobId: string }) {
           <li key={e.id} className="relative text-sm">
             <span className="absolute -left-[21px] top-1.5 h-2.5 w-2.5 rounded-full bg-primary" />
             <div className="font-medium">{e.summary}</div>
-            <div className="text-xs text-muted-foreground">{fmtDateTime(e.created_at)} · {(e.profiles as { full_name: string | null } | null)?.full_name ?? "System"}{e.internal && " · internal"}</div>
+            <div className="text-xs text-muted-foreground">{fmtDateTime(e.created_at)} · {(e.profiles as { full_name: string | null } | null)?.full_name ?? "System"}{e.internal && admin && " · internal"}</div>
           </li>
         ))}
       </ol>
@@ -317,6 +309,7 @@ export function BookingPanel({ jobId, kind, canBook, isAdmin = false }: { jobId:
   const [when, setWhen] = useState("");
   const book = useAction(createBooking);
   const cancel = useAction(cancelBooking);
+  const reason = useReasonDialog();
   const { data } = useQuery({
     queryKey: ["bookings", jobId],
     queryFn: async () => (await supabase.from("bookings").select("*").eq("job_id", jobId).order("scheduled_start", { ascending: false })).data ?? [],
@@ -324,13 +317,14 @@ export function BookingPanel({ jobId, kind, canBook, isAdmin = false }: { jobId:
   const current = (data ?? []).find((b) => b.kind === kind && b.status !== "cancelled");
   return (
     <Section title={`${kind[0]!.toUpperCase()}${kind.slice(1)} booking`}>
-      {current ? <p className="text-sm">Booked: <strong>{fmtDateTime(current.scheduled_start)}</strong> <Pill t="good">{current.status}</Pill>{isAdmin && <Button size="sm" variant="ghost" className="ml-2" onClick={() => { const r = prompt("Reason for cancelling this booking (required, audited)"); if (r) cancel({ jobId, kind, reason: r }, "Booking cancelled"); }}>Cancel booking</Button>}</p> : <p className="text-sm text-muted-foreground">Not booked yet.</p>}
+      {current ? <p className="text-sm">Booked: <strong>{fmtDateTime(current.scheduled_start)}</strong> <Pill t="good">{current.status}</Pill>{isAdmin && <Button size="sm" variant="ghost" className="ml-2" onClick={async () => { const r = await reason.ask({ title: "Cancel booking", description: "A reason is required and permanently audited.", placeholder: "Reason for cancelling this booking (required, audited)", minLength: 1 }); if (r) cancel({ jobId, kind, reason: r }, "Booking cancelled"); }}>Cancel booking</Button>}</p> : <p className="text-sm text-muted-foreground">Not booked yet.</p>}
       {canBook && (
         <form className="mt-3 flex flex-col gap-2 sm:flex-row" onSubmit={(e) => { e.preventDefault(); if (when) book({ jobId, kind, start: new Date(when).toISOString() }, "Booking saved"); }}>
           <Input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} className="h-12" required />
           <Button type="submit" size="field">{current ? "Reschedule" : "Confirm date"}</Button>
         </form>
       )}
+      {reason.dialog}
     </Section>
   );
 }
@@ -346,7 +340,8 @@ export function QuotesPanel({ jobId, canRespond }: { jobId: string; canRespond: 
     queryKey: ["quotes", jobId],
     queryFn: async () => (await supabase.from("quotes").select("*, quote_items(*)").eq("job_id", jobId).neq("status", "superseded").order("created_at")).data ?? [],
   });
-  const visible = (data ?? []).filter((q) => q.status !== "draft" && q.release_state !== "held");
+  // Owner view (canRespond): the authoritative owner rule — queued/held issued quotes are never shown. Office view unchanged.
+  const visible = canRespond ? ownerPanelQuotes(data ?? []) : (data ?? []).filter((q) => q.status !== "draft" && q.release_state !== "held");
   if (!visible.length) return <Section title="Quotes"><p className="text-sm text-muted-foreground">No quotes yet.</p></Section>;
   const open = visible.some((q) => q.status === "issued" && q.kind === "rectification");
   if (accepting) return <AcceptanceFlow quoteId={accepting} jobId={jobId} onClose={() => setAccepting(null)} />;
@@ -355,7 +350,7 @@ export function QuotesPanel({ jobId, canRespond }: { jobId: string; canRespond: 
       <div className="grid gap-3 md:grid-cols-3">
         {visible.map((q) => (
           <div key={q.id} className="flex flex-col rounded-lg border p-3">
-            <div className="flex items-start justify-between gap-2"><div className="font-semibold">{q.option_label}</div><Pill t={q.status === "accepted" ? "good" : q.status === "declined" ? "bad" : "info"}>{q.status}</Pill></div>
+            <div className="flex items-start justify-between gap-2"><div className="font-semibold">{q.option_label}</div><Pill t={q.status === "accepted" ? "good" : q.status === "declined" ? "bad" : "info"}>{canRespond ? q.status : officeQuoteStatusLabel(q)}</Pill></div>
             <ul className="mt-2 flex-1 space-y-1 text-sm">
               {q.quote_items.sort((a, b) => a.sort - b.sort).map((i) => (
                 <li key={i.id} className="flex justify-between gap-2"><span>{i.description} × {Number(i.quantity)}</span><span>{aud(i.line_total_inc_gst)}</span></li>
@@ -393,6 +388,7 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
   const sync = useAction(syncInvoice);
   const override = useAction(overrideDepositGate);
   const markRaised = useAction(markDepositRequestRaised);
+  const reason = useReasonDialog();
   const internalsFn = useServerFn(getInvoiceInternals);
   const { data } = useQuery({
     queryKey: ["invoices", jobId],
@@ -400,8 +396,10 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
   });
   const { data: internals } = useQuery({ queryKey: ["invoice-internals", jobId], enabled: isAdmin, queryFn: () => internalsFn({ data: { jobId } }) });
   return (
-    <Section title="Xero invoice & payments">
-      {!data?.length && <p className="text-sm text-muted-foreground">No invoice yet – one Xero invoice for the full accepted price is raised when the owner accepts the final installation quote. The safety check payment ($349, set in Settings) must be received before the PIESA can be booked. The balance is paid in two halves (install booked, install day) or in full at Step B.</p>}
+    <Section title={isAdmin ? "Xero invoice & payments" : "Invoices & payments"}>
+      {!data?.length && <p className="text-sm text-muted-foreground">{isAdmin
+        ? "No invoice yet – one Xero invoice for the full accepted price is raised when the owner accepts the final installation quote. The safety check payment ($349, set in Settings) must be received before the PIESA can be booked. The balance is paid in two halves (install booked, install day) or in full at Step B."
+        : "No invoice yet – one invoice for the full accepted price is raised once you accept the final installation quote. The safety check payment ($349) must be received before the PIESA can be booked. The balance is paid in two halves (install booked, install day) or in full."}</p>}
       <div className="space-y-3">
         {(data ?? []).map((i) => {
           const x = internals?.invoices.find((v) => v.id === i.id);
@@ -423,7 +421,9 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
               </dl>
               {i.xero_online_url && <a href={i.xero_online_url} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm font-semibold text-primary underline">View / pay invoice</a>}
               {!i.deposit_cleared && <p className="mt-2 flex items-center gap-1 rounded bg-danger-soft px-2 py-1 text-xs font-semibold text-danger"><Lock className="h-3 w-3" /> Safety check can't be booked — {aud(i.deposit_amount)} safety check payment not received.</p>}
-              <p className="mt-2 rounded bg-muted px-2 py-1 text-xs">Refunds (office records manually, nothing moves automatically): check never happens → refund everything paid. Check done and job can't go ahead → keep the safety check payment, refund the rest.</p>
+              <p className="mt-2 rounded bg-muted px-2 py-1 text-xs">{isAdmin
+                ? "Refunds (office records manually, nothing moves automatically): check never happens → refund everything paid. Check done and job can't go ahead → keep the safety check payment, refund the rest."
+                : "Refunds: if the check never happens, everything you paid is refunded. If the check is done and the job can't go ahead, we keep the safety check payment and refund the rest."}</p>
               {isAdmin && x && (
                 <>
                   {x.deposit_request_raised_at
@@ -446,13 +446,14 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
                 <div className="mt-3 flex flex-wrap gap-2">
                   {internals?.xeroAllowed !== false && <Button size="sm" variant="outline" disabled={!!x?.sync_lock_at && Date.now() - Date.parse(x.sync_lock_at) < 120000} onClick={() => sync({ invoiceId: i.id }, "Xero sync finished")}>{x?.xero_invoice_id ? "Sync with Xero" : "Send to Xero (safe retry)"}</Button>}
                   {internals?.xeroAllowed && x?.xero_invoice_id && !x.deposit_request_raised_at && <Button id="target-deposit-request" data-portal-focus="target" size="sm" variant="outline" onClick={() => { if (confirm(`Confirm the native Xero deposit request (${aud(i.deposit_amount)}) has been raised in Xero? This does not unlock scheduling.`)) markRaised({ invoiceId: i.id }, "Deposit request recorded"); }}>Mark deposit request raised</Button>}
-                  {!i.deposit_cleared && <Button size="sm" variant="outline" onClick={() => { const r = prompt("Reason for overriding the deposit gate (required, permanently audited)"); if (r) override({ invoiceId: i.id, reason: r }, "Override recorded"); }}>Override safety check payment block</Button>}
+                  {!i.deposit_cleared && <Button size="sm" variant="outline" onClick={async () => { const r = await reason.ask({ title: "Override safety check payment block", description: "A reason is required and permanently audited.", placeholder: "Reason for overriding the deposit gate (required, permanently audited)", minLength: 1 }); if (r) override({ invoiceId: i.id, reason: r }, "Override recorded"); }}>Override safety check payment block</Button>}
                 </div>
               )}
             </div>
           );
         })}
       </div>
+      {reason.dialog}
     </Section>
   );
 }

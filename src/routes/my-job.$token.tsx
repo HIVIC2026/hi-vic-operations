@@ -96,6 +96,7 @@ function Home({ v, token }: { v: View; token: string }) {
   const a = v.action;
   return <>
     <Hero v={v} level={v.hero.level} headline={v.hero.headline} />
+    <StatusSnapshot v={v} />
     <section className="rounded-[22px] bg-estimate-navy p-5 text-estimate-canvas">
       <p className="text-xs font-bold uppercase tracking-wide text-estimate-canvas/70">{a.kicker}</p>
       <h2 className="mt-1 font-display text-xl font-extrabold">{a.title}</h2>
@@ -128,6 +129,39 @@ function Home({ v, token }: { v: View; token: string }) {
     <BottomList />
     {v.canCancel && <CancelMyJob token={token} />}
   </>;
+}
+
+function StatusSnapshot({ v }: { v: View }) {
+  const action = v.action;
+  const current = v.progress.find((p: any) => p.state === "now") ?? v.progress[Math.min(v.hero.step ?? 0, v.progress.length - 1)];
+  const completed = v.progress.filter((p: any) => p.state === "done").map((p: any) => p.label);
+  const nextForYou = action.button ? action.title : "Nothing right now";
+  const waitingOn = action.button ? "Waiting for your next step" : action.title;
+  const summary = [
+    { label: "Current status", value: current?.label ?? "In progress" },
+    { label: "Completed", value: completed.length ? completed.join(", ") : "We'll show completed steps here" },
+    { label: "Next for you", value: nextForYou },
+    { label: "Waiting on", value: waitingOn },
+  ];
+  return (
+    <section aria-label="Job status summary" className="rounded-[22px] bg-card p-5 shadow-sm">
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-estimate-mint text-estimate-green"><Check className="h-5 w-5" /></span>
+        <div className="min-w-0">
+          <p className="text-xs font-bold uppercase tracking-wide text-estimate-navy/60">At a glance</p>
+          <h2 className="mt-1 font-display text-lg font-extrabold leading-tight">{action.kicker === "You need to do this" ? "Your next step is ready" : "You're up to date"}</h2>
+        </div>
+      </div>
+      <dl className="mt-4 grid gap-2">
+        {summary.map((item) => (
+          <div key={item.label} className="grid gap-1 rounded-2xl bg-estimate-mist px-4 py-3 sm:grid-cols-[8rem_1fr] sm:items-center">
+            <dt className="text-xs font-bold uppercase tracking-wide text-estimate-navy/60">{item.label}</dt>
+            <dd className="text-sm font-semibold leading-relaxed">{item.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
 }
 
 function useSession() { return useState<string | null>(null); }

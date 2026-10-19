@@ -21,8 +21,8 @@ export function ReadyCheckTimesPicker({ value, onChange, disabled = false }: { v
       <p className="mt-1 text-[13px] leading-relaxed">Please choose {PIESA_WINDOW_MIN} to {PIESA_WINDOW_MAX} times that suit you, on at least {PIESA_WINDOW_MIN_DAYS} different days. The first approved installer to take one of your times is booked, and we'll let you know.</p>
       <div className="mt-3 space-y-2">
         {days.map((d) => (
-          <div key={d} className="grid grid-cols-[6rem_1fr_1fr] items-center gap-2 text-sm">
-            <div className="font-bold">{dayLabel(d)}</div>
+          <div key={d} className="grid grid-cols-2 items-center gap-2 rounded-xl border border-estimate-line bg-estimate-white p-2 text-sm sm:grid-cols-[6rem_1fr_1fr] sm:border-0 sm:bg-transparent sm:p-0">
+            <div className="col-span-2 font-bold sm:col-span-1">{dayLabel(d)}</div>
             {(Object.keys(PIESA_SLOTS) as PiesaSlot[]).map((s) => (
               <button key={s} type="button" disabled={disabled} aria-pressed={has(d, s)} onClick={() => toggle(d, s)}
                 className={`min-h-12 rounded-xl border-2 px-2 py-2 text-[13px] font-bold leading-snug focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-estimate-navy ${has(d, s) ? "border-estimate-green bg-estimate-green text-estimate-white" : "border-estimate-line bg-estimate-white text-estimate-navy"}`}>

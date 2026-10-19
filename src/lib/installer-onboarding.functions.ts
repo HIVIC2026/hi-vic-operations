@@ -5,7 +5,7 @@ import { z } from "zod";
 import { withRequestMeta, withStartLimitStatus, withVisitorId } from "./request-meta";
 import { mayRelaxRequiredSteps } from "./onboarding-security.core";
 import {
-  installerAgreementView, applyMaterialReset, isInstallerRevisionTimestamp, normaliseInstallerDraft, type InstData,
+  INSTALLER_AGREEMENT_TITLE, INSTALLER_AGREEMENT_VERSION, agreementText, applyMaterialReset, isInstallerRevisionTimestamp, normaliseInstallerDraft, type InstData,
 } from "./installer-onboarding.core";
 import { performInstallerSign, signedData } from "./installer-sign.core";
 
@@ -180,9 +180,9 @@ export const getInstallerAgreement = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ token: tokenSchema }).parse(d))
   .handler(async ({ data }) => {
     const { app } = await findApp(data.token);
-    const view = installerAgreementView(app, signedData(app as never));
+    const text = app.agreement_text ?? agreementText(signedData(app as never));
     // The tab keeps this exact revision + hash; signing is refused if either has moved on.
-    return { ...view, sha256: await sha256(view.text), updated_at: app.updated_at };
+    return { title: INSTALLER_AGREEMENT_TITLE, version: INSTALLER_AGREEMENT_VERSION, text, sha256: await sha256(text), updated_at: app.updated_at };
   });
 
 export const signInstallerAgreement = createServerFn({ method: "POST" })

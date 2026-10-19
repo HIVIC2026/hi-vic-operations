@@ -1,6 +1,6 @@
-// Ready Check on the installer's own job page (both channels). Same canonical field model as the Mitti A1
+// Ready Check on the installer's own job page (installer-supplied jobs). Same canonical field model as the Mitti A1
 // form; partial Save + reopen. Evidence uses the job's existing evidence list (uploads kept). Saving never submits.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Button, Section } from "@/components/trade/trade-ui";
@@ -20,42 +20,49 @@ export function ReadyCheckDraft({ jobId, evidence = true }: { jobId: string; evi
   const { data, isError, error, refetch, isFetching } = useQuery({ queryKey: ["rc-draft", jobId], queryFn: () => load({ data: { jobId } }), retry: false });
   const [v, setV] = useState<RcDraftValues>({});
   const [dirty, setDirty] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [busy, setBusy] = useState<false | "save" | "submit">(false);
+  const [confirming, setConfirming] = useState(false);
+  const inFlight = useRef(false); // double-tap guard: state updates land after the second tap
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   useEffect(() => { if (data && !dirty && !busy) setV(data.values); }, [data, dirty, busy]);
+  // Unsaved answers: warn before leaving or refreshing the page.
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
 
   if (isError && !data) return <Section title="Ready Check"><p className="text-sm" role="alert">Couldn't load the Ready Check: {(error as Error).message}</p><Button variant="outline" disabled={isFetching} onClick={() => void refetch()}>Retry</Button></Section>;
   if (!data) return <Section title="Ready Check"><p className="text-sm text-sub">Loading…</p></Section>;
-  // Mitti owns this job's Ready Check: show that, and never offer a second editable copy of the same record.
-  if (data.fromMitti) return (
-    <Section title="Ready Check">
-      <p className="text-sm text-sub" data-rc-from-mitti>This job's Ready Check is the Mitti form. Complete or correct it there — the answers and evidence come back to this job.</p>
-    </Section>
-  );
   const locked = data.status === "submitted";
-  const set = (k: string, x: string) => { setV((o) => ({ ...o, [k]: x })); setDirty(true); setMsg(null); };
+  const set = (k: string, x: string) => { setV((o) => ({ ...o, [k]: x })); setDirty(true); setMsg(null); setConfirming(false); };
   const onSave = async () => {
-    if (busy || locked || !dirty) return;
-    setBusy(true); setMsg(null);
+    if (busy || inFlight.current || locked || !dirty) return;
+    inFlight.current = true; setBusy("save"); setMsg(null);
     try { const r = await save({ data: { jobId, values: v } }); qc.setQueryData(["rc-draft", jobId], r); await refreshInstallerJob(qc, jobId); setDirty(false); setMsg({ ok: true, text: "Saved. You can come back and finish it any time — nothing has been submitted." }); }
     catch (e) { setMsg({ ok: false, text: (e as Error).message || "Couldn't save — check your signal and try again." }); }
-    finally { setBusy(false); }
+    finally { setBusy(false); inFlight.current = false; }
   };
-  // P1: explicit "Submit for review". Blocked by unsaved changes (Save first), locked/submitted state, in-flight work, or any completeness blocker (same model the server enforces).
-  const submitBlockers = rcSubmitBlockers(data.progress);
-  const canSubmit = !locked && !dirty && !busy && !submitting && submitBlockers.length === 0;
   const onSubmit = async () => {
-    if (!canSubmit) return;
-    setSubmitting(true); setMsg(null);
-    try { const r = await submit({ data: { jobId } }); qc.setQueryData(["rc-draft", jobId], r); await refreshInstallerJob(qc, jobId); setMsg({ ok: true, text: "Submitted to Home Insulation Victoria for review. You can't change it now — ask the office to reopen it if you need to." }); }
-    catch (e) { setMsg({ ok: false, text: (e as Error).message || "Couldn't submit — check your signal and try again." }); }
-    finally { setSubmitting(false); }
+    if (busy || inFlight.current || locked || dirty) return;
+    inFlight.current = true; setBusy("submit"); setMsg(null);
+    try { const r = await submit({ data: { jobId } }); qc.setQueryData(["rc-draft", jobId], r); await refreshInstallerJob(qc, jobId); setConfirming(false); window.scrollTo({ top: 0, behavior: "smooth" }); }
+    catch (e) { setConfirming(false); setMsg({ ok: false, text: (e as Error).message || "Couldn't submit — check your signal and try again. Your answers are saved." }); }
+    finally { setBusy(false); inFlight.current = false; }
   };
   const p = data.progress;
+  const submitBlockers = rcSubmitBlockers(p);
+  const outstanding = p.missingAnswers.length + p.evidence.missing.length + p.evidence.rejected.length;
+  const nextAction = locked
+    ? "Submitted — Home Insulation Victoria is reviewing it. You can’t change it now."
+    : outstanding === 0
+      ? (data.readyCheckId ? "Everything you need is entered — submit for review." : "Nothing is outstanding — save your progress and come back on install day.")
+      : `Your turn: ${outstanding} item${outstanding === 1 ? "" : "s"} to finish before submitting.`;
   return (
     <div className="space-y-4" data-rc-draft data-rc-status={data.status}>
-      <Section title="Ready Check" right={<span className="text-xs text-sub">{locked ? "Submitted" : data.savedAt ? `Draft saved ${new Date(data.savedAt).toLocaleString("en-AU", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}` : "Not started"}</span>}>
+      <Section title="Ready Check" right={<span className="text-xs text-sub" data-rc-status-label>{locked ? `Submitted${data.savedAt ? ` ${new Date(data.savedAt).toLocaleString("en-AU", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}` : ""}` : data.savedAt ? `Draft saved ${new Date(data.savedAt).toLocaleString("en-AU", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}` : "Not started"}</span>}>
+        <div className="rounded-[12px] border border-primary/40 bg-primary/5 p-3 text-sm font-semibold" data-rc-next-action>{nextAction}</div>
         <div className="space-y-1 text-sm" data-rc-commercial>
           <p><span className="font-bold">Organised by:</span> {data.coordination === "self_managed" ? "you" : data.coordination === "hivic_managed" ? "Home Insulation Victoria" : "not recorded"}</p>
           <p><span className="font-bold">Owner quote:</span> {data.commercial.ready ? (data.commercial.releaseBlockers.length ? `ready to prepare — waiting on: ${data.commercial.releaseBlockers.join("; ")}` : "ready for the office to send") : `on hold — ${data.commercial.blockers.join("; ")}`}</p>
@@ -79,20 +86,32 @@ export function ReadyCheckDraft({ jobId, evidence = true }: { jobId: string; evi
                 {data.prefilled.includes(f.key) && v[f.key] === data.values[f.key] && <span className="block text-xs font-normal text-sub">From the job details — check it</span>}
                 {f.key === "measure.eligible_area_m2" && data.suppliedAreaHint != null && <span className="block text-xs font-normal text-sub">Your quote said {data.suppliedAreaHint} m² — enter what you measure</span>}
                 {f.kind === "enum" || f.kind === "boolean"
-                  ? <select className="mt-1 h-12 w-full rounded-[10px] border border-line bg-paper px-3 text-base font-normal" disabled={locked || busy} value={v[f.key] ?? ""} onChange={(e) => set(f.key, e.target.value)} aria-label={f.label}>
+                  ? <select className="mt-1 h-12 w-full rounded-[10px] border border-line bg-paper px-3 text-base font-normal" disabled={locked || !!busy} value={v[f.key] ?? ""} onChange={(e) => set(f.key, e.target.value)} aria-label={f.label}>
                       <option value="">Not recorded yet</option>
                       {(f.kind === "boolean" ? ["yes", "no"] : f.options ?? []).map((o) => <option key={o} value={o}>{opt(o)}</option>)}
                     </select>
-                  : <Input className="mt-1 h-12 text-base font-normal" disabled={locked || busy} aria-label={f.label} type={f.kind === "datetime" ? "datetime-local" : "text"} inputMode={f.kind === "number" ? "decimal" : f.kind === "integer" ? "numeric" : undefined} value={v[f.key] ?? ""} onChange={(e) => set(f.key, e.target.value)} />}
+                  : <Input className="mt-1 h-12 text-base font-normal" disabled={locked || !!busy} aria-label={f.label} type={f.kind === "datetime" ? "datetime-local" : "text"} inputMode={f.kind === "number" ? "decimal" : f.kind === "integer" ? "numeric" : undefined} value={v[f.key] ?? ""} onChange={(e) => set(f.key, e.target.value)} />}
               </label>
             ))}
           </div>
         </Section>
       ))}
       {evidence && <EvidencePanel jobId={jobId} role="measure" gates={["assessment"]} />}
-      {isError && <p role="alert">Couldn't refresh the Ready Check. Your answers are kept. <Button variant="outline" disabled={isFetching || busy} onClick={() => void refetch()}>Retry</Button></p>}
+      {isError && <p role="alert">Couldn't refresh the Ready Check. Your answers are kept. <Button variant="outline" disabled={isFetching || !!busy} onClick={() => void refetch()}>Retry</Button></p>}
       {msg && <p role="status" className={`rounded-[12px] border border-line bg-paper p-3 text-sm ${msg.ok ? "" : "text-danger"}`} data-rc-save-msg>{msg.text}</p>}
-      {!locked && <div className="sticky bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-10 space-y-2 md:bottom-3"><Button size="field" className="w-full" disabled={busy || submitting || !dirty} aria-busy={busy} onClick={onSave}>{busy ? "Saving…" : dirty ? "Save Ready Check" : "Saved"}</Button><Button size="field" variant="outline" className="w-full" disabled={!canSubmit} aria-busy={submitting} data-rc-submit onClick={onSubmit}>{submitting ? "Submitting…" : "Submit for review"}</Button>{dirty && <p className="text-center text-xs text-sub" data-rc-submit-hint>Save your changes before you can submit.</p>}{!dirty && submitBlockers.length > 0 && <p className="text-center text-xs text-sub" data-rc-submit-hint>Finish everything above before you can submit for review.</p>}</div>}
+      {!locked && <div className="sticky bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-10 space-y-2 rounded-[14px] bg-canvas/95 md:bottom-3" data-rc-actions>
+        {confirming && !dirty && !busy && submitBlockers.length === 0
+          ? <div className="space-y-2 rounded-[12px] border border-line bg-paper p-3" data-rc-confirm>
+              <p className="text-sm font-bold">Submit this Ready Check for review?</p>
+              <p className="text-xs text-sub">You won't be able to change the answers after you submit.</p>
+              <div className="grid grid-cols-2 gap-2"><Button size="field" variant="outline" onClick={() => setConfirming(false)}>Not yet</Button><Button size="field" onClick={onSubmit}>Yes, submit</Button></div>
+            </div>
+          : <>
+              <Button size="field" className="w-full" disabled={!!busy || !dirty} aria-busy={busy === "save"} onClick={onSave}>{busy === "save" ? "Saving…" : dirty ? "Save Ready Check" : data.readyCheckId ? "Saved" : "Save Ready Check"}</Button>
+              {data.readyCheckId && <Button size="field" variant="outline" className="w-full" data-rc-submit disabled={!!busy || dirty || submitBlockers.length > 0} aria-busy={busy === "submit"} onClick={() => setConfirming(true)}>{busy === "submit" ? "Submitting…" : dirty ? "Save first, then submit" : submitBlockers.length ? `Submit for review (${submitBlockers.length} to finish)` : "Submit for review"}</Button>}
+              {data.readyCheckId && !dirty && !busy && submitBlockers.length > 0 && <p className="px-1 text-xs text-sub" data-rc-submit-hint>Finish the items listed above, then submit.</p>}
+            </>}
+      </div>}
     </div>
   );
 }

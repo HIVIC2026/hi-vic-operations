@@ -1,7 +1,6 @@
 // Pure rules for the portal installer onboarding + partner agreement signing.
 // Mirrors rec-onboarding.core.ts (same design/rules); shared validators are reused from there.
 import { INSTALLER_AGREEMENT_SECTIONS } from "./installer-agreement.text";
-import { activity48AgreementScheduleText } from "./activity48-agreement-schedule.text";
 import { electricianStepErrors, type ElectricianChoice, type PreferredElectrician } from "./teaming.core";
 import { AP_ENTITY, MIN_PL_COVER, validAbn, validBusinessEmail, validPhone, melbourneToday, validCalendarDate, isAustralianAddress, isVictorianAddress, DAYS, LEAD_TIMES, RADII, type ResolvedAddress } from "./rec-onboarding.core";
 
@@ -11,18 +10,14 @@ export type { ResolvedAddress };
 // 1.16 (5 Oct, single onboarding-fix version; folds in the unsigned 1.15 changes): CII lines omit blank details; vacuum-only rate dropped;
 //   payment terms: 7 days after approval (HIV-sourced) or after the later of approval and owner paid in full (installer-sourced); AP fee as recorded per installer.
 // Earlier signed versions stay immutable and remain activatable.
-// 1.18 supersedes the 1.17 warranty correction: twelve-month workmanship cover, separate minimum five-year product defects warranty,
-//   with written product details and an Australian contact for overseas warrantors; signed history remains immutable.
-// 1.19 incorporates the role-owned Guide V1.2 compliance/evidence schedule; commercial and warranty terms unchanged.
-export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.19-2026-10-09";
-export const ACTIVATABLE_INSTALLER_VERSIONS: readonly string[] = ["HI-VIC-A48-INST-1.11-2026-10-03", "HI-VIC-A48-INST-1.12-2026-10-03", "HI-VIC-A48-INST-1.13-2026-10-03", "HI-VIC-A48-INST-1.14-2026-10-03", "HI-VIC-A48-INST-1.16-2026-10-05", "HI-VIC-A48-INST-1.17-2026-10-09", "HI-VIC-A48-INST-1.18-2026-10-09", INSTALLER_AGREEMENT_VERSION];
+export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.16-2026-10-05";
+export const ACTIVATABLE_INSTALLER_VERSIONS: readonly string[] = ["HI-VIC-A48-INST-1.11-2026-10-03", "HI-VIC-A48-INST-1.12-2026-10-03", "HI-VIC-A48-INST-1.13-2026-10-03", "HI-VIC-A48-INST-1.14-2026-10-03", INSTALLER_AGREEMENT_VERSION];
 export const INSTALLER_AGREEMENT_TITLE = "Activity 48 Insulation Installer Partner Agreement";
 
 export const ACKNOWLEDGEMENTS = [
   { key: "authority", text: "I am authorised to bind the Installer business to this agreement." },
-  { key: "personnel", text: "The Installer will ensure every person who installs on Home Insulation Victoria jobs is competent, holds full current EEC Certified Insulation Installer (CII) certification (not provisional certification or training alone) verified by Home Insulation Victoria before they are assigned, and complies with the obligations that apply to them." },
+  { key: "personnel", text: "The Installer will ensure every person who installs on Home Insulation Victoria jobs is competent, holds a current EEC Certified Insulation Installer (CII) certification verified by Home Insulation Victoria before they are assigned, and complies with the obligations that apply to them." },
   { key: "compliance", text: "I understand the Installer and its personnel must comply with current VEU, Code of Conduct, Activity 48, AS 3999, safety and Home Insulation Victoria requirements, and must not install without a current signed VEU pre-installation electrical safety assessment and Home Insulation Victoria ready-to-install confirmation." },
-  { key: "schedule", text: "I have reviewed and accept the incorporated versioned Schedule 4 — Activity 48 Compliance and Evidence, including our role-owned evidence, safety and retention responsibilities. The AP retains its own statutory duties." },
   { key: "records", text: "I confirm the Installer will provide truthful measurements, records and evidence and cooperate with Home Insulation Victoria, ESC and regulator compliance checks." },
   { key: "no_bypass", text: "I understand that removal, access, extras and other work identified through a Home Insulation Victoria Activity 48 job must be quoted, approved, scheduled and completed through the Home Insulation Victoria workflow and must not be taken off-platform or dealt with directly." },
   { key: "pricing", text: "I understand our approved rates are supplier rates, not customer prices. On Home Insulation Victoria-sourced jobs, Home Insulation Victoria sets the customer price and may include its own margin, which it is not required to disclose to us. On jobs we bring in ourselves, we set our own price and Home Insulation Victoria adds no lead fee and no margin to it; the customer quote adds the Accredited Person fee recorded for the Installer in Home Insulation Victoria (standard $349 including GST, or a lower pilot rate agreed in writing) and the separate $349 including GST electrical safety assessment, and both are fixed once the customer accepts the quote. I will not share our rates with customers." },
@@ -326,7 +321,7 @@ export function scheduleText(d: InstData): string {
     `Public liability: ${d.insurer ?? ""} policy ${d.insurance_policy_number ?? ""}, cover ${money(d.public_liability_cover_amount)}, expires ${d.public_liability_expiry ?? ""}`);
   L.push("", "Nominated installers:");
   (d.installers ?? []).forEach((x, i) => L.push(`${i + 1}. ${x.full_legal_name} — ${workerCiiLabel(x)}`));
-  L.push("Only people whose full current EEC Certified Insulation Installer (CII) certification Home Insulation Victoria has verified may be assigned to install; provisional certification or training alone is insufficient. A multi-person crew must appoint a fully certified lead onsite for the entire installation as required by Schedule 4.");
+  L.push("Only people whose EEC Certified Insulation Installer (CII) certification Home Insulation Victoria has verified may be assigned to install.");
   L.push("", "SCHEDULE 2 — SERVICES, COVERAGE AND CAPACITY");
   L.push("Free Home Insulation Ready Check: installer eligibility check, ceiling measure-up and required site evidence; no electrical assessment or PIESA");
   L.push("Ceiling insulation supply & installation: included");
@@ -347,7 +342,7 @@ export function scheduleText(d: InstData): string {
   L.push(`Loose fill removal: ${money(d.loose_fill_removal_rate)} / m²`);
   for (const it of EXTRA_ITEMS) { const v = d.extra_rates?.[it.key]; L.push(`${it.label}: ${typeof v === "number" && v > 0 ? `${money(v)} / ${it.unit}` : v === 0 ? "no extra charge ($0)" : "no set rate — quoted separately on the job before owner approval"}`); }
   L.push("Any other extras are quoted separately on the specific job before owner approval.");
-  return [...L, "", activity48AgreementScheduleText()].join("\n");
+  return L.join("\n");
 }
 
 export function agreementText(d: InstData): string {
@@ -359,13 +354,6 @@ export function agreementText(d: InstData): string {
     scheduleText(d), "", "ACKNOWLEDGEMENTS",
     ...ACKNOWLEDGEMENTS.map((a, i) => `${i + 1}. ${a.text}`),
   ].join("\n");
-}
-
-/** Draft reviews use current terms; signed records must use their exact stored text and version. */
-export function installerAgreementView(app: { status: string; agreement_text?: string | null; agreement_version?: string | null }, d: InstData) {
-  if (app.status === "draft") return { title: INSTALLER_AGREEMENT_TITLE, version: INSTALLER_AGREEMENT_VERSION, text: agreementText(d) };
-  if (!app.agreement_text || !app.agreement_version) throw new Error("The stored signed agreement is incomplete; please contact the office.");
-  return { title: INSTALLER_AGREEMENT_TITLE, version: app.agreement_version, text: app.agreement_text };
 }
 
 /** Friendly date entry: accepts 05/10/2028, 5/10/28, 5-10-2028 or ISO 2028-10-05. Returns ISO or null. */

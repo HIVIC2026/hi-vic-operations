@@ -41,11 +41,7 @@ export async function requestOwnerCode(token: unknown, channel: "sms" | "email")
   if (error || !row) throw new Error(error?.message ?? "Could not create a code");
   await logEvent(jobId, null, "owner_code_requested", `Owner asked for a signing code by ${channel === "sms" ? "text" : "email"} (${masked}); delivery follows the sending switches`, { code_id: row.id, channel }, { internal: true });
   if (source !== "qa_test") {
-    const { data: ev } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "owner_code_requested").contains("details", { code_id: row.id }).limit(1).maybeSingle();
-    if (ev) {
-      const { error: e } = await admin.rpc("enqueue_external_action", { _job: jobId, _event: ev.id, _action: channel === "sms" ? "customer_sms" : "customer_email", _target: `owner_code:${row.id}`, _basis: "transactional_owner_verification", _version: "owner-code-v1", _payload: `owner_code:${row.id}`, _facts: row.id, _key: `owner-code-${row.id}` });
-      if (e) console.error("owner code outbox enqueue skipped", e.message);
-    }
+    await (await import("./owner-code-delivery.server")).deliverOwnerCode({ jobId, codeId: row.id, channel, code, owner: { email: owner?.email ?? null, phone: owner?.phone ?? null } });
   }
   // TEST jobs never send anything, so the code is shown on screen for preview checks only.
   return { masked, testCode: source === "qa_test" ? code : null };
@@ -84,6 +80,15 @@ async function ensureOwnerUser(jobId: string, channel: "sms" | "email"): Promise
   if (!owner) throw new WorkflowError("No owner recorded on this job.");
   if (owner.user_id) return owner.user_id;
   const meta = { full_name: owner.full_name, owner_link: true, ...(source === "qa_test" ? { qa_test: true } : {}) };
+  if (channel === "email" && owner.email) {
+    const { data: existing } = await admin.from("profiles").select("id").ilike("email", (await import("./email-match")).exactLike(owner.email)).maybeSingle(); // exact match: "_"/"%" are not wildcards
+    if (existing?.id) {
+      await admin.from("owners").update({ user_id: existing.id }).eq("id", owner.id).is("user_id", null);
+      await admin.from("user_roles").upsert({ user_id: existing.id, role: "owner" }, { onConflict: "user_id,role", ignoreDuplicates: true });
+      const { data: o } = await admin.from("owners").select("user_id").eq("id", owner.id).single();
+      return o?.user_id ?? existing.id;
+    }
+  }
   const res = channel === "email" && owner.email
     ? await admin.auth.admin.createUser({ email: owner.email, email_confirm: true, user_metadata: meta })
     : await admin.auth.admin.createUser({ phone: toE164(owner.phone!), phone_confirm: true, user_metadata: meta });

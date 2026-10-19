@@ -10,8 +10,6 @@ import { RegisterInterest } from "./register-interest";
 import { extractPostcode, suburbFromLine, type AddressSuggestion } from "@/lib/address.core";
 import { AddressCombobox } from "./address-combobox";
 import { Button } from "@/components/ui/button";
-import { effectiveReadyCheckFee } from "@/lib/readycheck.core";
-import { REMOVAL_BUDGET_NOTE, calculatorTotals, installRateLabel, readyCheckFeeLabel, showRemovalBudgetNote } from "@/lib/pricing-cohort.core";
 
 /** The public site lives in Base44 — this page only ever points there. */
 const ENQUIRY_URL = "https://homeinsulationvictoria.com.au";
@@ -84,12 +82,7 @@ function WhatCouldChange() {
 }
 
 /** What the price on screen actually covers — the same lines the owner is later quoted. */
-function WhatIsIncluded({ readyCheckFeeIncGst: rawFee, pricingCohort, ratePerM2 }: { readyCheckFeeIncGst: number; pricingCohort: PricingCohortProp; ratePerM2: number }) {
-  const readyCheckFeeIncGst = effectiveReadyCheckFee(rawFee);
-  const paid = readyCheckFeeIncGst > 0;
-  const rows = INTEREST_INCLUDED.map((row, i) => i === 0 && paid
-    ? { label: `Home Insulation Ready Check — ${readyCheckFeeLabel({ readyCheckFeeIncGst })}`, detail: `${readyCheckFeeLabel({ readyCheckFeeIncGst })}, included once in the total above. We confirm your ceiling size, access and what is needed before anyone is booked — no surprises, no second visits.` }
-    : row.label.startsWith("R5.0") && pricingCohort === "current" ? { label: row.label, detail: `${installRateLabel({ r5InstallIncGstPerM2: ratePerM2, cohort: "current" })}. ${row.detail}` } : row);
+function WhatIsIncluded() {
   return (
     <details className="group overflow-hidden rounded-2xl bg-estimate-white shadow-[0_10px_30px_-20px_rgba(34,55,107,0.35)]">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-3.5 text-sm font-extrabold text-estimate-navy">
@@ -97,7 +90,7 @@ function WhatIsIncluded({ readyCheckFeeIncGst: rawFee, pricingCohort, ratePerM2 
         <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-estimate-navy/70 transition group-open:rotate-180" />
       </summary>
       <ul className="space-y-2 border-t border-estimate-line px-5 py-3.5">
-        {rows.map((row) => (
+        {INTEREST_INCLUDED.map((row) => (
           <li key={row.label} className="flex gap-2">
             <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-estimate-green" strokeWidth={3} />
             <span>
@@ -117,12 +110,8 @@ export type PublicCalculatorInitialValues = {
   insulation?: InsulationDeclared;
 };
 
-type PricingCohortProp = "pre_cutover" | "legacy_saved_spot" | "current";
 type PublicCalculatorProps = {
   settings: RetailSettings;
-  /** Versioned price (pricing-cohort.core). 0 = free Ready Check (legacy / protected saved spots). */
-  readyCheckFeeIncGst?: number;
-  pricingCohort?: PricingCohortProp;
   initialValues?: PublicCalculatorInitialValues;
   heading?: ReactNode;
   resultAction?: (state: { address: string; suburb: string; postcode: string; ceilingM2: number; insulation: InsulationDeclared }) => ReactNode;
@@ -131,9 +120,7 @@ type PublicCalculatorProps = {
   footer?: ReactNode;
 };
 
-export function PublicCalculator({ settings, initialValues, heading, resultAction, hideRegistration = false, compactHeader = false, footer, readyCheckFeeIncGst: rawReadyCheckFee = 0, pricingCohort = "pre_cutover" }: PublicCalculatorProps) {
-  const readyCheckFeeIncGst = effectiveReadyCheckFee(rawReadyCheckFee);
-  const paidCheck = readyCheckFeeIncGst > 0;
+export function PublicCalculator({ settings, initialValues, heading, resultAction, hideRegistration = false, compactHeader = false, footer }: PublicCalculatorProps) {
   const [addressText, setAddressText] = useState(initialValues?.address ?? "");
   const [picked, setPicked] = useState<AddressSuggestion | null>(null);
   const [raw, setRaw] = useState(initialValues?.areaM2 != null ? String(initialValues.areaM2) : "");
@@ -148,8 +135,6 @@ export function PublicCalculator({ settings, initialValues, heading, resultActio
   const primary = est?.scenarios[0];
   const standard = primary?.by_access.standard;
   const priced = standard != null && primary != null;
-  // Install-only scenario + Ready Check fee once; removal is never added for the whole ceiling.
-  const totals = standard ? calculatorTotals(standard, readyCheckFeeIncGst) : null;
   const touched = addressText !== "" || raw !== "" || insulation != null;
 
   const focusAddress = () => {
@@ -293,19 +278,14 @@ export function PublicCalculator({ settings, initialValues, heading, resultActio
                         {o.label}
                         {on && <Check aria-hidden="true" className="size-4 shrink-0 text-estimate-blue" strokeWidth={3} />}
                       </span>
-                      <span className={`hidden text-[0.7rem] leading-snug sm:block ${on ? "text-estimate-navy/85" : "text-estimate-navy/80"}`}>{paidCheck && o.value === "unknown" ? "We'll confirm it at your Ready Check" : INSULATION_HELP[String(o.value)]}</span>
+                      <span className={`hidden text-[0.7rem] leading-snug sm:block ${on ? "text-estimate-navy/85" : "text-estimate-navy/80"}`}>{INSULATION_HELP[String(o.value)]}</span>
                     </Button>
                   );
                 })}
               </div>
-              {showRemovalBudgetNote(insulation) && (
-                <p role="note" data-testid="removal-budget-note" className="rounded-xl border-2 border-estimate-blue bg-estimate-blush px-3.5 py-2.5 text-sm font-bold leading-relaxed text-estimate-navy">
-                  {REMOVAL_BUDGET_NOTE}
-                </p>
-              )}
-              {insulation === "unknown" && (
+              {insulation !== null && insulation !== "none" && (
                 <p className="rounded-xl bg-estimate-blush px-3.5 py-2.5 text-xs leading-relaxed text-estimate-navy/90">
-                  <strong className="text-estimate-navy">Your existing insulation may be able to stay.</strong> Your installer will check it at your {paidCheck ? "" : "free "}Ready Check and confirm whether any removal is needed. Removal is not included in this estimate and will be priced only if required.
+                  <strong className="text-estimate-navy">Your existing insulation may be able to stay.</strong> Your installer will check it at your free Ready Check and confirm whether any removal is needed. Removal is not included in this estimate and will be priced only if required.
                 </p>
               )}
             </Question>
@@ -337,10 +317,9 @@ export function PublicCalculator({ settings, initialValues, heading, resultActio
                 <div className="mt-4 text-center">
                   <p className="text-[0.65rem] font-extrabold uppercase tracking-[0.14em] text-estimate-navy/70">Your estimated cost after rebate</p>
                   <p className="mt-1 text-[2.6rem] font-extrabold leading-none tracking-tight text-estimate-blue sm:text-[3rem]" data-testid="public-calculator-final">
-                    {dollars(totals!.total)}
+                    {dollars(standard.estimated_customer_total)}
                   </p>
-                  <p className="mt-1 text-xs font-bold text-estimate-navy/70">incl. GST · before rebate {dollars(totals!.gross)}</p>
-                  {paidCheck && <p className="mt-1 text-[0.7rem] font-bold text-estimate-navy/80" data-testid="ready-check-fee-line">Includes the Ready Check: {readyCheckFeeLabel({ readyCheckFeeIncGst })}. Removal of existing insulation is not included.</p>}
+                  <p className="mt-1 text-xs font-bold text-estimate-navy/70">incl. GST · before rebate {dollars(standard.pre_discount_total)}</p>
                   <p className="mx-auto mt-2 max-w-[300px] text-[0.7rem] leading-relaxed text-estimate-navy/75">
                     Estimate only. Eligibility, measurements and final pricing confirmed after assessment.
                   </p>
@@ -380,7 +359,7 @@ export function PublicCalculator({ settings, initialValues, heading, resultActio
         </div>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <WhatIsIncluded readyCheckFeeIncGst={readyCheckFeeIncGst} pricingCohort={pricingCohort} ratePerM2={Number(settings.r5_install_inc_gst_per_m2)} />
+          <WhatIsIncluded />
           <WhatCouldChange />
         </div>
 

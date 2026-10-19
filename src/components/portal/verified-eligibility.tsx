@@ -11,6 +11,7 @@ import {
   recordPriorActivityCheck,
   recordVerifiedEligibility,
 } from "@/lib/verified-eligibility.functions";
+import { reopenReadyCheckDraft } from "@/lib/ready-check-draft.functions";
 import {
   PRIOR_ACTIVITY_CHECKS,
   PRIOR_ACTIVITY_LABEL,
@@ -90,6 +91,8 @@ export function VerifiedEligibilityCard({ jobId }: { jobId: string }) {
   const recordPrior = useAction(recordPriorActivityCheck);
   const [prior, setPrior] = useState<PriorActivityCheck | null>(null);
   const [priorNote, setPriorNote] = useState("");
+  const reopen = useAction(reopenReadyCheckDraft);
+  const [reopenReason, setReopenReason] = useState("");
   if (isPending)
     return (
       <Section title="Verified eligibility">
@@ -293,6 +296,15 @@ export function VerifiedEligibilityCard({ jobId }: { jobId: string }) {
         Recording a result does not send anything to the owner, create a quote, request a PIESA or
         book a visit.
       </p>
+      {data.evidence.readyCheck.final && data.evidence.readyCheck.submissionRef?.startsWith("portal:") && (
+        <div className="mt-3 rounded-md border p-2" data-rc-reopen>
+          <Label htmlFor="rc-reopen">Send the installer's Ready Check back for correction (reason required)</Label>
+          <Textarea id="rc-reopen" value={reopenReason} onChange={(e) => setReopenReason(e.target.value)} />
+          <Button className="mt-2" size="sm" variant="outline" disabled={reopenReason.trim().length < 3} onClick={async () => { const r = await reopen({ jobId, reason: reopenReason.trim() }, "Ready Check reopened for the installer"); if (r) { setReopenReason(""); await queryClient.invalidateQueries({ queryKey: ["verified-eligibility", jobId] }); } }}>
+            Reopen Ready Check
+          </Button>
+        </div>
+      )}
       {data.history.length > 0 && (
         <details className="mt-3">
           <summary className="cursor-pointer text-sm font-medium">

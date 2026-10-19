@@ -3,6 +3,7 @@
 // Owner approves the quote and picks ONE window (at least 24h away) in one step. "None of these work" -> old propose/confirm.
 // Quote timing: nudges at 24h and day 3 after sending; day 5 unanswered -> needs-attention. Never auto-expires.
 import { piesaWindowBlockers, type PiesaWindowPick } from "./piesa-windows.core";
+import { melbourneToday } from "./melbourne-time.core";
 
 export const RECT_MIN_HOURS_AHEAD = 24;
 export const RECT_UNANSWERED_DAYS = 5;
@@ -47,5 +48,23 @@ export function rectQuoteUnanswered(q: { kind: string; status: string; sent_at: 
 /** What to do with a held owner pick once the job reaches rectification scheduling. */
 export function heldWindowAction(startsAt: string, now: Date = new Date()): "book" | "lapsed" {
   return new Date(startsAt).getTime() > now.getTime() ? "book" : "lapsed";
+}
+
+export function sectionCBlockers(f: { outcome: "pass" | "fail"; completedDate: string; sectionCCompleted?: boolean; sectionCSignedDate?: string | null }, today: Date = new Date()): string[] {
+  if (f.outcome !== "pass") return [];
+  const out: string[] = [];
+  if (f.sectionCCompleted !== true) out.push("Confirm Section C has been completed and signed.");
+  if (!f.sectionCSignedDate) out.push("Enter the Section C signed date.");
+  else {
+    // Victorian calendar dates (YYYY-MM-DD) compared as dates: "today" is the Melbourne date, never UTC midnight,
+    // so a Section C signed this morning in Victoria is not rejected as "in the future" before 10/11am.
+    const d = new Date(`${f.sectionCSignedDate}T00:00:00Z`);
+    if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== f.sectionCSignedDate) out.push("Section C signed date is invalid.");
+    else {
+      if (f.sectionCSignedDate > melbourneToday(today)) out.push("Section C signed date cannot be in the future.");
+      if (f.sectionCSignedDate < f.completedDate) out.push("Section C signed date cannot be before the PIESA completion date.");
+    }
+  }
+  return out;
 }
 

@@ -21,7 +21,6 @@ export function ChooseTradePanel({ jobId }: { jobId: string }) {
   const [search, setSearch] = useState("");
   const [extra, setExtra] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
   const list = useServerFn(listChooseTrades);
   const send = useServerFn(sendChosenOffers);
   const override = useServerFn(setJobOfficePicks);
@@ -34,9 +33,9 @@ export function ChooseTradePanel({ jobId }: { jobId: string }) {
   const n = [...ticked].filter((id) => tickable.some((t) => t.id === id)).length;
   const toggle = (id: string) => setTicked((s) => { const x = new Set(s); if (x.has(id)) x.delete(id); else x.add(id); return x; });
   const go = async () => {
-    setBusy(true); setErr(null);
+    setBusy(true);
     try { const r = await send({ data: { jobId, kind, businessIds: [...ticked].filter((id) => tickable.some((t) => t.id === id)) } }); toast.success(`Offer sent to ${r.offered} trade${r.offered === 1 ? "" : "s"}`); setTicked(new Set()); void qc.invalidateQueries(); }
-    catch (e) { const m = e instanceof Error ? e.message : "That didn't work"; setErr(m); toast.error(m); }
+    catch (e) { toast.error(e instanceof Error ? e.message : "That didn't work"); }
     finally { setBusy(false); }
   };
   const row = (t: T) => (
@@ -85,7 +84,6 @@ export function ChooseTradePanel({ jobId }: { jobId: string }) {
                 <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search to add a trade that isn't listed" aria-label="Search trades" />
                 {found.map((o) => <button key={o.id} type="button" className="block w-full rounded-lg border px-3 py-2 text-left text-xs hover:bg-muted" onClick={() => { setExtra((x) => [...x, o.id]); setSearch(""); }}>+ {o.business}{o.blocker ? ` — can't be offered: ${o.blocker}` : ""}</button>)}
               </div>
-              {err && <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">{err}</p>}
               <Button className="h-12 w-full" disabled={!n || busy} onClick={() => void go()}>{busy ? "Sending…" : `Send offer to ${n} trade${n === 1 ? "" : "s"}`}</Button>
               <p className="text-xs text-muted-foreground">Only ticked trades get it. For the first 24 hours they can take an owner time or decline; then “Suggest another time” opens. Trades already offered keep their offer when you add more.</p>
             </>

@@ -141,7 +141,6 @@ export function Correspondence({ jobId }: { jobId: string }) {
             <li key={c.id} className="rounded-lg border p-2 text-sm">
               <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                 <Pill t={c.internal ? "warn" : "info"}>{c.internal ? "Internal" : c.audience.length === 1 && c.audience[0] === "owner" ? "Customer" : c.audience.includes("owner") ? "Shared" : "Trades"}</Pill>
-                {c.originLabel && <Pill t={c.manual ? "warn" : "good"}>{c.originLabel}</Pill>}
                 <span>{c.channel} · {c.direction}</span><span>{c.from ?? ""}</span><span>{fmtDT(c.at)}</span>
               </div>
               {c.subject && <div className="mt-1 font-medium">{c.subject}</div>}

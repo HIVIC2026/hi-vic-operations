@@ -407,13 +407,13 @@ export function emailDomainTypo(email: string | null | undefined): string | null
   const d = (email ?? "").trim().toLowerCase().split("@")[1];
   return d && DOMAIN_TYPOS[d] ? DOMAIN_TYPOS[d]! : null;
 }
-/** Couples (Jo, 7 Oct): "0403 595 088 M 0423 528 978 G", "a@x.com; b@y.com", "Megan Tomlins & Gray Charlton" → main + second contact. */
+/** Couples (Jo, 7 Oct): "0491 570 156 M 0491 570 157 G", "a@x.com; b@y.com", "Alex Example & Sam Sample" → main + second contact. */
 const PHONE_FIND = /(?:\+?61[\s-]?|0)[2-478](?:[\s-]?\d){8}/g;
 export function splitContacts(e: Pick<BulkExtracted, "full_name" | "phone" | "email" | "second_contact">): { full_name: string | null; phone: string | null; email: string | null; second: SecondContact | null } {
   const phones = (e.phone ?? "").match(PHONE_FIND) ?? [];
   const emails = (e.email ?? "").split(/[;,/\s]+|\band\b/i).map((x) => x.trim()).filter((x) => x.includes("@"));
   const names = (e.full_name ?? "").split(/\s*(?:&|\band\b|\/|;|\+)\s*/i).map((x) => x.trim()).filter(Boolean);
-  // "Megan & Gray Charlton" -> second name borrows the surname.
+  // "Alex & Sam Sample" -> second name borrows the surname.
   if (names.length === 2 && !/\s/.test(names[0]!) && /\s/.test(names[1]!)) names[0] = `${names[0]} ${names[1]!.split(/\s+/).slice(1).join(" ")}`;
   const prev = e.second_contact ?? null;
   const second: SecondContact = { name: prev?.name ?? names[1] ?? null, phone: prev?.phone ?? phones[1]?.trim() ?? null, email: prev?.email ?? emails[1] ?? null };

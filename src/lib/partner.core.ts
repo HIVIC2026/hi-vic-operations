@@ -1,7 +1,7 @@
 // Pure Base44 trade-partner enquiry intake (installers and electricians/RECs).
 // Partner enquiries are NOT jobs: this module only ever writes the partner_enquiries table.
 import { z } from "zod";
-import { BASE44_KEY_ID, verifyEd25519 } from "./enquiry.core";
+import { BASE44_KEY_ID, verifyBase44Webhook } from "./enquiry.core";
 
 export const PARTNER_TYPES = ["installer", "electrician_rec"] as const;
 export type PartnerType = (typeof PARTNER_TYPES)[number];
@@ -102,18 +102,20 @@ export function partnerIssues(r: {
 }
 
 /** The only side effect the endpoint may have: upsert one partner_enquiries row. */
-export type PartnerDeps = { upsert: (row: PartnerRow) => Promise<{ id: string; created: boolean }>; publicKey?: string };
+export type PartnerDeps = { upsert: (row: PartnerRow) => Promise<{ id: string; created: boolean }>; consumeNonce: (nonce: string, signedAt: string) => Promise<boolean>; publicKey?: string };
 
 /** Full request handling: key id -> size -> Ed25519 over exact raw body -> parse -> validate -> upsert. */
 export async function handlePartnerEnquiry(raw: string, headers: { get(n: string): string | null }, deps: PartnerDeps): Promise<{ status: number; body: Record<string, unknown> }> {
   const keyId = headers.get("x-hivic-key-id");
   if (keyId && keyId !== BASE44_KEY_ID) return { status: 401, body: { error: "Unknown key id" } };
   if (raw.length > 100_000) return { status: 413, body: { error: "Payload too large" } };
-  if (!(await verifyEd25519(raw, headers.get("x-hivic-signature"), deps.publicKey))) return { status: 401, body: { error: "Invalid signature" } };
+  const signed = await verifyBase44Webhook(raw, headers as Headers, deps.publicKey);
+  if (!signed.ok) return { status: 401, body: { error: "Invalid signature" } };
+  if (signed.protocol === "timestamped" && !(await deps.consumeNonce(signed.nonce, signed.timestamp))) return { status: 401, body: { error: "Invalid signature" } };
   let json: unknown;
   try { json = JSON.parse(raw); } catch { return { status: 400, body: { error: "Invalid JSON" } }; }
   const parsed = partnerSchema.safeParse(json);
-  if (!parsed.success) return { status: 400, body: { error: "Validation failed", issues: parsed.error.flatten() } };
+  if (!parsed.success) return { status: 400, body: { error: "Validation failed" } };
   const r = await deps.upsert(partnerRow(parsed.data, json));
   return { status: 200, body: { ok: true, id: r.id, created: r.created } };
 }

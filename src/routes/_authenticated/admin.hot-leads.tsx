@@ -149,7 +149,7 @@ function PreviewEmail({ row, onClose }: { row: Row; onClose: () => void }) {
   const [testMsg, setTestMsg] = useState<string | null>(null);
   return <Dialog open onOpenChange={(o) => !o && onClose()}><DialogContent className="max-w-3xl"><DialogHeader><DialogTitle>{row.jobNumber} — {row.name}</DialogTitle></DialogHeader>
     {isPending ? <p role="status">Preparing preview…</p> : error ? <p className="text-destructive">{(error as Error).message}</p> : data?.preview ? <>
-      <p className="text-sm"><strong>To:</strong> {data.preview.to}<br /><strong>Subject:</strong> {data.preview.subject}</p>{!data.preview.linksReady && <p role="status" className="text-xs text-muted-foreground">Preview only: this home has no unsubscribe or referral link yet, so those links are placeholders here. Real links are created only when the email is actually sent.</p>}
+      <p className="text-sm"><strong>To:</strong> {data.preview.to}<br /><strong>Subject:</strong> {data.preview.subject}</p>
       <iframe title="Email preview" srcDoc={data.preview.html} className="h-[60vh] w-full rounded-xl border bg-background" />
     </> : <p className="font-semibold text-destructive">Can't be sent: {data?.detail}</p>}
     <div className="flex flex-wrap items-center gap-2">

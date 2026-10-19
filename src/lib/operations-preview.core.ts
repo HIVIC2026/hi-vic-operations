@@ -103,7 +103,7 @@ export function classifyOperation(input: OperationInput, now: number): Operation
   const eligibilityGroup = reviewedUnsuitable ? "Reviewed unsuitable insulation" : ineligible ? "Other ineligible"
     : input.insulation === "none" && input.eligibility === "likely_eligible" ? "Likely eligible / no insulation"
     : input.mediaReview === "below_r2" ? "Reviewed below R2"
-    : input.eligibility === "needs_onsite_confirmation" && input.insulation && input.insulationOnlyPassed ? "Otherwise eligible / existing or unknown insulation pending review" : "Needs classification";
+    : input.eligibility === "needs_onsite_confirmation" && input.insulation && input.insulationOnlyPassed ? "Otherwise eligible / existing or unknown insulation pending review" : "Other / unmapped eligibility";
   const mediaState = input.mediaReview === "unclear" ? "Reviewed — clearer pictures needed"
     : input.mediaReview ? "Media reviewed" : input.mediaCount > 0 ? `${input.mediaCount} photos/videos available for review` : input.insulation !== "none" || f.campaign?.videoRequested ? "Awaiting upload — no media recorded" : "No media recorded / not requested";
   const active = input.actualHandoff || !!f.rcOfferAt || !!f.rcBookingAt || !!f.rcSubmittedAt || operationalQuote(f.quote) || !!f.elecOfferAt || !!f.elecBookingAt || !!f.installBookingAt || !!f.installedAt;

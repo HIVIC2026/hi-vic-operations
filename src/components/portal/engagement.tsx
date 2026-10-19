@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useReasonDialog } from "@/components/portal/reason-dialog";
 import { getAdminEngagement, sendEstimateEmailAdmin, suppressFollowupsAdmin } from "@/lib/engagement.functions";
 import { OPEN_PRIVACY_NOTE, type Summary } from "@/lib/engagement.core";
 
@@ -15,6 +16,7 @@ export function EngagementPanel({ jobId }: { jobId: string }) {
   const send = useServerFn(sendEstimateEmailAdmin);
   const qc = useQueryClient();
   const [msg, setMsg] = useState<string | null>(null);
+  const reason = useReasonDialog();
   const { data } = useQuery({ queryKey: ["admin_engagement", jobId], queryFn: () => fn({ data: { jobId } }) as Promise<{ summary: Summary; followups: Followup[]; referral: { status: string; click_count: number; referred_submission_count: number } | null }> });
   if (!data) return null;
   const s = data.summary;
@@ -30,9 +32,9 @@ export function EngagementPanel({ jobId }: { jobId: string }) {
     ["Referred enquiries", String(data.referral?.referred_submission_count ?? 0)],
   ];
   const doSuppress = async () => {
-    const reason = window.prompt("Reason for suppressing follow-ups?");
-    if (!reason) return;
-    const r = await suppress({ data: { jobId, reason } });
+    const r2 = await reason.ask({ title: "Suppress follow-ups", description: "A reason is required and audited.", placeholder: "Reason for suppressing follow-ups?", minLength: 1 });
+    if (!r2) return;
+    const r = await suppress({ data: { jobId, reason: r2 } });
     setMsg(`${r.suppressed} follow-up(s) suppressed.`);
     qc.invalidateQueries({ queryKey: ["admin_engagement", jobId] });
   };
@@ -52,6 +54,7 @@ export function EngagementPanel({ jobId }: { jobId: string }) {
       </div>
       {msg && <p className="mt-2 text-xs font-medium" role="status">{msg}</p>}
       {data.followups.length > 0 && <ul className="mt-2 space-y-1 text-xs text-muted-foreground">{data.followups.map((f) => <li key={f.id}>{f.slot} · {f.kind.replace(/_/g, " ")} · {f.status}{f.suppression_reason ? ` (${f.suppression_reason})` : ""}{f.sent_at ? ` · sent ${d(f.sent_at)}` : ""}</li>)}</ul>}
+      {reason.dialog}
     </div>
   );
 }

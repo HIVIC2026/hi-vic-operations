@@ -40,7 +40,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
   const live = jobs.filter((j) => (opts.includeTest ? true : j["source"] !== "qa_test") && !j["qa_archived_at"] && !j["deleted_at"]);
   const ids = live.map((j) => String(j["id"]));
   const want = (r: Row) => !opts.onlyIds || opts.onlyIds.includes(String(r["job_id"]));
-  const [stageEv, camp, links, wins, offers, books, props, quotes, inv, piesa, rcs, ev, veec, payoutEv, deadlines, invErr, esc, outbox, comms, emails, snoozes, apps, creds] = await Promise.all([
+  const [stageEv, camp, links, wins, offers, books, props, quotes, inv, piesa, rcs, ev, veec, payoutEv, deadlines, invErr, esc, outbox, comms, emails, snoozes, apps, creds, reassigs] = await Promise.all([
     all("stage changes", (a, b) => scope(admin.from("workflow_events").select("job_id, to_stage, created_at").eq("event_type", "stage_changed")).order("created_at").range(a, b)),
     all("campaign replies", (a, b) => scope(admin.from("lead_campaign_responses").select("job_id, spot_saved_at, opted_out_at, video_requested, media_received_at, desk_check_status, queue_priority, created_at")).range(a, b)),
     all("estimate links", (a, b) => scope(admin.from("customer_estimate_links").select("job_id, created_at").is("revoked_at", null)).range(a, b)),
@@ -64,6 +64,8 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
     all("snoozes", (a, b) => admin.from("office_snoozes").select("job_id, rule_key, snoozed_until, snooze_count").range(a, b)),
     opts.onlyIds ? Promise.resolve([]) : all("applications", (a, b) => admin.from("partner_enquiries").select("id, name, enquiry_type, source, status, created_at").in("status", ["new", "submitted"]).neq("enquiry_type", "property_manager").range(a, b)),
     opts.onlyIds ? Promise.resolve([]) : all("certificates", (a, b) => admin.from("business_credentials").select("id, label, kind, expires_at, businesses(name)").not("expires_at", "is", null).lte("expires_at", melbourneToday(new Date(now + lim["credential_warning_days"]! * 86_400_000))).range(a, b)),
+    // D-10: homeowner requests for a different installer/electrician belong in Needs me (same "open" rule as the old To-action list).
+    all("reassignment requests", (a, b) => scope(admin.from("reassignment_requests").select("job_id, role, reason, created_at").is("resolved_at", null)).range(a, b)),
   ]);
   const picks = await all("office picks", (a, b) => scope(admin.from("partner_offers").select("job_id, kind, status, offered_at, summary, businesses(name)").contains("summary", { office_choice: true })).range(a, b));
   const pickJobs = [...new Set(picks.map((p) => String(p["job_id"])))];
@@ -97,6 +99,15 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
       const readyForOffer = k === "piesa" || wins.some((w) => String(w["job_id"]) === id && w["status"] === "open");
       if (needsChooseTrades({ officePicks: officePicks(mode, s(j["offer_dispatch_override"])), readyForOffer, hasTrade, offersThisRound: out })) offerChoice.set(id, { kind: k, state: "choose", hours });
     }
+  }
+  // D-10: one open reassignment request per job for Needs me — installer requests win over electrician, oldest wins per role.
+  const reassign = new Map<string, NonNullable<NeedsJob["reassignment"]>>();
+  for (const r of reassigs) {
+    const id = String(r["job_id"]);
+    const role: "installer" | "electrician" = String(r["role"]) === "electrician" ? "electrician" : "installer";
+    const cur = reassign.get(id);
+    const better = !cur || (role === "installer" && cur.role !== "installer") || (role === cur.role && (!cur.since || String(r["created_at"]) < cur.since));
+    if (better) reassign.set(id, { role, reason: String(r["reason"] ?? "").trim().slice(0, 200) || "Owner didn't give a reason", since: s(r["created_at"]) });
   }
   const sendRows = await Promise.all([
     all("owner emails sent", (a, b) => scope(admin.from("customer_email_sends").select("job_id, sent_at")).not("sent_at", "is", null).range(a, b)),
@@ -187,7 +198,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
     const jobNumber = String(j["job_number"]);
     return {
       id, jobNumber, owner: (j["owners"] as { full_name?: string } | null)?.full_name ?? null, suburb: prop?.suburb ?? null, source: s(j["source"]), stage, status, facts,
-      needs: { parked: status?.stage === "waiting_list", id, jobNumber, suburb: prop?.suburb ?? null, owner: null, stage, status, statusCount: status ? 1 : 0, lastActivityAt: s(j["last_activity_at"]), nextAction: s(j["next_action"]), installDeadline: facts.installDeadline ?? null, installStarted: installStarted.has(id) || !!facts.installedAt, holdRevisitAt: facts.holdRevisitAt ?? null, failures: fails.get(id) ?? [], tradeChoice: tradeChoice.get(id) ?? null, offerChoice: offerChoice.get(id) ?? null },
+      needs: { parked: status?.stage === "waiting_list", id, jobNumber, suburb: prop?.suburb ?? null, owner: null, stage, status, statusCount: status ? 1 : 0, lastActivityAt: s(j["last_activity_at"]), nextAction: s(j["next_action"]), installDeadline: facts.installDeadline ?? null, installStarted: installStarted.has(id) || !!facts.installedAt, holdRevisitAt: facts.holdRevisitAt ?? null, failures: fails.get(id) ?? [], tradeChoice: tradeChoice.get(id) ?? null, offerChoice: offerChoice.get(id) ?? null, reassignment: reassign.get(id) ?? null },
     };
   });
   const changeReqs = opts.onlyIds ? [] : await all("partner change requests", (a, b) => (admin as unknown as { from: (t: string) => any }).from("partner_change_requests").select("id, kind, message, created_at, businesses(name)").eq("status", "open").range(a, b)); // eslint-disable-line @typescript-eslint/no-explicit-any

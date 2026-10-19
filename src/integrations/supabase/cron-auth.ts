@@ -6,7 +6,8 @@ export async function authenticateCronRequest(
   const previousSecret = process.env['LOVABLE_CRON_SECRET_PREVIOUS']
 
   if (!currentSecret) {
-    return new Response('Server configuration error', { status: 500 })
+    console.error('[cron-auth] LOVABLE_CRON_SECRET is not configured')
+    return new Response('Unauthorized', { status: 401 })
   }
 
   const match = /^Bearer ([^\s,]+)$/.exec(

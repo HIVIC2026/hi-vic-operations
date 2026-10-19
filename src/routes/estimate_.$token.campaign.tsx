@@ -83,7 +83,7 @@ function Result({ group, videoPriority, token, rebate, customer, suburb, home, r
   </section>;
 }
 
-type Pricing = { gross: number; discount: number; total: number; areaM2: number; assessmentFee: number; apFee: number; ratePerM2: number; installation: number; veecs: number; veecValue: number; address: string | null; insulation: InsulationDeclared | null; removal?: EstimateRemoval; areaAssumed?: boolean };
+type Pricing = { gross: number; discount: number; total: number; areaM2: number; assessmentFee: number; apFee: number; ratePerM2: number; installation: number; veecs: number; veecValue: number; address: string | null; insulation: InsulationDeclared | null; removal?: EstimateRemoval };
 const money = (n: number) => `$${Math.floor(Number(n)).toLocaleString("en-AU")}`;
 
 /** v8 (Jo, 6 Oct): Jo's approved Group A design lives here, where Outfit/Figtree load. The short email only links here. */
@@ -121,7 +121,7 @@ function CampaignDesign({ saveAllowed, ownerQualified, reviewStatus, group, toke
         <div className="flex items-end justify-between gap-3 border-t border-estimate-line pt-3"><span className="text-sm font-extrabold">You pay about</span><span className="font-display text-[34px] font-extrabold leading-none">{money(p.total)}</span></div>
       </div>
       {p.insulation !== "none" && <><p className="mt-3 text-sm font-bold leading-relaxed">{removal}</p><p className="mt-3 text-sm leading-relaxed">{EXISTING_PRELIMINARY}</p></>}
-      <p className="mt-3 text-xs leading-relaxed text-estimate-navy/75">Based on {p.address ? `${p.address} and ` : ""}a {p.areaM2} m² ceiling{p.areaAssumed ? " (estimated, not measured). You didn’t provide a ceiling size, so we’ve used an average size of 150 m² for this preliminary estimate. Your final price will depend on the measured ceiling area" : ""}. {p.insulation === "none" ? removal : ""} <Link to="/estimate/$token/calculator" params={{ token }} className="font-bold text-estimate-blue">Try a different size →</Link></p>
+      <p className="mt-3 text-xs leading-relaxed text-estimate-navy/75">Based on {p.address ? `${p.address} and ` : ""}a {p.areaM2} m² ceiling. {p.insulation === "none" ? removal : ""} <Link to="/estimate/$token/calculator" params={{ token }} className="font-bold text-estimate-blue">Try a different size →</Link></p>
       <h2 className="mt-5 font-display text-[11px] font-extrabold uppercase tracking-[0.13em]">What you get</h2>
       <ul className="mt-2 space-y-2">{gets.map(([t, d]) => <li key={t} className="text-[13.5px] leading-snug"><span className="font-extrabold text-estimate-logo-green">✓</span>&nbsp; <strong>{t}</strong><br /><span className="text-estimate-navy/75">{d}</span></li>)}</ul>
     </section>

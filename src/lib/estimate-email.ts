@@ -1,9 +1,9 @@
 import { AMOUNT_LH, HEADER_ART_W, HEADING_ART, amountArtWidth, emailArtUrl } from "./email-art.core";
-import { READY_CHECK_FEE, effectiveReadyCheckFee } from "./readycheck.core";
+import { READY_CHECK_FEE } from "./readycheck.core";
 /** Pure customer outcome email renderers: no data access, delivery, or side effects. */
 import { CUSTOMER_BRAND, CUSTOMER_WHAT_COULD_CHANGE } from "./customer-quote-system";
 import { isWellFormedToken } from "./estimatelink.core";
-import { EXISTING_PRELIMINARY, REMOVAL_BUDGET_EMAIL_NOTE, removalNote, type EstimateRemoval } from "./estimate-removal.core";
+import { EXISTING_PRELIMINARY, removalNote, type EstimateRemoval } from "./estimate-removal.core";
 
 export type CustomerOutcome = "likely" | "onsite" | "ineligible";
 import { renderStep3SaveSpot } from "./step3-emails";
@@ -21,10 +21,6 @@ export type EstimateEmailInput = {
   /** True when the ceiling size is the typical-home default rather than a declared/measured figure. */
   areaIsTypical?: boolean;
   trackingClickUrl?: string | null; trackingPixelUrl?: string | null; referralUrl?: string | null;
-  /** Versioned pricing (pricing-cohort.core): Ready Check fee for THIS job's cohort. Absent/0 = free (legacy/protected, byte-identical output). */
-  readyCheckFeeIncGst?: number | null;
-  /** "current" = new-version cohort: install row also shows ex/inc GST rate wording. */
-  pricingCohort?: "pre_cutover" | "legacy_saved_spot" | "current";
 };
 export type IneligibleOutcomeEmailInput = {
   reasons?: string[] | null; referralUrl: string; resultUrl?: string | null;
@@ -35,10 +31,10 @@ export type EstimateEmail = { subject: string; previewText: string; html: string
 const BASE = "https://estimate.homeinsulationvictoria.com.au";
 /** The locked likely-email pink-box paragraph; the Save your spot version swaps it for Jo's exact wording (7 Oct). */
 const LIKELY_NEXT_STEP_INSTRUCTION = "Your installer measures the ceiling, assesses any existing insulation, confirms eligibility and prepares the job scope so we can confirm your quote.";
-export const SAVE_SPOT_INSTRUCTION = "We have been inundated with requests from homeowners all over Victoria. As one of only two Accredited Persons for this activity, and with limited capacity of suitably qualified installers, we need to take on approvals in batches. Save your spot to join the line and we will be in touch as soon as the next installer is available in your area.";
+const SAVE_SPOT_INSTRUCTION = "We have been inundated with requests from homeowners all over Victoria. As one of only two Accredited Persons for this activity, and with limited capacity of suitably qualified installers, we need to take on approvals in batches. Save your spot to join the line and we will be in touch as soon as the next installer is available in your area.";
 /** The locked small line under the likely-email button; the Save your spot version swaps it for Jo's exact wording (7 Oct). */
 const LIKELY_SMALL_PRINT = "Confirm your request on the next page. An installer from our panel will then contact you to arrange a time.";
-export const SAVE_SPOT_SMALL_PRINT = "We will be in touch to book your free Ready Check as soon as we can.";
+const SAVE_SPOT_SMALL_PRINT = "We will be in touch to book your free Ready Check as soon as we can.";
 /** The locked likely-email hero closing sentence; the Save your spot version swaps it for Jo's exact wording (7 Oct, 03:24 UTC). */
 const LIKELY_HERO_SENTENCE = "A more comfortable home could be closer than you think. We’ll coordinate the installer, electrical checks and paperwork.";
 /** Retired from Save your spot (Jo, 7 Oct 17:27 UTC: only four pink-box swaps). Kept for reference only. */
@@ -131,10 +127,9 @@ function validateQuoteInput(input: EstimateEmailInput) {
   const rate = input.installationRatePerM2;
   const closeEnough = (a: number, b: number) => Math.abs(Math.round(a * 100) - Math.round(b * 100)) <= 1;
   if (hasBreakdown) {
-    const fee = readyCheckFeeOf(input);
-    if (!closeEnough(payableNow, fee)) throw new Error(fee > 0 ? "The amount payable now must equal the Ready Check fee for this customer's price version." : "The amount payable now must be $0 because the Home Insulation Ready Check is free.");
+    if (!closeEnough(payableNow, READY_CHECK_FEE)) throw new Error("The amount payable now must be $0 because the Home Insulation Ready Check is free.");
     const removal = input.saveSpotRemoval?.kind === "included" ? input.saveSpotRemoval.amount : 0;
-    if (!closeEnough(installation + assessment + apFee + removal + fee, gross)) throw new Error("Quote line items must reconcile to the gross project total.");
+    if (!closeEnough(installation + assessment + apFee + removal, gross)) throw new Error("Quote line items must reconcile to the gross project total.");
     if (!closeEnough(gross - discount, customer)) throw new Error("Gross project total less VEU discount must equal the estimated customer price.");
     if (!closeEnough(customer - payableNow, remaining)) throw new Error("Estimated customer price less the amount payable now must equal the remaining balance.");
     if (rate != null && (!Number.isFinite(rate) || rate < 0)) throw new Error("The installation rate must be a finite non-negative value.");
@@ -144,45 +139,8 @@ function validateQuoteInput(input: EstimateEmailInput) {
 
 export function renderEstimateEmail(input: EstimateEmailInput): EstimateEmail {
   const outcome = input.outcome ?? "likely";
-  if (outcome === "likely") return applyReadyCheckFee(renderLikelyEligibleEmail({ ...input, outcome }), input, false);
-  return applyReadyCheckFee(renderOnsiteEmail({ ...input, outcome }), input, false);
-}
-
-function readyCheckFeeOf(input: Pick<EstimateEmailInput, "readyCheckFeeIncGst">): number {
-  return effectiveReadyCheckFee(input.readyCheckFeeIncGst ?? READY_CHECK_FEE);
-}
-
-/**
- * New-cohort pricing (Jo, 12 Oct 2026): replaces ONLY the free Ready Check statements with the disclosed fee and adds
- * the ex/inc GST supply rate. Fee 0 (legacy / protected saved spots) returns the email untouched — byte-identical.
- * Throws if any free-Ready-Check statement survives, so a paying customer is never told it is free.
- */
-export function applyReadyCheckFee(mail: EstimateEmail, input: Pick<EstimateEmailInput, "readyCheckFeeIncGst" | "installationRatePerM2" | "pricingCohort">, saveSpot: boolean): EstimateEmail {
-  const fee = readyCheckFeeOf(input);
-  if (fee === 0) return mail;
-  const feeText = `${money(fee)} including GST`;
-  const rate = input.installationRatePerM2;
-  const rateText = input.pricingCohort === "current" && typeof rate === "number" && rate > 0 ? ` ${money(Math.round((rate / 1.1) * 100) / 100)} per m² plus GST (${money(rate)} per m² including GST).` : "";
-  const noPay = saveSpot ? `Saving your spot is free and needs no payment. The measure-up &amp; eligibility check is ${feeText}. No obligation to proceed with installation.` : `The measure-up &amp; eligibility check is ${feeText}. No obligation to proceed with installation.`;
-  const swaps: [string | RegExp, string][] = [
-    [`<span style="color:${GREEN};font-weight:800;">FREE</span>`, escape(money(fee))],
-    [": FREE", `: ${money(fee)} inc GST`],
-    ["Free Insulation Measure-Up &amp; Eligibility Check", `Insulation Measure-Up &amp; Eligibility Check (${feeText})`],
-    ["Free Insulation Measure-Up & Eligibility Check", `Insulation Measure-Up & Eligibility Check (${feeText})`],
-    ["FREE INSULATION MEASURE-UP & ELIGIBILITY CHECK", `INSULATION MEASURE-UP & ELIGIBILITY CHECK (${feeText.toUpperCase()})`],
-    ["Arrange my free measure-up &amp; eligibility check", "Arrange my measure-up &amp; eligibility check"],
-    ["Arrange my free measure-up & eligibility check", "Arrange my measure-up & eligibility check"],
-    ["arrange your free measure-up &amp; eligibility check", `arrange your measure-up &amp; eligibility check (${feeText})`],
-    ["arrange your free measure-up & eligibility check", `arrange your measure-up & eligibility check (${feeText})`],
-    ["your free Ready Check", `your Ready Check (${feeText})`],
-    ["No payment required. No obligation to proceed with installation.", noPay],
-    ["Fitted by a pre-vetted Certified Insulation Installer (CII) from our panel.", `Fitted by a pre-vetted Certified Insulation Installer (CII) from our panel.${rateText}`],
-  ];
-  const sw = (t: string, plain: boolean) => swaps.reduce((acc, [a, b]) => acc.split(a as string).join(plain ? b.replace(/&amp;/g, "&") : b), t);
-  const out = { subject: sw(mail.subject, true), previewText: sw(mail.previewText, true), html: sw(mail.html, false), plainText: sw(mail.plainText, true) };
-  const leftover = /free (ready check|measure-up|insulation measure)|>FREE<|: FREE\b|No payment required\. No obligation/i;
-  for (const v of Object.values(out)) if (leftover.test(v)) throw new Error("A free Ready Check statement remains in a paid-cohort email.");
-  return out;
+  if (outcome === "likely") return renderLikelyEligibleEmail({ ...input, outcome });
+  return renderOnsiteEmail({ ...input, outcome });
 }
 
 // ---------------------------------------------------------------------------
@@ -526,7 +484,7 @@ export function renderLaunchCampaignEmail(input: LaunchCampaignEmailInput): Esti
     .replace("your home looks likely to qualify for a VEU ceiling insulation rebate.", intro)
     .replace("Your estimated VEU rebate", "Your potential VEU rebate")
     .replace("Your estimated cost after rebate", "Estimated cost if eligible")
-    .replace("Estimate only. Eligibility, measurements and final pricing confirmed after assessment.", `${REMOVAL_BUDGET_EMAIL_NOTE} Estimate only; eligibility and final price subject to assessment.`)
+    .replace("Estimate only. Eligibility, measurements and final pricing confirmed after assessment.", "This price excludes existing insulation removal — it may be able to stay. If removal is needed, we’ll confirm the cost before you proceed. Estimate only; eligibility and final price subject to assessment.")
     .replace(SAVE_SPOT_INSTRUCTION, instruction)
     .replace(SAVE_SPOT_SMALL_PRINT, small);
   const html = replace(base.html)
@@ -593,5 +551,5 @@ export function renderSaveSpotFromLikelyEmail(input: EstimateEmailInput & { camp
   text = must(text, LIKELY_NEXT_STEP_INSTRUCTION, SAVE_SPOT_INSTRUCTION);
   text = must(text, /Arrange my free measure-up & eligibility check: .*/, `Save my spot: ${input.campaignUrl}`);
   text = must(text, LIKELY_SMALL_PRINT, SAVE_SPOT_SMALL_PRINT);
-  return applyReadyCheckFee({ subject: base.subject, previewText: base.previewText, html, plainText: text }, input, true);
+  return { subject: base.subject, previewText: base.previewText, html, plainText: text };
 }

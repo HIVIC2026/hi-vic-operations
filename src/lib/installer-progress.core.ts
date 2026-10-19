@@ -175,36 +175,3 @@ export function installerTab(place: "offers" | "needs_me" | "coming_up" | "movin
 export function doneReason(stage: string): string {
   return stage === "cancelled" ? "Cancelled" : stage === "complete" ? "Job complete" : "Closed";
 }
-
-/**
- * W3 A3: the installer intake progress card applies ONLY to installer-sourced jobs that carry an originating installer business.
- * Standard Home Insulation Victoria-sourced jobs have no intake record, so the read must return "does not apply" BEFORE the
- * supplying-installer guard runs — otherwise `requireSupplyingInstaller` throws "Only the installer who supplied this job can
- * update it." on a null `originating_installer_business_id`, surfacing as 'Couldn't load current job progress' on the UI.
- * Pure predicate so the guard is regression-tested without executing the server function. Five-role isolation is enforced
- * separately by `requireSupplyingInstaller`, which still runs whenever this returns true.
- */
-export function intakeProgressApplies(job: { channel?: string | null; originating_installer_business_id?: string | null } | null | undefined): boolean {
-  return !!job && job.channel === "installer_sourced" && !!job.originating_installer_business_id;
-}
-
-/** Caller's RLS-scoped Supabase rpc (context.supabase.rpc), injected so the access order is unit-testable. */
-export type AccessRpc = (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error?: unknown }>;
-
-/**
- * STEP 73 (A3): server-side order for the installer intake-progress read.
- * 1. Job access FIRST (RLS `can_access_job`: office, the job's owner, an active assignment or the assigned business's admin).
- *    A caller who can't access the job is refused before anything about the job is read, so another business's installer
- *    can't learn whether a job exists or is installer-sourced.
- * 2. Only then the STEP 71 guard: a non-intake (Home Insulation Victoria-sourced) job returns "does not apply".
- * 3. An intake job still goes through `requireSupplyingInstaller` (installer role + member of the supplying business).
- */
-export async function intakeProgressGate(
-  rpc: AccessRpc,
-  loadJob: (jobId: string) => Promise<{ channel?: string | null; originating_installer_business_id?: string | null } | null>,
-  jobId: string,
-): Promise<{ applies: boolean }> {
-  const { data: ok, error } = await rpc("can_access_job", { _job: jobId });
-  if (error || !ok) throw new Error("Not your job.");
-  return { applies: intakeProgressApplies(await loadJob(jobId)) };
-}

@@ -61,10 +61,10 @@ export function AttachFiles({ businessId, files, onAdd, onRemove, canRemove = ()
   };
   return (
     <div className="space-y-2" data-attach-files>
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2"><span className="flex items-center gap-1.5 text-sm font-semibold"><Paperclip className="h-4 w-4 text-hiv-blue" />{label}</span>
-        <div className="flex gap-1.5">
-          <Button type="button" variant="outline" disabled={busy || disabled} onClick={() => cam.current?.click()} className="h-8 rounded-[9px] px-2.5 text-xs font-semibold text-hiv-blue"><Camera className="h-3.5 w-3.5" />Take photo</Button>
-          <Button type="button" variant="outline" disabled={busy || disabled} onClick={() => pick.current?.click()} className="h-8 rounded-[9px] px-2.5 text-xs font-semibold text-hiv-blue">Choose files</Button>
+      <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"><span className="flex items-center gap-1.5 text-sm font-semibold"><Paperclip className="h-4 w-4 text-hiv-blue" />{label}</span>
+        <div className="grid grid-cols-2 gap-1.5 sm:flex">
+          <Button type="button" variant="outline" disabled={busy || disabled} onClick={() => cam.current?.click()} className="min-h-11 rounded-[9px] px-2.5 text-xs font-semibold text-hiv-blue sm:h-8 sm:min-h-0"><Camera className="h-3.5 w-3.5" />Take photo</Button>
+          <Button type="button" variant="outline" disabled={busy || disabled} onClick={() => pick.current?.click()} className="min-h-11 rounded-[9px] px-2.5 text-xs font-semibold text-hiv-blue sm:h-8 sm:min-h-0">Choose files</Button>
         </div>
       </div>
       <input ref={cam} disabled={busy || disabled} type="file" accept="image/*" capture="environment" className="sr-only" aria-label="Take photo" onChange={(e) => add(e.target.files)} />

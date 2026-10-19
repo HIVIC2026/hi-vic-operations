@@ -170,6 +170,8 @@ export async function startReadyCheckOffers(jobId: string, actorId: string | nul
 }
 
 async function offerNextReadyCheckBatch(jobId: string, actorId: string | null, onlyBusiness?: string | string[]) {
+  // Gate A on EVERY offer path (start, office picks, 15-minute refill sweep): no trade sees the job before owner consent.
+  if (!(await (await import("./owner-gates.server")).gateAComplete(jobId))) return { offered: 0, exhausted: false };
   const { businessHours, batchSize } = await settings();
   const [{ candidates }, w, { data: prior }, { data: j }] = await Promise.all([
     installerCandidatesFor(jobId), readyCheckWindowRound(jobId),

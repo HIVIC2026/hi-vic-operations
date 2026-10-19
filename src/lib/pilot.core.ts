@@ -62,6 +62,37 @@ export function partnerWorkBlocker(b: BusinessLike | null, creds: Credential[], 
   return null;
 }
 
+/** Full work-eligibility check for regulated assignments (electrician/REC).
+ * Blocks on: missing required credentials, unverified credentials, expired critical credentials,
+ * missing REC number, or no approved licensed workers.
+ * This is the authoritative gate for electrician assignment paths. */
+export function electricianWorkEligibility(b: BusinessLike | null, creds: Credential[], workers: { trade_role: string; licence_expires_on: string | null; approval_status: string; removed_at: string | null }[], now = new Date()): string | null {
+  if (!b) return "No partner business linked.";
+  if (!b.is_active) return "Partner business is inactive.";
+  if (b.onboarding_status !== "approved") return `Partner onboarding is ${b.onboarding_status.replace(/_/g, " ")} – Home Insulation Victoria approval required.`;
+  if (!b.rec_number) return "REC number not recorded for this business.";
+  
+  // Check required credential kinds for electrician/REC businesses
+  const requiredKinds = requiredCredentialKinds(b);
+  for (const kind of requiredKinds) {
+    const matching = creds.filter((c) => c.kind === kind);
+    if (!matching.length) return `Missing mandatory credential: ${kind.replace(/_/g, " ")}.`;
+    const verifiedCurrent = matching.some((c) => c.verification === "verified" && credentialState(c, now) !== "expired");
+    if (!verifiedCurrent) return `Mandatory credential not verified and current: ${kind.replace(/_/g, " ")}.`;
+  }
+  
+  // Check approved licensed workers
+  const approvedElectricians = workers.filter((w) => 
+    w.trade_role === "electrician" && 
+    w.approval_status === "approved" && 
+    !w.removed_at &&
+    (!w.licence_expires_on || new Date(w.licence_expires_on) >= now)
+  );
+  if (approvedElectricians.length === 0) return "No approved licensed electrician available.";
+  
+  return null;
+}
+
 /** Automatic expiry: an approved business with an expired critical credential becomes 'expired'. */
 export function derivedOnboardingStatus(b: BusinessLike, creds: Credential[], now = new Date()): OnboardingStatus {
   const s = b.onboarding_status as OnboardingStatus;

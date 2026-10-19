@@ -3,7 +3,7 @@
 // fallback: if this best-effort run is cut short, the item's lease expires and the scheduled worker retries it.
 import { AsyncLocalStorage } from "node:async_hooks";
 
-type Ctx = { waitUntil?: ((p: Promise<unknown>) => void) | undefined; hostname?: string | null };
+type Ctx = { waitUntil?: ((p: Promise<unknown>) => void) | undefined };
 export const requestContext = new AsyncLocalStorage<Ctx>();
 
 /** Returns how the work was scheduled. Never throws. */
@@ -14,10 +14,4 @@ export function runAfterResponse(task: () => Promise<unknown>): "wait_until" | "
   // Local dev server is a long-lived Node process (not terminated after the response).
   if (process.env["NODE_ENV"] !== "production") { void safe(); return "dev_detached"; }
   return "queue_only"; // no lifecycle primitive: scheduled worker will pick it up
-}
-
-/** Get the request hostname from AsyncLocalStorage, if available */
-export function getRequestHostname(): string | null {
-  const ctx = requestContext.getStore();
-  return ctx?.hostname ?? null;
 }

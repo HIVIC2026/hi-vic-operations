@@ -221,22 +221,13 @@ export function primaryByContact(rows: { id: string; email: string | null; propK
 // Presentation only: reads what actually happened (emails sent, spot saved, recorded eligibility). Never changes a job.
 export type EnquiryStatus = "spot_saved" | "offered_spot" | "insulation_requested" | "ineligible" | "needs_attention";
 export const STATUS_ORDER: EnquiryStatus[] = ["spot_saved", "offered_spot", "insulation_requested", "ineligible", "needs_attention"];
-// One office outcome vocabulary, shared by Leads and the Office pipeline (GAP-03, P1-R2-S05).
-// These are DISPLAY LABELS only. They intentionally mirror the enquiry-stage wording in
-// office-status.core.ts (OFFICE_STATUSES "enquiry.*") so the same enquiry reads the same on both
-// screens. Persisted status values, EnquiryStatus keys, enquiryStatus() logic and every workflow
-// transition are unchanged. Unknown keys fall back safely via statusLabel() below.
 export const STATUS_LABEL: Record<EnquiryStatus, string> = {
-  spot_saved: "Spot saved, needs an installer",
-  offered_spot: "Estimate sent, waiting for owner",
-  insulation_requested: "Video asked for",
+  spot_saved: "Spot saved",
+  offered_spot: "Email sent – offering spot",
+  insulation_requested: "Email sent – insulation details needed",
   ineligible: "Ineligible",
   needs_attention: "Needs attention",
 };
-/** Safe display-label lookup: known EnquiryStatus → shared label; anything else → "Needs attention". */
-export function statusLabel(status: string | null | undefined): string {
-  return (status && (STATUS_LABEL as Record<string, string>)[status]) || STATUS_LABEL.needs_attention;
-}
 /** Exactly one office outcome. Unsent results are exceptions, never a normal waiting queue. */
 export function enquiryStatus(x: {
   spotSaved: boolean; ineligible: boolean; ineligibleEmailSent: boolean; campaignSent: boolean; insulationEmailSent: boolean;

@@ -1,14 +1,11 @@
 import { PublicCalculator } from "@/components/portal/public-calculator";
 import { CUSTOMER_BRAND } from "@/lib/customer-quote-system";
 import type { RetailSettings } from "@/lib/estimate.core";
-import { publicCalculatorPricing } from "@/lib/pricing-cohort.core";
-
-const PUBLIC_PRICING = publicCalculatorPricing();
 
 // The one public customer calculator, shared by "/" and "/calculator".
 // Local-only what-if: no server calls, writes, payments or communications.
 const settings: RetailSettings = {
-  id: "public-calculator-v3", version: 3, r5_install_inc_gst_per_m2: PUBLIC_PRICING.r5InstallIncGstPerM2, removal_inc_gst_per_m2: 0,
+  id: "public-calculator-v3", version: 3, r5_install_inc_gst_per_m2: 30, removal_inc_gst_per_m2: 0,
   piesa_assessment_inc_gst: 349, ap_management_inc_gst: 349,
   access_standard_multiplier: 1, access_moderate_multiplier: 1.1, access_difficult_multiplier: 1.25,
   indicative_veec_value: 70, veec_value_source_label: "Current settings example",
@@ -42,5 +39,5 @@ export const publicCalculatorHead = () => ({
 });
 
 export function PublicCalculatorPage() {
-  return <PublicCalculator settings={settings} readyCheckFeeIncGst={PUBLIC_PRICING.readyCheckFeeIncGst} pricingCohort={PUBLIC_PRICING.cohort} />;
+  return <PublicCalculator settings={settings} />;
 }

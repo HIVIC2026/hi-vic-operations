@@ -125,8 +125,11 @@ export function planFollowup(f: FollowupRow, s: Summary, g: Omit<SendGates, "alr
   return { action: "send", kind: "estimate_unopened_3d" };
 }
 
-/** Retry schedule for blocked/failed attempts. */
-export const retryAt = (now = Date.now()) => new Date(now + 3_600_000).toISOString();
+/** Retry schedule for blocked/failed attempts: capped exponential backoff, deterministic for auditability. */
+export function retryAt(now = Date.now(), attempts = 0) {
+  const hours = Math.min(24, 2 ** Math.max(0, Math.min(5, attempts)));
+  return new Date(now + hours * 3_600_000).toISOString();
+}
 
 /** 1x1 transparent GIF. */
 export const PIXEL_GIF = Uint8Array.from(atob("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"), (c) => c.charCodeAt(0));

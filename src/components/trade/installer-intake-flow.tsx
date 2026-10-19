@@ -26,7 +26,7 @@ import { blankRemoval, removalPayload, removalProblems, removalSummary, type Rem
 
 type AddJobStep = "customer" | "organise" | "job" | "review";
 const ADD_JOB_STEPS: { key: AddJobStep; label: string }[] = [
-  { key: "customer", label: "Customer" }, { key: "organise", label: "Organise" }, { key: "job", label: "Job" }, { key: "review", label: "Review & submit" },
+  { key: "customer", label: "Customer" }, { key: "organise", label: "Who organises?" }, { key: "job", label: "Job details" }, { key: "review", label: "Review & submit" },
 ];
 const ORDER = ADD_JOB_STEPS.map((s) => s.key);
 const nextStep = (s: AddJobStep): AddJobStep => ORDER[Math.min(ORDER.indexOf(s) + 1, ORDER.length - 1)] ?? s;
@@ -197,13 +197,15 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         {ADD_JOB_STEPS.map((s, i) => (
           <li key={s.key} aria-current={i === idx ? "step" : undefined} className="min-w-0">
             <span className={`block h-1.5 rounded-full ${i <= idx ? "bg-primary" : "bg-line"}`} />
-            <span className={`mt-1 block truncate text-xs ${i === idx ? "font-bold text-ink" : "text-sub"}`}>{s.label}</span>
+            <span className={`mt-1 hidden truncate text-xs sm:block ${i === idx ? "font-bold text-ink" : "text-sub"}`}>{s.label}</span>
           </li>
         ))}
       </ol>
+      <p className="-mt-2 text-xs font-bold text-ink sm:hidden" data-step-label>Step {idx + 1} of {ADD_JOB_STEPS.length} · {ADD_JOB_STEPS[idx]?.label}</p>
 
       {step === "customer" && <section className="space-y-3 rounded-[18px] border border-line bg-paper p-4" data-step-customer>
         <h2 className="font-display text-lg font-bold">Customer</h2>
+        <p className="text-sm text-sub" data-customer-lead>Who the job is for and where it is.</p>
         <CustomerFields offline={!!preview} value={customer} consentLabel={INSTALLER_CONTACT_PERMISSION} onChange={(n) => { setCustomer(n); setErr(null); }} />
       </section>}
 
@@ -221,6 +223,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
       </section>}
 
       {step === "job" && <section className="space-y-4 rounded-[18px] border border-line bg-paper p-4" data-step-job>
+        <p className="text-sm text-sub" data-job-lead>{JOB_DETAILS_LEAD}</p>
         <fieldset data-measured-quoted><legend className="font-display text-lg font-bold">{MEASURED_QUOTED_QUESTION}</legend>
           <div className="mt-2 grid grid-cols-2 gap-2" role="radiogroup" aria-label={MEASURED_QUOTED_QUESTION}>
             {MEASURED_QUOTED_CHOICES.map((c) => <Button key={c.value} disabled={busy || fileBusy} size="field" role="radio" aria-checked={d.quoteStatus === c.value} variant={d.quoteStatus === c.value ? "default" : "outline"} onClick={() => setD({ ...d, quoteStatus: c.value })}>{c.label}</Button>)}
@@ -230,7 +233,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         {d.quoteStatus === "have_quote" && <div className="space-y-4" data-measured-branch>
         <label className="block text-sm font-bold">Measured ceiling area (m²)<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 120" value={d.area} onChange={(e) => { typed.current.add("area"); setD({ ...d, area: e.target.value }); }} /></label>
         <fieldset data-existing-insulation><legend className="text-sm font-bold">Existing insulation</legend>
-          <div className="mt-2 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Existing insulation">
+          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Existing insulation">
             {EXISTING_INSULATION_CHOICES.map((c) => <Button key={c.value} size="field" role="radio" aria-checked={d.insulation === c.value} variant={d.insulation === c.value ? "default" : "outline"} className="h-auto min-h-12 whitespace-normal px-1 text-xs leading-tight" onClick={() => setD({ ...d, insulation: c.value })}>{c.label}</Button>)}
           </div>
           {d.insulation === "unknown" && <p className="mt-1 text-xs text-sub">You can submit. The owner quote waits until the existing insulation is confirmed as none or below R2.0.</p>}
@@ -280,6 +283,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         <ProposedRField value={d.proposedR} disabled={busy || fileBusy} onChange={(v) => { typed.current.add("proposedR"); setD({ ...d, proposedR: v }); }} />
         <RemovalQuoteFields value={d.removal ?? blankRemoval()} disabled={busy || fileBusy} onChange={(removal) => setD({ ...d, removal })} />
         </div>}
+        <p className="pt-1 text-xs font-bold uppercase tracking-wide text-sub" data-section-electrician>Electrician & owner fees</p>
         <fieldset data-electrician-payer><legend className="text-sm font-bold">Electrician (PIESA)</legend>
           <div className="mt-2 grid gap-2" role="radiogroup" aria-label="Electrician">
             {ELECTRICIAN_PAYER_CHOICES.map((c) => <button key={c.value} type="button" role="radio" aria-checked={payer === c.value} onClick={() => { setPayer(c.value); if (c.value === "hivic") setPlan({ mode: "hivic" }); }} className={`w-full rounded-[14px] border p-3 text-left ${payer === c.value ? "border-primary bg-primary/5" : "border-line bg-paper"}`}>
@@ -302,7 +306,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
           `${files.length} file${files.length === 1 ? "" : "s"} attached`, `Electrician: ${elName}`, ...(d.quoteStatus === "have_quote" ? [feeAck && feeText ? "Owner fees advised (declared)" : "Owner fees: not declared yet — owner quote waits"] : []),
         ]} />
         <label className="flex items-start gap-3 text-sm" data-evidence-ack><Checkbox className="mt-0.5" checked={ack} onCheckedChange={(c) => setAck(c === true)} aria-label={EVIDENCE_ACK} /><span>{EVIDENCE_ACK}</span></label>
-        <div className="rounded-[12px] border border-line p-3" data-next-step><p className="text-xs font-bold uppercase tracking-wide text-sub">What happens next</p><p className="mt-1 text-sm">Nothing is sent when you submit. {intakeNextAction(coord, d.quoteStatus === "have_quote")}</p></div>
+        <div className="rounded-[12px] border border-line p-3" data-next-step><p className="text-xs font-bold uppercase tracking-wide text-sub">What happens next</p><p className="mt-1 text-sm">Nothing is sent or booked when you submit. {intakeNextAction(coord, d.quoteStatus === "have_quote")}</p></div>
       </section>}
 
       {shown.length > 0 && <ul ref={problemsRef} tabIndex={-1} role="alert" className="space-y-1 rounded-[12px] border border-danger/40 bg-paper p-3 text-sm text-danger outline-none" data-step-problems>{shown.map((p) => <li key={p}>{p}</li>)}</ul>}

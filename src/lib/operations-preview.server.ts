@@ -5,7 +5,7 @@ import { normaliseInsulation } from './eligibility.core';
 import { formatPropertyAddress } from './address';
 import { insulationOnly, type StoredAudit } from './enquiry-groups.core';
 import { verificationStale, type StoredVerification } from './verified-eligibility.core';
-import { INSULATION_DETAILS_REAL_SEND_APPROVED } from './hot-leads.core';
+import { SAVE_SPOT_REAL_SEND_APPROVED, INSULATION_DETAILS_REAL_SEND_APPROVED } from './hot-leads.core';
 import { buildOperationsPreview, sendingControlState, type OperationInput, type AutomationControl } from './operations-preview.core';
 import { officePicks } from './offer-dispatch.core';
 type Row = Record<string, unknown>;
@@ -51,14 +51,15 @@ export async function loadOperationsPreview(admin: SupabaseClient<Database>) {
     byJobs('stage timestamps', (c,a,b) => admin.from('workflow_events').select('job_id, to_stage, created_at').in('job_id',c).eq('event_type','stage_changed').order('created_at').order('id').range(a,b)),
     byJobs('operational handoff records', (c,a,b) => admin.from('ready_check_acceptances').select('job_id').in('job_id',c).order('id').range(a,b)),
     byJobs('assigned installers', (c,a,b) => admin.from('job_assignments').select('job_id, role, user_id, businesses(name)').in('job_id',c).eq('active',true).eq('role','installer').order('id').range(a,b)),
-    admin.from('workflow_settings').select('customer_comms_enabled, save_my_spot_real_send_enabled, auto_send_quote, auto_send_mitti, auto_send_installer, auto_send_rec, offer_dispatch_mode, payment_option_gate_enabled').eq('id',1).maybeSingle(),
+    admin.from('workflow_settings').select('customer_comms_enabled, auto_send_quote, auto_send_mitti, auto_send_installer, auto_send_rec, offer_dispatch_mode, payment_option_gate_enabled').eq('id',1).maybeSingle(),
     admin.from('customer_delivery_settings').select('enabled').eq('id',1).maybeSingle(),
   ]);
   if (cfg.error) throw new Error(`Automation settings could not load: ${cfg.error.message}`);
   if (delivery.error) throw new Error(`Delivery settings could not load: ${delivery.error.message}`);
-  const [outboxFailures, xeroFailures, piesa, rectQuotes, windows, proposals] = await Promise.all([
+  const [outboxFailures, xeroFailures, smsUnknown, piesa, rectQuotes, windows, proposals] = await Promise.all([
     byJobs('failed external actions', (c,a,b) => admin.from('external_action_outbox').select('job_id, action_type, last_error_code').in('job_id',c).eq('status','failed').order('id').range(a,b)),
     byJobs('invoice errors', (c,a,b) => admin.from('invoices').select('job_id, last_sync_error').in('job_id',c).not('last_sync_error','is',null).order('id').range(a,b)),
+    byJobs('uncertain SMS', (c,a,b) => admin.from('sms_messages').select('job_id, message_type, status, detail, created_at, updated_at').in('job_id',c).in('status',['sent_unknown','sending']).order('created_at').order('id').range(a,b)),
     byJobs('PIESA facts', (c,a,b) => admin.from('piesa_records').select('job_id, outcome, completed_date, section_c_signed_at').in('job_id',c).eq('is_current',true).order('id').range(a,b)),
     byJobs('rectification quotes', (c,a,b) => admin.from('quotes').select('job_id, status, release_state, sent_at').in('job_id',c).eq('kind','rectification').in('status',['issued','accepted']).order('created_at').order('id').range(a,b)),
     byJobs('owner time windows', (c,a,b) => admin.from('ready_check_windows').select('job_id, status').in('job_id',c).eq('status','open').order('id').range(a,b)),
@@ -68,7 +69,7 @@ export async function loadOperationsPreview(admin: SupabaseClient<Database>) {
   const origins: Row[] = [];
   for(let i=0;i<originIds.length;i+=150) origins.push(...await all('originating installers',(a,b)=>admin.from('businesses').select('id,name').in('id',originIds.slice(i,i+150)).order('id').range(a,b)));
   const grouped=(rows:Row[])=>{const m=new Map<string,Row[]>();for(const r of rows){const id=String(r['job_id']);m.set(id,[...(m.get(id)??[]),r]);}return m;};
-  const maps=[campaigns,offers,bookings,readyChecks,measurements,requirements,sends,communications,media,reviews,verifications,quotes,payments,deadlines,stages,handoffs,assignments,outboxFailures,xeroFailures,piesa,rectQuotes,windows,proposals].map(grouped);
+  const maps=[campaigns,offers,bookings,readyChecks,measurements,requirements,sends,communications,media,reviews,verifications,quotes,payments,deadlines,stages,handoffs,assignments,outboxFailures,xeroFailures,smsUnknown,piesa,rectQuotes,windows,proposals].map(grouped);
   const mine=(n:number,id:string)=>maps[n]?.get(id)??[];
   const last=(n:number,id:string)=>mine(n,id).at(-1)??{};
   const inputs:OperationInput[]=jobs.map(j=>{
@@ -82,6 +83,7 @@ export async function loadOperationsPreview(admin: SupabaseClient<Database>) {
     const failures:string[]=[];
     for (const r of mine(17,id)) failures.push(`Failed ${String(r['action_type']).replace(/_/g,' ')}: ${text(r['last_error_code']) ?? 'error recorded'}`);
     for (const r of mine(18,id)) failures.push(`Invoice sync failed: ${text(r['last_sync_error'])}`);
+    for (const r of mine(19,id)) failures.push(`SMS ${String(r['message_type']).replace(/_/g,' ')} ${String(r['status']).replace(/_/g,' ')} — office review before any resend`);
     if (j['channel']==='installer_sourced' && j['commercial_model']!=='hivic_invoices_owner') failures.push('Commercial setup required');
     if (j['offer_dispatch_override']==='office_picks') failures.push('Job offer automation paused — office picks');
     if(stale) failures.push('Recorded verified eligibility is out of date — newer or missing Ready Check');
@@ -104,10 +106,10 @@ export async function loadOperationsPreview(admin: SupabaseClient<Database>) {
         rcOfferAt:offered('ready_check'),rcBookingAt:at('ready_check'),rcSubmittedAt:text(rc['submitted_at']),rcAccepted:mine(15,id).length>0,
         quote:Object.keys(q).length?{status:String(q['status']),releaseState:text(q['release_state']),holdReason:text(q['release_hold_reason']),sentAt:text(q['sent_at']),acceptedAt:text(q['accepted_at'])}:null,
         paymentCleared:payment['deposit_cleared']===true,elecOfferAt:offered('piesa'),elecBookingAt:at('assessment'),rectBookingAt:at('rectification'),installBookingAt:at('installation'),installDeadline:text(last(13,id)['install_deadline']),installedAt:text(j['installation_completed_at']),evidenceMissing:mine(5,id).filter(e=>['outstanding','rejected'].includes(String(e['status']))).length,
-        piesa: mine(19,id).length ? { completedAt:text(last(19,id)['completed_date']), passed:last(19,id)['outcome']==='pass', sectionCAt:text(last(19,id)['section_c_signed_at']) } : null,
-        rectQuote: mine(20,id).length ? { status:String(last(20,id)['status']), releaseState:text(last(20,id)['release_state']), sentAt:text(last(20,id)['sent_at']) } : null,
-        rcWindowsOpen: mine(21,id).length,
-        proposalPending: mine(22,id).length ? { kind:String(last(22,id)['kind']), since:String(last(22,id)['created_at']) } : null,
+        piesa: mine(20,id).length ? { completedAt:text(last(20,id)['completed_date']), passed:last(20,id)['outcome']==='pass', sectionCAt:text(last(20,id)['section_c_signed_at']) } : null,
+        rectQuote: mine(21,id).length ? { status:String(last(21,id)['status']), releaseState:text(last(21,id)['release_state']), sentAt:text(last(21,id)['sent_at']) } : null,
+        rcWindowsOpen: mine(22,id).length,
+        proposalPending: mine(23,id).length ? { kind:String(last(23,id)['kind']), since:String(last(23,id)['created_at']) } : null,
       }};
   });
   const c=cfg.data;
@@ -115,7 +117,7 @@ export async function loadOperationsPreview(admin: SupabaseClient<Database>) {
   return buildOperationsPreview(inputs,[
     control('Customer messages',c?.customer_comms_enabled,'Global permission only; consent and sending rules still apply.'),
     control('Customer delivery adapter',delivery.data?.enabled,'Setting only; connection health not tested.'),
-    control('Save my spot',c && delivery.data ? c.save_my_spot_real_send_enabled === true && c.customer_comms_enabled === true && delivery.data.enabled === true : null,'Approved path; global controls, estimate, consent, coverage and duplicate guards still apply.'),
+    control('Save my spot',c && delivery.data ? SAVE_SPOT_REAL_SEND_APPROVED && c.customer_comms_enabled && delivery.data.enabled : null,'Approved path; global controls, estimate, consent, coverage and duplicate guards still apply.'),
     {label:'Insulation-details email',state:c && delivery.data ? sendingControlState(INSULATION_DETAILS_REAL_SEND_APPROVED,c.customer_comms_enabled,delivery.data.enabled) : 'Unknown',detail:'Approved by Jo 9 Oct; still needs global customer messages permission and delivery adapter permission.'},
     control('Quotes',c?c.auto_send_quote&&c.customer_comms_enabled:null,'Requires release rules and customer messages permission.'),
     control('Mitti',c?.auto_send_mitti,'Setting only; forms and connection not tested.'),

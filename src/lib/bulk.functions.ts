@@ -11,14 +11,14 @@ export const bulkJobAction = createServerFn({ method: "POST" }).middleware([requ
     reason: z.string().trim().min(3).max(500),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    const { requireAdmin, transition, logEvent } = await import("./workflow.server");
+    const { requireAdmin, logEvent } = await import("./workflow.server");
     await requireAdmin(context.supabase);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const results: { jobId: string; ok: boolean; error?: string }[] = [];
     for (const jobId of data.jobIds) {
       try {
-        if (data.action === "cancel") await transition(jobId, "cancelled", context.userId, `Cancelled (bulk): ${data.reason}`, { bulk: true, reason: data.reason });
-        else if (data.action === "hold") await transition(jobId, "on_hold", context.userId, `On hold (bulk): ${data.reason}`, { bulk: true, reason: data.reason });
+        // Hold/cancel use the same reviewed disposition as the single-job action (transition() never allows these targets).
+        if (data.action === "cancel" || data.action === "hold") await (await import("./job-disposition.server")).applyHoldOrCancel(jobId, data.action, `${data.reason} (bulk)`, context.userId, { bulk: true, reason: data.reason });
         else if (data.action === "mark_test") {
           const { error } = await admin.from("jobs").update({ source: "qa_test" }).eq("id", jobId);
           if (error) throw new Error(error.message);

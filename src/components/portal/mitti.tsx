@@ -1,7 +1,5 @@
 import { Fragment, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
-import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 import { RefreshCw, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAction } from "@/hooks/use-me";
@@ -34,14 +32,10 @@ function status(a: { external_mitti_id: string | null; mitti_sync_status: string
 
 export function MittiCard({ jobId, isAdmin }: { jobId: string; isAdmin: boolean }) {
   const { data } = useMittiState(jobId);
-  // Brief E: capture the failure message in component state and show it inline until the next attempt —
-  // a rejected action (workflow guard, Mitti error) must not look like a silent no-op.
-  const createFn = useServerFn(createMittiAssessment);
-  const syncFn = useServerFn(syncFromMitti);
-  const batchFn = useServerFn(syncPendingMittiAssessments);
-  const qc = useQueryClient();
+  const create = useAction(createMittiAssessment);
+  const sync = useAction(syncFromMitti);
+  const batch = useAction(syncPendingMittiAssessments);
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
   if (!data) return null;
   const a = data.a;
   const [label, tone] = status(a as never);
@@ -49,12 +43,7 @@ export function MittiCard({ jobId, isAdmin }: { jobId: string; isAdmin: boolean 
   const locked = a?.status === "complete";
   const evMissing = data.ev.filter((e) => ((e.gate === "assessment" && a?.mitti_scope !== "ELECTRICAL_ONLY") || (a?.piesa_outcome === "pass" && e.category === "piesa_signoff")) && !["uploaded", "verified"].includes(e.status));
   const piesaMissing = evMissing.find((e) => e.category === "piesa_signoff");
-  const run = async (f: () => Promise<unknown>, success?: string) => {
-    setBusy(true); setErr(null);
-    try { await f(); if (success) toast.success(success); await qc.invalidateQueries(); }
-    catch (e) { const m = e instanceof Error ? e.message : "Something went wrong"; setErr(m); toast.error(m); }
-    finally { setBusy(false); }
-  };
+  const run = async (f: () => Promise<unknown>) => { setBusy(true); try { await f(); } finally { setBusy(false); } };
   const mittiUrl = a?.external_mitti_id ? `https://app.au.mitti.com/inspections/${a.external_mitti_id}` : null;
   return (
     <Section title={a?.mitti_scope === "MEASURE_UP_ONLY" ? "Mitti installer measure-up" : "Mitti electrical assessment · PIESA"} action={<Pill t={tone as never}>{label}</Pill>}>
@@ -71,7 +60,6 @@ export function MittiCard({ jobId, isAdmin }: { jobId: string; isAdmin: boolean 
         </div>
       )}
       {a?.mitti_last_error && <p className="mt-2 rounded bg-destructive/10 px-2 py-1 text-sm text-danger">{a.mitti_last_error}</p>}
-      {err && <p role="alert" className="mt-2 rounded bg-destructive/10 px-2 py-1 text-sm font-medium text-destructive">{err}</p>}
       {issues.length > 0 && <ul className="mt-2 list-disc pl-5 text-sm text-muted-foreground">{issues.map((i) => <li key={i}>{i}</li>)}</ul>}
       {a?.mitti_completed && !locked && (
         <div className="mt-3 rounded-md border border-warning bg-accent px-3 py-2 text-sm font-medium text-accent-foreground">
@@ -80,9 +68,9 @@ export function MittiCard({ jobId, isAdmin }: { jobId: string; isAdmin: boolean 
       )}
       {locked && <p className="mt-2 text-sm text-muted-foreground">Assessment complete in the portal – Mitti can no longer change it.</p>}
       <div className="mt-3 flex flex-wrap gap-2">
-        {isAdmin && !locked && <Button size="sm" disabled={busy} onClick={() => run(() => createFn({ data: { jobId } }), a?.external_mitti_id ? "Mitti assessment re-shared" : "Mitti assessment created & assigned")}><Send /> {a?.external_mitti_id ? "Re-share Mitti assessment" : "Create & assign Mitti assessment"}</Button>}
-        {a?.external_mitti_id && !locked && <Button size={isAdmin ? "sm" : "field"} variant="outline" className={isAdmin ? "" : "w-full"} disabled={busy} onClick={() => run(() => syncFn({ data: { jobId } }), "Synced from Mitti")}><RefreshCw /> {isAdmin ? "Sync from Mitti" : "Refresh from Mitti"}</Button>}
-        {isAdmin && <Button size="sm" variant="ghost" disabled={busy} onClick={() => run(async () => { const r = (await batchFn({ data: {} })) as { ok: boolean }[] | undefined; if (r) toast.success(`Checked ${r.length} pending Mitti assessment(s); ${r.filter((x) => !x.ok).length} failed`); })}>Sync pending Mitti assessments</Button>}
+        {isAdmin && !locked && <Button size="sm" disabled={busy} onClick={() => run(() => create({ jobId }, a?.external_mitti_id ? "Mitti assessment re-shared" : "Mitti assessment created & assigned"))}><Send /> {a?.external_mitti_id ? "Re-share Mitti assessment" : "Create & assign Mitti assessment"}</Button>}
+        {a?.external_mitti_id && !locked && <Button size={isAdmin ? "sm" : "field"} variant="outline" className={isAdmin ? "" : "w-full"} disabled={busy} onClick={() => run(() => sync({ jobId }, "Synced from Mitti"))}><RefreshCw /> {isAdmin ? "Sync from Mitti" : "Refresh from Mitti"}</Button>}
+        {isAdmin && <Button size="sm" variant="ghost" disabled={busy} onClick={() => run(async () => { const r = (await batch({}, undefined)) as { ok: boolean }[] | undefined; if (r) (await import("sonner")).toast.success(`Checked ${r.length} pending Mitti assessment(s); ${r.filter((x) => !x.ok).length} failed`); })}>Sync pending Mitti assessments</Button>}
       </div>
     </Section>
   );

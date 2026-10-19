@@ -4,7 +4,7 @@ import { normaliseAuMobile } from "./test-send.core";
 /** Every message type that may use the real sender. `wordingApproved=false` means it can never send yet. */
 export const SMS_MESSAGE_TYPES = {
   spot_saved: { audience: "owner", label: "Spot saved confirmation", wordingApproved: true },
-  owner_code: { audience: "owner", label: "Owner 6-digit sign-in / signing code", wordingApproved: false },
+  owner_code: { audience: "owner", label: "Owner 6-digit sign-in / signing code", wordingApproved: true },
   ready_check_booking: { audience: "owner", label: "Ready Check booking confirmation", wordingApproved: false },
   job_offer: { audience: "partner", label: "New job offer to a trade", wordingApproved: false },
   daily_mitti: { audience: "partner", label: "Daily Mitti links (6:30am)", wordingApproved: true },
@@ -67,4 +67,3 @@ export function mapTwilioStatus(s: string | null | undefined): "queued" | "sent"
     default: return null;
   }
 }
-

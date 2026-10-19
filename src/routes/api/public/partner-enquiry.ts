@@ -23,6 +23,15 @@ export const Route = createFileRoute("/api/public/partner-enquiry")({
               if (error) throw new Error(error.message);
               return { id: data.id, created: true };
             },
+            consumeNonce: async (nonce, signedAt) => {
+              const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+              const { error } = await (supabaseAdmin as any).from("signed_webhook_nonces").insert({ source: "base44", purpose: "partner_enquiry", nonce, signed_at: signedAt });
+              if (!error) return true;
+              // Staged 0202 not applied: same fallback as the enquiry webhook (replays/other errors still rejected).
+              const { isMissingDbObject } = await import("@/lib/schema-compat.core");
+              if (isMissingDbObject(error)) { console.warn("signed_webhook_nonces not deployed (staged 0202); replay store unavailable"); return true; }
+              return false;
+            },
           });
           return Response.json(res.body, { status: res.status });
         } catch (e) {

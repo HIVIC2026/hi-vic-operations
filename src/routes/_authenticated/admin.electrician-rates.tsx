@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useAction, useMe } from "@/hooks/use-me";
+import { useReasonDialog } from "@/components/portal/reason-dialog";
 import { activateElectricianRate, createElectricianRate, discardElectricianRate, expireElectricianRate, listElectricianRates } from "@/lib/electrician-rates.functions";
 import { ELECTRICIAN_RATE_SERVICES, officeSpread, type ElectricianRateService } from "@/lib/allocation.core";
 import { melbourneToday } from "@/lib/melbourne-time.core";
@@ -34,6 +35,7 @@ function RatesOffice() {
   const activate = useAction(activateElectricianRate);
   const expire = useAction(expireElectricianRate);
   const discard = useAction(discardElectricianRate);
+  const reason = useReasonDialog();
   const [showDiscarded, setShowDiscarded] = useState(false);
   const today = melbourneToday();
   const [f, setF] = useState({ businessId: "", serviceType: "piesa" as ElectricianRateService, rate: "", from: today, to: "", note: "" });
@@ -83,8 +85,8 @@ function RatesOffice() {
                   <td className="p-2 text-xs">{discarded ? "Discarded draft - not used for offers." : r.service_type === "piesa" ? officeSpread(d!.customerPiesaIncGst, Number(r.rate_inc_gst)).text : "—"}</td>
                   <td className="p-2 whitespace-nowrap">
                     {r.status === "draft" && <Button size="sm" onClick={() => { if (window.confirm("Activate this rate? Any current active rate for the same service is superseded.")) void activate({ id: r.id }, "Rate active"); }}>Approve & activate</Button>}
-                    {r.status === "draft" && <Button size="sm" variant="outline" className="ml-2" onClick={() => { const reason = window.prompt("Reason for discarding this draft?"); if (reason && reason.trim().length >= 3) void discard({ id: r.id, reason }, "Draft discarded"); }}>Discard draft</Button>}
-                    {r.status === "active" && <Button size="sm" variant="outline" onClick={() => { const reason = window.prompt("Reason for expiring this rate?"); if (reason && reason.trim().length >= 3) void expire({ id: r.id, reason }, "Rate expired"); }}>Expire</Button>}
+                    {r.status === "draft" && <Button size="sm" variant="outline" className="ml-2" onClick={async () => { const r2 = await reason.ask({ title: "Discard draft", description: "A short reason is required and audited.", placeholder: "Reason for discarding this draft?", minLength: 3 }); if (r2) void discard({ id: r.id, reason: r2 }, "Draft discarded"); }}>Discard draft</Button>}
+                    {r.status === "active" && <Button size="sm" variant="outline" onClick={async () => { const r2 = await reason.ask({ title: "Expire rate", description: "A short reason is required and audited.", placeholder: "Reason for expiring this rate?", minLength: 3 }); if (r2) void expire({ id: r.id, reason: r2 }, "Rate expired"); }}>Expire</Button>}
                   </td>
                 </tr>
                 );
@@ -94,6 +96,7 @@ function RatesOffice() {
         </div>
         </div>
       </div>
+      {reason.dialog}
     </AppShell>
   );
 }

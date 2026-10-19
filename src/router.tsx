@@ -1,3 +1,4 @@
+import "./lib/local-network-guard.install"; // D-7: LOCAL UAT network isolation (inert in production)
 import { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";

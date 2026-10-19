@@ -55,8 +55,16 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
   if (kind !== "ready_check") { const cb = await commercialBlocker(jobId); if (cb) throw new WorkflowError(`Blocked: ${cb}`); }
   if (kind !== "ready_check") { const g = await paymentGate(jobId); if (!g.cleared) throw new WorkflowError(`Blocked: ${g.blocker}`); }
   { const { jobDeletedBlocker } = await import("./job-live.server"); const del = await jobDeletedBlocker(jobId); if (del) throw new WorkflowError(del); }
+  // Guard BEFORE writing: a booking must never exist when the job cannot enter the booked stage (e.g. Gate A not signed).
+  // The only booking-dependent Ready Check blocker is excluded here because the booking is what we are about to write.
+  if (stage !== target) {
+    const { stageEntryBlockers, READY_CHECK_BOOKING_RECORD_BLOCKER } = await import("./workflow.server");
+    const pre = (await stageEntryBlockers(jobId, target, actorId)).filter((b) => b !== READY_CHECK_BOOKING_RECORD_BLOCKER);
+    if (pre.length) throw new WorkflowError(`Blocked: ${pre.join(" • ")}`);
+  }
   await admin.from("bookings").update({ status: "cancelled" }).eq("job_id", jobId).eq("kind", kind).in("status", ["proposed", "confirmed"]);
-  await admin.from("bookings").insert({ job_id: jobId, kind, contractor_id: contractor.user_id, assignment_id: contractor.id, business_id: contractor.business_id, scheduled_start: start, booked_by: actorId, notes: notes ?? null, status: "confirmed" });
+  const { data: inserted, error: insertError } = await admin.from("bookings").insert({ job_id: jobId, kind, contractor_id: contractor.user_id, assignment_id: contractor.id, business_id: contractor.business_id, scheduled_start: start, booked_by: actorId, notes: notes ?? null, status: "confirmed" }).select("id").single();
+  if (insertError || !inserted) throw new Error(`Booking could not be saved: ${insertError?.message ?? "no row returned"}`);
   const nowIso = new Date().toISOString();
   await admin.from("job_assignments").update({ booking_confirmed_at: nowIso }).eq("id", contractor.id).is("booking_confirmed_at", null);
   if (kind === "installation") {
@@ -66,7 +74,15 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
   }
   const when = new Date(start).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" });
   if (stage === target) await logEvent(jobId, actorId, "booking_rescheduled", `${kind === "ready_check" ? "Ready Check" : kind === "assessment" ? "PIESA" : kind} rescheduled to ${when} by ${roleLabel}`, { assignment_id: contractor.id, installer_user_id: contractor.user_id, installer_business_id: contractor.business_id });
-  else await transition(jobId, target, actorId, `${kind === "ready_check" ? "Ready Check" : kind === "assessment" ? "PIESA" : kind.charAt(0).toUpperCase() + kind.slice(1)} booked for ${when} by ${roleLabel}`, { assignment_id: contractor.id, installer_user_id: contractor.user_id, installer_business_id: contractor.business_id, scheduled_start: start });
+  else {
+    try { await transition(jobId, target, actorId, `${kind === "ready_check" ? "Ready Check" : kind === "assessment" ? "PIESA" : kind.charAt(0).toUpperCase() + kind.slice(1)} booked for ${when} by ${roleLabel}`, { assignment_id: contractor.id, installer_user_id: contractor.user_id, installer_business_id: contractor.business_id, scheduled_start: start }); }
+    catch (e) {
+      // The stage could not move: withdraw the booking just written so no "booked but not scheduled" state remains.
+      await admin.from("bookings").update({ status: "cancelled" }).eq("id", inserted.id);
+      await admin.from("job_assignments").update({ booking_confirmed_at: null }).eq("id", contractor.id).eq("booking_confirmed_at", nowIso);
+      throw e;
+    }
+  }
   if (kind === "assessment") {
     // Installer planning visibility only — never an installation booking.
     const { INSTALLER_PLANNING_NOTICE } = await import("./allocation.core");

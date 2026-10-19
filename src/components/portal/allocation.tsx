@@ -7,6 +7,7 @@ import { useAction } from "@/hooks/use-me";
 import { Button } from "@/components/ui/button";
 import { Section } from "@/components/portal/panels";
 import { Pill } from "@/components/portal/badges";
+import { useReasonDialog } from "@/components/portal/reason-dialog";
 import { getVisitContacts, listRecCandidates, releaseInstallContacts, reviewRectificationQuote, sendRectificationQuote, startPiesaOffers } from "@/lib/allocation.functions";
 
 const VISIT: Record<string, string> = { ready_check: "Ready Check", piesa: "PIESA electrical safety visit", rectification: "Electrical rectification", installation: "Installation" };
@@ -21,13 +22,14 @@ export function OfficeAllocationPanel({ jobId }: { jobId: string }) {
   const offers = useQuery({ queryKey: ["rec-offers", jobId], queryFn: async () => (await supabase.from("partner_offers").select("id, kind, status, batch, expires_at, businesses(name)").eq("job_id", jobId).in("kind", ["piesa", "rectification"]).order("offered_at", { ascending: false })).data ?? [] });
   const cands = useQuery({ queryKey: ["rec-cands", jobId], queryFn: () => listFn({ data: { jobId } }), enabled: false });
   const rect = useQuery({ queryKey: ["rect-draft", jobId], queryFn: async () => (await supabase.from("quotes").select("id, status, office_reviewed_at, customer_total_inc_gst").eq("job_id", jobId).eq("kind", "rectification").eq("status", "draft").maybeSingle()).data });
+  const reason = useReasonDialog();
   const refresh = () => { offers.refetch(); rect.refetch(); };
   return (
     <Section title="Electrician allocation and visit contacts">
       <div className="space-y-3 text-sm">
         <div className="flex flex-wrap gap-2">
           <Button size="sm" onClick={async () => { await start({ jobId }, "PIESA offers sent to approved electricians"); refresh(); }}>Offer PIESA to approved electricians</Button>
-          <Button size="sm" variant="outline" onClick={async () => { const reason = window.prompt("Reason for offering without a recorded electrician rate? (required — electricians will see \"Rate to be confirmed\")"); if (!reason || reason.trim().length < 5) return; await start({ jobId, rateToConfirm: true, reason }, "PIESA offered with rate to be confirmed"); refresh(); }}>Offer with rate to be confirmed</Button>
+          <Button size="sm" variant="outline" onClick={async () => { const r = await reason.ask({ title: "Offer with rate to be confirmed", description: "Electricians will see \"Rate to be confirmed\". A reason is required and audited.", placeholder: "Reason for offering without a recorded electrician rate? (required — electricians will see \"Rate to be confirmed\")", minLength: 5 }); if (!r) return; await start({ jobId, rateToConfirm: true, reason: r }, "PIESA offered with rate to be confirmed"); refresh(); }}>Offer with rate to be confirmed</Button>
           <Button size="sm" variant="outline" onClick={() => cands.refetch()}>Show matching electricians</Button>
           <Button size="sm" variant="outline" onClick={async () => { await release({ jobId }, "Installation contacts shared with the agreed installer"); }}>Share installation contacts</Button>
         </div>
@@ -46,6 +48,7 @@ export function OfficeAllocationPanel({ jobId }: { jobId: string }) {
           </div>
         )}
       </div>
+      {reason.dialog}
     </Section>
   );
 }

@@ -78,10 +78,13 @@ export async function autoAdvanceJob(jobId: string, actorId: string | null, _rea
 /** Sweep open jobs (portal state only). */
 export async function autoAdvanceOpenJobs(actorId: string) {
   const { data } = await admin.from("jobs").select("id").not("stage", "in", "(complete,cancelled,on_hold,ap_review)");
-  let moved = 0;
+  let moved = 0, failed = 0;
   for (const j of data ?? []) {
-    const r = await autoAdvanceJob(j.id, actorId, "pipeline sweep");
-    if (r?.steps.length) moved++;
+    // One job's unexpected error must not stop the sweep for every later job.
+    try {
+      const r = await autoAdvanceJob(j.id, actorId, "pipeline sweep");
+      if (r?.steps.length) moved++;
+    } catch (e) { failed++; console.error("auto-advance sweep: job failed", j.id, (e as Error).message); }
   }
-  return { checked: data?.length ?? 0, moved };
+  return { checked: data?.length ?? 0, moved, failed };
 }

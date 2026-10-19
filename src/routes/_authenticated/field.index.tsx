@@ -22,7 +22,7 @@ function MyWork() {
   const [onlyChasing, setOnlyChasing] = useState(false);
   const [onlyMoving, setOnlyMoving] = useState(false);
   const { data, error, refetch } = useQuery({ queryKey: ["trade-home"], queryFn: () => load(), refetchInterval: 60_000 });
-  if (error) return <TradeShell installer={false}><div role="alert" className={card}><p className="text-sm">Your work couldn't load. Check your signal and try again.</p><button className="mt-3 font-bold text-estimate-blue" onClick={() => refetch()}>Try again</button></div></TradeShell>;
+  if (error) return <TradeShell installer={false}><div role="alert" className={card}><p className="text-sm">Your work couldn't load. Check your signal and try again.</p><button className="mt-3 min-h-11 font-bold text-estimate-blue" onClick={() => refetch()}>Try again</button></div></TradeShell>;
   if (data === undefined) return <TradeShell installer={false}><p className="text-sm">Loading your work…</p></TradeShell>;
   if (data === null) return <TradeShell installer={false}><p className={`${card} text-sm`}>Your sign-in isn't linked to an approved business yet. Home Insulation Victoria will sort this out.</p></TradeShell>;
   const installer = data.kind === "installer";
@@ -57,6 +57,15 @@ function MyWork() {
         <NowPanel eyebrow="Your next step" status={data.yourMove[0].title} next={data.yourMove[0].detail}
           action={<Link to="/field/$jobId" params={{ jobId: data.yourMove[0].jobId }} className={btnClass("primary", "w-full md:w-auto")}>Open job</Link>} />
       ) : null}
+      {data.offers.length > 1 && (
+        <section data-other-offers>
+          <h2 className="mb-2 font-display text-base font-bold">More offers <span className="text-sm font-semibold text-sub">{data.offers.length - 1}</span></h2>
+          <div className="space-y-2">{data.offers.slice(1).map((o) => (
+            <Link key={o.id} to="/field/offer/$offerId" params={{ offerId: o.id }} className="flex min-h-[52px] items-center gap-3 rounded-[14px] border border-line bg-paper p-3 hover:border-action">
+              <span className="min-w-0 flex-1"><span className="block font-bold">{installer ? "Ready Check" : "Safety check"} in {o.suburb ?? "Victoria"}</span>{o.expiresAt && <span className="block text-sm text-sub">{goneIn(o.expiresAt)}</span>}</span><ChevronRight className="h-5 w-5" />
+            </Link>))}</div>
+        </section>
+      )}
       {!installer && data.yourMove.length > 0 && (
         <section>
           <h2 className="mb-2 flex items-center gap-2 font-display text-base font-bold">Your move <Pill tone="rose">{data.yourMove.length}</Pill></h2>
@@ -93,9 +102,9 @@ function MyWork() {
   );
 }
 
-type HomeJob = { jobId: string; jobNumber: string | number | null; owner: string | null; address: string; tab: InstallerTab; status: string; channel: string | null; line: { text: string; who: string | null } | null };
-function InstallerJobs({ jobs, done, moves, offers }: { jobs: HomeJob[]; done: { jobId: string; jobNumber: string | number | null; suburb: string | null; reason: string; open: boolean }[]; moves: { jobId: string; title: string }[]; offers: number }) {
-  const [tab, setTab] = useState<InstallerTab>("action");
+type HomeJob = { jobId: string; jobNumber: string | number | null; owner: string | null; address: string; tab: InstallerTab; status: string; channel: string | null; place?: "offers" | "needs_me" | "coming_up" | "moving"; line: { text: string; who: string | null } | null };
+export function InstallerJobs({ jobs, done, moves, offers, initialTab = "action" }: { jobs: HomeJob[]; done: { jobId: string; jobNumber: string | number | null; suburb: string | null; reason: string; open: boolean }[]; moves: { jobId: string; title: string }[]; offers: number; initialTab?: InstallerTab }) {
+  const [tab, setTab] = useState<InstallerTab>(initialTab);
   const count = (k: InstallerTab) => (k === "done" ? done.length : jobs.filter((j) => j.tab === k).length);
   const shown = jobs.filter((j) => j.tab === tab);
   const nextOf = (j: HomeJob) => {
@@ -117,14 +126,36 @@ function InstallerJobs({ jobs, done, moves, offers }: { jobs: HomeJob[]; done: {
       </div>
       {tab === "action" && offers > 0 && <p className="mt-2 text-sm text-sub">{offers} job offer{offers === 1 ? "" : "s"} waiting above.</p>}
       <div className="mt-2 space-y-2" role="tabpanel">
-        {tab !== "done" && !shown.length && <p className={`${card} text-sm`}>{tab === "action" ? "Nothing needs you right now." : "No jobs in progress."}</p>}
-        {tab !== "done" && shown.map((j) => { const n = nextOf(j); return (
+        {tab === "action" && !shown.length && <p className={`${card} text-sm`}>Nothing needs you right now.</p>}
+        {tab === "action" && (() => {
+          const needsYou = shown.filter((j) => j.place === "needs_me" || !j.place);
+          const offerJobs = shown.filter((j) => j.place === "offers");
+          const jobLink = (j: HomeJob) => { const n = nextOf(j); return (
+            <Link key={j.jobId} to="/field/$jobId" params={{ jobId: j.jobId }} data-job-card className="flex items-center gap-3 rounded-[14px] border border-line bg-paper p-3 hover:border-action">
+              <span className="min-w-0 flex-1">
+                <span className="block font-bold">{j.jobNumber} · {j.owner ?? "Owner"}</span>
+                <span className="mt-1 block"><SourceBadge channel={j.channel} /></span>
+                <span className="block truncate text-sm text-sub">{j.address}</span>
+                <span className="mt-1 block text-sm"><span className="font-semibold text-estimate-navy">Next{n.who ? ` — ${n.who}` : ""}:</span> {n.text}</span>
+              </span><ChevronRight className="h-5 w-5" />
+            </Link>); };
+          return (<>
+            {needsYou.length > 0 && <p className="pt-1 text-xs font-bold uppercase tracking-wide text-sub" data-job-group="needs-you">Needs you <span className="font-semibold">({needsYou.length})</span></p>}
+            {needsYou.map(jobLink)}
+            {offerJobs.length > 0 && needsYou.length > 0 && <p className="pt-3 text-xs font-bold uppercase tracking-wide text-sub" data-job-group="offers">Job offers <span className="font-semibold">({offerJobs.length})</span></p>}
+            {offerJobs.length > 0 && needsYou.length === 0 && <p className="pt-1 text-xs font-bold uppercase tracking-wide text-sub" data-job-group="offers">Job offers <span className="font-semibold">({offerJobs.length})</span></p>}
+            {offerJobs.map(jobLink)}
+          </>);
+        })()}
+        {tab === "progress" && !shown.length && <p className={`${card} text-sm`}>No jobs in progress.</p>}
+        {tab === "progress" && shown.map((j) => { const n = nextOf(j); return (
           <Link key={j.jobId} to="/field/$jobId" params={{ jobId: j.jobId }} data-job-card className="flex items-center gap-3 rounded-[14px] border border-line bg-paper p-3 hover:border-action">
             <span className="min-w-0 flex-1">
               <span className="block font-bold">{j.jobNumber} · {j.owner ?? "Owner"}</span>
               <span className="mt-1 block"><SourceBadge channel={j.channel} /></span>
               <span className="block truncate text-sm text-sub">{j.address}</span>
               <span className="mt-1 block text-sm"><span className="font-semibold text-estimate-navy">Next{n.who ? ` — ${n.who}` : ""}:</span> {n.text}</span>
+              {j.place === "coming_up" && <span className="mt-1 inline-block rounded-full bg-estimate-mist px-2 py-0.5 text-[11px] font-semibold text-estimate-navy" data-upcoming-badge>Upcoming visit</span>}
             </span><ChevronRight className="h-5 w-5" />
           </Link>); })}
         {tab === "done" && (done.length ? done.map((d) => d.open ? (

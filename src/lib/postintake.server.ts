@@ -59,10 +59,17 @@ async function processItem(item: Claimed) {
     await syncStep3(item.job_id, null);
     const { error: ce } = await mine({ status: "complete", completed_at: new Date().toISOString(), locked_at: null, lease_expires_at: null, last_error: null });
     if (ce) throw new Error(ce.message);
-    const { maybeAutoRouteLeadEmail } = await import("./lead-email-routing.server");
-    await maybeAutoRouteLeadEmail(item.job_id); // one automatic route; best-effort and idempotent
-    const { autoAdvanceJob } = await import("./autoadvance.server");
-    await autoAdvanceJob(item.job_id, null, "initial checks complete");
+    // The item is already complete: follow-ups are best-effort and must never be reported as a retry that can no
+    // longer happen (the retry update would match no row once locked_at is cleared). Failures are logged; the job is
+    // picked up again by the next trigger or the office sweep.
+    try {
+      const { maybeAutoRouteLeadEmail } = await import("./lead-email-routing.server");
+      await maybeAutoRouteLeadEmail(item.job_id); // one automatic route; best-effort and idempotent
+    } catch (e) { console.error("post-intake lead email route failed", item.job_id, (e as Error).message); }
+    try {
+      const { autoAdvanceJob } = await import("./autoadvance.server");
+      await autoAdvanceJob(item.job_id, null, "initial checks complete");
+    } catch (e) { console.error("post-intake auto-advance failed", item.job_id, (e as Error).message); }
     return { id: item.id, job_id: item.job_id, status: "complete" };
   } catch (e) {
     const msg = (e as Error).message.slice(0, 500);

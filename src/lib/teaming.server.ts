@@ -85,6 +85,21 @@ export async function tryTeamAssign(jobId: string, actorId: string | null): Prom
   const { cands, site, installerBiz } = await electricianCandidates(jobId);
   const pick = await autoAssignTeamElectrician(admin as never, jobId, rankElectricians(cands, site), installerBiz);
   if (!pick) return false;
+  
+  // Phase 1 compliance: enforce electrician work eligibility before team assignment
+  const { electricianWorkEligibility } = await import("./pilot.core");
+  const [{ data: business }, { data: creds }, { data: workers }] = await Promise.all([
+    admin.from("businesses").select("*").eq("id", pick.businessId).maybeSingle(),
+    admin.from("business_credentials").select("kind,label,expires_at,critical,verification").eq("business_id", pick.businessId),
+    admin.from("partner_workers").select("trade_role,licence_expires_on,approval_status,removed_at").eq("business_id", pick.businessId).eq("trade_role", "electrician"),
+  ]);
+  const blocker = electricianWorkEligibility(business as any, creds as any, workers as any);
+  if (blocker) {
+    // Assignment rejected — log and return false without creating job_assignment
+    await logEvent(jobId, actorId, "team_assign_rejected", `Team electrician assignment rejected: ${blocker}`, { businessId: pick.businessId, via: pick.via }, { internal: true });
+    return false;
+  }
+  
   const name = cands.find((c) => c.id === pick.businessId)?.name ?? "team electrician";
   await admin.from("jobs").update({ electrician_choice: "preferred" }).eq("id", jobId);
   await admin.from("job_assignments").insert({ job_id: jobId, user_id: pick.userId, role: "electrician", business_id: pick.businessId, assigned_by: actorId ?? pick.userId });

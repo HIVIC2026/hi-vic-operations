@@ -53,6 +53,7 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
       throw new Error('Unauthorized: No request headers available');
     }
 
+
     const authHeader = request.headers.get('authorization');
 
     if (!authHeader) {
