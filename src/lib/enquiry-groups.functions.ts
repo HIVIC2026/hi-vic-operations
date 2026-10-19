@@ -37,6 +37,7 @@ export const getEnquiryPage = createServerFn({ method: "POST" }).middleware([req
     direction: z.enum(["asc", "desc"]).default("desc"),
     page: z.number().int().min(1).max(100_000).default(1),
     pageSize: z.number().int().min(1).max(100).default(20),
+    fresh: z.boolean().optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
@@ -102,7 +103,9 @@ export const existingInsulationSaveSpotFn = createServerFn({ method: "POST" }).m
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const { sendExistingInsulationSaveSpot } = await import("./hot-leads-send.server");
-    return sendExistingInsulationSaveSpot(data.jobId, context.userId, data.preview);
+    const r = await sendExistingInsulationSaveSpot(data.jobId, context.userId, data.preview);
+    if (!data.preview) (await import("./enquiry-groups.server")).invalidateEnquirySnapshot();
+    return r;
   });
 
 /** Admin-only, ONE job: prepare/refresh the secure estimate link (Step 3). Never sends. */
@@ -111,5 +114,7 @@ export const prepareEstimateLinkFn = createServerFn({ method: "POST" }).middlewa
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const { syncStep3 } = await import("./estimatelink.server");
-    return syncStep3(data.jobId, context.userId ?? null);
+    const r = await syncStep3(data.jobId, context.userId ?? null);
+    (await import("./enquiry-groups.server")).invalidateEnquirySnapshot();
+    return r;
   });

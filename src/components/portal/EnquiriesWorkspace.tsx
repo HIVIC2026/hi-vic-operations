@@ -7,7 +7,7 @@
 import { Link } from "@tanstack/react-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ListPagination } from "@/components/portal/ListPagination";
@@ -237,6 +237,8 @@ export function EnquiriesWorkspace({
   const current = ui.current;
   const view = current.scope as EnquiryPageView;
   const load = useServerFn(getEnquiryPage);
+  // An explicit Refresh / Try again asks the server to reclassify instead of reusing its short-lived snapshot.
+  const freshNext = useRef(false);
   const {
     data,
     isPending,
@@ -247,9 +249,12 @@ export function EnquiriesWorkspace({
     // The whole control set is the key, so React Query drops a response that arrives after the office
     // has already moved on: a slow page 1 can never overwrite a fast page 2.
     queryKey: ["enquiries-workspace-page", current],
-    queryFn: () =>
-      load({
+    queryFn: () => {
+      const fresh = freshNext.current;
+      freshNext.current = false;
+      return load({
         data: {
+          ...(fresh ? { fresh: true } : {}),
           view,
           search: current.search,
           sort: current.sort || "created_at",
@@ -257,7 +262,8 @@ export function EnquiriesWorkspace({
           page: current.page,
           pageSize: current.pageSize,
         },
-      }),
+      });
+    },
     placeholderData: keepPreviousData,
     staleTime: 30_000,
   });
@@ -321,7 +327,7 @@ export function EnquiriesWorkspace({
           className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm"
         >
           Could not load enquiries. Your records are safe.{" "}
-          <Button variant="link" onClick={() => refetch()}>
+          <Button variant="link" onClick={() => { freshNext.current = true; void refetch(); }}>
             Try again
           </Button>
         </div>
@@ -332,6 +338,14 @@ export function EnquiriesWorkspace({
             {data.scope.duplicateWebsiteEnquiries} older duplicates, {data.scope.testHidden} TEST,{" "}
             {data.scope.installerSourced} installer customers and{" "}
             {data.scope.calculatorRegistrations} calculator-only registrations.
+            {data.asOf ? (
+              <>
+                {" "}Updated {new Date(data.asOf).toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", second: "2-digit" })}{" "}
+                <Button variant="link" size="sm" className="h-auto p-0 text-xs" disabled={isFetching} onClick={() => { freshNext.current = true; void refetch(); }}>
+                  Refresh
+                </Button>
+              </>
+            ) : null}
           </p>
 
           <div

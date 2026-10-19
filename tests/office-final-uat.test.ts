@@ -90,7 +90,8 @@ describe("D2 — list loaders avoid the measured bottlenecks", () => {
     expect(src).toContain("Promise.all(chunks.map");
     expect(src).toContain("const CHUNK = 500");
     // the removal scan is part of the main parallel batch, not a trailing round trip
-    expect(src).toMatch(/reviewed,\s*removedRows\]\s*=\s*await Promise\.all/);
+    // (perf: the independent reads — calculator, settings, outside head counts — now join that same batch)
+    expect(src).toMatch(/reviewed,\s*removedRows\],\s*\[interests, cfg, testHiddenRes, installerRes, otherRes\]\]\s*=\s*await Promise\.all/);
   });
   test("active jobs: independent reads are batched and sends are purpose-filtered", () => {
     // The pipeline read moved to its own server module so the paged loader can share the enrichment.

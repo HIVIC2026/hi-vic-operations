@@ -6,13 +6,14 @@ import { selectCurrentEstimate, type AreaTier } from "./intelligence.core";
 import { SUPPRESSING_EVENTS } from "./emailsafety.server";
 import { normaliseInsulation } from "./eligibility.core";
 import { declaredExtras } from "./enquiry.core";
-import { currentRetailSettings } from "./estimate.server";
-import { renderJoOutcomeEmail } from "./jo-outcome-email.core";
-import { withUnsubscribe } from "./emailsafety.core";
+// PERF (enquiries list): the email renderers, retail settings and file signing are only needed by the Office
+// draft / media actions, so they are imported lazily there. The list read below no longer pulls them (and their
+// ~40 transitive modules) into the server function that renders the first page.
+import type { renderJoOutcomeEmail as RenderJo } from "./jo-outcome-email.core";
+import type { withUnsubscribe as WithUnsubscribe } from "./emailsafety.core";
 import { CUSTOMER_BASE } from "./engagement.core";
 import type { LocationVariables } from "./activity48.core";
 import { originalEnquiryMedia, groupBInvitationBlocker, type GroupBMediaState } from "./group-b-media.core";
-import { signFile } from "./file-links.server";
 import { formatPropertyAddress } from "./address";
 import { LAUNCH_CAMPAIGN } from "./launch-campaign.core";
 import {
@@ -20,6 +21,7 @@ import {
   type EnquiryClass, type EnquiryStatus, type EnquiryGroup, type OtherReason, type StoredAudit, type MediaReviewOutcome, effectiveInsulation, noInsulationReviewBlocker,
 } from "./enquiry-groups.core";
 import { matchesTerm, paginate, toPage, toPageSize } from "./list-paging.core";
+import { createSnapshotCache } from "./snapshot-cache.core";
 import { searchWords, toDirection, toEnum } from "./list-query.core";
 import { ENQUIRY_SORT_KEYS, ENQUIRY_VIEW_KEYS, ENQUIRY_VIEWS, type EnquiryPageView } from "./enquiry-list-page.core";
 
@@ -44,12 +46,25 @@ async function all<T>(q: (from: number, to: number) => Res<T>): Promise<T[]> {
     if (!data || data.length < PAGE) return out;
   }
 }
+/**
+ * PERF: a bounded pool for the related-record reads. Firing every table × every id chunk at once (122 requests in
+ * flight for 5,000 enquiries) queues behind PostgREST's connection pool and was the source of the earlier
+ * connection failures; a fixed width keeps the same total work without the burst.
+ */
+const RELATED_CONCURRENCY = 12;
+let relatedActive = 0;
+const relatedQueue: (() => void)[] = [];
+async function pooled<T>(fn: () => PromiseLike<T>): Promise<T> {
+  if (relatedActive >= RELATED_CONCURRENCY) await new Promise<void>((r) => relatedQueue.push(r));
+  relatedActive++;
+  try { return await fn(); } finally { relatedActive--; relatedQueue.shift()?.(); }
+}
 async function byJobs<T>(ids: string[], q: (chunk: string[], from: number, to: number) => Res<T>): Promise<T[]> {
   if (!ids.length) return [];
   const chunks: string[][] = [];
   for (let i = 0; i < ids.length; i += CHUNK) chunks.push(ids.slice(i, i + CHUNK));
-  // Chunks are independent: run them together instead of waiting for each one in turn.
-  const parts = await Promise.all(chunks.map((c) => all((f, t) => q(c, f, t))));
+  // Chunks are independent: run them together (through the bounded pool) instead of waiting for each in turn.
+  const parts = await Promise.all(chunks.map((c) => all((f, t) => pooled(() => q(c, f, t)))));
   return parts.flat();
 }
 const must = <T>(r: { data: T; error: { message: string } | null }, what: string): T => { if (r.error) throw new Error(`${what} unavailable: ${r.error.message}`); return r.data; };
@@ -69,6 +84,25 @@ export type EnquiryGroupRow = EnquiryClass & {
 
 const ENQUIRY_SELECT =
   "id, job_number, external_enquiry_id, stage, hold_reason, source, created_at, eligibility_set_at, eligibility_outcome, eligibility_decision_source, eligibility_review_required, eligibility_decision_rules, estimated_area_m2, estimated_area_unknown, owners(full_name, email, phone), properties(address_line, suburb, state, postcode, enrichment)";
+/**
+ * PERF: the list only reads `enrichment.base44.raw` (declared insulation + the original media manifest), so the
+ * lean read asks PostgREST for that one JSON path instead of the whole enrichment document (Gate 1 evidence,
+ * research and portal facts). If this PostgREST build rejects the JSON path, the full select above is used.
+ */
+const ENQUIRY_SELECT_LEAN = ENQUIRY_SELECT.replace("postcode, enrichment)", "postcode, base44_raw:enrichment->base44->raw)");
+let leanSelectUnsupported = false;
+type EnquiryJob = {
+  id: string; job_number: string | null; external_enquiry_id: string | null; stage: string; hold_reason: string | null; source: string; created_at: string;
+  eligibility_set_at: string | null; eligibility_outcome: string | null; eligibility_decision_source: string | null; eligibility_review_required: boolean | null;
+  eligibility_decision_rules: unknown; estimated_area_m2: number | string | null; estimated_area_unknown: boolean | null;
+  owners: unknown; properties: unknown;
+};
+/** The Base44 raw submission, whichever select produced the row. */
+function base44Raw(p: { enrichment?: Record<string, unknown> | null; base44_raw?: unknown } | null): { answers?: Record<string, unknown> } | undefined {
+  if (!p) return undefined;
+  if ("base44_raw" in p) return (p.base44_raw ?? undefined) as { answers?: Record<string, unknown> } | undefined;
+  return ((p.enrichment?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } }).raw;
+}
 
 /**
  * Every website enquiry, with the ordering applied by the DATABASE. The office's search term is
@@ -78,11 +112,39 @@ const ENQUIRY_SELECT =
  * count it), so loadEnquiryPage applies the term over the same fields the office sees. `id` is
  * the stable tie-breaker that stops equal sort keys moving a record from one page to another.
  */
-export async function websiteEnquiries(query: { sort?: string; ascending?: boolean } = {}) {
-  const run = (from: number, to: number) =>
-    admin.from("jobs").select(ENQUIRY_SELECT).eq("source", WEBSITE_SOURCE).eq("channel", WEBSITE_CHANNEL)
+export async function websiteEnquiries(query: { sort?: string; ascending?: boolean } = {}): Promise<EnquiryJob[]> {
+  const run = (select: string, from: number, to: number, count = false) =>
+    admin.from("jobs").select(select, count ? { count: "exact" } : undefined).eq("source", WEBSITE_SOURCE).eq("channel", WEBSITE_CHANNEL)
       .order(query.sort ?? "created_at", { ascending: query.ascending ?? true, nullsFirst: false }).order("id").range(from, to);
-  return all(run);
+  // PERF: the first page also returns the exact total, so every remaining 1,000-row page is requested at once
+  // instead of one after another. Same rows, same order (range + stable id tie-breaker).
+  const read = async (select: string) => {
+    const first = await run(select, 0, PAGE - 1, true) as unknown as { data: EnquiryJob[] | null; error: { message: string } | null; count: number | null };
+    if (first.error) return { error: first.error } as const;
+    const rows = [...(first.data ?? [])];
+    const total = first.count ?? rows.length;
+    if (rows.length < PAGE || total <= PAGE) return { rows } as const;
+    const starts: number[] = [];
+    for (let from = PAGE; from < total; from += PAGE) starts.push(from);
+    const rest = await Promise.all(starts.map((from) => run(select, from, from + PAGE - 1) as unknown as Promise<{ data: EnquiryJob[] | null; error: { message: string } | null }>));
+    for (const r of rest) { if (r.error) throw new Error(`Enquiry groups could not load: ${r.error.message}`); rows.push(...(r.data ?? [])); }
+    // A row added while reading may push the tail past the counted total: read on until a short page.
+    for (let from = starts.length ? starts[starts.length - 1]! + PAGE : PAGE; rows.length >= from; from += PAGE) {
+      const r = await run(select, from, from + PAGE - 1) as unknown as { data: EnquiryJob[] | null; error: { message: string } | null };
+      if (r.error) throw new Error(`Enquiry groups could not load: ${r.error.message}`);
+      rows.push(...(r.data ?? []));
+      if ((r.data ?? []).length < PAGE) break;
+    }
+    return { rows } as const;
+  };
+  if (!leanSelectUnsupported) {
+    const lean = await read(ENQUIRY_SELECT_LEAN);
+    if ("rows" in lean) return lean.rows;
+    leanSelectUnsupported = true; // e.g. PostgREST without JSON paths in embedded selects: use the full document
+  }
+  const full = await read(ENQUIRY_SELECT);
+  if ("error" in full) throw new Error(`Enquiry groups could not load: ${full.error.message}`);
+  return full.rows;
 }
 
 export async function loadEnquiryGroups() {
@@ -93,9 +155,25 @@ export async function loadEnquiryGroups() {
  * Classifies the enquiries it is handed and returns the whole set. Both entry points share this so a
  * page and a full read can never disagree about what an enquiry's group or status is.
  */
-export async function classifyWebsiteEnquiries(jobs: Awaited<ReturnType<typeof websiteEnquiries>>) {
+/**
+ * PERF: the reads that do not depend on which enquiries exist (calculator registrations, delivery settings and the
+ * three outside-scope head counts). loadEnquiryPage starts them BEFORE the enquiry rows arrive, so they no longer
+ * add their own round trips after the related-record reads.
+ */
+export function startIndependentReads() {
+  const outsideFilter = `source.neq.${WEBSITE_SOURCE},channel.neq.${WEBSITE_CHANNEL}`;
+  return Promise.all([
+    all((f, t) => admin.from("calculator_interests").select("email, address_line, postcode").order("created_at").range(f, t)),
+    admin.from("customer_delivery_settings").select("jobs_created_after").eq("id", 1).maybeSingle(),
+    admin.from("jobs").select("id", { count: "exact", head: true }).or(outsideFilter).eq("source", "qa_test"),
+    admin.from("jobs").select("id", { count: "exact", head: true }).or(outsideFilter).neq("source", "qa_test").eq("channel", "installer_sourced"),
+    admin.from("jobs").select("id", { count: "exact", head: true }).or(outsideFilter).neq("source", "qa_test").neq("channel", "installer_sourced"),
+  ]);
+}
+
+export async function classifyWebsiteEnquiries(jobs: Awaited<ReturnType<typeof websiteEnquiries>>, independent: ReturnType<typeof startIndependentReads> = startIndependentReads()) {
   const ids = jobs.map((j) => j.id);
-  const [meas, ests, docs, work, sends, consents, optouts, events, interests, cfg, responses, media, reviewed, removedRows] = await Promise.all([
+  const [[meas, ests, docs, work, sends, consents, optouts, events, responses, media, reviewed, removedRows], [interests, cfg, testHiddenRes, installerRes, otherRes]] = await Promise.all([Promise.all([
     byJobs(ids, (c, f, t) => admin.from("ceiling_measurements").select("job_id, verified_area_m2, measured_area_m2").in("job_id", c).eq("is_current", true).eq("status", "complete").range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("property_area_estimates").select("id, job_id, tier, net_m2, created_at").in("job_id", c).in("tier", TRUSTED_ESTIMATE_TIERS).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("evidence_files").select("job_id, mime_type, storage_path").in("job_id", c).like("storage_path", "%/intake/%").range(f, t)),
@@ -104,20 +182,12 @@ export async function classifyWebsiteEnquiries(jobs: Awaited<ReturnType<typeof w
     byJobs(ids, (c, f, t) => admin.from("owner_contact_consents").select("job_id, consent_status, created_at").in("job_id", c).order("created_at", { ascending: true }).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("customer_email_optouts").select("job_id, opted_out_at").in("job_id", c).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("customer_engagement_events").select("job_id").in("job_id", c).in("event_type", SUPPRESSING_EVENTS).range(f, t)),
-    all((f, t) => admin.from("calculator_interests").select("email, address_line, postcode").order("created_at").range(f, t)),
-    admin.from("customer_delivery_settings").select("jobs_created_after").eq("id", 1).maybeSingle(),
     byJobs(ids, (c, f, t) => admin.from("lead_campaign_responses").select("job_id, spot_saved_at").in("job_id", c).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("documents").select("job_id, kind, mime_type, storage_path, source_system, external_id").in("job_id", c).eq("kind", "intake_media").range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("customer_engagement_events").select("job_id, occurred_at, metadata").in("job_id", c).eq("event_type", "intake_media_reviewed").order("occurred_at").range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("workflow_events").select("job_id").in("job_id", c).eq("event_type", "lead_removed").range(f, t)),
-  ]);
-  // Outside-scope counts only: three head counts instead of reading every non-website job row.
-  const outsideFilter = `source.neq.${WEBSITE_SOURCE},channel.neq.${WEBSITE_CHANNEL}`;
-  const [testHiddenRes, installerRes, otherRes] = await Promise.all([
-    admin.from("jobs").select("id", { count: "exact", head: true }).or(outsideFilter).eq("source", "qa_test"),
-    admin.from("jobs").select("id", { count: "exact", head: true }).or(outsideFilter).neq("source", "qa_test").eq("channel", "installer_sourced"),
-    admin.from("jobs").select("id", { count: "exact", head: true }).or(outsideFilter).neq("source", "qa_test").neq("channel", "installer_sourced"),
-  ]);
+  ]), independent]);
+  // Outside-scope counts only: three head counts (started with the independent reads) instead of reading every non-website job row.
   const countOf = (r: { count: number | null; error: { message: string } | null }, what: string) => {
     if (r.error) throw new Error(`${what} unavailable: ${r.error.message}`);
     return r.count ?? 0;
@@ -143,8 +213,8 @@ export async function classifyWebsiteEnquiries(jobs: Awaited<ReturnType<typeof w
 
   const rows: (EnquiryGroupRow & { propKey: string })[] = jobs.map((j) => {
     const owner = j.owners as { full_name: string | null; email: string | null; phone: string | null } | null;
-    const p = j.properties as { address_line: string | null; suburb: string | null; state: string | null; postcode: string | null; enrichment: Record<string, unknown> | null } | null;
-    const b44 = (p?.enrichment?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } };
+    const p = j.properties as { address_line: string | null; suburb: string | null; state: string | null; postcode: string | null; enrichment?: Record<string, unknown> | null; base44_raw?: unknown } | null;
+    const b44 = { raw: base44Raw(p) };
     const declaredInsulation = normaliseInsulation(declaredExtras(b44.raw?.answers ?? null).existing_insulation);
     const m = mBy.get(j.id)?.[0];
     const best = selectCurrentEstimate((eBy.get(j.id) ?? []).map((e) => ({ id: e.id, tier: e.tier as AreaTier, net_m2: e.net_m2 == null ? null : Number(e.net_m2), created_at: e.created_at })));
@@ -232,6 +302,40 @@ export function inEnquiryView(row: EnquiryGroupRow, view: EnquiryPageView): bool
 }
 
 /**
+ * PERF: the classified enquiry set is the expensive part of every request (all website enquiries plus twelve
+ * related tables). Paging, the search term and the view tile never change that set — only which slice of it is
+ * shown — so the server keeps the last classified set for a few seconds and reuses it for those requests, and
+ * concurrent requests share one in-flight read instead of each starting their own.
+ *
+ * Freshness: an entry lives SNAPSHOT_TTL_MS at most (the workspace itself already treats a page as fresh for 30 s),
+ * and every Office action on this workspace (remove, photo review, Save-my-spot from review, existing-insulation
+ * follow-up, estimate link) clears it, so the refetch that follows an action always reclassifies. Draft
+ * preparation and every sender re-read the database themselves and never use this snapshot.
+ */
+export const SNAPSHOT_TTL_MS = 20_000;
+type Snapshot = Awaited<ReturnType<typeof classifyWebsiteEnquiries>> & { asOf: string };
+const snapshots = createSnapshotCache<Snapshot>(SNAPSHOT_TTL_MS);
+/** Tests only: forget the snapshot cache AND the lean-select capability probe. */
+export function resetEnquiryListState() {
+  snapshots.invalidate();
+  leanSelectUnsupported = false;
+}
+/** Drop every cached classified set (called after any Office write that can change an enquiry's row). */
+export function invalidateEnquirySnapshot() {
+  snapshots.invalidate();
+}
+function classifiedSnapshot(sortKey: string, ascending: boolean): Promise<Snapshot> {
+  const now = Date.now();
+  return snapshots.get(`${sortKey}:${ascending ? "asc" : "desc"}`, () => {
+    const independent = startIndependentReads(); // does not wait for the enquiry rows
+    independent.catch(() => undefined);
+    return websiteEnquiries({ sort: sortKey, ascending })
+      .then((jobs) => classifyWebsiteEnquiries(jobs, independent))
+      .then((r) => ({ ...r, asOf: new Date(now).toISOString() }));
+  }, now);
+}
+
+/**
  * One server-paginated page of the enquiries workspace.
  *
  * Ordering is applied by the database; the search term and view are applied to the whole
@@ -245,6 +349,8 @@ export function inEnquiryView(row: EnquiryGroupRow, view: EnquiryPageView): bool
  * that materialised set (see websiteEnquiries for why it cannot be a PostgREST or=).
  */
 export async function loadEnquiryPage(params: {
+  /** Bypass the short-lived classified snapshot (the workspace's explicit Refresh). */
+  fresh?: boolean | undefined;
   view: string;
   search?: string;
   sort?: string;
@@ -260,9 +366,8 @@ export async function loadEnquiryPage(params: {
   const size = toPageSize(params.pageSize);
   const wanted = toPage(params.page ?? 1);
 
-  const { rows: unfiltered, scope, jobsCreatedAfter } = await classifyWebsiteEnquiries(
-    await websiteEnquiries({ sort: sortKey, ascending }),
-  );
+  if (params.fresh) invalidateEnquirySnapshot();
+  const { rows: unfiltered, scope, jobsCreatedAfter, asOf } = await classifiedSnapshot(sortKey, ascending);
 
   // The office's search term matches ANY word across the fields the row shows (job number, name,
   // email, phone, address, postcode). It cannot run inside a PostgREST or= — embedded owners.*/
@@ -290,6 +395,7 @@ export async function loadEnquiryPage(params: {
     counts,
     scope,
     jobsCreatedAfter,
+    asOf,
   };
 }
 
@@ -302,9 +408,13 @@ async function locations(postcodes: string[]) {
 
 type Draft = { subject: string; previewText: string; html: string; plainText: string; area: { m2: number | null; label: string } };
 type Selected = { group: EnquiryGroup; otherReason: OtherReason | null; assumedAreaM2: number };
-type Ctx = { settings: Awaited<ReturnType<typeof currentRetailSettings>>; loc: Map<string, LocationVariables> };
+type Ctx = {
+  settings: Awaited<ReturnType<typeof import("./estimate.server").currentRetailSettings>>; loc: Map<string, LocationVariables>;
+  renderJoOutcomeEmail: typeof RenderJo; withUnsubscribe: typeof WithUnsubscribe;
+};
 
 function renderDraft(r: EnquiryGroupRow, sel: Selected, ctx: Ctx): Draft | { error: string } {
+  const { renderJoOutcomeEmail, withUnsubscribe } = ctx;
   // P1-S77: Office drafts are rendered by the SAME Jo-approved renderer every real send uses (renderJoOutcomeEmail),
   // so a draft can never show a superseded template. Preview links/unsubscribe are placeholders; nothing is issued.
   const firstName = r.name?.trim().split(/\s+/)[0] ?? "there";
@@ -360,9 +470,13 @@ export async function prepareEnquiryEmails(ids: string[], sel: Selected, withHtm
   const byId = new Map(rows.map((r) => [r.id, r]));
   const want = [...new Set(ids)];
   const chosen = want.map((id) => byId.get(id)).filter((r): r is NonNullable<typeof r> => !!r);
+  const [{ renderJoOutcomeEmail }, { withUnsubscribe }, { currentRetailSettings }] = await Promise.all([
+    import("./jo-outcome-email.core"), import("./emailsafety.core"), import("./estimate.server"),
+  ]);
+  const renderers = { renderJoOutcomeEmail, withUnsubscribe };
   const ctx: Ctx = tpl.key && (sel.group === "likely_size" || sel.group === "likely_no_size" || sel.group === "insulation_check")
-    ? { settings: await currentRetailSettings(), loc: await locations(chosen.map((r) => String(r.postcode ?? "").trim())) }
-    : { settings: null, loc: new Map() };
+    ? { settings: await currentRetailSettings(), loc: await locations(chosen.map((r) => String(r.postcode ?? "").trim())), ...renderers }
+    : { settings: null, loc: new Map(), ...renderers };
   const seen = new Set<string>();
   const drafts: { id: string; name: string | null; email: string; jobNumber: string | null; subject: string; previewText: string; plainText: string; html: string | null; area: { m2: number | null; label: string }; link: string; holds: string[] }[] = [];
   const excluded: { id: string; name: string | null; email: string | null; reason: string }[] = [];
@@ -398,6 +512,7 @@ export async function prepareEnquiryEmails(ids: string[], sel: Selected, withHtm
 export async function loadLeadMedia(jobId: string) {
   const docs = must(await admin.from("documents").select("id, kind, mime_type, storage_path, created_at").eq("job_id", jobId).eq("kind", "intake_media").order("created_at"), "Lead media") ?? [];
   const evidence = must(await admin.from("evidence_files").select("id, mime_type, storage_path, uploaded_at").eq("job_id", jobId), "Intake evidence") ?? [];
+  const { signFile } = await import("./file-links.server");
   const files: { id: string; mimeType: string | null; url: string; at: string | null }[] = [];
   const linked = [...new Map([...docs, ...evidence.filter((d) => d.storage_path.startsWith(`${jobId}/intake/`)).map((d) => ({ ...d, created_at: d.uploaded_at }))].filter((d) => /^(image|video)\//i.test(d.mime_type ?? "") || /\.(jpe?g|png|heic|heif|webp|mov|mp4|webm)$/i.test(d.storage_path)).map((d) => [d.storage_path, d])).values()];
   for (const d of linked) {
@@ -434,6 +549,7 @@ export async function reviewLeadMedia(jobId: string, outcome: MediaReviewOutcome
     const { syncStep3 } = await import("./estimatelink.server");
     await syncStep3(jobId, by);
   }
+  invalidateEnquirySnapshot();
   return { ok: true as const, outcome };
 }
 
@@ -446,6 +562,7 @@ export async function noInsulationSaveSpot(jobId: string, by: string | null, pre
   await syncStep3(jobId, by);
   const { sendSaveMySpot } = await import("./hot-leads-send.server");
   const r = (await sendSaveMySpot([jobId], by, preview ? { mode: "preview" } : {}))[0];
+  if (!preview) invalidateEnquirySnapshot();
   return { outcome: r?.outcome ?? "failed", detail: r?.detail ?? "No send result" };
 }
 
@@ -461,5 +578,6 @@ export async function removeLeads(jobIds: string[], reason: string, by: string |
     await logEvent(id, by, "lead_removed", `Lead removed by office: ${reason}`, { reason }, { from: j.stage as never, to: "cancelled", internal: true });
     removed++;
   }
+  invalidateEnquirySnapshot();
   return { removed };
 }
