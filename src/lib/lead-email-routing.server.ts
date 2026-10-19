@@ -31,10 +31,17 @@ export async function selectLeadEmailRoute(jobId: string) {
 export async function maybeAutoRouteLeadEmail(jobId: string, ctx: import("./manual-backlog.core").LeadRouteContext = {}): Promise<LeadEmailRouteResult> {
   try {
     const { readAutomaticRules } = await import('./save-spot-rules.server');
-    const { automaticFirstResponseStatus } = await import('./automatic-first-response.core');
+    const { automaticFirstResponseStatus, automaticFirstResponseBlocker, FIRST_RESPONSE_PURPOSES } = await import('./automatic-first-response.core');
     const activation = await readAutomaticRules();
     const status = automaticFirstResponseStatus(activation.state === 'ok' && activation.config.enabled, activation.state === 'ok' ? activation.config.activatedAt : null);
     if (!status.on) return { route: 'none', sent: false, reason: status.reason };
+    const [creation, confirmed] = await Promise.all([
+      admin.from('jobs').select('created_at').eq('id', jobId).maybeSingle(),
+      admin.from('customer_email_sends').select('id').eq('job_id', jobId).eq('status', 'sent').in('purpose', [...FIRST_RESPONSE_PURPOSES]).limit(1),
+    ]);
+    if (creation.error || confirmed.error) return { route: 'none', sent: false, reason: 'Could not verify first-response safety facts.' };
+    const initialBlocker = automaticFirstResponseBlocker({ activatedAt: activation.state === 'ok' ? activation.config.activatedAt : null, createdAt: creation.data?.created_at ?? null, held: false, confirmed: !!confirmed.data?.length });
+    if (initialBlocker) return { route: 'none', sent: false, reason: initialBlocker };
     const held = await admin.from('post_intake_work').select('id').eq('job_id', jobId).eq('reason', 'ENQUIRY_BACKLOG_MANUAL').eq('facts_version', 'enquiry-backlog-manual').eq('status', 'failed').limit(1);
     if (held.error || held.data?.length) return { route: 'none', sent: false, reason: 'Backlog held for explicit Office release.' };
     const latestReview = await admin.from('customer_engagement_events').select('metadata').eq('job_id', jobId).eq('event_type', 'intake_media_reviewed').eq('source', 'office').order('occurred_at', { ascending: false }).limit(1);

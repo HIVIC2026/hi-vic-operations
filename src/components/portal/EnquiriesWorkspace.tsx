@@ -4,7 +4,7 @@
 import { Link } from "@tanstack/react-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -175,7 +175,7 @@ function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
               <Button
                 size="sm"
                 variant="destructive"
-                disabled={busy !== null || reason.trim().length < 3}
+                disabled={busy !== null || !reason.trim()}
                 onClick={() => act("over_r2")}
               >
                 {MEDIA_OUTCOME_LABEL.over_r2}
@@ -219,6 +219,13 @@ export function EnquiriesWorkspace({
   onQ: (next: string) => void;
 }) {
   const load = useServerFn(getEnquiryGroups);
+  const [searchDraft, setSearchDraft] = useState(q ?? '');
+  useEffect(() => { setSearchDraft(q ?? ''); }, [q]);
+  useEffect(() => {
+    if (searchDraft === (q ?? '')) return;
+    const timer = setTimeout(() => onQ(searchDraft), 300);
+    return () => clearTimeout(timer);
+  }, [searchDraft, q, onQ]);
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["enquiries-workspace-page", view, q, page],
     queryFn: () => load({ data: { view, search: q ?? "", page: page + 1 } }),
@@ -380,11 +387,8 @@ export function EnquiriesWorkspace({
             <Input
               aria-label="Search enquiries"
               placeholder="Search name, address, email, phone or job number"
-              value={q ?? ""}
-              onChange={(event) => {
-                onQ(event.target.value);
-                setPage(0);
-              }}
+              value={searchDraft}
+              onChange={(event) => setSearchDraft(event.target.value)}
               className="max-w-md"
             />
             <div className="flex flex-wrap items-center gap-2">

@@ -60,10 +60,11 @@ export type EnquiryGroupRow = EnquiryClass & {
   mediaOutcome: MediaReviewOutcome | null;
 };
 
-export async function loadEnquiryGroups(visibleIds?: string[]) {
+export async function loadEnquiryGroups(visibleIds: string[]) {
+  if (!Array.isArray(visibleIds)) throw new Error('Explicit enquiry IDs are required.');
   const jobs = await all((f, t) => admin.from("jobs")
     .select("id, job_number, external_enquiry_id, stage, hold_reason, source, created_at, eligibility_set_at, eligibility_outcome, eligibility_decision_source, eligibility_review_required, eligibility_decision_rules, estimated_area_m2, estimated_area_unknown, owners(full_name, email, phone), properties(address_line, suburb, state, postcode, enrichment)")
-    .eq("source", WEBSITE_SOURCE).eq("channel", WEBSITE_CHANNEL).in("id", visibleIds ?? []).order("created_at", { ascending: true }).order("id").range(f, t));
+    .eq("source", WEBSITE_SOURCE).eq("channel", WEBSITE_CHANNEL).in("id", visibleIds).order("created_at", { ascending: true }).order("id").range(f, t));
   const outside: { source: string; channel: string }[] = [];
   const ids = jobs.map((j) => j.id);
   const [meas, ests, docs, work, sends, consents, optouts, events, interests, cfg, responses, media, reviewed] = await Promise.all([

@@ -181,4 +181,4 @@ Locked rules:
 - Email art PNGs use pure-JS `png-lite.core.ts` (fflate), never pngjs/node:zlib. Why: pngjs crashes on the live worker and blanked every email header.
 
 - Office pages use the database paging RPC and enrich only returned IDs; job lists use the shared office bucket view. Why: counts, boundaries and page reads agree.
-- Office media reviews are manual-next-action audit events; automatic responses require explicit activation before routing. Why: reviews never send or release held work.
+- Office media reviews are manual-next-action audit events; automatic responses require explicit activation, post-activation creation and no confirmed first response or held backlog before routing. Why: reviews never send or release held work, and activation cannot silently contact older enquiries.
