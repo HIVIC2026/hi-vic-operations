@@ -17,7 +17,6 @@ import {
 import {
   MEDIA_OUTCOME_LABEL,
   STATUS_ORDER,
-  isNewEnquiry,
   type EnquiryStatus,
   type MediaReviewOutcome,
 } from "@/lib/enquiry-groups.core";
@@ -257,13 +256,11 @@ export function EnquiriesWorkspace({
     () => rows.filter((row) => row.mediaCount > 0 && !row.mediaChecked),
     [rows],
   );
-  // One definition for the "New — no email sent" view, shared by the tile count and the list.
-  const newRows = useMemo(() => rows.filter(isNewEnquiry), [rows]);
   const viewCount = (key: EnquiryView) =>
     key === "all"
       ? rows.length
       : key === "new"
-        ? newRows.length
+        ? rows.filter((row) => !row.lastEmail).length
         : key === "photos"
           ? photoRows.length
           : key === "removed"
@@ -276,11 +273,9 @@ export function EnquiriesWorkspace({
         ? photoRows
         : view === "removed"
           ? removedRows
-          : view === "new"
-            ? newRows
-            : view === "all"
-              ? rows
-              : rows.filter((row) => row.status === view);
+          : view === "all"
+            ? rows
+            : rows.filter((row) => row.status === view);
     return base.filter(
       (row) =>
         !term ||
@@ -288,7 +283,7 @@ export function EnquiriesWorkspace({
           value?.toLowerCase().includes(term),
         ),
     );
-  }, [rows, photoRows, newRows, removedRows, view, q]);
+  }, [rows, photoRows, removedRows, view, q]);
   const pages = Math.max(1, Math.ceil(matching.length / PAGE));
   const safePage = Math.min(page, pages - 1);
   const visible = matching.slice(safePage * PAGE, safePage * PAGE + PAGE);
