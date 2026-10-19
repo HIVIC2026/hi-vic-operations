@@ -5,17 +5,18 @@ import { postgrestShim } from "./helpers/pglite-postgrest-shim";
 import { GATE1_RULESET_VERSION } from "../src/lib/eligibility.core";
 const db = await launchCampaignDb();
 await db.exec(`
-ALTER TABLE jobs ADD source text, ADD channel text DEFAULT 'hivic_sourced', ADD stage text, ADD eligibility_outcome text, ADD eligibility_review_required boolean DEFAULT false,
+ALTER TABLE jobs ADD created_at timestamptz DEFAULT now(), ADD job_number text DEFAULT 'HV-TEST-UNLISTED', ADD source text, ADD channel text DEFAULT 'hivic_sourced', ADD stage text, ADD eligibility_outcome text, ADD eligibility_review_required boolean DEFAULT false,
  ADD eligibility_decision_source text, ADD eligibility_decision_rules jsonb, ADD estimated_area_m2 numeric, ADD estimated_area_unknown boolean DEFAULT false, ADD owners jsonb, ADD properties jsonb;
 ALTER TABLE customer_estimate_links ADD token text, ADD purpose text, ADD status text, ADD expires_at timestamptz;
 CREATE TABLE owner_contact_consents(job_id uuid, consent_status text, created_at timestamptz DEFAULT now());
 CREATE TABLE customer_email_optouts(job_id uuid, opted_out_at timestamptz);
-CREATE TABLE post_intake_work(id uuid DEFAULT gen_random_uuid(), job_id uuid, status text);
+CREATE TABLE post_intake_work(id uuid DEFAULT gen_random_uuid(), job_id uuid, status text, reason text, facts_version text);
+CREATE TABLE customer_email_sends(id uuid DEFAULT gen_random_uuid(), job_id uuid, status text, purpose text);
 CREATE TABLE workflow_events(id uuid DEFAULT gen_random_uuid(), job_id uuid, event_type text, summary text, details jsonb, created_at timestamptz DEFAULT now());
 CREATE TABLE indicative_estimates(id uuid DEFAULT gen_random_uuid(), job_id uuid, status text, area_m2 numeric, area_source text, insulation_declared text, scenarios jsonb, snapshot jsonb);
 CREATE TABLE documents(job_id uuid, kind text, mime_type text, storage_path text, source_system text, external_id text);
 CREATE TABLE evidence_files(job_id uuid, mime_type text, storage_path text);
-CREATE TABLE customer_engagement_events(job_id uuid, event_type text, metadata jsonb, occurred_at timestamptz DEFAULT now());
+CREATE TABLE customer_engagement_events(job_id uuid, event_type text, source text DEFAULT 'office', metadata jsonb, occurred_at timestamptz DEFAULT now());
 ALTER TABLE customer_delivery_settings ADD IF NOT EXISTS ready_check_available_postcodes text[];
 -- Pricing fixture parity (P1-FA05A): retail_estimator_settings must carry the full column set the
 -- pricing reader converts (id/version/removal_inc_gst_per_m2/ready_check_fee_inc_gst) or toRates
@@ -50,6 +51,7 @@ mock.module("../src/lib/workflow.server", () => ({
 }));
 mock.module("../src/lib/estimatelink.server", () => ({ resolvePublicEstimate: async () => ({ estimate: {} }) }));
 mock.module("../src/lib/referral.server", () => ({ referralUrlForJob: async () => null }));
+mock.module("../src/lib/save-spot-rules.server", () => ({ readAutomaticRules: async () => ({ state: "ok", config: { enabled: true, activatedAt: "2020-01-01T00:00:00Z" } }) }));
 const { campaignLink, campaignPage, recordInsulationDeclaration, saveCampaignSpot, markCampaignMediaReceived } = await import("../src/lib/launch-campaign.server");
 const { maybeAutoRouteLeadEmail } = await import("../src/lib/lead-email-routing.server");
 const token = "A".repeat(43);
@@ -60,7 +62,7 @@ beforeEach(async () => {
   await db.query("UPDATE customer_estimate_links SET token=$1,purpose='step3_estimate',status='active',expires_at=now()+interval '1 day'", [token]);
   await db.query("INSERT INTO owner_contact_consents VALUES($1,'granted',now())", [LAUNCH_ID.job]);
   await db.query("INSERT INTO workflow_events(job_id,event_type) VALUES($1,'spot_saved_confirmation_queued')", [LAUNCH_ID.job]);
-  await db.query("INSERT INTO indicative_estimates(job_id,status,area_m2,insulation_declared,scenarios) VALUES($1,'current',120,'present',$2)", [LAUNCH_ID.job,JSON.stringify([{by_access:{standard:{estimated_customer_total:2500,applied_discount:1400,pre_discount_total:3900}}}])]);
+  await db.query("INSERT INTO indicative_estimates(job_id,status,area_source,area_m2,insulation_declared,scenarios) VALUES($1,'current','owner_estimate',120,'present',$2)", [LAUNCH_ID.job,JSON.stringify([{by_access:{standard:{estimated_customer_total:2500,applied_discount:1400,pre_discount_total:3900}}}])]);
 });
 for (const type of ["loose_fill_only", "below_r2"] as const) test(`${type}: actual declaration→page→save→repeat, keeps existing insulation and price`, async () => {
   expect((await campaignLink(token))?.ownerQualified).toBe(false);
@@ -110,14 +112,11 @@ for (const state of ["ineligible","closed","opted_out","expired","revoked","wron
 });
 test("declaration cannot erase existing insulation through calculator save", async () => {
   await recordInsulationDeclaration(token,"loose_fill_only",true);
-  // The calculator can change the size, never the recorded insulation fact: the server rewrites the
-  // submitted "none" to the declared "present" (calculatorInsulation), so the spot saves with the
-  // declaration intact. (This expectation used to hold only because the incomplete pricing fixture
-  // made every save fail closed at the unknown-price-version guard before reaching the rewrite.)
-  await saveCampaignSpot(token,{areaM2:120,insulation:"none"});
+  // A conflicting calculator answer must stop before saving, never erase the declaration.
+  await expect(saveCampaignSpot(token,{areaM2:120,insulation:"none"})).rejects.toThrow("Keep your existing-insulation answer");
   const row = (await db.query("SELECT saved_insulation,spot_saved_at FROM lead_campaign_responses")).rows[0];
-  expect(row).toMatchObject({saved_insulation:"present"});
-  expect(row.spot_saved_at).not.toBeNull();
+  expect(row.spot_saved_at).toBeNull();
+  expect((await db.query("SELECT insulation_declared FROM indicative_estimates")).rows[0]).toEqual({insulation_declared:"present"});
 });
 test("current negative office finding overrides an earlier qualifying Yes", async () => {
   await recordInsulationDeclaration(token,"below_r2",true);

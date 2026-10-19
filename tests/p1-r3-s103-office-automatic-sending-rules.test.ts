@@ -556,7 +556,7 @@ describe("live automatic path — maybeAutoRouteLeadEmail → offer_spot → sen
     const res = await maybeAutoRouteLeadEmail(JOB);
     expect(res.route).toBe("none");
     expect(res.sent).toBe(false);
-    expect(res.reason).toContain("Automatic Save my spot selection is off");
+    expect(res.reason).toContain("Automatic selection is disabled");
     expect(fetchCalls).toBe(0);
   });
   test("no saved configuration => nothing is automatically sent, ZERO provider calls", async () => {

@@ -131,5 +131,5 @@ _t("no send record → waiting list, never 'sent'/'waiting for owner', never lat
   _e(_os({ ...base, estimateSentAt: "2026-01-02T00:00:00Z", ownerContactedAt: "2026-10-01T00:00:00Z" }, now)!.key).toBe("enquiry.estimate_sent");
   for (const k of _K) if (/sent|waiting for owner/i.test(_S[k].label) && _S[k].stage === "enquiry") _e(k).not.toContain("waiting_list");
   const n = _nm({ now, jobs: [{ id: "j", jobNumber: "HV-1", suburb: null, owner: null, stage: base.stage, status: a, statusCount: 1, lastActivityAt: base.lastActivityAt, nextAction: null, installDeadline: null, installStarted: false, holdRevisitAt: null, failures: [], parked: true }], partners: [], snoozes: [], lim: {} });
-  _e(n.items.length).toBe(1); _e(n.items[0]!.jobId).toBe(null); _e(n.items[0]!.count).toBe(1); _e(n.items[0]!.href).toBe("/admin/hot-leads");
+  _e(n.items.length).toBe(1); _e(n.items[0]!.jobId).toBe(null); _e(n.items[0]!.count).toBe(1); _e(n.items[0]!.href).toBe("/admin/enquiry-groups");
 });
