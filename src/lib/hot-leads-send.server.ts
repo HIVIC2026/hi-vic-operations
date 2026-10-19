@@ -55,7 +55,7 @@ export async function prepareOfficeSaveSpot(jobId: string, actorId: string | nul
   return sendOne(jobId, actorId, false, { mode: issueLinks ? "manual_copy" : "preview", officeVariant: variant }, variant === "reviewed_under_r2").catch((e) => ({ jobId, jobNumber: null, outcome: "blocked" as const, detail: (e as Error).message }));
 }
 
-export async function sendExistingInsulationSaveSpot(jobId: string, actorId: string, preview = false): Promise<HotSendResult> {
+export async function sendExistingInsulationSaveSpot(jobId: string, actorId: string | null, preview = false): Promise<HotSendResult> {
   return sendOne(jobId, actorId, false, { mode: preview ? "preview" : "send" }, true);
 }
 
