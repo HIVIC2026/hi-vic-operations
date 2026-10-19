@@ -22,7 +22,8 @@ describe("Office 'No insulation visible' review", () => {
     expect(automaticLeadEmail({ ...base, declaredInsulation: effectiveInsulation("unknown", null) }).email).toBe("request_insulation");
   });
   test("grouping places reviewed job in Save my spot lane, not insulation check", () => {
-    const c = classifyEnquiry({ kind: "job", stage: "preliminary_estimate_ready", holdReason: null, outcome: "needs_onsite_confirmation", decisionSource: "system", reviewRequired: false, audit: null, intakeWorkActive: false, declaredInsulation: "present", officeInsulation: "no_insulation" } as never);
+    const c = classifyEnquiry({ kind: "job", stage: "preliminary_estimate_ready", holdReason: null, outcome: "likely_eligible", decisionSource: "admin", reviewRequired: false, audit: null, intakeWorkActive: false, declaredInsulation: effectiveInsulation("present", "no_insulation"), officeInsulation: "no_insulation", area: { m2: 120, source: "owner_estimate" } } as never);
+    if (!(c.group === "likely_size" || c.group === "likely_no_size")) console.log(c);
     expect(c.group === "likely_size" || c.group === "likely_no_size").toBe(true);
   });
   test("blocker refuses TEST, later stages and officially ineligible", () => {
