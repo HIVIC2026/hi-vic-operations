@@ -80,3 +80,12 @@ export const existingInsulationSaveSpotFn = createServerFn({ method: "POST" }).m
     const { sendExistingInsulationSaveSpot } = await import("./hot-leads-send.server");
     return sendExistingInsulationSaveSpot(data.jobId, context.userId, data.preview);
   });
+
+/** Admin-only, ONE job: prepare/refresh the secure estimate link (Step 3). Never sends. */
+export const prepareEstimateLinkFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { syncStep3 } = await import("./estimatelink.server");
+    return syncStep3(data.jobId, context.userId ?? null);
+  });
