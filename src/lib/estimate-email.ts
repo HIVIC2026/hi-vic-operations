@@ -21,7 +21,7 @@ export type EstimateEmailInput = {
   /** True when the ceiling size is the typical-home default rather than a declared/measured figure. */
   areaIsTypical?: boolean;
   trackingClickUrl?: string | null; trackingPixelUrl?: string | null; referralUrl?: string | null;
-  /** Versioned pricing (pricing-cohort.core): Ready Check fee for THIS job's cohort. Absent/0 = free (legacy/protected, byte-identical output). */
+  /** Historical input retained for compatibility; the Ready Check is always free. */
   readyCheckFeeIncGst?: number | null;
   /** "current" = new-version cohort: install row also shows ex/inc GST rate wording. */
   pricingCohort?: "pre_cutover" | "legacy_saved_spot" | "current";
@@ -132,7 +132,7 @@ function validateQuoteInput(input: EstimateEmailInput) {
   const closeEnough = (a: number, b: number) => Math.abs(Math.round(a * 100) - Math.round(b * 100)) <= 1;
   if (hasBreakdown) {
     const fee = readyCheckFeeOf(input);
-    if (!closeEnough(payableNow, fee)) throw new Error(fee > 0 ? "The amount payable now must equal the Ready Check fee for this customer's price version." : "The amount payable now must be $0 because the Home Insulation Ready Check is free.");
+    if (!closeEnough(payableNow, fee)) throw new Error("The amount payable now must be $0 because the Home Insulation Ready Check is free.");
     const removal = input.saveSpotRemoval?.kind === "included" ? input.saveSpotRemoval.amount : 0;
     if (!closeEnough(installation + assessment + apFee + removal + fee, gross)) throw new Error("Quote line items must reconcile to the gross project total.");
     if (!closeEnough(gross - discount, customer)) throw new Error("Gross project total less VEU discount must equal the estimated customer price.");
@@ -152,37 +152,10 @@ function readyCheckFeeOf(input: Pick<EstimateEmailInput, "readyCheckFeeIncGst">)
   return effectiveReadyCheckFee(input.readyCheckFeeIncGst ?? READY_CHECK_FEE);
 }
 
-/**
- * New-cohort pricing (Jo, 12 Oct 2026): replaces ONLY the free Ready Check statements with the disclosed fee and adds
- * the ex/inc GST supply rate. Fee 0 (legacy / protected saved spots) returns the email untouched — byte-identical.
- * Throws if any free-Ready-Check statement survives, so a paying customer is never told it is free.
- */
-export function applyReadyCheckFee(mail: EstimateEmail, input: Pick<EstimateEmailInput, "readyCheckFeeIncGst" | "installationRatePerM2" | "pricingCohort">, saveSpot: boolean): EstimateEmail {
-  const fee = readyCheckFeeOf(input);
-  if (fee === 0) return mail;
-  const feeText = `${money(fee)} including GST`;
-  const rate = input.installationRatePerM2;
-  const rateText = input.pricingCohort === "current" && typeof rate === "number" && rate > 0 ? ` ${money(Math.round((rate / 1.1) * 100) / 100)} per m² plus GST (${money(rate)} per m² including GST).` : "";
-  const noPay = saveSpot ? `Saving your spot is free and needs no payment. The measure-up &amp; eligibility check is ${feeText}. No obligation to proceed with installation.` : `The measure-up &amp; eligibility check is ${feeText}. No obligation to proceed with installation.`;
-  const swaps: [string | RegExp, string][] = [
-    [`<span style="color:${GREEN};font-weight:800;">FREE</span>`, escape(money(fee))],
-    [": FREE", `: ${money(fee)} inc GST`],
-    ["Free Insulation Measure-Up &amp; Eligibility Check", `Insulation Measure-Up &amp; Eligibility Check (${feeText})`],
-    ["Free Insulation Measure-Up & Eligibility Check", `Insulation Measure-Up & Eligibility Check (${feeText})`],
-    ["FREE INSULATION MEASURE-UP & ELIGIBILITY CHECK", `INSULATION MEASURE-UP & ELIGIBILITY CHECK (${feeText.toUpperCase()})`],
-    ["Arrange my free measure-up &amp; eligibility check", "Arrange my measure-up &amp; eligibility check"],
-    ["Arrange my free measure-up & eligibility check", "Arrange my measure-up & eligibility check"],
-    ["arrange your free measure-up &amp; eligibility check", `arrange your measure-up &amp; eligibility check (${feeText})`],
-    ["arrange your free measure-up & eligibility check", `arrange your measure-up & eligibility check (${feeText})`],
-    ["your free Ready Check", `your Ready Check (${feeText})`],
-    ["No payment required. No obligation to proceed with installation.", noPay],
-    ["Fitted by a pre-vetted Certified Insulation Installer (CII) from our panel.", `Fitted by a pre-vetted Certified Insulation Installer (CII) from our panel.${rateText}`],
-  ];
-  const sw = (t: string, plain: boolean) => swaps.reduce((acc, [a, b]) => acc.split(a as string).join(plain ? b.replace(/&amp;/g, "&") : b), t);
-  const out = { subject: sw(mail.subject, true), previewText: sw(mail.previewText, true), html: sw(mail.html, false), plainText: sw(mail.plainText, true) };
-  const leftover = /free (ready check|measure-up|insulation measure)|>FREE<|: FREE\b|No payment required\. No obligation/i;
-  for (const v of Object.values(out)) if (leftover.test(v)) throw new Error("A free Ready Check statement remains in a paid-cohort email.");
-  return out;
+/** Compatibility export: preserve the approved free-check email without changing any wording. */
+export function applyReadyCheckFee(mail: EstimateEmail, input: Pick<EstimateEmailInput, "readyCheckFeeIncGst" | "installationRatePerM2" | "pricingCohort">, _saveSpot: boolean): EstimateEmail {
+  readyCheckFeeOf(input);
+  return mail;
 }
 
 // ---------------------------------------------------------------------------

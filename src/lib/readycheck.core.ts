@@ -6,13 +6,13 @@
  */
 
 export const READY_CHECK_FEE = 0 as const;
-/** Jo 12 Oct 2026 23:12 UTC: the Ready Check is FREE ($0 inc GST) for ALL customers. */
+/** Jo 19 Oct 2026: the Ready Check is always FREE ($0) for ALL customers. */
 export const READY_CHECK_FEE_LOCKED_FREE = true as const;
-/** The ONE fee boundary: validates the input, then returns 0 while the lock is on, whatever was passed (e.g. a stale 99). */
+/** Compatibility boundary: validate historical inputs, but never charge for a Ready Check. */
 export function effectiveReadyCheckFee(fee: unknown): number {
   const n = fee == null ? 0 : Number(fee);
-  if (!Number.isFinite(n) || n < 0) throw new Error("Ready Check fee must be a finite non-negative value.");
-  return READY_CHECK_FEE_LOCKED_FREE ? 0 : n;
+  if (!Number.isFinite(n) || n < 0) throw new Error("Invalid Ready Check amount.");
+  return READY_CHECK_FEE;
 }
 export const READY_CHECK_COPY_VERSION = "ready-check-free-v2" as const;
 export const READY_CHECK_NAME = "Home Insulation Ready Check" as const;
@@ -38,8 +38,7 @@ export type ReadyCheckAcceptanceState = {
 
 /** The Ready Check is free, so the full estimated project amount remains. */
 export function readyCheckRemaining(costAfterDiscountIncGst: number, feeIncGst: number = READY_CHECK_FEE): number {
-  // The fee is collected once; the remaining balance never includes it again. Legacy/protected = 0.
-  if (!Number.isFinite(feeIncGst) || feeIncGst < 0) throw new Error("Invalid Ready Check fee");
+  if (!Number.isFinite(feeIncGst) || feeIncGst < 0) throw new Error("Invalid Ready Check amount");
   return Math.max(0, round2(costAfterDiscountIncGst - effectiveReadyCheckFee(feeIncGst)));
 }
 
