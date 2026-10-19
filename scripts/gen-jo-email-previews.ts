@@ -35,8 +35,8 @@ const figures = (area: number, estimated: boolean) => ({
   customerTotal: 1900,
   totalBeforeRebate: 4500,
   installation: 3800,
-  piesaFee: 350,
-  apFee: 350,
+  piesaFee: 349,
+  apFee: 349,
   ceilingAreaM2: area,
   areaEstimated: estimated,
 });
