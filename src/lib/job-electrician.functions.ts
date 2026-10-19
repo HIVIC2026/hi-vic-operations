@@ -2,6 +2,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireJobRole } from "./workflow.server";
 
 export const getJobElectrician = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
@@ -15,6 +16,9 @@ export const getJobElectrician = createServerFn({ method: "POST" }).middleware([
 export const switchJobElectricianToHivic = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    // A3 hardening: check job access BEFORE reading job state / switching the electrician arrangement.
+    // switchJobToHivic() is an installer action (it re-checks "only the installer on this job" downstream).
+    await requireJobRole(context.supabase, data.jobId, ["installer"]);
     const { switchJobToHivic } = await import("./job-electrician.server");
     return switchJobToHivic(data.jobId, context.userId);
   });

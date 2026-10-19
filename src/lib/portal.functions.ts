@@ -25,6 +25,7 @@ import { mittiAssignBlocker, mittiOverrideAccepted } from "./mitti-membership.co
 import { signFile } from "./file-links.server";
 import { melbourneToday } from "@/lib/melbourne-time.core";
 import { piesaDateBlockers } from "./piesa-date.core";
+import { CLEARANCE_RECORDER_REFUSED, clearanceRecorderAllowed } from "./clearance-guard.core";
 
 const clean = <T extends Record<string, unknown>>(o: T) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as never;
 
@@ -219,10 +220,22 @@ const measurementPatch = z.object({
 const SITE_STAGES = ["ready_check_scheduled", "assessment_booking", "assessment_booked"];
 const MEASURE_EVIDENCE = ["measurement", "existing_insulation_r_value"];
 
+/**
+ * STEP 73/80: recording a regulated electrical result (PIESA draft, completion, a fresh PIESA record or the electrician
+ * declaration) needs the licensed-electrician APP role — not merely a job role. Since 0115 a partner BUSINESS ADMIN gets
+ * the assignment's role ('electrician') for its business's jobs without holding that app role, so requireJobRole alone is
+ * not enough. Office (admin) keeps its existing access. Runs BEFORE any read or write, and fails closed on an rpc error.
+ */
+async function requireClearanceRecorder(r: Parameters<typeof requireJobRole>[0], jobRole: string, userId: string) {
+  const { data, error } = await r.rpc("has_role", { _user_id: userId, _role: "electrician" });
+  if (error || !clearanceRecorderAllowed({ jobRole, hasElectricianRole: data === true })) throw new WorkflowError(CLEARANCE_RECORDER_REFUSED);
+}
+
 export const saveAssessment = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, patch: assessmentPatch }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    const jobRole = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    await requireClearanceRecorder(context.supabase as never, jobRole, context.userId);
     // Server-side PIESA date rule (same one recordPiesa enforces): no future assessment dates.
     if (data.patch.assessed_on !== undefined && data.patch.assessed_on !== null) {
       const b = piesaDateBlockers(data.patch.assessed_on);
@@ -503,7 +516,8 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
     rectWindows: z.array(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), slot: z.enum(["8-10", "10-12", "12-14", "14-16"]) })).max(5).optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    const jobRole = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    await requireClearanceRecorder(context.supabase as never, jobRole, context.userId);
     const { data: a } = await admin.from("assessments").select("*").eq("job_id", data.jobId).maybeSingle();
     if (!a) throw new WorkflowError("Start the assessment first.");
     if (a.status === "complete") throw new WorkflowError("Electrical assessment is already complete.");
@@ -583,7 +597,8 @@ export const recordPiesa = createServerFn({ method: "POST" }).middleware([requir
     sectionCSignedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    const jobRole = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
+    await requireClearanceRecorder(context.supabase as never, jobRole, context.userId);
     const dateBlockers = piesaDateBlockers(data.completedDate); // Melbourne calendar date, not UTC
     if (dateBlockers.length) throw new WorkflowError(dateBlockers[0]!);
     const stage = await getStage(data.jobId);
@@ -1004,8 +1019,9 @@ export const completeInstallation = createServerFn({ method: "POST" }).middlewar
 export const submitDeclaration = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, kind: z.enum(["installer_declaration", "electrician_declaration"]), statement: z.string().trim().min(10).max(4000) }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireJobRole(context.supabase, data.jobId, ["admin", data.kind === "installer_declaration" ? "installer" : "electrician"]);
+    const jobRole = await requireJobRole(context.supabase, data.jobId, ["admin", data.kind === "installer_declaration" ? "installer" : "electrician"]);
     if (data.kind === "installer_declaration") throw new WorkflowError("Installer declarations are signed in the final VEEC assignment step (approved wording only).");
+    await requireClearanceRecorder(context.supabase as never, jobRole, context.userId);
     await admin.from("declarations").upsert({ job_id: data.jobId, kind: data.kind, declared_by: context.userId, statement: data.statement, declared_at: new Date().toISOString() }, { onConflict: "job_id,kind" });
     await logEvent(data.jobId, context.userId, "declaration_submitted", `${data.kind.replace("_", " ")} signed`);
     await autoAdvanceJob(data.jobId, context.userId, "declaration signed");
