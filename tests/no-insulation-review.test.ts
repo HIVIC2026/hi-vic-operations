@@ -34,14 +34,14 @@ describe("Office 'No insulation visible' review", () => {
     expect(noInsulationReviewBlocker({ ...ok, eligibility_outcome: "does_not_appear_eligible" })).not.toBeNull();
     expect(MEDIA_OUTCOME_LABEL.no_insulation).toBe("No insulation visible");
   });
-  test("raw homeowner answer is never written; actions admin-only; send uses normal guarded sender", () => {
+  test("manual review preserves raw answers and has an admin-only audit boundary", () => {
     const srv = readFileSync("src/lib/enquiry-groups.server.ts", "utf8");
     const fn = readFileSync("src/lib/enquiry-groups.functions.ts", "utf8");
     expect(srv).not.toMatch(/enrichment[^\n]*update|update\([^)]*enrichment/);
-    const fnBody = srv.slice(srv.indexOf("export async function noInsulationSaveSpot"));
-    expect(fnBody).toContain('sendSaveMySpot([jobId], by');
-    expect(fnBody.split("\nexport ")[0]).not.toMatch(/force/i);
-    for (const name of ["reviewLeadMediaFn", "noInsulationSaveSpotFn"]) {
+    const fnBody = srv.slice(srv.indexOf("export async function reviewLeadMedia"),srv.indexOf("export async function removeLeads"));
+    expect(fnBody).toContain('customer_engagement_events');
+    expect(fnBody).not.toMatch(/sendSaveMySpot|enqueue|sendExistingInsulation/);
+    for (const name of ["reviewLeadMediaFn"]) {
       const block = fn.slice(fn.indexOf(`export const ${name}`)).split("export const")[1];
       expect(block).toContain("requireSupabaseAuth");
       expect(block).toContain("requireAdmin(context.supabase)");
