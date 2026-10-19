@@ -16,7 +16,7 @@ export const getEnquiryGroups = createServerFn({ method: "POST" }).middleware([r
         id: x.id, kind: x.kind, jobNumber: x.jobNumber, reference: x.reference, name: x.name, email: x.email, phone: x.phone, address: x.address, createdAt: x.createdAt, stage: x.stage,
         group: x.group, otherReason: x.otherReason, reason: x.reason, area: x.area, areaLabel: x.areaLabel, videoState: x.videoState, nextAction: x.nextAction, lastEmail: x.lastEmail, declaredInsulation: x.declaredInsulation,
         duplicate: x.kind === "job" && !x.isPrimaryForContact, status: x.status,
-        attentionReason: x.attentionReason ?? (x.status === "needs_attention" ? x.reason : null), outcomeAt: x.outcomeAt,
+        attentionReason: x.attentionReason ?? (x.status === "needs_attention" ? x.reason : null), outcomeAt: x.outcomeAt, needsFirstResponse: x.needsFirstResponse,
         mediaCount: x.mediaCount, mediaChecked: x.mediaChecked, mediaOutcome: x.mediaOutcome, removed: !!x.removed,
       })),
       counts: r.counts, total: r.total, page: r.page, pageSize: r.pageSize, totalPages: r.totalPages,

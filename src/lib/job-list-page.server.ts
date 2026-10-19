@@ -72,7 +72,7 @@ export async function loadJobListPage(params: JobListParams) {
   const sortKey = toEnum(params.sort, JOB_SORT_KEYS, "last_activity_at") ?? "last_activity_at";
   const ascending = toDirection(params.direction) === "asc";
   const archived = await archivedQaJobIds();
-  const scoped = (m: JobMode = mode, v: JobClosedView = closedView) => scope(jobOverview("exact"), archived, m, v);
+  const scoped = (m: JobMode = mode, v: JobClosedView = closedView) => scope(jobOverview("exact", true), archived, m, v);
   const searchedScope = () => searched(scoped(), search);
 
   const run = async (page: number) => {

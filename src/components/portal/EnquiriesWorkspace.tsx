@@ -542,6 +542,8 @@ export function EnquiriesWorkspace({
                           </div>
                         ) : view === "removed" ? (
                           "Removed by office"
+                        ) : row.mediaOutcome === 'no_insulation' ? (
+                          row.nextAction
                         ) : row.mediaOutcome === "below_r2" &&
                           row.status !== "spot_saved" &&
                           row.status !== "ineligible" ? (

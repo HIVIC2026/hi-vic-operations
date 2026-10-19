@@ -9,6 +9,9 @@ export async function loadOfficeEnquiryPage(view: EnquiryPageView, search: strin
   const result = data as unknown as Page;
   if (!result || !Array.isArray(result.ids) || result.ids.length > 50) throw new Error('Invalid enquiry page');
   const details = result.ids.length ? await loadEnquiryGroups(result.ids) : { rows: [] };
+  const { data: facts, error: factsError } = result.ids.length ? await admin.from('office_enquiry_index').select('id,enquiry_status,needs_first_response,review_outcome').in('id', result.ids) : { data: [], error: null };
+  if (factsError) throw new Error('Could not verify enquiry page facts.');
+  const factById = new Map((facts ?? []).map(row => [row.id, row]));
   const byId = new Map(details.rows.map(row => [row.id, row]));
-  return { ...result, rows: result.ids.flatMap(id => { const row = byId.get(id); return row ? [row] : []; }) };
+  return { ...result, rows: result.ids.flatMap(id => { const row = byId.get(id); const fact = factById.get(id); return row ? [{ ...row, status: (fact?.enquiry_status ?? row.status) as typeof row.status, needsFirstResponse: fact?.needs_first_response ?? true, nextAction: row.mediaOutcome === 'no_insulation' || row.mediaOutcome === 'below_r2' ? 'Ready to offer Save My Spot' : row.mediaOutcome === 'unclear' ? 'Request more photos / video' : row.nextAction }] : []; }) };
 }
