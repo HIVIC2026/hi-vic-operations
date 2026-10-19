@@ -11,9 +11,13 @@ export type EnquiryOverviewRow = {
   id: string; jobNumber: string | null; createdAt: string | null;
   ownerName: string | null; address: string | null; eligibilityOutcome: string | null;
   sent: boolean; failed: boolean; inFlight: boolean; manualReview: boolean; hasEmail: boolean; suppressed: boolean;
+  /** True when a send would actually go out now (same rules the dispatch action applies). */
+  dispatchReady: boolean;
 };
 export type EnquiryResponseOverview = {
-  counts: { total: number; sent: number; failed: number; awaiting: number; inFlight: number; manualReview: number; noEmail: number; suppressed: number };
+  counts: { total: number; sent: number; failed: number; awaiting: number; inFlight: number; manualReview: number; noEmail: number; suppressed: number;
+    /** Ready to send now, capped by the dispatch pool. `null` = the check could not be read (nothing is sendable then). */
+    dispatchReady: number | null };
   awaiting: EnquiryOverviewRow[];
 };
 
@@ -30,12 +34,21 @@ export const getEnquiryResponseOverview = createServerFn({ method: "POST" }).mid
     .limit(2000);
   if (error) throw new Error(`Enquiry overview could not be loaded: ${error.message}`);
 
-  const [{ data: sends }, { data: comms }, { data: optouts }, { data: lcr }] = await Promise.all([
+  // Ready-to-send uses the SAME server-side rules the dispatch action applies, so the button's count can never
+  // promise something a send would then refuse. Read failures leave the count unknown instead of guessing.
+  const readyTask = (async () => {
+    const { candidateJobIds, sendableFrom } = await import("./enquiry-dispatch.server");
+    return sendableFrom(await candidateJobIds());
+  })().catch(() => null as string[] | null);
+
+  const [{ data: sends }, { data: comms }, { data: optouts }, { data: lcr }, readyIds] = await Promise.all([
     admin.from("customer_email_sends").select("job_id, status"),
     admin.from("job_communications").select("job_id, direction, channel, delivery_status").eq("direction", "outbound").eq("channel", "email"),
     admin.from("customer_email_optouts").select("job_id, opted_out_at"),
     admin.from("lead_campaign_responses").select("job_id, opted_out_at"),
+    readyTask,
   ]);
+  const readySet = new Set(readyIds ?? []);
   const sentByJob = new Set<string>();
   const failedByJob = new Set<string>();
   const inFlightByJob = new Set<string>();
@@ -63,6 +76,7 @@ export const getEnquiryResponseOverview = createServerFn({ method: "POST" }).mid
       sent: sentByJob.has(j.id), failed: failedByJob.has(j.id), inFlight: inFlightByJob.has(j.id),
       manualReview: j.eligibility_review_required === true,
       hasEmail: !!owner?.email, suppressed: suppressedSet.has(j.id),
+      dispatchReady: readySet.has(j.id),
     };
   });
 
@@ -77,6 +91,7 @@ export const getEnquiryResponseOverview = createServerFn({ method: "POST" }).mid
     manualReview: actionable.filter((r) => r.manualReview).length,
     noEmail: rows.filter((r) => !r.hasEmail).length,
     suppressed: rows.filter((r) => r.suppressed && !r.sent).length,
+    dispatchReady: readyIds === null ? null : rows.filter((r) => r.dispatchReady).length,
   };
   return { counts, awaiting: actionable.slice(0, 100) };
 });
