@@ -1,0 +1,443 @@
+{
+  "browser_start": "2026-10-19T04:11:31.143Z",
+  "environment": "production canonical",
+  "auth": "none; fresh unsigned contexts",
+  "rows": [
+    {
+      "route": "/",
+      "role": "public customer",
+      "width": 390,
+      "start": "2026-10-19T04:11:31.453Z",
+      "http": 200,
+      "final_path": "/",
+      "observed_ms": 2570,
+      "headings": [
+        "How much could you save on ceiling insulation?",
+        "Demand is high. Installer availability is limited."
+      ],
+      "links": [
+        {
+          "text": "homeinsulationvictoria.com.au",
+          "href": "https://homeinsulationvictoria.com.au"
+        },
+        {
+          "text": "Privacy policy",
+          "href": "/privacy"
+        }
+      ],
+      "overflow": {
+        "viewport": 390,
+        "document": 390,
+        "body": 390
+      },
+      "bad_text": [],
+      "agreement_excerpts": [],
+      "sample_banner": false,
+      "signing_disabled": null,
+      "images": [
+        {
+          "alt": "Home Insulation Victoria",
+          "loaded": true
+        }
+      ],
+      "status": "passed",
+      "screenshot": "screens/calculator-390.png",
+      "end": "2026-10-19T04:11:34.081Z",
+      "page_errors": [],
+      "blocked_requests": [
+        {
+          "method": "POST",
+          "path": "/__l5e/trackevents",
+          "reason": "non-GET/provider/address/server-function boundary"
+        },
+        {
+          "method": "POST",
+          "path": "/__l5e/trackevents",
+          "reason": "non-GET/provider/address/server-function boundary"
+        }
+      ],
+      "http_failures": []
+    },
+    {
+      "route": "/",
+      "role": "public customer",
+      "width": 1280,
+      "start": "2026-10-19T04:11:34.121Z",
+      "http": 200,
+      "final_path": "/",
+      "observed_ms": 1562,
+      "headings": [
+        "How much could you save on ceiling insulation?",
+        "Demand is high. Installer availability is limited."
+      ],
+      "links": [
+        {
+          "text": "homeinsulationvictoria.com.au",
+          "href": "https://homeinsulationvictoria.com.au"
+        },
+        {
+          "text": "Privacy policy",
+          "href": "/privacy"
+        }
+      ],
+      "overflow": {
+        "viewport": 1280,
+        "document": 1280,
+        "body": 1280
+      },
+      "bad_text": [],
+      "agreement_excerpts": [],
+      "sample_banner": false,
+      "signing_disabled": null,
+      "images": [
+        {
+          "alt": "Home Insulation Victoria",
+          "loaded": true
+        }
+      ],
+      "status": "passed",
+      "screenshot": "screens/calculator-1280.png",
+      "end": "2026-10-19T04:11:35.779Z",
+      "page_errors": [],
+      "blocked_requests": [
+        {
+          "method": "POST",
+          "path": "/__l5e/trackevents",
+          "reason": "non-GET/provider/address/server-function boundary"
+        },
+        {
+          "method": "POST",
+          "path": "/__l5e/trackevents",
+          "reason": "non-GET/provider/address/server-function boundary"
+        }
+      ],
+      "http_failures": []
+    },
+    {
+      "route": "/installer-onboarding?sample=review",
+      "role": "public sample",
+      "width": 390,
+      "start": "2026-10-19T04:11:35.808Z",
+      "http": 200,
+      "final_path": "/installer-onboarding",
+      "observed_ms": 2701,
+      "headings": [
+        "Review & sign",
+        "1. Review the agreement",
+        "2. Sign"
+      ],
+      "links": [],
+      "overflow": {
+        "viewport": 390,
+        "document": 390,
+        "body": 390
+      },
+      "bad_text": [],
+      "agreement_excerpts": [
+        "ctoria and WorkSafe Victoria requirements, occupational health and safety laws, Australian Consumer Law and all binding replacements or amendments.  2. Definitions and priority Activity 48 means the VEU ceiling-insulation prescribed activity and any successor or replacement activity",
+        " under clause 26, and the disputed portion is held until resolved. Defects. For 12 months after completion of each Job, the Installer must return and correct any defect in its workmanship at its own cost within a reasonable time after notice. This does not limit any g",
+        "hin a reasonable time after notice. This does not limit any guarantee under the Australian Consumer Law.  18. Conflicts, incentives and improper benefits The Installer must disclose any actual or potential conflict of interest that could affect impartial assessment, quoting or safet",
+        "ome Insulation Victoria-related work, insolvency, or other material breach. For 12 months after this agreement ends, the Installer must not solicit or accept work, directly or through another entity, from a customer it dealt with through Home Insulation Victoria, wher"
+      ],
+      "sample_banner": true,
+      "signing_disabled": true,
+      "images": [
+        {
+          "alt": "Home Insulation Victoria",
+          "loaded": true
+        }
+      ],
+      "status": "passed",
+      "screenshot": "screens/installer-review-390.png",
+      "end": "2026-10-19T04:11:38.581Z",
+      "page_errors": [],
+      "blocked_requests": [
+        {
+          "method": "POST",
+          "path": "/__l5e/trackevents",
+          "reason": "non-GET/provider/address/server-function boundary"
+        },
+        {
+          "method": "POST",
+          "path": "/__l5e/trackevents",
+          "reason": "non-GET/provider/address/server-function boundary"
+        }
+      ],
+      "http_failures": []
+    },
+    {
+      "route": "/installer-onboarding?sample=review",
+      "role": "public sample",
+      "width": 1280,
+      "start": "2026-10-19T04:11:38.610Z",
+      "http": 200,
+      "final_path": "/installer-onboarding",
+      "observed_ms": 2560,
+      "headings": [
+        "Review & sign",
+        "1. Review the agreement",
+        "2. Sign"
+      ],
+      "links": [],
+      "overflow": {
+        "viewport": 1280,
+        "document": 1280,
+        "body": 1280
+      },
+      "bad_text": [],
+      "agreement_excerpts": [
+        "ctoria and WorkSafe Victoria requirements, occupational health and safety laws, Australian Consumer Law and all binding replacements or amendments.  2. Definitions and priority Activity 48 means the VEU ceiling-insulation prescribed activity and any successor or replacement activity",
+        " under clause 26, and the disputed portion is held until resolved. Defects. For 12 months after completion of each Job, the Installer must return and correct any defect in its workmanship at its own cost within a reasonable time after notice. This does not limit any g",
+        "hin a reasonable time after notice. This does not limit any guarantee under the Australian Consumer Law.  18. Conflicts, incentives and improper benefits The Installer must disclose any actual or potential conflict of interest that could affect impartial assessment, quoting or safet",
+        "ome Insulation Victoria-related work, insolvency, or other material breach. For 12 months after this agreement ends, the Installer must not solicit or accept work, directly or through another entity, from a customer it dealt with through Home Insulation Victoria, wher"
+      ],
+      "sample_banner": true,
+      "signing_disabled": true,
+      "images": [
+        {
+          "alt": "Home Insulation Victoria",
+          "loaded": true
+        }
+      ],
+      "status": "passed",
+      "screenshot": "screens/installer-review-1280.png",
+      "end": "2026-10-19T04:11:41.272Z",
+      "page_errors": [],
+      "blocked_requests": [
+        {
+          "method": "POST",
+          "path": "/__l5e/trackevents",
+          "reason": "non-GET/provider/address/server-function boundary"
+        },
+        {
+          "method": "POST",
+          "path": "/__l5e/trackevents",
+          "reason": "non-GET/provider/address/server-function boundary"
+        }
+      ],
+      "http_failures": []
+    },
+    {
+      "route": "/electrician-onboarding?sample=review",
+      "role": "public sample",
+      "width": 390,
+      "start": "2026-10-19T04:11:41.301Z",
+      "http": 200,
+      "final_path": "/electrician-onboarding",
+      "observed_ms": 2120,
+      "headings": [
+        "Review agreement"
+      ],
+      "links": [],
+      "overflow": {
+        "viewport": 390,
+        "document": 390,
+        "body": 390
+      },
+      "bad_text": [],
+      "agreement_excerpts": [
+        "ements, applicable electrical safety laws, occupational health and safety laws, Australian Consumer Law and all binding replacements or amendments. AS 3999 and insulation-installer competency requirements apply to the REC only to the extent a current law, Scheme rule or approved ele",
+        "uired by the current PIESA. Where life-support requirements apply, the required written consent or medical plan must be obtained and retained before the assessment or installation proceeds as required by the form. The completed PIESA must be provided through Home Insulation ",
+        "t PIESA. Where life-support requirements apply, the required written consent or medical plan must be obtained and retained before the assessment or installation proceeds as required by the form. The completed PIESA must be provided through Home Insulation Victoria in time",
+        "le it is resolved. No payment is forfeited for an unrelated fault. Defects. For 12 months after completion of each Job, the REC must return and correct any defect in its workmanship at its own cost within a reasonable time after notice. This does not limit any guarant",
+        "hin a reasonable time after notice. This does not limit any guarantee under the Australian Consumer Law.  18. Conflicts, incentives and improper benefits The REC must disclose any actual or potential conflict of interest that could affect impartial assessment, quoting or safety deci",
+        "each should ordinarily receive reasonable notice and opportunity to remedy. For 12 months after this agreement ends, the REC must not solicit or accept work, directly or through another entity, from a customer it dealt with through Home Insulation Victoria, where that"
+      ],
+      "sample_banner": true,
+      "signing_disabled": null,
+      "images": [
+        {
+          "alt": "Home Insulation Victoria",
+          "loaded": true
+        }
+      ],
+      "status": "passed",
+      "screenshot": "screens/rec-review-390.png",
+      "end": "2026-10-19T04:11:43.474Z",
+      "page_errors": [],
+      "blocked_requests": [
+        {
+          "method": "POST",
+          "path": "/__l5e/trackevents",
+          "reason": "non-GET/provider/address/server-function boundary"
+        },
+        {
+          "method": "POST",
+          "path": "/__l5e/trackevents",
+          "reason": "non-GET/provider/address/server-function boundary"
+        }
+      ],
+      "http_failures": []
+    },
+    {
+      "route": "/electrician-onboarding?sample=review",
+      "role": "public sample",
+      "width": 1280,
+      "start": "2026-10-19T04:11:43.504Z",
+      "http": 200,
+      "final_path": "/electrician-onboarding",
+      "observed_ms": 2225,
+      "headings": [
+        "Review agreement"
+      ],
+      "links": [],
+      "overflow": {
+        "viewport": 1280,
+        "document": 1280,
+        "body": 1280
+      },
+      "bad_text": [],
+      "agreement_excerpts": [
+        "ements, applicable electrical safety laws, occupational health and safety laws, Australian Consumer Law and all binding replacements or amendments. AS 3999 and insulation-installer competency requirements apply to the REC only to the extent a current law, Scheme rule or approved ele",
+        "uired by the current PIESA. Where life-support requirements apply, the required written consent or medical plan must be obtained and retained before the assessment or installation proceeds as required by the form. The completed PIESA must be provided through Home Insulation ",
+        "t PIESA. Where life-support requirements apply, the required written consent or medical plan must be obtained and retained before the assessment or installation proceeds as required by the form. The completed PIESA must be provided through Home Insulation Victoria in time",
+        "le it is resolved. No payment is forfeited for an unrelated fault. Defects. For 12 months after completion of each Job, the REC must return and correct any defect in its workmanship at its own cost within a reasonable time after notice. This does not limit any guarant",
+        "hin a reasonable time after notice. This does not limit any guarantee under the Australian Consumer Law.  18. Conflicts, incentives and improper benefits The REC must disclose any actual or potential conflict of interest that could affect impartial assessment, quoting or safety deci",
+        "each should ordinarily receive reasonable notice and opportunity to remedy. For 12 months after this agreement ends, the REC must not solicit or accept work, directly or through another entity, from a customer it dealt with through Home Insulation Victoria, where that"
+      ],
+      "sample_banner": true,
+      "signing_disabled": null,
+      "images": [
+        {
+          "alt": "Home Insulation Victoria",
+          "loaded": true
+        }
+      ],
+      "status": "passed",
+      "screenshot": "screens/rec-review-1280.png",
+      "end": "2026-10-19T04:11:45.812Z",
+      "page_errors": [],
+      "blocked_requests": [
+        {
+          "method": "POST",
+          "path": "/__l5e/trackevents",
+          "reason": "non-GET/provider/address/server-function boundary"
+        }
+      ],
+      "http_failures": []
+    }
+  ],
+  "browser_end": "2026-10-19T04:11:45.850Z",
+  "production_fingerprint": {
+    "capture_start": "2026-10-19T04:07:56Z",
+    "capture_end": "2026-10-19T04:08:07Z",
+    "server_only": "UNKNOWN",
+    "artifacts": [
+      {
+        "filename": "index-DSZ4OWcz.js",
+        "bytes": 359548,
+        "sha256": "956764f81e4feb40eaf046486d443c395259171f82c8044e262ec72bf525bab0"
+      },
+      {
+        "filename": "TradeShell-BD7eGn23.js",
+        "bytes": 6174,
+        "sha256": "f9f9802889b3543e681e58d07b22060217de9b115460ac80d1027d823cd7e64b"
+      },
+      {
+        "filename": "operations-query-CDmrXud9.js",
+        "bytes": 360,
+        "sha256": "a26d339e87a184b7738b3583cfbf256cfeaa7543c98ee2f16d9197b1b1f31c32"
+      },
+      {
+        "filename": "estimate_._token.video-DQCRFv0w.js",
+        "bytes": 10954,
+        "sha256": "48bb45a765b227d34cd25a1914d1b26e45d630790fc0ef36ae81a4f6a0c7cb26"
+      }
+    ]
+  },
+  "source_provenance": {
+    "inspected_head": "7d68c923",
+    "not_deployment_proof": true,
+    "recent_changes": [
+      "Jo build restoration",
+      "Jo always-free Ready Check correction",
+      "6429230a COM-08 template wiring",
+      "7fc608dc enquiry response overview and manual review hold",
+      "7d68c923 unanswered queue exclusion correction"
+    ]
+  },
+  "copy_checks": [
+    {
+      "area": "installer sample",
+      "status": "failed",
+      "detail": "12-month workmanship and ACL observed; no minimum five-year product warranty, written product/Australian contact details, or written consent OR medical plan wording found in complete rendered body excerpts. Sample version HI-VIC-A48-INST-1.16-2026-10-05. No repair: contractual/versioned material outside ordinary isolated repair scope."
+    },
+    {
+      "area": "REC sample",
+      "status": "passed",
+      "detail": "Written consent or medical plan, conditional life support and ACL observed; sample version HI-VIC-A48-REC-2.5-2026-10-05. Full current versioned schedule parity NOT TESTED."
+    }
+  ],
+  "gaps": [
+    {
+      "role": "office",
+      "route": "/admin",
+      "status": "blocked",
+      "reason": "No preexisting approved dedicated TEST session established; injected session not a documented TEST persona and not used."
+    },
+    {
+      "role": "installer",
+      "route": "/field",
+      "status": "blocked",
+      "reason": "No preexisting approved dedicated TEST session established; injected session not a documented TEST persona and not used."
+    },
+    {
+      "role": "REC",
+      "route": "/field",
+      "status": "blocked",
+      "reason": "No preexisting approved dedicated TEST session established; injected session not a documented TEST persona and not used."
+    },
+    {
+      "role": "owner",
+      "route": "/owner",
+      "status": "blocked",
+      "reason": "No preexisting approved dedicated TEST session established; injected session not a documented TEST persona and not used."
+    },
+    {
+      "role": "owner secure link",
+      "route": "not accessed",
+      "status": "blocked",
+      "reason": "No approved TEST secure link with confirmed qa_test source and GET side-effect safety."
+    },
+    {
+      "role": "public enquiry",
+      "route": "/ register interest / Base44 handoff",
+      "status": "not_tested",
+      "reason": "No submission or address lookup permitted; bare page render only."
+    },
+    {
+      "role": "public calculator",
+      "route": "/calculator",
+      "status": "not_tested",
+      "reason": "Source shares page with /; alternate route and calculation input not exercised."
+    },
+    {
+      "role": "provider",
+      "route": "logs/acceptance",
+      "status": "blocked",
+      "reason": "Independent provider runtime/acceptance logs not obtained; no provider API calls."
+    }
+  ],
+  "communications_read": {
+    "since": "2026-10-19T04:00:00Z",
+    "inspection_window": "2026-10-19T04:10:43Z\u201304:12:21Z (tool sequence; upper bound recorded at evidence write below)",
+    "customer_email_sends_new_rows": 0,
+    "external_action_outbox_new_or_attempted_rows": 0,
+    "customer_followups_new_or_updated_rows": 0,
+    "sms_messages_new_or_updated_rows": 0,
+    "email_job_communications_new_or_updated_rows": 0,
+    "note": "Aggregated read-only records, not independent acceptance proof. customer_email_sends query filters created_at; changes to older send rows without new rows not established. No universal communication lock inferred; Group B/no-size/campaign limitations unchanged."
+  },
+  "local_tests": {
+    "status": "not_run",
+    "reason": "No app repair; no additional useful isolated mocks proven. Broad runner/tests not launched."
+  },
+  "safety": {
+    "browser_batch_seconds": 14.707,
+    "fresh_unsigned_contexts": true,
+    "non_get_requests_aborted": 11,
+    "note": "Only platform telemetry POSTs attempted and aborted. Interception is not server isolation; sample source guards checked first. No auth restored/minted; no save/sign/upload/address lookup/provider actions; deleted HV-1981/HV-2010/HV-2015 never accessed."
+  },
+  "evidence_written_at": "2026-10-19T04:12:45Z",
+  "verdict": "PUBLIC RENDER CHECKS PASSED; INSTALLER SAMPLE COPY FAILED; AUTHENTICATED COVERAGE BLOCKED; NO WHOLE-PORTAL PASS"
+}
