@@ -230,11 +230,12 @@ export function EnquiriesWorkspace({
   controls,
   navigate,
 }: {
-  controls: ListControls;
+  controls?: ListControls;
   navigate: (search: Record<string, string | number>) => void;
 }) {
   const ui = useListControls(controls, ENQUIRY_SPEC, navigate);
-  const view = controls.scope as EnquiryPageView;
+  const current = ui.current;
+  const view = current.scope as EnquiryPageView;
   const load = useServerFn(getEnquiryPage);
   const {
     data,
@@ -245,16 +246,16 @@ export function EnquiriesWorkspace({
   } = useQuery({
     // The whole control set is the key, so React Query drops a response that arrives after the office
     // has already moved on: a slow page 1 can never overwrite a fast page 2.
-    queryKey: ["enquiries-workspace-page", controls],
+    queryKey: ["enquiries-workspace-page", current],
     queryFn: () =>
       load({
         data: {
           view,
-          search: controls.search,
-          sort: controls.sort || "created_at",
-          direction: controls.direction,
-          page: controls.page,
-          pageSize: controls.pageSize,
+          search: current.search,
+          sort: current.sort || "created_at",
+          direction: current.direction,
+          page: current.page,
+          pageSize: current.pageSize,
         },
       }),
     placeholderData: keepPreviousData,
@@ -424,7 +425,7 @@ export function EnquiriesWorkspace({
                 Sort
                 <select
                   aria-label="Sort enquiries"
-                  value={controls.sort || "created_at"}
+                  value={current.sort || "created_at"}
                   onChange={(e) => ui.setSort(e.target.value)}
                   className="h-9 rounded-md border bg-background px-2 text-xs"
                 >
@@ -438,10 +439,10 @@ export function EnquiriesWorkspace({
               <Button
                 size="sm"
                 variant="outline"
-                aria-label={controls.direction === "asc" ? "Sort descending" : "Sort ascending"}
+                aria-label={current.direction === "asc" ? "Sort descending" : "Sort ascending"}
                 onClick={ui.toggleDirection}
               >
-                {controls.direction === "asc" ? "Oldest first" : "Newest first"}
+                {current.direction === "asc" ? "Oldest first" : "Newest first"}
               </Button>
               {view !== "removed" && (
                 <Input

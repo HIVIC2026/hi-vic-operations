@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   listControlsPatch,
   listControlsToSearch,
+  parseListControls,
   toPage,
   toPageSize,
   type ListControls,
@@ -17,10 +18,17 @@ import { useDebouncedValue } from "./use-debounced-value";
  * Refresh, a shared link and the back button all restore the same view, because the URL is the state.
  */
 export function useListControls(
-  current: ListControls,
+  input: Partial<ListControls> | null | undefined,
   spec: ListSearchSpec,
   navigate: (search: Record<string, string | number>) => void,
 ) {
+  // A stale caller or initial render may not have supplied URL controls yet.
+  // Normalize once for every consumer, not just the search-box initializer.
+  const current = useMemo(() => ({
+    ...parseListControls({}, spec),
+    ...input,
+    search: input?.search ?? "",
+  }), [input, spec]);
   const [term, setTerm] = useState(current.search);
   const debounced = useDebouncedValue(term, 300);
   const sent = useRef(current.search);
@@ -46,6 +54,7 @@ export function useListControls(
   );
 
   return {
+    current,
     term,
     setTerm,
     apply,
