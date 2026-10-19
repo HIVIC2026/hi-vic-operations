@@ -174,7 +174,8 @@ decision for her.
 
 ## Q. Final GitHub commit SHA
 
-See the commit that adds this report on `main` (the report is committed with the code it describes).
+`33d114e8` — code, tests, `supabase/manual_sql/ENQ_0*.sql` and this report, on `main`
+(`bc274946..33d114e8`). This document is part of that commit; any later doc-only commit refers back to it.
 
 ---
 
