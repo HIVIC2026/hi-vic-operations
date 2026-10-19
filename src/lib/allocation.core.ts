@@ -25,6 +25,26 @@ export function piesaOfferBlockers(f: PiesaRequestFacts & { hasActiveElectrician
   return out;
 }
 
+/**
+ * Why a PIESA / fix-up allocation produced NO offer at all.
+ * `owner_times` = the owner's current times were offered to everyone who could take them and nobody could.
+ * `coverage` = there is no approved electrician left to offer it to.
+ */
+export type NoOfferReason = "owner_times" | "coverage";
+
+/**
+ * The office must never be told "offers sent to approved electricians" when nothing was sent (P1 UAT DEF-08).
+ * The old code returned `{offered: 0, exhausted: true}` and the screen still showed a success toast, so a job
+ * silently stopped moving while the office believed electricians had been contacted. This is the sentence the
+ * office now gets instead, and it names the one thing they have to do next.
+ */
+export function noOfferMessage(kind: "piesa" | "rectification", reason: NoOfferReason): string {
+  const what = kind === "piesa" ? "PIESA" : "fix-up";
+  return reason === "owner_times"
+    ? `No approved electrician could take any of the owner's times, so no ${what} offer was sent. Ask the owner to choose new times.`
+    : `No approved electrician is left to offer this ${what} to, so no offer was sent. Needs Home Insulation Victoria: no approved electrician coverage.`;
+}
+
 export type RecCandidate = {
   business_id: string; name: string;
   is_active: boolean; onboarding_status: string; accepting_new_jobs: boolean | null; receives_hivic_leads: boolean | null;
