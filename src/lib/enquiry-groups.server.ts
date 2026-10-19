@@ -108,7 +108,7 @@ export async function loadEnquiryGroups(visibleIds: string[]) {
     const best = selectCurrentEstimate((eBy.get(j.id) ?? []).map((e) => ({ id: e.id, tier: e.tier as AreaTier, net_m2: e.net_m2 == null ? null : Number(e.net_m2), created_at: e.created_at })));
     const js = sBy.get(j.id) ?? [];
     const last = js[js.length - 1];
-    const unknown = js.findLast(s => s.purpose === LAUNCH_CAMPAIGN && uncertainSend(s, Date.now()));
+    const unknown = [...js].reverse().find(s => s.purpose === LAUNCH_CAMPAIGN && uncertainSend(s, Date.now()));
     const audit = (j.eligibility_decision_rules ?? null) as StoredAudit;
     const mediaOutcome = outcomeBy.get(j.id) ?? null;
     const groupBMedia = originalEnquiryMedia(b44.raw, [...(mediaBy.get(j.id) ?? []), ...(evidenceBy.get(j.id) ?? [])]);
