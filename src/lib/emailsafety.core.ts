@@ -2,13 +2,16 @@
 import { CUSTOMER_BASE } from "./engagement.core";
 import { escape } from "./estimate-email";
 
-export type EmailPurpose = "step3_estimate" | "followup" | "preliminary_ineligible" | "area_unavailable";
+/** "ready_check_invitation" (P1-R3-S92) is the Office-initiated Template 8 email. Additive only — no other purpose changes. */
+export type EmailPurpose = "step3_estimate" | "followup" | "preliminary_ineligible" | "area_unavailable" | "ready_check_invitation";
 
 /** Stages in which an estimate / reminder is still relevant. Any later, closed or paused stage suppresses it. */
 export const ESTIMATE_STAGES = new Set(["new_enquiry", "eligibility_review", "awaiting_electrician", "assessment_booking"]);
 /** One-time preliminary outcome email is only relevant before the job moves on. */
 export const INELIGIBLE_STAGES = new Set(["new_enquiry", "eligibility_review", "on_hold"]);
 export const BACKLOG_MAX_AGE_MS = 14 * 86_400_000;
+/** Engagement events that permanently stop marketing/follow-up email for a job. */
+export const SUPPRESSING_EVENTS = ["email_bounced", "email_complained", "complaint", "opted_out", "payment_received", "quote_declined", "booking_completed"];
 
 const TEST_EMAIL = /@(?:[^@]*\.)?(?:example\.(?:com|org|net)|test|invalid|localhost)$|@mailinator\.com$|\+qa@|^qa[._-]/i;
 export const isTestRecipient = (email: string | null | undefined) => !email || TEST_EMAIL.test(email.trim());
@@ -35,7 +38,9 @@ export function emailSuppression(x: SafetyInput): string | null {
   if (!stages.has(x.stage)) return "job_progressed_or_closed";
   if (!x.jobsCreatedAfter) return "backlog_cutoff_not_set";
   if (Date.parse(x.jobCreatedAt) < Date.parse(x.jobsCreatedAfter)) return "backlog_before_cutoff";
-  if (x.purpose !== "followup" && now - Date.parse(x.jobCreatedAt) > BACKLOG_MAX_AGE_MS) return "backlog_too_old";
+  // A Ready Check invitation answers a spot the customer saved, so the 14-day new-enquiry backlog
+  // window does not apply. Opt-out, bounce, test-recipient and stage suppression still do.
+  if (x.purpose !== "followup" && x.purpose !== "ready_check_invitation" && now - Date.parse(x.jobCreatedAt) > BACKLOG_MAX_AGE_MS) return "backlog_too_old";
   return null;
 }
 

@@ -11,24 +11,34 @@ import { groupBMediaForJob } from "./group-b-media.server";
 import { groupBInvitationBlocker } from "./group-b-media.core";
 import { logEvent } from "./workflow.server";
 import { removalFromScenario } from "./estimate-removal.core";
+import { MANUAL_SENT_EVENT, manualSendReference } from "./manual-communication.core";
 import { RESEND_FETCH_TIMEOUT_MS, timeoutSignal } from "./network-timeout.core";
+import { AUTO_REPLY_OFF } from "./enquiry-auto-reply.core";
+import { classifyProviderStatus, SENT_UNKNOWN_PREFIX, UNCERTAIN_SEND_DETAIL, type ResendAttempt } from "./save-spot-delivery.core";
+import { testRecipientBoundary } from "./comms-test-recipient.core";
 
 export const HOT_SEND_BATCH = 10;
 /** Last TEST send detail per job (Resend id), for reporting. */
 export const testSendIds = new Map<string, string>();
-export type HotSendResult = { jobId: string; jobNumber: string | null; outcome: "sent" | "skipped" | "blocked" | "failed"; detail: string; preview?: { to: string; subject: string; html: string }; linkJobId?: string; linkToken?: string; sendGroup?: string };
+export type HotSendResult = { jobId: string; jobNumber: string | null; /** "uncertain" (STEP 56): the email service may have accepted it; recorded as delivered_unrecorded, never retried automatically. */ outcome: "sent" | "skipped" | "blocked" | "failed" | "uncertain"; detail: string; preview?: { to: string; subject: string; html: string; plainText: string; /** false = preview placeholders stand in for links the lead doesn't have yet. */ linksReady: boolean }; linkJobId?: string; linkToken?: string; sendGroup?: string };
 
-/** Real customers: ONLY this Save my spot campaign, approved by Jo (8 Oct 2026). The global customer
- *  comms switch stays off, so every other customer email remains blocked. Contact consent is still checked per lead. */
+/** Real customers: this Save my spot campaign, approved by Jo (8 Oct 2026), now requires BOTH runtime
+ *  switches — `customer_comms_enabled` (master) AND `save_my_spot_real_send_enabled` — via `realSendingOn()`
+ *  below (S86 / COM-04 owner Option A; guard 9a0adf29). It is NO LONGER a master-off exception. Contact
+ *  consent, opt-out, saved-spot and once-per-home checks still apply per lead. Fail-closed on error/missing. */
 export async function realSendingOn() {
-  const { SAVE_SPOT_REAL_SEND_APPROVED } = await import("./hot-leads.core");
-  return SAVE_SPOT_REAL_SEND_APPROVED;
+  const { data, error } = await admin.from("workflow_settings").select("save_my_spot_real_send_enabled, customer_comms_enabled").limit(1).maybeSingle();
+  if (error || !data) return false;
+  const ws = data as { save_my_spot_real_send_enabled: boolean | null; customer_comms_enabled: boolean | null };
+  return ws.save_my_spot_real_send_enabled === true && ws.customer_comms_enabled === true;
 }
 void LAUNCH_COPY_APPROVED;
 
 /** TEST-only overrides (qa_test jobs): link host and group. Ignored for real jobs.
- *  mode "preview" renders without sending; "test_to_jo" sends a real lead's email to Jo's inbox only, with TEST-job links. */
-export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string; /** TEST only: send the Step 3 likely-eligible email instead, same facts. */ variant?: "likely_estimate"; mode?: "send" | "preview" | "test_to_jo" | "test_preview"; automaticInsulation?: boolean; /** Set only by the post-Gate-1 router: the owner's own first reply. */ automaticInitial?: boolean };
+ *  mode "preview" renders without sending and without creating any link token (missing links become placeholders);
+ *  "manual_copy" is the same render but issues the lead's missing unsubscribe/referral links for an Office hand-send (STEP 32);
+ *  "test_to_jo" sends a real lead's email to Jo's inbox only, with TEST-job links. */
+export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string; /** TEST only: send the Step 3 likely-eligible email instead, same facts. */ variant?: "likely_estimate"; mode?: "send" | "preview" | "manual_copy" | "test_to_jo" | "test_preview"; automaticInsulation?: boolean; /** Set only by the post-Gate-1 router: the owner's own first reply. */ automaticInitial?: boolean; /** S20-R01: set only by the automatic Group B invitation for a NEW enquiry while the master switch is off; the new-enquiry gate is re-checked before the provider call. */ newEnquiryAutoReply?: boolean; /** Office manual copy only (Jo, 12 Oct): render the approved three-variant email. Never sends. */ officeVariant?: import("./save-spot-offer.core").SaveSpotVariant };
 /** Jo's own inbox for "send me a test of this lead". */
 export const JO_TEST_INBOX = "jolowexo@hotmail.com";
 /** TEST job whose links go into Jo's test copies, so pressing them never touches the real lead. */
@@ -43,6 +53,11 @@ export async function sendSaveMySpot(jobIds: string[], actorId: string | null, t
 }
 
 /** One office-triggered follow-up; never available to initial campaigns or automation. */
+/** Office "Prepare email to copy" (Jo, 12 Oct): the approved three-variant email, render only. All contact guards apply. */
+export async function prepareOfficeSaveSpot(jobId: string, actorId: string | null, variant: import("./save-spot-offer.core").SaveSpotVariant, issueLinks: boolean): Promise<HotSendResult> {
+  return sendOne(jobId, actorId, false, { mode: issueLinks ? "manual_copy" : "preview", officeVariant: variant }, variant === "reviewed_under_r2").catch((e) => ({ jobId, jobNumber: null, outcome: "blocked" as const, detail: (e as Error).message }));
+}
+
 export async function sendExistingInsulationSaveSpot(jobId: string, actorId: string, preview = false): Promise<HotSendResult> {
   return sendOne(jobId, actorId, false, { mode: preview ? "preview" : "send" }, true);
 }
@@ -69,6 +84,15 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   const owner = job.owners as { full_name: string | null; email: string | null } | null;
   const to = owner?.email?.trim().toLowerCase();
   if (!to) return r("skipped", "No owner email.");
+  // COM-04 test-recipient boundary (S102): validated on the FINAL resolved recipient before any
+  // reservation or provider call. Real (non-qa_test) sends only — qa_test sends are re-routed to Jo's
+  // inbox by the TEST sender (test-send.core.ts) before any provider contact, so a qa_test job can
+  // never reach a real customer here. In production (HIVIC_COM04_ENV=production) the boundary is
+  // inactive; in non-production it fails closed without a valid allow-list.
+  if (mode === "send" && !isTest) {
+    const boundary = testRecipientBoundary(to, job.source);
+    if (boundary.status === "blocked") return r("blocked", boundary.reason);
+  }
   const [{ data: opt, error: optError }, { data: resp, error: responseError }, { data: link, error: linkError }, { data: est, error: estimateError }] = await Promise.all([
     admin.from("customer_email_optouts").select("opted_out_at").eq("job_id", jobId).maybeSingle(),
     admin.from("lead_campaign_responses").select("opted_out_at, spot_saved_at").eq("job_id", jobId).maybeSingle(),
@@ -83,7 +107,13 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   const price = savedPriceFromEstimate(est ?? null);
   if (!price || !price.areaM2) return r("skipped", "No current preliminary price.");
   const assumed = est?.area_source === "typical_default";
-  if (assumed) {
+  const office = !!testOpts.officeVariant;
+  if (office && mode !== "preview" && mode !== "manual_copy") return r("blocked", "Office copies are never sent by the portal.");
+  if (office) {
+    const { originalEstimateBlocker } = await import("./save-spot-offer.core");
+    const b = originalEstimateBlocker({ estimate: est ? { area_m2: est.area_m2, area_source: est.area_source, insulation_declared: est.insulation_declared, hasPrice: true } : null, ownerAreaKnown: !job.estimated_area_unknown && Number(job.estimated_area_m2) > 0, reviewedUnderR2: testOpts.officeVariant === "reviewed_under_r2" });
+    if (b) return r("skipped", assumed ? "The saved estimate's assumed size no longer applies. Recalculate the estimate first." : b);
+  } else if (assumed) {
     // Real typical-size sends are held (no proven original-enquiry claim); previews and TEST records still render.
     const automaticInitial = isTest || mode !== "send" ? true : initialReplyQualifies({ originalInitialClaim: null });
     if (!automaticInitial && testOpts.automaticInitial === true) return r("skipped", NO_SIZE_REAL_SEND_HELD);
@@ -115,19 +145,35 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   if (followup && existingSendError) return r("blocked", "Could not check previous delivery. Nothing sent; try again.");
   if (followup && mode === "send" && ex) return r("skipped", "A follow-up attempt already exists. Check its delivery record before any further action.");
   if (mode === "send" && ex && !reservationAllowed(ex)) return r("skipped", "Already sent to this home.");
-  let sendId = ex?.id ?? null;
   if (mode === "send") {
-    if (ex) await admin.from("customer_email_sends").update({ status: "sending", error: null, created_at: new Date().toISOString() }).eq("id", ex.id);
-    else {
-      const { data, error } = await admin.from("customer_email_sends").insert({ job_id: jobId, estimate_link_id: link.id, purpose: LAUNCH_CAMPAIGN, idempotency_key: key }).select("id").single();
+    // STEP 17: Office already sent this email by hand (recorded "Sent manually") – the portal never sends it again.
+    const { data: manual, error: manualError } = await admin.from("job_communications").select("id").eq("job_id", jobId).eq("source_event", MANUAL_SENT_EVENT).eq("source_reference", manualSendReference("save_my_spot")).limit(1).maybeSingle();
+    if (manualError) return r("blocked", "Could not check the office's manual email records. Try again; nothing sent.");
+    if (manual) return r("skipped", "The office already sent this email by hand (recorded manual send).");
+  }
+  let sendId = ex?.id ?? null;
+  // STEP 56: this attempt's reservation time. Outcomes are written only while the row is still THIS attempt, so a result
+  // that arrives very late can never land on a newer attempt after the Office resolved this one.
+  let reservedAt: string | null = null;
+  if (mode === "send") {
+    if (ex) {
+      // STEP 56: only a confirmed failure is re-reserved, atomically – two triggers that read the same failed row can't both send.
+      const at = new Date().toISOString();
+      const { data: again, error: againError } = await admin.from("customer_email_sends").update({ status: "sending", error: null, created_at: at }).eq("id", ex.id).eq("status", "failed").select("id");
+      if (againError || !again?.length) return r("skipped", "Already being sent.");
+      reservedAt = at;
+    } else {
+      const { data, error } = await admin.from("customer_email_sends").insert({ job_id: jobId, estimate_link_id: link.id, purpose: LAUNCH_CAMPAIGN, idempotency_key: key }).select("id, created_at").single();
       if (error || !data) return r("skipped", "Already being sent.");
       sendId = data.id;
+      reservedAt = (data as { created_at?: string | null }).created_at ?? null;
     }
   }
 
   // Jo's test copy of a real lead: real wording/facts, but every link points at a TEST job.
   let linkJobId = jobId, linkToken = link.token;
-  // "test_preview" prepares exactly the same TEST links as "test_to_jo" but renders only: no provider call.
+  // "test_preview" prepares exactly the same TEST links as "test_to_jo" but renders only: no provider call and (STEP 32)
+  // no unsubscribe/referral token creation – missing ones are preview placeholders.
   const testCopy = mode === "test_to_jo" || mode === "test_preview";
   if (testCopy && sendGroup === "onsite") {
     // Group B test copies must open a Group B TEST homeowner who has not answered yet. HV-1609 is a likely-eligible
@@ -140,10 +186,21 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     if (!tj || !tl?.token) return r("failed", "TEST job links unavailable for the test copy.");
     linkJobId = tj.id; linkToken = tl.token;
   }
-  const { unsubscribeUrlForJob } = await import("./emailsafety.server");
   const base = CUSTOMER_BASE; // one setting: customer links always use the live domain, never the login-walled preview
-  // Creates the lead's unsubscribe token if it doesn't have one yet.
-  const unsubscribeUrl = (await unsubscribeUrlForJob(linkJobId)).replace(CUSTOMER_BASE, base);
+  // Previews never create tokens (STEP 32): reuse an existing link, otherwise show a placeholder and say so.
+  const readOnlyLinks = mode === "preview" || mode === "test_preview";
+  const previewLinks = readOnlyLinks ? await import("./preview-links.server") : null;
+  let linksReady = true;
+  let unsubscribeUrl: string;
+  if (previewLinks) {
+    const existing = await previewLinks.existingUnsubscribeUrl(linkJobId);
+    if (!existing) linksReady = false;
+    unsubscribeUrl = existing ?? previewLinks.PREVIEW_UNSUBSCRIBE_URL;
+  } else {
+    const { unsubscribeUrlForJob } = await import("./emailsafety.server");
+    // Creates the lead's unsubscribe token if it doesn't have one yet.
+    unsubscribeUrl = (await unsubscribeUrlForJob(linkJobId)).replace(CUSTOMER_BASE, base);
+  }
   const prop = job.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
   const snapshot = est?.snapshot as { settings?: { piesa_assessment_inc_gst?: number; ap_management_inc_gst?: number }; scenarios?: { by_access?: { standard?: { installation?: number } } }[] } | null;
   const installation = snapshot?.scenarios?.[0]?.by_access?.standard?.installation;
@@ -153,8 +210,26 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   const fullAddress = (await import("./address")).fullAddress(prop?.address_line, prop?.suburb, prop?.postcode);
   const firstName = owner?.full_name?.trim().split(/\s+/)[0] ?? null;
   // Likely-eligible owners get the Jo-APPROVED "Save your spot (likely eligible)" email (7 Oct 2026, FINAL).
-  const referralUrl = sendGroup === "likely" ? await (await import("./referral.server")).referralUrlForJob(linkJobId).catch(() => null) : null;
-  const mail = sendGroup === "likely"
+  let referralUrl: string | null = null;
+  if ((sendGroup === "likely" || office) && previewLinks) {
+    referralUrl = await previewLinks.existingReferralUrl(linkJobId).catch(() => null);
+    if (!referralUrl) { linksReady = false; referralUrl = previewLinks.PREVIEW_REFERRAL_URL; }
+  } else if (sendGroup === "likely" || office) referralUrl = await (await import("./referral.server")).referralUrlForJob(linkJobId).catch(() => null);
+  const mail = office
+    ? await (async () => {
+      const o = await import("./save-spot-offer.core");
+      const removal = removalFromScenario(Array.isArray(est?.scenarios) ? est.scenarios[0] : null);
+      const fees = { assessment: Number(assessmentFee), ap: Number(apFee) };
+      if (!Number.isFinite(fees.assessment) || !Number.isFinite(fees.ap) || installation === undefined) throw new Error("The estimate has no itemised prices. Recalculate it first.");
+      const links = o.saveSpotLinks(linkToken, base);
+      return o.renderSaveSpotOfferEmail({
+        variant: testOpts.officeVariant!, assumedArea: assumed, address: fullAddress ?? "", areaM2: price.areaM2!, firstName, reference: job.job_number,
+        installation: Number(installation), assessmentFee: fees.assessment, apFee: fees.ap, gross: price.gross, discount: price.discount, customer: price.total,
+        removal: testOpts.officeVariant === "reviewed_under_r2" ? removal : removal.kind === "included" ? removal : { kind: "excluded" },
+        apCount: 2, ...links, unsubscribeUrl, referralUrl,
+      });
+    })()
+    : sendGroup === "likely"
     ? (() => { const m = (isTest && testOpts.variant === "likely_estimate" ? renderStep3Likely : renderStep3SaveSpot)({
         estimateUrl: `${base}/estimate/${linkToken}`, campaignUrl, unsubscribeUrl, referralUrl,
         estimatedTotal: price.total, veuDiscount: price.discount, grossTotal: price.gross, areaM2: price.areaM2,
@@ -173,18 +248,23 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     ...(assessmentFee === undefined ? {} : { assessmentFee }),
     ...(apFee === undefined ? {} : { apFee }),
   }), unsubscribeUrl);
-  if (mode === "preview") return { ...r("sent", "Preview only — not sent"), preview: { to, subject: mail.subject, html: mail.html } };
-  if (mode === "test_preview") return { ...r("sent", "TEST copy rendered only — not sent"), preview: { to: JO_TEST_INBOX, subject: `[TEST of ${job.job_number}] ${mail.subject}`, html: mail.html }, linkJobId, linkToken, sendGroup };
+  if (mode === "preview" || mode === "manual_copy") return { ...r("sent", "Preview only — not sent"), preview: { to, subject: mail.subject, html: mail.html, plainText: mail.plainText, linksReady } };
+  if (mode === "test_preview") return { ...r("sent", "TEST copy rendered only — not sent"), preview: { to: JO_TEST_INBOX, subject: `[TEST of ${job.job_number}] ${mail.subject}`, html: mail.html, plainText: mail.plainText, linksReady }, linkJobId, linkToken, sendGroup };
   if (mode === "test_to_jo") {
     const subject = `[TEST of ${job.job_number}] ${mail.subject}`;
     const t = await resendSend(JO_TEST_INBOX, subject, mail.html, mail.plainText, `save-spot-test:${jobId}:${Date.now()}`, null);
-    await admin.from("admin_config_events").insert({ actor_id: actorId, event_type: "save_my_spot_test_to_jo", summary: `Test of ${job.job_number} Save my spot email to ${JO_TEST_INBOX}: ${t.ok ? "sent" : "failed"}`, details: { job_id: jobId, detail: t.detail } as never });
-    return r(t.ok ? "sent" : "failed", t.ok ? `Test sent to ${JO_TEST_INBOX}` : t.detail);
+    const ok = t.outcome === "accepted", word = ok ? "sent" : t.outcome === "uncertain" ? "outcome unknown" : "failed";
+    await admin.from("admin_config_events").insert({ actor_id: actorId, event_type: "save_my_spot_test_to_jo", summary: `Test of ${job.job_number} Save my spot email to ${JO_TEST_INBOX}: ${word}`, details: { job_id: jobId, detail: t.detail } as never });
+    return r(ok ? "sent" : t.outcome === "uncertain" ? "uncertain" : "failed", ok ? `Test sent to ${JO_TEST_INBOX}` : t.detail);
   }
-  const finish = async (status: string, provider: string, error: string | null) => {
+  const finish = async (status: string, provider: string, error: string | null, providerMessageId: string | null = null) => {
     if (!sendId) throw new Error("Email reservation is missing — nothing sent.");
-    const { error: writeError } = await admin.from("customer_email_sends").update({ status, provider, error, sent_at: status === "sent" ? new Date().toISOString() : null }).eq("id", sendId);
+    const write = admin.from("customer_email_sends").update({ status, provider, error, sent_at: status === "sent" ? new Date().toISOString() : null, ...(providerMessageId ? { provider_message_id: providerMessageId } : {}) }).eq("id", sendId);
+    const { data: written, error: writeError } = await (reservedAt ? write.eq("created_at", reservedAt) : write).select("id");
     if (writeError) throw new Error("Could not record email outcome; check delivery history before retrying.");
+    // An empty result means the row is no longer this attempt (resolved by the Office and re-reserved): the late result
+    // is not written over the newer attempt.
+    if (reservedAt && Array.isArray(written) && written.length === 0) throw new Error("This email attempt was already resolved or replaced; its late result was not recorded.");
   };
   if (followup && (!(await followupAllowed(link.token)) || !(await (await import("./comms.server")).customerCommsEnabled()) || !(await (await import("./comms.server")).hasCurrentOwnerContactConsent(jobId)))) {
     await finish("failed", "not_sent", "Follow-up permission changed; nothing sent.");
@@ -204,8 +284,12 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     const blocker = groupBInvitationBlocker(await groupBMediaForJob(jobId));
     if (blocker) { await finish("failed", "not_sent", blocker); return r("blocked", blocker); }
   }
-  if (!isTest && mode === "send" && sendGroup === "onsite" && !followup && !(await groupBGlobalsOn())) { await finish("failed", "not_sent", GROUP_B_GLOBALS_OFF); return r("blocked", GROUP_B_GLOBALS_OFF); }
+  if (!isTest && mode === "send" && sendGroup === "onsite" && !followup && !(await groupBGlobalsOn()) && !(testOpts.newEnquiryAutoReply === true && (await (await import("./enquiry-auto-reply.server")).newEnquiryAutoReplyGate(jobId)).allowed)) { await finish("failed", "not_sent", GROUP_B_GLOBALS_OFF); return r("blocked", GROUP_B_GLOBALS_OFF); }
   { const { jobDeletedBlocker } = await import("./job-live.server"); const del = await jobDeletedBlocker(jobId); if (del) { await finish("failed", "not_sent", del); return r("blocked", del); } }
+  // STEP 56: true from the moment the real provider call starts until it is known to have been refused. While true, no
+  // error path may record "failed" (a failed row is resendable): the outcome is recorded as delivered_unrecorded instead.
+  let mayHaveSent = false;
+  let acceptedId: string | null | undefined; // set once the email service has accepted the email (id may be unreadable)
   try {
     if (isTest) {
       const { sendTestEmail } = await import("./test-send.server");
@@ -215,15 +299,38 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
       if (t.detail) testSendIds.set(jobId, t.detail);
     } else {
       // This one approved campaign sends through the email service directly (the Base44 bridge stays off).
+      mayHaveSent = true;
+      // PART 1.4: validate the FINAL resolved recipient immediately before the provider call.
+      const finalBoundary = testRecipientBoundary(to, job.source);
+      if (finalBoundary.status === "blocked") { mayHaveSent = false; await finish("failed", "not_sent", finalBoundary.reason); return r("blocked", finalBoundary.reason); }
       const d = await resendSend(to, mail.subject, mail.html, mail.plainText, key, unsubscribeUrl);
-      if (!d.ok) { await finish("failed", "resend", d.detail); return r("failed", d.detail); }
-      await finish("sent", "resend", null);
+      if (d.outcome === "rejected" || d.outcome === "not_attempted") { mayHaveSent = false; await finish("failed", "resend", d.detail); return r("failed", d.detail); }
+      if (d.outcome === "uncertain") {
+        await finish("delivered_unrecorded", "resend", `${SENT_UNKNOWN_PREFIX}${d.detail}`.slice(0, 300));
+        await logEvent(jobId, actorId, "save_my_spot_outcome_unknown", `Save my spot email outcome unknown – not retried automatically. ${d.detail}`.slice(0, 500), { campaign: LAUNCH_CAMPAIGN, idempotency_key: key, existing_insulation_followup: followup }, { internal: true }).catch(() => null);
+        return r("uncertain", UNCERTAIN_SEND_DETAIL);
+      }
+      acceptedId = d.id;
+      await finish("sent", "resend", null, d.id);
       const { recordCommunication } = await import("./comms.server");
       await recordCommunication({ jobId, direction: "outbound", channel: "email", recipients: [to], subject: mail.subject, body: mail.plainText, provider: "resend", providerMessageId: d.id, visibility: "customer", sourceEvent: LAUNCH_CAMPAIGN, sourceReference: key, createdBy: actorId } as never).catch(() => null);
     }
   } catch (e) {
-    await finish(followup ? "delivered_unrecorded" : "failed", isTest ? "resend_test" : "resend", (e as Error).message.slice(0, 300));
-    return r("failed", (e as Error).message);
+    const message = (e as Error).message;
+    if (followup) {
+      await finish("delivered_unrecorded", isTest ? "resend_test" : "resend", message.slice(0, 300));
+      return r("uncertain", message);
+    }
+    if (mayHaveSent) {
+      // Accepted (or possibly accepted) but the outcome couldn't be recorded: never "failed". If even this write fails the
+      // row stays "sending", which also blocks any automatic resend.
+      const accepted = acceptedId !== undefined ? `Accepted by the email service${acceptedId ? ` (id ${acceptedId})` : ""} but the result could not be recorded: ` : "";
+      await finish("delivered_unrecorded", "resend", `${SENT_UNKNOWN_PREFIX}${accepted}${message}`.slice(0, 300), acceptedId ?? null).catch(() => null);
+      await logEvent(jobId, actorId, "save_my_spot_outcome_unknown", `Save my spot email outcome unknown – not retried automatically. ${message}`.slice(0, 500), { campaign: LAUNCH_CAMPAIGN, idempotency_key: key, existing_insulation_followup: followup }, { internal: true }).catch(() => null);
+      return r("uncertain", UNCERTAIN_SEND_DETAIL);
+    }
+    await finish("failed", isTest ? "resend_test" : "resend", message.slice(0, 300));
+    return r("failed", message);
   }
   await logEvent(jobId, actorId, "save_my_spot_email_sent", `Save my spot email sent${followup ? " after preliminary existing-insulation qualification" : " from Hot leads"}${isTest ? " (TEST, allowlist only)" : ""}`, { campaign: LAUNCH_CAMPAIGN, to_test: isTest, existing_insulation_followup: followup }, { internal: true }).catch(() => null);
   return r("sent", isTest ? "Sent to Jo's test inbox" : "Sent");
@@ -254,28 +361,62 @@ export async function groupBGlobalsOn(): Promise<boolean> {
 export const GROUP_B_GLOBALS_OFF = "Customer emails are switched off — Group B invitation not sent.";
 
 export async function sendAutomaticInsulationDetails(jobId: string): Promise<HotSendResult> {
-  if (!(await groupBGlobalsOn())) return { jobId, jobNumber: null, outcome: "blocked", detail: GROUP_B_GLOBALS_OFF };
+  // S20-R01: with the master switch off, only a NEW enquiry may get it, and only while automatic enquiry emails are on
+  // (enquiry-auto-reply.core.ts). The scheduled backlog worker never sends this email.
+  let newEnquiryAutoReply = false;
+  if (!(await groupBGlobalsOn())) {
+    const { newEnquiryAutoReplyGate } = await import("./enquiry-auto-reply.server");
+    const gate = await newEnquiryAutoReplyGate(jobId);
+    if (!gate.allowed) return { jobId, jobNumber: null, outcome: "blocked", detail: gate.reason === AUTO_REPLY_OFF ? GROUP_B_GLOBALS_OFF : gate.reason };
+    newEnquiryAutoReply = true;
+  }
   const blocker = groupBInvitationBlocker(await groupBMediaForJob(jobId));
   if (blocker) return { jobId, jobNumber: null, outcome: "blocked", detail: blocker };
   const { INSULATION_DETAILS_REAL_SEND_APPROVED } = await import("./hot-leads.core");
   if (!INSULATION_DETAILS_REAL_SEND_APPROVED) return { jobId, jobNumber: null, outcome: "blocked", detail: "Insulation email awaits final visual approval" };
-  return sendOne(jobId, null, true, { group: "onsite", automaticInsulation: true });
+  return sendOne(jobId, null, true, { group: "onsite", automaticInsulation: true, ...(newEnquiryAutoReply ? { newEnquiryAutoReply: true } : {}) });
+}
+
+/** S20-R01: the email service Save my spot already uses (Resend via the connector gateway), as a DeliveryAdapter for the
+ *  automatic ineligible reply when no Base44 bridge is configured. A definite refusal is DeliveryRejectedError ("failed",
+ *  retryable); any unknown outcome is a plain error, which the sender records as delivered_unrecorded (never retried). */
+export function resendDeliveryAdapter(): import("./delivery.core").DeliveryAdapter {
+  return {
+    provider: "resend",
+    async deliver(msg) {
+      const { DeliveryRejectedError } = await import("./delivery.core");
+      const d = await resendSend(msg.to, msg.subject, msg.html, msg.text, msg.idempotencyKey, null);
+      if (d.outcome === "accepted") return { providerMessageId: d.id };
+      if (d.outcome === "rejected" || d.outcome === "not_attempted") throw new DeliveryRejectedError(d.detail);
+      throw new Error(d.detail); // unknown outcome: recorded delivered_unrecorded ("sent_unknown: …") and never retried
+    },
+  };
 }
 
 const CAMPAIGN_FROM = "Home Insulation Victoria <jobs@homeinsulationvictoria.com.au>";
-async function resendSend(to: string, subject: string, html: string, text: string, idem: string, unsubscribeUrl: string | null): Promise<{ ok: boolean; id: string | null; detail: string }> {
+/** One provider call. Never throws: a timeout or dropped connection is an UNKNOWN outcome (the request may already have
+ *  been accepted), and the HTTP status is classified by classifyProviderStatus (save-spot-delivery.core.ts). */
+async function resendSend(to: string, subject: string, html: string, text: string, idem: string, unsubscribeUrl: string | null): Promise<ResendAttempt> {
   const key = process.env["RESEND_API_KEY"], gw = process.env["LOVABLE_API_KEY"];
-  if (!key || !gw) return { ok: false, id: null, detail: "Email is not connected" };
-  const res = await fetch("https://connector-gateway.lovable.dev/resend/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${gw}`, "X-Connection-Api-Key": key, "Content-Type": "application/json", "Idempotency-Key": idem.slice(0, 250) },
-    body: JSON.stringify({ from: CAMPAIGN_FROM, to: [to], reply_to: "info@homeinsulationvictoria.com.au", subject, html, text, ...(unsubscribeUrl ? { headers: { "List-Unsubscribe": `<${unsubscribeUrl}>` } } : {}) }),
-    signal: timeoutSignal(RESEND_FETCH_TIMEOUT_MS),
-  });
-  const t = await res.text();
-  if (!res.ok) return { ok: false, id: null, detail: `Email service error ${res.status}: ${t.slice(0, 200)}` };
-  let id: string | null = null; try { id = (JSON.parse(t) as { id?: string }).id ?? null; } catch { /* ignore */ }
-  return { ok: true, id, detail: "Accepted" };
+  if (!key || !gw) return { outcome: "not_attempted", detail: "Email is not connected" };
+  let res: Response;
+  try {
+    res = await fetch("https://connector-gateway.lovable.dev/resend/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${gw}`, "X-Connection-Api-Key": key, "Content-Type": "application/json", "Idempotency-Key": idem.slice(0, 250) },
+      body: JSON.stringify({ from: CAMPAIGN_FROM, to: [to], reply_to: "info@homeinsulationvictoria.com.au", subject, html, text, ...(unsubscribeUrl ? { headers: { "List-Unsubscribe": `<${unsubscribeUrl}>` } } : {}) }),
+      signal: timeoutSignal(RESEND_FETCH_TIMEOUT_MS),
+    });
+  } catch (e) {
+    const timedOut = (e as Error)?.name === "TimeoutError" || (e as Error)?.name === "AbortError";
+    return { outcome: "uncertain", detail: `No clear answer from the email service (${timedOut ? "timed out" : "connection lost"}).` };
+  }
+  const t = await res.text().catch(() => "");
+  const kind = classifyProviderStatus(res.status);
+  if (kind === "rejected") return { outcome: "rejected", status: res.status, detail: `Email service error ${res.status}: ${t.slice(0, 200)}` };
+  if (kind === "uncertain") return { outcome: "uncertain", detail: `Email service answered ${res.status}; it may still have accepted the email. ${t.slice(0, 200)}`.trim() };
+  let id: string | null = null; try { id = (JSON.parse(t) as { id?: string }).id ?? null; } catch { /* accepted; id unreadable */ }
+  return { outcome: "accepted", id, detail: "Accepted" };
 }
 
 /** Office edits an owner email (Jo-approved fixes only). Audited with a reason. */
