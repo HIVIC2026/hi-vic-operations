@@ -37,12 +37,12 @@ describe("legacy exclusion lists", () => {
   });
 
   test("current AUTO_SEND risks are blocked", () => {
-    for (const n of ["HV-1257", "HV-1291"]) expect(legacyExclusionReason(n)).toBe("LEGACY_EXCLUDED");
+    for (const n of ["HV-1257", "HV-1291", "HV-1437"]) expect(legacyExclusionReason(n)).toBe("LEGACY_EXCLUDED");
     for (const n of ["HV-1180", "HV-1225", "HV-1242", "HV-1286"]) expect(legacyExclusionReason(n)).toBe("HIDDEN_DUPLICATE");
   });
 
   test("ordinary unlisted jobs are unaffected", () => {
-    for (const n of ["HV-1181", "HV-1371", "HV-1437", "", null, undefined]) expect(legacyExclusionReason(n)).toBeNull();
+    for (const n of ["HV-1181", "HV-1371", "", null, undefined]) expect(legacyExclusionReason(n)).toBeNull();
     for (const sql of [enq00, enq01]) {
       expect(listOn(sql, "LEGACY_EXCLUDED_LIST")).not.toContain("HV-1181");
       expect(listOn(sql, "HIDDEN_DUPLICATE_LIST")).not.toContain("HV-1181");

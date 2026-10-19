@@ -33,7 +33,7 @@ universe as (
     and j.source = 'base44'
     and j.channel = 'hivic_sourced'
     -- LEGACY EXCLUSIONS (must match HOT_EXCLUDED_JOBS / HOT_HIDDEN_DUPLICATES in src/lib/hot-leads.core.ts):
-    and j.job_number not in ('HV-1059', 'HV-1061', 'HV-1063', 'HV-1257', 'HV-1291', 'HV-1161') -- LEGACY_EXCLUDED_LIST
+    and j.job_number not in ('HV-1059', 'HV-1061', 'HV-1063', 'HV-1257', 'HV-1291', 'HV-1161', 'HV-1437') -- LEGACY_EXCLUDED_LIST
     and j.job_number not in ('HV-1225', 'HV-1242', 'HV-1286', 'HV-1475', 'HV-1180') -- HIDDEN_DUPLICATE_LIST
     and j.stage in ('new_enquiry', 'eligibility_review', 'preliminary_estimate_ready', 'on_hold')
     and coalesce(j.eligibility_review_required, false) = false

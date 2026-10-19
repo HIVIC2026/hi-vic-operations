@@ -45,7 +45,7 @@ export function hotRegion(postcode: string | null): string {
 /** Regions with no local trade confirmed yet (Jo, 6 Oct 2026). Leads here are held, never ticked by default. */
 export const HOT_HOLD_REGIONS = new Set(["Bendigo / Loddon", "Far East Gippsland"]);
 /** Specific jobs Jo excluded (QA, her own tests, 1 m²). */
-export const HOT_EXCLUDED_JOBS = new Set(["HV-1059", "HV-1061", "HV-1063", "HV-1257", "HV-1291", "HV-1161"]);
+export const HOT_EXCLUDED_JOBS = new Set(["HV-1059", "HV-1061", "HV-1063", "HV-1257", "HV-1291", "HV-1161", "HV-1437"]);
 /** Older duplicate records Jo asked to hide (newest kept). */
 export const HOT_HIDDEN_DUPLICATES = new Set(["HV-1225", "HV-1242", "HV-1286", "HV-1475", "HV-1180"]);
 /** Automatic/backlog sends must never reach these explicit owner decisions (mirrored in ENQ_00/ENQ_01). */
