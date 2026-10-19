@@ -26,7 +26,9 @@
 --   (A no-size T1 is NOT held for rows ENQ_01 enqueues: the worker gives ENQUIRY_BACKLOG_MANUAL items a trusted
 --    context, src/lib/manual-backlog.core.ts, which releases only the "proven new" hold — still the labelled 150 m2.)
 --   (B T7 jobs_created_after / 14-day timing is NOT applied to ENQUIRY_BACKLOG_MANUAL items — emailsafety.core.ts.)
---   STAGE_MOVED_ON         B: stage is not new_enquiry / eligibility_review / on_hold → T7 suppressed.
+--   STAGE_MOVED_ON         mandatory backlog stage rule (same lists as ENQ_01, never bypassed):
+--                          A/C not in new_enquiry / eligibility_review / preliminary_estimate_ready;
+--                          B not in new_enquiry / eligibility_review / on_hold.
 -- Rows with a sender_hold read HELD_BY_SENDER_RULE instead of AUTO_SEND. Service-area coverage and the Office
 -- automatic-sending rules (S102/S103) are checked by the app at send time and are not predicted here.
 -- ===================================================================================================
@@ -159,18 +161,26 @@ scored as (
       when c.category = 'E_AMBIGUOUS' then 'None — needs a human decision'
       else 'None'
     end as proposed_template,
+    -- MANDATORY STAGE SAFETY (must match ENQ_01 exactly; never bypassed by the trusted backlog context):
+    --   A/C (T1/T2/T5/T6) -> new_enquiry, eligibility_review, preliminary_estimate_ready
+    --   B (T7)            -> new_enquiry, eligibility_review, on_hold
     case
+      when c.category in ('A_ELIGIBLE_NO_INSULATION', 'C_INSULATION_UNKNOWN')
+        and c.stage not in ('new_enquiry', 'eligibility_review', 'preliminary_estimate_ready') then 'STAGE_MOVED_ON'
+      when c.category = 'B_INELIGIBLE' and c.stage not in ('new_enquiry', 'eligibility_review', 'on_hold') then 'STAGE_MOVED_ON'
       when c.category = 'C_INSULATION_UNKNOWN'
         and (c.area_m2 is null or coalesce(c.area_source, '') = 'typical_default' or c.area_m2 <= 0)
         then 'TYPICAL_SIZE_HELD'
-      when c.category = 'B_INELIGIBLE' and c.stage not in ('new_enquiry', 'eligibility_review', 'on_hold') then 'STAGE_MOVED_ON'
       else null
     end as sender_hold,
     case
-      when c.category = 'C_INSULATION_UNKNOWN'
-        and (c.area_m2 is null or coalesce(c.area_source, '') = 'typical_default' or c.area_m2 <= 0)
+      when c.category in ('A_ELIGIBLE_NO_INSULATION', 'C_INSULATION_UNKNOWN')
+        and c.stage not in ('new_enquiry', 'eligibility_review', 'preliminary_estimate_ready')
         then 'HELD_BY_SENDER_RULE'
       when c.category = 'B_INELIGIBLE' and c.stage not in ('new_enquiry', 'eligibility_review', 'on_hold')
+        then 'HELD_BY_SENDER_RULE'
+      when c.category = 'C_INSULATION_UNKNOWN'
+        and (c.area_m2 is null or coalesce(c.area_source, '') = 'typical_default' or c.area_m2 <= 0)
         then 'HELD_BY_SENDER_RULE'
       when c.category in ('A_ELIGIBLE_NO_INSULATION', 'B_INELIGIBLE', 'C_INSULATION_UNKNOWN')
         then case when c.failed_sends > 0 then 'AUTO_SEND_RETRY' else 'AUTO_SEND' end

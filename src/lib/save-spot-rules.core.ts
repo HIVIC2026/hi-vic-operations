@@ -324,9 +324,9 @@ export function lifecycleExclusion(stage: string | null | undefined): string | n
   return null;
 }
 
-/** The manually-approved backlog run only: the same filters without the enquiry-date window. Never widens anything else. */
+/** The manually-approved backlog run only: the same filters without the enquiry-date window or job-status filter (Jo, 19 Oct). The mandatory lifecycle exclusion still applies. */
 export function backlogRules(rules: AutomaticRuleFilters): AutomaticRuleFilters {
-  return { ...rules, enquiryDate: { ...rules.enquiryDate, enabled: false } };
+  return { ...rules, enquiryDate: { ...rules.enquiryDate, enabled: false }, jobStatus: { ...rules.jobStatus, enabled: false } };
 }
 
 /** AND across the enabled categories. A missing record never matches an enabled filter. */
