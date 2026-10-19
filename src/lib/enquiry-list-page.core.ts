@@ -19,7 +19,12 @@ export const ENQUIRY_SORT_LABEL: Record<EnquirySortKey, string> = {
   eligibility_set_at: "Outcome decided",
 };
 
-/** Whitelisted search columns — exactly what the office can see in an enquiry row. */
+/**
+ * The fields an office search covers, expressed as their database columns. NOTE: this PostgREST
+ * build rejects embedded resource references inside or=(...) (PGRST100 "failed to parse logic
+ * tree"), so these are NOT sent to the database — loadEnquiryPage applies the term over the
+ * matching row fields in JS with the same any-word-widens semantics.
+ */
 export const ENQUIRY_SEARCH_COLUMNS = [
   "job_number",
   "external_enquiry_id",

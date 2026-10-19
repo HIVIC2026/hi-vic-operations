@@ -125,8 +125,17 @@ describe("the enquiries list is paged by the server too", () => {
     expect(ENQUIRIES).toContain("const page = paginate(matching, wanted, size);");
   });
 
-  test("search happens in the database and the view is whitelisted", () => {
-    expect(ENQUIRIES).toContain('searchFilter(query.search ?? "", [...ENQUIRY_SEARCH_COLUMNS])');
+  test("search never builds a PostgREST or= with embedded refs and the view is whitelisted", () => {
+    // This PostgREST build rejects embedded resource references inside or=(...) with PGRST100
+    // ("failed to parse logic tree"), which turned every enquiry search into a blank page. The
+    // term is filtered over the classified rows instead, across the fields the office sees.
+    const loader = ENQUIRIES.slice(
+      ENQUIRIES.indexOf("export async function websiteEnquiries"),
+      ENQUIRIES.indexOf("export async function loadEnquiryGroups"),
+    );
+    expect(loader).not.toContain("searchFilter(");
+    expect(loader).not.toContain(".or(");
+    expect(ENQUIRIES).toContain("matchesTerm(w,");
     expect(ENQUIRIES).toContain("const view = ENQUIRY_VIEW_KEYS.includes(params.view)");
   });
 

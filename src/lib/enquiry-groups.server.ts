@@ -15,14 +15,13 @@ import { originalEnquiryMedia, groupBInvitationBlocker, type GroupBMediaState } 
 import { signFile } from "./file-links.server";
 import { formatPropertyAddress } from "./address";
 import { LAUNCH_CAMPAIGN } from "./launch-campaign.core";
-import { searchFilter } from "./list-query.core";
 import {
   classifyEnquiry, enquiryStatus, contactExclusion, primaryByContact, propertyKey, contactKey, sendHolds, templateFor, AREA_LABEL, ASSUMED_REFERENCE_AREA_M2, isNewEnquiry,
   type EnquiryClass, type EnquiryStatus, type EnquiryGroup, type OtherReason, type StoredAudit, type MediaReviewOutcome, effectiveInsulation, noInsulationReviewBlocker,
 } from "./enquiry-groups.core";
-import { paginate, toPage, toPageSize } from "./list-paging.core";
-import { toDirection, toEnum } from "./list-query.core";
-import { ENQUIRY_SEARCH_COLUMNS, ENQUIRY_SORT_KEYS, ENQUIRY_VIEW_KEYS, ENQUIRY_VIEWS, type EnquiryPageView } from "./enquiry-list-page.core";
+import { matchesTerm, paginate, toPage, toPageSize } from "./list-paging.core";
+import { searchWords, toDirection, toEnum } from "./list-query.core";
+import { ENQUIRY_SORT_KEYS, ENQUIRY_VIEW_KEYS, ENQUIRY_VIEWS, type EnquiryPageView } from "./enquiry-list-page.core";
 
 const MEDIA_OUTCOMES: MediaReviewOutcome[] = ["below_r2", "over_r2", "unclear", "no_insulation"];
 
@@ -72,17 +71,17 @@ const ENQUIRY_SELECT =
   "id, job_number, external_enquiry_id, stage, hold_reason, source, created_at, eligibility_set_at, eligibility_outcome, eligibility_decision_source, eligibility_review_required, eligibility_decision_rules, estimated_area_m2, estimated_area_unknown, owners(full_name, email, phone), properties(address_line, suburb, state, postcode, enrichment)";
 
 /**
- * Every website enquiry, with the search term and the ordering applied by the DATABASE. Search runs
- * before the page is chosen, so a search never downloads rows the office did not ask for. `id` is the
- * stable tie-breaker that stops equal sort keys moving a record from one page to another.
+ * Every website enquiry, with the ordering applied by the DATABASE. The office's search term is
+ * deliberately NOT a PostgREST `or=(...)` here: this PostgREST build rejects embedded resource
+ * references inside or= — PGRST100 "failed to parse logic tree" on owners.x / properties.x —
+ * which turned every search into a blank page. The full set is classified anyway (the view tiles
+ * count it), so loadEnquiryPage applies the term over the same fields the office sees. `id` is
+ * the stable tie-breaker that stops equal sort keys moving a record from one page to another.
  */
-export async function websiteEnquiries(query: { search?: string; sort?: string; ascending?: boolean } = {}) {
-  const run = (from: number, to: number) => {
-    let q = admin.from("jobs").select(ENQUIRY_SELECT).eq("source", WEBSITE_SOURCE).eq("channel", WEBSITE_CHANNEL);
-    const f = searchFilter(query.search ?? "", [...ENQUIRY_SEARCH_COLUMNS]);
-    if (f) q = q.or(f);
-    return q.order(query.sort ?? "created_at", { ascending: query.ascending ?? true, nullsFirst: false }).order("id").range(from, to);
-  };
+export async function websiteEnquiries(query: { sort?: string; ascending?: boolean } = {}) {
+  const run = (from: number, to: number) =>
+    admin.from("jobs").select(ENQUIRY_SELECT).eq("source", WEBSITE_SOURCE).eq("channel", WEBSITE_CHANNEL)
+      .order(query.sort ?? "created_at", { ascending: query.ascending ?? true, nullsFirst: false }).order("id").range(from, to);
   return all(run);
 }
 
@@ -235,13 +234,15 @@ export function inEnquiryView(row: EnquiryGroupRow, view: EnquiryPageView): bool
 /**
  * One server-paginated page of the enquiries workspace.
  *
- * Search and ordering are applied by the database, the view is applied to the whole filtered set, and
- * only the rows on the requested page are shipped to the browser. Every tile count is taken from that
- * same filtered set, so a count never depends on which page happens to be open.
+ * Ordering is applied by the database; the search term and view are applied to the whole
+ * classified set, and only the rows on the requested page are shipped to the browser. Every tile
+ * count is taken from that same filtered set, so a count never depends on which page happens to
+ * be open.
  *
- * Known limit: the enquiry view is derived from ten related tables (measurements, estimates, media,
- * sends, consents…), so their narrow inputs are still read for every candidate row. Rows, however,
- * are never all downloaded and sliced.
+ * Known limit: the enquiry view is derived from ten related tables (measurements, estimates,
+ * media, sends, consents…), so the classified set is materialised on the server for the tile
+ * counts. The browser still only ever receives the one page of rows. The search term filters
+ * that materialised set (see websiteEnquiries for why it cannot be a PostgREST or=).
  */
 export async function loadEnquiryPage(params: {
   view: string;
@@ -259,9 +260,18 @@ export async function loadEnquiryPage(params: {
   const size = toPageSize(params.pageSize);
   const wanted = toPage(params.page ?? 1);
 
-  const { rows: classified, scope, jobsCreatedAfter } = await classifyWebsiteEnquiries(
-    await websiteEnquiries({ search, sort: sortKey, ascending }),
+  const { rows: unfiltered, scope, jobsCreatedAfter } = await classifyWebsiteEnquiries(
+    await websiteEnquiries({ sort: sortKey, ascending }),
   );
+
+  // The office's search term matches ANY word across the fields the row shows (job number, name,
+  // email, phone, address, postcode). It cannot run inside a PostgREST or= — embedded owners.*/
+  // properties.* references are rejected by this PostgREST build (PGRST100) — and the classified
+  // set is materialised for the view-tile counts regardless, so filter it here.
+  const words = searchWords(search);
+  const classified = words.length
+    ? unfiltered.filter((r) => words.some((w) => matchesTerm(w, [r.jobNumber, r.reference, r.name, r.email, r.phone, r.address, r.postcode])))
+    : unfiltered;
 
   // Every view count comes from one pass over the filtered set, independent of the requested page.
   const counts: Record<string, number> = {};
