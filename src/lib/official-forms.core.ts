@@ -542,6 +542,8 @@ export type SignedSnapshot = {
 };
 const canon = (o: unknown): string => JSON.stringify(o, (_k, v) => (v && typeof v === "object" && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, v[k]])) : v));
 const sha = (x: string) => sha256Hex(x);
+/** Plain record test — a stored snapshot is JSON, so arrays/nulls/primitives are all malformed. */
+const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 
 /** Builds the official document in the form's own order (statements verbatim, owner name at the end). */
 export function renderOfficialDocument(key: OfficialKey, a: OfficialAnswers) {
@@ -570,8 +572,23 @@ export function buildSignedSnapshot(input: {
   return { ...body, hash: sha(canon(body)) };
 }
 
+/**
+ * S74 / DEF-07: a stored snapshot is data, so it can be missing, truncated or tampered with. Report that
+ * as an invalid signed copy instead of throwing — a throw here would turn "this copy is not valid" into a
+ * crashed compliance gate, which is worse for the customer and tells Office nothing.
+ */
+function snapshotShapeProblem(snap: unknown): string | null {
+  if (!isRecord(snap)) return "Signed copy is missing or malformed.";
+  const key = snap["key"];
+  if (typeof key !== "string" || !Object.prototype.hasOwnProperty.call(OFFICIAL_TEMPLATES, key)) return "Signed copy uses an unknown form.";
+  if (!Array.isArray(snap["document"])) return "Signed copy has no completed document.";
+  return null;
+}
+
 /** A signed snapshot stays valid only if untampered, on the current mapping, and the answers haven't changed since. */
 export function snapshotProblems(snap: SignedSnapshot, current?: OfficialAnswers): string[] {
+  const shape = snapshotShapeProblem(snap);
+  if (shape) return [shape];
   const out: string[] = [];
   const { hash, ...body } = snap;
   if (sha(canon(body)) !== hash) out.push("Signed copy has been altered since it was signed.");
@@ -582,8 +599,18 @@ export function snapshotProblems(snap: SignedSnapshot, current?: OfficialAnswers
   return out;
 }
 
-/** Rebuilds answers from a signed document (item id → value). */
-export const answersFromDocument = (doc: SignedSnapshot["document"]): OfficialAnswers => Object.fromEntries(doc.filter((d) => d.value != null).map((d) => [d.id, d.value]));
+/**
+ * Rebuilds answers from a signed document (item id → value).
+ * S74 / DEF-07: malformed rows are dropped and a missing/non-array document yields `{}` — never a throw.
+ * `{}` is the fail-closed answer: evaluatePiesa/evaluatePiisa then report every required answer as missing,
+ * so a damaged copy can neither satisfy statutory compliance nor advance a job.
+ */
+export const answersFromDocument = (doc: SignedSnapshot["document"]): OfficialAnswers =>
+  Object.fromEntries(
+    (Array.isArray(doc) ? doc : [])
+      .filter((d) => isRecord(d) && typeof d["id"] === "string" && d["value"] != null)
+      .map((d) => [d["id"] as string, d["value"]]),
+  );
 export const documentSha = (doc: SignedSnapshot["document"]) => sha(canon(doc));
 
 export const PRINTED_RULE_IDS = {

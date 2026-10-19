@@ -62,8 +62,18 @@ export function BlockersPanel({ jobId, quietWhenClear = false, partner = false }
   if (!data) return null;
   if (!data.blockers.length)
     return quietWhenClear ? null : (
-      <div className="flex items-center gap-2 rounded-xl border border-success/30 bg-success-soft p-3 text-sm font-medium text-success">
-        <CheckCircle2 className="h-4 w-4" /> {data.next ? `Nothing blocking the move to ${STAGE_LABEL[data.next]}` : "No further stage"}
+      <div className="rounded-xl border border-success/30 bg-success-soft p-3 text-sm text-success">
+        <div className="flex items-center gap-2 font-medium">
+          <CheckCircle2 className="h-4 w-4" /> {data.next ? `No stage checks block the move to ${STAGE_LABEL[data.next]}` : "No further stage"}
+        </div>
+        {/* A clear transition is not the same as finished work. Say which one this is.
+            (Brief O, 43dfc9fb; restored after the bdf1da3c reconcile silently dropped it.) */}
+        <p className="mt-1 text-xs font-normal text-sub">Stage checks only — this does not confirm the work for that stage has been done.</p>
+        {data.readyCheck && (
+          <p className="mt-1 text-xs font-normal text-foreground" data-rc-fact>
+            Ready Check: {data.readyCheck.status === "submitted" ? "submitted by the installer" : data.readyCheck.status === "draft" ? "started, not submitted" : "not started"}
+          </p>
+        )}
       </div>
     );
   if (partner) return (
