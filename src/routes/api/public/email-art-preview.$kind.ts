@@ -15,7 +15,9 @@ export const Route = createFileRoute("/api/public/email-art-preview/$kind")({
   server: {
     handlers: {
       GET: async ({ params }) => {
-        const kind = /^(headline|spot)$/.exec(params.kind)?.[1];
+        // The Office preview builds the URL with a .png suffix (a natural image URL); accept
+        // both "headline"/"spot" and "headline.png"/"spot.png" so the preview image actually resolves.
+        const kind = /^(headline|spot)(?:\.png)?$/.exec(params.kind)?.[1];
         if (!kind) return new Response("Not found", { status: 404, headers: { "X-Robots-Tag": "noindex" } });
         try {
           const { renderHeaderArt, campaignHeroSpec } = await import("@/lib/email-hero.core");
