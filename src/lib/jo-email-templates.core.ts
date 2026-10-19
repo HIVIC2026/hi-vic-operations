@@ -225,7 +225,7 @@ function renderBelowR2Reviewed(r: JoRecipient, f: JoEstimateFigures): string {
   return [
     `Hi ${r.firstName},`, "",
     "How much could you save on ceiling insulation?", "",
-    "Thanks for sending through your photos or video. We’ve reviewed them, and your existing insulation appears to be below R2. Based on this and the information you provided, your home looks likely to qualify for a VEU ceiling insulation rebate.", "",
+    "Thanks for sending through your photos or video. We’ve reviewed them and, based on what is visible, your existing insulation appears potentially suitable for the VEU upgrade. Your free Ready Check will confirm the existing insulation and final eligibility.", "",
     "We’ll coordinate the installer, electrical safety check and rebate paperwork.", "",
     "### Your preliminary quote", "",
     `**You could save ${money(f.veuRebate)}**`, "",
