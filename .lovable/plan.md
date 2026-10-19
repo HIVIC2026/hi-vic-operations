@@ -1,35 +1,34 @@
-# Read-only finding: can the Save My Spot automatic rules block ENQ_01-queued enquiries?
+# Audit result: legacy exclusion lists vs backlog (read-only, 19 Oct 11:0x UTC)
 
-Short answer: **Yes. Right now they block every one, old or new.** Nothing was changed or sent.
+## Findings
+- The two lists exist only in `src/lib/hot-leads.core.ts` and are applied only in `loadHotLeads` (`hot-leads.server.ts` lines 61-62) — the Hot leads screen.
+- NOT applied in: `ENQ_00_RECONCILE_ALL.sql`, `ENQ_01_ENQUEUE_SAFE.sql`, `postintake.server.ts`, `lead-email-routing.server.ts`, `save-spot-rules.server.ts`, or `sendOne` / `sendAutomaticInsulationDetails` / `sendSaveMySpot` in `hot-leads-send.server.ts`, nor the T7 ineligible sender.
+- None of the 11 jobs currently has a backlog queue row (all 0 `ENQUIRY_BACKLOG_MANUAL` rows).
 
-## How a queued enquiry reaches the rule check
-- `supabase/manual_sql/ENQ_01_ENQUEUE_SAFE.sql` only adds jobs to the existing post-intake queue (its header says the worker ends in `maybeAutoRouteLeadEmail`).
-- `src/lib/postintake.server.ts:66-67`: the worker calls `maybeAutoRouteLeadEmail(item.job_id)`.
-- `src/lib/lead-email-routing.server.ts`, `maybeAutoRouteLeadEmail`: on the `offer_spot` route it calls `automaticSaveSpotGate(jobId, { route: "offer_spot", coverageVerified: true })`; if that is not allowed it returns `sent:false` and **never calls `sendSaveMySpot`**. There is no bypass for queued backlog jobs.
+## Live ENQ_00 result for the 11 jobs
+```text
+Excluded list
+HV-1059  T2  HELD (stage cancelled)   1 failed send
+HV-1061  T2  HELD (stage cancelled)   1 failed send
+HV-1063  T2  HELD (stage cancelled)   1 failed send
+HV-1161  BLOCKED (1 m2)               1 send stuck "sending"
+HV-1257  T2  AUTO_SEND   <-- in exclusion set
+HV-1291  T2  AUTO_SEND   <-- in exclusion set
+Hidden duplicates
+HV-1180  T2  AUTO_SEND   <-- newer HV-1181 already answered
+HV-1225  T2  AUTO_SEND   <-- newer HV-1461 already answered
+HV-1242  T2  AUTO_SEND   <-- newer HV-1359 already answered
+HV-1286  T2  AUTO_SEND   <-- newer HV-1359 already answered
+HV-1475  NO_ACTION (already sent)
+```
+6 rows are AUTO_SEND (0 AUTO_SEND_RETRY) and sit in an exclusion set. ENQ_01 would queue them and the automatic sender would send T2.
 
-## The rule check: `src/lib/save-spot-rules.server.ts`, `automaticSaveSpotGate` (line 173)
-Checks run in this order:
-1. Settings readable/valid, else `rules_unavailable`.
-2. `config.enabled`, else `selection_disabled`.
-3. Job readable.
-4. `lifecycleExclusion(stage)`.
-5. `if (!config.activatedAt) return blocked("rules_unavailable", …)`, then `created < activatedAt` gives `historical` ("created before the current rules were switched on").
-6. Route must be `offer_spot`.
-7. Service coverage (skipped here because it was already checked).
-8. `matchAutomaticRules` in `save-spot-rules.core.ts:328` (via `categoryPasses`, line 274) applies the saved filters (AND across them).
+## Still relevant?
+Yes. HV-1257/HV-1291 share one email with 8 other records (Jo's own tests); a related record HV-1437 is also T7 AUTO_SEND. Each hidden duplicate has a newer record for the same email that already received Save My Spot, so sending would be a second email to the same person. HV-1059/61/63/1161 are already held by other rules.
 
-## What is saved in live settings now (read-only query of `workflow_settings.save_my_spot_auto_rules`)
-- enabled: true; updatedAt 2026-10-16T11:07:12Z
-- **activatedAt: null**
-- Filters: eligibility = likely_eligible; insulation = none; jobStatus = preliminary_estimate_ready; enquiryDate = last_3_days (all on); postcode and ceiling area off.
-
-## What this means
-- **Today every automatic Save My Spot is blocked at step 5**, because `activatedAt` is null. The gate returns `rules_unavailable` ("Automatic sending rules are unavailable…") before it even looks at the date or status filters. Probable cause: the saved settings have `enabled:true` but no activation time was stamped (`prepareRulesForSave` stamps one only when the setting goes from off to on). This is inferred from the code and data, not proven.
-- Even if `activatedAt` were set, older backlog enquiries would still be blocked twice:
-  - `historical`: any job created before `activatedAt`.
-  - `rule_mismatch`: `enquiryDate last_3_days` (`categoryPasses` "enquiryDate", line 304) fails any job created more than 3 days ago. `jobStatus` fails any job whose stage is not exactly `preliminary_estimate_ready` (line 300).
-- Ineligible (`sendDecisionIneligibleEmail`) and insulation-details (`sendAutomaticInsulationDetails`) routes do **not** use this check, so ENQ_01 categories B and C are not blocked by it.
-- The office's manual Save My Spot sending does not go through this check either (comment in `maybeAutoRouteLeadEmail`).
-
-## Proposed next step
-None. This was an inspection only. Whether to switch the rules off and on again (which stamps an activation time), widen the date window, or send the backlog manually is Jo's decision.
+## Proposed fix (needs approval; nothing sent)
+1. Move the two lists to one shared exclusion module; ENQ_00 marks them `BLOCKED (LEGACY_EXCLUDED / HIDDEN_DUPLICATE)`, ENQ_01 skips them.
+2. Automatic senders (T1/T2/T5/T6 and T7) refuse those job numbers before reserving a send.
+3. Add the same check for "another record with the same email already answered" so future duplicates are caught, not just the five listed.
+4. Decide on HV-1437 (test-cluster T7) — exclude it too unless Jo says it's real.
+5. Tests: listed jobs never AUTO_SEND in ENQ_00 nor queued in ENQ_01; senders block them; normal jobs unaffected. Typecheck. No sends, no queue run, no publish.
