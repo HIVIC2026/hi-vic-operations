@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
@@ -68,8 +68,12 @@ function CampaignEmailsPage() {
     <AppShell wide>
       <div className="space-y-4">
         <div>
-          <h1 className="font-display text-2xl font-bold">Campaign emails</h1>
-          <p className="text-sm text-muted-foreground">Exactly what owners will see. Preview only — there is no send button and nothing is sent from this page.</p>
+          <h1 className="font-display text-2xl font-bold">Campaign emails (legacy drafts)</h1>
+          <p className="text-sm text-muted-foreground">Preview only — there is no send button and nothing is sent from this page.</p>
+          <p className="mt-1 text-sm font-semibold text-warning">
+            These drafts are NOT used by any email. The homeowner emails that actually send are Jo's approved T1–T8 in{" "}
+            <Link to="/admin/templates" className="underline">Templates</Link>.
+          </p>
         </div>
         {isPending && <p>Loading leads…</p>}
         {error && <p className="text-danger">{(error as Error).message}</p>}

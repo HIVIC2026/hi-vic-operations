@@ -17,7 +17,7 @@ import type { DeliveryAdapter } from "./delivery.core";
 import { reservationAllowed, statusAfterDelivery, withUnsubscribe } from "./emailsafety.core";
 import { testRecipientBoundary } from "./comms-test-recipient.core";
 import { suppressionFor, unsubscribeUrlForJob } from "./emailsafety.server";
-import { MANUAL_SENT_EVENT, manualSendReference } from "./manual-communication.core";
+import { MANUAL_SENT_EVENT, manualSendReference, PREVIEW_LINK_TOKEN } from "./manual-communication.core";
 
 type OfficialOutcome = { kind: "eligible"; mode: "likely" | "onsite" } | { kind: "ineligible"; reason: string | null; decisionSource: "system" | "admin" } | { kind: "hold"; reason: string };
 
@@ -388,6 +388,12 @@ export async function sendPreliminaryIneligibleEmail(jobId: string, actorId: str
     // not reviewed for the customer); the email uses its standard wording. System Gate 1 reasons are unchanged.
     const reason = opts.newEnquiryAutoReply === true && official.decisionSource !== "system" ? null : official.reason;
     const mail = await renderPreliminaryIneligibleMail(jobId, reason, owner.reference);
+    if (!mail) {
+      // No approved T7 render is possible (usually no secure link yet). Fail closed, release the reservation so the
+      // Office can retry once the link exists, and leave the reason visible for the queue.
+      await admin.from("customer_email_sends").update({ status: "failed", error: "no_approved_template: no secure estimate link for T7" }).eq("id", sendId!);
+      return { sent: false as const, reason: "no_approved_template" };
+    }
     const r = await adapter.deliver({ to, subject: mail.subject, html: mail.html, text: mail.plainText, idempotencyKey: key, purpose: INELIGIBLE_PURPOSE });
     delivered = true;
     const communicationId = await recordCommunication({ jobId, direction: "outbound", channel: "email", recipients: [to], subject: mail.subject, body: mail.plainText, provider: adapter.provider, providerMessageId: r.providerMessageId, visibility: "customer", sourceEvent: INELIGIBLE_PURPOSE, sourceReference: key, createdBy: actorId, deliveryStatus: "sent" });
@@ -407,34 +413,32 @@ export async function sendPreliminaryIneligibleEmail(jobId: string, actorId: str
 
 /** The exact ineligible email the sender delivers; shared so the Office copy below can never drift from it.
  *  `links` (preview only) supplies existing or placeholder links instead of creating tokens. */
-async function renderPreliminaryIneligibleMail(jobId: string, reason: string | null, reference: string | null, links?: { referralUrl: string; unsubscribeUrl: string }) {
-  // P1-R3-S92 (GAP-1): T7 is Jo's approved ineligible email, selected by selectJoTemplate().
-  const { renderIneligibleEmail } = await import("./ineligible-email");
-  const referralUrl = links ? links.referralUrl : await referralUrlForJob(jobId);
+/** Jo's T7 only. Returns null when the approved template cannot be rendered, so the caller can fail closed —
+ *  the legacy ineligible renderer is deliberately never used for a customer send (Jo: no old templates). */
+async function renderPreliminaryIneligibleMail(jobId: string, reason: string | null, reference: string | null, links?: { referralUrl: string; unsubscribeUrl: string }, previewEstimateBase?: string) {
   const who = await joRecipientFacts(jobId, reference);
   const { data: link } = await admin.from("customer_estimate_links").select("token").eq("job_id", jobId).eq("purpose", LINK_PURPOSE).eq("status", "active").maybeSingle();
-  const base = link?.token ? `${CUSTOMER_BASE}/estimate/${link.token}` : null;
-  if (base) {
-    const jo = renderJoOutcomeEmail({
-      outcome: "does_not_appear_eligible",
-      insulation: null,
-      ceilingSizeKnown: false,
-      recipient: {
-        firstName: who.firstName ?? "there",
-        propertyAddress: who.address ?? "your property",
-        enquiryReference: who.reference ?? "",
-      },
-      reason,
-      links: {
-        saveMySpotUrl: `${base}/campaign`,
-        uploadMediaUrl: `${base}/video`,
-        reviewResultUrl: base,
-        calculatorUrl: `${base}#calculator`,
-      },
-    });
-    if (jo) return withUnsubscribe(jo, links ? links.unsubscribeUrl : await unsubscribeUrlForJob(jobId));
-  }
-  return withUnsubscribe(renderIneligibleEmail({ referralUrl, reason, reference }), links ? links.unsubscribeUrl : await unsubscribeUrlForJob(jobId));
+  const base = link?.token ? `${CUSTOMER_BASE}/estimate/${link.token}` : (previewEstimateBase ?? null);
+  if (!base) return null;
+  const jo = renderJoOutcomeEmail({
+    outcome: "does_not_appear_eligible",
+    insulation: null,
+    ceilingSizeKnown: false,
+    recipient: {
+      firstName: who.firstName ?? "there",
+      propertyAddress: who.address ?? "your property",
+      enquiryReference: who.reference ?? "",
+    },
+    reason,
+    links: {
+      saveMySpotUrl: `${base}/campaign`,
+      uploadMediaUrl: `${base}/video`,
+      reviewResultUrl: base,
+      calculatorUrl: `${base}#calculator`,
+    },
+  });
+  if (!jo) return null;
+  return withUnsubscribe(jo, links ? links.unsubscribeUrl : await unsubscribeUrlForJob(jobId));
 }
 
 /** STEP 17/32 (A1 manual sending): render-only twin of sendPreliminaryIneligibleEmail for Office to copy. Same official
@@ -456,6 +460,9 @@ export async function prepareIneligibleEmailForOffice(jobId: string, opts: { iss
     linksReady = !!referral && !!unsubscribe;
     links = { referralUrl: referral ?? p.PREVIEW_REFERRAL_URL, unsubscribeUrl: unsubscribe ?? p.PREVIEW_UNSUBSCRIBE_URL };
   }
-  const mail = await renderPreliminaryIneligibleMail(jobId, official.reason, owner.reference, links);
+  // Preview only: an obvious placeholder estimate link keeps the preview on Jo's approved T7 wording without
+  // creating a token. A real send never reaches here without a live link.
+  const mail = await renderPreliminaryIneligibleMail(jobId, official.reason, owner.reference, links, `${CUSTOMER_BASE}/estimate/${PREVIEW_LINK_TOKEN}`);
+  if (!mail) return { ok: false, reason: "no_approved_template" };
   return { ok: true, to: owner.email, subject: mail.subject, html: mail.html, plainText: mail.plainText, linksReady };
 }

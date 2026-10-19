@@ -3,7 +3,7 @@ import { declaredExtras } from "./enquiry.core";
 import { normaliseInsulation } from "./eligibility.core";
 import { groupBMediaForJob } from "./group-b-media.server";
 import { groupBInvitationBlocker } from "./group-b-media.core";
-import { automaticLeadEmail } from "./enquiry-groups.core";
+import { automaticLeadEmail, ineligibleReplyBlocker } from "./enquiry-groups.core";
 
 export type LeadEmailRouteResult = { route: "offer_spot" | "request_insulation" | "ineligible" | "none"; sent: boolean; reason: string };
 
@@ -59,6 +59,31 @@ export async function maybeAutoRouteLeadEmail(jobId: string): Promise<LeadEmailR
       const result = await sendAutomaticInsulationDetails(jobId);
       return { route: route.email, sent: result.outcome === "sent", reason: result.detail };
     }
+    // Jo's rule for an automatic ineligible reply: it must state the VERIFIED reason (see ineligibleReplyBlocker).
+    const { data: decided } = await admin
+      .from("jobs")
+      .select("eligibility_outcome, eligibility_reason, eligibility_decision_source, eligibility_review_required")
+      .eq("id", jobId)
+      .maybeSingle();
+    const blocker = ineligibleReplyBlocker({
+      outcome: decided?.eligibility_outcome ?? null,
+      decisionSource: decided?.eligibility_decision_source ?? null,
+      reviewRequired: !!decided?.eligibility_review_required,
+      reason: decided?.eligibility_reason ?? null,
+    });
+    if (blocker) {
+      return {
+        route: "none",
+        sent: false,
+        reason: blocker === "ineligible_reason_not_recorded"
+          ? "Ineligible reason is not recorded — held for Office review; nothing sent."
+          : `Ineligible reply held: ${blocker}`,
+      };
+    }
+    // T7 carries the customer's own secure estimate link; create/refresh it before rendering so the approved
+    // template is always available and no legacy copy is needed to fall back to.
+    const { syncStep3 } = await import("./estimatelink.server");
+    await syncStep3(jobId, null);
     const { sendDecisionIneligibleEmail } = await import("./followups.server");
     const result = await sendDecisionIneligibleEmail(jobId);
     return { route: route.email, sent: result.sent, reason: result.sent ? "Sent" : result.reason };

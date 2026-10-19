@@ -262,3 +262,16 @@ export function automaticLeadEmail(x: {
   if ((x.outcome === "likely_eligible" || x.outcome === "needs_onsite_confirmation") && (x.declaredInsulation === "present" || x.declaredInsulation === "unknown")) return { email: "request_insulation", blocker: null };
   return { email: "none", blocker: "Eligibility or insulation details need office review" };
 }
+
+/** Jo's rule for the automatic ineligible reply: it must state the VERIFIED reason. A system decision with no
+ *  recorded reason is ambiguous, so it is held for Office review rather than sending a reasonless email.
+ *  Returns null when the reply is safe to send. */
+export function ineligibleReplyBlocker(x: {
+  outcome: string | null; decisionSource: string | null; reviewRequired: boolean; reason: string | null;
+}): string | null {
+  if (x.outcome !== "does_not_appear_eligible") return "official_not_ineligible";
+  if (x.decisionSource !== "system" && x.decisionSource !== "admin") return "official_decision_not_recorded";
+  if (x.reviewRequired) return "eligibility_review_required";
+  if (!(x.reason ?? "").trim()) return "ineligible_reason_not_recorded";
+  return null;
+}
