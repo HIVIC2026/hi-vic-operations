@@ -2,7 +2,7 @@
 // Save my spot (Group A) email header baked into a PNG, so Outfit 800 looks the same in every inbox.
 // Pure JavaScript (font outlines + our own anti-aliased rasteriser) — no system fonts, no native or WASM code.
 import opentype from "opentype.js";
-import { PNG } from "pngjs";
+import { readPng, writePng, type RgbaImage } from "./png-lite.core";
 import { Buffer } from "node:buffer";
 import { AMOUNT_LH, AMOUNT_SIZE, HEADER_ART_W, amountArtWidth } from "./email-art.core";
 import { FIGTREE_800_WOFF, LOGO_PNG, OUTFIT_800_WOFF, PARTY_PNG } from "./email-hero-assets";
@@ -19,8 +19,8 @@ type Pt = [number, number];
 const b64 = (s: string) => { const b = Buffer.from(s, "base64"); return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength); };
 let fonts: { outfit: opentype.Font; figtree: opentype.Font } | null = null;
 const font = () => (fonts ??= { outfit: opentype.parse(b64(OUTFIT_800_WOFF)), figtree: opentype.parse(b64(FIGTREE_800_WOFF)) });
-let imgs: { logo: PNG; party: PNG } | null = null;
-const images = () => (imgs ??= { logo: PNG.sync.read(Buffer.from(LOGO_PNG, "base64")), party: PNG.sync.read(Buffer.from(PARTY_PNG, "base64")) });
+let imgs: { logo: RgbaImage; party: RgbaImage } | null = null;
+const images = () => (imgs ??= { logo: readPng(new Uint8Array(Buffer.from(LOGO_PNG, "base64"))), party: readPng(new Uint8Array(Buffer.from(PARTY_PNG, "base64"))) });
 
 class Canvas {
   data: Uint8Array;
@@ -71,7 +71,7 @@ class Canvas {
     }
   }
   /** Area-averaged scaled draw of a PNG with alpha. */
-  image(img: PNG, dx: number, dy: number, dw: number, dh: number) {
+  image(img: RgbaImage, dx: number, dy: number, dw: number, dh: number) {
     const sx = img.width / dw, sy = img.height / dh;
     for (let y = 0; y < dh; y++) for (let x = 0; x < dw; x++) {
       let r = 0, g = 0, b = 0, a = 0, n = 0;
@@ -83,7 +83,7 @@ class Canvas {
       if (a > 0) this.blend(dx + x, dy + y, [r / a, g / a, b / a], a / n);
     }
   }
-  png() { const p = new PNG({ width: this.w, height: this.h }); p.data = Buffer.from(this.data); return PNG.sync.write(p); }
+  png() { return writePng({ width: this.w, height: this.h, data: new Uint8Array(this.data) }); }
 }
 
 function flatten(path: opentype.Path): Pt[][] {
