@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { filterVisibleJobs } from "@/lib/portal-presentation.core";
 import { nextStep } from "@/lib/nextstep.core";
 import { Pill } from "@/components/portal/badges";
+import { EnquiryResponseOverview } from "@/components/portal/EnquiryResponseOverview";
 
 const ACCEPTANCE_STAGES = ["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec"];
 type WorkView = "all" | "active" | "review" | "ineligible" | "finalised" | "cancelled" | "test";
@@ -152,6 +153,7 @@ function Pipeline() {
         </div>
          <div className="flex shrink-0 flex-col items-end gap-2 sm:ml-auto sm:flex-row sm:items-center"><span className={`inline-flex items-center gap-2 rounded-full border px-2 py-1 text-xs font-bold ${comms?.enabled === true ? "border-success/30 bg-success-soft text-success" : "border-workspace-sun-strong/40 bg-workspace-sun text-foreground"}`}><span className={`h-2 w-2 rounded-full ${comms?.enabled === true ? "bg-success" : "bg-warning"}`} />Messages {comms?.enabled === true ? "on" : "off"}</span><NewEnquiry /></div>
       </div>
+      <EnquiryResponseOverview />
       {tab !== "board" && <section className="mb-2 flex flex-wrap items-center gap-1.5" aria-label="Work views">
         {PRIMARY_VIEWS.map((item) => <Button key={item.key} type="button" size="sm" variant={workView === item.key ? "default" : "outline"} onClick={() => { setWorkView(item.key); setPhase("all"); }} aria-pressed={workView === item.key}>{item.label} <Badge variant="secondary">{cardCount(item.key)}</Badge></Button>)}
         <label className="sr-only" htmlFor="retained-view">Retained records view</label><select id="retained-view" aria-label="Retained and complete records" className="h-9 min-w-0 rounded-md border bg-background px-2 text-sm" value={SECONDARY_VIEWS.some((item) => item.key === workView) ? workView : ""} onChange={(e) => { if (e.target.value) { setWorkView(e.target.value as WorkView); setPhase("all"); } }}><option value="">More records…</option>{SECONDARY_VIEWS.map((item) => <option key={item.key} value={item.key}>{item.label} ({cardCount(item.key)})</option>)}</select>

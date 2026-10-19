@@ -275,6 +275,12 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
       return rendered ? withUnsubscribe(rendered, unsubscribeUrl) : null;
     } catch { return null; }
   })();
+  // CORRECTION: never silently send an outdated/conflicting template. When no Jo-approved template
+  // safely applies to this classification, hold the enquiry for manual review (surfaced in the
+  // dashboard "awaiting response" queue) instead of falling back to the old renderer.
+  if (!joMail && !office && !followup && mode === "send") {
+    return r("blocked", "No approved Jo template applies to this enquiry — held for manual review; nothing sent.");
+  }
   const mail = joMail ?? mailBase;
   if (mode === "preview" || mode === "manual_copy") return { ...r("sent", "Preview only — not sent"), preview: { to, subject: mail.subject, html: mail.html, plainText: mail.plainText, linksReady } };
   if (mode === "test_preview") return { ...r("sent", "TEST copy rendered only — not sent"), preview: { to: JO_TEST_INBOX, subject: `[TEST of ${job.job_number}] ${mail.subject}`, html: mail.html, plainText: mail.plainText, linksReady }, linkJobId, linkToken, sendGroup };
