@@ -23,7 +23,7 @@ import {
 import { OFFICE_ENQUIRY_LABEL } from "@/lib/office-nav";
 import { cn } from "@/lib/utils";
 
-export type EnquiryView = EnquiryStatus | "all" | "photos" | "removed";
+export type EnquiryView = EnquiryStatus | "all" | "new" | "photos" | "removed";
 
 type Data = Awaited<ReturnType<typeof getEnquiryGroups>>;
 type Row = Data["rows"][number];
@@ -193,9 +193,10 @@ function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
   );
 }
 
-const VIEW_ORDER: EnquiryView[] = ["all", ...STATUS_ORDER, "photos", "removed"];
+const VIEW_ORDER: EnquiryView[] = ["all", "new", ...STATUS_ORDER, "photos", "removed"];
 const VIEW_LABEL: Record<EnquiryView, string> = {
   all: "All enquiries",
+  new: "New · no email sent",
   ...OFFICE_ENQUIRY_LABEL,
   photos: "Photos/videos to check",
   removed: "Removed",
@@ -225,7 +226,7 @@ export function EnquiriesWorkspace({
   const [removing, setRemoving] = useState(false);
   const [removeMsg, setRemoveMsg] = useState<string | null>(null);
   const [removeReason, setRemoveReason] = useState("Fake or test enquiry");
-  const allRows = data?.rows ?? [];
+  const allRows = useMemo(() => data?.rows ?? [], [data]);
   const rows = useMemo(() => allRows.filter((row) => !row.removed), [allRows]);
   const removedRows = useMemo(() => allRows.filter((row) => row.removed), [allRows]);
   const doRemove = async () => {
@@ -258,11 +259,13 @@ export function EnquiriesWorkspace({
   const viewCount = (key: EnquiryView) =>
     key === "all"
       ? rows.length
-      : key === "photos"
-        ? photoRows.length
-        : key === "removed"
-          ? removedRows.length
-          : counts[key];
+      : key === "new"
+        ? rows.filter((row) => !row.lastEmail).length
+        : key === "photos"
+          ? photoRows.length
+          : key === "removed"
+            ? removedRows.length
+            : counts[key];
   const matching = useMemo(() => {
     const term = q.trim().toLowerCase();
     const base =
@@ -334,7 +337,7 @@ export function EnquiriesWorkspace({
           <div
             role="tablist"
             aria-label="Enquiry outcome filters"
-            className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-8"
+            className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-5"
           >
             {VIEW_ORDER.map((key) => (
               <Button
