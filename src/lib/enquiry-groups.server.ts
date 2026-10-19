@@ -24,7 +24,7 @@ const MEDIA_OUTCOMES: MediaReviewOutcome[] = ["no_insulation", "below_r2", "over
 
 const PAGE = 1000;
 const CHUNK = 150;
-const SENT = ["sent", "delivered_unrecorded", "sending"];
+const SENT = ["sent"];
 /** Real website/customer intake: the signed Base44 enquiry handoff into the Home Insulation Victoria channel. */
 export const WEBSITE_SOURCE = "base44";
 export const WEBSITE_CHANNEL = "hivic_sourced";
@@ -79,7 +79,7 @@ export async function loadEnquiryGroups(visibleIds?: string[]) {
     admin.from("customer_delivery_settings").select("jobs_created_after").eq("id", 1).maybeSingle(),
     byJobs(ids, (c, f, t) => admin.from("lead_campaign_responses").select("job_id, spot_saved_at").in("job_id", c).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("documents").select("job_id, kind, mime_type, storage_path, source_system, external_id").in("job_id", c).eq("kind", "intake_media").range(f, t)),
-    byJobs(ids, (c, f, t) => admin.from("customer_engagement_events").select("job_id, occurred_at, metadata").in("job_id", c).eq("event_type", "intake_media_reviewed").order("occurred_at").range(f, t)),
+    byJobs(ids, (c, f, t) => admin.from("customer_engagement_events").select("job_id, occurred_at, metadata").in("job_id", c).eq("event_type", "intake_media_reviewed").eq('source', 'office').order("occurred_at").range(f, t)),
   ]);
   const removedRows = await byJobs(ids, (c, f, t) => admin.from("workflow_events").select("job_id").in("job_id", c).eq("event_type", "lead_removed").range(f, t));
   const removedSet = new Set(removedRows.map((r) => r.job_id));
@@ -131,7 +131,7 @@ export async function loadEnquiryGroups(visibleIds?: string[]) {
           campaignGroup: camp.length ? (camp.some((s) => /:b(:|$)/.test(s.idempotency_key ?? "")) ? "onsite" : "likely") : null,
         });
       })(), attentionReason: null, outcomeAt: j.eligibility_set_at ?? null,
-      groupBMedia, mediaCount: groupBMedia.count, mediaChecked: mediaOutcome === "below_r2" || mediaOutcome === "over_r2", mediaOutcome,
+      groupBMedia, mediaCount: groupBMedia.count, mediaChecked: mediaOutcome !== null, mediaOutcome,
       removed: removedSet.has(j.id),
     };
   });

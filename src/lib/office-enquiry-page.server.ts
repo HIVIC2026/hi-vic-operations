@@ -4,7 +4,7 @@ import type { EnquiryPageView } from './enquiry-list-page.core';
 
 type Page = { ids: string[]; total: number; page: number; pageSize: number; totalPages: number; counts: Record<EnquiryPageView, number> };
 export async function loadOfficeEnquiryPage(view: EnquiryPageView, search: string, page: number) {
-  const { data, error } = await admin.rpc('office_enquiry_page' as never, { p_view: view, p_search: search, p_page: page } as never);
+  const { data, error } = await admin.rpc('office_enquiry_page', { p_view: view, p_search: search, p_page: page });
   if (error) throw new Error(`Enquiries could not load: ${error.message}`);
   const result = data as unknown as Page;
   if (!result || !Array.isArray(result.ids) || result.ids.length > 50) throw new Error('Invalid enquiry page');
