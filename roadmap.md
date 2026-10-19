@@ -311,3 +311,6 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - Add job claim fencing + original-condition evidence + reconfirmation drafting + live pre-start check — done, verified by focused tests only (no authenticated TEST run)
 
 - [ ] Authenticated TEST check of the PIISA crew picker and signed-PIISA signature record (needs a TEST installer with an approved worker; no live audit).
+
+- [x] Guarded one-record ineligible retry: 30 focused tests, affected-file lint and preview build pass; no sends or publish.
+- [ ] Signed-in retry end-to-end verification — blocked by no-send constraint; production availability requires publishing.

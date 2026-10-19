@@ -15,12 +15,12 @@
 - PIISA schema/prefill/copy changes require observed IDs and current-definition validation; media is not structured product data. Why: protect crew/statutory output.
 - PIISA pins read-back definitions; signatures use audit-owned IDs, never historic fallback. Expected day uses capture; products/post-work use same-audit review before output. Why: no inferred facts.
 - PIISA AP uses authoritative config and readback before sharing; blank repair requires observed unsigned capture fields. Why: no installer substitution or signed-history mutation.
-- Emails reuse Step 3; no drift.
+- Emails reuse Step 3; ineligible retries are admin-only, one failed record, existing sender. Why: preserve gates.
 - Staff labels/disclosure targets use pure `src/lib/portal-presentation.core.ts`, never workflow or eligibility decisions. Why: presentation must not duplicate domain rules.
 - Domain, workflow, payment, compliance and integration rules live in `src/lib/AGENTS.md`; read it before changing `src/lib`. Why: keeps this file small.
 - Server functions are literal `createServerFn(...).middleware(...).inputValidator(...).handler(...)` chains; never import `@tanstack/react-start/server` in `*.functions.ts`. Why: factories/that import break the client bundle.
 - Pure rules in `*.core.ts` (tested via `bun test ./tests/`), persistence in `*.server.ts`, RPC in `*.functions.ts`. Why: testable, central guards.
-- Test Centre jobs use `jobs.source = 'qa_test'` from creation and never enter post-intake automation. Why: launch testing must remain visibly isolated from live work and external actions.
+- Test Centre jobs start with `jobs.source = 'qa_test'` and never enter post-intake automation. Why: isolate tests from live work and external actions.
 - `/` on every host and `/calculator` serve the same current public calculator; staff sign in at `/auth`. Secure estimates never embed the retired what-if calculator or track calculator use. Why: preserve customer links and one calculator without obsolete variants.
 - The server entry detaches GET/HEAD rendering requests from the local adapter's socket-owned abort signal; keep mutation requests unchanged. Why: cancelled preview navigation must not throw after response close and blank the page.
 - Office navigation is the top bar + tab map in `src/lib/office-nav.ts`; Leads has one canonical screen and old routes remain valid. Why: one operational queue without breaking bookmarks.
@@ -31,7 +31,7 @@
 
 - Office operations categories and compact job status reuse the operations read classifier and one shared Query cache; legacy preview remains direct-link. Why: unique counts and factual precedence must agree without navigation polling.
 - Installer Add job shares CustomerFields and guarded import handlers; legacy bookmarks redirect there. Quote-removal events stay separate from measured facts; `intake-quote-details.core.ts` validates shared quote inputs. Why: one intake, no double counting.
-- Intake serializes files, keeps partial uploads/provenance, locks pending inputs and protects dirty drafts. Why: safe retries.
+- Intake serializes files, retains partial uploads/provenance and locks pending/dirty drafts. Why: safe retries.
 - Group B guards are shared; follow-up removal uses snapshot facts; initial email stays separate. Why: no repeat requests or price drift.
 - Portal QA = `bun run portal-qa` only; gaps NOT_RUN, never PASS. Why: honest bounded checks.
 - The /admin board places jobs by the facts-based office classifier (`board-phase.core.ts` via `getBoardStages`), never the stored stage alone. Why: stored Ready Check stages without a real Ready Check must not appear in Ready Check.
