@@ -408,6 +408,94 @@ function paragraphHtml(line: string): string {
   return `<p style="margin:0 0 8px;${F}color:${INK};font-size:15px;line-height:1.6;">${inline(line)}</p>`;
 }
 
+// --- Approved Save my spot presentation (same look as the locked Save your spot email) ---------------
+const BRAND_GREEN = CUSTOMER_BRAND.colors.green;
+const BRAND_BLUE = CUSTOMER_BRAND.colors.blue;
+const MINT = "#EDFAF2";
+const BLUSH = "#FDF2F6";
+const WHITE = "#FFFFFF";
+const CAPS = `${F}color:${INK};font-size:10px;line-height:1.3;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;`;
+const card = (bg: string, inner: string, radius = 20) =>
+  `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${bg}" style="width:100%;border-collapse:separate;background-color:${bg};border-radius:${radius}px;"><tr><td class="lx-result-pad" style="padding:22px 20px;${F}">${inner}</td></tr></table>`;
+const spacer = `<div style="height:16px;line-height:16px;font-size:1px;">&nbsp;</div>`;
+
+/** A titled section card; action sections (with a main button) use the pink Save your spot card. */
+function sectionCardHtml(heading: string, content: string[], action: boolean): string {
+  const inner: string[] = [`<p style="margin:0 0 12px;${FH}color:${INK};font-size:22px;line-height:1.25;font-weight:800;">${escape(heading)}</p>`];
+  for (let k = 0; k < content.length; k++) {
+    const l = content[k]!;
+    if (l.startsWith("|")) {
+      const rows: string[] = [];
+      while (k < content.length && content[k]!.startsWith("|")) rows.push(content[k++]!);
+      k--;
+      inner.push(tableHtml(rows));
+      continue;
+    }
+    inner.push(paragraphHtml(l));
+  }
+  return `${spacer}${card(action ? BLUSH : MIST, inner.join(""))}`;
+}
+
+const QUOTE_REBATE = /^\*\*(You could save|Potential VEU rebate):? (.+)\*\*$/;
+const QUOTE_COST = /^(Your estimated cost after rebate|Estimated cost if eligible|Your estimated cost): (\$[\d,]+) including GST$/;
+const QUOTE_BEFORE = /^Before rebate: (\$[\d,]+) including GST$/;
+const QUOTE_FACT = /^(Property|Ceiling size): (.+)$/;
+
+/** Jo's "Your preliminary quote" + "What this includes" in the approved rebate box / price / ticked list layout. */
+function quoteCardHtml(content: string[], includes: string[] | null): string {
+  let rebate = "";
+  let cost = "";
+  const facts: string[] = [];
+  const rest: string[] = [];
+  let before: string | null = null;
+  let costLabel = "";
+  for (const l of content) {
+    const r = QUOTE_REBATE.exec(l);
+    if (r) {
+      const label = r[1] === "You could save" ? "Your estimated VEU rebate" : r[1]!;
+      const big = r[1] === "You could save" ? `You could save ${r[2]}` : r[2]!;
+      rebate = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${MINT}" style="width:100%;border-collapse:separate;background-color:${MINT};border:2px solid ${BRAND_GREEN};border-radius:18px;"><tr><td align="center" style="padding:18px 12px;${F}"><p style="margin:0;${CAPS}">${escape(label)}</p><p class="lx-saving" style="margin:5px 0 0;${FH}color:${BRAND_GREEN};font-size:38px;line-height:42px;mso-line-height-rule:exactly;font-weight:800;">${escape(big)}</p></td></tr></table>`;
+      continue;
+    }
+    const c = QUOTE_COST.exec(l);
+    if (c) { costLabel = c[1]!; cost = c[2]!; continue; }
+    const b = QUOTE_BEFORE.exec(l);
+    if (b) { before = b[1]!; continue; }
+    const f = QUOTE_FACT.exec(l);
+    if (f) {
+      const label = f[1] === "Ceiling size" ? "Ceiling" : f[1]!;
+      facts.push(`<tr><td valign="top" style="padding:4px 0;${F}color:${INK};font-size:13px;">${escape(label)}</td><td align="right" style="padding:4px 0 4px 12px;${F}color:${INK};font-size:13px;font-weight:800;">${escape(f[2]!)}</td></tr>`);
+      continue;
+    }
+    rest.push(l);
+  }
+  const price = cost
+    ? `<div style="text-align:center;padding:18px 0 12px;"><p style="margin:0;${CAPS}">${escape(costLabel)}</p><p class="lx-cost" style="margin:5px 0 0;${FH}color:${BRAND_BLUE};font-size:46px;line-height:50px;mso-line-height-rule:exactly;font-weight:800;">${escape(cost)}</p><p style="margin:4px 0 0;${F}color:${INK};font-size:12px;line-height:1.4;font-weight:700;">incl. GST${before ? ` · before rebate ${escape(before)}` : ""}</p></div>`
+    : "";
+  const factTable = facts.length
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;border-top:1px solid ${LINE};">${facts.join("")}</table>`
+    : "";
+  const notes = rest.map((l) => {
+    const p = paragraphHtml(l);
+    return p.replace("margin:0 0 8px;", "margin:12px 0 0;").replace("font-size:15px;", "font-size:14px;");
+  }).join("");
+  const tick = `<span aria-hidden="true" style="white-space:nowrap;color:${BRAND_GREEN};font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;line-height:1;">✓&nbsp;</span>`;
+  let itemised = "";
+  if (includes) {
+    const cells = (r: string) => r.split("|").slice(1, -1).map((x) => x.trim());
+    const rows = includes.filter((l) => l.startsWith("|")).slice(2).map(cells);
+    const items = rows.map(([item = "", amount = ""], idx) => {
+      const [title, ...desc] = item.split(" — ");
+      const top = idx === 0 ? "" : `border-top:1px solid ${LINE};`;
+      const amt = /^free$/i.test(amount) ? `<span style="color:${BRAND_GREEN};font-weight:800;">FREE</span>` : escape(amount);
+      const description = desc.length ? desc.join(" — ") : "";
+      return `<tr><td valign="top" style="padding:8px 12px ${description ? "2px" : "8px"} 0;${top}${F}color:${INK};font-size:14px;line-height:1.45;">${tick}<strong style="font-size:14px;">${escape(title!)}</strong></td><td class="lx-row-amt" width="96" align="right" valign="top" style="width:96px;padding:8px 0 2px;${top}${F}color:${INK};font-size:14px;line-height:1.45;font-weight:700;white-space:nowrap;">${amt}</td></tr>${description ? `<tr><td colspan="2" style="padding:0 0 8px;${F}color:${INK};font-size:12.5px;line-height:1.45;">${escape(description.charAt(0).toUpperCase() + description.slice(1))}</td></tr>` : ""}`;
+    }).join("");
+    itemised = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${WHITE}" style="width:100%;margin-top:14px;border-collapse:separate;background-color:${WHITE};border-radius:14px;"><tr><td style="padding:15px 16px;${F}"><p style="margin:0 0 6px;${FH}color:${INK};font-size:14px;line-height:1.3;font-weight:800;">What this includes</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;">${items}</table></td></tr></table>`;
+  }
+  return `${spacer}${card(MIST, `${rebate}${price}${factTable}${notes}${itemised}`, 22)}`;
+}
+
 function tableHtml(rows: string[]): string {
   const cells = (r: string) => r.split("|").slice(1, -1).map((c) => c.trim());
   if (!rows.length) return "";
