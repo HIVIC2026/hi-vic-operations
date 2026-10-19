@@ -131,13 +131,12 @@ describe("Office automatic rules stay strict for normal sends", () => {
     expect(matchAutomaticRules(facts(30), rules, NOW).failedCategories).toEqual(["enquiryDate"]);
     expect(matchAutomaticRules(facts(30), backlogRules(rules), NOW).eligible).toBe(true);
   });
-  test("backlog rules still apply every other filter (e.g. stage)", () => {
-    expect(
-      matchAutomaticRules(facts(30, "eligibility_review"), backlogRules(rules), NOW)
-        .failedCategories,
-    ).toEqual(["jobStatus"]);
-    expect(backlogRules(rules).jobStatus).toEqual(rules.jobStatus);
-    expect(rules.enquiryDate.enabled).toBe(true); // original not mutated
+  test("backlog rules skip status filter but keep eligibility/insulation", () => {
+    expect(matchAutomaticRules(facts(30, "eligibility_review"), backlogRules(rules), NOW).eligible).toBe(true);
+    expect(matchAutomaticRules(facts(30, "eligibility_review"), rules, NOW).failedCategories).toEqual(["jobStatus", "enquiryDate"]);
+    expect(matchAutomaticRules({ ...facts(30), insulation: "present" as never }, backlogRules(rules), NOW).failedCategories).toEqual(["insulation"]);
+    expect(matchAutomaticRules({ ...facts(30), eligibilityOutcome: "needs_onsite_confirmation" }, backlogRules(rules), NOW).failedCategories).toEqual(["eligibility"]);
+    expect(rules.enquiryDate.enabled && rules.jobStatus.enabled).toBe(true); // original not mutated
   });
   test("gate skips activation/history ONLY under the trusted flag", () => {
     const g = src("src/lib/save-spot-rules.server.ts");
