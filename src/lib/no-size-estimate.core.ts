@@ -24,3 +24,14 @@ export function noSizeInitialAllowed(x: { isTest: boolean; mode: string; manualB
   if (x.isTest || x.mode !== "send") return true;
   return x.manualBacklog || initialReplyQualifies({ originalInitialClaim: null });
 }
+
+/** Jo 19 Oct: a reviewed below-R2 existing-insulation follow-up with no owner size may use the clearly
+ *  labelled typical 150 m² estimate (the T3/T4 email states the size was assumed). Every other follow-up
+ *  guard (approved review, consent, link, idempotency) still applies separately. Null = allowed. */
+export function reviewedFollowupNoSizeBlocker(x: { areaSource: string | null; areaM2: number | null; ownerArea: number | null; insulation: string | null }): string | null {
+  if (x.areaSource !== "typical_default") return null;
+  if (x.insulation !== "present") return "Typical-size follow-up needs a current existing-insulation estimate.";
+  if (x.ownerArea && x.ownerArea > 0) return "Owner has entered a ceiling size; the estimate must be recalculated first.";
+  if (x.areaM2 !== DEFAULT_ESTIMATED_AREA_M2) return "Estimate area does not match the typical-size assumption.";
+  return null;
+}

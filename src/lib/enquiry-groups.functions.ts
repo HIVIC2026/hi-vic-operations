@@ -71,11 +71,21 @@ export const getLeadMedia = createServerFn({ method: "POST" }).middleware([requi
   });
 
 export const reviewLeadMediaFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), outcome: z.enum(["below_r2", "over_r2", "unclear"]) }).parse(d))
+  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), outcome: z.enum(["below_r2", "over_r2", "unclear", "no_insulation"]) }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const { reviewLeadMedia } = await import("./enquiry-groups.server");
     return reviewLeadMedia(data.jobId, data.outcome, context.userId ?? null);
+  });
+
+/** Admin-only, ONE job: after an Office "no_insulation" review, sync Step 3 and run the normal guarded
+ *  Save my spot sender (T1/T2). Every sender guard still applies; preview renders without sending; never forced. */
+export const noInsulationSaveSpotFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), preview: z.boolean() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { noInsulationSaveSpot } = await import("./enquiry-groups.server");
+    return noInsulationSaveSpot(data.jobId, context.userId ?? null, data.preview);
   });
 
 export const removeLeadsFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -93,4 +103,13 @@ export const existingInsulationSaveSpotFn = createServerFn({ method: "POST" }).m
     await requireAdmin(context.supabase);
     const { sendExistingInsulationSaveSpot } = await import("./hot-leads-send.server");
     return sendExistingInsulationSaveSpot(data.jobId, context.userId, data.preview);
+  });
+
+/** Admin-only, ONE job: prepare/refresh the secure estimate link (Step 3). Never sends. */
+export const prepareEstimateLinkFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { syncStep3 } = await import("./estimatelink.server");
+    return syncStep3(data.jobId, context.userId ?? null);
   });

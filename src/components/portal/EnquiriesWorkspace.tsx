@@ -194,6 +194,14 @@ function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
               >
                 {MEDIA_OUTCOME_LABEL.unclear}
               </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={busy !== null}
+                onClick={() => act("no_insulation")}
+              >
+                {MEDIA_OUTCOME_LABEL.no_insulation}
+              </Button>
             </div>
           )}
         </>

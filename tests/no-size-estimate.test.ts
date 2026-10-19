@@ -24,3 +24,12 @@ test("sender holds real typical-size sends and no longer uses age windows", () =
   const s = readFileSync("src/lib/hot-leads-send.server.ts", "utf8");
   expect(s).toContain("NO_SIZE_REAL_SEND_HELD"); expect(s).not.toContain("initialReplyWindowOk");
 });
+
+import { reviewedFollowupNoSizeBlocker } from "../src/lib/no-size-estimate.core";
+const fu = { areaSource: "typical_default", areaM2: 150, ownerArea: null, insulation: "present" };
+test("reviewed below-R2 follow-up may use labelled 150 m²", () => expect(reviewedFollowupNoSizeBlocker(fu)).toBeNull());
+test("reviewed follow-up: owner size, wrong area or no-insulation estimate blocks", () => {
+  expect(reviewedFollowupNoSizeBlocker({ ...fu, ownerArea: 120 })).not.toBeNull();
+  expect(reviewedFollowupNoSizeBlocker({ ...fu, areaM2: 140 })).not.toBeNull();
+  expect(reviewedFollowupNoSizeBlocker({ ...fu, insulation: "none" })).not.toBeNull();
+});
