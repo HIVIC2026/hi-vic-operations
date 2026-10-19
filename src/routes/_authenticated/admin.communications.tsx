@@ -187,7 +187,7 @@ function Overview() {
           Open enquiries with no confirmed initial response yet. These are the counts the Office can
           act on.
         </p>
-        <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
+        <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-5">
           <div className={tile}>
             <div className="font-display text-2xl font-bold">{c?.awaiting ?? "—"}</div>
             <div className="text-sm">Awaiting send</div>
@@ -195,6 +195,10 @@ function Overview() {
           <div className={tile}>
             <div className="font-display text-2xl font-bold">{c?.inFlight ?? "—"}</div>
             <div className="text-sm">Sending / queued</div>
+          </div>
+          <div className={tile}>
+            <div className="font-display text-2xl font-bold">{c?.sent ?? "—"}</div>
+            <div className="text-sm">Sent</div>
           </div>
           <div className={tile}>
             <div className="font-display text-2xl font-bold">{c?.manualReview ?? "—"}</div>
@@ -212,6 +216,11 @@ function Overview() {
             <div className="text-sm">Failed</div>
           </div>
         </div>
+        <p className="mt-2 text-xs text-sub">
+          Initial enquiry responses only. Sent = a confirmed send is recorded; Sending/queued =
+          queued or in progress; Failed = the last attempt failed; Requires office review = held
+          before sending.
+        </p>
       </section>
       <section aria-label="Recent send log">
         <h2 className="font-display text-lg font-bold">Recent send log</h2>

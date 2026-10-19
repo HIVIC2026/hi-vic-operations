@@ -33,6 +33,15 @@ describe("Template selection", () => {
     // P1-S77: a retired id (superseded Save-your-spot copy) is no longer listed and falls back to Jo's first template.
     expect(selectTemplate("email", "email:save_my_spot_no_size").title).toBe("Eligible — no existing insulation (size unknown)");
     expect(parseTemplateSearch({ cat: "bogus" })).toEqual({ cat: "email" });
+    // Standing must survive parsing so `/admin/templates?standing=historical` is not rewritten.
+    expect(parseTemplateSearch({ cat: "mitti", standing: "historical" })).toEqual({
+      cat: "mitti",
+      standing: "historical",
+    });
+    expect(parseTemplateSearch({ standing: "approved" })).toEqual({
+      cat: "email",
+      standing: "approved",
+    });
   });
   test("Mitti has A1, A2, B, C; PIESA/PIISA register entries cross-reference Mitti, not editable copies", () => {
     expect(entriesFor("mitti").map((e) => e.id).sort()).toEqual(["mitti:piesa", "mitti:piisa", "mitti:ready_check", "mitti:ready_check_priced"]);

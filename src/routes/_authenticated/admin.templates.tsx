@@ -4,6 +4,7 @@ import { TemplatesHub } from "@/components/portal/template-hub";
 import { CustomerDraftReview } from "@/components/portal/CustomerDraftReview";
 import { PartnerTemplates } from "@/components/portal/PartnerTemplates";
 import {
+  TEMPLATE_CATEGORIES,
   parseTemplateSearch,
   type TemplateCategory,
   type TemplateStanding,
@@ -13,9 +14,19 @@ const title = "Templates — Home Insulation Victoria";
 const description =
   "The one office register of approved email, Mitti form and compliance wording with its version and approval.";
 export const Route = createFileRoute("/_authenticated/admin/templates")({
+  // Only echo search that is actually present: injecting a default `cat` here makes the router
+  // canonicalise the URL (307) and drop filters such as `standing`.
   validateSearch: (
     s: Record<string, unknown>,
-  ): { cat?: TemplateCategory; t?: string; standing?: TemplateStanding } => parseTemplateSearch(s),
+  ): { cat?: TemplateCategory; t?: string; standing?: TemplateStanding } => {
+    const parsed = parseTemplateSearch(s);
+    const hasCat = TEMPLATE_CATEGORIES.some((c) => c.key === s["cat"]);
+    return {
+      ...(hasCat ? { cat: parsed.cat } : {}),
+      ...(parsed.t ? { t: parsed.t } : {}),
+      ...(parsed.standing ? { standing: parsed.standing } : {}),
+    };
+  },
   head: () => ({
     meta: [
       { title },
@@ -38,7 +49,7 @@ function Page() {
       <TemplatesHub cat={category} {...(standing ? { standing } : {})} {...(t ? { t } : {})} />
       {category === "email" && (
         <>
-          <CustomerDraftReview {...(t ? { initialKey: t } : {})} />
+          <CustomerDraftReview />
           <PartnerTemplates />
         </>
       )}
