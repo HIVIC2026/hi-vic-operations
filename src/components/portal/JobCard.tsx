@@ -15,7 +15,7 @@ export type JobEnquiryFacts = {
   mediaCount: number | null;
 };
 
-export type JobRow = Omit<Database["public"]["Views"]["job_overview"]["Row"], "authority_status" | "authority_expires_at" | "deposit_cleared"> & Partial<Pick<Database["public"]["Views"]["job_overview"]["Row"], "authority_status" | "authority_expires_at" | "deposit_cleared">> & { stuck_reasons?: string[]; comms_status?: { label: string; tone: "good" | "warn" | "bad" | "neutral" } | null; installer_facts?: import("@/lib/bulk-import.core").InstallerJobFacts | null; enquiry_facts?: JobEnquiryFacts | null };
+export type JobRow = Omit<Database["public"]["Views"]["job_overview"]["Row"], "authority_status" | "authority_expires_at" | "deposit_cleared"> & Partial<Pick<Database["public"]["Views"]["job_overview"]["Row"], "authority_status" | "authority_expires_at" | "deposit_cleared">> & { stuck_reasons?: string[]; comms_status?: { label: string; tone: "good" | "warn" | "bad" | "neutral" } | null; installer_facts?: import("@/lib/bulk-import.core").InstallerJobFacts | null; enquiry_facts?: JobEnquiryFacts | null; /** Jo's single office status (Enquiry → Spot offered → Spot saved / Ineligible / Needs attention). */ office_status?: import("@/lib/enquiry-groups.core").EnquiryStatus | null };
 
 export function JobCard({ job, to, coverage }: { job: JobRow; to: "/admin/jobs/$jobId" | "/field/$jobId" | "/owner/$jobId"; coverage?: "serviceable" | "unserviceable" | "partial" | "not_configured" }) {
   const stuck = job.stuck_reasons ?? [];

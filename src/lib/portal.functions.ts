@@ -1350,10 +1350,18 @@ export const getAdminPipeline = createServerFn({ method: "POST" }).middleware([r
     admin.from("ready_check_payments").select("job_id,status,paid_at"),
     admin.from("bookings").select("job_id,kind,scheduled_start").eq("status", "confirmed"),
   ]);
-  const [{ data: asg }, { data: msgs }] = await Promise.all([
-    admin.from("job_assignments").select("job_id,user_id,assigned_at,active").eq("active", true),
-    admin.from("messages").select("job_id,sender_id,created_at,internal"),
-  ]);
+  const { data: asg } = await admin.from("job_assignments").select("job_id,user_id,assigned_at,active").eq("active", true);
+  // commsStatus() returns null for jobs with no active trade assignment, so messages for those jobs are
+  // never read. Fetch messages only for assigned jobs (was: every message row, the dominant dashboard cost).
+  const assignedJobIds = [...new Set((asg ?? []).map((a) => a.job_id))];
+  const msgs: { job_id: string; sender_id: string | null; created_at: string; internal: boolean | null }[] = [];
+  for (let i = 0; i < assignedJobIds.length; i += 100) {
+    const { data } = await admin
+      .from("messages")
+      .select("job_id,sender_id,created_at,internal")
+      .in("job_id", assignedJobIds.slice(i, i + 100));
+    if (data) msgs.push(...data);
+  }
   // Presentation-only enrichment for the Office cards: the customer's CURRENT indicative estimate already
   // stores ceiling area + declared insulation, and intake media is already attached to the job. Read-only,
   // no recalculation, no new aggregation service, and the same rows the job page shows.
@@ -1362,6 +1370,22 @@ export const getAdminPipeline = createServerFn({ method: "POST" }).middleware([r
     admin.from("documents").select("job_id").eq("kind", "intake_media"),
     admin.from("evidence_files").select("job_id,storage_path,mime_type").like("storage_path", "%/intake/%"),
   ]);
+  // Jo's ONE clear office status per enquiry (same rule the Enquiry-groups page uses): reads what actually
+  // happened (email sent, spot saved, recorded eligibility). Presentation only — never changes a job.
+  const [{ data: campRows }, { data: sendRows }] = await Promise.all([
+    admin.from("lead_campaign_responses").select("job_id,spot_saved_at,opted_out_at"),
+    admin.from("customer_email_sends").select("job_id,purpose,status,idempotency_key"),
+  ]);
+  const { enquiryStatus } = await import("./enquiry-groups.core");
+  const { LAUNCH_CAMPAIGN } = await import("./launch-campaign.core");
+  const SENT_STATUSES = ["sent", "delivered_unrecorded", "sending"];
+  const savedSet = new Set((campRows ?? []).filter((c) => c.spot_saved_at && !c.opted_out_at).map((c) => c.job_id));
+  const sendsByJob = new Map<string, { purpose: string; status: string; key: string | null }[]>();
+  for (const s of sendRows ?? []) {
+    const a = sendsByJob.get(s.job_id);
+    const row = { purpose: s.purpose as string, status: s.status as string, key: (s.idempotency_key as string | null) ?? null };
+    if (a) a.push(row); else sendsByJob.set(s.job_id, [row]);
+  }
   const estBy = new Map((ests ?? []).map((e) => [e.job_id, e]));
   const mediaBy = new Map<string, number>();
   for (const d of mediaDocs ?? []) if (d.job_id) mediaBy.set(d.job_id, (mediaBy.get(d.job_id) ?? 0) + 1);
@@ -1404,6 +1428,18 @@ export const getAdminPipeline = createServerFn({ method: "POST" }).middleware([r
         mediaCount: mediaKnown ? mediaBy.get(id) ?? 0 : null,
       },
       comms_status: commsStatus(asgBy.get(id) ?? [], msgBy.get(id) ?? [], new Date()),
+      office_status: (() => {
+        const sent = (sendsByJob.get(id) ?? []).filter((s) => SENT_STATUSES.includes(s.status));
+        const campSent = sent.filter((s) => s.purpose === LAUNCH_CAMPAIGN);
+        return enquiryStatus({
+          spotSaved: savedSet.has(id),
+          ineligible: j.eligibility_outcome === "does_not_appear_eligible" || j.stage === "on_hold",
+          ineligibleEmailSent: sent.some((s) => s.purpose === "preliminary_ineligible"),
+          campaignSent: campSent.length > 0,
+          insulationEmailSent: sent.some((s) => s.purpose === "insulation_video_request"),
+          campaignGroup: campSent.length ? (campSent.some((s) => /:b(:|$)/.test(s.key ?? "")) ? "onsite" : "likely") : null,
+        });
+      })(),
       stuck_reasons: stuckReasons({
         stage: j.stage,
         lastActivityAt: j.last_activity_at,

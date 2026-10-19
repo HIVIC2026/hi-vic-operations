@@ -159,6 +159,9 @@ function Pipeline() {
       : tab === "enquiries" && workView === "active" ? "enquiries"
         : tab === "jobs" && workView === "active" ? "jobs" : null;
   const resetFilters = () => { setQ(""); setSource("all"); setPhase("all"); setInsulation("all"); setMedia("all"); setSort("newest"); };
+  // Jo (19 Oct): the dashboard must read as three plain sections — Enquiries / Active jobs / Closed jobs.
+  // The legacy work-view row is still reachable but folded away so it no longer competes with them.
+  const sectionTitle = section === "enquiries" ? "ENQUIRIES" : section === "jobs" ? "ACTIVE JOBS" : section === "closed" ? "CLOSED JOBS" : TAB_TITLE[tab];
   const loadInterests = useServerFn(listInterests);
   const { data: interests = [] } = useQuery({ queryKey: ["calculator-interests"], queryFn: () => loadInterests(), staleTime: 30_000 });
   const shownInterests = useMemo(() => {
@@ -237,7 +240,7 @@ function Pipeline() {
       <div className="mb-3 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 border-b pb-3 sm:flex sm:flex-wrap">
          <div className="min-w-0 sm:flex-1">
            <p className="text-xs font-bold uppercase text-primary">Home Insulation Victoria</p>
-           <h1 className="mt-1 text-2xl font-bold sm:text-3xl">{TAB_TITLE[tab]}</h1>
+           <h1 className="mt-1 text-2xl font-bold sm:text-3xl">{sectionTitle}</h1>
            <p className="mt-2 text-sm text-muted-foreground">Active enquiries first. Ineligible, finalised, cancelled and test records stay safely filed.</p>
            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm font-semibold text-primary">
             {tab === "enquiries" && <Link to="/admin/enquiry-groups" className="underline">Enquiry email groups</Link>}
@@ -288,11 +291,14 @@ function Pipeline() {
           </>
         )}
       </nav>
-      {tab !== "board" && <section className="mb-2 flex flex-wrap items-center gap-1.5" aria-label="Work views">
+      {tab !== "board" && <details className="mb-2 rounded-md border bg-card px-3 py-2">
+        <summary className="cursor-pointer text-xs font-semibold text-muted-foreground">More views · Review required, Exceptions, On hold, Finalised, Cancelled, Test</summary>
+        <section className="mt-2 flex flex-wrap items-center gap-1.5" aria-label="Work views">
         {PRIMARY_VIEWS.map((item) => <Button key={item.key} type="button" size="sm" variant={workView === item.key ? "default" : "outline"} onClick={() => { setWorkView(item.key); setPhase("all"); }} aria-pressed={workView === item.key}>{item.label} <Badge variant="secondary">{cardCount(item.key)}</Badge></Button>)}
         <label className="sr-only" htmlFor="retained-view">Retained records view</label><select id="retained-view" aria-label="Retained and complete records" className="h-9 min-w-0 rounded-md border bg-background px-2 text-sm" value={SECONDARY_VIEWS.some((item) => item.key === workView) ? workView : ""} onChange={(e) => { if (e.target.value) { setWorkView(e.target.value as WorkView); setPhase("all"); } }}><option value="">More records…</option>{SECONDARY_VIEWS.map((item) => <option key={item.key} value={item.key}>{item.label} ({cardCount(item.key)})</option>)}</select>
         <span className="text-xs text-muted-foreground">Ineligible {ineligibleOnly} · On hold {onHoldOnly}</span>
-      </section>}
+        </section>
+      </details>}
       {workView === "active" && tab !== "ineligible" && tab !== "board" && activeHere !== activeCount && <p data-testid="active-split" className="mb-3 text-xs text-muted-foreground">{activeCount} records are in progress in total: {activeByTab.enquiries} at enquiry stage, {activeByTab.quotes} at quote stage, {activeByTab.jobs} at job stage. {tab !== "enquiries" && activeByTab.enquiries > 0 && <Link to="/admin" search={{ tab: "enquiries" }} className="font-semibold text-primary underline">View the {activeByTab.enquiries} enquiries</Link>}</p>}
       {tab !== "board" && (filtersOn || sort !== "newest") && <div data-testid="active-filters" className="mb-3 flex flex-wrap items-center gap-2 text-xs"><span className="font-semibold" data-testid="shown-count">Showing {visibleJobs.length} of {jobs.length} loaded:</span>{q && <Badge variant="outline">Search “{q}”</Badge>}{source !== "all" && <Badge variant="outline">{source === "hivic_sourced" ? "Home Insulation Victoria-sourced" : "Installer-sourced"}</Badge>}{phase !== "all" && <Badge variant="outline">Stage: {PIPELINE_PHASES.find((p) => p.key === phase)?.label ?? phase}</Badge>}{insulation !== "all" && <Badge variant="outline">Insulation: {insulation === "missing" ? "not provided" : insulation}</Badge>}{media !== "all" && <Badge variant="outline">Media: {media === "has" ? "has media" : "no media"}</Badge>}{sort !== "newest" && <Badge variant="outline">Sort: {sort === "oldest" ? "oldest enquiry" : "longest waiting"}</Badge>}<Button type="button" size="sm" variant="ghost" onClick={resetFilters}>Reset filters</Button></div>}
       {workView === "review" && <p className="mb-3 text-xs text-muted-foreground">These records are waiting on an Office decision. Open one to see its photos/videos and eligibility evidence, then record the decision — nothing advances automatically.</p>}
