@@ -1,38 +1,52 @@
+// P1-S77 (supersedes Jo 7 Oct 12:52 / Step 3 parity): Save my spot uses ONLY Jo's approved templates (15 Oct 2026).
+// Likely-eligible owners receive Jo T1/T2 (no insulation) or T3/T4 (below R2, reviewed); no superseded renderer is
+// reachable from any sender, preview or Office page.
 import { describe, expect, test } from "bun:test";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { renderLaunchCampaignEmail, renderLaunchGroupEmail } from "../src/lib/estimate-email";
-import { renderStep3SaveSpot } from "../src/lib/step3-emails";
+import { renderJoOutcomeEmail, type JoOutcomeEmailInput } from "../src/lib/jo-outcome-email.core";
 
-const campaignUrl = `https://estimate.homeinsulationvictoria.com.au/estimate/${"A".repeat(43)}/campaign`;
-const unsubscribeUrl = `https://estimate.homeinsulationvictoria.com.au/api/public/unsubscribe?t=${"U".repeat(43)}`;
-const base = { campaignUrl, unsubscribeUrl, firstName: "Sarah", estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150, address: "14 Example Street, Ballarat VIC 3350", reference: "HV-1" };
+const TOK = `https://estimate.homeinsulationvictoria.com.au/estimate/${"A".repeat(43)}`;
+const base: JoOutcomeEmailInput = {
+  outcome: "likely_eligible", insulation: "none", ceilingSizeKnown: true,
+  recipient: { firstName: "Sarah", propertyAddress: "14 Example Street, Ballarat VIC 3350", enquiryReference: "HV-1" },
+  figures: { veuRebate: 1470, customerTotal: 3379, totalBeforeRebate: 4849, installation: 4151, piesaFee: 349, apFee: 349, ceilingAreaM2: 150, areaEstimated: false },
+  links: { saveMySpotUrl: `${TOK}/campaign`, uploadMediaUrl: `${TOK}/video`, reviewResultUrl: TOK, calculatorUrl: `${TOK}#calculator` },
+};
 
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap((f) => { const p = join(dir, f); return statSync(p).isDirectory() ? files(p) : /\.(ts|tsx)$/.test(f) ? [p] : []; });
 }
+const code = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 
-describe("Save my spot uses only the approved email (Jo, 7 Oct 12:52)", () => {
-  test("old v9 likely version refuses to render", () => {
-    expect(() => renderLaunchCampaignEmail({ ...base, group: "likely" })).toThrow();
+/** Superseded homeowner renderers. They may still be DEFINED (and used by retired, redirected routes) but never called by a live path. */
+const LEGACY_CALL = /\b(renderLaunchCampaignEmail|renderLaunchGroupEmail|renderStep3SaveSpot|renderStep3SaveSpotNoSize|renderStep3Likely|renderSaveSpotFromLikelyEmail|renderSaveSpotOfferEmail)\s*\(/;
+const DEFINITIONS = /src\/lib\/(estimate-email|step3-emails|step3-email-samples|save-spot-offer\.core)\.ts$/;
+const RETIRED_ROUTES = /src\/routes\/(step3-email-preview|_authenticated\/admin\.campaign-emails)\.tsx$/;
+
+describe("Save my spot uses only Jo's approved templates (15 Oct 2026)", () => {
+  test("likely eligible, no insulation, size known → Jo T2 with the Save my spot CTA", () => {
+    const m = renderJoOutcomeEmail(base)!;
+    expect(m.templateId).toBe("eligible_no_insulation_size_known");
+    expect(m.ctas).toEqual(["save_my_spot"]);
+    expect(m.subject).toBe("Sarah, you could save $1,470 on ceiling insulation");
+    expect(m.html).toContain(`href="${TOK}/campaign"`);
   });
-  test("likely group renders exactly the approved email", () => {
-    const got = renderLaunchGroupEmail({ ...base, group: "likely" });
-    const want = renderStep3SaveSpot({ estimateUrl: campaignUrl.replace(/\/campaign$/, ""), campaignUrl, unsubscribeUrl,
-      estimatedTotal: 3379, veuDiscount: 1470, grossTotal: 4849, areaM2: 150, firstName: "Sarah", address: base.address, reference: "HV-1", existingInsulationPresent: false });
-    expect(got.html).toBe(want.html);
-    expect(got.plainText).toBe(want.plainText);
+  test("likely eligible, no insulation, size unknown → Jo T1 stating the 150 m² estimate", () => {
+    const m = renderJoOutcomeEmail({ ...base, ceilingSizeKnown: false, figures: { ...base.figures!, areaEstimated: true } })!;
+    expect(m.templateId).toBe("eligible_no_insulation_size_unknown");
+    expect(m.plainText).toContain("Ceiling size: 150 m² — estimated, not measured");
   });
-  test("no sender or preview calls the retired renderer directly for likely owners", () => {
+  test("no live sender, preview or Office page calls a superseded renderer", () => {
+    const offenders: string[] = [];
     for (const f of [...files("src"), ...files("scripts")]) {
-      if (f.endsWith("estimate-email.ts")) continue;
+      if (DEFINITIONS.test(f)) continue;
       const s = readFileSync(f, "utf8");
-      if (f.endsWith("hot-leads-send.server.ts")) {
-        // P1-S77: the Save my spot sender renders ONLY Jo's approved templates (T1–T4) — no Step 3 builder either.
-        expect(s).toContain("jo.renderJoOutcomeEmail(");
-        expect(/\brenderStep3(Likely|SaveSpot)\s*\(/.test(s)).toBe(false);
-      }
-      expect(s.includes("renderLaunchCampaignEmail(")).toBe(false);
+      if (RETIRED_ROUTES.test(f)) { expect(s).toContain('throw redirect({ to: "/admin/templates"'); continue; }
+      if (LEGACY_CALL.test(code(s))) offenders.push(f);
     }
+    expect(offenders).toEqual([]);
+    const send = readFileSync("src/lib/hot-leads-send.server.ts", "utf8");
+    expect(send).toContain("jo.renderJoOutcomeEmail(");
   });
 });

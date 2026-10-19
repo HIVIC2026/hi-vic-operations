@@ -2,11 +2,12 @@
 // Usage: bun scripts/check-hot-lead-maths.ts   (read-only)
 import { supabaseAdmin as a } from "../src/integrations/supabase/client.server";
 import { loadHotLeads } from "../src/lib/hot-leads.server";
-import { renderLaunchGroupEmail } from "../src/lib/estimate-email";
+// P1-S77: the email actually sent to these owners is Jo's approved T1/T2, so its numbers are checked there.
+import { renderJoOutcomeEmail } from "../src/lib/jo-outcome-email.core";
 
 const GHG = { Mild: 0.00576, Cold: 0.00771, Hot: 0.00546 } as Record<string, number>;
 const REGIONAL = { Metropolitan: 0.98, Regional: 1.04 } as Record<string, number>;
-const money = (n: number) => `$${Math.floor(n).toLocaleString("en-AU")}`;
+const money = (n: number) => `$${Math.round(n).toLocaleString("en-AU")}`; // Jo templates round to whole dollars
 let checked = 0; const bad: string[] = [];
 for (const list of ["likely", "warm"] as const) {
   const { list: rows } = await loadHotLeads(list);
@@ -21,7 +22,11 @@ for (const list of ["likely", "warm"] as const) {
     const total = Math.round((gross - discount) * 100) / 100;
     checked++;
     if (Math.abs((r.discount ?? -1) - discount) > 0.001 || Math.abs((r.price ?? -1) - total) > 0.001) bad.push(`${r.jobNumber}: list ${r.discount}/${r.price} vs ${discount}/${total}`);
-    const mail = renderLaunchGroupEmail({ group: "likely", campaignUrl: `https://estimate.homeinsulationvictoria.com.au/estimate/${"A".repeat(43)}/campaign`, unsubscribeUrl: `https://estimate.homeinsulationvictoria.com.au/api/public/unsubscribe?t=${"U".repeat(43)}`, firstName: "X", estimatedTotal: r.price!, veuDiscount: r.discount!, grossTotal: r.price! + r.discount!, areaM2: r.area });
+    const tok = `https://estimate.homeinsulationvictoria.com.au/estimate/${"A".repeat(43)}`;
+    const mail = renderJoOutcomeEmail({ outcome: "likely_eligible", insulation: "none", ceilingSizeKnown: true,
+      recipient: { firstName: "X", propertyAddress: "", enquiryReference: r.jobNumber ?? "" },
+      figures: { veuRebate: r.discount!, customerTotal: r.price!, totalBeforeRebate: r.price! + r.discount!, installation: r.area * 30, piesaFee: 349, apFee: 349, ceilingAreaM2: r.area, areaEstimated: false },
+      links: { saveMySpotUrl: `${tok}/campaign`, uploadMediaUrl: `${tok}/video`, reviewResultUrl: tok, calculatorUrl: `${tok}#calculator` } })!;
     for (const want of [money(discount), money(total), money(gross)]) if (!mail.plainText.includes(want) && !mail.html.includes(want)) bad.push(`${r.jobNumber}: email missing ${want}`);
   }
 }

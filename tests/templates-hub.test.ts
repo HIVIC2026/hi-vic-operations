@@ -2,8 +2,6 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { OFFICE_HEADINGS, SECTION_TABS, sectionFor, tabActive } from "../src/lib/office-nav";
 import { TEMPLATE_ENTRIES, entriesFor, parseTemplateSearch, selectTemplate } from "../src/lib/template-hub.core";
-import { samples } from "../src/lib/step3-email-samples";
-import { renderStep3SaveSpot, renderStep3SaveSpotNoSize, STEP3_SAVESPOT_SAMPLE } from "../src/lib/step3-emails";
 import { PARTNER_TEMPLATES, renderPartnerTemplate } from "../src/lib/partner-templates";
 import { INSTALLER_INVITATION_HTML } from "../src/lib/installer-invitation.html";
 
@@ -61,9 +59,14 @@ describe("Template selection", () => {
 });
 
 describe("Render parity — hub shows the exact existing HTML", () => {
-  test("Save your spot and no-size samples equal the Step 3 builders", () => {
-    expect(samples.savespot.html).toBe(renderStep3SaveSpot(STEP3_SAVESPOT_SAMPLE).html);
-    expect(samples.savespotNoSize.html).toBe(renderStep3SaveSpotNoSize(STEP3_SAVESPOT_SAMPLE).html);
+  test("Jo's eight preview through the SAME renderers every real send uses; no superseded sample is mounted", () => {
+    const ui = readFileSync("src/components/portal/template-hub.tsx", "utf8");
+    expect(ui).toContain('from "@/lib/jo-outcome-email.core"');
+    expect(ui).toMatch(/renderJoOutcomeEmail\(/);
+    expect(ui).toMatch(/renderJoReadyCheckInvitationEmail\(/);
+    // The only remaining sample_email entries are the two customer emails outside Jo's set.
+    const samplesUsed = entriesFor("email").flatMap((e) => (e.view.kind === "sample_email" ? [e.view.sample] : [])).sort();
+    expect(samplesUsed).toEqual(["coverage", "reminder3"]);
   });
   test("partner invitation HTML is verbatim", () => {
     expect(renderPartnerTemplate(PARTNER_TEMPLATES.find((t) => t.key === "installer_invitation")!)).toBe(INSTALLER_INVITATION_HTML);

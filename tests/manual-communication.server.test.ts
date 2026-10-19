@@ -3,7 +3,7 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { DEFAULT_ESTIMATED_AREA_M2 } from "../src/lib/estimate.core";
-import { renderSaveSpotOfferEmail, type SaveSpotOfferFacts } from "../src/lib/save-spot-offer.core";
+import { joFactsForSaveSpotVariant, renderJoOutcomeEmail, selectJoOutcomeTemplate } from "../src/lib/jo-outcome-email.core";
 
 const JOB = "00000000-0000-4000-8000-0000000000a1", ACTOR = "00000000-0000-4000-8000-0000000000ff";
 type Op = { table: string; op: string; arg: unknown };
@@ -281,27 +281,29 @@ describe("manualCommunicationHistory", () => {
 });
 
 describe("assumed-size indicative email disclosure (owner-approved OPTION A)", () => {
-  // Exercises the REAL renderer with a representative assumed-area fixture. OPTION A requires the email to clearly state:
-  // (1) the ceiling area is assumed not measured, (2) the estimate is indicative, (3) actual measurement needs confirmation,
-  // (4) final pricing needs confirmation. It must also never send.
-  test("the assumed-size email clearly discloses assumption, indicative pricing, and confirmation needs", () => {
-    const facts: SaveSpotOfferFacts = {
-      variant: "no_insulation_assumed_size", assumedArea: true,
-      address: "1 Fixture Street, Testville VIC 3000", areaM2: DEFAULT_ESTIMATED_AREA_M2, firstName: "Sam", reference: "HV-9001",
-      installation: 4500, assessmentFee: 349, apFee: 349, gross: 5198, discount: 1481.76, customer: 3716.24,
-      removal: { kind: "excluded" }, apCount: 2,
-      calculatorUrl: "https://estimate.homeinsulationvictoria.com.au/estimate/TOKEN/calculator",
-      originalSaveUrl: "https://estimate.homeinsulationvictoria.com.au/estimate/TOKEN/calculator?keep=original",
-      unsubscribeUrl: "https://estimate.homeinsulationvictoria.com.au/api/public/unsubscribe?t=abcdefghijklmnopqrstuvwxyz12345", referralUrl: null,
-    };
-    const mail = renderSaveSpotOfferEmail(facts);
+  // P1-S77: the Office assumed-size copy IS Jo's Template 1, rendered by the same function as every send. OPTION A
+  // still requires it to state: (1) the ceiling area is not measured, (2) the quote is preliminary, (3) the measurement
+  // is confirmed at the Ready Check, (4) the final price depends on it. It must also never send.
+  test("the assumed-size email (Jo T1) clearly discloses assumption, preliminary pricing, and confirmation needs", () => {
+    const facts = joFactsForSaveSpotVariant("no_insulation_assumed_size", true);
+    expect(selectJoOutcomeTemplate(facts)).toBe("eligible_no_insulation_size_unknown");
+    const mail = renderJoOutcomeEmail({
+      ...facts,
+      recipient: { firstName: "Sam", propertyAddress: "1 Fixture Street, Testville VIC 3000", enquiryReference: "HV-9001" },
+      figures: { veuRebate: 1481.76, customerTotal: 3716.24, totalBeforeRebate: 5198, installation: 4500, piesaFee: 349, apFee: 349, ceilingAreaM2: DEFAULT_ESTIMATED_AREA_M2, areaEstimated: true },
+      links: {
+        saveMySpotUrl: "https://estimate.homeinsulationvictoria.com.au/estimate/TOKEN/campaign",
+        uploadMediaUrl: "https://estimate.homeinsulationvictoria.com.au/estimate/TOKEN/video",
+        reviewResultUrl: "https://estimate.homeinsulationvictoria.com.au/estimate/TOKEN",
+        calculatorUrl: "https://estimate.homeinsulationvictoria.com.au/estimate/TOKEN#calculator",
+      },
+    })!;
     const body = `${mail.html}\n${mail.plainText}`;
-    expect(body).toMatch(/assumed/i);                                  // (1) assumed area
-    expect(body).toMatch(/not a measurement|not measured/i);           // (1) not measured
-    expect(body).toMatch(/preliminary estimate|indicative/i);          // (2) indicative
-    expect(body).toMatch(/confirm your actual ceiling area|Ready Check/i); // (3) measurement confirmation
-    expect(body).toMatch(/final price|final pricing/i);                // (4) final pricing confirmation
-    expect(mail.subject).toMatch(/rebate/i);
+    expect(body).toContain(`Ceiling size: ${DEFAULT_ESTIMATED_AREA_M2} m² — estimated, not measured`); // (1)
+    expect(body).toMatch(/You didn’t provide a ceiling size, so we’ve used 150 m² for this preliminary quote/); // (1)+(2)
+    expect(body).toMatch(/Ready Check/);                                // (3)
+    expect(body).toMatch(/final price will depend on the measured ceiling area/i); // (4)
+    expect(mail.subject).toBe("Sam, you could save $1,482 on ceiling insulation");
   });
 });
 
