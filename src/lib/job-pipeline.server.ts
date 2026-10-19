@@ -5,8 +5,8 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { JOB_LIST_COLUMNS } from "./job-list-columns";
 
 /** The raw job_overview read every job LIST shares; filter, search, sort and paging build on top. */
-export const jobOverview = (count?: "exact") =>
-  admin.from("job_overview").select(JOB_LIST_COLUMNS, count ? { count } : undefined);
+export const jobOverview = (count?: "exact", officeList = false) =>
+  admin.from(officeList ? 'office_job_list' : 'job_overview').select(JOB_LIST_COLUMNS, count ? { count } : undefined);
 export type JobOverviewRow = NonNullable<Awaited<ReturnType<typeof jobOverview>>["data"]>[number];
 
 /** Office-archived TEST journeys never appear on a board. Tiny list, read once per board load. */

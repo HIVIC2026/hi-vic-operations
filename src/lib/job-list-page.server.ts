@@ -36,12 +36,13 @@ interface ScopeChain<T> {
  */
 function scope<T extends ScopeChain<T>>(q: T, archived: string[], mode: JobMode, closedView: JobClosedView): T {
   let cur = q;
+  if (mode === 'active') return cur.eq('office_bucket', 'active');
+  cur = cur.eq('office_bucket', 'closed');
   if (mode === "closed" && closedView === "test") {
-    cur = cur.eq("source", "qa_test");
+    cur = cur.or('source.eq.qa_test,office_removed.eq.true,contact_rank.gt.1');
   } else {
     cur = cur.neq("source", "qa_test");
-    if (mode === "active") cur = cur.not("stage", "in", OPEN_STAGES).or("eligibility_outcome.is.null,eligibility_outcome.neq.does_not_appear_eligible");
-    else if (closedView === "completed") cur = cur.eq("stage", "complete");
+    if (closedView === "completed") cur = cur.eq("stage", "complete");
     else if (closedView === "cancelled") cur = cur.eq("stage", "cancelled");
     else if (closedView === "ineligible") cur = cur.not("stage", "in", OPEN_STAGES).eq("eligibility_outcome", "does_not_appear_eligible");
   }
@@ -71,7 +72,7 @@ export async function loadJobListPage(params: JobListParams) {
   const sortKey = toEnum(params.sort, JOB_SORT_KEYS, "last_activity_at") ?? "last_activity_at";
   const ascending = toDirection(params.direction) === "asc";
   const archived = await archivedQaJobIds();
-  const scoped = (m: JobMode = mode, v: JobClosedView = closedView) => scope(jobOverview("exact"), archived, m, v);
+  const scoped = (m: JobMode = mode, v: JobClosedView = closedView) => scope(jobOverview("exact", true), archived, m, v);
   const searchedScope = () => searched(scoped(), search);
 
   const run = async (page: number) => {
@@ -97,7 +98,7 @@ export async function loadJobListPage(params: JobListParams) {
 
   const [stageRows, tiles, oldest] = await Promise.all([
     // One narrow single-column read feeds the stage chips; full rows are never downloaded just to count.
-    searched(scope(admin.from("job_overview").select("stage"), archived, mode, closedView), search).limit(5000),
+    searched(scope(admin.from("office_job_list" as "job_overview").select("stage"), archived, mode, closedView), search).limit(5000),
     mode === "active"
       ? Promise.all([
           headCount(searchedScope().eq("eligibility_review_required", true), "Review-required count"),

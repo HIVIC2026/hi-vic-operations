@@ -38,7 +38,9 @@ export const getAutomaticSaveSpotRules = createServerFn({ method: "GET" }).middl
     await requireAdmin(context.supabase);
     const { readAutomaticRules, PREVIEW_SCAN_LIMIT } = await import("./save-spot-rules.server");
     const read = await readAutomaticRules();
+    const { automaticFirstResponseStatus } = await import("./automatic-first-response.core");
     return {
+      firstResponses: automaticFirstResponseStatus(read.state === "ok" && read.config.enabled, read.state === "ok" ? read.config.activatedAt : null),
       state: read.state,
       reason: read.state === "ok" ? "Automatic sending rules are saved." : read.reason,
       previewScanLimit: PREVIEW_SCAN_LIMIT,

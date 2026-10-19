@@ -56,10 +56,10 @@ export function effectiveInsulation<T extends "none" | "present" | "unknown" | n
   return latestReviewOutcome === "no_insulation" ? "none" : declared;
 }
 export const MEDIA_OUTCOME_LABEL: Record<MediaReviewOutcome, string> = {
-  below_r2: "Below R2 – offer Save my spot",
-  over_r2: "R2 or above – not eligible",
+  below_r2: "Existing insulation below R2",
+  over_r2: "Existing insulation R2 or above",
   no_insulation: "No insulation visible",
-  unclear: "Not clear – ask for more pictures",
+  unclear: "Unclear / need more photos",
 };
 
 export type EnquiryInput = {
@@ -107,7 +107,7 @@ const INFO_ONLY = new Set(["life_support", "occupancy", "area", "preliminary", "
 
 /** Insulation-details group: existing insulation (present OR unsure) is the ONLY open item; every other required gate passed. */
 export function insulationOnly(audit: StoredAudit, declared: EnquiryInput["declaredInsulation"]): { ok: true } | { ok: false; why: string; missing: boolean } {
-  const rules = Array.isArray(audit?.rules) ? audit!.rules! : [];
+  const rules = Array.isArray(audit?.rules) ? audit.rules : [];
   if (!rules.length) return { ok: false, why: "Screening reasons were not recorded", missing: false };
   const canonical = normaliseInsulation(declared ?? null);
   if (canonical === "none") return { ok: false, why: "Owner declared no insulation – screening disagrees", missing: false };
@@ -260,8 +260,8 @@ export function enquiryStatus(x: {
  * "New — no email sent": no customer email has ever been recorded for this enquiry.
  * ONE definition, used by both the summary count and the filtered list.
  */
-export function isNewEnquiry(row: { lastEmail: unknown }): boolean {
-  return !row.lastEmail;
+export function isNewEnquiry(row: { lastEmail?: unknown; sentPurposes?: string[] }): boolean {
+  return !(row.sentPurposes ?? []).some(p => ['existing_leads_launch_v1', 'step3_estimate', 'insulation_video_request', 'preliminary_ineligible'].includes(p));
 }
 
 export type AutomaticLeadEmail = "offer_spot" | "request_insulation" | "ineligible" | "none";

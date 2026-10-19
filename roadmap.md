@@ -318,3 +318,9 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 
 ## Backlog legacy exclusions (Jo, 19 Oct 11:03 UTC)
 - [x] HOT_EXCLUDED_JOBS / HOT_HIDDEN_DUPLICATES blocked in ENQ_00, ENQ_01 and the automatic router; tests added. ENQ_01 not run.
+
+## Preview repair QA (Jo, 19 Oct 23:01 UTC)
+- [x] Verify page-only reads, New/search/paging and boundaries.
+- [x] Verify four manual-only review choices and required reason.
+- [x] Verify OFF, 643 held rows and zero QA communications.
+- [x] Verify authenticated preview and T1–T7 fixtures; no publish. T7 remote logo loading and broader historic tests remain publish blockers.

@@ -2,9 +2,9 @@
 // Reuses the existing enquiry-groups read + actions. Presentation only: the office-facing outcomes are a
 // single label per enquiry (mapped from the canonical enquiryStatus), never a competing status system.
 import { Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -27,7 +27,7 @@ export type EnquiryView = EnquiryStatus | "all" | "new" | "photos" | "removed";
 
 type Data = Awaited<ReturnType<typeof getEnquiryGroups>>;
 type Row = Data["rows"][number];
-const PAGE = 50;
+
 const when = (value: string | null | undefined) =>
   value
     ? new Date(value).toLocaleString("en-AU", {
@@ -76,7 +76,7 @@ function ExistingInsulationFollowup({ jobId, onDone }: { jobId: string; onDone: 
         <Button size="sm" variant="outline" disabled={busy} onClick={() => run(true)}>
           Preview Save your spot
         </Button>
-        <Button size="sm" disabled={busy} onClick={() => run(false)}>
+        <Button size="sm" disabled onClick={() => run(false)}>
           Send Save your spot
         </Button>
       </div>
@@ -108,11 +108,12 @@ function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
     queryFn: () => loadMedia({ data: { jobId: row.id } }),
   });
   const [busy, setBusy] = useState<MediaReviewOutcome | null>(null);
+  const [reason, setReason] = useState("");
   const [saved, setSaved] = useState<string | null>(null);
   const act = async (outcome: MediaReviewOutcome) => {
     setBusy(outcome);
     try {
-      await review({ data: { jobId: row.id, outcome } });
+      await review({ data: { jobId: row.id, outcome, reason } });
       setSaved(MEDIA_OUTCOME_LABEL[outcome]);
       onDone();
     } finally {
@@ -166,13 +167,15 @@ function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
             </p>
           ) : (
             <div className="flex flex-wrap gap-2">
+              <Button size="sm" disabled={busy !== null} onClick={() => act("no_insulation")}>{MEDIA_OUTCOME_LABEL.no_insulation}</Button>
+              <Input aria-label="Ineligible reason" placeholder="Reason for R2 or above decision" value={reason} onChange={e => setReason(e.target.value)} />
               <Button size="sm" disabled={busy !== null} onClick={() => act("below_r2")}>
                 {MEDIA_OUTCOME_LABEL.below_r2}
               </Button>
               <Button
                 size="sm"
                 variant="destructive"
-                disabled={busy !== null}
+                disabled={busy !== null || reason.trim().length < 3}
                 onClick={() => act("over_r2")}
               >
                 {MEDIA_OUTCOME_LABEL.over_r2}
@@ -207,28 +210,29 @@ export function EnquiriesWorkspace({
   q,
   onView,
   onQ,
+  page, onPage,
 }: {
   view: EnquiryView;
   q: string;
+  page: number; onPage: (page: number) => void;
   onView: (next: EnquiryView) => void;
   onQ: (next: string) => void;
 }) {
   const load = useServerFn(getEnquiryGroups);
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["enquiries-workspace"],
-    queryFn: () => load({ data: {} }),
+    queryKey: ["enquiries-workspace-page", view, q, page],
+    queryFn: () => load({ data: { view, search: q ?? "", page: page + 1 } }),
+    placeholderData: keepPreviousData,
     staleTime: 60_000,
   });
-  const [page, setPage] = useState(0);
+  const setPage = onPage;
   const [openId, setOpenId] = useState<string | null>(null);
   const remove = useServerFn(removeLeadsFn);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [removing, setRemoving] = useState(false);
   const [removeMsg, setRemoveMsg] = useState<string | null>(null);
   const [removeReason, setRemoveReason] = useState("Fake or test enquiry");
-  const allRows = useMemo(() => data?.rows ?? [], [data]);
-  const rows = useMemo(() => allRows.filter((row) => !row.removed), [allRows]);
-  const removedRows = useMemo(() => allRows.filter((row) => row.removed), [allRows]);
+  const rows = data?.rows ?? [];
   const doRemove = async () => {
     const ids = [...picked].filter((id) => rows.some((r) => r.id === id && r.kind === "job"));
     if (!ids.length) return;
@@ -245,48 +249,11 @@ export function EnquiriesWorkspace({
       setRemoving(false);
     }
   };
-  const counts = useMemo(
-    () =>
-      Object.fromEntries(
-        STATUS_ORDER.map((key) => [key, rows.filter((row) => row.status === key).length]),
-      ) as Record<EnquiryStatus, number>,
-    [rows],
-  );
-  const photoRows = useMemo(
-    () => rows.filter((row) => row.mediaCount > 0 && !row.mediaChecked),
-    [rows],
-  );
-  const viewCount = (key: EnquiryView) =>
-    key === "all"
-      ? rows.length
-      : key === "new"
-        ? rows.filter((row) => !row.lastEmail).length
-        : key === "photos"
-          ? photoRows.length
-          : key === "removed"
-            ? removedRows.length
-            : counts[key];
-  const matching = useMemo(() => {
-    const term = q.trim().toLowerCase();
-    const base =
-      view === "photos"
-        ? photoRows
-        : view === "removed"
-          ? removedRows
-          : view === "all"
-            ? rows
-            : rows.filter((row) => row.status === view);
-    return base.filter(
-      (row) =>
-        !term ||
-        [row.name, row.email, row.phone, row.address, row.jobNumber, row.reference].some((value) =>
-          value?.toLowerCase().includes(term),
-        ),
-    );
-  }, [rows, photoRows, removedRows, view, q]);
-  const pages = Math.max(1, Math.ceil(matching.length / PAGE));
-  const safePage = Math.min(page, pages - 1);
-  const visible = matching.slice(safePage * PAGE, safePage * PAGE + PAGE);
+  const counts = data?.counts;
+  const viewCount = (key: EnquiryView) => counts?.[key] ?? 0;
+  const pages = data?.totalPages ?? 1;
+  const safePage = (data?.page ?? 1) - 1;
+  const visible = rows;
   const officeReview = view === "needs_attention" || view === "photos";
 
   return (
@@ -328,10 +295,7 @@ export function EnquiriesWorkspace({
       ) : (
         <>
           <p className="text-xs text-sub">
-            {data.scope.total} current website enquiries. Excluded:{" "}
-            {data.scope.duplicateWebsiteEnquiries} older duplicates, {data.scope.testHidden} TEST,{" "}
-            {data.scope.installerSourced} installer customers and{" "}
-            {data.scope.calculatorRegistrations} calculator-only registrations.
+            {data.counts.all} enquiries awaiting an owner’s next step.
           </p>
 
           <div
@@ -370,14 +334,14 @@ export function EnquiriesWorkspace({
                 search={{ status: "needs_attention" }}
                 className="font-semibold text-primary underline"
               >
-                Eligibility &amp; sending decisions ({counts.needs_attention})
+                Eligibility &amp; sending decisions ({counts?.needs_attention ?? 0})
               </Link>
               <Link
                 to="/admin/enquiries"
                 search={{ status: "photos" }}
                 className="font-semibold text-primary underline"
               >
-                Photos/videos ({photoRows.length})
+                Photos/videos ({counts?.photos ?? 0})
               </Link>
               <Link
                 to="/admin/board"
@@ -407,8 +371,8 @@ export function EnquiriesWorkspace({
           {view === "photos" && (
             <div className="rounded-md border border-warning/40 bg-warning/5 p-3 text-sm">
               <strong>Homeowners who sent photos or videos.</strong> Open each one, look at the
-              pictures, then choose: below R2 moves them to the Spot offered list, R2 or above moves
-              them to Ineligible, and not clear asks for more pictures.
+              pictures, then choose: no insulation or below R2 makes them ready to offer Save My Spot, R2 or above moves
+              them to Ineligible, and unclear records need more pictures.
             </div>
           )}
 
@@ -416,7 +380,7 @@ export function EnquiriesWorkspace({
             <Input
               aria-label="Search enquiries"
               placeholder="Search name, address, email, phone or job number"
-              value={q}
+              value={q ?? ""}
               onChange={(event) => {
                 onQ(event.target.value);
                 setPage(0);
@@ -442,7 +406,7 @@ export function EnquiriesWorkspace({
                   {removing ? "Removing…" : `Remove selected (${picked.size})`}
                 </Button>
               )}
-              <span className="text-sm text-sub">{matching.length} shown</span>
+              <span className="text-sm text-sub">{data.total} shown</span>
             </div>
           </div>
           {removeMsg && (
@@ -578,6 +542,8 @@ export function EnquiriesWorkspace({
                           </div>
                         ) : view === "removed" ? (
                           "Removed by office"
+                        ) : row.mediaOutcome === 'no_insulation' ? (
+                          row.nextAction
                         ) : row.mediaOutcome === "below_r2" &&
                           row.status !== "spot_saved" &&
                           row.status !== "ineligible" ? (
@@ -585,7 +551,7 @@ export function EnquiriesWorkspace({
                         ) : row.status === "needs_attention" ? (
                           (row.attentionReason ?? row.reason)
                         ) : row.status === "spot_saved" ? (
-                          "Continue from Closed jobs › Saved spots awaiting installer"
+                          "Continue from Active jobs"
                         ) : row.status === "ineligible" ? (
                           "No action unless the owner replies"
                         ) : (

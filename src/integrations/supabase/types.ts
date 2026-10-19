@@ -180,6 +180,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "appointment_proposals_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_proposals_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "appointment_proposals_proposed_by_fkey"
             columns: ["proposed_by"]
             isOneToOne: false
@@ -273,6 +287,20 @@ export type Database = {
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "assessment_acceptances_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assessment_acceptances_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
         ]
       }
       assessment_payment_attempts: {
@@ -320,6 +348,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assessment_payment_attempts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assessment_payment_attempts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
           {
@@ -401,6 +443,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assessment_payments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assessment_payments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
         ]
@@ -570,6 +626,20 @@ export type Database = {
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "assessments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assessments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
         ]
       }
       assignment_variations: {
@@ -651,6 +721,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assignment_variations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assignment_variations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
           {
@@ -760,6 +844,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
         ]
@@ -896,6 +994,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bulk_import_rows_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bulk_import_rows_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
         ]
@@ -1629,6 +1741,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "ceiling_measurements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ceiling_measurements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "ceiling_measurements_measured_by_business_id_fkey"
             columns: ["measured_by_business_id"]
             isOneToOne: false
@@ -1715,6 +1841,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_checks_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_checks_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
         ]
@@ -1846,6 +1986,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_releases_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_releases_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
           {
@@ -2019,6 +2173,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_agreements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_agreements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
           {
@@ -2342,6 +2510,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "customer_assignments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_assignments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "customer_assignments_quote_id_fkey"
             columns: ["quote_id"]
             isOneToOne: false
@@ -2472,6 +2654,20 @@ export type Database = {
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "customer_email_optouts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_email_optouts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
         ]
       }
       customer_email_sends: {
@@ -2553,6 +2749,20 @@ export type Database = {
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "customer_email_sends_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_email_sends_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
         ]
       }
       customer_engagement_events: {
@@ -2616,6 +2826,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_engagement_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_engagement_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
         ]
@@ -2696,10 +2920,31 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "customer_estimate_links_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_estimate_links_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "customer_estimate_links_owner_id_fkey"
             columns: ["owner_id"]
             isOneToOne: false
             referencedRelation: "job_overview"
+            referencedColumns: ["owner_id"]
+          },
+          {
+            foreignKeyName: "customer_estimate_links_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["owner_id"]
           },
           {
@@ -2805,6 +3050,20 @@ export type Database = {
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "customer_followups_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_followups_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
         ]
       }
       customer_referral_events: {
@@ -2901,6 +3160,20 @@ export type Database = {
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "customer_referral_tokens_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_referral_tokens_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
         ]
       }
       daily_briefs: {
@@ -2981,6 +3254,20 @@ export type Database = {
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "declarations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "declarations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
         ]
       }
       documents: {
@@ -3046,6 +3333,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
           {
@@ -3117,6 +3418,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "electrical_allowance_snapshots_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "electrical_allowance_snapshots_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
           {
@@ -3267,6 +3582,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "electrician_nominations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "electrician_nominations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
           {
@@ -3460,6 +3789,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "eligibility_verifications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eligibility_verifications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "eligibility_verifications_supersedes_fkey"
             columns: ["supersedes"]
             isOneToOne: false
@@ -3536,6 +3879,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagement_tracking_tokens_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "engagement_tracking_tokens_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
         ]
@@ -3729,6 +4086,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "esc_notifications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "esc_notifications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "esc_notifications_submitted_by_fkey"
             columns: ["submitted_by"]
             isOneToOne: false
@@ -3809,6 +4180,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "evidence_files_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "evidence_files_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
           {
@@ -3896,6 +4281,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "evidence_requirements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "evidence_requirements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
           {
@@ -4113,6 +4512,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "external_action_outbox_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "external_action_outbox_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "external_action_outbox_source_event_id_fkey"
             columns: ["source_event_id"]
             isOneToOne: false
@@ -4284,6 +4697,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "indicative_estimates_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "indicative_estimates_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "indicative_estimates_settings_id_fkey"
             columns: ["settings_id"]
             isOneToOne: false
@@ -4362,6 +4789,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "install_holds_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "install_holds_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
         ]
@@ -4476,6 +4917,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "installer_declarations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "installer_declarations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
           {
@@ -4655,6 +5110,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "instalment_plans_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instalment_plans_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "instalment_plans_quote_id_fkey"
             columns: ["quote_id"]
             isOneToOne: false
@@ -4814,6 +5283,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "invoices_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "invoices_quote_id_fkey"
             columns: ["quote_id"]
             isOneToOne: true
@@ -4902,6 +5385,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_assignments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_assignments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
           {
@@ -5008,6 +5505,20 @@ export type Database = {
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "job_communications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_communications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
         ]
       }
       job_compliance_records: {
@@ -5061,6 +5572,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_compliance_records_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_compliance_records_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
         ]
@@ -5169,6 +5694,20 @@ export type Database = {
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "job_imports_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_imports_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
         ]
       }
       job_install_windows: {
@@ -5219,6 +5758,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: true
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_install_windows_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_install_windows_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
         ]
@@ -5444,6 +5997,13 @@ export type Database = {
             foreignKeyName: "jobs_owner_id_fkey"
             columns: ["owner_id"]
             isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["owner_id"]
+          },
+          {
+            foreignKeyName: "jobs_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
             referencedRelation: "owners"
             referencedColumns: ["id"]
           },
@@ -5452,6 +6012,13 @@ export type Database = {
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "job_overview"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "jobs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["property_id"]
           },
           {
@@ -5607,6 +6174,20 @@ export type Database = {
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "lead_campaign_responses_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_campaign_responses_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
         ]
       }
       messages: {
@@ -5663,6 +6244,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
           {
@@ -5737,6 +6332,20 @@ export type Database = {
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "office_snoozes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "office_snoozes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
         ]
       }
       official_form_deliveries: {
@@ -5793,6 +6402,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "official_form_deliveries_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "official_form_deliveries_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
           {
@@ -5900,6 +6523,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "official_form_signed_copies_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "official_form_signed_copies_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
         ]
@@ -6305,10 +6942,31 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "owner_authorities_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_authorities_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "owner_authorities_owner_id_fkey"
             columns: ["owner_id"]
             isOneToOne: false
             referencedRelation: "job_overview"
+            referencedColumns: ["owner_id"]
+          },
+          {
+            foreignKeyName: "owner_authorities_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["owner_id"]
           },
           {
@@ -6323,6 +6981,13 @@ export type Database = {
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "job_overview"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "owner_authorities_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["property_id"]
           },
           {
@@ -6426,10 +7091,31 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "owner_contact_consents_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_contact_consents_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "owner_contact_consents_owner_id_fkey"
             columns: ["owner_id"]
             isOneToOne: false
             referencedRelation: "job_overview"
+            referencedColumns: ["owner_id"]
+          },
+          {
+            foreignKeyName: "owner_contact_consents_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["owner_id"]
           },
           {
@@ -6514,6 +7200,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_eligibility_links_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_eligibility_links_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
         ]
@@ -6661,6 +7361,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "owner_esc_consents_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_esc_consents_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "owner_esc_consents_owner_signed_by_fkey"
             columns: ["owner_signed_by"]
             isOneToOne: false
@@ -6761,6 +7475,20 @@ export type Database = {
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "owner_gate_signatures_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_gate_signatures_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
         ]
       }
       owner_link_codes: {
@@ -6826,6 +7554,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_link_codes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_link_codes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
         ]
@@ -7388,6 +8130,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "partner_offers_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_offers_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "partner_offers_offered_by_fkey"
             columns: ["offered_by"]
             isOneToOne: false
@@ -7483,6 +8239,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_quote_proposals_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_quote_proposals_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
           {
@@ -7972,6 +8742,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "payment_overrides_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_overrides_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "payment_overrides_overridden_by_fkey"
             columns: ["overridden_by"]
             isOneToOne: false
@@ -8044,6 +8828,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "piesa_deliveries_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "piesa_deliveries_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
           {
@@ -8140,6 +8938,20 @@ export type Database = {
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "piesa_reconciliations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "piesa_reconciliations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
         ]
       }
       piesa_records: {
@@ -8215,6 +9027,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "piesa_records_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "piesa_records_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
           {
@@ -8297,6 +9123,20 @@ export type Database = {
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "post_intake_work_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_intake_work_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
         ]
       }
       pre_start_checks: {
@@ -8350,6 +9190,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pre_start_checks_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pre_start_checks_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
         ]
@@ -8517,6 +9371,13 @@ export type Database = {
             foreignKeyName: "properties_owner_id_fkey"
             columns: ["owner_id"]
             isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["owner_id"]
+          },
+          {
+            foreignKeyName: "properties_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
             referencedRelation: "owners"
             referencedColumns: ["id"]
           },
@@ -8626,10 +9487,31 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "property_area_estimates_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_area_estimates_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "property_area_estimates_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "job_overview"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "property_area_estimates_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["property_id"]
           },
           {
@@ -8751,10 +9633,31 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "property_facts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_facts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "property_facts_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "job_overview"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "property_facts_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["property_id"]
           },
           {
@@ -8851,10 +9754,31 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "property_floorplans_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_floorplans_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "property_floorplans_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "job_overview"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "property_floorplans_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["property_id"]
           },
           {
@@ -8967,10 +9891,31 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "property_intelligence_runs_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_intelligence_runs_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "property_intelligence_runs_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "job_overview"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "property_intelligence_runs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["property_id"]
           },
           {
@@ -9039,6 +9984,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_source_checks_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_source_checks_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
           {
@@ -9323,6 +10282,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "quotes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "quotes_office_reviewed_by_fkey"
             columns: ["office_reviewed_by"]
             isOneToOne: false
@@ -9518,6 +10491,20 @@ export type Database = {
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ready_check_acceptances_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ready_check_acceptances_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
         ]
       }
       ready_check_observations: {
@@ -9574,6 +10561,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "ready_check_observations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ready_check_observations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "ready_check_observations_ready_check_id_fkey"
             columns: ["ready_check_id"]
             isOneToOne: false
@@ -9627,6 +10628,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ready_check_payment_attempts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ready_check_payment_attempts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
           {
@@ -9713,6 +10728,20 @@ export type Database = {
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ready_check_payments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ready_check_payments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
         ]
       }
       ready_check_windows: {
@@ -9772,6 +10801,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ready_check_windows_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ready_check_windows_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
         ]
@@ -9845,6 +10888,20 @@ export type Database = {
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ready_checks_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ready_checks_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
         ]
       }
       reassignment_requests: {
@@ -9901,6 +10958,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reassignment_requests_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reassignment_requests_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
           {
@@ -10256,6 +11327,20 @@ export type Database = {
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "rectification_items_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rectification_items_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
         ]
       }
       retail_estimator_settings: {
@@ -10439,6 +11524,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sms_messages_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sms_messages_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
         ]
@@ -10629,6 +11728,20 @@ export type Database = {
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "veec_lodgements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "veec_lodgements_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
         ]
       }
       veec_spot_prices: {
@@ -10778,6 +11891,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visit_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visit_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
         ]
@@ -10947,6 +12074,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "worker_job_links_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "worker_job_links_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "worker_job_links_revoked_by_fkey"
             columns: ["revoked_by"]
             isOneToOne: false
@@ -11026,6 +12167,20 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
             referencedColumns: ["id"]
           },
         ]
@@ -11284,6 +12439,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "invoices_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "invoices_quote_id_fkey"
             columns: ["quote_id"]
             isOneToOne: true
@@ -11379,6 +12548,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "invoices_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "invoices_quote_id_fkey"
             columns: ["quote_id"]
             isOneToOne: true
@@ -11464,6 +12647,110 @@ export type Database = {
           urgency: string | null
         }
         Relationships: []
+      }
+      office_enquiry_index: {
+        Row: {
+          channel: string | null
+          contact_rank: number | null
+          created_at: string | null
+          deleted_at: string | null
+          eligibility_outcome: string | null
+          eligibility_set_at: string | null
+          email_key: string | null
+          enquiry_status: string | null
+          external_enquiry_id: string | null
+          first_response_sent: boolean | null
+          id: string | null
+          job_number: string | null
+          media_count: number | null
+          media_to_review: boolean | null
+          needs_first_response: boolean | null
+          office_bucket: string | null
+          owner_email: string | null
+          owner_name: string | null
+          owner_phone: string | null
+          owner_progressed: boolean | null
+          photos_requested: boolean | null
+          property_address: string | null
+          property_key: string | null
+          qa_archived_at: string | null
+          removed: boolean | null
+          review_outcome: string | null
+          source: string | null
+          spot_offered: boolean | null
+          spot_saved: boolean | null
+          stage: string | null
+        }
+        Relationships: []
+      }
+      office_job_list: {
+        Row: {
+          authority_expires_at: string | null
+          authority_status: string | null
+          channel: Database["public"]["Enums"]["job_channel"] | null
+          commercial_model:
+            | Database["public"]["Enums"]["commercial_model"]
+            | null
+          contact_rank: number | null
+          created_at: string | null
+          days_remaining: number | null
+          deposit_cleared: boolean | null
+          electrician_id: string | null
+          electrician_name: string | null
+          eligibility_flags: Json | null
+          eligibility_outcome:
+            | Database["public"]["Enums"]["eligibility_outcome"]
+            | null
+          eligibility_review_required: boolean | null
+          hold_reason: string | null
+          id: string | null
+          install_deadline: string | null
+          installer_id: string | null
+          installer_name: string | null
+          job_number: string | null
+          last_activity_at: string | null
+          life_support: boolean | null
+          next_action: string | null
+          office_bucket: string | null
+          office_removed: boolean | null
+          originating_business_name: string | null
+          originating_installer_user_id: string | null
+          owner_email: string | null
+          owner_id: string | null
+          owner_name: string | null
+          owner_phone: string | null
+          payment_status: string | null
+          piesa_date: string | null
+          piesa_expired: boolean | null
+          property_address: string | null
+          property_id: string | null
+          source: string | null
+          stage: Database["public"]["Enums"]["job_stage"] | null
+          urgency: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_assignments_user_id_fkey"
+            columns: ["installer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_assignments_user_id_fkey"
+            columns: ["electrician_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_originating_installer_user_id_fkey"
+            columns: ["originating_installer_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Functions: {
@@ -11848,6 +13135,10 @@ export type Database = {
         }[]
       }
       my_job_role: { Args: { _job: string }; Returns: string }
+      office_enquiry_page: {
+        Args: { p_page?: number; p_search?: string; p_view?: string }
+        Returns: Json
+      }
       owner_quote_released: {
         Args: {
           _release_state: string
