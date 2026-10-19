@@ -47,7 +47,7 @@ function assertRates(r: PricingRates): PricingRates {
 }
 
 /**
- * The one pricing decision. `legacyCurrent` is the pre-cutover current settings row (Ready Check fee 0).
+ * The one pricing decision. `legacyCurrent` is the pre-cutover current settings row (Ready Check always free).
  * Unknown facts (undefined) fail closed whenever a cutover exists.
  */
 export function resolveCustomerPricing(facts: CohortFacts | null | undefined, legacyCurrent: PricingRates | null, cutover: Cutover): ResolvedPricing {
@@ -72,10 +72,10 @@ export function resolveCustomerPricing(facts: CohortFacts | null | undefined, le
 const money = (n: number) => `$${Number.isInteger(n) ? n.toLocaleString("en-AU") : n.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
-/** Customer wording for the Ready Check fee. Protected/legacy customers keep "free". */
+/** Customer wording: the Ready Check is always free. */
 export function readyCheckFeeLabel(p: Pick<PricingRates, "readyCheckFeeIncGst">): string {
-  const fee = effectiveReadyCheckFee(p.readyCheckFeeIncGst);
-  return fee > 0 ? `${money(fee)} including GST` : "free";
+  effectiveReadyCheckFee(p.readyCheckFeeIncGst);
+  return "free";
 }
 
 /** Supply/install wording. New cohort shows ex and inc GST; legacy shows its original inc-GST rate only. */
@@ -88,8 +88,7 @@ export function installRateLabel(p: Pick<ResolvedPricing, "r5InstallIncGstPerM2"
 export type Breakdown = { installation: number; removal: number; piesa: number; ap: number; readyCheck: number; extras: number; gross: number; rebate: number; total: number; payableNow: number; remaining: number };
 
 /**
- * Customer breakdown, all GST-inclusive. Ready Check fee appears ONCE in gross; the remaining balance subtracts it
- * once (it is collected separately), so invoices for the remaining balance never include it again.
+ * Customer breakdown, all GST-inclusive. Ready Check is free, with no amount collected or deducted.
  * Removal is charged only on the area that needs removal. Rebate is supplied (unchanged calculation upstream).
  */
 export function customerBreakdown(rates: PricingRates, areaM2: number, removalM2: number, rebate: number, extras = 0): Breakdown {
@@ -138,7 +137,7 @@ export function publicCalculatorPricing(v: "legacy" | "new" = PUBLIC_CALCULATOR_
 }
 
 /**
- * Calculator totals: the install-only scenario (never whole-ceiling removal) plus the Ready Check fee ONCE.
+ * Calculator totals: the install-only scenario (never whole-ceiling removal); Ready Check is free.
  * Removal stays excluded unless an explicit itemised amount is supplied, and is then added once.
  */
 export function calculatorTotals(standard: { pre_discount_total: number; estimated_customer_total: number; applied_discount: number }, readyCheckFeeIncGst: number, itemisedRemovalIncGst = 0) {
@@ -148,9 +147,8 @@ export function calculatorTotals(standard: { pre_discount_total: number; estimat
   return { gross: r2(standard.pre_discount_total + extra), total: r2(standard.estimated_customer_total + extra), rebate: standard.applied_discount, readyCheck: readyCheckFeeIncGst, removal: itemisedRemovalIncGst };
 }
 
-/** Saved-spot price from a calculator/estimate: adds the cohort's Ready Check fee once. Fee 0 (legacy/protected) returns it unchanged. */
+/** The free Ready Check never changes a saved-spot price. */
 export function withReadyCheckFee<T extends { total: number; gross: number }>(price: T | null, readyCheckFeeIncGst: number): T | null {
-  readyCheckFeeIncGst = effectiveReadyCheckFee(readyCheckFeeIncGst);
-  if (!price || readyCheckFeeIncGst === 0) return price;
-  return { ...price, total: r2(price.total + readyCheckFeeIncGst), gross: r2(price.gross + readyCheckFeeIncGst) };
+  effectiveReadyCheckFee(readyCheckFeeIncGst);
+  return price;
 }

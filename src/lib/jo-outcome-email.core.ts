@@ -124,7 +124,7 @@ export type JoOutcomeEmailInput = JoOutcomeFacts & {
   /** T7 only: the ineligibility reasons shown to the customer. */
   reason?: string | null;
   links: JoOutcomeLinks;
-  /** This job's Ready Check fee (0 = free). 0 leaves Jo's copy untouched, byte-identical. */
+  /** Historical input only: Ready Check is free and Jo's copy stays untouched. */
   readyCheckFeeIncGst?: number | null;
   /** "current" = new-version cohort: adds the ex/inc GST supply rate wording. */
   pricingCohort?: "pre_cutover" | "legacy_saved_spot" | "current";

@@ -217,7 +217,7 @@ export async function sendInitialEstimateEmail(jobId: string, actorId: string | 
       ceilingAreaM2: e.area.m2,
       areaEstimated: areaSource === "typical_default",
     } : undefined,
-    // The Ready Check fee is locked free (readycheck.core), so Jo's copy is rendered untouched.
+    // The Ready Check is always free, so Jo's copy is rendered untouched.
     ...(settings && typeof settings.r5_install_inc_gst_per_m2 === "number" ? { installationRatePerM2: settings.r5_install_inc_gst_per_m2 } : {}),
   };
   const who = await joRecipientFacts(jobId, owner.reference);
