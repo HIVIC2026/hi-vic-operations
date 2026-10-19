@@ -1361,20 +1361,29 @@ export const getAdminPipeline = createServerFn({ method: "POST" }).middleware([r
   // Installer-sourced jobs: site check done? and the installer's own price (Jo, 7 Oct).
   const { data: facts } = await admin.from("jobs").select("id, installer_quoted, installer_site_check, installer_site_check_date, installer_quoted_price_inc_gst, installer_price_includes").eq("channel", "installer_sourced");
   const factBy = new Map((facts ?? []).map((f) => [f.id, { quoted: f.installer_quoted as "yes" | "no" | null, site_check: (f.installer_site_check as "yes" | "no" | null), site_check_date: f.installer_site_check_date, quoted_price_inc_gst: f.installer_quoted_price_inc_gst == null ? null : Number(f.installer_quoted_price_inc_gst), price_includes: f.installer_price_includes }]));
+  // P0-B perf: group per-job rows ONCE (O(rows)) so building the board is O(jobs), not O(jobs × rows).
+  // Output is identical (arrays keep their original order because rows are appended in iteration order).
+  const groupByJob = <T extends { job_id: string }>(arr: T[] | null): Map<string, T[]> => {
+    const m = new Map<string, T[]>();
+    for (const r of arr ?? []) { const a = m.get(r.job_id); if (a) a.push(r); else m.set(r.job_id, [r]); }
+    return m;
+  };
+  const invBy = groupByJob(inv), rcBy = groupByJob(rc), bkBy = groupByJob(bk), asgBy = groupByJob(asg), msgBy = groupByJob(msgs);
   return (data ?? []).filter((j) => j.id != null && !archivedQaIds.has(j.id)).map((j) => {
-    const pays = (rc ?? []).filter((p) => p.job_id === j.id);
+    const id = j.id!;
+    const pays = rcBy.get(id) ?? [];
     const paid = pays.find((p) => p.status === "paid");
     return {
       ...j,
-      installer_facts: factBy.get(j.id!) ?? null,
-      comms_status: commsStatus((asg ?? []).filter((a) => a.job_id === j.id), (msgs ?? []).filter((m) => m.job_id === j.id), new Date()),
+      installer_facts: factBy.get(id) ?? null,
+      comms_status: commsStatus(asgBy.get(id) ?? [], msgBy.get(id) ?? [], new Date()),
       stuck_reasons: stuckReasons({
         stage: j.stage,
         lastActivityAt: j.last_activity_at,
-        invoiceSyncErrors: (inv ?? []).filter((i) => i.job_id === j.id).map((i) => i.last_sync_error as string),
+        invoiceSyncErrors: (invBy.get(id) ?? []).map((i) => i.last_sync_error as string),
         readyCheckFailed: !paid && pays.some((p) => p.status === "failed"),
         readyCheckPaidAt: paid?.paid_at ?? null,
-        confirmedBookings: (bk ?? []).filter((b) => b.job_id === j.id),
+        confirmedBookings: bkBy.get(id) ?? [],
       }, now),
     };
   });
