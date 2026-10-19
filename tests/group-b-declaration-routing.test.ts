@@ -10,7 +10,8 @@ ALTER TABLE jobs ADD source text, ADD channel text DEFAULT 'hivic_sourced', ADD 
 ALTER TABLE customer_estimate_links ADD token text, ADD purpose text, ADD status text, ADD expires_at timestamptz;
 CREATE TABLE owner_contact_consents(job_id uuid, consent_status text, created_at timestamptz DEFAULT now());
 CREATE TABLE customer_email_optouts(job_id uuid, opted_out_at timestamptz);
-CREATE TABLE post_intake_work(id uuid DEFAULT gen_random_uuid(), job_id uuid, status text);
+CREATE TABLE post_intake_work(id uuid DEFAULT gen_random_uuid(), job_id uuid, status text, reason text, facts_version text);
+CREATE TABLE customer_email_sends(id uuid DEFAULT gen_random_uuid(), job_id uuid, status text, purpose text);
 CREATE TABLE workflow_events(id uuid DEFAULT gen_random_uuid(), job_id uuid, event_type text, summary text, details jsonb, created_at timestamptz DEFAULT now());
 CREATE TABLE indicative_estimates(id uuid DEFAULT gen_random_uuid(), job_id uuid, status text, area_m2 numeric, area_source text, insulation_declared text, scenarios jsonb, snapshot jsonb);
 CREATE TABLE documents(job_id uuid, kind text, mime_type text, storage_path text, source_system text, external_id text);
@@ -50,6 +51,7 @@ mock.module("../src/lib/workflow.server", () => ({
 }));
 mock.module("../src/lib/estimatelink.server", () => ({ resolvePublicEstimate: async () => ({ estimate: {} }) }));
 mock.module("../src/lib/referral.server", () => ({ referralUrlForJob: async () => null }));
+mock.module("../src/lib/save-spot-rules.server", () => ({ readAutomaticRules: async () => ({ state: "ok", config: { enabled: true, activatedAt: "2020-01-01T00:00:00Z" } }) }));
 const { campaignLink, campaignPage, recordInsulationDeclaration, saveCampaignSpot, markCampaignMediaReceived } = await import("../src/lib/launch-campaign.server");
 const { maybeAutoRouteLeadEmail } = await import("../src/lib/lead-email-routing.server");
 const token = "A".repeat(43);
@@ -110,14 +112,11 @@ for (const state of ["ineligible","closed","opted_out","expired","revoked","wron
 });
 test("declaration cannot erase existing insulation through calculator save", async () => {
   await recordInsulationDeclaration(token,"loose_fill_only",true);
-  // The calculator can change the size, never the recorded insulation fact: the server rewrites the
-  // submitted "none" to the declared "present" (calculatorInsulation), so the spot saves with the
-  // declaration intact. (This expectation used to hold only because the incomplete pricing fixture
-  // made every save fail closed at the unknown-price-version guard before reaching the rewrite.)
-  await saveCampaignSpot(token,{areaM2:120,insulation:"none"});
+  // A conflicting calculator answer must stop before saving, never erase the declaration.
+  await expect(saveCampaignSpot(token,{areaM2:120,insulation:"none"})).rejects.toThrow("Keep your existing-insulation answer");
   const row = (await db.query("SELECT saved_insulation,spot_saved_at FROM lead_campaign_responses")).rows[0];
-  expect(row).toMatchObject({saved_insulation:"present"});
-  expect(row.spot_saved_at).not.toBeNull();
+  expect(row.spot_saved_at).toBeNull();
+  expect((await db.query("SELECT insulation_declared FROM indicative_estimates")).rows[0]).toEqual({insulation_declared:"present"});
 });
 test("current negative office finding overrides an earlier qualifying Yes", async () => {
   await recordInsulationDeclaration(token,"below_r2",true);

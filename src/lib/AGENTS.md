@@ -179,6 +179,7 @@ Locked rules:
 - Office "Delete job" is a recoverable soft delete (`jobs.deleted_at/by/reason` + `job_deleted`/`job_restored` events, office.functions `deleteJob`/`restoreJob`); DB triggers freeze stage and refuse new sends/offers/outbox, `can_access_job` hides it from trades/owners; office readers filter `deleted_at`. Why: any job can be removed without destroying signed, financial or audit records.
 - Manual backlog release trust comes only from `manual-backlog.core.ts` (Symbol context from post-intake rows with both ENQ_01 markers); it relaxes only the Save-my-spot activation/date window, the T1 proven-new hold and T7 timing. T1–T6 state size via `jo-area-basis.core.ts`. Why: one approved backlog run without weakening normal automation or misstating size.
 - Email art PNGs use pure-JS `png-lite.core.ts` (fflate), never pngjs/node:zlib. Why: pngjs crashes on the live worker and blanked every email header.
+- Central Jo email logo-only headers embed the same bundled PNG used by campaign artwork. Why: ineligible emails cannot depend on a remote image or display a misleading rebate header.
 
 - Office pages use the database paging RPC and enrich only returned IDs; job lists use the shared office bucket view. Why: counts, boundaries and page reads agree.
 - Office media reviews are manual-next-action audit events; automatic responses require explicit activation, post-activation creation and no confirmed first response or held backlog before routing. Why: reviews never send or release held work, and activation cannot silently contact older enquiries.

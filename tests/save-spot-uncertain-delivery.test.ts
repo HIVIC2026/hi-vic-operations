@@ -375,13 +375,13 @@ describe("Office review on the Leads list", () => {
     const { loadEnquiryGroups } = await import("../src/lib/enquiry-groups.server");
     const { uncertainAttentionReason } = await import("../src/lib/save-spot-delivery.core");
     mode = "timeout"; await office();
-    const before = (await loadEnquiryGroups()).rows.find((r) => r.id === J)!;
+    const before = (await loadEnquiryGroups([J])).rows.find((r) => r.id === J)!;
     expect(before).toMatchObject({ status: "needs_attention", attentionReason: uncertainAttentionReason("save_my_spot") });
     expect(before.attentionReason).toStartWith("Save my spot email: outcome unknown");
     expect(String(before.emailOutcomeUnknown!.detail)).toStartWith("sent_unknown:");
     expect(before.emailOutcomeUnknown).toMatchObject({ sendId: sendRow()!.id, at: sendRow()!.created_at, kind: "save_my_spot" });
     await resolve("delivered", "Resend shows delivered");
-    const after = (await loadEnquiryGroups()).rows.find((r) => r.id === J)!;
+    const after = (await loadEnquiryGroups([J])).rows.find((r) => r.id === J)!;
     expect(after.emailOutcomeUnknown).toBeNull();
     expect(after.status).toBe("offered_spot");
   });
@@ -389,7 +389,7 @@ describe("Office review on the Leads list", () => {
     const { loadEnquiryGroups } = await import("../src/lib/enquiry-groups.server");
     mode = "timeout"; await office();
     T.lead_campaign_responses!.push({ job_id: J, spot_saved_at: "2026-10-12T00:00:00Z", opted_out_at: null });
-    const row = (await loadEnquiryGroups()).rows.find((r) => r.id === J)!;
+    const row = (await loadEnquiryGroups([J])).rows.find((r) => r.id === J)!;
     expect(row.status).toBe("spot_saved");
     expect(row.emailOutcomeUnknown).not.toBeNull();
   });

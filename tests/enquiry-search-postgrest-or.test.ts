@@ -33,9 +33,11 @@ describe("regression: enquiry search survives the PostgREST or= restriction", ()
     expect(loader).not.toContain(".or(");
   });
 
-  test("the term is filtered over the classified rows across the fields the office sees", () => {
-    expect(ENQUIRIES).toContain("words.some((w) => matchesTerm(w,");
-    expect(ENQUIRIES).toContain("r.email, r.phone, r.address, r.postcode");
+  test("search is delegated to the database page RPC before page-only enrichment", () => {
+    const page = readFileSync("src/lib/office-enquiry-page.server.ts", "utf8");
+    expect(page).toContain("p_search: search");
+    expect(page).toContain("await loadEnquiryGroups(result.ids)");
+    expect(page).not.toContain(".or(");
   });
 
   test("the covered search columns are documented, not silently dropped", () => {

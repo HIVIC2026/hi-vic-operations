@@ -5,6 +5,8 @@ let calls: string[], reviewOrders: unknown[], senderResult: { outcome: string; d
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from(table: string) {
   let fields = "";
   const answer = () => {
+    if (table === "jobs" && fields === "created_at") return { data: { created_at: "2026-10-19T00:00:00Z" }, error: null };
+    if (table === "customer_email_sends") return { data: [], error: null };
     if (table === "lead_campaign_responses") return { data: { desk_check_status: desk }, error: readError ? {} : null };
     if (table === "customer_engagement_events") return { data: outcome ? [{ metadata: { outcome } }] : [], error: null };
     if (table === "post_intake_work") return { data: null, error: null };
@@ -16,6 +18,7 @@ mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { f
     maybeSingle: async () => answer(), then(resolve: (v: unknown) => unknown) { return Promise.resolve(answer()).then(resolve); } };
   return q;
 } } }));
+mock.module("../src/lib/save-spot-rules.server", () => ({ readAutomaticRules: async () => ({ state: "ok", config: { enabled: true, activatedAt: "2026-10-18T00:00:00Z" } }) }));
 mock.module("../src/lib/group-b-media.server", () => ({ groupBMediaForJob: async () => ({ received: media, uncertain: false, excluded: media, count: media ? 1 : 0, pendingSync: false }) }));
 mock.module("../src/lib/estimatelink.server", () => ({ syncStep3: async () => { calls.push("sync"); } }));
 mock.module("../src/lib/hot-leads-send.server", () => ({
