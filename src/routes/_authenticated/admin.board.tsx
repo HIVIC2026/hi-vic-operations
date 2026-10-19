@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { InstallerFactsLine } from "@/components/portal/installer-job-facts";
 import { Badge } from "@/components/ui/badge";
 import { listInterests } from "@/lib/interest.functions";
@@ -36,14 +36,24 @@ type Tab = "board" | "jobs" | "quotes" | "enquiries" | "ineligible";
 const QUOTE_STAGES = ["awaiting_quote_acceptance", "measured_estimate_ready"];
 const JOB_STAGES = [...ACCEPTANCE_STAGES, "measured_quote_accepted", "piesa_and_install_window_pending", "piesa_scheduled", "piesa_complete", "electrical_variation_pending", "awaiting_owner_rectification_approval"];
 const tabOf = (stage: string | null | undefined): Tab => QUOTE_STAGES.includes(stage ?? "") ? "quotes" : JOB_STAGES.includes(stage ?? "") ? "jobs" : "enquiries";
-const TAB_TITLE: Record<Tab, string> = { board: "LEGACY JOB BOARD", jobs: "ACTIVE JOBS", quotes: "PENDING QUOTE APPROVAL", enquiries: "ENQUIRIES", ineligible: "INELIGIBLE" };
+const TAB_TITLE: Record<Tab, string> = { board: "Quote approvals", jobs: "ACTIVE JOBS", quotes: "PENDING QUOTE APPROVAL", enquiries: "ENQUIRIES", ineligible: "INELIGIBLE" };
 
 const PRIMARY_VIEWS: { key: WorkView; label: string }[] = [{ key: "active", label: "In progress" }, { key: "review", label: "Needs review" }, { key: "ineligible", label: "Exceptions" }];
 const SECONDARY_VIEWS: { key: WorkView; label: string }[] = [{ key: "all", label: "All non-test records" }, { key: "finalised", label: "Finalised" }, { key: "cancelled", label: "Cancelled" }, { key: "test", label: "Test records" }];
 
 export const Route = createFileRoute("/_authenticated/admin/board")({
-  head: () => ({ meta: [{ title: "Job board (legacy) – Home Insulation Victoria Portal" }, { name: "description", content: "Home Insulation Victoria job pipeline and enquiry workspace." }, { property: "og:title", content: "Job Pipeline – Home Insulation Victoria Portal" }, { property: "og:description", content: "Home Insulation Victoria job pipeline and enquiry workspace." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
+  head: () => ({ meta: [{ title: "Quote approvals – Home Insulation Victoria Office" }, { name: "description", content: "Pending quote approvals for Home Insulation Victoria jobs." }, { property: "og:title", content: "Quote approvals – Home Insulation Victoria Office" }, { property: "og:description", content: "Pending quote approvals." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   validateSearch: (s: Record<string, unknown>): { tab?: Tab } => (["board", "jobs", "quotes", "enquiries", "ineligible"].includes(s["tab"] as string) ? { tab: s["tab"] as Tab } : {}),
+  // Only the Quote approvals queue still has a function here. Every other entry goes to the
+  // consolidated workspace, so the legacy board can never appear as a second Office home.
+  beforeLoad: ({ search }) => {
+    const tab = (search as { tab?: Tab }).tab;
+    if (tab === "quotes") return;
+    if (tab === "jobs") throw redirect({ to: "/admin/jobs/active", replace: true });
+    if (tab === "ineligible") throw redirect({ to: "/admin/enquiries", search: { status: "ineligible" }, replace: true });
+    if (tab === "enquiries") throw redirect({ to: "/admin/enquiries", replace: true });
+    throw redirect({ to: "/admin/jobs/active", replace: true });
+  },
   component: Pipeline,
 });
 

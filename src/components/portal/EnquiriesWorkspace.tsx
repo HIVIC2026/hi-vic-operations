@@ -17,6 +17,7 @@ import {
 import {
   MEDIA_OUTCOME_LABEL,
   STATUS_ORDER,
+  isNewEnquiry,
   type EnquiryStatus,
   type MediaReviewOutcome,
 } from "@/lib/enquiry-groups.core";
@@ -185,6 +186,14 @@ function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
               >
                 {MEDIA_OUTCOME_LABEL.unclear}
               </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={busy !== null}
+                onClick={() => act("no_insulation")}
+              >
+                {MEDIA_OUTCOME_LABEL.no_insulation}
+              </Button>
             </div>
           )}
         </>
@@ -256,11 +265,13 @@ export function EnquiriesWorkspace({
     () => rows.filter((row) => row.mediaCount > 0 && !row.mediaChecked),
     [rows],
   );
+  // One definition for the "New — no email sent" view, shared by the tile count and the list.
+  const newRows = useMemo(() => rows.filter(isNewEnquiry), [rows]);
   const viewCount = (key: EnquiryView) =>
     key === "all"
       ? rows.length
       : key === "new"
-        ? rows.filter((row) => !row.lastEmail).length
+        ? newRows.length
         : key === "photos"
           ? photoRows.length
           : key === "removed"
@@ -273,9 +284,11 @@ export function EnquiriesWorkspace({
         ? photoRows
         : view === "removed"
           ? removedRows
-          : view === "all"
-            ? rows
-            : rows.filter((row) => row.status === view);
+          : view === "new"
+            ? newRows
+            : view === "all"
+              ? rows
+              : rows.filter((row) => row.status === view);
     return base.filter(
       (row) =>
         !term ||
@@ -283,7 +296,7 @@ export function EnquiriesWorkspace({
           value?.toLowerCase().includes(term),
         ),
     );
-  }, [rows, photoRows, removedRows, view, q]);
+  }, [rows, photoRows, newRows, removedRows, view, q]);
   const pages = Math.max(1, Math.ceil(matching.length / PAGE));
   const safePage = Math.min(page, pages - 1);
   const visible = matching.slice(safePage * PAGE, safePage * PAGE + PAGE);

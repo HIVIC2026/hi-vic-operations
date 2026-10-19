@@ -55,7 +55,7 @@ export async function prepareOfficeSaveSpot(jobId: string, actorId: string | nul
   return sendOne(jobId, actorId, false, { mode: issueLinks ? "manual_copy" : "preview", officeVariant: variant }, variant === "reviewed_under_r2").catch((e) => ({ jobId, jobNumber: null, outcome: "blocked" as const, detail: (e as Error).message }));
 }
 
-export async function sendExistingInsulationSaveSpot(jobId: string, actorId: string, preview = false): Promise<HotSendResult> {
+export async function sendExistingInsulationSaveSpot(jobId: string, actorId: string | null, preview = false): Promise<HotSendResult> {
   return sendOne(jobId, actorId, false, { mode: preview ? "preview" : "send" }, true);
 }
 
@@ -110,6 +110,11 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     const { originalEstimateBlocker } = await import("./save-spot-offer.core");
     const b = originalEstimateBlocker({ estimate: est ? { area_m2: est.area_m2, area_source: est.area_source, insulation_declared: est.insulation_declared, hasPrice: true } : null, ownerAreaKnown: !job.estimated_area_unknown && Number(job.estimated_area_m2) > 0, reviewedUnderR2: testOpts.officeVariant === "reviewed_under_r2" });
     if (b) return r("skipped", assumed ? "The saved estimate's assumed size no longer applies. Recalculate the estimate first." : b);
+  } else if (assumed && followup) {
+    // Reviewed below-R2 follow-up: labelled 150 m² estimate allowed (Jo 19 Oct); approved review still checked below.
+    const { reviewedFollowupNoSizeBlocker } = await import("./no-size-estimate.core");
+    const b = reviewedFollowupNoSizeBlocker({ areaSource: est?.area_source ?? null, areaM2: price.areaM2, ownerArea: job.estimated_area_unknown ? null : Number(job.estimated_area_m2) || null, insulation: price.insulation });
+    if (b) return r("skipped", b);
   } else if (assumed) {
     // Real typical-size sends are held (no proven original-enquiry claim); previews and TEST records still render.
     const { isManualBacklog } = await import("./manual-backlog.core");

@@ -1345,39 +1345,55 @@ export const getAdminPipeline = createServerFn({ method: "POST" }).middleware([r
   await requireAdmin(context.supabase);
   const { data, error } = await admin.from("job_overview").select(JOB_LIST_COLUMNS).order("last_activity_at", { ascending: false });
   if (error) throw new Error(`Pipeline could not be loaded: ${error.message}`);
-  const [{ data: inv }, { data: rc }, { data: bk }] = await Promise.all([
+  // Independent reads run together (previously three sequential phases).
+  const [{ data: inv }, { data: rc }, { data: bk }, { data: asg }] = await Promise.all([
     admin.from("invoices").select("job_id,last_sync_error").not("last_sync_error", "is", null),
     admin.from("ready_check_payments").select("job_id,status,paid_at"),
     admin.from("bookings").select("job_id,kind,scheduled_start").eq("status", "confirmed"),
+    admin.from("job_assignments").select("job_id,user_id,assigned_at,active").eq("active", true),
   ]);
-  const { data: asg } = await admin.from("job_assignments").select("job_id,user_id,assigned_at,active").eq("active", true);
   // commsStatus() returns null for jobs with no active trade assignment, so messages for those jobs are
   // never read. Fetch messages only for assigned jobs (was: every message row, the dominant dashboard cost).
   const assignedJobIds = [...new Set((asg ?? []).map((a) => a.job_id))];
-  const msgs: { job_id: string; sender_id: string | null; created_at: string; internal: boolean | null }[] = [];
-  for (let i = 0; i < assignedJobIds.length; i += 100) {
-    const { data } = await admin
-      .from("messages")
-      .select("job_id,sender_id,created_at,internal")
-      .in("job_id", assignedJobIds.slice(i, i + 100));
-    if (data) msgs.push(...data);
-  }
+  const msgIds: string[][] = [];
+  for (let i = 0; i < assignedJobIds.length; i += 100) msgIds.push(assignedJobIds.slice(i, i + 100));
+  const msgParts = await Promise.all(
+    msgIds.map((ids) =>
+      admin.from("messages").select("job_id,sender_id,created_at,internal").in("job_id", ids),
+    ),
+  );
+  const msgs = msgParts.flatMap(
+    (r) => (r.data ?? []) as { job_id: string; sender_id: string | null; created_at: string; internal: boolean | null }[],
+  );
+  const { LAUNCH_CAMPAIGN } = await import("./launch-campaign.core");
   // Presentation-only enrichment for the Office cards: the customer's CURRENT indicative estimate already
   // stores ceiling area + declared insulation, and intake media is already attached to the job. Read-only,
   // no recalculation, no new aggregation service, and the same rows the job page shows.
-  const [{ data: ests }, { data: mediaDocs }, { data: intakeEvidence }] = await Promise.all([
+  // The send log is filtered to the three purposes the office status actually reads (was: every send row).
+  const [
+    { data: ests },
+    { data: mediaDocs },
+    { data: intakeEvidence },
+    { data: campRows },
+    { data: sendRows },
+    { data: archivedRows },
+    { data: facts },
+  ] = await Promise.all([
     admin.from("indicative_estimates").select("job_id,area_m2,area_source,insulation_declared").eq("status", "current"),
     admin.from("documents").select("job_id").eq("kind", "intake_media"),
     admin.from("evidence_files").select("job_id,storage_path,mime_type").like("storage_path", "%/intake/%"),
-  ]);
-  // Jo's ONE clear office status per enquiry (same rule the Enquiry-groups page uses): reads what actually
-  // happened (email sent, spot saved, recorded eligibility). Presentation only — never changes a job.
-  const [{ data: campRows }, { data: sendRows }] = await Promise.all([
     admin.from("lead_campaign_responses").select("job_id,spot_saved_at,opted_out_at"),
-    admin.from("customer_email_sends").select("job_id,purpose,status,idempotency_key"),
+    admin
+      .from("customer_email_sends")
+      .select("job_id,purpose,status,idempotency_key")
+      .in("purpose", [LAUNCH_CAMPAIGN, "preliminary_ineligible", "insulation_video_request"]),
+    admin.from("jobs").select("id").not("qa_archived_at", "is", null),
+    admin
+      .from("jobs")
+      .select("id, installer_quoted, installer_site_check, installer_site_check_date, installer_quoted_price_inc_gst, installer_price_includes")
+      .eq("channel", "installer_sourced"),
   ]);
   const { enquiryStatus } = await import("./enquiry-groups.core");
-  const { LAUNCH_CAMPAIGN } = await import("./launch-campaign.core");
   const SENT_STATUSES = ["sent", "delivered_unrecorded", "sending"];
   const savedSet = new Set((campRows ?? []).filter((c) => c.spot_saved_at && !c.opted_out_at).map((c) => c.job_id));
   const sendsByJob = new Map<string, { purpose: string; status: string; key: string | null }[]>();
@@ -1400,9 +1416,8 @@ export const getAdminPipeline = createServerFn({ method: "POST" }).middleware([r
   const { stuckReasons } = await import("./stuck.core");
   const { commsStatus } = await import("./comms-status.core");
   const now = new Date();
-  const archivedQaIds = new Set((await admin.from("jobs").select("id").not("qa_archived_at", "is", null)).data?.map((j) => j.id) ?? []);
+  const archivedQaIds = new Set((archivedRows ?? []).map((j) => j.id));
   // Installer-sourced jobs: site check done? and the installer's own price (Jo, 7 Oct).
-  const { data: facts } = await admin.from("jobs").select("id, installer_quoted, installer_site_check, installer_site_check_date, installer_quoted_price_inc_gst, installer_price_includes").eq("channel", "installer_sourced");
   const factBy = new Map((facts ?? []).map((f) => [f.id, { quoted: f.installer_quoted as "yes" | "no" | null, site_check: (f.installer_site_check as "yes" | "no" | null), site_check_date: f.installer_site_check_date, quoted_price_inc_gst: f.installer_quoted_price_inc_gst == null ? null : Number(f.installer_quoted_price_inc_gst), price_includes: f.installer_price_includes }]));
   // P0-B perf: group per-job rows ONCE (O(rows)) so building the board is O(jobs), not O(jobs × rows).
   // Output is identical (arrays keep their original order because rows are appended in iteration order).

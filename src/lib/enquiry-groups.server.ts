@@ -17,13 +17,14 @@ import { formatPropertyAddress } from "./address";
 import { LAUNCH_CAMPAIGN } from "./launch-campaign.core";
 import {
   classifyEnquiry, enquiryStatus, contactExclusion, primaryByContact, propertyKey, contactKey, sendHolds, templateFor, AREA_LABEL, ASSUMED_REFERENCE_AREA_M2,
-  type EnquiryClass, type EnquiryStatus, type EnquiryGroup, type OtherReason, type StoredAudit, type MediaReviewOutcome,
+  type EnquiryClass, type EnquiryStatus, type EnquiryGroup, type OtherReason, type StoredAudit, type MediaReviewOutcome, effectiveInsulation, noInsulationReviewBlocker,
 } from "./enquiry-groups.core";
 
-const MEDIA_OUTCOMES: MediaReviewOutcome[] = ["below_r2", "over_r2", "unclear"];
+const MEDIA_OUTCOMES: MediaReviewOutcome[] = ["below_r2", "over_r2", "unclear", "no_insulation"];
 
 const PAGE = 1000;
-const CHUNK = 150;
+/** Fewer, larger `.in()` chunks: 500 ids keeps the URL well inside PostgREST limits while cutting round trips by ~70%. */
+const CHUNK = 500;
 const SENT = ["sent", "delivered_unrecorded", "sending"];
 /** Real website/customer intake: the signed Base44 enquiry handoff into the Home Insulation Victoria channel. */
 export const WEBSITE_SOURCE = "base44";
@@ -41,9 +42,12 @@ async function all<T>(q: (from: number, to: number) => Res<T>): Promise<T[]> {
   }
 }
 async function byJobs<T>(ids: string[], q: (chunk: string[], from: number, to: number) => Res<T>): Promise<T[]> {
-  const out: T[] = [];
-  for (let i = 0; i < ids.length; i += CHUNK) { const c = ids.slice(i, i + CHUNK); out.push(...(await all((f, t) => q(c, f, t)))); }
-  return out;
+  if (!ids.length) return [];
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += CHUNK) chunks.push(ids.slice(i, i + CHUNK));
+  // Chunks are independent: run them together instead of waiting for each one in turn.
+  const parts = await Promise.all(chunks.map((c) => all((f, t) => q(c, f, t))));
+  return parts.flat();
 }
 const must = <T>(r: { data: T; error: { message: string } | null }, what: string): T => { if (r.error) throw new Error(`${what} unavailable: ${r.error.message}`); return r.data; };
 
@@ -64,9 +68,8 @@ export async function loadEnquiryGroups() {
   const jobs = await all((f, t) => admin.from("jobs")
     .select("id, job_number, external_enquiry_id, stage, hold_reason, source, created_at, eligibility_set_at, eligibility_outcome, eligibility_decision_source, eligibility_review_required, eligibility_decision_rules, estimated_area_m2, estimated_area_unknown, owners(full_name, email, phone), properties(address_line, suburb, state, postcode, enrichment)")
     .eq("source", WEBSITE_SOURCE).eq("channel", WEBSITE_CHANNEL).order("created_at", { ascending: true }).order("id").range(f, t));
-  const outside = await all((f, t) => admin.from("jobs").select("source, channel").or(`source.neq.${WEBSITE_SOURCE},channel.neq.${WEBSITE_CHANNEL}`).range(f, t));
   const ids = jobs.map((j) => j.id);
-  const [meas, ests, docs, work, sends, consents, optouts, events, interests, cfg, responses, media, reviewed] = await Promise.all([
+  const [meas, ests, docs, work, sends, consents, optouts, events, interests, cfg, responses, media, reviewed, removedRows] = await Promise.all([
     byJobs(ids, (c, f, t) => admin.from("ceiling_measurements").select("job_id, verified_area_m2, measured_area_m2").in("job_id", c).eq("is_current", true).eq("status", "complete").range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("property_area_estimates").select("id, job_id, tier, net_m2, created_at").in("job_id", c).in("tier", TRUSTED_ESTIMATE_TIERS).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("evidence_files").select("job_id, mime_type, storage_path").in("job_id", c).range(f, t)),
@@ -75,13 +78,29 @@ export async function loadEnquiryGroups() {
     byJobs(ids, (c, f, t) => admin.from("owner_contact_consents").select("job_id, consent_status, created_at").in("job_id", c).order("created_at", { ascending: true }).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("customer_email_optouts").select("job_id, opted_out_at").in("job_id", c).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("customer_engagement_events").select("job_id").in("job_id", c).in("event_type", SUPPRESSING_EVENTS).range(f, t)),
-    all((f, t) => admin.from("calculator_interests").select("id, created_at, full_name, email, address_line, suburb, postcode, ceiling_m2, insulation_declared, status").order("created_at").range(f, t)),
+    all((f, t) => admin.from("calculator_interests").select("email, address_line, postcode").order("created_at").range(f, t)),
     admin.from("customer_delivery_settings").select("jobs_created_after").eq("id", 1).maybeSingle(),
     byJobs(ids, (c, f, t) => admin.from("lead_campaign_responses").select("job_id, spot_saved_at").in("job_id", c).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("documents").select("job_id, kind, mime_type, storage_path, source_system, external_id").in("job_id", c).eq("kind", "intake_media").range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("customer_engagement_events").select("job_id, occurred_at, metadata").in("job_id", c).eq("event_type", "intake_media_reviewed").order("occurred_at").range(f, t)),
+    byJobs(ids, (c, f, t) => admin.from("workflow_events").select("job_id").in("job_id", c).eq("event_type", "lead_removed").range(f, t)),
   ]);
-  const removedRows = await byJobs(ids, (c, f, t) => admin.from("workflow_events").select("job_id").in("job_id", c).eq("event_type", "lead_removed").range(f, t));
+  // Outside-scope counts only: three head counts instead of reading every non-website job row.
+  const outsideFilter = `source.neq.${WEBSITE_SOURCE},channel.neq.${WEBSITE_CHANNEL}`;
+  const [testHiddenRes, installerRes, otherRes] = await Promise.all([
+    admin.from("jobs").select("id", { count: "exact", head: true }).or(outsideFilter).eq("source", "qa_test"),
+    admin.from("jobs").select("id", { count: "exact", head: true }).or(outsideFilter).neq("source", "qa_test").eq("channel", "installer_sourced"),
+    admin.from("jobs").select("id", { count: "exact", head: true }).or(outsideFilter).neq("source", "qa_test").neq("channel", "installer_sourced"),
+  ]);
+  const countOf = (r: { count: number | null; error: { message: string } | null }, what: string) => {
+    if (r.error) throw new Error(`${what} unavailable: ${r.error.message}`);
+    return r.count ?? 0;
+  };
+  const outside = {
+    testHidden: countOf(testHiddenRes, "Test job count"),
+    installerSourced: countOf(installerRes, "Installer job count"),
+    otherSources: countOf(otherRes, "Other job count"),
+  };
   const removedSet = new Set(removedRows.map((r) => r.job_id));
   const savedSet = new Set(responses.filter((r) => r.spot_saved_at).map((r) => r.job_id));
   const deliveryCfg = must(cfg, "Delivery settings");
@@ -110,7 +129,7 @@ export async function loadEnquiryGroups() {
     const groupBMedia = originalEnquiryMedia(b44.raw, [...(mediaBy.get(j.id) ?? []), ...(evidenceBy.get(j.id) ?? [])]);
     const c = classifyEnquiry({
       kind: "job", stage: j.stage, holdReason: j.hold_reason, outcome: j.eligibility_outcome, decisionSource: j.eligibility_decision_source,
-      reviewRequired: !!j.eligibility_review_required, audit, intakeWorkActive: workSet.has(j.id), declaredInsulation, officeInsulation: mediaOutcome,
+      reviewRequired: !!j.eligibility_review_required, audit, intakeWorkActive: workSet.has(j.id), declaredInsulation: effectiveInsulation(declaredInsulation, mediaOutcome), officeInsulation: mediaOutcome,
       area: { measured: m ? Number(m.verified_area_m2 ?? m.measured_area_m2) : null, estimated: best?.net_m2 ?? null, declared: j.estimated_area_m2 == null ? null : Number(j.estimated_area_m2), declaredUnknown: j.estimated_area_unknown },
       videoCount: groupBMedia.count,
     });
@@ -131,7 +150,7 @@ export async function loadEnquiryGroups() {
           campaignGroup: camp.length ? (camp.some((s) => /:b(:|$)/.test(s.idempotency_key ?? "")) ? "onsite" : "likely") : null,
         });
       })(), attentionReason: null, outcomeAt: j.eligibility_set_at ?? null,
-      groupBMedia, mediaCount: groupBMedia.count, mediaChecked: mediaOutcome === "below_r2" || mediaOutcome === "over_r2", mediaOutcome,
+      groupBMedia, mediaCount: groupBMedia.count, mediaChecked: mediaOutcome === "below_r2" || mediaOutcome === "over_r2" || mediaOutcome === "no_insulation", mediaOutcome,
       removed: removedSet.has(j.id),
     };
   });
@@ -162,14 +181,12 @@ export async function loadEnquiryGroups() {
     void i;
   }
   const visibleRows = rows.filter((r) => r.kind === "job" && r.isPrimaryForContact);
-  const bySource = (pred: (o: { source: string; channel: string }) => boolean) => outside.filter(pred).length;
   return {
     rows: visibleRows,
     scope: {
       websiteJobs: jobs.length, calculatorRegistrations: interests.length, calculatorMatched, calculatorListed: interests.length - calculatorMatched, total: visibleRows.length,
       duplicateWebsiteEnquiries: rows.length - visibleRows.length,
-      testHidden: bySource((o) => o.source === "qa_test"), installerSourced: bySource((o) => o.source !== "qa_test" && o.channel === "installer_sourced"),
-      otherSources: bySource((o) => o.source !== "qa_test" && o.channel !== "installer_sourced"),
+      testHidden: outside.testHidden, installerSourced: outside.installerSourced, otherSources: outside.otherSources,
     },
     jobsCreatedAfter: deliveryCfg?.jobs_created_after ?? null,
   };
@@ -295,15 +312,40 @@ export async function loadLeadMedia(jobId: string) {
  *  Writes one permanent engagement event; the latest event decides the lead's group. Never changes the Gate 1 audit. */
 export async function reviewLeadMedia(jobId: string, outcome: MediaReviewOutcome, by: string | null) {
   if (!MEDIA_OUTCOMES.includes(outcome)) throw new Error("Unknown review outcome.");
-  const job = must(await admin.from("jobs").select("id, job_number").eq("id", jobId).maybeSingle(), "Job");
+  const job = must(await admin.from("jobs").select("id, job_number, source, stage, eligibility_outcome, eligibility_decision_source").eq("id", jobId).maybeSingle(), "Job");
   if (!job) throw new Error("Job not found.");
+  const blocker = outcome === "no_insulation" ? noInsulationReviewBlocker(job) : null;
+  if (blocker) throw new Error(blocker);
   const now = new Date();
   const ins = await admin.from("customer_engagement_events").insert({
     job_id: jobId, event_type: "intake_media_reviewed", occurred_at: now.toISOString(), source: "office",
     metadata: { outcome, by }, dedupe_key: `intake_media_reviewed:${jobId}:${now.getTime()}`,
   });
   if (ins.error) throw new Error(`Review could not be saved: ${ins.error.message}`);
+  if (outcome === "no_insulation") {
+    // Official admin decision from reviewed media. The homeowner's raw Base44 answer is NOT rewritten;
+    // the estimate/routing read this review as the effective insulation fact.
+    const reason = "Office reviewed the submitted photos/video: no ceiling insulation visible.";
+    const upd = await admin.from("jobs").update({ eligibility_outcome: "likely_eligible", eligibility_decision_source: "admin", eligibility_review_required: false, eligibility_reason: reason }).eq("id", jobId);
+    if (upd.error) throw new Error(`Decision could not be saved: ${upd.error.message}`);
+    const { logEvent } = await import("./workflow.server");
+    await logEvent(jobId, by, "eligibility_decided", reason, { outcome: "likely_eligible", source: "admin", media_review: "no_insulation", raw_answer_preserved: true }, { internal: true });
+    const { syncStep3 } = await import("./estimatelink.server");
+    await syncStep3(jobId, by);
+  }
   return { ok: true as const, outcome };
+}
+
+/** ONE job: Office "no_insulation" review → normal guarded Save my spot sender (T1/T2). Never forced. */
+export async function noInsulationSaveSpot(jobId: string, by: string | null, preview: boolean) {
+  const latest = must(await admin.from("customer_engagement_events").select("metadata").eq("job_id", jobId).eq("event_type", "intake_media_reviewed").order("occurred_at", { ascending: false }).limit(1), "Review");
+  const outcome = (latest?.[0]?.metadata as { outcome?: string } | null | undefined)?.outcome ?? null;
+  if (outcome !== "no_insulation") return { outcome: "blocked" as const, detail: "Latest Office photo review is not 'No insulation visible'." };
+  const { syncStep3 } = await import("./estimatelink.server");
+  await syncStep3(jobId, by);
+  const { sendSaveMySpot } = await import("./hot-leads-send.server");
+  const r = (await sendSaveMySpot([jobId], by, preview ? { mode: "preview" } : {}))[0];
+  return { outcome: r?.outcome ?? "failed", detail: r?.detail ?? "No send result" };
 }
 
 /** Office removes fake/junk leads (Jo, 8 Oct): job is cancelled, permanently noted, and shown only under "Removed". */

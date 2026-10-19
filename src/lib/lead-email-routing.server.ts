@@ -3,24 +3,26 @@ import { declaredExtras } from "./enquiry.core";
 import { normaliseInsulation } from "./eligibility.core";
 import { groupBMediaForJob } from "./group-b-media.server";
 import { groupBInvitationBlocker } from "./group-b-media.core";
-import { automaticLeadEmail, ineligibleReplyBlocker } from "./enquiry-groups.core";
+import { automaticLeadEmail, effectiveInsulation, ineligibleReplyBlocker } from "./enquiry-groups.core";
 
 export type LeadEmailRouteResult = { route: "offer_spot" | "request_insulation" | "ineligible" | "none"; sent: boolean; reason: string };
 
 /** Read-only: the single post-Gate-1 selector's choice for this job (null = job not found). Sends nothing.
  *  Shared by the automatic router below and the Office manual-email preparation (STEP 17). */
 export async function selectLeadEmailRoute(jobId: string) {
-  const [{ data: job }, { data: work }] = await Promise.all([
+  const [{ data: job }, { data: work }, { data: review }] = await Promise.all([
     admin.from("jobs").select("source, channel, eligibility_outcome, eligibility_decision_source, eligibility_review_required, estimated_area_m2, estimated_area_unknown, properties(enrichment)").eq("id", jobId).maybeSingle(),
     admin.from("post_intake_work").select("id").eq("job_id", jobId).in("status", ["queued", "processing", "retry"]).limit(1).maybeSingle(),
+    admin.from("customer_engagement_events").select("metadata").eq("job_id", jobId).eq("event_type", "intake_media_reviewed").order("occurred_at", { ascending: false }).limit(1),
   ]);
   if (!job) return null;
+  const latestOutcome = (review?.[0]?.metadata as { outcome?: string } | null | undefined)?.outcome ?? null;
   const property = job.properties as { enrichment: Record<string, unknown> | null } | null;
   const base44 = (property?.enrichment?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } };
   return automaticLeadEmail({
     source: job.source, channel: job.channel, decisionSource: job.eligibility_decision_source,
     reviewRequired: !!job.eligibility_review_required, outcome: job.eligibility_outcome,
-    intakeWorkActive: !!work, declaredInsulation: normaliseInsulation(declaredExtras(base44.raw?.answers ?? null).existing_insulation),
+    intakeWorkActive: !!work, declaredInsulation: effectiveInsulation(normaliseInsulation(declaredExtras(base44.raw?.answers ?? null).existing_insulation), latestOutcome),
     ownerEnteredArea: !job.estimated_area_unknown && Number(job.estimated_area_m2) > 0,
   });
 }
@@ -58,6 +60,21 @@ export async function maybeAutoRouteLeadEmail(jobId: string, ctx: import("./manu
       return { route: route.email, sent: result?.outcome === "sent", reason: result?.detail ?? "No send result" };
     }
     if (route.email === "request_insulation") {
+      // Re-read both office-owned review facts before requesting evidence again. Missing/error reads
+      // never establish approval; the existing media blocker still holds received/uncertain uploads.
+      const [response, reviews] = await Promise.all([
+        admin.from("lead_campaign_responses").select("desk_check_status").eq("job_id", jobId).maybeSingle(),
+        admin.from("customer_engagement_events").select("metadata").eq("job_id", jobId).eq("event_type", "intake_media_reviewed").order("occurred_at", { ascending: false }).limit(1),
+      ]);
+      if (response.error || reviews.error) return { route: "none", sent: false, reason: "Could not verify insulation review — held for Office review" };
+      const latest = reviews.data?.[0]?.metadata as { outcome?: string } | null | undefined;
+      if (response.data?.desk_check_status === "looks_eligible" && latest?.outcome === "below_r2") {
+        // Reuse the guarded follow-up, not the invitation. It rechecks current review, consent,
+        // estimate/link, switches and prior attempts; no trust/date exceptions are forwarded.
+        const { sendExistingInsulationSaveSpot } = await import("./hot-leads-send.server");
+        const result = await sendExistingInsulationSaveSpot(jobId, null, false);
+        return { route: "offer_spot", sent: result.outcome === "sent", reason: result.detail };
+      }
       const blocker = groupBInvitationBlocker(await groupBMediaForJob(jobId));
       if (blocker) return { route: "none", sent: false, reason: blocker };
       const { syncStep3 } = await import("./estimatelink.server");

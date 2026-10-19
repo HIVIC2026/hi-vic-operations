@@ -65,7 +65,8 @@ describe("A. size-unknown previews state the 150 m² assumption", () => {
   for (const [name, facts] of UNKNOWN) {
     test(`${name}: 150 m², labelled as an assumption, never as the owner's size`, () => {
       const m = render({ ...facts, ceilingSizeKnown: false, figures: figures(150, true) });
-      expect(m.html).toContain("Ceiling size: 150 m² — estimated, not measured");
+      expect(m.plainText).toContain("Ceiling size: 150 m² — estimated, not measured");
+      expect(m.html).toContain("150 m² — estimated, not measured"); // approved layout: "Ceiling" row
       expect(m.html).toContain("150 m² for this preliminary quote");
       expect(m.html).toContain("didn’t provide a ceiling size");
       expect(m.html).not.toContain("based on the size you provided");
@@ -77,7 +78,8 @@ describe("B. size-known previews state the provided size, not the assumption", (
   for (const [name, facts] of KNOWN) {
     test(`${name}: 210 m² sample, described as provided by the homeowner`, () => {
       const m = render({ ...facts, ceilingSizeKnown: true, figures: figures(210, false) });
-      expect(m.html).toContain("Ceiling size: 210 m² — based on the size you provided");
+      expect(m.plainText).toContain("Ceiling size: 210 m² — based on the size you provided");
+      expect(m.html).toContain("210 m² — based on the size you provided"); // approved layout: "Ceiling" row
       expect(m.html).not.toContain("150 m²");
       expect(m.html).not.toContain("didn’t provide a ceiling size");
       expect(m.html).not.toContain("estimated, not measured");
@@ -94,7 +96,8 @@ describe("C. real customer data is preserved, never replaced with the sample or 
       ceilingSizeKnown: true,
       figures: figures(185, false),
     });
-    expect(m.html).toContain("Ceiling size: 185 m² — based on the size you provided");
+    expect(m.plainText).toContain("Ceiling size: 185 m² — based on the size you provided");
+      expect(m.html).toContain("185 m² — based on the size you provided"); // approved layout: "Ceiling" row
     expect(m.html).not.toContain("150 m²");
     expect(m.html).not.toContain("210 m²");
   });
@@ -105,7 +108,8 @@ describe("C. real customer data is preserved, never replaced with the sample or 
       ceilingSizeKnown: false,
       figures: figures(150, true),
     });
-    expect(m.html).toContain("Ceiling size: 150 m² — estimated, not measured");
+    expect(m.plainText).toContain("Ceiling size: 150 m² — estimated, not measured");
+      expect(m.html).toContain("150 m² — estimated, not measured"); // approved layout: "Ceiling" row
   });
 });
 
@@ -258,8 +262,13 @@ describe("F. Jo's approved wording is unchanged", () => {
     expect(m.html).toContain(
       "Good news—based on what you’ve told us, your home looks likely to qualify for a VEU ceiling insulation rebate.",
     );
-    expect(m.html).toContain("Your estimated cost after rebate: $1,900 including GST");
-    expect(m.html).toContain("Before rebate: $4,500 including GST");
+    expect(m.plainText).toContain("Your estimated cost after rebate: $1,900 including GST");
+    expect(m.plainText).toContain("Before rebate: $4,500 including GST");
+    // Approved Save my spot layout: label, big price and "before rebate" line.
+    expect(m.html).toContain("Your estimated cost after rebate");
+    expect(m.html).toContain("$1,900");
+    expect(m.html).toContain("before rebate $4,500");
+    expect(m.html).toContain("✓");
     expect(m.html).toContain("You could save $2,600");
     expect(m.html).toContain("We’ll confirm the ceiling measurements at your free Ready Check.");
     expect(m.html).toContain("What this includes");
@@ -324,4 +333,24 @@ describe("G. email safety is unchanged", () => {
     expect(src).toContain("Sample values only.");
     expect(src).toContain("210 m² provided by the homeowner");
   });
+});
+
+describe("G. T1–T6 use the approved Save my spot layout (Jo, 19 Oct)", () => {
+  const cases = [
+    { outcome: "likely_eligible", insulation: "none" },
+    { outcome: "likely_eligible", insulation: "present", deskCheckStatus: "looks_eligible" },
+    { outcome: "needs_onsite_confirmation", insulation: "unknown" },
+  ] as const;
+  for (const c of cases) {
+    test(`${c.outcome}/${c.insulation}: rebate box, big price, ticked includes with real fees, pink action card`, () => {
+      const m = render({ ...c, ceilingSizeKnown: true, figures: { ...figures(210, false), piesaFee: 349, apFee: 349 } });
+      expect(m.html).toContain("border:2px solid #07BF61"); // green rebate box
+      expect(m.html).toContain("lx-cost"); // big after-rebate price
+      expect((m.html.match(/✓&nbsp;/g) ?? []).length).toBe(4); // four ticked included items
+      expect((m.html.match(/>\$349</g) ?? []).length).toBe(2); // PIESA and AP management
+      expect(m.html).toContain(">FREE<"); // Ready Check
+      expect(m.html).toContain("#FDF2F6"); // pink action card
+      expect(m.html).not.toContain(">$0<");
+    });
+  }
 });
