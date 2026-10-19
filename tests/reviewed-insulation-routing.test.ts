@@ -28,7 +28,15 @@ test("both approved facts choose guarded T3/T4, never a repeat request", async (
   desk = "looks_eligible"; outcome = "below_r2"; media = true;
   expect(await maybeAutoRouteLeadEmail("job")).toEqual({ route: "offer_spot", sent: true, reason: "stub" });
   expect(calls).toEqual(["T3/T4"]);
-  expect(reviewOrders).toEqual([["occurred_at", { ascending: false }]]);
+  // Selector + T3/T4 re-check each read the LATEST review only.
+  expect(reviewOrders).toEqual([["occurred_at", { ascending: false }], ["occurred_at", { ascending: false }]]);
+});
+test("latest no_insulation review routes the actual router to T1/T2 (offer_spot), never T5/T6", async () => {
+  outcome = "no_insulation"; media = true;
+  const { selectLeadEmailRoute } = await import("../src/lib/lead-email-routing.server");
+  const r = await selectLeadEmailRoute("job");
+  expect(r?.email).toBe("none"); // still needs the admin likely_eligible decision recorded by the review action
+  expect(calls).not.toContain("T5/T6");
 });
 test("the T3/T4 sender's blocked outcome is preserved, not replaced by T5/T6", async () => {
   desk = "looks_eligible"; outcome = "below_r2"; senderResult = { outcome: "blocked", detail: "Consent blocked" };
