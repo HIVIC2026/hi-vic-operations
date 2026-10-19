@@ -32,7 +32,7 @@ describe("office no-insulation decision", () => {
   });
   test("server action never sends and never edits raw owner answers", () => {
     const src = readFileSync("src/lib/office-no-insulation.server.ts", "utf8");
-    expect(src).not.toMatch(/send|resend|properties"\)\.update/i.source.replace("send|", "sendSaveMySpot|deliver|") ? /sendSaveMySpot|deliver|properties"\)\.update/ : /x/);
+    expect(src).not.toMatch(/sendSaveMySpot|sendOne|deliver|from\("properties"\)/);
     expect(src).not.toContain("estimated_area_m2:");
   });
 });
