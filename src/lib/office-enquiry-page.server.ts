@@ -1,6 +1,7 @@
 import { supabaseAdmin as admin } from '@/integrations/supabase/client.server';
 import { loadEnquiryGroups } from './enquiry-groups.server';
 import type { EnquiryPageView } from './enquiry-list-page.core';
+import { mediaReviewPlan } from './office-media-review.core';
 
 type Page = { ids: string[]; total: number; page: number; pageSize: number; totalPages: number; counts: Record<EnquiryPageView, number> };
 export async function loadOfficeEnquiryPage(view: EnquiryPageView, search: string, page: number) {
@@ -13,5 +14,5 @@ export async function loadOfficeEnquiryPage(view: EnquiryPageView, search: strin
   if (factsError) throw new Error('Could not verify enquiry page facts.');
   const factById = new Map((facts ?? []).map(row => [row.id, row]));
   const byId = new Map(details.rows.map(row => [row.id, row]));
-  return { ...result, rows: result.ids.flatMap(id => { const row = byId.get(id); const fact = factById.get(id); return row ? [{ ...row, status: (fact?.enquiry_status ?? row.status) as typeof row.status, needsFirstResponse: fact?.needs_first_response ?? true, nextAction: row.mediaOutcome === 'no_insulation' || row.mediaOutcome === 'below_r2' ? 'Ready to offer Save My Spot' : row.mediaOutcome === 'unclear' ? 'Request more photos / video' : row.nextAction }] : []; }) };
+  return { ...result, rows: result.ids.flatMap(id => { const row = byId.get(id); const fact = factById.get(id); return row ? [{ ...row, status: (fact?.enquiry_status ?? row.status) as typeof row.status, needsFirstResponse: fact?.needs_first_response ?? true, nextAction: row.mediaOutcome && row.mediaOutcome !== 'over_r2' ? mediaReviewPlan(row.mediaOutcome).nextAction : row.mediaOutcome === 'over_r2' ? 'Send ineligible response' : row.nextAction }] : []; }) };
 }

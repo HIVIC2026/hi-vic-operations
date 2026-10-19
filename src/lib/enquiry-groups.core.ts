@@ -4,6 +4,7 @@
 import { GATE1_RULESET_VERSION, normaliseInsulation } from "./eligibility.core";
 import { DEFAULT_ESTIMATED_AREA_M2 } from "./estimate.core";
 import { emailSuppression, isTestRecipient, type EmailPurpose } from "./emailsafety.core";
+import { FIRST_RESPONSE_PURPOSES } from './automatic-first-response.core';
 
 export type EnquiryGroup = "likely_size" | "likely_no_size" | "insulation_check" | "other";
 export type OtherReason = "needs_review" | "missing_info" | "not_eligible" | "progressing" | "closed";
@@ -257,11 +258,11 @@ export function enquiryStatus(x: {
 }
 
 /**
- * "New — no email sent": no customer email has ever been recorded for this enquiry.
+ * "New — no email sent": no confirmed sent first-response purpose exists for this enquiry.
  * ONE definition, used by both the summary count and the filtered list.
  */
 export function isNewEnquiry(row: { lastEmail?: unknown; sentPurposes?: string[] }): boolean {
-  return !(row.sentPurposes ?? []).some(p => ['existing_leads_launch_v1', 'step3_estimate', 'insulation_video_request', 'preliminary_ineligible'].includes(p));
+  return !(row.sentPurposes ?? []).some(p => (FIRST_RESPONSE_PURPOSES as readonly string[]).includes(p));
 }
 
 export type AutomaticLeadEmail = "offer_spot" | "request_insulation" | "ineligible" | "none";

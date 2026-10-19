@@ -320,6 +320,7 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] HOT_EXCLUDED_JOBS / HOT_HIDDEN_DUPLICATES blocked in ENQ_00, ENQ_01 and the automatic router; tests added. ENQ_01 not run.
 
 ## Preview repair QA (Jo, 19 Oct 23:01 UTC)
+- [ ] Current-source remediation: activation cutoff/confirmed-send guards, debounce, exact manual next actions, practice predicate/scopes and signed-in preview verification; no messages or publish.
 - [x] Verify page-only reads, New/search/paging and boundaries.
 - [x] Verify four manual-only review choices and required reason.
 - [x] Verify OFF, 643 held rows and zero QA communications.
