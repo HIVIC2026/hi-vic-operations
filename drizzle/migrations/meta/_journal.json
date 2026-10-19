@@ -1044,6 +1044,13 @@
       "when": 1791508252005,
       "tag": "0148_job_soft_delete_claims",
       "breakpoints": true
+    },
+    {
+      "idx": 149,
+      "version": "7",
+      "when": 1792401163220,
+      "tag": "0149_calculator_interest_insert_check",
+      "breakpoints": true
     }
   ]
 }
