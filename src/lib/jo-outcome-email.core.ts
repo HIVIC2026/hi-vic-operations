@@ -41,6 +41,7 @@ import {
 } from "./estimate-email";
 import { emailArtUrl } from "./email-art.core";
 import { CUSTOMER_BRAND } from "./customer-quote-system";
+import { LOGO_PNG } from "./email-hero-assets";
 import { REMOVE_ENQUIRY_HTML_SLOT, REMOVE_ENQUIRY_TEXT_SLOT } from "./emailsafety.core";
 
 /** Jo's footer link row, verbatim placeholders (P1-S77: bound to real links, never shown as bracketed text). */
@@ -317,7 +318,7 @@ const JO_ENTITY = "DC Construction Solutions Pty Ltd trading as Home Insulation 
  * The art endpoint only draws a rebate headline when the job has a current estimate, so the
  * ineligible template (no estimate / no rebate) falls back to the identical logo on its own.
  */
-const JO_LOGO_HEADER = `<tr><td class="lx-pad" style="padding:22px 36px 2px;"><img class="lx-logo hiv-logo" src="${escape(CUSTOMER_BRAND.logoUrl)}" alt="Home Insulation Victoria" width="142" height="61" style="display:block;width:142px;height:auto;max-width:100%;border:0;"></td></tr>`;
+const JO_LOGO_HEADER = `<tr><td class="lx-pad" style="padding:22px 36px 2px;"><img class="lx-logo hiv-logo" src="data:image/png;base64,${LOGO_PNG}" alt="Home Insulation Victoria" width="142" height="61" style="display:block;width:142px;height:auto;max-width:100%;border:0;"></td></tr>`;
 
 /** The origin + estimate token from a customer estimate URL (`/estimate/{token}` or `/my-estimate/{token}`). */
 function originAndToken(url: string | null | undefined): { origin: string; token: string } | null {

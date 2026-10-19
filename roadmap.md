@@ -325,3 +325,9 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Verify four manual-only review choices and required reason.
 - [x] Verify OFF, 643 held rows and zero QA communications.
 - [x] Verify authenticated preview and T1–T7 fixtures; no publish. T7 remote logo loading and broader historic tests remain publish blockers.
+
+## Final pre-publish blockers (Jo, 19 Oct 23:19 UTC)
+- [ ] Use trusted embedded T7 logo and visually verify offline; keep central renderer.
+- [ ] Visually verify actual Active rows, Enquiries and Closed without mutations.
+- [ ] Audit and run safe historic regressions; fix concrete failures, check compilation and retired terms.
+- [ ] Read-only final proof: 643 held, zero runnable/new outbound records, activation unset. Never publish or send.
