@@ -106,7 +106,7 @@ function joInsulation(v: string | null | undefined): JoInsulation | null {
  * Jo's placeholders are bound to the EXISTING authorised pages for this customer:
  *   Save my spot  -> /estimate/{token}/campaign   (the existing Save-my-spot page)
  *   Upload media  -> /estimate/{token}/video      (the existing Group B upload page)
- *   Calculator    -> /estimate/{token}#calculator (the customer's own estimate page)
+ *   Calculator    -> /estimate/{token}/calculator (the customer's own calculator page)
  * Returns null (fail closed) so the caller keeps its existing renderer when Jo has no approved email
  * for this outcome — e.g. an unreviewed existing-insulation home.
  */
@@ -134,7 +134,7 @@ function joOutcomeMail(
       saveMySpotUrl: `${u.estimateUrl.replace(/\/$/, "")}/campaign`,
       uploadMediaUrl: `${u.estimateUrl.replace(/\/$/, "")}/video`,
       reviewResultUrl: u.estimateUrl.replace(/\/$/, ""),
-      calculatorUrl: `${u.estimateUrl.replace(/\/$/, "")}#calculator`,
+      calculatorUrl: `${u.estimateUrl.replace(/\/$/, "")}/calculator`,
     },
     ...(input.readyCheckFeeIncGst === undefined || input.readyCheckFeeIncGst === null ? {} : { readyCheckFeeIncGst: input.readyCheckFeeIncGst }),
     ...(input.pricingCohort ? { pricingCohort: input.pricingCohort } : {}),
@@ -202,10 +202,15 @@ export async function sendInitialEstimateEmail(jobId: string, actorId: string | 
   // legacy renderer; when none applies (fail closed) the existing renderer is untouched.
   const { data: deskRow } = await admin.from("lead_campaign_responses").select("desk_check_status").eq("job_id", jobId).maybeSingle();
   const areaSource = (e?.area?.source ?? null) as string | null;
+  // Same rule as Save my spot: owner size -> "based on the size you provided"; no size -> labelled 150 m² only.
+  const { joAreaBasis } = await import("./jo-area-basis.core");
+  const { data: ownerArea } = await admin.from("jobs").select("estimated_area_m2, estimated_area_unknown").eq("id", jobId).maybeSingle();
+  const areaBasis = joAreaBasis({ areaSource, areaM2: e?.area?.m2 ?? null, ownerAreaM2: ownerArea?.estimated_area_unknown ? null : Number(ownerArea?.estimated_area_m2) || null });
+  if (!areaBasis.ok) return { sent: false as const, reason: "area_basis_mismatch" };
   const joFacts = {
     outcome: (view.mode === "onsite" ? "needs_onsite_confirmation" : "likely_eligible") as JoOutcome,
     insulation: joInsulation(view.insulationDeclared),
-    ceilingSizeKnown: areaSource !== "typical_default",
+    ceilingSizeKnown: areaBasis.ceilingSizeKnown,
     deskCheckStatus: (deskRow as { desk_check_status?: string | null } | null)?.desk_check_status ?? null,
     figures: e && standard && settings ? {
       veuRebate: e.applied_discount,
@@ -214,8 +219,8 @@ export async function sendInitialEstimateEmail(jobId: string, actorId: string | 
       installation: standard.installation,
       piesaFee: settings.piesa_assessment_inc_gst,
       apFee: settings.ap_management_inc_gst,
-      ceilingAreaM2: e.area.m2,
-      areaEstimated: areaSource === "typical_default",
+      ceilingAreaM2: areaBasis.areaM2,
+      areaEstimated: areaBasis.areaEstimated,
     } : undefined,
     // The Ready Check is always free, so Jo's copy is rendered untouched.
     ...(settings && typeof settings.r5_install_inc_gst_per_m2 === "number" ? { installationRatePerM2: settings.r5_install_inc_gst_per_m2 } : {}),
@@ -348,7 +353,10 @@ export const ineligibleKey = (jobId: string) => `${INELIGIBLE_PURPOSE}:${jobId}`
  *  while automatic enquiry emails are on (enquiry-auto-reply.core.ts), delivered through the same email service (Resend)
  *  Save my spot already uses – never the Base44 bridge, whose unclear outcomes are recorded as retryable refusals.
  *  Every sender rule below still applies. */
-export async function sendDecisionIneligibleEmail(jobId: string) {
+export async function sendDecisionIneligibleEmail(jobId: string, ctx: import("./manual-backlog.core").LeadRouteContext = {}) {
+  const { isManualBacklog } = await import("./manual-backlog.core");
+  // Manually-approved ENQ_01 backlog only: the master switch must be on (no new-enquiry gate fallback).
+  if (isManualBacklog(ctx)) return (await customerCommsEnabled()) ? sendPreliminaryIneligibleEmail(jobId, null, undefined, { manualBacklog: ctx.manualBacklog! }) : { sent: false as const, reason: "comms_disabled" };
   if (await customerCommsEnabled()) return sendPreliminaryIneligibleEmail(jobId, null);
   const { newEnquiryAutoReplyGate } = await import("./enquiry-auto-reply.server");
   const gate = await newEnquiryAutoReplyGate(jobId);
@@ -358,7 +366,7 @@ export async function sendDecisionIneligibleEmail(jobId: string) {
 }
 
 /** Legacy export name retained. Sends only a confirmed official ineligible result; never schedules follow-ups or resends. */
-export async function sendPreliminaryIneligibleEmail(jobId: string, actorId: string | null = null, adapterIn?: DeliveryAdapter | null, opts: { newEnquiryAutoReply?: boolean } = {}) {
+export async function sendPreliminaryIneligibleEmail(jobId: string, actorId: string | null = null, adapterIn?: DeliveryAdapter | null, opts: { newEnquiryAutoReply?: boolean; manualBacklog?: import("./manual-backlog.core").ManualBacklogTrust } = {}) {
   const official = await officialOutcomeForDelivery(jobId);
   if (official.kind !== "ineligible") return { sent: false as const, reason: official.kind === "hold" ? official.reason : "official_not_ineligible" };
   const adapter = adapterIn === undefined ? await configuredDeliveryAdapter() : adapterIn;
@@ -370,7 +378,7 @@ export async function sendPreliminaryIneligibleEmail(jobId: string, actorId: str
   const owner = await ownerEmail(jobId);
   const to = owner.email;
   if (!to) return { sent: false as const, reason: "no_owner_email" };
-  const suppressed = await suppressionFor(jobId, "preliminary_ineligible", to);
+  const suppressed = await suppressionFor(jobId, "preliminary_ineligible", to, opts.manualBacklog ? { manualBacklog: opts.manualBacklog } : {});
   if (suppressed) return { sent: false as const, reason: suppressed };
   // STEP 17: Office already sent this email by hand (recorded "Sent manually") – never send it again.
   const { data: manual, error: manualError } = await admin.from("job_communications").select("id").eq("job_id", jobId).eq("source_event", MANUAL_SENT_EVENT).eq("source_reference", manualSendReference("ineligible_result")).limit(1).maybeSingle();

@@ -25,6 +25,8 @@ export type SafetyInput = {
   jobCreatedAt: string;
   recipient: string | null;
   jobsCreatedAfter: string | null; // admin-set cutoff at enablement; null = nothing eligible
+  /** Manually-approved ENQ_01 backlog T7 only: skips ONLY the jobs_created_after / 14-day timing rules. */
+  manualBacklogIneligible?: boolean;
   now?: number;
 };
 
@@ -36,6 +38,7 @@ export function emailSuppression(x: SafetyInput): string | null {
   if (x.jobSource === "qa_test" || isTestRecipient(x.recipient)) return "test_or_example_recipient";
   const stages = x.purpose === "preliminary_ineligible" || x.purpose === "area_unavailable" ? INELIGIBLE_STAGES : ESTIMATE_STAGES;
   if (!stages.has(x.stage)) return "job_progressed_or_closed";
+  if (x.manualBacklogIneligible === true && x.purpose === "preliminary_ineligible") return null;
   if (!x.jobsCreatedAfter) return "backlog_cutoff_not_set";
   if (Date.parse(x.jobCreatedAt) < Date.parse(x.jobsCreatedAfter)) return "backlog_before_cutoff";
   // A Ready Check invitation answers a spot the customer saved, so the 14-day new-enquiry backlog

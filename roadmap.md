@@ -314,3 +314,4 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 
 - [x] Guarded one-record ineligible retry: 30 focused tests, affected-file lint and preview build pass; no sends or publish.
 - [ ] Signed-in retry end-to-end verification — blocked by no-send constraint; production availability requires publishing.
+- [x] Safe manual backlog release (ENQUIRY_BACKLOG_MANUAL trusted context, T1-T7 renderer/CTA/owner-size tests, ENQ_00 predictions); no enqueue/sends/publish.

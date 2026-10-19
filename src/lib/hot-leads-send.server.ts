@@ -2,7 +2,7 @@
 // and a once-per-home idempotency key. TEST (qa_test) jobs go only to Jo's allowlist via the test sender.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { LAUNCH_CAMPAIGN, LAUNCH_COPY_APPROVED, launchGroup, savedPriceFromEstimate } from "./launch-campaign.core";
-import { noSizeEstimateBlocker, initialReplyQualifies, NO_SIZE_REAL_SEND_HELD } from "./no-size-estimate.core";
+import { noSizeEstimateBlocker, NO_SIZE_REAL_SEND_HELD } from "./no-size-estimate.core";
 import { CUSTOMER_BASE } from "./engagement.core";
 import { reservationAllowed, withUnsubscribe } from "./emailsafety.core";
 import { groupBMediaForJob } from "./group-b-media.server";
@@ -35,7 +35,7 @@ void LAUNCH_COPY_APPROVED;
  *  mode "preview" renders without sending and without creating any link token (missing links become placeholders);
  *  "manual_copy" is the same render but issues the lead's missing unsubscribe/referral links for an Office hand-send (STEP 32);
  *  "test_to_jo" sends a real lead's email to Jo's inbox only, with TEST-job links. */
-export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string; /** TEST only: send the Step 3 likely-eligible email instead, same facts. */ variant?: "likely_estimate"; mode?: "send" | "preview" | "manual_copy" | "test_to_jo" | "test_preview"; automaticInsulation?: boolean; /** Set only by the post-Gate-1 router: the owner's own first reply. */ automaticInitial?: boolean; /** S20-R01: set only by the automatic Group B invitation for a NEW enquiry while the master switch is off; the new-enquiry gate is re-checked before the provider call. */ newEnquiryAutoReply?: boolean; /** Office manual copy only (Jo, 12 Oct): render the approved three-variant email. Never sends. */ officeVariant?: import("./save-spot-offer.core").SaveSpotVariant };
+export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string; /** TEST only: send the Step 3 likely-eligible email instead, same facts. */ variant?: "likely_estimate"; mode?: "send" | "preview" | "manual_copy" | "test_to_jo" | "test_preview"; automaticInsulation?: boolean; /** Set only by the post-Gate-1 router: the owner's own first reply. */ automaticInitial?: boolean; /** S20-R01: set only by the automatic Group B invitation for a NEW enquiry while the master switch is off; the new-enquiry gate is re-checked before the provider call. */ newEnquiryAutoReply?: boolean; /** Office manual copy only (Jo, 12 Oct): render the approved three-variant email. Never sends. */ officeVariant?: import("./save-spot-offer.core").SaveSpotVariant; /** Set ONLY by the post-intake worker for an ENQ_01 manual-backlog item (unforgeable Symbol). */ manualBacklog?: import("./manual-backlog.core").ManualBacklogTrust };
 /** Jo's own inbox for "send me a test of this lead". */
 export const JO_TEST_INBOX = "jolowexo@hotmail.com";
 /** TEST job whose links go into Jo's test copies, so pressing them never touches the real lead. */
@@ -112,7 +112,9 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     if (b) return r("skipped", assumed ? "The saved estimate's assumed size no longer applies. Recalculate the estimate first." : b);
   } else if (assumed) {
     // Real typical-size sends are held (no proven original-enquiry claim); previews and TEST records still render.
-    const automaticInitial = isTest || mode !== "send" ? true : initialReplyQualifies({ originalInitialClaim: null });
+    const { isManualBacklog } = await import("./manual-backlog.core");
+    const { noSizeInitialAllowed } = await import("./no-size-estimate.core");
+    const automaticInitial = noSizeInitialAllowed({ isTest, mode, manualBacklog: isManualBacklog(testOpts) });
     if (!automaticInitial && testOpts.automaticInitial === true) return r("skipped", NO_SIZE_REAL_SEND_HELD);
     const b = noSizeEstimateBlocker({ areaSource: est?.area_source ?? null, areaM2: price.areaM2, ownerArea: job.estimated_area_unknown ? null : Number(job.estimated_area_m2) || null, insulation: price.insulation, followup, automaticInitial });
     if (b) return r("skipped", b);
@@ -213,8 +215,12 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   // is held for manual review and nothing is sent or previewed as if it would be.
   const figuresOk = Number.isFinite(Number(installation)) && Number.isFinite(Number(assessmentFee)) && Number.isFinite(Number(apFee)) && Number.isFinite(Number(price.areaM2));
   if (office && !figuresOk) return r("blocked", "The estimate has no itemised prices. Recalculate it first.");
+  // Known size: priced on exactly the owner's own size and worded "based on the size you provided". No size: the
+  // labelled 150 m² assumption only. Any other basis (research area, mismatch) fails closed.
+  const { joAreaBasis } = await import("./jo-area-basis.core");
+  const areaBasis = joAreaBasis({ areaSource: est?.area_source ?? null, areaM2: price.areaM2, ownerAreaM2: job.estimated_area_unknown ? null : Number(job.estimated_area_m2) || null });
   const joMail = await (async () => {
-    if (!figuresOk) return null;
+    if (!figuresOk || !areaBasis.ok) return null;
     const jo = await import("./jo-outcome-email.core");
     let facts: import("./jo-outcome-email.core").JoOutcomeFacts;
     if (office) {
@@ -229,7 +235,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
       const desk = (lcr as { desk_check_status?: string | null } | null)?.desk_check_status ?? null;
       const reviewed = !lcrError && !!c && c.criteriaPassed && (c.mediaReview === "below_r2" || desk === "looks_eligible") && desk !== "not_eligible" && desk !== "needs_onsite_check";
       if (!reviewed) return null;
-      facts = { outcome: "likely_eligible", insulation: "present", ceilingSizeKnown: !assumed, deskCheckStatus: "looks_eligible" };
+      facts = { outcome: "likely_eligible", insulation: "present", ceilingSizeKnown: areaBasis.ceilingSizeKnown, deskCheckStatus: "looks_eligible" };
     } else {
       let deskCheckStatus: "looks_eligible" | "not_eligible" | "needs_onsite_check" | null = null;
       try {
@@ -243,14 +249,14 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
       // This sender never sends the ineligible result (T7 belongs to the ineligible sender).
       if (outcome === "does_not_appear_eligible" || outcome === null) return null;
       const insulation = price.insulation === "none" || price.insulation === "present" ? price.insulation : "unknown";
-      facts = { outcome, insulation, ceilingSizeKnown: !assumed && Number(price.areaM2) > 0, deskCheckStatus };
+      facts = { outcome, insulation, ceilingSizeKnown: areaBasis.ceilingSizeKnown, deskCheckStatus };
     }
     try {
       const rendered = jo.renderJoOutcomeEmail({
         ...facts,
         recipient: { firstName: firstName ?? "there", propertyAddress: fullAddress ?? "", enquiryReference: job.job_number ?? "" },
-        figures: { veuRebate: Number(price.discount), customerTotal: Number(price.total), totalBeforeRebate: Number(price.gross), installation: Number(installation), piesaFee: Number(assessmentFee), apFee: Number(apFee), ceilingAreaM2: Number(price.areaM2), areaEstimated: assumed },
-        links: { saveMySpotUrl: campaignUrl, uploadMediaUrl: `${base}/estimate/${linkToken}/video`, reviewResultUrl: `${base}/estimate/${linkToken}`, calculatorUrl: `${base}/estimate/${linkToken}#calculator` },
+        figures: { veuRebate: Number(price.discount), customerTotal: Number(price.total), totalBeforeRebate: Number(price.gross), installation: Number(installation), piesaFee: Number(assessmentFee), apFee: Number(apFee), ceilingAreaM2: areaBasis.areaM2, areaEstimated: areaBasis.areaEstimated },
+        links: { saveMySpotUrl: campaignUrl, uploadMediaUrl: `${base}/estimate/${linkToken}/video`, reviewResultUrl: `${base}/estimate/${linkToken}`, calculatorUrl: `${base}/estimate/${linkToken}/calculator` },
       });
       if (!rendered) return null;
       // Group A senders may only send Save-my-spot templates (T1–T4); Group B only the upload request (T5/T6).
@@ -262,7 +268,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     } catch { return null; }
   })();
   if (!joMail) {
-    const held = "No approved Jo template applies to this enquiry — held for manual review; nothing sent.";
+    const held = areaBasis.ok ? "No approved Jo template applies to this enquiry — held for manual review; nothing sent." : areaBasis.reason;
     // A reservation made above is released as a clean pre-delivery failure (never left "sending").
     if (mode === "send" && sendId) await admin.from("customer_email_sends").update({ status: "failed", provider: "not_sent", error: held }).eq("id", sendId);
     return r("blocked", held);

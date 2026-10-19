@@ -26,8 +26,10 @@ export async function selectLeadEmailRoute(jobId: string) {
 }
 
 /** The single post-Gate-1 email selector. Individual senders retain delivery, consent, opt-out and idempotency guards. */
-export async function maybeAutoRouteLeadEmail(jobId: string): Promise<LeadEmailRouteResult> {
+export async function maybeAutoRouteLeadEmail(jobId: string, ctx: import("./manual-backlog.core").LeadRouteContext = {}): Promise<LeadEmailRouteResult> {
   try {
+    const { isManualBacklog } = await import("./manual-backlog.core");
+    const manualBacklog = isManualBacklog(ctx);
     const route = await selectLeadEmailRoute(jobId);
     if (!route) return { route: "none", sent: false, reason: "Job not found" };
     if (route.email === "none") return { route: "none", sent: false, reason: route.blocker ?? "No email route" };
@@ -44,10 +46,10 @@ export async function maybeAutoRouteLeadEmail(jobId: string): Promise<LeadEmailR
       // never authorises delivery on its own — the COM-04 switches and every sender guard still apply
       // inside sendSaveMySpot, and it never widens what the single selector above already allows.
       const { automaticSaveSpotGate } = await import("./save-spot-rules.server");
-      const gate = await automaticSaveSpotGate(jobId, { route: "offer_spot", coverageVerified: true });
+      const gate = await automaticSaveSpotGate(jobId, { route: "offer_spot", coverageVerified: true, ...(manualBacklog ? { manualBacklog: ctx.manualBacklog } : {}) });
       if (!gate.allowed) return { route: "none", sent: false, reason: gate.reason };
       const { sendSaveMySpot } = await import("./hot-leads-send.server");
-      const result = (await sendSaveMySpot([jobId], null, route.assumedArea ? { automaticInitial: true } : {}))[0];
+      const result = (await sendSaveMySpot([jobId], null, { ...(route.assumedArea ? { automaticInitial: true } : {}), ...(manualBacklog ? { manualBacklog: ctx.manualBacklog } : {}) }))[0];
       return { route: route.email, sent: result?.outcome === "sent", reason: result?.detail ?? "No send result" };
     }
     if (route.email === "request_insulation") {
@@ -85,7 +87,7 @@ export async function maybeAutoRouteLeadEmail(jobId: string): Promise<LeadEmailR
     const { syncStep3 } = await import("./estimatelink.server");
     await syncStep3(jobId, null);
     const { sendDecisionIneligibleEmail } = await import("./followups.server");
-    const result = await sendDecisionIneligibleEmail(jobId);
+    const result = await sendDecisionIneligibleEmail(jobId, manualBacklog ? ctx : {});
     return { route: route.email, sent: result.sent, reason: result.sent ? "Sent" : result.reason };
   } catch (error) {
     console.warn("automatic lead email route failed", (error as Error).message.slice(0, 200));

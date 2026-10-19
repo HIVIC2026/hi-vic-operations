@@ -79,7 +79,8 @@ describe("guards", () => {
   });
   test("area hierarchy", () => {
     expect(pickArea({ measurement: { id: "m", m2: 120 }, estimate: { id: "e", m2: 140, tier: "B" }, owner: 150 })!.source).toBe("accepted_measurement");
-    expect(pickArea({ estimate: { id: "e", m2: 140, tier: "B" }, owner: 150 })!.source).toBe("area_estimate");
+    expect(pickArea({ estimate: { id: "e", m2: 140, tier: "B" }, owner: 150 })!.source).toBe("owner_estimate");
+    expect(pickArea({ estimate: { id: "e", m2: 140, tier: "B" } })!.source).toBe("area_estimate");
     expect(pickArea({ owner: 150 })!.basis).toBe("declared");
   });
   test("display modes", () => {
