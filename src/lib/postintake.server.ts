@@ -64,7 +64,9 @@ async function processItem(item: Claimed) {
     // picked up again by the next trigger or the office sweep.
     try {
       const { maybeAutoRouteLeadEmail } = await import("./lead-email-routing.server");
-      await maybeAutoRouteLeadEmail(item.job_id); // one automatic route; best-effort and idempotent
+      // Only an item written by the manually-approved ENQ_01 backlog run (both markers) gets the trusted context.
+      const { routeContextForWorkItem } = await import("./manual-backlog.core");
+      await maybeAutoRouteLeadEmail(item.job_id, routeContextForWorkItem(item)); // one automatic route; best-effort and idempotent
     } catch (e) { console.error("post-intake lead email route failed", item.job_id, (e as Error).message); }
     try {
       const { autoAdvanceJob } = await import("./autoadvance.server");

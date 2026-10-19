@@ -170,7 +170,11 @@ const blocked = (block: AutomaticGateBlock, reason: string, failedCategories: Fi
  * report those controls (it is read-only reporting), which is why a preview row can show a mandatory
  * exclusion that the gate itself would not raise.
  */
-export async function automaticSaveSpotGate(jobId: string, opts: { route?: string | null; coverageVerified?: boolean } = {}): Promise<AutomaticGateVerdict> {
+export async function automaticSaveSpotGate(jobId: string, opts: { route?: string | null; coverageVerified?: boolean; manualBacklog?: import("./manual-backlog.core").ManualBacklogTrust } = {}): Promise<AutomaticGateVerdict> {
+  // Manually-approved ENQ_01 backlog item only: ENQ_00/01 is the approval, so the activation date and the
+  // enquiry-date window are not applied. Every other step below still runs.
+  const { isManualBacklog } = await import("./manual-backlog.core");
+  const manualBacklog = isManualBacklog(opts);
   const read = await readAutomaticRules();
   if (read.state !== "ok") return blocked("rules_unavailable", RULES_UNAVAILABLE_REASON);
   const config = read.config;
@@ -182,9 +186,11 @@ export async function automaticSaveSpotGate(jobId: string, opts: { route?: strin
   const lifecycle = lifecycleExclusion(facts.stage);
   if (lifecycle) return blocked("lifecycle", lifecycle);
 
-  if (!config.activatedAt) return blocked("rules_unavailable", RULES_UNAVAILABLE_REASON);
-  const created = facts.createdAt ? Date.parse(facts.createdAt) : NaN;
-  if (!Number.isFinite(created) || created < Date.parse(config.activatedAt)) return blocked("historical", BACKLOG_REASON);
+  if (!manualBacklog) {
+    if (!config.activatedAt) return blocked("rules_unavailable", RULES_UNAVAILABLE_REASON);
+    const created = facts.createdAt ? Date.parse(facts.createdAt) : NaN;
+    if (!Number.isFinite(created) || created < Date.parse(config.activatedAt)) return blocked("historical", BACKLOG_REASON);
+  }
 
   let route: string | null | undefined = opts.route;
   if (route === undefined) {
@@ -199,7 +205,8 @@ export async function automaticSaveSpotGate(jobId: string, opts: { route?: strin
     if (!(await serviceCoverageEstablished(jobId))) return blocked("service_area", SERVICE_AREA_REASON);
   }
 
-  const match = matchAutomaticRules(facts, config.rules, Date.now());
+  const { backlogRules } = await import("./save-spot-rules.core");
+  const match = matchAutomaticRules(facts, manualBacklog ? backlogRules(config.rules) : config.rules, Date.now());
   if (!match.eligible) {
     const reasons = match.failedCategories.map((c) => (facts && CATEGORY_MISMATCH_REASON[c]) ?? "Outside the configured filters");
     return blocked("rule_mismatch", reasons.join("; "), match.failedCategories);

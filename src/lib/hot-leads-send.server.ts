@@ -35,7 +35,7 @@ void LAUNCH_COPY_APPROVED;
  *  mode "preview" renders without sending and without creating any link token (missing links become placeholders);
  *  "manual_copy" is the same render but issues the lead's missing unsubscribe/referral links for an Office hand-send (STEP 32);
  *  "test_to_jo" sends a real lead's email to Jo's inbox only, with TEST-job links. */
-export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string; /** TEST only: send the Step 3 likely-eligible email instead, same facts. */ variant?: "likely_estimate"; mode?: "send" | "preview" | "manual_copy" | "test_to_jo" | "test_preview"; automaticInsulation?: boolean; /** Set only by the post-Gate-1 router: the owner's own first reply. */ automaticInitial?: boolean; /** S20-R01: set only by the automatic Group B invitation for a NEW enquiry while the master switch is off; the new-enquiry gate is re-checked before the provider call. */ newEnquiryAutoReply?: boolean; /** Office manual copy only (Jo, 12 Oct): render the approved three-variant email. Never sends. */ officeVariant?: import("./save-spot-offer.core").SaveSpotVariant };
+export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string; /** TEST only: send the Step 3 likely-eligible email instead, same facts. */ variant?: "likely_estimate"; mode?: "send" | "preview" | "manual_copy" | "test_to_jo" | "test_preview"; automaticInsulation?: boolean; /** Set only by the post-Gate-1 router: the owner's own first reply. */ automaticInitial?: boolean; /** S20-R01: set only by the automatic Group B invitation for a NEW enquiry while the master switch is off; the new-enquiry gate is re-checked before the provider call. */ newEnquiryAutoReply?: boolean; /** Office manual copy only (Jo, 12 Oct): render the approved three-variant email. Never sends. */ officeVariant?: import("./save-spot-offer.core").SaveSpotVariant; /** Set ONLY by the post-intake worker for an ENQ_01 manual-backlog item (unforgeable Symbol). */ manualBacklog?: import("./manual-backlog.core").ManualBacklogTrust };
 /** Jo's own inbox for "send me a test of this lead". */
 export const JO_TEST_INBOX = "jolowexo@hotmail.com";
 /** TEST job whose links go into Jo's test copies, so pressing them never touches the real lead. */
@@ -112,7 +112,9 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     if (b) return r("skipped", assumed ? "The saved estimate's assumed size no longer applies. Recalculate the estimate first." : b);
   } else if (assumed) {
     // Real typical-size sends are held (no proven original-enquiry claim); previews and TEST records still render.
-    const automaticInitial = isTest || mode !== "send" ? true : initialReplyQualifies({ originalInitialClaim: null });
+    const { isManualBacklog } = await import("./manual-backlog.core");
+    const { noSizeInitialAllowed } = await import("./no-size-estimate.core");
+    const automaticInitial = noSizeInitialAllowed({ isTest, mode, manualBacklog: isManualBacklog(testOpts) });
     if (!automaticInitial && testOpts.automaticInitial === true) return r("skipped", NO_SIZE_REAL_SEND_HELD);
     const b = noSizeEstimateBlocker({ areaSource: est?.area_source ?? null, areaM2: price.areaM2, ownerArea: job.estimated_area_unknown ? null : Number(job.estimated_area_m2) || null, insulation: price.insulation, followup, automaticInitial });
     if (b) return r("skipped", b);
@@ -250,7 +252,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
         ...facts,
         recipient: { firstName: firstName ?? "there", propertyAddress: fullAddress ?? "", enquiryReference: job.job_number ?? "" },
         figures: { veuRebate: Number(price.discount), customerTotal: Number(price.total), totalBeforeRebate: Number(price.gross), installation: Number(installation), piesaFee: Number(assessmentFee), apFee: Number(apFee), ceilingAreaM2: Number(price.areaM2), areaEstimated: assumed },
-        links: { saveMySpotUrl: campaignUrl, uploadMediaUrl: `${base}/estimate/${linkToken}/video`, reviewResultUrl: `${base}/estimate/${linkToken}`, calculatorUrl: `${base}/estimate/${linkToken}#calculator` },
+        links: { saveMySpotUrl: campaignUrl, uploadMediaUrl: `${base}/estimate/${linkToken}/video`, reviewResultUrl: `${base}/estimate/${linkToken}`, calculatorUrl: `${base}/estimate/${linkToken}/calculator` },
       });
       if (!rendered) return null;
       // Group A senders may only send Save-my-spot templates (T1–T4); Group B only the upload request (T5/T6).

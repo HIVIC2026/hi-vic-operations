@@ -17,3 +17,10 @@ export function noSizeEstimateBlocker(x: { areaSource: string | null; areaM2: nu
  *  cannot tell a new enquiry from a re-run backlog job, so nothing real qualifies until that claim is built. */
 export const NO_SIZE_REAL_SEND_HELD = "Typical-size first reply is on hold until the original enquiry can be proven new; nothing sent.";
 export function initialReplyQualifies(_x: { originalInitialClaim: null }): boolean { return false; }
+
+/** May a labelled 150 m² first reply be treated as the owner's automatic initial reply? Previews/TEST render; a real
+ *  send qualifies only for the manually-approved ENQ_01 backlog run (still priced on exactly the labelled 150 m²). */
+export function noSizeInitialAllowed(x: { isTest: boolean; mode: string; manualBacklog: boolean }): boolean {
+  if (x.isTest || x.mode !== "send") return true;
+  return x.manualBacklog || initialReplyQualifies({ originalInitialClaim: null });
+}
