@@ -1,0 +1,222 @@
+{
+ "captured": "2026-10-19T11:11:26Z..11:13Z",
+ "scope": "public read-only client release check",
+ "server_only": "UNKNOWN",
+ "fingerprint": {
+  "home": {
+   "http": 200,
+   "redirects": 0
+  },
+  "files": [
+   {
+    "file": "index-Ceh0jGQE.js",
+    "http": 200,
+    "bytes": 358860,
+    "sha256": "f2180d20f5f840899d2d3128ed9f7c1f7e1008efca33c5a98203a75d52655975",
+    "vs_11_09": "UNCHANGED"
+   },
+   {
+    "file": "TradeShell-BD7eGn23.js",
+    "http": 200,
+    "bytes": 6174,
+    "sha256": "f9f9802889b3543e681e58d07b22060217de9b115460ac80d1027d823cd7e64b",
+    "vs_11_09": "UNCHANGED"
+   },
+   {
+    "file": "estimate_._token.video-C139Vuor.js",
+    "http": 200,
+    "bytes": 10954,
+    "sha256": "e3564f093ca3796735566bbfb19d3d3d1e018d3733c26d98899853e38962fa61",
+    "vs_11_09": "UNCHANGED"
+   },
+   {
+    "file": "operations-query-*",
+    "status": "UNRESOLVED",
+    "note": "not referenced by HTML or the 30 walked chunks (cap hit at depth 0); in source it is imported only via CompactJobStatus in lazy admin chunks, so likely merged into an admin chunk \u2014 unconfirmed"
+   }
+  ]
+ },
+ "browser": {
+  "start": "2026-10-19T11:11:59Z",
+  "pages": [
+   {
+    "route": "/",
+    "viewport": 390,
+    "at": "2026-10-19T11:11:59Z",
+    "http": 200,
+    "final": "/",
+    "pageerrors": [],
+    "overflow": false,
+    "text_len": 1195,
+    "wording": {
+     "v1.20": false,
+     "schedule4": false,
+     "twelve_month_workmanship": false,
+     "five_year_product": false,
+     "acl": false,
+     "life_support_consent_or_medical_plan": false,
+     "five_year_workmanship_SUPERSEDED": false,
+     "piesa_fee": false,
+     "ap_fee": false
+    },
+    "version_tokens": []
+   },
+   {
+    "route": "/installer-onboarding?sample=review",
+    "viewport": 390,
+    "at": "2026-10-19T11:12:03Z",
+    "http": 200,
+    "final": "/installer-onboarding?sample=review",
+    "pageerrors": [],
+    "overflow": false,
+    "text_len": 52438,
+    "wording": {
+     "v1.20": true,
+     "schedule4": true,
+     "twelve_month_workmanship": true,
+     "five_year_product": true,
+     "acl": true,
+     "life_support_consent_or_medical_plan": true,
+     "five_year_workmanship_SUPERSEDED": false,
+     "piesa_fee": false,
+     "ap_fee": true
+    },
+    "version_tokens": [
+     "1.0",
+     "1.20"
+    ]
+   },
+   {
+    "route": "/electrician-onboarding?sample=review",
+    "viewport": 390,
+    "at": "2026-10-19T11:12:05Z",
+    "http": 200,
+    "final": "/electrician-onboarding?sample=review",
+    "pageerrors": [],
+    "overflow": false,
+    "text_len": 39433,
+    "wording": {
+     "v1.20": false,
+     "schedule4": false,
+     "twelve_month_workmanship": false,
+     "five_year_product": false,
+     "acl": true,
+     "life_support_consent_or_medical_plan": true,
+     "five_year_workmanship_SUPERSEDED": false,
+     "piesa_fee": false,
+     "ap_fee": false
+    },
+    "version_tokens": []
+   },
+   {
+    "route": "/",
+    "viewport": 1280,
+    "at": "2026-10-19T11:12:07Z",
+    "http": 200,
+    "final": "/",
+    "pageerrors": [],
+    "overflow": false,
+    "text_len": 1303,
+    "wording": {
+     "v1.20": false,
+     "schedule4": false,
+     "twelve_month_workmanship": false,
+     "five_year_product": false,
+     "acl": false,
+     "life_support_consent_or_medical_plan": false,
+     "five_year_workmanship_SUPERSEDED": false,
+     "piesa_fee": false,
+     "ap_fee": false
+    },
+    "version_tokens": []
+   },
+   {
+    "route": "/installer-onboarding?sample=review",
+    "viewport": 1280,
+    "at": "2026-10-19T11:12:09Z",
+    "http": 200,
+    "final": "/installer-onboarding?sample=review",
+    "pageerrors": [],
+    "overflow": false,
+    "text_len": 52438,
+    "wording": {
+     "v1.20": true,
+     "schedule4": true,
+     "twelve_month_workmanship": true,
+     "five_year_product": true,
+     "acl": true,
+     "life_support_consent_or_medical_plan": true,
+     "five_year_workmanship_SUPERSEDED": false,
+     "piesa_fee": false,
+     "ap_fee": true
+    },
+    "version_tokens": [
+     "1.0",
+     "1.20"
+    ]
+   },
+   {
+    "route": "/electrician-onboarding?sample=review",
+    "viewport": 1280,
+    "at": "2026-10-19T11:12:11Z",
+    "http": 200,
+    "final": "/electrician-onboarding?sample=review",
+    "pageerrors": [],
+    "overflow": false,
+    "text_len": 39433,
+    "wording": {
+     "v1.20": false,
+     "schedule4": false,
+     "twelve_month_workmanship": false,
+     "five_year_product": false,
+     "acl": true,
+     "life_support_consent_or_medical_plan": true,
+     "five_year_workmanship_SUPERSEDED": false,
+     "piesa_fee": false,
+     "ap_fee": false
+    },
+    "version_tokens": []
+   }
+  ],
+  "blocked": {
+   "390": [
+    "GET https://fonts.googleapis.com/css2",
+    "GET https://homeinsulationvictoria.com.au/home-insulation-victoria-logo.png",
+    "POST https://estimate.homeinsulationvictoria.com.au/__l5e/trackevents"
+   ],
+   "1280": [
+    "GET https://fonts.googleapis.com/css2",
+    "GET https://homeinsulationvictoria.com.au/home-insulation-victoria-logo.png",
+    "POST https://estimate.homeinsulationvictoria.com.au/__l5e/trackevents"
+   ]
+  },
+  "end": "2026-10-19T11:12:13Z"
+ },
+ "comms_since_08_21_33Z": {
+  "customer_email_sends": {
+   "existing_leads_launch_v1/sent": 8,
+   "preliminary_ineligible/sent": 2,
+   "failed": 0
+  },
+  "job_communications": {
+   "existing_leads_launch_v1/recorded": 8,
+   "preliminary_ineligible/sent": 2
+  },
+  "sms": 0,
+  "outbox": 0,
+  "followups": 0,
+  "provider_acceptance": "NOT independently verified",
+  "runtime_provider_logs": "BLOCKED"
+ },
+ "new_finding_backlog_active": {
+  "ENQUIRY_BACKLOG_MANUAL": {
+   "complete": 9,
+   "queued": 441,
+   "latest_enqueue": "2026-10-19T11:11:12Z",
+   "latest_complete": "2026-10-19T11:12:07Z"
+  },
+  "excluded_list_jobs_in_queue": 0,
+  "note": "Not run by this check; the live worker is processing it"
+ },
+ "signed_in": "NOT RUN \u2014 no approved dedicated TEST session; isolation BLOCKED"
+}
