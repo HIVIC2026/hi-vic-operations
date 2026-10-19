@@ -1,6 +1,6 @@
 // Read-only loader + draft preparation for office enquiry email groups. Scans EVERY website enquiry (paged, no silent cap)
 // plus calculator registrations, and classifies each with the pure rules in enquiry-groups.core.ts. Writes nothing.
-import { effectiveInsulation, supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { TRUSTED_ESTIMATE_TIERS, computeEstimate, type AreaCandidate } from "./estimate.core";
 import { selectCurrentEstimate, type AreaTier } from "./intelligence.core";
 import { SUPPRESSING_EVENTS } from "./emailsafety.server";
