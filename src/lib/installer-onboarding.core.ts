@@ -1,6 +1,7 @@
 // Pure rules for the portal installer onboarding + partner agreement signing.
 // Mirrors rec-onboarding.core.ts (same design/rules); shared validators are reused from there.
 import { INSTALLER_AGREEMENT_SECTIONS } from "./installer-agreement.text";
+import { activity48AgreementScheduleText } from "./activity48-agreement-schedule.text";
 import { electricianStepErrors, type ElectricianChoice, type PreferredElectrician } from "./teaming.core";
 import { AP_ENTITY, MIN_PL_COVER, validAbn, validBusinessEmail, validPhone, melbourneToday, validCalendarDate, isAustralianAddress, isVictorianAddress, DAYS, LEAD_TIMES, RADII, type ResolvedAddress } from "./rec-onboarding.core";
 
@@ -9,9 +10,12 @@ export type { ResolvedAddress };
 // 1.14 adds the verified AP accreditation number to the applicant-facing agreement.
 // 1.16 (5 Oct, single onboarding-fix version; folds in the unsigned 1.15 changes): CII lines omit blank details; vacuum-only rate dropped;
 //   payment terms: 7 days after approval (HIV-sourced) or after the later of approval and owner paid in full (installer-sourced); AP fee as recorded per installer.
+// 1.20 (19 Oct): Schedule 4 incorporated; White Card for every person installing; Activity 48 product rules with foil-faced, cellulose fibre
+//   and loose-fill insulation prohibited; separate minimum five-year product-defects warranty; AP-disclosure evidence for lead generation;
+//   PIESA fee and pricing wording removed from this agreement.
 // Earlier signed versions stay immutable and remain activatable.
-export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.16-2026-10-05";
-export const ACTIVATABLE_INSTALLER_VERSIONS: readonly string[] = ["HI-VIC-A48-INST-1.11-2026-10-03", "HI-VIC-A48-INST-1.12-2026-10-03", "HI-VIC-A48-INST-1.13-2026-10-03", "HI-VIC-A48-INST-1.14-2026-10-03", INSTALLER_AGREEMENT_VERSION];
+export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.20-2026-10-19";
+export const ACTIVATABLE_INSTALLER_VERSIONS: readonly string[] = ["HI-VIC-A48-INST-1.11-2026-10-03", "HI-VIC-A48-INST-1.12-2026-10-03", "HI-VIC-A48-INST-1.13-2026-10-03", "HI-VIC-A48-INST-1.14-2026-10-03", "HI-VIC-A48-INST-1.16-2026-10-05", "HI-VIC-A48-INST-1.18-2026-10-09", "HI-VIC-A48-INST-1.19-2026-10-09", INSTALLER_AGREEMENT_VERSION];
 export const INSTALLER_AGREEMENT_TITLE = "Activity 48 Insulation Installer Partner Agreement";
 
 export const ACKNOWLEDGEMENTS = [
@@ -20,7 +24,7 @@ export const ACKNOWLEDGEMENTS = [
   { key: "compliance", text: "I understand the Installer and its personnel must comply with current VEU, Code of Conduct, Activity 48, AS 3999, safety and Home Insulation Victoria requirements, and must not install without a current signed VEU pre-installation electrical safety assessment and Home Insulation Victoria ready-to-install confirmation." },
   { key: "records", text: "I confirm the Installer will provide truthful measurements, records and evidence and cooperate with Home Insulation Victoria, ESC and regulator compliance checks." },
   { key: "no_bypass", text: "I understand that removal, access, extras and other work identified through a Home Insulation Victoria Activity 48 job must be quoted, approved, scheduled and completed through the Home Insulation Victoria workflow and must not be taken off-platform or dealt with directly." },
-  { key: "pricing", text: "I understand our approved rates are supplier rates, not customer prices. On Home Insulation Victoria-sourced jobs, Home Insulation Victoria sets the customer price and may include its own margin, which it is not required to disclose to us. On jobs we bring in ourselves, we set our own price and Home Insulation Victoria adds no lead fee and no margin to it; the customer quote adds the Accredited Person fee recorded for the Installer in Home Insulation Victoria (standard $349 including GST, or a lower pilot rate agreed in writing) and the separate $349 including GST electrical safety assessment, and both are fixed once the customer accepts the quote. I will not share our rates with customers." },
+  { key: "pricing", text: "I understand our approved rates are supplier rates, not customer prices. On Home Insulation Victoria-sourced jobs, Home Insulation Victoria sets the customer price and may include its own margin, which it is not required to disclose to us. On jobs we bring in ourselves, we set our own price and Home Insulation Victoria adds no lead fee and no margin to it; the customer quote adds the Accredited Person fee recorded for the Installer in Home Insulation Victoria (standard $349 including GST, or a lower pilot rate agreed in writing) and that fee is fixed once the customer accepts the quote. The PIESA is a compliance step arranged or required by Home Insulation Victoria and is not part of our supplier rate. I will not share our rates with customers." },
   { key: "same_day", text: "I understand the signed VEU pre-installation installer safety assessment and install-day evidence must be submitted through the Home Insulation Victoria portal on the day of each installation." },
   { key: "electronic_signature", text: "I agree to electronic execution and to the signed agreement, exact wording, version and audit record being stored by Home Insulation Victoria." },
 ] as const;
@@ -351,7 +355,7 @@ export function agreementText(d: InstData): string {
     `Between: ${AP_ENTITY}, acting as an Accredited Person for Victorian Energy Upgrades (VEU) Activity 48, and the insulation installation business (Installer) identified in Schedule 1.`,
     "AP accreditation number: A003654", "",
     ...INSTALLER_AGREEMENT_SECTIONS.flatMap((s) => [`${s.n}. ${s.title}`, ...s.paras, ""]),
-    scheduleText(d), "", "ACKNOWLEDGEMENTS",
+    scheduleText(d), "", activity48AgreementScheduleText(), "", "ACKNOWLEDGEMENTS",
     ...ACKNOWLEDGEMENTS.map((a, i) => `${i + 1}. ${a.text}`),
   ].join("\n");
 }
