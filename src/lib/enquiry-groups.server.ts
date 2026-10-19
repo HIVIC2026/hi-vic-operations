@@ -23,7 +23,8 @@ import {
 const MEDIA_OUTCOMES: MediaReviewOutcome[] = ["below_r2", "over_r2", "unclear"];
 
 const PAGE = 1000;
-const CHUNK = 150;
+/** Fewer, larger `.in()` chunks: 500 ids keeps the URL well inside PostgREST limits while cutting round trips by ~70%. */
+const CHUNK = 500;
 const SENT = ["sent", "delivered_unrecorded", "sending"];
 /** Real website/customer intake: the signed Base44 enquiry handoff into the Home Insulation Victoria channel. */
 export const WEBSITE_SOURCE = "base44";
@@ -41,9 +42,12 @@ async function all<T>(q: (from: number, to: number) => Res<T>): Promise<T[]> {
   }
 }
 async function byJobs<T>(ids: string[], q: (chunk: string[], from: number, to: number) => Res<T>): Promise<T[]> {
-  const out: T[] = [];
-  for (let i = 0; i < ids.length; i += CHUNK) { const c = ids.slice(i, i + CHUNK); out.push(...(await all((f, t) => q(c, f, t)))); }
-  return out;
+  if (!ids.length) return [];
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += CHUNK) chunks.push(ids.slice(i, i + CHUNK));
+  // Chunks are independent: run them together instead of waiting for each one in turn.
+  const parts = await Promise.all(chunks.map((c) => all((f, t) => q(c, f, t))));
+  return parts.flat();
 }
 const must = <T>(r: { data: T; error: { message: string } | null }, what: string): T => { if (r.error) throw new Error(`${what} unavailable: ${r.error.message}`); return r.data; };
 
@@ -64,9 +68,8 @@ export async function loadEnquiryGroups() {
   const jobs = await all((f, t) => admin.from("jobs")
     .select("id, job_number, external_enquiry_id, stage, hold_reason, source, created_at, eligibility_set_at, eligibility_outcome, eligibility_decision_source, eligibility_review_required, eligibility_decision_rules, estimated_area_m2, estimated_area_unknown, owners(full_name, email, phone), properties(address_line, suburb, state, postcode, enrichment)")
     .eq("source", WEBSITE_SOURCE).eq("channel", WEBSITE_CHANNEL).order("created_at", { ascending: true }).order("id").range(f, t));
-  const outside = await all((f, t) => admin.from("jobs").select("source, channel").or(`source.neq.${WEBSITE_SOURCE},channel.neq.${WEBSITE_CHANNEL}`).range(f, t));
   const ids = jobs.map((j) => j.id);
-  const [meas, ests, docs, work, sends, consents, optouts, events, interests, cfg, responses, media, reviewed] = await Promise.all([
+  const [meas, ests, docs, work, sends, consents, optouts, events, interests, cfg, responses, media, reviewed, removedRows] = await Promise.all([
     byJobs(ids, (c, f, t) => admin.from("ceiling_measurements").select("job_id, verified_area_m2, measured_area_m2").in("job_id", c).eq("is_current", true).eq("status", "complete").range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("property_area_estimates").select("id, job_id, tier, net_m2, created_at").in("job_id", c).in("tier", TRUSTED_ESTIMATE_TIERS).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("evidence_files").select("job_id, mime_type, storage_path").in("job_id", c).range(f, t)),
@@ -75,13 +78,29 @@ export async function loadEnquiryGroups() {
     byJobs(ids, (c, f, t) => admin.from("owner_contact_consents").select("job_id, consent_status, created_at").in("job_id", c).order("created_at", { ascending: true }).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("customer_email_optouts").select("job_id, opted_out_at").in("job_id", c).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("customer_engagement_events").select("job_id").in("job_id", c).in("event_type", SUPPRESSING_EVENTS).range(f, t)),
-    all((f, t) => admin.from("calculator_interests").select("id, created_at, full_name, email, address_line, suburb, postcode, ceiling_m2, insulation_declared, status").order("created_at").range(f, t)),
+    all((f, t) => admin.from("calculator_interests").select("email, address_line, postcode").order("created_at").range(f, t)),
     admin.from("customer_delivery_settings").select("jobs_created_after").eq("id", 1).maybeSingle(),
     byJobs(ids, (c, f, t) => admin.from("lead_campaign_responses").select("job_id, spot_saved_at").in("job_id", c).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("documents").select("job_id, kind, mime_type, storage_path, source_system, external_id").in("job_id", c).eq("kind", "intake_media").range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("customer_engagement_events").select("job_id, occurred_at, metadata").in("job_id", c).eq("event_type", "intake_media_reviewed").order("occurred_at").range(f, t)),
+    byJobs(ids, (c, f, t) => admin.from("workflow_events").select("job_id").in("job_id", c).eq("event_type", "lead_removed").range(f, t)),
   ]);
-  const removedRows = await byJobs(ids, (c, f, t) => admin.from("workflow_events").select("job_id").in("job_id", c).eq("event_type", "lead_removed").range(f, t));
+  // Outside-scope counts only: three head counts instead of reading every non-website job row.
+  const outsideFilter = `source.neq.${WEBSITE_SOURCE},channel.neq.${WEBSITE_CHANNEL}`;
+  const [testHiddenRes, installerRes, otherRes] = await Promise.all([
+    admin.from("jobs").select("id", { count: "exact", head: true }).or(outsideFilter).eq("source", "qa_test"),
+    admin.from("jobs").select("id", { count: "exact", head: true }).or(outsideFilter).neq("source", "qa_test").eq("channel", "installer_sourced"),
+    admin.from("jobs").select("id", { count: "exact", head: true }).or(outsideFilter).neq("source", "qa_test").neq("channel", "installer_sourced"),
+  ]);
+  const countOf = (r: { count: number | null; error: { message: string } | null }, what: string) => {
+    if (r.error) throw new Error(`${what} unavailable: ${r.error.message}`);
+    return r.count ?? 0;
+  };
+  const outside = {
+    testHidden: countOf(testHiddenRes, "Test job count"),
+    installerSourced: countOf(installerRes, "Installer job count"),
+    otherSources: countOf(otherRes, "Other job count"),
+  };
   const removedSet = new Set(removedRows.map((r) => r.job_id));
   const savedSet = new Set(responses.filter((r) => r.spot_saved_at).map((r) => r.job_id));
   const deliveryCfg = must(cfg, "Delivery settings");
@@ -162,14 +181,12 @@ export async function loadEnquiryGroups() {
     void i;
   }
   const visibleRows = rows.filter((r) => r.kind === "job" && r.isPrimaryForContact);
-  const bySource = (pred: (o: { source: string; channel: string }) => boolean) => outside.filter(pred).length;
   return {
     rows: visibleRows,
     scope: {
       websiteJobs: jobs.length, calculatorRegistrations: interests.length, calculatorMatched, calculatorListed: interests.length - calculatorMatched, total: visibleRows.length,
       duplicateWebsiteEnquiries: rows.length - visibleRows.length,
-      testHidden: bySource((o) => o.source === "qa_test"), installerSourced: bySource((o) => o.source !== "qa_test" && o.channel === "installer_sourced"),
-      otherSources: bySource((o) => o.source !== "qa_test" && o.channel !== "installer_sourced"),
+      testHidden: outside.testHidden, installerSourced: outside.installerSourced, otherSources: outside.otherSources,
     },
     jobsCreatedAfter: deliveryCfg?.jobs_created_after ?? null,
   };

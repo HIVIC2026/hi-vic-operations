@@ -241,6 +241,14 @@ export function enquiryStatus(x: {
   return "needs_attention";
 }
 
+/**
+ * "New — no email sent": no customer email has ever been recorded for this enquiry.
+ * ONE definition, used by both the summary count and the filtered list.
+ */
+export function isNewEnquiry(row: { lastEmail: unknown }): boolean {
+  return !row.lastEmail;
+}
+
 export type AutomaticLeadEmail = "offer_spot" | "request_insulation" | "ineligible" | "none";
 
 /** Selects the single automatic email path. Gate 1 remains the source of the eligibility result. */
