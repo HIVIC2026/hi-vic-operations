@@ -334,3 +334,23 @@ describe("G. email safety is unchanged", () => {
     expect(src).toContain("210 m² provided by the homeowner");
   });
 });
+
+describe("G. T1–T6 use the approved Save my spot layout (Jo, 19 Oct)", () => {
+  const cases = [
+    { outcome: "likely_eligible", insulation: "none" },
+    { outcome: "likely_eligible", insulation: "present", deskCheckStatus: "looks_eligible" },
+    { outcome: "needs_onsite_confirmation", insulation: "unknown" },
+  ] as const;
+  for (const c of cases) {
+    test(`${c.outcome}/${c.insulation}: rebate box, big price, ticked includes with real fees, pink action card`, () => {
+      const m = render({ ...c, ceilingSizeKnown: true, figures: { ...figures(210, false), piesaFee: 349, apFee: 349 } });
+      expect(m.html).toContain("border:2px solid #07BF61"); // green rebate box
+      expect(m.html).toContain("lx-cost"); // big after-rebate price
+      expect((m.html.match(/✓&nbsp;/g) ?? []).length).toBe(4); // four ticked included items
+      expect((m.html.match(/>\$349</g) ?? []).length).toBe(2); // PIESA and AP management
+      expect(m.html).toContain(">FREE<"); // Ready Check
+      expect(m.html).toContain("#FDF2F6"); // pink action card
+      expect(m.html).not.toContain(">$0<");
+    });
+  }
+});
