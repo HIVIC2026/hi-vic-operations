@@ -14,7 +14,7 @@ export function officeInsulationOverride(events: OfficeInsulationEvent[]): "none
   const relevant = events.filter((e) => e.event_type === NO_INSULATION_EVENT || e.event_type === MEDIA_REVIEW_EVENT);
   if (!relevant.length) return null;
   const latest = [...relevant].sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at))[0];
-  return latest.event_type === NO_INSULATION_EVENT ? "none" : null;
+  return latest?.event_type === NO_INSULATION_EVENT ? "none" : null;
 }
 
 export function noInsulationDecisionBlocker(x: { source: string | null; stage: string | null; eligibilityOutcome: string | null; mediaCount: number; reason: string }): string | null {
