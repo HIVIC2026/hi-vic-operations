@@ -95,7 +95,8 @@ describe("shared list behaviour", () => {
     for (const ui of [JOBS_UI, ENQUIRIES_UI]) {
       expect(ui).toContain("placeholderData: keepPreviousData");
       // the whole control set is the query key, so React Query keys each view separately
-      expect(ui).toMatch(/queryKey: \[[^\]]*controls\]/);
+      // (the enquiries workspace names the normalised set `current`, jobs keeps `controls`)
+      expect(ui).toMatch(/queryKey: \[[^\]]*(controls|current)\]/);
       expect(ui).toContain("aria-busy={busy}");
     }
   });
