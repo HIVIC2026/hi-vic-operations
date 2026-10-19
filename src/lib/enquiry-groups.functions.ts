@@ -54,6 +54,15 @@ export const reviewLeadMediaFn = createServerFn({ method: "POST" }).middleware([
     return reviewLeadMedia(data.jobId, data.outcome, context.userId ?? null);
   });
 
+/** Office decision: photos show no ceiling insulation. Records audit + admin eligibility + recalculated estimate. Never sends. */
+export const recordNoInsulationVisibleFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), reason: z.string().trim().min(5).max(300) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { recordNoInsulationVisible } = await import("./office-no-insulation.server");
+    return recordNoInsulationVisible(data.jobId, context.userId ?? null, data.reason);
+  });
+
 export const removeLeadsFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ ids: z.array(z.string().uuid()).min(1).max(500), reason: z.string().trim().min(2).max(200) }).parse(d))
   .handler(async ({ data, context }) => {
