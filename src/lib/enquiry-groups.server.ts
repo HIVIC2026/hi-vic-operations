@@ -150,7 +150,7 @@ export async function loadEnquiryGroups() {
           campaignGroup: camp.length ? (camp.some((s) => /:b(:|$)/.test(s.idempotency_key ?? "")) ? "onsite" : "likely") : null,
         });
       })(), attentionReason: null, outcomeAt: j.eligibility_set_at ?? null,
-      groupBMedia, mediaCount: groupBMedia.count, mediaChecked: mediaOutcome === "below_r2" || mediaOutcome === "over_r2", mediaOutcome,
+      groupBMedia, mediaCount: groupBMedia.count, mediaChecked: mediaOutcome === "below_r2" || mediaOutcome === "over_r2" || mediaOutcome === "no_insulation", mediaOutcome,
       removed: removedSet.has(j.id),
     };
   });

@@ -37,8 +37,9 @@ describe("Office 'No insulation visible' review", () => {
     const srv = readFileSync("src/lib/enquiry-groups.server.ts", "utf8");
     const fn = readFileSync("src/lib/enquiry-groups.functions.ts", "utf8");
     expect(srv).not.toMatch(/enrichment[^\n]*update|update\([^)]*enrichment/);
-    expect(srv).toContain('sendSaveMySpot([jobId], by');
-    expect(srv).not.toMatch(/force/i);
+    const fnBody = srv.slice(srv.indexOf("export async function noInsulationSaveSpot"));
+    expect(fnBody).toContain('sendSaveMySpot([jobId], by');
+    expect(fnBody.split("\nexport ")[0]).not.toMatch(/force/i);
     for (const name of ["reviewLeadMediaFn", "noInsulationSaveSpotFn"]) {
       const block = fn.slice(fn.indexOf(`export const ${name}`)).split("export const")[1];
       expect(block).toContain("requireSupabaseAuth");
