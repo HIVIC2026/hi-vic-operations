@@ -238,23 +238,35 @@ function joBodyToHtml(body: string): string {
     if (!line.trim()) { i++; continue; }
     if (line.startsWith("### ")) {
       const heading = line.slice(4).trim();
-      const card: string[] = [`<p style="margin:0 0 10px;${FH}color:${INK};font-size:19px;line-height:1.25;font-weight:800;">${escape(heading)}</p>`];
       i++;
       // P1-S77: Jo separates a heading from its content with a blank line, so the section's content (table,
       // paragraphs, CTA) is collected up to the next heading or the sign-off — the card is never an empty box.
+      const content: string[] = [];
       while (i < lines.length && !lines[i]!.startsWith("### ") && lines[i]!.trim() !== JO_SIGN_OFF && lines[i]!.trim() !== JO_FOOTER_LINKS_LINE) {
-        const l = lines[i]!;
-        if (!l.trim()) { i++; continue; }
-        if (l.startsWith("|")) {
-          const rows: string[] = [];
-          while (i < lines.length && lines[i]!.startsWith("|")) rows.push(lines[i++]!);
-          card.push(tableHtml(rows));
-          continue;
-        }
-        card.push(paragraphHtml(l));
+        if (lines[i]!.trim()) content.push(lines[i]!);
         i++;
       }
-      blocks.push(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${MIST}" style="width:100%;border-collapse:separate;background-color:${MIST};border-radius:16px;"><tr><td style="padding:17px 18px;${F}">${card.join("")}</td></tr></table>`);
+      // Approved Save my spot look (presentation only, Jo's words unchanged): the quote section becomes the
+      // rebate box + big price + ticked "What this includes" card; action sections use the pink card.
+      if (/preliminary quote$/i.test(heading)) {
+        let includes: string[] | null = null;
+        if (i < lines.length && lines[i]!.startsWith("### What this includes")) {
+          i++;
+          includes = [];
+          while (i < lines.length && !lines[i]!.startsWith("### ") && lines[i]!.trim() !== JO_SIGN_OFF) {
+            if (lines[i]!.trim()) includes.push(lines[i]!);
+            i++;
+          }
+        }
+        blocks.push(quoteCardHtml(content, includes));
+        continue;
+      }
+      if (heading === "What this includes") {
+        blocks.push(quoteCardHtml([], content));
+        continue;
+      }
+      const action = content.some((l) => TOKEN_LINE.exec(l)?.[1] === "cta");
+      blocks.push(sectionCardHtml(heading, content, action));
       continue;
     }
     if (line.startsWith("|")) {
