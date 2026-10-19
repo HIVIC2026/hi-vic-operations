@@ -22,15 +22,18 @@ mock.module("../src/lib/referral.server",()=>({referralUrlForJob:async()=>null})
 mock.module("../src/lib/workflow.server",()=>({logEvent:async()=>{}}));
 const {sendExistingInsulationSaveSpot} = await import("../src/lib/hot-leads-send.server");
 beforeEach(()=>{qualified=true;enabled=false;reviewed=true;writes=0;originalMediaReads=0;delete data.customer_email_sends;});
-test("office below-R2 preview uses follow-up renderer despite original media",async()=>{
+// P1-S77: the existing-insulation follow-up IS Jo's Template 3/4 (below R2, reviewed) — no separate follow-up copy.
+test("office below-R2 preview renders Jo's T3/T4 despite original media",async()=>{
   const r = await sendExistingInsulationSaveSpot(id,id,true);
-  expect(r.preview?.html).toContain(REMOVAL_BUDGET_EMAIL_NOTE);
+  expect(r.preview?.subject).toBe("TEST, your insulation looks eligible—save your spot");
+  expect(r.preview?.plainText).toContain("Please budget $15 per m² including GST for the areas that need removal only.");
   expect(r.preview?.html).toContain("Save my spot →");
+  expect(r.preview?.html).not.toContain(REMOVAL_BUDGET_EMAIL_NOTE);
   expect(originalMediaReads).toBe(0);expect(writes).toBe(0);
 });
-test("audited qualifying owner declaration uses the same truthful renderer",async()=>{
+test("an owner declaration without a recorded media review is held for manual review (Jo's T3/T4 says the photos were reviewed)",async()=>{
   reviewed=false;const r=await sendExistingInsulationSaveSpot(id,id,true);
-  expect(r.preview?.html).toContain(REMOVAL_BUDGET_EMAIL_NOTE);
+  expect(r.outcome).toBe("blocked");expect(r.detail).toContain("held for manual review");expect(r.preview).toBeUndefined();expect(writes).toBe(0);
 });
 test("unqualified review cannot prepare the follow-up",async()=>{
   qualified=false;const r=await sendExistingInsulationSaveSpot(id,id,true);

@@ -339,13 +339,15 @@ function renderReadyCheckInvitation(r: JoRecipient, snap: SavedPricingSnapshot):
 // ---------------------------------------------------------------------------
 
 /** Subjects, verbatim from Jo's copy. */
-export function subjectForTemplate(id: JoTemplateId, firstName: string): string {
+export function subjectForTemplate(id: JoTemplateId, firstName: string, veuRebate?: number | null): string {
   switch (id) {
     case "eligible_no_insulation_size_unknown":
     case "eligible_no_insulation_size_known":
-      return `${firstName}, you could save $[VEU rebate] on ceiling insulation`.replace(
-        "$[VEU rebate]", "on your VEU rebate",
-      );
+      // Jo: "[name], you could save $[VEU rebate] on ceiling insulation" — the placeholder is the real rebate.
+      // Without a usable rebate figure the amount is omitted rather than invented.
+      return typeof veuRebate === "number" && Number.isFinite(veuRebate) && veuRebate > 0
+        ? `${firstName}, you could save ${money(veuRebate)} on ceiling insulation`
+        : `${firstName}, you could save on ceiling insulation`;
     case "eligible_below_r2_reviewed_size_unknown":
     case "eligible_below_r2_reviewed_size_known":
       return `${firstName}, your insulation looks eligible—save your spot`;
@@ -383,7 +385,7 @@ export function renderJoEstimateEmail(
       body = renderPotentiallyEligible(recipient, figures);
       break;
   }
-  return { templateId: id, subject: subjectForTemplate(id, recipient.firstName), body, ctas: ctasForTemplate(id) };
+  return { templateId: id, subject: subjectForTemplate(id, recipient.firstName, figures.veuRebate), body, ctas: ctasForTemplate(id) };
 }
 
 export function renderJoIneligibleEmail(recipient: JoRecipient, reason: string): JoRenderResult {

@@ -109,11 +109,15 @@ export async function prepareReadyCheckInvitation(jobId: string, actor: OfficeAc
   const owner = await ownerEmailFor(jobId);
   if (!owner.email) return { ok: false, jobId, jobNumber, reason: "This customer has no email address. Nothing was prepared." };
   const who = await joRecipientFacts(jobId, owner.reference);
-  const mail = renderJoReadyCheckInvitationEmail({
+  // P1-S77: the preview carries the same footer links as the send (existing opt-out link, or a preview placeholder —
+  // no token is created by preparing).
+  const previewLinks = await import("./preview-links.server");
+  const unsubscribe = (await previewLinks.existingUnsubscribeUrl(jobId).catch(() => null)) ?? previewLinks.PREVIEW_UNSUBSCRIBE_URL;
+  const mail = withUnsubscribe(renderJoReadyCheckInvitationEmail({
     firstName: who.firstName ?? "there",
     propertyAddress: who.address ?? "your property",
     enquiryReference: who.reference ?? "",
-  }, snapshot);
+  }, snapshot), unsubscribe);
 
   await logEvent(jobId, actor.userId, `${READY_CHECK_INVITATION_EVENT}:prepared`, `Office prepared a Ready Check invitation for ${jobNumber ?? "this job"} (nothing sent)`, { job_id: jobId, template: READY_CHECK_INVITATION_PURPOSE, saved_at: snapshot.savedAt, prepared_by: actor.userId, sent: false });
   return {

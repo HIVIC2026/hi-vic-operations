@@ -91,10 +91,14 @@ export async function prepareManualEmail(jobId: string, actorId: string | null, 
     const assumed = est.area_source === "typical_default";
     if (assumed && !size.unavailable) return no(STALE_TYPICAL);
     if (!assumed && size.unavailable) return no("The estimate has a ceiling size but none is on record. Recalculate the estimate before preparing an email.");
-    const { pickSaveSpotVariant, SAVE_SPOT_VARIANT_LABEL } = await import("./save-spot-offer.core");
+    const { pickSaveSpotVariant } = await import("./save-spot-offer.core");
     const v = pickSaveSpotVariant({ route: route.email, insulation: est.insulation_declared, mediaReview: review.mediaReview, criteriaPassed: review.criteriaPassed, areaAssumed: assumed });
     if ("blocked" in v) return no(v.blocked);
-    variant = v.variant; variantLabel = SAVE_SPOT_VARIANT_LABEL[v.variant];
+    // P1-S77: each Office variant IS one of Jo's approved templates; show Jo's template name, not a separate variant set.
+    const jo = await import("./jo-outcome-email.core");
+    const joId = jo.selectJoOutcomeTemplate(jo.joFactsForSaveSpotVariant(v.variant, assumed));
+    if (!joId) return no("No approved Jo template applies to this enquiry — held for manual review; nothing prepared.");
+    variant = v.variant; variantLabel = `Jo template: ${jo.JO_OUTCOME_TEMPLATE_LABEL[joId]}`;
   }
 
   const notices: string[] = [];

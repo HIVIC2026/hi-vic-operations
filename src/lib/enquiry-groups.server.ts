@@ -7,8 +7,8 @@ import { SUPPRESSING_EVENTS } from "./emailsafety.server";
 import { normaliseInsulation } from "./eligibility.core";
 import { declaredExtras } from "./enquiry.core";
 import { currentRetailSettings } from "./estimate.server";
-import { READY_CHECK_FEE } from "./readycheck.core";
-import { renderEstimateEmail, renderIneligibleOutcomeEmail, renderInsulationVideoEmail } from "./estimate-email";
+import { renderJoOutcomeEmail } from "./jo-outcome-email.core";
+import { withUnsubscribe } from "./emailsafety.core";
 import { CUSTOMER_BASE } from "./engagement.core";
 import type { LocationVariables } from "./activity48.core";
 import { originalEnquiryMedia, groupBInvitationBlocker, type GroupBMediaState } from "./group-b-media.core";
@@ -187,29 +187,41 @@ type Selected = { group: EnquiryGroup; otherReason: OtherReason | null; assumedA
 type Ctx = { settings: Awaited<ReturnType<typeof currentRetailSettings>>; loc: Map<string, LocationVariables> };
 
 function renderDraft(r: EnquiryGroupRow, sel: Selected, ctx: Ctx): Draft | { error: string } {
-  const firstName = r.name?.trim().split(/\s+/)[0] ?? null;
+  // P1-S77: Office drafts are rendered by the SAME Jo-approved renderer every real send uses (renderJoOutcomeEmail),
+  // so a draft can never show a superseded template. Preview links/unsubscribe are placeholders; nothing is issued.
+  const firstName = r.name?.trim().split(/\s+/)[0] ?? "there";
   const placeholderLink = `${CUSTOMER_BASE}/estimate/${PREVIEW_TOKEN}`;
-  if (sel.group === "insulation_check")
-    return { ...renderInsulationVideoEmail({ captureUrl: `${placeholderLink}/video`, firstName, reference: r.reference }), area: { m2: r.area.m2, label: r.areaLabel } };
-  if (sel.group === "other")
-    return { ...renderIneligibleOutcomeEmail({ reasons: r.hardFailures, referralUrl: `https://homeinsulationvictoria.com.au/homeowner?ref=${PREVIEW_TOKEN}`, reference: r.reference }), area: { m2: r.area.m2, label: r.areaLabel } };
+  const links = { saveMySpotUrl: `${placeholderLink}/campaign`, uploadMediaUrl: `${placeholderLink}/video`, reviewResultUrl: placeholderLink, calculatorUrl: `${placeholderLink}#calculator` };
+  const recipient = { firstName, propertyAddress: r.address ?? "your property", enquiryReference: r.reference ?? r.jobNumber ?? "" };
+  const previewUnsubscribe = `${CUSTOMER_BASE}/api/public/unsubscribe?t=${PREVIEW_TOKEN}`;
+  const done = (mail: ReturnType<typeof renderJoOutcomeEmail>, area: Draft["area"]): Draft | { error: string } =>
+    mail ? { ...withUnsubscribe(mail, previewUnsubscribe), area } : { error: "No approved Jo template applies to this enquiry — held for manual review" };
+  if (sel.group === "other") {
+    const mail = renderJoOutcomeEmail({ outcome: "does_not_appear_eligible", insulation: null, ceilingSizeKnown: false, recipient, reason: r.hardFailures.join(" ") || null, links });
+    return done(mail, { m2: r.area.m2, label: r.areaLabel });
+  }
   if (!ctx.settings) return { error: "Estimator settings are not configured – estimate cannot be rendered" };
   const loc = ctx.loc.get(String(r.postcode ?? "").trim());
   if (!loc) return { error: `Postcode ${r.postcode ?? "(missing)"} is not in the VEU location list – estimate cannot be rendered` };
-  const assumed = sel.group === "likely_no_size";
+  const assumed = sel.group === "likely_no_size" || (sel.group === "insulation_check" && r.area.m2 == null);
   const m2 = assumed ? sel.assumedAreaM2 : r.area.m2;
   if (m2 == null) return { error: "No usable area" };
   const area: AreaCandidate = assumed ? { m2, source: "typical_default", basis: "assumed", id: null, label: `Assumed area: ${m2} m²` } : { m2, source: r.area.source === "measured" ? "accepted_measurement" : r.area.source === "estimated" ? "area_estimate" : "owner_estimate", basis: r.area.source, id: null, label: r.areaLabel };
   const e = computeEstimate(area, loc, r.declaredInsulation, ctx.settings);
   const st = e.primary.by_access.standard;
   const s = ctx.settings;
-  const mail = renderEstimateEmail({
-    estimateUrl: placeholderLink, outcome: "likely", firstName, reference: r.reference,
-    estimatedTotal: st.estimated_customer_total, veuDiscount: e.applied_discount, areaM2: m2,
-    installationPrice: st.installation, installationRatePerM2: s.r5_install_inc_gst_per_m2, assessmentFee: s.piesa_assessment_inc_gst, apFee: s.ap_management_inc_gst,
-    grossProjectTotal: st.pre_discount_total, amountPayableNow: READY_CHECK_FEE, estimatedRemainingBalance: Math.max(0, st.estimated_customer_total - READY_CHECK_FEE), areaIsTypical: assumed,
+  const mail = renderJoOutcomeEmail({
+    outcome: sel.group === "insulation_check" ? "needs_onsite_confirmation" : "likely_eligible",
+    insulation: r.declaredInsulation ?? "unknown",
+    ceilingSizeKnown: !assumed,
+    recipient,
+    figures: {
+      veuRebate: e.applied_discount, customerTotal: st.estimated_customer_total, totalBeforeRebate: st.pre_discount_total,
+      installation: st.installation, piesaFee: s.piesa_assessment_inc_gst, apFee: s.ap_management_inc_gst, ceilingAreaM2: m2, areaEstimated: assumed,
+    },
+    links,
   });
-  return { ...mail, area: { m2, label: assumed ? `Assumed area: ${m2} m²` : r.areaLabel } };
+  return done(mail, { m2, label: assumed ? `Assumed area: ${m2} m²` : r.areaLabel });
 }
 
 /** Staff-reviewed draft preparation. Works with communications OFF. Revalidates the current group and contact facts. Writes nothing. */
@@ -220,7 +232,7 @@ export async function prepareEnquiryEmails(ids: string[], sel: Selected, withHtm
   const byId = new Map(rows.map((r) => [r.id, r]));
   const want = [...new Set(ids)];
   const chosen = want.map((id) => byId.get(id)).filter((r): r is NonNullable<typeof r> => !!r);
-  const ctx: Ctx = tpl.key && (sel.group === "likely_size" || sel.group === "likely_no_size")
+  const ctx: Ctx = tpl.key && (sel.group === "likely_size" || sel.group === "likely_no_size" || sel.group === "insulation_check")
     ? { settings: await currentRetailSettings(), loc: await locations(chosen.map((r) => String(r.postcode ?? "").trim())) }
     : { settings: null, loc: new Map() };
   const seen = new Set<string>();

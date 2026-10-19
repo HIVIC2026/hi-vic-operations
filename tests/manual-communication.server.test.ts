@@ -121,7 +121,8 @@ describe("prepareManualEmail", () => {
     rows["indicative_estimates"] = { one: { area_source: "typical_default", insulation_declared: "none", area_m2: DEFAULT_ESTIMATED_AREA_M2, snapshot: DEFAULT_SNAPSHOT } };
     const r = await prepareManualEmail(JOB, ACTOR);
     expect(r).toMatchObject({ ok: true, template: "save_my_spot" });
-    expect(r.ok && r.templateLabel).toContain("assumed ceiling size");
+    // P1-S77: the assumed-size variant IS Jo's Template 1, and Office sees Jo's template name.
+    expect(r.ok && r.templateLabel).toBe("Jo template: Eligible — no insulation, size unknown");
     // The assumed-area variant is selected and handed to the render-only sender; nothing is written or sent.
     expect(officeSaveSpotCalls).toEqual([[JOB, ACTOR, "no_insulation_assumed_size", false]]);
     expect(writes()).toEqual([]);

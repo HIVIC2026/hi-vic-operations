@@ -57,7 +57,10 @@ describe("duplicate prevention", () => {
     // P1-R3-S92: three customer email paths in this file — the Jo-rendered ineligible result (T7),
     // the follow-up and the outcome email. Every one of them is still wrapped in withUnsubscribe,
     // so the invariant (no customer email ships without a working unsubscribe link) is unchanged.
-    expect(f.match(/withUnsubscribe\(/g)?.length).toBe(3);
+    // P1-S77: the legacy ineligible return (the third wrap) is gone; every remaining customer path is wrapped:
+    // deliverTracked (outcome email + follow-up) and the single Jo T7 renderer.
+    expect(f.match(/withUnsubscribe\(/g)?.length).toBe(2);
+    expect(f).toMatch(/const mail = withUnsubscribe\(x\.render\(/);
     // Every withUnsubscribe call must pair with a real delivered subject: no ship-without-unsubscribe path.
     expect((f.match(/withUnsubscribe\(/g) ?? []).length).toBeGreaterThanOrEqual(
       (f.match(/adapter\.deliver\(/g) ?? []).length,

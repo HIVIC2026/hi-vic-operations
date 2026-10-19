@@ -28,7 +28,19 @@ import {
   type JoTemplateId,
   type SavedPricingSnapshot,
 } from "./jo-email-templates.core";
-import { applyReadyCheckFee, escape, type EstimateEmail } from "./estimate-email";
+import { applyReadyCheckFee, escape, PRIVACY_URL, PUBLIC_CALCULATOR_URL, type EstimateEmail } from "./estimate-email";
+import { REMOVE_ENQUIRY_HTML_SLOT, REMOVE_ENQUIRY_TEXT_SLOT } from "./emailsafety.core";
+
+/** Jo's footer link row, verbatim placeholders (P1-S77: bound to real links, never shown as bracketed text). */
+export const JO_FOOTER_LINKS_LINE = "[Contact us] · [Privacy] · [Remove my enquiry]";
+export const JO_CONTACT_URL = "https://homeinsulationvictoria.com.au/contact";
+/** T7 "Review my result" when the customer has no secure estimate link (ineligible jobs never keep one): the same
+ *  public homeowner page the previous ineligible email used. */
+export const JO_RESULT_FALLBACK_URL = "https://homeinsulationvictoria.com.au/homeowner";
+/** T7 "Checking another property?" — the standalone calculator line always opens the PUBLIC calculator. */
+const T7_CALCULATOR_LINE = "Open the calculator →";
+/** Jo's sign-off line; it ends the last section card. */
+const JO_SIGN_OFF = "Home Insulation Victoria";
 
 /** The post-Gate-1 official outcomes this wiring understands. */
 export type JoOutcome =
@@ -168,6 +180,8 @@ function bindLinks(body: string, links: JoOutcomeLinks, ctas: JoCta[]): string {
     const label = PLACEHOLDER[cta].slice(1, -1);
     out = out.split(PLACEHOLDER[cta]).join(ctaToken("cta", url, label));
   }
+  // T7: the standalone "Open the calculator →" line is for ANOTHER property, so it opens the public calculator.
+  out = out.split("\n").map((l) => (l.trim() === T7_CALCULATOR_LINE ? ctaToken("link", PUBLIC_CALCULATOR_URL, T7_CALCULATOR_LINE) : l)).join("\n");
   // T1–T6 leave the calculator as plain sentence text; T8 already carries its own link.
   if (out.includes(CALCULATOR_LINE) && links.calculatorUrl) {
     out = out.split(CALCULATOR_LINE).join(
@@ -207,15 +221,23 @@ function joBodyToHtml(body: string): string {
   while (i < lines.length) {
     const line = lines[i]!;
     if (!line.trim()) { i++; continue; }
+    if (line.trim() === JO_FOOTER_LINKS_LINE) { blocks.push(footerLinksHtml()); i++; continue; }
     if (line.startsWith("### ")) {
       const heading = line.slice(4).trim();
       const card: string[] = [`<p style="margin:0 0 10px;${FH}color:${INK};font-size:19px;line-height:1.25;font-weight:800;">${escape(heading)}</p>`];
       i++;
-      const bodyLines: string[] = [];
-      while (i < lines.length && lines[i]!.startsWith("|")) bodyLines.push(lines[i++]!);
-      if (bodyLines.length) card.push(tableHtml(bodyLines));
-      while (i < lines.length && lines[i]!.trim() && !lines[i]!.startsWith("### ") && !lines[i]!.startsWith("|")) {
-        card.push(paragraphHtml(lines[i]!));
+      // P1-S77: Jo separates a heading from its content with a blank line, so the section's content (table,
+      // paragraphs, CTA) is collected up to the next heading or the sign-off — the card is never an empty box.
+      while (i < lines.length && !lines[i]!.startsWith("### ") && lines[i]!.trim() !== JO_SIGN_OFF && lines[i]!.trim() !== JO_FOOTER_LINKS_LINE) {
+        const l = lines[i]!;
+        if (!l.trim()) { i++; continue; }
+        if (l.startsWith("|")) {
+          const rows: string[] = [];
+          while (i < lines.length && lines[i]!.startsWith("|")) rows.push(lines[i++]!);
+          card.push(tableHtml(rows));
+          continue;
+        }
+        card.push(paragraphHtml(l));
         i++;
       }
       blocks.push(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${MIST}" style="width:100%;border-collapse:separate;background-color:${MIST};border-radius:16px;"><tr><td style="padding:17px 18px;${F}">${card.join("")}</td></tr></table>`);
@@ -231,6 +253,12 @@ function joBodyToHtml(body: string): string {
     i++;
   }
   return blocks.join("");
+}
+
+/** Jo's footer link row as real links. "Remove my enquiry" is filled with the secure opt-out link by withUnsubscribe(). */
+function footerLinksHtml(): string {
+  const a = (href: string, label: string) => `<a href="${escape(href)}" style="color:#3C51C4;text-decoration:underline;">${escape(label)}</a>`;
+  return `<p style="margin:0 0 8px;${F}color:${INK};font-size:12.5px;line-height:1.6;">${a(JO_CONTACT_URL, "Contact us")} · ${a(PRIVACY_URL, "Privacy")} · ${REMOVE_ENQUIRY_HTML_SLOT}</p>`;
 }
 
 /** A CTA token line becomes the shared approved button; anything else is a paragraph. */
@@ -365,6 +393,7 @@ function plainTextOf(body: string): string {
   const out: string[] = [];
   for (const raw of lines) {
     const line = raw.trim();
+    if (line === JO_FOOTER_LINKS_LINE) { out.push(`Contact us: ${JO_CONTACT_URL} · Privacy: ${PRIVACY_URL} · Remove my enquiry: ${REMOVE_ENQUIRY_TEXT_SLOT}`); continue; }
     const whole = TOKEN_LINE.exec(line);
     if (whole) { out.push(`${whole[3]!}: ${whole[2]!}`); continue; }
     if (/^\|\s*-+[-\s|]*\|$/.test(line)) continue; // Jo's |---| separator
@@ -384,3 +413,18 @@ function plainTextOf(body: string): string {
 }
 
 export { ctasForTemplate };
+
+/**
+ * P1-S77: the Office "Save my spot" copy variants are no longer a separate template set — each one IS one of
+ * Jo's approved templates, rendered by renderJoOutcomeEmail(). This maps the variant chosen by the existing
+ * Office rules (pickSaveSpotVariant) to the routing facts that select that Jo template.
+ */
+export function joFactsForSaveSpotVariant(
+  variant: "no_insulation_owner_size" | "no_insulation_assumed_size" | "reviewed_under_r2",
+  assumedArea: boolean,
+): JoOutcomeFacts {
+  if (variant === "reviewed_under_r2") {
+    return { outcome: "likely_eligible", insulation: "present", ceilingSizeKnown: !assumedArea, deskCheckStatus: "looks_eligible" };
+  }
+  return { outcome: "likely_eligible", insulation: "none", ceilingSizeKnown: variant === "no_insulation_owner_size" };
+}

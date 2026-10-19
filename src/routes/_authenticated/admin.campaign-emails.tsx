@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
@@ -13,7 +13,10 @@ import { cn } from "@/lib/utils";
 
 const title = "Campaign emails – Home Insulation Victoria Operations";
 const description = "Review and refine the hot-lead campaign emails exactly as owners will see them. Preview only — nothing sends.";
+// P1-S77: retired. The Group A/B campaign copy edited here was superseded by Jo's approved templates (15 Oct 2026)
+// and was never used by any sender. Office manages homeowner emails only in Templates › Email.
 export const Route = createFileRoute("/_authenticated/admin/campaign-emails")({
+  beforeLoad: () => { throw redirect({ to: "/admin/templates", search: { cat: "email" }, replace: true }); },
   head: () => ({ meta: [{ title }, { name: "description", content: description }, { property: "og:title", content: title }, { property: "og:description", content: description }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: CampaignEmailsPage,
 });

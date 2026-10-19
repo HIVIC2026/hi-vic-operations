@@ -28,7 +28,8 @@ describe("Template selection", () => {
     expect(new Set(TEMPLATE_ENTRIES.map((e) => e.id)).size).toBe(TEMPLATE_ENTRIES.length);
     for (const c of ["email", "mitti", "compliance"] as const) expect(entriesFor(c).length).toBeGreaterThan(0);
     expect(selectTemplate("mitti", "email:save_my_spot").category).toBe("mitti");
-    expect(selectTemplate("email", "email:save_my_spot_no_size").title).toBe("Save your spot — no ceiling size");
+    // P1-S77: a retired id (superseded Save-your-spot copy) is no longer listed and falls back to Jo's first template.
+    expect(selectTemplate("email", "email:save_my_spot_no_size").title).toBe("Eligible — no existing insulation (size unknown)");
     expect(parseTemplateSearch({ cat: "bogus" })).toEqual({ cat: "email" });
   });
   test("Mitti has A1, A2, B, C; PIESA/PIISA register entries cross-reference Mitti, not editable copies", () => {
@@ -40,23 +41,22 @@ describe("Template selection", () => {
   test("no metadata invents approval for unknown records", () => {
     const rec = TEMPLATE_ENTRIES.find((e) => e.id === "email:rec_invitation")!;
     expect(rec.approval).toBe("Not recorded");
-    expect(TEMPLATE_ENTRIES.find((e) => e.id === "email:save_my_spot_no_size")!.approval).toMatch(/no stored approval/);
-    expect(TEMPLATE_ENTRIES.find((e) => e.id === "email:insulation_details")!.approval).toMatch(/not approved/);
+    // P1-S77: superseded entries are removed, not relabelled; Jo's eight carry her recorded approval.
+    expect(TEMPLATE_ENTRIES.find((e) => e.id === "email:save_my_spot_no_size")).toBeUndefined();
+    expect(TEMPLATE_ENTRIES.find((e) => e.id === "email:insulation_details")).toBeUndefined();
+    for (const e of TEMPLATE_ENTRIES.filter((x) => x.id.startsWith("email:jo:"))) expect(e.approval).toBe("Approved by Jo Lowe, 15 Oct 2026");
     for (const entry of entriesFor("mitti")) expect(entry.approval).toBe("Not recorded");
   });
   test("email inventory distinguishes exact builders, stored reviews and original tool", () => {
     const emails = entriesFor("email");
-    expect(emails.length).toBe(19);
-    // P1-R2-S02: the five later-stage lifecycle templates now mount the existing sample_email
-    // renderer (draft wording preview) instead of a bare review_only placeholder, so no email
-    // entry is review_only any more. Their stored review-version keys are still wired (reviewKey).
-    expect(emails.filter((e) => e.view.kind === "review_only").length).toBe(0);
-    expect(emails.filter((e) => e.view.kind === "sample_email").map((e) => e.reviewKey)).toEqual(
-      expect.arrayContaining(["measured_quote", "booking_consent", "pre_install_pack", "assignment_signing", "completion_pack"]),
-    );
-    // 13 pre-S02 (sample/partner/plain) + the 5 lifecycle sample_email renderers = 18.
-    expect(emails.filter((e) => ["sample_email", "partner_invitation", "partner_email", "plain_email"].includes(e.view.kind)).length).toBe(18);
-    expect(emails.filter((e) => e.view.kind === "open_original").length).toBe(1);
+    // P1-S77: Jo's 8 homeowner enquiry emails + 2 customer emails outside her set (3-day reminder, area unavailable)
+    // + 5 later-stage review-only entries + 6 partner emails = 21. Nothing links to a legacy tool any more.
+    expect(emails.length).toBe(21);
+    expect(emails.filter((e) => e.view.kind === "jo_sample").length).toBe(8);
+    expect(emails.filter((e) => e.view.kind === "sample_email").map((e) => e.reviewKey).sort()).toEqual(["area_unavailable", "estimate_unopened_3d"]);
+    expect(emails.filter((e) => e.view.kind === "review_only").map((e) => e.reviewKey).sort()).toEqual(["assignment_signing", "booking_consent", "completion_pack", "measured_quote", "pre_install_pack"]);
+    expect(emails.filter((e) => ["partner_invitation", "partner_email", "plain_email"].includes(e.view.kind)).length).toBe(6);
+    expect(emails.some((e) => (e.view.kind as string) === "open_original")).toBe(false);
   });
 });
 

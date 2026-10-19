@@ -28,8 +28,9 @@ describe("Save my spot uses only the approved email (Jo, 7 Oct 12:52)", () => {
       if (f.endsWith("estimate-email.ts")) continue;
       const s = readFileSync(f, "utf8");
       if (f.endsWith("hot-leads-send.server.ts")) {
-        expect(s).toMatch(/sendGroup === "likely"\s*\?\s*\(\(\) => \{ const m = \(isTest && testOpts.variant === "likely_estimate" \? renderStep3Likely : renderStep3SaveSpot\)/);
-        continue;
+        // P1-S77: the Save my spot sender renders ONLY Jo's approved templates (T1–T4) — no Step 3 builder either.
+        expect(s).toContain("jo.renderJoOutcomeEmail(");
+        expect(/\brenderStep3(Likely|SaveSpot)\s*\(/.test(s)).toBe(false);
       }
       expect(s.includes("renderLaunchCampaignEmail(")).toBe(false);
     }

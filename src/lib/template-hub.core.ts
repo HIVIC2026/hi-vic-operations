@@ -17,7 +17,6 @@ export type TemplateView =
   | { kind: "partner_email"; email: "welcome" | "changes" | "decline" }
   | { kind: "plain_email"; email: "partner_login" }
   | { kind: "review_only" }
-  | { kind: "open_original"; to: "/admin/campaign-emails"; label: string }
   | { kind: "mitti"; formKey: FormKey }
   | { kind: "compliance_template"; templateKey: string }
   | { kind: "register"; index: number; mitti: FormKey[] }
@@ -58,14 +57,16 @@ const JO_EMAIL: TemplateEntry[] = ([
   view: { kind: "jo_sample", templateId: id },
 }));
 
+/**
+ * P1-S77: Jo's eight templates above are the ONLY homeowner enquiry emails. The superseded entries (Likely eligible
+ * estimate, Save your spot, Save your spot — no size, Onsite estimate, Insulation details (Group B), Ineligible result)
+ * were removed from this register because nothing sends them any more; their history stays in each job's
+ * communication record. The remaining customer entries are emails Jo's set does not cover.
+ */
+export const RETIRED_EMAIL_ENTRY_IDS = ["email:likely_estimate", "email:save_my_spot", "email:save_my_spot_no_size", "email:onsite_estimate", "email:insulation_details", "email:ineligible_result"] as const;
+
 const EMAIL: TemplateEntry[] = [
   ...JO_EMAIL,
-  commEntry("likely_estimate", { kind: "sample_email", sample: "likely" }, "Locked as approved (project record, 1 Oct 2026)"),
-   { id: "email:save_my_spot", category: "email", group: "Customer emails", title: "Save your spot", purpose: "Provides an estimate and invites the homeowner to save a spot while installer capacity is arranged.", audience: "Homeowner (likely eligible, no insulation, ceiling size entered)", trigger: "Office bulk send from leads after Jo presses Send", approval: "Approved final by Jo Lowe, 7 Oct 2026", view: { kind: "sample_email", sample: "savespot" } },
-  { id: "email:save_my_spot_no_size", category: "email", group: "Customer emails", title: "Save your spot — no ceiling size", purpose: "Same email using a clearly stated assumed average of 150 m² plus the usual size-check calculator link.", audience: "Homeowner (eligible, no ceiling size given)", trigger: "Separate template; nothing sends it automatically", approval: "Requested by Jo, 8 Oct 2026 — no stored approval record", view: { kind: "sample_email", sample: "savespotNoSize" } },
-  commEntry("onsite_estimate", { kind: "sample_email", sample: "onsite" }, "Not recorded"),
-  { id: "email:insulation_details", category: "email", group: "Customer emails", title: "Insulation details (Group B) — superseded copy", purpose: "HISTORICAL ONLY. The live Group B request is Jo's T5/T6 (see \"Jo's approved homeowner emails\"); this entry records the earlier campaign copy and cannot be sent.", audience: "Homeowner (existing or unknown insulation)", trigger: "None — the sender uses T5/T6", approval: "Superseded by Jo's approved T5/T6, 15 Oct 2026", view: { kind: "review_only" } },
-  commEntry("ineligible_result", { kind: "sample_email", sample: "ineligible" }, "Not recorded"),
   commEntry("estimate_unopened_3d", { kind: "sample_email", sample: "reminder3" }, "Not recorded"),
   commEntry("area_unavailable", { kind: "sample_email", sample: "coverage" }, "Not recorded"),
   ...(["measured_quote", "booking_consent", "pre_install_pack", "assignment_signing", "completion_pack"] as const).map((k) => commEntry(k, { kind: "review_only" }, "Not recorded")),

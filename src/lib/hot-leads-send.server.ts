@@ -2,15 +2,12 @@
 // and a once-per-home idempotency key. TEST (qa_test) jobs go only to Jo's allowlist via the test sender.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { LAUNCH_CAMPAIGN, LAUNCH_COPY_APPROVED, launchGroup, savedPriceFromEstimate } from "./launch-campaign.core";
-import { renderLaunchCampaignEmail } from "./estimate-email";
-import { renderStep3Likely, renderStep3SaveSpot } from "./step3-emails";
 import { noSizeEstimateBlocker, initialReplyQualifies, NO_SIZE_REAL_SEND_HELD } from "./no-size-estimate.core";
 import { CUSTOMER_BASE } from "./engagement.core";
 import { reservationAllowed, withUnsubscribe } from "./emailsafety.core";
 import { groupBMediaForJob } from "./group-b-media.server";
 import { groupBInvitationBlocker } from "./group-b-media.core";
 import { logEvent } from "./workflow.server";
-import { removalFromScenario } from "./estimate-removal.core";
 import { MANUAL_SENT_EVENT, manualSendReference } from "./manual-communication.core";
 import { RESEND_FETCH_TIMEOUT_MS, timeoutSignal } from "./network-timeout.core";
 import { AUTO_REPLY_OFF } from "./enquiry-auto-reply.core";
@@ -209,52 +206,31 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   const campaignUrl = `${base}/estimate/${linkToken}/campaign`;
   const fullAddress = (await import("./address")).fullAddress(prop?.address_line, prop?.suburb, prop?.postcode);
   const firstName = owner?.full_name?.trim().split(/\s+/)[0] ?? null;
-  // Likely-eligible owners get the Jo-APPROVED "Save your spot (likely eligible)" email (7 Oct 2026, FINAL).
-  let referralUrl: string | null = null;
-  if ((sendGroup === "likely" || office) && previewLinks) {
-    referralUrl = await previewLinks.existingReferralUrl(linkJobId).catch(() => null);
-    if (!referralUrl) { linksReady = false; referralUrl = previewLinks.PREVIEW_REFERRAL_URL; }
-  } else if (sendGroup === "likely" || office) referralUrl = await (await import("./referral.server")).referralUrlForJob(linkJobId).catch(() => null);
-  const mailBase = office
-    ? await (async () => {
-      const o = await import("./save-spot-offer.core");
-      const removal = removalFromScenario(Array.isArray(est?.scenarios) ? est.scenarios[0] : null);
-      const fees = { assessment: Number(assessmentFee), ap: Number(apFee) };
-      if (!Number.isFinite(fees.assessment) || !Number.isFinite(fees.ap) || installation === undefined) throw new Error("The estimate has no itemised prices. Recalculate it first.");
-      const links = o.saveSpotLinks(linkToken, base);
-      return o.renderSaveSpotOfferEmail({
-        variant: testOpts.officeVariant!, assumedArea: assumed, address: fullAddress ?? "", areaM2: price.areaM2!, firstName, reference: job.job_number,
-        installation: Number(installation), assessmentFee: fees.assessment, apFee: fees.ap, gross: price.gross, discount: price.discount, customer: price.total,
-        removal: testOpts.officeVariant === "reviewed_under_r2" ? removal : removal.kind === "included" ? removal : { kind: "excluded" },
-        apCount: 2, ...links, unsubscribeUrl, referralUrl,
-      });
-    })()
-    : sendGroup === "likely"
-    ? (() => { const m = (isTest && testOpts.variant === "likely_estimate" ? renderStep3Likely : renderStep3SaveSpot)({
-        estimateUrl: `${base}/estimate/${linkToken}`, campaignUrl, unsubscribeUrl, referralUrl,
-        estimatedTotal: price.total, veuDiscount: price.discount, grossTotal: price.gross, areaM2: price.areaM2,
-        ...(assumed ? { areaIsTypical: true } : {}),
-        firstName, address: fullAddress, reference: job.job_number, existingInsulationPresent: (price.insulation ?? est?.insulation_declared) === "present",
-        ...(followup ? { removal: removalFromScenario(Array.isArray(est?.scenarios) ? est.scenarios[0] : null) } : {}),
-        ...(installation === undefined ? {} : { installation }),
-        ...(assessmentFee === undefined ? {} : { assessmentFee }),
-        ...(apFee === undefined ? {} : { apFee }),
-      }); return { ...m, subject: isTest && testOpts.subjectPrefix ? `${testOpts.subjectPrefix} ${m.subject}` : m.subject }; })()
-    : withUnsubscribe(renderLaunchCampaignEmail({
-    group: sendGroup, campaignUrl, unsubscribeUrl, myJobUrl: `${base}/my-job/${linkToken}`, insulation: price.insulation ?? est?.insulation_declared ?? null,
-    firstName, estimatedTotal: price.total, veuDiscount: price.discount, grossTotal: price.gross, areaM2: price.areaM2,
-    address: fullAddress, reference: job.job_number,
-    ...(installation === undefined ? {} : { installation }),
-    ...(assessmentFee === undefined ? {} : { assessmentFee }),
-    ...(apFee === undefined ? {} : { apFee }),
-  }), unsubscribeUrl);
-  // COM-08 (S92): render Jo's authoritative template (T1–T6) first; fail closed to the existing approved
-  // renderer when no Jo template applies or the estimate lacks the itemised figures Jo's copy needs.
+  // P1-S77: ONE template source. Every path through this sender (automatic Group A / Group B, Office copy, the
+  // existing-insulation follow-up and Jo's TEST copies) renders ONLY Jo's approved templates via
+  // renderJoOutcomeEmail(). The previous Save-my-spot, Step-3, three-variant Office and launch-campaign renderers
+  // are no longer reachable from here, and there is no fallback: when no Jo template safely applies, the enquiry
+  // is held for manual review and nothing is sent or previewed as if it would be.
+  const figuresOk = Number.isFinite(Number(installation)) && Number.isFinite(Number(assessmentFee)) && Number.isFinite(Number(apFee)) && Number.isFinite(Number(price.areaM2));
+  if (office && !figuresOk) return r("blocked", "The estimate has no itemised prices. Recalculate it first.");
   const joMail = await (async () => {
-    if (office || followup || (isTest && testOpts.variant === "likely_estimate")) return null;
-    if (!Number.isFinite(Number(installation)) || !Number.isFinite(Number(assessmentFee)) || !Number.isFinite(Number(apFee)) || !Number.isFinite(Number(price.areaM2))) return null;
-    try {
-      const { renderJoOutcomeEmail } = await import("./jo-outcome-email.core");
+    if (!figuresOk) return null;
+    const jo = await import("./jo-outcome-email.core");
+    let facts: import("./jo-outcome-email.core").JoOutcomeFacts;
+    if (office) {
+      // Office "Prepare email to copy": the variant picked by the existing Office rules maps to exactly one Jo template.
+      facts = jo.joFactsForSaveSpotVariant(testOpts.officeVariant!, assumed);
+    } else if (followup) {
+      // Existing-insulation Save my spot = Jo T3/T4, which states the photos/video were reviewed. Only a recorded
+      // below-R2 media review or a "looks eligible" desk check qualifies; an owner declaration alone does not.
+      const { campaignLink } = await import("./launch-campaign.server");
+      const c = await campaignLink(link.token).catch(() => null);
+      const { data: lcr, error: lcrError } = await admin.from("lead_campaign_responses").select("desk_check_status").eq("job_id", jobId).maybeSingle();
+      const desk = (lcr as { desk_check_status?: string | null } | null)?.desk_check_status ?? null;
+      const reviewed = !lcrError && !!c && c.criteriaPassed && (c.mediaReview === "below_r2" || desk === "looks_eligible") && desk !== "not_eligible" && desk !== "needs_onsite_check";
+      if (!reviewed) return null;
+      facts = { outcome: "likely_eligible", insulation: "present", ceilingSizeKnown: !assumed, deskCheckStatus: "looks_eligible" };
+    } else {
       let deskCheckStatus: "looks_eligible" | "not_eligible" | "needs_onsite_check" | null = null;
       try {
         const { data: lcr } = await admin.from("lead_campaign_responses").select("desk_check_status").eq("job_id", jobId).maybeSingle();
@@ -264,24 +240,34 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
       const outcome = job.eligibility_outcome === "likely_eligible" ? "likely_eligible"
         : job.eligibility_outcome === "needs_onsite_confirmation" ? "needs_onsite_confirmation"
         : job.eligibility_outcome === "does_not_appear_eligible" ? "does_not_appear_eligible" : null;
+      // This sender never sends the ineligible result (T7 belongs to the ineligible sender).
+      if (outcome === "does_not_appear_eligible" || outcome === null) return null;
       const insulation = price.insulation === "none" || price.insulation === "present" ? price.insulation : "unknown";
-      const ceilingSizeKnown = !assumed && Number(price.areaM2) > 0;
-      const rendered = renderJoOutcomeEmail({
-        outcome, insulation, ceilingSizeKnown, deskCheckStatus,
+      facts = { outcome, insulation, ceilingSizeKnown: !assumed && Number(price.areaM2) > 0, deskCheckStatus };
+    }
+    try {
+      const rendered = jo.renderJoOutcomeEmail({
+        ...facts,
         recipient: { firstName: firstName ?? "there", propertyAddress: fullAddress ?? "", enquiryReference: job.job_number ?? "" },
         figures: { veuRebate: Number(price.discount), customerTotal: Number(price.total), totalBeforeRebate: Number(price.gross), installation: Number(installation), piesaFee: Number(assessmentFee), apFee: Number(apFee), ceilingAreaM2: Number(price.areaM2), areaEstimated: assumed },
         links: { saveMySpotUrl: campaignUrl, uploadMediaUrl: `${base}/estimate/${linkToken}/video`, reviewResultUrl: `${base}/estimate/${linkToken}`, calculatorUrl: `${base}/estimate/${linkToken}#calculator` },
       });
-      return rendered ? withUnsubscribe(rendered, unsubscribeUrl) : null;
+      if (!rendered) return null;
+      // Group A senders may only send Save-my-spot templates (T1–T4); Group B only the upload request (T5/T6).
+      const saveSpot = rendered.ctas.includes("save_my_spot"), upload = rendered.ctas.includes("upload_media");
+      if ((sendGroup === "likely" || office || followup) && !saveSpot) return null;
+      if (sendGroup === "onsite" && !office && !followup && !upload) return null;
+      const m = withUnsubscribe(rendered, unsubscribeUrl);
+      return isTest && testOpts.subjectPrefix ? { ...m, subject: `${testOpts.subjectPrefix} ${m.subject}` } : m;
     } catch { return null; }
   })();
-  // CORRECTION: never silently send an outdated/conflicting template. When no Jo-approved template
-  // safely applies to this classification, hold the enquiry for manual review (surfaced in the
-  // dashboard "awaiting response" queue) instead of falling back to the old renderer.
-  if (!joMail && !office && !followup && mode === "send") {
-    return r("blocked", "No approved Jo template applies to this enquiry — held for manual review; nothing sent.");
+  if (!joMail) {
+    const held = "No approved Jo template applies to this enquiry — held for manual review; nothing sent.";
+    // A reservation made above is released as a clean pre-delivery failure (never left "sending").
+    if (mode === "send" && sendId) await admin.from("customer_email_sends").update({ status: "failed", provider: "not_sent", error: held }).eq("id", sendId);
+    return r("blocked", held);
   }
-  const mail = joMail ?? mailBase;
+  const mail = joMail;
   if (mode === "preview" || mode === "manual_copy") return { ...r("sent", "Preview only — not sent"), preview: { to, subject: mail.subject, html: mail.html, plainText: mail.plainText, linksReady } };
   if (mode === "test_preview") return { ...r("sent", "TEST copy rendered only — not sent"), preview: { to: JO_TEST_INBOX, subject: `[TEST of ${job.job_number}] ${mail.subject}`, html: mail.html, plainText: mail.plainText, linksReady }, linkJobId, linkToken, sendGroup };
   if (mode === "test_to_jo") {

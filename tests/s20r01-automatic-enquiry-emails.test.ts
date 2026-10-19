@@ -114,7 +114,9 @@ const job = (id: string, n: string, outcome: string, insulation: string, created
   owners: { full_name: "Jet Tester", email: TO }, properties: { address_line: "1 Fixture Street", suburb: "Testville", postcode: "3000", enrichment: { base44: { raw: { answers: { existing_insulation: insulation } } } } },
 });
 const est = (id: string, jobId: string, insulation: string) => ({ id, job_id: jobId, status: "current", area_m2: 120, area_source: "owner_estimate", insulation_declared: insulation,
-  scenarios: [{ by_access: { standard: { estimated_customer_total: 3716.24, applied_discount: 1481.76, pre_discount_total: 5198 } } }], snapshot: null });
+  scenarios: [{ by_access: { standard: { estimated_customer_total: 3716.24, applied_discount: 1481.76, pre_discount_total: 5198 } } }],
+  // P1-S77: a real current estimate carries its itemised snapshot (estimate.server.ts); Jo's templates need it.
+  snapshot: { settings: { piesa_assessment_inc_gst: 349, ap_management_inc_gst: 349 }, scenarios: [{ by_access: { standard: { installation: 4500 } } }] } });
 const sends = () => T.customer_email_sends ?? [];
 const sentRow = (key: string) => sends().find((s) => s.idempotency_key === key) ?? null;
 const { LAUNCH_CAMPAIGN } = await import("../src/lib/launch-campaign.core");
@@ -177,6 +179,22 @@ describe("automatic enquiry emails OFF (production today: master switch off)", (
     expect((await maybeAutoRouteLeadEmail(L)).sent).toBe(true);
     expect(calls.map((c) => c.idem)).toEqual([KEYS.L]); // exactly one provider call under the Save-my-spot key
     expect(sentRow(KEYS.L)).toMatchObject({ status: "sent", provider: "resend" });
+    // P1-S77: what reaches the provider is Jo's Template 2 (owner gave a size, no insulation) — nothing else.
+    expect(calls[0]!.body.subject).toBe("Jet, you could save $1,482 on ceiling insulation");
+    expect(String(calls[0]!.body.text)).toContain("Ceiling size: 120 m² — based on the size you provided");
+    expect(String(calls[0]!.body.html)).not.toContain("[Contact us]");
+  });
+  test("P1-S77: Group B gets Jo's T6 upload request and the ineligible reply is Jo's T7 (no secure link needed)", async () => {
+    autoOn(); // the S20-R01 new-enquiry path (master off) that sends Group B and ineligible replies
+    expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(true);
+    expect((await maybeAutoRouteLeadEmail(I)).sent).toBe(true);
+    const [b, i] = calls;
+    expect(b!.body.subject).toBe("Jet, your preliminary quote is ready—let’s check your insulation");
+    expect(String(b!.body.text)).toContain(`Upload my photos or video →: https://estimate.homeinsulationvictoria.com.au/estimate/${"B".repeat(43)}/video`);
+    expect(i!.body.subject).toBe("Your ceiling insulation eligibility result");
+    expect(String(i!.body.text)).toContain("Ceiling already has R2.5 or more");
+    expect(String(i!.body.text)).toContain("Review my result →: https://homeinsulationvictoria.com.au/homeowner");
+    expect(String(i!.body.text)).toContain("Open the calculator →: https://estimate.homeinsulationvictoria.com.au/");
   });
 });
 

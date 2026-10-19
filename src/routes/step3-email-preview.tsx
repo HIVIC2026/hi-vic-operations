@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { sendSaveSpotPreviewTest } from "@/lib/hot-leads.functions";
@@ -17,7 +17,10 @@ import { MeasuredQuoteSample, type PiesaPreviewCase } from "@/components/portal/
 
 import { estimateUrl, unsubscribeUrl, SAMPLE_INSTALL, SAMPLE_DISCOUNT, PIESA_FEE, AP_FEE, SAMPLE_GROSS, SAMPLE_CUSTOMER, previewSettings, quote, samples, OUTCOME_LABELS } from "@/lib/step3-email-samples";
 
+// P1-S77: retired. This page previewed the superseded Step 3 / Save-your-spot emails. Jo's approved templates are
+// previewed only in Templates › Email (rendered by the same functions every real send uses).
 export const Route = createFileRoute("/step3-email-preview")({
+  beforeLoad: () => { throw redirect({ to: "/admin/templates", search: { cat: "email" }, replace: true }); },
   headers: () => ({ "Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow" }),
   head: () => ({ meta: [
     { title: "Customer Outcome Email Previews — Home Insulation Victoria" },

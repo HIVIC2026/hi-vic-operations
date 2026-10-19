@@ -86,7 +86,6 @@ export const OFFICE_TOOLS: OfficeTab[] = [
   { label: "Communications", to: "/admin/communications" },
   { label: "Bulk spot emails", to: "/admin/hot-leads" },
   { label: "Saved-spot campaign", to: "/admin/launch-campaign" },
-  { label: "Campaign emails", to: "/admin/campaign-emails" },
   { label: "Video check tool", to: "/admin/list", search: { status: "enquiry.video_in" } },
   { label: "Legacy task list (not reconciled)", to: "/admin/needs-me" },
   { label: "Legacy stage tool", to: "/admin/pipeline" },

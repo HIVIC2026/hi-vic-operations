@@ -201,15 +201,13 @@ describe("A6. the correct pricing values reach the renderer", () => {
 });
 
 describe("A7. the legacy renderer is no longer the one used for these outcomes", () => {
-  test("followups.server.ts renders T1–T6 through the Jo selector before the legacy renderer", () => {
+  test("followups.server.ts renders T1–T6 ONLY through the Jo selector (P1-S77: no legacy fallback)", () => {
     const f = readFileSync("src/lib/followups.server.ts", "utf8");
     expect(f).toContain("joOutcomeMail(");
     expect(f).toContain("renderJoOutcomeEmail");
-    // Jo wins; the legacy renderer is only the fail-closed fallback.
-    const i = f.indexOf("joOutcomeMail("), j = f.indexOf("renderEstimateEmail(");
-    expect(i).toBeGreaterThan(-1);
-    expect(i).toBeLessThan(j);
-    expect(f).toContain("?? renderEstimateEmail(");
+    // No Jo template => held for manual review before any reservation; the legacy renderer is gone from this sender.
+    expect(f).not.toContain("renderEstimateEmail(");
+    expect(f).toContain('reason: "no_jo_template_manual_review"');
   });
   test("the ineligible path (T7) renders through the Jo selector", () => {
     const f = readFileSync("src/lib/followups.server.ts", "utf8");

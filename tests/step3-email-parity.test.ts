@@ -20,12 +20,12 @@ describe("Step 3 is the only Save my spot email", () => {
     const offenders = files("src").filter((f) => !/src\/lib\/(estimate-email|step3-emails)\.ts$/.test(f) && /renderSaveSpotFromLikelyEmail\(/.test(readFileSync(f, "utf8")));
     expect(offenders).toEqual([]);
   });
-  test("Step 3 page, real send and test button all use the Step 3 builder", () => {
-    expect(readFileSync("src/lib/step3-email-samples.ts", "utf8")).toContain("renderStep3SaveSpot(STEP3_SAVESPOT_SAMPLE)");
-    expect(readFileSync("src/routes/step3-email-preview.tsx", "utf8")).toContain('from "@/lib/step3-email-samples"');
+  test("P1-S77: the real send and the test button use Jo's approved template; the Step 3 preview page is retired", () => {
     const send = readFileSync("src/lib/hot-leads-send.server.ts", "utf8");
-    expect(send).toContain("renderStep3SaveSpot)({");
+    expect(send).toContain("jo.renderJoOutcomeEmail(");
+    expect(send).not.toContain("renderStep3SaveSpot");
     expect(readFileSync("src/lib/hot-leads.functions.ts", "utf8")).toContain("sendSaveMySpot([job.id]");
+    expect(readFileSync("src/routes/step3-email-preview.tsx", "utf8")).toContain('throw redirect({ to: "/admin/templates"');
   });
   test("the campaign editor cannot change the locked Save my spot wording", () => {
     expect(readFileSync("src/routes/_authenticated/admin.campaign-emails.tsx", "utf8")).toContain("Wording locked");

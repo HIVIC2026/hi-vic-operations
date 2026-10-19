@@ -5,6 +5,11 @@ import piesaPdf from "@/assets/veu-piesa-form.pdf.asset.json";
 import piisaPdf from "@/assets/veu-piisa-form.pdf.asset.json";
 
 // [key, label, purpose, when it is sent, mandatory forms attached, preview available]
+/** P1-S77: enquiry emails replaced by Jo's approved templates (15 Oct 2026). Their stored review versions stay as
+ *  history, but they are no longer listed, editable or approvable anywhere; Jo's templates live in /admin/templates. */
+export const RETIRED_COMMUNICATION_KEYS: readonly string[] = ["likely_estimate", "onsite_estimate", "ineligible_result"];
+export const isRetiredCommunicationKey = (key: string) => RETIRED_COMMUNICATION_KEYS.includes(key);
+
 export const CUSTOMER_COMMUNICATION_CATALOG = [
   ["likely_estimate", "Likely eligible estimate", "After the official Gate 1 result; includes estimate and free Ready Check action.", "1 · Enquiry", "None – preliminary estimate only", true],
   ["onsite_estimate", "Needs onsite confirmation estimate", "Explains what the installer must confirm during the free Ready Check.", "1 · Enquiry", "None – preliminary estimate only", true],

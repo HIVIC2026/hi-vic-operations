@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const DRAFT_EVENT = "campaign_email_draft";
+const RETIRED = true as boolean;
 const group = z.enum(["likely", "onsite"]);
 const copy = z.object({
   subject: z.string().max(200), previewText: z.string().max(300), headline: z.string().max(200), intro: z.string().max(1000),
@@ -39,6 +40,8 @@ export const saveCampaignEmailDraft = createServerFn({ method: "POST" }).middlew
   .handler(async ({ data, context }) => {
     const { requireAdmin } = await import("./workflow.server");
     await requireAdmin(context.supabase);
+    // P1-S77: superseded campaign copy can no longer be edited (Jo's approved templates replace it).
+    if (RETIRED) throw new Error("Campaign email copy was replaced by Jo’s approved templates (Templates › Email). Nothing was saved.");
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { error } = await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: DRAFT_EVENT, summary: `Campaign email draft saved (${data.group === "likely" ? "Group A" : "Group B"})`, details: { group: data.group, copy: data.copy } });
     if (error) throw new Error(`Couldn't save the draft: ${error.message}`);

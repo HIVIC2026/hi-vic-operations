@@ -6,9 +6,9 @@ import { refreshIndicativeEstimate } from "./estimate.server";
 import { LINK_PURPOSE, linkAllowed, linkUsable } from "./estimatelink.core";
 import { groupBMediaForJob } from "./group-b-media.server";
 import { groupBInvitationBlocker } from "./group-b-media.core";
-import { renderEstimateEmail, type EstimateEmail } from "./estimate-email";
+import { type EstimateEmail } from "./estimate-email";
 import { renderFollowupEmail } from "./followup-email";
-import { renderJoOutcomeEmail, type JoInsulation, type JoOutcome } from "./jo-outcome-email.core";
+import { JO_RESULT_FALLBACK_URL, renderJoOutcomeEmail, selectJoOutcomeTemplate, type JoInsulation, type JoOutcome } from "./jo-outcome-email.core";
 import { clickUrl, CUSTOMER_BASE, dedupe, estimateUrl, isActiveFollowupKind, pixelUrl, planFollowup, planInitialFollowups, retryAt, sendBlocker, type ActiveFollowupKind } from "./engagement.core";
 import { issueTrackingTokens, jobSummary, recordEngagement } from "./engagement.server";
 import { configuredDeliveryAdapter } from "./delivery.server";
@@ -220,11 +220,18 @@ export async function sendInitialEstimateEmail(jobId: string, actorId: string | 
     // The Ready Check is always free, so Jo's copy is rendered untouched.
     ...(settings && typeof settings.r5_install_inc_gst_per_m2 === "number" ? { installationRatePerM2: settings.r5_install_inc_gst_per_m2 } : {}),
   };
+  void values;
+  // P1-S77: Jo's approved template is the ONLY email this sender can deliver. Checked BEFORE any reservation, so an
+  // enquiry no Jo template covers (or without itemised figures) is held for manual review — never sent the old email.
+  if (!joFacts.figures || !selectJoOutcomeTemplate({ ...joFacts, deskCheckStatus: joFacts.deskCheckStatus === "looks_eligible" ? "looks_eligible" : null })) {
+    return { sent: false as const, reason: "no_jo_template_manual_review" };
+  }
   const who = await joRecipientFacts(jobId, owner.reference);
-  const r = await deliverTracked({ jobId, linkId: link!.id, linkToken: link!.token, purpose: "step3_estimate", key, adapter: adapter!, to, actorId, render: (u) =>
-    joOutcomeMail(joFacts as never, u, who)
-    ?? renderEstimateEmail({ ...u, ...values, outcome: view.mode === "onsite" ? "onsite" : "likely", reasons: view.onsiteDrivers, reference: owner.reference, existingInsulationPresent: view.insulationDeclared === "present" }),
-  });
+  const r = await deliverTracked({ jobId, linkId: link!.id, linkToken: link!.token, purpose: "step3_estimate", key, adapter: adapter!, to, actorId, render: (u) => {
+    const jo = joOutcomeMail(joFacts as never, u, who);
+    if (!jo) throw new Error("No approved Jo template applies — held for manual review; nothing sent.");
+    return jo;
+  } });
   if (!r.sent) return r;
   const at = new Date().toISOString();
   await recordEngagement({ jobId, linkId: link!.id, type: "email_sent", source: adapter!.provider, metadata: { purpose: "step3_estimate" }, dedupeKey: dedupe.sent(key), at });
@@ -414,12 +421,16 @@ export async function sendPreliminaryIneligibleEmail(jobId: string, actorId: str
 /** The exact ineligible email the sender delivers; shared so the Office copy below can never drift from it.
  *  `links` (preview only) supplies existing or placeholder links instead of creating tokens. */
 /** Jo's T7 only. Returns null when the approved template cannot be rendered, so the caller can fail closed —
- *  the legacy ineligible renderer is deliberately never used for a customer send (Jo: no old templates). */
-async function renderPreliminaryIneligibleMail(jobId: string, reason: string | null, reference: string | null, links?: { referralUrl: string; unsubscribeUrl: string }, previewEstimateBase?: string) {
+ *  the legacy ineligible renderer is deliberately never used for a customer send (Jo: no old templates).
+ *  P1-S77: T7 does NOT need a secure estimate link. Gate 1 never allows (and syncStep3 revokes) an estimate link for
+ *  an ineligible job, so requiring one refused EVERY ineligible reply. "Review my result" opens the customer's link
+ *  when one exists, otherwise the public homeowner page the previous ineligible email used; the calculator line
+ *  opens the public calculator. Preview and send use the same rule, so the Office copy equals the sent email. */
+async function renderPreliminaryIneligibleMail(jobId: string, reason: string | null, reference: string | null, links?: { referralUrl: string; unsubscribeUrl: string }) {
+  const { safeReason } = await import("./ineligible-email");
   const who = await joRecipientFacts(jobId, reference);
   const { data: link } = await admin.from("customer_estimate_links").select("token").eq("job_id", jobId).eq("purpose", LINK_PURPOSE).eq("status", "active").maybeSingle();
-  const base = link?.token ? `${CUSTOMER_BASE}/estimate/${link.token}` : (previewEstimateBase ?? null);
-  if (!base) return null;
+  const base = link?.token ? `${CUSTOMER_BASE}/estimate/${link.token}` : null;
   const jo = renderJoOutcomeEmail({
     outcome: "does_not_appear_eligible",
     insulation: null,
@@ -429,12 +440,13 @@ async function renderPreliminaryIneligibleMail(jobId: string, reason: string | n
       propertyAddress: who.address ?? "your property",
       enquiryReference: who.reference ?? "",
     },
-    reason,
+    // Only a short customer-safe reason is shown (internal codes/markup are dropped → Jo's standard wording).
+    reason: safeReason(reason),
     links: {
-      saveMySpotUrl: `${base}/campaign`,
-      uploadMediaUrl: `${base}/video`,
-      reviewResultUrl: base,
-      calculatorUrl: `${base}#calculator`,
+      saveMySpotUrl: "",
+      uploadMediaUrl: "",
+      reviewResultUrl: base ?? JO_RESULT_FALLBACK_URL,
+      calculatorUrl: "",
     },
   });
   if (!jo) return null;
@@ -460,9 +472,8 @@ export async function prepareIneligibleEmailForOffice(jobId: string, opts: { iss
     linksReady = !!referral && !!unsubscribe;
     links = { referralUrl: referral ?? p.PREVIEW_REFERRAL_URL, unsubscribeUrl: unsubscribe ?? p.PREVIEW_UNSUBSCRIBE_URL };
   }
-  // Preview only: an obvious placeholder estimate link keeps the preview on Jo's approved T7 wording without
-  // creating a token. A real send never reaches here without a live link.
-  const mail = await renderPreliminaryIneligibleMail(jobId, official.reason, owner.reference, links, `${CUSTOMER_BASE}/estimate/${PREVIEW_LINK_TOKEN}`);
+  // Same render rule as the real send (P1-S77), so the Office copy is the email the customer would receive.
+  const mail = await renderPreliminaryIneligibleMail(jobId, official.reason, owner.reference, links);
   if (!mail) return { ok: false, reason: "no_approved_template" };
   return { ok: true, to: owner.email, subject: mail.subject, html: mail.html, plainText: mail.plainText, linksReady };
 }

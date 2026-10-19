@@ -1,6 +1,10 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { renderJoOutcomeEmail, renderJoReadyCheckInvitationEmail } from "@/lib/jo-outcome-email.core";
+import { withUnsubscribe } from "@/lib/emailsafety.core";
+
+/** P1-S77: Jo samples get the same footer/opt-out wrapping as a real send (sample opt-out link only). */
+const SAMPLE_UNSUBSCRIBE = `https://estimate.homeinsulationvictoria.com.au/api/public/unsubscribe?t=${"S".repeat(43)}`;
 import type { JoTemplateId } from "@/lib/jo-email-templates.core";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -73,7 +77,7 @@ function Facts({ entry }: { entry: TemplateEntry }) {
 
 function JoSample({ templateId }: { templateId: JoTemplateId }) {
   const mail = useMemo(() => {
-    try {
+    const raw = (() => { try {
       const recipient = { firstName: "Alex", propertyAddress: "12 Sample St, Melbourne VIC 3000", enquiryReference: "HV-0000" };
       const figures = { veuRebate: 2600, customerTotal: 1900, totalBeforeRebate: 4500, installation: 3800, piesaFee: 350, apFee: 350, ceilingAreaM2: 150, areaEstimated: true };
       const links = { saveMySpotUrl: SAMPLE_LINK, uploadMediaUrl: SAMPLE_LINK, reviewResultUrl: SAMPLE_LINK, calculatorUrl: SAMPLE_LINK };
@@ -84,7 +88,8 @@ function JoSample({ templateId }: { templateId: JoTemplateId }) {
       const ceilingSizeKnown = templateId.endsWith("size_known");
       const deskCheckStatus = templateId.startsWith("eligible_below_r2") ? "looks_eligible" : null;
       return renderJoOutcomeEmail({ outcome, insulation, ceilingSizeKnown, deskCheckStatus, recipient, figures, links });
-    } catch { return null; }
+    } catch { return null; } })();
+    return raw ? withUnsubscribe(raw, SAMPLE_UNSUBSCRIBE) : null;
   }, [templateId]);
   if (!mail) return <p className="text-sm text-rose">This template could not be previewed with sample data.</p>;
   return <HtmlEmail subject={mail.subject} html={mail.html} note="Sample values only. Rendered by the same function every real send uses." />;
@@ -95,11 +100,10 @@ function TemplateDetail({ entry }: { entry: TemplateEntry }) {
   return (
     <div className="space-y-4">
       <Facts entry={entry} />
-      {v.kind === "sample_email" && <HtmlEmail subject={samples[v.sample].subject} preview={samples[v.sample].previewText} html={samples[v.sample].html} note="Sample values only. Same renderer as every real send." original={{ href: "/step3-email-preview", label: "Open full email preview page" }} />}
+      {v.kind === "sample_email" && <HtmlEmail subject={samples[v.sample].subject} preview={samples[v.sample].previewText} html={samples[v.sample].html} note="Sample values only. Same renderer as every real send." />}
       {v.kind === "partner_invitation" && <PartnerInvitation templateKey={v.templateKey} />}
       {v.kind === "partner_email" && <PartnerEmail email={v.email} />}
       {v.kind === "plain_email" && <PlainEmail />}
-      {v.kind === "open_original" && <div className="rounded-[14px] border border-line bg-paper p-4 text-sm"><p className="text-sub">Preview uses the saved campaign wording, so it is shown in its original tool.</p><Link to={v.to} className={cn(btnClass("secondary"), "mt-3")}>{v.label}<ArrowUpRight className="h-4 w-4" /></Link></div>}
       {entry.reviewKey && <ReviewVersions reviewKey={entry.reviewKey} storedOnly={v.kind === "review_only"} />}
       {v.kind === "mitti" && <MittiDetail formKey={v.formKey} />}
       {v.kind === "compliance_template" && <ComplianceVersions templateKey={v.templateKey} />}
