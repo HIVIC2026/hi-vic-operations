@@ -8,57 +8,28 @@ import { isNewEnquiry } from "../src/lib/enquiry-groups.core";
 
 const read = (p: string) => readFileSync(p, "utf8");
 
-describe("D1 — New enquiries filter", () => {
-  test("'new' means no recorded send at all", () => {
-    expect(isNewEnquiry({ lastEmail: null })).toBe(true);
-    expect(isNewEnquiry({ lastEmail: undefined })).toBe(true);
-    expect(isNewEnquiry({ lastEmail: { purpose: "preliminary_ineligible", status: "sent" } })).toBe(false);
-    expect(isNewEnquiry({ lastEmail: { purpose: "insulation_video_request", status: "failed" } })).toBe(false);
+describe("D1 — confirmed first-response paging", () => {
+  test("only a confirmed first response excludes New", () => {
+    expect(isNewEnquiry({ sentPurposes: [] })).toBe(true);
+    expect(isNewEnquiry({ sentPurposes: ["preliminary_ineligible"] })).toBe(false);
+    expect(isNewEnquiry({ lastEmail: { purpose: "insulation_video_request", status: "failed" }, sentPurposes: [] })).toBe(true);
+    expect(isNewEnquiry({ sentPurposes: ["office_notification"] })).toBe(true);
   });
-
-  test("the tile count and the list share ONE definition", () => {
-    // The single definition moved to the server: `inEnquiryView` decides membership, and BOTH the
-    // tile counts and the page come from it. There is no second client-side copy left to drift.
-    const loader = read("src/lib/enquiry-groups.server.ts");
-    expect(loader).toContain("export function inEnquiryView");
-    expect(loader).toMatch(/view === "new"\)\s*return isNewEnquiry\(row\)/);
-    expect(loader).toMatch(/classified\.filter\(\(r\) => inEnquiryView\(r, v\)\)/);
-    expect(loader).toContain("const matching = classified.filter((r) => inEnquiryView(r, view));");
-    const ui = read("src/components/portal/EnquiriesWorkspace.tsx");
-    // The UI reads counts from the server; it no longer recomputes them from a full array.
-    expect(ui).toContain("const counts = (data?.counts ?? {})");
-    expect(ui).toContain("const viewCount = (key: EnquiryPageView) => counts[key] ?? 0;");
-    expect(ui).not.toContain("rows.filter(isNewEnquiry)");
-    // no fall-through to the status column (the original defect: status === "new" matched nothing)
-    expect(loader).not.toMatch(/row\.status === "new"/);
+  test("counts and rows come from the same database page", () => {
+    const loader = read("src/lib/office-enquiry-page.server.ts");
+    expect(loader).toContain("office_enquiry_page");
+    expect(loader).toContain("await loadEnquiryGroups(result.ids)");
+    expect(loader).toContain("...result, rows:");
+    expect(read("src/components/portal/EnquiriesWorkspace.tsx")).not.toContain("rows.filter(isNewEnquiry)");
   });
-
-  test("?status=new survives route validation and the tile exists", () => {
-    // The route whitelist is now the shared view list, so a tile and its URL parameter cannot diverge.
-    const spec = read("src/lib/enquiry-list-page.core.ts");
-    expect(spec).toMatch(/"all",\s*"new",\s*\.\.\.STATUS_ORDER/);
-    const route = read("src/routes/_authenticated/admin.enquiries.tsx");
-    expect(route).toContain("parseListControls(s, ENQUIRY_SPEC)");
-    const ui = read("src/components/portal/EnquiriesWorkspace.tsx");
-    expect(ui).toContain('new: "New · no email sent"');
+  test("New survives route validation", () => {
+    expect(read("src/routes/_authenticated/admin.enquiries.tsx")).toContain("parseListControls(s, enquiriesSpec)");
+    expect(read("src/lib/enquiry-list-page.core.ts")).toMatch(/"all",\s*"new",\s*\.\.\.STATUS_ORDER/);
   });
-
-  test("search is applied by the database BEFORE the view filter and the page", () => {
-    const src = read("src/lib/enquiry-groups.server.ts");
-    // search is pushed into PostgREST, and ordering comes after it
-    const searchAt = src.indexOf("const f = searchFilter(query.search ?? \"\"");
-    const orderAt = src.indexOf('q.order(query.sort ?? "created_at"');
-    expect(searchAt).toBeGreaterThan(-1);
-    expect(orderAt).toBeGreaterThan(searchAt);
-    // the paged loader classifies -> counts -> filters by view -> pages, in that order
-    const classifyAt = src.indexOf("await websiteEnquiries({ search, sort: sortKey, ascending })");
-    const countsAt = src.indexOf("counts[v] = classified.filter((r) => inEnquiryView(r, v)).length");
-    const viewAt = src.indexOf("const matching = classified.filter((r) => inEnquiryView(r, view));");
-    const pageAt = src.indexOf("const page = paginate(matching, wanted, size);");
-    expect(classifyAt).toBeGreaterThan(-1);
-    expect(countsAt).toBeGreaterThan(classifyAt);
-    expect(viewAt).toBeGreaterThan(countsAt);
-    expect(pageAt).toBeGreaterThan(viewAt);
+  test("search is passed into paging before enrichment", () => {
+    const src = read("src/lib/office-enquiry-page.server.ts");
+    expect(src.indexOf("p_search: search")).toBeGreaterThan(-1);
+    expect(src.indexOf("await loadEnquiryGroups(result.ids)")).toBeGreaterThan(src.indexOf("p_search: search"));
   });
 });
 
@@ -83,15 +54,12 @@ describe("D4 — legacy routes", () => {
 });
 
 describe("D2 — list loaders avoid the measured bottlenecks", () => {
-  test("enquiries: outside scope is head-counted, job chunks run in parallel", () => {
+  test("enquiries enrich only the supplied page IDs", () => {
     const src = read("src/lib/enquiry-groups.server.ts");
-    expect(src).toContain('count: "exact", head: true');
+    expect(src).toContain("loadEnquiryGroups(visibleIds: string[])");
+    expect(src).toContain('.in("id", visibleIds)');
+    expect(src).toContain("ids.slice(i, i + 4)");
     expect(src).not.toContain('.select("source, channel")');
-    expect(src).toContain("Promise.all(chunks.map");
-    expect(src).toContain("const CHUNK = 500");
-    // the removal scan is part of the main parallel batch, not a trailing round trip
-    // (perf: the independent reads — calculator, settings, outside head counts — now join that same batch)
-    expect(src).toMatch(/reviewed,\s*removedRows\],\s*\[interests, cfg, testHiddenRes, installerRes, otherRes\]\]\s*=\s*await Promise\.all/);
   });
   test("active jobs: independent reads are batched and sends are purpose-filtered", () => {
     // The pipeline read moved to its own server module so the paged loader can share the enrichment.
