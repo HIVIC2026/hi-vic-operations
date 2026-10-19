@@ -31,6 +31,7 @@ import {
 import {
   applyCampaignFonts,
   applyReadyCheckFee,
+  campaignButton,
   escape,
   PRIVACY_URL,
   PUBLIC_CALCULATOR_URL,
@@ -347,7 +348,7 @@ function paragraphHtml(line: string): string {
   const whole = TOKEN_LINE.exec(line);
   if (whole) {
     const [, kind, href, label] = whole;
-    if (kind === "cta") return `<div style="padding:6px 0;">${buttonHtml(href!, label!)}</div>`;
+    if (kind === "cta") return `<div style="padding:6px 0;">${campaignButton(href!, label!)}</div>`;
     return `<p style="margin:0;${F}color:${INK};font-size:14px;line-height:1.55;text-align:center;"><a href="${escape(href!)}" style="color:#2F6BFF;font-weight:800;text-decoration:underline;">${escape(label!)}</a></p>`;
   }
   // A sentence that also carries an inline calculator link.
@@ -360,11 +361,6 @@ function paragraphHtml(line: string): string {
     return `<p style="margin:4px 0 8px;${FH}color:${INK};font-size:24px;line-height:1.25;font-weight:800;">${inline(line)}</p>`;
   }
   return `<p style="margin:0 0 8px;${F}color:${INK};font-size:15px;line-height:1.6;">${inline(line)}</p>`;
-}
-
-function buttonHtml(href: string, label: string): string {
-  const GREEN = "#07BF61";
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:separate;"><tr><td align="center" bgcolor="${GREEN}" style="background-color:${GREEN};border:0;border-radius:12px;mso-padding-alt:15px 18px;"><a href="${escape(href)}" style="display:block;padding:15px 18px;${F}color:#FFFFFF;font-size:16px;line-height:20px;font-weight:800;text-decoration:none;border-radius:12px;">${escape(label)}</a></td></tr></table>`;
 }
 
 function tableHtml(rows: string[]): string {
