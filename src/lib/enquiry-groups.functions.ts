@@ -47,20 +47,21 @@ export const getLeadMedia = createServerFn({ method: "POST" }).middleware([requi
   });
 
 export const reviewLeadMediaFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), outcome: z.enum(["below_r2", "over_r2", "unclear"]) }).parse(d))
+  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), outcome: z.enum(["below_r2", "over_r2", "unclear", "no_insulation"]) }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const { reviewLeadMedia } = await import("./enquiry-groups.server");
     return reviewLeadMedia(data.jobId, data.outcome, context.userId ?? null);
   });
 
-/** Office decision: photos show no ceiling insulation. Records audit + admin eligibility + recalculated estimate. Never sends. */
-export const recordNoInsulationVisibleFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), reason: z.string().trim().min(5).max(300) }).parse(d))
+/** Admin-only, ONE job: after an Office "no_insulation" review, sync Step 3 and run the normal guarded
+ *  Save my spot sender (T1/T2). Every sender guard still applies; preview renders without sending; never forced. */
+export const noInsulationSaveSpotFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), preview: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    const { recordNoInsulationVisible } = await import("./office-no-insulation.server");
-    return recordNoInsulationVisible(data.jobId, context.userId ?? null, data.reason);
+    const { noInsulationSaveSpot } = await import("./enquiry-groups.server");
+    return noInsulationSaveSpot(data.jobId, context.userId ?? null, data.preview);
   });
 
 export const removeLeadsFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

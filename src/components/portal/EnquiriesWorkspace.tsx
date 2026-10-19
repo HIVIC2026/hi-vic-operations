@@ -11,7 +11,6 @@ import {
   existingInsulationSaveSpotFn,
   getEnquiryGroups,
   getLeadMedia,
-  recordNoInsulationVisibleFn,
   removeLeadsFn,
   reviewLeadMediaFn,
 } from "@/lib/enquiry-groups.functions";
@@ -121,22 +120,6 @@ function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
       setBusy(null);
     }
   };
-  const recordNone = useServerFn(recordNoInsulationVisibleFn);
-  const [noneBusy, setNoneBusy] = useState(false);
-  const actNone = async () => {
-    const reason = window.prompt("Why do the photos show no insulation? (saved permanently)");
-    if (!reason || reason.trim().length < 5) return;
-    setNoneBusy(true);
-    try {
-      await recordNone({ data: { jobId: row.id, reason } });
-      setSaved("Photos show no insulation – likely eligible, estimate updated");
-      onDone();
-    } catch (e) {
-      window.alert((e as Error).message);
-    } finally {
-      setNoneBusy(false);
-    }
-  };
   return (
     <div className="space-y-3 rounded-md border bg-muted/20 p-3">
       {isLoading ? (
@@ -206,10 +189,10 @@ function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
               <Button
                 size="sm"
                 variant="secondary"
-                disabled={busy !== null || noneBusy}
-                onClick={actNone}
+                disabled={busy !== null}
+                onClick={() => act("no_insulation")}
               >
-                Photos show no insulation
+                {MEDIA_OUTCOME_LABEL.no_insulation}
               </Button>
             </div>
           )}

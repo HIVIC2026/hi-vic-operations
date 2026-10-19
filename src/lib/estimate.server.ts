@@ -27,11 +27,11 @@ export async function refreshIndicativeEstimate(jobId: string): Promise<Estimate
   const p = j.properties as { postcode: string | null; enrichment: Record<string, unknown> | null } | null;
   const b44 = (p?.enrichment?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } };
   const declaredInsulation = normaliseInsulation(declaredExtras(b44.raw?.answers ?? null).existing_insulation);
-  // Office "Photos show no insulation" decision (separate event; raw owner answer untouched). Latest photo decision wins.
-  const { NO_INSULATION_EVENT, MEDIA_REVIEW_EVENT, officeInsulationOverride } = await import("./office-no-insulation.core");
-  const { data: officeEvents, error: officeEventsError } = await admin.from("customer_engagement_events").select("event_type, occurred_at").eq("job_id", jobId).in("event_type", [NO_INSULATION_EVENT, MEDIA_REVIEW_EVENT]);
-  if (officeEventsError) throw new Error("Could not read office photo decisions.");
-  const insulation = officeInsulationOverride(officeEvents ?? []) ?? declaredInsulation;
+  // Latest authoritative Office media review "no_insulation" sets the EFFECTIVE fact; the raw owner answer is untouched.
+  const { data: latestReview, error: reviewError } = await admin.from("customer_engagement_events").select("metadata").eq("job_id", jobId).eq("event_type", "intake_media_reviewed").order("occurred_at", { ascending: false }).limit(1);
+  if (reviewError) throw new Error("Could not read the office photo review.");
+  const { effectiveInsulation } = await import("./enquiry-groups.core");
+  const insulation = effectiveInsulation(declaredInsulation, (latestReview?.[0]?.metadata as { outcome?: string } | null)?.outcome ?? null);
   const recorded = j.eligibility_decision_source === "system" || j.eligibility_decision_source === "admin";
   const mode = displayModeFor({ outcome: j.eligibility_outcome, reviewRequired: !!j.eligibility_review_required, recorded });
   const d = await evaluateJobGate1(jobId); // read-only: drivers + flags
