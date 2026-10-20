@@ -103,11 +103,14 @@ export const setBulkReviewPlan = createServerFn({ method: "POST" }).middleware([
     if (!isAdmin) await requireMember(context.userId, batch.business_id, true);
     await admin.from("bulk_import_batches").update({ electrician_plan: data.batchPlan as unknown as Json }).eq("id", data.batchId);
     const { stageForSiteCheck, quotedGap, quotedPrice } = await import("./bulk-import.core");
-    const { data: existing } = await admin.from("bulk_import_rows").select("id, extracted, import_stage").eq("batch_id", data.batchId);
+    const { data: existing } = await admin.from("bulk_import_rows").select("id, extracted, import_stage, job_id, row_index").eq("batch_id", data.batchId);
+    const lockedRows: number[] = [];
     const byId = new Map((existing ?? []).map((r) => [r.id, r]));
     for (const row of data.rows) {
       const cur = byId.get(row.rowId);
       if (!cur) continue;
+      // A job was already started for this customer: its answers are locked (corrections go via the job page).
+      if (cur.job_id) { lockedRows.push(Number(cur.row_index) + 1); continue; }
       const e = (cur.extracted ?? {}) as Record<string, unknown>;
       // Site check answered on the review screen (Jo, 7 Oct): Yes skips the Ready Check, No goes to it.
       const answered = row.siteCheck !== undefined && row.siteCheck !== (e["site_check"] ?? null);
@@ -123,9 +126,9 @@ export const setBulkReviewPlan = createServerFn({ method: "POST" }).middleware([
       await admin.from("bulk_import_rows").update({
         import_stage: stage, electrician_plan: row.plan as unknown as Json,
         extracted: { ...e, ...(row.consent === undefined ? {} : { owner_consent: row.consent ? { confirmed_by: context.userId, confirmed_at: new Date().toISOString(), wording: CONTACT_PERMISSION_WORDING } : false }), site_check: check, site_check_date: date, site_check_source: answered ? "asked" : e["site_check_source"] ?? null, lead_stage: stage } as unknown as Json,
-      }).eq("id", row.rowId).eq("batch_id", data.batchId);
+      }).eq("id", row.rowId).eq("batch_id", data.batchId).is("job_id", null);
     }
-    return { ok: true };
+    return { ok: true, lockedRows };
   });
 
 export const bulkElectricianChoices = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
