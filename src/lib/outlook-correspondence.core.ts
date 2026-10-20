@@ -127,7 +127,7 @@ const EXPLICIT: { re: RegExp; category: DeclineCategory }[] = [
   { re: /\bchanged (my|our) minds?\b|\bdecided against\b|\bdecided not to\b/i, category: "not_interested" },
 ];
 const POSSIBLE = /\b(might|may|maybe|possibly|probably) not\b|\bnot sure\b|\bthink about it\b|\bneed (some )?time\b|\bget(ting)? (other|more|a few) quotes\b|\bcompar(e|ing) (quotes|prices|providers)\b|\b(seems|is|bit|very|quite) (high|expensive|steep)\b|\bon hold\b|\bhold off\b|\bnot (right )?now\b/i;
-const HEDGE = /\b(unless|if|might|maybe|perhaps|may|not sure|considering|thinking|\?)/i;
+const HEDGE = /\b(unless|if|might|maybe|perhaps|may|not sure|considering|thinking)\b/i;
 
 /** Only an explicit, unhedged statement of not going ahead counts. Questions, complaints and "need time" never close. */
 export function classifyIntent(body: string): Intent {
@@ -138,7 +138,7 @@ export function classifyIntent(body: string): Intent {
     for (const { re, category } of EXPLICIT) {
       const m = s.match(re);
       if (!m) continue;
-      if (HEDGE.test(s) || s.endsWith("?")) { possible ??= s; continue; }
+      if (HEDGE.test(s) || s.includes("?")) { possible ??= s; continue; }
       const cat: DeclineCategory = category === "general" && /\b(price|cost|expensive|afford|cheaper)\b/i.test(text) ? "price"
         : category === "general" && /\b(another|other|different) (company|provider|installer|quote)\b/i.test(text) ? "other_provider" : category;
       return { kind: "not_proceeding", category: cat, phrase: s.slice(0, 200) };
