@@ -100,8 +100,13 @@ export type QuoteReadinessFacts = {
   installerQuoteIncGst: number | null;
   /** What the quote includes (scope). Checked when provided by the caller. */
   includes?: string | null;
+  /** Onsite support for a CONFIRMED owner quote (Jo, 20 Oct): installer attendance answer and whether a canonical
+   *  onsite measurement (Ready Check/electrician/verified) exists. Omitted = legacy caller (not checked). */
+  onsite?: { attended: "yes" | "no" | null; onsiteMeasured: boolean };
 };
 
+export const ONSITE_REQUIRED_BLOCKER = "No site visit yet — the quote is preliminary until the onsite Ready Check";
+export const ATTENDANCE_UNKNOWN_BLOCKER = "Site visit not recorded — confirm the property was attended and assessed";
 /** Owner quote readiness for installer-supplied jobs. Ready Check media is NOT a prerequisite here. */
 export function installerQuoteReadiness(f: QuoteReadinessFacts): { ready: boolean; blockers: string[] } {
   const b: string[] = [];
@@ -113,6 +118,8 @@ export function installerQuoteReadiness(f: QuoteReadinessFacts): { ready: boolea
   if (!(f.areaM2 && f.areaM2 > 0)) b.push("Measured ceiling area is missing");
   if (!(f.installerQuoteIncGst && f.installerQuoteIncGst > 0)) b.push("Installer quote amount is missing");
   else if (f.includes !== undefined && !f.includes?.trim()) b.push("What the installer quote includes is missing");
+  if (f.onsite && !f.onsite.onsiteMeasured && f.onsite.attended !== "yes")
+    b.push(f.onsite.attended === "no" ? ONSITE_REQUIRED_BLOCKER : ATTENDANCE_UNKNOWN_BLOCKER);
   return { ready: b.length === 0, blockers: b };
 }
 
@@ -315,6 +322,20 @@ export function attendedOnDate(a: AttendanceAnswer | null | undefined, date: str
   if (a !== "attended" || !date || !/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date))) return null;
   return date <= today ? date : null;
 }
+/** Today's calendar date in Melbourne (YYYY-MM-DD). */
+export const melbourneToday = (now = new Date()) => new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+/** Truthful visit-date validation: blank is fine; an entered date must be a real calendar date, not in the future. */
+export function visitDateProblem(date: string | null | undefined, today: string): string | null {
+  if (!date) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  const real = !!m && ((d) => d.getUTCFullYear() === +m[1]! && d.getUTCMonth() + 1 === +m[2]! && d.getUTCDate() === +m[3]!)(new Date(Date.UTC(+m[1]!, +m[2]! - 1, +m[3]!)));
+  if (!real) return "Check the visit date";
+  if (date > today) return "The visit date can't be in the future";
+  return null;
+}
+/** Files saved with Add job have an explicit purpose. Only "quote" files can stand in for a typed quote amount. */
+export type IntakeFilePurpose = "quote" | "supporting";
+export const quoteFileCount = (files: { purpose?: string | null }[]) => files.filter((f) => f.purpose === "quote").length;
 export const NOT_MEASURED_NOTE = "That’s fine — we’ll save the job now. Add your quote on this same job when ready.";
 /** Who arranges/pays the electrician on an installer-supplied job (separate from who manages the job). */
 export type ElectricianPayer = "hivic" | "own" | "undecided";
@@ -426,12 +447,12 @@ export function resolveQuoteAnswer(events: { answer: unknown; at: string }[], in
 export function applicableIntakeDetails<T extends { quoteStatus?: QuoteStatus | null; attended?: AttendanceAnswer | null; area: string; amount: string; includes: string; proposedR: string }>(d: T): T {
   const quoted = d.quoteStatus === "have_quote";
   // Site facts (area, product) belong to a visit OR a quote; never erased just because there is no price yet.
-  const siteFacts = quoted || d.attended === "attended";
-  return { ...d, ...(quoted ? {} : { amount: "", includes: "" }), ...(siteFacts ? {} : { area: "", proposedR: "" }) };
+  // Not attended: area/product stay as an optional PRELIMINARY estimate (saved and labelled unverified, never a measurement).
+  return { ...d, ...(quoted ? {} : { amount: "", includes: "" }) };
 }
 /** Which Add job branches are shown. Independent: attendance shows site facts, quote shows commercial facts. */
 export function intakeBranches(a: AttendanceAnswer | null | undefined, q: QuoteStatus | null | undefined) {
-  return { siteFacts: a === "attended" || q === "have_quote", quoteFacts: q === "have_quote", preliminary: a === "not_attended" && q === "have_quote", readyCheckTask: a !== "attended" };
+  return { siteFacts: a === "attended" || q === "have_quote", estimateOnly: a !== "attended", quoteFacts: q === "have_quote", preliminary: a === "not_attended" && q === "have_quote", readyCheckTask: a !== "attended" };
 }
 
 export type RecoveredIntakeReceipt = { insulation: ExistingInsulation; quoted: boolean | null; attended?: AttendanceAnswer | null; next: string; feeHeld: boolean };
