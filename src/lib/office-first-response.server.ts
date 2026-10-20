@@ -38,7 +38,7 @@ export async function readCatchup(jobId: string, ownReservation?: string) {
   if (email) for (let offset = 0; ; offset += 50) {
     const siblings = await admin.from('office_enquiry_index').select('id').eq('email_key', email).neq('id', jobId).order('id').range(offset, offset + 49);
     if (siblings.error) throw new Error('Could not verify same-recipient enquiries');
-    const ids = (siblings.data ?? []).map(x => x.id);
+    const ids = (siblings.data ?? []).flatMap(x => x.id ? [x.id] : []);
     if (ids.length) {
       const [s, c] = await Promise.all([
         admin.from('customer_email_sends').select('id').in('job_id', ids).in('status', ['sent', 'delivered', 'sending', 'delivered_unrecorded', 'sending_unknown']).limit(1),
@@ -50,9 +50,9 @@ export async function readCatchup(jobId: string, ownReservation?: string) {
     if (ids.length < 50) break;
   }
   const blocker = catchupBlocker({
-    jobNumber: i.job_number, bucket: i.office_bucket, needsFirstResponse: i.needs_first_response,
-    source: i.source, channel: i.channel, stage: i.stage, email,
-    deleted: !!i.deleted_at, archived: !!i.qa_archived_at, removed: i.removed, holdReason: j.hold_reason,
+    jobNumber: i.job_number, bucket: i.office_bucket, needsFirstResponse: i.needs_first_response === true,
+    source: i.source ?? '', channel: i.channel ?? '', stage: i.stage ?? '', email,
+    deleted: !!i.deleted_at, archived: !!i.qa_archived_at, removed: i.removed !== false, holdReason: j.hold_reason,
     answered: !!sends.data?.some(x => ['sent', 'delivered'].includes(x.status)), outbound: !!comms.data?.length,
     inFlight: !!sends.data?.some(x => x.id !== ownReservation && !['failed', 'sent', 'delivered'].includes(x.status)), recipientAnswered,
     consent: consent.data?.consent_status === 'granted', optedOut: !!opt.data?.opted_out_at || !!response.data?.opted_out_at,
@@ -126,7 +126,7 @@ export async function sendOfficeFirstResponse(jobId: string, actorId: string) {
     }
     const outgoing = withUnsubscribe(fresh.mail, unsubscribe);
     attempted = true;
-    const delivered = await resendDeliveryAdapter().deliver({ to: prepared.initial.email, subject: outgoing.subject, html: outgoing.html, text: outgoing.plainText, idempotencyKey: key });
+    const delivered = await resendDeliveryAdapter().deliver({ to: prepared.initial.email, subject: outgoing.subject, html: outgoing.html, text: outgoing.plainText, idempotencyKey: key, purpose: LAUNCH_CAMPAIGN });
     providerId = delivered.providerMessageId ?? null;
     if (!providerId) throw new Error('Provider acceptance lacks message ID');
     const communicationId = await recordCommunication({ jobId, direction: 'outbound', channel: 'email', recipients: [prepared.initial.email], subject: outgoing.subject, body: outgoing.plainText, provider: 'resend', providerMessageId: providerId, visibility: 'customer', sourceEvent: LAUNCH_CAMPAIGN, sourceReference: key, createdBy: actorId, deliveryStatus: 'sent' });
