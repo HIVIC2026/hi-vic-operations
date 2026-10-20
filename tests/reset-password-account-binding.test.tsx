@@ -1,7 +1,9 @@
 import { GlobalRegistrator } from '@happy-dom/global-registrator';
 GlobalRegistrator.register({ url: "http://localhost" });
 import { afterEach, beforeEach, expect, mock, test } from 'bun:test';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+const { act, cleanup, fireEvent, render } = await import('@testing-library/react');
+const { within } = await import('@testing-library/dom');
+const screen = within(document.body);
 import React from 'react';
 let active: string | null = 'office';
 let listener: (event: string, session: unknown) => void = () => {};
