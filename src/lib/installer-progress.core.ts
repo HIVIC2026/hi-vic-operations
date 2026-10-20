@@ -113,6 +113,10 @@ function nextAction(f: ProgressFacts, done: Record<ProgressStepKey, boolean>): N
   if (f.eligibility === "declined") return { who: null, text: "The owner isn't eligible, so this job won't go ahead." };
   const quotedYes = f.quoted === "yes";
   if (f.eligibility !== "eligible") {
+    // Office owns eligibility; the follow-on wording respects the attendance answer (never assumes a visit).
+    if (!quotedYes && f.attended === "yes") return { who: HIV, text: "Check the owner's eligibility. You then finish any missing assessment details and add your price on this job — no second visit is booked." };
+    if (quotedYes && f.attended === "no") return { who: HIV, text: "Check the owner's eligibility. Your quote is preliminary until the onsite Ready Check." };
+    if (quotedYes && f.attended == null) return { who: HIV, text: "Check the owner's eligibility. Also tell us whether you attended and assessed this property — a quote alone isn't treated as a visit." };
     return { who: HIV, text: quotedYes ? "Check the owner's eligibility, then prepare the owner quote."
       : f.coordination === "self_managed" ? "Check the owner's eligibility. Then you measure and quote the job and add it below."
       : "Check the owner's eligibility, then arrange the Ready Check." };
@@ -123,6 +127,7 @@ function nextAction(f: ProgressFacts, done: Record<ProgressStepKey, boolean>): N
     if (f.reconfirmationRequired) return released ? { who: "Owner", text: "Reconfirm the updated quote." } : { who: HIV, text: "Prepare and send the updated quote for the owner to reconfirm." };
     if (released) return { who: "Owner", text: "Review and accept the quote." };
     // A current prepared draft is the actual quote record: it outranks an earlier "not quoted yet" answer.
+    if (f.quoteStatus === "draft" && !(quotedYes && f.quoteAmountKnown === false) && quotedYes && f.attended === "no") return { who: HIV, text: `Owner quote draft is preliminary — the onsite Ready Check is still required before a confirmed quote${f.quoteHoldReason ? ` (on hold: ${f.quoteHoldReason})` : f.quoteHeld.length ? ` (on hold: ${f.quoteHeld[0]})` : ""}.` };
     if (f.quoteStatus === "draft" && !(quotedYes && f.quoteAmountKnown === false)) return { who: HIV, text: f.quoteHoldReason ? `Review and complete the owner quote — on hold: ${f.quoteHoldReason}` : f.quoteHeld.length ? `Review and complete the owner quote — on hold: ${f.quoteHeld[0]}` : "Review and complete the owner quote." };
     // Attendance is independent of the quote (Jo, 20 Oct): visited+unquoted finishes on the same job, no second visit;
     // quoted+not visited keeps the price preliminary until the onsite Ready Check.

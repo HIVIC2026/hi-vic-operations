@@ -27,9 +27,10 @@ export function installerReadyCheckAction(f: InstallerRcFacts): InstallerRcActio
   if (f.channel !== "installer_sourced") return "none";
   // Visit needed when the installer says they have NOT attended (even if quoted); attended+unquoted needs no repeat visit.
   // Unknown attendance is never assumed either way: a recorded onsite Ready Check/booking settles it, otherwise ask.
-  if (f.attended === "yes") return "none";
-  if (f.attended == null) { if (f.booked || f.stage === "ready_check_scheduled") return "booked"; return f.onsiteDone ? "none" : "confirm_attendance"; }
+  // A real booking is always shown first: attendance answers never hide, cancel or complete it (office decides).
   if (f.booked || f.stage === "ready_check_scheduled") return "booked";
+  if (f.attended === "yes") return "none";
+  if (f.attended == null) return f.onsiteDone ? "none" : "confirm_attendance";
   if (f.stage !== "ready_check_ready_to_schedule") return "none";
   if (f.openWindows > 0) return "pick_owner_time";
   if (f.timesRequested) return "waiting_for_owner";
