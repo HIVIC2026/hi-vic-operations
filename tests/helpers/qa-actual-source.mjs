@@ -28,7 +28,7 @@ export function loadHandlers(admin,context) {
   const links=loadModule('src/lib/qa-role-link.core.ts');
   // Execute the real descriptive qualification helper. Other activation functions are not invoked by QA preparation.
   const activation=loadModule('src/lib/partner-activation.core.ts',{'./installer-onboarding.core':{},'./rec-onboarding.core':{}});
-  const server=loadModule('src/lib/qa-access.server.ts',{'./workflow.server':workflow,'./test-send.core':marks,'./worker-links.core':workers,'./qa-role-link.core':links,'./partner-activation.core':activation});
+  const server=loadModule('src/lib/qa-access.server.ts',{'./workflow.server':workflow,'./test-send.core':marks,'./worker-links.core':workers,'./qa-role-link.core':links,'./partner-activation.core':activation,'./dad-test-login.core':loadModule('src/lib/dad-test-login.core.ts')});
   const z=new Proxy(()=>z,{get:()=>z,apply:()=>z});
   const createServerFn=()=>({middleware(){return this;},inputValidator(){return this;},handler(fn){return args=>fn({...args,context});}});
   return loadModule('src/lib/test-accounts.functions.ts',{'@tanstack/react-start':{createServerFn},zod:{z},

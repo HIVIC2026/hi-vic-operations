@@ -1,7 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/portal/AppShell";
-import { useAction, type AppRole } from "@/hooks/use-me";
+import { useAction, useMe, type AppRole } from "@/hooks/use-me";
+import { useRef, useState } from "react";
+import { Download } from "lucide-react";
+import { downloadDadTestLogin } from "@/lib/dad-test-login.functions";
 import { setUserBusiness, setUserRole } from "@/lib/portal.functions";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
@@ -11,13 +14,41 @@ import { checkAllTrades, checkMittiAccess } from "@/lib/mitti-membership.functio
 import { MITTI_ACCESS_LABEL, mittiAccessOf, mittiCheckedLabel } from "@/lib/mitti-membership.core";
 
 export const Route = createFileRoute("/_authenticated/admin/users")({
-  head: () => ({ meta: [{ title: "Users – Home Insulation Victoria Portal" }, { name: "description", content: "Manage portal users and roles." }, { property: "og:title", content: "Users – Home Insulation Victoria Portal" }, { property: "og:description", content: "Manage portal users and roles." }] }),
+  head: () => ({ meta: [{ title: "Users – Home Insulation Victoria Portal" }, { name: "description", content: "Manage portal users and roles." }, { property: "og:title", content: "Users – Home Insulation Victoria Portal" }, { property: "og:description", content: "Manage portal users and roles." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: Users,
 });
 
 const ROLES: AppRole[] = ["admin", "electrician", "installer", "owner"];
 
 function Users() {
+  const { data: me } = useMe();
+  const downloadDad = useServerFn(downloadDadTestLogin);
+  const downloadLock = useRef(false);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState(false);
+  const [privateFile, setPrivateFile] = useState<File | null>(null);
+  const savePrivateFile = async (file: File) => {
+    if (window.matchMedia("(pointer: coarse)").matches && navigator.canShare?.({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: "Private TEST login" }); return; }
+      catch (error) { if (error instanceof Error && error.name === "AbortError") return; }
+    }
+    const url = URL.createObjectURL(file);
+    const anchor = document.createElement("a");
+    anchor.href = url; anchor.download = file.name; document.body.appendChild(anchor); anchor.click(); anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  };
+  const prepareDownload = async () => {
+    if (downloadLock.current) return;
+    downloadLock.current = true; setDownloading(true); setDownloadError(false);
+    try {
+      const result = await downloadDad({ data: {} });
+      const file = new File([result.content], result.filename, { type: result.mimeType });
+      setPrivateFile(file);
+      // Desktop download; touch users save through a second, synchronous share-sheet gesture.
+      if (!window.matchMedia("(pointer: coarse)").matches) await savePrivateFile(file);
+    } catch { setDownloadError(true); }
+    finally { downloadLock.current = false; setDownloading(false); }
+  };
   const setRole = useAction(setUserRole);
   const setBiz = useAction(setUserBusiness);
   const checkMitti = useAction(checkMittiAccess);
@@ -31,6 +62,11 @@ function Users() {
     <AppShell wide>
       <p className="text-xs font-bold uppercase text-primary">Access control</p>
       <h1 className="mb-1 mt-1 text-4xl font-bold">USERS & ACCESS</h1>
+      {me?.roles.includes("admin") && <div className="my-3 flex flex-wrap items-center gap-2">
+        <Button variant="outline" disabled={downloading} onClick={() => void prepareDownload()}><Download className="h-4 w-4" />{downloading ? "Preparing private file…" : "Download Dad’s TEST login"}</Button>
+        {privateFile && <Button variant="outline" onClick={() => void savePrivateFile(privateFile)}><Download className="h-4 w-4" />Save private login file</Button>}
+        {downloadError && <p role="alert" className="text-sm text-danger">TEST login download was blocked or could not be verified. No account details were changed.</p>}
+      </div>}
       <p className="mb-4 text-sm text-muted-foreground">People appear here after they sign up. Owners are linked automatically when their sign-up email matches their enquiry.</p>
       {error && <div role="alert" className="mb-4 rounded-md border border-danger bg-danger-soft p-3 text-sm text-danger">Users could not be loaded. Existing accounts are safe. <Button size="sm" variant="outline" className="ml-2" onClick={() => void refetch()}>Try again</Button></div>}
       {isPending && <p role="status" className="mb-4 rounded-md border bg-card p-5 text-sm text-muted-foreground">Loading users…</p>}

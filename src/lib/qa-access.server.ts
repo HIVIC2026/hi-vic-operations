@@ -6,6 +6,7 @@ import { isTestPartner, TEST_PARTNER_MARK } from "./test-send.core";
 import { assignBlocker, hashToken, newToken } from "./worker-links.core";
 import { qaPersonaMissingMessage } from "./qa-role-link.core";
 import { installerQualification } from "./partner-activation.core";
+import { DAD_TEST_USER_ID, DAD_TEST_BUSINESS_ID, DAD_TEST_EMAIL } from "./dad-test-login.core";
 
 type Admin = SupabaseClient<Database>;
 type Context = { supabase: Admin; userId: string };
@@ -94,6 +95,33 @@ async function tradeIdentity(admin: Admin, userId: string, businessId: string, r
   await rolesFor(admin, userId, role);
   await qaBusiness(admin, businessId, role);
   await membership(admin, userId, businessId, memberRole);
+  return identity;
+}
+
+/** Read-only, exact preflight for the dedicated handover. Never prepares or repairs access. */
+export async function validateDadTestIdentity(admin: Admin) {
+  const identity = await qaIdentity(admin, DAD_TEST_USER_ID, DAD_TEST_EMAIL);
+  if (identity.profile?.business_id !== DAD_TEST_BUSINESS_ID) throw new WorkflowError("The dedicated TEST profile has another business.");
+  await rolesFor(admin, DAD_TEST_USER_ID, "installer");
+  await qaBusiness(admin, DAD_TEST_BUSINESS_ID, "installer");
+  await membership(admin, DAD_TEST_USER_ID, DAD_TEST_BUSINESS_ID, "business_admin");
+  const complete = <T extends { data: unknown; error: { message: string } | null; count: number | null }>(result: T) => {
+    const rows = checked(result, "Could not verify complete TEST access scope") as { id?: string; job_id?: string; source?: string; originating_installer_business_id?: string | null; business_id?: string | null }[] | null;
+    if (!rows || result.count === null || result.count !== rows.length) throw new WorkflowError("The complete TEST access scope could not be verified.");
+    return rows;
+  };
+  const owners = complete(await admin.from("owners").select("id", { count: "exact" }).eq("user_id", DAD_TEST_USER_ID));
+  if (owners.length) throw new WorkflowError("The dedicated TEST identity has owner access. Nothing was issued.");
+  const assignments = complete(await admin.from("job_assignments").select("job_id, business_id", { count: "exact" }).eq("active", true)
+    .or(`user_id.eq.${DAD_TEST_USER_ID},business_id.eq.${DAD_TEST_BUSINESS_ID}`));
+  if (assignments.some(row => row.business_id !== DAD_TEST_BUSINESS_ID)) throw new WorkflowError("The dedicated TEST identity has another business assignment.");
+  const owned = complete(await admin.from("jobs").select("id, source, originating_installer_business_id", { count: "exact" }).eq("originating_installer_business_id", DAD_TEST_BUSINESS_ID));
+  const jobIds = [...new Set(assignments.map(row => row.job_id).filter((id): id is string => typeof id === "string"))];
+  if (assignments.some(row => !row.job_id)) throw new WorkflowError("The TEST assignment scope is unreadable.");
+  const assigned = jobIds.length ? complete(await admin.from("jobs").select("id, source, originating_installer_business_id", { count: "exact" }).in("id", jobIds)) : [];
+  if (assigned.length !== jobIds.length || [...owned, ...assigned].some(row => row.source !== "qa_test" || row.originating_installer_business_id !== DAD_TEST_BUSINESS_ID)) {
+    throw new WorkflowError("The dedicated TEST account can reach non-TEST or other-business work. Nothing was issued.");
+  }
   return identity;
 }
 
