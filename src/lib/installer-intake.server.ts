@@ -199,6 +199,8 @@ async function staleIntakeQuotes(jobId: string, actorId: string) {
 export type InstallerIntakeUpdate = {
   areaM2: number | null; insulation: ExistingInsulation; quoteStatus: "not_quoted" | "have_quote";
   quoteIncGst: number | null; includes: string | null; proposedR: number | null;
+  /** Explicit attendance answer; omitted/null = unchanged (never inferred from price, area or files). */
+  attended?: "attended" | "not_attended" | null | undefined; attendedOn?: string | null | undefined;
   removalQuote?: RemovalQuote;
   files: { path: string; name: string; type: string }[];
   electrician?: { mode: "mine"; business_id?: string | null; nomination_id?: string | null } | undefined;
@@ -216,13 +218,17 @@ export type InstallerIntakeUpdate = {
  */
 export async function installerUpdateIntake(jobId: string, actorId: string, businessId: string, p: InstallerIntakeUpdate) {
   const { pickIntakeChanges } = await import("./installer-intake.core");
-  const { data: job, error } = await admin.from("jobs").select("channel, originating_installer_business_id, installer_quoted, installer_quoted_price_inc_gst, installer_price_includes, electrician_choice").eq("id", jobId).single();
+  const { data: job, error } = await admin.from("jobs").select("channel, originating_installer_business_id, installer_site_check, installer_site_check_date, installer_quoted, installer_quoted_price_inc_gst, installer_price_includes, electrician_choice").eq("id", jobId).single();
   if (error || !job) throw new WorkflowError("Job not found.");
   if (job.channel !== "installer_sourced" || job.originating_installer_business_id !== businessId) throw new WorkflowError("Only the installer who supplied this job can update it.");
   if (!(await isIntakeJob(jobId))) throw new WorkflowError("This job wasn't added through Add job.");
   for (const f of p.files) if (!f.path.startsWith(`partners/${businessId}/`)) throw new WorkflowError("That file isn't one of your uploads.");
   const st = await installerIntakeState(jobId);
-  const nextRemoval = p.removalQuote === undefined ? st.removalQuote : p.quoteStatus === "not_quoted" ? { answer: "unknown" as const, areaM2: null, chargeIncGst: null } : readRemoval(p.removalQuote);
+  const ic0 = await import("./installer-intake.core");
+  const curAttended = ic0.attendanceFromSiteCheck(job.installer_site_check as string | null);
+  const nextAttended = p.attended ?? curAttended;
+  // Removal facts are site facts: kept on "quote not yet" when the property was attended; only the charge is commercial.
+  const nextRemoval = p.removalQuote === undefined ? st.removalQuote : p.quoteStatus === "not_quoted" ? (nextAttended === "attended" ? ((r) => r ? { ...r, chargeIncGst: null } : null)(readRemoval(p.removalQuote)) : { answer: "unknown" as const, areaM2: null, chargeIncGst: null }) : readRemoval(p.removalQuote);
   if (nextRemoval) { const problems = removalProblems(nextRemoval, p.insulation, p.areaM2 ?? st.areaM2, p.quoteIncGst); if (problems.length) throw new WorkflowError(problems.join(" • ")); }
   const removalChanged = p.removalQuote !== undefined && JSON.stringify(nextRemoval) !== JSON.stringify(st.removalQuote);
   // ---- Validate the electrician/payer change and fee declaration BEFORE any write (no misleading partial saves). ----
@@ -261,8 +267,14 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
     }
     await admin.from("jobs").update({ estimated_area_m2: ch.area, estimated_area_unknown: false }).eq("id", jobId);
   }
+  if ((p.attended && p.attended !== curAttended) || (p.attended === "attended" && p.attendedOn !== undefined && ic0.attendedOnDate("attended", p.attendedOn, new Date().toISOString().slice(0, 10)) !== (job.installer_site_check_date ?? null))) {
+    const on = ic0.attendedOnDate(p.attended, p.attendedOn ?? (p.attended === curAttended ? job.installer_site_check_date as string | null : null), new Date().toISOString().slice(0, 10));
+    const { error: e } = await admin.from("jobs").update({ installer_site_check: ic0.siteCheckFromAttendance(p.attended), installer_site_check_date: on }).eq("id", jobId);
+    if (e) throw new WorkflowError(e.message);
+    await logEvent(jobId, actorId, "installer_attendance_answer", p.attended === "attended" ? "Installer answered: attended and assessed the property" : "Installer answered: not attended yet — Ready Check required", { answer: p.attended, previous: curAttended, attended_on: on, reported_by: actorId, source: "installer_edit" }, { internal: true });
+  }
   { const prev = (await intakeQuoteAnswers([jobId])).get(jobId) ?? null;
-    if (prev !== p.quoteStatus) await logEvent(jobId, actorId, "installer_quote_answer", p.quoteStatus === "have_quote" ? "Installer answered: measured and quoted" : "Installer answered: not measured or quoted yet", { answer: p.quoteStatus, previous: prev, source: "installer_edit" }, { internal: true }); }
+    if (prev !== p.quoteStatus) await logEvent(jobId, actorId, "installer_quote_answer", p.quoteStatus === "have_quote" ? "Installer answered: quote prepared" : "Installer answered: quote not prepared yet", { answer: p.quoteStatus, previous: prev, source: "installer_edit" }, { internal: true }); }
   if (ch.quote) { const { error: e } = await admin.from("jobs").update({ installer_quoted: ch.quote.quoted, installer_quoted_price_inc_gst: ch.quote.quoteIncGst, installer_price_includes: ch.quote.includes }).eq("id", jobId); if (e) throw new WorkflowError(e.message); }
   if (p.files.length) {
     const { data: imp } = await admin.from("job_imports").select("id, files").eq("job_id", jobId).eq("business_id", businessId).order("created_at", { ascending: true }).limit(1).maybeSingle();

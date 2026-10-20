@@ -6,7 +6,7 @@ import { intakeArea, intakeProblems, intakeQuotePayload, pickIntakeChanges } fro
 
 const db = new PGlite();
 await db.exec(`
-CREATE TABLE jobs (id uuid primary key, channel text, originating_installer_business_id uuid, installer_quoted text, installer_quoted_price_inc_gst numeric,
+CREATE TABLE jobs (id uuid primary key, channel text, originating_installer_business_id uuid, installer_site_check text, installer_site_check_date date, installer_quoted text, installer_quoted_price_inc_gst numeric,
   installer_price_includes text, electrician_choice text, estimated_area_m2 numeric, estimated_area_unknown boolean, measure_up_responsibility text);
 CREATE TABLE workflow_events (id uuid primary key default gen_random_uuid(), job_id uuid, actor_id uuid, event_type text, summary text, details jsonb, created_at timestamptz default clock_timestamp());
 CREATE TABLE ceiling_measurements (id uuid primary key default gen_random_uuid(), job_id uuid, is_current boolean, created_by uuid, raw_snapshot jsonb,
@@ -43,7 +43,8 @@ describe("BEFORE QUOTE job creation payload", () => {
   test("not quoted + no area submits null facts, never zero or quoted:'yes'", () => {
     expect(intakeProblems({ area: "", amount: "", includes: "", proposedR: "", insulation: null, quoteStatus: "not_quoted", quoteFileCount: 0, evidenceAck: true })).toEqual([]);
     expect(intakeArea("")).toBeNull();
-    expect(intakeQuotePayload({ quoteStatus: "not_quoted", amount: "3450", includes: "batts", proposedR: "5" })).toEqual({ quoted: "no", quoted_price_inc_gst: null, price_includes: null, proposed_r_value: null });
+    // Jo 20 Oct: proposed product is a site fact, kept when not quoted; only commercial facts clear.
+    expect(intakeQuotePayload({ quoteStatus: "not_quoted", amount: "3450", includes: "batts", proposedR: "5" })).toEqual({ quoted: "no", quoted_price_inc_gst: null, price_includes: null, proposed_r_value: 5 });
   });
   test("invalid entered values are rejected", () => {
     const p = intakeProblems({ area: "0", amount: "-5", includes: "", proposedR: "", insulation: null, quoteStatus: "have_quote", quoteFileCount: 0, evidenceAck: true });
@@ -131,5 +132,38 @@ describe("own electrician -> a different own electrician (no atomic swap): refus
     await expect(installerUpdateIntake(JOB, U, BIZ, { ...base, electrician: { mode: "mine", business_id: "00000000-0000-0000-0000-00000000d002" } } as never)).rejects.toThrow(OWN_ELECTRICIAN_OFFICE_CHANGE);
     expect((await job())["electrician_choice"]).toBe("preferred");
     expect(await evs()).toEqual(before);
+  });
+});
+
+describe("two-route attendance (Jo 20 Oct 'Ok fix')", () => {
+  const ATT = { ...base, insulation: "none" as const };
+  test("visited + not quoted: area/product/removal survive save and reload; attendance recorded explicitly", async () => {
+    await installerUpdateIntake(JOB, U, BIZ, { ...ATT, attended: "attended", attendedOn: "2026-10-10", areaM2: 118, proposedR: 5, removalQuote: { answer: "yes", areaM2: 40, chargeIncGst: 500 } });
+    const j = await job();
+    expect(j.installer_site_check).toBe("yes"); expect(String(j.installer_site_check_date)).toContain("2026");
+    expect(j.installer_quoted).toBe("no");
+    expect(Number((await ms())[0]!.supplied_area_m2)).toBe(118);
+    expect(await evs()).toContain("installer_attendance_answer");
+    // switch quote status later: site facts preserved
+    await installerUpdateIntake(JOB, U, BIZ, { ...ATT, quoteStatus: "have_quote", areaM2: null, quoteIncGst: 4200, includes: "R5 batts", proposedR: null });
+    expect(Number((await ms())[0]!.supplied_area_m2)).toBe(118);
+    expect((await job()).installer_site_check).toBe("yes");
+    await installerUpdateIntake(JOB, U, BIZ, { ...ATT, quoteStatus: "not_quoted" });
+    expect(Number((await ms())[0]!.supplied_area_m2)).toBe(118);
+    expect((await job()).installer_site_check).toBe("yes");
+  });
+  test("unanswered attendance stays unknown; price/area/files never imply a visit", async () => {
+    await installerUpdateIntake(JOB, U, BIZ, { ...ATT, quoteStatus: "have_quote", areaM2: 100, quoteIncGst: 3000, includes: "batts", files: [{ path: `partners/${BIZ}/q.pdf`, name: "q.pdf", type: "application/pdf" }] });
+    expect((await job()).installer_site_check).toBeNull();
+    expect(await evs()).not.toContain("installer_attendance_answer");
+  });
+  test("future visit date is never stored (no invented/backdated dates)", async () => {
+    await installerUpdateIntake(JOB, U, BIZ, { ...ATT, attended: "attended", attendedOn: "2999-01-01" });
+    const j = await job(); expect(j.installer_site_check).toBe("yes"); expect(j.installer_site_check_date).toBeNull();
+  });
+  test("repeat identical save adds no duplicate attendance event", async () => {
+    await installerUpdateIntake(JOB, U, BIZ, { ...ATT, attended: "not_attended" });
+    await installerUpdateIntake(JOB, U, BIZ, { ...ATT, attended: "not_attended" });
+    expect((await evs()).filter((e) => e === "installer_attendance_answer").length).toBe(1);
   });
 });

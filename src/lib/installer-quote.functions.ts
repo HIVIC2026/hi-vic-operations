@@ -126,20 +126,21 @@ export const getMyIntakeJob = createServerFn({ method: "POST" }).middleware([req
     const [s, { data: imp }, { data: job }] = await Promise.all([
       m.installerIntakeState(data.jobId),
       admin.from("job_imports").select("files").eq("job_id", data.jobId).eq("business_id", biz).order("created_at", { ascending: true }).limit(1).maybeSingle(),
-      admin.from("jobs").select("installer_quoted, electrician_choice").eq("id", data.jobId).single(),
+      admin.from("jobs").select("installer_quoted, electrician_choice, installer_site_check, installer_site_check_date").eq("id", data.jobId).single(),
     ]);
     // The SAVED own-electrician selection, so the editor preselects it instead of a blank chooser.
     const { data: nom } = await admin.from("electrician_nominations").select("business_id, contact_name").eq("job_id", data.jobId).is("ended_at", null).order("created_at", { ascending: false }).limit(1).maybeSingle();
     const currentElectrician = s.electricianPayer === "own" && nom ? { businessId: (nom.business_id as string | null) ?? null, name: (nom.contact_name as string | null) ?? "Your electrician" } : null;
     const payerLock = await m.intakePayerLock(data.jobId, s.electricianPayer, context.userId, biz);
     const quoteAnswer = (await m.intakeQuoteAnswers([data.jobId])).get(data.jobId) ?? null;
-    return { applies: true as const, businessId: biz, areaM2: s.areaM2, areaProvenance: s.areaProvenance, insulation: s.insulation, quoted: (job?.installer_quoted ?? null) as "yes" | "no" | null, quoteAnswer, quoteIncGst: s.quoteIncGst, includes: s.includes, proposedR: s.proposedR, removalQuote: s.removalQuote, files: ((imp?.files as { path: string; name: string; type: string }[] | null) ?? []), electricianChosen: s.electricianPayer !== "undecided", payerEditable: !payerLock, payerLockReason: payerLock, currentElectrician, quoteHeld: [...s.readiness.blockers, ...s.releaseBlockers.filter((b) => !/contact consent/.test(b))], electricianPayer: s.electricianPayer, feeAwarenessCurrent: s.feeAwarenessRecorded && (s.feeAwarenessPayer ?? "hivic") === s.electricianPayer };
+    return { applies: true as const, businessId: biz, areaM2: s.areaM2, areaProvenance: s.areaProvenance, insulation: s.insulation, quoted: (job?.installer_quoted ?? null) as "yes" | "no" | null, quoteAnswer, attended: (await import("./installer-intake.core")).attendanceFromSiteCheck(job?.installer_site_check as string | null), attendedOn: (job?.installer_site_check_date as string | null) ?? null, quoteIncGst: s.quoteIncGst, includes: s.includes, proposedR: s.proposedR, removalQuote: s.removalQuote, files: ((imp?.files as { path: string; name: string; type: string }[] | null) ?? []), electricianChosen: s.electricianPayer !== "undecided", payerEditable: !payerLock, payerLockReason: payerLock, currentElectrician, quoteHeld: [...s.readiness.blockers, ...s.releaseBlockers.filter((b) => !/contact consent/.test(b))], electricianPayer: s.electricianPayer, feeAwarenessCurrent: s.feeAwarenessRecorded && (s.feeAwarenessPayer ?? "hivic") === s.electricianPayer };
   });
 
 export const saveMyIntakeJob = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
     jobId: z.string().uuid(), areaM2: z.number().positive().max(5000).nullable(), insulation: z.enum(["none", "below_r2", "unknown"]),
     quoteStatus: z.enum(["not_quoted", "have_quote"]), quoteIncGst: z.number().positive().max(1_000_000).nullable(), includes: z.string().trim().max(1000).nullable(), proposedR: z.number().positive().max(10).nullable(),
+    attended: z.enum(["attended", "not_attended"]).nullish(), attendedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
     files: z.array(z.object({ path: z.string().max(500), name: z.string().max(200), type: z.string().max(100) })).max(20),
     electrician: z.object({ mode: z.literal("mine"), business_id: z.string().uuid().nullish(), nomination_id: z.string().uuid().nullish() }).optional(),
     electricianPayer: z.enum(["hivic", "own", "undecided"]).optional(),
