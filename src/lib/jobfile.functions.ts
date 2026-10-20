@@ -58,8 +58,8 @@ export const openJobDocument = createServerFn({ method: "POST" }).middleware([re
   .handler(async ({ data, context }) => {
     const role = await requireJobRole(context.supabase, data.jobId, ["admin", "electrician", "installer", "owner"]);
     const { loadSources } = await import("./jobfile.server");
-    const { buildDocumentIndex, visibleTo } = await import("./jobfile.core");
-    const doc = visibleTo(buildDocumentIndex(await loadSources(data.jobId)), role as never).find((d) => d.id === data.docId);
+    const { authorizedStoredDoc } = await import("./jobfile.core");
+    const doc = authorizedStoredDoc(await loadSources(data.jobId), role as never, data.docId);
     if (!doc?.storagePath) throw new Error("This document has no stored file you can open.");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: s, error } = await signFile("job-files", doc.storagePath, 300);

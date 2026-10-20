@@ -52,11 +52,21 @@ export function categoriseDocument(kind: string, title: string): { category: Doc
     const final = t.includes("final") || t.includes("completed");
     return { category: "ESC / VEEC", alsoIn: ["Customer / Consent", "Quotes"], sub: final ? "Completed VEEC assignment" : "Signed customer acceptance", audience: ["owner"], status: final ? "final" : "signed", immutable: true };
   }
-  if (/piesa|coes|piisa|electrical/.test(k + " " + t)) return { category: "Electrical / PIESA", alsoIn: /piisa/.test(k + t) ? ["Installation", "ESC / VEEC"] : [], sub: null, audience: ["electrician", "installer", "owner"], status: "current", immutable: false };
+  // Sensitive financial/customer kinds are decided by KIND first; a title can never widen who sees them.
+  if (/quote|invoice|xero|payment|receipt|customer_agreement|owner_paperwork|esc_consent|installer_import/.test(k)) {
+    if (/invoice|xero|payment|receipt/.test(k)) return { category: "Payments", alsoIn: ["Quotes"], sub: null, audience: ["owner"], status: "current", immutable: false };
+    if (/quote/.test(k) || (k === "installer_import" && /quote|invoice/.test(t))) return { category: "Quotes", alsoIn: [], sub: null, audience: ["owner"], status: "current", immutable: false };
+    return { category: k === "esc_consent" ? "ESC / VEEC" : k === "installer_import" ? "Other" : "Customer / Consent", alsoIn: [], sub: null, audience: k === "installer_import" ? [] : ["owner"], status: "current", immutable: false };
+  }
+  // Trade audiences come from a known trade KIND (Mitti reports: our own generated title), never from a free title.
+  const trusted = k === "mitti_report" ? k + " " + t : k;
+  if (/piesa|coes|piisa|electrical/.test(trusted)) return { category: "Electrical / PIESA", alsoIn: /piisa/.test(trusted) ? ["Installation", "ESC / VEEC"] : [], sub: null, audience: ["electrician", "installer", "owner"], status: "current", immutable: false };
+  if (/piesa|coes|piisa|electrical/.test(t)) return { category: "Electrical / PIESA", alsoIn: [], sub: null, audience: [], status: "current", immutable: false };
   if (/floor|plan|property|imagery|outline/.test(k + " " + t)) return { category: "Property", alsoIn: [], sub: null, audience: [], status: "current", immutable: false };
-  if (/measure|sketch/.test(k + " " + t)) return { category: "Measure-up", alsoIn: [], sub: null, audience: ["electrician", "installer"], status: "current", immutable: false };
-  if (/quote/.test(k + " " + t)) return { category: "Quotes", alsoIn: [], sub: null, audience: ["owner"], status: "current", immutable: false };
-  if (/invoice|xero|payment|receipt/.test(k + " " + t)) return { category: "Payments", alsoIn: ["Quotes"], sub: null, audience: ["owner"], status: "current", immutable: false };
+  if (/measure|sketch/.test(k)) return { category: "Measure-up", alsoIn: [], sub: null, audience: ["electrician", "installer"], status: "current", immutable: false };
+  if (/measure|sketch/.test(t)) return { category: "Measure-up", alsoIn: [], sub: null, audience: [], status: "current", immutable: false };
+  if (/quote/.test(t)) return { category: "Quotes", alsoIn: [], sub: null, audience: ["owner"], status: "current", immutable: false };
+  if (/invoice|xero|payment|receipt/.test(t)) return { category: "Payments", alsoIn: ["Quotes"], sub: null, audience: ["owner"], status: "current", immutable: false };
   if (/esc|veec/.test(k + " " + t)) return { category: "ESC / VEEC", alsoIn: [], sub: null, audience: [], status: "current", immutable: false };
   if (/declaration/.test(k + " " + t)) return { category: "Installation", alsoIn: ["ESC / VEEC"], sub: null, audience: ["installer"], status: "signed", immutable: true };
   return { category: "Other", alsoIn: [], sub: null, audience: [], status: "current", immutable: false };
@@ -299,4 +309,10 @@ const esc = (t: unknown) => String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&
 export function manifestHtml(title: string, header: Record<string, unknown>, m: ManifestEntry[]): string {
   const rows = m.map((e) => `<tr><td>${esc(e.category)}</td><td>${esc(e.title)}</td><td>${esc(e.status)}${e.immutable ? " (immutable)" : ""}</td><td>${esc(e.version)}</td><td>${esc(e.source_system)}</td><td>${esc(e.at)}</td><td>${esc(e.pack_path ?? (e.storage_ref ? "see links" : "record only"))}</td><td style="font-family:monospace">${esc(e.sha256)}</td></tr>`).join("");
   return `<!doctype html><meta charset="utf-8"><title>${esc(title)}</title><style>body{font-family:sans-serif;font-size:13px}td,th{border:1px solid #ccc;padding:4px;text-align:left}table{border-collapse:collapse}</style><h1>${esc(title)}</h1><dl>${Object.entries(header).map(([k, v]) => `<dt><b>${esc(k)}</b></dt><dd>${esc(v)}</dd>`).join("")}</dl><table><tr><th>Category</th><th>Title</th><th>Status</th><th>Version</th><th>Source</th><th>Date</th><th>File</th><th>SHA-256</th></tr>${rows}</table>`;
+}
+
+/** The ONE decision the private-file signer uses: the indexed file this role may open, or null (deny). */
+export function authorizedStoredDoc(src: JobSources, role: Role, docId: string): DocItem | null {
+  const doc = visibleTo(buildDocumentIndex(src), role).find((d) => d.id === docId);
+  return doc?.storagePath ? doc : null;
 }
