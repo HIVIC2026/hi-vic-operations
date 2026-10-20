@@ -24,7 +24,7 @@ mock.module("../src/lib/workflow.server", () => ({
   WorkflowError: class WorkflowError extends Error {},
   logEvent: async (job: string, actor: string | null, type: string, summary: string, details?: unknown) => { await db.query("insert into workflow_events (job_id, actor_id, event_type, summary, details) values ($1,$2,$3,$4,$5)", [job, actor, type, summary, JSON.stringify(details ?? {})]); },
 }));
-const { installerUpdateIntake } = await import("../src/lib/installer-intake.server");
+const { installerUpdateIntake, installerIntakeState } = await import("../src/lib/installer-intake.server");
 
 const JOB = "00000000-0000-0000-0000-00000000e001", BIZ = "00000000-0000-0000-0000-00000000b001", OTHER = "00000000-0000-0000-0000-00000000b002", U = "00000000-0000-0000-0000-00000000c001";
 const base = { areaM2: null, insulation: "unknown" as const, quoteStatus: "not_quoted" as const, quoteIncGst: null, includes: null, proposedR: null, files: [] };
