@@ -1,6 +1,7 @@
 // Add one job (installer import) persistence, shared by the RPC in pilot.functions.ts and the installer test.
 // Moved verbatim from the server function handlers; the caller passes the verified user id.
 import { readRemoval, removalProblems, removalSummary, type RemovalQuote } from "./intake-quote-details.core";
+import { commercialInputProblems, readCommercial, removalFactSummary } from "./installer-quote-commercial.core";
 import type { Json } from "@/integrations/supabase/types";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
