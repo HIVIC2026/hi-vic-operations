@@ -8,8 +8,8 @@ export const TEST_MAILBOX = "shared@example.test";
 export const TEST_JOB = "11111111-1111-4111-8111-111111111111";
 export const TEST_ACTOR = "22222222-2222-4222-8222-222222222222";
 const root = new URL("../../", import.meta.url);
-export const migration = () => readFileSync(new URL("docs/pending-migrations/XXXX_outlook_recovery.sql", root), "utf8");
-export const rollback = () => readFileSync(new URL("docs/pending-migrations/XXXX_outlook_recovery.rollback.sql", root), "utf8");
+export const migration = () => readFileSync(new URL("docs/pending-migrations/0212_outlook_recovery.sql", root), "utf8");
+export const rollback = () => readFileSync(new URL("docs/pending-migrations/0212_outlook_recovery.rollback.sql", root), "utf8");
 
 export type Operation = { table: string; mode: string; head: boolean; fields: string; filters: { field: string; op: string; value: unknown }[] };
 type Result = { data: any; error: { message: string; code?: string } | null; count?: number | null };

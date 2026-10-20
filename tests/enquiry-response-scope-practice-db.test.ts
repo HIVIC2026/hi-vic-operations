@@ -35,8 +35,8 @@ beforeAll(async () => {
   await db.exec(read("0208_enquiry_response_scope.sql"));
   await db.exec(read("0208_enquiry_response_scope.sql"));
   await db.exec("GRANT SELECT ON office_enquiry_index TO service_role; REVOKE ALL ON office_enquiry_index FROM anon, authenticated;");
-  await db.exec(read('phase1_photo_request_facts.sql'));
-  await db.exec(read('phase1_photo_request_facts.sql'));
+  await db.exec(read('0210_photo_request_facts.sql'));
+  await db.exec(read('0210_photo_request_facts.sql'));
   // N open website enquiries, each with a distinct owner/property so nothing is a duplicate contact.
   await db.exec(`
     INSERT INTO owners SELECT md5(i::text)::uuid, 'Owner '||i, 'owner'||i||'@example.org', null FROM generate_series(1, ${N}) i;

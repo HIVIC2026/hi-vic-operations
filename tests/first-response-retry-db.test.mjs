@@ -4,8 +4,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { loadActualSweep, readActualSource, testRequire } from './helpers/load-first-response-sweep.mjs';
 const { PGlite } = testRequire('@electric-sql/pglite');
-const migration = readActualSource('docs/pending-migrations/XXXX_first_response_retry_ledger.sql');
-const rollback = readActualSource('docs/pending-migrations/XXXX_first_response_retry_ledger.rollback.sql');
+const migration = readActualSource('docs/pending-migrations/0211_first_response_retry_ledger.sql');
+const rollback = readActualSource('docs/pending-migrations/0211_first_response_retry_ledger.rollback.sql');
 
 const schema = `
   CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE service_role NOLOGIN BYPASSRLS;
