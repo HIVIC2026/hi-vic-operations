@@ -32,6 +32,7 @@ export const logCommunication = createServerFn({ method: "POST" }).middleware([r
     jobId: uuid, direction: z.enum(["inbound", "outbound", "internal"]), channel: z.enum(["phone", "email", "sms", "note", "whatsapp", "other"]),
     party: z.string().trim().max(200).optional(), subject: z.string().trim().max(300).optional(), body: z.string().trim().min(2).max(10000),
     at: z.string().datetime().optional(), visibility: z.enum(["customer", "trade", "internal"]),
+    providerMessageId: z.string().uuid().optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
@@ -39,7 +40,8 @@ export const logCommunication = createServerFn({ method: "POST" }).middleware([r
     // Record only – a logged call/email never sends anything.
     return { id: await recordCommunication({ jobId: data.jobId, direction: data.direction, channel: data.channel, senderText: data.direction === "inbound" ? data.party ?? null : "Home Insulation Victoria",
       recipients: data.direction === "outbound" && data.party ? [data.party] : [], subject: data.subject ?? null, body: data.body, at: data.at ?? null, visibility: data.visibility,
-      sourceEvent: "manual_log", createdBy: context.userId }) };
+      sourceEvent: "manual_log", createdBy: context.userId,
+      ...(data.providerMessageId ? { provider: "resend", providerMessageId: data.providerMessageId, deliveryStatus: "sent" as const } : {}) }) };
   });
 
 export const exportJobPackFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

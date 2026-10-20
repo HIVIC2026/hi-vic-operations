@@ -1,6 +1,7 @@
 # Server/domain rules (src/lib)
 
 ## Architecture rules
+- Admin communication logging may record an externally accepted Resend message ID through the existing immutable recorder; it never sends or changes job state. Why: owner-authorised one-off follow-ups need provider-linked history without new database permissions.
 - Office first-response catch-up is a separate admin-authenticated one-job action with fresh enquiry/recipient/history checks and the existing unique sender key; same-email sibling suppression requires matching property ID, canonical address key or same-source enquiry ID; persisted homeowner intake files may override legacy manifest uncertainty for acknowledgement only, never automatic routing or eligibility. Why: separate homes need separate responses without duplicate requests or relaxed automation.
 - Intake pages share progress reads without error fallbacks; successful installer saves invalidate job-keyed readers and trade-home through job-cache; evidence retains all-reader invalidation. Why: next actions stay current without remounting editors.
 - Evidence confirmation uses the guarded persistence helper with stored-path-derived primary keys and legacy path lookup; it checks both writes before success and never labels upload location/time as original capture. Why: retries and downstream failures must not duplicate files or invent evidence provenance.

@@ -1,4 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Adam optional evidence link (Jo, 20 Oct 07:30 UTC)
+- [x] Verified HV-2521 current link and consent; one authorised follow-up accepted by Joannah's Resend and recorded through admin logging with provider ID; stage/eligibility unchanged.
+- [x] Retained optional upload CTA for received-media outcome emails, missing-link fail-closed guard, 75 focused/regression tests and preview build pass; no publish.
 ## Office same-property duplicate scope (Jo, 20 Oct 07:17 UTC)
 - [x] Restricted same-email sibling suppression to matching property/address or source enquiry identity; 69 catch-up tests and 18 normal media regression tests pass; automatic build/typecheck OK; unchanged normal automatic guards, no publish.
 - [x] Retried HV-2464 only once through guarded preview action; provider accepted, matching provider ID confirmed independently in both records. All original 17 now have their own confirmed sent and outbound records; zero remain unanswered. No settings changes or other sends.

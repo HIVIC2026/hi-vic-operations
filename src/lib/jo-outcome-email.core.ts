@@ -545,13 +545,12 @@ export function renderJoOutcomeEmail(input: JoOutcomeEmailInput): JoWiredEmail |
   const received = input.mediaAlreadyReceived === true;
   if (received && !['potentially_eligible_unknown_size_unknown', 'potentially_eligible_unknown_size_known'].includes(id)) throw new Error('Received-media acknowledgement requires an unreviewed insulation estimate.');
   const copy = received ? rendered.body
-    .replace('Please upload clear photos or a short video showing what’s above your ceiling, including any visible insulation labels. This will help us assess your enquiry sooner. If it looks eligible, we’ll invite you to save your spot.', 'Thank you for sending your photos or video. We already have your media — you do not need to upload it again. Our Office will review it and contact you about the next step. Final eligibility will be confirmed at your free Ready Check.')
-    .replace('[Upload my photos or video →]', '')
-    .replace('Only take photos or video if you can do so safely, and don’t enter the roof space. If you’re unable to obtain them safely, reply and let us know.', 'Please do not enter the roof space. If anything else needs checking, we can confirm it onsite at your free Ready Check.') : rendered.body;
-  const ctas = received ? [] : rendered.ctas;
-  const body = bindLinks(copy, input.links, ctas);
-  const missing = missingCta(ctas, body);
+    .replace('Please upload clear photos or a short video showing what’s above your ceiling, including any visible insulation labels. This will help us assess your enquiry sooner. If it looks eligible, we’ll invite you to save your spot.', 'Thank you for sending your photos or video. We already have your media — you do not need to upload it again. Our Office will review it and contact you about the next step. Final eligibility will be confirmed at your free Ready Check. If you want or need to add more evidence, you can optionally add multiple photos and/or videos using the link below.') : rendered.body;
+  const ctas = rendered.ctas;
+  const linkedBody = bindLinks(copy, input.links, ctas);
+  const missing = missingCta(ctas, linkedBody);
   if (missing) throw new Error(`The ${missing} link is missing for this customer; nothing was prepared.`);
+  const body = received ? linkedBody.replace('Upload my photos or video →', 'Add more photos or video →') : linkedBody;
   return assemble(id, rendered.subject, body, ctas, input);
 }
 
