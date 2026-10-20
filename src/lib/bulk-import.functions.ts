@@ -18,6 +18,7 @@ const manifestFile = z.object({
   gps_lat: z.number().nullable().optional(), gps_lng: z.number().nullable().optional(),
   taken_at: z.string().max(60).nullable().optional(),
   geo_address: z.string().max(300).nullable().optional(),
+  stored_path: z.string().max(500).optional(), // private copy in job-files (partners/<business>/imports/…), attached on confirm
 });
 const fileRead = z.object({ name: z.string().max(1000), status: z.enum(["ok", "warn", "error"]), message: z.string().max(500) });
 

@@ -35,7 +35,7 @@ export const Route = createFileRoute("/_authenticated/partner/bulk-import")({
   component: BulkImportPage,
 });
 
-type ManifestFile = { path: string; name: string; folder: string | null; type: string; gps_lat: number | null; gps_lng: number | null; taken_at: string | null; geo_address?: string | null };
+type ManifestFile = { path: string; name: string; folder: string | null; type: string; gps_lat: number | null; gps_lng: number | null; taken_at: string | null; geo_address?: string | null; stored_path?: string };
 type ReviewRow = {
   id: string; row_index: number; status: string; duplicate_note: string | null;
   extracted: { full_name?: string | null; address_line?: string | null; suburb?: string | null; postcode?: string | null; area_m2?: number | null; price_inc_gst?: number | null; quoted_answer?: "yes" | "no" | null; lead_stage?: LeadStage; phone?: string | null; email?: string | null; price_includes?: string | null; site_check?: "yes" | "no" | null; site_check_date?: string | null; site_check_source?: "file" | "asked" | null; second_contact?: SecondContact | null; notes?: string | null; owner_consent?: unknown };
@@ -256,6 +256,10 @@ function BulkImportPage() {
   const [extraFiles, setExtraFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [batchId, setBatchId] = useState<string | null>(null);
+  const resumed = useRef<string | null>(null);
+  // Refresh-safe review: the open upload stays in the address bar so a reload resumes it (never a second upload).
+  useEffect(() => { const b = new URLSearchParams(window.location.search).get("batch"); if (b && /^[0-9a-f-]{36}$/i.test(b)) { resumed.current = b; setBatchId(b); } }, []);
+  useEffect(() => { const u = new URL(window.location.href); if (batchId) u.searchParams.set("batch", batchId); else u.searchParams.delete("batch"); window.history.replaceState(window.history.state, "", u.toString()); }, [batchId]);
   const [skip, setSkip] = useState<Set<string>>(new Set());
   const [consent, setConsent] = useState<Record<string, boolean>>({});
   const [leads, setLeads] = useState<Record<string, ReviewRow["extracted"]>>({});
@@ -278,6 +282,7 @@ function BulkImportPage() {
   const businesses = bizData?.businesses ?? [];
   const isAdmin = bizData?.isAdmin ?? false;
   const effectiveBiz = isAdmin ? businessId : (businessId || businesses[0]?.id || "");
+  const storeFiles = useUploadFiles(effectiveBiz);
   const { data: past, refetch: refreshPast } = useQuery({ queryKey: ["bulk-past", effectiveBiz], queryFn: () => getBatches({ data: effectiveBiz ? { businessId: effectiveBiz } : {} }), enabled: isAdmin || !!effectiveBiz });
   const { data: electricianData, refetch: refreshElectricians } = useQuery({ queryKey: ["bulk-electricians", effectiveBiz], queryFn: () => getElectricians({ data: { businessId: effectiveBiz } }), enabled: !!effectiveBiz });
   // The installer's usual electrician is preselected (Jo, 7 Oct); each card can change it.
@@ -292,6 +297,9 @@ function BulkImportPage() {
     enabled: !!batchId,
   });
   const rows = (review?.rows ?? []) as unknown as ReviewRow[];
+  // A reloaded upload that is already confirmed is never shown as editable again (see Past uploads instead).
+  const reviewStatus = (review?.batch as { status?: string } | undefined)?.status;
+  useEffect(() => { if (batchId && batchId === resumed.current && !done && reviewStatus && reviewStatus !== "analysed") { resumed.current = null; setBatchId(null); toast.info("That upload is already finished — see Past uploads below."); } }, [batchId, done, reviewStatus]);
   const summary = review?.batch?.summary as { file_results?: FileResult[]; rows?: number; covers_ready_check?: number; needs_visit?: number; office_review?: number; duplicates?: number; not_visited?: number; visited?: number; visited_quoted?: number; quote_needed?: number; site_check_unclear?: number } | null;
   useEffect(() => {
     if (!rows.length) return;
@@ -339,11 +347,17 @@ function BulkImportPage() {
     setBusy(true); setLocalReads([]);
     try {
       const base = { businessId: effectiveBiz, onBehalf: isAdmin };
-      const { manifest, rows: rawRows, documents, reads } = await collect(extraFiles, {
+      // Keep a private copy of every loose job file (not the customer list or a ZIP) so it can be attached to its job on confirm.
+      setProgress("Saving your files…");
+      const toStore = extraFiles.filter((f) => !LIST_RE.test(f.name) && !/\.zip$/i.test(f.name));
+      const stored = new Map((await storeFiles(toStore)).map((x) => [x.name, x.path]));
+      const collected = await collect(extraFiles, {
         readMedia: (name, mime, base64) => readFile({ data: { ...base, name, mime, base64 } }),
         geocode: async (points) => (await geocode({ data: { ...base, points } })).addresses,
         progress: setProgress,
       });
+      const { rows: rawRows, documents, reads } = collected;
+      const manifest = collected.manifest.map((f) => (!f.folder && stored.get(f.path) ? { ...f, stored_path: stored.get(f.path)! } : f));
       setLocalReads(reads);
       if (rawRows.length === 0 && documents.length === 0 && manifest.length === 0) { toast.error("None of these files could be read — see the list below."); return; }
       if (rawRows.length > READ_CHUNK_ROWS) {
@@ -569,6 +583,7 @@ function CustomerCard({ row, status, skipped, onSkip, consent, onConsent, quoted
         <ul className="space-y-0.5 text-xs text-sub">
           <li>Ceiling size: {x.area_m2 ? `${x.area_m2} m²` : "not given"}</li>
           {fileNote && <li>{fileNote}</li>}
+          {/Listed \d+ times in the upload/i.test(x.notes ?? "") && <li className="font-semibold text-danger" data-repeat-note>This customer was listed more than once in your upload. We kept one job only — please check the details.</li>}
           {row.sort_result === "office_review" && <li className="font-semibold text-danger">Held for the office to check{(row.sort_reasons ?? []).filter((r) => !/^(Stage|Site check|Missing|Customer details|Phone|Email|Postcode|Measurements|Small items)/.test(r) && r !== QUOTE_NEEDED_LABEL && r !== OUTSIDE_VIC_MESSAGE).slice(0, 1).map((r) => `: ${r}`)}</li>}
         </ul>
       </div>}
