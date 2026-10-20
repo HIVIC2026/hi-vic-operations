@@ -123,23 +123,60 @@ export const submitWorkerInvite = createServerFn({ method: "POST" }).middleware(
     token: z.string(),
     full_legal_name: z.string().trim().max(200), mobile: z.string().trim().max(30), email: z.string().trim().toLowerCase().max(254),
     licence_number: z.string().trim().max(60).optional(), qualification: z.string().trim().max(200).optional(),
+    certificate_path: z.string().trim().max(300).optional(), certificate_number: z.string().trim().max(60).optional(),
     accepted: z.array(z.string().max(40)).max(20), signed_name: z.string().trim().max(200),
   }).parse(d))
   .handler(async ({ data, context }) => {
     if (!isTokenShape(data.token)) return { ok: false as const, errors: ["This invite link isn't valid."] };
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { data: inv } = await admin.from("partner_worker_invites")
-      .select("id, business_id, trade_role, expires_at, used_at, revoked_at, created_by, businesses(name, trading_name)")
+      .select("id, business_id, trade_role, expires_at, used_at, revoked_at, created_by, worker_id, businesses(name, trading_name)")
       .eq("token_hash", await hashToken(data.token)).maybeSingle();
     if (!inv) return { ok: false as const, errors: ["This invite link isn't valid."] };
     const st = inviteState(inv, Date.now());
     if (st !== "active") return { ok: false as const, errors: [INVITE_STATE_MESSAGE[st]] };
     const t = inv.trade_role as "electrician" | "installer";
+    const now = new Date().toISOString();
+
+    // ---- Completion mode: an existing worker uploads their own missing certificate. Never inserts a worker. ----
+    if (inviteMode(inv) === "completion") {
+      const errors = completionErrors(data);
+      if (errors.length) return { ok: false as const, errors };
+      const { data: w } = await admin.from("partner_workers").select("id, trade_role, removed_at, certification_status, certification").eq("id", inv.worker_id).maybeSingle();
+      if (!w || w.removed_at || w.trade_role !== "installer") return { ok: false as const, errors: ["This completion link is no longer available. Ask the business owner for a new one."] };
+      if (w.certification_status === "verified") return { ok: false as const, errors: ["This certificate is already verified — nothing more to do."] };
+      try {
+        // The file must exist and be a valid type BEFORE the single-use link is consumed.
+        await verifyInviteCertUpload(admin as never, inv.id, data.certificate_path!);
+      } catch (e) {
+        return { ok: false as const, errors: [e instanceof Error ? e.message : "Upload not found. Please try again."] };
+      }
+      const { data: claimed } = await admin.from("partner_worker_invites").update({ used_at: now }).eq("id", inv.id).is("used_at", null).is("revoked_at", null).select("id");
+      if (!claimed?.length) return { ok: false as const, errors: ["This link has already been used."] };
+      const { error: ue } = await admin.from("partner_workers").update({
+        // certification_status stays 'unverified' — the office must verify. Existing JSON fields are preserved.
+        certification: mergeEec(w.certification, eecUploadMeta(data.certificate_path!, now, data.certificate_number)),
+      }).eq("id", w.id);
+      if (ue) {
+        await admin.from("partner_worker_invites").update({ used_at: null }).eq("id", inv.id);
+        return { ok: false as const, errors: ["We couldn't save your certificate. Please try again."] };
+      }
+      await admin.from("partner_worker_invites").update({ signed_ip: context.ip, signed_user_agent: context.userAgent }).eq("id", inv.id);
+      return { ok: true as const };
+    }
+
+    // ---- Registration mode: full details + declarations (+ required certificate for installers). ----
     const biz = inv.businesses as { name: string; trading_name: string | null } | null;
     const decls = workerDeclarations(t, biz?.trading_name || biz?.name || "your business");
     const errors = workerSubmissionErrors(t, data, decls.map((x) => x.key));
     if (errors.length) return { ok: false as const, errors };
-    const now = new Date().toISOString();
+    if (t === "installer") {
+      try {
+        await verifyInviteCertUpload(admin as never, inv.id, data.certificate_path!);
+      } catch (e) {
+        return { ok: false as const, errors: [e instanceof Error ? e.message : "Upload not found. Please try again."] };
+      }
+    }
     // Claim the invite first so it can only ever be used once.
     const { data: claimed } = await admin.from("partner_worker_invites").update({ used_at: now }).eq("id", inv.id).is("used_at", null).is("revoked_at", null).select("id");
     if (!claimed?.length) return { ok: false as const, errors: ["This invite link has already been used."] };
@@ -147,6 +184,9 @@ export const submitWorkerInvite = createServerFn({ method: "POST" }).middleware(
       business_id: inv.business_id, full_legal_name: data.full_legal_name, email: data.email, mobile: data.mobile, trade_role: t,
       licence_number: t === "electrician" ? data.licence_number ?? null : null, qualification: t === "installer" ? data.qualification ?? null : null,
       added_by: inv.created_by, approval_status: "pending",
+      // Installer certificate metadata: uploaded is NOT verified. Office verification sets certification_status='verified'.
+      certification_status: t === "installer" ? "unverified" : null,
+      certification: t === "installer" ? mergeEec(null, eecUploadMeta(data.certificate_path!, now, data.certificate_number)) : null,
     }).select("id").single();
     if (error) {
       await admin.from("partner_worker_invites").update({ used_at: null }).eq("id", inv.id);
