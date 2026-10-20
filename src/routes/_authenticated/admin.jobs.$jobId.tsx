@@ -1,4 +1,5 @@
 import { TradeTextsCard } from "@/components/portal/trade-texts";
+import { closedReasonLabel } from "@/lib/outlook-correspondence.core";
 import { OfficeInstallerFactsCard } from "@/components/portal/installer-job-facts";
 import { OfficePrestartCard } from "@/components/portal/prestart";
 import { OfficeInstallHoldCard } from "@/components/portal/install-hold";
@@ -88,6 +89,7 @@ function JobDetail() {
       <div className="mx-auto max-w-5xl">
       <Link to="/admin/enquiries" className="mb-2 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Enquiries</Link>
       <JobIdentity jobId={jobId} job={job} onOpen={openTarget} />
+      {job.stage === "cancelled" && <div role="status" className="mb-3 rounded-md border border-danger/40 bg-danger-soft p-3 text-sm font-semibold text-danger">{closedReasonLabel("cancelled", (job as { cancelled_reason?: string | null }).cancelled_reason)}</div>}
       <CompactJobStatus jobId={jobId} onOpen={openTarget} />
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-bold">Current blockers</h2><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => setClassifying(!classifying)} aria-expanded={classifying} aria-controls="job-classification">Change classification</Button><Button size="sm" onClick={() => setUpdating(!updating)} aria-expanded={updating} aria-controls="job-update-controls">Update job</Button></div></div>
       {classifying && <div id="job-classification"><EligibilityForm jobId={jobId} /></div>}

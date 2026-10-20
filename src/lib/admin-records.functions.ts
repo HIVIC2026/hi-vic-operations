@@ -47,6 +47,10 @@ export const getJobOverview = createServerFn({ method: "POST" }).middleware([req
         return { ...row, owner_name: null, owner_phone: null, owner_email: null, property_address: [p?.suburb, p?.postcode].filter(Boolean).join(" ") || "Address shared once the visit is arranged" };
       }
     }
+    if (role === "admin" && row.stage === "cancelled") {
+      const { data: c } = await admin.from("jobs").select("cancelled_reason").eq("id", data.jobId).maybeSingle();
+      return { ...row, cancelled_reason: c?.cancelled_reason ?? null };
+    }
     return row;
   });
 
