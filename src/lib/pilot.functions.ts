@@ -342,6 +342,8 @@ export const confirmImport = createServerFn({ method: "POST" }).middleware([requ
         fee_awareness: z.object({ declared: z.boolean(), payer: z.enum(["hivic", "own", "undecided"]), text: z.string().max(400), version: z.string().max(80) }).optional(),
         // Before visit / before quote (Jo, 8 Oct): optional on older clients = "have_quote" (previous behaviour).
         quote_status: z.enum(["not_quoted", "have_quote"]).optional(),
+        attended: z.enum(["attended", "not_attended"]).nullish(),
+        attended_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
       }).optional(),
     }).optional(),
     electrician: z.object({ mode: z.enum(["mine", "hivic", "later"]), business_id: uuid.nullish(), nomination_id: uuid.nullish() }).optional(),

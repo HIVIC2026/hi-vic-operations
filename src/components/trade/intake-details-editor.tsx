@@ -11,14 +11,14 @@ import { getMyIntakeJob, saveMyIntakeJob } from "@/lib/installer-quote.functions
 import { bulkElectricianChoices } from "@/lib/bulk-import.functions";
 import { ELECTRICIAN_PAYER_CHOICES, editorElectricianSend, feeAwarenessText, type ElectricianPayer } from "@/lib/installer-intake.core";
 import { Checkbox } from "@/components/ui/checkbox";
-import { EXISTING_INSULATION_CHOICES, JOB_DETAILS_LEAD, QUOTE_STATUS_CHOICES, intakeArea, intakeProblems, intakeQuotePayload, type ExistingInsulation, type QuoteStatus } from "@/lib/installer-intake.core";
+import { EXISTING_INSULATION_CHOICES, JOB_DETAILS_LEAD, QUOTE_STATUS_CHOICES, intakeArea, intakeProblems, intakeQuotePayload, type ExistingInsulation, type QuoteStatus, type AttendanceAnswer, ATTENDED_CHOICES, ATTENDED_QUESTION, PRELIMINARY_QUOTE_NOTE } from "@/lib/installer-intake.core";
 import type { ElectricianPlan } from "@/lib/job-electrician.core";
 import { ProposedRField, RemovalQuoteFields } from "./intake-quote-fields";
 import { blankRemoval, removalPayload, removalProblems, removalSummary, type RemovalInput, type RemovalQuote } from "@/lib/intake-quote-details.core";
 import { refreshInstallerJob } from "./job-cache";
 
 export type IntakeJobFacts = {
-  areaM2: number | null; insulation: ExistingInsulation | null; quoted: "yes" | "no" | null; quoteAnswer?: QuoteStatus | null; quoteIncGst: number | null;
+  areaM2: number | null; insulation: ExistingInsulation | null; quoted: "yes" | "no" | null; quoteAnswer?: QuoteStatus | null; attended?: AttendanceAnswer | null; attendedOn?: string | null; quoteIncGst: number | null;
   includes: string | null; proposedR: number | null; files: AttachedFile[]; electricianChosen: boolean; quoteHeld: string[];
   removalQuote?: RemovalQuote | null;
   electricianPayer?: ElectricianPayer; feeAwarenessCurrent?: boolean; payerEditable?: boolean; payerLockReason?: string | null;
@@ -26,7 +26,7 @@ export type IntakeJobFacts = {
 };
 export type IntakeSave = {
   areaM2: number | null; insulation: ExistingInsulation; quoteStatus: QuoteStatus; quoteIncGst: number | null; includes: string | null;
-  proposedR: number | null; files: AttachedFile[]; electrician?: { mode: "mine"; business_id?: string | null; nomination_id?: string | null };
+  proposedR: number | null; files: AttachedFile[]; attended?: AttendanceAnswer; attendedOn?: string | null; electrician?: { mode: "mine"; business_id?: string | null; nomination_id?: string | null };
   electricianPayer?: ElectricianPayer;
   removalQuote?: RemovalQuote;
   feeAwareness?: { payer: "hivic" | "own"; text: string };
@@ -42,6 +42,8 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
   const [area, setArea] = useState(facts.areaM2 == null ? "" : String(facts.areaM2));
   const [ins, setIns] = useState<ExistingInsulation>(facts.insulation ?? "unknown");
   const [qs, setQs] = useState<QuoteStatus | null>(initStatus);
+  const [att, setAtt] = useState<AttendanceAnswer | null>(facts.attended ?? null);
+  const [attOn, setAttOn] = useState(facts.attendedOn ?? "");
   const [amount, setAmount] = useState(facts.quoteIncGst == null ? "" : String(facts.quoteIncGst));
   const [includes, setIncludes] = useState(facts.includes ?? "");
   const [proposedR, setProposedR] = useState(facts.proposedR == null ? "" : String(facts.proposedR));
@@ -67,7 +69,7 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
   useEffect(() => {
     if (open || busy || fileBusy) return;
     setArea(facts.areaM2 == null ? "" : String(facts.areaM2)); setIns(facts.insulation ?? "unknown");
-    setQs(initStatus); setAmount(facts.quoteIncGst == null ? "" : String(facts.quoteIncGst));
+    setQs(initStatus); setAtt(facts.attended ?? null); setAttOn(facts.attendedOn ?? ""); setAmount(facts.quoteIncGst == null ? "" : String(facts.quoteIncGst));
     setIncludes(facts.includes ?? ""); setProposedR(facts.proposedR == null ? "" : String(facts.proposedR));
     setPayer(currentPayer); setRemoval(removalFromFacts()); setPlan(savedPlan());
   }, [facts, open, busy, fileBusy, initStatus, currentPayer]);
@@ -75,7 +77,7 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
 
   const save = async () => {
     const p = intakeProblems({ area, amount, includes, proposedR, insulation: ins, quoteStatus: qs, quoteFileCount: allFiles.length, evidenceAck: true });
-    p.push(...removalProblems(removalPayload(removal, qs === "have_quote"), ins, intakeArea(area), intakeQuotePayload({ quoteStatus: qs, amount, includes, proposedR }).quoted_price_inc_gst));
+    p.push(...removalProblems(removalPayload(removal, qs === "have_quote", att === "attended"), ins, intakeArea(area), intakeQuotePayload({ quoteStatus: qs, amount, includes, proposedR }).quoted_price_inc_gst, qs === "have_quote"));
     if (facts.areaM2 != null && !area.trim()) p.push("The ceiling area is already saved — enter the corrected area instead of clearing it");
     if (payerChanged && payer === "own" && !(plan?.mode === "mine" && (plan.business_id || plan.nomination_id))) p.push("Choose your electrician");
     setProblems(p); setMsg(null);
@@ -83,7 +85,7 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
     const q = intakeQuotePayload({ quoteStatus: qs, amount, includes, proposedR });
     setBusy(true);
     try {
-      const r = await onSave({ areaM2: intakeArea(area), insulation: ins, quoteStatus: qs, quoteIncGst: q.quoted_price_inc_gst, includes: q.price_includes, proposedR: q.proposed_r_value, files: newFiles, removalQuote: removalPayload(removal, qs === "have_quote"),
+      const r = await onSave({ areaM2: intakeArea(area), insulation: ins, quoteStatus: qs, quoteIncGst: q.quoted_price_inc_gst, includes: q.price_includes, proposedR: q.proposed_r_value, files: newFiles, ...(att && (att !== (facts.attended ?? null) || (att === "attended" && attOn !== (facts.attendedOn ?? ""))) ? { attended: att, attendedOn: att === "attended" ? attOn || null : null } : {}), removalQuote: removalPayload(removal, qs === "have_quote", att === "attended"),
         ...(feeTick && feeText && (payer === "hivic" || payer === "own") ? { feeAwareness: { payer, text: feeText } } : {}),
         ...(payerChanged ? { electricianPayer: payer } : {}),
         ...(sendElectrician ? { electrician: sendElectrician } : {}) });
@@ -94,6 +96,7 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
   };
 
   const known = [
+    facts.attended === "attended" ? `Site visit: attended and assessed${facts.attendedOn ? ` on ${facts.attendedOn}` : ""}` : facts.attended === "not_attended" ? "Site visit: not attended yet — Ready Check required" : "Site visit: not answered yet",
     facts.areaM2 != null ? `Ceiling ${facts.areaM2} m² (your figure, not yet accepted)` : "Ceiling area: not measured yet",
     `Existing insulation: ${EXISTING_INSULATION_CHOICES.find((c) => c.value === (facts.insulation ?? "unknown"))?.label}`,
     facts.quoteIncGst != null ? `Your quote $${facts.quoteIncGst.toLocaleString("en-AU")} inc GST` : initStatus === "not_quoted" ? "Quote: not quoted yet" : initStatus === "have_quote" ? (facts.files.length ? "Quote: your uploaded quote — office confirms the amount" : "Quote: amount still needed") : "Quote: not answered yet",
@@ -107,6 +110,13 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
       {!open ? <Button size="field" variant="outline" className="w-full" onClick={() => setOpen(true)}>Add or update details</Button> : <>
         <p className="text-sm text-sub">{JOB_DETAILS_LEAD}</p>
         <fieldset disabled={busy || fileBusy} className="space-y-3" aria-busy={busy || fileBusy}>
+        <fieldset data-editor-attended><legend className="text-sm font-bold">{ATTENDED_QUESTION}</legend>
+          <div className="mt-2 grid grid-cols-2 gap-2" role="radiogroup" aria-label={ATTENDED_QUESTION}>
+            {ATTENDED_CHOICES.map((c) => <Button key={c.value} size="field" role="radio" aria-checked={att === c.value} variant={att === c.value ? "default" : "outline"} onClick={() => setAtt(c.value)}>{c.label}</Button>)}
+          </div>
+          {att === "attended" && <label className="mt-2 block text-sm font-bold">Date of the visit<span className="block text-xs font-normal text-sub">Optional</span><Input type="date" className="mt-1 h-12" max={new Date().toISOString().slice(0, 10)} value={attOn} onChange={(e) => setAttOn(e.target.value)} /></label>}
+          {att === "not_attended" && qs === "have_quote" && <p className="mt-1 text-xs text-sub" data-preliminary-note>{PRELIMINARY_QUOTE_NOTE}</p>}
+        </fieldset>
         <label className="block text-sm font-bold">Ceiling area (m²)<span className="block text-xs font-normal text-sub">Optional — leave blank if not measured yet</span><Input className="mt-1 h-12" inputMode="decimal" placeholder="Not measured yet" value={area} onChange={(e) => setArea(e.target.value)} /></label>
         <fieldset><legend className="text-sm font-bold">Existing insulation</legend>
           <div className="mt-2 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Existing insulation">
@@ -117,7 +127,7 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
           <div className="mt-2 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Quote status">
             {QUOTE_STATUS_CHOICES.map((c) => <Button key={c.value} size="field" role="radio" aria-checked={qs === c.value} variant={qs === c.value ? "default" : "outline"} className="h-auto min-h-12 whitespace-normal px-1 text-sm" onClick={() => setQs(c.value)}>{c.label}</Button>)}
           </div>
-          {qs === "not_quoted" && (facts.quoteIncGst != null || facts.includes) && <p className="mt-1 text-xs text-sub" data-quote-clear-note>Saving "Not quoted yet" removes the quote amount and inclusions saved earlier. Uploaded files are kept as originals.</p>}
+          {qs === "not_quoted" && (facts.quoteIncGst != null || facts.includes) && <p className="mt-1 text-xs text-sub" data-quote-clear-note>Saving "Not quoted yet" removes only the quote amount and inclusions saved earlier. Measurements, product, removal facts and uploaded files are kept.</p>}
         </fieldset>
         {qs === "have_quote" && <>
           <AttachFiles businessId={businessId} files={allFiles} label="Upload your quote" disabled={busy} onBusyChange={setFileBusy} canRemove={(path) => newFiles.some((f) => f.path === path)} onAdd={async (picked) => {
@@ -132,9 +142,9 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
           <label className="block text-sm font-bold">Total installer quote inc GST<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 3,450" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
           <p className="text-xs text-sub">Include any removal charge in this total.</p>
           <label className="block text-sm font-bold">What the quote includes<Textarea className="mt-1" rows={3} maxLength={1000} value={includes} onChange={(e) => setIncludes(e.target.value)} /></label>
-          <ProposedRField value={proposedR} disabled={busy || fileBusy} onChange={setProposedR} />
-          <RemovalQuoteFields value={removal} disabled={busy || fileBusy} onChange={setRemoval} />
         </>}
+        <ProposedRField value={proposedR} disabled={busy || fileBusy} onChange={setProposedR} />
+        <RemovalQuoteFields value={removal} disabled={busy || fileBusy} onChange={setRemoval} />
         {facts.payerEditable && <fieldset data-editor-payer><legend className="text-sm font-bold">Electrician (PIESA)</legend>
           <p className="text-xs text-sub">Choosing doesn't book anyone. Changing this updates the owner quote.</p>
           <div className="mt-2 space-y-2" role="radiogroup" aria-label="Who arranges the electrician">

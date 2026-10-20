@@ -10,16 +10,19 @@ export function parseProposedR(value: string): number | null {
   return /^\d+(?:\.\d+)?$/.test(text) ? Number(text) : NaN;
 }
 const numeric = (value: string) => value.trim() ? Number(value.replace(/[$,\s]/g, "")) : null;
-export function removalPayload(input: RemovalInput, quoted: boolean): RemovalQuote {
+/** Removal is a SITE fact (Jo 20 Oct): an attended visit keeps the answer/area even with no quote; only the charge needs a quote. */
+export function removalPayload(input: RemovalInput, quoted: boolean, visited = false): RemovalQuote {
+  if (!quoted && visited) return input.answer === "yes" ? { answer: "yes", areaM2: numeric(input.area), chargeIncGst: null } : { answer: input.answer, areaM2: null, chargeIncGst: null };
   if (!quoted || input.answer !== "yes") return { answer: quoted ? input.answer : "unknown", areaM2: null, chargeIncGst: null };
   return { answer: "yes", areaM2: numeric(input.area), chargeIncGst: numeric(input.charge) };
 }
-export function removalProblems(r: RemovalQuote, insulation: string | null, ceiling: number | null, total: number | null): string[] {
+export function removalProblems(r: RemovalQuote, insulation: string | null, ceiling: number | null, total: number | null, chargeRequired = true): string[] {
   if (r.answer !== "yes") return [];
   const errors: string[] = [];
   if (insulation === "none") errors.push("Removal cannot be included when existing insulation is None. Correct one of these answers.");
   if (r.areaM2 == null || !Number.isFinite(r.areaM2) || r.areaM2 <= 0 || r.areaM2 > 5000 || (ceiling != null && r.areaM2 > ceiling)) errors.push("Enter the removal area within the ceiling area (m²).");
-  if (r.chargeIncGst == null || !Number.isFinite(r.chargeIncGst) || r.chargeIncGst < 0 || r.chargeIncGst > 1_000_000 || (total != null && r.chargeIncGst > total)) errors.push("Enter the removal charge already included in your quote inc GST, or 0 for no separate charge.");
+  if (chargeRequired && r.chargeIncGst == null) errors.push("Enter the removal charge already included in your quote inc GST, or 0 for no separate charge.");
+  else if (r.chargeIncGst != null && ( !Number.isFinite(r.chargeIncGst) || r.chargeIncGst < 0 || r.chargeIncGst > 1_000_000 || (total != null && r.chargeIncGst > total))) errors.push("Enter the removal charge already included in your quote inc GST, or 0 for no separate charge.");
   return errors;
 }
 export function removalSummary(r: RemovalQuote): string {

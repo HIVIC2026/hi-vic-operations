@@ -63,7 +63,7 @@ describe("3) Your turn only for the signed-in trade's own action", () => {
 describe("4) recovered receipt from canonical current state", () => {
   const st = { coordination: "hivic_managed" as const, insulation: "below_r2" as const, electricianPayer: "hivic" as const, feeAwarenessRecorded: true, feeAwarenessPayer: "hivic" as const };
   test("quoted + current declaration for current payer: not held", () => {
-    expect(recoveredIntakeReceipt(st, "have_quote")).toEqual({ quoted: true, feeHeld: false, insulation: "below_r2", next: intakeNextAction("hivic_managed", true) });
+    expect(recoveredIntakeReceipt(st, "have_quote")).toEqual({ quoted: true, attended: null, feeHeld: false, insulation: "below_r2", next: intakeNextAction("hivic_managed", true) });
   });
   test("after a payer change the old declaration is stale (state says not recorded): held", () => {
     expect(recoveredIntakeReceipt({ ...st, electricianPayer: "own", feeAwarenessRecorded: false }, "have_quote").feeHeld).toBe(true);

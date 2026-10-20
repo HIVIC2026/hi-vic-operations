@@ -28,8 +28,9 @@ export type IntakeInput = {
   insulation: ExistingInsulation | null; quoteFileCount: number; evidenceAck: boolean;
   /** null = not chosen yet. Omitted (legacy callers) = "have_quote". */
   quoteStatus?: QuoteStatus | null;
-  /** New intake "Yes, measured and quoted": area + insulation required. Later edits leave them optional. */
+  /** New intake: an attended visit (or a quote not marked unvisited) needs area + insulation. Later edits leave them optional. */
   requireMeasured?: boolean;
+  attended?: AttendanceAnswer | null;
 };
 
 const num = (s: string) => { const t = s.trim(); if (!t) return null; const n = Number(t.replace(/[$,\sRr]/g, "")); return Number.isFinite(n) ? n : NaN; };
@@ -48,7 +49,7 @@ export function intakeProblems(i: IntakeInput): string[] {
   if (!qs) out.push("Choose the quote status");
   if (qs === "have_quote") {
     // "Yes, measured and quoted": the measured area and existing insulation are required (Jo, 9 Oct).
-    if (i.requireMeasured) {
+    if (i.requireMeasured && i.attended !== "not_attended") {
       if (area == null) out.push("Enter the measured ceiling area (m²)");
       if (!i.insulation) out.push("Choose the existing insulation");
     }
@@ -57,8 +58,11 @@ export function intakeProblems(i: IntakeInput): string[] {
     if (amount != null && (Number.isNaN(amount) || amount <= 0 || amount > 1_000_000)) out.push("Check the quote amount inc GST");
     else if (!manual && i.quoteFileCount === 0) out.push("Upload your quote or enter the quote amount inc GST");
     if (manual && !i.includes.trim()) out.push("Tell us what the quote includes");
-    const r = parseProposedR(i.proposedR);
-    if (r != null && (Number.isNaN(r) || r <= 0 || r > 10)) out.push("Check the proposed product R-rating");
+  }
+  { const r = parseProposedR(i.proposedR); if (r != null && (Number.isNaN(r) || r <= 0 || r > 10)) out.push("Check the proposed product R-rating"); }
+  if (i.requireMeasured && i.attended === "attended" && qs !== "have_quote") {
+    if (area == null) out.push("Enter the measured ceiling area (m²)");
+    if (!i.insulation) out.push("Choose the existing insulation");
   }
   if (!i.evidenceAck) out.push("Tick that all required evidence must be supplied and accepted before the rebate");
   return out;
@@ -74,9 +78,10 @@ export function intakeArea(s: string): number | null {
  * "have quote, amount from file" — quoted stays null (the DB requires a positive amount for quoted = yes).
  */
 export function intakeQuotePayload(i: { quoteStatus: QuoteStatus | null; amount: string; includes: string; proposedR: string }) {
-  if (i.quoteStatus !== "have_quote") return { quoted: i.quoteStatus === "not_quoted" ? "no" as const : null, quoted_price_inc_gst: null, price_includes: null, proposed_r_value: null };
-  const a = num(i.amount); const amount = a != null && !Number.isNaN(a) && a > 0 ? a : null;
   const r = parseProposedR(i.proposedR); const proposed = r != null && !Number.isNaN(r) && r > 0 && r <= 10 ? r : null;
+  // The proposed product is a site/scope fact, kept whatever the quote status (Jo, 20 Oct).
+  if (i.quoteStatus !== "have_quote") return { quoted: i.quoteStatus === "not_quoted" ? "no" as const : null, quoted_price_inc_gst: null, price_includes: null, proposed_r_value: proposed };
+  const a = num(i.amount); const amount = a != null && !Number.isNaN(a) && a > 0 ? a : null;
   return { quoted: amount ? "yes" as const : null, quoted_price_inc_gst: amount, price_includes: amount ? i.includes.trim() || null : null, proposed_r_value: proposed };
 }
 
@@ -297,7 +302,22 @@ export const COORDINATION_CHOICES: { value: Coordination; title: string; badge?:
 export const INSTALLER_CONTACT_PERMISSION = "The owner has given permission for Home Insulation Victoria to contact them to check eligibility and discuss this job.";
 export const MEASURED_QUOTED_QUESTION = "Have you measured and quoted this job?";
 export const MEASURED_QUOTED_CHOICES: { value: QuoteStatus; label: string }[] = [{ value: "have_quote", label: "Yes" }, { value: "not_quoted", label: "No" }];
-export const NOT_MEASURED_NOTE = "That’s fine — we’ll save the job now. Add your measurements and quote on this same job when ready.";
+// Jo, 20 Oct 2026 ("Ok fix"): attendance and quote are two independent answers. Unanswered stays null (unknown).
+export type AttendanceAnswer = "attended" | "not_attended";
+export const ATTENDED_QUESTION = "Have you attended and assessed this property?";
+export const ATTENDED_CHOICES: { value: AttendanceAnswer; label: string }[] = [{ value: "attended", label: "Yes" }, { value: "not_attended", label: "No" }];
+export const QUOTE_PREPARED_QUESTION = "Have you prepared a quote?";
+export const QUOTE_PREPARED_CHOICES: { value: QuoteStatus; label: string }[] = [{ value: "have_quote", label: "Yes" }, { value: "not_quoted", label: "Not yet" }];
+export const PRELIMINARY_QUOTE_NOTE = "Without a site visit your quote is a preliminary estimate. An onsite Ready Check is still required.";
+/** jobs.installer_site_check <-> attendance. Never derived from price, area or files. */
+export const attendanceFromSiteCheck = (v: string | null | undefined): AttendanceAnswer | null => v === "yes" ? "attended" : v === "no" ? "not_attended" : null;
+export const siteCheckFromAttendance = (a: AttendanceAnswer | null | undefined): "yes" | "no" | null => a === "attended" ? "yes" : a === "not_attended" ? "no" : null;
+/** Visit date: only an explicit valid past/today date; never invented as today. */
+export function attendedOnDate(a: AttendanceAnswer | null | undefined, date: string | null | undefined, today: string): string | null {
+  if (a !== "attended" || !date || !/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date))) return null;
+  return date <= today ? date : null;
+}
+export const NOT_MEASURED_NOTE = "That’s fine — we’ll save the job now. Add your quote on this same job when ready.";
 /** Who arranges/pays the electrician on an installer-supplied job (separate from who manages the job). */
 export type ElectricianPayer = "hivic" | "own" | "undecided";
 export const ELECTRICIAN_PAYER_CHOICES: { value: ElectricianPayer; label: string; body: string }[] = [
@@ -316,7 +336,11 @@ export function payerFromChoice(choice: string | null | undefined): ElectricianP
   return "undecided";
 }
 /** Next action for an installer-supplied job by route x measured/quoted. */
-export function intakeNextAction(c: Coordination | null, quoted: boolean): string {
+export function intakeNextAction(c: Coordination | null, quoted: boolean, attended?: AttendanceAnswer | null): string {
+  if (attended === "attended" && !quoted) return c === "self_managed"
+    ? "Finish your assessment and add your quote on this job. Home Insulation Victoria checks the owner's eligibility."
+    : "Finish your assessment and add your quote on this job. Home Insulation Victoria checks the owner's eligibility — no second visit is booked automatically.";
+  if (attended === "not_attended" && quoted) return "Your quote is a preliminary estimate. Home Insulation Victoria checks the owner's eligibility; an onsite Ready Check is still required.";
   if (quoted) return "Home Insulation Victoria checks the owner's eligibility, then prepares the owner quote.";
   return c === "self_managed"
     ? "Home Insulation Victoria checks the owner's eligibility. Then measure and quote the job and add it here."
@@ -356,9 +380,10 @@ export function pickIntakeChanges(cur: IntakeCurrent, next: { areaM2: number | n
     if (next.quoteIncGst == null && !next.files.length && cur.quoteIncGst == null && cur.quoted !== "yes") { /* file may already be on the job */ }
   }
   if (q.quoted !== cur.quoted || q.quoteIncGst !== cur.quoteIncGst || q.includes !== (cur.includes ?? null)) out.quote = q;
-  const pr = next.quoteStatus === "not_quoted" ? null : next.proposedR;
+  // Proposed product is independent of the quote answer; blank keeps the known value (never cleared by "Not yet").
+  const pr = next.proposedR;
   if (pr != null && !(pr > 0 && pr <= 10)) throw new Error("Check the proposed product R-rating");
-  if (pr !== cur.proposedR) out.proposedR = pr;
+  if (pr != null && pr !== cur.proposedR) out.proposedR = pr;
   return out;
 }
 
@@ -400,20 +425,27 @@ export function resolveQuoteAnswer(events: { answer: unknown; at: string }[], in
  * Fields the initial Add job form actually applies: "Not measured or quoted" never serializes or validates hidden
  * area/quote facts typed earlier on the Yes branch (they stay in the draft only so switching back restores them).
  */
-export function applicableIntakeDetails<T extends { quoteStatus?: QuoteStatus | null; area: string; amount: string; includes: string; proposedR: string }>(d: T): T {
-  return d.quoteStatus === "have_quote" ? d : { ...d, area: "", amount: "", includes: "", proposedR: "" };
+export function applicableIntakeDetails<T extends { quoteStatus?: QuoteStatus | null; attended?: AttendanceAnswer | null; area: string; amount: string; includes: string; proposedR: string }>(d: T): T {
+  const quoted = d.quoteStatus === "have_quote";
+  // Site facts (area, product) belong to a visit OR a quote; never erased just because there is no price yet.
+  const siteFacts = quoted || d.attended === "attended";
+  return { ...d, ...(quoted ? {} : { amount: "", includes: "" }), ...(siteFacts ? {} : { area: "", proposedR: "" }) };
+}
+/** Which Add job branches are shown. Independent: attendance shows site facts, quote shows commercial facts. */
+export function intakeBranches(a: AttendanceAnswer | null | undefined, q: QuoteStatus | null | undefined) {
+  return { siteFacts: a === "attended" || q === "have_quote", quoteFacts: q === "have_quote", preliminary: a === "not_attended" && q === "have_quote", readyCheckTask: a !== "attended" };
 }
 
-export type RecoveredIntakeReceipt = { insulation: ExistingInsulation; quoted: boolean | null; next: string; feeHeld: boolean };
+export type RecoveredIntakeReceipt = { insulation: ExistingInsulation; quoted: boolean | null; attended?: AttendanceAnswer | null; next: string; feeHeld: boolean };
 /**
  * Receipt for an Add job that was saved but whose reply was lost, rebuilt from the job's CANONICAL current state
  * (installerIntakeState + resolved quote answer): current payer, fee declaration freshness, latest insulation.
  * Unknown quote status stays null; a fee hold is only cleared by a current declaration covering the current payer.
  */
-export function recoveredIntakeReceipt(st: { coordination: Coordination | null; insulation: ExistingInsulation | null; electricianPayer: ElectricianPayer; feeAwarenessRecorded: boolean; feeAwarenessPayer: ElectricianPayer | null }, quoteAnswer: QuoteStatus | null): RecoveredIntakeReceipt {
+export function recoveredIntakeReceipt(st: { coordination: Coordination | null; insulation: ExistingInsulation | null; electricianPayer: ElectricianPayer; feeAwarenessRecorded: boolean; feeAwarenessPayer: ElectricianPayer | null }, quoteAnswer: QuoteStatus | null, attended: AttendanceAnswer | null = null): RecoveredIntakeReceipt {
   const quoted = quoteAnswer === "have_quote" ? true : quoteAnswer === "not_quoted" ? false : null;
   const feeCovers = st.feeAwarenessRecorded && (st.feeAwarenessPayer ?? "hivic") === st.electricianPayer && st.electricianPayer !== "undecided";
-  return { insulation: st.insulation ?? "unknown", quoted, next: intakeNextAction(st.coordination, quoted === true), feeHeld: quoted !== false && !feeCovers };
+  return { insulation: st.insulation ?? "unknown", quoted, attended, next: intakeNextAction(st.coordination, quoted === true, attended), feeHeld: quoted !== false && !feeCovers };
 }
 
 /** Details editor: the own-electrician selection to send — only when the payer changes to own. */

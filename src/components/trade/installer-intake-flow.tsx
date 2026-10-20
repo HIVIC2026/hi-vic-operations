@@ -19,7 +19,7 @@ import { electricianPlanBlocker, usualElectrician, type ElectricianPlan } from "
 import type { OnsiteInput } from "@/lib/onsite-ready-check.core";
 import type { IntakeApi } from "./intake-preview-adapter";
 import { BUSY_LABEL, blankCustomer, customerProblems, restoreCustomer, saveErrorMessage } from "@/lib/add-job-flow.core";
-import { ELECTRICIAN_PAYER_CHOICES, FEE_AWARENESS_VERSION, INSTALLER_CONTACT_PERMISSION, MEASURED_QUOTED_CHOICES, MEASURED_QUOTED_QUESTION, NOT_MEASURED_NOTE, ORGANISE_QUESTION, feeAwarenessText, intakeNextAction, type ElectricianPayer } from "@/lib/installer-intake.core";
+import { ELECTRICIAN_PAYER_CHOICES, FEE_AWARENESS_VERSION, INSTALLER_CONTACT_PERMISSION, ATTENDED_CHOICES, ATTENDED_QUESTION, PRELIMINARY_QUOTE_NOTE, QUOTE_PREPARED_CHOICES, QUOTE_PREPARED_QUESTION, intakeBranches, type AttendanceAnswer, NOT_MEASURED_NOTE, ORGANISE_QUESTION, feeAwarenessText, intakeNextAction, type ElectricianPayer } from "@/lib/installer-intake.core";
 
 import { ProposedRField, RemovalQuoteFields } from "./intake-quote-fields";
 import { blankRemoval, removalPayload, removalProblems, removalSummary, type RemovalInput } from "@/lib/intake-quote-details.core";
@@ -37,7 +37,7 @@ import { COORDINATION_CHOICES, COORDINATION_VERSION, SELF_MANAGED_ACK, VEEC_NOTE
 // The server owns the draft id's files; consent and both acknowledgements are never stored or restored.
 const resumeKey = (userId: string, businessId: string) => `hiv-intake:${userId}:${businessId}`;
 const LEGACY_KEYS = (businessId: string) => ["hiv-intake-draft", `hiv-intake-draft:${businessId}`, `hiv-intake-draft-id:${businessId}`];
-type Details = { area: string; amount: string; includes: string; proposedR: string; insulation: ExistingInsulation | null; quoteStatus?: QuoteStatus | null; removal?: RemovalInput };
+type Details = { area: string; amount: string; includes: string; proposedR: string; insulation: ExistingInsulation | null; quoteStatus?: QuoteStatus | null; attended?: AttendanceAnswer | null; attendedOn?: string; removal?: RemovalInput };
 
 /** `preview` swaps every server/storage call for a local adapter (no auth, saving or sending). */
 export function InstallerIntakeFlow({ businessId, preview }: { businessId: string; preview?: IntakeApi }) {
@@ -96,7 +96,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         if (raw) {
           const r = JSON.parse(raw) as { customer?: unknown; d?: Details; coord?: Coordination | null; draftId?: string | null; step?: AddJobStep; fileTexts?: Record<string, string>; derived?: Record<string, { path: string; value: string }>; typed?: string[]; payer?: ElectricianPayer | null; plan?: ElectricianPlan | null };
           if (r.customer) setCustomer(restoreCustomer(r.customer as never));
-          if (r.d) setD({ area: r.d.area ?? "", amount: r.d.amount ?? "", includes: r.d.includes ?? "", proposedR: r.d.proposedR ?? "", insulation: r.d.insulation ?? null, quoteStatus: r.d.quoteStatus ?? null, ...(r.d.removal ? { removal: r.d.removal } : {}) });
+          if (r.d) setD({ area: r.d.area ?? "", amount: r.d.amount ?? "", includes: r.d.includes ?? "", proposedR: r.d.proposedR ?? "", insulation: r.d.insulation ?? null, quoteStatus: r.d.quoteStatus ?? null, attended: r.d.attended ?? null, attendedOn: r.d.attendedOn ?? "", ...(r.d.removal ? { removal: r.d.removal } : {}) });
           if (r.coord) setCoord(r.coord);
           if (r.payer) setPayer(r.payer);
           if (r.plan) setPlan(r.plan);
@@ -132,14 +132,16 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
   if (saved) return <Received saved={saved} preview={!!preview} />;
   if (!hydrated) return <div role="status" className="mt-3 space-y-2"><p>{restoreError ? "Your saved details could not load. Try again before continuing." : "Loading your saved details…"}</p>{restoreError && <Button onClick={() => { setRestoreError(false); setRestoreAttempt((n) => n + 1); }}>Retry</Button>}</div>;
 
+  const branches = intakeBranches(d.attended, d.quoteStatus);
   const live = applicableIntakeDetails(d); // hidden Yes-branch facts never validate or save when No is chosen
   const problems = (): string[] => {
     const c = customerProblems(customer);
     if (step === "customer") return c;
     const org = coordinationProblems(coord, selfAck);
     if (step === "organise") return org;
-    const p = intakeProblems({ ...live, quoteStatus: d.quoteStatus ?? null, quoteFileCount: files.length, evidenceAck: ack, requireMeasured: true }).map((x) => x === "Choose the quote status" ? "Choose whether you have measured and quoted this job" : x);
-    p.push(...removalProblems(removalPayload(d.removal ?? blankRemoval(), d.quoteStatus === "have_quote"), d.insulation, intakeArea(live.area), intakeQuotePayload({ ...live, quoteStatus: d.quoteStatus ?? null }).quoted_price_inc_gst));
+    const p = intakeProblems({ ...live, quoteStatus: d.quoteStatus ?? null, quoteFileCount: files.length, evidenceAck: ack, requireMeasured: true, attended: d.attended ?? null }).map((x) => x === "Choose the quote status" ? "Choose whether you have prepared a quote" : x);
+    if (!d.attended) p.unshift("Choose whether you have attended and assessed this property");
+    p.push(...removalProblems(removalPayload(d.removal ?? blankRemoval(), d.quoteStatus === "have_quote", d.attended === "attended"), d.insulation, intakeArea(live.area), intakeQuotePayload({ ...live, quoteStatus: d.quoteStatus ?? null }).quoted_price_inc_gst, d.quoteStatus === "have_quote"));
     if (!payer) p.push("Choose who arranges the electrician");
     else if (payer === "own") { const eb = electricianPlanBlocker(plan); if (eb) p.push(eb); }
     if (fileText && d.quoteStatus === "have_quote" && multiCustomerAmbiguity(fileText)) p.push("Your file names more than one customer — upload one customer's quote per job");
@@ -167,7 +169,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
   const submit = async () => {
     if (!hydrated || busy || fileFlight.current || inFlight.current) return; // double tap
     const p = problems(); setShown(p); setErr(null);
-    if (p.length || !d.quoteStatus || !coord || !payer) return;
+    if (p.length || !d.quoteStatus || !d.attended || !coord || !payer) return;
     inFlight.current = true; setBusy(true);
     try {
       const id = await ensureDraft();
@@ -179,12 +181,12 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         quoted_price_inc_gst: q.quoted_price_inc_gst,
         price_includes: q.price_includes,
         contact_permission: customer.contact_permission, owner_agreed: false,
-        intake: { existing_insulation: d.insulation ?? "unknown", evidence_ack: ack, proposed_r_value: q.proposed_r_value, quote_status: d.quoteStatus, version: `${INTAKE_RULESET_VERSION}+${COORDINATION_VERSION}`, coordination: coord, self_managed_ack: coord === "self_managed" && selfAck,
-          measured_required: true, electrician_payer: payer, ...(d.removal ? { removal_quote: removalPayload(d.removal, d.quoteStatus === "have_quote") } : {}),
+        intake: { existing_insulation: d.insulation ?? "unknown", evidence_ack: ack, proposed_r_value: q.proposed_r_value, quote_status: d.quoteStatus, attended: d.attended, attended_on: d.attended === "attended" && d.attendedOn ? d.attendedOn : null, version: `${INTAKE_RULESET_VERSION}+${COORDINATION_VERSION}`, coordination: coord, self_managed_ack: coord === "self_managed" && selfAck,
+          measured_required: true, electrician_payer: payer, ...(d.removal ? { removal_quote: removalPayload(d.removal, d.quoteStatus === "have_quote", d.attended === "attended") } : {}),
           ...(d.quoteStatus === "have_quote" && feeAck && feeText ? { fee_awareness: { declared: true, payer: payer, text: feeText, version: FEE_AWARENESS_VERSION } } : {}) },
       }, electrician: payer === "undecided" ? { mode: "later" } : payer === "own" && plan?.mode === "mine" ? { mode: "mine", business_id: plan.business_id ?? null, nomination_id: plan.nomination_id ?? null } : { mode: "hivic" } } as never });
       try { if (userId) localStorage.removeItem(resumeKey(userId, businessId)); } catch { /* ignore */ }
-      setSaved({ jobId: res.jobId, jobNumber: res.jobNumber ?? null, insulation: d.insulation ?? "unknown", quoted: d.quoteStatus === "have_quote", next: intakeNextAction(coord, d.quoteStatus === "have_quote"), feeHeld: d.quoteStatus === "have_quote" && !(feeAck && feeText) });
+      setSaved({ jobId: res.jobId, jobNumber: res.jobNumber ?? null, insulation: d.insulation ?? "unknown", quoted: d.quoteStatus === "have_quote", attended: d.attended ?? null, next: intakeNextAction(coord, d.quoteStatus === "have_quote", d.attended ?? null), feeHeld: d.quoteStatus === "have_quote" && !(feeAck && feeText) });
     } catch (e) { setErr(saveErrorMessage(e instanceof Error ? e.message : null)); }
     finally { setBusy(false); inFlight.current = false; }
   };
@@ -225,13 +227,21 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
 
       {step === "job" && <section className="space-y-4 rounded-[18px] border border-line bg-paper p-4" data-step-job>
         <p className="text-sm text-sub" data-job-lead>{JOB_DETAILS_LEAD}</p>
-        <fieldset data-measured-quoted><legend className="font-display text-lg font-bold">{MEASURED_QUOTED_QUESTION}</legend>
-          <div className="mt-2 grid grid-cols-2 gap-2" role="radiogroup" aria-label={MEASURED_QUOTED_QUESTION}>
-            {MEASURED_QUOTED_CHOICES.map((c) => <Button key={c.value} disabled={busy || fileBusy} size="field" role="radio" aria-checked={d.quoteStatus === c.value} variant={d.quoteStatus === c.value ? "default" : "outline"} onClick={() => setD({ ...d, quoteStatus: c.value })}>{c.label}</Button>)}
+        <fieldset data-attended><legend className="font-display text-lg font-bold">{ATTENDED_QUESTION}</legend>
+          <div className="mt-2 grid grid-cols-2 gap-2" role="radiogroup" aria-label={ATTENDED_QUESTION}>
+            {ATTENDED_CHOICES.map((c) => <Button key={c.value} disabled={busy || fileBusy} size="field" role="radio" aria-checked={d.attended === c.value} variant={d.attended === c.value ? "default" : "outline"} onClick={() => setD({ ...d, attended: c.value })}>{c.label}</Button>)}
+          </div>
+          {d.attended === "not_attended" && <p className="mt-2 text-sm text-sub" data-not-attended-note>That’s fine — we’ll save the job and a Ready Check will be needed.</p>}
+          {d.attended === "attended" && <label className="mt-2 block text-sm font-bold">Date of the visit<span className="block text-xs font-normal text-sub">Optional — leave blank if unsure</span><Input type="date" className="mt-1 h-12" max={new Date().toISOString().slice(0, 10)} value={d.attendedOn ?? ""} onChange={(e) => setD({ ...d, attendedOn: e.target.value })} /></label>}
+        </fieldset>
+        <fieldset data-measured-quoted><legend className="font-display text-lg font-bold">{QUOTE_PREPARED_QUESTION}</legend>
+          <div className="mt-2 grid grid-cols-2 gap-2" role="radiogroup" aria-label={QUOTE_PREPARED_QUESTION}>
+            {QUOTE_PREPARED_CHOICES.map((c) => <Button key={c.value} disabled={busy || fileBusy} size="field" role="radio" aria-checked={d.quoteStatus === c.value} variant={d.quoteStatus === c.value ? "default" : "outline"} onClick={() => setD({ ...d, quoteStatus: c.value })}>{c.label}</Button>)}
           </div>
           {d.quoteStatus === "not_quoted" && <p className="mt-2 text-sm text-sub" data-not-measured-note>{NOT_MEASURED_NOTE}</p>}
+          {branches.preliminary && <p className="mt-2 text-sm text-sub" data-preliminary-note>{PRELIMINARY_QUOTE_NOTE}</p>}
         </fieldset>
-        {d.quoteStatus === "have_quote" && <div className="space-y-4" data-measured-branch>
+        {branches.siteFacts && <div className="space-y-4" data-measured-branch>
         <label className="block text-sm font-bold">Measured ceiling area (m²)<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 120" value={d.area} onChange={(e) => { typed.current.add("area"); setD({ ...d, area: e.target.value }); }} /></label>
         <fieldset data-existing-insulation><legend className="text-sm font-bold">Existing insulation</legend>
           <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Existing insulation">
@@ -239,6 +249,10 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
           </div>
           {d.insulation === "unknown" && <p className="mt-1 text-xs text-sub">You can submit. The owner quote waits until the existing insulation is confirmed as none or below R2.0.</p>}
         </fieldset>
+        <ProposedRField value={d.proposedR} disabled={busy || fileBusy} onChange={(v) => { typed.current.add("proposedR"); setD({ ...d, proposedR: v }); }} />
+        <RemovalQuoteFields value={d.removal ?? blankRemoval()} disabled={busy || fileBusy} onChange={(removal) => setD({ ...d, removal })} />
+        </div>}
+        {branches.quoteFacts && <div className="space-y-4" data-quote-branch>
         <AttachFiles businessId={businessId} files={files} disabled={busy} onBusyChange={fileBusyChange} label="Upload your quote" onAdd={async (picked) => {
           const failures: string[] = [];
           for (const f of picked) {
@@ -281,8 +295,6 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         <label className="block text-sm font-bold">Total installer quote inc GST<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 3,450" value={d.amount} onChange={(e) => { typed.current.add("amount"); setD({ ...d, amount: e.target.value }); }} /></label>
         <p className="text-xs text-sub">Include any removal charge in this total.</p>
         <label className="block text-sm font-bold">What the quote includes<Textarea className="mt-1" rows={3} maxLength={1000} value={d.includes} onChange={(e) => { typed.current.add("includes"); setD({ ...d, includes: e.target.value }); }} /></label>
-        <ProposedRField value={d.proposedR} disabled={busy || fileBusy} onChange={(v) => { typed.current.add("proposedR"); setD({ ...d, proposedR: v }); }} />
-        <RemovalQuoteFields value={d.removal ?? blankRemoval()} disabled={busy || fileBusy} onChange={(removal) => setD({ ...d, removal })} />
         </div>}
         <p className="pt-1 text-xs font-bold uppercase tracking-wide text-sub" data-section-electrician>Electrician & owner fees</p>
         <fieldset data-electrician-payer><legend className="text-sm font-bold">Electrician (PIESA)</legend>
@@ -301,13 +313,14 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         <Summary title="Customer" disabled={busy || fileBusy} onEdit={() => setStep("customer")} rows={[customer.full_name, [customer.address_line, customer.suburb, customer.postcode].filter(Boolean).join(", "), customer.phone, customer.email, "Permission to contact given"]} />
         <Summary title="Organise" disabled={busy || fileBusy} onEdit={() => setStep("organise")} rows={[coord === "self_managed" ? "I’ll manage the job myself (responsibility acknowledged)" : "Home Insulation Victoria manages the process"]} />
         <Summary title="Job" disabled={busy || fileBusy} onEdit={() => setStep("job")} rows={[
-          d.quoteStatus === "not_quoted" ? "Not measured or quoted yet" : intakeArea(d.area) ? `Ceiling ${d.area} m²` : "Ceiling area: not measured yet", `Existing insulation: ${EXISTING_INSULATION_CHOICES.find((c) => c.value === (d.insulation ?? "unknown"))?.label ?? "Not yet confirmed"}`,
-          ...(d.quoteStatus === "not_quoted" ? ["Quote: not quoted yet"] : [d.amount ? `Quote $${d.amount.replace(/^\$/, "")} inc GST` : "Quote amount from your uploaded file", d.includes ? `Includes: ${d.includes}` : "", d.proposedR ? `Proposed product ${/^r/i.test(d.proposedR) ? d.proposedR : `R${d.proposedR}`}` : ""]),
-          ...(d.quoteStatus === "have_quote" ? [removalSummary(removalPayload(d.removal ?? blankRemoval(), true))] : []),
+          d.attended === "attended" ? `Attended and assessed${d.attendedOn ? ` on ${d.attendedOn}` : " (date not given)"}` : "Not attended yet — Ready Check required",
+          !branches.siteFacts ? "Not measured yet" : intakeArea(d.area) ? `Ceiling ${d.area} m²` : "Ceiling area: not measured yet", `Existing insulation: ${EXISTING_INSULATION_CHOICES.find((c) => c.value === (d.insulation ?? "unknown"))?.label ?? "Not yet confirmed"}`,
+          ...(d.quoteStatus === "not_quoted" ? ["Quote: not prepared yet", d.proposedR && branches.siteFacts ? `Proposed product ${/^r/i.test(d.proposedR) ? d.proposedR : `R${d.proposedR}`}` : ""] : [branches.preliminary ? "Quote: preliminary estimate (no site visit yet)" : "", d.amount ? `Quote $${d.amount.replace(/^\$/, "")} inc GST` : "Quote amount not confirmed — from your uploaded file", d.includes ? `Includes: ${d.includes}` : "", d.proposedR ? `Proposed product ${/^r/i.test(d.proposedR) ? d.proposedR : `R${d.proposedR}`}` : ""]),
+          ...(branches.siteFacts && d.removal ? [removalSummary(removalPayload(d.removal, d.quoteStatus === "have_quote", d.attended === "attended"))] : []),
           `${files.length} file${files.length === 1 ? "" : "s"} attached`, `Electrician: ${elName}`, ...(d.quoteStatus === "have_quote" ? [feeAck && feeText ? "Owner fees advised (declared)" : "Owner fees: not declared yet — owner quote waits"] : []),
         ]} />
         <label className="flex items-start gap-3 text-sm" data-evidence-ack><Checkbox className="mt-0.5" checked={ack} onCheckedChange={(c) => setAck(c === true)} aria-label={EVIDENCE_ACK} /><span>{EVIDENCE_ACK}</span></label>
-        <div className="rounded-[12px] border border-line p-3" data-next-step><p className="text-xs font-bold uppercase tracking-wide text-sub">What happens next</p><p className="mt-1 text-sm">Nothing is sent or booked when you submit. {intakeNextAction(coord, d.quoteStatus === "have_quote")}</p></div>
+        <div className="rounded-[12px] border border-line p-3" data-next-step><p className="text-xs font-bold uppercase tracking-wide text-sub">What happens next</p><p className="mt-1 text-sm">Nothing is sent or booked when you submit. {intakeNextAction(coord, d.quoteStatus === "have_quote", d.attended ?? null)}</p></div>
       </section>}
 
       {shown.length > 0 && <ul ref={problemsRef} tabIndex={-1} role="alert" className="space-y-1 rounded-[12px] border border-danger/40 bg-paper p-3 text-sm text-danger outline-none" data-step-problems>{shown.map((p) => <li key={p}>{p}</li>)}</ul>}
@@ -330,7 +343,7 @@ function Summary({ title, rows, onEdit, disabled }: { title: string; rows: strin
   </div>;
 }
 
-type Saved = { jobId: string; jobNumber: string | null; insulation: ExistingInsulation; quoted?: boolean | null; next?: string; feeHeld?: boolean };
+type Saved = { jobId: string; jobNumber: string | null; insulation: ExistingInsulation; quoted?: boolean | null; attended?: AttendanceAnswer | null; next?: string; feeHeld?: boolean };
 function Received({ saved, preview = false }: { saved: Saved; preview?: boolean }) {
   const get = useServerFn(getMyIntakeReadyCheck);
   const { data } = useQuery({ queryKey: ["intake-rc", saved.jobId], queryFn: () => get({ data: { jobId: saved.jobId } }), retry: false, enabled: !preview });
@@ -350,8 +363,9 @@ function Received({ saved, preview = false }: { saved: Saved; preview?: boolean 
       <h2 className="font-display text-xl font-bold">Job received</h2>
       <p className="text-sm" data-received-next>{saved.next ?? "Home Insulation Victoria checks the owner's eligibility next."} Nobody has been contacted and nothing is booked yet.</p>
       {saved.feeHeld && <p className="text-sm font-semibold" data-fee-held>The owner quote waits until you confirm the owner has been advised of the fees — you can do this on the job.</p>}
+      <p className="text-sm" data-attendance-saved>Site visit: {saved.attended === "attended" ? "attended and assessed" : saved.attended === "not_attended" ? "not attended yet — Ready Check required" : "not answered yet"}</p>
       {saved.quoted === null && <p className="text-sm font-semibold" data-quote-unknown>Quote status: not answered yet — answer it on the job.</p>}
-      {!saved.quoted && <p className="text-sm font-semibold" data-add-when-ready>Add your measurements and quote on this job when ready.</p>}
+      {saved.quoted === false && <p className="text-sm font-semibold" data-add-when-ready>{saved.attended === "attended" ? "Your measurements are saved. Add your quote on this job when ready." : "Add your measurements and quote on this job when ready."}</p>}
       {saved.quoted && saved.insulation === "unknown" && <p className="text-sm font-semibold">The owner quote waits until the existing insulation is confirmed as none or below R2.0.</p>}
       {data?.coordination && <p className="text-sm" data-coordination-saved>Organised by: {data.coordination === "self_managed" ? "you" : "Home Insulation Victoria"}</p>}
       {data && <p className="text-sm" data-rc-outstanding>Ready Check: {data.readyCheck.outstandingCount} item{data.readyCheck.outstandingCount === 1 ? "" : "s"} outstanding</p>}

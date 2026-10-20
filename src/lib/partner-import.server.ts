@@ -10,7 +10,7 @@ import { requireApprovedPartner, requireMember } from "./pilot.server";
 export type CreateImportInput = { businessId: string; sourceSystem: "easymate" | "manual_import" | "csv" | "email"; text?: undefined | string; csv?: undefined | string; csvRow: number; sourceUrl?: undefined | string; externalRefs?: undefined | Record<string, string>; files: { path: string; name: string; type: string }[] };
 export type ConfirmImportInput = { importId: string; facts: Record<string, string | number | boolean | null>; progress?: undefined | "not_visited" | "measured" | "quoted"; occupancy?: undefined | "owner_occupied" | "rental"; details?: undefined | Record<string, unknown>;
   installer?: undefined | { quoted?: undefined | "yes" | "no" | null; site_check: "yes" | "no"; site_check_date?: undefined | string | null; quoted_price_inc_gst?: undefined | number | null; price_includes?: undefined | string | null; contact_permission?: undefined | boolean; fee_awareness?: undefined | boolean; existing_below_r2?: undefined | boolean; owner_agreed?: undefined | boolean;
-    intake?: undefined | { existing_insulation: "none" | "below_r2" | "unknown"; removal_quote?: RemovalQuote | undefined; evidence_ack: boolean; proposed_r_value?: undefined | number | null; version: string; coordination: "hivic_managed" | "self_managed"; self_managed_ack: boolean; quote_status?: undefined | "not_quoted" | "have_quote"; measured_required?: undefined | boolean; electrician_payer?: undefined | "hivic" | "own" | "undecided"; fee_awareness?: undefined | { declared: boolean; payer: "hivic" | "own" | "undecided"; text: string; version: string } } };
+    intake?: undefined | { existing_insulation: "none" | "below_r2" | "unknown"; removal_quote?: RemovalQuote | undefined; evidence_ack: boolean; proposed_r_value?: undefined | number | null; version: string; coordination: "hivic_managed" | "self_managed"; self_managed_ack: boolean; quote_status?: undefined | "not_quoted" | "have_quote"; attended?: undefined | "attended" | "not_attended" | null; attended_on?: undefined | string | null; measured_required?: undefined | boolean; electrician_payer?: undefined | "hivic" | "own" | "undecided"; fee_awareness?: undefined | { declared: boolean; payer: "hivic" | "own" | "undecided"; text: string; version: string } } };
   electrician?: undefined | { mode: "mine" | "hivic" | "later"; business_id?: undefined | string | null; nomination_id?: undefined | string | null } };
 
 export async function createImportFor(userId: string, data: CreateImportInput) {
@@ -103,9 +103,11 @@ export async function confirmClaimed(userId: string, data: ConfirmImportInput, i
     const qs = intake.quote_status ?? "have_quote";
     if (c.measured_area_m2 != null && c.measured_area_m2 !== "") { const a0 = Number(c.measured_area_m2); if (!Number.isFinite(a0) || a0 <= 0 || a0 > 5000) blockers.push("Check the ceiling area (m²)"); }
     else c.measured_area_m2 = null;
+    const visited = intake.attended === "attended";
     if (qs === "not_quoted") {
+      // Not quoted clears only commercial facts. Measured area, proposed product and removal facts from a visit stay (Jo, 20 Oct).
       if (data.installer) { data.installer.quoted = "no"; data.installer.quoted_price_inc_gst = null; data.installer.price_includes = null; }
-      intake.proposed_r_value = null;
+      if (!visited) { intake.proposed_r_value = null; c.measured_area_m2 = null; }
     } else {
       const amt = data.installer?.quoted_price_inc_gst;
       if (!(amt && amt > 0) && files0.length === 0) blockers.push("Upload your quote or enter the quote amount inc GST");
@@ -115,10 +117,11 @@ export async function confirmClaimed(userId: string, data: ConfirmImportInput, i
       else if (data.installer) data.installer.quoted = "yes";
     }
     const removal = readRemoval(intake.removal_quote);
-    if (removal) { if (qs === "not_quoted") intake.removal_quote = { answer: "unknown", areaM2: null, chargeIncGst: null }; else blockers.push(...removalProblems(removal, intake.existing_insulation, c.measured_area_m2 == null ? null : Number(c.measured_area_m2), data.installer?.quoted_price_inc_gst ?? null)); }
+    if (removal) { if (qs === "not_quoted" && visited) { intake.removal_quote = { ...removal, chargeIncGst: null }; blockers.push(...removalProblems(intake.removal_quote, intake.existing_insulation, c.measured_area_m2 == null ? null : Number(c.measured_area_m2), null, false)); }
+      else if (qs === "not_quoted") intake.removal_quote = { answer: "unknown", areaM2: null, chargeIncGst: null }; else blockers.push(...removalProblems(removal, intake.existing_insulation, c.measured_area_m2 == null ? null : Number(c.measured_area_m2), data.installer?.quoted_price_inc_gst ?? null)); }
     { const { coordinationProblems } = await import("./installer-intake.core"); blockers.push(...coordinationProblems(intake.coordination, intake.self_managed_ack)); }
     // Jo, 9 Oct: "Yes, measured and quoted" requires the measured area and existing insulation; "No" saves nulls.
-    if (intake.measured_required && qs === "have_quote") {
+    if (intake.measured_required && (visited || (qs === "have_quote" && intake.attended !== "not_attended"))) {
       if (c.measured_area_m2 == null) blockers.push("Enter the measured ceiling area (m²)");
       if (!intake.existing_insulation || intake.existing_insulation === "unknown") { /* "Not yet confirmed" is a valid answer */ }
     }
@@ -174,8 +177,10 @@ export async function confirmClaimed(userId: string, data: ConfirmImportInput, i
   const inst = data.installer;
   chk(await admin.from("jobs").update(inst ? {
     // Single intake never asks whether the installer visited: record unknown (null), never an assumed visit.
-    installer_site_check: intake ? null : inst.site_check,
-    installer_site_check_date: !intake && inst.site_check === "yes" ? inst.site_check_date ?? null : null,
+    // Single intake records ONLY the installer's explicit attendance answer; unanswered stays null (unknown).
+    installer_site_check: intake ? (intake.attended === "attended" ? "yes" : intake.attended === "not_attended" ? "no" : null) : inst.site_check,
+    installer_site_check_date: intake ? (intake.attended === "attended" ? (await import("./installer-intake.core")).attendedOnDate("attended", intake.attended_on, new Date().toISOString().slice(0, 10)) : null)
+      : inst.site_check === "yes" ? inst.site_check_date ?? null : null,
     installer_quoted: inst.quoted ?? null,
     installer_quoted_price_inc_gst: inst.quoted === "yes" ? inst.quoted_price_inc_gst ?? null : null, installer_price_includes: inst.quoted === "yes" && inst.quoted_price_inc_gst ? inst.price_includes || null : null,
   } : {
@@ -193,7 +198,8 @@ export async function confirmClaimed(userId: string, data: ConfirmImportInput, i
   const { data: ws } = await admin.from("workflow_settings").select("measurement_standard_approved").limit(1).maybeSingle();
   const { data: pm } = await admin.from("partner_measurement_methods").select("id").eq("business_id", imp.business_id).eq("status", "approved").order("approved_at", { ascending: false }).limit(1).maybeSingle();
   // "Not visited yet": the rough size is only the estimate; no measure-up is recorded and the Ready Check is next.
-  const m = !intake && (data.progress === "not_visited" || data.installer?.site_check === "no") ? null : planImportedMeasurement(c, imp.id, { businessId: imp.business_id, standardApproved: !!ws?.measurement_standard_approved && !!pm });
+  // Not visited: any size is only a preliminary estimate (kept on the attendance event), never a measure-up.
+  const m = (intake && intake.attended === "not_attended") || (!intake && (data.progress === "not_visited" || data.installer?.site_check === "no")) ? null : planImportedMeasurement(c, imp.id, { businessId: imp.business_id, standardApproved: !!ws?.measurement_standard_approved && !!pm });
   const { count: haveM } = m ? await admin.from("ceiling_measurements").select("id", { count: "exact", head: true }).eq("job_id", res.job_id).eq("external_id", imp.id) : { count: 0 };
   if (m && !haveM) {
     chk(await admin.from("ceiling_measurements").update({ is_current: false }).eq("job_id", res.job_id).eq("is_current", true), "Measurement");
@@ -226,7 +232,8 @@ export async function confirmClaimed(userId: string, data: ConfirmImportInput, i
       await once("installer_coordination_chosen", async () => logEvent(res.job_id, userId, "installer_coordination_chosen", intake.coordination === "self_managed" ? "Installer will organise the job themselves (AP checks, notices, evidence review and final approval still apply)" : "Home Insulation Victoria manages the process through the normal workflow", { import_id: data.importId, coordination: intake.coordination, version: ic.COORDINATION_VERSION, chosen_at: new Date().toISOString(), self_managed_ack: intake.coordination === "self_managed" ? { wording: ic.SELF_MANAGED_ACK, acknowledged: true } : null }, { internal: true })); }
     if (intake.fee_awareness?.declared) await once("installer_owner_fee_awareness", async () => logEvent(res.job_id, userId, "installer_owner_fee_awareness", intake.fee_awareness!.payer === "own" ? "Installer declared the owner was advised of the $349 AP management fee and that their own electrician invoices them separately" : "Installer declared the owner was advised of the $349 PIESA fee and $349 AP management fee", { import_id: data.importId, by: "installer", source: "installer_add_job", payer: intake.fee_awareness!.payer, wording: intake.fee_awareness!.text, version: intake.fee_awareness!.version, confirmed_at: new Date().toISOString(), not_owner_paperwork: true }, { internal: true }));
     if (intake.electrician_payer) await once("installer_electrician_payer", async () => logEvent(res.job_id, userId, "installer_electrician_payer", intake.electrician_payer === "own" ? "Installer will use their own electrician — electrician invoices the owner directly; Home Insulation Victoria's $349 PIESA fee excluded (provisional arrangement; office verifies electrician, PIESA, conditions, evidence and notices)" : intake.electrician_payer === "hivic" ? "Home Insulation Victoria arranges the electrician ($349 PIESA fee on the owner quote)" : "Electrician to be arranged — owner quote held until the electrician cost is known", { import_id: data.importId, payer: intake.electrician_payer }, { internal: true }));
-    await once("installer_quote_answer", async () => logEvent(res.job_id, userId, "installer_quote_answer", (intake.quote_status ?? "have_quote") === "have_quote" ? "Installer answered: measured and quoted" : "Installer answered: not measured or quoted yet", { answer: intake.quote_status ?? "have_quote", import_id: data.importId, source: "intake" }, { internal: true }));
+    if (intake.attended === "attended" || intake.attended === "not_attended") await once("installer_attendance_answer", async () => logEvent(res.job_id, userId, "installer_attendance_answer", intake.attended === "attended" ? "Installer answered: attended and assessed the property" : "Installer answered: not attended yet — Ready Check required", { answer: intake.attended, attended_on: intake.attended === "attended" ? (await import("./installer-intake.core")).attendedOnDate("attended", intake.attended_on, new Date().toISOString().slice(0, 10)) : null, reported_by: userId, source: "intake", import_id: data.importId, preliminary_area_m2: intake.attended === "not_attended" ? (c.measured_area_m2 == null ? null : Number(c.measured_area_m2)) : null }, { internal: true }));
+    await once("installer_quote_answer", async () => logEvent(res.job_id, userId, "installer_quote_answer", (intake.quote_status ?? "have_quote") === "have_quote" ? "Installer answered: quote prepared" : "Installer answered: quote not prepared yet", { answer: intake.quote_status ?? "have_quote", import_id: data.importId, source: "intake" }, { internal: true }));
     if (intake.removal_quote) await once("installer_quote_removal_declared", async () => logEvent(res.job_id, userId, "installer_quote_removal_declared", removalSummary(intake.removal_quote as RemovalQuote), { import_id: data.importId, removal_quote: intake.removal_quote, source: "installer_add_job", verified: false, included_in_total: true }, { internal: true }));
     await once("installer_evidence_acknowledged", async () => logEvent(res.job_id, userId, "installer_evidence_acknowledged", "Installer acknowledged all required Ready Check and installation evidence must be supplied and accepted before the rebate", { import_id: data.importId, wording: (await import("./installer-intake.core")).EVIDENCE_ACK, version: intake.version, proposed_r_value: intake.proposed_r_value ?? null, acknowledged_at: new Date().toISOString() }, { internal: true }));
   } else {
@@ -286,7 +293,9 @@ export async function getImportDraftFor(userId: string, importId: string, busine
     // Lost reply / refresh: rebuild the receipt from the job's canonical CURRENT state (payer, fee freshness, insulation).
     const m = await import("./installer-intake.server");
     const [st, answers] = await Promise.all([m.installerIntakeState(imp.job_id), m.intakeQuoteAnswers([imp.job_id])]);
-    receipt = (await import("./installer-intake.core")).recoveredIntakeReceipt(st, answers.get(imp.job_id) ?? null);
+    const { data: sj } = await admin.from("jobs").select("installer_site_check").eq("id", imp.job_id).maybeSingle();
+    const ic = await import("./installer-intake.core");
+    receipt = ic.recoveredIntakeReceipt(st, answers.get(imp.job_id) ?? null, ic.attendanceFromSiteCheck(sj?.installer_site_check as string | null));
   }
   return { status: (imp.status === "confirmed" ? "confirmed" : "draft") as "draft" | "confirmed", files: (imp.files as { path: string; name: string; type: string }[] | null) ?? [], jobId: (imp.status === "confirmed" ? imp.job_id : null) as string | null, jobNumber, receipt };
 }
