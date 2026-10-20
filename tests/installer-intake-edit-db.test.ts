@@ -121,3 +121,15 @@ describe("installer edits the same received job (persistence boundary)", () => {
     expect(ch.area).toBeUndefined(); // blank area never clears a known area
   });
 });
+
+describe("own electrician -> a different own electrician (no atomic swap): refused, nothing changes", () => {
+  test("save is refused with the Office-change message and the saved selection/events stay unchanged", async () => {
+    await db.exec("CREATE TABLE IF NOT EXISTS job_assignments (id uuid primary key default gen_random_uuid(), job_id uuid, role text, active boolean, user_id uuid, business_id uuid);");
+    await db.query("update jobs set electrician_choice='preferred' where id=$1", [JOB]);
+    const before = await evs();
+    const { OWN_ELECTRICIAN_OFFICE_CHANGE } = await import("../src/lib/installer-intake.server");
+    await expect(installerUpdateIntake(JOB, U, BIZ, { ...base, electrician: { mode: "mine", business_id: "00000000-0000-0000-0000-00000000d002" } } as never)).rejects.toThrow(OWN_ELECTRICIAN_OFFICE_CHANGE);
+    expect((await job())["electrician_choice"]).toBe("preferred");
+    expect(await evs()).toEqual(before);
+  });
+});

@@ -31,11 +31,9 @@ describe("1) initial intake validates/saves only the chosen branch", () => {
   });
 });
 
-describe("2) own electrician chooser sends permitted changes", () => {
-  test("own -> different own electrician is sent even without a payer change", () => {
-    expect(editorElectricianSend({ payerChanged: false, payer: "own", plan: { mode: "mine", business_id: "B" }, currentBusinessId: "A" })).toEqual({ mode: "mine", business_id: "B", nomination_id: null });
-  });
-  test("same saved electrician is not re-sent", () => {
+describe("2) own electrician: no silent swap", () => {
+  test("own -> different own is never sent (Office change); unchanged own sends nothing", () => {
+    expect(editorElectricianSend({ payerChanged: false, payer: "own", plan: { mode: "mine", business_id: "B" }, currentBusinessId: "A" })).toBeUndefined();
     expect(editorElectricianSend({ payerChanged: false, payer: "own", plan: { mode: "mine", business_id: "A" }, currentBusinessId: "A" })).toBeUndefined();
   });
   test("hivic -> own sends; HIV / to be arranged never send an electrician", () => {
@@ -62,16 +60,27 @@ describe("3) Your turn only for the signed-in trade's own action", () => {
   });
 });
 
-describe("4) recovered receipt comes from saved job facts", () => {
-  test("quoted job without fee declaration: quoted, fee held", () => {
-    const r = recoveredIntakeReceipt([{ event_type: "installer_quote_answer", details: { answer: "have_quote" } }, { event_type: "installer_coordination_chosen", details: { coordination: "hivic_managed" } }, { event_type: "installer_existing_insulation_declared", details: { value: "below_r2" } }]);
-    expect(r).toEqual({ quoted: true, feeHeld: true, insulation: "below_r2", next: intakeNextAction("hivic_managed", true) });
+describe("4) recovered receipt from canonical current state", () => {
+  const st = { coordination: "hivic_managed" as const, insulation: "below_r2" as const, electricianPayer: "hivic" as const, feeAwarenessRecorded: true, feeAwarenessPayer: "hivic" as const };
+  test("quoted + current declaration for current payer: not held", () => {
+    expect(recoveredIntakeReceipt(st, "have_quote")).toEqual({ quoted: true, feeHeld: false, insulation: "below_r2", next: intakeNextAction("hivic_managed", true) });
   });
-  test("quoted job with fee declaration is not held", () => {
-    expect(recoveredIntakeReceipt([{ event_type: "installer_quote_answer", details: { answer: "have_quote" } }, { event_type: "installer_owner_fee_awareness", details: {} }]).feeHeld).toBe(false);
+  test("after a payer change the old declaration is stale (state says not recorded): held", () => {
+    expect(recoveredIntakeReceipt({ ...st, electricianPayer: "own", feeAwarenessRecorded: false }, "have_quote").feeHeld).toBe(true);
   });
-  test("not quoted self-managed job", () => {
-    const r = recoveredIntakeReceipt([{ event_type: "installer_quote_answer", details: { answer: "not_quoted" } }, { event_type: "installer_coordination_chosen", details: { coordination: "self_managed" } }]);
-    expect(r.quoted).toBe(false); expect(r.feeHeld).toBe(false); expect(r.next).toBe(intakeNextAction("self_managed", false));
+  test("declaration for the other payer never clears the hold", () => {
+    expect(recoveredIntakeReceipt({ ...st, electricianPayer: "own" }, "have_quote").feeHeld).toBe(true);
+  });
+  test("corrected insulation comes from the latest state", () => {
+    expect(recoveredIntakeReceipt({ ...st, insulation: "none" }, "have_quote").insulation).toBe("none");
+    expect(recoveredIntakeReceipt({ ...st, insulation: null }, "have_quote").insulation).toBe("unknown");
+  });
+  test("absent quote answer stays unknown and keeps the hold", () => {
+    const r = recoveredIntakeReceipt({ ...st, feeAwarenessRecorded: false }, null);
+    expect(r.quoted).toBeNull(); expect(r.feeHeld).toBe(true); expect(r.next).toBe(intakeNextAction("hivic_managed", false));
+  });
+  test("not quoted: no fee hold, add-when-ready next step", () => {
+    const r = recoveredIntakeReceipt({ ...st, coordination: "self_managed", feeAwarenessRecorded: false }, "not_quoted");
+    expect(r).toMatchObject({ quoted: false, feeHeld: false, next: intakeNextAction("self_managed", false) });
   });
 });

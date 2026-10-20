@@ -404,27 +404,22 @@ export function applicableIntakeDetails<T extends { quoteStatus?: QuoteStatus | 
   return d.quoteStatus === "have_quote" ? d : { ...d, area: "", amount: "", includes: "", proposedR: "" };
 }
 
-export type RecoveredIntakeReceipt = { insulation: ExistingInsulation; quoted: boolean; next: string; feeHeld: boolean };
+export type RecoveredIntakeReceipt = { insulation: ExistingInsulation; quoted: boolean | null; next: string; feeHeld: boolean };
 /**
- * Receipt for an Add job that was saved but whose reply was lost (refresh / dropped response), rebuilt only from
- * the job's own recorded intake events — never from the browser's draft.
+ * Receipt for an Add job that was saved but whose reply was lost, rebuilt from the job's CANONICAL current state
+ * (installerIntakeState + resolved quote answer): current payer, fee declaration freshness, latest insulation.
+ * Unknown quote status stays null; a fee hold is only cleared by a current declaration covering the current payer.
  */
-export function recoveredIntakeReceipt(events: { event_type: string; details: Record<string, unknown> | null }[]): RecoveredIntakeReceipt {
-  const latest = (t: string) => events.find((e) => e.event_type === t)?.details ?? null;
-  const answer = latest("installer_quote_answer")?.["answer"];
-  const quoted = answer !== "not_quoted";
-  const coordRaw = latest("installer_coordination_chosen")?.["coordination"];
-  const coord: Coordination | null = coordRaw === "self_managed" || coordRaw === "hivic_managed" ? coordRaw : null;
-  const ins = latest("installer_existing_insulation_declared")?.["value"];
-  const insulation: ExistingInsulation = ins === "none" || ins === "below_r2" ? ins : "unknown";
-  const fee = events.some((e) => e.event_type === "installer_owner_fee_awareness");
-  return { insulation, quoted, next: intakeNextAction(coord, quoted), feeHeld: quoted && !fee };
+export function recoveredIntakeReceipt(st: { coordination: Coordination | null; insulation: ExistingInsulation | null; electricianPayer: ElectricianPayer; feeAwarenessRecorded: boolean; feeAwarenessPayer: ElectricianPayer | null }, quoteAnswer: QuoteStatus | null): RecoveredIntakeReceipt {
+  const quoted = quoteAnswer === "have_quote" ? true : quoteAnswer === "not_quoted" ? false : null;
+  const feeCovers = st.feeAwarenessRecorded && (st.feeAwarenessPayer ?? "hivic") === st.electricianPayer && st.electricianPayer !== "undecided";
+  return { insulation: st.insulation ?? "unknown", quoted, next: intakeNextAction(st.coordination, quoted === true), feeHeld: quoted !== false && !feeCovers };
 }
 
-/** Details editor: the own-electrician selection to send — on a payer change to own, or own -> a different own. */
+/** Details editor: the own-electrician selection to send — only when the payer changes to own. */
 export function editorElectricianSend(x: { payerChanged: boolean; payer: ElectricianPayer; plan: { mode: string; business_id?: string | null; nomination_id?: string | null } | null; currentBusinessId: string | null | undefined }):
   { mode: "mine"; business_id: string | null; nomination_id: string | null } | undefined {
   if (x.payer !== "own" || x.plan?.mode !== "mine" || !(x.plan.business_id || x.plan.nomination_id)) return undefined;
-  if (!x.payerChanged && x.plan.business_id && x.plan.business_id === x.currentBusinessId) return undefined; // same saved electrician
+  if (!x.payerChanged) return undefined; // own -> different own is an Office change (no atomic swap yet)
   return { mode: "mine", business_id: x.plan.business_id ?? null, nomination_id: x.plan.nomination_id ?? null };
 }
