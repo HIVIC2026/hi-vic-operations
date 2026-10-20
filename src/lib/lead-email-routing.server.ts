@@ -2,7 +2,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { declaredExtras } from "./enquiry.core";
 import { normaliseInsulation } from "./eligibility.core";
 import { groupBMediaForJob } from "./group-b-media.server";
-import { groupBInvitationBlocker } from "./group-b-media.core";
+import { groupBInitialAction } from "./group-b-media.core";
 import { automaticLeadEmail, effectiveInsulation, ineligibleReplyBlocker } from "./enquiry-groups.core";
 
 export type LeadEmailRouteResult = { route: "offer_spot" | "request_insulation" | "ineligible" | "none"; sent: boolean; reason: string };
@@ -35,12 +35,18 @@ export async function maybeAutoRouteLeadEmail(jobId: string, ctx: import("./manu
     const activation = await readAutomaticRules();
     const status = automaticFirstResponseStatus(activation.state === 'ok' && activation.config.enabled, activation.state === 'ok' ? activation.config.activatedAt : null);
     if (!status.on) return { route: 'none', sent: false, reason: status.reason };
-    const [creation, confirmed] = await Promise.all([
-      admin.from('jobs').select('created_at').eq('id', jobId).maybeSingle(),
-      admin.from('customer_email_sends').select('id').eq('job_id', jobId).eq('status', 'sent').in('purpose', [...FIRST_RESPONSE_PURPOSES]).limit(1),
+    const { priorInitialResponseBlocker, EXPLICITLY_EXCLUDED_JOBS } = await import('./automatic-first-response.core');
+    void FIRST_RESPONSE_PURPOSES;
+    // Any own-job send (any purpose), uncertain attempt or customer-visible outbound correspondence blocks a resend.
+    const [creation, sends, outbound] = await Promise.all([
+      admin.from('jobs').select('created_at, job_number').eq('id', jobId).maybeSingle(),
+      admin.from('customer_email_sends').select('status').eq('job_id', jobId),
+      admin.from('job_communications').select('id', { count: 'exact', head: true }).eq('job_id', jobId).eq('direction', 'outbound').eq('channel', 'email').eq('visibility', 'customer'),
     ]);
-    if (creation.error || confirmed.error) return { route: 'none', sent: false, reason: 'Could not verify first-response safety facts.' };
-    const initialBlocker = automaticFirstResponseBlocker({ activatedAt: activation.state === 'ok' ? activation.config.activatedAt : null, createdAt: creation.data?.created_at ?? null, held: false, confirmed: !!confirmed.data?.length });
+    if (creation.error || sends.error || outbound.error) return { route: 'none', sent: false, reason: 'Could not verify first-response safety facts.' };
+    if ((EXPLICITLY_EXCLUDED_JOBS as readonly string[]).includes(creation.data?.job_number ?? '')) return { route: 'none', sent: false, reason: 'Explicitly excluded by Jo' };
+    const initialBlocker = automaticFirstResponseBlocker({ activatedAt: activation.state === 'ok' ? activation.config.activatedAt : null, createdAt: creation.data?.created_at ?? null, held: false, confirmed: false })
+      ?? priorInitialResponseBlocker({ sendStatuses: (sends.data ?? []).map(x => x.status), customerOutboundEmails: outbound.count ?? 0 });
     if (initialBlocker) return { route: 'none', sent: false, reason: initialBlocker };
     const held = await admin.from('post_intake_work').select('id').eq('job_id', jobId).eq('reason', 'ENQUIRY_BACKLOG_MANUAL').eq('facts_version', 'enquiry-backlog-manual').eq('status', 'failed').limit(1);
     if (held.error || held.data?.length) return { route: 'none', sent: false, reason: 'Backlog held for explicit Office release.' };
@@ -91,8 +97,9 @@ export async function maybeAutoRouteLeadEmail(jobId: string, ctx: import("./manu
         const result = await sendExistingInsulationSaveSpot(jobId, null, false);
         return { route: "offer_spot", sent: result.outcome === "sent", reason: result.detail };
       }
-      const blocker = groupBInvitationBlocker(await groupBMediaForJob(jobId));
-      if (blocker) return { route: "none", sent: false, reason: blocker };
+      // Received media → approved received-media acknowledgement (no repeat upload, no eligibility decision).
+      const initial = groupBInitialAction(await groupBMediaForJob(jobId));
+      if ("held" in initial) return { route: "none", sent: false, reason: initial.held };
       const { syncStep3 } = await import("./estimatelink.server");
       await syncStep3(jobId, null);
       const { sendAutomaticInsulationDetails } = await import("./hot-leads-send.server");

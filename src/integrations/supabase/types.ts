@@ -12809,6 +12809,7 @@ export type Database = {
         Row: {
           channel: string | null
           contact_rank: number | null
+          correspondence_recorded: boolean | null
           created_at: string | null
           deleted_at: string | null
           eligibility_outcome: string | null
@@ -12819,6 +12820,9 @@ export type Database = {
           first_response_sent: boolean | null
           id: string | null
           job_number: string | null
+          latest_attempt_at: string | null
+          latest_attempt_status: string | null
+          latest_media_at: string | null
           media_count: number | null
           media_to_review: boolean | null
           needs_first_response: boolean | null
@@ -12832,6 +12836,9 @@ export type Database = {
           property_key: string | null
           qa_archived_at: string | null
           removed: boolean | null
+          response_state: string | null
+          response_uncertain: boolean | null
+          review_at: string | null
           review_outcome: string | null
           source: string | null
           spot_offered: boolean | null

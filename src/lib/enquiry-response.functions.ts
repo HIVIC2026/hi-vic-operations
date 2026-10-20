@@ -1,97 +1,61 @@
-// P0-B: efficient, bounded read of enquiry response status for the Office dashboard.
-// Server-side counts + a bounded "who still needs a response" queue. Does NOT touch getAdminPipeline.
-// Scope (Jo): only enquiries WITHOUT a successful initial response are actionable; answered customers are
-// never re-sent. Suppressed (opted-out) enquiries are excluded from the actionable queue.
+// Communications overview of enquiry responses. Uses the SAME open-website-enquiry scope and response semantics as the
+// main Enquiries page (office_enquiry_page / office_enquiry_index, 0208): exact server-side counts (no 1000-row
+// truncation, one category per enquiry, so one email in two logs is never double counted) and a 50-row page of
+// genuinely unanswered enquiries. Read failures throw — the UI shows "unavailable", never zero.
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { requireAdmin } from "@/lib/workflow.server";
+import type { ResponseCounts } from "./enquiry-response.core";
 
 export type EnquiryOverviewRow = {
   id: string; jobNumber: string | null; createdAt: string | null;
   ownerName: string | null; address: string | null; eligibilityOutcome: string | null;
-  sent: boolean; failed: boolean; inFlight: boolean; manualReview: boolean; hasEmail: boolean; suppressed: boolean;
+  /** Status of the most recent attempt by timestamp (null = never attempted). */
+  latestAttemptStatus: string | null; latestAttemptAt: string | null;
+  hasEmail: boolean;
   /** True when a send would actually go out now (same rules the dispatch action applies). */
   dispatchReady: boolean;
 };
 export type EnquiryResponseOverview = {
-  counts: { total: number; sent: number; failed: number; awaiting: number; inFlight: number; manualReview: number; noEmail: number; suppressed: number;
-    /** Ready to send now, capped by the dispatch pool. `null` = the check could not be read (nothing is sendable then). */
-    dispatchReady: number | null };
+  /** Open website enquiries (the main Enquiries "All" scope). */
+  total: number;
+  responses: ResponseCounts;
+  /** Ready to send now. `null` = the check could not be read (nothing is sendable then). */
+  dispatchReady: number | null;
   awaiting: EnquiryOverviewRow[];
+  page: number; totalPages: number;
+  loadedAt: string;
 };
 
-/** Open homeowner enquiries with no confirmed send. Bounded to 2000 open jobs + the (small) send/comm histories. */
-export const getEnquiryResponseOverview = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }): Promise<EnquiryResponseOverview> => {
-  await requireAdmin(context.supabase);
-  const { data: jobs, error } = await admin
-    .from("jobs")
-    .select("id, job_number, created_at, stage, eligibility_outcome, eligibility_review_required, owners(full_name, email), properties(address_line, suburb, postcode)")
-    .is("deleted_at", null)
-    .neq("source", "qa_test")
-    .not("stage", "in", "(complete,cancelled,on_hold)")
-    .order("created_at", { ascending: false })
-    .limit(2000);
-  if (error) throw new Error(`Enquiry overview could not be loaded: ${error.message}`);
-
-  // Ready-to-send uses the SAME server-side rules the dispatch action applies, so the button's count can never
-  // promise something a send would then refuse. Read failures leave the count unknown instead of guessing.
-  const readyTask = (async () => {
-    const { candidateJobIds, sendableFrom } = await import("./enquiry-dispatch.server");
-    return sendableFrom(await candidateJobIds());
-  })().catch(() => null as string[] | null);
-
-  const [{ data: sends }, { data: comms }, { data: optouts }, { data: lcr }, readyIds] = await Promise.all([
-    admin.from("customer_email_sends").select("job_id, status"),
-    admin.from("job_communications").select("job_id, direction, channel, delivery_status").eq("direction", "outbound").eq("channel", "email"),
-    admin.from("customer_email_optouts").select("job_id, opted_out_at"),
-    admin.from("lead_campaign_responses").select("job_id, opted_out_at"),
-    readyTask,
-  ]);
-  const readySet = new Set(readyIds ?? []);
-  const sentByJob = new Set<string>();
-  const failedByJob = new Set<string>();
-  const inFlightByJob = new Set<string>();
-  for (const s of sends ?? []) {
-    if (s.status === "sent" || s.status === "delivered_unrecorded") sentByJob.add(s.job_id);
-    if (s.status === "failed") failedByJob.add(s.job_id);
-    if (s.status === "sending" || s.status === "queued") inFlightByJob.add(s.job_id);
-  }
-  for (const c of comms ?? []) {
-    if (c.delivery_status === "sent" || c.delivery_status === "delivered") sentByJob.add(c.job_id);
-    if (c.delivery_status === "failed") failedByJob.add(c.job_id);
-    if (c.delivery_status === "queued") inFlightByJob.add(c.job_id);
-  }
-  const suppressedSet = new Set<string>();
-  for (const o of optouts ?? []) if (o.opted_out_at) suppressedSet.add(o.job_id);
-  for (const r of lcr ?? []) if (r.opted_out_at) suppressedSet.add(r.job_id);
-
-  const rows: EnquiryOverviewRow[] = (jobs ?? []).map((j) => {
-    const owner = j.owners as { full_name?: string | null; email?: string | null } | null;
-    const prop = j.properties as { address_line?: string | null; suburb?: string | null; postcode?: string | null } | null;
-    const address = [prop?.address_line, prop?.suburb, prop?.postcode].filter(Boolean).join(", ") || null;
-    return {
-      id: j.id, jobNumber: j.job_number ?? null, createdAt: j.created_at ?? null,
-      ownerName: owner?.full_name ?? null, address, eligibilityOutcome: j.eligibility_outcome ?? null,
-      sent: sentByJob.has(j.id), failed: failedByJob.has(j.id), inFlight: inFlightByJob.has(j.id),
-      manualReview: j.eligibility_review_required === true,
-      hasEmail: !!owner?.email, suppressed: suppressedSet.has(j.id),
-      dispatchReady: readySet.has(j.id),
-    };
+export const getEnquiryResponseOverview = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ page: z.number().int().min(1).default(1) }).parse(d ?? {}))
+  .handler(async ({ context, data }): Promise<EnquiryResponseOverview> => {
+    await requireAdmin(context.supabase);
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const { parseResponseCounts } = await import("./enquiry-response.core");
+    const { data: raw, error } = await admin.rpc("office_enquiry_page", { p_view: "new", p_search: "", p_page: data.page });
+    if (error) throw new Error(`Enquiry responses could not be loaded: ${error.message}`);
+    const r = raw as unknown as { ids?: string[]; page?: number; totalPages?: number; counts?: { all?: number }; responses?: unknown };
+    const responses = parseResponseCounts(r?.responses);
+    if (!responses || !Array.isArray(r.ids) || typeof r.counts?.all !== "number") throw new Error("Enquiry response counts are unavailable.");
+    const ids = r.ids;
+    const [facts, readyIds] = await Promise.all([
+      ids.length ? admin.from("office_enquiry_index").select("id, job_number, created_at, owner_name, owner_email, property_address, eligibility_outcome, latest_attempt_status, latest_attempt_at").in("id", ids) : Promise.resolve({ data: [], error: null }),
+      (async () => { const d = await import("./enquiry-dispatch.server"); return d.sendableFrom(await d.candidateJobIds()); })().catch(() => null as string[] | null),
+    ]);
+    if (facts.error) throw new Error("Enquiry response rows could not be loaded.");
+    // Ready-to-send is reported only inside the same unanswered scope (a correspondence-only reply is not "ready").
+    let ready = new Set<string>(), readyCount: number | null = null;
+    if (readyIds) {
+      const scoped = readyIds.length ? await admin.from("office_enquiry_index").select("id").in("id", readyIds).eq("needs_first_response", true).eq("office_bucket", "enquiry") : { data: [], error: null };
+      if (!scoped.error) { ready = new Set((scoped.data ?? []).flatMap((x) => (x.id ? [x.id] : []))); readyCount = ready.size; }
+    }
+    const byId = new Map((facts.data ?? []).map((f) => [f.id, f]));
+    const awaiting = ids.flatMap((id) => {
+      const f = byId.get(id);
+      return f ? [{ id, jobNumber: f.job_number, createdAt: f.created_at, ownerName: f.owner_name, address: f.property_address, eligibilityOutcome: f.eligibility_outcome,
+        latestAttemptStatus: f.latest_attempt_status, latestAttemptAt: f.latest_attempt_at, hasEmail: !!f.owner_email?.trim(), dispatchReady: ready.has(id) }] : [];
+    });
+    return { total: r.counts.all, responses, dispatchReady: readyCount, awaiting, page: r.page ?? data.page, totalPages: r.totalPages ?? 1, loadedAt: new Date().toISOString() };
   });
-
-  // Actionable = open, has email, NOT already answered, NOT suppressed. In-flight shown separately (never re-sent).
-  const actionable = rows.filter((r) => !r.sent && r.hasEmail && !r.suppressed && !r.inFlight);
-  const counts = {
-    total: rows.length,
-    sent: rows.filter((r) => r.sent).length,
-    failed: rows.filter((r) => r.failed && !r.sent).length,
-    awaiting: actionable.length,
-    inFlight: rows.filter((r) => r.inFlight && !r.sent).length,
-    manualReview: actionable.filter((r) => r.manualReview).length,
-    noEmail: rows.filter((r) => !r.hasEmail).length,
-    suppressed: rows.filter((r) => r.suppressed && !r.sent).length,
-    dispatchReady: readyIds === null ? null : rows.filter((r) => r.dispatchReady).length,
-  };
-  return { counts, awaiting: actionable.slice(0, 100) };
-});

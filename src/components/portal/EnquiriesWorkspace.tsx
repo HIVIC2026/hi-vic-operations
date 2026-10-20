@@ -11,6 +11,7 @@ import {
   existingInsulationSaveSpotFn,
   getEnquiryGroups,
   getLeadMedia,
+  noInsulationSaveSpotFn,
   removeLeadsFn,
   reviewLeadMediaFn,
 } from "@/lib/enquiry-groups.functions";
@@ -21,6 +22,7 @@ import {
   type MediaReviewOutcome,
 } from "@/lib/enquiry-groups.core";
 import { OFFICE_ENQUIRY_LABEL } from "@/lib/office-nav";
+import { RESPONSE_STATE_LABEL, showingRange } from "@/lib/enquiry-response.core";
 import { cn } from "@/lib/utils";
 
 export type EnquiryView = EnquiryStatus | "all" | "new" | "photos" | "removed";
@@ -48,23 +50,42 @@ const INSULATION_LABEL: Record<string, string> = {
   unknown: "Not sure",
 };
 
-function ExistingInsulationFollowup({ jobId, onDone }: { jobId: string; onDone: () => void }) {
-  const action = useServerFn(existingInsulationSaveSpotFn);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+type SendResult = { outcome: string; detail: string; preview?: { subject: string; html: string }; needsEstimate?: boolean };
+
+/** Preview → (optional estimate update) → Send. Send is enabled only after the server's own preview validation passed. */
+function GuardedFollowup({ title, run, onDone }: { title: string; run: (mode: "preview" | "prepare" | "send") => Promise<SendResult>; onDone: () => void }) {
+  const [busy, setBusy] = useState<null | "preview" | "prepare" | "send">(null);
+  const [message, setMessage] = useState<{ text: string; tone: "ok" | "error" | "info" } | null>(null);
   const [preview, setPreview] = useState<{ subject: string; html: string } | null>(null);
-  const run = async (previewOnly: boolean) => {
-    setBusy(true);
+  const [needsEstimate, setNeedsEstimate] = useState(false);
+  const [sent, setSent] = useState(false);
+  const go = async (mode: "preview" | "prepare" | "send") => {
+    if (mode === "send" && !confirm(`Send the ${title} email to this homeowner now? It is checked again before sending.`)) return;
+    setBusy(mode);
     setMessage(null);
     try {
-      const r = await action({ data: { jobId, preview: previewOnly } });
-      setMessage(r.detail);
-      if (r.preview) setPreview(r.preview);
-      if (!previewOnly && r.outcome === "sent") onDone();
+      const r = await run(mode);
+      if (mode === "preview") {
+        setNeedsEstimate(!!r.needsEstimate);
+        setPreview(r.preview ?? null);
+        setMessage(r.preview ? { text: "Preview only — not sent. Check it, then press Send.", tone: "info" } : { text: r.detail, tone: "error" });
+      } else if (mode === "prepare") {
+        setNeedsEstimate(false);
+        setPreview(null);
+        setMessage({ text: r.detail, tone: "info" });
+      } else if (r.outcome === "sent") {
+        setSent(true);
+        setPreview(null);
+        setMessage({ text: "Sent — accepted by the email service.", tone: "ok" });
+        onDone();
+      } else {
+        setPreview(null);
+        setMessage({ text: `Not sent: ${r.detail}`, tone: "error" });
+      }
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Could not prepare the follow-up. Try again.");
+      setMessage({ text: e instanceof Error ? e.message : "Something went wrong. Nothing was sent.", tone: "error" });
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
   return (
@@ -72,32 +93,45 @@ function ExistingInsulationFollowup({ jobId, onDone }: { jobId: string; onDone: 
       <p className="text-xs text-muted-foreground">
         Preliminary only. The free Ready Check confirms insulation, eligibility and price.
       </p>
-      <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="outline" disabled={busy} onClick={() => run(true)}>
-          Preview Save your spot
-        </Button>
-        <Button size="sm" disabled onClick={() => run(false)}>
-          Send Save your spot
-        </Button>
-      </div>
+      {!sent && (
+        <div className="flex flex-wrap gap-2">
+          {needsEstimate && (
+            <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => go("prepare")}>
+              {busy === "prepare" ? "Updating…" : "Update estimate (no email)"}
+            </Button>
+          )}
+          <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => go("preview")}>
+            {busy === "preview" ? "Preparing…" : `Preview ${title}`}
+          </Button>
+          <Button size="sm" disabled={busy !== null || !preview} onClick={() => go("send")}
+            title={preview ? undefined : "Preview first — Send unlocks only when the server confirms this email can go out."}>
+            {busy === "send" ? "Sending…" : `Send ${title}`}
+          </Button>
+        </div>
+      )}
       {message && (
-        <p role="status" className="text-sm">
-          {message}
+        <p role={message.tone === "error" ? "alert" : "status"} className={cn("text-sm", message.tone === "error" && "text-destructive", message.tone === "ok" && "font-semibold text-primary")}>
+          {message.text}
         </p>
       )}
       {preview && (
         <>
           <p className="text-sm font-semibold">{preview.subject}</p>
-          <iframe
-            title="Existing-insulation Save your spot email"
-            sandbox=""
-            srcDoc={preview.html}
-            className="h-[650px] w-full border"
-          />
+          <iframe title={`${title} email preview`} sandbox="" srcDoc={preview.html} className="h-[650px] w-full border" />
         </>
       )}
     </div>
   );
+}
+
+function ExistingInsulationFollowup({ jobId, onDone }: { jobId: string; onDone: () => void }) {
+  const action = useServerFn(existingInsulationSaveSpotFn);
+  return <GuardedFollowup title="Save your spot" onDone={onDone} run={(mode) => action({ data: { jobId, preview: mode !== "send" } })} />;
+}
+
+function NoInsulationFollowup({ jobId, onDone }: { jobId: string; onDone: () => void }) {
+  const action = useServerFn(noInsulationSaveSpotFn);
+  return <GuardedFollowup title="Save your spot offer" onDone={onDone} run={(mode) => action({ data: { jobId, mode } })} />;
 }
 
 function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
@@ -110,12 +144,16 @@ function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
   const [busy, setBusy] = useState<MediaReviewOutcome | null>(null);
   const [reason, setReason] = useState("");
   const [saved, setSaved] = useState<string | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
   const act = async (outcome: MediaReviewOutcome) => {
     setBusy(outcome);
+    setFailed(null);
     try {
       await review({ data: { jobId: row.id, outcome, reason } });
       setSaved(MEDIA_OUTCOME_LABEL[outcome]);
       onDone();
+    } catch (e) {
+      setFailed(e instanceof Error ? e.message : "The review could not be saved.");
     } finally {
       setBusy(null);
     }
@@ -163,7 +201,7 @@ function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
           </div>
           {saved ? (
             <p role="status" className="text-sm font-semibold text-primary">
-              Saved: {saved}
+              Review saved: {saved}. No email has been sent — the next action now shows on this row.
             </p>
           ) : (
             <div className="flex flex-wrap gap-2">
@@ -190,6 +228,7 @@ function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
               </Button>
             </div>
           )}
+          {failed && <p role="alert" className="text-sm text-destructive">{failed}</p>}
         </>
       )}
     </div>
@@ -199,7 +238,7 @@ function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
 const VIEW_ORDER: EnquiryView[] = ["all", "new", ...STATUS_ORDER, "photos", "removed"];
 const VIEW_LABEL: Record<EnquiryView, string> = {
   all: "All enquiries",
-  new: "New · no email sent",
+  new: "New · no reply recorded",
   ...OFFICE_ENQUIRY_LABEL,
   photos: "Photos/videos to check",
   removed: "Removed",
@@ -226,7 +265,7 @@ export function EnquiriesWorkspace({
     const timer = setTimeout(() => onQ(searchDraft), 300);
     return () => clearTimeout(timer);
   }, [searchDraft, q, onQ]);
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, error, refetch, isFetching, isPlaceholderData } = useQuery({
     queryKey: ["enquiries-workspace-page", view, q, page],
     queryFn: () => load({ data: { view, search: q ?? "", page: page + 1 } }),
     placeholderData: keepPreviousData,
@@ -262,6 +301,9 @@ export function EnquiriesWorkspace({
   const safePage = (data?.page ?? 1) - 1;
   const visible = rows;
   const officeReview = view === "needs_attention" || view === "photos";
+  // Previous filter's rows stay on screen while the new filter loads; they are shown as stale and not actionable.
+  const stale = isFetching && isPlaceholderData;
+  const responses = data?.responses ?? null;
 
   return (
     <div className="space-y-5">
@@ -301,9 +343,24 @@ export function EnquiriesWorkspace({
         </div>
       ) : (
         <>
-          <p className="text-xs text-sub">
-            {data.counts.all} enquiries awaiting an owner’s next step.
+          <p className="text-xs text-sub" data-testid="enquiries-scope">
+            {data.counts.all.toLocaleString("en-AU")} open website enquiries.{" "}
+            {responses ? (
+              <>
+                {responses.provider_confirmed.toLocaleString("en-AU")} reply accepted by the email service ·{" "}
+                {responses.recorded_only.toLocaleString("en-AU")} reply recorded (delivery not confirmed) ·{" "}
+                {responses.uncertain.toLocaleString("en-AU")} outcome uncertain ·{" "}
+                <b>{responses.unanswered.toLocaleString("en-AU")} no reply recorded</b>
+              </>
+            ) : (
+              "Reply breakdown unavailable."
+            )}
           </p>
+          {stale && (
+            <p role="status" className="text-sm font-semibold text-warning">
+              Loading {VIEW_LABEL[view]}… rows below are from the previous filter and cannot be acted on.
+            </p>
+          )}
 
           <div
             role="tablist"
@@ -410,7 +467,7 @@ export function EnquiriesWorkspace({
                   {removing ? "Removing…" : `Remove selected (${picked.size})`}
                 </Button>
               )}
-              <span className="text-sm text-sub">{data.total} shown</span>
+              <span className="text-sm text-sub">{stale ? "Updating…" : showingRange(data.page, data.pageSize, rows.length, data.total)}</span>
             </div>
           </div>
           {removeMsg && (
@@ -419,7 +476,7 @@ export function EnquiriesWorkspace({
             </p>
           )}
 
-          <div className="overflow-x-auto rounded-md border bg-card">
+          <div className={cn("overflow-x-auto rounded-md border bg-card", stale && "pointer-events-none opacity-50")} aria-busy={stale} inert={stale || undefined}>
             <table className="w-full min-w-[1100px] text-left text-sm">
               <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
                 <tr>
@@ -496,6 +553,10 @@ export function EnquiriesWorkspace({
                       <td className="p-3">{row.address ?? "—"}</td>
                       <td className="p-3 font-semibold">
                         {VIEW_LABEL[row.status]}
+                        <div className="text-xs font-normal text-muted-foreground">
+                          {RESPONSE_STATE_LABEL[row.responseState]}
+                          {row.latestAttemptStatus === "failed" && row.responseState === "none" ? ` · latest attempt failed ${when(row.latestAttemptAt)}` : ""}
+                        </div>
                         {row.mediaOutcome && (
                           <div className="text-xs font-normal text-muted-foreground">
                             Photo review: {MEDIA_OUTCOME_LABEL[row.mediaOutcome]}
@@ -529,7 +590,7 @@ export function EnquiriesWorkspace({
                         <div className="text-muted-foreground">{when(row.createdAt)}</div>
                       </td>
                       <td className="p-3">
-                        {view === "photos" ? (
+                        {view === "photos" || row.mediaToReview ? (
                           <div className="space-y-2">
                             <Button
                               size="sm"
@@ -546,20 +607,14 @@ export function EnquiriesWorkspace({
                           </div>
                         ) : view === "removed" ? (
                           "Removed by office"
-                        ) : row.mediaOutcome === 'no_insulation' ? (
-                          row.nextAction
-                        ) : row.mediaOutcome === "below_r2" &&
-                          row.status !== "spot_saved" &&
-                          row.status !== "ineligible" ? (
-                          <ExistingInsulationFollowup jobId={row.id} onDone={() => refetch()} />
-                        ) : row.status === "needs_attention" ? (
+                        ) : row.mediaOutcome === "no_insulation" && !["spot_saved", "ineligible", "offered_spot"].includes(row.status) ? (
+                          <NoInsulationFollowup jobId={row.id} onDone={() => void refetch()} />
+                        ) : row.mediaOutcome === "below_r2" && !["spot_saved", "ineligible", "offered_spot"].includes(row.status) ? (
+                          <ExistingInsulationFollowup jobId={row.id} onDone={() => void refetch()} />
+                        ) : row.status === "needs_attention" && !row.mediaOutcome ? (
                           (row.attentionReason ?? row.reason)
-                        ) : row.status === "spot_saved" ? (
-                          "Continue from Active jobs"
-                        ) : row.status === "ineligible" ? (
-                          "No action unless the owner replies"
                         ) : (
-                          "Waiting for the homeowner"
+                          <span className={row.nextParty === "office" ? "font-semibold" : undefined}>{row.nextAction}</span>
                         )}
                       </td>
                     </tr>

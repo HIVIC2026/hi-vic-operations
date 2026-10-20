@@ -18,8 +18,9 @@ export const getEnquiryGroups = createServerFn({ method: "POST" }).middleware([r
         duplicate: x.kind === "job" && !x.isPrimaryForContact, status: x.status,
         attentionReason: x.attentionReason ?? (x.status === "needs_attention" ? x.reason : null), outcomeAt: x.outcomeAt, needsFirstResponse: x.needsFirstResponse,
         mediaCount: x.mediaCount, mediaChecked: x.mediaChecked, mediaOutcome: x.mediaOutcome, removed: !!x.removed,
+        responseState: x.responseState, latestAttemptStatus: x.latestAttemptStatus, latestAttemptAt: x.latestAttemptAt, mediaToReview: x.mediaToReview, nextParty: x.nextParty,
       })),
-      counts: r.counts, total: r.total, page: r.page, pageSize: r.pageSize, totalPages: r.totalPages,
+      counts: r.counts, responses: r.responses, total: r.total, page: r.page, pageSize: r.pageSize, totalPages: r.totalPages,
     };
   });
 
@@ -71,4 +72,13 @@ export const existingInsulationSaveSpotFn = createServerFn({ method: "POST" }).m
     await requireAdmin(context.supabase);
     const { sendExistingInsulationSaveSpot } = await import("./hot-leads-send.server");
     return sendExistingInsulationSaveSpot(data.jobId, context.userId, data.preview);
+  });
+
+/** Explicit one-owner no-insulation offer after a recorded "no insulation" photo review. */
+export const noInsulationSaveSpotFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), mode: z.enum(["preview", "prepare", "send"]).default("preview") }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { noInsulationOffer } = await import("./no-insulation-offer.server");
+    return noInsulationOffer(data.jobId, context.userId, data.mode);
   });
