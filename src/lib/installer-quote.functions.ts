@@ -213,3 +213,29 @@ export const getMyIntakeProgress = createServerFn({ method: "POST" }).middleware
       veecStatus: veec?.status ?? null, stage, now,
     }) };
   });
+
+/** Supplying installer flags "Site conditions differ". Holds quote release/acceptance and start of works until office review. */
+export const raiseSiteConditionsHold = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: z.string().uuid(), note: z.string().trim().min(5).max(1000) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireSupplyingInstaller(context.supabase as never, context.userId, data.jobId);
+    const { logEvent } = await import("./workflow.server");
+    const { SITE_HOLD_RAISED } = await import("./site-conditions.core");
+    const { siteConditionsHoldFor } = await import("./installer-intake.server");
+    if ((await siteConditionsHoldFor(data.jobId)).open) return { ok: true as const, alreadyOpen: true }; // retry/double-click: no duplicate
+    await logEvent(data.jobId, context.userId, SITE_HOLD_RAISED, "Site conditions differ — office review required", { note: data.note, source: "installer" }, { internal: true });
+    return { ok: true as const, alreadyOpen: false };
+  });
+
+/** Office clears the hold after review (who/when/reason kept permanently). Never changes an accepted amount. */
+export const clearSiteConditionsHold = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: z.string().uuid(), reason: z.string().trim().min(5).max(1000) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase as never);
+    const { logEvent } = await import("./workflow.server");
+    const { SITE_HOLD_CLEARED } = await import("./site-conditions.core");
+    const { siteConditionsHoldFor } = await import("./installer-intake.server");
+    if (!(await siteConditionsHoldFor(data.jobId)).open) return { ok: true as const, wasOpen: false };
+    await logEvent(data.jobId, context.userId, SITE_HOLD_CLEARED, "Site conditions review completed", { reason: data.reason, source: "office" }, { internal: true });
+    return { ok: true as const, wasOpen: true };
+  });
