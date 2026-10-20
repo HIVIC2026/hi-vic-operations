@@ -214,7 +214,13 @@ export const getMyIntakeProgress = createServerFn({ method: "POST" }).middleware
     });
     // Open "Site conditions differ" hold outranks every other next action until the office reviews it.
     const next = s.siteHold.open ? { who: "Home Insulation Victoria" as const, text: `Site conditions differ — the office is reviewing${s.siteHold.note ? ` (${s.siteHold.note})` : ""}. The quote and works are on hold until then.` } : prog.next;
-    return { applies: true as const, ...prog, next, siteHold: s.siteHold };
+    const { missingTasks } = await import("./installer-missing-tasks.core");
+    const { SITE_HOLD_BLOCKER } = await import("./site-conditions.core");
+    const worksBlockers = await (await import("./ready-check-draft.server")).rcWorksBlockers(id); // throws on read failure (fail closed)
+    const missing = missingTasks({ quoteBlockers: [...s.readiness.blockers, ...s.releaseBlockers.filter((b: string) => !/contact consent/.test(b))], worksBlockers,
+      siteHoldBlocker: s.siteHold.open ? (s.siteHold.note ? `${SITE_HOLD_BLOCKER}: ${s.siteHold.note}` : SITE_HOLD_BLOCKER) : null,
+      evidence: (ev ?? []).map((e) => ({ label: e.label, status: e.status, gate: e.gate })) });
+    return { applies: true as const, ...prog, next, siteHold: s.siteHold, missing };
   });
 
 /** Supplying installer flags "Site conditions differ". Holds quote release/acceptance and start of works until office review. */
