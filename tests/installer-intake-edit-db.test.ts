@@ -145,11 +145,14 @@ describe("two-route attendance (Jo 20 Oct 'Ok fix')", () => {
     expect(Number((await ms())[0]!.supplied_area_m2)).toBe(118);
     expect(await evs()).toContain("installer_attendance_answer");
     // switch quote status later: site facts preserved
-    await installerUpdateIntake(JOB, U, BIZ, { ...ATT, quoteStatus: "have_quote", areaM2: null, quoteIncGst: 4200, includes: "R5 batts", proposedR: null });
+    await installerUpdateIntake(JOB, U, BIZ, { ...ATT, quoteStatus: "have_quote", areaM2: null, quoteIncGst: 4200, includes: "R5 batts", proposedR: null, removalQuote: { answer: "yes", areaM2: 40, chargeIncGst: 500 } });
     expect(Number((await ms())[0]!.supplied_area_m2)).toBe(118);
     expect((await job()).installer_site_check).toBe("yes");
-    await installerUpdateIntake(JOB, U, BIZ, { ...ATT, quoteStatus: "not_quoted" });
+    await installerUpdateIntake(JOB, U, BIZ, { ...ATT, quoteStatus: "not_quoted", removalQuote: { answer: "yes", areaM2: 40, chargeIncGst: null } });
     expect(Number((await ms())[0]!.supplied_area_m2)).toBe(118);
+    const { installerIntakeState } = await import("../src/lib/installer-intake.server");
+    expect((await installerIntakeState(JOB)).removalQuote).toMatchObject({ answer: "yes", areaM2: 40 });
+    expect((await installerIntakeState(JOB)).proposedR).toBe(5);
     expect((await job()).installer_site_check).toBe("yes");
   });
   test("unanswered attendance stays unknown; price/area/files never imply a visit", async () => {
