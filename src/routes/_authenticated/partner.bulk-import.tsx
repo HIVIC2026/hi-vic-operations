@@ -284,7 +284,7 @@ function BulkImportPage() {
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [showAllPast, setShowAllPast] = useState(false);
   const confirming = useRef(false);
-  const [done, setDone] = useState<{ created: number; skipped: number; failed: number; alreadyTaken?: number; remaining?: number; ownerLinks: { jobNumber: string; owner: string; path: string }[]; incomplete?: { row: number; jobNumber?: string | null; reason: string }[]; results?: { row: number; jobNumber: string; quote: string; attached: string[]; notAttached: string[] }[] } | null>(null);
+  const [done, setDone] = useState<{ created: number; skipped: number; failed: number; alreadyTaken?: number; remaining?: number | null; remainingUnknown?: boolean; ownerLinks: { jobNumber: string; owner: string; path: string }[]; incomplete?: { row: number; jobNumber?: string | null; reason: string }[]; results?: { row: number; jobNumber: string; quote: string; attached: string[]; notAttached: string[] }[] } | null>(null);
   const [batchPlan, setBatchPlan] = useState<ElectricianPlan>({ mode: "hivic" });
   const [rowStages, setRowStages] = useState<Record<string, LeadStage>>({});
   const [rowPlans, setRowPlans] = useState<Record<string, ElectricianPlan>>({});
@@ -502,6 +502,7 @@ function BulkImportPage() {
           {(done.skipped > 0 || done.failed > 0) && <p className="text-sm">{done.skipped ? `${done.skipped} not added. ` : ""}{done.failed ? `${done.failed} still need fixing.` : ""}</p>}
           {!!done.incomplete?.length && <div role="alert" className="rounded-[10px] border border-rose/40 p-2 text-sm"><b>Not finished — nothing is lost:</b><ul className="mt-1 list-disc pl-5">{done.incomplete.map((x) => <li key={x.row}>Customer {x.row}{x.jobNumber ? ` (job ${x.jobNumber} started)` : ""}: {x.reason}</li>)}</ul></div>}
           {(done.results ?? []).some((r) => r.notAttached.length) && <div className="rounded-[10px] bg-mist p-2 text-sm"><b>Files not attached</b> (unsupported or not saved — add them on the job by hand):<ul className="mt-1 list-disc pl-5">{(done.results ?? []).filter((r) => r.notAttached.length).map((r) => <li key={r.row}>{r.jobNumber}: {r.notAttached.join(", ")}</li>)}</ul></div>}
+          {done.remainingUnknown ? <p className="text-sm font-semibold" data-remaining-unknown>We couldn't check whether every customer is finished. This upload stays open — open it under Past uploads and confirm again. Jobs already added are never added twice.</p> : null}
           {done.remaining ? <p className="text-sm font-semibold">{done.remaining} still to fix — open this upload under Past uploads and confirm again. Jobs already added are never added twice.</p> : null}
           <p className="text-sm text-sub">Nothing has been sent to any customer.</p>
           {!!done.ownerLinks.length && <details className="text-sm"><summary className="cursor-pointer font-semibold">Owner links (queued, not sent)</summary><div className="mt-2 space-y-1">{done.ownerLinks.map((l) => <div key={l.path} className="rounded-[10px] bg-mist p-2"><b>{l.jobNumber} · {l.owner}</b><div className="break-all text-xs text-sub">{l.path}</div></div>)}</div></details>}
