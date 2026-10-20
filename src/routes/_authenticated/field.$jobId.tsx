@@ -16,7 +16,7 @@ import { MyIntakeDetailsCard } from "@/components/trade/intake-details-editor";
 /** Heading: street and suburb only (no state/postcode). */
 const streetAndSuburb = (a?: string | null) => (a ?? "").replace(/,?\s*(VIC|Victoria)\b.*$/i, "").replace(/\s+\d{4}\s*$/, "").trim();
 import { PartnerInstallerFactsCard } from "@/components/portal/installer-job-facts";
-import { tradeTask } from "@/lib/trade-work.core";
+import { tradeTurn } from "@/lib/trade-work.core";
 import { ClearTimeline, WhoHasTheBall } from "@/components/portal/waiting";
 import { WorkerLinksPanel } from "@/components/portal/workers";
 import { OwnerEligibilityPanel } from "@/components/portal/owner-eligibility";
@@ -62,9 +62,10 @@ function FieldJob() {
   if (!job && isError) return <TradeShell installer={role !== "electrician"}><p className="rounded-[18px] border bg-paper p-6 text-sm text-sub">{/TEST accounts/.test(String((error as Error)?.message)) ? "This TEST sign-in can only open active TEST jobs." : "This job isn't available to you. If it's a new offer, accept it from My work first."}</p><Link to="/field" className="mt-3 inline-block font-bold text-hiv-blue underline">Back to My work</Link></TradeShell>;
   if (!job) return <TradeShell installer={role !== "electrician"}><p className="text-sub">Loading…</p></TradeShell>;
   const step = nextStep(job);
-  const task = tradeTask({ stage: job.stage ?? "", bookings: [], blockers: [] });
+  const turn = tradeTurn({ trade: role === "installer" || role === "electrician" ? role : null, stage: job.stage ?? "", waitingOn: step.waitingOn });
+  const task = turn.task;
   const maps = job.property_address ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(job.property_address)}` : null;
-  const yourTurn = step.waitingOn === "Installer" || step.waitingOn === "Electrician" || task.bucket !== "waiting";
+  const yourTurn = turn.yourTurn;
   return (
     <TradeShell installer={role !== "electrician"}>
       <div className="space-y-4">
@@ -74,7 +75,7 @@ function FieldJob() {
         {job.owner_name && <p className="text-sm text-sub">{job.owner_name}</p>}
         <div className="mt-1"><SourceBadge channel={job.channel} business={job.originating_business_name} /></div>
       </div>
-      <NowPanel attention={yourTurn} eyebrow={yourTurn ? "Your turn" : `Waiting on ${step.waitingOn ?? "Home Insulation Victoria"}`} status={task.label}
+      <NowPanel attention={yourTurn} eyebrow={turn.eyebrow} status={task.label}
         due={job.install_deadline && job.days_remaining != null ? `${job.days_remaining} days left` : undefined}
         next={job.install_deadline ? `Install must start by ${new Date(job.install_deadline).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}` : undefined}
         pairs={job.life_support ? [{ label: "Note", value: <span className="inline-flex items-center gap-1 text-rose"><HeartPulse className="h-3 w-3" /> Life support at this property</span> }] : []}
