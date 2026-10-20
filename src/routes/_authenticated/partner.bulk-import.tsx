@@ -296,6 +296,9 @@ function BulkImportPage() {
     enabled: !!batchId,
   });
   const rows = (review?.rows ?? []) as unknown as ReviewRow[];
+  // A reloaded upload that is already confirmed is never shown as editable again (see Past uploads instead).
+  const reviewStatus = (review?.batch as { status?: string } | undefined)?.status;
+  useEffect(() => { if (batchId && !done && reviewStatus && reviewStatus !== "analysed") { setBatchId(null); toast.info("That upload is already finished — see Past uploads below."); } }, [batchId, done, reviewStatus]);
   const summary = review?.batch?.summary as { file_results?: FileResult[]; rows?: number; covers_ready_check?: number; needs_visit?: number; office_review?: number; duplicates?: number; not_visited?: number; visited?: number; visited_quoted?: number; quote_needed?: number; site_check_unclear?: number } | null;
   useEffect(() => {
     if (!rows.length) return;
