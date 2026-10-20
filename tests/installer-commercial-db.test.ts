@@ -113,7 +113,7 @@ describe("extras and the existing quote builder", () => {
     await installerUpdateIntake(JOB, U, BIZ, { ...base, removalQuote: { answer: "yes", areaM2: 60, chargeIncGst: null }, commercial: { ...good, removalPricing: "additional", removalAmountIncGst: 480 } });
     await db.query("update ceiling_measurements set verified_area_m2 = 120 where job_id=$1", [JOB]);
     const st = await installerIntakeState(JOB);
-    if (!st.readiness.ready) { expect(st.readiness.blockers.filter((b) => /VEU|GST|removal|Extra/.test(b))).toEqual([]); return; }
+    expect(st.readiness.blockers).toEqual([]);
     await draftQuoteFromIntake(JOB, U);
     expect(drafted[0]).toMatchObject({ totalIncGst: 3000, separateLines: [{ code: "INSTALLER_REMOVAL", amountIncGst: 480 }] });
   });
