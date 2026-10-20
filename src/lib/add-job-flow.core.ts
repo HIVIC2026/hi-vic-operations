@@ -104,3 +104,11 @@ export function outcomeFor(mode: AddJobMode, r: { booking?: BookingOutcome; stat
   if (s?.kind === "preparing") return { tone: "waiting", heading: "Job saved — preparing your Ready Check form…", body: "It usually takes about 90 seconds and opens automatically when ready. You can stay on this screen.", waitingOn: null };
   return { tone: "blocked", heading: "Job saved — form not ready yet", body: `${s?.message ?? "The form couldn't be prepared."} You don't need to add the job again.`, waitingOn: s?.kind === "owner_paperwork" ? "The owner" : s?.kind === "retry" && /signal|answering/i.test(s.message) ? null : "Home Insulation Victoria" };
 }
+
+/** Review-summary wording: positive only when the same rule final validation uses is satisfied (restored drafts reset these on purpose). */
+export const contactPermissionSummary = (c: Pick<OnsiteInput, "contact_permission" | "consent_by">) =>
+  c.contact_permission === true && c.consent_by === "installer" ? "Permission to contact given" : "Contact permission still needs to be ticked";
+export const organiseSummary = (coord: "hivic_managed" | "self_managed" | string | null, selfAck: boolean) =>
+  coord === "self_managed"
+    ? selfAck ? "I’ll manage the job myself (responsibility acknowledged)" : "I’ll manage the job myself — responsibility still needs to be ticked"
+    : coord ? "Home Insulation Victoria manages the process" : "Who organises the job still needs to be chosen";

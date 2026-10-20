@@ -18,7 +18,7 @@ import { getMyIntakeReadyCheck } from "@/lib/installer-quote.functions";
 import { electricianPlanBlocker, usualElectrician, type ElectricianPlan } from "@/lib/job-electrician.core";
 import type { OnsiteInput } from "@/lib/onsite-ready-check.core";
 import type { IntakeApi } from "./intake-preview-adapter";
-import { BUSY_LABEL, blankCustomer, customerProblems, restoreCustomer, saveErrorMessage } from "@/lib/add-job-flow.core";
+import { BUSY_LABEL, blankCustomer, customerProblems, restoreCustomer, saveErrorMessage, contactPermissionSummary, organiseSummary } from "@/lib/add-job-flow.core";
 import { ELECTRICIAN_PAYER_CHOICES, FEE_AWARENESS_VERSION, INSTALLER_CONTACT_PERMISSION, ATTENDED_CHOICES, ATTENDED_QUESTION, PRELIMINARY_QUOTE_NOTE, QUOTE_PREPARED_CHOICES, QUOTE_PREPARED_QUESTION, intakeBranches, melbourneToday, quoteFileCount, visitDateProblem, type AttendanceAnswer, NOT_MEASURED_NOTE, ORGANISE_QUESTION, feeAwarenessText, intakeNextAction, type ElectricianPayer } from "@/lib/installer-intake.core";
 
 import { ProposedRField, QuoteCommercialFields, RemovalQuoteFields } from "./intake-quote-fields";
@@ -337,8 +337,8 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
 
       {step === "review" && <section className="space-y-3 rounded-[18px] border border-line bg-paper p-4" data-step-review>
         <h2 className="font-display text-lg font-bold">Review & submit</h2>
-        <Summary title="Customer" disabled={busy || fileBusy} onEdit={() => setStep("customer")} rows={[customer.full_name, [customer.address_line, customer.suburb, customer.postcode].filter(Boolean).join(", "), customer.phone, customer.email, "Permission to contact given"]} />
-        <Summary title="Organise" disabled={busy || fileBusy} onEdit={() => setStep("organise")} rows={[coord === "self_managed" ? "I’ll manage the job myself (responsibility acknowledged)" : "Home Insulation Victoria manages the process"]} />
+        <Summary title="Customer" disabled={busy || fileBusy} onEdit={() => setStep("customer")} rows={[customer.full_name, [customer.address_line, customer.suburb, customer.postcode].filter(Boolean).join(", "), customer.phone, customer.email, contactPermissionSummary(customer)]} />
+        <Summary title="Organise" disabled={busy || fileBusy} onEdit={() => setStep("organise")} rows={[organiseSummary(coord, selfAck)]} />
         <Summary title="Job" disabled={busy || fileBusy} onEdit={() => setStep("job")} rows={[
           d.attended === "attended" ? `Attended and assessed${d.attendedOn ? ` on ${d.attendedOn}` : " (date not given)"}` : "Not attended yet — Ready Check required",
           branches.estimateOnly ? (intakeArea(d.area) ? `Preliminary estimate ${d.area} m² (unverified, not measured)` : "Not measured yet") : intakeArea(d.area) ? `Ceiling ${d.area} m²` : "Ceiling area: not measured yet", `Existing insulation: ${EXISTING_INSULATION_CHOICES.find((c) => c.value === (d.insulation ?? "unknown"))?.label ?? "Not yet confirmed"}`,
