@@ -134,17 +134,21 @@ export function Correspondence({ jobId }: { jobId: string }) {
     <div className="space-y-4">
       <LogCommunication jobId={jobId} />
       <Section title="All correspondence">
-        <p className="mb-2 text-xs text-muted-foreground">Portal messages and logged calls/emails together. Email, SMS and WhatsApp are not connected – entries here are records only.</p>
+        <p className="mb-2 text-xs text-muted-foreground">Oldest first. Emails from the Outlook mailbox, emails the portal sent, portal messages and logged calls together. Nothing here sends anything.</p>
         <Input className="mb-3 w-64" placeholder="Search correspondence…" value={q} onChange={(e) => setQ(e.target.value)} />
         {items.length === 0 ? <p className="text-sm text-muted-foreground">Nothing yet.</p> : (
-          <ul className="space-y-2">{[...items].reverse().map((c) => (
-            <li key={c.id} className="rounded-lg border p-2 text-sm">
+          <ul className="space-y-2">{items.map((c) => (
+            <li key={c.id} className={`rounded-lg border p-2 text-sm ${c.direction === "inbound" ? "mr-8 border-l-4 border-l-primary" : c.direction === "outbound" ? "ml-8 border-r-4 border-r-success" : ""}`}>
               <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                <Pill t={c.direction === "inbound" ? "info" : c.direction === "outbound" ? "good" : "warn"}>{c.direction === "inbound" ? "Homeowner sent" : c.direction === "outbound" ? "We sent" : "Internal note"}</Pill>
+                {c.provider === "outlook" && <span className="font-semibold">Outlook</span>}
                 <Pill t={c.internal ? "warn" : "info"}>{c.internal ? "Internal" : c.audience.length === 1 && c.audience[0] === "owner" ? "Customer" : c.audience.includes("owner") ? "Shared" : "Trades"}</Pill>
                 <span>{c.channel} · {c.direction}</span><span>{c.from ?? ""}</span><span>{fmtDT(c.at)}</span>
               </div>
               {c.subject && <div className="mt-1 font-medium">{c.subject}</div>}
+              {c.direction === "outbound" && c.to && c.to.length > 0 && <div className="text-xs text-muted-foreground">To {c.to.join(", ")}</div>}
               <p className="mt-1 whitespace-pre-wrap">{c.body}</p>
+              {c.attachments && c.attachments.length > 0 && <div className="mt-1 text-xs text-muted-foreground">Attachments: {c.attachments.join(", ")}</div>}
             </li>))}
           </ul>)}
       </Section>

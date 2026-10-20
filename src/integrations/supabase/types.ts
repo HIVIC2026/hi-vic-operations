@@ -2011,6 +2011,124 @@ export type Database = {
           },
         ]
       }
+      correspondence_reviews: {
+        Row: {
+          attachment_refs: Json
+          body: string
+          candidate_job_ids: string[]
+          communication_id: string | null
+          created_at: string
+          direction: string
+          from_address: string | null
+          id: string
+          job_id: string | null
+          kind: string
+          message_at: string | null
+          provider: string
+          provider_message_id: string
+          provider_thread_id: string | null
+          reason: string
+          recipients: Json
+          resolution_note: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+          subject: string | null
+          suggested_reason: string | null
+        }
+        Insert: {
+          attachment_refs?: Json
+          body?: string
+          candidate_job_ids?: string[]
+          communication_id?: string | null
+          created_at?: string
+          direction: string
+          from_address?: string | null
+          id?: string
+          job_id?: string | null
+          kind: string
+          message_at?: string | null
+          provider?: string
+          provider_message_id: string
+          provider_thread_id?: string | null
+          reason: string
+          recipients?: Json
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          subject?: string | null
+          suggested_reason?: string | null
+        }
+        Update: {
+          attachment_refs?: Json
+          body?: string
+          candidate_job_ids?: string[]
+          communication_id?: string | null
+          created_at?: string
+          direction?: string
+          from_address?: string | null
+          id?: string
+          job_id?: string | null
+          kind?: string
+          message_at?: string | null
+          provider?: string
+          provider_message_id?: string
+          provider_thread_id?: string | null
+          reason?: string
+          recipients?: Json
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          subject?: string | null
+          suggested_reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "correspondence_reviews_communication_id_fkey"
+            columns: ["communication_id"]
+            isOneToOne: false
+            referencedRelation: "job_communications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "correspondence_reviews_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "correspondence_reviews_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "correspondence_reviews_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "correspondence_reviews_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "correspondence_reviews_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cron_nonces: {
         Row: {
           created_at: string
@@ -6779,6 +6897,45 @@ export type Database = {
           files_removed?: number
           id?: never
           trigger?: string
+        }
+        Relationships: []
+      }
+      outlook_sync_state: {
+        Row: {
+          backfill_from: string
+          id: number
+          inbox_cursor: string | null
+          last_counts: Json
+          last_error: string | null
+          last_ok_at: string | null
+          last_run_at: string | null
+          mailbox: string | null
+          sent_cursor: string | null
+          updated_at: string
+        }
+        Insert: {
+          backfill_from?: string
+          id?: number
+          inbox_cursor?: string | null
+          last_counts?: Json
+          last_error?: string | null
+          last_ok_at?: string | null
+          last_run_at?: string | null
+          mailbox?: string | null
+          sent_cursor?: string | null
+          updated_at?: string
+        }
+        Update: {
+          backfill_from?: string
+          id?: number
+          inbox_cursor?: string | null
+          last_counts?: Json
+          last_error?: string | null
+          last_ok_at?: string | null
+          last_run_at?: string | null
+          mailbox?: string | null
+          sent_cursor?: string | null
+          updated_at?: string
         }
         Relationships: []
       }

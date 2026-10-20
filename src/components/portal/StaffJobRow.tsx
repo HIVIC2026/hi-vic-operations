@@ -8,6 +8,7 @@ import { JobFactsLine } from "./job-facts-line";
 import type { JobRow } from "./JobCard";
 import { supplementalEligibilityLabel } from "@/lib/portal-presentation.core";
 import { STATUS_LABEL, type EnquiryStatus } from "@/lib/enquiry-groups.core";
+import { closedReasonLabel } from "@/lib/outlook-correspondence.core";
 
 const OFFICE_TONE: Record<EnquiryStatus, "good" | "info" | "warn" | "bad" | "neutral"> = {
   spot_saved: "good",
@@ -36,6 +37,7 @@ export function StaffJobRow({ job, coverage, select, showEnquiryStatus = true }:
         <div className="flex items-start gap-1 font-medium">{stuck.length > 0 && <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />}<span className="break-words">{step.next}</span></div>
         {step.waitingOn && <div className="text-xs text-muted-foreground">Waiting on <span className="font-semibold text-foreground">{step.waitingOn}</span></div>}
         <InstallerFactsLine facts={job.installer_facts} />
+        {job.stage && closedReasonLabel(job.stage, job.cancelled_reason) && <div className="mt-1 text-xs font-semibold text-danger">{closedReasonLabel(job.stage, job.cancelled_reason)}</div>}
       </div>
       <div className="min-w-0 space-y-1 text-xs">
         <div className="flex flex-wrap gap-1">

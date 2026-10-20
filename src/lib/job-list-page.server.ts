@@ -119,7 +119,16 @@ export async function loadJobListPage(params: JobListParams) {
   const stageCounts: Record<string, number> = {};
   for (const r of stageRows.data ?? []) stageCounts[r.stage ?? "unknown"] = (stageCounts[r.stage ?? "unknown"] ?? 0) + 1;
 
-  const rows = await enrichPipeline(page.rows);
+  const enriched = await enrichPipeline(page.rows);
+  // Closed jobs show why they were closed.
+  const cancelledIds = enriched.filter((r) => r.stage === "cancelled" && r.id).map((r) => r.id!);
+  const reasons = new Map<string, string | null>();
+  if (cancelledIds.length) {
+    const { data: rs, error: re } = await admin.from("jobs").select("id, cancelled_reason").in("id", cancelledIds);
+    if (re) throw new Error(`Closure reasons unavailable: ${re.message}`);
+    for (const r of rs ?? []) reasons.set(r.id, r.cancelled_reason);
+  }
+  const rows = enriched.map((r) => (r.id && reasons.has(r.id) ? { ...r, cancelled_reason: reasons.get(r.id) ?? null } : r));
   const start = (current - 1) * size;
   return {
     rows,
