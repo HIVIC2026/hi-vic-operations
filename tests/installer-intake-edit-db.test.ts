@@ -18,7 +18,8 @@ CREATE TABLE ceiling_measurements (id uuid primary key default gen_random_uuid()
 CREATE TABLE job_imports (id uuid primary key default gen_random_uuid(), job_id uuid, business_id uuid, files jsonb, created_at timestamptz default now());
 CREATE TABLE quotes (id uuid primary key default gen_random_uuid(), job_id uuid, kind text, status text, release_state text, release_hold_reason text);
 CREATE TABLE owner_contact_consents (id uuid primary key default gen_random_uuid(), job_id uuid, consent_status text, created_at timestamptz default now());
-CREATE TABLE evidence_requirements (id uuid primary key default gen_random_uuid(), job_id uuid, category text, label text, required boolean, status text, gate text);`);
+CREATE TABLE evidence_requirements (id uuid primary key default gen_random_uuid(), job_id uuid, category text, label text, required boolean, status text, gate text);
+CREATE TABLE documents (id uuid primary key default gen_random_uuid(), job_id uuid, kind text, title text, original_name text, mime_type text, storage_path text, source_system text, uploaded_by uuid);`);
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: postgrestShim(db) }));
 mock.module("../src/lib/workflow.server", () => ({
   WorkflowError: class WorkflowError extends Error {},
