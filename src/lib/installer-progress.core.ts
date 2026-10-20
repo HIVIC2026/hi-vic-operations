@@ -184,3 +184,8 @@ export function installerTab(place: "offers" | "needs_me" | "coming_up" | "movin
 export function doneReason(stage: string): string {
   return stage === "cancelled" ? "Cancelled" : stage === "complete" ? "Job complete" : "Closed";
 }
+
+/** Intake progress applies only to installer-sourced jobs with a supplying business; a missing row never applies. */
+export function intakeProgressApplies(job: { channel?: string | null; originating_installer_business_id?: string | null } | null | undefined): boolean {
+  return !!job && job.channel === "installer_sourced" && !!job.originating_installer_business_id;
+}
