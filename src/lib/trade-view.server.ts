@@ -357,7 +357,7 @@ export async function tradeBusiness(userId: string) {
     licenceExpires: licence, liabilityExpires: liability, rate: rate ? Number((rate as { rate_inc_gst: number }).rate_inc_gst) : null,
     agreementSigned: !!agr?.signed_at, bankSaved: !!bank,
     team: [
-      ...(boss ?? []).filter((m) => m.member_role === "business_admin").map((m) => ({ id: null as string | null, name: (m.profiles as { full_name: string | null } | null)?.full_name ?? "Business owner", role: "Business owner", hasLogin: true })),
+      ...(boss ?? []).filter((m) => m.member_role === "business_admin").map((m) => ({ id: null as string | null, name: (m.profiles as { full_name: string | null } | null)?.full_name ?? "Business owner", role: "Business owner", hasLogin: true, eec: "not_applicable" })),
       ...(workers ?? []).filter((w) => !(boss ?? []).some((m) => m.user_id === w.profile_id && m.member_role === "business_admin")).map((w) => ({ id: w.id as string | null, name: w.full_legal_name, role: w.trade_role === "installer" ? "Installer" : "Electrician", hasLogin: !!w.profile_id, eec: eecState({ trade_role: w.trade_role, certification_status: w.certification_status, certification: w.certification }) })),
     ],
   };
