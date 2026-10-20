@@ -3,7 +3,7 @@
 // original-condition / completion evidence is an ordinary evidence_requirements row tagged with `area_key`
 // (pending migration 0214). No second job/evidence subsystem. Uploading a file never accepts it.
 
-export const AREAS_FIELD_KEY = "areas.v1";
+export const AREAS_FIELD_KEY = "measure.areas_v1";
 /** Per-area evidence rows sort after the job-level rows, so existing "first row for this category" lookups are unchanged. */
 export const AREA_EVIDENCE_SORT = 800;
 export const SUPPLIER = "Installer";

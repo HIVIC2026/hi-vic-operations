@@ -104,7 +104,7 @@ async function seed(options = {}) {
   const values = {
     "measure.eligible_area_m2": 80,
     "insulation.existing": "present",
-    "areas.v1": { areas: [{ key: "main", label: "Main", areaM2: 80, existing: "present", rValue: 1,
+    "measure.areas_v1": { areas: [{ key: "main", label: "Main", areaM2: 80, existing: "present", rValue: 1,
       removal: "yes", removalM2: 20, product: "R4", scope: "Ceiling", sources: {
         areaM2: { kind: "recorded_onsite", by: AUTHOR, at: ORIGINAL_TIME } } }] },
   };
