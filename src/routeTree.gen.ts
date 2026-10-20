@@ -112,6 +112,7 @@ import { Route as ApiPublicEmailArtPreviewKindRouteImport } from './routes/api/p
 import { Route as ApiPublicHooksAllocationTickRouteImport } from './routes/api/public/hooks/allocation-tick'
 import { Route as ApiPublicHooksCustomerFollowupsRouteImport } from './routes/api/public/hooks/customer-followups'
 import { Route as ApiPublicHooksExternalActionsRouteImport } from './routes/api/public/hooks/external-actions'
+import { Route as ApiPublicHooksOutlookSyncRouteImport } from './routes/api/public/hooks/outlook-sync'
 import { Route as ApiPublicHooksPostIntakeRouteImport } from './routes/api/public/hooks/post-intake'
 import { Route as ApiPublicReferralsRecordSubmissionRouteImport } from './routes/api/public/referrals/record-submission'
 import { Route as ApiPublicReferralsTrackClickRouteImport } from './routes/api/public/referrals/track-click'
@@ -684,6 +685,12 @@ const ApiPublicHooksExternalActionsRoute =
     path: '/api/public/hooks/external-actions',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksOutlookSyncRoute =
+  ApiPublicHooksOutlookSyncRouteImport.update({
+    id: '/api/public/hooks/outlook-sync',
+    path: '/api/public/hooks/outlook-sync',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksPostIntakeRoute =
   ApiPublicHooksPostIntakeRouteImport.update({
     id: '/api/public/hooks/post-intake',
@@ -822,6 +829,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
+  '/api/public/hooks/outlook-sync': typeof ApiPublicHooksOutlookSyncRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
   '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
@@ -928,6 +936,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
+  '/api/public/hooks/outlook-sync': typeof ApiPublicHooksOutlookSyncRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
   '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
@@ -1040,6 +1049,7 @@ export interface FileRoutesById {
   '/api/public/hooks/allocation-tick': typeof ApiPublicHooksAllocationTickRoute
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
+  '/api/public/hooks/outlook-sync': typeof ApiPublicHooksOutlookSyncRoute
   '/api/public/hooks/post-intake': typeof ApiPublicHooksPostIntakeRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
   '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
@@ -1152,6 +1162,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/external-actions'
+    | '/api/public/hooks/outlook-sync'
     | '/api/public/hooks/post-intake'
     | '/api/public/referrals/record-submission'
     | '/api/public/referrals/track-click'
@@ -1258,6 +1269,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/external-actions'
+    | '/api/public/hooks/outlook-sync'
     | '/api/public/hooks/post-intake'
     | '/api/public/referrals/record-submission'
     | '/api/public/referrals/track-click'
@@ -1369,6 +1381,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/allocation-tick'
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/external-actions'
+    | '/api/public/hooks/outlook-sync'
     | '/api/public/hooks/post-intake'
     | '/api/public/referrals/record-submission'
     | '/api/public/referrals/track-click'
@@ -1413,6 +1426,7 @@ export interface RootRouteChildren {
   ApiPublicHooksAllocationTickRoute: typeof ApiPublicHooksAllocationTickRoute
   ApiPublicHooksCustomerFollowupsRoute: typeof ApiPublicHooksCustomerFollowupsRoute
   ApiPublicHooksExternalActionsRoute: typeof ApiPublicHooksExternalActionsRoute
+  ApiPublicHooksOutlookSyncRoute: typeof ApiPublicHooksOutlookSyncRoute
   ApiPublicHooksPostIntakeRoute: typeof ApiPublicHooksPostIntakeRoute
   ApiPublicReferralsRecordSubmissionRoute: typeof ApiPublicReferralsRecordSubmissionRoute
   ApiPublicReferralsTrackClickRoute: typeof ApiPublicReferralsTrackClickRoute
@@ -2144,6 +2158,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksExternalActionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/outlook-sync': {
+      id: '/api/public/hooks/outlook-sync'
+      path: '/api/public/hooks/outlook-sync'
+      fullPath: '/api/public/hooks/outlook-sync'
+      preLoaderRoute: typeof ApiPublicHooksOutlookSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/post-intake': {
       id: '/api/public/hooks/post-intake'
       path: '/api/public/hooks/post-intake'
@@ -2425,6 +2446,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksAllocationTickRoute: ApiPublicHooksAllocationTickRoute,
   ApiPublicHooksCustomerFollowupsRoute: ApiPublicHooksCustomerFollowupsRoute,
   ApiPublicHooksExternalActionsRoute: ApiPublicHooksExternalActionsRoute,
+  ApiPublicHooksOutlookSyncRoute: ApiPublicHooksOutlookSyncRoute,
   ApiPublicHooksPostIntakeRoute: ApiPublicHooksPostIntakeRoute,
   ApiPublicReferralsRecordSubmissionRoute:
     ApiPublicReferralsRecordSubmissionRoute,

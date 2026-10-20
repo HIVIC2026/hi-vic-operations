@@ -52,11 +52,15 @@ async function loadCandidates(msgs: MailMessage[], mailbox: string) {
   }
   for (let i = 0; i < emails.length; i += 50) {
     const chunk = emails.slice(i, i + 50);
-    const { data, error } = await admin.from("jobs").select(sel).or(chunk.map((e) => `email.ilike.${e.replace(/[,()]/g, "")}`).join(","), { foreignTable: "owners" }).is("deleted_at", null).neq("source", "qa_test");
+    const { data: owners, error: oe } = await admin.from("owners").select("id, email").or(chunk.map((e) => `email.ilike.${e.replace(/[,()*%\\]/g, "")}`).join(","));
+    if (oe) throw new Error(oe.message);
+    const ids = (owners ?? []).filter((o) => o.email && chunk.includes(o.email.toLowerCase())).map((o) => o.id);
+    if (!ids.length) continue;
+    const { data, error } = await admin.from("jobs").select(sel).in("owner_id", ids).is("deleted_at", null).neq("source", "qa_test");
     if (error) throw new Error(error.message);
     for (const j of data ?? []) {
       const c = toCand(j as never);
-      if (!c.ownerEmail || !chunk.includes(c.ownerEmail)) continue;
+      if (!c.ownerEmail) continue;
       byEmail.set(c.ownerEmail, [...(byEmail.get(c.ownerEmail) ?? []), c]);
     }
   }
