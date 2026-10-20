@@ -7,7 +7,7 @@ import { RC_DRAFT_FIELDS, fromObservations, knownPrefill, rcProgress, rcSubmitBl
 import type { Observations } from "./readycheck.core";
 import { AREAS_FIELD_KEY, AREA_EVIDENCE_SORT, areaEvidenceSpecs, areaProblems, areaTasks, areaWorksBlockers, attribute, carryForward, readAreas, totals, type AreaReq, type RcArea } from "./ready-check-areas.core";
 
-const RC_CORRECTION_COPY_FIELD = "correction.copy.v1";
+const RC_CORRECTION_COPY_FIELD = "measure.correction_copy_v1";
 
 async function latestRc(jobId: string) {
   const { data, error } = await admin.from("ready_checks").select("id, job_id, version, status, submitted_at, updated_at, external_mitti_id").eq("job_id", jobId).neq("status", "superseded").order("version", { ascending: false }).limit(1).maybeSingle();

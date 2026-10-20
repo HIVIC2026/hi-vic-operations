@@ -114,7 +114,7 @@ async function seed(options = {}) {
 const versions = () => query("SELECT id,version,status,submitted_at,updated_at FROM ready_checks ORDER BY version");
 const original = async () => ({ row: (await query("SELECT * FROM ready_checks WHERE id=$1", [RC]))[0],
   answers: await query("SELECT * FROM ready_check_observations WHERE ready_check_id=$1 ORDER BY field_key", [RC]) });
-const answers = id => query("SELECT field_key,value,recorded_by,recorded_at FROM ready_check_observations WHERE ready_check_id=$1 AND field_key <> 'correction.copy.v1' ORDER BY field_key", [id]);
+const answers = id => query("SELECT field_key,value,recorded_by,recorded_at FROM ready_check_observations WHERE ready_check_id=$1 AND field_key <> 'measure.correction_copy_v1' ORDER BY field_key", [id]);
 const completionEvents = () => query("SELECT actor_id,details,summary,created_at FROM workflow_events WHERE event_type='ready_check_correction_started'");
 async function assertCopied(id) {
   assert.deepEqual(await answers(id), await answers(RC), "answers, area sources and original recorder/time are copied intact");
