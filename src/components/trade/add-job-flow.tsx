@@ -20,7 +20,7 @@ import { SAFETY_CHECK_NOTE, electricianPlanBlocker, usualElectrician, type Elect
 import { reviewItems, type Extracted, type ImportField } from "@/lib/pilot.core";
 import {
   ADD_JOB_STEPS, BUSY_LABEL, blankCustomer, bookingLabel, customerProblems, existingDetailsProblems, existingReviewProblems, formLabel,
-  laterDetailsProblems, laterPayload, nextStep, nextStepText, outcomeFor, parseAmount, prevStep, restoreCustomer, saveErrorMessage, submitLabel,
+  laterDetailsProblems, laterPayload, nextStep, nextStepText, outcomeFor, parseAmount, prevStep, restoreCustomer, saveErrorMessage, submitLabel, contactPermissionSummary,
   type AddJobMode, type AddJobStep, type BookingOutcome, type ExistingDetails, type LaterDetails,
 } from "@/lib/add-job-flow.core";
 
@@ -192,7 +192,7 @@ export function AddJobFlow({ businessId, initialMode, onExit }: { businessId: st
 
       {step === "review" && <section className="space-y-3 rounded-[18px] border border-line bg-paper p-4" data-step-review>
         <h2 className="font-display text-lg font-bold">Review & save</h2>
-        <Summary title="Customer" onEdit={() => setStep("customer")} rows={[[customer.full_name], [[customer.address_line, customer.suburb, customer.postcode].filter(Boolean).join(", ")], [customer.phone], [customer.email], ["Permission to contact given"]]} />
+        <Summary title="Customer" onEdit={() => setStep("customer")} rows={[[customer.full_name], [[customer.address_line, customer.suburb, customer.postcode].filter(Boolean).join(", ")], [customer.phone], [customer.email], [contactPermissionSummary(customer)]]} />
         <Summary title="Job details" onEdit={() => setStep("details")} rows={
           mode === "onsite" ? [["Ready Check at the property now"], [plan?.mode === "mine" ? "Electrician: your electrician" : "Electrician: Home Insulation Victoria arranges"]]
           : mode === "later" ? [[`Ready Check booked for ${later.date ? new Date(later.date).toLocaleString("en-AU", { dateStyle: "medium", timeStyle: "short" }) : "—"}`], [later.manual && later.area ? `Ceiling ${later.area} m² (${later.method}) — unverified` : "Measurements added later"]]
