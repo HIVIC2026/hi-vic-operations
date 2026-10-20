@@ -60,9 +60,15 @@ export async function isIntakeJob(jobId: string): Promise<boolean> {
   return count > 0;
 }
 
-/** Every send/release/approve/accept path for an intake job re-checks readiness, consent, fee awareness and reconfirmation. [] for other jobs. */
+/** Every quote boundary checks an open site hold; intake jobs also re-check readiness, consent and fee awareness. */
 export async function intakeSendBlockers(jobId: string): Promise<string[]> {
-  if (!(await isIntakeJob(jobId))) return [];
+  if (!(await isIntakeJob(jobId))) {
+    // Legacy supplied jobs can also raise a hold. Absence of an intake event must never bypass it.
+    const hold = await siteConditionsHoldFor(jobId);
+    if (!hold.open) return [];
+    const { SITE_HOLD_BLOCKER } = await import("./site-conditions.core");
+    return [hold.note ? `${SITE_HOLD_BLOCKER}: ${hold.note}` : SITE_HOLD_BLOCKER];
+  }
   const st = await installerIntakeState(jobId);
   return [...st.readiness.blockers, ...st.releaseBlockers]; // reconfirmation is enforced as a stage blocker so a corrected quote can be re-sent and re-accepted
 }
@@ -331,29 +337,35 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
     if (prev !== p.quoteStatus) await logEvent(jobId, actorId, "installer_quote_answer", p.quoteStatus === "have_quote" ? "Installer answered: quote prepared" : "Installer answered: quote not prepared yet", { answer: p.quoteStatus, previous: prev, source: "installer_edit" }, { internal: true }); }
   if (ch.quote) { const { error: e } = await admin.from("jobs").update({ installer_quoted: ch.quote.quoted, installer_quoted_price_inc_gst: ch.quote.quoteIncGst, installer_price_includes: ch.quote.includes }).eq("id", jobId); if (e) throw new WorkflowError(e.message); }
   if (p.files.length) {
-    const { data: imp } = await admin.from("job_imports").select("id, files").eq("job_id", jobId).eq("business_id", businessId).order("created_at", { ascending: true }).limit(1).maybeSingle();
-    if (!imp) throw new WorkflowError("The original job record couldn't be found to attach the file.");
-    const have = (imp.files as { path: string }[] | null) ?? [];
-    const add = p.files.filter((f) => !have.some((h) => h.path === f.path));
+    const { data: imp, error: impErr } = await admin.from("job_imports").select("id, files").eq("job_id", jobId).eq("business_id", businessId).order("created_at", { ascending: true }).limit(1).maybeSingle();
+    if (impErr || !imp) throw new WorkflowError("The original job record couldn't load to attach the file. Please retry.");
+    const have = (imp.files as { path: string; name: string; type: string; purpose?: "quote" | "supporting" | null }[] | null) ?? [];
+    const requested = [...new Map(p.files.map((f) => [f.path, f])).values()];
+    const add = requested.filter((f) => !have.some((h) => h.path === f.path));
     // Explicit classification of an earlier unclassified file (never re-labels an already classified one).
-    const classify = p.files.filter((f) => f.purpose && have.some((h) => h.path === f.path && (h as { purpose?: string }).purpose == null));
-    if (classify.length) {
-      const next = have.map((h) => { const c = classify.find((f) => f.path === h.path); return c ? { ...h, purpose: c.purpose } : h; });
-      const { error: e } = await admin.from("job_imports").update({ files: [...next, ...add] as never }).eq("id", imp.id); if (e) throw new WorkflowError(e.message);
-      await logEvent(jobId, actorId, "installer_file_classified", `Installer classified ${classify.length} earlier file${classify.length === 1 ? "" : "s"}`, { files: classify.map((f) => ({ path: f.path, purpose: f.purpose })) }, { internal: true });
-      have.splice(0, have.length, ...next);
+    const classify = requested.filter((f) => f.purpose && have.some((h) => h.path === f.path && h.purpose == null));
+    const next = [...have.map((h) => { const c = classify.find((f) => f.path === h.path); return c ? { ...h, purpose: c.purpose } : h; }), ...add];
+    if (classify.length || add.length) {
+      const { error: e } = await admin.from("job_imports").update({ files: next as never }).eq("id", imp.id); if (e) throw new WorkflowError(e.message);
     }
-    if (add.length) { const { error: e } = await admin.from("job_imports").update({ files: [...have, ...add] as never }).eq("id", imp.id); if (e) throw new WorkflowError(e.message); }
-    if (add.length) {
-      // Files added on edit become job documents too (same canonical record as Add job); dedup by storage path.
-      const { intakeDocumentTitle } = await import("./installer-intake.core");
-      const { data: haveDocs, error: hdErr } = await admin.from("documents").select("storage_path").eq("job_id", jobId).eq("kind", "installer_import");
-      if (hdErr) throw new WorkflowError("The job's files could not load. Please retry — nothing was added twice.");
-      const docPaths = new Set((haveDocs ?? []).map((d) => d.storage_path));
-      const docs = add.filter((f) => !docPaths.has(f.path)).map((f) => ({ job_id: jobId, kind: "installer_import", title: intakeDocumentTitle(f), original_name: f.name, mime_type: f.type || null, storage_path: f.path, source_system: "installer_edit", uploaded_by: actorId }));
-      if (docs.length) { const { error: de } = await admin.from("documents").insert(docs); if (de) throw new WorkflowError(`Uploaded files could not be attached to the job: ${de.message}`); }
+    if (classify.length) {
+      await logEvent(jobId, actorId, "installer_file_classified", `Installer classified ${classify.length} earlier file${classify.length === 1 ? "" : "s"}`, { files: classify.map((f) => ({ path: f.path, purpose: f.purpose })) }, { internal: true });
     }
     if (add.length) await logEvent(jobId, actorId, "installer_quote_file_added", `Installer added ${add.length} file${add.length === 1 ? "" : "s"} (originals kept)`, { files: add }, { internal: true });
+    // Reconcile every requested canonical path, including retries after the file row saved but documents failed.
+    // Titles use the SAVED purpose/name, so a rejected reclassification cannot relabel supporting evidence as a quote.
+    const { intakeDocumentTitle } = await import("./installer-intake.core");
+    const requestedPaths = new Set(requested.map((f) => f.path));
+    const canonical = next.filter((f) => requestedPaths.has(f.path));
+    const { data: haveDocs, error: hdErr } = await admin.from("documents").select("storage_path, title").eq("job_id", jobId).eq("kind", "installer_import");
+    if (hdErr || !haveDocs) throw new WorkflowError("The job's files could not load. Please retry — nothing was added twice.");
+    const docPaths = new Set(haveDocs.map((d) => d.storage_path));
+    const docs = canonical.filter((f) => !docPaths.has(f.path)).map((f) => ({ job_id: jobId, kind: "installer_import", title: intakeDocumentTitle(f), original_name: f.name, mime_type: f.type || null, storage_path: f.path, source_system: "installer_edit", uploaded_by: actorId }));
+    if (docs.length) { const { error: de } = await admin.from("documents").insert(docs); if (de) throw new WorkflowError(`Uploaded files could not be attached to the job: ${de.message}`); }
+    for (const f of canonical) if (haveDocs.some((d) => d.storage_path === f.path && d.title !== intakeDocumentTitle(f))) {
+      const { error: de } = await admin.from("documents").update({ title: intakeDocumentTitle(f) }).eq("job_id", jobId).eq("kind", "installer_import").eq("storage_path", f.path);
+      if (de) throw new WorkflowError("The file labels could not be saved. Please retry.");
+    }
   }
   let electrician: string | null = null;
   if (pc.change) {

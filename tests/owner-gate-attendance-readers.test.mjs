@@ -35,6 +35,10 @@ function load(file, dependencies = {}) {
 }
 const core = load("src/lib/owner-gates.core.ts");
 const rcCore = load("src/lib/installer-ready-check.core.ts");
+const intakeCore = load("src/lib/installer-intake.core.ts", {
+  "./intake-quote-details.core": load("src/lib/intake-quote-details.core.ts"),
+  "./melbourne-time.core": { melbourneToday: () => "2026-10-20" }, // fixed clock
+});
 let db;
 const JOB = "00000000-0000-4000-8000-000000000001";
 before(async () => {
@@ -131,6 +135,7 @@ async function fixture(options = {}) {
   const readyCheck = load("src/lib/installer-ready-check.server.ts", {
     "@/integrations/supabase/client.server": { supabaseAdmin: admin }, "./workflow.server": wf,
     "./worker-links.core": { newToken: unexpected }, "./installer-ready-check.core": rcCore,
+    "./installer-intake.core": intakeCore,
     "./readycheck-booking.server": { readyCheckWindowRound: async () => { windowsRead++; return { open: [] }; } },
   });
   return { admin, server, office, readyCheck, calls, observedOfficeFacts, windowsRead: () => windowsRead };
