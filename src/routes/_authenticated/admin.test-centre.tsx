@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createTestEnquiry, getAdminPipeline, getXeroConnection } from "@/lib/portal.functions";
 import { clearOnboardingStartBlock, issueOnboardingLink, listOnboardingLinks, listOnboardingStartBlocks, revokeOnboardingLink, runOnboardingUploadCleanup } from "@/lib/onboarding-links.functions";
+import { QA_PERSONA_LABEL, qaAccessPath, type QaPersona } from "@/lib/qa-role-link.core";
 import { archiveQaJourney, createTestTradeAccounts, issueQaPersonaLink, prepareQaJourneyAccess, simulateQaJourneyTime, simulateQaPayment } from "@/lib/test-accounts.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/test-centre")({
@@ -89,14 +90,13 @@ function QaRoleControls({ jobId }: { jobId: string }) {
     setWorkerPath(result.workerPath);
     return result;
   };
-  const openAs = async (persona: "owner" | "installer_boss" | "electrician") => {
-    setBusy(persona);
-    try {
-      await ready();
-      const link = await issue({ data: { jobId, persona } });
-      const popup = window.open(`/qa-access?token_hash=${encodeURIComponent(link.tokenHash)}&type=magiclink&next=${encodeURIComponent(link.next)}`, "_blank", "noopener,noreferrer");
-      if (!popup) throw new Error("Your browser blocked the TEST role tab. Allow pop-ups and try again.");
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Could not open TEST role"); }
+  // Sign-in only (no prepare/provision). Step 1 makes a single-use link; step 2 is the admin's own click on a real
+  // link, so pop-up blockers never interfere and noopener keeps each TEST tab's session separate.
+  const [roleLink, setRoleLink] = useState<{ persona: QaPersona; href: string } | null>(null);
+  const openAs = async (persona: QaPersona) => {
+    setBusy(persona); setRoleLink(null);
+    try { const link = await issue({ data: { jobId, persona } }); setRoleLink({ persona, href: qaAccessPath(link) }); }
+    catch (e) { toast.error(e instanceof Error ? e.message : "Could not open TEST role"); }
     finally { setBusy(null); }
   };
   const runTime = async (simulation: "response_24h" | "response_48h" | "piesa_expired") => {
@@ -111,9 +111,13 @@ function QaRoleControls({ jobId }: { jobId: string }) {
       <Button variant="outline" disabled={!!busy} onClick={() => void openAs("owner")}><ExternalLink className="h-4 w-4" />Open as owner</Button>
       <Button variant="outline" disabled={!!busy} onClick={() => void openAs("installer_boss")}><ExternalLink className="h-4 w-4" />Open as installer boss</Button>
       <Button variant="outline" disabled={!!busy} onClick={() => void openAs("electrician")}><ExternalLink className="h-4 w-4" />Open as electrician</Button>
-      <Button variant="outline" disabled={!!busy} onClick={async () => { setBusy("worker"); try { const result = await ready(); window.open(result.workerPath, "_blank", "noopener,noreferrer"); } catch (e) { toast.error(e instanceof Error ? e.message : "Could not open TEST worker"); } finally { setBusy(null); } }}><ExternalLink className="h-4 w-4" />Open as worker</Button>
     </div>
-    {workerPath && <p className="break-all rounded-md bg-muted p-2 text-xs">Latest worker link: {window.location.origin}{workerPath}</p>}
+    {roleLink && <div className="rounded-md border p-3 text-sm" data-qa-role-link><p className="mb-2">Single-use TEST sign-in ready for the {QA_PERSONA_LABEL[roleLink.persona]}.</p>
+      <a href={roleLink.href} target="_blank" rel="noopener noreferrer" onClick={() => setTimeout(() => setRoleLink(null), 0)} className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 font-semibold text-primary-foreground"><ExternalLink className="h-4 w-4" />Open TEST {QA_PERSONA_LABEL[roleLink.persona]} tab</a></div>}
+    <div className="border-t pt-4"><p className="mb-1 text-sm font-semibold">Set up TEST worker access (changes TEST accounts)</p>
+      <p className="mb-2 text-xs text-muted-foreground">Resets the TEST owner and worker passwords, re-adds TEST assignment, membership and certificate, and reissues worker access. TEST accounts only — not a sign-in.</p>
+      <Button size="sm" variant="outline" disabled={!!busy} onClick={async () => { setBusy("worker"); try { await ready(); toast.success("TEST worker access set up — use the worker link below."); } catch (e) { toast.error(e instanceof Error ? e.message : "Could not set up TEST worker"); } finally { setBusy(null); } }}>Reset and set up TEST worker access</Button></div>
+    {workerPath && <a href={workerPath} target="_blank" rel="noopener noreferrer" className="block break-all rounded-md bg-muted p-2 text-xs underline">Open TEST worker tab</a>}
     <div className="border-t pt-4"><p className="mb-2 flex items-center gap-2 text-sm font-semibold"><Clock3 className="h-4 w-4" />Simulate a deadline on this TEST job</p><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={!!busy} onClick={() => void runTime("response_24h")}>No reply 24h</Button><Button size="sm" variant="outline" disabled={!!busy} onClick={() => void runTime("response_48h")}>No reply 48h</Button><Button size="sm" variant="outline" disabled={!!busy} onClick={() => void runTime("piesa_expired")}>PIESA expired</Button><Button size="sm" variant="outline" disabled={!!busy} onClick={() => void runPay()}>Simulate payment (TEST only)</Button></div></div>
   </DialogContent></Dialog>;
 }

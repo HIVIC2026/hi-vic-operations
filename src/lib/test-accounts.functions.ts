@@ -264,7 +264,9 @@ export const issueQaPersonaLink = createServerFn({ method: "POST" })
       const { data: assignment } = await admin.from("job_assignments").select("user_id").eq("job_id", data.jobId).eq("role", role).eq("active", true).maybeSingle();
       if (assignment?.user_id) email = (await admin.from("profiles").select("email").eq("id", assignment.user_id).maybeSingle()).data?.email ?? null;
     }
-    if (!email?.endsWith(QA_DOMAIN)) throw new WorkflowError("This TEST persona is not safely isolated.");
+    // Sign-in only: no provisioning, password reset, membership, assignment or certification change here.
+    if (!email) throw new WorkflowError((await import("./qa-role-link.core")).qaPersonaMissingMessage(data.persona));
+    if (!email.endsWith(QA_DOMAIN)) throw new WorkflowError("This TEST persona is not safely isolated.");
     const { data: link, error } = await admin.auth.admin.generateLink({ type: "magiclink", email });
     const hashedToken = link.properties?.hashed_token;
     if (error || !hashedToken) throw new WorkflowError(`Could not open the TEST role: ${error?.message ?? "missing one-time token"}`);
