@@ -64,7 +64,7 @@ describe("every customer needs name, address, email, phone + permission", () => 
 
 describe("Visited rule: photos, measurements or a quote", () => {
   test("photos, area or price mean Visited; sentences only mean Not visited; explicit No stays No", () => {
-    expect(leadStage({ ...full }, 2)).toBe("visited");
+    expect(leadStage({ ...full }, 2)).toBe("not_visited"); // superseded by Jo 20 Oct: photos alone never mean a visit
     expect(leadStage({ ...full, area_m2: 120 })).toBe("visited");
     expect(leadStage({ ...full, price_inc_gst: 3450 })).toBe("quoted");
     expect(leadStage({ ...full, notes: "Customer keen, call next week" })).toBe("not_visited");

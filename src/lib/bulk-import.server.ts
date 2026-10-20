@@ -260,7 +260,7 @@ export async function analyseBatch(batchId: string, actorId: string) {
     allMatches.push(matched);
     const duplicate = dupNotes.has(i);
     const { result, reasons } = sortJob(e, { matchConfidence: confidence, duplicate });
-    const photos = matched.filter((m) => /\.(jpe?g|png|heic|heif|webp)$/i.test(m.name)).length; // photos count as visit evidence; a PDF/list does not
+    const photos = matched.filter((m) => /\.(jpe?g|png|heic|heif|webp)$/i.test(m.name)).length; // photos are evidence only — never a visit or quote (Jo 20 Oct)
     const stage = leadStage(e, photos);
     const sc = effectiveSiteCheck(e, photos);
     reasons.unshift(`Stage: ${LEAD_STAGE_LABEL[stage]}`, siteCheckLabel(sc.check, sc.date));
@@ -617,7 +617,7 @@ export async function setRowAddress(rowId: string, addr: { full_name?: string; e
   return { batch_id: row.batch_id };
 }
 
-/** Installer attaches photos/files to one customer card (camera or files). Photos count as a visit, like upload matches. */
+/** Installer attaches photos/files to one customer card (camera or files). Photos are evidence only; they never mark a visit. */
 export async function addRowFiles(rowId: string, businessId: string, files: { path: string; name: string; type: string }[]) {
   const { data: row } = await admin.from("bulk_import_rows").select("matched_files, status, extracted, import_stage").eq("id", rowId).single();
   if (!row || row.status !== "pending") throw new BulkImportError("This customer can no longer be changed.");

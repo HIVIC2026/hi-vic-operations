@@ -86,7 +86,7 @@ describe("lead stage", () => {
   test("contact details only → not visited", () => expect(leadStage({ full_name: "A", phone: "1" }, 0)).toBe("not_visited"));
   test("measurements or photos mean visited (Jo, 7 Oct 5:45pm)", () => {
     expect(leadStage({ area_m2: 120 }, 0)).toBe("visited");
-    expect(leadStage({ full_name: "A" }, 2)).toBe("visited");
+    expect(leadStage({ full_name: "A" }, 2)).toBe("not_visited"); // photos alone never mean a visit (Jo 20 Oct)
   });
   test("site check Yes → visited, No → not visited", () => {
     expect(leadStage({ area_m2: 120, site_check: "yes" })).toBe("visited");
