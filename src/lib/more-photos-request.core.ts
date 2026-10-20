@@ -4,7 +4,7 @@ export const morePhotosRequestReference = (reviewId: string) => `intake_media_re
 export const morePhotosRequestKey = (jobId: string, reviewId: string) => `office_more_photos:${jobId}:${reviewId}`;
 
 /** Uploads since the review always return to Office; a later request cannot hide unreviewed media. */
-export function morePhotosReviewBlocker(f: { reviewId: string | null; expectedReviewId?: string; reviewOutcome: string | null; reviewAt: string | null; latestMediaAt: string | null; openEnquiry: boolean }): string | null {
+export function morePhotosReviewBlocker(f: { reviewId: string | null; expectedReviewId?: string | undefined; reviewOutcome: string | null; reviewAt: string | null; latestMediaAt: string | null; openEnquiry: boolean }): string | null {
   if (!f.openEnquiry) return 'This enquiry is no longer awaiting a photo request.';
   if (!f.reviewId || f.reviewOutcome !== 'unclear' || (f.expectedReviewId && f.expectedReviewId !== f.reviewId)) return 'The Office photo review changed. Review the enquiry before requesting more photos/video.';
   const reviewedAt = Date.parse(f.reviewAt ?? '');
