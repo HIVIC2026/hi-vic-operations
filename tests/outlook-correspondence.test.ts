@@ -1,0 +1,131 @@
+import { describe, expect, test } from "bun:test";
+import {
+  classifyIntent, closedReasonLabel, closureDecision, counterpartEmails, isPortalDuplicate, matchMessage, normaliseMessage,
+  type CandidateJob, type GraphMessage, type MailMessage,
+} from "../src/lib/outlook-correspondence.core";
+import { buildCorrespondence } from "../src/lib/jobfile.core";
+
+const BOX = "info@homeinsulationvictoria.com.au";
+const g = (o: Partial<GraphMessage>): GraphMessage => ({ id: "m1", conversationId: "t1", subject: "Re: your quote", body: { contentType: "text", content: "Hello" }, receivedDateTime: "2026-10-05T01:00:00Z", sentDateTime: "2026-10-05T00:59:00Z", ...o });
+const from = (a: string) => ({ emailAddress: { address: a, name: null } });
+const msg = (o: Partial<GraphMessage>) => normaliseMessage(g(o), BOX)!;
+const job = (id: string, n: string, email: string, addr: string): CandidateJob => ({ id, jobNumber: n, ownerEmail: email, addressLine: addr, postcode: "3550" });
+
+describe("direction and persistence shape", () => {
+  test("inbound homeowner email", () => {
+    const m = msg({ from: from("Amy@Test.example"), toRecipients: [from(BOX)] });
+    expect(m.direction).toBe("inbound");
+    expect(m.from).toBe("amy@test.example");
+    expect(counterpartEmails(m, BOX)).toEqual(["amy@test.example"]);
+    expect(m.at).toBe("2026-10-05T01:00:00Z");
+  });
+  test("outbound reply from our mailbox uses sent time and recipients", () => {
+    const m = msg({ from: from(BOX), toRecipients: [from("amy@test.example")], ccRecipients: [from("jo@homeinsulationvictoria.com.au")] });
+    expect(m.direction).toBe("outbound");
+    expect(m.at).toBe("2026-10-05T00:59:00Z");
+    expect(counterpartEmails(m, BOX, ["homeinsulationvictoria.com.au"])).toEqual(["amy@test.example"]);
+  });
+  test("html body becomes readable text; drafts skipped", () => {
+    expect(msg({ body: { contentType: "html", content: "<p>Hi&nbsp;there</p><br>Thanks" } }).body).toBe("Hi there\n\nThanks");
+    expect(normaliseMessage(g({ isDraft: true }), BOX)).toBeNull();
+  });
+  test("stored rows appear on the job thread with direction, provider and attachments", () => {
+    const c = buildCorrespondence([], [{ id: "c1", sent_at: null, received_at: "2026-10-05T01:00:00Z", created_at: "x", direction: "inbound", channel: "email", sender_text: "amy@test.example", subject: "Hi", body: "b", delivery_status: "received", visibility: "customer", provider: "outlook", recipients: [BOX], attachment_refs: [{ name: "roof.jpg" }] }], () => null);
+    expect(c[0]).toMatchObject({ direction: "inbound", provider: "outlook", attachments: ["roof.jpg"], audience: ["owner"] });
+  });
+});
+
+describe("safe matching", () => {
+  const a = job("ja", "HV-1001", "amy@test.example", "111 Testcase Street");
+  const b = job("jb", "HV-1002", "amy@test.example", "9 Other Road");
+  const byNumber = new Map([["HV-1001", a], ["HV-1002", b]]);
+  test("job number wins", () => {
+    const m = msg({ from: from("amy@test.example"), subject: "Question about HV-1002" });
+    expect(matchMessage(m, ["amy@test.example"], byNumber, new Map([["amy@test.example", [a, b]]]))).toEqual({ kind: "job", jobId: "jb", how: "job_number" });
+  });
+  test("email with exactly one current job", () => {
+    const m = msg({ from: from("amy@test.example") });
+    expect(matchMessage(m, ["amy@test.example"], new Map(), new Map([["amy@test.example", [a]]]))).toMatchObject({ kind: "job", jobId: "ja", how: "only_job_for_email" });
+  });
+  test("two jobs + address in message picks the property", () => {
+    const m = msg({ from: from("amy@test.example"), body: { contentType: "text", content: "About 111 Testcase St please" } });
+    expect(matchMessage(m, ["amy@test.example"], new Map(), new Map([["amy@test.example", [a, b]]]))).toMatchObject({ kind: "job", jobId: "ja", how: "email_and_address" });
+  });
+  test("two jobs and no property → unmatched for Office, never guessed", () => {
+    const m = msg({ from: from("amy@test.example") });
+    const r = matchMessage(m, ["amy@test.example"], new Map(), new Map([["amy@test.example", [a, b]]]));
+    expect(r.kind).toBe("unmatched");
+    if (r.kind === "unmatched") expect(r.candidateJobIds.sort()).toEqual(["ja", "jb"]);
+  });
+  test("two different job numbers → unmatched", () => {
+    const m = msg({ from: from("amy@test.example"), subject: "HV-1001 and HV-1002" });
+    expect(matchMessage(m, ["amy@test.example"], byNumber, new Map()).kind).toBe("unmatched");
+  });
+  test("unknown sender with no job number is not homeowner mail", () => {
+    expect(matchMessage(msg({ from: from("news@vendor.example") }), ["news@vendor.example"], new Map(), new Map()).kind).toBe("not_homeowner");
+  });
+});
+
+describe("dedupe", () => {
+  test("outbound Outlook copy of a portal-recorded email is skipped", () => {
+    const m = msg({ from: from(BOX), toRecipients: [from("amy@test.example")], subject: "Save your spot", sentDateTime: "2026-10-05T01:05:00Z" });
+    expect(isPortalDuplicate(m, [{ provider: "base44", direction: "outbound", subject: "Save your spot", recipients: ["amy@test.example"], at: "2026-10-05T01:00:00Z" }])).toBe(true);
+    expect(isPortalDuplicate(m, [{ provider: "base44", direction: "outbound", subject: "Save your spot", recipients: ["amy@test.example"], at: "2026-10-04T01:00:00Z" }])).toBe(false);
+    expect(isPortalDuplicate(m, [{ provider: "outlook", direction: "outbound", subject: "Save your spot", recipients: ["amy@test.example"], at: "2026-10-05T01:00:00Z" }])).toBe(false);
+  });
+  test("each Outlook message id is a single row (database unique index, proven on practice database)", async () => {
+    const { readFileSync } = await import("node:fs");
+    expect(readFileSync("docs/pending-migrations/0207_outlook_correspondence.sql", "utf8")).toContain("(provider, provider_message_id) WHERE provider_message_id IS NOT NULL");
+  });
+});
+
+describe("not proceeding", () => {
+  const closes = [
+    "Thanks but we will not be proceeding.",
+    "We've decided to go with another company.",
+    "Please cancel my enquiry.",
+    "I am no longer interested, thank you.",
+    "We have chosen another provider who was cheaper.",
+  ];
+  for (const t of closes) test(`closes: ${t}`, () => {
+    const i = classifyIntent(t);
+    expect(i.kind).toBe("not_proceeding");
+    expect(closureDecision("new_enquiry", i, { laterInbound: false }).action).toBe("close");
+  });
+  test("reason names price / other provider", () => {
+    const d = closureDecision("preliminary_estimate_ready", classifyIntent("We have chosen another provider."), { laterInbound: false });
+    expect(d).toEqual({ action: "close", reason: "Customer not proceeding — going with / comparing other providers" });
+  });
+  const keeps = [
+    "The price seems high, can you explain it?",
+    "I'm really unhappy nobody called me back.",
+    "Can I have some time to think about it?",
+    "When can someone come out?",
+  ];
+  for (const t of keeps) test(`never closes: ${t}`, () => {
+    expect(closureDecision("new_enquiry", classifyIntent(t), { laterInbound: false }).action).not.toBe("close");
+  });
+  test("complaint alone is not even flagged", () => {
+    expect(classifyIntent("I'm really unhappy nobody called me back.").kind).toBe("none");
+  });
+  test("hedged decline is flagged, not closed", () => {
+    const d = closureDecision("new_enquiry", classifyIntent("We might not proceed if the price stays the same."), { laterInbound: false });
+    expect(d.action).toBe("flag");
+  });
+  test("progressed job is flagged for Office, never auto-closed", () => {
+    const d = closureDecision("installation_booked", classifyIntent("We will not be proceeding."), { laterInbound: false });
+    expect(d).toMatchObject({ action: "flag", kind: "not_proceeding_progressed" });
+  });
+  test("later homeowner email blocks auto-close", () => {
+    expect(closureDecision("new_enquiry", classifyIntent("We will not be proceeding."), { laterInbound: true }).action).toBe("flag");
+  });
+  test("our own quoted wording in a reply chain is ignored", () => {
+    expect(classifyIntent("Yes please book it in!\n\nOn Mon, 5 Oct 2026, Home Insulation Victoria wrote:\n> If you are not proceeding please let us know").kind).toBe("none");
+  });
+});
+
+test("closed reason is visible on closed rows", () => {
+  expect(closedReasonLabel("cancelled", "Customer not proceeding — price")).toBe("Closed: Customer not proceeding — price");
+  expect(closedReasonLabel("cancelled", null)).toBe("Closed: no reason recorded");
+  expect(closedReasonLabel("new_enquiry", "x")).toBeNull();
+});
