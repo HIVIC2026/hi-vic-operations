@@ -754,10 +754,11 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
       // Installer intake jobs: the exact released version, current readiness/consent and no pending reconfirmation.
       const { data: cur } = await admin.from("quotes").select("status, release_state").eq("id", q.id).maybeSingle();
       const { intakeSendBlockers, isIntakeJob } = await import("./installer-intake.server");
+      // A site hold also applies to supplied jobs predating the intake workflow.
+      const ib = await intakeSendBlockers(q.job_id);
+      if (ib.length) throw new WorkflowError(`Blocked: ${ib.join(" • ")}`);
       if (await isIntakeJob(q.job_id)) {
         if (cur?.status !== "issued" || cur.release_state !== "released") throw new WorkflowError("This quote is not the current version sent to you.");
-        const ib = await intakeSendBlockers(q.job_id);
-        if (ib.length) throw new WorkflowError(`Blocked: ${ib.join(" • ")}`);
         // Reconfirming after a correction: the earlier accepted quote is replaced only if no invoice was raised on it.
         const { data: prior } = await admin.from("quotes").select("id").eq("job_id", q.job_id).eq("kind", "installation").eq("status", "accepted").neq("id", q.id);
         priorAccepted = (prior ?? []).map((x) => x.id);

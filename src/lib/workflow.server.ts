@@ -283,6 +283,14 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
   const retired = retiredStageBlocker(to);
   if (retired) return [retired]; // server-side: stale clients / direct calls cannot re-enter the legacy path
   const blockers: string[] = [];
+  if (to === "evidence_outstanding") {
+    // Completion/direct transitions must re-read the hold even when an earlier pre-start check passed.
+    const hold = await (await import("./installer-intake.server")).siteConditionsHoldFor(jobId);
+    if (hold.open) {
+      const { SITE_HOLD_BLOCKER } = await import("./site-conditions.core");
+      return [hold.note ? `${SITE_HOLD_BLOCKER}: ${hold.note}` : SITE_HOLD_BLOCKER];
+    }
+  }
   blockers.push(...(await readyCheckBlockers(jobId, to)));
   // Owner paperwork gates A–D (one rule set for every journey).
   blockers.push(...(await (await import("./owner-gates.server")).ownerGateStageBlockers(jobId, to)));

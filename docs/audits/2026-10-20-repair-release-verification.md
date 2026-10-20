@@ -86,3 +86,10 @@ Signed-in run: `bun scripts/qa-office-writes.ts --base http://localhost:8080 --b
 - Main patch "27 vs 29": diff-header artefact (27 git headers + 2 plain receipt diffs); all 29 components included.
 - Historical: full portal 76 pass / 7 fail / 4 NOT_RUN retained. Legacy pre-RPC bulk fake tests are not a green gate.
 - Remaining: per-zone carry-forward/pre-removal controls from separate brief NOT_IMPLEMENTED per this record; authenticated TEST installer browser NOT_RUN; final bounded `--personas rec,owner` run NOT_RUN; site-hold and document-retry fixes deferred to separate pass. Not published.
+
+## Final correction pass (2026-10-20 ~20:55 UTC)
+- Merged by hunk: `site-hold-boundary-fixes.patch` (30,211 B, SHA-256 45a45eea…) and `intake-document-onsite-closure.patch` (27,473 B, SHA-256 7ecc3334…). One hunk offset 6 lines, no fuzz. Retained: `booked == null || done == null` guard, area/evidence, CAS attachment writes, winning-claim snapshot.
+- Fresh results: site-hold-boundaries 34/0; intake-document-onsite-closure 14/0; owner-gate-attendance-readers 19/0; upload UI 9/0; persona exclusion 6/0; create roundtrip 24/0; upload revision 34/0; ready-check-areas-db 11/0; related holds/quote/Ready Check suites 53 pass/0 fail; typecheck PASS; build OK; retired-term scan 0 customer-visible.
+- Roundtrip counts: earlier b0 18 cases = 4 create/read + 1 full lifecycle + success/success retries (not full lifecycle per combination). Current 24 and new 14 stated separately.
+- Bounded portal QA `--personas rec,owner`: exit 1, OVERALL BLOCKED, 59 PASSED / 0 FAILED / 12 NOT_RUN. Installer excluded before lookup/sign-in; TEST snapshot restored; owner answers and real deleted jobs unchanged. Historical 76/7/4 retained.
+- Release prerequisites: review/apply `docs/pending-migrations/0214_evidence_requirement_area_key.sql` (SHA-256 9524ea15…4022450, PGlite tests 11/0) before publishing; publish matching version (hold bulk confirmations); signed-in TEST installer browser NOT_RUN.

@@ -37,11 +37,12 @@ export async function installerRcState(jobId: string) {
     admin.from("ceiling_measurements").select("provenance, verified_area_m2").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
   ]);
   if (be || de || me || booked == null || done == null) throw new WorkflowError("The Ready Check status could not load. Please retry."); // fail closed, never "nothing to do"
-  const onsiteDone = (done ?? 0) > 0 || !!(m && (m.verified_area_m2 != null || m.provenance !== "installer_supplied_provisional"));
+  const attended = j.installer_site_check === "yes" || j.installer_site_check === "no" ? j.installer_site_check : null;
+  const onsiteDone = (done ?? 0) > 0 || (await import("./installer-intake.core")).onsiteMeasuredFrom(m ?? null, attended);
   const w = await readyCheckWindowRound(jobId);
   const { data: bk, error: bke } = await admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "ready_check").eq("status", "confirmed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle();
   if (bke) throw new WorkflowError("The Ready Check status could not load. Please retry.");
-  const action: InstallerRcAction = installerReadyCheckAction({ channel: j.channel, stage: j.stage, quoted: j.installer_quoted as "yes" | "no" | null, attended: (j.installer_site_check ?? null) as "yes" | "no" | null, onsiteDone, timesRequested: requested, openWindows: w.open.length, booked: !!booked });
+  const action: InstallerRcAction = installerReadyCheckAction({ channel: j.channel, stage: j.stage, quoted: j.installer_quoted as "yes" | "no" | null, attended, onsiteDone, timesRequested: requested, openWindows: w.open.length, booked: !!booked });
   return { action, bookedAt: bk?.scheduled_start ?? null, windows: action === "pick_owner_time" ? w.open.map((x) => ({ id: x.id, starts_at: x.starts_at, ends_at: x.ends_at })) : [] };
 }
 
