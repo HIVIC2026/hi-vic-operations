@@ -101,3 +101,29 @@ was performed in the closure task; the PIESA advance transition has never been b
 cannot execute (module-load failure from the Enquiries rollback) so its own cases carry no evidence; the
 production-domain running version has never been verified; 119 failures remain with non-blocking dispositions
 (not a green suite).
+
+---
+
+## H. UPDATE 2026-10-20 — RC-4 PIESA ADVANCEMENT: BROWSER UAT (supersedes the RC-4 row in §G and the "never browser-verified" disclosure)
+
+**Report of record:** `P1_RC4_PIESA_ADVANCEMENT_BROWSER_UAT_FINAL.md` (this directory)
+**Evidence:** `docs/phase1/release/evidence/rc4-browser-uat-2026-10-20/` (23 screenshots, 6 raw driver logs)
+**Tested commit:** `f6c99b15` — the six PIESA-relevant files are byte-identical to `origin/main` `fb3a83fe`, so the result holds for both.
+**Environment:** the repository's own dev server against a disposable local Supabase stack; real Chrome 155 driven over CDP. No Preview, no Production, no shared project, no real payment/Xero/Mitti/email.
+
+| Item | Status |
+|---|---|
+| RC-4 browser UAT (scenarios A–G) | **PASS — BROWSER VERIFIED** |
+| `piesa_scheduled → piesa_complete` observed in the browser | **YES** — toast `PIESA complete`, stage `piesa_complete`, next action `Reconcile PIESA scope against allowance` |
+| Exactly one current `piesa_records` row per completion | **YES** — verified after a two-tab duplicate submission |
+| Failed PIESA blocks electrical clearance | **YES** — `electrical_assessment` stayed `pending`, rectification item stayed `required`, job did not advance to installation scheduling |
+| Role boundaries (assigned electrician / unassigned electrician / installer / homeowner / office) | **all respected**, denials rendered as a plain refusal |
+| FFS `ffs_progress_result` visible on any surface | **NO** — absent from all four role surfaces, including the expanded history panel |
+| Persistence after hard reload and re-login | **YES** |
+| Browser console / page errors | **none** |
+
+**Correction to §G, carried forward from the UAT (§11 OBS-1/OBS-2):** the `advanceAfterPiesa` branch added in `fa0d1139` is not reachable from any production caller at `piesa_scheduled` — `completeAssessment` handles that stage in its own branch (`portal.functions.ts:568-571`), `SITE_STAGES` excludes `piesa_scheduled` (`:220, 267, 301, 382`), and `planStep` never emits `complete_site`. The advance observed in the browser comes from `completeAssessment`'s own `transition(...)`, which was already present at `63ef6cae`. **The RC-4 row in §G must therefore be cited as "behaviour verified in the browser", not as "the remediation's code path verified".** The `brief-s-f1-piesa-advance` 14/14 result is a function-contract result and is not production evidence.
+
+Two pre-existing, non-blocking follow-ups are recorded in the UAT report: the stale `electrical_assessment` / `rectification_completion` bookkeeping on the UI path (OBS-2), and the journey label `Fix costs paid — Not needed` on a job with required electrical fixes (OBS-4, P2, customer-facing).
+
+**Verdict impact:** none. PHASE 1 TECHNICAL ACCEPTANCE remains **PASSED**; PHASE 1 PRODUCTION RELEASE remains **PENDING OWNER AUTHORIZATION (C13)**. Production Publish was not performed.
