@@ -1,6 +1,6 @@
 import { beforeEach, expect, mock, test } from 'bun:test';
 type Row=Record<string,any>;
-const tables:Record<string,Row[]>={}; let seq=0, calls=0, mode='ok', commFailure=false;
+const tables:Record<string,Row[]>={}; let seq=0, calls=0, mode='ok', commFailure=false, withdrawBeforeSend=false;
 function from(table:string){let operation='read',values:Row={},single=false,limit=1000,offset=0;const filters:((r:Row)=>boolean)[]=[];const q:any={
 select:()=>q,eq:(k:string,v:unknown)=>{filters.push(r=>r[k]===v);return q},neq:(k:string,v:unknown)=>{filters.push(r=>r[k]!==v);return q},in:(k:string,v:unknown[])=>{filters.push(r=>v.includes(r[k]));return q},order:()=>q,limit:(n:number)=>{limit=n;return q},range:(a:number,b:number)=>{offset=a;limit=b-a+1;return q},maybeSingle:()=>{single=true;return q},single:()=>{single=true;return q},insert:(v:Row)=>{operation='insert';values=v;return q},update:(v:Row)=>{operation='update';values=v;return q},then:(resolve:any)=>{
  const rows=tables[table]??=[];
@@ -11,14 +11,14 @@ select:()=>q,eq:(k:string,v:unknown)=>{filters.push(r=>r[k]===v);return q},neq:(
 }};return q}
 mock.module('@/integrations/supabase/client.server',()=>({supabaseAdmin:{from}}));
 mock.module('../src/lib/comms.server',()=>({recordCommunication:async(x:Row)=>{if(commFailure)throw new Error('log unavailable');const id=`comm${++seq}`;(tables.job_communications??=[]).push({id,job_id:x.jobId,direction:x.direction,channel:x.channel,visibility:x.visibility,provider_message_id:x.providerMessageId});return id}}));
-mock.module('../src/lib/emailsafety.server',()=>({unsubscribeUrlForJob:async()=> `https://example.org/api/public/unsubscribe?t=${'u'.repeat(32)}`}));
+mock.module('../src/lib/emailsafety.server',()=>({unsubscribeUrlForJob:async()=> {if(withdrawBeforeSend)tables.owner_contact_consents[0].consent_status='not_granted';return `https://example.org/api/public/unsubscribe?t=${'u'.repeat(32)}`}}));
 let media={excluded:false,received:false,uncertain:false,pendingSync:false,count:0};
 mock.module('../src/lib/group-b-media.server',()=>({groupBMediaForJob:async()=>media}));
 mock.module('../src/lib/comms-test-recipient.core',()=>({testRecipientBoundary:()=>({status:'allowed'})}));
 const {DeliveryRejectedError}=await import('../src/lib/delivery.core');
 mock.module('../src/lib/hot-leads-send.server',()=>({groupBGlobalsOn:async()=>true,realSendingOn:async()=>true,resendDeliveryAdapter:()=>({deliver:async(msg:Row)=>{calls++;expect(msg.purpose).toBe('existing_leads_launch_v1');if(mode==='reject')throw new DeliveryRejectedError('rejected');if(mode==='unknown')throw new Error('timeout');return {providerMessageId:'provider123'}}})}));
 const {sendOfficeFirstResponse}=await import('../src/lib/office-first-response.server');
-beforeEach(()=>{for(const key of Object.keys(tables))delete tables[key];calls=0;mode='ok';commFailure=false;media={excluded:false,received:false,uncertain:false,pendingSync:false,count:0};Object.assign(tables,{
+beforeEach(()=>{for(const key of Object.keys(tables))delete tables[key];calls=0;mode='ok';commFailure=false;withdrawBeforeSend=false;media={excluded:false,received:false,uncertain:false,pendingSync:false,count:0};Object.assign(tables,{
 office_enquiry_index:[{id:'job',job_number:'HV-3000',owner_name:'Fictional',owner_email:'person@gmail.com',email_key:'person@gmail.com',office_bucket:'enquiry',needs_first_response:true,source:'base44',channel:'hivic_sourced',stage:'preliminary_estimate_ready',removed:false,eligibility_outcome:'likely_eligible'}],
 jobs:[{id:'job',eligibility_review_required:false,eligibility_decision_source:'system',estimated_area_m2:120,estimated_area_unknown:false,properties:{enrichment:{base44:{raw:{answers:{existing_insulation:'No'},media:[]}}}}}],
 owner_contact_consents:[{job_id:'job',consent_status:'granted'}],
@@ -33,3 +33,6 @@ test('missing owner size never default offer',async()=>{tables.jobs[0].estimated
 test('manual Outlook response blocks even without sent row',async()=>{tables.job_communications=[{job_id:'job',direction:'outbound',channel:'email',visibility:'customer'}];expect((await sendOfficeFirstResponse('job','office')).status).toBe('skipped');expect(calls).toBe(0)});
 test('same recipient answered on another job blocks',async()=>{tables.office_enquiry_index.push({id:'other',email_key:'person@gmail.com'});tables.customer_email_sends=[{job_id:'other',status:'sent'}];expect((await sendOfficeFirstResponse('job','office')).status).toBe('skipped');expect(calls).toBe(0)});
 test('received media sends acknowledgement without repeat request',async()=>{tables.jobs[0].properties.enrichment.base44.raw.answers.existing_insulation='Yes';tables.indicative_estimates[0].insulation_declared='present';media={...media,received:true,count:2};expect((await sendOfficeFirstResponse('job','office')).status).toBe('sent');expect(calls).toBe(1)});
+test('consent withdrawn after reservation prevents provider call',async()=>{withdrawBeforeSend=true;expect((await sendOfficeFirstResponse('job','office')).status).toBe('blocked');expect(calls).toBe(0);expect(tables.customer_email_sends[0].status).toBe('failed')});
+test('no-media existing insulation request runs through same reservation',async()=>{tables.jobs[0].properties.enrichment.base44.raw.answers.existing_insulation='Yes';tables.indicative_estimates[0].insulation_declared='present';expect((await sendOfficeFirstResponse('job','office')).status).toBe('sent');expect(tables.customer_email_sends[0].idempotency_key).toBe('existing_leads_launch_v1:insulation_details:job')});
+test('uncertain original media stops before reservation',async()=>{media={...media,uncertain:true};expect((await sendOfficeFirstResponse('job','office')).status).toBe('skipped');expect(calls).toBe(0);expect(tables.customer_email_sends).toEqual([])});

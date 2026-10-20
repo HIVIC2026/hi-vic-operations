@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+export { sendOfficeEnquiryFirstResponse } from './office-first-response.functions';
 
 export const getHotLeads = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ list: z.enum(["likely", "warm", "test"]).default("likely") }).parse(d ?? {}))
