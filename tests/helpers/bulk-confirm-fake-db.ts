@@ -7,7 +7,7 @@ type Mode = "error" | "uncertain";
 
 export function fakeDb() {
   const tables: Record<string, Row[]> = {};
-  const faults: { table: string; op: string; mode: Mode }[] = [];
+  const faults: { table: string; op: string; mode: Mode; skip: number }[] = [];
   let seq = 0;
   const t = (n: string) => (tables[n] ??= []);
   const uniq: Record<string, (r: Row) => string | null> = {
@@ -42,7 +42,8 @@ export function fakeDb() {
     };
     function run(): { data: unknown; error: { message: string; code?: string } | null; count?: number } {
       const fi = faults.findIndex((f) => f.table === table && f.op === op);
-      const fault = fi >= 0 ? faults.splice(fi, 1)[0]! : null;
+      let fault = fi >= 0 ? faults[fi]! : null;
+      if (fault && fault.skip > 0) { fault.skip--; fault = null; } else if (fault) faults.splice(fi, 1);
       if (fault?.mode === "error") return { data: null, error: { message: `injected ${op} failure on ${table}` } };
       const rows = t(table);
       let out: Row[] = [];
@@ -72,7 +73,7 @@ export function fakeDb() {
   return {
     tables, t, from,
     reset() { for (const k of Object.keys(tables)) delete tables[k]; faults.length = 0; },
-    failNext(table: string, op: string, mode: Mode = "error") { faults.push({ table, op, mode }); },
+    failNext(table: string, op: string, mode: Mode = "error", skip = 0) { faults.push({ table, op, mode, skip }); },
     storage: { from: () => ({}) },
     auth: { admin: { getUserById: async () => ({ data: { user: { email: "installer@hivic-test.example", user_metadata: { qa_test: true } } } }) } },
   };
