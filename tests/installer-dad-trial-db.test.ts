@@ -48,12 +48,12 @@ const st = () => installerIntakeState(JOB);
 describe("Dad trial shapes: edit -> read", () => {
   test("unvisited + unpriced: saves, Ready Check still needed, no quote", async () => {
     await installerUpdateIntake(JOB, U, BIZ, { ...base, attended: "not_attended", quoteStatus: "not_quoted", quoteIncGst: null, includes: null });
-    const s = await st(); console.log("UNV", JSON.stringify({ a: s.attended, r: s.readiness.ready, n: s.nextAction, rc: s.readyCheckRequired }));
+    const s = await st();
     expect(s.attended).toBe("no"); expect(s.readiness.ready).toBe(false);
   });
   test("attended + quoted (customer already quoted)", async () => {
     await installerUpdateIntake(JOB, U, BIZ, { ...base, commercial: good, attendedOn: melbourneToday() });
-    const s = await st(); console.log("ATQ", JSON.stringify({ a: s.attended, b: s.readiness.blockers, n: s.nextAction, rc: s.readyCheckRequired }));
+    const s = await st();
     expect(s.attended).toBe("yes");
   });
   test("measured + unpriced keeps the measurement", async () => {
@@ -62,13 +62,21 @@ describe("Dad trial shapes: edit -> read", () => {
   });
   test("unvisited + quoted is preliminary and still needs onsite", async () => {
     await installerUpdateIntake(JOB, U, BIZ, { ...base, attended: "not_attended", commercial: good });
-    const s = await st(); console.log("UNQ", JSON.stringify({ b: s.readiness.blockers, n: s.nextAction, rc: s.readyCheckRequired }));
+    const s = await st();
     expect(s.readiness.ready).toBe(false);
   });
   test("unknown history + quote asks for clarification, never assumes a visit", async () => {
     const { attended: _a, ...noAtt } = base;
     await installerUpdateIntake(JOB, U, BIZ, { ...noAtt, commercial: good });
-    const s = await st(); console.log("UNK", JSON.stringify({ a: s.attended, r: s.readiness.ready, b: s.readiness.blockers, n: s.nextAction }));
+    const s = await st();
     expect(s.attended).toBeNull(); expect(s.readiness.ready).toBe(false);
+  });
+});
+
+describe("next step wording", () => {
+  test("unknown visit + quote asks for clarification instead of promising the owner quote", async () => {
+    const { intakeNextAction } = await import("../src/lib/installer-intake.core");
+    expect(intakeNextAction(null, true, null)).toMatch(/^Confirm whether the property was visited/);
+    expect(intakeNextAction(null, true, "attended")).toBe("Home Insulation Victoria checks the owner's eligibility, then prepares the owner quote.");
   });
 });

@@ -362,6 +362,7 @@ export function intakeNextAction(c: Coordination | null, quoted: boolean, attend
     ? "Finish your assessment and add your quote on this job. Home Insulation Victoria checks the owner's eligibility."
     : "Finish your assessment and add your quote on this job. Home Insulation Victoria checks the owner's eligibility — no second visit is booked automatically.";
   if (attended === "not_attended" && quoted) return "Your quote is a preliminary estimate. Home Insulation Victoria checks the owner's eligibility; an onsite Ready Check is still required.";
+  if (quoted && attended == null) return "Confirm whether the property was visited and assessed. The owner quote waits for that answer — a quote alone never counts as a visit.";
   if (quoted) return "Home Insulation Victoria checks the owner's eligibility, then prepares the owner quote.";
   return c === "self_managed"
     ? "Home Insulation Victoria checks the owner's eligibility. Then measure and quote the job and add it here."
