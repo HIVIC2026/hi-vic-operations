@@ -268,7 +268,6 @@ export async function analyseBatch(batchId: string, actorId: string) {
     if (quoteNeeded(e)) reasons.push(QUOTE_NEEDED_LABEL);
     reasons.push(...cleaned[i]!.issues);
     if (/Listed \d+ times in the upload/i.test(e.notes ?? "")) reasons.push("Listed more than once in this upload — merged into one customer, please check");
-    if (matched.some((m) => m.how === "only_lead")) reasons.push("Photos attached because this is the only customer in the upload — please check");
     else if (matched.length > 0 && confidence === "low") reasons.push("Files matched by filename only — please check");
     return {
       batch_id: batchId, row_index: i, extracted: { ...e, lead_stage: stage, site_check: sc.check, site_check_date: sc.date, site_check_source: sc.check ? "file" : null } as unknown as Json,

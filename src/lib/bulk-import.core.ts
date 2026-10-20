@@ -197,8 +197,7 @@ export function dedupeKey(e: BulkExtracted): string | null {
   return null;
 }
 
-// "only_lead" is no longer produced (unsafe guess); kept only so older stored rows still display.
-export type FileMatch = { path: string; name: string; how: "folder" | "filename" | "gps" | "photo_text" | "only_lead" | "added" };
+export type FileMatch = { path: string; name: string; how: "folder" | "filename" | "gps" | "photo_text" | "added" };
 
 /** Match files to a row by folder name, then filename, against the address tokens. */
 export function matchFiles(
@@ -346,7 +345,7 @@ export function fileResults(read: FileResult[], leads: BulkExtracted[], matches:
     if (fed.length) parts.push(fed.length === 1 ? `customer found: ${label(fed[0]!)}` : `${fed.length} customers found`);
     const g = hit.find((h) => h.x.how === "gps"), o = fed.length ? undefined : hit[0];
     if (g) parts.push(`matched by GPS to ${label(g.e)}`);
-    else if (o) parts.push(o.x.how === "only_lead" ? `attached to ${label(o.e)} (the only customer in this upload)` : `matched by ${({ folder: "folder name", filename: "file name", photo_text: "address written in the file", gps: "GPS", only_lead: "", added: "you" } as const)[o.x.how]} to ${label(o.e)}`);
+    else if (o) parts.push(`matched by ${({ folder: "folder name", filename: "file name", photo_text: "address written in the file", gps: "GPS", added: "you" } as const)[o.x.how]} to ${label(o.e)}`);
     const used = fed.length > 0 || hit.length > 0;
     return { name: r.name, status: used ? r.status : "warn", message: used ? parts.join(" — ") : `${r.message} — not linked to any customer — check before continuing` };
   });
