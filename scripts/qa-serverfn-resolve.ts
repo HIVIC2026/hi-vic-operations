@@ -8,7 +8,7 @@
 import { createHash } from "node:crypto";
 
 export type FnSpec = { file: string; name: string };
-export type Resolution = { mode: "dev" | "build" | "unresolved"; ids: Record<string, string>; missing: string[]; detail: string };
+export type Resolution = { mode: "dev" | "build" | "unresolved"; ids: Record<string, string>; missing: string[]; detail: string; target: string; buildIdentity: string | null; conflicts: string[] };
 export const fnKey = (s: FnSpec) => `${s.file}#${s.name}`;
 
 export function decodeDevId(id: string): { file: string; export: string } | null {
@@ -20,14 +20,29 @@ export function decodeDevId(id: string): { file: string; export: string } | null
 
 /** All dev IDs in a served client module, by function name, checked against the expected file. */
 export function devIdsFromModule(text: string, file: string): Record<string, string> {
-  const out: Record<string, string> = {};
+  return devIdsWithConflicts(text, file).ids;
+}
+/** Same, plus names served with MORE THAN ONE distinct ID (duplicate/mismatch -> never trusted). */
+export function devIdsWithConflicts(text: string, file: string): { ids: Record<string, string>; conflicts: string[] } {
+  const all: Record<string, Set<string>> = {};
   for (const m of text.matchAll(/createClientRpc\(\s*"([A-Za-z0-9_-]+)"\s*\)/g)) {
     const d = decodeDevId(m[1]!);
     if (!d || !d.export.endsWith("_createServerFn_handler")) continue;
     if (d.file.split("?")[0]!.replace(/^\//, "") !== file.replace(/^\//, "")) continue;
-    out[d.export.slice(0, -"_createServerFn_handler".length)] = m[1]!;
+    (all[d.export.slice(0, -"_createServerFn_handler".length)] ??= new Set()).add(m[1]!);
   }
-  return out;
+  const ids: Record<string, string> = {}; const conflicts: string[] = [];
+  for (const [n, set] of Object.entries(all)) { if (set.size === 1) ids[n] = [...set][0]!; else conflicts.push(n); }
+  return { ids, conflicts };
+}
+const sha = (parts: string[]) => createHash("sha256").update(parts.join("\u0000")).digest("hex").slice(0, 16);
+/** Reject any resolution where two different functions share one ID. */
+function finalize(r: Omit<Resolution, "conflicts"> & { conflicts?: string[] }, specs: FnSpec[]): Resolution {
+  const conflicts = [...(r.conflicts ?? [])];
+  const seen = new Map<string, string>();
+  for (const s of specs) { const id = r.ids[fnKey(s)]; if (!id) continue; const o = seen.get(id); if (o) conflicts.push(`${o} and ${fnKey(s)} share one ID`); else seen.set(id, fnKey(s)); }
+  if (!conflicts.length) return { ...r, conflicts };
+  return { ...r, ids: {}, missing: specs.map(fnKey), conflicts, detail: `${r.detail}; REJECTED: ${conflicts.join("; ")}` };
 }
 
 export const buildCandidate = (s: FnSpec) => createHash("sha256").update(`${s.file}--${s.name}_createServerFn_handler`).digest("hex");
@@ -54,24 +69,25 @@ async function servedClientJs(base: string, fetcher: Fetcher, cap = 400): Promis
 }
 
 export async function resolveServerFns(base: string, specs: FnSpec[], fetcher: Fetcher = (u) => fetch(u)): Promise<Resolution> {
-  const ids: Record<string, string> = {};
+  const ids: Record<string, string> = {}; const conflicts: string[] = []; const served: string[] = [];
   // 1) dev: the served transform of each source module carries the exact IDs.
   let dev = false;
   for (const file of [...new Set(specs.map((s) => s.file))]) {
     const r = await fetcher(`${base}/${file}`).catch(() => null);
     if (!r || r.status !== 200) continue;
-    const found = devIdsFromModule(await r.text(), file);
-    if (Object.keys(found).length) dev = true;
-    for (const s of specs.filter((x) => x.file === file)) if (found[s.name]) ids[fnKey(s)] = found[s.name]!;
+    const text = await r.text(); const found = devIdsWithConflicts(text, file);
+    if (Object.keys(found.ids).length || found.conflicts.length) { dev = true; served.push(text); }
+    for (const n of found.conflicts) conflicts.push(`${file}#${n} served with more than one ID`);
+    for (const s of specs.filter((x) => x.file === file)) if (found.ids[s.name]) ids[fnKey(s)] = found.ids[s.name]!;
   }
   if (dev) {
     const missing = specs.filter((s) => !ids[fnKey(s)]).map(fnKey);
-    return { mode: "dev", ids, missing, detail: missing.length ? `dev transform served but IDs missing for ${missing.join(", ")}` : "dev IDs read from served transforms" };
+    return finalize({ mode: "dev", ids, missing, target: base, buildIdentity: `dev:${sha(served)}`, conflicts, detail: missing.length ? `dev transform served but IDs missing for ${missing.join(", ")}` : "dev IDs read from served transforms" }, specs);
   }
-  // 2) build: accept the sha256 candidate only when it is present in the served compiled client code.
+  // 2) build: accept the sha256 candidate only when it is present in THIS target's served compiled client code.
   const bodies = await servedClientJs(base, fetcher);
-  if (!bodies.length) return { mode: "unresolved", ids: {}, missing: specs.map(fnKey), detail: "no served dev transform and no compiled client JavaScript reachable" };
+  if (!bodies.length) return { mode: "unresolved", ids: {}, missing: specs.map(fnKey), target: base, buildIdentity: null, conflicts: [], detail: "no served dev transform and no compiled client JavaScript reachable" };
   for (const s of specs) { const c = buildCandidate(s); if (bodies.some((b) => b.includes(`"${c}"`) || b.includes(`'${c}'`))) ids[fnKey(s)] = c; }
   const missing = specs.filter((s) => !ids[fnKey(s)]).map(fnKey);
-  return { mode: missing.length === specs.length ? "unresolved" : "build", ids, missing, detail: missing.length ? `compiled client does not contain the build IDs for ${missing.join(", ")} (custom/deduplicated IDs are not guessed)` : "build IDs confirmed in served compiled client" };
+  return finalize({ mode: missing.length === specs.length ? "unresolved" : "build", ids, missing, target: base, buildIdentity: `build:${sha(bodies)}`, detail: missing.length ? `compiled client does not contain the build IDs for ${missing.join(", ")} (custom/deduplicated IDs are not guessed)` : "build IDs confirmed in served compiled client" }, specs);
 }

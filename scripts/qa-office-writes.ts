@@ -11,12 +11,14 @@
 import { writeFileSync, readFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { toJSONAsync, fromCrossJSON } from "seroval";
+import { toJSONAsync } from "seroval";
+import { decodeFnResponse, asPipeline, asJobList, isOkWrite, isAdminDenial, describe as describeReply, requireRow, type Decoded } from "./qa-office-response";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 
 const arg = (k: string, d: string) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1]! : d; };
 const BASE = arg("--base", "http://localhost:8080"), OUT = arg("--out", "/tmp/qa-office-writes"), JOB = arg("--job", "HV-2111");
 const BUDGET_MS = Number(arg("--budget", "420")) * 1000, INJECT = process.argv.includes("--inject-failure");
+const PERSONAS = new Set(arg("--personas", "installer,rec,owner").split(",").map((x) => x.trim()));
 const DEADLINE = Date.now() + BUDGET_MS;
 const SNAP_FILE = "/mnt/documents/portal-qa/.office-writes-snapshot.json";
 mkdirSync(`${OUT}/screens`, { recursive: true }); mkdirSync("/mnt/documents/portal-qa", { recursive: true });
@@ -31,7 +33,9 @@ const left = () => DEADLINE - Date.now();
 if (FORBIDDEN.has(JOB)) throw new Error("SAFETY STOP: protected real job");
 const JOB_COLS = "id,job_number,source,stage,prior_stage,hold_reason,next_action,deleted_at,deleted_by,deleted_reason,eligibility_outcome,eligibility_reason,eligibility_set_by,eligibility_set_at,eligibility_decision_source,eligibility_review_required,property_id";
 type JobRow = Record<string, unknown> & { id: string; job_number: string; source: string; stage: string; property_id: string | null; deleted_at: string | null; deleted_reason: string | null; eligibility_reason: string | null; eligibility_outcome: string | null; eligibility_decision_source: string | null };
-const readJob = async (by: "id" | "job_number", v: string) => (await admin.from("jobs").select(JOB_COLS).eq(by, v).maybeSingle()).data as JobRow | null;
+const readJobMaybe = async (by: "id" | "job_number", v: string) => { const r = await admin.from("jobs").select(JOB_COLS).eq(by, v).maybeSingle(); if (r.error) throw new Error(`jobs read failed: ${r.error.message}`); return r.data as JobRow | null; };
+/** Strict readback: DB error or missing TEST row throws, so a failed read can never look "unchanged". */
+const readJob = async (by: "id" | "job_number", v: string) => requireRow(await admin.from("jobs").select(JOB_COLS).eq(by, v).maybeSingle(), `TEST job ${v}`) as unknown as JobRow;
 const RESTORABLE = (j: JobRow) => { const { id: _a, job_number: _b, source: _c, property_id: _d, ...r } = j; return r; };
 
 /** Restore the TEST job to the snapshot; only ever a qa_test row matching the snapshot id. Returns proof text or throws. */
@@ -48,7 +52,7 @@ async function restoreSnapshot(snap: JobRow, why: string) {
 // ---- leftover snapshot from an interrupted run: recover only if the job still carries this harness's marks ----
 if (existsSync(SNAP_FILE)) {
   const old = JSON.parse(readFileSync(SNAP_FILE, "utf8")) as { saved_at: string; job: JobRow };
-  const cur = await readJob("id", old.job.id);
+  const cur = await readJobMaybe("id", old.job.id);
   const ours = !!cur && cur.source === "qa_test" && ((cur.deleted_reason ?? "").startsWith("QA ") || (cur.eligibility_reason ?? "").startsWith("QA "));
   const unchanged = !!cur && JSON.stringify(RESTORABLE(cur)) === JSON.stringify(RESTORABLE(old.job));
   if (unchanged) { rmSync(SNAP_FILE, { force: true }); add({ area: "office writes", route_or_action: "leftover snapshot", persona: "-", status: "passed", detail: `snapshot from ${old.saved_at} already matched the job; discarded`, steps: "recovery" }); }
@@ -56,10 +60,10 @@ if (existsSync(SNAP_FILE)) {
   else { add({ area: "office writes", route_or_action: "leftover snapshot", persona: "-", status: "blocked", detail: `snapshot from ${old.saved_at} exists but the job changed without QA marks — not restoring blindly; review ${SNAP_FILE}`, steps: "recovery" }); process.exit(1); }
 }
 
-const job = await readJob("job_number", JOB);
+const job = await readJobMaybe("job_number", JOB);
 if (!job || job.source !== "qa_test") { add({ area: "office writes", route_or_action: "fixture", persona: "-", status: "blocked", detail: `${JOB} missing or not qa_test — refusing`, steps: "preflight" }); process.exit(1); }
 if (job.deleted_at) { add({ area: "office writes", route_or_action: "fixture", persona: "-", status: "blocked", detail: `${JOB} already deleted — not starting`, steps: "preflight" }); process.exit(1); }
-const propHash = async () => { const { data } = await admin.from("properties").select("enrichment").eq("id", job.property_id!).maybeSingle(); return createHash("sha256").update(JSON.stringify(data?.enrichment ?? null)).digest("hex"); };
+const propHash = async () => { const data = requireRow(await admin.from("properties").select("enrichment").eq("id", job.property_id!).maybeSingle(), "TEST property"); return createHash("sha256").update(JSON.stringify(data?.enrichment ?? null)).digest("hex"); };
 const answersBefore = await propHash();
 const startedAt = new Date().toISOString();
 
@@ -92,20 +96,19 @@ for (const [persona, email, role] of [["office", "admin@hivic.test", "admin"], [
 const { resolveServerFns, fnKey } = await import("./qa-serverfn-resolve");
 const FN_SPECS = [["src/lib/office.functions.ts", "getPipeline"], ["src/lib/office.functions.ts", "listByStatus"], ["src/lib/office.functions.ts", "deleteJob"], ["src/lib/office.functions.ts", "restoreJob"], ["src/lib/portal.functions.ts", "setEligibility"]].map(([file, name]) => ({ file: file!, name: name! }));
 const resolution = await resolveServerFns(BASE, FN_SPECS);
-add({ area: "office writes", route_or_action: "server function ID resolution", persona: "-", status: resolution.missing.length ? "failed" : "passed", detail: `${resolution.mode}: ${resolution.detail}`, steps: "served transform / compiled client scan" });
+add({ area: "office writes", route_or_action: "server function ID resolution", persona: "-", status: resolution.missing.length ? "failed" : "passed", detail: `target ${resolution.target}; mode ${resolution.mode}; identity ${resolution.buildIdentity ?? "none"}; ${resolution.detail}`, steps: "served transform / compiled client scan" });
 if (resolution.missing.length) { add({ area: "office writes", route_or_action: "office endpoint probes", persona: "-", status: "not_run", detail: "server function IDs unresolved for this target — diagnostic failure, not a permission result; no calls made", steps: "" }); process.exit(1); }
 const fnId = (file: string, name: string) => resolution.ids[fnKey({ file, name })]!;
-async function callFn(id: string, token: string, data: unknown, method: "GET" | "POST" = "POST") {
+async function callFn(id: string, token: string, data: unknown, method: "GET" | "POST" = "POST"): Promise<Decoded> {
   const payload = JSON.stringify(await toJSONAsync({ data }));
   const headers: Record<string, string> = { "x-tsr-serverFn": "true", accept: "application/json", authorization: `Bearer ${token}`, origin: BASE };
   const ctl = AbortSignal.timeout(Math.max(5_000, Math.min(45_000, left())));
-  const res = method === "GET"
-    ? await fetch(`${BASE}/_serverFn/${id}?${new URLSearchParams({ payload })}`, { headers, signal: ctl })
-    : await fetch(`${BASE}/_serverFn/${id}`, { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: payload, signal: ctl });
-  const text = await res.text();
-  let value: { result?: unknown; error?: unknown } | null = null;
-  try { value = fromCrossJSON(JSON.parse(text), { refs: new Map() }) as typeof value; } catch { /* error payloads use custom tags */ }
-  return { status: res.status, text: text.slice(0, 600), value };
+  try {
+    const res = method === "GET"
+      ? await fetch(`${BASE}/_serverFn/${id}?${new URLSearchParams({ payload })}`, { headers, signal: ctl, redirect: "manual" })
+      : await fetch(`${BASE}/_serverFn/${id}`, { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: payload, signal: ctl, redirect: "manual" });
+    return decodeFnResponse(res.status, res.headers.get("content-type"), await res.text());
+  } catch (e) { return { kind: "blocked", status: 0, reason: `request failed: ${(e as Error).message.slice(0, 120)}` }; }
 }
 const OFFICE_FN = "src/lib/office.functions.ts";
 const ACTIONS = [
@@ -120,15 +123,16 @@ type Parity = { ok: boolean; detail: string; listed: boolean };
 async function parity(token: string, statusKey: string | null): Promise<Parity & { key: string | null }> {
   const pipe = await callFn(fnId(OFFICE_FN, "getPipeline"), token, { includeTest: true }, "GET");
   const all = await callFn(fnId(OFFICE_FN, "listByStatus"), token, { includeTest: true }, "GET");
-  const p = pipe.value?.result as { stages: { rows: { key: string; label: string; total: number }[] }[]; ended: { key: string; label: string; total: number }[]; waitingList: { key: string; label: string; total: number }[] } | undefined;
-  const a = all.value?.result as { rows: { jobNumber: string; status: string }[]; total: number } | undefined;
-  if (!p || !a) return { ok: false, listed: false, key: statusKey, detail: `office reads unreadable (pipeline HTTP ${pipe.status}, list HTTP ${all.status})` };
+  const p = pipe.kind === "result" ? asPipeline(pipe.result) : null;
+  const a = all.kind === "result" ? asJobList(all.result) : null;
+  if (!p || !a) return { ok: false, listed: false, key: statusKey, detail: `office reads not a decoded pipeline/list (pipeline ${describeReply(pipe)}, list ${describeReply(all)})` };
   const flat = [...p.stages.flatMap((s) => s.rows), ...p.ended, ...p.waitingList];
   const mine = a.rows.find((r) => r.jobNumber === JOB);
   const key = statusKey ?? flat.find((r) => r.label === mine?.status)?.key ?? null;
   if (!key) return { ok: false, listed: !!mine, key, detail: `${JOB} status not found in pipeline (listed=${!!mine})` };
   const drill = await callFn(fnId(OFFICE_FN, "listByStatus"), token, { includeTest: true, status: key }, "GET");
-  const d = drill.value?.result as { rows: { jobNumber: string }[]; total: number } | undefined;
+  const d = drill.kind === "result" ? asJobList(drill.result) : null;
+  if (!d) return { ok: false, listed: false, key, detail: `drilldown not a decoded list (${describeReply(drill)})` };
   const count = flat.find((r) => r.key === key)?.total ?? -1;
   const inDrill = !!d?.rows.some((r) => r.jobNumber === JOB);
   const sum = flat.reduce((s, r) => s + r.total, 0);
@@ -153,16 +157,18 @@ try {
     const s = sessions["office"]; if (!s) throw new Error("no TEST office session");
     const r = await callFn(fnId(OFFICE_FN, "deleteJob"), s.access_token, { jobId: job.id, reason: "QA injected-failure check" });
     const del = await readJob("id", job.id);
-    add({ area: "office writes", route_or_action: "injected failure: TEST job deleted first", persona: "office", status: del?.deleted_at ? "passed" : "failed", detail: `HTTP ${r.status}; deleted_at set=${!!del?.deleted_at}`, steps: "live deleteJob, then throw" });
+    add({ area: "office writes", route_or_action: "injected failure: TEST job deleted first", persona: "office", status: isOkWrite(r) && del.deleted_at ? "passed" : "failed", detail: `${describeReply(r)}; ok=${isOkWrite(r)}; deleted_at set=${!!del.deleted_at}`, steps: "live deleteJob, then throw" });
     throw new Error("INJECTED_FAILURE after TEST deletion");
   }
 
   for (const persona of ["installer", "rec", "owner"]) {
-    const s = sessions[persona]; if (!s) continue;
+    const s = sessions[persona];
+    if (!PERSONAS.has(persona)) { for (const a of ACTIONS) add({ area: "office writes (denied)", route_or_action: `${a.name} direct call`, persona, status: "not_run", detail: "persona excluded for this run (--personas)", steps: "" }); continue; }
+    if (!s) { for (const a of ACTIONS) add({ area: "office writes (denied)", route_or_action: `${a.name} direct call`, persona, status: "blocked", detail: "no TEST session — not authorization evidence", steps: "" }); continue; }
     for (const a of ACTIONS) {
       const before = await dbSig(); const r = await callFn(a.id, s.access_token, a.data); const after = await dbSig();
-      const refused = r.status !== 404 && /Admin only/i.test(r.text);
-      add({ area: "office writes (denied)", route_or_action: `${a.name} direct call`, persona, status: refused && before === after ? "passed" : "failed", detail: `HTTP ${r.status}; ${refused ? "refused: Admin only." : "NOT refused"}; DB ${before === after ? "unchanged" : "CHANGED"}`, steps: `POST ${BASE}/_serverFn/<${a.name}> as TEST ${persona}` });
+      const refused = isAdminDenial(r);
+      add({ area: "office writes (denied)", route_or_action: `${a.name} direct call`, persona, status: refused && before === after ? "passed" : r.kind === "blocked" ? "blocked" : "failed", detail: `${describeReply(r)}; ${refused ? "handler admin refusal" : "NOT the handler admin refusal"}; DB ${before === after ? "unchanged" : "CHANGED"}`, steps: `POST ${BASE}/_serverFn/<${a.name}> as TEST ${persona}` });
     }
   }
   if (!sessions["rec"]) add({ area: "office writes (denied)", route_or_action: "REC direct calls", persona: "rec", status: "blocked", detail: "no TEST REC session", steps: "" });
@@ -174,10 +180,10 @@ try {
   add({ area: "office writes (parity)", route_or_action: "before delete: counted + listed", persona: "office", status: p0.ok && p0.listed ? "passed" : "failed", detail: p0.detail, steps: "getPipeline/listByStatus includeTest=true" });
   const d1 = await callFn(fnId(OFFICE_FN, "deleteJob"), tok, { jobId: job.id, reason: "QA parity check: delete" });
   const p1 = await parity(tok, p0.key);
-  add({ area: "office writes (parity)", route_or_action: "while deleted: not counted, not listed", persona: "office", status: d1.status === 200 && p1.ok && !p1.listed ? "passed" : "failed", detail: p1.detail, steps: "deleteJob, then same reads" });
+  add({ area: "office writes (parity)", route_or_action: "while deleted: not counted, not listed", persona: "office", status: isOkWrite(d1) && !!(await readJob("id", job.id)).deleted_at && p1.ok && !p1.listed ? "passed" : "failed", detail: `${describeReply(d1)} ok=${isOkWrite(d1)}; ${p1.detail}`, steps: "deleteJob, then same reads" });
   const r1 = await callFn(fnId(OFFICE_FN, "restoreJob"), tok, { jobId: job.id, reason: "QA parity check: restore" });
   const p2 = await parity(tok, p0.key);
-  add({ area: "office writes (parity)", route_or_action: "after restore: counted + listed again", persona: "office", status: r1.status === 200 && p2.ok && p2.listed ? "passed" : "failed", detail: p2.detail, steps: "restoreJob, then same reads" });
+  add({ area: "office writes (parity)", route_or_action: "after restore: counted + listed again", persona: "office", status: isOkWrite(r1) && !(await readJob("id", job.id)).deleted_at && p2.ok && p2.listed ? "passed" : "failed", detail: `${describeReply(r1)} ok=${isOkWrite(r1)}; ${p2.detail}`, steps: "restoreJob, then same reads" });
 
   // Browser journey (bounded by remaining budget)
   if (left() < 120_000) add({ area: "office writes", route_or_action: "browser journey", persona: "office", status: "not_run", detail: "budget too low for browser journey", steps: "" });
@@ -196,7 +202,8 @@ try {
 
   // DB readback
   const officeId = sessions["office"].user.id;
-  const { data: ev } = await admin.from("workflow_events").select("event_type,actor_id,details,created_at").eq("job_id", job.id).gte("created_at", startedAt).order("created_at");
+  const { data: ev, error: evErr } = await admin.from("workflow_events").select("event_type,actor_id,details,created_at").eq("job_id", job.id).gte("created_at", startedAt).order("created_at");
+  if (evErr) throw new Error(`workflow_events read failed: ${evErr.message}`);
   const evs = (ev ?? []) as { event_type: string; actor_id: string | null; details: Record<string, unknown> | null }[];
   for (const t of ["job_deleted", "job_restored"]) { const m = evs.filter((e) => e.event_type === t); add({ area: "office writes (DB)", route_or_action: `${t} audit`, persona: "office", status: m.length >= 1 && m.every((e) => e.actor_id === officeId && String(e.details?.["reason"] ?? "").length >= 3) ? "passed" : "failed", detail: `${m.length} event(s), all office actor + reason`, steps: "read workflow_events" }); }
   const el = evs.filter((e) => e.event_type === "eligibility_override" || e.event_type === "eligibility_set");
@@ -206,8 +213,10 @@ try {
 } finally {
   clearTimeout(deadlineTimer);
   await finalRestore(INJECT ? "after injected failure" : "end of run");
-  add({ area: "office writes (DB)", route_or_action: "owner answers unchanged", persona: "-", status: (await propHash()) === answersBefore ? "passed" : "failed", detail: "properties.enrichment hash before = after", steps: "sha256 compare" });
-  const { data: prot } = await admin.from("jobs").select("job_number,deleted_at").in("job_number", [...FORBIDDEN]);
+  try { add({ area: "office writes (DB)", route_or_action: "owner answers unchanged", persona: "-", status: (await propHash()) === answersBefore ? "passed" : "failed", detail: "properties.enrichment hash before = after", steps: "sha256 compare" }); }
+  catch (e) { add({ area: "office writes (DB)", route_or_action: "owner answers unchanged", persona: "-", status: "failed", detail: (e as Error).message, steps: "sha256 compare" }); }
+  const { data: prot, error: protErr } = await admin.from("jobs").select("job_number,deleted_at").in("job_number", [...FORBIDDEN]);
+  if (protErr) add({ area: "office writes (DB)", route_or_action: "3 real deleted jobs untouched", persona: "-", status: "failed", detail: `read failed: ${protErr.message}`, steps: "read-only" });
   add({ area: "office writes (DB)", route_or_action: "3 real deleted jobs untouched", persona: "-", status: (prot ?? []).length === 3 && (prot ?? []).every((p) => !!p.deleted_at) ? "passed" : "failed", detail: (prot ?? []).map((p) => `${p.job_number} deleted`).join(", "), steps: "read-only" });
 }
 process.exit(rows.every((r) => r.status === "passed") ? 0 : 1);
