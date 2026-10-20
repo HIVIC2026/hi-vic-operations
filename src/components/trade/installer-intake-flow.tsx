@@ -31,7 +31,7 @@ const ADD_JOB_STEPS: { key: AddJobStep; label: string }[] = [
 const ORDER = ADD_JOB_STEPS.map((s) => s.key);
 const nextStep = (s: AddJobStep): AddJobStep => ORDER[Math.min(ORDER.indexOf(s) + 1, ORDER.length - 1)] ?? s;
 const prevStep = (s: AddJobStep): AddJobStep | null => (ORDER.indexOf(s) > 0 ? ORDER[ORDER.indexOf(s) - 1] ?? null : null);
-import { COORDINATION_CHOICES, COORDINATION_VERSION, SELF_MANAGED_ACK, VEEC_NOTE, coordinationProblems, type Coordination, EVIDENCE_ACK, EXISTING_INSULATION_CHOICES, INTAKE_RULESET_VERSION, intakeProblems, multiCustomerAmbiguity, prefillFromExtracted, intakeConfirmFacts, type ExistingInsulation, QUOTE_STATUS_CHOICES, JOB_DETAILS_LEAD, intakeArea, intakeQuotePayload, type QuoteStatus } from "@/lib/installer-intake.core";
+import { COORDINATION_CHOICES, COORDINATION_VERSION, SELF_MANAGED_ACK, VEEC_NOTE, coordinationProblems, type Coordination, EVIDENCE_ACK, EXISTING_INSULATION_CHOICES, INTAKE_RULESET_VERSION, intakeProblems, multiCustomerAmbiguity, prefillFromExtracted, intakeConfirmFacts, type ExistingInsulation, QUOTE_STATUS_CHOICES, JOB_DETAILS_LEAD, intakeArea, intakeQuotePayload, type QuoteStatus, applicableIntakeDetails } from "@/lib/installer-intake.core";
 
 // Resume after refresh: scoped to the signed-in USER and business (never shared between people or businesses).
 // The server owns the draft id's files; consent and both acknowledgements are never stored or restored.
@@ -105,7 +105,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
           if (r.draftId) {
             const srv = await loadDraft({ data: { importId: r.draftId, businessId } });
             if (!live) return;
-            if (srv.status === "confirmed" && srv.jobId) { localStorage.removeItem(resumeKey(userId, businessId)); setSaved({ jobId: srv.jobId, jobNumber: srv.jobNumber, insulation: r.d?.insulation ?? "unknown" }); }
+            if (srv.status === "confirmed" && srv.jobId) { localStorage.removeItem(resumeKey(userId, businessId)); setSaved({ jobId: srv.jobId, jobNumber: srv.jobNumber, ...(srv.receipt ?? { insulation: "unknown" as const, quoted: true, next: intakeNextAction(null, true), feeHeld: false }) }); }
             else if (srv.status === "draft") { draftRef.current = r.draftId; filesRef.current = srv.files; setDraftId(r.draftId); setFiles(srv.files); setFileTexts(Object.fromEntries(Object.entries(r.fileTexts ?? {}).filter(([path]) => srv.files.some((f) => f.path === path)))); setDerived(r.derived ?? {}); if (srv.files.length) setFileNote("Your attached files were kept."); }
           }
         }
@@ -132,13 +132,14 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
   if (saved) return <Received saved={saved} preview={!!preview} />;
   if (!hydrated) return <div role="status" className="mt-3 space-y-2"><p>{restoreError ? "Your saved details could not load. Try again before continuing." : "Loading your saved details…"}</p>{restoreError && <Button onClick={() => { setRestoreError(false); setRestoreAttempt((n) => n + 1); }}>Retry</Button>}</div>;
 
+  const live = applicableIntakeDetails(d); // hidden Yes-branch facts never validate or save when No is chosen
   const problems = (): string[] => {
     const c = customerProblems(customer);
     if (step === "customer") return c;
     const org = coordinationProblems(coord, selfAck);
     if (step === "organise") return org;
-    const p = intakeProblems({ ...d, quoteStatus: d.quoteStatus ?? null, quoteFileCount: files.length, evidenceAck: ack, requireMeasured: true }).map((x) => x === "Choose the quote status" ? "Choose whether you have measured and quoted this job" : x);
-    p.push(...removalProblems(removalPayload(d.removal ?? blankRemoval(), d.quoteStatus === "have_quote"), d.insulation, intakeArea(d.area), intakeQuotePayload({ ...d, quoteStatus: d.quoteStatus ?? null }).quoted_price_inc_gst));
+    const p = intakeProblems({ ...live, quoteStatus: d.quoteStatus ?? null, quoteFileCount: files.length, evidenceAck: ack, requireMeasured: true }).map((x) => x === "Choose the quote status" ? "Choose whether you have measured and quoted this job" : x);
+    p.push(...removalProblems(removalPayload(d.removal ?? blankRemoval(), d.quoteStatus === "have_quote"), d.insulation, intakeArea(live.area), intakeQuotePayload({ ...live, quoteStatus: d.quoteStatus ?? null }).quoted_price_inc_gst));
     if (!payer) p.push("Choose who arranges the electrician");
     else if (payer === "own") { const eb = electricianPlanBlocker(plan); if (eb) p.push(eb); }
     if (fileText && d.quoteStatus === "have_quote" && multiCustomerAmbiguity(fileText)) p.push("Your file names more than one customer — upload one customer's quote per job");
@@ -171,8 +172,8 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
     try {
       const id = await ensureDraft();
       if (files.length) await addFiles({ data: { importId: id, files: files.map((f) => ({ ...f, type: f.type ?? "" })) } });
-      const q = intakeQuotePayload({ quoteStatus: d.quoteStatus ?? null, amount: d.amount, includes: d.includes, proposedR: d.proposedR });
-      const facts = intakeConfirmFacts(customer, intakeArea(d.area), q.proposed_r_value); // r_value = PROPOSED product R; no area -> null, never 0
+      const q = intakeQuotePayload({ quoteStatus: d.quoteStatus ?? null, amount: live.amount, includes: live.includes, proposedR: live.proposedR });
+      const facts = intakeConfirmFacts(customer, intakeArea(live.area), q.proposed_r_value); // r_value = PROPOSED product R; no area -> null, never 0
       const res = await confirm({ data: { importId: id, facts, installer: {
         quoted: q.quoted, site_check: "no", site_check_date: null, // visit not asked here; server records it as unknown
         quoted_price_inc_gst: q.quoted_price_inc_gst,
