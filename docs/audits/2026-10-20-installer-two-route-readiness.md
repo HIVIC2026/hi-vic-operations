@@ -1,44 +1,33 @@
-# Installer two-route Add Job — readiness audit (20 Oct 2026, 10:55 UTC request)
+# Installer two-route Add Job — consolidated readiness audit (20 Oct 2026, after 11:00 UTC review)
 
-Base HEAD: c5a04cac (includes save point e96de1e4 two-route work). Not published. No sends, no external writes. Dad/Deep access on hold.
+Scope: installer intake, its Ready Check/quote handoffs. Not published. No sends, provider writes, account, role or approval changes. Dad/Deep access on hold. No schema migration (uses existing `jobs.installer_site_check(_date)` and `workflow_events`).
+The first slice (a32318bb) is NOT the full redesign. This file lists what is implemented now and what is still blocked.
 
-## Source check vs request's "current source verified" claim
-The claim describes pre-e96de1e4 code. At HEAD:
-- Add Job and job-details editor ask `ATTENDED_QUESTION` and `QUOTE_PREPARED_QUESTION` separately; null attendance stays unknown.
-- `applicableIntakeDetails`, `intakeQuotePayload`, `pickIntakeChanges`, removal payload and server serialization no longer clear area/proposed R/removal when "Not yet"; only quote amount/inclusions/removal charge clear.
-- Flow sends attendance from the installer's answer (not unconditional `site_check:'no'`); receipt routes on attendance + quote.
-- This turn: removed the unused `MEASURED_QUOTED_QUESTION`/`MEASURED_QUOTED_CHOICES` constants.
-- No schema migration this turn (attendance uses existing `jobs.installer_site_check`/`installer_site_check_date` + `installer_attendance_answer` events).
+## Review findings → status
+1. **Supporting uploads / file purpose — IMPLEMENTED.** Add job and job-details editor both have a separate "Supporting photos, videos or measure-up (optional)" upload, shown whatever the quote answer. Each file is saved with `purpose: "quote" | "supporting"` (validators in pilot.functions.ts and installer-quote.functions.ts; draft `job_imports.files`). `quoteFileCount` counts only `quote` files. Legacy untagged files count as quote because before this change they could only come from the "Upload your quote" control. Used in the flow, editor and `confirmClaimed`. Extraction runs only on quote files and stays provisional. Attach failures now return an error instead of looking saved.
+2. **Ready Check / progress handoffs — IMPLEMENTED.** `installerReadyCheckAction` uses recorded attendance: not attended → Ready Check, even if quoted; attended → none; unknown → new `confirm_attendance` action. Unknown becomes none only when a completed Ready Check booking or an onsite/verified measurement exists, and stays "booked" when one is booked. `installerRcState` reads attendance, completed bookings and the current measurement, and fails closed on read errors. The card shows a retry. `installer-progress.core` nextAction: attended + unquoted → installer prices the same job; quoted + not attended → preliminary, onsite Ready Check; unknown → asks the installer. The progress loader passes attendance. The missing `intakeProgressApplies` helper was restored, so installer-progress.test.ts runs (18/0).
+3. **Preliminary estimate — IMPLEMENTED.** Area and proposed R are no longer erased for not attended + not quoted. They stay visible, labelled "Estimated … optional", and are saved as an unverified estimate, never a measurement. Create: the estimate is on the `installer_attendance_answer` event and the proposed R is kept. Edit: when not attended and no measurement exists, an area becomes an `installer_preliminary_estimate` event. `installerIntakeState.preliminaryAreaM2` and `getMyIntakeJob` restore it on reopen; the editor shows "Preliminary estimate … (unverified — not measured)". It is hidden once a real measurement exists.
+4. **Onsite requirement / material attendance / dates — IMPLEMENTED.** `installerQuoteReadiness` gained an `onsite` check. Not attended → "No site visit yet — the quote is preliminary until the onsite Ready Check". Unknown → "Site visit not recorded — confirm …". Either one is cleared only by an attended answer or an onsite/verified measurement. This feeds `intakeSendBlockers`, release/accept paths and server-drafted quotes. A Ready Check is never marked complete just to allow a quote. Changing attendance in `installerUpdateIntake` is material, so draft/issued quotes go stale. Visit dates are checked in the Melbourne calendar (`melbourneToday`, `visitDateProblem` with a real-date round trip). A future or impossible date is refused with a message on create and edit, never silently dropped.
+5. **Read errors — IMPLEMENTED for the named paths.** `isIntakeJob`, the `installerIntakeState` reads (coordination, measurement, consent, fee, evidence list, estimate), elAccepted, the current measurement in `installerUpdateIntake` and the import file update now throw. A failed read no longer returns empty or no blockers.
 
-## Tests (sandbox, bun, per-file)
-PASS: installer-two-route 8/0, installer-intake-edit-db 16/0 (PGlite canonical), installer-ui-repairs 17/0, installer-payer-quote-db 12/0, add-job-flow 15/0. tsgo clean.
-Earlier (e96de1e4): browser /installer-preview desktop 1280 + mobile 390 — both questions render, area kept when toggling.
+**Consequence to note:** older installer jobs with no recorded visit now show "Site visit not recorded" as a quote blocker and a "Have you attended…" prompt, unless an onsite measurement or completed Ready Check exists. This follows the "never assume" rule.
 
-## IMPLEMENTED
-Items 1, 2, 3, 5 of the approved flow (attendance/quote split, four combinations, measured+unpriced retention, preliminary-quote labelling, unknown historic stays unknown, recoveredIntakeReceipt keeps null quote null, Office-only own-electrician swap kept).
-
-## NOT BUILT (open)
-- Installer quote lifecycle prepared/sent/customer-accepted as history (only prepared yes/not yet today).
-- Quote-file vs supporting-evidence classification; provisional extraction linked to original file.
-- Prefill of canonical Ready Check from prior assessment with provenance; per-zone mixed-ceiling import.
-- Unified evidence requirements with deadlines enforced at removal/start/claim actions (Table 4, PIESA ≥24h, 30-day window, PIISA-before-work).
-- "Site conditions differ" variation hold; job-detail readiness panels (quote / before-work / after-install / AP review).
-- Removal included-vs-separate and gross/net GST ambiguity hold in combined owner quote.
-- Storage: job-files bucket 200 MiB < 250 MB guide max (needs approval).
+## Tests (sandbox; bun per file; PGlite fixtures for *-db)
+PASS: installer-intake-edit-db 18/0 (adds: estimate-only edit → no measurement, restored on reopen, blockers; future/impossible date refused with nothing saved; attendance change marks drafts stale), installer-attendance-handoffs 9/0, installer-ready-check 6/0, installer-progress 18/0, installer-two-route 8/0, installer-ui-repairs 17/0, installer-payer-quote-db 12/0, quote-answer-db 8/0, payer-bypass-db 11/0, import-claim-db 5/0, business-owner-only 19/0, add-job-flow 15/0, installer-intake 14/0, installer-intake-repairs 13/0, installer-intake-review 17/0, installer-quoted-db 1/0, installer-job-facts-db 1/0, add-job-confirmations 4/0, add-job-next-steps 5/0, installer-payer-fees 8/0, intake-quote-details 7/0, installer-led 17/0, installer-journey 4/0, jobfile-financial-privacy 8/0, qa-role-login 5/0. tsgo clean. Retired-terms scan: 0 customer-visible.
+Test expectations changed where the approved rule changed: the old "hidden area erased", "unknown → none" and "future date silently dropped" assertions were replaced. Fixtures gained the real `installer_site_check` / `job_assignments` columns and tables, and visited fixtures set attendance = yes.
+Browser: /installer-preview loads at 1280 and 390 with no page errors. The supporting upload and estimate fields were not clicked through.
 
 ## NOT_RUN
-Authenticated TEST installer save/reopen on preview; live checks; Mitti fake-I/O end-to-end; full portal-qa (not rerun by instruction).
-Pre-existing failure: installer-progress.test.ts import `intakeProgressApplies`.
+- Add job create → read → edit → read for all four combinations through the real `confirmClaimed` on a canonical-schema fixture. No PGlite harness covers the full job-building body; the create path is tested at payload/unit level only.
+- Signed-in TEST installer save → reload on preview (desktop/mobile). **Not live-ready until this is run.**
+- `scripts/installer-test.ts`: deliberately not run (snapshot restore, membership writes, obsolete photos/price ⇒ visited checks, external operations).
+- Full portal-qa and Office/email suites: not rerun, by instruction.
 
-## Addendum 10:58 UTC — attendance now drives the Ready Check and progress handoffs
-Coordination: the queued duplicate request is the same approved task; treated as gap coverage only.
-- `installer-ready-check.core.ts` `installerReadyCheckAction`: visit needed when `attended === "no"` (even if quoted), or legacy unknown attendance + not quoted. Attended + unquoted → no Ready Check prompt.
-- `installer-ready-check.server.ts` `installerRcState`: reads `jobs.installer_site_check` and passes `attended`.
-- `installer-progress.core.ts` `nextAction`: attended + unquoted → "You: finish missing assessment details and add your price on this job"; quoted + not attended → preliminary quote, onsite Ready Check required. Unknown attendance keeps previous behaviour.
-- `installer-quote.functions.ts` progress loader: reads `installer_site_check` into `attended`.
-- New test `tests/installer-attendance-handoffs.test.ts` 9/0 (pure rules; the two loaders were updated but not exercised end to end).
-- Re-run: installer-ready-check 6/0, installer-two-route 8/0, installer-ui-repairs 17/0; tsgo clean. installer-progress.test.ts still fails at import (`intakeProgressApplies` missing, pre-existing).
-- `scripts/installer-test.ts` deliberately NOT run (it restores snapshots/writes business memberships; sectionC contains old photos/price ⇒ visited checks and external operations).
-
-## Consolidated status
-Not live-ready: the signed-in TEST installer save → reload journey on preview has NOT_RUN. Not published. Dad/Deep access on hold. No sends, credential changes or approvals.
+## STILL NOT BUILT (exact remaining blockers)
+- Installer quote lifecycle history (prepared / sent / customer already accepted): only prepared Yes/Not yet exists.
+- Prefill of the canonical Ready Check from prior assessment with provenance, and per-zone (mixed ceiling) import.
+- Evidence gates at the action boundary from Guide V1.2: Table 4 pp23–25 per-zone 360° before/after video, depth/markings, isolation, packaging, zone plan; 3.4.1–3.4.3 PIESA ≤30 days and ≥24h copy, life-support consent before PIESA, consent ≥24h, notification 24h–5d; 3.5.1 PIISA before work; HIVIC original-condition-before-removal safeguard; prestart uploads before "Start work"; final AP gate on verified items. Mitti/official mappings stay unapproved, so those gates stay held.
+- Job-page readiness panels (quote readiness / before-work / after-install / AP review with who, due and missing-only).
+- "Site conditions differ" discrepancy hold through variation/Office review.
+- Removal included vs separately priced, and gross/net/GST ambiguity hold. Existing canonical quote arithmetic was not changed or re-verified this turn.
+- Storage: the job-files bucket limit is 200 MiB, below the guide's 250 MB video maximum. Raising it needs Jo's approval.
