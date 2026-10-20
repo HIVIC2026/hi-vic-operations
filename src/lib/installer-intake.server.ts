@@ -229,7 +229,7 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
   const nextAttended = p.attended ?? curAttended;
   // Removal facts are site facts: kept on "quote not yet" when the property was attended; only the charge is commercial.
   const nextRemoval = p.removalQuote === undefined ? st.removalQuote : p.quoteStatus === "not_quoted" ? (nextAttended === "attended" ? ((r) => r ? { ...r, chargeIncGst: null } : null)(readRemoval(p.removalQuote)) : { answer: "unknown" as const, areaM2: null, chargeIncGst: null }) : readRemoval(p.removalQuote);
-  if (nextRemoval) { const problems = removalProblems(nextRemoval, p.insulation, p.areaM2 ?? st.areaM2, p.quoteIncGst); if (problems.length) throw new WorkflowError(problems.join(" • ")); }
+  if (nextRemoval) { const problems = removalProblems(nextRemoval, p.insulation, p.areaM2 ?? st.areaM2, p.quoteIncGst, p.quoteStatus === "have_quote"); if (problems.length) throw new WorkflowError(problems.join(" • ")); }
   const removalChanged = p.removalQuote !== undefined && JSON.stringify(nextRemoval) !== JSON.stringify(st.removalQuote);
   // ---- Validate the electrician/payer change and fee declaration BEFORE any write (no misleading partial saves). ----
   const { planPayerChange } = await import("./installer-intake.core");

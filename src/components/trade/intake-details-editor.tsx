@@ -77,7 +77,7 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
 
   const save = async () => {
     const p = intakeProblems({ area, amount, includes, proposedR, insulation: ins, quoteStatus: qs, quoteFileCount: allFiles.length, evidenceAck: true });
-    p.push(...removalProblems(removalPayload(removal, qs === "have_quote"), ins, intakeArea(area), intakeQuotePayload({ quoteStatus: qs, amount, includes, proposedR }).quoted_price_inc_gst));
+    p.push(...removalProblems(removalPayload(removal, qs === "have_quote", att === "attended"), ins, intakeArea(area), intakeQuotePayload({ quoteStatus: qs, amount, includes, proposedR }).quoted_price_inc_gst, qs === "have_quote"));
     if (facts.areaM2 != null && !area.trim()) p.push("The ceiling area is already saved — enter the corrected area instead of clearing it");
     if (payerChanged && payer === "own" && !(plan?.mode === "mine" && (plan.business_id || plan.nomination_id))) p.push("Choose your electrician");
     setProblems(p); setMsg(null);
@@ -85,7 +85,7 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
     const q = intakeQuotePayload({ quoteStatus: qs, amount, includes, proposedR });
     setBusy(true);
     try {
-      const r = await onSave({ areaM2: intakeArea(area), insulation: ins, quoteStatus: qs, quoteIncGst: q.quoted_price_inc_gst, includes: q.price_includes, proposedR: q.proposed_r_value, files: newFiles, ...(att && (att !== (facts.attended ?? null) || (att === "attended" && attOn !== (facts.attendedOn ?? ""))) ? { attended: att, attendedOn: att === "attended" ? attOn || null : null } : {}), removalQuote: removalPayload(removal, qs === "have_quote"),
+      const r = await onSave({ areaM2: intakeArea(area), insulation: ins, quoteStatus: qs, quoteIncGst: q.quoted_price_inc_gst, includes: q.price_includes, proposedR: q.proposed_r_value, files: newFiles, ...(att && (att !== (facts.attended ?? null) || (att === "attended" && attOn !== (facts.attendedOn ?? ""))) ? { attended: att, attendedOn: att === "attended" ? attOn || null : null } : {}), removalQuote: removalPayload(removal, qs === "have_quote", att === "attended"),
         ...(feeTick && feeText && (payer === "hivic" || payer === "own") ? { feeAwareness: { payer, text: feeText } } : {}),
         ...(payerChanged ? { electricianPayer: payer } : {}),
         ...(sendElectrician ? { electrician: sendElectrician } : {}) });

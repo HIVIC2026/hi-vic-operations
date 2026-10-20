@@ -136,7 +136,7 @@ describe("own electrician -> a different own electrician (no atomic swap): refus
 });
 
 describe("two-route attendance (Jo 20 Oct 'Ok fix')", () => {
-  const ATT = { ...base, insulation: "none" as const };
+  const ATT = { ...base, insulation: "below_r2" as const };
   test("visited + not quoted: area/product/removal survive save and reload; attendance recorded explicitly", async () => {
     await installerUpdateIntake(JOB, U, BIZ, { ...ATT, attended: "attended", attendedOn: "2026-10-10", areaM2: 118, proposedR: 5, removalQuote: { answer: "yes", areaM2: 40, chargeIncGst: 500 } });
     const j = await job();

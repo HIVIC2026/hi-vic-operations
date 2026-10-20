@@ -141,7 +141,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
     if (step === "organise") return org;
     const p = intakeProblems({ ...live, quoteStatus: d.quoteStatus ?? null, quoteFileCount: files.length, evidenceAck: ack, requireMeasured: true, attended: d.attended ?? null }).map((x) => x === "Choose the quote status" ? "Choose whether you have prepared a quote" : x);
     if (!d.attended) p.unshift("Choose whether you have attended and assessed this property");
-    p.push(...removalProblems(removalPayload(d.removal ?? blankRemoval(), d.quoteStatus === "have_quote"), d.insulation, intakeArea(live.area), intakeQuotePayload({ ...live, quoteStatus: d.quoteStatus ?? null }).quoted_price_inc_gst));
+    p.push(...removalProblems(removalPayload(d.removal ?? blankRemoval(), d.quoteStatus === "have_quote", d.attended === "attended"), d.insulation, intakeArea(live.area), intakeQuotePayload({ ...live, quoteStatus: d.quoteStatus ?? null }).quoted_price_inc_gst, d.quoteStatus === "have_quote"));
     if (!payer) p.push("Choose who arranges the electrician");
     else if (payer === "own") { const eb = electricianPlanBlocker(plan); if (eb) p.push(eb); }
     if (fileText && d.quoteStatus === "have_quote" && multiCustomerAmbiguity(fileText)) p.push("Your file names more than one customer — upload one customer's quote per job");
@@ -182,7 +182,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         price_includes: q.price_includes,
         contact_permission: customer.contact_permission, owner_agreed: false,
         intake: { existing_insulation: d.insulation ?? "unknown", evidence_ack: ack, proposed_r_value: q.proposed_r_value, quote_status: d.quoteStatus, attended: d.attended, attended_on: d.attended === "attended" && d.attendedOn ? d.attendedOn : null, version: `${INTAKE_RULESET_VERSION}+${COORDINATION_VERSION}`, coordination: coord, self_managed_ack: coord === "self_managed" && selfAck,
-          measured_required: true, electrician_payer: payer, ...(d.removal ? { removal_quote: removalPayload(d.removal, d.quoteStatus === "have_quote") } : {}),
+          measured_required: true, electrician_payer: payer, ...(d.removal ? { removal_quote: removalPayload(d.removal, d.quoteStatus === "have_quote", d.attended === "attended") } : {}),
           ...(d.quoteStatus === "have_quote" && feeAck && feeText ? { fee_awareness: { declared: true, payer: payer, text: feeText, version: FEE_AWARENESS_VERSION } } : {}) },
       }, electrician: payer === "undecided" ? { mode: "later" } : payer === "own" && plan?.mode === "mine" ? { mode: "mine", business_id: plan.business_id ?? null, nomination_id: plan.nomination_id ?? null } : { mode: "hivic" } } as never });
       try { if (userId) localStorage.removeItem(resumeKey(userId, businessId)); } catch { /* ignore */ }
@@ -316,7 +316,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
           d.attended === "attended" ? `Attended and assessed${d.attendedOn ? ` on ${d.attendedOn}` : " (date not given)"}` : "Not attended yet — Ready Check required",
           !branches.siteFacts ? "Not measured yet" : intakeArea(d.area) ? `Ceiling ${d.area} m²` : "Ceiling area: not measured yet", `Existing insulation: ${EXISTING_INSULATION_CHOICES.find((c) => c.value === (d.insulation ?? "unknown"))?.label ?? "Not yet confirmed"}`,
           ...(d.quoteStatus === "not_quoted" ? ["Quote: not prepared yet", d.proposedR && branches.siteFacts ? `Proposed product ${/^r/i.test(d.proposedR) ? d.proposedR : `R${d.proposedR}`}` : ""] : [branches.preliminary ? "Quote: preliminary estimate (no site visit yet)" : "", d.amount ? `Quote $${d.amount.replace(/^\$/, "")} inc GST` : "Quote amount not confirmed — from your uploaded file", d.includes ? `Includes: ${d.includes}` : "", d.proposedR ? `Proposed product ${/^r/i.test(d.proposedR) ? d.proposedR : `R${d.proposedR}`}` : ""]),
-          ...(branches.siteFacts && d.removal ? [removalSummary(removalPayload(d.removal, d.quoteStatus === "have_quote"))] : []),
+          ...(branches.siteFacts && d.removal ? [removalSummary(removalPayload(d.removal, d.quoteStatus === "have_quote", d.attended === "attended"))] : []),
           `${files.length} file${files.length === 1 ? "" : "s"} attached`, `Electrician: ${elName}`, ...(d.quoteStatus === "have_quote" ? [feeAck && feeText ? "Owner fees advised (declared)" : "Owner fees: not declared yet — owner quote waits"] : []),
         ]} />
         <label className="flex items-start gap-3 text-sm" data-evidence-ack><Checkbox className="mt-0.5" checked={ack} onCheckedChange={(c) => setAck(c === true)} aria-label={EVIDENCE_ACK} /><span>{EVIDENCE_ACK}</span></label>

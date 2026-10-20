@@ -117,7 +117,7 @@ export async function confirmClaimed(userId: string, data: ConfirmImportInput, i
       else if (data.installer) data.installer.quoted = "yes";
     }
     const removal = readRemoval(intake.removal_quote);
-    if (removal) { if (qs === "not_quoted" && visited) blockers.push(...removalProblems({ ...removal, chargeIncGst: null }, intake.existing_insulation, c.measured_area_m2 == null ? null : Number(c.measured_area_m2), null));
+    if (removal) { if (qs === "not_quoted" && visited) { intake.removal_quote = { ...removal, chargeIncGst: null }; blockers.push(...removalProblems(intake.removal_quote, intake.existing_insulation, c.measured_area_m2 == null ? null : Number(c.measured_area_m2), null, false)); }
       else if (qs === "not_quoted") intake.removal_quote = { answer: "unknown", areaM2: null, chargeIncGst: null }; else blockers.push(...removalProblems(removal, intake.existing_insulation, c.measured_area_m2 == null ? null : Number(c.measured_area_m2), data.installer?.quoted_price_inc_gst ?? null)); }
     { const { coordinationProblems } = await import("./installer-intake.core"); blockers.push(...coordinationProblems(intake.coordination, intake.self_managed_ack)); }
     // Jo, 9 Oct: "Yes, measured and quoted" requires the measured area and existing insulation; "No" saves nulls.
