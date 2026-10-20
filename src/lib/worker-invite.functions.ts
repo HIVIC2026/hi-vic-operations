@@ -155,7 +155,7 @@ export const submitWorkerInvite = createServerFn({ method: "POST" }).middleware(
       if (!claimed?.length) return { ok: false as const, errors: ["This link has already been used."] };
       const { error: ue } = await admin.from("partner_workers").update({
         // certification_status stays 'unverified' — the office must verify. Existing JSON fields are preserved.
-        certification: mergeEec(w.certification, eecUploadMeta(data.certificate_path!, now, data.certificate_number)),
+        certification: mergeEec(w.certification, eecUploadMeta(data.certificate_path!, now, data.certificate_number)) as never,
       }).eq("id", w.id);
       if (ue) {
         await admin.from("partner_worker_invites").update({ used_at: null }).eq("id", inv.id);
@@ -186,7 +186,7 @@ export const submitWorkerInvite = createServerFn({ method: "POST" }).middleware(
       added_by: inv.created_by, approval_status: "pending",
       // Installer certificate metadata: uploaded is NOT verified. Office verification sets certification_status='verified'.
       certification_status: t === "installer" ? "unverified" : null,
-      certification: t === "installer" ? mergeEec(null, eecUploadMeta(data.certificate_path!, now, data.certificate_number)) : null,
+      certification: t === "installer" ? (mergeEec(null, eecUploadMeta(data.certificate_path!, now, data.certificate_number)) as never) : null,
     }).select("id").single();
     if (error) {
       await admin.from("partner_worker_invites").update({ used_at: null }).eq("id", inv.id);

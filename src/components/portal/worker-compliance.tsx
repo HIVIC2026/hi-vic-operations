@@ -5,7 +5,8 @@ import { AlertTriangle, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
-import { addLicenceExpiry, createWorkerCompletionLink, myTeamCompliance, officeEecFileUrl, officePiisaFileUrl, officeVerifyEec, officeVerifyPiisa, officeWorkerCompliance, piisaUploadSlot, savePiisa } from "@/lib/worker-compliance.functions";
+import { addLicenceExpiry, myTeamCompliance, officeEecFileUrl, officePiisaFileUrl, officeVerifyEec, officeVerifyPiisa, officeWorkerCompliance, piisaUploadSlot, savePiisa } from "@/lib/worker-compliance.functions";
+import { createWorkerCompletionLink } from "@/lib/worker-invite.functions";
 import { EEC_TEAM_LABEL } from "@/lib/worker-compliance.core";
 
 type Row = { id: string; name: string; role: string; missing: ("licence_expiry" | "piisa")[]; warning: string | null; piisa: string; eec: string; licenceExpiry: string | null };

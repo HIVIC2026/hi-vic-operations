@@ -112,7 +112,7 @@ export const officeVerifyEec = createServerFn({ method: "POST" }).middleware([re
     const now = new Date().toISOString();
     const { error } = await admin.from("partner_workers").update({
       certification_status: "verified",
-      certification: mergeEec(w.certification, { ...eecUploadMeta(upload.path, upload.uploaded_at ?? now, upload.number), eec_verified_at: now, eec_verified_by: context.userId } as never),
+      certification: mergeEec(w.certification, { ...eecUploadMeta(upload.path, upload.uploaded_at ?? now, upload.number), eec_verified_at: now, eec_verified_by: context.userId } as never) as never,
     }).eq("id", w.id);
     if (error) throw new Error("Couldn't verify the certificate. Please try again.");
     await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: "eec_certificate_verified", summary: "EEC/CII certificate verified", details: { worker_id: w.id } });
