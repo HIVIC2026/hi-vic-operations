@@ -8,9 +8,9 @@ export function postgrestShim(db: PGlite) {
     from(table: string) {
       let op: "select" | "update" | "insert" = "select"; let orderBy = ""; let lim = "";
       let cols = "*"; let patch: Record<string, unknown> = {}; let returning: string | null = null;
-      const filters: Filter[] = []; let single: "one" | "maybe" | null = null; let head = false;
+      const filters: Filter[] = []; let single: "one" | "maybe" | null = null; let head = false; let wantCount = false;
       const b = {
-        select(c = "*", o?: { count?: string; head?: boolean }) { if (op !== "select") returning = c; else { cols = c; head = !!o?.head; } return b; },
+        select(c = "*", o?: { count?: string; head?: boolean }) { if (op !== "select") returning = c; else { cols = c; head = !!o?.head; wantCount = o?.count === "exact"; } return b; },
         update(p: Record<string, unknown>) { op = "update"; patch = p; return b; },
         eq(c: string, v: unknown) { filters.push({ sql: `"${c}" = $?`, vals: [v] }); return b; },
         neq(c: string, v: unknown) { filters.push({ sql: `"${c}" <> $?`, vals: [v] }); return b; },
@@ -38,9 +38,16 @@ export function postgrestShim(db: PGlite) {
             const r = await db.query<Record<string, unknown>>(sql, vals);
             const rows = r.rows.map((row) => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, v instanceof Date ? v.toISOString() : v])));
             if (head) return { data: null, count: (rows[0]?.n as number) ?? 0, error: null };
+            // PostgREST returns the exact total (ignoring LIMIT) when count: "exact" is requested on a normal select.
+            let count: number | null = null;
+            if (op === "select" && wantCount) {
+              const cv: unknown[] = []; const cph = (s2: string, vs: unknown[]) => s2.replace(/\$\?/g, () => { cv.push(vs.shift()); return `$${cv.length}`; });
+              const where = filters.length ? " WHERE " + filters.map((f) => cph(f.sql, [...f.vals])).join(" AND ") : "";
+              count = Number((await db.query<{ n: number }>(`SELECT count(*)::int AS n FROM ${table}${where}`, cv)).rows[0]?.n ?? 0);
+            }
             if (single === "one") return rows.length === 1 ? { data: rows[0], error: null } : { data: null, error: { message: "not exactly one row" } };
-            if (single === "maybe") return { data: rows[0] ?? null, error: null };
-            return { data: op !== "select" && !returning ? null : rows, error: null };
+            if (single === "maybe") return { data: rows[0] ?? null, error: null, ...(count != null ? { count } : {}) };
+            return { data: op !== "select" && !returning ? null : rows, error: null, ...(count != null ? { count } : {}) };
           } catch (e) { return { data: null, error: { message: (e as Error).message } }; }
         },
         then(res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) { return b.run().then(res, rej); },

@@ -11,7 +11,7 @@ export class UploadCheckUnavailableError extends Error {
   constructor() { super(CHECK_UNAVAILABLE_MESSAGE); this.name = "UploadCheckUnavailableError"; }
 }
 
-export async function verifyStoredUpload(bucket: string, path: string, mime: string): Promise<void> {
+export async function verifyStoredUpload(bucket: string, path: string, mime: string, options: { deleteInvalid?: boolean } = {}): Promise<void> {
   const { data: s, error } = await admin.storage.from(bucket).createSignedUrl(path, 60);
   if (error || !s?.signedUrl) throw new UploadCheckUnavailableError();
   const r = await fetch(s.signedUrl, { headers: { Range: "bytes=0-1023" } }).catch(() => null);
@@ -19,7 +19,7 @@ export async function verifyStoredUpload(bucket: string, path: string, mime: str
   let head: Uint8Array;
   try { head = new Uint8Array(await r.arrayBuffer()).subarray(0, 1024); } catch { throw new UploadCheckUnavailableError(); }
   if (!signatureMatches(head, mime)) {
-    await admin.storage.from(bucket).remove([path]).catch(() => null);
+    if (options.deleteInvalid !== false) await admin.storage.from(bucket).remove([path]).catch(() => null);
     throw new Error(BAD_FILE_MESSAGE);
   }
 }

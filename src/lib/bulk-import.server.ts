@@ -12,6 +12,7 @@ import { confirmedQuoteDecision } from "./quote-release.core";
 import { hashToken, newToken } from "./worker-links.core";
 import { linkFiles, chunkRows, readInChunks, READ_CHUNK_ROWS, type LeadStage } from "./bulk-import.core";
 import { applyDiscountRules, discountNotes, wholeVeecDiscount } from "./estimate.core";
+import { bulkRpc, checkedBulk } from "./bulk-import-access.server";
 import {
   customerDetailsReason, outsideVictoria, quotedGap, QUOTED_ANSWER_NEEDED, effectiveSiteCheck, cleanLead, gridToRecords, dedupeKey, parseSiteCheck, QUOTE_NEEDED_LABEL, quoteNeeded, siteCheckFromFile, siteCheckLabel, fileResults, findDuplicates, leadStage, type FileResult, LEAD_STAGE_LABEL, matchFiles, missingEvidence, normaliseAddress, sortJob,
   type BulkExtracted, type BulkFile, type FileMatch,
@@ -229,11 +230,9 @@ export async function readRowsInChunks(rawRows: Record<string, string>[]): Promi
 }
 
 export async function analyseBatch(batchId: string, actorId: string) {
-  const { data: batch } = await admin.from("bulk_import_batches").select("*").eq("id", batchId).single();
+  const batch = checkedBulk(await admin.from("bulk_import_batches").select("*").eq("id", batchId).single(), "Could not read the draft upload");
   if (!batch || batch.status !== "draft") throw new BulkImportError("This upload was already analysed or confirmed.");
   const manifest = (batch.file_manifest ?? []) as unknown as BulkFile[];
-  const { data: listFile } = await admin.from("bulk_import_batches").select("id").eq("id", batchId).single();
-  void listFile;
   // The parsed raw rows are stored on the batch by the upload step (summary.raw_rows) to avoid re-downloading.
   const stored = (batch.summary ?? {}) as { raw_rows?: Record<string, string>[]; documents?: BulkDocument[]; permission?: unknown; file_reads?: FileResult[] };
   const rawRows = stored.raw_rows ?? [];
@@ -248,11 +247,11 @@ export async function analyseBatch(batchId: string, actorId: string) {
     : await aiExtractRows(rawRows, documents, fileRefs)).map(cleanLead);
   // Photos with no customer details still make one row ("Customer details needed") so the installer can fill it in.
   const cleaned = cleaned0.length || !manifest.length ? cleaned0 : [cleanLead<BulkExtracted>({ full_name: null, email: null, phone: null, address_line: null, suburb: null, postcode: null })];
-  const extracted = cleaned.map((c) => c.lead);
+  // Extractor/client text is never an authenticated permission record. Review and batch actions stamp consent on the server.
+  const extracted = cleaned.map((c) => { const e = { ...c.lead } as BulkExtracted & { owner_consent?: unknown }; delete e.owner_consent; return e; });
   const existing = await existingPortalKeys();
   const dupNotes = findDuplicates(extracted, existing);
 
-  await admin.from("bulk_import_rows").delete().eq("batch_id", batchId);
   const allMatches: ReturnType<typeof matchFiles>["matched"][] = [];
   const links = linkFiles(extracted, manifest);
   const rows = extracted.map((e, i) => {
@@ -279,10 +278,6 @@ export async function analyseBatch(batchId: string, actorId: string) {
       duplicate_note: dupNotes.get(i) ?? null,
     };
   });
-  if (rows.length) {
-    const { error } = await admin.from("bulk_import_rows").insert(rows);
-    if (error) throw new BulkImportError(error.message);
-  }
   const summary = {
     rows: rows.length,
     covers_ready_check: rows.filter((r) => r.sort_result === "covers_ready_check").length,
@@ -297,7 +292,7 @@ export async function analyseBatch(batchId: string, actorId: string) {
     permission: stored.permission ?? null,
     file_results: fileResults(stored.file_reads ?? [], extracted, allMatches),
   };
-  await admin.from("bulk_import_batches").update({ status: "analysed", summary: summary as unknown as Json }).eq("id", batchId);
+  await bulkRpc("save_bulk_import_analysis", { _batch: batchId, _actor: actorId, _rows: rows, _summary: summary });
   await logPartner(null, actorId, "bulk_import_analysed", `Bulk upload analysed: ${summary.rows} jobs found (${summary.covers_ready_check} cover the Ready Check, ${summary.needs_visit} need a visit, ${summary.office_review} for office review)`, { batch_id: batchId, ...summary });
   return summary;
 }
@@ -442,6 +437,45 @@ async function draftQuoteFromImport(jobId: string, e: BulkExtracted, actorId: st
   return true;
 }
 
+export async function bulkQuotePlan(jobId: string, e: BulkExtracted, actorId: string, partnerBusinessId: string) {
+  if (!(e.price_inc_gst && e.price_inc_gst > 0) || !(e.area_m2 && e.area_m2 > 0)) return null;
+  const existing = must(await admin.from("quotes").select("id").eq("job_id", jobId).eq("option_code", "INSTALLER_A1").limit(1).maybeSingle(), "Could not check the draft quote");
+  if (existing) return null; // Existing quote is validated transactionally, without repricing it.
+  const job = must(await admin.from("jobs").select("ap_fee_override_inc_gst, electrician_choice, properties(postcode)").eq("id", jobId).single(), "Could not read the job for its quote");
+  const postcode = String((job?.properties as { postcode: string | null } | null)?.postcode ?? "").trim();
+  const [locR, rsR] = await Promise.all([
+    admin.from("veu_location_variables").select("*").eq("postcode", postcode).maybeSingle(),
+    admin.from("retail_estimator_settings").select("ap_management_inc_gst, piesa_assessment_inc_gst, indicative_veec_value, minimum_customer_copayment_inc_gst").eq("is_current", true).maybeSingle(),
+  ]);
+  const loc = must(locR, "Could not read the rebate area"), rs = must(rsR, "Could not read the price settings");
+  const veecValue = rs ? Number(rs.indicative_veec_value) : null;
+  const apFee = job?.ap_fee_override_inc_gst != null ? Number(job.ap_fee_override_inc_gst) : rs ? Number(rs.ap_management_inc_gst) : null;
+  // Current recorded payer: own electrician = no HIV PIESA line; undecided = no automatic quote (office quotes later).
+  const { piesaChargeIncGst } = await import("./installer-led.core");
+  const piesa = piesaChargeIncGst(job?.electrician_choice ?? null, rs ? Number(rs.piesa_assessment_inc_gst) : null);
+  if (!loc || veecValue == null || apFee == null || piesa == null) return null; // office quotes manually
+  const rawDiscount = wholeVeecDiscount(e.area_m2, loc as unknown as LocationVariables, veecValue).raw;
+  const lines = [
+    { code: "INSTALLER_PRICE", description: e.price_includes ? `Insulation works by your installer — includes: ${e.price_includes}`.slice(0, 500) : "Insulation works by your installer", quantity: 1, unit: "flat", unit_price_inc_gst: e.price_inc_gst, line_total_inc_gst: e.price_inc_gst, is_other: false, explanation: null, sort: 0 },
+    ...(piesa > 0 ? [{ code: "PIESA", description: "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", quantity: 1, unit: "flat", unit_price_inc_gst: piesa, line_total_inc_gst: piesa, is_other: false, explanation: null, sort: 1 }] : []),
+    { code: "AP_FEE", description: "Home Insulation Victoria — Accredited Person fee", quantity: 1, unit: "flat", unit_price_inc_gst: apFee, line_total_inc_gst: apFee, is_other: false, explanation: null, sort: 2 },
+  ];
+  const subtotal = Math.round((e.price_inc_gst + piesa + apFee) * 100) / 100;
+  // Same guardrail as every other quote: the $200 minimum contribution (no maximum discount exists).
+  const rules = applyDiscountRules(rawDiscount, subtotal, loc ? (loc as unknown as LocationVariables).metropolitan_or_regional === "Metropolitan" : null, {
+    minimum_customer_copayment_inc_gst: rs ? Number(rs.minimum_customer_copayment_inc_gst) : 200,
+  });
+  const discount = Math.round(rules.discount * 100) / 100;
+  const customerTotal = Math.round((subtotal - discount) * 100) / 100;
+  const release = confirmedQuoteDecision({ estimateTotal: null, quoteTotal: customerTotal, tolerancePct: 15, hasUnratedExtras: false, externalSendingEnabled: false });
+  return { header: {
+    job_id: jobId, kind: "installation", option_label: "Installer's quote (from bulk upload)", option_code: "INSTALLER_A1", status: "draft",
+    subtotal_inc_gst: subtotal, gst_amount: Math.round((subtotal - subtotal / 1.1) * 100) / 100,
+    veec_discount_inc_gst: discount, discount_note: [piesa === 0 ? (await import("./installer-quote.server")).OWN_REC_QUOTE_NOTE : null, discountNotes(rules).join(" ")].filter(Boolean).join(" ") || null, customer_total_inc_gst: customerTotal, created_by: actorId,
+    partner_business_id: partnerBusinessId, release_state: release.state, release_hold_reason: release.reason,
+  }, lines };
+}
+
 const LEASE_MS = 5 * 60_000;
 /** Review fields lock once a job was started for the row: confirming again finishes THAT job; corrections go
  *  through the job's own editor, so old data is never silently confirmed and the row's own job is never a "duplicate". */
@@ -452,142 +486,8 @@ export function newLease(now = Date.now()): string {
 }
 export class LeaseLostError extends Error { constructor() { super("Another confirm took over this customer — nothing more was saved by this attempt."); } }
 export async function confirmBatch(batchId: string, actorId: string, skipRowIds: string[]) {
-  const { data: batch } = await admin.from("bulk_import_batches").select("*").eq("id", batchId).single();
-  if (!batch || batch.status !== "analysed") throw new BulkImportError("This upload is not ready to confirm.");
-  const { data: rows } = await admin.from("bulk_import_rows").select("*").eq("batch_id", batchId).eq("status", "pending").order("row_index");
-  type Perm = { confirmed_by: string; confirmed_at: string; wording: string };
-  // Owner consent (Jo, 7 Oct): ticked per customer on the review card; older uploads carry one tick for the whole upload.
-  const batchPermission = (batch.summary as { permission?: Perm } | null)?.permission ?? null;
-  let created = 0, skipped = 0, failed = 0, alreadyTaken = 0;
-  const incomplete: { row: number; jobNumber?: string | null; reason: string }[] = [];
-  const results: { row: number; jobNumber: string; quote: "draft_saved" | "office_quotes" | "not_quoted"; attached: string[]; notAttached: string[] }[] = [];
-  const ownerLinks: { jobNumber: string; owner: string; path: string }[] = [];
-  for (const row of rows ?? []) {
-    if (skipRowIds.includes(row.id) || row.duplicate_note) {
-      const { data: sk } = await admin.from("bulk_import_rows").update({ status: "skipped" }).eq("id", row.id).eq("status", "pending").select("id").maybeSingle();
-      if (sk) skipped++;
-      continue;
-    }
-    const e = row.extracted as unknown as BulkExtracted;
-    const gap = customerDetailsReason(e);
-    if (gap) {
-      failed++; incomplete.push({ row: row.row_index + 1, reason: gap });
-      await logPartner(null, actorId, "bulk_import_row_failed", `Row ${row.row_index + 1}: ${gap} in the review table, then confirm again`, { batch_id: batchId, row_id: row.id });
-      continue;
-    }
-    const permission = ((e as { owner_consent?: Perm | null }).owner_consent ?? batchPermission) as Perm | null;
-    if (!permission?.confirmed_by || !permission.confirmed_at || (e as { owner_consent?: unknown }).owner_consent === false) {
-      failed++; incomplete.push({ row: row.row_index + 1, reason: `owner consent not ticked — tick it on the card, then confirm again` });
-      await logPartner(null, actorId, "bulk_import_row_failed", `Row ${row.row_index + 1}: owner consent not ticked — tick it on the card, then confirm again`, { batch_id: batchId, row_id: row.id });
-      continue;
-    }
-    if (outsideVictoria(e.postcode)) {
-      const { data: sk } = await admin.from("bulk_import_rows").update({ status: "skipped" }).eq("id", row.id).eq("status", "pending").select("id").maybeSingle();
-      if (sk) skipped++;
-      continue;
-    }
-    // Quoted? never blocks (Jo, 5:46pm): blank = confirm anyway, job shows "Quoted? – answer needed". Only Yes-without-price stops a row.
-    const qg = e.quoted_answer === "yes" ? quotedGap(e.quoted_answer, e.price_inc_gst) : null;
-    if (qg) {
-      failed++; incomplete.push({ row: row.row_index + 1, reason: `${qg} in the review table, then confirm again` });
-      await logPartner(null, actorId, "bulk_import_row_failed", `Row ${row.row_index + 1}: ${qg} in the review table, then confirm again`, { batch_id: batchId, row_id: row.id });
-      continue;
-    }
-    if (siteCheckFromFile(e).check == null && row.import_stage !== "installed") {
-      failed++; incomplete.push({ row: row.row_index + 1, reason: `tell us whether you've already done the site check (Yes or No), then confirm again` });
-      await logPartner(null, actorId, "bulk_import_row_failed", `Row ${row.row_index + 1}: tell us whether you've already done the site check (Yes or No), then confirm again`, { batch_id: batchId, row_id: row.id });
-      continue;
-    }
-    if (row.sort_result === "office_review") {
-      failed++; incomplete.push({ row: row.row_index + 1, reason: `needs office review first — clear it, then confirm again` });
-      await logPartner(null, actorId, "bulk_import_row_failed", `Row ${row.row_index + 1} needs office review first — clear it, then confirm again`, { batch_id: batchId, row_id: row.id });
-      continue;
-    }
-    // Lease: only one click/tab works on a row at a time. The row stays "pending" until EVERY record is saved,
-    // so a failure part-way is retried and finishes the SAME job (nothing is ever marked done early).
-    const now = new Date();
-    let lease = newLease(now.getTime());
-    const { data: claimed, error: ce } = await admin.from("bulk_import_rows")
-      .update({ confirm_lease_until: lease })
-      .eq("id", row.id).eq("status", "pending").or(`confirm_lease_until.is.null,confirm_lease_until.lt.${now.toISOString()}`)
-      .select("id").maybeSingle();
-    if (ce) { failed++; incomplete.push({ row: row.row_index + 1, reason: `Could not start: ${ce.message}` }); continue; }
-    if (!claimed) { alreadyTaken++; continue; }
-    // Fence: before each step the claim is renewed by compare-and-set on OUR lease value; if another worker took
-    // over after expiry, this attempt stops and never writes, confirms or releases the new claim.
-    const renew = async () => {
-      const next = newLease();
-      const { data: ok, error: re } = await admin.from("bulk_import_rows").update({ confirm_lease_until: next }).eq("id", row.id).eq("status", "pending").eq("confirm_lease_until", lease).select("id").maybeSingle();
-      if (re || !ok) throw new LeaseLostError();
-      lease = next;
-    };
-    try {
-      const importStage = row.import_stage as ImportStage;
-      await renew();
-      const { job, resumed } = await ensureBulkJob(e, batch, actorId, row.id, importStage);
-      await renew();
-      must(await admin.from("bulk_import_rows").update({ job_id: job.id }).eq("id", row.id).eq("confirm_lease_until", lease).select("id").single(), "Could not link the job to this row");
-      const plan = ((row.electrician_plan ?? batch.electrician_plan ?? { mode: "hivic" }) as ElectricianPlan);
-      // The electrician choice decides the PIESA line, so it is recorded before the draft quote is priced (once per job).
-      const chosen = must(await admin.from("workflow_events").select("id").eq("job_id", job.id).eq("event_type", "bulk_import_electrician_recorded").limit(1).maybeSingle(), "Could not check the electrician choice");
-      if (!chosen) {
-        await (await import("./job-electrician.server")).recordJobElectricianChoice(job.id, batch.business_id, plan as never, actorId);
-        await logEvent(job.id, actorId, "bulk_import_electrician_recorded", "Electrician choice recorded from bulk upload", { row_id: row.id }, { internal: true });
-      }
-      await renew();
-      const quoted = importStage === "quoted" ? await draftQuoteFromImport(job.id, e, actorId, batch.business_id) : false;
-      await renew();
-      const attached = await attachMatchedFiles(job.id, batch, row.matched_files as unknown as FileMatch[], actorId);
-      if (attached.failed.length) throw new BulkImportError(`${attached.failed.length} file${attached.failed.length > 1 ? "s" : ""} could not be attached yet (${attached.failed.join(", ").slice(0, 200)}) — confirm again to finish`);
-      await renew();
-      const link = must(await admin.from("owner_eligibility_links").select("id").eq("job_id", job.id).limit(1).maybeSingle(), "Could not check the owner link");
-      if (!link) {
-        const ownerToken = newToken();
-        must(await admin.from("owner_eligibility_links").insert({ job_id: job.id, business_id: batch.business_id, token_hash: await hashToken(ownerToken), created_by: actorId, expires_at: new Date(Date.now() + 30 * 86_400_000).toISOString() }).select("id").single(), "Owner link could not be saved");
-        ownerLinks.push({ jobNumber: job.job_number, owner: e.full_name ?? "Customer", path: `/eligibility/${ownerToken}` });
-      }
-      // Each required history entry is checked and written on its own, so a retry finishes only what is missing.
-      await renew();
-      const hasEvent = async (type: string) => !!must(await admin.from("workflow_events").select("id").eq("job_id", job.id).eq("event_type", type).limit(1).maybeSingle(), "Could not check the job history");
-      if (!(await hasEvent("bulk_import_confirmed"))) {
-        await logEvent(job.id, actorId, "bulk_import_confirmed", `Job created from installer bulk upload (row ${row.row_index + 1})`, {
-          batch_id: batchId, row_id: row.id, sort_result: row.sort_result,
-          missing_evidence: row.missing_evidence, draft_quote: quoted, attached_files: attached.attached, files_not_attached: attached.notAttached,
-          import_stage: importStage, electrician_plan: plan, resumed,
-        });
-      }
-      // The installer's own submitted permission only — never synthesised.
-      if (permission && !(await hasEvent("bulk_import_contact_permission"))) {
-        await logEvent(job.id, permission.confirmed_by, "bulk_import_contact_permission", permission.wording, {
-          batch_id: batchId, confirmed_by: permission.confirmed_by, confirmed_at: permission.confirmed_at, wording: permission.wording,
-        });
-      }
-      // Only now — every record saved — is the row confirmed.
-      const { data: fin, error: fe } = await admin.from("bulk_import_rows").update({ status: "confirmed", confirm_lease_until: null, confirm_error: null }).eq("id", row.id).eq("status", "pending").eq("confirm_lease_until", lease).select("id").maybeSingle();
-      if (fe) throw new BulkImportError(`Could not mark this row finished: ${fe.message}`);
-      if (!fin) throw new LeaseLostError();
-      created++;
-      results.push({ row: row.row_index + 1, jobNumber: job.job_number, quote: importStage === "quoted" ? (quoted ? "draft_saved" : "office_quotes") : "not_quoted", attached: attached.attached, notAttached: attached.notAttached });
-    } catch (err) {
-      failed++;
-      const reason = (err as Error).message;
-      const { data: made } = await admin.from("jobs").select("id, job_number").eq("external_enquiry_id", `bulk:${row.id}`).maybeSingle();
-      // The row stays pending (with its partial job linked) so "confirm again" finishes the same job.
-      // Release only OUR claim; a lost lease means another worker owns the row now — leave it untouched.
-      if (!(err instanceof LeaseLostError)) await admin.from("bulk_import_rows").update({ confirm_lease_until: null, confirm_error: reason.slice(0, 500), job_id: made?.id ?? null }).eq("id", row.id).eq("status", "pending").eq("confirm_lease_until", lease);
-      incomplete.push({ row: row.row_index + 1, jobNumber: made?.job_number ?? null, reason });
-      await logPartner(null, actorId, "bulk_import_row_failed", `Row ${row.row_index + 1} ${made ? `(job ${made.job_number}) is not finished` : "could not be imported"}: ${reason}`, { batch_id: batchId, row_id: row.id, partial_job_id: made?.id ?? null });
-    }
-  }
-  // The batch is only closed once nothing is left to fix; otherwise it stays open for another confirm.
-  // If the count can't be read, fail closed: keep the batch open and say so (never report "nothing left").
-  const { count: left, error: leftErr } = await admin.from("bulk_import_rows").select("id", { count: "exact", head: true }).eq("batch_id", batchId).eq("status", "pending");
-  const known = !leftErr && typeof left === "number";
-  if (known && left === 0) {
-    const { error: closeErr } = await admin.from("bulk_import_batches").update({ status: "confirmed", confirmed_at: new Date().toISOString() }).eq("id", batchId).eq("status", "analysed");
-    if (closeErr) return { created, skipped, failed, alreadyTaken, remaining: null, remainingUnknown: true as const, ownerLinks, incomplete, results };
-  }
-  return { created, skipped, failed, alreadyTaken, remaining: known ? left : null, ...(known ? {} : { remainingUnknown: true as const }), ownerLinks, incomplete, results };
+  const { confirmBulkWithClaims } = await import("./bulk-import-commit.server");
+  return confirmBulkWithClaims(batchId, actorId, skipRowIds);
 }
 
 /** Files matched to this customer become private job documents (kind installer_import), once each (keyed by the
@@ -624,8 +524,8 @@ export async function attachMatchedFiles(jobId: string, batch: { business_id: st
 }
 
 /** Office/installer adds the missing address to a review row; the row is re-sorted (never auto-confirmed). */
-export async function setRowAddress(rowId: string, addr: { full_name?: string; email?: string; phone?: string; address_line: string; suburb: string | null; postcode: string | null; second_contact?: { name: string | null; phone: string | null; email: string | null } | null }) {
-  const { data: row } = await admin.from("bulk_import_rows").select("*").eq("id", rowId).single();
+export async function setRowAddress(rowId: string, addr: { full_name?: string; email?: string; phone?: string; address_line: string; suburb: string | null; postcode: string | null; second_contact?: { name: string | null; phone: string | null; email: string | null } | null }, actorId: string) {
+  const row = checkedBulk(await admin.from("bulk_import_rows").select("*").eq("id", rowId).single(), "Could not read this customer");
   if (!row || row.status !== "pending") throw new BulkImportError("This row can no longer be changed.");
   if (row.job_id) throw new BulkImportError(PARTIAL_JOB_LOCKED);
   const { lead: e, issues } = cleanLead({ ...(row.extracted as unknown as BulkExtracted), ...addr });
@@ -637,35 +537,33 @@ export async function setRowAddress(rowId: string, addr: { full_name?: string; e
   const stage = (e as { lead_stage?: LeadStage }).lead_stage;
   if (stage) reasons.unshift(`Stage: ${LEAD_STAGE_LABEL[stage]}`);
   reasons.push("Customer details added by hand in the review table");
-  const { error } = await admin.from("bulk_import_rows").update({
+  await bulkRpc("edit_bulk_import_row", { _row: rowId, _actor: actorId, _expected: { extracted: row.extracted, job_id: null, status: "pending" }, _patch: {
     extracted: e as unknown as Json, sort_result: result, sort_reasons: reasons as unknown as Json,
     duplicate_note: dn.get(0) ?? null,
-  }).eq("id", rowId);
-  if (error) throw new BulkImportError(error.message);
+  } });
   return { batch_id: row.batch_id };
 }
 
 /** Installer attaches photos/files to one customer card (camera or files). Photos are evidence only; they never mark a visit. */
-export async function addRowFiles(rowId: string, businessId: string, files: { path: string; name: string; type: string }[]) {
-  const { data: row } = await admin.from("bulk_import_rows").select("matched_files, status, extracted, import_stage").eq("id", rowId).single();
+export async function addRowFiles(rowId: string, businessId: string, files: { path: string; name: string; type: string }[], actorId: string) {
+  const row = checkedBulk(await admin.from("bulk_import_rows").select("matched_files,status,extracted,import_stage").eq("id", rowId).single(), "Could not read this customer");
   if (!row || row.status !== "pending") throw new BulkImportError("This customer can no longer be changed.");
   const { allowedUpload } = await import("./upload-safety.core"); const { verifyStoredUpload } = await import("./upload-safety.server");
   for (const f of files) {
-    if (!f.path.startsWith(`partners/${businessId}/imports/`)) throw new BulkImportError("Invalid file path");
+    if (!f.path.startsWith(`partners/${businessId}/imports/`) || /[\\?#%]/.test(f.path) || f.path.split("/").some(p => !p || p === "." || p === "..")) throw new BulkImportError("Invalid file path");
     const m = allowedUpload(f.name, f.type, { imports: true }); if (!m) throw new BulkImportError(`${f.name}: that file type isn't accepted.`);
-    await verifyStoredUpload("job-files", f.path, m);
+    await verifyStoredUpload("job-files", f.path, m, { deleteInvalid: false });
   }
   const have = (row.matched_files as unknown as FileMatch[]) ?? [];
   const next = [...have, ...files.filter((f) => !have.some((h) => h.path === f.path)).map((f) => ({ path: f.path, name: f.name, how: "added" as const }))];
   // Files are evidence only: the visit/quote stage is never changed by attaching them.
-  const { error: ue } = await admin.from("bulk_import_rows").update({ matched_files: next as unknown as Json }).eq("id", rowId).eq("status", "pending");
-  if (ue) throw new BulkImportError(ue.message);
+  await bulkRpc("edit_bulk_import_row", { _row: rowId, _actor: actorId, _expected: { matched_files: row.matched_files, status: "pending" }, _patch: { matched_files: next } });
   return { files: next };
 }
-export async function removeRowFile(rowId: string, path: string) {
-  const { data: row } = await admin.from("bulk_import_rows").select("matched_files, status").eq("id", rowId).single();
+export async function removeRowFile(rowId: string, path: string, actorId: string) {
+  const row = checkedBulk(await admin.from("bulk_import_rows").select("matched_files,status").eq("id", rowId).single(), "Could not read this customer");
   if (!row || row.status !== "pending") throw new BulkImportError("This customer can no longer be changed.");
   const next = ((row.matched_files as unknown as FileMatch[]) ?? []).filter((m) => m.path !== path);
-  await admin.from("bulk_import_rows").update({ matched_files: next as unknown as Json }).eq("id", rowId);
+  await bulkRpc("edit_bulk_import_row", { _row: rowId, _actor: actorId, _expected: { matched_files: row.matched_files, status: "pending" }, _patch: { matched_files: next } });
   return { files: next };
 }

@@ -22,7 +22,7 @@ function PartnersOverview() {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {data.cards.map((c) => (
           <section key={c.id} className="rounded-[22px] border bg-card p-5 shadow-sm">
-            <div className="flex items-start justify-between gap-2"><div className="min-w-0"><h2 className="truncate font-display text-lg font-extrabold">{c.name}</h2><p className="text-xs text-muted-foreground">{c.kind}</p></div>
+            <div className="flex items-start justify-between gap-2"><div className="min-w-0"><h2 data-partner-record-name className="truncate font-display text-lg font-extrabold">{c.name}</h2><p className="text-xs text-muted-foreground">{c.kind}</p></div>
               <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-xs font-bold", c.status === "Active" ? "bg-workspace-mint" : c.status === "No rate" ? "bg-workspace-blush text-danger" : "bg-workspace-mist")}>{c.status}</span></div>
             <dl className="mt-3 grid grid-cols-3 gap-2 text-sm">
               <div><dt className="text-xs text-muted-foreground">Live jobs</dt><dd className="font-semibold">{c.liveJobs}</dd></div>
