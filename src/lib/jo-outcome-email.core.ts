@@ -160,6 +160,8 @@ export type JoOutcomeEmailInput = JoOutcomeFacts & {
   /** "current" = new-version cohort: adds the ex/inc GST supply rate wording. */
   pricingCohort?: "pre_cutover" | "legacy_saved_spot" | "current";
   installationRatePerM2?: number | null;
+  /** Office first reply only; normal automatic template output stays unchanged. */
+  mediaAlreadyReceived?: boolean;
 };
 
 export type JoWiredEmail = EstimateEmail & {
@@ -540,10 +542,17 @@ export function renderJoOutcomeEmail(input: JoOutcomeEmailInput): JoWiredEmail |
 
   if (!input.figures) throw new Error("Templates 1–6 require the job's estimate figures; none were supplied.");
   const rendered = renderJoEstimateEmail(id, input.recipient, input.figures);
-  const body = bindLinks(rendered.body, input.links, rendered.ctas);
-  const missing = missingCta(rendered.ctas, body);
+  const received = input.mediaAlreadyReceived === true;
+  if (received && !['potentially_eligible_unknown_size_unknown', 'potentially_eligible_unknown_size_known'].includes(id)) throw new Error('Received-media acknowledgement requires an unreviewed insulation estimate.');
+  const copy = received ? rendered.body
+    .replace('Please upload clear photos or a short video showing what’s above your ceiling, including any visible insulation labels. This will help us assess your enquiry sooner. If it looks eligible, we’ll invite you to save your spot.', 'Thank you for sending your photos or video. We already have your media — you do not need to upload it again. Our Office will review it and contact you about the next step. Final eligibility will be confirmed at your free Ready Check.')
+    .replace('[Upload my photos or video →]', '')
+    .replace('Only take photos or video if you can do so safely, and don’t enter the roof space. If you’re unable to obtain them safely, reply and let us know.', 'Please do not enter the roof space. If anything else needs checking, we can confirm it onsite at your free Ready Check.') : rendered.body;
+  const ctas = received ? [] : rendered.ctas;
+  const body = bindLinks(copy, input.links, ctas);
+  const missing = missingCta(ctas, body);
   if (missing) throw new Error(`The ${missing} link is missing for this customer; nothing was prepared.`);
-  return assemble(id, rendered.subject, body, rendered.ctas, input);
+  return assemble(id, rendered.subject, body, ctas, input);
 }
 
 export const INELIGIBLE_FALLBACK_REASON =

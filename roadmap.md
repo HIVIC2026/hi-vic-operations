@@ -1,4 +1,8 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Office first-response catch-up (Jo, 20 Oct 06:55 UTC)
+- [x] Implemented one-job admin-only catch-up guards, current-fact routing, media acknowledgement, shared reservation and complete logs; normal automation unchanged.
+- [x] Focused isolated tests and automatic preview build/typecheck pass; production SELECT-only reconciliation: 1,264 enquiry-lane records, 1,245 answered (includes same recipient/manual/Outlook), 2 explicit exclusions, 17 real unanswered at snapshot. No sends/provider calls/writes/settings/backlog changes. Runtime check used simulated provider and in-memory records only.
+- [ ] Production execution only if new path is already deployed; otherwise stop before publishing (unrelated changes must not be published).
 ## Homeowner multi-file evidence (Jo, 20 Oct 06:36 UTC)
 - [x] Selection/removal, serialized uploads and retained confirmation paths; capture-only media view permits later files while invitation guards still count all evidence.
 - [x] 31 focused tests pass; isolated desktop/390px browser confirms selection/removal, two files saved, reload and later third file preserved, no errors/overflow. Office reader inspected: all intake-media, unique paths, no limit. Real storage-to-Office end-to-end not exercised; no publication, communications or real data writes.
