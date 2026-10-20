@@ -8,7 +8,7 @@ import { addBulkRowFiles, removeBulkRowFile, addBulkElectrician, bulkBatchReview
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { quotedGap, CONTACT_PERMISSION_WORDING, gridToRecords, QUOTE_NEEDED_LABEL, fieldProblems, rowStatusLine, jobsFound, attachedFilesNote, outsideVictoria, OUTSIDE_VIC_MESSAGE, chunkRows, readInChunks, readingProgress, rowRangeLabel, READ_CHUNK_ROWS, safeMemberPath, uniqueManifestPath, MAX_MEMBER_BYTES, type RowChunk, type FileResult, type LeadStage, type SecondContact } from "@/lib/bulk-import.core";
+import { quotedGap, CONTACT_PERMISSION_WORDING, gridToRecords, QUOTE_NEEDED_LABEL, fieldProblems, rowStatusLine, jobsFound, attachedFilesNote, outsideVictoria, OUTSIDE_VIC_MESSAGE, chunkRows, readInChunks, readingProgress, rowRangeLabel, READ_CHUNK_ROWS, safeMemberPath, uniqueManifestPath, MAX_MEMBER_BYTES, memberSizeGate, type RowChunk, type FileResult, type LeadStage, type SecondContact } from "@/lib/bulk-import.core";
 import { TradeShell } from "@/components/trade/TradeShell";
 import { Check, ChevronDown, UploadCloud } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -118,7 +118,7 @@ async function collect(files: File[], r: Readers): Promise<Collected> {
   const push = async (rawPath: string, name: string, type: string, buf: ArrayBuffer) => {
     const safe = safeMemberPath(rawPath);
     if (!safe) { reads.push({ name: rawPath, status: "error", message: "skipped — unsafe file path inside the upload" }); return; }
-    if (buf.byteLength > MAX_MEMBER_BYTES) { reads.push({ name: safe, status: "error", message: "not attached — file is over 50 MB" }); return; }
+    if (buf.byteLength > MAX_MEMBER_BYTES) { reads.push({ name: safe, status: "error", message: "not attached — over 50 MB. Large videos go on the job's own evidence page after you confirm" }); return; }
     const path = LIST_RE.test(name) ? safe : uniqueManifestPath(safe, taken);
     if (!LIST_RE.test(name)) bytes.set(path, { buf, name, type });
     const f: ManifestFile = { path, name, folder: path.includes("/") ? path.split("/").slice(0, -1).join("/") : null, type, gps_lat: null, gps_lng: null, taken_at: null };
@@ -180,18 +180,25 @@ async function collect(files: File[], r: Readers): Promise<Collected> {
       reads.push({ name: path, status: "error", message: `couldn't read because ${why(e)}` });
     }
   };
+  // Sizes are checked from the declared size BEFORE reading or decompressing; the whole upload is bounded too.
+  let total = 0;
+  const gate = (name: string, size: number | null | undefined) => { const g = memberSizeGate(size, total); if (!g.ok) { reads.push({ name, status: "error", message: g.message }); return false; } total += size!; return true; };
   for (const file of files) {
     if (/\.zip$/i.test(file.name)) {
       try {
+        if (file.size > 500_000_000) throw new Error("the ZIP is over 500 MB — split it into smaller uploads");
         const JSZip = (await import("jszip")).default;
         const zip = await JSZip.loadAsync(await file.arrayBuffer());
         for (const [path, entry] of Object.entries(zip.files)) {
           if (entry.dir || path.split("/").some((p) => p.startsWith("__MACOSX") || p.startsWith("."))) continue;
+          const declared = (entry as unknown as { _data?: { uncompressedSize?: number } })._data?.uncompressedSize;
+          if (!gate(path, declared)) continue;
           await push(path, path.split("/").pop()!, guessType(path), await entry.async("arraybuffer"));
         }
       } catch (e) { reads.push({ name: file.name, status: "error", message: `couldn't open zip because ${why(e)}` }); }
     } else {
       const rel = (file as File & { webkitRelativePath?: string }).webkitRelativePath;
+      if (!gate(rel || file.name, file.size)) continue;
       await push(rel || file.name, file.name, file.type || guessType(file.name), await file.arrayBuffer());
     }
   }
@@ -410,7 +417,8 @@ function BulkImportPage() {
     confirming.current = true;
     setBusy(true);
     try {
-      await savePlan({ data: { batchId, batchPlan, rows: rows.map((r) => ({ rowId: r.id, stage: rowStages[r.id] ?? "not_visited", siteCheck: rowChecks[r.id]?.check ?? null, ...quotedSend(r.id), siteCheckDate: rowChecks[r.id]?.check === "yes" ? rowChecks[r.id]?.date ?? null : null, consent: !!consent[r.id], plan: planFor(r.id) })) } });
+      const saved = await savePlan({ data: { batchId, batchPlan, rows: rows.map((r) => ({ rowId: r.id, stage: rowStages[r.id] ?? "not_visited", siteCheck: rowChecks[r.id]?.check ?? null, ...quotedSend(r.id), siteCheckDate: rowChecks[r.id]?.check === "yes" ? rowChecks[r.id]?.date ?? null : null, consent: !!consent[r.id], plan: planFor(r.id) })) } });
+      if (saved.lockedRows?.length) toast.info(`Row${saved.lockedRows.length > 1 ? "s" : ""} ${saved.lockedRows.join(", ")}: job already started — answers there are locked; confirm finishes that job, then correct details on the job page.`);
       const res = await confirm({ data: { batchId, skipRowIds: [...skip, ...rows.filter((r) => statusOf(r).excluded).map((r) => r.id)] } });
       setDone(res);
       qc.invalidateQueries({ queryKey: ["bulk-review", batchId] });

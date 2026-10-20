@@ -116,21 +116,16 @@ export const LEAD_STAGE_LABEL: Record<LeadStage, string> = {
   installed: "Installed",
 };
 
-/** Visited rule (Jo, 7 Oct 5:45pm): photos, measurements or a quote mean Visited; sentences only mean Not visited.
- * An explicit "No" from the installer stays Not visited. */
-// Jo, 20 Oct 2026: attendance, quote status and evidence are independent — photos/files alone NEVER mean a visit
-// or a quote (the count is accepted for callers but ignored). Unknown attendance stays unknown.
-export function hasVisitEvidence(e: BulkExtracted, _matchedFileCount = 0): boolean {
-  return (e.price_inc_gst ?? 0) > 0 || (e.area_m2 ?? 0) > 0;
+/** Attendance (Jo, 20 Oct 2026 — supersedes 7 Oct "photos, measurements or a quote mean Visited"): attendance,
+ * quote status and evidence are independent. Only the installer's explicit site-check answer means visited;
+ * price, documents, photos or area alone never imply it. Unknown stays unknown (no answer). */
+export function hasVisitEvidence(_e: BulkExtracted, _matchedFileCount = 0): boolean { return false; }
+export function effectiveSiteCheck(e: BulkExtracted, _matchedFileCount = 0): { check: SiteCheck | null; date: string | null } {
+  return siteCheckFromFile(e);
 }
-export function effectiveSiteCheck(e: BulkExtracted, matchedFileCount = 0): { check: SiteCheck | null; date: string | null } {
-  const sc = siteCheckFromFile(e);
-  if (sc.check) return sc;
-  return hasVisitEvidence(e, matchedFileCount) ? { check: "yes", date: null } : sc;
-}
-export function leadStage(e: BulkExtracted, matchedFileCount = 0): LeadStage {
-  if (effectiveSiteCheck(e, matchedFileCount).check !== "yes") return "not_visited";
-  return e.price_inc_gst && e.price_inc_gst > 0 ? "quoted" : "visited";
+/** Visited only on an explicit Yes; Quoted only when also priced. Files never move the stage. */
+export function leadStage(e: BulkExtracted, _matchedFileCount = 0): LeadStage {
+  return stageForSiteCheck(siteCheckFromFile(e).check, !!(e.price_inc_gst && e.price_inc_gst > 0));
 }
 
 /** Every customer needs name, full address, email and phone (Jo, 7 Oct) plus the installer's contact-permission tick. */
@@ -545,6 +540,16 @@ export async function readInChunks<T, R>(chunks: RowChunk<T>[], read: (c: RowChu
 
 // ---------- ZIP/folder members: kept as their own private job files ----------
 export const MAX_MEMBER_BYTES = 50_000_000;
+/** Most a whole upload may unpack to (ZIP members + loose/folder files), checked BEFORE reading/decompressing. */
+export const MAX_UPLOAD_TOTAL_BYTES = 500_000_000;
+export const BIG_FILE_DIRECTION = "not attached — over 50 MB. Large videos go on the job's own evidence page after you confirm";
+/** Size gate using the declared size (file.size / ZIP uncompressed size) before any bytes are read. */
+export function memberSizeGate(size: number | null | undefined, totalSoFar: number): { ok: true } | { ok: false; message: string } {
+  if (size == null || !Number.isFinite(size) || size < 0) return { ok: false, message: "skipped — its size couldn't be checked" };
+  if (size > MAX_MEMBER_BYTES) return { ok: false, message: BIG_FILE_DIRECTION };
+  if (totalSoFar + size > MAX_UPLOAD_TOTAL_BYTES) return { ok: false, message: "skipped — this upload is over 500 MB in total. Split it into smaller uploads" };
+  return { ok: true };
+}
 /** The safe relative identity of a ZIP member or folder file, or null when it must be refused (absolute, "..",
  * hidden/system entries). Keeps the full folder path so same-name files in different folders stay separate. */
 export function safeMemberPath(raw: string): string | null {
