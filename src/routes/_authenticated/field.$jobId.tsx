@@ -23,6 +23,7 @@ import { OwnerEligibilityPanel } from "@/components/portal/owner-eligibility";
 import { BlockersPanel, BookingPanel, EvidencePanel, MessagesPanel, useJob } from "@/components/portal/panels";
 import { Button, Section } from "@/components/trade/trade-ui";
 import { MittiCard, MittiSyncedFields } from "@/components/portal/mitti";
+import { mittiFormId } from "@/lib/mitti-form-link.core";
 import { ElectricianManualResult, manualResultEntry } from "@/components/portal/electrician-manual-result";
 import { useServerFn } from "@tanstack/react-start";
 import { getMyMittiInvited } from "@/lib/trade-view.functions";
@@ -112,7 +113,7 @@ function MittiOnly({ jobId, which }: { jobId: string; which: "ready_check" | "pi
       supabase.from("assessments").select("external_mitti_id").eq("job_id", jobId).maybeSingle(),
       supabase.from("ceiling_measurements").select("external_id, external_source").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
     ]);
-    return which === "piesa" ? a?.external_mitti_id ?? null : (m?.external_source === "mitti" ? m.external_id : null) ?? a?.external_mitti_id ?? null;
+    return mittiFormId(which, a?.external_mitti_id, m);
   } });
   const invited = useMittiInvited();
   return (
