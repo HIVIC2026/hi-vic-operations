@@ -217,23 +217,28 @@ export type DiscountCaps = { metropolitan: boolean | null; minCopay: number };
 export function buildInstallerQuoteDraft(i: {
   price: ReturnType<typeof quotedPriceFromEntries>; measuredM2: number | null; wholeVeec: { veecs: number; raw: number } | null;
   piesaIncGst: number | null; apFeeIncGst: number | null; caps: DiscountCaps;
+  /** Only SEPARATELY agreed removal/extras (never ones already inside the works total). */
+  separateLines?: { code: string; description: string; amountIncGst: number }[];
 }): InstallerQuoteDraft {
   const blockers = [...i.price.issues];
   if (!(i.measuredM2 && i.measuredM2 > 0)) blockers.push("Measured ceiling area is missing.");
   if (i.wholeVeec == null) blockers.push("VEU discount can't be worked out (postcode or VEEC value missing).");
   const p = i.price.price;
   const rawDiscount = i.wholeVeec?.raw ?? 0;
-  const preTotal = Math.round(((p?.totalIncGst ?? 0) + (i.piesaIncGst ?? 0) + (i.apFeeIncGst ?? 0)) * 100) / 100;
+  const extra = Math.round((i.separateLines ?? []).reduce((a, l) => a + l.amountIncGst, 0) * 100) / 100;
+  const works = Math.round(((p?.totalIncGst ?? 0) + extra) * 100) / 100;
+  const preTotal = Math.round((works + (i.piesaIncGst ?? 0) + (i.apFeeIncGst ?? 0)) * 100) / 100;
   const rules = applyDiscountRules(rawDiscount, preTotal, i.caps.metropolitan, {
     minimum_customer_copayment_inc_gst: i.caps.minCopay,
   });
-  const owner = installerLedOwnerPrice({ installerQuoteIncGst: p?.totalIncGst ?? 0, piesaIncGst: i.piesaIncGst, rectificationIncGst: 0, apFeeIncGst: i.apFeeIncGst, veecDiscountIncGst: rules.discount });
+  const owner = installerLedOwnerPrice({ installerQuoteIncGst: p ? works : 0, piesaIncGst: i.piesaIncGst, rectificationIncGst: 0, apFeeIncGst: i.apFeeIncGst, veecDiscountIncGst: rules.discount });
   for (const b of owner.blockers) if (!blockers.includes(b)) blockers.push(b);
   const lines: InstallerQuoteLine[] = [];
   if (p) {
     const inc = p.included.map((x) => (x === "Other" && p.otherDescription ? `Other: ${p.otherDescription}` : x));
     lines.push({ code: "INSTALLER_PRICE", description: `Insulation works by your installer — includes: ${inc.join(", ")}`, quantity: 1, unit: "flat", unit_price_inc_gst: p.totalIncGst, line_total_inc_gst: p.totalIncGst, is_other: false, explanation: inc.join("\n"), sort: 0 });
   }
+  if (p) (i.separateLines ?? []).forEach((l, n) => lines.push({ code: l.code, description: l.description, quantity: 1, unit: "flat", unit_price_inc_gst: l.amountIncGst, line_total_inc_gst: l.amountIncGst, is_other: l.code === "INSTALLER_EXTRA", explanation: l.code === "INSTALLER_EXTRA" ? "Agreed additional price from the installer's quote" : null, sort: 0.1 + n / 100 }));
   if (i.piesaIncGst != null && i.piesaIncGst > 0) lines.push({ code: "PIESA", description: "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", quantity: 1, unit: "flat", unit_price_inc_gst: i.piesaIncGst, line_total_inc_gst: i.piesaIncGst, is_other: false, explanation: null, sort: 1 });
   if (i.apFeeIncGst != null && i.apFeeIncGst > 0) lines.push({ code: "AP_FEE", description: "Home Insulation Victoria — Accredited Person fee", quantity: 1, unit: "flat", unit_price_inc_gst: i.apFeeIncGst, line_total_inc_gst: i.apFeeIncGst, is_other: false, explanation: null, sort: 2 });
   return { ready: blockers.length === 0, blockers, lines, subtotal: owner.total, discount: owner.discount, afterDiscount: owner.afterDiscount, discountNote: discountNotes(rules).join(" ") || null };
