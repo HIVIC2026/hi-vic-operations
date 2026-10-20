@@ -203,3 +203,5 @@ Locked rules:
 
 - Bulk confirmation uses service-only UUID claim RPCs: draft analysis, job intake and final documents/quote/permission event are atomic. Recheck current approved business and active boss, keep started intake immutable, and verify bytes without deleting. Closed-history attachment repair appends separate immutable records. AI/client extracted permission is discarded; only explicit server-stamped review/batch consent is accepted.
 - Draft import file lists change only via `casImportFiles` (compare-and-set on id/business/unclaimed draft/current files, bounded retry); confirm uses the claim UPDATE's returned row. Why: concurrent uploads or a claim mid-verification must never lose or overwrite files.
+
+- Mitti saved-form health: unreadable definitions report `schema: "unreadable"` (never missing questions); a native-A3 PIISA is checked with `a3MissingFields`; results record `schemaBasis`. Why: issue counts must not be mistaken for proven absent questions.
