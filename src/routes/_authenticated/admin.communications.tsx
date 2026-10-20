@@ -290,54 +290,53 @@ function HistoryTable({ filter, label }: { filter: CommFilter; label: string }) 
 
 function Overview() {
   const load = useServerFn(getEnquiryResponseOverview);
-  const { data } = useQuery({
-    queryKey: ["enquiry-response-overview"],
-    queryFn: () => load(),
+  const { data, error, refetch } = useQuery({
+    queryKey: ["enquiry-response-overview", 1],
+    queryFn: () => load({ data: { page: 1 } }),
     staleTime: 30_000,
   });
-  const c = data?.counts;
+  const c = data?.responses;
   const tile = "rounded-md border bg-card p-4";
+  const n = (v: number | undefined) => (v == null ? "—" : v.toLocaleString("en-AU"));
   return (
     <div className="space-y-6">
-      <section aria-label="Outstanding customer responses">
-        <h2 className="font-display text-lg font-bold">Outstanding customer responses</h2>
+      <section aria-label="Enquiry responses">
+        <h2 className="font-display text-lg font-bold">Enquiry responses</h2>
         <p className="text-sm text-sub">
-          Open enquiries with no confirmed initial response yet. These are the counts the Office can
-          act on.
+          The same {n(data?.total)} open website enquiries as the Enquiries page. Each enquiry is counted once.
         </p>
+        {error && (
+          <p role="alert" className="mt-2 text-sm text-destructive">
+            Counts are unavailable — they are not zero.{" "}
+            <Button variant="link" size="sm" onClick={() => void refetch()}>Try again</Button>
+          </p>
+        )}
         <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-5">
           <div className={tile}>
-            <div className="font-display text-2xl font-bold">{c?.awaiting ?? "—"}</div>
-            <div className="text-sm">Awaiting send</div>
+            <div className="font-display text-2xl font-bold">{n(c?.unanswered)}</div>
+            <div className="text-sm">No reply recorded</div>
           </div>
           <div className={tile}>
-            <div className="font-display text-2xl font-bold">{c?.inFlight ?? "—"}</div>
-            <div className="text-sm">Sending / queued</div>
+            <div className={cn("font-display text-2xl font-bold", (c?.unanswered_latest_failed ?? 0) > 0 && "text-danger")}>{n(c?.unanswered_latest_failed)}</div>
+            <div className="text-sm">…latest attempt failed (retryable)</div>
           </div>
           <div className={tile}>
-            <div className="font-display text-2xl font-bold">{c?.sent ?? "—"}</div>
-            <div className="text-sm">Sent</div>
+            <div className="font-display text-2xl font-bold">{n(c?.uncertain)}</div>
+            <div className="text-sm">Outcome uncertain (never resent)</div>
           </div>
           <div className={tile}>
-            <div className="font-display text-2xl font-bold">{c?.manualReview ?? "—"}</div>
-            <div className="text-sm">Requires office review</div>
+            <div className="font-display text-2xl font-bold">{n(c?.recorded_only)}</div>
+            <div className="text-sm">Reply recorded · delivery not confirmed</div>
           </div>
           <div className={tile}>
-            <div
-              className={cn(
-                "font-display text-2xl font-bold",
-                (c?.failed ?? 0) > 0 && "text-danger",
-              )}
-            >
-              {c?.failed ?? "—"}
-            </div>
-            <div className="text-sm">Failed</div>
+            <div className="font-display text-2xl font-bold">{n(c?.provider_confirmed)}</div>
+            <div className="text-sm">Reply accepted by email service</div>
           </div>
         </div>
         <p className="mt-2 text-xs text-sub">
-          Initial enquiry responses only. Sent = a confirmed send is recorded; Sending/queued =
-          queued or in progress; Failed = the last attempt failed; Requires office review = held
-          before sending.
+          Accepted = the email service accepted a send from this job (any email type). Recorded = a customer email is
+          recorded on the job (for example Outlook or a manual send) but no accepted send exists, so delivery is not
+          confirmed. Uncertain = sending, queued or unknown outcome. Inbox delivery is never confirmed here.
         </p>
       </section>
       <section aria-label="Recent send log">

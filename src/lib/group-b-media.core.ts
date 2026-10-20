@@ -49,3 +49,13 @@ export function groupBInvitationBlocker(state: GroupBMediaState): string | null 
 export function originalMediaForCapture(raw: unknown, documents: EnquiryMediaDocument[], readFailed = false) {
   return originalEnquiryMedia(raw, documents.filter((document) => document.source_system !== "owner_capture"), readFailed);
 }
+/** The automatic INITIAL Group B email for an unreviewed existing/unknown-insulation enquiry. Received, fully imported
+ *  homeowner media gets the approved received-media acknowledgement (no repeat upload request, no eligibility decision);
+ *  no media gets the photo/video request; still-importing or ambiguous manifests hold (retried by the sweep). */
+export type GroupBInitialAction = { action: "request" | "acknowledge" } | { held: string };
+export const MEDIA_IMPORT_PENDING = "Original enquiry photos/video are still importing — acknowledgement waits and is retried automatically";
+export function groupBInitialAction(state: GroupBMediaState): GroupBInitialAction {
+  if (state.pendingSync) return { held: MEDIA_IMPORT_PENDING };
+  if (state.uncertain) return { held: "Original media sync is not confirmed — invitation held" };
+  return { action: state.received ? "acknowledge" : "request" };
+}

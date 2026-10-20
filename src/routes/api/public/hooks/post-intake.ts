@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { authenticateCronRequest } from "@/integrations/supabase/cron-auth";
 
 // Scheduled worker for the durable post-intake queue. Authenticated with the project cron secret (Bearer).
-// Recovers abandoned intelligence runs / expired leases, then processes due items. No communications, no Xero/Mitti.
+// Recovers abandoned intelligence runs / expired leases, then processes due items and re-routes held automatic initial enquiry responses (all send guards apply). No Xero/Mitti.
 export const Route = createFileRoute("/api/public/hooks/post-intake")({
   server: {
     handlers: {
@@ -28,6 +28,9 @@ export const Route = createFileRoute("/api/public/hooks/post-intake")({
           const alloc = await import("@/lib/allocation.server");
           await alloc.sweepRecOffers().catch((e) => console.error("rec offer sweep failed", (e as Error).message));
           await alloc.sweepCoordination().catch((e) => console.error("coordination sweep failed", (e as Error).message));
+          // Durable retry for automatic initial enquiry responses (held/failed ones are re-routed under every guard).
+          const sweep = await import("@/lib/first-response-sweep.server");
+          await sweep.sweepUnansweredFirstResponses().catch((e) => console.error("first-response sweep failed", (e as Error).message));
           return Response.json({ ok: true, recovered: r.recovered, claimed: r.claimed, results: r.results.map((x) => ({ status: x.status })) });
         } catch (e) {
           console.error("post-intake worker failed", (e as Error).message);

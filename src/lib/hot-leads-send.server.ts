@@ -6,7 +6,14 @@ import { noSizeEstimateBlocker, NO_SIZE_REAL_SEND_HELD } from "./no-size-estimat
 import { CUSTOMER_BASE } from "./engagement.core";
 import { reservationAllowed, withUnsubscribe } from "./emailsafety.core";
 import { groupBMediaForJob } from "./group-b-media.server";
-import { groupBInvitationBlocker } from "./group-b-media.core";
+import { groupBInitialAction } from "./group-b-media.core";
+/** Fresh media re-read at each send boundary: the email kind chosen must still match the current media state. */
+async function onsiteInitialBlocker(jobId: string, acknowledge: boolean): Promise<string | null> {
+  const a = groupBInitialAction(await groupBMediaForJob(jobId));
+  if ("held" in a) return a.held;
+  if (a.action !== (acknowledge ? "acknowledge" : "request")) return acknowledge ? "No received homeowner media — acknowledgement not sent" : "Existing enquiry photos/video received — office review, no repeat invitation";
+  return null;
+}
 import { logEvent } from "./workflow.server";
 import { MANUAL_SENT_EVENT, manualSendReference } from "./manual-communication.core";
 import { RESEND_FETCH_TIMEOUT_MS, timeoutSignal } from "./network-timeout.core";
@@ -35,7 +42,7 @@ void LAUNCH_COPY_APPROVED;
  *  mode "preview" renders without sending and without creating any link token (missing links become placeholders);
  *  "manual_copy" is the same render but issues the lead's missing unsubscribe/referral links for an Office hand-send (STEP 32);
  *  "test_to_jo" sends a real lead's email to Jo's inbox only, with TEST-job links. */
-export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string; /** TEST only: send the Step 3 likely-eligible email instead, same facts. */ variant?: "likely_estimate"; mode?: "send" | "preview" | "manual_copy" | "test_to_jo" | "test_preview"; automaticInsulation?: boolean; /** Set only by the post-Gate-1 router: the owner's own first reply. */ automaticInitial?: boolean; /** S20-R01: set only by the automatic Group B invitation for a NEW enquiry while the master switch is off; the new-enquiry gate is re-checked before the provider call. */ newEnquiryAutoReply?: boolean; /** Office manual copy only (Jo, 12 Oct): render the approved three-variant email. Never sends. */ officeVariant?: import("./save-spot-offer.core").SaveSpotVariant; /** Set ONLY by the post-intake worker for an ENQ_01 manual-backlog item (unforgeable Symbol). */ manualBacklog?: import("./manual-backlog.core").ManualBacklogTrust };
+export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string; /** TEST only: send the Step 3 likely-eligible email instead, same facts. */ variant?: "likely_estimate"; mode?: "send" | "preview" | "manual_copy" | "test_to_jo" | "test_preview"; automaticInsulation?: boolean; /** Automatic Group B initial only: render the approved received-media acknowledgement variant. */ mediaAcknowledgement?: boolean; /** Set only by the post-Gate-1 router: the owner's own first reply. */ automaticInitial?: boolean; /** S20-R01: set only by the automatic Group B invitation for a NEW enquiry while the master switch is off; the new-enquiry gate is re-checked before the provider call. */ newEnquiryAutoReply?: boolean; /** Office manual copy only (Jo, 12 Oct): render the approved three-variant email. Never sends. */ officeVariant?: import("./save-spot-offer.core").SaveSpotVariant; /** Set ONLY by the post-intake worker for an ENQ_01 manual-backlog item (unforgeable Symbol). */ manualBacklog?: import("./manual-backlog.core").ManualBacklogTrust };
 /** Jo's own inbox for "send me a test of this lead". */
 export const JO_TEST_INBOX = "jolowexo@hotmail.com";
 /** TEST job whose links go into Jo's test copies, so pressing them never touches the real lead. */
@@ -139,7 +146,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   // Once per home, ever: the idempotency key is the job, not the batch.
   const sendGroup = followup ? "likely" : isTest || testOpts.automaticInsulation ? (testOpts.group ?? group) : "likely";
   if (sendGroup === "onsite" && !followup) {
-    const blocker = groupBInvitationBlocker(await groupBMediaForJob(jobId));
+    const blocker = await onsiteInitialBlocker(jobId, testOpts.mediaAcknowledgement === true);
     if (blocker) return r("blocked", blocker);
     const { INSULATION_DETAILS_REAL_SEND_APPROVED } = await import("./hot-leads.core");
     if (!isTest && mode === "send" && !INSULATION_DETAILS_REAL_SEND_APPROVED) return r("blocked", "Insulation email awaits final visual approval");
@@ -227,7 +234,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   const joMail = await (async () => {
     if (!figuresOk || !areaBasis.ok) return null;
     const jo = await import("./jo-outcome-email.core");
-    let facts: import("./jo-outcome-email.core").JoOutcomeFacts;
+    let facts: import("./jo-outcome-email.core").JoOutcomeFacts & { mediaAlreadyReceived?: boolean };
     if (office) {
       // Office "Prepare email to copy": the variant picked by the existing Office rules maps to exactly one Jo template.
       facts = jo.joFactsForSaveSpotVariant(testOpts.officeVariant!, assumed);
@@ -254,7 +261,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
       // This sender never sends the ineligible result (T7 belongs to the ineligible sender).
       if (outcome === "does_not_appear_eligible" || outcome === null) return null;
       const insulation = price.insulation === "none" || price.insulation === "present" ? price.insulation : "unknown";
-      facts = { outcome, insulation, ceilingSizeKnown: areaBasis.ceilingSizeKnown, deskCheckStatus };
+      facts = { outcome, insulation, ceilingSizeKnown: areaBasis.ceilingSizeKnown, deskCheckStatus, ...(sendGroup === "onsite" && testOpts.mediaAcknowledgement === true ? { mediaAlreadyReceived: true } : {}) };
     }
     try {
       const rendered = jo.renderJoOutcomeEmail({
@@ -312,7 +319,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     }
   }
   if (sendGroup === "onsite") {
-    const blocker = groupBInvitationBlocker(await groupBMediaForJob(jobId));
+    const blocker = await onsiteInitialBlocker(jobId, testOpts.mediaAcknowledgement === true);
     if (blocker) { await finish("failed", "not_sent", blocker); return r("blocked", blocker); }
   }
   if (!isTest && mode === "send" && sendGroup === "onsite" && !followup && !(await groupBGlobalsOn()) && !(testOpts.newEnquiryAutoReply === true && (await (await import("./enquiry-auto-reply.server")).newEnquiryAutoReplyGate(jobId)).allowed)) { await finish("failed", "not_sent", GROUP_B_GLOBALS_OFF); return r("blocked", GROUP_B_GLOBALS_OFF); }
@@ -401,11 +408,12 @@ export async function sendAutomaticInsulationDetails(jobId: string): Promise<Hot
     if (!gate.allowed) return { jobId, jobNumber: null, outcome: "blocked", detail: gate.reason === AUTO_REPLY_OFF ? GROUP_B_GLOBALS_OFF : gate.reason };
     newEnquiryAutoReply = true;
   }
-  const blocker = groupBInvitationBlocker(await groupBMediaForJob(jobId));
-  if (blocker) return { jobId, jobNumber: null, outcome: "blocked", detail: blocker };
+  const initial = groupBInitialAction(await groupBMediaForJob(jobId));
+  if ("held" in initial) return { jobId, jobNumber: null, outcome: "blocked", detail: initial.held };
   const { INSULATION_DETAILS_REAL_SEND_APPROVED } = await import("./hot-leads.core");
   if (!INSULATION_DETAILS_REAL_SEND_APPROVED) return { jobId, jobNumber: null, outcome: "blocked", detail: "Insulation email awaits final visual approval" };
-  return sendOne(jobId, null, true, { group: "onsite", automaticInsulation: true, ...(newEnquiryAutoReply ? { newEnquiryAutoReply: true } : {}) });
+  // Same once-per-home key as the request: a home gets EITHER the request OR the acknowledgement, never both.
+  return sendOne(jobId, null, true, { group: "onsite", automaticInsulation: true, ...(initial.action === "acknowledge" ? { mediaAcknowledgement: true } : {}), ...(newEnquiryAutoReply ? { newEnquiryAutoReply: true } : {}) });
 }
 
 /** S20-R01: the email service Save my spot already uses (Resend via the connector gateway), as a DeliveryAdapter for the

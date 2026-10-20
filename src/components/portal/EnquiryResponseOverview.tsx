@@ -25,13 +25,22 @@ export function EnquiryResponseOverview() {
   const qc = useQueryClient();
   const [busy, setBusy] = useState<null | "batch" | string>(null);
   const [batch, setBatch] = useState<DispatchRow[] | null>(null);
-  const { data } = useQuery({
-    queryKey: ["enquiry-response-overview"],
-    queryFn: () => load(),
+  const [page, setPage] = useState(1);
+  const { data, error, isLoading, refetch } = useQuery({
+    queryKey: ["enquiry-response-overview", page],
+    queryFn: () => load({ data: { page } }),
     staleTime: 30_000,
   });
-  if (!data) return null;
-  const { counts, awaiting } = data;
+  if (isLoading) return <p role="status" className="mb-4 text-sm text-sub">Loading enquiry responses…</p>;
+  if (error || !data)
+    return (
+      <p role="alert" className="mb-4 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+        Enquiry response counts are unavailable — nothing is shown as zero and nothing can be sent from here.{" "}
+        <Button variant="link" size="sm" onClick={() => void refetch()}>Try again</Button>
+      </p>
+    );
+  const { responses, awaiting } = data;
+  const counts = { dispatchReady: data.dispatchReady, awaiting: responses.unanswered };
   const working = busy !== null;
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["enquiry-response-overview"] });
@@ -79,19 +88,13 @@ export function EnquiryResponseOverview() {
       <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
         <span className="font-bold">Enquiry responses</span>
         <span>
-          Awaiting <b data-testid="comms-awaiting">{counts.awaiting}</b>
+          No reply recorded <b data-testid="comms-awaiting">{responses.unanswered}</b>
+        </span>
+        <span className={responses.unanswered_latest_failed > 0 ? "font-semibold text-destructive" : ""}>
+          …of which latest attempt failed <b>{responses.unanswered_latest_failed}</b>
         </span>
         <span>
-          Sent <b>{counts.sent}</b>
-        </span>
-        <span className={counts.failed > 0 ? "font-semibold text-destructive" : ""}>
-          Failed <b>{counts.failed}</b>
-        </span>
-        <span>
-          Manual review <b>{counts.manualReview}</b>
-        </span>
-        <span>
-          No email <b>{counts.noEmail}</b>
+          Outcome uncertain <b>{responses.uncertain}</b>
         </span>
         <span>
           Ready to send{" "}
@@ -165,8 +168,7 @@ export function EnquiryResponseOverview() {
       {awaiting.length > 0 && (
         <details className="mt-2">
           <summary className="cursor-pointer text-sm font-semibold text-primary">
-            Who still needs a response ({awaiting.length}
-            {counts.awaiting > awaiting.length ? ` of ${counts.awaiting}` : ""})
+            Who has no reply recorded (page {data.page} of {data.totalPages} · {counts.awaiting} in total)
           </summary>
           <ul className="mt-2 max-h-64 space-y-1 overflow-auto text-sm">
             {awaiting.map((r) => (
@@ -174,16 +176,16 @@ export function EnquiryResponseOverview() {
                 <span className="font-mono text-xs">{r.jobNumber ?? "—"}</span>
                 <span>{r.ownerName ?? "—"}</span>
                 <span className="text-muted-foreground">{r.address ?? ""}</span>
-                {r.failed && <span className="font-semibold text-destructive">failed</span>}
-                {r.manualReview && (
-                  <span className="font-semibold text-warning">manual review</span>
+                {r.latestAttemptStatus === "failed" && (
+                  <span className="font-semibold text-destructive">latest attempt failed{r.latestAttemptAt ? ` ${new Date(r.latestAttemptAt).toLocaleString("en-AU")}` : ""}</span>
                 )}
+                {!r.hasEmail && <span className="font-semibold text-warning">no email address</span>}
                 {r.dispatchReady && (
                   <span data-testid="row-ready" className="font-semibold text-success">
                     ready
                   </span>
                 )}
-                {r.failed && (
+                {r.latestAttemptStatus === "failed" && (
                   <Button
                     type="button"
                     size="sm"
@@ -201,6 +203,13 @@ export function EnquiryResponseOverview() {
               </li>
             ))}
           </ul>
+          {data.totalPages > 1 && (
+            <div className="mt-2 flex items-center gap-2 text-xs">
+              <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>
+              <span>Page {data.page} of {data.totalPages}</span>
+              <Button size="sm" variant="outline" disabled={page >= data.totalPages} onClick={() => setPage(page + 1)}>Next</Button>
+            </div>
+          )}
         </details>
       )}
     </section>

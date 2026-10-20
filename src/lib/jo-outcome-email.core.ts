@@ -160,7 +160,7 @@ export type JoOutcomeEmailInput = JoOutcomeFacts & {
   /** "current" = new-version cohort: adds the ex/inc GST supply rate wording. */
   pricingCohort?: "pre_cutover" | "legacy_saved_spot" | "current";
   installationRatePerM2?: number | null;
-  /** Office first reply only; normal automatic template output stays unchanged. */
+  /** Received-media acknowledgement (Office first reply and the automatic Group B initial for media already received). */
   mediaAlreadyReceived?: boolean;
 };
 
