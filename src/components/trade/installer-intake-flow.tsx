@@ -23,7 +23,7 @@ import { ELECTRICIAN_PAYER_CHOICES, FEE_AWARENESS_VERSION, INSTALLER_CONTACT_PER
 
 import { ProposedRField, QuoteCommercialFields, RemovalQuoteFields } from "./intake-quote-fields";
 import { blankCommercialInput, commercialInputProblems, commercialPayload, removalFactSummary, type CommercialInput } from "@/lib/installer-quote-commercial.core";
-import { blankRemoval, removalPayload, removalProblems, removalSummary, type RemovalInput } from "@/lib/intake-quote-details.core";
+import { blankRemoval, removalPayload, removalProblems, type RemovalInput } from "@/lib/intake-quote-details.core";
 
 type AddJobStep = "customer" | "organise" | "job" | "review";
 const ADD_JOB_STEPS: { key: AddJobStep; label: string }[] = [
@@ -97,7 +97,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         if (raw) {
           const r = JSON.parse(raw) as { customer?: unknown; d?: Details; coord?: Coordination | null; draftId?: string | null; step?: AddJobStep; fileTexts?: Record<string, string>; derived?: Record<string, { path: string; value: string }>; typed?: string[]; payer?: ElectricianPayer | null; plan?: ElectricianPlan | null };
           if (r.customer) setCustomer(restoreCustomer(r.customer as never));
-          if (r.d) setD({ area: r.d.area ?? "", amount: r.d.amount ?? "", includes: r.d.includes ?? "", proposedR: r.d.proposedR ?? "", insulation: r.d.insulation ?? null, quoteStatus: r.d.quoteStatus ?? null, attended: r.d.attended ?? null, attendedOn: r.d.attendedOn ?? "", ...(r.d.removal ? { removal: r.d.removal } : {}) });
+          if (r.d) setD({ area: r.d.area ?? "", amount: r.d.amount ?? "", includes: r.d.includes ?? "", proposedR: r.d.proposedR ?? "", insulation: r.d.insulation ?? null, quoteStatus: r.d.quoteStatus ?? null, attended: r.d.attended ?? null, attendedOn: r.d.attendedOn ?? "", ...(r.d.removal ? { removal: r.d.removal } : {}), ...(r.d.commercial ? { commercial: r.d.commercial } : {}) });
           if (r.coord) setCoord(r.coord);
           if (r.payer) setPayer(r.payer);
           if (r.plan) setPlan(r.plan);
@@ -144,7 +144,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
     if (!d.attended) p.unshift("Choose whether you have attended and assessed this property");
     { const dp = d.attended === "attended" ? visitDateProblem(d.attendedOn ?? null, melbourneToday()) : null; if (dp) p.unshift(dp); }
     if (d.quoteStatus === "have_quote") p.push(...commercialInputProblems(commercialPayload(d.commercial ?? blankCommercialInput(), live.includes || null, d.removal?.answer === "yes"), removalPayload(d.removal ?? blankRemoval(), true)));
-    p.push(...removalProblems(removalPayload(d.removal ?? blankRemoval(), d.quoteStatus === "have_quote", d.attended === "attended"), d.insulation, intakeArea(live.area), intakeQuotePayload({ ...live, quoteStatus: d.quoteStatus ?? null }).quoted_price_inc_gst, d.quoteStatus === "have_quote"));
+    p.push(...removalProblems(removalPayload(d.removal ?? blankRemoval(), d.quoteStatus === "have_quote", d.attended === "attended"), d.insulation, intakeArea(live.area), intakeQuotePayload({ ...live, quoteStatus: d.quoteStatus ?? null }).quoted_price_inc_gst, false, false)); // drafts may omit removal m²; quote readiness re-checks
     if (!payer) p.push("Choose who arranges the electrician");
     else if (payer === "own") { const eb = electricianPlanBlocker(plan); if (eb) p.push(eb); }
     if (fileText && d.quoteStatus === "have_quote" && multiCustomerAmbiguity(fileText)) p.push("Your file names more than one customer — upload one customer's quote per job");
