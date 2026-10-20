@@ -102,7 +102,7 @@ export async function installerIntakeState(jobId: string) {
   const measuredR = m?.existing_r_value == null ? null : Number(m.existing_r_value);
   const officeEligibility = decision;
   const attended = ((job as { installer_site_check?: string | null }).installer_site_check ?? null) as "yes" | "no" | null;
-  const onsiteMeasured = !!(m && (m.verified_area_m2 != null || m.provenance !== "installer_supplied_provisional"));
+  const onsiteMeasured = (await import("./installer-intake.core")).onsiteMeasuredFrom(m ?? null, attended);
   // Latest saved preliminary estimate (not attended): unverified, never a measurement; hidden once a measurement exists.
   const estRow = (est ?? []).find((e) => (e.details as Record<string, unknown> | null)?.["preliminary_area_m2"] !== undefined);
   const estV = (estRow?.details as { preliminary_area_m2?: unknown } | undefined)?.preliminary_area_m2;
@@ -242,7 +242,7 @@ export type InstallerIntakeUpdate = {
   removalQuote?: RemovalQuote;
   /** Installer's own quoted works: basis/GST/inclusions/exclusions/original status/removal+extras pricing. Omitted = unchanged. */
   commercial?: QuoteCommercial | undefined;
-  files: { path: string; name: string; type: string }[];
+  files: { path: string; name: string; type: string; purpose?: "quote" | "supporting" | undefined }[];
   electrician?: { mode: "mine"; business_id?: string | null; nomination_id?: string | null } | undefined;
   /** Who arranges/pays the electrician: HIV ($349 on quote) / own (direct billing, needs `electrician`) / to be arranged. */
   electricianPayer?: "hivic" | "own" | "undecided" | undefined;
@@ -335,6 +335,14 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
     if (!imp) throw new WorkflowError("The original job record couldn't be found to attach the file.");
     const have = (imp.files as { path: string }[] | null) ?? [];
     const add = p.files.filter((f) => !have.some((h) => h.path === f.path));
+    // Explicit classification of an earlier unclassified file (never re-labels an already classified one).
+    const classify = p.files.filter((f) => f.purpose && have.some((h) => h.path === f.path && (h as { purpose?: string }).purpose == null));
+    if (classify.length) {
+      const next = have.map((h) => { const c = classify.find((f) => f.path === h.path); return c ? { ...h, purpose: c.purpose } : h; });
+      const { error: e } = await admin.from("job_imports").update({ files: [...next, ...add] as never }).eq("id", imp.id); if (e) throw new WorkflowError(e.message);
+      await logEvent(jobId, actorId, "installer_file_classified", `Installer classified ${classify.length} earlier file${classify.length === 1 ? "" : "s"}`, { files: classify.map((f) => ({ path: f.path, purpose: f.purpose })) }, { internal: true });
+      have.splice(0, have.length, ...next);
+    }
     if (add.length) { const { error: e } = await admin.from("job_imports").update({ files: [...have, ...add] as never }).eq("id", imp.id); if (e) throw new WorkflowError(e.message); }
     if (add.length) await logEvent(jobId, actorId, "installer_quote_file_added", `Installer added ${add.length} file${add.length === 1 ? "" : "s"} (originals kept)`, { files: add }, { internal: true });
   }
