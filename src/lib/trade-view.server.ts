@@ -339,7 +339,7 @@ export async function tradeMoney(userId: string) {
 export async function tradeBusiness(userId: string) {
   const c = await ctxOrThrow(userId);
   // Staff logins get only the business name and job-taking status: no rates, bank, agreement, insurance or team.
-  if (!c.boss) return { kind: c.kind, boss: false, name: c.biz.name, taking: c.biz.accepting_new_jobs !== false, area: null as string | null, licenceExpires: null, liabilityExpires: null, rate: null as number | null, agreementSigned: false, bankSaved: false, team: [] as { id: string | null; name: string; role: string; hasLogin: boolean }[] };
+  if (!c.boss) return { kind: c.kind, boss: false, name: c.biz.name, taking: c.biz.accepting_new_jobs !== false, area: null as string | null, licenceExpires: null, liabilityExpires: null, rate: null as number | null, agreementSigned: false, bankSaved: false, team: [] as { id: string | null; name: string; role: string; hasLogin: boolean; eec: string }[] };
   const r = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
   const [{ data: creds }, { data: workers }, { data: rate }, { data: agr }, { data: bank }] = await Promise.all([
     admin.from("business_credentials").select("kind, label, expires_at, verification").eq("business_id", c.biz.id),
