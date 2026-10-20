@@ -14,7 +14,7 @@ CREATE TABLE jobs (id uuid primary key);
 CREATE TABLE ready_checks (id uuid primary key default gen_random_uuid(), job_id uuid, version int, status text, installer_user_id uuid, installer_business_id uuid,
   attended_at timestamptz, external_mitti_id text, submitted_at timestamptz, created_at timestamptz default now(), updated_at timestamptz default now(), unique (job_id, version));
 CREATE TABLE ready_check_observations (id uuid primary key default gen_random_uuid(), ready_check_id uuid, job_id uuid, field_key text, value jsonb, evidence_document_ids uuid[],
-  recorded_by uuid, recorded_at timestamptz default now(), unique (ready_check_id, field_key));
+  recorded_by uuid, recorded_at timestamptz default now(), unique (ready_check_id, field_key)), constraint rc_obs_key check (field_key ~ '^(attendance|measure|insulation|removal|access|elec)\.[a-z0-9_]+$'))
 CREATE TABLE public.evidence_requirements (id uuid primary key default gen_random_uuid(), job_id uuid, category text, label text, gate text, responsible_role text,
   required boolean, status text, verified_by uuid, verified_at timestamptz, notes text, sort int default 0, constraint evidence_requirements_job_id_category_key unique (job_id, category));
 CREATE TABLE ceiling_measurements (id uuid primary key default gen_random_uuid(), job_id uuid, is_current boolean, removal_required boolean, removal_m2 numeric, supplied_removal_m2 numeric, created_by uuid, created_at timestamptz default now());
