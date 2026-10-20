@@ -128,9 +128,10 @@ describe("photos + one free-text PDF", () => {
     { path: "IMG_1.jpg", name: "IMG_1.jpg" },
     { path: "IMG_2.jpg", name: "IMG_2.jpg" },
   ];
-  test("only customer gets every unclaimed photo, flagged low", () => {
+  test("only customer gets only the file it was read from — unclaimed photos are not guessed", () => {
     const [r] = _link([{ full_name: "Mary Smith", phone: "0412345678", source_files: ["notes.pdf"] }], files);
-    expect(r!.matched.map((m) => m.how).sort()).toEqual(["only_lead", "only_lead", "photo_text"]);
+    expect(r!.matched.map((m) => `${m.how}:${m.name}`)).toEqual(["photo_text:notes.pdf"]);
+    expect(r!.confidence).toBe("high");
   });
   test("no address → customer details needed, installer adds it", async () => {
     const { customerDetailsReason } = await import("../src/lib/bulk-import.core");
