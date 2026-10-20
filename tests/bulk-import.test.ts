@@ -133,6 +133,14 @@ describe("photos + one free-text PDF", () => {
     expect(r!.matched.map((m) => `${m.how}:${m.name}`)).toEqual(["photo_text:notes.pdf"]);
     expect(r!.confidence).toBe("high");
   });
+  test("unclaimed photos for the only customer are reported as not linked", async () => {
+    const { fileResults } = await import("../src/lib/bulk-import.core");
+    const lead = { full_name: "Mary Smith", phone: "0412345678", source_files: ["notes.pdf"] };
+    const [r] = _link([lead], files);
+    const out = fileResults(files.map((x) => ({ name: x.name, status: "ok" as const, message: "Read" })), [lead], [r!.matched]);
+    expect(out.map((o) => o.status)).toEqual(["ok", "warn", "warn"]);
+    expect(out[1]!.message).toContain("not linked to any customer");
+  });
   test("no address → customer details needed, installer adds it", async () => {
     const { customerDetailsReason } = await import("../src/lib/bulk-import.core");
     expect(customerDetailsReason({ full_name: "Mary Smith", unsure: true })).toContain("please add the");
