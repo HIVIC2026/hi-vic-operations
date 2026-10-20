@@ -48,6 +48,7 @@ export async function prestartFacts(jobId: string, start: string) {
     start, clearance: { cleared: clearance.cleared, blocker: clearance.blocker }, deadline, esc: current,
     lead: await leadInstallerCert(jobId), consentBlockers: consentValidityBlockers(consent as never, start), piesaCompletedAt: cf.piesaCompletedAt,
     readyCheckWorksBlockers: await (await import("./ready-check-draft.server")).rcWorksBlockers(jobId),
+    siteHoldBlockers: await siteHoldBlockers(jobId),
   };
 }
 
@@ -150,4 +151,12 @@ export async function recordCertLevel(p: { applicationId: string; workerEmail: s
   if (error) throw new WorkflowError(error.message);
   await admin.from("admin_config_events").insert({ actor_id: p.actorId, event_type: "worker_certification_level", summary: `Certification recorded as ${p.level}, expires ${p.expiresOn} (${email})`, details: { certification_id: c.id, worker_email: email, level: p.level, expires_on: p.expiresOn } as Json });
   return { ok: true };
+}
+
+async function siteHoldBlockers(jobId: string): Promise<string[]> {
+  const m = await import("./installer-intake.server");
+  const h = await m.siteConditionsHoldFor(jobId); // any job may carry the hold; read failure throws (fail closed)
+  if (!h.open) return [];
+  const { SITE_HOLD_BLOCKER } = await import("./site-conditions.core");
+  return [h.note ? `${SITE_HOLD_BLOCKER}: ${h.note}` : SITE_HOLD_BLOCKER];
 }

@@ -67,6 +67,14 @@ export async function intakeSendBlockers(jobId: string): Promise<string[]> {
   return [...st.readiness.blockers, ...st.releaseBlockers]; // reconfirmation is enforced as a stage blocker so a corrected quote can be re-sent and re-accepted
 }
 
+/** Open "Site conditions differ" hold for a job. Fails closed: an unreadable history is never "no hold". */
+export async function siteConditionsHoldFor(jobId: string) {
+  const { SITE_HOLD_RAISED, SITE_HOLD_CLEARED, siteConditionsHold } = await import("./site-conditions.core");
+  const { data, error } = await admin.from("workflow_events").select("event_type, created_at, details").eq("job_id", jobId).in("event_type", [SITE_HOLD_RAISED, SITE_HOLD_CLEARED]).order("created_at", { ascending: false }).limit(20);
+  if (error || !data) throw new WorkflowError("The site conditions review history could not load. Please retry.");
+  return siteConditionsHold(data as never);
+}
+
 export const OWN_ELECTRICIAN_OFFICE_CHANGE = "To change your own electrician, email Home Insulation Victoria at info@homeinsulationvictoria.com.au — the office makes the change.";
 
 export async function installerIntakeState(jobId: string) {
@@ -128,10 +136,13 @@ export async function installerIntakeState(jobId: string) {
   const commercial = readCommercial((comEvent?.details as { commercial?: unknown } | null)?.commercial);
   // Quoted jobs: price basis/GST/removal+extras pricing must be explicit before ANY owner quote is drafted/released/accepted.
   if (job.installer_quoted_price_inc_gst != null) for (const b of commercialBlockers(commercial, removalQuote)) { readiness.blockers.push(b); readiness.ready = false; }
+  const siteHold = await siteConditionsHoldFor(jobId);
+  if (siteHold.open) { const { SITE_HOLD_BLOCKER } = await import("./site-conditions.core"); readiness.blockers.push(siteHold.note ? `${SITE_HOLD_BLOCKER}: ${siteHold.note}` : SITE_HOLD_BLOCKER); readiness.ready = false; }
   const release = installerQuoteReleaseBlockers({ consentStatus: consent?.consent_status ?? null, feeAwarenessRecorded: feeCurrent, feeAwarenessPayer: feeRow?.payer ?? null, electricianPayer });
   if (removalQuote) release.push(...(removalQuote.answer === "unknown" ? ["Confirm whether the installer quote includes removal before release"] : removalProblems(removalQuote, ins.value, area, job.installer_quoted_price_inc_gst == null ? null : Number(job.installer_quoted_price_inc_gst))));
   const rc = readyCheckOutstanding((ev ?? []).map((r) => ({ category: r.category, label: r.label, blocking: r.required, status: r.status })) as EvidenceItem[]);
   return {
+    siteHold,
     coordination, coordinationNext: (await import("./installer-intake.core")).coordinationNextAction(coordination),
     channel: job.channel, insulation: ins.value, insulationSource: ins.source, areaM2: area, areaProvenance: scope.provenance, preliminaryAreaM2, attended, onsiteMeasured,
     removalQuote, commercial, separateLines: separatelyPricedLines(commercial, removalQuote), removalText: removalFactSummary(removalQuote, commercial), proposedR: await latestProposedR(jobId), reconfirmationRequired: await reconfirmationOpen(jobId), measuredR,
