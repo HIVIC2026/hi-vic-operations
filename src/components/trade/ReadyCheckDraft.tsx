@@ -9,6 +9,7 @@ import { EvidencePanel } from "@/components/portal/panels";
 import { getReadyCheckDraft, saveReadyCheckDraft, submitReadyCheckDraft } from "@/lib/ready-check-draft.functions";
 import { RC_DRAFT_FIELDS, rcSubmitBlockers, type RcDraftValues } from "@/lib/ready-check-draft.core";
 import { refreshInstallerJob } from "./job-cache";
+import { ReadyCheckAreas } from "./ReadyCheckAreas";
 
 const SECTION: Record<string, string> = { A: "Attendance", B: "Measurement and existing insulation", C: "Access", D: "Electrical observations (not a PIESA)" };
 const OPTION_LABEL: Record<string, string> = { unable_to_confirm: "Can't tell", plan_verified_onsite: "Plan checked onsite", modern_breakers: "Modern breakers", ceramic_fuses_visible: "Ceramic fuses", not_visible: "Not visible", uncertain: "Not sure" };
@@ -96,6 +97,7 @@ export function ReadyCheckDraft({ jobId, evidence = true }: { jobId: string; evi
           </div>
         </Section>
       ))}
+      <ReadyCheckAreas jobId={jobId} data={data} />
       {evidence && <EvidencePanel jobId={jobId} role="measure" gates={["assessment"]} />}
       {isError && <p role="alert">Couldn't refresh the Ready Check. Your answers are kept. <Button variant="outline" disabled={isFetching || !!busy} onClick={() => void refetch()}>Retry</Button></p>}
       {msg && <p role="status" className={`rounded-[12px] border border-line bg-paper p-3 text-sm ${msg.ok ? "" : "text-danger"}`} data-rc-save-msg>{msg.text}</p>}
