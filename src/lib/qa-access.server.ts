@@ -26,7 +26,7 @@ function safeEmail(value: string | null | undefined): string {
   if (!/^[^@\s]+@hivic-test\.example$/.test(email)) throw new WorkflowError("This TEST account is not safely isolated.");
   return email;
 }
-const randomPassword = () => `${crypto.randomUUID()}${crypto.randomUUID()}Aa1!`;
+const randomPassword = () => `${newToken()}Aa1!`;
 
 export async function requireQaAdmin(context: Context) {
   const result = await context.supabase.rpc("has_role", { _user_id: context.userId, _role: "admin" });

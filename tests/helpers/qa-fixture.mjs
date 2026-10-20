@@ -73,6 +73,7 @@ export async function fixture(t,{seed=true}={}) {
   getUserById:userId=>authCall('getUserById',async()=>({user:clone(io.users.get(userId)??null)})),
   listUsers:({page,perPage})=>authCall('listUsers',async()=>({users:clone([...io.users.values()].slice((page-1)*perPage,page*perPage))})),
   createUser:details=>authCall('createUser',async()=>{
+   if(typeof details.password!=='string'||details.password.length>72||!/[a-z]/.test(details.password)||!/[A-Z]/.test(details.password)||!/[0-9]/.test(details.password)||!/[!]/.test(details.password))throw new Error('Generated TEST password violates the Auth boundary requirements');
    if([...io.users.values()].some(u=>u.email===details.email))throw new Error('Existing email');
    const user={id:randomUUID(),...clone(details)};
    await db.query('INSERT INTO profiles(id,email,full_name) VALUES($1,$2,$3)',[user.id,user.email,user.user_metadata.full_name]);io.users.set(user.id,user);return {user};
