@@ -8,8 +8,23 @@ describe("four next actions by coordination × quoted (eligibility pending)", ()
   test("managed + not quoted → HIV checks eligibility then Ready Check", () => expect(installerProgress(base).next.text).toMatch(/arrange the Ready Check/));
   test("self + not quoted → installer measures and quotes", () => expect(installerProgress({ ...base, coordination: "self_managed" }).next.text).toMatch(/you measure and quote/));
   test("managed + quoted → owner quote, no forced visit", () => expect(installerProgress({ ...base, quoted: "yes" }).next.text).not.toMatch(/Ready Check/));
-  test("self + quoted → owner quote", () => expect(installerProgress({ ...base, coordination: "self_managed", quoted: "yes" }).next.text).toMatch(/prepare the owner quote/));
+  // Attendance is independent of the quote (Jo, 20 Oct): only an explicit visit lets a quote go straight to the owner quote.
+  test("self + quoted + attended → owner quote", () => expect(installerProgress({ ...base, coordination: "self_managed", quoted: "yes", attended: "yes" }).next.text).toMatch(/prepare the owner quote/));
+  test("self + quoted + attendance unknown → asks to confirm the visit, never assumes it", () => {
+    const t = installerProgress({ ...base, coordination: "self_managed", quoted: "yes", attended: null }).next.text;
+    expect(t).toMatch(/attended and assessed/); expect(t).not.toMatch(/prepare the owner quote/);
+  });
   test("eligible self not quoted → You", () => expect(installerProgress({ ...base, coordination: "self_managed", eligibility: "eligible" }).next.who).toBe("You"));
+});
+
+describe("eligible: four attendance × quote combinations give the real next action", () => {
+  const e = { ...base, eligibility: "eligible" as const };
+  test("not visited + not quoted → arrange Ready Check", () => expect(installerProgress({ ...e, attended: "no" }).next.text).toMatch(/Arrange the Ready Check/));
+  test("visited + not quoted → finish on this job, no second visit", () => expect(installerProgress({ ...e, attended: "yes" }).next.text).toMatch(/Finish any missing assessment details/));
+  test("not visited + quoted → preliminary until onsite Ready Check", () => expect(installerProgress({ ...e, attended: "no", quoted: "yes" }).next.text).toMatch(/preliminary/));
+  test("visited + quoted → prepare owner quote", () => expect(installerProgress({ ...e, attended: "yes", quoted: "yes" }).next.text).toMatch(/Prepare and send the owner quote/));
+  test("unknown + quoted → confirm visit", () => expect(installerProgress({ ...e, attended: null, quoted: "yes" }).next.text).toMatch(/don't assume/));
+  test("unknown + not quoted → confirm visit (not inferred from unquoted)", () => expect(installerProgress({ ...e, attended: null }).next.text).toMatch(/don't assume/));
 });
 
 describe("steps only from their own facts", () => {
