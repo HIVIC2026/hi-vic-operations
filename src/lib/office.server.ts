@@ -27,7 +27,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
   const now = Date.now();
   const scope = <T extends { in: (c: string, v: string[]) => T }>(q: T) => (opts.onlyIds ? q.in("job_id", opts.onlyIds) : q);
   const jobQ = () => {
-    let q = admin.from("jobs").select("id, job_number, stage, source, created_at, last_activity_at, hold_revisit_at, cancelled_reason, next_action, installation_completed_at, qa_archived_at, deleted_at, offer_dispatch_override, owners(full_name), properties(suburb, postcode)");
+    let q = admin.from("jobs").select("id, job_number, stage, source, installer_site_check, created_at, last_activity_at, hold_revisit_at, cancelled_reason, next_action, installation_completed_at, qa_archived_at, deleted_at, offer_dispatch_override, owners(full_name), properties(suburb, postcode)");
     if (opts.onlyIds) q = q.in("id", opts.onlyIds);
     return q;
   };
@@ -151,19 +151,17 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
 
   // Owner paperwork: jobs sitting in (or waiting to start) a stage whose gate isn't signed.
   {
-    const { evaluateOwnerGates, gatesForStage } = await import("./owner-gates.core");
+    const { evaluateOwnerGates, gatesForStage, installerVisitFromSiteCheck } = await import("./owner-gates.core");
     const { approvedVersions } = await import("./owner-gates.server");
     // Bounded id batches: one URL carrying every live job id exceeds the gateway limit (400 + client retries ≈ 60 s each).
     const batches: string[][] = []; for (let i = 0; i < ids.length; i += 200) batches.push(ids.slice(i, i + 200));
     const inBatches = async (what: string, q: (b: string[], a: number, z: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>) =>
       (await Promise.all(batches.map((b) => all(what, (a, z) => q(b, a, z))))).flat();
-    const [gsigRows, appr, browRows] = await Promise.all([
+    const [gsigRows, appr] = await Promise.all([
       inBatches("owner paperwork signatures", (b, a, z) => admin.from("owner_gate_signatures").select("job_id, doc_key, doc_version, doc_draft, answers").in("job_id", b).order("signed_at").order("id").range(a, z)),
       approvedVersions(),
-      inBatches("bulk import rows", (b, a, z) => admin.from("bulk_import_rows").select("job_id, import_stage").in("job_id", b).order("id").range(a, z)),
     ]);
     const gsig = gsigRows as { job_id: string; doc_key: string; doc_version: string; doc_draft: boolean; answers: unknown }[];
-    const brows = browRows as { job_id: string; import_stage: string }[];
     for (const j of live) {
       const id = String(j["id"]); const stage = String(j["stage"]);
       const need = new Set(gatesForStage(stage));
@@ -173,7 +171,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
       const mine = (gsig ?? []).filter((x) => x.job_id === id);
       const ans = (k: string) => mine.filter((x) => x.doc_key === k).at(-1)?.answers as Record<string, unknown> | undefined;
       const r = evaluateOwnerGates({ isTest: j["source"] === "qa_test", signed: mine.map((x) => ({ key: x.doc_key, version: x.doc_version, draft: x.doc_draft })), approved: appr,
-        tenant: ans("details_confirmation")?.["role"] === "tenant", lifeSupport: false, visitedByInstaller: (brows ?? []).some((b) => b.job_id === id && ["visited", "quoted"].includes(String(b.import_stage))),
+        tenant: ans("details_confirmation")?.["role"] === "tenant", lifeSupport: false, visitedByInstaller: installerVisitFromSiteCheck(j["installer_site_check"]),
         hasQuote: true, agreementSigned: true, agreementWordingApproved: true, escConsentSigned: true, piesaCopyDelivered: true, piesaDeclarationMappingApproved: false, assignmentEffective: true });
       const g = r.find((x) => need.has(x.gate) && !x.complete);
       if (g) fail(id, `Owner paperwork ${g.gate} not complete: ${g.items.filter((i) => !i.done || (i.draft && j["source"] !== "qa_test")).map((i) => i.label).join(", ")}`);

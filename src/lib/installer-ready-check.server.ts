@@ -36,7 +36,7 @@ export async function installerRcState(jobId: string) {
     admin.from("bookings").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", "ready_check").eq("status", "completed"),
     admin.from("ceiling_measurements").select("provenance, verified_area_m2").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
   ]);
-  if (be || de || me) throw new WorkflowError("The Ready Check status could not load. Please retry."); // fail closed, never "nothing to do"
+  if (be || de || me || booked == null || done == null) throw new WorkflowError("The Ready Check status could not load. Please retry."); // fail closed, never "nothing to do"
   const onsiteDone = (done ?? 0) > 0 || !!(m && (m.verified_area_m2 != null || m.provenance !== "installer_supplied_provisional"));
   const w = await readyCheckWindowRound(jobId);
   const { data: bk, error: bke } = await admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "ready_check").eq("status", "confirmed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle();

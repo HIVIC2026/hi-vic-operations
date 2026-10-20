@@ -2,7 +2,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { SAFETY_CHECK_FEE_DEFAULT, balanceSplit } from "./payment-gate.core";
-import { GATE_DOCS, paymentChoices, type PaymentMoney, answerVars, evaluateOwnerGates, fillTemplate, gateDoc, ownerGateBlockers, ownerToSign, quoteAcceptanceReady, type GateDocKey, type GateFacts, type GateResult } from "./owner-gates.core";
+import { GATE_DOCS, paymentChoices, type PaymentMoney, answerVars, evaluateOwnerGates, installerVisitFromSiteCheck, fillTemplate, gateDoc, ownerGateBlockers, ownerToSign, quoteAcceptanceReady, type GateDocKey, type GateFacts, type GateResult } from "./owner-gates.core";
 import { agreementSigned, assignmentStatus, logEvent, WorkflowError } from "./workflow.server";
 
 async function sha256(s: string) {
@@ -22,11 +22,10 @@ export async function approvedVersions(): Promise<Record<string, string>> {
 }
 
 export async function gateFacts(jobId: string): Promise<GateFacts> {
-  const [{ data: job }, { data: sigs }, approved, { data: bulk }, { data: quotes }, agreed, { data: tpl }, { data: esc }, { data: dels }, assign] = await Promise.all([
-    admin.from("jobs").select("source, life_support").eq("id", jobId).single(),
+  const [{ data: job, error: jobError }, { data: sigs }, approved, { data: quotes }, agreed, { data: tpl }, { data: esc }, { data: dels }, assign] = await Promise.all([
+    admin.from("jobs").select("source, life_support, installer_site_check").eq("id", jobId).single(),
     admin.from("owner_gate_signatures").select("doc_key, doc_version, doc_draft, answers, signed_at").eq("job_id", jobId).order("signed_at"),
     approvedVersions(),
-    admin.from("bulk_import_rows").select("import_stage").eq("job_id", jobId).limit(1).maybeSingle(),
     admin.from("quotes").select("id").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted"]).limit(1),
     agreementSigned(jobId),
     admin.from("compliance_templates").select("template_key").in("template_key", ["customer_agreement", "consumer_rights"]).eq("approved", true).eq("is_active", true),
@@ -34,6 +33,8 @@ export async function gateFacts(jobId: string): Promise<GateFacts> {
     admin.from("piesa_deliveries").select("recipient").eq("job_id", jobId),
     assignmentStatus(jobId),
   ]);
+  if (jobError) throw new WorkflowError("The job visit details could not load. Please retry.");
+  if (!job) throw new WorkflowError("The saved job could not be found. Please retry or contact the office.");
   const { count: onsite } = await admin.from("owner_contact_consents").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("source", "onsite_ready_check").eq("consent_status", "granted");
   const latest = (k: string) => (sigs ?? []).filter((s) => s.doc_key === k).at(-1)?.answers as Record<string, unknown> | undefined;
   const keys = new Set((tpl ?? []).map((t) => t.template_key));
@@ -43,7 +44,7 @@ export async function gateFacts(jobId: string): Promise<GateFacts> {
     approved,
     tenant: latest("details_confirmation")?.["role"] === "tenant",
     lifeSupport: !!job?.life_support || latest("life_support_answer")?.["life_support"] === "yes",
-    visitedByInstaller: ["visited", "quoted"].includes(String(bulk?.import_stage ?? "")),
+    visitedByInstaller: installerVisitFromSiteCheck(job.installer_site_check),
     hasQuote: (quotes ?? []).length > 0,
     agreementSigned: agreed,
     agreementWordingApproved: keys.has("customer_agreement") && keys.has("consumer_rights"),

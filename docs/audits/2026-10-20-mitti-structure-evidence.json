@@ -853,7 +853,8 @@
      "expected": "Photos of each extra",
      "closestPublished": null
     }
-   ]
+   ],
+   "status_note": "Diagnostic basis: labels/counts/types only."
   },
   {
    "title": "Installer Ready Check (priced)",
@@ -1719,7 +1720,8 @@
      "expected": "Photos of each extra",
      "closestPublished": null
     }
-   ]
+   ],
+   "status_note": "Diagnostic basis: labels/counts/types only (priced Ready Check, extras block)."
   },
   {
    "title": "PIISA",
@@ -2177,7 +2179,8 @@
       "overlap": 0.83
      }
     }
-   ]
+   ],
+   "status_note": "HISTORICAL/SUPERSEDED: generic-spec comparison (wrong spec for native PIISA A3). Issue array preserved unchanged; not current."
   },
   {
    "title": "PIESA (saved)",
@@ -2433,7 +2436,33 @@
      "expected": "Switchboard cable photo",
      "closestPublished": null
     }
-   ]
+   ],
+   "status_note": "HISTORICAL: unsaved/unselected PIESA candidate (4 header items). Not rechecked; not proof that fields are absent."
   }
- ]
+ ],
+ "current_recorded_results_2026_10_20": {
+  "recorded": "2026-10-20 read-only diagnosis (sanitized counts, one GET per saved form)",
+  "ready_check": {
+   "issues": 13,
+   "basis": "label/count/type",
+   "held_by": "schema issues (not officialFormUseBlocker)"
+  },
+  "ready_check_priced": {
+   "issues": 3,
+   "basis": "label/count/type",
+   "held_by": "schema issues"
+  },
+  "piisa_native_a3": {
+   "issues": 15,
+   "basis": "native stable-ID contract",
+   "held_by": "officialFormUseBlocker + issues",
+   "reference": "recorded result only; this file lacks complete native IDs/responseSets so 15 cannot be independently recomputed from it"
+  },
+  "piesa": {
+   "saved_id": null,
+   "result": "NOT_RUN (no saved ID)"
+  },
+  "not_established": "required flags, every choice, repeat/conditional semantics, compliance approval",
+  "parser_update": "unsupported explicit types, partial/malformed trees and unreadable alternate streams now return unreadable (tests/mitti-form-schema.test.ts 12/0)"
+ }
 }

@@ -1,161 +1,199 @@
 {
-  "head": "089f587a",
-  "migration": {
-    "sequence": "0213",
-    "drizzle_file": "drizzle/migrations/0156_0213_bulk_import_fencing.sql",
-    "normalized_equal_to_pending": true,
-    "backfill": false
+ "head": "089f587a",
+ "migration": {
+  "sequence": "0213",
+  "drizzle_file": "drizzle/migrations/0156_0213_bulk_import_fencing.sql",
+  "normalized_equal_to_pending": true,
+  "backfill": false
+ },
+ "portal_qa": {
+  "run": "2026-10-20T12-05-24",
+  "passed": 76,
+  "failed": 7,
+  "not_run": 4
+ },
+ "rows": [
+  {
+   "status": "failed",
+   "area": "office writes",
+   "item": "release-run timeout",
+   "note": "standalone rerun all passed"
   },
-  "portal_qa": {
-    "run": "2026-10-20T12-05-24",
-    "passed": 76,
-    "failed": 7,
-    "not_run": 4
+  {
+   "status": "failed",
+   "area": "installer journey",
+   "item": "B5",
+   "note": "TEST job lacks live assignment"
   },
-  "rows": [
-    {
-      "status": "failed",
-      "area": "office writes",
-      "item": "release-run timeout",
-      "note": "standalone rerun all passed"
-    },
-    {
-      "status": "failed",
-      "area": "installer journey",
-      "item": "B5",
-      "note": "TEST job lacks live assignment"
-    },
-    {
-      "status": "failed",
-      "area": "installer journey",
-      "item": "C1",
-      "note": "obsolete quote=Visited expectation"
-    },
-    {
-      "status": "failed",
-      "area": "installer journey",
-      "item": "C5",
-      "note": "obsolete photos=Visited expectation; needs Jo"
-    },
-    {
-      "status": "failed",
-      "area": "installer journey",
-      "item": "C16",
-      "note": "unknown attendance stores preliminary estimate"
-    },
-    {
-      "status": "failed",
-      "area": "emails",
-      "item": "tests/existing-insulation-send.test.ts",
-      "note": "3 fails, pre-existing"
-    },
-    {
-      "status": "failed",
-      "area": "emails",
-      "item": "aggregate",
-      "note": "99 pass 3 fail"
-    },
-    {
-      "status": "failed",
-      "area": "tests",
-      "item": "bulk-import-confirm-resume/sidefx/lease-fence/confirm-files",
-      "note": "superseded pre-RPC fakes"
-    },
-    {
-      "status": "failed",
-      "area": "tests",
-      "item": "office-final-uat D1",
-      "note": "stale source-text assertion"
-    },
-    {
-      "status": "failed",
-      "area": "tests",
-      "item": "piesa-future-date-runtime isolation",
-      "note": "sandbox has network/credentials"
-    },
-    {
-      "status": "blocked",
-      "area": "connections",
-      "item": "Mitti PIESA",
-      "note": "no saved ID; candidate has 4 header items"
-    },
-    {
-      "status": "blocked",
-      "area": "storage",
-      "item": "video cap",
-      "note": "200 MiB < 250 MB; approval needed"
-    },
-    {
-      "status": "not_run",
-      "area": "coverage",
-      "item": "REC onboarding click-through"
-    },
-    {
-      "status": "not_run",
-      "area": "coverage",
-      "item": "Office approve/send back/Save my spot"
-    },
-    {
-      "status": "not_run",
-      "area": "coverage",
-      "item": "owner signing/booking/payment"
-    },
-    {
-      "status": "not_run",
-      "area": "coverage",
-      "item": "installer onboarding signing"
-    },
-    {
-      "status": "not_run",
-      "area": "connections",
-      "item": "Outlook",
-      "note": "credentials unavailable"
-    },
-    {
-      "status": "not_run",
-      "area": "installer",
-      "item": "signed-in save/reload matrix"
-    }
-  ],
-  "followups": [
-    {
-      "id": "intake-upload-ui-patch",
-      "patch_sha256": "cf2bf53cdf724ce713b8e608187e81d2e60bec0a5482306dd3cbd827423486c5",
-      "patch_bytes": 31250,
-      "base": "2f10067a",
-      "applied_on": "a337aa74",
-      "results": {
-        "installer-intake-upload-ui.test.mjs": "PASS 9/0",
-        "typecheck": "PASS",
-        "related_suites": "PASS 128/0",
-        "build": "PASS",
-        "retired_terms_customer_visible": 0
-      },
-      "deviation": "legacy unlabelled files stay unclassified (not quote) per later rule",
-      "not_run": [
-        "signed-in TEST-installer upload/save/reopen desktop+mobile: no isolated TEST installer session (Deep excluded)"
-      ],
-      "live_ready": false
-    },
-    {
-      "id": "attachment-race-cas",
-      "files": [
-        "src/lib/partner-import.server.ts",
-        "src/components/trade/installer-intake-flow.tsx"
-      ],
-      "results": {
-        "installer-create-roundtrip-db": "PASS 24/0 (6 new race tests)",
-        "installer-intake-upload-ui": "PASS 9/0",
-        "typecheck": "PASS"
-      },
-      "preexisting_fail": [
-        "bulk-import-confirm-files 1",
-        "bulk-import-confirm-resume 8 (stale mock: no rpc)"
-      ],
-      "not_run": [
-        "signed-in TEST installer browser: HV-1351 identity not isolated (1 non-test reachable job); not used"
-      ],
-      "live_ready": false
-    }
-  ]
+  {
+   "status": "failed",
+   "area": "installer journey",
+   "item": "C1",
+   "note": "obsolete quote=Visited expectation"
+  },
+  {
+   "status": "failed",
+   "area": "installer journey",
+   "item": "C5",
+   "note": "obsolete photos=Visited expectation; needs Jo"
+  },
+  {
+   "status": "failed",
+   "area": "installer journey",
+   "item": "C16",
+   "note": "unknown attendance stores preliminary estimate"
+  },
+  {
+   "status": "failed",
+   "area": "emails",
+   "item": "tests/existing-insulation-send.test.ts",
+   "note": "3 fails, pre-existing"
+  },
+  {
+   "status": "failed",
+   "area": "emails",
+   "item": "aggregate",
+   "note": "99 pass 3 fail"
+  },
+  {
+   "status": "failed",
+   "area": "tests",
+   "item": "bulk-import-confirm-resume/sidefx/lease-fence/confirm-files",
+   "note": "superseded pre-RPC fakes"
+  },
+  {
+   "status": "failed",
+   "area": "tests",
+   "item": "office-final-uat D1",
+   "note": "stale source-text assertion"
+  },
+  {
+   "status": "failed",
+   "area": "tests",
+   "item": "piesa-future-date-runtime isolation",
+   "note": "sandbox has network/credentials"
+  },
+  {
+   "status": "blocked",
+   "area": "connections",
+   "item": "Mitti PIESA",
+   "note": "no saved ID; candidate has 4 header items"
+  },
+  {
+   "status": "blocked",
+   "area": "storage",
+   "item": "video cap",
+   "note": "200 MiB < 250 MB; approval needed"
+  },
+  {
+   "status": "not_run",
+   "area": "coverage",
+   "item": "REC onboarding click-through"
+  },
+  {
+   "status": "not_run",
+   "area": "coverage",
+   "item": "Office approve/send back/Save my spot"
+  },
+  {
+   "status": "not_run",
+   "area": "coverage",
+   "item": "owner signing/booking/payment"
+  },
+  {
+   "status": "not_run",
+   "area": "coverage",
+   "item": "installer onboarding signing"
+  },
+  {
+   "status": "not_run",
+   "area": "connections",
+   "item": "Outlook",
+   "note": "credentials unavailable"
+  },
+  {
+   "status": "not_run",
+   "area": "installer",
+   "item": "signed-in save/reload matrix"
+  },
+  {
+   "date": "2026-10-20T20:40Z",
+   "item": "hivic-release-closure.patch (60048 B, sha256 63b28040\u2026) integrated by hunk; all 11 files applied without fuzz/offset; RC hunk was only the booked/done null-count guard",
+   "results": {
+    "existing-insulation-send": "7/0",
+    "qa-persona-exclusion": "6/0",
+    "owner-gate-attendance-readers": "19/0",
+    "mitti-form-schema": "12/0",
+    "installer-intake-upload-ui": "9/0",
+    "installer-create-roundtrip-db": "24/0",
+    "installer-upload-revision": "34/0",
+    "upload-safety+verifier+redesign+bulk-large": "16/0",
+    "typecheck": "PASS",
+    "build": "OK",
+    "retired-terms": "0 customer-visible"
+   },
+   "note": "node 22 rejects --test-isolation=none; .mjs suites run with default isolation. Legacy pre-RPC bulk fake tests are not a green gate."
+  },
+  {
+   "date": "2026-10-20",
+   "item": "Mitti current recorded diagnosis",
+   "results": {
+    "ready_check": 13,
+    "priced": 3,
+    "piisa_native": 15,
+    "piesa": "NOT_RUN (no saved ID)"
+   },
+   "note": "Earlier PIESA 43 was an unsaved candidate \u2014 historical, not proof of absence. officialFormUseBlocker covers PIISA/PIESA only; Ready Checks held by schema issues."
+  },
+  {
+   "date": "2026-10-20",
+   "item": "Persona-exclusion correction",
+   "note": "Earlier Office rec/owner refusals passed, but the old bootstrap still visited the excluded installer before skipping assertions; earlier installer NOT_RUN did not prove no sign-in. Fixed: exclusion now precedes profile lookup/sign-in."
+  }
+ ],
+ "followups": [
+  {
+   "id": "intake-upload-ui-patch",
+   "patch_sha256": "cf2bf53cdf724ce713b8e608187e81d2e60bec0a5482306dd3cbd827423486c5",
+   "patch_bytes": 31250,
+   "base": "2f10067a",
+   "applied_on": "a337aa74",
+   "results": {
+    "installer-intake-upload-ui.test.mjs": "PASS 9/0",
+    "typecheck": "PASS",
+    "related_suites": "PASS 128/0",
+    "build": "PASS",
+    "retired_terms_customer_visible": 0
+   },
+   "deviation": "legacy unlabelled files stay unclassified (not quote) per later rule",
+   "not_run": [
+    "signed-in TEST-installer upload/save/reopen desktop+mobile: no isolated TEST installer session (Deep excluded)"
+   ],
+   "live_ready": false
+  },
+  {
+   "id": "attachment-race-cas",
+   "files": [
+    "src/lib/partner-import.server.ts",
+    "src/components/trade/installer-intake-flow.tsx"
+   ],
+   "results": {
+    "installer-create-roundtrip-db": "PASS 24/0 (6 new race tests)",
+    "installer-intake-upload-ui": "PASS 9/0",
+    "typecheck": "PASS"
+   },
+   "preexisting_fail": [
+    "bulk-import-confirm-files 1",
+    "bulk-import-confirm-resume 8 (stale mock: no rpc)"
+   ],
+   "not_run": [
+    "signed-in TEST installer browser: HV-1351 identity not isolated (1 non-test reachable job); not used"
+   ],
+   "live_ready": false
+  },
+  "Per-zone Ready Check carry-forward / pre-removal evidence controls from separate brief: NOT_IMPLEMENTED per this release record",
+  "Authenticated TEST installer browser: NOT_RUN",
+  "Final bounded portal run --personas rec,owner: NOT_RUN (pending)",
+  "Site-hold and document/onsite boundary fixes: separate follow-up"
+ ]
 }

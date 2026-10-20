@@ -1,12 +1,15 @@
 // Exercise the actual office follow-up sender without external delivery or hosted data.
-import { beforeEach, expect, mock, test } from "bun:test";
+import { afterAll, beforeEach, expect, mock, test } from "bun:test";
 import { REMOVAL_BUDGET_EMAIL_NOTE } from "../src/lib/estimate-removal.core";
 let qualified = true, enabled = false, reviewed = true;
-let originalMediaReads = 0, writes = 0;
+let originalMediaReads = 0, writes = 0, networkCalls = 0;
+const originalFetch = globalThis.fetch;
+globalThis.fetch = (async () => { networkCalls++; throw new Error("Unexpected network request in isolated follow-up tests"); }) as typeof fetch;
+afterAll(() => { globalThis.fetch = originalFetch; expect(networkCalls).toBe(0); });
 const token = "A".repeat(43), id = "00000000-0000-4000-8000-000000000001";
 const data: Record<string, unknown> = {
-  jobs: {id,job_number:"HV-TEST",source:"base44",stage:"preliminary_estimate_ready",eligibility_outcome:"needs_onsite_confirmation",owners:{full_name:"TEST Owner",email:"test@example.test"},properties:{address_line:"TEST",suburb:"TEST",postcode:"3000"}},
-  customer_estimate_links: {id,token}, indicative_estimates: {id,area_m2:150,insulation_declared:"present",scenarios:[{removal:0,removal_m2:0,by_access:{standard:{estimated_customer_total:2000,applied_discount:3198,pre_discount_total:5198}}}],snapshot:{settings:{piesa_assessment_inc_gst:349,ap_management_inc_gst:349},scenarios:[{by_access:{standard:{installation:4500}}}]}},
+  jobs: {id,job_number:"HV-TEST",source:"base44",stage:"preliminary_estimate_ready",estimated_area_m2:150,estimated_area_unknown:false,eligibility_outcome:"needs_onsite_confirmation",owners:{full_name:"TEST Owner",email:"test@example.test"},properties:{address_line:"TEST",suburb:"TEST",postcode:"3000"}},
+  customer_estimate_links: {id,token,status:"active",expires_at:new Date(Date.now()+86_400_000).toISOString()}, indicative_estimates: {id,area_m2:150,area_source:"owner_estimate",insulation_declared:"present",scenarios:[{removal:0,removal_m2:0,by_access:{standard:{estimated_customer_total:2000,applied_discount:3198,pre_discount_total:5198}}}],snapshot:{settings:{piesa_assessment_inc_gst:349,ap_management_inc_gst:349},scenarios:[{by_access:{standard:{installation:4500}}}]}},
   retail_estimator_settings:{indicative_veec_value:70},
 };
 mock.module("@/integrations/supabase/client.server", () => ({supabaseAdmin:{from(table: string) {
@@ -21,7 +24,11 @@ mock.module("../src/lib/emailsafety.server",()=>({unsubscribeUrlForJob:async()=>
 mock.module("../src/lib/referral.server",()=>({referralUrlForJob:async()=>null}));
 mock.module("../src/lib/workflow.server",()=>({logEvent:async()=>{}}));
 const {sendExistingInsulationSaveSpot} = await import("../src/lib/hot-leads-send.server");
-beforeEach(()=>{qualified=true;enabled=false;reviewed=true;writes=0;originalMediaReads=0;delete data.customer_email_sends;});
+beforeEach(()=>{
+  qualified=true;enabled=false;reviewed=true;writes=0;originalMediaReads=0;delete data.customer_email_sends;
+  Object.assign(data.customer_estimate_links as Record<string, unknown>, {status:"active",expires_at:new Date(Date.now()+86_400_000).toISOString()});
+  Object.assign(data.jobs as Record<string, unknown>, {estimated_area_m2:150,estimated_area_unknown:false});
+});
 // P1-S77: the existing-insulation follow-up IS Jo's Template 3/4 (below R2, reviewed) — no separate follow-up copy.
 test("office below-R2 preview renders Jo's T3/T4 despite original media",async()=>{
   const r = await sendExistingInsulationSaveSpot(id,id,true);
@@ -37,7 +44,7 @@ test("an owner declaration without a recorded media review is held for manual re
 });
 test("unqualified review cannot prepare the follow-up",async()=>{
   qualified=false;const r=await sendExistingInsulationSaveSpot(id,id,true);
-  expect(r.outcome).toBe("blocked");expect(r.preview).toBeUndefined();expect(writes).toBe(0);
+  expect(r.outcome).toBe("blocked");expect(r.detail).toContain("qualifying declaration or approved below-R2 review");expect(r.preview).toBeUndefined();expect(writes).toBe(0);
 });
 test("real office send remains globally locked with no reservation or delivery",async()=>{
   const r=await sendExistingInsulationSaveSpot(id,id);
@@ -50,4 +57,17 @@ test("repeated or uncertain prior follow-up attempts never send again",async()=>
     const r=await sendExistingInsulationSaveSpot(id,id);
     expect(r.outcome).toBe("skipped");expect(writes).toBe(0);
   }
+});
+
+test("inactive or expired secure links remain blocked with no preview or writes",async()=>{
+  for(const invalid of [{status:"revoked",expires_at:new Date(Date.now()+86_400_000).toISOString()},{status:"active",expires_at:new Date(Date.now()-86_400_000).toISOString()}]){
+    Object.assign(data.customer_estimate_links as Record<string, unknown>,invalid);
+    const r=await sendExistingInsulationSaveSpot(id,id,true);
+    expect(r.outcome).toBe("blocked");expect(r.detail).toContain("current secure estimate link");expect(r.preview).toBeUndefined();expect(writes).toBe(0);
+  }
+});
+test("an estimate on a different owner area remains blocked without a misleading preview",async()=>{
+  (data.jobs as Record<string, unknown>).estimated_area_m2=160;
+  const r=await sendExistingInsulationSaveSpot(id,id,true);
+  expect(r.outcome).toBe("blocked");expect(r.detail).toContain("not priced on the owner's ceiling size");expect(r.preview).toBeUndefined();expect(writes).toBe(0);
 });
