@@ -56,7 +56,6 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
   const stored = useRef(new WeakMap<File, AttachedFile>());
   const [fileBusy, setFileBusy] = useState(false);
   const fileFlight = useRef(false);
-  const fileBusyChange = (value: boolean) => { fileFlight.current = value; setFileBusy(value); };
   const [fileNote, setFileNote] = useState<string | null>(null);
   const [draftId, setDraftId] = useState<string | null>(null);
   const draftRef = useRef<string | null>(null);
@@ -67,6 +66,13 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
   const [saved, setSaved] = useState<Saved | null>(null);
   const problemsRef = useRef<HTMLUListElement>(null);
   const inFlight = useRef(false);
+  // Both file controls share one synchronous lock; a rejected overlap must not release its owner's lock.
+  const changeFiles = async (action: () => Promise<void>) => {
+    if (fileFlight.current || inFlight.current) throw new Error("A file change or save is still running. Wait for it to finish, then try again.");
+    fileFlight.current = true; setFileBusy(true);
+    try { await action(); }
+    finally { fileFlight.current = false; setFileBusy(false); }
+  };
 
   const realGetEl = useServerFn(bulkElectricianChoices), realAddEl = useServerFn(addBulkElectrician);
   const getEl = (preview?.getEl ?? realGetEl) as typeof realGetEl, addEl = (preview?.addEl ?? realAddEl) as typeof realAddEl;
@@ -297,12 +303,12 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         <ProposedRField value={d.proposedR} disabled={busy || fileBusy} onChange={(v) => { typed.current.add("proposedR"); setD({ ...d, proposedR: v }); }} />
         <RemovalQuoteFields value={d.removal ?? blankRemoval()} disabled={busy || fileBusy} onChange={(removal) => setD({ ...d, removal })} />
         <div data-supporting-files>
-        <AttachFiles businessId={businessId} files={files.filter((f) => f.purpose !== "quote")} disabled={busy} onBusyChange={fileBusyChange} label="Supporting photos, videos or measure-up (optional)" onAdd={(picked) => addPicked(picked, "supporting")} onRemove={removeAttached} />
+        <AttachFiles businessId={businessId} files={files.filter((f) => f.purpose === "supporting")} disabled={busy || fileBusy} label="Supporting photos, videos or measure-up (optional)" onAdd={(picked) => changeFiles(() => addPicked(picked, "supporting"))} onRemove={(path) => changeFiles(() => removeAttached(path))} />
         <p className="mt-1 text-xs text-sub">These are supporting evidence only — they don't count as your quote. Each item is reviewed before it's accepted.</p>
         </div>
         </div>
         {branches.quoteFacts && <div className="space-y-4" data-quote-branch>
-        <AttachFiles businessId={businessId} files={files.filter((f) => f.purpose === "quote")} disabled={busy} onBusyChange={fileBusyChange} label="Upload your quote" onAdd={(picked) => addPicked(picked, "quote")} onRemove={removeAttached} />
+        <AttachFiles businessId={businessId} files={files.filter((f) => f.purpose === "quote" || f.purpose == null)} disabled={busy || fileBusy} label="Upload your quote" onAdd={(picked) => changeFiles(() => addPicked(picked, "quote"))} onRemove={(path) => changeFiles(() => removeAttached(path))} />
         {fileNote && <p className="text-xs text-sub" data-file-note>{fileNote}</p>}
         <p className="text-xs text-sub">No quote file? Enter the amount and what it includes.</p>
         <label className="block text-sm font-bold">Total installer quote inc GST<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 3,450" value={d.amount} onChange={(e) => { typed.current.add("amount"); setD({ ...d, amount: e.target.value }); }} /></label>

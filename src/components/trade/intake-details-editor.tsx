@@ -1,6 +1,6 @@
 // Supplying installer adds/updates what they know on their OWN received job (Jo, 8 Oct): area, quote status/file/amount,
 // product, insulation, electrician. Same job, canonical records; never an accepted measurement or Ready Check approval.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Button } from "@/components/trade/trade-ui";
@@ -68,6 +68,14 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
   const [problems, setProblems] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [fileBusy, setFileBusy] = useState(false);
+  const fileFlight = useRef(false), saveFlight = useRef(false);
+  // Coordinate both file controls and Save before React has rendered a disabled state.
+  const changeFiles = async (action: () => Promise<void>) => {
+    if (fileFlight.current || saveFlight.current) throw new Error("A file change or save is still running. Wait for it to finish, then try again.");
+    fileFlight.current = true; setFileBusy(true);
+    try { await action(); }
+    finally { fileFlight.current = false; setFileBusy(false); }
+  };
   const [msg, setMsg] = useState<string | null>(null);
   // Refresh idle forms only. An open edit must survive focus/refetch without losing input or feedback.
   useEffect(() => {
@@ -90,9 +98,9 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
     if (savedArea != null && !area.trim()) p.push("The ceiling area is already saved — enter the corrected area instead of clearing it");
     if (payerChanged && payer === "own" && !(plan?.mode === "mine" && (plan.business_id || plan.nomination_id))) p.push("Choose your electrician");
     setProblems(p); setMsg(null);
-    if (p.length || busy || fileBusy || !qs) return;
+    if (p.length || busy || fileFlight.current || saveFlight.current || !qs) return;
     const q = intakeQuotePayload({ quoteStatus: qs, amount, includes, proposedR });
-    setBusy(true);
+    saveFlight.current = true; setBusy(true);
     try {
       const r = await onSave({ areaM2: intakeArea(area), insulation: ins, quoteStatus: qs, quoteIncGst: q.quoted_price_inc_gst, includes: q.price_includes, proposedR: q.proposed_r_value, files: [...newFiles, ...facts.files.filter((f) => f.purpose == null && classified[f.path]).map((f) => ({ ...f, purpose: classified[f.path]! }))], ...(att && (att !== (facts.attended ?? null) || (att === "attended" && attOn !== (facts.attendedOn ?? ""))) ? { attended: att, attendedOn: att === "attended" ? attOn || null : null } : {}), removalQuote: removalPayload(removal, qs === "have_quote", att === "attended"), ...(qs === "have_quote" ? { commercial: commercialPayload(com, q.price_includes, removal.answer === "yes") } : {}),
         ...(feeTick && feeText && (payer === "hivic" || payer === "own") ? { feeAwareness: { payer, text: feeText } } : {}),
@@ -204,5 +212,5 @@ export function MyIntakeDetailsCard({ jobId }: { jobId: string }) {
   if (isError && !data) return <section><p role="alert">Couldn't load the job details.</p><Button variant="outline" onClick={() => void refetch()}>Retry</Button></section>;
   if (!data?.applies) return null;
   return <IntakeDetailsEditor key={jobId} facts={data as IntakeJobFacts} businessId={data.businessId} upload={upload} electricians={el as ElChoices | undefined}
-    onSave={async (s) => { const r = await put({ data: { jobId, ...s, files: s.files.map((f) => ({ path: f.path, name: f.name, type: f.type ?? "" })) } }); await refreshInstallerJob(qc, jobId); return r; }} />;
+    onSave={async (s) => { const r = await put({ data: { jobId, ...s, files: s.files.map((f) => ({ path: f.path, name: f.name, type: f.type ?? "", ...(f.purpose ? { purpose: f.purpose } : {}) })) } }); await refreshInstallerJob(qc, jobId); return r; }} />;
 }
