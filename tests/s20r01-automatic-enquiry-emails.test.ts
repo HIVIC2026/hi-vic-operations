@@ -70,7 +70,8 @@ function from(table: string) {
   });
   return q;
 }
-mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from, rpc: async () => ({ data: null, error: null }) } }));
+let rpcImpl: ((name: string, args: Row) => { data: unknown; error: unknown }) | null = null;
+mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from, rpc: async (name: string, args: Row) => rpcImpl ? rpcImpl(name, args) : ({ data: null, error: null }) } }));
 const events: { type: string; details: Row }[] = [];
 class WorkflowError extends Error {}
 mock.module("../src/lib/workflow.server", () => ({ WorkflowError, logEvent: async (_j: string, _a: unknown, type: string, _s: string, details: Row) => { events.push({ type, details }); }, requireAdmin: async () => {}, transition: async () => {} }));
@@ -85,7 +86,9 @@ mock.module("../src/lib/estimatelink.server", () => ({ syncStep3: async () => ({
 const realComms = await import("../src/lib/comms.server");
 const comms: Row[] = [];
 // The recorded row also lands in the in-memory job_communications table, as the real insert would.
+let failComms = false;
 mock.module("../src/lib/comms.server", () => ({ ...realComms, recordCommunication: async (x: Row) => {
+  if (failComms) throw new Error("communication write failed");
   comms.push(x);
   (T.job_communications ??= []).push({ id: `comm-${comms.length}`, job_id: x.jobId, source_event: x.sourceEvent, source_reference: x.sourceReference, direction: x.direction, channel: x.channel, visibility: x.visibility, delivery_status: x.deliveryStatus ?? "sent", sent_at: new Date().toISOString(), created_at: new Date().toISOString() });
   return `comm-${comms.length}`;
@@ -508,4 +511,33 @@ test('accepted initial email with failed local history writes is not resent on w
   failAllOutcomeWrites = false;
   expect(await maybeAutoRouteLeadEmail(B)).toMatchObject({ sent: false, reason: 'Earlier email outcome pending or uncertain — never resent automatically' });
   expect(calls).toHaveLength(1);
+});
+
+
+describe("ACTUAL sweep -> router -> sender: accepted by provider, every local write fails", () => {
+  test("a later sweep with a stale response_state=none makes NO second provider call", async () => {
+    autoOn(); media.received = true;
+    const { sweepUnansweredFirstResponses } = await import("../src/lib/first-response-sweep.server");
+    const job = (T.jobs ?? []).find((r) => r.id === B)!;
+    const claim = { job_id: B, job_number: job.job_number ?? "HV-TEST", created_at: new Date(Date.now() - 60_000).toISOString(), source: "base44", channel: "hivic_sourced",
+      business_unit: "hivic", office_bucket: "enquiry", needs_first_response: true, claim_token: "tok-1" };
+    let finishFails = true; const finishes: Row[] = [];
+    rpcImpl = (name, args) => {
+      if (name === "claim_first_response_retries") return { data: [claim], error: null }; // stale: still reports no response
+      if (name === "start_first_response_retry") return { data: true, error: null };
+      if (name === "finish_first_response_retry") { finishes.push(args); return finishFails ? { data: null, error: { message: "finish write failed" } } : { data: true, error: null }; }
+      return { data: null, error: null };
+    };
+    failAllOutcomeWrites = true; failComms = true;
+    let firstError: unknown = null;
+    try { await sweepUnansweredFirstResponses(1); } catch (e) { firstError = e; }
+    expect(calls).toHaveLength(1); // provider accepted exactly once
+    expect(firstError).toBeTruthy(); // failure surfaced, not reported as success
+    // Later run: local writes recovered, ledger still says nothing was sent.
+    failAllOutcomeWrites = false; failComms = false; finishFails = false;
+    const second = await sweepUnansweredFirstResponses(1).catch((e) => ({ error: String(e) }));
+    expect(calls).toHaveLength(1); // NO second provider call
+    expect(second).not.toMatchObject({ sent: 1 });
+    rpcImpl = null;
+  });
 });
