@@ -43,7 +43,7 @@ export async function readCatchup(jobId: string, ownReservation?: string) {
     if (properties.error || properties.data?.length !== siblingIds.length) throw new Error('Could not verify sibling property identities');
     const ids = rows.filter(x => sameCatchupEnquiry(
       { propertyId: j.property_id, propertyKey: i.property_key, enquiryId: i.external_enquiry_id, source: i.source },
-      { propertyId: properties.data?.find(p => p.id === x.id)?.property_id, propertyKey: x.property_key, enquiryId: x.external_enquiry_id, source: x.source },
+      { propertyId: properties.data?.find(p => p.id === x.id)?.property_id ?? null, propertyKey: x.property_key, enquiryId: x.external_enquiry_id, source: x.source },
     )).flatMap(x => x.id ? [x.id] : []);
     if (ids.length) {
       const [s, c] = await Promise.all([
