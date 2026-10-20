@@ -29,8 +29,8 @@ function ResetPassword() {
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
   const gate = useRef({ incoming: false, boundId: null as string | null, activeId: null as string | null, terminal: false, mounted: false });
   useEffect(() => {
-    const state = gate.current;
-    state.mounted = true;
+    const state = { incoming: false, boundId: null as string | null, activeId: null as string | null, terminal: false, mounted: true };
+    gate.current = state;
     const q = new URLSearchParams(window.location.search);
     const th = q.get("token_hash");
     state.incoming = q.has("link") || q.has("token_hash");
@@ -96,8 +96,6 @@ function ResetPassword() {
   }, []);
   const resend = async (e: React.FormEvent) => {
     e.preventDefault();
-    const state = gate.current;
-    if (!ready || failed || busy || state.terminal || !state.mounted) return;
     const c = normaliseLoginEmail(email);
     if (!c.ok) { setNote({ ok: false, text: c.message }); return; }
     setEmail(c.email); setBusy(true);
@@ -108,6 +106,8 @@ function ResetPassword() {
   };
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
+    const state = gate.current;
+    if (!ready || failed || busy || state.terminal || !state.mounted) return;
     if (pw.length < 8) { toast.error("Use at least 8 characters."); return; }
     if (pw !== pw2) { toast.error("The two passwords don't match."); return; }
     setBusy(true);
