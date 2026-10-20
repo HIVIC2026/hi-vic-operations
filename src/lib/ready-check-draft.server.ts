@@ -155,7 +155,7 @@ async function savedAreas(rcId: string): Promise<RcArea[] | null> {
 async function areaReqs(jobId: string): Promise<AreaReq[]> {
   const { data, error } = await admin.from("evidence_requirements").select("id, area_key, category, gate, status, label").eq("job_id", jobId).not("area_key", "is", null);
   if (error) throw new WorkflowError(/area_key/.test(error.message) ? "Per-area evidence needs the pending database update (0214) — not applied yet." : error.message);
-  return (data ?? []) as AreaReq[];
+  return (data ?? []) as unknown as AreaReq[];
 }
 
 async function supportingFiles(jobId: string) {

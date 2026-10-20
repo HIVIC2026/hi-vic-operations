@@ -115,10 +115,10 @@ export function readAreas(v: unknown): RcArea[] {
   const list = (v as { areas?: unknown }).areas;
   if (!Array.isArray(list)) throw new Error("The saved ceiling areas could not be read.");
   return list.map((x) => {
-    const a = x as Record<string, unknown>;
+    const a = x as { [K in keyof RcArea]?: unknown };
     if (typeof a.key !== "string" || typeof a.label !== "string") throw new Error("The saved ceiling areas could not be read.");
     return { key: a.key, label: a.label, areaM2: num(a.areaM2), existing: (a.existing ?? null) as Existing | null, rValue: num(a.rValue),
-      removal: (a.removal ?? null) as Tri | null, removalM2: num(a.removalM2), product: (a.product as string) ?? null, scope: (a.scope as string) ?? null,
+      removal: (a.removal ?? null) as Tri | null, removalM2: num(a.removalM2), product: (a.product as string | null) ?? null, scope: (a.scope as string | null) ?? null,
       sources: (a.sources ?? {}) as RcArea["sources"] };
   });
 }
