@@ -342,7 +342,7 @@ export async function tradeBusiness(userId: string) {
   const r = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
   const [{ data: creds }, { data: workers }, { data: rate }, { data: agr }, { data: bank }] = await Promise.all([
     admin.from("business_credentials").select("kind, label, expires_at, verification").eq("business_id", c.biz.id),
-    admin.from("partner_workers").select("id, full_legal_name, trade_role, approval_status, licence_expires_on, profile_id").eq("business_id", c.biz.id).is("removed_at", null),
+    admin.from("partner_workers").select("id, full_legal_name, trade_role, approval_status, licence_expires_on, profile_id, certification_status, certification").eq("business_id", c.biz.id).is("removed_at", null),
     c.kind === "electrician" ? r.from("electrician_rates").select("rate_inc_gst").eq("business_id", c.biz.id).eq("service_type", "piesa").eq("status", "active").maybeSingle() : Promise.resolve({ data: null }),
     admin.from("partner_agreements").select("signed_at").eq("business_id", c.biz.id).order("signed_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("business_bank_details").select("business_id").eq("business_id", c.biz.id).limit(1).maybeSingle(),
@@ -357,7 +357,7 @@ export async function tradeBusiness(userId: string) {
     agreementSigned: !!agr?.signed_at, bankSaved: !!bank,
     team: [
       ...(boss ?? []).filter((m) => m.member_role === "business_admin").map((m) => ({ id: null as string | null, name: (m.profiles as { full_name: string | null } | null)?.full_name ?? "Business owner", role: "Business owner", hasLogin: true })),
-      ...(workers ?? []).filter((w) => !(boss ?? []).some((m) => m.user_id === w.profile_id && m.member_role === "business_admin")).map((w) => ({ id: w.id as string | null, name: w.full_legal_name, role: w.trade_role === "installer" ? "Installer" : "Electrician", hasLogin: !!w.profile_id })),
+      ...(workers ?? []).filter((w) => !(boss ?? []).some((m) => m.user_id === w.profile_id && m.member_role === "business_admin")).map((w) => ({ id: w.id as string | null, name: w.full_legal_name, role: w.trade_role === "installer" ? "Installer" : "Electrician", hasLogin: !!w.profile_id, eec: eecState({ trade_role: w.trade_role, certification_status: w.certification_status, certification: w.certification }) })),
     ],
   };
 }
