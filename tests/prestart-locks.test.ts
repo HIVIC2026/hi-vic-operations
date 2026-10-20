@@ -20,7 +20,7 @@ function from(t: string) {
     update: () => { op = "update"; return q; }, insert: () => { op = "insert"; return q; },
     maybeSingle: async () => ({ data: op === "select" ? rows[0] ?? null : null, error: null }),
     single: async () => ({ data: op === "select" ? rows[0] ?? null : null, error: rows[0] ? null : { message: "none" } }),
-    then: (res: (v: unknown) => unknown) => res({ data: op === "select" ? rows : null, error: null }),
+    then: (res: (v: unknown) => unknown) => res({ data: op === "select" ? rows : null, error: null, count: op === "select" ? rows.length : null }),
   });
   return q;
 }

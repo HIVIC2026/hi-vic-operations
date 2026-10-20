@@ -95,6 +95,9 @@ export async function requirePrestartClear(jobId: string) {
   // and install evidence stay locked until insulation/removal/access/downlights are recorded BEFORE any removal.
   const rc = await (await import("./ready-check-draft.server")).rcWorksBlockers(jobId);
   if (rc.length) throw new WorkflowError(`Not cleared to start: record the original ceiling condition in the Ready Check first — ${rc.join(", ")}.`);
+  // Live "Site conditions differ" review hold: works stay locked until the office reviews it.
+  const sh = await siteHoldBlockers(jobId);
+  if (sh.length) throw new WorkflowError(`Not cleared to start: ${sh.join(" ")}.`);
   const g = await prestartGate(jobId);
   if (g.locked) throw new WorkflowError(`Not cleared to start: ${g.reasons.join(" ")}`);
 }
