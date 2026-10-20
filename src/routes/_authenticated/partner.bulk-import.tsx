@@ -256,8 +256,9 @@ function BulkImportPage() {
   const [extraFiles, setExtraFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [batchId, setBatchId] = useState<string | null>(null);
+  const resumed = useRef<string | null>(null);
   // Refresh-safe review: the open upload stays in the address bar so a reload resumes it (never a second upload).
-  useEffect(() => { const b = new URLSearchParams(window.location.search).get("batch"); if (b && /^[0-9a-f-]{36}$/i.test(b)) setBatchId(b); }, []);
+  useEffect(() => { const b = new URLSearchParams(window.location.search).get("batch"); if (b && /^[0-9a-f-]{36}$/i.test(b)) { resumed.current = b; setBatchId(b); } }, []);
   useEffect(() => { const u = new URL(window.location.href); if (batchId) u.searchParams.set("batch", batchId); else u.searchParams.delete("batch"); window.history.replaceState(window.history.state, "", u.toString()); }, [batchId]);
   const [skip, setSkip] = useState<Set<string>>(new Set());
   const [consent, setConsent] = useState<Record<string, boolean>>({});
@@ -298,7 +299,7 @@ function BulkImportPage() {
   const rows = (review?.rows ?? []) as unknown as ReviewRow[];
   // A reloaded upload that is already confirmed is never shown as editable again (see Past uploads instead).
   const reviewStatus = (review?.batch as { status?: string } | undefined)?.status;
-  useEffect(() => { if (batchId && !done && reviewStatus && reviewStatus !== "analysed") { setBatchId(null); toast.info("That upload is already finished — see Past uploads below."); } }, [batchId, done, reviewStatus]);
+  useEffect(() => { if (batchId && batchId === resumed.current && !done && reviewStatus && reviewStatus !== "analysed") { resumed.current = null; setBatchId(null); toast.info("That upload is already finished — see Past uploads below."); } }, [batchId, done, reviewStatus]);
   const summary = review?.batch?.summary as { file_results?: FileResult[]; rows?: number; covers_ready_check?: number; needs_visit?: number; office_review?: number; duplicates?: number; not_visited?: number; visited?: number; visited_quoted?: number; quote_needed?: number; site_check_unclear?: number } | null;
   useEffect(() => {
     if (!rows.length) return;
