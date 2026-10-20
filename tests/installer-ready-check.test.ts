@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { installerJobOfferBlocker, installerReadyCheckAction, ownBookingBlocker, renderRcTimesEmail, RC_TIMES_EMAIL_APPROVED } from "../src/lib/installer-ready-check.core";
 import { planQuotedAnswer } from "../src/lib/bulk-import.core";
 
-const base = { channel: "installer_sourced", stage: "ready_check_ready_to_schedule", quoted: "no" as const, timesRequested: false, openWindows: 0, booked: false };
+const base = { channel: "installer_sourced", stage: "ready_check_ready_to_schedule", quoted: "no" as const, attended: "no" as "yes" | "no" | null, timesRequested: false, openWindows: 0, booked: false };
 describe("Ready Check for unquoted installer customers (Jo, 7 Oct 6pm)", () => {
   test("Not attended + waiting for a Ready Check = Book a Ready Check", () => {
     expect(installerReadyCheckAction(base)).toBe("book");
