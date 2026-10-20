@@ -121,7 +121,7 @@ describe("four attendance × quote combinations: create -> read -> edit -> read"
     // later edit: add a quote amount, still not visited -> preliminary, not ready
     await st.installerUpdateIntake(jobId, U, BIZ, { areaM2: 140, insulation: "none", quoteStatus: "have_quote", quoteIncGst: 3450, includes: "R5 batts", proposedR: 5, files: [], commercial: COMMERCIAL as never });
     s = await st.installerIntakeState(jobId);
-    expect(s.quoteIncGst).toBe(3450); expect(s.areaM2).toBe(140); expect(s.readiness.ready).toBe(false);
+    expect(s.quoteIncGst).toBe(3450); expect(s.areaM2 ?? s.preliminaryAreaM2).toBe(140); expect(s.onsiteMeasured).toBe(false); expect(s.readiness.ready).toBe(false); console.log("not-visited edit area:", s.areaM2, s.preliminaryAreaM2, s.areaProvenance);
     expect((await fileRow(jobId)).length).toBe(1);
     expect((await db.query<{ title: string }>("select title from documents where job_id=$1", [jobId])).rows.map((r) => r.title)).toEqual(["Supporting evidence — roof.jpg"]);
     // reopen later and add a quote file: same canonical documents, purpose kept, retry doesn't duplicate
