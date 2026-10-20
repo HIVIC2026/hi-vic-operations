@@ -61,6 +61,8 @@ export function CaptureUploads({ kind, remaining, received, uploadFile, onSaved,
         }
       }
       await onSaved();
+    } catch {
+      setError("Uploaded files are retained. Please reload before adding more files.");
     } finally { lock.current = false; setBusy(false); setCurrent(null); onBusyChange(false); }
   };
 

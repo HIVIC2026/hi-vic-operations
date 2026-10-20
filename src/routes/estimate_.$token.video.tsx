@@ -100,7 +100,7 @@ function VideoPage() {
             {(option === "photos" || option === "video") &&
             <section className="rounded-2xl border bg-card p-6" aria-live="polite">
               <CaptureUploads kind={option} remaining={data.remaining} received={data.received} uploadFile={upload} onSaved={refetch} onBusyChange={setUploading} />
-              <Button asChild variant="link" className="mt-2"><Link to="/estimate/$token/campaign" params={{ token }}>Return to my savings</Link></Button>
+              {!uploading && <Button asChild variant="link" className="mt-2"><Link to="/estimate/$token/campaign" params={{ token }}>Return to my savings</Link></Button>}
             </section>}
             {(option === "loose_fill_only" || option === "below_r2") && <section className="rounded-2xl border bg-card p-6 text-sm">
               <h2 className="font-display text-lg font-bold">Your answer</h2>
