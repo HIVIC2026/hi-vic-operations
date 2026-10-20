@@ -42,3 +42,36 @@ test('loader carries gate and action identity and ignores old failed email after
   const m=mock({jobs:[{...job,source:'website',channel:'hivic_sourced',eligibility_outcome:'likely_eligible',properties:{enrichment:{base44:{raw:{answers:{existing_insulation:'none'}}}}}}],evidence_requirements:[{job_id:'test-job',label:'PIISA',gate:'installation',status:'outstanding'}],customer_email_sends:[{job_id:'test-job',purpose:'step3_estimate',status:'failed',created_at:'2026-10-01',error:'TEST error'},{job_id:'test-job',purpose:'step3_estimate',status:'sent',sent_at:'2026-10-02',created_at:'2026-10-02'}]});
   const r=(await loadOperationsPreview(m.client)).rows[0];expect(r?.evidence[0]?.gate).toBe('installation');expect(r?.failures.join(' ')).not.toContain('Customer');expect(r?.communications).toHaveLength(2);
 });
+test('single-job load filters the jobs read by id before related facts',async()=>{
+  const {client,calls}=mock({jobs:[{...job,id:'job-1',job_number:'HV-1'}]});
+  const result=await loadOperationsPreview(client,'job-1');
+  expect(result.rows).toHaveLength(1);expect(result.rows[0]?.id).toBe('job-1');
+  const jobs=calls.find(c=>c.table==='jobs');
+  expect(jobs?.methods).toContainEqual({name:'eq',args:['id','job-1']});
+  // Scoping unchanged: business unit, deleted and TEST/source exclusions still applied.
+  expect(jobs?.methods).toContainEqual({name:'eq',args:['business_unit','hivic']});
+  expect(jobs?.methods).toContainEqual({name:'or',args:['source.is.null,source.neq.qa_test']});
+  expect(jobs?.methods).toContainEqual({name:'is',args:['deleted_at',null]});
+  // Every related-fact family is still bounded to exactly the chosen job.
+  for(const c of calls){
+    if(!['jobs','workflow_settings','customer_delivery_settings','businesses'].includes(c.table))
+      expect(c.methods).toContainEqual({name:'in',args:['job_id',['job-1']]});
+  }
+});
+test('single-job classification matches the full-dashboard semantics for the same job',async()=>{
+  const full={...job,id:'job-1',job_number:'HV-1',source:'website',channel:'hivic_sourced',eligibility_outcome:'likely_eligible',properties:{enrichment:{base44:{raw:{answers:{existing_insulation:'none'}}}}}};
+  const other={...job,id:'job-2',job_number:'HV-2',source:'website',channel:'hivic_sourced',eligibility_outcome:'likely_eligible',properties:{enrichment:{base44:{raw:{answers:{existing_insulation:'none'}}}}}};
+  const whole=(await loadOperationsPreview(mock({jobs:[full,other]}).client)).rows.find(r=>r.id==='job-1');
+  const single=(await loadOperationsPreview(mock({jobs:[full]}).client,'job-1')).rows[0];
+  expect(single).toEqual(whole);
+});
+test('single-job load stays fail-closed: excluded or unknown jobs yield no row',async()=>{
+  // The classifier excludes qa_test sources even if a read returns them.
+  const qa=await loadOperationsPreview(mock({jobs:[{...job,id:'job-qa',source:'qa_test',channel:'hivic_sourced'}]}).client,'job-qa');
+  expect(qa.rows).toHaveLength(0);
+  const missing=await loadOperationsPreview(mock({jobs:[]}).client,'job-x');
+  expect(missing.rows).toHaveLength(0);
+  // A read failure still throws rather than reporting a not-found job.
+  const failed=mock({jobs:[job]},undefined,'evidence_requirements');
+  await expect(loadOperationsPreview(failed.client,'test-job')).rejects.toThrow('evidence requirements could not load');
+});

@@ -46,3 +46,27 @@ describe("admin record reliability", () => {
     expect(job).toContain("Try again");
   });
 });
+describe("single-job operations status getter", () => {
+  const opsFunctions = readFileSync("src/lib/operations-preview.functions.ts", "utf8");
+  const opsQuery = readFileSync("src/lib/operations-query.ts", "utf8");
+  const compact = readFileSync("src/components/portal/CompactJobStatus.tsx", "utf8");
+  it("keeps the single-job getter admin-authenticated, id-validated and fail-closed", () => {
+    const start = opsFunctions.indexOf("export const getOperationsJob");
+    expect(start).toBeGreaterThan(-1);
+    const implementation = opsFunctions.slice(start);
+    expect(implementation).toContain(".middleware([requireSupabaseAuth])");
+    expect(implementation).toContain("await requireAdmin(context.supabase)");
+    expect(implementation).toContain("z.string().uuid()");
+    expect(implementation).toContain("loadOperationsPreview(supabaseAdmin, data.jobId)");
+    // The global dashboard getter is unchanged: full loader, no job id argument.
+    expect(opsFunctions).toContain("return loadOperationsPreview(supabaseAdmin);");
+  });
+  it("keys the single-job query under the operations-preview prefix for invalidation", () => {
+    expect(opsQuery).toContain('queryKey: ["operations-preview", "job", jobId]');
+    expect(opsQuery).toContain('queryKey: ["operations-preview"]');
+  });
+  it("the compact job status uses the job-keyed getter, not the whole-dashboard read", () => {
+    expect(compact).toContain("operationsJobOptions(jobId)");
+    expect(compact).not.toContain("operationsOptions");
+  });
+});
