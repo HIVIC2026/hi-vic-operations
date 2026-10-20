@@ -3,7 +3,7 @@
 import type { PGlite } from "@electric-sql/pglite";
 
 type Filter = { sql: string; vals: unknown[] };
-export function postgrestShim(db: PGlite) {
+export function postgrestShim(db: PGlite, options: { jsonColumns?: Record<string, string[]> } = {}) {
   return {
     from(table: string) {
       let op: "select" | "update" | "insert" | "delete" = "select"; let conflict: string | null = null; let orderBy = ""; let lim = "";
@@ -32,11 +32,11 @@ export function postgrestShim(db: PGlite) {
           if (op === "insert") {
             const rowsIn = (Array.isArray(patch) ? patch : [patch]) as Record<string, unknown>[];
             const ks = Object.keys(rowsIn[0] ?? {});
-            const tuples = rowsIn.map((p) => `(${ks.map((k) => { const v = p[k]; vals.push(v !== null && typeof v === "object" ? JSON.stringify(v) : v); return `$${vals.length}`; }).join(", ")})`);
+            const tuples = rowsIn.map((p) => `(${ks.map((k) => { const v = p[k]; vals.push(v !== null && (typeof v === "object" || options.jsonColumns?.[table]?.includes(k)) ? JSON.stringify(v) : v); return `$${vals.length}`; }).join(", ")})`);
             const oc = conflict ? ` ON CONFLICT (${conflict.split(",").map((c) => `"${c.trim()}"`).join(", ")}) DO UPDATE SET ${ks.map((k) => `"${k}" = EXCLUDED."${k}"`).join(", ")}` : "";
             sql = `INSERT INTO ${table} (${ks.map((k) => `"${k}"`).join(", ")}) VALUES ${tuples.join(", ")}${oc} RETURNING ${returning === "*" ? "*" : returning ? returning.split(",").map((c) => `"${c.trim()}"`).join(", ") : "1"}`;
           } else if (op === "update") {
-            const sets = Object.entries(patch).map(([k, v]) => { vals.push(v !== null && typeof v === "object" ? JSON.stringify(v) : v); return `"${k}" = $${vals.length}`; });
+            const sets = Object.entries(patch).map(([k, v]) => { vals.push(v !== null && (typeof v === "object" || options.jsonColumns?.[table]?.includes(k)) ? JSON.stringify(v) : v); return `"${k}" = $${vals.length}`; });
             sql = `UPDATE ${table} SET ${sets.join(", ")}`;
           } else if (op === "delete") sql = `DELETE FROM ${table}`;
           else sql = `SELECT ${head ? "count(*)::int AS n" : cols === "*" ? "*" : cols.split(",").map((c) => `"${c.trim()}"`).join(", ")} FROM ${table}`;
@@ -57,7 +57,7 @@ export function postgrestShim(db: PGlite) {
             if (single === "one") return rows.length === 1 ? { data: rows[0], error: null } : { data: null, error: { message: "not exactly one row" } };
             if (single === "maybe") return { data: rows[0] ?? null, error: null, ...(count != null ? { count } : {}) };
             return { data: op !== "select" && !returning ? null : rows, error: null, ...(count != null ? { count } : {}) };
-          } catch (e) { return { data: null, error: { message: (e as Error).message } }; }
+          } catch (e) { return { data: null, error: { message: (e as Error).message, code: (e as { code?: string }).code } }; }
         },
         then(res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) { return b.run().then(res, rej); },
       };

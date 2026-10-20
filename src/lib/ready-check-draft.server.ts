@@ -7,10 +7,35 @@ import { RC_DRAFT_FIELDS, fromObservations, knownPrefill, rcProgress, rcSubmitBl
 import type { Observations } from "./readycheck.core";
 import { AREAS_FIELD_KEY, AREA_EVIDENCE_SORT, areaEvidenceSpecs, areaProblems, areaTasks, areaWorksBlockers, attribute, carryForward, readAreas, totals, type AreaReq, type RcArea } from "./ready-check-areas.core";
 
+const RC_CORRECTION_COPY_FIELD = "correction.copy.v1";
+
 async function latestRc(jobId: string) {
-  const { data, error } = await admin.from("ready_checks").select("id, version, status, submitted_at, updated_at, external_mitti_id").eq("job_id", jobId).neq("status", "superseded").order("version", { ascending: false }).limit(1).maybeSingle();
+  const { data, error } = await admin.from("ready_checks").select("id, job_id, version, status, submitted_at, updated_at, external_mitti_id").eq("job_id", jobId).neq("status", "superseded").order("version", { ascending: false }).limit(1).maybeSingle();
   if (error) throw new WorkflowError(error.message);
   return data;
+}
+
+type RcRow = NonNullable<Awaited<ReturnType<typeof latestRc>>>;
+
+/** A correction is usable only once its answers and this marker were saved together. Earlier completed corrections
+ * have the existing completion event instead. A failed copy is resumed by startRcCorrection, never shown as empty. */
+async function correctionCopyComplete(rc: RcRow, allowLegacyEvent = true): Promise<boolean> {
+  if (rc.status !== "draft" || rc.version <= 1 || rc.external_mitti_id) return true;
+  const { data, error } = await admin.from("ready_check_observations").select("value").eq("ready_check_id", rc.id).eq("field_key", RC_CORRECTION_COPY_FIELD).maybeSingle();
+  if (error) throw new WorkflowError(error.message);
+  if (data) {
+    const v = data.value as { from_ready_check_id?: unknown; copied_at?: unknown } | null;
+    if (!v || typeof v.from_ready_check_id !== "string" || typeof v.copied_at !== "string") throw new WorkflowError("The Ready Check correction copy record could not be read.");
+    return true;
+  }
+  if (!allowLegacyEvent) return false;
+  const { count, error: ce } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", rc.job_id).eq("event_type", "ready_check_correction_started").contains("details", { ready_check_id: rc.id });
+  if (ce || count == null) throw new WorkflowError("The Ready Check correction history could not load.");
+  return count > 0;
+}
+
+async function assertCorrectionCopyReady(rc: RcRow | null) {
+  if (rc && !(await correctionCopyComplete(rc))) throw new WorkflowError("This Ready Check correction is still being copied. Ask Home Insulation Victoria to retry the dated correction.");
 }
 
 /**
@@ -28,7 +53,7 @@ async function observations(rcId: string): Promise<Observations> {
   const { data, error } = await admin.from("ready_check_observations").select("field_key, value").eq("ready_check_id", rcId);
   if (error) throw new WorkflowError(error.message);
   const o: Observations = {};
-  for (const r of data ?? []) if (r.field_key !== AREAS_FIELD_KEY) o[r.field_key] = (r.value as string | number | boolean | null) ?? null;
+  for (const r of data ?? []) if (r.field_key !== AREAS_FIELD_KEY && r.field_key !== RC_CORRECTION_COPY_FIELD) o[r.field_key] = (r.value as string | number | boolean | null) ?? null;
   return o;
 }
 
@@ -41,6 +66,7 @@ async function rcEvidence(jobId: string): Promise<RcEvidence[]> {
 /** Current draft/submission + exact missing/rejected/awaiting items. Prefills only EMPTY answers from known facts. */
 export async function loadRcDraft(jobId: string) {
   const rc = await latestRc(jobId);
+  await assertCorrectionCopyReady(rc);
   const obs = rc ? await observations(rc.id) : {};
   const { installerIntakeState } = await import("./installer-intake.server");
   const st = await installerIntakeState(jobId);
@@ -73,8 +99,9 @@ export async function saveRcDraft(jobId: string, userId: string, businessId: str
   if (rc?.status === "submitted") throw new WorkflowError("This Ready Check was already submitted — ask Home Insulation Victoria to reopen it.");
   // A form Mitti owns stays Mitti's: writing observations onto that row would corrupt its sync.
   if (rc?.external_mitti_id) throw new WorkflowError("This Ready Check came from Mitti — complete or correct it there.");
+  await assertCorrectionCopyReady(rc);
   if (!rc) {
-    const { data, error } = await admin.from("ready_checks").insert({ job_id: jobId, version: 1, status: "draft", installer_user_id: userId, installer_business_id: businessId }).select("id, version, status, submitted_at, updated_at, external_mitti_id").single();
+    const { data, error } = await admin.from("ready_checks").insert({ job_id: jobId, version: 1, status: "draft", installer_user_id: userId, installer_business_id: businessId }).select("id, job_id, version, status, submitted_at, updated_at, external_mitti_id").single();
     if (error) { // parallel first save: reuse the row the other tab created
       if (!/duplicate|unique/i.test(error.message)) throw new WorkflowError(error.message);
       rc = await latestRc(jobId);
@@ -110,20 +137,14 @@ export async function submitRcDraft(jobId: string, userId: string) {
   return loadRcDraft(jobId);
 }
 
-/** Office-only: reopen a SUBMITTED portal Ready Check so the installer can correct answers (the saved error message
- *  already tells installers to ask for this). submitted -> draft only if still submitted; refused while a current
- *  "eligible" verification relies on it (record "needs review" first). Never moves the job or sends anything. */
+/** Office-only legacy reopen action: use a dated correction version, keeping the submitted original unchanged.
+ * The existing eligibility and Mitti guards still apply; an unfinished correction can be retried through this action. */
 export async function reopenRcDraft(jobId: string, actorId: string, reason: string) {
   if (!reason || reason.trim().length < 3) throw new WorkflowError("A reason is required.");
   const rc = await latestRc(jobId);
-  if (!rc || rc.status !== "submitted") throw new WorkflowError("There is no submitted Ready Check to reopen.");
+  if (!rc || (rc.status !== "submitted" && !(rc.status === "draft" && rc.version > 1))) throw new WorkflowError("There is no submitted Ready Check to reopen.");
   if (rc.external_mitti_id) throw new WorkflowError("This Ready Check came from Mitti — correct it there.");
-  const { verifiedEligible } = await import("./verified-eligibility.server");
-  if (await verifiedEligible(jobId)) throw new WorkflowError("Eligibility is recorded as verified on this Ready Check. Record \"Needs office review\" first, then reopen it.");
-  const { data, error } = await admin.from("ready_checks").update({ status: "draft", submitted_at: null, updated_at: new Date().toISOString() }).eq("id", rc.id).eq("status", "submitted").select("id");
-  if (error) throw new WorkflowError(error.message);
-  if (!data?.length) throw new WorkflowError("The Ready Check changed — reload and try again.");
-  await logEvent(jobId, actorId, "ready_check_reopened", `Ready Check reopened for the installer to correct: ${reason.trim()}`, { ready_check_id: rc.id, version: rc.version }, { internal: true });
+  await startRcCorrection(jobId, actorId, reason);
   return { ok: true as const };
 }
 
@@ -196,6 +217,7 @@ export async function saveRcAreas(jobId: string, userId: string, businessId: str
   let rc = await latestRc(jobId);
   if (rc?.status === "submitted") throw new WorkflowError("This Ready Check was already submitted — start a dated correction instead of changing it.");
   if (rc?.external_mitti_id) throw new WorkflowError("This Ready Check came from Mitti — complete or correct it there.");
+  await assertCorrectionCopyReady(rc);
   const obs = rc ? await observations(rc.id) : {};
   const total = typeof obs["measure.eligible_area_m2"] === "number" ? (obs["measure.eligible_area_m2"] as number) : null;
   const problems = areaProblems(input, total);
@@ -204,7 +226,7 @@ export async function saveRcAreas(jobId: string, userId: string, businessId: str
   const st = await installerIntakeState(jobId);
   // Not attended: no carry-forward exists, so every saved fact is attributed to the person recording it now.
   if (!rc) {
-    const { data, error } = await admin.from("ready_checks").insert({ job_id: jobId, version: 1, status: "draft", installer_user_id: userId, installer_business_id: businessId }).select("id, version, status, submitted_at, updated_at, external_mitti_id").single();
+    const { data, error } = await admin.from("ready_checks").insert({ job_id: jobId, version: 1, status: "draft", installer_user_id: userId, installer_business_id: businessId }).select("id, job_id, version, status, submitted_at, updated_at, external_mitti_id").single();
     if (error) { if (!/duplicate|unique/i.test(error.message)) throw new WorkflowError(error.message); rc = await latestRc(jobId); if (!rc) throw new WorkflowError(error.message); }
     else rc = data;
   }
@@ -221,23 +243,56 @@ export async function saveRcAreas(jobId: string, userId: string, businessId: str
   return loadRcDraft(jobId);
 }
 
-/** Dated correction of a SUBMITTED portal Ready Check: a new draft version copying the answers (original recorder/time
- *  kept). The submitted version is never rewritten or backdated. Idempotent: an open correction is reused. */
+/** Dated correction of a SUBMITTED portal Ready Check. A failed copy leaves a pending draft that is resumed,
+ * not duplicated or exposed as complete. Missing answers plus the unique completion marker are one atomic insert. */
 export async function startRcCorrection(jobId: string, userId: string, reason: string) {
   if (!reason || reason.trim().length < 3) throw new WorkflowError("A reason is required.");
   const rc = await latestRc(jobId);
   if (!rc) throw new WorkflowError("There is no Ready Check to correct.");
-  if (rc.status === "draft") return loadRcDraft(jobId); // already correcting / still a draft
   if (rc.external_mitti_id) throw new WorkflowError("This Ready Check came from Mitti — correct it there.");
-  const { data: rows, error: re } = await admin.from("ready_check_observations").select("field_key, value, recorded_by, recorded_at").eq("ready_check_id", rc.id);
-  if (re) throw new WorkflowError(re.message);
-  const { data: nv, error } = await admin.from("ready_checks").insert({ job_id: jobId, version: rc.version + 1, status: "draft", installer_user_id: userId }).select("id").single();
-  if (error) { if (/duplicate|unique/i.test(error.message)) return loadRcDraft(jobId); throw new WorkflowError(error.message); }
-  if (rows?.length) {
-    const { error: ce } = await admin.from("ready_check_observations").insert(rows.map((r) => ({ ready_check_id: nv.id, job_id: jobId, field_key: r.field_key, value: r.value, recorded_by: r.recorded_by, recorded_at: r.recorded_at })));
-    if (ce) throw new WorkflowError(ce.message);
+  const { verifiedEligible } = await import("./verified-eligibility.server");
+  if (await verifiedEligible(jobId)) throw new WorkflowError('Eligibility is recorded as verified on this Ready Check. Record "Needs office review" first, then reopen it.');
+  let source = rc;
+  let target: RcRow | null = null;
+  if (rc.status === "draft") {
+    if (await correctionCopyComplete(rc)) return loadRcDraft(jobId);
+    const { data: previous, error: pe } = await admin.from("ready_checks").select("id, job_id, version, status, submitted_at, updated_at, external_mitti_id").eq("job_id", jobId).eq("version", rc.version - 1).eq("status", "submitted").maybeSingle();
+    if (pe || !previous) throw new WorkflowError("The submitted Ready Check for this correction could not load.");
+    if (previous.external_mitti_id) throw new WorkflowError("This Ready Check came from Mitti — correct it there.");
+    source = previous; target = rc;
   }
-  await logEvent(jobId, userId, "ready_check_correction_started", `Ready Check correction started (version ${rc.version + 1}): ${reason.trim()} — version ${rc.version} kept unchanged`, { from_ready_check_id: rc.id, ready_check_id: nv.id, version: rc.version + 1 }, { internal: true });
+  const { data: rows, error: re } = await admin.from("ready_check_observations").select("field_key, value, recorded_by, recorded_at").eq("ready_check_id", source.id).neq("field_key", RC_CORRECTION_COPY_FIELD);
+  if (re || !rows) throw new WorkflowError("The submitted Ready Check answers could not load. Please retry.");
+  if (!target) {
+    const { data: nv, error } = await admin.from("ready_checks").insert({ job_id: jobId, version: source.version + 1, status: "draft", installer_user_id: userId }).select("id, job_id, version, status, submitted_at, updated_at, external_mitti_id").single();
+    if (error) {
+      if (!/duplicate|unique/i.test(error.message)) throw new WorkflowError(error.message);
+      const { data: existing, error: ee } = await admin.from("ready_checks").select("id, job_id, version, status, submitted_at, updated_at, external_mitti_id").eq("job_id", jobId).eq("version", source.version + 1).maybeSingle();
+      if (ee || !existing) throw new WorkflowError("The Ready Check correction could not load. Please retry.");
+      target = existing;
+    } else target = nv;
+    if (!target) throw new WorkflowError("The Ready Check correction could not be created.");
+    if (target.external_mitti_id) throw new WorkflowError("This Ready Check came from Mitti — correct it there.");
+    if (target.status === "submitted") return loadRcDraft(jobId);
+    if (target.status !== "draft") throw new WorkflowError("The Ready Check correction changed. Reload and try again.");
+    if (await correctionCopyComplete(target)) return loadRcDraft(jobId);
+  }
+  const correction = target;
+  const { data: have, error: he } = await admin.from("ready_check_observations").select("field_key").eq("ready_check_id", correction.id);
+  if (he || !have) throw new WorkflowError("The Ready Check correction answers could not load. Please retry.");
+  const keys = new Set(have.map((r) => r.field_key));
+  if (keys.has(RC_CORRECTION_COPY_FIELD)) return loadRcDraft(jobId);
+  const now = new Date().toISOString();
+  const copied = rows.filter((r) => !keys.has(r.field_key)).map((r) => ({ ready_check_id: correction.id, job_id: jobId, field_key: r.field_key, value: r.value, recorded_by: r.recorded_by, recorded_at: r.recorded_at }));
+  copied.push({ ready_check_id: correction.id, job_id: jobId, field_key: RC_CORRECTION_COPY_FIELD,
+    value: { from_ready_check_id: source.id, copied_at: now, copied_by: userId, reason: reason.trim() } as Json, recorded_by: userId, recorded_at: now });
+  // A competing completion marker must abort the whole insert, so a delayed copy cannot restore later-cleared answers.
+  const { error: ce } = await admin.from("ready_check_observations").insert(copied);
+  if (ce) {
+    if (ce.code === "23505" && await correctionCopyComplete(correction, false)) return loadRcDraft(jobId);
+    throw new WorkflowError("The Ready Check answers could not be copied. Retry the dated correction — the original is unchanged.");
+  }
+  await logEvent(jobId, userId, "ready_check_correction_started", "Ready Check correction started (version " + correction.version + "): " + reason.trim() + " — version " + source.version + " kept unchanged", { from_ready_check_id: source.id, ready_check_id: correction.id, version: correction.version }, { internal: true });
   return loadRcDraft(jobId);
 }
 
@@ -245,6 +300,7 @@ export async function startRcCorrection(jobId: string, userId: string, reason: s
 export async function rcAreaWorksBlockers(jobId: string): Promise<string[]> {
   const rc = await latestRc(jobId);
   if (!rc) return [];
+  await assertCorrectionCopyReady(rc);
   const areas = await savedAreas(rc.id);
   if (!areas?.length) return [];
   return areaWorksBlockers(areas, await areaReqs(jobId));
