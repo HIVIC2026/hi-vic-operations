@@ -36,4 +36,3 @@
 - Group B guards are shared; follow-up removal uses snapshot facts; initial email stays separate. Why: no repeat requests or price drift.
 - Portal QA = `bun run portal-qa` only; gaps NOT_RUN, never PASS. Why: honest bounded checks.
 - The /admin board places jobs by the facts-based office classifier (`board-phase.core.ts` via `getBoardStages`), never the stored stage alone. Why: stored Ready Check stages without a real Ready Check must not appear in Ready Check.
-- Enquiry response facts (`response_state`, `needs_first_response`, `media_to_review`) come only from `office_enquiry_index`/`office_enquiry_page` (0208); Enquiries and Communications both read that RPC, recorded correspondence is never reported as delivered, and held automatic initial responses are re-routed by `first-response-sweep.server.ts` under every sender guard. Why: one exact scope, no double counts, nothing silently held.
