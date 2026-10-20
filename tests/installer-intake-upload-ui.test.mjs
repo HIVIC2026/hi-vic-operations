@@ -40,6 +40,7 @@ const melb = load('src/lib/melbourne-time.core.ts', { './daily-brief.core': load
 const core = load('src/lib/installer-intake.core.ts', { './intake-quote-details.core': removal, './melbourne-time.core': melb });
 // Customer/electrical validation is outside this upload regression; existing intake/file rules remain actual source.
 const flowCore = load('src/lib/add-job-flow.core.ts', { './onsite-ready-check.core': { onsiteProblems: () => [] }, './later-ready-check.core': {}, './installer-quote-intake.core': {} });
+const commercial = load('src/lib/installer-quote-commercial.core.ts');
 const legacy = { path: 'partners/business/imports/legacy.pdf', name: 'legacy.pdf', type: 'application/pdf' };
 const supporting = { path: 'partners/business/imports/photo.jpg', name: 'photo.jpg', type: 'image/jpeg', purpose: 'supporting' };
 const quote = { path: 'partners/business/imports/quote.doc', name: 'quote.doc', type: 'application/msword', purpose: 'quote' };
@@ -81,12 +82,12 @@ function fixture(t, { mode = 'flow', files = [], existingDraft = false, storage,
     '@/integrations/supabase/client': { supabase }, '@/lib/pilot.functions': rpc, '@/lib/installer-quote.functions': rpc, '@/lib/bulk-import.functions': {},
     '@/lib/job-electrician.core': { usualElectrician: () => null, electricianPlanBlocker: () => null, newElectricianProblems: unexpected('electrician edit') },
     '@/components/trade/trade-ui': { Button: 'button' }, '@/components/ui/button': { Button: 'button' }, '@/components/ui/input': { Input: 'input' }, '@/components/ui/textarea': { Textarea: 'textarea' }, '@/components/ui/checkbox': { Checkbox: 'checkbox' },
-    '@/lib/installer-intake.core': core, '@/lib/intake-quote-details.core': removal,
+    '@/lib/installer-intake.core': core, '@/lib/intake-quote-details.core': removal, '@/lib/installer-quote-commercial.core': commercial,
   };
   const attachmentRoot = process.env.HIVIC_INTAKE_UPLOAD_TEST_ATTACHMENTS_ROOT;
   const attachments = load('src/components/trade/job-intake.tsx', { ...common, '@/lib/job-electrician.functions': {}, '@/lib/utils': { cn: (...x) => x.filter(Boolean).join(' ') }, 'lucide-react': Object.fromEntries(['Camera','FileText','Paperclip','X','Zap'].map(x => [x, x])), '@/components/portal/file-viewer': { openFileViewer: unexpected('viewer') } }, globals,
     attachmentRoot ? readFileSync(resolve(attachmentRoot, 'src/components/trade/job-intake.tsx'), 'utf8') : undefined);
-  const imports = { ...common, './job-intake': { ...attachments, ElectricianPicker: 'ElectricianPicker' }, './intake-quote-fields': { ProposedRField: 'ProposedRField', RemovalQuoteFields: 'RemovalQuoteFields' }, './job-cache': { refreshInstallerJob: record('refresh', async () => {}) } };
+  const imports = { ...common, './job-intake': { ...attachments, ElectricianPicker: 'ElectricianPicker' }, './intake-quote-fields': { ProposedRField: 'ProposedRField', RemovalQuoteFields: 'RemovalQuoteFields', QuoteCommercialFields: 'QuoteCommercialFields' }, './job-cache': { refreshInstallerJob: record('refresh', async () => {}) } };
   const flow = load('src/components/trade/installer-intake-flow.tsx', { ...imports, '@tanstack/react-router': { Link: 'Link' }, './customer-fields': { CustomerFields: 'CustomerFields' }, '@/lib/add-job-flow.core': flowCore }, globals);
   const editor = load('src/components/trade/intake-details-editor.tsx', imports, globals);
   function invoke(fn, props, key) { const before = active; active = { key: key + ':' + fn.name, cursor: 0 }; try { return fn(props); } finally { active = before; } }
@@ -104,15 +105,15 @@ function fixture(t, { mode = 'flow', files = [], existingDraft = false, storage,
 test('restored Add Job separates legacy quote, tagged quote and supporting originals without retagging', async t => {
   const files = [legacy, quote, supporting]; const before = JSON.stringify(files);
   const io = fixture(t, { files, existingDraft: true, quoteAmount: null }); await io.start();
-  assert.deepEqual(io.control('quote').props.files.map(f => f.path), [legacy.path, quote.path]);
+  assert.deepEqual(io.control('quote').props.files.map(f => f.path), [quote.path]);
   assert.deepEqual(io.control('supporting').props.files.map(f => f.path), [supporting.path]);
-  assert.equal(core.quoteFileCount(io.control('quote').props.files), 2);
+  assert.equal(core.quoteFileCount(io.control('quote').props.files), 1); assert.equal(core.unclassifiedFileCount(files), 1);
   assert.equal(JSON.stringify(io.persisted), before); assert.equal(JSON.stringify(files), before);
 });
-for (const [name, files, expected] of [['legacy', [legacy], /uploaded quote/], ['supporting-only', [supporting], /amount still needed/]]) test('editor quote summary and file sections agree for ' + name, async t => {
+for (const [name, files, expected] of [['legacy', [legacy], /amount still needed/], ['supporting-only', [supporting], /amount still needed/]]) test('editor quote summary and file sections agree for ' + name, async t => {
   const io = fixture(t, { mode: 'editor', files, quoteAmount: null }); await io.start();
   const known = all(io.tree, n => n.props['data-intake-known'] !== undefined)[0]; assert.match(text(known), expected);
-  assert.equal(io.control('quote').props.files.length, name === 'legacy' ? 1 : 0);
+  assert.equal(io.control('quote').props.files.length, 0);
   assert.equal(io.control('supporting').props.files.length, name === 'legacy' ? 0 : 1);
   assert.deepEqual(io.persisted, files);
 });
