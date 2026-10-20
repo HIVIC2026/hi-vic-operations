@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Button, Section } from "@/components/trade/trade-ui";
 import { Input } from "@/components/ui/input";
+import { openFileViewer } from "@/components/portal/file-viewer";
 import { saveReadyCheckAreas } from "@/lib/ready-check-draft.functions";
 import type { RcArea, AreaTask, AreaSource } from "@/lib/ready-check-areas.core";
 
@@ -54,7 +55,7 @@ export function ReadyCheckAreas({ jobId, data }: { jobId: string; data: Data }) 
         {msg && <p role="status" className={`text-sm ${msg.ok ? "" : "text-danger"}`} data-rc-areas-msg>{msg.text}</p>}
         {data.areaWorksBlockers.length > 0 && <div className="rounded-[12px] bg-mist p-3 text-sm" data-rc-area-blockers><p className="font-bold">Removal or covering can't start in these areas yet</p><ul className="list-disc pl-5">{data.areaWorksBlockers.map((b) => <li key={b}>{b}</li>)}</ul><p className="mt-1 text-xs text-sub">You can still upload the before photos now.</p></div>}
         {data.areaTasks.length > 0 && <div className="text-sm" data-rc-area-tasks><p className="text-xs font-bold uppercase tracking-wide text-sub">Still missing</p><ul className="list-disc pl-5">{data.areaTasks.map((t) => <li key={t.item}>{t.item}: {t.status} — {t.due}. You upload it; {t.reviewedBy} checks it.</li>)}</ul></div>}
-        {data.supportingFiles.length > 0 && <div className="text-xs text-sub" data-rc-supporting><p className="font-bold">Files you already sent (not yet accepted as evidence)</p><ul className="list-disc pl-5">{data.supportingFiles.map((f) => <li key={f.id}>{f.title} — {when(f.uploadedAt)}</li>)}</ul></div>}
+        {data.supportingFiles.length > 0 && <div className="text-xs text-sub" data-rc-supporting><p className="font-bold">Files you already sent (not yet accepted as evidence)</p><ul className="list-disc pl-5">{data.supportingFiles.map((f) => <li key={f.id}>{f.url ? <button type="button" className="underline" onClick={() => openFileViewer(f.url, f.title)}>{f.title}</button> : f.title} — {when(f.uploadedAt)}</li>)}</ul></div>}
       </div>
     </Section>
   );

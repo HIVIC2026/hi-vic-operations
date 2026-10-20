@@ -159,9 +159,11 @@ async function areaReqs(jobId: string): Promise<AreaReq[]> {
 }
 
 async function supportingFiles(jobId: string) {
-  const { data, error } = await admin.from("documents").select("id, title, uploaded_by, created_at").eq("job_id", jobId).eq("kind", "installer_import").order("created_at");
+  const { data, error } = await admin.from("documents").select("id, title, uploaded_by, created_at, storage_path").eq("job_id", jobId).eq("kind", "installer_import").order("created_at");
   if (error) throw new WorkflowError(error.message);
-  return (data ?? []).map((d) => ({ id: d.id as string, title: d.title as string, uploadedBy: d.uploaded_by as string | null, uploadedAt: d.created_at as string, accepted: false as const }));
+  const { signFile } = await import("./file-links.server"); // short-lived app link; caller already checked job access
+  return Promise.all((data ?? []).map(async (d) => ({ id: d.id as string, title: d.title as string, uploadedBy: d.uploaded_by as string | null, uploadedAt: d.created_at as string, accepted: false as const,
+    url: d.storage_path ? (await signFile("job-files", d.storage_path as string, 600)).data?.signedUrl ?? null : null })));
 }
 
 /** Attended installers only: their saved facts, each labelled with who supplied it and when. Never saved automatically. */
