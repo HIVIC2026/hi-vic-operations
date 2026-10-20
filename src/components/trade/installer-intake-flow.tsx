@@ -220,7 +220,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
             try {
               if (draftRef.current) { const r = await addFiles({ data: { importId: draftRef.current, files: [{ ...attached, type: attached.type ?? "" }] } }); const pending = filesRef.current.filter((x) => !r.files.some((y) => y.path === x.path) && x.path !== attached.path); filesRef.current = [...(r.files as AttachedFile[]), ...pending]; setFiles(filesRef.current); }
               else await ensureDraft([attached], "");
-            } catch { failures.push(`${f.name} uploaded and is kept here, but its job attachment could not be confirmed. Submit will retry attaching it without uploading again.`); }
+            } catch { const m = `${f.name} uploaded and is kept here, but its job attachment could not be confirmed. Submit will retry attaching it without uploading again.`; failures.push(m); setFileNote(m); continue; }
             if (purpose !== "quote") { setFileNote("Supporting file attached — it is reviewed before it is accepted."); continue; }
             setFileNote("File uploaded. Checking optional quote details…");
             try {
