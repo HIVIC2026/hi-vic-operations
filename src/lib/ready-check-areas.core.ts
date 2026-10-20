@@ -123,15 +123,15 @@ export function readAreas(v: unknown): RcArea[] {
   });
 }
 
-/** Keep original supplier/time for unchanged facts; a changed fact is attributed to the person saving it now. */
-export function attribute(prev: RcArea[], next: RcArea[], by: string, at: string): RcArea[] {
+/** Server-side attribution (client-sent sources are ignored): an unchanged fact keeps its original supplier/time (from
+ *  the saved areas, else the carry-forward suggestion); a new or changed fact is attributed to the person saving it now. */
+export function attribute(prev: RcArea[], suggested: RcArea[], next: RcArea[], by: string, at: string): RcArea[] {
   return next.map((n) => {
-    const o = prev.find((p) => p.key === n.key);
+    const o = prev.find((p) => p.key === n.key) ?? suggested.find((p) => p.key === n.key);
     const sources: RcArea["sources"] = {};
     for (const k of ["areaM2", "existing", "removal", "removalM2", "product", "scope"] as const) {
       if (n[k] == null) continue;
-      const same = o && o[k] === n[k] && o.sources[k];
-      sources[k] = same ? o!.sources[k] : (n.sources[k] && !o ? n.sources[k] : { kind: "recorded_onsite", by, at });
+      sources[k] = o && o[k] === n[k] && o.sources[k] ? o.sources[k] : { kind: "recorded_onsite", by, at };
     }
     return { ...n, sources };
   });
