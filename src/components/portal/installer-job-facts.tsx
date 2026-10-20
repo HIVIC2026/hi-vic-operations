@@ -107,7 +107,9 @@ function InstallerReadyCheckCard({ jobId }: { jobId: string }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const s = q.data;
+  if (q.isError) return <section role="alert" className="rounded-[19px] border border-line bg-paper p-5 text-sm" data-installer-ready-check="error">The Ready Check status could not load. <Button size="sm" variant="outline" onClick={() => q.refetch()}>Retry</Button></section>;
   if (!s) return null;
+  if (s.action === "confirm_attendance") return <section className="rounded-[19px] border border-rose/25 bg-pink p-5 md:p-[23px]" data-installer-ready-check="confirm_attendance"><p className="text-xs font-bold uppercase tracking-wide text-sub">Next for you</p><h2 className="font-display text-lg font-bold">Have you attended and assessed this property?</h2><p className="text-sm">Not recorded yet. Answer it in this job's details below — we don't assume either way.</p></section>;
   if (s.action === "none") return <QuotedQuestion jobId={jobId} priceOnly />;
   const run = async (fn: () => Promise<unknown>) => { setBusy(true); setErr(""); try { await fn(); await qc.invalidateQueries(); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); } };
   return (
