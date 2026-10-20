@@ -161,7 +161,7 @@ export function searchItems<T>(items: T[], q: string, fields: (i: T) => (string 
 }
 
 // ---------- Correspondence ----------
-export type Correspondence = { id: string; at: string; direction: "inbound" | "outbound" | "internal"; channel: string; from: string | null; subject: string | null; body: string; status: string; source: "portal_message" | "job_communication"; audience: Audience[]; internal: boolean };
+export type Correspondence = { id: string; at: string; direction: "inbound" | "outbound" | "internal"; channel: string; from: string | null; subject: string | null; body: string; status: string; source: "portal_message" | "job_communication"; audience: Audience[]; internal: boolean; provider?: string | null; to?: string[]; attachments?: string[] };
 
 export function buildCorrespondence(messages: Row[], comms: Row[], senderRole: (userId: string | null) => Role | null): Correspondence[] {
   const out: Correspondence[] = [];
@@ -175,7 +175,9 @@ export function buildCorrespondence(messages: Row[], comms: Row[], senderRole: (
     const vis = String(c["visibility"]);
     out.push({ id: `job_communications:${c["id"]}`, at: String(c["sent_at"] ?? c["received_at"] ?? c["created_at"]), direction: c["direction"] as Correspondence["direction"], channel: String(c["channel"]),
       from: s(c["sender_text"]) ?? s(c["sender_user_id"]), subject: s(c["subject"]), body: String(c["body"] ?? ""), status: String(c["delivery_status"]), source: "job_communication",
-      internal: vis === "internal", audience: vis === "customer" ? ["owner"] : vis === "trade" ? ["electrician", "installer"] : [] });
+      internal: vis === "internal", audience: vis === "customer" ? ["owner"] : vis === "trade" ? ["electrician", "installer"] : [],
+      provider: s(c["provider"]), to: Array.isArray(c["recipients"]) ? (c["recipients"] as unknown[]).map(String) : [],
+      attachments: Array.isArray(c["attachment_refs"]) ? (c["attachment_refs"] as { name?: unknown }[]).map((a) => String(a?.name ?? "attachment")) : [] });
   }
   return out.sort((a, b) => a.at.localeCompare(b.at));
 }
