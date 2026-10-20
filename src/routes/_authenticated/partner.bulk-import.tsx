@@ -222,15 +222,25 @@ function guessType(name: string): string {
 const STATUS_STYLE: Record<FileResult["status"], string> = { ok: "text-ink", warn: "text-sub", error: "text-danger" };
 function FileResultList({ items }: { items: FileResult[] }) {
   if (!items.length) return null;
+  // Files not linked to any customer are always shown open, so they can't be missed before confirming.
+  const unlinked = items.filter((f) => f.status === "warn" && /not linked to any customer/.test(f.message));
   return (
-    <details className="text-sm">
-      <summary className="cursor-pointer text-xs font-semibold text-sub">What we read from each file ({items.length})</summary>
-      <ul className="mt-1 max-h-80 space-y-1 overflow-y-auto rounded-[12px] border border-line bg-paper p-2 text-xs">
-        {items.map((f, i) => (
-          <li key={i} className={STATUS_STYLE[f.status]}><span className="font-medium break-all">{f.name.split("/").pop()}</span> — {f.message}</li>
-        ))}
-      </ul>
-    </details>
+    <div className="space-y-2">
+      {unlinked.length > 0 && (
+        <div role="alert" data-unlinked-files className="rounded-[12px] border border-warning bg-warning-soft p-2 text-xs">
+          <p className="font-semibold">{unlinked.length === 1 ? "1 file is" : `${unlinked.length} files are`} not linked to any customer — check before continuing</p>
+          <ul className="mt-1 space-y-1">{unlinked.map((f, i) => <li key={i}><span className="font-medium break-all">{f.name.split("/").pop()}</span> — {f.message}</li>)}</ul>
+        </div>
+      )}
+      <details className="text-sm">
+        <summary className="cursor-pointer text-xs font-semibold text-sub">What we read from each file ({items.length})</summary>
+        <ul className="mt-1 max-h-80 space-y-1 overflow-y-auto rounded-[12px] border border-line bg-paper p-2 text-xs">
+          {items.map((f, i) => (
+            <li key={i} className={STATUS_STYLE[f.status]}><span className="font-medium break-all">{f.name.split("/").pop()}</span> — {f.message}</li>
+          ))}
+        </ul>
+      </details>
+    </div>
   );
 }
 
