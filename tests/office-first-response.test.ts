@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { catchupBlocker, catchupRoute, type CatchupFacts } from '../src/lib/office-first-response.core';
+import { catchupBlocker, catchupRoute, catchupMediaState, catchupInsulation, type CatchupFacts } from '../src/lib/office-first-response.core';
 const safe: CatchupFacts = { jobNumber:'HV-3000',bucket:'enquiry',needsFirstResponse:true,source:'base44',channel:'hivic_sourced',stage:'preliminary_estimate_ready',email:'person@gmail.com',deleted:false,archived:false,removed:false,holdReason:null,answered:false,outbound:false,inFlight:false,recipientAnswered:false,consent:true,optedOut:false,suppressed:false,workActive:false,outcome:'needs_onsite_confirmation',decisionSource:'system',reviewRequired:false };
 describe('Office-only catch-up safety',()=>{
   test('older preliminary_estimate_ready unanswered enquiry allowed',()=>expect(catchupBlocker(safe)).toBeNull());
@@ -16,3 +16,13 @@ const empty={excluded:false,received:false,uncertain:false,pendingSync:false,cou
 test('no insulation routes offer only if likely',()=>{expect(catchupRoute('none','likely_eligible',empty)).toBe('offer');expect(catchupRoute('none','needs_onsite_confirmation',empty)).toBeNull()});
 for(const insulation of ['present','unknown'])test(`${insulation} received vs empty`,()=>{expect(catchupRoute(insulation,'needs_onsite_confirmation',empty)).toBe('request');expect(catchupRoute(insulation,'needs_onsite_confirmation',{...empty,received:true,count:2})).toBe('acknowledge')});
 test('uncertainty/pending never inferred absent',()=>{expect(catchupRoute('present','likely_eligible',{...empty,uncertain:true})).toBeNull();expect(catchupRoute('present','likely_eligible',{...empty,pendingSync:true})).toBeNull()});
+const legacy = {...empty, received:true, uncertain:true, pendingSync:true, count:2};
+const photo = {kind:'intake_media',mime_type:'image/jpeg',storage_path:'job/intake/base44/photo.jpg'};
+test('persisted intake photo overrides legacy uncertainty for acknowledgement only',()=>expect(catchupRoute('present','needs_onsite_confirmation',catchupMediaState('job',legacy,[photo]))).toBe('acknowledge'));
+test('persisted owner-capture video acknowledges unknown insulation without eligibility inference',()=>expect(catchupRoute('unknown',null,catchupMediaState('job',legacy,[{...photo,mime_type:'video/mp4',storage_path:'job/intake/owner/video.mp4',source_system:'owner_capture'}]))).toBe('acknowledge'));
+test('unresolved references alone remain blocked',()=>expect(catchupRoute('present','needs_onsite_confirmation',catchupMediaState('job',legacy,[]))).toBeNull());
+test('failed persisted-file read remains blocked',()=>expect(catchupRoute('present',null,catchupMediaState('job',legacy,[photo],true))).toBeNull());
+test('other job, trade file, PDF and blank path cannot enable acknowledgement',()=>expect(catchupMediaState('job',legacy,[{...photo,storage_path:'other/intake/photo.jpg'},{...photo,storage_path:'job/install/photo.jpg'},{...photo,mime_type:'application/pdf',storage_path:'job/intake/file.pdf'},{...photo,storage_path:''}]).persistedCount).toBe(0));
+test('duplicate persisted rows count once',()=>expect(catchupMediaState('job',legacy,[photo,photo]).persistedCount).toBe(1));
+test('persisted media does not bypass uncertain no-insulation offer',()=>expect(catchupRoute('none','likely_eligible',catchupMediaState('job',legacy,[photo]))).toBeNull());
+for(const [value,expected] of [[' YES ','present'],['existing_insulation','present'],['NO_INSULATION','none'],['Not-Sure','unknown'],[true,'present'],[false,'none'],['R1.5',null],['banana',null],[{},null],['',null]] as const) test(`legacy declaration ${String(value)}`,()=>expect(catchupInsulation(value)).toBe(expected));

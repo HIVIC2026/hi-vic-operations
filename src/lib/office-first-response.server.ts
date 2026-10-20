@@ -1,11 +1,10 @@
 import { supabaseAdmin as admin } from '@/integrations/supabase/client.server';
-import { catchupBlocker, catchupRoute } from './office-first-response.core';
+import { catchupBlocker, catchupRoute, catchupMediaState, catchupInsulation } from './office-first-response.core';
 import { SUPPRESSING_EVENTS, withUnsubscribe } from './emailsafety.core';
 import { groupBMediaForJob } from './group-b-media.server';
 import { groupBGlobalsOn, realSendingOn, resendDeliveryAdapter } from './hot-leads-send.server';
 import { savedPriceFromEstimate, LAUNCH_CAMPAIGN } from './launch-campaign.core';
 import { declaredExtras } from './enquiry.core';
-import { normaliseInsulation } from './eligibility.core';
 import { joAreaBasis } from './jo-area-basis.core';
 import { discountIsWholeVeecs } from './estimate.core';
 import { linkUsable } from './estimatelink.core';
@@ -65,15 +64,18 @@ export async function readCatchup(jobId: string, ownReservation?: string) {
 async function prepareCatchup(jobId: string, ownReservation?: string) {
   const initial = await readCatchup(jobId, ownReservation);
   if (initial.blocker) return { blocker: initial.blocker };
-  const [media, estimate, link, config] = await Promise.all([
+  const [originalMedia, documents, evidence, estimate, link, config] = await Promise.all([
     groupBMediaForJob(jobId),
+    admin.from('documents').select('kind,mime_type,storage_path').eq('job_id', jobId).eq('kind', 'intake_media'),
+    admin.from('evidence_files').select('mime_type,storage_path').eq('job_id', jobId),
     admin.from('indicative_estimates').select('id,area_m2,area_source,insulation_declared,scenarios,snapshot').eq('job_id', jobId).eq('status', 'current').maybeSingle(),
     admin.from('customer_estimate_links').select('id,token,status,expires_at').eq('job_id', jobId).eq('purpose', 'step3_estimate').eq('status', 'active').maybeSingle(),
     admin.from('retail_estimator_settings').select('indicative_veec_value,piesa_assessment_inc_gst,ap_management_inc_gst').eq('is_current', true).maybeSingle(),
   ]);
   if (estimate.error || link.error || config.error) return { blocker: 'Estimate, link or pricing read failed' };
   const property = initial.job.properties as { enrichment?: { base44?: { raw?: { answers?: Record<string, unknown> } } } } | null;
-  const insulation = normaliseInsulation(declaredExtras(property?.enrichment?.base44?.raw?.answers ?? null).existing_insulation);
+  const insulation = catchupInsulation(declaredExtras(property?.enrichment?.base44?.raw?.answers ?? null).existing_insulation);
+  const media = catchupMediaState(jobId, originalMedia, [...(documents.data ?? []), ...(evidence.data ?? []).map(f => ({ ...f, kind: 'intake_media' }))], !!documents.error || !!evidence.error);
   const route = catchupRoute(insulation, initial.index.eligibility_outcome, media);
   if (!route) return { blocker: 'Media uncertain/pending or unsupported current insulation facts' };
   if (!(await groupBGlobalsOn()) || (route === 'offer' && !(await realSendingOn()))) return { blocker: 'Customer sending switches are off' };
