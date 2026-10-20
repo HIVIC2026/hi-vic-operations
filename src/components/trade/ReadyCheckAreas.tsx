@@ -10,7 +10,7 @@ import { saveReadyCheckAreas } from "@/lib/ready-check-draft.functions";
 import type { RcArea, AreaTask, AreaSource } from "@/lib/ready-check-areas.core";
 
 type Data = { areas: RcArea[]; areasSaved: boolean; suggestedAreas: RcArea[]; preliminaryOnly: boolean; areaTasks: AreaTask[]; areaWorksBlockers: string[];
-  areaTotals: { areaM2: number | null; removalM2: number | null }; supportingFiles: { id: string; title: string; uploadedAt: string }[]; status: string };
+  areaTotals: { areaM2: number | null; removalM2: number | null }; supportingFiles: { id: string; title: string; uploadedAt: string; url?: string | null }[]; status: string };
 
 const n = (s: string) => (s.trim() === "" ? null : Number(s));
 const when = (s: string | null) => (s ? new Date(s).toLocaleString("en-AU", { day: "numeric", month: "short", year: "numeric" }) : "date not recorded");
