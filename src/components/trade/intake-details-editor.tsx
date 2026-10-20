@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { AttachFiles, ElectricianPicker, useUploadFiles, type AttachedFile } from "./job-intake";
 import { getMyIntakeJob, saveMyIntakeJob } from "@/lib/installer-quote.functions";
 import { bulkElectricianChoices } from "@/lib/bulk-import.functions";
-import { ELECTRICIAN_PAYER_CHOICES, feeAwarenessText, type ElectricianPayer } from "@/lib/installer-intake.core";
+import { ELECTRICIAN_PAYER_CHOICES, editorElectricianSend, feeAwarenessText, type ElectricianPayer } from "@/lib/installer-intake.core";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EXISTING_INSULATION_CHOICES, JOB_DETAILS_LEAD, QUOTE_STATUS_CHOICES, intakeArea, intakeProblems, intakeQuotePayload, type ExistingInsulation, type QuoteStatus } from "@/lib/installer-intake.core";
 import type { ElectricianPlan } from "@/lib/job-electrician.core";
@@ -54,9 +54,8 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
   const currentPayer: ElectricianPayer = facts.electricianPayer ?? "undecided";
   const [payer, setPayer] = useState<ElectricianPayer>(currentPayer);
   const payerChanged = payer !== currentPayer;
-  const pickedOwn = plan?.mode === "mine" && !!(plan.business_id || plan.nomination_id);
   // Own -> a different own electrician is a real change and is sent (server re-checks every lock).
-  const ownSwap = !payerChanged && payer === "own" && pickedOwn && !(plan?.business_id && plan.business_id === facts.currentElectrician?.businessId);
+  const sendElectrician = editorElectricianSend({ payerChanged, payer, plan, currentBusinessId: facts.currentElectrician?.businessId });
   // The declaration always follows the PROPOSED payer; any change clears the tick.
   const feeText = !payerChanged && facts.feeAwarenessCurrent ? null : feeAwarenessText(payer);
   useEffect(() => { setFeeTick(false); }, [payer]);
@@ -87,7 +86,7 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
       const r = await onSave({ areaM2: intakeArea(area), insulation: ins, quoteStatus: qs, quoteIncGst: q.quoted_price_inc_gst, includes: q.price_includes, proposedR: q.proposed_r_value, files: newFiles, removalQuote: removalPayload(removal, qs === "have_quote"),
         ...(feeTick && feeText && (payer === "hivic" || payer === "own") ? { feeAwareness: { payer, text: feeText } } : {}),
         ...(payerChanged ? { electricianPayer: payer } : {}),
-        ...((payerChanged || ownSwap) && payer === "own" && plan?.mode === "mine" && (plan.business_id || plan.nomination_id) ? { electrician: { mode: "mine" as const, business_id: plan.business_id ?? null, nomination_id: plan.nomination_id ?? null } } : {}) });
+        ...(sendElectrician ? { electrician: sendElectrician } : {}) });
       setNewFiles([]); if (feeTick) setFeeTick(false);
       setMsg(preview ? "Preview only — nothing was saved." : r.quoteHeld.length ? "Saved. The owner quote is still on hold until the remaining items are ready." : "Saved.");
     } catch (e) { setMsg(e instanceof Error ? e.message : "Couldn't save. Try again."); }

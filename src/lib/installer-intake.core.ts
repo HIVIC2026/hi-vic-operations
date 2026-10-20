@@ -420,3 +420,11 @@ export function recoveredIntakeReceipt(events: { event_type: string; details: Re
   const fee = events.some((e) => e.event_type === "installer_owner_fee_awareness");
   return { insulation, quoted, next: intakeNextAction(coord, quoted), feeHeld: quoted && !fee };
 }
+
+/** Details editor: the own-electrician selection to send — on a payer change to own, or own -> a different own. */
+export function editorElectricianSend(x: { payerChanged: boolean; payer: ElectricianPayer; plan: { mode: string; business_id?: string | null; nomination_id?: string | null } | null; currentBusinessId: string | null | undefined }):
+  { mode: "mine"; business_id: string | null; nomination_id: string | null } | undefined {
+  if (x.payer !== "own" || x.plan?.mode !== "mine" || !(x.plan.business_id || x.plan.nomination_id)) return undefined;
+  if (!x.payerChanged && x.plan.business_id && x.plan.business_id === x.currentBusinessId) return undefined; // same saved electrician
+  return { mode: "mine", business_id: x.plan.business_id ?? null, nomination_id: x.plan.nomination_id ?? null };
+}
