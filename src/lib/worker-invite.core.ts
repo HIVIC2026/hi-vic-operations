@@ -74,8 +74,17 @@ export function workerSubmissionErrors(trade: "electrician" | "installer", s: Wo
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((s.email ?? "").trim())) e.push("Enter a valid email address.");
   if (trade === "electrician" && !txt(s.licence_number)) e.push("Enter your Victorian electrician licence number.");
   if (trade === "installer" && !txt(s.qualification)) e.push("Enter your training or qualification (e.g. Cert III, or 'Experienced installer').");
+  // Installers must upload their own EEC / Certified Insulation Installer certificate — free text never counts.
+  if (trade === "installer" && !txt(s.certificate_path)) e.push("Upload the EEC / Certified Insulation Installer certificate.");
   const got = new Set(s.accepted ?? []);
   if (!keys.every((k) => got.has(k))) e.push("Tick every box before signing.");
   if (!txt(s.signed_name)) e.push("Type your full name to sign.");
+  return e;
+}
+
+/** Completion link (existing worker): only the missing certificate is asked for — no declarations, no re-sign. */
+export function completionErrors(s: { certificate_path?: Opt<string> }): string[] {
+  const e: string[] = [];
+  if (!txt(s.certificate_path)) e.push("Upload the EEC / Certified Insulation Installer certificate.");
   return e;
 }
