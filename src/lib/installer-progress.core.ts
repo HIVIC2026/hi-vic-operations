@@ -9,6 +9,8 @@ export type ProgressFacts = {
   coordination: "hivic_managed" | "self_managed" | null;
   /** Installer's explicit measured-and-quoted answer (not price readiness). */
   quoted: "yes" | "no" | null;
+  /** Installer's explicit attendance answer (jobs.installer_site_check); null = not recorded. Never inferred from price/area/files. */
+  attended?: "yes" | "no" | null;
   /** A GST-inclusive quote amount is recorded; false for a file-only quote the office must still read. */
   quoteAmountKnown?: boolean;
   eligibility: "eligible" | "declined" | "unresolved";
@@ -122,6 +124,12 @@ function nextAction(f: ProgressFacts, done: Record<ProgressStepKey, boolean>): N
     if (released) return { who: "Owner", text: "Review and accept the quote." };
     // A current prepared draft is the actual quote record: it outranks an earlier "not quoted yet" answer.
     if (f.quoteStatus === "draft" && !(quotedYes && f.quoteAmountKnown === false)) return { who: HIV, text: f.quoteHoldReason ? `Review and complete the owner quote — on hold: ${f.quoteHoldReason}` : f.quoteHeld.length ? `Review and complete the owner quote — on hold: ${f.quoteHeld[0]}` : "Review and complete the owner quote." };
+    // Attendance is independent of the quote (Jo, 20 Oct): visited+unquoted finishes on the same job, no second visit;
+    // quoted+not visited keeps the price preliminary until the onsite Ready Check.
+    if (!quotedYes && f.attended === "yes") return { who: "You", text: "Finish any missing assessment details and add your price on this job." };
+    if (quotedYes && f.attended === "no" && f.quoteStatus !== "draft") return f.coordination === "self_managed"
+      ? { who: "You", text: "Your quote is preliminary — complete the onsite assessment, then confirm the details below." }
+      : { who: HIV, text: "Your quote is preliminary — arrange the onsite Ready Check before a confirmed owner quote." };
     if (!quotedYes) return f.coordination === "self_managed"
       ? { who: "You", text: "Measure and quote the job, then add the details below." }
       : { who: HIV, text: "Arrange the Ready Check so the job can be measured and quoted." };

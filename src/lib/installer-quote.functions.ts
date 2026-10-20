@@ -169,7 +169,7 @@ export const getMyIntakeProgress = createServerFn({ method: "POST" }).middleware
     const id = data.jobId;
     const [s, { data: job }, { data: qs }, { data: pr }, { data: bks }, { data: ev }, { data: ap }, { data: veec }, { data: dl }] = await Promise.all([
       m.installerIntakeState(id),
-      admin.from("jobs").select("stage, installer_quoted, installation_completed_at").eq("id", id).single(),
+      admin.from("jobs").select("stage, installer_quoted, installer_site_check, installation_completed_at").eq("id", id).single(),
       admin.from("quotes").select("status, created_at, release_state, release_hold_reason, sent_at").eq("job_id", id).eq("kind", "installation"),
       admin.from("piesa_records").select("outcome, signed_off_by, created_at").eq("job_id", id).eq("is_current", true).limit(1).maybeSingle(),
       admin.from("bookings").select("kind, status, scheduled_start, created_at").eq("job_id", id).neq("status", "cancelled").order("created_at", { ascending: false }),
@@ -195,6 +195,7 @@ export const getMyIntakeProgress = createServerFn({ method: "POST" }).middleware
     const answer = (await m.intakeQuoteAnswers([id])).get(id) ?? null;
     return { applies: true as const, ...core.installerProgress({
       coordination: s.coordination, quoted: answer === "have_quote" ? "yes" : answer === "not_quoted" ? "no" : null,
+      attended: ((job as { installer_site_check?: string | null } | null)?.installer_site_check ?? null) as "yes" | "no" | null,
       quoteAmountKnown: s.quoteIncGst != null,
       eligibility: await m.commercialEligibility(id),
       quoteHeld: [...s.readiness.blockers, ...s.releaseBlockers.filter((b: string) => !/contact consent/.test(b))],

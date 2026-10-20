@@ -14,13 +14,18 @@ export const RC_TIMES_EMAIL_APPROVED = false;
 
 export type InstallerRcFacts = {
   channel: string | null; stage: string; quoted: "yes" | "no" | null;
+  /** Explicit attendance answer; null = not recorded (legacy jobs fall back to the quote answer). */
+  attended?: "yes" | "no" | null;
   timesRequested: boolean; openWindows: number; booked: boolean;
 };
 export type InstallerRcAction = "none" | "book" | "waiting_for_owner" | "pick_owner_time" | "booked";
 
 /** What the installer's job page shows for the Ready Check. Only unquoted installer jobs still waiting for one. */
 export function installerReadyCheckAction(f: InstallerRcFacts): InstallerRcAction {
-  if (f.channel !== "installer_sourced" || f.quoted !== "no") return "none";
+  if (f.channel !== "installer_sourced") return "none";
+  // Visit needed when the installer says they have NOT attended (even if quoted); attended+unquoted needs no repeat visit.
+  const needsVisit = f.attended === "no" || (f.attended == null && f.quoted === "no");
+  if (!needsVisit) return "none";
   if (f.booked || f.stage === "ready_check_scheduled") return "booked";
   if (f.stage !== "ready_check_ready_to_schedule") return "none";
   if (f.openWindows > 0) return "pick_owner_time";

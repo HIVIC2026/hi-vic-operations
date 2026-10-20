@@ -27,7 +27,7 @@ async function load(jobId: string, userId: string) {
 }
 
 export async function installerRcState(jobId: string) {
-  const { data: j } = await admin.from("jobs").select("channel, stage, installer_quoted").eq("id", jobId).maybeSingle();
+  const { data: j } = await admin.from("jobs").select("channel, stage, installer_quoted, installer_site_check").eq("id", jobId).maybeSingle();
   if (!j) return null;
   const [{ readyCheckWindowRound }, requested, { count: booked }] = await Promise.all([
     import("./readycheck-booking.server"), ownerTimesRequested(jobId),
@@ -35,7 +35,7 @@ export async function installerRcState(jobId: string) {
   ]);
   const w = await readyCheckWindowRound(jobId);
   const { data: bk } = await admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "ready_check").eq("status", "confirmed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle();
-  const action: InstallerRcAction = installerReadyCheckAction({ channel: j.channel, stage: j.stage, quoted: j.installer_quoted as "yes" | "no" | null, timesRequested: requested, openWindows: w.open.length, booked: !!booked });
+  const action: InstallerRcAction = installerReadyCheckAction({ channel: j.channel, stage: j.stage, quoted: j.installer_quoted as "yes" | "no" | null, attended: (j.installer_site_check ?? null) as "yes" | "no" | null, timesRequested: requested, openWindows: w.open.length, booked: !!booked });
   return { action, bookedAt: bk?.scheduled_start ?? null, windows: action === "pick_owner_time" ? w.open.map((x) => ({ id: x.id, starts_at: x.starts_at, ends_at: x.ends_at })) : [] };
 }
 
