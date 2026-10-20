@@ -194,3 +194,14 @@ export function doneReason(stage: string): string {
 export function intakeProgressApplies(job: { channel?: string | null; originating_installer_business_id?: string | null } | null | undefined): boolean {
   return !!job && job.channel === "installer_sourced" && !!job.originating_installer_business_id;
 }
+
+/** A jobs read used for attendance/progress must succeed AND find the row: a failed read is never "unknown attendance". */
+export function requireJobRead<T>(r: { data: T | null; error: { message: string } | null }, what = "This job's progress"): T {
+  if (r.error) throw new Error(`${what} could not load. Please retry.`);
+  if (r.data == null) throw new Error(`${what} could not load: the job was not found.`);
+  return r.data;
+}
+/** Any other progress read failing fails the whole view closed (never shows an empty/wrong next step). */
+export function requireReads(rs: { error: { message: string } | null }[], what = "This job's progress"): void {
+  if (rs.some((r) => r.error)) throw new Error(`${what} could not load. Please retry.`);
+}
