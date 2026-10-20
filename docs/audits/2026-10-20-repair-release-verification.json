@@ -136,6 +136,26 @@
         "signed-in TEST-installer upload/save/reopen desktop+mobile: no isolated TEST installer session (Deep excluded)"
       ],
       "live_ready": false
+    },
+    {
+      "id": "attachment-race-cas",
+      "files": [
+        "src/lib/partner-import.server.ts",
+        "src/components/trade/installer-intake-flow.tsx"
+      ],
+      "results": {
+        "installer-create-roundtrip-db": "PASS 24/0 (6 new race tests)",
+        "installer-intake-upload-ui": "PASS 9/0",
+        "typecheck": "PASS"
+      },
+      "preexisting_fail": [
+        "bulk-import-confirm-files 1",
+        "bulk-import-confirm-resume 8 (stale mock: no rpc)"
+      ],
+      "not_run": [
+        "signed-in TEST installer browser: HV-1351 identity not isolated (1 non-test reachable job); not used"
+      ],
+      "live_ready": false
     }
   ]
 }

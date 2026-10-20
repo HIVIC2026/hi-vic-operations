@@ -158,8 +158,14 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
     return [...c, ...org, ...p];
   };
 
-  const ensureDraft = async (extra: AttachedFile[] = [], text = fileText) => {
-    if (draftRef.current) return draftRef.current; // one draft only, even after Back, a refresh or a retry
+  const draftFlight = useRef<Promise<string> | null>(null);
+  // Single-flight: concurrent callers share one create, so two controls can never make competing drafts.
+  const ensureDraft = (extra: AttachedFile[] = [], text = fileText): Promise<string> => {
+    if (draftRef.current) return Promise.resolve(draftRef.current); // one draft only, even after Back, a refresh or a retry
+    if (!draftFlight.current) draftFlight.current = createDraft(extra, text).finally(() => { draftFlight.current = null; });
+    return draftFlight.current;
+  };
+  const createDraft = async (extra: AttachedFile[], text: string) => {
     const r = await create({ data: { businessId, sourceSystem: "manual_import", ...(text ? { text } : {}), files: [...filesRef.current, ...extra].filter((f, i, all) => all.findIndex((x) => x.path === f.path) === i).map((f) => ({ path: f.path, name: f.name, type: f.type ?? "", ...(f.purpose ? { purpose: f.purpose } : {}) })) } });
     draftRef.current = r.id; setDraftId(r.id);
     if (userId) try { const k = resumeKey(userId, businessId); const cur = JSON.parse(localStorage.getItem(k) ?? "{}"); localStorage.setItem(k, JSON.stringify({ ...cur, draftId: r.id })); } catch { /* ignore */ }
@@ -212,9 +218,9 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
             filesRef.current = filesRef.current.some((x) => x.path === attached.path) ? filesRef.current : [...filesRef.current, attached];
             setFiles(filesRef.current);
             try {
-              if (draftRef.current) { const r = await addFiles({ data: { importId: draftRef.current, files: [{ ...attached, type: attached.type ?? "" }] } }); setFiles((old) => [...old.filter((x) => !r.files.some((y) => y.path === x.path)), ...r.files]); }
+              if (draftRef.current) { const r = await addFiles({ data: { importId: draftRef.current, files: [{ ...attached, type: attached.type ?? "" }] } }); const pending = filesRef.current.filter((x) => !r.files.some((y) => y.path === x.path) && x.path !== attached.path); filesRef.current = [...(r.files as AttachedFile[]), ...pending]; setFiles(filesRef.current); }
               else await ensureDraft([attached], "");
-            } catch { failures.push(`${f.name} uploaded and is kept here, but its job attachment could not be confirmed. Submit will retry attaching it without uploading again.`); }
+            } catch { const m = `${f.name} uploaded and is kept here, but its job attachment could not be confirmed. Submit will retry attaching it without uploading again.`; failures.push(m); setFileNote(m); continue; }
             if (purpose !== "quote") { setFileNote("Supporting file attached — it is reviewed before it is accepted."); continue; }
             setFileNote("File uploaded. Checking optional quote details…");
             try {
@@ -303,6 +309,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         <ProposedRField value={d.proposedR} disabled={busy || fileBusy} onChange={(v) => { typed.current.add("proposedR"); setD({ ...d, proposedR: v }); }} />
         <RemovalQuoteFields value={d.removal ?? blankRemoval()} disabled={busy || fileBusy} onChange={(removal) => setD({ ...d, removal })} />
         <div data-supporting-files>
+        {fileNote && <p className="text-xs text-sub" data-file-note>{fileNote}</p>}
         <AttachFiles businessId={businessId} files={files.filter((f) => f.purpose === "supporting")} disabled={busy || fileBusy} label="Supporting photos, videos or measure-up (optional)" onAdd={(picked) => changeFiles(() => addPicked(picked, "supporting"))} onRemove={(path) => changeFiles(() => removeAttached(path))} />
         <p className="mt-1 text-xs text-sub">These are supporting evidence only — they don't count as your quote. Each item is reviewed before it's accepted.</p>
         {files.some((f) => f.purpose == null) && <p className="mt-1 text-xs text-sub" data-unclassified-files>{files.filter((f) => f.purpose == null).length} earlier file(s) have no label yet. They are kept and don't count as your quote — say what each one is from the job page after saving.</p>}
@@ -310,7 +317,6 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         </div>
         {branches.quoteFacts && <div className="space-y-4" data-quote-branch>
         <AttachFiles businessId={businessId} files={files.filter((f) => f.purpose === "quote")} disabled={busy || fileBusy} label="Upload your quote" onAdd={(picked) => changeFiles(() => addPicked(picked, "quote"))} onRemove={(path) => changeFiles(() => removeAttached(path))} />
-        {fileNote && <p className="text-xs text-sub" data-file-note>{fileNote}</p>}
         <p className="text-xs text-sub">No quote file? Enter the amount and what it includes.</p>
         <label className="block text-sm font-bold">Total installer quote inc GST<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 3,450" value={d.amount} onChange={(e) => { typed.current.add("amount"); setD({ ...d, amount: e.target.value }); }} /></label>
         <p className="text-xs text-sub">Your works price before the VEU discount. Removal or extras you priced separately go below — never include them twice.</p>

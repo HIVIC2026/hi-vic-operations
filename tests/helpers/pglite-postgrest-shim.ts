@@ -30,14 +30,14 @@ export function postgrestShim(db: PGlite) {
             const rowsIn = (Array.isArray(patch) ? patch : [patch]) as Record<string, unknown>[];
             const ks = Object.keys(rowsIn[0] ?? {});
             const tuples = rowsIn.map((p) => `(${ks.map((k) => { const v = p[k]; vals.push(v !== null && typeof v === "object" ? JSON.stringify(v) : v); return `$${vals.length}`; }).join(", ")})`);
-            sql = `INSERT INTO ${table} (${ks.map((k) => `"${k}"`).join(", ")}) VALUES ${tuples.join(", ")} RETURNING ${returning ? returning.split(",").map((c) => `"${c.trim()}"`).join(", ") : "1"}`;
+            sql = `INSERT INTO ${table} (${ks.map((k) => `"${k}"`).join(", ")}) VALUES ${tuples.join(", ")} RETURNING ${returning === "*" ? "*" : returning ? returning.split(",").map((c) => `"${c.trim()}"`).join(", ") : "1"}`;
           } else if (op === "update") {
             const sets = Object.entries(patch).map(([k, v]) => { vals.push(v !== null && typeof v === "object" ? JSON.stringify(v) : v); return `"${k}" = $${vals.length}`; });
             sql = `UPDATE ${table} SET ${sets.join(", ")}`;
           } else sql = `SELECT ${head ? "count(*)::int AS n" : cols === "*" ? "*" : cols.split(",").map((c) => `"${c.trim()}"`).join(", ")} FROM ${table}`;
           if (op !== "insert" && filters.length) sql += " WHERE " + filters.map((f) => ph(f.sql, [...f.vals])).join(" AND ");
           if (op === "select") sql += orderBy + lim;
-          if (op === "update") sql += ` RETURNING ${returning ? returning.split(",").map((c) => `"${c.trim()}"`).join(", ") : "1"}`;
+          if (op === "update") sql += ` RETURNING ${returning === "*" ? "*" : returning ? returning.split(",").map((c) => `"${c.trim()}"`).join(", ") : "1"}`;
           try {
             const r = await db.query<Record<string, unknown>>(sql, vals);
             const rows = r.rows.map((row) => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, v instanceof Date ? v.toISOString() : v])));
