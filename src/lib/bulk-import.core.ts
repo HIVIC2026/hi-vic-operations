@@ -118,8 +118,10 @@ export const LEAD_STAGE_LABEL: Record<LeadStage, string> = {
 
 /** Visited rule (Jo, 7 Oct 5:45pm): photos, measurements or a quote mean Visited; sentences only mean Not visited.
  * An explicit "No" from the installer stays Not visited. */
-export function hasVisitEvidence(e: BulkExtracted, matchedFileCount = 0): boolean {
-  return (e.price_inc_gst ?? 0) > 0 || (e.area_m2 ?? 0) > 0 || matchedFileCount > 0;
+// Jo, 20 Oct 2026: attendance, quote status and evidence are independent — photos/files alone NEVER mean a visit
+// or a quote (the count is accepted for callers but ignored). Unknown attendance stays unknown.
+export function hasVisitEvidence(e: BulkExtracted, _matchedFileCount = 0): boolean {
+  return (e.price_inc_gst ?? 0) > 0 || (e.area_m2 ?? 0) > 0;
 }
 export function effectiveSiteCheck(e: BulkExtracted, matchedFileCount = 0): { check: SiteCheck | null; date: string | null } {
   const sc = siteCheckFromFile(e);
