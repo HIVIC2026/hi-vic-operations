@@ -70,3 +70,17 @@ Not run / remaining:
 - Signed-in TEST installer save/reopen: NOT_RUN (the only TEST installer login is the Deep account, excluded).
 - Office job page does not yet show the commercial record beyond readiness blockers.
 - Evidence deadlines at action boundaries, per-zone evidence/prefill, site-variation holds, Mitti form mapping, video storage cap — next slices.
+
+## Completion pass — 20 Oct 2026 13:xx UTC (base `26ca866b`)
+Implemented this pass:
+- **Site conditions differ review hold** (`src/lib/site-conditions.core.ts`; events `site_conditions_differ_raised` / `_cleared`, append-only, no migration). Installer raises it from the job page (`raiseSiteConditionsHold`, supplying-installer only, idempotent on retry/double-click); office clears it with a reason (`clearSiteConditionsHold`, admin only). While open it is a readiness blocker in `installerIntakeState` (so draft/release/approve/accept all stop via `intakeSendBlockers`), it overrides the installer's next action, and it locks works in both `requirePrestartClear` (live) and the pre-start check (`siteHoldBlockers`). Unreadable history throws (fail closed). Never changes an accepted amount.
+- Office intake panel now shows the installer pricing record (basis, GST, exclusions, removal summary) and the open hold; a failed intake read shows an error instead of disappearing.
+- Repaired stale tests meaningfully: `installer-progress` (self+quoted now requires an explicit visit; added eligible 4-combination + unknown matrix), `a3-intake-progress-access` (rewritten against the current `requireJobInstaller` order; old `intakeProgressGate` helper no longer exists), `prestart-locks` (fake DB lacked `count`, so the fail-closed intake read threw).
+
+Results (this pass): `installer-progress` 25/0; `site-conditions-hold-db` (PGlite, real installerIntakeState) 6/0; `prestart-locks` 8/0; `a3-intake-progress-access` 5/0; `prestart-checks-db` 4/0; `prestart.core` 8/0; `piisa-product-prestart` 5/0; `installer-intake-edit-db` 18/0; `installer-commercial-db` 16/0; `installer-payer-quote-db` 12/0; `installer-quoted-db` 1/0; `installer-intake-repairs` 13/0; `installer-intake-review` 17/0; `installer-intake` 14/0; `installer-progress-truth` 23/0; `intake-quote-details` 7/0; `quote-release-gate` 4/0; `measured-quote-accept` 3/0. Typecheck clean; retired-terms scan 0 customer-visible.
+
+Still NOT_RUN / NOT IMPLEMENTED (the repair is NOT complete):
+- Create-path (`confirmClaimed`) create→save→read→edit→read on PGlite with fake private storage for all four combinations — NOT_RUN (no harness yet). Edit/read handlers are covered above; attachment persistence through real storage code is not.
+- Authenticated TEST-installer browser save/reopen, desktop + mobile — NOT_RUN: the only TEST installer identity is the excluded Deep account; no isolated local backend with fake adapters exists. Sample adapter not used as evidence.
+- Missing-only task lists for quote / before removal-or-start / after completion, and per-zone before/after evidence deadlines at action boundaries — NOT IMPLEMENTED (original-condition answers already lock works via `rcWorksBlockers`; per-zone media not).
+- Install-day Mitti link reuses the assessment id — review pending. Video storage cap 200 MiB < 250 MB legal max — needs Jo's approval. Mitti form mapping/approvals unchanged and held.
