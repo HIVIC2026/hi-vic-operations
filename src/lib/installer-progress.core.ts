@@ -126,6 +126,7 @@ function nextAction(f: ProgressFacts, done: Record<ProgressStepKey, boolean>): N
     if (f.quoteStatus === "draft" && !(quotedYes && f.quoteAmountKnown === false)) return { who: HIV, text: f.quoteHoldReason ? `Review and complete the owner quote — on hold: ${f.quoteHoldReason}` : f.quoteHeld.length ? `Review and complete the owner quote — on hold: ${f.quoteHeld[0]}` : "Review and complete the owner quote." };
     // Attendance is independent of the quote (Jo, 20 Oct): visited+unquoted finishes on the same job, no second visit;
     // quoted+not visited keeps the price preliminary until the onsite Ready Check.
+    if (f.attended === null && f.quoteStatus !== "draft") return { who: "You", text: "Tell us whether you've attended and assessed this property (job details below) — we don't assume either way." };
     if (!quotedYes && f.attended === "yes") return { who: "You", text: "Finish any missing assessment details and add your price on this job." };
     if (quotedYes && f.attended === "no" && f.quoteStatus !== "draft") return f.coordination === "self_managed"
       ? { who: "You", text: "Your quote is preliminary — complete the onsite assessment, then confirm the details below." }
