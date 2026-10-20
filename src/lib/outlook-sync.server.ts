@@ -154,86 +154,194 @@ export async function storeOnJob(jobId: string, m: MailMessage, how: string): Pr
   return data.id;
 }
 
-async function applyClosure(jobId: string, m: MailMessage, commId: string, counts: SyncCounts) {
+/** Determine a new message's decision from current facts. Missing/error counts must never become zero. */
+async function decisionFor(work: Work, window: ClosureWindow): Promise<Record<string, unknown>> {
+  const m = work.message;
+  if (work.route.kind !== "job" || m.direction !== "inbound") return { action: "none" };
   const intent = classifyIntent(m.body);
-  if (intent.kind === "none") return;
-  const { data: job } = await admin.from("jobs").select("stage").eq("id", jobId).single();
-  if (!job) return;
-  const { count } = await admin.from("job_communications").select("id", { count: "exact", head: true })
-    .eq("job_id", jobId).eq("direction", "inbound").gt("received_at", m.at);
-  const d = closureDecision(job.stage, intent, { laterInbound: (count ?? 0) > 0 });
-  if (d.action === "flag") { await queueReview(m, d.kind, d.reason, { jobId, commId, suggested: intent.kind === "not_proceeding" ? d.reason : undefined }); counts.flagged++; return; }
-  if (d.action !== "close") return;
-  const { data: moved, error } = await admin.from("jobs").update({ stage: "cancelled", prior_stage: job.stage, cancelled_reason: d.reason, next_action: "Closed — customer not proceeding (from their email)" })
-    .eq("id", jobId).eq("stage", job.stage).select("id");
-  if (error) throw new Error(error.message);
-  if (!moved?.length) return;
-  await logEvent(jobId, null, "stage_changed", `Closed: ${d.reason}`, { source: "outlook_sync", communication_id: commId, phrase: intent.kind === "not_proceeding" ? intent.phrase : null }, { from: job.stage as never, to: "cancelled" });
-  counts.closed++;
+  if (intent.kind === "none") return { action: "none" };
+  const { data: job, error: je } = await syncAdmin.from("jobs").select("stage").eq("id", work.route.jobId).single();
+  if (je || !job) throw new Error(`Job state unavailable for Outlook decision: ${je?.message ?? "job missing"}`);
+  const [history, pending] = await Promise.all([
+    syncAdmin.from("job_communications").select("id", { count: "exact", head: true })
+      .eq("job_id", work.route.jobId).eq("direction", "inbound").gt("received_at", m.at),
+    syncAdmin.from("outlook_message_work").select("provider_message_id", { count: "exact", head: true })
+      .eq("job_id", work.route.jobId).eq("message->>direction", "inbound").gt("message_at", m.at),
+  ]);
+  for (const result of [history, pending]) if (result.error || result.count == null)
+    throw new Error(`Later correspondence unavailable: ${result.error?.message ?? "exact count missing"}`);
+  let d = closureDecision(job.stage, intent, { laterInbound: history.count! + pending.count! > 0 });
+  if (d.action === "close" && (!window.inboxCompleteThrough
+    || !Number.isFinite(Date.parse(window.inboxCompleteThrough)) || Date.parse(m.at) > Date.parse(window.inboxCompleteThrough))) {
+    d = { action: "flag", kind: "possible_not_proceeding",
+      reason: `${d.reason} — later Inbox correspondence has not been fully checked through this sync window; Office to decide` };
+  }
+  return { ...d, expectedStage: job.stage, phrase: intent.phrase, inboxCompleteThrough: window.inboxCompleteThrough,
+    ...(d.action === "flag" && intent.kind === "not_proceeding" ? { suggestedReason: d.reason } : {}) };
 }
 
-export async function processMessages(raw: GraphMessage[], mailbox: string, counts: SyncCounts, fetchAttachments = true) {
+async function finishWork(work: Work, counts: SyncCounts, window: ClosureWindow): Promise<void> {
+  try {
+    if (!work.attachments_complete) {
+      const refs = await attachmentsFor(work.provider_message_id, work.mailbox);
+      const { data, error } = await syncAdmin.from("outlook_message_work")
+        .update({ attachments_complete: true, attachment_refs: refs, last_error: null })
+        .eq("provider_message_id", work.provider_message_id).eq("status", "pending")
+        .eq("attachments_complete", false).select("provider_message_id");
+      if (error) throw new Error(`Attachment metadata was not saved: ${error.message}`);
+      if (!data?.length) {
+        const { data: current, error: ce } = await syncAdmin.from("outlook_message_work").select("*").eq("provider_message_id", work.provider_message_id).single();
+        if (ce || !current) throw new Error(`Outlook work unavailable: ${ce?.message ?? "row missing"}`);
+        if (current.status === "complete") { counts.duplicate++; return; }
+        if (!current.attachments_complete) throw new Error("Attachment metadata remains pending.");
+      }
+    }
+    const decision = await decisionFor(work, window);
+    const { data, error } = await syncAdmin.rpc("finish_outlook_message", { _message_id: work.provider_message_id, _decision: decision });
+    if (error || !data) throw new Error(`Outlook message processing is unfinished: ${error?.message ?? "result missing"}`);
+    const result = data as WorkResult;
+    if (result.replayed || result.duplicate) counts.duplicate++;
+    else {
+      if (result.stored) counts.stored++;
+      if (result.unmatched) counts.unmatched++;
+      if (result.closed) counts.closed++;
+      if (result.flagged) counts.flagged++;
+      if (result.ignored) counts.notHomeowner++;
+    }
+  } catch (e) {
+    counts.errors++;
+    const problem = e instanceof Error ? e.message : "Outlook processing failed.";
+    const { error } = await syncAdmin.from("outlook_message_work").update({ last_error: problem.slice(0, 500) })
+      .eq("provider_message_id", work.provider_message_id).eq("status", "pending");
+    if (error) throw new Error(`${problem} The retry record could not be updated: ${error.message}`);
+  }
+}
+
+async function portalDuplicate(m: MailMessage, jobId: string): Promise<boolean> {
+  if (m.direction !== "outbound") return false;
+  const centre = Date.parse(m.at);
+  if (!Number.isFinite(centre)) throw new Error("Outlook message timestamp is invalid.");
+  // Scope + paginate history; a provider/API row cap must not hide a prior portal delivery.
+  for (let from = 0; ; from += 200) {
+    const { data, error } = await syncAdmin.from("job_communications")
+      .select("id,provider,subject,recipients,sent_at,direction").eq("job_id", jobId).eq("direction", "outbound")
+      .neq("provider", "outlook").gte("sent_at", new Date(centre - 15 * 60_000).toISOString())
+      .lte("sent_at", new Date(centre + 15 * 60_000).toISOString()).order("id").range(from, from + 199);
+    if (error || !data) throw new Error(`Outbound correspondence unavailable: ${error?.message ?? "rows missing"}`);
+    if (isPortalDuplicate(m, data.map((c) => ({ provider: c.provider, subject: c.subject, recipients: c.recipients ?? [], at: c.sent_at, direction: c.direction })))) return true;
+    if (data.length < 200) return false;
+  }
+}
+
+export async function processMessages(raw: GraphMessage[], mailbox: string, counts: SyncCounts,
+  window: ClosureWindow = { inboxCompleteThrough: null }) {
   const msgs = raw.map((g) => normaliseMessage(g, mailbox, OUR_DOMAINS)).filter((m): m is MailMessage => !!m);
   if (!msgs.length) return;
+  if (msgs.some(m => !m.providerMessageId || !Number.isFinite(Date.parse(m.at)) || Date.parse(m.at) <= 0))
+    throw new Error("Outlook returned a message without a usable identity or timestamp.");
   const { byNumber, byEmail } = await loadCandidates(msgs, mailbox);
-  msgs.sort((a, b) => a.at.localeCompare(b.at));
+  const work: Work[] = [];
+  // Reserve the entire page before decisions, so a later reply on this page is visible to earlier declines.
   for (const m of msgs) {
-    try {
-      const r = matchMessage(m, counterpartEmails(m, mailbox, OUR_DOMAINS), byNumber, byEmail);
-      if (r.kind === "not_homeowner") { counts.notHomeowner++; continue; }
-      const { data: seen } = await admin.from("job_communications").select("id").eq("provider", "outlook").eq("provider_message_id", m.providerMessageId).maybeSingle();
-      if (seen) { counts.duplicate++; continue; }
-      if (fetchAttachments && m.hasAttachments) m.attachments = await attachmentsFor(m.providerMessageId).catch(() => []);
-      if (r.kind === "unmatched") { await queueReview(m, "unmatched", r.reason, { candidates: r.candidateJobIds }); counts.unmatched++; continue; }
-      if (m.direction === "outbound") {
-        const { data: ex } = await admin.from("job_communications").select("provider, subject, recipients, sent_at, direction").eq("job_id", r.jobId).eq("direction", "outbound").neq("provider", "outlook");
-        if (isPortalDuplicate(m, (ex ?? []).map((c) => ({ provider: c.provider, subject: c.subject, recipients: (c.recipients as string[]) ?? [], at: c.sent_at, direction: c.direction })))) { counts.portalDuplicate++; continue; }
-      }
-      const id = await storeOnJob(r.jobId, m, r.how);
-      if (!id) { counts.duplicate++; continue; }
-      counts.stored++;
-      if (m.direction === "inbound") await applyClosure(r.jobId, m, id, counts);
-    } catch (e) {
-      counts.errors++;
-      console.error("outlook message failed", (e as Error).message);
+    const route = matchMessage(m, counterpartEmails(m, mailbox, OUR_DOMAINS), byNumber, byEmail);
+    if (route.kind === "not_homeowner") { counts.notHomeowner++; continue; }
+    const { data: existing, error: ee } = await syncAdmin.from("outlook_message_work").select("*")
+      .eq("provider_message_id", m.providerMessageId).maybeSingle();
+    if (ee) throw new Error(`Outlook processing history unavailable: ${ee.message}`);
+    if (existing) {
+      if (existing.mailbox !== mailbox) throw new Error("Outlook message belongs to a different mailbox.");
+      if (existing.status === "pending") work.push(existing as Work); else counts.duplicate++;
+      continue;
     }
+    if (route.kind === "job" && await portalDuplicate(m, route.jobId)) { counts.portalDuplicate++; continue; }
+    const { data, error } = await syncAdmin.rpc("begin_outlook_message", { _mailbox: mailbox, _message: m, _route: route });
+    if (error || !data) throw new Error(`Outlook message could not be reserved: ${error?.message ?? "result missing"}`);
+    if (data.state === "pending") work.push(data.work as Work); else counts.duplicate++;
   }
+  for (const item of work.sort((a, b) => Date.parse(a.message.at) - Date.parse(b.message.at))) await finishWork(item, counts, window);
 }
 
-/** One bounded sync pass. Backfills from outlook_sync_state.backfill_from, then continues from each folder's cursor. */
-export async function runOutlookSync(opts: { maxPages?: number } = {}): Promise<{ ok: boolean; blocker?: string; counts: SyncCounts }> {
+/** Retry only explicitly pending new imports, never unmarked legacy correspondence. No mailbox reread required. */
+async function resumePending(mailbox: string, counts: SyncCounts, window: ClosureWindow): Promise<void> {
+  const { data, error } = await syncAdmin.from("outlook_message_work").select("*")
+    .eq("mailbox", mailbox).eq("status", "pending").order("created_at").limit(200);
+  if (error || !data) throw new Error(`Outlook retry queue unavailable: ${error?.message ?? "rows missing"}`);
+  // This queue is independent of timestamp cursors: unresolved old work is never silently skipped.
+  for (const work of data as Work[]) await finishWork(work, counts, window);
+}
+
+/** A failed/concurrent status save is an error, never a successful sync. */
+async function saveSyncState(state: SyncState, patch: Record<string, unknown>): Promise<void> {
+  const { data, error } = await syncAdmin.from("outlook_sync_state")
+    .update({ ...patch, updated_at: new Date(Math.max(Date.now(), Date.parse(state.updated_at) + 1)).toISOString() })
+    .eq("id", 1).eq("updated_at", state.updated_at).select("id");
+  if (error || data?.length !== 1) throw new Error(`Outlook sync state was not saved: ${error?.message ?? "another run changed it; retry from its saved cursor"}`);
+}
+
+/** Bounded import. Successful bounded stops save the provider continuation, including equal-timestamp pages. */
+export async function runOutlookSync(opts: { maxPages?: number; pageSize?: number } = {}): Promise<{ ok: boolean; blocker?: string; counts: SyncCounts }> {
   const counts: SyncCounts = { fetched: 0, stored: 0, duplicate: 0, portalDuplicate: 0, notHomeowner: 0, unmatched: 0, closed: 0, flagged: 0, errors: 0 };
+  let state: SyncState | null = null;
   const now = new Date().toISOString();
-  if (!outlookConfigured()) {
-    await admin.from("outlook_sync_state").update({ last_run_at: now, last_error: "Outlook is not connected to this project", updated_at: now }).eq("id", 1);
-    return { ok: false, blocker: "not_connected", counts };
-  }
-  const { data: st } = await admin.from("outlook_sync_state").select("*").eq("id", 1).single();
   try {
-    const me = await graph<{ mail?: string; userPrincipalName?: string }>("/me?$select=mail,userPrincipalName");
-    const mailbox = (me.mail ?? me.userPrincipalName ?? "").toLowerCase();
-    const cursors: Record<string, string> = {};
-    for (const [folder, field, key] of [["inbox", "receivedDateTime", "inbox_cursor"], ["sentitems", "sentDateTime", "sent_cursor"]] as const) {
-      const since = (st?.[key] as string | null) ?? st?.backfill_from ?? "2026-10-01T00:00:00+11:00";
-      let url: string | null = `/me/mailFolders/${folder}/messages?$select=${SELECT}&$filter=${field} ge ${new Date(since).toISOString()}&$orderby=${field} asc&$top=50`;
+    state = await readOutlookSyncState();
+    if (!outlookConfigured()) throw new Error("Outlook credentials are not configured for this project.");
+    if (!state.expected_mailbox) throw new Error("Enter, check and confirm the intended shared business mailbox address before importing correspondence.");
+    const me = await graph<{ id?: string; mail?: string; userPrincipalName?: string; displayName?: string }>("/me?$select=id,mail,userPrincipalName,displayName");
+    await verifyMailboxReadAccess(state.expected_mailbox);
+    const health = checkedOutlookHealth(true, state.expected_mailbox, me, now, state.expected_mailbox);
+    if (!health.readyForSync || !health.targetMailbox) throw new Error(health.problem ?? "Shared mailbox access could not be verified.");
+    const mailbox = health.targetMailbox;
+    const maxPages = Math.max(1, Math.min(10, Math.floor(opts.maxPages ?? 10)));
+    const pageSize = Math.max(1, Math.min(50, Math.floor(opts.pageSize ?? 50)));
+    const cursors: Record<string, string | null> = {};
+    let inboxCompleteThrough: string | null = null;
+    for (const [folder, field, key, continuation] of [
+      ["inbox", "receivedDateTime", "inbox_cursor", "inbox_next_link"],
+      ["sentitems", "sentDateTime", "sent_cursor", "sent_next_link"],
+    ] as const) {
+      const since = state[key] ?? state.backfill_from;
+      if (!Number.isFinite(Date.parse(since))) throw new Error("Outlook has an invalid saved timestamp; Office must review the cursor.");
+      let url: string | null = state[continuation] ? outlookGatewayUrl(state[continuation])
+        : `${outlookMailboxPath(mailbox)}/mailFolders/${folder}/messages?$select=${SELECT}&$filter=${field} ge ${new Date(since).toISOString()} and ${field} le ${now}&$orderby=${field} asc&$top=${pageSize}`;
       let last = since;
-      for (let page = 0; url && page < (opts.maxPages ?? 10); page++) {
-        const res: { value: GraphMessage[]; "@odata.nextLink"?: string } = await graph(url);
-        counts.fetched += res.value.length;
-        await processMessages(res.value, mailbox, counts);
-        const tail = res.value.at(-1);
-        if (tail) last = (field === "receivedDateTime" ? tail.receivedDateTime : tail.sentDateTime) ?? last;
-        url = res["@odata.nextLink"] ?? null;
+      const visited = new Set<string>();
+      for (let page = 0; url && page < maxPages; page++) {
+        const canonical = outlookGatewayUrl(url);
+        if (visited.has(canonical)) throw new Error("Outlook repeated a continuation; the cursor was not advanced.");
+        visited.add(canonical);
+        const response: { value: GraphMessage[]; "@odata.nextLink"?: string } = await graph(canonical);
+        if (!Array.isArray(response.value)) throw new Error("Outlook returned an invalid message page.");
+        // Validate continuation before committing effects from the page.
+        const next = response["@odata.nextLink"] ? outlookGatewayUrl(response["@odata.nextLink"]) : null;
+        // A saved continuation belongs to an older cutoff. Even its final page cannot prove that
+        // newer replies are absent. Such declines get Office review, never an automatic closure.
+        // Inbox is processed first, so Sent Items and pending retries receive the same proven window.
+        if (folder === "inbox" && !state.inbox_next_link && !next) inboxCompleteThrough = now;
+        counts.fetched += response.value.length;
+        await processMessages(response.value, mailbox, counts, { inboxCompleteThrough });
+        if (counts.errors) throw new Error(`${counts.errors} message(s) remain unfinished; the cursor was not advanced.`);
+        const tail = response.value.at(-1);
+        const tailAt = tail ? (field === "receivedDateTime" ? tail.receivedDateTime : tail.sentDateTime) : null;
+        if (tailAt) {
+          if (!Number.isFinite(Date.parse(tailAt))) throw new Error("Outlook returned an invalid page timestamp.");
+          if (Date.parse(tailAt) > Date.parse(last)) last = tailAt;
+        }
+        url = next;
       }
       cursors[key] = last;
+      cursors[continuation] = url;
     }
-    const ok = counts.errors === 0;
-    // Cursors move only after a clean pass, so a failed message is re-read next time (dedupe makes that safe).
-    await admin.from("outlook_sync_state").update({ ...(ok ? cursors : {}), mailbox, last_run_at: now, ...(ok ? { last_ok_at: now, last_error: null } : { last_error: `${counts.errors} message(s) failed` }), last_counts: counts, updated_at: now }).eq("id", 1);
-    return { ok, counts };
+    await resumePending(mailbox, counts, { inboxCompleteThrough });
+    if (counts.errors) throw new Error(`${counts.errors} message(s) remain unfinished; the cursor was not advanced.`);
+    await saveSyncState(state, { ...cursors, mailbox, last_run_at: now, last_ok_at: now, last_error: null, last_counts: counts });
+    return { ok: true, counts };
   } catch (e) {
-    const msg = (e as Error).message.slice(0, 500);
-    await admin.from("outlook_sync_state").update({ last_run_at: now, last_error: msg, last_counts: counts, updated_at: now }).eq("id", 1);
-    return { ok: false, blocker: msg, counts };
+    let problem = e instanceof Error ? e.message : "Outlook sync failed.";
+    if (state) {
+      try { await saveSyncState(state, { last_run_at: now, last_error: problem.slice(0, 500), last_counts: counts }); }
+      catch (saveError) { problem += ` ${saveError instanceof Error ? saveError.message : "The failure status could not be saved."}`; }
+    }
+    return { ok: false, blocker: problem, counts };
   }
 }

@@ -366,3 +366,146 @@ describe("the scheduled backlog worker stays OFF", () => {
     expect(calls.length).toBe(0);
   });
 });
+
+
+
+describe('Phase 1 actual initial router → sender boundaries', () => {
+  test('fully received media gets the approved acknowledgement once under the original initial key', async () => {
+    autoOn(); media.received = true;
+    expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(true);
+    expect(mediaReads).toBeGreaterThanOrEqual(4); // router, automatic wrapper, pre-reservation, final delivery
+    expect(calls.map(c => c.idem)).toEqual([KEYS.B]);
+    expect(String(calls[0]!.body.text)).toContain('you do not need to upload it again');
+    expect(String(calls[0]!.body.text)).not.toContain('Please upload clear photos');
+    expect(String(calls[0]!.body.text)).toContain('free Ready Check');
+    expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(false);
+    expect(calls).toHaveLength(1);
+  });
+  for (const status of ['sent', 'delivered', 'sending', 'queued', 'delivered_unrecorded', 'sending_unknown']) {
+    test(`any-purpose ${status} holds the actual automatic sender`, async () => {
+      autoOn();
+      T.customer_email_sends = [{ id: 'earlier', job_id: B, status, purpose: 'other_customer_email', idempotency_key: 'different-key' }];
+      expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(false);
+      expect(calls).toHaveLength(0);
+    });
+  }
+  test('customer-visible correspondence alone blocks; unrelated/internal/inbound rows do not', async () => {
+    autoOn();
+    T.job_communications = [{ job_id: L, direction: 'outbound', channel: 'email', visibility: 'customer' }, { job_id: B, direction: 'inbound', channel: 'email', visibility: 'customer' }, { job_id: B, direction: 'outbound', channel: 'email', visibility: 'internal' }];
+    expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(true);
+    T.customer_email_sends = []; T.job_communications.push({ job_id: B, direction: 'outbound', channel: 'email', visibility: 'customer' });
+    expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(false);
+    expect(calls).toHaveLength(1);
+  });
+  test('unavailable exact counts hold instead of becoming zero', async () => {
+    autoOn(); unavailableCounts = true;
+    expect(await maybeAutoRouteLeadEmail(B)).toMatchObject({ sent: false, reason: 'Could not verify first-response safety facts.' });
+    expect(calls).toHaveLength(0);
+  });
+  test('an older response beyond 1000 unrelated attempts is still found by exact server counts', async () => {
+    autoOn(); T.customer_email_sends = Array.from({ length: 1200 }, (_, i) => ({ id: `failed-${i}`, job_id: B, status: 'failed', purpose: 'other', idempotency_key: `k-${i}` }));
+    T.customer_email_sends.push({ id: 'old-response', job_id: B, status: 'sent', purpose: 'other', idempotency_key: 'old-key' });
+    expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(false);
+    expect(calls).toHaveLength(0);
+    expect(historyReads.every(r => r.head && r.exact)).toBe(true);
+  });
+  test('a definite Group B failure retries once; accepted/uncertain attempts never retry', async () => {
+    autoOn(); mode = '422';
+    expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(false);
+    expect(sentRow(KEYS.B)?.status).toBe('failed');
+    mode = 'ok'; expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(true);
+    expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(false);
+    expect(calls).toHaveLength(2);
+  });
+  for (const id of [L, B]) {
+    test(`${id === L ? 'known-size offer' : 'Group B acknowledgement'} rechecks correspondence after reservation`, async () => {
+      autoOn(); Object.assign(T.workflow_settings![0]!, { customer_comms_enabled: true, save_my_spot_real_send_enabled: true }); media.received = true;
+      beforeFinalSend = () => T.job_communications!.push({ job_id: id, direction: 'outbound', channel: 'email', visibility: 'customer' });
+      expect((await maybeAutoRouteLeadEmail(id)).sent).toBe(false);
+      expect(calls).toHaveLength(0);
+      expect(sends().find(s => s.job_id === id)).toMatchObject({ status: 'failed', provider: 'not_sent' });
+    });
+  }
+  for (const status of ['sent', 'delivered', 'queued', 'sending_unknown']) {
+    test(`intervening different-purpose ${status} blocks immediately before delivery`, async () => {
+      autoOn(); beforeFinalSend = () => T.customer_email_sends!.push({ id: 'intervening', job_id: B, status, purpose: 'other', idempotency_key: 'other' });
+      expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(false); expect(calls).toHaveLength(0);
+    });
+  }
+  for (const change of ['consent', 'optout', 'suppression', 'count-unavailable']) {
+    test(`${change} changing after preparation blocks the actual provider call`, async () => {
+      autoOn(); beforeFinalSend = () => {
+        if (change === 'consent') T.owner_contact_consents!.find(r => r.job_id === B)!.consent_status = 'withdrawn';
+        if (change === 'optout') T.customer_email_optouts!.push({ job_id: B, opted_out_at: new Date().toISOString() });
+        if (change === 'suppression') T.customer_engagement_events!.push({ job_id: B, event_type: 'email_bounced' });
+        if (change === 'count-unavailable') unavailableCounts = true;
+      };
+      expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(false); expect(calls).toHaveLength(0);
+    });
+  }
+  for (const boundary of [3, 4]) {
+    test(`changed media holds the acknowledgement at ${boundary === 3 ? 'reservation' : 'delivery'} boundary`, async () => {
+      autoOn(); media.received = true;
+      mediaReadHook = read => { if (read === boundary) media.uncertain = true; };
+      expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(false); expect(calls).toHaveLength(0);
+    });
+  }
+  test('initial acknowledgement permits a later separately keyed explicit reviewed offer exactly once', async () => {
+    autoOn(); media.received = true;
+    expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(true);
+    T.customer_engagement_events!.push({ id: 'review-below', job_id: B, event_type: 'intake_media_reviewed', source: 'office', occurred_at: new Date().toISOString(), metadata: { outcome: 'below_r2', manualOnly: true } });
+    T.workflow_settings![0]!.customer_comms_enabled = true;
+    expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(false);
+    expect((await sendExistingInsulationSaveSpot(B, 'office', true)).preview).toBeDefined();
+    expect(calls).toHaveLength(1); // preview did not send
+    expect((await sendExistingInsulationSaveSpot(B, 'office', false)).outcome).toBe('sent');
+    expect((await sendExistingInsulationSaveSpot(B, 'office', false)).outcome).toBe('skipped');
+    expect(calls.map(c => c.idem)).toEqual([KEYS.B, `${LAUNCH_CAMPAIGN}:existing_insulation_save_spot:${B}`]);
+    expect(String(calls[1]!.body.text)).not.toContain('you do not need to upload it again');
+  });
+});
+
+
+describe('explicit Office more-photo request through the real sender', () => {
+  const reviewId = 'a0000000-0000-4000-8000-00000000a001';
+  function unclear() {
+    autoOn(); T.workflow_settings![0]!.customer_comms_enabled = true; media.received = true;
+    T.customer_engagement_events!.push({ id: reviewId, job_id: B, event_type: 'intake_media_reviewed', source: 'office', occurred_at: ago(HOUR / 2), metadata: { outcome: 'unclear', manualOnly: true } });
+    T.office_enquiry_index = [{ id: B, source: 'base44', office_bucket: 'enquiry', latest_media_at: ago(HOUR) }];
+  }
+  test('preview sends nothing; explicit submit uses approved T6 with one per-review attempt', async () => {
+    unclear();
+    const preview = await sendMorePhotosRequest(B, 'office', true);
+    expect(preview.reviewId).toBe(reviewId); expect(preview.preview).toBeDefined(); expect(calls).toHaveLength(0);
+    expect((await sendMorePhotosRequest(B, 'office', false, preview.reviewId)).outcome).toBe('sent');
+    expect((await sendMorePhotosRequest(B, 'office', false, preview.reviewId)).outcome).toBe('skipped');
+    expect(calls).toHaveLength(1); expect(String(calls[0]!.body.text)).toContain('Please upload clear photos');
+    expect(sends()[0]).toMatchObject({ purpose: 'insulation_video_request', idempotency_key: `office_more_photos:${B}:${reviewId}` });
+    expect(comms[0]).toMatchObject({ sourceEvent: 'office_more_photos_requested', sourceReference: `intake_media_review:${reviewId}`, visibility: 'customer', deliveryStatus: 'sent' });
+  });
+  test('review → upload → stale submit is blocked; new upload during rendering is also blocked', async () => {
+    unclear(); const preview = await sendMorePhotosRequest(B, 'office', true);
+    T.office_enquiry_index![0]!.latest_media_at = new Date().toISOString();
+    expect((await sendMorePhotosRequest(B, 'office', false, preview.reviewId)).outcome).toBe('blocked'); expect(calls).toHaveLength(0);
+    T.office_enquiry_index![0]!.latest_media_at = ago(HOUR);
+    beforeFinalSend = () => { T.office_enquiry_index![0]!.latest_media_at = new Date().toISOString(); };
+    expect((await sendMorePhotosRequest(B, 'office', false, preview.reviewId)).outcome).toBe('blocked'); expect(calls).toHaveLength(0);
+  });
+  test('an unclear review alone never triggers automatic delivery', async () => {
+    unclear(); expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(false); expect(calls).toHaveLength(0);
+    expect((await sendMorePhotosRequest(B, 'office', false)).outcome).toBe('blocked');
+  });
+});
+
+
+test('accepted initial email with failed local history writes is not resent on worker retry', async () => {
+  autoOn(); failAllOutcomeWrites = true;
+  expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(false);
+  expect(calls).toHaveLength(1); expect(sentRow(KEYS.B)?.status).toBe('sending');
+  expect(T.job_communications).toHaveLength(0);
+  // Simulates the next router invocation after a sweep completion/lease write failed; the canonical
+  // view may still show no confirmed reply. The durable send reservation itself must stop delivery.
+  failAllOutcomeWrites = false;
+  expect(await maybeAutoRouteLeadEmail(B)).toMatchObject({ sent: false, reason: 'Earlier email outcome pending or uncertain — never resent automatically' });
+  expect(calls).toHaveLength(1);
+});
