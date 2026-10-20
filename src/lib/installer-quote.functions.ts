@@ -168,7 +168,7 @@ export const getMyIntakeProgress = createServerFn({ method: "POST" }).middleware
     await requireSupplyingInstaller(context.supabase as never, context.userId, data.jobId);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const id = data.jobId;
-    const [s, { data: job }, { data: qs }, { data: pr }, { data: bks }, { data: ev }, { data: ap }, { data: veec }, { data: dl }] = await Promise.all([
+    const [s, jobR, qsR, prR, bksR, evR, apR, veecR, dlR] = await Promise.all([
       m.installerIntakeState(id),
       admin.from("jobs").select("stage, installer_quoted, installer_site_check, installation_completed_at").eq("id", id).single(),
       admin.from("quotes").select("status, created_at, release_state, release_hold_reason, sent_at").eq("job_id", id).eq("kind", "installation"),
@@ -180,6 +180,9 @@ export const getMyIntakeProgress = createServerFn({ method: "POST" }).middleware
       admin.from("job_piesa_deadlines").select("piesa_expired").eq("job_id", id).maybeSingle(),
     ]);
     const core = await import("./installer-progress.core");
+    const job = core.requireJobRead(jobR);
+    core.requireReads([qsR, prR, bksR, evR, apR, veecR, dlR]);
+    const { data: qs } = qsR, { data: pr } = prR, { data: bks } = bksR, { data: ev } = evR, { data: ap } = apR, { data: veec } = veecR, { data: dl } = dlR;
     const { evidenceApplicability } = await import("./operations-preview.core");
     const stage = job?.stage ?? "";
     const book = (k: string) => (bks ?? []).find((b) => b.kind === k) ?? null;

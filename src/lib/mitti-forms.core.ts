@@ -24,6 +24,7 @@ export type FormField = {
 import { B1_OPTIONS, B2_OPTIONS, OFFICIAL_ITEMS, type ItemKind } from "./official-forms.core";
 import { SHORT_PIESA_FIELDS, SHORT_PIISA_FIELDS } from "./official-short.core";
 import { PIISA_DECLARATION_FIELDS } from "./piisa-declaration.core";
+import { mittiItemType } from "./mitti.core";
 
 const G = "ESC Guide V1.1";
 const F1 = "DEECA PIESA form";
@@ -211,22 +212,32 @@ export function buildSheet(key: FormKey): string {
 }
 
 /** Flattens a v1 template definition into {label,type}. The item type is its type-named key (e.g. "textsingle"). */
-export function flattenDefinition(def: unknown): TemplateItem[] {
-  const out: TemplateItem[] = [];
-  const skip = new Set(["label", "id", "children", "parent_id", "item_id"]);
-  const walk = (o: unknown) => {
-    if (Array.isArray(o)) { o.forEach(walk); return; }
-    if (!o || typeof o !== "object") return;
-    const r = o as Record<string, unknown>;
-    if (typeof r["label"] === "string" && r["label"].trim()) {
-      const type = typeof r["type"] === "string" ? (r["type"] as string) : Object.keys(r).find((k) => !skip.has(k) && r[k] && typeof r[k] === "object") ?? "";
-      if (!["section", "category", "instruction", "logicfield"].includes(type)) out.push({ label: r["label"] as string, type });
-    }
-    Object.values(r).forEach(walk);
-  };
-  const root = (def as { template?: unknown })?.template ?? def;
-  walk((root as { items?: unknown })?.items ?? []);
+const NON_QUESTION = new Set(["section", "category", "instruction", "logicfield"]);
+/**
+ * Template questions from header_items + items (nested children or flat parent_id), typed deterministically by
+ * mittiItemType (explicit `type`, else a known Mitti type key — never "first object-valued property", so
+ * metadata/options can't win). Option/config objects are not walked, so they never appear as questions.
+ */
+type RawItem = Record<string, unknown> & { label?: unknown; children?: unknown; items?: unknown };
+const structural = (it: RawItem) => [...NON_QUESTION].find((k) => it[k] != null) ?? null;
+/** Same traversal as mitti.core flatten (header_items + items, nested children/items or flat parent_id). */
+function rawItems(def: unknown): RawItem[] {
+  const root = ((def as { template?: unknown })?.template ?? def) as { header_items?: unknown; items?: unknown } | null;
+  const out: RawItem[] = [];
+  const walk = (it: unknown) => { if (!it || typeof it !== "object") return; const r = it as RawItem; out.push(r); for (const c of ((r.children ?? r.items ?? []) as unknown[])) walk(c); };
+  for (const k of ["header_items", "items"] as const) if (Array.isArray(root?.[k])) (root![k] as unknown[]).forEach(walk);
   return out;
+}
+const itemType = (it: RawItem) => mittiItemType(it) || structural(it) || "";
+export function flattenDefinition(def: unknown): TemplateItem[] {
+  return rawItems(def).filter((it) => typeof it.label === "string" && it.label.trim()).map((it) => ({ label: it.label as string, type: itemType(it) })).filter((e) => !NON_QUESTION.has(e.type));
+}
+/** Readable = the envelope carries item arrays AND at least one item with a supported type. Otherwise the check
+ *  can't prove anything (metadata-only/unsupported envelopes are "unreadable", never "questions missing"). */
+export function definitionReadable(def: unknown): boolean {
+  const root = ((def as { template?: unknown })?.template ?? def) as { header_items?: unknown; items?: unknown } | null;
+  if (!root || (!Array.isArray(root.header_items) && !Array.isArray(root.items))) return false;
+  return rawItems(def).some((it) => { const t = itemType(it); return t !== "" && !NON_QUESTION.has(t); });
 }
 
 const MITTI_TYPE: Record<FieldType, string> = {

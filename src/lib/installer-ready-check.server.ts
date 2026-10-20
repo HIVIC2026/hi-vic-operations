@@ -29,7 +29,7 @@ async function load(jobId: string, userId: string) {
 export async function installerRcState(jobId: string) {
   const { data: j, error: je } = await admin.from("jobs").select("channel, stage, installer_quoted, installer_site_check").eq("id", jobId).maybeSingle();
   if (je) throw new WorkflowError("The Ready Check status could not load. Please retry.");
-  if (!j) return null;
+  if (!j) throw new WorkflowError("The Ready Check status could not load: the job was not found."); // never "unknown attendance"
   const [{ readyCheckWindowRound }, requested, { count: booked, error: be }, { count: done, error: de }, { data: m, error: me }] = await Promise.all([
     import("./readycheck-booking.server"), ownerTimesRequested(jobId),
     admin.from("bookings").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", "ready_check").eq("status", "confirmed"),
@@ -39,7 +39,8 @@ export async function installerRcState(jobId: string) {
   if (be || de || me) throw new WorkflowError("The Ready Check status could not load. Please retry."); // fail closed, never "nothing to do"
   const onsiteDone = (done ?? 0) > 0 || !!(m && (m.verified_area_m2 != null || m.provenance !== "installer_supplied_provisional"));
   const w = await readyCheckWindowRound(jobId);
-  const { data: bk } = await admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "ready_check").eq("status", "confirmed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle();
+  const { data: bk, error: bke } = await admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "ready_check").eq("status", "confirmed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle();
+  if (bke) throw new WorkflowError("The Ready Check status could not load. Please retry.");
   const action: InstallerRcAction = installerReadyCheckAction({ channel: j.channel, stage: j.stage, quoted: j.installer_quoted as "yes" | "no" | null, attended: (j.installer_site_check ?? null) as "yes" | "no" | null, onsiteDone, timesRequested: requested, openWindows: w.open.length, booked: !!booked });
   return { action, bookedAt: bk?.scheduled_start ?? null, windows: action === "pick_owner_time" ? w.open.map((x) => ({ id: x.id, starts_at: x.starts_at, ends_at: x.ends_at })) : [] };
 }

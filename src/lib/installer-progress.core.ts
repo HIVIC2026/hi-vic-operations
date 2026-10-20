@@ -113,6 +113,10 @@ function nextAction(f: ProgressFacts, done: Record<ProgressStepKey, boolean>): N
   if (f.eligibility === "declined") return { who: null, text: "The owner isn't eligible, so this job won't go ahead." };
   const quotedYes = f.quoted === "yes";
   if (f.eligibility !== "eligible") {
+    // Office owns eligibility; the follow-on wording respects the attendance answer (never assumes a visit).
+    if (!quotedYes && f.attended === "yes") return { who: HIV, text: "Check the owner's eligibility. You then finish any missing assessment details and add your price on this job — no second visit is booked." };
+    if (quotedYes && f.attended === "no") return { who: HIV, text: "Check the owner's eligibility. Your quote is preliminary until the onsite Ready Check." };
+    if (quotedYes && f.attended == null) return { who: HIV, text: "Check the owner's eligibility. Also tell us whether you attended and assessed this property — a quote alone isn't treated as a visit." };
     return { who: HIV, text: quotedYes ? "Check the owner's eligibility, then prepare the owner quote."
       : f.coordination === "self_managed" ? "Check the owner's eligibility. Then you measure and quote the job and add it below."
       : "Check the owner's eligibility, then arrange the Ready Check." };
@@ -123,6 +127,7 @@ function nextAction(f: ProgressFacts, done: Record<ProgressStepKey, boolean>): N
     if (f.reconfirmationRequired) return released ? { who: "Owner", text: "Reconfirm the updated quote." } : { who: HIV, text: "Prepare and send the updated quote for the owner to reconfirm." };
     if (released) return { who: "Owner", text: "Review and accept the quote." };
     // A current prepared draft is the actual quote record: it outranks an earlier "not quoted yet" answer.
+    if (f.quoteStatus === "draft" && !(quotedYes && f.quoteAmountKnown === false) && quotedYes && f.attended === "no") return { who: HIV, text: `Owner quote draft is preliminary — the onsite Ready Check is still required before a confirmed quote${f.quoteHoldReason ? ` (on hold: ${f.quoteHoldReason})` : f.quoteHeld.length ? ` (on hold: ${f.quoteHeld[0]})` : ""}.` };
     if (f.quoteStatus === "draft" && !(quotedYes && f.quoteAmountKnown === false)) return { who: HIV, text: f.quoteHoldReason ? `Review and complete the owner quote — on hold: ${f.quoteHoldReason}` : f.quoteHeld.length ? `Review and complete the owner quote — on hold: ${f.quoteHeld[0]}` : "Review and complete the owner quote." };
     // Attendance is independent of the quote (Jo, 20 Oct): visited+unquoted finishes on the same job, no second visit;
     // quoted+not visited keeps the price preliminary until the onsite Ready Check.
@@ -188,4 +193,15 @@ export function doneReason(stage: string): string {
 /** Intake progress applies only to installer-sourced jobs with a supplying business; a missing row never applies. */
 export function intakeProgressApplies(job: { channel?: string | null; originating_installer_business_id?: string | null } | null | undefined): boolean {
   return !!job && job.channel === "installer_sourced" && !!job.originating_installer_business_id;
+}
+
+/** A jobs read used for attendance/progress must succeed AND find the row: a failed read is never "unknown attendance". */
+export function requireJobRead<T>(r: { data: T | null; error: { message: string } | null }, what = "This job's progress"): T {
+  if (r.error) throw new Error(`${what} could not load. Please retry.`);
+  if (r.data == null) throw new Error(`${what} could not load: the job was not found.`);
+  return r.data;
+}
+/** Any other progress read failing fails the whole view closed (never shows an empty/wrong next step). */
+export function requireReads(rs: { error: { message: string } | null }[], what = "This job's progress"): void {
+  if (rs.some((r) => r.error)) throw new Error(`${what} could not load. Please retry.`);
 }

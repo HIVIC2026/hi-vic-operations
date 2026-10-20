@@ -14,7 +14,10 @@ export type MittiFormHealth = {
   returnedId: string | null;
   templateName: string | null;
   identity: "not_checked" | "verified" | "mismatch" | "missing";
-  schema: "not_checked" | "valid" | "invalid";
+  /** "unreadable": the definition envelope had no supported question items — NOT proof that questions are absent. */
+  schema: "not_checked" | "valid" | "invalid" | "unreadable";
+  /** What the schema check actually compared (labels/counts/types only; required flags, choices and repeating/conditional structure are not verified). */
+  schemaBasis?: string;
   schemaIssues: string[];
   approvalBlocker: string | null;
   ok: boolean;
@@ -66,8 +69,9 @@ export async function inspectSavedMittiForm(
   }
   result.identity = "verified";
   try {
-    const schema = validateDefinition(input.key, definition);
-    result.schema = schema.ok ? "valid" : "invalid";
+    const schema = validateDefinition(input.key, definition) as { ok: boolean; issues: string[]; unreadable?: boolean; basis?: string };
+    result.schema = schema.unreadable ? "unreadable" : schema.ok ? "valid" : "invalid";
+    if (schema.basis) result.schemaBasis = schema.basis;
     result.schemaIssues = schema.issues;
     result.ok = schema.ok && input.approvalBlocker === null;
   } catch {
