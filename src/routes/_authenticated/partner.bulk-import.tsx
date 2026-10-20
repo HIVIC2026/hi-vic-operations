@@ -8,7 +8,7 @@ import { addBulkRowFiles, removeBulkRowFile, addBulkElectrician, bulkBatchReview
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { quotedGap, CONTACT_PERMISSION_WORDING, gridToRecords, QUOTE_NEEDED_LABEL, fieldProblems, rowStatusLine, jobsFound, attachedFilesNote, outsideVictoria, OUTSIDE_VIC_MESSAGE, chunkRows, readInChunks, readingProgress, rowRangeLabel, READ_CHUNK_ROWS, type RowChunk, type FileResult, type LeadStage, type SecondContact } from "@/lib/bulk-import.core";
+import { quotedGap, CONTACT_PERMISSION_WORDING, gridToRecords, QUOTE_NEEDED_LABEL, fieldProblems, rowStatusLine, jobsFound, attachedFilesNote, outsideVictoria, OUTSIDE_VIC_MESSAGE, chunkRows, readInChunks, readingProgress, rowRangeLabel, READ_CHUNK_ROWS, safeMemberPath, uniqueManifestPath, MAX_MEMBER_BYTES, type RowChunk, type FileResult, type LeadStage, type SecondContact } from "@/lib/bulk-import.core";
 import { TradeShell } from "@/components/trade/TradeShell";
 import { Check, ChevronDown, UploadCloud } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -97,7 +97,7 @@ async function photoJpegBase64(buf: ArrayBuffer, name: string, type: string): Pr
   return toBase64(await out.arrayBuffer());
 }
 
-type Collected = { manifest: ManifestFile[]; rows: Record<string, string>[]; documents: { name: string; text: string }[]; reads: FileResult[] };
+type Collected = { manifest: ManifestFile[]; rows: Record<string, string>[]; documents: { name: string; text: string }[]; reads: FileResult[]; bytes: Map<string, { buf: ArrayBuffer; name: string; type: string }> };
 type Readers = {
   readMedia: (name: string, mime: "application/pdf" | "image/jpeg", base64: string) => Promise<{ text: string; description: string }>;
   geocode: (points: { lat: number; lng: number }[]) => Promise<(string | null)[]>;
@@ -112,7 +112,15 @@ async function collect(files: File[], r: Readers): Promise<Collected> {
   const reads: FileResult[] = [];
   const media: { path: string; run: () => Promise<void> }[] = [];
   let vision = 0;
-  const push = async (path: string, name: string, type: string, buf: ArrayBuffer) => {
+  // Every job file (loose, in a folder or inside a ZIP) keeps its bytes so it can be stored privately and attached.
+  const bytes: Collected["bytes"] = new Map();
+  const taken = new Set<string>();
+  const push = async (rawPath: string, name: string, type: string, buf: ArrayBuffer) => {
+    const safe = safeMemberPath(rawPath);
+    if (!safe) { reads.push({ name: rawPath, status: "error", message: "skipped — unsafe file path inside the upload" }); return; }
+    if (buf.byteLength > MAX_MEMBER_BYTES) { reads.push({ name: safe, status: "error", message: "not attached — file is over 50 MB" }); return; }
+    const path = LIST_RE.test(name) ? safe : uniqueManifestPath(safe, taken);
+    if (!LIST_RE.test(name)) bytes.set(path, { buf, name, type });
     const f: ManifestFile = { path, name, folder: path.includes("/") ? path.split("/").slice(0, -1).join("/") : null, type, gps_lat: null, gps_lng: null, taken_at: null };
     try {
       if (LIST_RE.test(name)) {
@@ -207,7 +215,7 @@ async function collect(files: File[], r: Readers): Promise<Collected> {
       for (const f of withGps) f.geo_address = byKey.get(`${f.gps_lat!.toFixed(4)},${f.gps_lng!.toFixed(4)}`) ?? null;
     } catch { /* lookup unavailable — photos still match by name */ }
   }
-  return { manifest: out, rows, documents, reads };
+  return { manifest: out, rows, documents, reads, bytes };
 }
 
 function guessType(name: string): string {
@@ -276,7 +284,7 @@ function BulkImportPage() {
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [showAllPast, setShowAllPast] = useState(false);
   const confirming = useRef(false);
-  const [done, setDone] = useState<{ created: number; skipped: number; failed: number; alreadyTaken?: number; remaining?: number; ownerLinks: { jobNumber: string; owner: string; path: string }[] } | null>(null);
+  const [done, setDone] = useState<{ created: number; skipped: number; failed: number; alreadyTaken?: number; remaining?: number; ownerLinks: { jobNumber: string; owner: string; path: string }[]; incomplete?: { row: number; jobNumber?: string | null; reason: string }[]; results?: { row: number; jobNumber: string; quote: string; attached: string[]; notAttached: string[] }[] } | null>(null);
   const [batchPlan, setBatchPlan] = useState<ElectricianPlan>({ mode: "hivic" });
   const [rowStages, setRowStages] = useState<Record<string, LeadStage>>({});
   const [rowPlans, setRowPlans] = useState<Record<string, ElectricianPlan>>({});
@@ -357,17 +365,26 @@ function BulkImportPage() {
     setBusy(true); setLocalReads([]);
     try {
       const base = { businessId: effectiveBiz, onBehalf: isAdmin };
-      // Keep a private copy of every loose job file (not the customer list or a ZIP) so it can be attached to its job on confirm.
-      setProgress("Saving your files…");
-      const toStore = extraFiles.filter((f) => !LIST_RE.test(f.name) && !/\.zip$/i.test(f.name));
-      const stored = new Map((await storeFiles(toStore)).map((x) => [x.name, x.path]));
       const collected = await collect(extraFiles, {
         readMedia: (name, mime, base64) => readFile({ data: { ...base, name, mime, base64 } }),
         geocode: async (points) => (await geocode({ data: { ...base, points } })).addresses,
         progress: setProgress,
       });
-      const { rows: rawRows, documents, reads } = collected;
-      const manifest = collected.manifest.map((f) => (!f.folder && stored.get(f.path) ? { ...f, stored_path: stored.get(f.path)! } : f));
+      const { rows: rawRows, documents } = collected;
+      // Keep a private copy of EVERY job file — loose, in a folder or inside a ZIP — keyed by its full relative path,
+      // so it can be attached to its job on confirm. A file that fails to save is shown as not attached, never hidden.
+      setProgress("Saving your files…");
+      const stored = new Map<string, string>();
+      const reads = [...collected.reads];
+      let n = 0;
+      for (const [path, b] of collected.bytes) {
+        setProgress(`Saving your files… ${++n} of ${collected.bytes.size}`);
+        try {
+          const [saved] = await storeFiles([new File([b.buf], b.name, { type: b.type })]);
+          if (saved) stored.set(path, saved.path);
+        } catch (err) { reads.push({ name: path, status: "error", message: `couldn't be saved, so it can't be attached — ${why(err)}. Add it to the customer card by hand.` }); }
+      }
+      const manifest = collected.manifest.map((f) => (stored.get(f.path) ? { ...f, stored_path: stored.get(f.path)! } : f));
       setLocalReads(reads);
       if (rawRows.length === 0 && documents.length === 0 && manifest.length === 0) { toast.error("None of these files could be read — see the list below."); return; }
       if (rawRows.length > READ_CHUNK_ROWS) {
@@ -397,7 +414,8 @@ function BulkImportPage() {
       const res = await confirm({ data: { batchId, skipRowIds: [...skip, ...rows.filter((r) => statusOf(r).excluded).map((r) => r.id)] } });
       setDone(res);
       qc.invalidateQueries({ queryKey: ["bulk-review", batchId] });
-      toast.success(`${res.created} job${res.created === 1 ? "" : "s"} added.`);
+      if (res.incomplete?.length) toast.warning(`${res.created} job${res.created === 1 ? "" : "s"} added · ${res.incomplete.length} not finished — see below.`);
+      else toast.success(`${res.created} job${res.created === 1 ? "" : "s"} added.`);
     } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); confirming.current = false; }
   }
 
@@ -482,6 +500,8 @@ function BulkImportPage() {
         <section className="space-y-2 rounded-[18px] border border-line bg-paper p-4 shadow-card">
           <h2 className="font-display text-lg font-bold">{done.created} job{done.created === 1 ? "" : "s"} added</h2>
           {(done.skipped > 0 || done.failed > 0) && <p className="text-sm">{done.skipped ? `${done.skipped} not added. ` : ""}{done.failed ? `${done.failed} still need fixing.` : ""}</p>}
+          {!!done.incomplete?.length && <div role="alert" className="rounded-[10px] border border-rose/40 p-2 text-sm"><b>Not finished — nothing is lost:</b><ul className="mt-1 list-disc pl-5">{done.incomplete.map((x) => <li key={x.row}>Customer {x.row}{x.jobNumber ? ` (job ${x.jobNumber} started)` : ""}: {x.reason}</li>)}</ul></div>}
+          {(done.results ?? []).some((r) => r.notAttached.length) && <div className="rounded-[10px] bg-mist p-2 text-sm"><b>Files not attached</b> (unsupported or not saved — add them on the job by hand):<ul className="mt-1 list-disc pl-5">{(done.results ?? []).filter((r) => r.notAttached.length).map((r) => <li key={r.row}>{r.jobNumber}: {r.notAttached.join(", ")}</li>)}</ul></div>}
           {done.remaining ? <p className="text-sm font-semibold">{done.remaining} still to fix — open this upload under Past uploads and confirm again. Jobs already added are never added twice.</p> : null}
           <p className="text-sm text-sub">Nothing has been sent to any customer.</p>
           {!!done.ownerLinks.length && <details className="text-sm"><summary className="cursor-pointer font-semibold">Owner links (queued, not sent)</summary><div className="mt-2 space-y-1">{done.ownerLinks.map((l) => <div key={l.path} className="rounded-[10px] bg-mist p-2"><b>{l.jobNumber} · {l.owner}</b><div className="break-all text-xs text-sub">{l.path}</div></div>)}</div></details>}

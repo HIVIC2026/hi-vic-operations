@@ -915,6 +915,8 @@ export type Database = {
       bulk_import_rows: {
         Row: {
           batch_id: string
+          confirm_error: string | null
+          confirm_lease_until: string | null
           created_at: string
           duplicate_note: string | null
           electrician_plan: Json | null
@@ -933,6 +935,8 @@ export type Database = {
         }
         Insert: {
           batch_id: string
+          confirm_error?: string | null
+          confirm_lease_until?: string | null
           created_at?: string
           duplicate_note?: string | null
           electrician_plan?: Json | null
@@ -951,6 +955,8 @@ export type Database = {
         }
         Update: {
           batch_id?: string
+          confirm_error?: string | null
+          confirm_lease_until?: string | null
           created_at?: string
           duplicate_note?: string | null
           electrician_plan?: Json | null

@@ -224,22 +224,41 @@ export function matchFiles(
   return { matched, confidence };
 }
 
-/** Link uploaded files to every lead: folder/filename/GPS first, then files whose own text (photo or PDF)
- * the lead was read from, then — when the upload describes only ONE customer — every file nobody else claimed. */
-export function linkFiles(leads: BulkExtracted[], files: BulkFile[]): { matched: FileMatch[]; confidence: "high" | "low" | "none" }[] {
-  const base = (n: string) => n.split("/").pop()!.toLowerCase();
+/** Canonical identity of an uploaded file: its full relative path (folder + name), slashes normalised, case-folded.
+ * Two files with the same name in different folders are DIFFERENT files. */
+export function canonicalFilePath(p: string): string {
+  return p.replace(/\\/g, "/").replace(/^(\.\/|\/)+/, "").replace(/\/{2,}/g, "/").trim().toLowerCase();
+}
+const baseOf = (p: string) => canonicalFilePath(p).split("/").pop()!;
+
+/** Did this lead's text come from this file? Exact canonical path only; a bare name (no folder) counts only when exactly
+ * one uploaded file has that name — otherwise it is ambiguous and links nothing. */
+export function sourceFileMatches(source: string, filePath: string, allPaths: string[]): boolean {
+  const s = canonicalFilePath(source), f = canonicalFilePath(filePath);
+  if (s === f) return true;
+  if (s.includes("/")) return false;
+  return baseOf(f) === s && allPaths.filter((x) => baseOf(x) === s).length === 1;
+}
+
+/** Link uploaded files to every lead: folder/filename/GPS first, then files whose own text (photo or PDF) the lead was
+ * read from. A file claimed by MORE than one lead is linked to none of them and listed as `ambiguous` for review —
+ * one customer's evidence never attaches silently to another. No single-customer fallback. */
+export function linkFiles(leads: BulkExtracted[], files: BulkFile[]): { matched: FileMatch[]; confidence: "high" | "low" | "none"; ambiguous: string[] }[] {
+  const allPaths = files.map((f) => f.path);
   const out = leads.map((e) => {
     const r = matchFiles(e, files);
     const have = new Set(r.matched.map((m) => m.path));
-    const src = new Set((e.source_files ?? []).map(base));
-    for (const f of files) if (!have.has(f.path) && src.has(base(f.path))) { r.matched.push({ path: f.path, name: f.name, how: "photo_text" }); have.add(f.path); }
-    return r;
+    for (const f of files) if (!have.has(f.path) && (e.source_files ?? []).some((s) => sourceFileMatches(s, f.path, allPaths))) { r.matched.push({ path: f.path, name: f.name, how: "photo_text" }); have.add(f.path); }
+    return r.matched;
   });
-  // No fallback: a file with no real match stays unlinked, even when the upload has only one customer.
-  return out.map((r) => ({
-    matched: r.matched,
-    confidence: r.matched.some((m) => m.how === "folder" || m.how === "gps" || m.how === "photo_text") ? "high" : r.matched.length > 0 ? "low" : "none",
-  }));
+  const claims = new Map<string, number>();
+  for (const m of out) for (const x of new Set(m.map((y) => y.path))) claims.set(x, (claims.get(x) ?? 0) + 1);
+  return out.map((m) => {
+    const ambiguous = m.filter((x) => (claims.get(x.path) ?? 0) > 1).map((x) => x.path);
+    const matched = m.filter((x) => (claims.get(x.path) ?? 0) === 1);
+    const strong = matched.some((x) => x.how === "folder" || x.how === "gps" || x.how === "photo_text");
+    return { matched, ambiguous, confidence: ambiguous.length ? (matched.length ? "low" : "none") : strong ? "high" : matched.length ? "low" : "none" };
+  });
 }
 
 const KNOWN = (v: string | null | undefined) => {
@@ -336,10 +355,10 @@ export type FileResult = { name: string; status: "ok" | "warn" | "error"; messag
  * upload step (e.g. "read 12 rows") are kept; files that fed or matched a lead say which one. */
 export function fileResults(read: FileResult[], leads: BulkExtracted[], matches: FileMatch[][]): FileResult[] {
   const label = (e: BulkExtracted) => [e.address_line, e.suburb].filter(Boolean).join(", ") || e.full_name || "an unnamed lead";
-  const base = (n: string) => n.split("/").pop()!.toLowerCase();
+  const allPaths = read.map((r) => r.name);
   return read.map((r) => {
-    const fed = leads.filter((e) => (e.source_files ?? []).some((s) => base(s) === base(r.name)));
-    const hit = matches.flatMap((m, i) => m.filter((x) => base(x.path) === base(r.name)).map((x) => ({ x, e: leads[i]! })));
+    const fed = leads.filter((e) => (e.source_files ?? []).some((s) => sourceFileMatches(s, r.name, allPaths)));
+    const hit = matches.flatMap((m, i) => m.filter((x) => canonicalFilePath(x.path) === canonicalFilePath(r.name)).map((x) => ({ x, e: leads[i]! })));
     if (r.status === "error") return r;
     const parts: string[] = [r.message];
     if (fed.length) parts.push(fed.length === 1 ? `customer found: ${label(fed[0]!)}` : `${fed.length} customers found`);
@@ -520,4 +539,23 @@ export async function readInChunks<T, R>(chunks: RowChunk<T>[], read: (c: RowChu
   }
   await Promise.all(Array.from({ length: Math.min(opts.parallel ?? 3, chunks.length) }, worker));
   return { leads: results.flatMap((r) => r ?? []), failed: chunks.filter((_, i) => !results[i]), rowsDone };
+}
+
+// ---------- ZIP/folder members: kept as their own private job files ----------
+export const MAX_MEMBER_BYTES = 50_000_000;
+/** The safe relative identity of a ZIP member or folder file, or null when it must be refused (absolute, "..",
+ * hidden/system entries). Keeps the full folder path so same-name files in different folders stay separate. */
+export function safeMemberPath(raw: string): string | null {
+  const p = raw.replace(/\\/g, "/").replace(/\/{2,}/g, "/");
+  if (!p || p.startsWith("/") || /^[a-z]:/i.test(p)) return null;
+  const parts = p.split("/").filter(Boolean);
+  if (!parts.length || parts.some((x) => x === ".." || x === "." || x.startsWith(".") || x.startsWith("__MACOSX"))) return null;
+  return parts.join("/");
+}
+/** Two uploads with the exact same relative path get "name (2).ext" so neither overwrites the other. */
+export function uniqueManifestPath(path: string, taken: Set<string>): string {
+  if (!taken.has(path)) { taken.add(path); return path; }
+  const dot = path.lastIndexOf("."); const slash = path.lastIndexOf("/");
+  const [stem, ext] = dot > slash + 0 && dot > 0 ? [path.slice(0, dot), path.slice(dot)] : [path, ""];
+  for (let n = 2; ; n++) { const c = `${stem} (${n})${ext}`; if (!taken.has(c)) { taken.add(c); return c; } }
 }
