@@ -20,7 +20,7 @@ function from(t: string) {
     update: () => { op = "update"; return q; }, insert: () => { op = "insert"; return q; },
     maybeSingle: async () => ({ data: op === "select" ? rows[0] ?? null : null, error: null }),
     single: async () => ({ data: op === "select" ? rows[0] ?? null : null, error: rows[0] ? null : { message: "none" } }),
-    then: (res: (v: unknown) => unknown) => res({ data: op === "select" ? rows : null, error: null }),
+    then: (res: (v: unknown) => unknown) => res({ data: op === "select" ? rows : null, error: null, count: op === "select" ? rows.length : null }),
   });
   return q;
 }
@@ -55,6 +55,11 @@ describe("pre-start lock (server gate for safety form + install evidence)", () =
   test("passed check clears", async () => {
     seed(10, { passed: true, failures: [] });
     await expect(realPrestart.requirePrestartClear(J)).resolves.toBeUndefined();
+  });
+  test("open 'Site conditions differ' hold locks even a passed check", async () => {
+    seed(10, { passed: true, failures: [] });
+    tables.workflow_events = [{ job_id: J, event_type: "site_conditions_differ_raised", created_at: "2026-10-20T01:00:00Z", details: { note: "Extra void" } }];
+    await expect(realPrestart.requirePrestartClear(J)).rejects.toThrow("Site conditions differ — office review required before the quote or works can continue: Extra void");
   });
   test("no install booked: nothing to lock", async () => {
     await expect(realPrestart.requirePrestartClear(J)).resolves.toBeUndefined();
