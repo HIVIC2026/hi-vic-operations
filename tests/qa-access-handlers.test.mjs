@@ -34,6 +34,19 @@ test('actual account creator: fresh accounts are explicit, then repeated creatio
  assert.ok(second.results.every(r=>r.status==='already existed'));assert.deepEqual(await io.snapshot(),before);
 });
 
+test('actual account creator: generated passwords satisfy the 72-character Auth boundary and required character types',async t=>{
+ const io=await fixture(t,{seed:false});
+ const result=await io.handlers.createTestTradeAccounts({data:{}});
+ assert.equal(result.results.filter(row=>row.status==='created').length,6);
+ assert.equal(io.calls.filter(call=>call==='auth:createUser').length,6);
+ assert.equal(io.users.size,6);
+ for(const user of io.users.values()){
+  assert.equal(typeof user.password==='string'&&user.password.length<=72,true,'Auth maximum is 72 characters');
+  assert.equal(typeof user.password==='string'&&/[a-z]/.test(user.password)&&/[A-Z]/.test(user.password)&&/[0-9]/.test(user.password)&&/!/.test(user.password),true,'Required password character types must be present');
+ }
+ assert.equal(io.issued.length,0);
+});
+
 test('actual role issuers: opening owner, installer and electrician only issues access to existing verified identities',async t=>{
  const io=await fixture(t);const before=await io.snapshot();
  for(const persona of ['owner','installer_boss','electrician']){
