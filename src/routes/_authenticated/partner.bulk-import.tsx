@@ -569,6 +569,7 @@ function CustomerCard({ row, status, skipped, onSkip, consent, onConsent, quoted
         <ul className="space-y-0.5 text-xs text-sub">
           <li>Ceiling size: {x.area_m2 ? `${x.area_m2} m²` : "not given"}</li>
           {fileNote && <li>{fileNote}</li>}
+          {/Listed \d+ times in the upload/i.test(x.notes ?? "") && <li className="font-semibold text-danger" data-repeat-note>This customer was listed more than once in your upload. We kept one job only — please check the details.</li>}
           {row.sort_result === "office_review" && <li className="font-semibold text-danger">Held for the office to check{(row.sort_reasons ?? []).filter((r) => !/^(Stage|Site check|Missing|Customer details|Phone|Email|Postcode|Measurements|Small items)/.test(r) && r !== QUOTE_NEEDED_LABEL && r !== OUTSIDE_VIC_MESSAGE).slice(0, 1).map((r) => `: ${r}`)}</li>}
         </ul>
       </div>}

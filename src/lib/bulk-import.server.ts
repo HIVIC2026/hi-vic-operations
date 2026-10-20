@@ -267,6 +267,7 @@ export async function analyseBatch(batchId: string, actorId: string) {
     const gapReason = customerDetailsReason(e); if (gapReason) reasons.push(gapReason);
     if (quoteNeeded(e)) reasons.push(QUOTE_NEEDED_LABEL);
     reasons.push(...cleaned[i]!.issues);
+    if (/Listed \d+ times in the upload/i.test(e.notes ?? "")) reasons.push("Listed more than once in this upload — merged into one customer, please check");
     if (matched.some((m) => m.how === "only_lead")) reasons.push("Photos attached because this is the only customer in the upload — please check");
     else if (matched.length > 0 && confidence === "low") reasons.push("Files matched by filename only — please check");
     return {
