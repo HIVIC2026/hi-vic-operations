@@ -35,7 +35,7 @@ export const Route = createFileRoute("/_authenticated/partner/bulk-import")({
   component: BulkImportPage,
 });
 
-type ManifestFile = { path: string; name: string; folder: string | null; type: string; gps_lat: number | null; gps_lng: number | null; taken_at: string | null; geo_address?: string | null };
+type ManifestFile = { path: string; name: string; folder: string | null; type: string; gps_lat: number | null; gps_lng: number | null; taken_at: string | null; geo_address?: string | null; stored_path?: string };
 type ReviewRow = {
   id: string; row_index: number; status: string; duplicate_note: string | null;
   extracted: { full_name?: string | null; address_line?: string | null; suburb?: string | null; postcode?: string | null; area_m2?: number | null; price_inc_gst?: number | null; quoted_answer?: "yes" | "no" | null; lead_stage?: LeadStage; phone?: string | null; email?: string | null; price_includes?: string | null; site_check?: "yes" | "no" | null; site_check_date?: string | null; site_check_source?: "file" | "asked" | null; second_contact?: SecondContact | null; notes?: string | null; owner_consent?: unknown };
@@ -245,7 +245,6 @@ function BulkImportPage() {
   const [failedChunks, setFailedChunks] = useState<{ from: number; to: number }[]>([]);
   const pending = useRef<{ base: { businessId: string; onBehalf: boolean }; rawRows: Record<string, string>[]; documents: { name: string; text: string }[]; manifest: unknown[]; reads: unknown[]; leads: unknown[]; failed: RowChunk<Record<string, string>>[] } | null>(null);
   const geocode = useServerFn(geocodeBulkPhotos);
-  const storeFiles = useUploadFiles(businessId);
   const savePlan = useServerFn(setBulkReviewPlan);
   const getBatches = useServerFn(listBulkBatches);
   const getElectricians = useServerFn(bulkElectricianChoices);
@@ -282,6 +281,7 @@ function BulkImportPage() {
   const businesses = bizData?.businesses ?? [];
   const isAdmin = bizData?.isAdmin ?? false;
   const effectiveBiz = isAdmin ? businessId : (businessId || businesses[0]?.id || "");
+  const storeFiles = useUploadFiles(effectiveBiz);
   const { data: past, refetch: refreshPast } = useQuery({ queryKey: ["bulk-past", effectiveBiz], queryFn: () => getBatches({ data: effectiveBiz ? { businessId: effectiveBiz } : {} }), enabled: isAdmin || !!effectiveBiz });
   const { data: electricianData, refetch: refreshElectricians } = useQuery({ queryKey: ["bulk-electricians", effectiveBiz], queryFn: () => getElectricians({ data: { businessId: effectiveBiz } }), enabled: !!effectiveBiz });
   // The installer's usual electrician is preselected (Jo, 7 Oct); each card can change it.
@@ -346,7 +346,7 @@ function BulkImportPage() {
       // Keep a private copy of every loose job file (not the customer list or a ZIP) so it can be attached to its job on confirm.
       setProgress("Saving your files…");
       const toStore = extraFiles.filter((f) => !LIST_RE.test(f.name) && !/\.zip$/i.test(f.name));
-      const stored = new Map((await storeFilesFor(toStore)).map((x) => [x.name, x.path]));
+      const stored = new Map((await storeFiles(toStore)).map((x) => [x.name, x.path]));
       const collected = await collect(extraFiles, {
         readMedia: (name, mime, base64) => readFile({ data: { ...base, name, mime, base64 } }),
         geocode: async (points) => (await geocode({ data: { ...base, points } })).addresses,

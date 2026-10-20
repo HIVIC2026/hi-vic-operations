@@ -458,16 +458,18 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
       const { data: prior } = await admin.from("jobs").select("id, job_number").eq("external_enquiry_id", `bulk:${row.id}`).maybeSingle();
       if (prior) { await admin.from("bulk_import_rows").update({ job_id: prior.id }).eq("id", row.id); alreadyTaken++; continue; }
       const job = await createBulkJob(e, batch, actorId, row.id, importStage);
-      const quoted = importStage === "quoted" ? await draftQuoteFromImport(job.id, e, actorId, batch.business_id).catch(() => false) : false;
       const plan = ((row.electrician_plan ?? batch.electrician_plan ?? { mode: "hivic" }) as ElectricianPlan);
+      // The electrician choice decides the PIESA line, so it is recorded before the draft quote is priced.
       await (await import("./job-electrician.server")).recordJobElectricianChoice(job.id, batch.business_id, plan as never, actorId);
+      const quoted = importStage === "quoted" ? await draftQuoteFromImport(job.id, e, actorId, batch.business_id).catch(() => false) : false;
+      const attached = await attachMatchedFiles(job.id, batch, row.matched_files as unknown as FileMatch[], actorId);
       await admin.from("bulk_import_rows").update({ job_id: job.id }).eq("id", row.id);
       const ownerToken = newToken();
       await admin.from("owner_eligibility_links").insert({ job_id: job.id, business_id: batch.business_id, token_hash: await hashToken(ownerToken), created_by: actorId, expires_at: new Date(Date.now() + 30 * 86_400_000).toISOString() });
       ownerLinks.push({ jobNumber: job.job_number, owner: e.full_name ?? "Customer", path: `/eligibility/${ownerToken}` });
       await logEvent(job.id, actorId, "bulk_import_confirmed", `Job created from installer bulk upload (row ${row.row_index + 1})`, {
         batch_id: batchId, row_id: row.id, sort_result: row.sort_result,
-        missing_evidence: row.missing_evidence, draft_quote: quoted,
+        missing_evidence: row.missing_evidence, draft_quote: quoted, attached_files: attached.attached, files_not_attached: attached.notAttached,
         import_stage: importStage, electrician_plan: plan,
       });
       await logEvent(job.id, permission.confirmed_by, "bulk_import_contact_permission", permission.wording, {
@@ -487,6 +489,32 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
   const { count: left } = await admin.from("bulk_import_rows").select("id", { count: "exact", head: true }).eq("batch_id", batchId).eq("status", "pending");
   if (!left) await admin.from("bulk_import_batches").update({ status: "confirmed", confirmed_at: new Date().toISOString() }).eq("id", batchId).eq("status", "analysed");
   return { created, skipped, failed, alreadyTaken, remaining: left ?? 0, ownerLinks };
+}
+
+/** Files matched to this customer become private job documents (kind installer_import), once each.
+ * Only this business's own stored uploads are attached; anything else is listed as not attached, never guessed. */
+export async function attachMatchedFiles(jobId: string, batch: { business_id: string; file_manifest: unknown }, matched: FileMatch[], actorId: string) {
+  const manifest = ((batch.file_manifest ?? []) as (BulkFile & { stored_path?: string })[]);
+  const prefix = `partners/${batch.business_id}/imports/`;
+  const { allowedUpload } = await import("./upload-safety.core");
+  const { verifyStoredUpload } = await import("./upload-safety.server");
+  const { data: have } = await admin.from("documents").select("storage_path").eq("job_id", jobId).eq("kind", "installer_import");
+  const done = new Set((have ?? []).map((d) => d.storage_path));
+  const attached: string[] = [], notAttached: string[] = [];
+  for (const m of matched ?? []) {
+    const stored = m.path.startsWith(prefix) ? m.path : manifest.find((f) => f.path === m.path)?.stored_path;
+    const mime = allowedUpload(m.name, manifest.find((f) => f.path === m.path)?.type ?? null, { imports: true });
+    if (!stored || !stored.startsWith(prefix) || !mime) { notAttached.push(m.name); continue; }
+    if (done.has(stored)) { attached.push(m.name); continue; }
+    try {
+      await verifyStoredUpload("job-files", stored, mime);
+      const { error } = await admin.from("documents").insert({ job_id: jobId, kind: "installer_import", title: m.name, original_name: m.name, mime_type: mime, storage_path: stored, source_system: "bulk_import", uploaded_by: actorId });
+      if (error) throw error;
+      done.add(stored); attached.push(m.name);
+    } catch { notAttached.push(m.name); }
+  }
+  if (notAttached.length) await logEvent(jobId, actorId, "bulk_import_files_not_attached", `Some upload files could not be attached: ${notAttached.join(", ")}`.slice(0, 500), { files: notAttached });
+  return { attached, notAttached };
 }
 
 /** Office/installer adds the missing address to a review row; the row is re-sorted (never auto-confirmed). */
