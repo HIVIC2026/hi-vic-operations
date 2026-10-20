@@ -24,7 +24,7 @@ CREATE TABLE job_imports (id uuid primary key default gen_random_uuid(), job_id 
   external_refs jsonb, files jsonb, extracted jsonb, status text default 'draft', confirmed_by uuid, confirmed_at timestamptz, confirmed_facts jsonb, created_at timestamptz default now(), updated_at timestamptz);
 CREATE TABLE quotes (id uuid primary key default gen_random_uuid(), job_id uuid, kind text, status text, release_state text, release_hold_reason text);
 CREATE TABLE owner_contact_consents (id uuid primary key default gen_random_uuid(), job_id uuid, owner_id uuid, source text, consent_key text, consent_status text, contact_consent boolean,
-  consented_at timestamptz, wording text, wording_sha256 text, wording_version text, captured_by uuid, details jsonb, created_at timestamptz default now());
+  consented_at timestamptz, snapshot jsonb, sha256 text, created_at timestamptz default now());
 CREATE TABLE evidence_requirements (id uuid primary key default gen_random_uuid(), job_id uuid, category text, label text, required boolean, status text, gate text);
 CREATE TABLE workflow_settings (id int, measurement_standard_approved boolean);
 CREATE TABLE partner_measurement_methods (id uuid, business_id uuid, status text, approved_at timestamptz);`);
