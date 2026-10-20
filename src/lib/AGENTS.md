@@ -1,7 +1,7 @@
 # Server/domain rules (src/lib)
 
 ## Architecture rules
-- Office first-response catch-up is a separate admin-authenticated one-job action with fresh enquiry/recipient/history checks and the existing unique sender key; never automatic routing. Why: older unanswered enquiries need safe replies, not duplicate requests or relaxed automation.
+- Office first-response catch-up is a separate admin-authenticated one-job action with fresh enquiry/recipient/history checks and the existing unique sender key; persisted homeowner intake files may override legacy manifest uncertainty for acknowledgement only, never automatic routing or eligibility. Why: older unanswered enquiries need safe replies, not duplicate requests or relaxed automation.
 - Intake pages share progress reads without error fallbacks; successful installer saves invalidate job-keyed readers and trade-home through job-cache; evidence retains all-reader invalidation. Why: next actions stay current without remounting editors.
 - Evidence confirmation uses the guarded persistence helper with stored-path-derived primary keys and legacy path lookup; it checks both writes before success and never labels upload location/time as original capture. Why: retries and downstream failures must not duplicate files or invent evidence provenance.
 - Installer duplicate-email recovery may reuse an owner only through an existing installer-sourced job of the same originating business, without updating that owner; other matches stop for office review. Why: recover same-business submissions without global owner merges or customer-data disclosure.
