@@ -188,3 +188,10 @@ Locked rules:
 - Outlook correspondence: pure rules in `outlook-correspondence.core.ts` (matching: job number → email+address → only job for email; ambiguity → `correspondence_reviews`), I/O in `outlook-sync.server.ts` (read-only mailbox pull via the Outlook connector, cron `/api/public/hooks/outlook-sync`, cursor in `outlook_sync_state`); each message stored once by `(provider, provider_message_id)`; auto-close only for explicit unhedged declines in `AUTO_CLOSE_STAGES` with no later inbound email, otherwise Office review. Why: complete job correspondence without guessing jobs or closing on complaints/questions.
 
 - Enquiry response facts (`response_state`, `needs_first_response`, `media_to_review`) come only from `office_enquiry_index`/`office_enquiry_page` (0208); Enquiries and Communications both read that RPC, recorded correspondence is never reported as delivered, and held automatic initial responses are re-routed by `first-response-sweep.server.ts` under every sender guard. Why: one exact scope, no double counts, nothing silently held.
+- PIISA schema/prefill/copy changes require observed IDs and current-definition validation; media is not structured product data. Why: protect crew/statutory output.
+- PIISA pins read-back definitions; signatures use audit-owned IDs, never historic fallback. Expected day uses capture; products/post-work use same-audit review before output. Why: no inferred facts.
+- PIISA AP uses authoritative config and readback before sharing; blank repair requires observed unsigned capture fields. Why: no installer substitution or signed-history mutation.
+- Emails reuse Step 3; ineligible retries are admin-only, one failed record, existing sender. Why: preserve gates.
+- Capture batches serialize signed uploads and retain uncertain paths; capture reads exclude owner-capture files. Why: later uploads without repeat invitations.
+- Intake serializes files, retains partial uploads/provenance and locks pending/dirty drafts. Why: safe retries.
+- Group B guards are shared; follow-up removal uses snapshot facts; initial email stays separate. Why: no repeat requests or price drift.
