@@ -305,10 +305,11 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         <div data-supporting-files>
         <AttachFiles businessId={businessId} files={files.filter((f) => f.purpose === "supporting")} disabled={busy || fileBusy} label="Supporting photos, videos or measure-up (optional)" onAdd={(picked) => changeFiles(() => addPicked(picked, "supporting"))} onRemove={(path) => changeFiles(() => removeAttached(path))} />
         <p className="mt-1 text-xs text-sub">These are supporting evidence only — they don't count as your quote. Each item is reviewed before it's accepted.</p>
+        {files.some((f) => f.purpose == null) && <p className="mt-1 text-xs text-sub" data-unclassified-files>{files.filter((f) => f.purpose == null).length} earlier file(s) have no label yet. They are kept and don't count as your quote — say what each one is from the job page after saving.</p>}
         </div>
         </div>
         {branches.quoteFacts && <div className="space-y-4" data-quote-branch>
-        <AttachFiles businessId={businessId} files={files.filter((f) => f.purpose === "quote" || f.purpose == null)} disabled={busy || fileBusy} label="Upload your quote" onAdd={(picked) => changeFiles(() => addPicked(picked, "quote"))} onRemove={(path) => changeFiles(() => removeAttached(path))} />
+        <AttachFiles businessId={businessId} files={files.filter((f) => f.purpose === "quote")} disabled={busy || fileBusy} label="Upload your quote" onAdd={(picked) => changeFiles(() => addPicked(picked, "quote"))} onRemove={(path) => changeFiles(() => removeAttached(path))} />
         {fileNote && <p className="text-xs text-sub" data-file-note>{fileNote}</p>}
         <p className="text-xs text-sub">No quote file? Enter the amount and what it includes.</p>
         <label className="block text-sm font-bold">Total installer quote inc GST<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 3,450" value={d.amount} onChange={(e) => { typed.current.add("amount"); setD({ ...d, amount: e.target.value }); }} /></label>
