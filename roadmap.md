@@ -1,4 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Office same-property duplicate scope (Jo, 20 Oct 07:17 UTC)
+- [x] Restricted same-email sibling suppression to matching property/address or source enquiry identity; 69 catch-up tests and 18 normal media regression tests pass; automatic build/typecheck OK; unchanged normal automatic guards, no publish.
+- [x] Retried HV-2464 only once through guarded preview action; provider accepted, matching provider ID confirmed independently in both records. All original 17 now have their own confirmed sent and outbound records; zero remain unanswered. No settings changes or other sends.
 ## Office persisted-media catch-up (Jo, 20 Oct 07:09 UTC)
 - [x] Office-only persisted-media precedence and explicit legacy declarations; 60 catch-up tests and 25 unchanged-media/capture regression tests pass; automatic preview build OK. No publish or automatic-guard changes.
 - [x] Invoked the guarded preview action once per specified 14 jobs; all sent and independently confirmed through database reads with matching provider IDs in both logs before proceeding. Browser direct log reads were unavailable, so each send stopped for the database proof. No uncertain outcomes, retries or settings changes.
