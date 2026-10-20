@@ -7,6 +7,7 @@ import { useMemo } from "react";
 import { AppShell } from "@/components/portal/AppShell";
 import { EnquiryResponseOverview } from "@/components/portal/EnquiryResponseOverview";
 import { CampaignsPanel } from "@/components/portal/CampaignsPanel";
+import { OutlookReview } from "@/components/portal/OutlookReview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ListPagination } from "@/components/portal/ListPagination";
@@ -21,13 +22,14 @@ import { useListControls } from "@/hooks/use-list-controls";
 import { cn } from "@/lib/utils";
 import { retryFailedIneligibleEmail } from "@/lib/ineligible-retry.functions";
 
-type Tab = "overview" | "outgoing" | "sent" | "failed" | "campaigns";
+type Tab = "overview" | "outgoing" | "sent" | "failed" | "campaigns" | "inbox";
 const TABS: { key: Tab; label: string }[] = [
   { key: "overview", label: "Overview" },
   { key: "outgoing", label: "Outgoing" },
   { key: "sent", label: "Sent & history" },
   { key: "failed", label: "Failed / attention" },
   { key: "campaigns", label: "Campaigns" },
+  { key: "inbox", label: "Outlook & review" },
 ];
 
 /** Page, page size and the search term live in the URL, so a tab can be shared or reloaded. */
@@ -383,6 +385,7 @@ function CommunicationsPage() {
       </nav>
 
       {tab === "overview" && <Overview />}
+      {tab === "inbox" && <OutlookReview />}
 
       {tab === "outgoing" && (
         <div className="space-y-4">
