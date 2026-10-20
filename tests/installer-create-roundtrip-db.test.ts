@@ -43,9 +43,12 @@ Object.assign(shim, {
     remove: async () => ({ data: null, error: null }),
   }) },
 });
+const pause = new Map<string, Promise<void>>(); // barrier: hold byte verification of one object
+let memberHook: (() => Promise<void>) | null = null;
 const realFetch = globalThis.fetch;
 globalThis.fetch = (async (u: string | URL) => {
   const k = String(u).replace("fake-storage://", "");
+  const g = pause.get(k); if (g) { pause.delete(k); await g; }
   const bytes = bucket.get(k);
   if (!String(u).startsWith("fake-storage://")) throw new Error("network disabled in this test");
   return bytes ? new Response(bytes, { status: 206 }) : new Response(null, { status: 404 });
@@ -60,7 +63,7 @@ mock.module("../src/lib/workflow.server", () => ({
 }));
 const BIZ = "00000000-0000-0000-0000-00000000b001", U = "00000000-0000-0000-0000-00000000c001", STRANGER = "00000000-0000-0000-0000-00000000c099";
 mock.module("../src/lib/pilot.server", () => ({
-  requireMember: async (u: string, b: string) => { if (u !== U || b !== BIZ) throw new Error("You are not part of this business."); return "business_admin"; },
+  requireMember: async (u: string, b: string) => { if (memberHook) { const h = memberHook; memberHook = null; await h(); } if (u !== U || b !== BIZ) throw new Error("You are not part of this business."); return "business_admin"; },
   requireApprovedPartner: async () => ({ id: BIZ, default_comms_owner: "installer", commercial_route: "hivic_full_invoice" }),
   intakeSourceFor: async () => "qa_test",
 }));
@@ -243,5 +246,46 @@ describe("attendance corrections and onsite proof", () => {
     expect(qs).not.toContain("draft");
     expect(qs).toContain("accepted");
     expect((await st.installerIntakeState(jobId)).attended).toBe("no");
+  });
+});
+
+describe("attachment races (compare-and-set on the current draft)", () => {
+  const gate = () => { let open!: () => void; const p = new Promise<void>((r) => { open = r; }); return { p, open }; };
+  const hold = (n: string) => { const g = gate(); pause.set(`job-files/${path(n)}`, g.p); return g; };
+  const draft = async () => (await pi.createImportFor(U, { businessId: BIZ, sourceSystem: "manual_import", csvRow: 0, files: [] })).id;
+  const filesOf = async (id: string) => ((await db.query<{ files: { path: string }[] | null }>("select files from job_imports where id=$1", [id])).rows[0]!.files ?? []).map((f) => f.path.split("/").pop());
+  const tick = () => new Promise((r) => setTimeout(r, 20));
+  test("overlapping adds: A paused in verification, B adds — both files kept", async () => {
+    const id = await draft(); put("a.jpg", JPEG); put("b.pdf", PDF); const g = hold("a.jpg");
+    const a = pi.addImportFilesFor(U, id, [{ path: path("a.jpg"), name: "a.jpg", type: "image/jpeg", purpose: "supporting" }]); await tick();
+    await pi.addImportFilesFor(U, id, [{ path: path("b.pdf"), name: "b.pdf", type: "application/pdf", purpose: "quote" }]);
+    g.open(); const ra = await a;
+    expect(ra.files.map((f) => f.path.split("/").pop()).sort()).toEqual(["a.jpg", "b.pdf"]);
+    expect((await filesOf(id)).sort()).toEqual(["a.jpg", "b.pdf"]);
+  });
+  for (const [label, sql] of [["claimed", `update job_imports set confirmed_by='${U}', confirmed_at=now() where id=$1`], ["confirmed", "update job_imports set status='confirmed' where id=$1"]] as const)
+    test(`draft ${label} during verification: the add is refused and files are not overwritten`, async () => {
+      const id = await draft(); put("a.jpg", JPEG); const g = hold("a.jpg");
+      const a = pi.addImportFilesFor(U, id, [{ path: path("a.jpg"), name: "a.jpg", type: "image/jpeg", purpose: "supporting" }]); await tick();
+      await db.query(sql, [id]); g.open();
+      await expect(a).rejects.toThrow(); expect(await filesOf(id)).toEqual([]);
+    });
+  test("remove while another add is in flight keeps the concurrent addition", async () => {
+    const id = await draft(); put("x.jpg", JPEG); put("y.jpg", JPEG);
+    await pi.addImportFilesFor(U, id, [{ path: path("x.jpg"), name: "x.jpg", type: "image/jpeg", purpose: "supporting" }]);
+    const g = hold("y.jpg"); const a = pi.addImportFilesFor(U, id, [{ path: path("y.jpg"), name: "y.jpg", type: "image/jpeg", purpose: "supporting" }]); await tick();
+    await pi.removeImportFileFor(U, id, path("x.jpg")); g.open(); await a;
+    expect(await filesOf(id)).toEqual(["y.jpg"]); expect(bucket.has(`job-files/${path("x.jpg")}`)).toBe(true); // original kept
+  });
+  test("read failure writes nothing and never reports saved", async () => {
+    const id = await draft(); put("a.jpg", JPEG);
+    await expect(pi.addImportFilesFor(U, "not-a-uuid", [{ path: path("a.jpg"), name: "a.jpg", type: "image/jpeg", purpose: "supporting" }])).rejects.toThrow();
+    expect(await filesOf(id)).toEqual([]);
+  });
+  test("append that lands before the claim is attached to the saved job (claim snapshot)", async () => {
+    const id = await draft(); put("late.pdf", PDF);
+    memberHook = async () => { await pi.addImportFilesFor(U, id, [{ path: path("late.pdf"), name: "late.pdf", type: "application/pdf", purpose: "quote" }]); };
+    const r = await pi.confirmImportFor(U, confirmInput(id, { attended: "attended", quote: "not_quoted", amount: null }, 120));
+    expect((await db.query<{ title: string }>("select title from documents where job_id=$1", [r.jobId])).rows.map((x) => x.title)).toEqual(["Installer quote — late.pdf"]);
   });
 });
