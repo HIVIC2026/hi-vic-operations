@@ -34,7 +34,7 @@ export async function captureStatus(token: unknown) {
   const r = await resolve(token);
   if (r.state !== "ok") return { state: r.state };
   if (!r.link || !r.job) return { state: "invalid" as const };
-  const media = await groupBMediaForJob(r.link.job_id);
+  const media = await groupBMediaForJob(r.link.job_id, "capture");
   const { data: reviews, error: reviewError } = await admin.from("customer_engagement_events").select("metadata").eq("job_id", r.link.job_id).eq("event_type", "intake_media_reviewed").order("occurred_at", { ascending: false }).limit(1);
   if (reviewError) throw new Error("Evidence review check unavailable. Please try again.");
   const mediaReview = (reviews?.[0]?.metadata as { outcome?: string } | null)?.outcome ?? null;
@@ -53,7 +53,7 @@ export async function startCapture(token: unknown, f: { fileName: string; mime: 
   const r = await resolve(token);
   if (r.state !== "ok") throw new Error(GENERIC);
   if (!r.link) throw new Error(GENERIC);
-  const media = await groupBMediaForJob(r.link.job_id);
+  const media = await groupBMediaForJob(r.link.job_id, "capture");
   if (media.excluded) throw new Error(media.received ? "We already have your enquiry photos/video. Our office will review them." : "We are checking your original enquiry uploads. Please contact our office.");
   const v = validateCaptureFile({ mime: f.mime, fileName: f.fileName, size: f.size });
   if (!v.ok) throw new Error(v.error);

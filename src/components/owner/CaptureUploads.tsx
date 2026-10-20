@@ -3,7 +3,7 @@ import { FileImage, Film, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { validateCaptureFile } from "@/lib/owner-capture.core";
 
-type Selected = { id: number; file: File; status: "selected" | "saved" | "failed"; error?: string };
+type Selected = { id: number; file: File; status: "selected" | "saved" | "failed"; error?: string | undefined };
 
 /** Serializes signed uploads; successful files stay saved when a later file fails. */
 export function CaptureUploads({ kind, remaining, received, uploadFile, onSaved, onBusyChange }: {
