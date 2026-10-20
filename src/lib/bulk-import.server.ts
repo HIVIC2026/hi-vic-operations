@@ -330,7 +330,8 @@ export async function ensureBulkJob(e: BulkExtracted, batch: { id: string; busin
   const job = prior ?? await createBulkJob(e, batch, actorId, rowId, importStage);
   const asg = must(await admin.from("job_assignments").select("id").eq("job_id", job.id).eq("user_id", actorId).eq("role", "installer").limit(1).maybeSingle(), "Could not check the installer assignment");
   if (!asg) must(await admin.from("job_assignments").insert({ job_id: job.id, user_id: actorId, role: "installer", business_id: batch.business_id, assigned_by: actorId }).select("id").single(), "Installer assignment could not be saved");
-  if (importStage !== "not_visited" && e.area_m2 && e.area_m2 > 0) {
+  // Known installer-supplied area is kept whatever the stage (provisional, needs office acceptance).
+  if (e.area_m2 && e.area_m2 > 0) {
     const have = must(await admin.from("ceiling_measurements").select("id").eq("job_id", job.id).eq("external_source", "bulk_import").eq("external_id", rowId).limit(1).maybeSingle(), "Could not check the measure-up");
     if (!have) {
       const { error: me } = await admin.from("ceiling_measurements").insert({
@@ -442,6 +443,14 @@ async function draftQuoteFromImport(jobId: string, e: BulkExtracted, actorId: st
 }
 
 const LEASE_MS = 5 * 60_000;
+/** Review fields lock once a job was started for the row: confirming again finishes THAT job; corrections go
+ *  through the job's own editor, so old data is never silently confirmed and the row's own job is never a "duplicate". */
+export const PARTIAL_JOB_LOCKED = "This customer's job was already started. Confirm again to finish it, then correct details on the job page.";
+/** Lease value doubles as the ownership token: unique to the claim (random sub-millisecond digits). */
+export function newLease(now = Date.now()): string {
+  return new Date(now + LEASE_MS).toISOString().replace("Z", `${String(Math.floor(Math.random() * 1000)).padStart(3, "0")}Z`);
+}
+export class LeaseLostError extends Error { constructor() { super("Another confirm took over this customer — nothing more was saved by this attempt."); } }
 export async function confirmBatch(batchId: string, actorId: string, skipRowIds: string[]) {
   const { data: batch } = await admin.from("bulk_import_batches").select("*").eq("id", batchId).single();
   if (!batch || batch.status !== "analysed") throw new BulkImportError("This upload is not ready to confirm.");
@@ -497,16 +506,27 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
     // Lease: only one click/tab works on a row at a time. The row stays "pending" until EVERY record is saved,
     // so a failure part-way is retried and finishes the SAME job (nothing is ever marked done early).
     const now = new Date();
+    let lease = newLease(now.getTime());
     const { data: claimed, error: ce } = await admin.from("bulk_import_rows")
-      .update({ confirm_lease_until: new Date(now.getTime() + LEASE_MS).toISOString() })
+      .update({ confirm_lease_until: lease })
       .eq("id", row.id).eq("status", "pending").or(`confirm_lease_until.is.null,confirm_lease_until.lt.${now.toISOString()}`)
       .select("id").maybeSingle();
     if (ce) { failed++; incomplete.push({ row: row.row_index + 1, reason: `Could not start: ${ce.message}` }); continue; }
     if (!claimed) { alreadyTaken++; continue; }
+    // Fence: before each step the claim is renewed by compare-and-set on OUR lease value; if another worker took
+    // over after expiry, this attempt stops and never writes, confirms or releases the new claim.
+    const renew = async () => {
+      const next = newLease();
+      const { data: ok, error: re } = await admin.from("bulk_import_rows").update({ confirm_lease_until: next }).eq("id", row.id).eq("status", "pending").eq("confirm_lease_until", lease).select("id").maybeSingle();
+      if (re || !ok) throw new LeaseLostError();
+      lease = next;
+    };
     try {
       const importStage = row.import_stage as ImportStage;
+      await renew();
       const { job, resumed } = await ensureBulkJob(e, batch, actorId, row.id, importStage);
-      must(await admin.from("bulk_import_rows").update({ job_id: job.id }).eq("id", row.id).select("id").single(), "Could not link the job to this row");
+      await renew();
+      must(await admin.from("bulk_import_rows").update({ job_id: job.id }).eq("id", row.id).eq("confirm_lease_until", lease).select("id").single(), "Could not link the job to this row");
       const plan = ((row.electrician_plan ?? batch.electrician_plan ?? { mode: "hivic" }) as ElectricianPlan);
       // The electrician choice decides the PIESA line, so it is recorded before the draft quote is priced (once per job).
       const chosen = must(await admin.from("workflow_events").select("id").eq("job_id", job.id).eq("event_type", "bulk_import_electrician_recorded").limit(1).maybeSingle(), "Could not check the electrician choice");
@@ -514,9 +534,12 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
         await (await import("./job-electrician.server")).recordJobElectricianChoice(job.id, batch.business_id, plan as never, actorId);
         await logEvent(job.id, actorId, "bulk_import_electrician_recorded", "Electrician choice recorded from bulk upload", { row_id: row.id }, { internal: true });
       }
+      await renew();
       const quoted = importStage === "quoted" ? await draftQuoteFromImport(job.id, e, actorId, batch.business_id) : false;
+      await renew();
       const attached = await attachMatchedFiles(job.id, batch, row.matched_files as unknown as FileMatch[], actorId);
       if (attached.failed.length) throw new BulkImportError(`${attached.failed.length} file${attached.failed.length > 1 ? "s" : ""} could not be attached yet (${attached.failed.join(", ").slice(0, 200)}) — confirm again to finish`);
+      await renew();
       const link = must(await admin.from("owner_eligibility_links").select("id").eq("job_id", job.id).limit(1).maybeSingle(), "Could not check the owner link");
       if (!link) {
         const ownerToken = newToken();
@@ -524,6 +547,7 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
         ownerLinks.push({ jobNumber: job.job_number, owner: e.full_name ?? "Customer", path: `/eligibility/${ownerToken}` });
       }
       // Each required history entry is checked and written on its own, so a retry finishes only what is missing.
+      await renew();
       const hasEvent = async (type: string) => !!must(await admin.from("workflow_events").select("id").eq("job_id", job.id).eq("event_type", type).limit(1).maybeSingle(), "Could not check the job history");
       if (!(await hasEvent("bulk_import_confirmed"))) {
         await logEvent(job.id, actorId, "bulk_import_confirmed", `Job created from installer bulk upload (row ${row.row_index + 1})`, {
@@ -539,7 +563,9 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
         });
       }
       // Only now — every record saved — is the row confirmed.
-      must(await admin.from("bulk_import_rows").update({ status: "confirmed", confirm_lease_until: null, confirm_error: null }).eq("id", row.id).eq("status", "pending").select("id").single(), "Could not mark this row finished");
+      const { data: fin, error: fe } = await admin.from("bulk_import_rows").update({ status: "confirmed", confirm_lease_until: null, confirm_error: null }).eq("id", row.id).eq("status", "pending").eq("confirm_lease_until", lease).select("id").maybeSingle();
+      if (fe) throw new BulkImportError(`Could not mark this row finished: ${fe.message}`);
+      if (!fin) throw new LeaseLostError();
       created++;
       results.push({ row: row.row_index + 1, jobNumber: job.job_number, quote: importStage === "quoted" ? (quoted ? "draft_saved" : "office_quotes") : "not_quoted", attached: attached.attached, notAttached: attached.notAttached });
     } catch (err) {
@@ -547,7 +573,8 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
       const reason = (err as Error).message;
       const { data: made } = await admin.from("jobs").select("id, job_number").eq("external_enquiry_id", `bulk:${row.id}`).maybeSingle();
       // The row stays pending (with its partial job linked) so "confirm again" finishes the same job.
-      await admin.from("bulk_import_rows").update({ confirm_lease_until: null, confirm_error: reason.slice(0, 500), job_id: made?.id ?? null }).eq("id", row.id).eq("status", "pending");
+      // Release only OUR claim; a lost lease means another worker owns the row now — leave it untouched.
+      if (!(err instanceof LeaseLostError)) await admin.from("bulk_import_rows").update({ confirm_lease_until: null, confirm_error: reason.slice(0, 500), job_id: made?.id ?? null }).eq("id", row.id).eq("status", "pending").eq("confirm_lease_until", lease);
       incomplete.push({ row: row.row_index + 1, jobNumber: made?.job_number ?? null, reason });
       await logPartner(null, actorId, "bulk_import_row_failed", `Row ${row.row_index + 1} ${made ? `(job ${made.job_number}) is not finished` : "could not be imported"}: ${reason}`, { batch_id: batchId, row_id: row.id, partial_job_id: made?.id ?? null });
     }
@@ -600,6 +627,7 @@ export async function attachMatchedFiles(jobId: string, batch: { business_id: st
 export async function setRowAddress(rowId: string, addr: { full_name?: string; email?: string; phone?: string; address_line: string; suburb: string | null; postcode: string | null; second_contact?: { name: string | null; phone: string | null; email: string | null } | null }) {
   const { data: row } = await admin.from("bulk_import_rows").select("*").eq("id", rowId).single();
   if (!row || row.status !== "pending") throw new BulkImportError("This row can no longer be changed.");
+  if (row.job_id) throw new BulkImportError(PARTIAL_JOB_LOCKED);
   const { lead: e, issues } = cleanLead({ ...(row.extracted as unknown as BulkExtracted), ...addr });
   if (customerDetailsReason(e)) throw new BulkImportError(`${customerDetailsReason(e)}.`);
   if (issues.length) throw new BulkImportError(issues[0]!);
@@ -629,10 +657,9 @@ export async function addRowFiles(rowId: string, businessId: string, files: { pa
   }
   const have = (row.matched_files as unknown as FileMatch[]) ?? [];
   const next = [...have, ...files.filter((f) => !have.some((h) => h.path === f.path)).map((f) => ({ path: f.path, name: f.name, how: "added" as const }))];
-  const photos = next.filter((m) => /\.(jpe?g|png|heic|heif|webp)$/i.test(m.name)).length;
-  const e = row.extracted as unknown as BulkExtracted;
-  const stage = row.import_stage === "installed" ? "installed" : leadStage(e, photos);
-  await admin.from("bulk_import_rows").update({ matched_files: next as unknown as Json, import_stage: stage, extracted: { ...e, lead_stage: stage } as unknown as Json }).eq("id", rowId);
+  // Files are evidence only: the visit/quote stage is never changed by attaching them.
+  const { error: ue } = await admin.from("bulk_import_rows").update({ matched_files: next as unknown as Json }).eq("id", rowId).eq("status", "pending");
+  if (ue) throw new BulkImportError(ue.message);
   return { files: next };
 }
 export async function removeRowFile(rowId: string, path: string) {

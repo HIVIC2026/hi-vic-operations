@@ -116,21 +116,16 @@ export const LEAD_STAGE_LABEL: Record<LeadStage, string> = {
   installed: "Installed",
 };
 
-/** Visited rule (Jo, 7 Oct 5:45pm): photos, measurements or a quote mean Visited; sentences only mean Not visited.
- * An explicit "No" from the installer stays Not visited. */
-// Jo, 20 Oct 2026: attendance, quote status and evidence are independent — photos/files alone NEVER mean a visit
-// or a quote (the count is accepted for callers but ignored). Unknown attendance stays unknown.
-export function hasVisitEvidence(e: BulkExtracted, _matchedFileCount = 0): boolean {
-  return (e.price_inc_gst ?? 0) > 0 || (e.area_m2 ?? 0) > 0;
+/** Attendance (Jo, 20 Oct 2026 — supersedes 7 Oct "photos, measurements or a quote mean Visited"): attendance,
+ * quote status and evidence are independent. Only the installer's explicit site-check answer means visited;
+ * price, documents, photos or area alone never imply it. Unknown stays unknown (no answer). */
+export function hasVisitEvidence(_e: BulkExtracted, _matchedFileCount = 0): boolean { return false; }
+export function effectiveSiteCheck(e: BulkExtracted, _matchedFileCount = 0): { check: SiteCheck | null; date: string | null } {
+  return siteCheckFromFile(e);
 }
-export function effectiveSiteCheck(e: BulkExtracted, matchedFileCount = 0): { check: SiteCheck | null; date: string | null } {
-  const sc = siteCheckFromFile(e);
-  if (sc.check) return sc;
-  return hasVisitEvidence(e, matchedFileCount) ? { check: "yes", date: null } : sc;
-}
-export function leadStage(e: BulkExtracted, matchedFileCount = 0): LeadStage {
-  if (effectiveSiteCheck(e, matchedFileCount).check !== "yes") return "not_visited";
-  return e.price_inc_gst && e.price_inc_gst > 0 ? "quoted" : "visited";
+/** Visited only on an explicit Yes; Quoted only when also priced. Files never move the stage. */
+export function leadStage(e: BulkExtracted, _matchedFileCount = 0): LeadStage {
+  return stageForSiteCheck(siteCheckFromFile(e).check, !!(e.price_inc_gst && e.price_inc_gst > 0));
 }
 
 /** Every customer needs name, full address, email and phone (Jo, 7 Oct) plus the installer's contact-permission tick. */
