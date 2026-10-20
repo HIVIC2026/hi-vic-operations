@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { afterPasswordPath, partnerLinkMessage } from "@/lib/set-password-link.core";
@@ -27,40 +27,77 @@ function ResetPassword() {
   const [failed, setFailed] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
+  const gate = useRef({ incoming: false, boundId: null as string | null, activeId: null as string | null, terminal: false, mounted: false });
   useEffect(() => {
+    const state = gate.current;
+    state.mounted = true;
     const q = new URLSearchParams(window.location.search);
     const th = q.get("token_hash");
+    state.incoming = q.has("link") || q.has("token_hash");
+    let completed = false;
+    const fail = (message: string) => {
+      if (!state.mounted || state.terminal) return;
+      state.terminal = true; setReady(false); setFailed(message);
+    };
     const h = new URLSearchParams(window.location.hash.slice(1));
-    if (h.get("error") || q.get("error")) { setFailed(badLinkMessage({ code: h.get("error_code") ?? q.get("error_code") ?? "", message: h.get("error_description") ?? q.get("error_description") ?? "" })); return; }
-    const t = window.setTimeout(() => { void supabase.auth.getSession().then(({ data: d }) => { if (!d.session) setFailed((f) => f ?? "This link has expired or was already used."); }); }, q.get("link") ? 15000 : 4000);
+    const t = window.setTimeout(() => {
+      if (state.incoming) { if (!completed) fail("This link has expired or was already used."); }
+      else void supabase.auth.getSession().then(({ data: d }) => { if (!d.session) fail("This link has expired or was already used."); });
+    }, q.has("link") ? 15000 : 4000);
     const kind = q.get("type");
     const partnerLink = q.get("link");
-    const verify = (hash: string, type: "recovery" | "invite") => supabase.auth.verifyOtp({ token_hash: hash, type }).then(({ data: v, error }) => {
-        if (error || !v.session) { setFailed(badLinkMessage(error)); return; }
+    const verify = async (hash: string, type: "recovery" | "invite") => {
+      try {
+        const { data: v, error } = await supabase.auth.verifyOtp({ token_hash: hash, type });
+        if (!state.mounted || state.terminal) return;
+        if (error || !v.session?.user.id) { fail(badLinkMessage(error)); return; }
+        state.boundId = v.session.user.id;
+        const { data: current, error: userError } = await supabase.auth.getUser();
+        if (!state.mounted || state.terminal) return;
+        if (userError || current.user?.id !== state.boundId) { fail("The signed-in account changed. Open a fresh password link."); return; }
+        state.activeId = current.user.id;
+        completed = true; window.clearTimeout(t);
         q.delete("token_hash"); q.delete("type"); q.delete("link");
         window.history.replaceState(null, "", `${window.location.pathname}?${q.toString()}`);
         setReady(true);
-      });
-    if (partnerLink) {
+      } catch { fail(partnerLinkMessage("invalid")); }
+    };
+    const { data } = supabase.auth.onAuthStateChange((e, s) => {
+      if (!state.mounted || state.terminal) return;
+      state.activeId = s?.user.id ?? null;
+      if (state.incoming) {
+        if (state.boundId && state.activeId !== state.boundId) fail("The signed-in account changed. Open a fresh password link.");
+      } else if (s && (e === "PASSWORD_RECOVERY" || e === "SIGNED_IN")) setReady(true);
+    });
+    if (h.get("error") || q.get("error")) {
+      fail(badLinkMessage({ code: h.get("error_code") ?? q.get("error_code") ?? "", message: h.get("error_description") ?? q.get("error_description") ?? "" }));
+    } else if (q.has("link") && q.has("token_hash")) {
+      fail(partnerLinkMessage("invalid"));
+    } else if (q.has("link")) {
+      if (!partnerLink || partnerLink.length < 20 || partnerLink.length > 200) fail(partnerLinkMessage("invalid"));
+      else {
       // 24-hour partner link: claim it once, then sign in with the fresh one-time token.
       void redeemPartnerLink({ data: { token: partnerLink } }).then((r) => {
-        if (r.outcome !== "ok" || !r.tokenHash) { setFailed(partnerLinkMessage(r.outcome === "ok" ? "invalid" : r.outcome)); return; }
+        if (!state.mounted || state.terminal) return;
+        if (r.outcome !== "ok" || !r.tokenHash) { fail(partnerLinkMessage(r.outcome === "ok" ? "invalid" : r.outcome)); return; }
         void verify(r.tokenHash, "recovery");
-      }, () => setFailed(partnerLinkMessage("invalid")));
-    } else if (th && (kind === "recovery" || kind === "invite")) {
-      void supabase.auth.verifyOtp({ token_hash: th, type: kind }).then(({ data: v, error }) => {
-        if (error || !v.session) { setFailed(badLinkMessage(error)); return; }
-        q.delete("token_hash"); q.delete("type");
-        window.history.replaceState(null, "", `${window.location.pathname}?${q.toString()}`);
-        setReady(true);
+      }, () => fail(partnerLinkMessage("invalid")));
+      }
+    } else if (q.has("token_hash")) {
+      if (!th?.trim() || (kind !== "recovery" && kind !== "invite")) fail(partnerLinkMessage("invalid"));
+      else void verify(th, kind);
+    } else {
+      void supabase.auth.getSession().then(({ data: d }) => {
+        if (!state.mounted || state.terminal) return;
+        if (d.session) { state.activeId = d.session.user.id; setReady(true); }
       });
     }
-    const { data } = supabase.auth.onAuthStateChange((e, s) => { if (s && (e === "PASSWORD_RECOVERY" || e === "SIGNED_IN")) setReady(true); });
-    supabase.auth.getSession().then(({ data: d }) => { if (d.session) setReady(true); });
-    return () => { window.clearTimeout(t); data.subscription.unsubscribe(); };
+    return () => { state.mounted = false; window.clearTimeout(t); data.subscription.unsubscribe(); };
   }, []);
   const resend = async (e: React.FormEvent) => {
     e.preventDefault();
+    const state = gate.current;
+    if (!ready || failed || busy || state.terminal || !state.mounted) return;
     const c = normaliseLoginEmail(email);
     if (!c.ok) { setNote({ ok: false, text: c.message }); return; }
     setEmail(c.email); setBusy(true);
@@ -74,8 +111,17 @@ function ResetPassword() {
     if (pw.length < 8) { toast.error("Use at least 8 characters."); return; }
     if (pw !== pw2) { toast.error("The two passwords don't match."); return; }
     setBusy(true);
+    if (state.incoming) {
+      const { data, error } = await supabase.auth.getUser();
+      if (!state.mounted || state.terminal || error || !state.boundId || data.user?.id !== state.boundId || state.activeId !== state.boundId) {
+        if (state.mounted) { state.terminal = true; setReady(false); setFailed("The signed-in account changed. Open a fresh password link."); setBusy(false); }
+        return;
+      }
+    }
     const { error } = await supabase.auth.updateUser({ password: pw });
+    if (!state.mounted) return;
     setBusy(false);
+    if (state.terminal) return;
     if (error) { toast.error("We couldn't save that password. Try a different one."); return; }
     toast.success("Password set — you're signed in.");
     navigate({ to: afterPasswordPath(new URLSearchParams(window.location.search).get("next")), replace: true });
