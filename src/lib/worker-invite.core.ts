@@ -22,6 +22,26 @@ export const INVITE_STATE_MESSAGE: Record<"used" | "revoked" | "expired", string
 
 export const WORKER_DECLARATIONS_VERSION = "worker-v1";
 
+// ---- Invite modes: "registration" creates a new worker; "completion" lets an existing worker
+// (invite already carries worker_id) upload their own missing EEC/CII certificate. Same token table,
+// same single-use rules — a completion link never inserts a second worker record.
+export type InviteMode = "registration" | "completion";
+export const inviteMode = (invitee: { worker_id?: string | null }): InviteMode => (invitee.worker_id ? "completion" : "registration");
+
+/** EEC/CII certificate upload metadata stored on partner_workers.certification (jsonb), preserving other fields. */
+export type EecUploadMeta = { eec_upload: { path: string; uploaded_at: string; number: string | null } };
+export function eecUploadMeta(path: string, uploadedAt: string, number?: string | null): EecUploadMeta {
+  return { eec_upload: { path, uploaded_at: uploadedAt, number: (number ?? "").trim() || null } };
+}
+/** Merge EEC upload metadata into the existing certification JSON without dropping earlier fields. */
+export function mergeEec(certification: unknown, meta: EecUploadMeta): Record<string, unknown> {
+  const base = certification && typeof certification === "object" && !Array.isArray(certification) ? (certification as Record<string, unknown>) : {};
+  return { ...base, ...meta };
+}
+/** The only storage path shape a worker's certificate upload may use. */
+export const inviteCertPath = (inviteId: string, ext: string) => `worker-invites/${inviteId}/eec-${ext}`;
+export const isInviteCertPath = (inviteId: string, path: string) => path.startsWith(`worker-invites/${inviteId}/eec-`) && !path.includes("..");
+
 export const workerListQueryKey = (sample: boolean) => ["my-workers", sample ? "sample" : "live"] as const;
 export const workerInviteQueryKey = (businessId: string, sample: boolean) => ["worker-invites", businessId, sample ? "sample" : "live"] as const;
 
@@ -41,6 +61,7 @@ type Opt<T> = T | undefined;
 export type WorkerSubmission = {
   full_legal_name?: Opt<string>; mobile?: Opt<string>; email?: Opt<string>;
   licence_number?: Opt<string>; qualification?: Opt<string>;
+  certificate_path?: Opt<string>; certificate_number?: Opt<string>;
   accepted?: Opt<string[]>; signed_name?: Opt<string>;
 };
 
