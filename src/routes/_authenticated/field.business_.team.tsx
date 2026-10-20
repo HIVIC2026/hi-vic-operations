@@ -5,6 +5,8 @@ import { ChevronLeft } from "lucide-react";
 import { TradeShell, card } from "@/components/trade/TradeShell";
 import { useState } from "react";
 import { getTradeBusiness, requestTeamLoginInvite } from "@/lib/trade-view.functions";
+import { EEC_TEAM_LABEL } from "@/lib/worker-compliance.core";
+import { CertLinkInline } from "@/components/portal/worker-compliance";
 
 export const Route = createFileRoute("/_authenticated/field/business_/team")({
   head: () => ({ meta: [{ title: "Team – Home Insulation Victoria" }, { name: "description", content: "The people in your business who can see Home Insulation Victoria jobs." }, { property: "og:title", content: "Team – Home Insulation Victoria" }, { property: "og:description", content: "The people in your business who can see Home Insulation Victoria jobs." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),

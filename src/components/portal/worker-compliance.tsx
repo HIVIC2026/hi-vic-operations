@@ -117,7 +117,7 @@ export function OfficeWorkerCompliance() {
 
 /** Business owner: generate a single-use link so the worker uploads their own EEC/CII certificate.
  *  The owner never gets an upload control — only this link action. */
-function CertLinkInline({ workerId, name }: { workerId: string; name: string }) {
+export function CertLinkInline({ workerId, name }: { workerId: string; name: string }) {
   const create = useServerFn(createWorkerCompletionLink);
   const [link, setLink] = useState<string | null>(null);
   const [err, setErr] = useState("");
