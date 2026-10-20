@@ -6981,41 +6981,134 @@ export type Database = {
         }
         Relationships: []
       }
+      outlook_message_work: {
+        Row: {
+          attachment_refs: Json
+          attachments_complete: boolean
+          created_at: string
+          job_id: string | null
+          last_error: string | null
+          mailbox: string
+          message: Json
+          message_at: string
+          provider_message_id: string
+          result: Json | null
+          route: Json
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attachment_refs?: Json
+          attachments_complete?: boolean
+          created_at?: string
+          job_id?: string | null
+          last_error?: string | null
+          mailbox: string
+          message: Json
+          message_at: string
+          provider_message_id: string
+          result?: Json | null
+          route: Json
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attachment_refs?: Json
+          attachments_complete?: boolean
+          created_at?: string
+          job_id?: string | null
+          last_error?: string | null
+          mailbox?: string
+          message?: Json
+          message_at?: string
+          provider_message_id?: string
+          result?: Json | null
+          route?: Json
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outlook_message_work_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outlook_message_work_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "outlook_message_work_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outlook_message_work_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outlook_message_work_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       outlook_sync_state: {
         Row: {
           backfill_from: string
+          expected_mailbox: string | null
           id: number
           inbox_cursor: string | null
+          inbox_next_link: string | null
           last_counts: Json
           last_error: string | null
           last_ok_at: string | null
           last_run_at: string | null
           mailbox: string | null
           sent_cursor: string | null
+          sent_next_link: string | null
           updated_at: string
         }
         Insert: {
           backfill_from?: string
+          expected_mailbox?: string | null
           id?: number
           inbox_cursor?: string | null
+          inbox_next_link?: string | null
           last_counts?: Json
           last_error?: string | null
           last_ok_at?: string | null
           last_run_at?: string | null
           mailbox?: string | null
           sent_cursor?: string | null
+          sent_next_link?: string | null
           updated_at?: string
         }
         Update: {
           backfill_from?: string
+          expected_mailbox?: string | null
           id?: number
           inbox_cursor?: string | null
+          inbox_next_link?: string | null
           last_counts?: Json
           last_error?: string | null
           last_ok_at?: string | null
           last_run_at?: string | null
           mailbox?: string | null
           sent_cursor?: string | null
+          sent_next_link?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -13122,6 +13215,10 @@ export type Database = {
         Args: { _proposal: string; _quote: string; _user: string }
         Returns: string
       }
+      begin_outlook_message: {
+        Args: { _mailbox: string; _message: Json; _route: Json }
+        Returns: Json
+      }
       begin_quarantine_validation: {
         Args: { _app: string; _path: string }
         Returns: boolean
@@ -13239,6 +13336,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      confirm_outlook_mailbox: {
+        Args: { _actor: string; _mailbox: string }
+        Returns: undefined
+      }
       consume_cron_nonce: {
         Args: { _nonce: string; _purpose: string }
         Returns: boolean
@@ -13297,6 +13398,10 @@ export type Database = {
           p_route: string
         }
         Returns: boolean
+      }
+      finish_outlook_message: {
+        Args: { _decision: Json; _message_id: string }
+        Returns: Json
       }
       finish_quarantine_cleanup: {
         Args: {
