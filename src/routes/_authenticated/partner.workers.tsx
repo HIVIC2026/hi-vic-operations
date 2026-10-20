@@ -58,3 +58,30 @@ function Workers() {
     </TradeShell>
   );
 }
+
+/** Owner action: generate a single-use link so the worker uploads their own certificate. No upload control here. */
+function CertLinkButton({ workerId, name }: { workerId: string; name: string }) {
+  const create = useServerFn(createWorkerCompletionLink);
+  const [link, setLink] = useState<string | null>(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  if (link) return (
+    <div className="w-full rounded-lg bg-success-soft p-2 text-xs">
+      <div className="mb-1 font-semibold">Certificate link for {name} — send this to them:</div>
+      <div className="break-all font-mono">{link}</div>
+      <Button size="sm" className="mt-1 h-10" onClick={() => { void navigator.clipboard.writeText(link); }}>Copy link</Button>
+      <p className="mt-1 text-sub">Single use, lasts 14 days. You won't see it again — create a new one if it's lost.</p>
+    </div>
+  );
+  return (
+    <span className="inline-flex items-center gap-2">
+      <Button size="sm" variant="outline" className="h-10" disabled={busy} onClick={async () => {
+        setBusy(true); setErr("");
+        try { const r = await create({ data: { workerId } }); setLink(`${window.location.origin}/join/${r.token}`); }
+        catch (e) { setErr(e instanceof Error ? e.message : "Please try again."); }
+        finally { setBusy(false); }
+      }}>{busy ? "Creating…" : "Create certificate link"}</Button>
+      {err && <span role="alert" className="text-xs text-danger">{err}</span>}
+    </span>
+  );
+}
