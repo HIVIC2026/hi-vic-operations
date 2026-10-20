@@ -14,7 +14,7 @@ export function WorkerInvites({ businessId, sample = false }: { businessId: stri
   const create = useServerFn(createWorkerInvite);
   const revoke = useServerFn(revokeWorkerInvite);
   const { data, error, refetch } = useQuery({ queryKey: workerInviteQueryKey(businessId, sample), queryFn: () => sample ? Promise.resolve([]) : list({ data: { businessId } }), initialData: sample ? [] : undefined });
-  const [f, setF] = useState({ name: "", contact: "", trade: "electrician" as "electrician" | "installer" });
+  const [f, setF] = useState({ name: "", contact: "", trade: "installer" as "electrician" | "installer" });
   const [link, setLink] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -31,7 +31,7 @@ export function WorkerInvites({ businessId, sample = false }: { businessId: stri
         } catch (er) { toast.error(er instanceof Error ? er.message : "Could not create invite"); } finally { setBusy(false); }
       }}>
         <div className="flex gap-2 sm:col-span-2">
-          {(["electrician", "installer"] as const).map((t) => <Button key={t} type="button" variant={f.trade === t ? "default" : "outline"} onClick={() => setF({ ...f, trade: t })}>{t === "electrician" ? "Electrician" : "Installer"}</Button>)}
+          {(["installer", "electrician"] as const).map((t) => <Button key={t} type="button" variant={f.trade === t ? "default" : "outline"} onClick={() => setF({ ...f, trade: t })}>{t === "electrician" ? "Electrician" : "Installer"}</Button>)}
         </div>
         <label className="text-sm font-medium">Their name<Input required value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} className="mt-1 h-12" /></label>
         <label className="text-sm font-medium">Their mobile or email<Input value={f.contact} onChange={(e) => setF({ ...f, contact: e.target.value })} className="mt-1 h-12" /></label>

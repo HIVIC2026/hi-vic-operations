@@ -29,9 +29,9 @@ export function userIdOf(context: unknown): string {
 /** Which partner pages need the business boss, and which are installer-only. */
 const BOSS_ONLY = ["/partner/payments", "/partner/profile", "/partner/workers"];
 const INSTALLER_BOSS_ONLY = ["/partner/add", "/partner/bulk-import", "/partner/import"];
-/** Keep historic batch tools for office; installer bookmarks use the current Add job questions. */
-export function legacyBulkImportRedirect(a: Pick<Access, "admin">): "/partner/import" | null {
-  return a.admin ? null : "/partner/import";
+/** Batch upload: office and installer business owners/admins only; everyone else uses single Add job. */
+export function legacyBulkImportRedirect(a: Pick<Access, "admin" | "installerBusinessAdmin">): "/partner/import" | null {
+  return a.admin || a.installerBusinessAdmin ? null : "/partner/import";
 }
 export function partnerPathAllowed(path: string, a: Access): boolean {
   if (a.admin) return true;

@@ -18,7 +18,7 @@ import { electricianPlanBlocker, usualElectrician } from "@/lib/job-electrician.
 
 export const Route = createFileRoute("/_authenticated/partner/bulk-import")({
   beforeLoad: async ({ context }) => {
-    // Installer bookmarks must use the current three-choice flow; office keeps historic batch tools.
+    // Office and installer business owners/admins may batch upload; others go to single Add job.
     const to = legacyBulkImportRedirect(await loadAccess(userIdOf(context)));
     if (to) throw redirect({ to, replace: true });
   },
@@ -381,8 +381,8 @@ function BulkImportPage() {
     <TradeShell installer>
     <div className="mx-auto max-w-3xl space-y-4 text-ink">
       <header>
-        <h1 className="font-display text-[26px] font-extrabold leading-tight sm:text-[30px]">Upload jobs</h1>
-        <p className="mt-1 text-sm text-sub">Add your customer list, job sheets or photos. <a href="/templates/customer-list-template.csv" download className="font-semibold text-hiv-blue underline">Download template</a></p>
+        <h1 className="font-display text-[26px] font-extrabold leading-tight sm:text-[30px]">Upload multiple jobs</h1>
+        <p className="mt-1 text-sm text-sub">Add many customer jobs at once from a spreadsheet (CSV or Excel customer list), plus any job sheets, quotes or photos. Adding just one customer? <a href="/partner/import" className="font-semibold text-hiv-blue underline">Add a single job</a>. <a href="/templates/customer-list-template.csv" download className="font-semibold text-hiv-blue underline">Download template</a></p>
         <details className="mt-1 text-sm text-sub" data-list-guide>
           <summary className="cursor-pointer text-xs font-semibold text-hiv-blue">Help setting out your list</summary>
           <p className="mt-1">One row per customer: name, phone, email and full address (with postcode). Add your quoted price inc GST if you've quoted.</p>
