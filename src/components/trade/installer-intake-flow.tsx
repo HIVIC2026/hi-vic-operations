@@ -66,6 +66,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
   const [saved, setSaved] = useState<Saved | null>(null);
   const problemsRef = useRef<HTMLUListElement>(null);
   const inFlight = useRef(false);
+  const draftFlight = useRef<Promise<string> | null>(null); // must stay above the early returns (hook order)
   // Both file controls share one synchronous lock; a rejected overlap must not release its owner's lock.
   const changeFiles = async (action: () => Promise<void>) => {
     if (fileFlight.current || inFlight.current) throw new Error("A file change or save is still running. Wait for it to finish, then try again.");
@@ -158,7 +159,6 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
     return [...c, ...org, ...p];
   };
 
-  const draftFlight = useRef<Promise<string> | null>(null);
   // Single-flight: concurrent callers share one create, so two controls can never make competing drafts.
   const ensureDraft = (extra: AttachedFile[] = [], text = fileText): Promise<string> => {
     if (draftRef.current) return Promise.resolve(draftRef.current); // one draft only, even after Back, a refresh or a retry
