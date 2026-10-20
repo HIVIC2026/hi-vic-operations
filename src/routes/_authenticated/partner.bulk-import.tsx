@@ -245,6 +245,7 @@ function BulkImportPage() {
   const [failedChunks, setFailedChunks] = useState<{ from: number; to: number }[]>([]);
   const pending = useRef<{ base: { businessId: string; onBehalf: boolean }; rawRows: Record<string, string>[]; documents: { name: string; text: string }[]; manifest: unknown[]; reads: unknown[]; leads: unknown[]; failed: RowChunk<Record<string, string>>[] } | null>(null);
   const geocode = useServerFn(geocodeBulkPhotos);
+  const storeFiles = useUploadFiles(businessId);
   const savePlan = useServerFn(setBulkReviewPlan);
   const getBatches = useServerFn(listBulkBatches);
   const getElectricians = useServerFn(bulkElectricianChoices);
@@ -342,11 +343,17 @@ function BulkImportPage() {
     setBusy(true); setLocalReads([]);
     try {
       const base = { businessId: effectiveBiz, onBehalf: isAdmin };
-      const { manifest, rows: rawRows, documents, reads } = await collect(extraFiles, {
+      // Keep a private copy of every loose job file (not the customer list or a ZIP) so it can be attached to its job on confirm.
+      setProgress("Saving your files…");
+      const toStore = extraFiles.filter((f) => !LIST_RE.test(f.name) && !/\.zip$/i.test(f.name));
+      const stored = new Map((await storeFilesFor(toStore)).map((x) => [x.name, x.path]));
+      const collected = await collect(extraFiles, {
         readMedia: (name, mime, base64) => readFile({ data: { ...base, name, mime, base64 } }),
         geocode: async (points) => (await geocode({ data: { ...base, points } })).addresses,
         progress: setProgress,
       });
+      const { rows: rawRows, documents, reads } = collected;
+      const manifest = collected.manifest.map((f) => (!f.folder && stored.get(f.path) ? { ...f, stored_path: stored.get(f.path)! } : f));
       setLocalReads(reads);
       if (rawRows.length === 0 && documents.length === 0 && manifest.length === 0) { toast.error("None of these files could be read — see the list below."); return; }
       if (rawRows.length > READ_CHUNK_ROWS) {
