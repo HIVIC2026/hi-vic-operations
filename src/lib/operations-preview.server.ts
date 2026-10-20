@@ -23,10 +23,18 @@ async function all(label: string, read: (from: number, to: number) => Result): P
 const text = (v: unknown): string | null => v == null ? null : String(v);
 const obj = (v: unknown): Row => v && typeof v === 'object' && !Array.isArray(v) ? v as Row : {};
 const related = (v: unknown): Row => obj(Array.isArray(v) ? v[0] : v);
-export async function loadOperationsPreview(admin: SupabaseClient<Database>) {
-  const jobs = await all('jobs', (a, b) => admin.from('jobs')
-    .select('id, job_number, stage, source, business_unit, channel, offer_dispatch_override, commercial_model, originating_installer_business_id, created_at, last_activity_at, hold_reason, hold_revisit_at, cancelled_reason, installation_completed_at, eligibility_outcome, eligibility_reason, eligibility_decision_source, eligibility_review_required, eligibility_decision_rules, owners(full_name), properties(address_line, suburb, state, postcode, enrichment)')
-    .eq('business_unit', 'hivic').is('deleted_at', null).or('source.is.null,source.neq.qa_test').order('id').range(a, b));
+export async function loadOperationsPreview(admin: SupabaseClient<Database>, jobId?: string) {
+  // The same loader serves the full dashboard and the single-job getter; jobId narrows the
+  // jobs read first so related-fact batches below fetch one job only. All scoping
+  // (business unit, TEST/source exclusions, deleted) is unchanged, so a filtered-out
+  // job yields no rows and callers stay fail-closed.
+  const jobs = await all('jobs', (a, b) => {
+    let q = admin.from('jobs')
+      .select('id, job_number, stage, source, business_unit, channel, offer_dispatch_override, commercial_model, originating_installer_business_id, created_at, last_activity_at, hold_reason, hold_revisit_at, cancelled_reason, installation_completed_at, eligibility_outcome, eligibility_reason, eligibility_decision_source, eligibility_review_required, eligibility_decision_rules, owners(full_name), properties(address_line, suburb, state, postcode, enrichment)')
+      .eq('business_unit', 'hivic').is('deleted_at', null).or('source.is.null,source.neq.qa_test');
+    if (jobId) q = q.eq('id', jobId);
+    return q.order('id').range(a, b);
+  });
   const ids = jobs.map(j => String(j['id']));
   async function byJobs(label: string, q: (ids: string[], a: number, b: number) => Result) {
     const rows: Row[] = [];
