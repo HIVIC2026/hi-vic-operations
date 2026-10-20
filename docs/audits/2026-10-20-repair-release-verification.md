@@ -75,3 +75,4 @@ Signed-in run: `bun scripts/qa-office-writes.ts --base http://localhost:8080 --b
 - Receipt merge hazard verified: `installerIntakeState` still has all EIGHT checked reads incl. preliminary estimate (`estErr`), `preliminaryAreaM2`, `attended`/`onsiteMeasured`, and fee null-count rejection.
 - NOT_RUN: signed-in TEST-installer upload/save/reopen (desktop/mobile) — the available session is Jo's admin account; the only TEST installer login is the excluded Deep account; no identities provisioned. Full portal QA not repeated (no affected gate).
 - Not live-ready: NOT_RUN rows above and earlier blockers (per-zone carry-forward/photo controls, Mitti approvals, video cap approval, install-day Mitti link review) remain.
+- Attachment-race fix + claim snapshot: see docs/qa/installer-two-route-2026-10-20.md (24/0 practice DB, 9/0 UI).
