@@ -91,7 +91,7 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
     const q = intakeQuotePayload({ quoteStatus: qs, amount, includes, proposedR });
     setBusy(true);
     try {
-      const r = await onSave({ areaM2: intakeArea(area), insulation: ins, quoteStatus: qs, quoteIncGst: q.quoted_price_inc_gst, includes: q.price_includes, proposedR: q.proposed_r_value, files: newFiles, ...(att && (att !== (facts.attended ?? null) || (att === "attended" && attOn !== (facts.attendedOn ?? ""))) ? { attended: att, attendedOn: att === "attended" ? attOn || null : null } : {}), removalQuote: removalPayload(removal, qs === "have_quote", att === "attended"),
+      const r = await onSave({ areaM2: intakeArea(area), insulation: ins, quoteStatus: qs, quoteIncGst: q.quoted_price_inc_gst, includes: q.price_includes, proposedR: q.proposed_r_value, files: newFiles, ...(att && (att !== (facts.attended ?? null) || (att === "attended" && attOn !== (facts.attendedOn ?? ""))) ? { attended: att, attendedOn: att === "attended" ? attOn || null : null } : {}), removalQuote: removalPayload(removal, qs === "have_quote", att === "attended"), ...(qs === "have_quote" ? { commercial: commercialPayload(com, q.price_includes, removal.answer === "yes") } : {}),
         ...(feeTick && feeText && (payer === "hivic" || payer === "own") ? { feeAwareness: { payer, text: feeText } } : {}),
         ...(payerChanged ? { electricianPayer: payer } : {}),
         ...(sendElectrician ? { electrician: sendElectrician } : {}) });
@@ -157,11 +157,12 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
           }} onRemove={async (path) => setNewFiles((o) => o.filter((f) => f.path !== path))} />
           <p className="text-xs text-sub">No quote file? Enter the amount and what it includes.</p>
           <label className="block text-sm font-bold">Total installer quote inc GST<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 3,450" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
-          <p className="text-xs text-sub">Include any removal charge in this total.</p>
+          <p className="text-xs text-sub">Your works price before the VEU discount. Removal or extras you priced separately go below — never include them twice.</p>
           <label className="block text-sm font-bold">What the quote includes<Textarea className="mt-1" rows={3} maxLength={1000} value={includes} onChange={(e) => setIncludes(e.target.value)} /></label>
         </>}
         <ProposedRField value={proposedR} disabled={busy || fileBusy} onChange={setProposedR} />
         <RemovalQuoteFields value={removal} disabled={busy || fileBusy} onChange={setRemoval} />
+        {qs === "have_quote" && <QuoteCommercialFields value={com} removalRequired={removal.answer === "yes"} disabled={busy || fileBusy} onChange={setCom} />}
         {facts.payerEditable && <fieldset data-editor-payer><legend className="text-sm font-bold">Electrician (PIESA)</legend>
           <p className="text-xs text-sub">Choosing doesn't book anyone. Changing this updates the owner quote.</p>
           <div className="mt-2 space-y-2" role="radiogroup" aria-label="Who arranges the electrician">
