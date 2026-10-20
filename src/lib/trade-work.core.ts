@@ -41,3 +41,18 @@ export function tradeTask(j: TradeTaskInput): TradeTask {
   if (NEEDS[j.stage]) return { bucket: "needs_you", label: j.proposalPending ? "Reply to the owner's suggested time" : NEEDS[j.stage]!, reason };
   return { bucket: "waiting", label: WAITING[j.stage] ?? "Waiting on Home Insulation Victoria", reason: null };
 }
+
+/**
+ * Job-page headline for the SIGNED-IN trade only: "Your turn" only when the next action is that trade's own;
+ * another trade's step reads "Waiting on …". Unknown role (still loading) is never "Your turn".
+ */
+export function tradeTurn(x: { trade: "installer" | "electrician" | null | undefined; stage: string; waitingOn: string | null | undefined }): { yourTurn: boolean; eyebrow: string; task: TradeTask } {
+  const trade = x.trade === "installer" || x.trade === "electrician" ? x.trade : null;
+  const task = tradeTask({ stage: x.stage, bookings: [], blockers: [], ...(trade ? { trade } : {}) });
+  const mine = trade === "installer" ? "Installer" : trade === "electrician" ? "Electrician" : null;
+  const other = trade === "installer" ? "Electrician" : trade === "electrician" ? "Installer" : null;
+  const otherStep = (other && x.waitingOn === other) || task.label.startsWith("Waiting for the");
+  const yourTurn = !!trade && !otherStep && (x.waitingOn === mine || task.bucket !== "waiting");
+  const eyebrow = yourTurn ? "Your turn" : otherStep && other ? `Waiting for the ${other.toLowerCase()}` : `Waiting on ${x.waitingOn ?? "Home Insulation Victoria"}`;
+  return { yourTurn, eyebrow, task };
+}

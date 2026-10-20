@@ -276,10 +276,18 @@ export async function removeImportFileFor(userId: string, importId: string, path
 /** Resume an Add job draft after refresh. Only the user who created it, still a member of its business, may read it. */
 export async function getImportDraftFor(userId: string, importId: string, businessId: string) {
   const { data: imp } = await admin.from("job_imports").select("id, business_id, created_by, status, files, job_id").eq("id", importId).maybeSingle();
-  if (!imp || imp.created_by !== userId || imp.business_id !== businessId) return { status: "gone" as const, files: [], jobId: null, jobNumber: null };
+  if (!imp || imp.created_by !== userId || imp.business_id !== businessId) return { status: "gone" as const, files: [], jobId: null, jobNumber: null, receipt: null };
   await requireMember(userId, imp.business_id);
-  if (imp.status === "discarded") return { status: "gone" as const, files: [], jobId: null, jobNumber: null };
+  if (imp.status === "discarded") return { status: "gone" as const, files: [], jobId: null, jobNumber: null, receipt: null };
   let jobNumber: string | null = null;
+  let receipt: import("./installer-intake.core").RecoveredIntakeReceipt | null = null;
   if (imp.job_id) { const { data: j } = await admin.from("jobs").select("job_number").eq("id", imp.job_id).maybeSingle(); jobNumber = (j?.job_number as string | null) ?? null; }
-  return { status: (imp.status === "confirmed" ? "confirmed" : "draft") as "draft" | "confirmed", files: (imp.files as { path: string; name: string; type: string }[] | null) ?? [], jobId: (imp.status === "confirmed" ? imp.job_id : null) as string | null, jobNumber };
+  if (imp.status === "confirmed" && imp.job_id) {
+    // Lost reply / refresh: rebuild the receipt from the job's own recorded intake facts, newest first.
+    const { data: ev, error } = await admin.from("workflow_events").select("event_type, details").eq("job_id", imp.job_id)
+      .in("event_type", ["installer_quote_answer", "installer_coordination_chosen", "installer_existing_insulation_declared", "installer_owner_fee_awareness"]).order("created_at", { ascending: false });
+    if (error) throw new WorkflowError("Your saved job could not be loaded. Try again.");
+    receipt = (await import("./installer-intake.core")).recoveredIntakeReceipt((ev ?? []) as { event_type: string; details: Record<string, unknown> | null }[]);
+  }
+  return { status: (imp.status === "confirmed" ? "confirmed" : "draft") as "draft" | "confirmed", files: (imp.files as { path: string; name: string; type: string }[] | null) ?? [], jobId: (imp.status === "confirmed" ? imp.job_id : null) as string | null, jobNumber, receipt };
 }

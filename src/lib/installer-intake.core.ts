@@ -395,3 +395,36 @@ export function resolveQuoteAnswer(events: { answer: unknown; at: string }[], in
   if (valid[0]) return valid[0].answer as QuoteStatus;
   return installerQuoted === "yes" ? "have_quote" : installerQuoted === "no" ? "not_quoted" : null;
 }
+
+/**
+ * Fields the initial Add job form actually applies: "Not measured or quoted" never serializes or validates hidden
+ * area/quote facts typed earlier on the Yes branch (they stay in the draft only so switching back restores them).
+ */
+export function applicableIntakeDetails<T extends { quoteStatus?: QuoteStatus | null; area: string; amount: string; includes: string; proposedR: string }>(d: T): T {
+  return d.quoteStatus === "have_quote" ? d : { ...d, area: "", amount: "", includes: "", proposedR: "" };
+}
+
+export type RecoveredIntakeReceipt = { insulation: ExistingInsulation; quoted: boolean; next: string; feeHeld: boolean };
+/**
+ * Receipt for an Add job that was saved but whose reply was lost (refresh / dropped response), rebuilt only from
+ * the job's own recorded intake events — never from the browser's draft.
+ */
+export function recoveredIntakeReceipt(events: { event_type: string; details: Record<string, unknown> | null }[]): RecoveredIntakeReceipt {
+  const latest = (t: string) => events.find((e) => e.event_type === t)?.details ?? null;
+  const answer = latest("installer_quote_answer")?.["answer"];
+  const quoted = answer !== "not_quoted";
+  const coordRaw = latest("installer_coordination_chosen")?.["coordination"];
+  const coord: Coordination | null = coordRaw === "self_managed" || coordRaw === "hivic_managed" ? coordRaw : null;
+  const ins = latest("installer_existing_insulation_declared")?.["value"];
+  const insulation: ExistingInsulation = ins === "none" || ins === "below_r2" ? ins : "unknown";
+  const fee = events.some((e) => e.event_type === "installer_owner_fee_awareness");
+  return { insulation, quoted, next: intakeNextAction(coord, quoted), feeHeld: quoted && !fee };
+}
+
+/** Details editor: the own-electrician selection to send — on a payer change to own, or own -> a different own. */
+export function editorElectricianSend(x: { payerChanged: boolean; payer: ElectricianPayer; plan: { mode: string; business_id?: string | null; nomination_id?: string | null } | null; currentBusinessId: string | null | undefined }):
+  { mode: "mine"; business_id: string | null; nomination_id: string | null } | undefined {
+  if (x.payer !== "own" || x.plan?.mode !== "mine" || !(x.plan.business_id || x.plan.nomination_id)) return undefined;
+  if (!x.payerChanged && x.plan.business_id && x.plan.business_id === x.currentBusinessId) return undefined; // same saved electrician
+  return { mode: "mine", business_id: x.plan.business_id ?? null, nomination_id: x.plan.nomination_id ?? null };
+}

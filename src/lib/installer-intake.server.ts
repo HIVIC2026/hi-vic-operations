@@ -239,6 +239,20 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
     const lock = await intakePayerLock(jobId, st.electricianPayer, actorId, businessId);
     if (lock) throw new WorkflowError(lock);
   }
+  // Own electrician -> a DIFFERENT own electrician (payer unchanged): same guards as a payer change, then persisted.
+  let swapOwn = false;
+  if (!pc.change && st.electricianPayer === "own" && p.electrician && (p.electrician.business_id || p.electrician.nomination_id)) {
+    const { data: cur } = await admin.from("electrician_nominations").select("business_id").eq("job_id", jobId).is("ended_at", null).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (!(p.electrician.business_id && cur?.business_id === p.electrician.business_id)) {
+      const lock = await intakePayerLock(jobId, st.electricianPayer, actorId, businessId);
+      if (lock) throw new WorkflowError(lock);
+      if ((elAccepted ?? 0) > 0) throw new WorkflowError("An electrician has already accepted this job. Ask Home Insulation Victoria to change it.");
+      const e = p.electrician;
+      if (e.business_id) { const { data: rel } = await admin.from("partner_relationships").select("electrician_business_id").eq("installer_business_id", businessId).eq("electrician_business_id", e.business_id).eq("active", true).maybeSingle(); if (!rel) throw new WorkflowError("That electrician isn't one of your approved electricians."); }
+      else { const { data: n } = await admin.from("electrician_nominations").select("id").eq("id", e.nomination_id!).eq("nominating_business_id", businessId).maybeSingle(); if (!n) throw new WorkflowError("That electrician couldn't be found. Add them again."); }
+      swapOwn = true;
+    }
+  }
   const { data: m } = await admin.from("ceiling_measurements").select("id, provenance, supplied_area_m2").eq("job_id", jobId).eq("is_current", true).maybeSingle();
   const ch = pickIntakeChanges({
     areaM2: m?.supplied_area_m2 == null ? (st.areaM2 ?? null) : Number(m.supplied_area_m2), insulation: st.insulation, quoted: (job.installer_quoted ?? null) as "yes" | "no" | null,
@@ -268,6 +282,13 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
     if (add.length) await logEvent(jobId, actorId, "installer_quote_file_added", `Installer added ${add.length} file${add.length === 1 ? "" : "s"} (originals kept)`, { files: add }, { internal: true });
   }
   let electrician: string | null = null;
+  if (swapOwn) {
+    const now = new Date().toISOString();
+    const { error: ee } = await admin.from("electrician_nominations").update({ ended_at: now, updated_at: now }).eq("job_id", jobId).is("ended_at", null);
+    if (ee) throw new WorkflowError(`Electrician: ${ee.message}`);
+    electrician = (await (await import("./job-electrician.server")).recordJobElectricianChoice(jobId, businessId, p.electrician as never, actorId)).choice ?? null;
+    await logEvent(jobId, actorId, "installer_own_electrician_changed", "Installer changed their own electrician (still invoices the owner directly)", { choice: electrician, business_id: p.electrician?.business_id ?? null, nomination_id: p.electrician?.nomination_id ?? null }, { internal: true });
+  }
   if (pc.change) {
     const now = new Date().toISOString();
     if (pc.nextPayer === "own") electrician = (await (await import("./job-electrician.server")).recordJobElectricianChoice(jobId, businessId, p.electrician as never, actorId)).choice ?? null;
