@@ -26,9 +26,9 @@ const object = (value: unknown): Record<string, unknown> | null =>
 /** Public messages deliberately omit provider bodies and credentials. */
 export function mittiConnectionFailure(error: unknown): { state: MittiConnectionState; message: string } {
   const e = object(error);
-  if (e?.code === "not_configured") return { state: "not_configured", message: "Mitti access is not configured for this project. Connect Mitti in the project settings, then check again." };
-  if (e?.status === 401 || e?.status === 403) return { state: "access_denied", message: "Mitti rejected the project's access. The account owner needs to reconnect or renew access." };
-  if (e?.status === 404) return { state: "not_found", message: "Mitti could not find this saved form. Check the form ID and that this Mitti account can access it." };
+  if (e?.["code"] === "not_configured") return { state: "not_configured", message: "Mitti access is not configured for this project. Connect Mitti in the project settings, then check again." };
+  if (e?.["status"] === 401 || e?.["status"] === 403) return { state: "access_denied", message: "Mitti rejected the project's access. The account owner needs to reconnect or renew access." };
+  if (e?.["status"] === 404) return { state: "not_found", message: "Mitti could not find this saved form. Check the form ID and that this Mitti account can access it." };
   return { state: "unavailable", message: "Mitti could not be checked. Try again shortly; the saved form has not been changed." };
 }
 

@@ -18,11 +18,11 @@ const text = (value: unknown): string | null => typeof value === "string" && val
 
 export function mittiTemplateIdentity(definition: unknown): { id: string | null; name: string | null } {
   const outer = object(definition);
-  const template = object(outer?.template) ?? outer;
-  const data = object(template?.template_data);
-  const metadata = object(data?.metadata);
+  const template = object(outer?.["template"]) ?? outer;
+  const data = object(template?.["template_data"]);
+  const metadata = object(data?.["metadata"]);
   return {
-    id: text(template?.template_id) ?? text(template?.id) ?? text(outer?.template_id) ?? text(outer?.id),
-    name: text(template?.name) ?? text(template?.title) ?? text(metadata?.name) ?? text(template?.template_name),
+    id: text(template?.["template_id"]) ?? text(template?.["id"]) ?? text(outer?.["template_id"]) ?? text(outer?.["id"]),
+    name: text(template?.["name"]) ?? text(template?.["title"]) ?? text(metadata?.["name"]) ?? text(template?.["template_name"]),
   };
 }

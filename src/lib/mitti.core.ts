@@ -17,8 +17,8 @@ export class MittiError extends Error {
   readonly code?: "not_configured" | "unavailable" | "api_error";
   constructor(message: string, details: { status?: number; code?: "not_configured" | "unavailable" | "api_error" } = {}) {
     super(message);
-    this.status = details.status;
-    this.code = details.code;
+    if (details.status !== undefined) this.status = details.status;
+    if (details.code !== undefined) this.code = details.code;
   }
 }
 

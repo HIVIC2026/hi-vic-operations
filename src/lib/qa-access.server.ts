@@ -16,9 +16,9 @@ const ELECTRICIAN_EMAIL = "qa.rec.delta@hivic-test.example";
 const WORKER_EMAIL = "qa.worker.alpha@hivic-test.example";
 const QA_WORKER_LINK_MS = 15 * 60_000;
 
-function checked<T>(result: { data: T; error: { message: string } | null }, operation: string): T {
+function checked<R extends { data: unknown; error: { message: string } | null }>(result: R, operation: string): Extract<R, { error: null }>["data"] {
   if (result.error) throw new WorkflowError(`${operation}: ${result.error.message}`);
-  return result.data;
+  return result.data as Extract<R, { error: null }>["data"];
 }
 function safeEmail(value: string | null | undefined): string {
   const email = (value ?? "").trim().toLowerCase();
@@ -41,7 +41,7 @@ export async function requireQaJob(admin: Admin, jobId: string) {
 async function qaIdentity(admin: Admin, userId: string, expectedEmail?: string, allowMissingProfile = false, allowBlocked = false) {
   const profile = checked(await admin.from("profiles").select("id, email, business_id, full_name").eq("id", userId).maybeSingle(), "Could not read the TEST profile");
   const auth = checked(await admin.auth.admin.getUserById(userId), "Could not verify the TEST sign-in identity").user;
-  if (!auth || auth.id !== userId || auth.user_metadata?.qa_test !== true) throw new WorkflowError("This is not an approved TEST identity.");
+  if (!auth || auth.id !== userId || auth.user_metadata?.["qa_test"] !== true) throw new WorkflowError("This is not an approved TEST identity.");
   const email = safeEmail(auth.email);
   if ((expectedEmail && email !== safeEmail(expectedEmail)) || (!profile && !allowMissingProfile) ||
     (profile && (profile.id !== auth.id || safeEmail(profile.email) !== email))) throw new WorkflowError("The TEST profile and sign-in identity do not match.");
@@ -68,7 +68,7 @@ async function findQaIdentity(admin: Admin, email: string, allowBlocked = false)
 async function rolesFor(admin: Admin, userId: string, role: Role, allowMissing = false) {
   const roles = checked(await admin.from("user_roles").select("role").eq("user_id", userId), "Could not check TEST account roles") ?? [];
   if (!roles.length && allowMissing) return false;
-  if (roles.length !== 1 || roles[0].role !== role) throw new WorkflowError("The TEST account has a missing or conflicting role. Its existing roles have been retained.");
+  if (roles.length !== 1 || roles[0]!.role !== role) throw new WorkflowError("The TEST account has a missing or conflicting role. Its existing roles have been retained.");
   return true;
 }
 
@@ -82,7 +82,7 @@ async function qaBusiness(admin: Admin, businessId: string, role: "installer" | 
 async function membership(admin: Admin, userId: string, businessId: string, memberRole: "business_admin" | "field_worker", allowMissing = false) {
   const members = checked(await admin.from("business_members").select("business_id, user_id, member_role, active").eq("user_id", userId), "Could not check TEST business membership") ?? [];
   if (!members.length && allowMissing) return false;
-  if (members.length !== 1 || members[0].business_id !== businessId || members[0].member_role !== memberRole || members[0].active !== true) {
+  if (members.length !== 1 || members[0]!.business_id !== businessId || members[0]!.member_role !== memberRole || members[0]!.active !== true) {
     throw new WorkflowError("The TEST membership is missing, inactive or conflicting. Its existing state has been retained.");
   }
   return true;
@@ -111,8 +111,8 @@ async function ownerIsolation(admin: Admin, ownerId: string | null, userId?: str
 
 async function assignment(admin: Admin, jobId: string, role: "installer" | "electrician") {
   const rows = checked(await admin.from("job_assignments").select("id, user_id, business_id, role, active").eq("job_id", jobId).eq("role", role).eq("active", true), "Could not read the TEST assignment") ?? [];
-  if (rows.length !== 1 || !rows[0].user_id || !rows[0].business_id) throw new WorkflowError(qaPersonaMissingMessage(role === "installer" ? "installer_boss" : "electrician"));
-  return rows[0] as typeof rows[number] & { user_id: string; business_id: string };
+  if (rows.length !== 1 || !rows[0]!.user_id || !rows[0]!.business_id) throw new WorkflowError(qaPersonaMissingMessage(role === "installer" ? "installer_boss" : "electrician"));
+  return rows[0]! as typeof rows[number] & { user_id: string; business_id: string };
 }
 
 /** Only called by an explicit preparation action. Existing attributes are preserved; missing links use checked CAS/insert. */
@@ -180,12 +180,13 @@ export async function prepareQaAccess(admin: Admin, actorId: string, jobId: stri
     await tradeIdentity(admin, identity.userId, businessId, persona.role, "business_admin");
     const prior = checked(await admin.from("job_assignments").select("id, user_id, business_id, active").eq("job_id", jobId).eq("role", persona.role), "Could not check existing TEST assignments") ?? [];
     const active = prior.filter(row => row.active);
-    if (prior.length && (active.length !== 1 || active[0].user_id !== identity.userId || active[0].business_id !== businessId)) {
+    if (prior.length && (active.length !== 1 || active[0]!.user_id !== identity.userId || active[0]!.business_id !== businessId)) {
       throw new WorkflowError("This TEST assignment is ended or belongs to another persona. Use the normal assignment controls to change it.");
     }
     trades.push({ ...persona, identity, businessId, missing: prior.length === 0 });
   }
   const installer = trades[0];
+  if (!installer) throw new WorkflowError("Create the TEST trade accounts first.");
   const ownerEmail = owner.user_id ? null : `qa.owner.${jobId}${QA_DOMAIN}`;
   const ownerIdentity = owner.user_id ? await qaIdentity(admin, owner.user_id) : await findQaIdentity(admin, ownerEmail!);
   if (ownerIdentity) {
