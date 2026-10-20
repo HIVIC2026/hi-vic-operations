@@ -120,7 +120,7 @@ describe("installer EEC/CII certificate onboarding", () => {
   test("completion mode asks only for the certificate (no declarations, no re-sign)", () => {
     expect(completionErrors({})).toContain("Upload the EEC / Certified Insulation Installer certificate.");
     expect(completionErrors({ certificate_path: "worker-invites/i/eec-a.pdf" })).toEqual([]);
-    expect(joinPage).toContain('mode === "registration" ? workerDeclarations(t, businessName) : []');
+    expect(inviteFns).toContain('mode === "registration" ? workerDeclarations(t, businessName) : []');
   });
 
   test("team labels are owner-safe and never expose file paths", () => {
