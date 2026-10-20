@@ -1,5 +1,5 @@
 import { supabaseAdmin as admin } from '@/integrations/supabase/client.server';
-import { catchupBlocker, catchupRoute, catchupMediaState, catchupInsulation } from './office-first-response.core';
+import { catchupBlocker, catchupRoute, catchupMediaState, catchupInsulation, sameCatchupEnquiry } from './office-first-response.core';
 import { SUPPRESSING_EVENTS, withUnsubscribe } from './emailsafety.core';
 import { groupBMediaForJob } from './group-b-media.server';
 import { groupBGlobalsOn, realSendingOn, resendDeliveryAdapter } from './hot-leads-send.server';
@@ -19,7 +19,7 @@ import { DeliveryRejectedError } from './delivery.core';
 export async function readCatchup(jobId: string, ownReservation?: string) {
   const [index, job, sends, comms, consent, opt, response, suppressed, work] = await Promise.all([
     admin.from('office_enquiry_index').select('*').eq('id', jobId).maybeSingle(),
-    admin.from('jobs').select('hold_reason,eligibility_review_required,eligibility_decision_source,estimated_area_m2,estimated_area_unknown,properties(enrichment)').eq('id', jobId).maybeSingle(),
+    admin.from('jobs').select('property_id,hold_reason,eligibility_review_required,eligibility_decision_source,estimated_area_m2,estimated_area_unknown,properties(enrichment)').eq('id', jobId).maybeSingle(),
     admin.from('customer_email_sends').select('id,status').eq('job_id', jobId),
     admin.from('job_communications').select('id').eq('job_id', jobId).eq('direction', 'outbound').eq('channel', 'email').eq('visibility', 'customer'),
     admin.from('owner_contact_consents').select('consent_status').eq('job_id', jobId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
@@ -32,12 +32,19 @@ export async function readCatchup(jobId: string, ownReservation?: string) {
   const i = index.data, j = job.data;
   if (!i || !j) throw new Error('Enquiry not found');
   const email = i.owner_email?.trim().toLowerCase() ?? null;
-  // Read every same-recipient job, not only the open enquiry lane. Pagination avoids silently dropping history.
+  // Read every same-recipient job, but only same-property/enquiry siblings suppress this Office action.
   let recipientAnswered = false;
   if (email) for (let offset = 0; ; offset += 50) {
-    const siblings = await admin.from('office_enquiry_index').select('id').eq('email_key', email).neq('id', jobId).order('id').range(offset, offset + 49);
+    const siblings = await admin.from('office_enquiry_index').select('id,property_key,external_enquiry_id,source').eq('email_key', email).neq('id', jobId).order('id').range(offset, offset + 49);
     if (siblings.error) throw new Error('Could not verify same-recipient enquiries');
-    const ids = (siblings.data ?? []).flatMap(x => x.id ? [x.id] : []);
+    const rows = siblings.data ?? [];
+    const siblingIds = rows.flatMap(x => x.id ? [x.id] : []);
+    const properties = siblingIds.length ? await admin.from('jobs').select('id,property_id').in('id', siblingIds) : { data: [], error: null };
+    if (properties.error || properties.data?.length !== siblingIds.length) throw new Error('Could not verify sibling property identities');
+    const ids = rows.filter(x => sameCatchupEnquiry(
+      { propertyId: j.property_id, propertyKey: i.property_key, enquiryId: i.external_enquiry_id, source: i.source },
+      { propertyId: properties.data?.find(p => p.id === x.id)?.property_id, propertyKey: x.property_key, enquiryId: x.external_enquiry_id, source: x.source },
+    )).flatMap(x => x.id ? [x.id] : []);
     if (ids.length) {
       const [s, c] = await Promise.all([
         admin.from('customer_email_sends').select('id').in('job_id', ids).in('status', ['sent', 'delivered', 'sending', 'delivered_unrecorded', 'sending_unknown']).limit(1),
@@ -46,7 +53,7 @@ export async function readCatchup(jobId: string, ownReservation?: string) {
       if (s.error || c.error) throw new Error('Could not verify same-recipient correspondence');
       recipientAnswered ||= !!s.data?.length || !!c.data?.length;
     }
-    if (ids.length < 50) break;
+    if (rows.length < 50) break;
   }
   const blocker = catchupBlocker({
     jobNumber: i.job_number, bucket: i.office_bucket, needsFirstResponse: i.needs_first_response === true,

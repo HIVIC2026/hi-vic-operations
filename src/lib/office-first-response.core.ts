@@ -3,6 +3,14 @@ import { legacyExclusionReason } from './hot-leads.core';
 import type { GroupBMediaState } from './group-b-media.core';
 import type { EnquiryMediaDocument } from './group-b-media.core';
 export type CatchupMedia = GroupBMediaState & { persistedCount?: number; readFailed?: boolean };
+export type CatchupIdentity = { propertyId?: string | null; propertyKey?: string | null; enquiryId?: string | null; source?: string | null };
+/** Email alone is never a property/enquiry identity. Keep unit and street numbers intact. */
+export function sameCatchupEnquiry(a: CatchupIdentity, b: CatchupIdentity): boolean {
+  const key = (v?: string | null) => v?.trim().toLowerCase().replace(/\s+/g, ' ') || null;
+  const ap = key(a.propertyId), ak = key(a.propertyKey), ae = key(a.enquiryId);
+  return !!((ap && ap === key(b.propertyId)) || (ak && ak === key(b.propertyKey)) ||
+    (ae && key(a.source) && key(a.source) === key(b.source) && ae === key(b.enquiryId)));
+}
 /** Persisted homeowner files only, not unresolved references or trade evidence. */
 export function catchupMediaState(jobId: string, state: GroupBMediaState, files: EnquiryMediaDocument[], readFailed = false): CatchupMedia {
   const paths = new Set(files.filter(f => f.kind === 'intake_media' && f.storage_path?.startsWith(`${jobId}/intake/`) && !f.storage_path.includes('..') && (/^(image|video)\//i.test(f.mime_type ?? '') || /\.(jpe?g|png|webp|heic|heif|gif|mp4|mov|webm|m4v)$/i.test(f.storage_path))).map(f => f.storage_path));

@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'bun:test';
-import { catchupBlocker, catchupRoute, catchupMediaState, catchupInsulation, type CatchupFacts } from '../src/lib/office-first-response.core';
+import { catchupBlocker, catchupRoute, catchupMediaState, catchupInsulation, sameCatchupEnquiry, type CatchupFacts } from '../src/lib/office-first-response.core';
 const safe: CatchupFacts = { jobNumber:'HV-3000',bucket:'enquiry',needsFirstResponse:true,source:'base44',channel:'hivic_sourced',stage:'preliminary_estimate_ready',email:'person@gmail.com',deleted:false,archived:false,removed:false,holdReason:null,answered:false,outbound:false,inFlight:false,recipientAnswered:false,consent:true,optedOut:false,suppressed:false,workActive:false,outcome:'needs_onsite_confirmation',decisionSource:'system',reviewRequired:false };
+test('different property and enquiry are not duplicates even for the same recipient',()=>expect(sameCatchupEnquiry({propertyId:'home-a',propertyKey:'3073|56 hickford st',source:'base44',enquiryId:'a'},{propertyId:'home-b',propertyKey:'3089|5 gem ct',source:'base44',enquiryId:'b'})).toBe(false));
+test('same property ID blocks a duplicate with different address formatting',()=>expect(sameCatchupEnquiry({propertyId:'home-a'},{propertyId:'home-a'})).toBe(true));
+test('same normalized address identity blocks separate property rows',()=>expect(sameCatchupEnquiry({propertyKey:' 3073|56 HICKFORD ST '},{propertyKey:'3073|56 hickford st'})).toBe(true));
+test('same source enquiry identity blocks duplicates',()=>expect(sameCatchupEnquiry({source:'base44',enquiryId:'enq-a'},{source:'base44',enquiryId:'enq-a'})).toBe(true));
+test('blank identities do not establish a duplicate',()=>expect(sameCatchupEnquiry({},{propertyKey:''})).toBe(false));
+test('different units and source namespaces remain distinct',()=>{expect(sameCatchupEnquiry({propertyKey:'3000|1/5 main st'},{propertyKey:'3000|2/5 main st'})).toBe(false);expect(sameCatchupEnquiry({source:'base44',enquiryId:'a'},{source:'other',enquiryId:'a'})).toBe(false)});
 describe('Office-only catch-up safety',()=>{
   test('older preliminary_estimate_ready unanswered enquiry allowed',()=>expect(catchupBlocker(safe)).toBeNull());
   for (const flag of ['answered','outbound','recipientAnswered','inFlight','deleted','archived','removed','optedOut','suppressed','workActive','reviewRequired'] as const) test(`${flag} blocks`,()=>expect(catchupBlocker({...safe,[flag]:true})).not.toBeNull());
