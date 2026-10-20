@@ -50,7 +50,8 @@ export async function reconfirmationOpen(jobId: string): Promise<boolean> {
 
 /** True only for jobs that came through the approved single installer intake. */
 export async function isIntakeJob(jobId: string): Promise<boolean> {
-  const { count } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "installer_evidence_acknowledged");
+  const { count, error } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "installer_evidence_acknowledged");
+  if (error) throw new WorkflowError("Could not check how this job was added. Please retry."); // fail closed: never "no blockers"
   return (count ?? 0) > 0;
 }
 
@@ -64,22 +65,32 @@ export async function intakeSendBlockers(jobId: string): Promise<string[]> {
 export const OWN_ELECTRICIAN_OFFICE_CHANGE = "To change your own electrician, email Home Insulation Victoria at info@homeinsulationvictoria.com.au — the office makes the change.";
 
 export async function installerIntakeState(jobId: string) {
-  const { data: co } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "installer_coordination_chosen").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const { data: co, error: coErr } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "installer_coordination_chosen").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (coErr) throw new WorkflowError("The job details could not load. Please retry.");
   const coordination = ((co?.details as { coordination?: string } | null)?.coordination ?? null) as "hivic_managed" | "self_managed" | null;
-  const [{ data: job, error }, ins, { data: m }, decision, { data: consent }, { count: fee, data: feeRows }, { data: ev }] = await Promise.all([
-    admin.from("jobs").select("channel, installer_quoted_price_inc_gst, installer_price_includes, electrician_choice").eq("id", jobId).single(),
+  const [{ data: job, error }, ins, { data: m, error: mErr }, decision, { data: consent, error: cErr }, { count: fee, data: feeRows, error: fErr }, { data: ev, error: evErr }, { data: est, error: estErr }] = await Promise.all([
+    admin.from("jobs").select("channel, installer_quoted_price_inc_gst, installer_price_includes, electrician_choice, installer_site_check").eq("id", jobId).single(),
     latestInsulation(jobId),
     admin.from("ceiling_measurements").select("measured_area_m2, verified_area_m2, supplied_area_m2, provenance, existing_r_value").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
     commercialEligibility(jobId),
     admin.from("owner_contact_consents").select("consent_status").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("workflow_events").select("details, created_at, actor_id", { count: "exact" }).eq("job_id", jobId).eq("event_type", "installer_owner_fee_awareness").order("created_at", { ascending: false }).limit(1),
     admin.from("evidence_requirements").select("category, label, required, status, gate").eq("job_id", jobId).eq("gate", "assessment"), // Ready Check items only — later PIESA/install/AP evidence has its own lists
+    admin.from("workflow_events").select("details, created_at").eq("job_id", jobId).in("event_type", ["installer_attendance_answer", "installer_preliminary_estimate"]).order("created_at", { ascending: false }).limit(10),
   ]);
   if (error) throw new WorkflowError(error.message);
+  // Fail closed: an unreadable measurement/consent/fee/evidence read is never treated as "nothing missing".
+  if (mErr || cErr || fErr || evErr || estErr) throw new WorkflowError("Some job details could not load. Please retry.");
   const scope = intakeScopeArea(m ?? null); const area = scope.areaM2;
   const measuredR = m?.existing_r_value == null ? null : Number(m.existing_r_value);
   const officeEligibility = decision;
-  const readiness = installerQuoteReadiness({ channel: job.channel, officeEligibility, insulation: ins.value, measuredR, areaM2: area, installerQuoteIncGst: job.installer_quoted_price_inc_gst == null ? null : Number(job.installer_quoted_price_inc_gst), includes: job.installer_price_includes ?? null });
+  const attended = ((job as { installer_site_check?: string | null }).installer_site_check ?? null) as "yes" | "no" | null;
+  const onsiteMeasured = !!(m && (m.verified_area_m2 != null || m.provenance !== "installer_supplied_provisional"));
+  // Latest saved preliminary estimate (not attended): unverified, never a measurement; hidden once a measurement exists.
+  const estRow = (est ?? []).find((e) => (e.details as Record<string, unknown> | null)?.["preliminary_area_m2"] !== undefined);
+  const estV = (estRow?.details as { preliminary_area_m2?: unknown } | undefined)?.preliminary_area_m2;
+  const preliminaryAreaM2 = area == null && typeof estV === "number" && estV > 0 ? estV : null;
+  const readiness = installerQuoteReadiness({ onsite: { attended, onsiteMeasured }, channel: job.channel, officeEligibility, insulation: ins.value, measuredR, areaM2: area, installerQuoteIncGst: job.installer_quoted_price_inc_gst == null ? null : Number(job.installer_quoted_price_inc_gst), includes: job.installer_price_includes ?? null });
   const { payerFromChoice } = await import("./installer-intake.core");
   const electricianPayer = payerFromChoice(job.electrician_choice);
   const feeRow = (feeRows ?? [])[0]?.details as { payer?: "hivic" | "own" | "undecided" } | null | undefined;
@@ -106,7 +117,7 @@ export async function installerIntakeState(jobId: string) {
   const rc = readyCheckOutstanding((ev ?? []).map((r) => ({ category: r.category, label: r.label, blocking: r.required, status: r.status })) as EvidenceItem[]);
   return {
     coordination, coordinationNext: (await import("./installer-intake.core")).coordinationNextAction(coordination),
-    channel: job.channel, insulation: ins.value, insulationSource: ins.source, areaM2: area, areaProvenance: scope.provenance,
+    channel: job.channel, insulation: ins.value, insulationSource: ins.source, areaM2: area, areaProvenance: scope.provenance, preliminaryAreaM2, attended, onsiteMeasured,
     removalQuote, proposedR: await latestProposedR(jobId), reconfirmationRequired: await reconfirmationOpen(jobId), measuredR,
     quoteIncGst: job.installer_quoted_price_inc_gst == null ? null : Number(job.installer_quoted_price_inc_gst), includes: job.installer_price_includes,
     officeEligibility, readiness, releaseBlockers: release, electricianPayer, feeAwarenessPayer: feeRow?.payer ?? null, feeAwarenessRecorded: feeCurrent, feeRecord,
@@ -227,6 +238,7 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
   const ic0 = await import("./installer-intake.core");
   const curAttended = ic0.attendanceFromSiteCheck(job.installer_site_check as string | null);
   const nextAttended = p.attended ?? curAttended;
+  { const dp = p.attended === "attended" ? ic0.visitDateProblem(p.attendedOn ?? null, ic0.melbourneToday()) : null; if (dp) throw new WorkflowError(dp); } // never silently drop an entered date
   // Removal facts are site facts: kept on "quote not yet" when the property was attended; only the charge is commercial.
   const nextRemoval = p.removalQuote === undefined ? st.removalQuote : p.quoteStatus === "not_quoted" ? (nextAttended === "attended" ? ((r) => r ? { ...r, chargeIncGst: null } : null)(readRemoval(p.removalQuote)) : { answer: "unknown" as const, areaM2: null, chargeIncGst: null }) : readRemoval(p.removalQuote);
   if (nextRemoval) { const problems = removalProblems(nextRemoval, p.insulation, p.areaM2 ?? st.areaM2, p.quoteIncGst, p.quoteStatus === "have_quote"); if (problems.length) throw new WorkflowError(problems.join(" • ")); }
@@ -234,7 +246,8 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
   // ---- Validate the electrician/payer change and fee declaration BEFORE any write (no misleading partial saves). ----
   const { planPayerChange } = await import("./installer-intake.core");
   const requestedPayer = p.electricianPayer ?? (p.electrician && (p.electrician.business_id || p.electrician.nomination_id) && st.electricianPayer !== "own" ? "own" : undefined);
-  const { count: elAccepted } = await admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true);
+  const { count: elAccepted, error: elErr } = await admin.from("job_assignments").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("role", "electrician").eq("active", true);
+  if (elErr) throw new WorkflowError("The electrician arrangement could not be checked. Please retry.");
   const pc = planPayerChange({ currentPayer: st.electricianPayer, requested: requestedPayer, electricianAccepted: (elAccepted ?? 0) > 0, fee: p.feeAwareness });
   if (!pc.ok) throw new WorkflowError(pc.error);
   if (pc.change) {
@@ -250,11 +263,19 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
   // Own -> a different own electrician has no atomic swap yet: refused (never silently "Saved"); Office changes it.
   if (!pc.change && st.electricianPayer === "own" && p.electrician && (p.electrician.business_id || p.electrician.nomination_id))
     throw new WorkflowError(OWN_ELECTRICIAN_OFFICE_CHANGE);
-  const { data: m } = await admin.from("ceiling_measurements").select("id, provenance, supplied_area_m2").eq("job_id", jobId).eq("is_current", true).maybeSingle();
+  const { data: m, error: mErr } = await admin.from("ceiling_measurements").select("id, provenance, supplied_area_m2").eq("job_id", jobId).eq("is_current", true).maybeSingle();
+  if (mErr) throw new WorkflowError("The current measurement could not load. Please retry.");
+  // Not attended and no measurement: an entered area is a PRELIMINARY estimate (event only), never a measure-up.
+  const estimateMode = nextAttended !== "attended" && !m;
   const ch = pickIntakeChanges({
-    areaM2: m?.supplied_area_m2 == null ? (st.areaM2 ?? null) : Number(m.supplied_area_m2), insulation: st.insulation, quoted: (job.installer_quoted ?? null) as "yes" | "no" | null,
+    areaM2: estimateMode ? st.preliminaryAreaM2 : m?.supplied_area_m2 == null ? (st.areaM2 ?? null) : Number(m.supplied_area_m2), insulation: st.insulation, quoted: (job.installer_quoted ?? null) as "yes" | "no" | null,
     quoteIncGst: job.installer_quoted_price_inc_gst == null ? null : Number(job.installer_quoted_price_inc_gst), includes: job.installer_price_includes ?? null, proposedR: st.proposedR,
   }, p);
+  let estimateChanged = false;
+  if (ch.area !== undefined && estimateMode) {
+    await logEvent(jobId, actorId, "installer_preliminary_estimate", `Installer saved a preliminary ceiling estimate of ${ch.area} m² (not visited, unverified)`, { preliminary_area_m2: ch.area, previous: st.preliminaryAreaM2, verified: false, source: "installer_edit" }, { internal: true });
+    estimateChanged = true; delete ch.area;
+  }
   if (ch.area !== undefined) {
     if (m && m.provenance !== "installer_supplied_provisional") throw new WorkflowError("The ceiling has already been measured — the office changes it through the measurement review.");
     if (m) { const { error: e } = await admin.from("ceiling_measurements").update({ supplied_area_m2: ch.area }).eq("id", m.id); if (e) throw new WorkflowError(e.message); }
@@ -267,8 +288,8 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
     }
     await admin.from("jobs").update({ estimated_area_m2: ch.area, estimated_area_unknown: false }).eq("id", jobId);
   }
-  if ((p.attended && p.attended !== curAttended) || (p.attended === "attended" && p.attendedOn !== undefined && ic0.attendedOnDate("attended", p.attendedOn, new Date().toISOString().slice(0, 10)) !== (job.installer_site_check_date ?? null))) {
-    const on = ic0.attendedOnDate(p.attended, p.attendedOn ?? (p.attended === curAttended ? job.installer_site_check_date as string | null : null), new Date().toISOString().slice(0, 10));
+  if ((p.attended && p.attended !== curAttended) || (p.attended === "attended" && p.attendedOn !== undefined && ic0.attendedOnDate("attended", p.attendedOn, ic0.melbourneToday()) !== (job.installer_site_check_date ?? null))) {
+    const on = ic0.attendedOnDate(p.attended, p.attendedOn ?? (p.attended === curAttended ? job.installer_site_check_date as string | null : null), ic0.melbourneToday());
     const { error: e } = await admin.from("jobs").update({ installer_site_check: ic0.siteCheckFromAttendance(p.attended), installer_site_check_date: on }).eq("id", jobId);
     if (e) throw new WorkflowError(e.message);
     await logEvent(jobId, actorId, "installer_attendance_answer", p.attended === "attended" ? "Installer answered: attended and assessed the property" : "Installer answered: not attended yet — Ready Check required", { answer: p.attended, previous: curAttended, attended_on: on, reported_by: actorId, source: "installer_edit" }, { internal: true });
@@ -307,7 +328,8 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
   }
   if (removalChanged && nextRemoval) await logEvent(jobId, actorId, "installer_quote_removal_declared", removalSummary(nextRemoval), { removal_quote: nextRemoval, source: "installer_edit", verified: false, included_in_total: true }, { internal: true });
   // A payer change is material: it changes the owner quote's lines (HIV PIESA line on/off).
-  const material = ch.area !== undefined || !!ch.quote || ch.proposedR !== undefined || ch.insulation !== undefined || pc.change || removalChanged;
+  const attendanceChanged = nextAttended !== curAttended;
+  const material = attendanceChanged || estimateChanged || ch.area !== undefined || !!ch.quote || ch.proposedR !== undefined || ch.insulation !== undefined || pc.change || removalChanged;
   let quotes: { id: string; action: string }[] = [];
   if (material) {
     quotes = await staleIntakeQuotes(jobId, actorId);

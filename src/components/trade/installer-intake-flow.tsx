@@ -19,7 +19,7 @@ import { electricianPlanBlocker, usualElectrician, type ElectricianPlan } from "
 import type { OnsiteInput } from "@/lib/onsite-ready-check.core";
 import type { IntakeApi } from "./intake-preview-adapter";
 import { BUSY_LABEL, blankCustomer, customerProblems, restoreCustomer, saveErrorMessage } from "@/lib/add-job-flow.core";
-import { ELECTRICIAN_PAYER_CHOICES, FEE_AWARENESS_VERSION, INSTALLER_CONTACT_PERMISSION, ATTENDED_CHOICES, ATTENDED_QUESTION, PRELIMINARY_QUOTE_NOTE, QUOTE_PREPARED_CHOICES, QUOTE_PREPARED_QUESTION, intakeBranches, type AttendanceAnswer, NOT_MEASURED_NOTE, ORGANISE_QUESTION, feeAwarenessText, intakeNextAction, type ElectricianPayer } from "@/lib/installer-intake.core";
+import { ELECTRICIAN_PAYER_CHOICES, FEE_AWARENESS_VERSION, INSTALLER_CONTACT_PERMISSION, ATTENDED_CHOICES, ATTENDED_QUESTION, PRELIMINARY_QUOTE_NOTE, QUOTE_PREPARED_CHOICES, QUOTE_PREPARED_QUESTION, intakeBranches, melbourneToday, quoteFileCount, visitDateProblem, type AttendanceAnswer, NOT_MEASURED_NOTE, ORGANISE_QUESTION, feeAwarenessText, intakeNextAction, type ElectricianPayer } from "@/lib/installer-intake.core";
 
 import { ProposedRField, RemovalQuoteFields } from "./intake-quote-fields";
 import { blankRemoval, removalPayload, removalProblems, removalSummary, type RemovalInput } from "@/lib/intake-quote-details.core";
@@ -139,8 +139,9 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
     if (step === "customer") return c;
     const org = coordinationProblems(coord, selfAck);
     if (step === "organise") return org;
-    const p = intakeProblems({ ...live, quoteStatus: d.quoteStatus ?? null, quoteFileCount: files.length, evidenceAck: ack, requireMeasured: true, attended: d.attended ?? null }).map((x) => x === "Choose the quote status" ? "Choose whether you have prepared a quote" : x);
+    const p = intakeProblems({ ...live, quoteStatus: d.quoteStatus ?? null, quoteFileCount: quoteFileCount(files), evidenceAck: ack, requireMeasured: true, attended: d.attended ?? null }).map((x) => x === "Choose the quote status" ? "Choose whether you have prepared a quote" : x);
     if (!d.attended) p.unshift("Choose whether you have attended and assessed this property");
+    { const dp = d.attended === "attended" ? visitDateProblem(d.attendedOn ?? null, melbourneToday()) : null; if (dp) p.unshift(dp); }
     p.push(...removalProblems(removalPayload(d.removal ?? blankRemoval(), d.quoteStatus === "have_quote", d.attended === "attended"), d.insulation, intakeArea(live.area), intakeQuotePayload({ ...live, quoteStatus: d.quoteStatus ?? null }).quoted_price_inc_gst, d.quoteStatus === "have_quote"));
     if (!payer) p.push("Choose who arranges the electrician");
     else if (payer === "own") { const eb = electricianPlanBlocker(plan); if (eb) p.push(eb); }
@@ -151,7 +152,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
 
   const ensureDraft = async (extra: AttachedFile[] = [], text = fileText) => {
     if (draftRef.current) return draftRef.current; // one draft only, even after Back, a refresh or a retry
-    const r = await create({ data: { businessId, sourceSystem: "manual_import", ...(text ? { text } : {}), files: [...filesRef.current, ...extra].filter((f, i, all) => all.findIndex((x) => x.path === f.path) === i).map((f) => ({ path: f.path, name: f.name, type: f.type ?? "" })) } });
+    const r = await create({ data: { businessId, sourceSystem: "manual_import", ...(text ? { text } : {}), files: [...filesRef.current, ...extra].filter((f, i, all) => all.findIndex((x) => x.path === f.path) === i).map((f) => ({ path: f.path, name: f.name, type: f.type ?? "", ...(f.purpose ? { purpose: f.purpose } : {}) })) } });
     draftRef.current = r.id; setDraftId(r.id);
     if (userId) try { const k = resumeKey(userId, businessId); const cur = JSON.parse(localStorage.getItem(k) ?? "{}"); localStorage.setItem(k, JSON.stringify({ ...cur, draftId: r.id })); } catch { /* ignore */ }
 
@@ -190,6 +191,46 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
     } catch (e) { setErr(saveErrorMessage(e instanceof Error ? e.message : null)); }
     finally { setBusy(false); inFlight.current = false; }
   };
+
+  const addPicked = async (picked: File[], purpose: "quote" | "supporting") => {
+          const failures: string[] = [];
+          for (const f of picked) {
+            let ref = stored.current.get(f);
+            try {
+              if (!ref) { const up = await uploadFiles([f]); ref = up[0]; if (!ref) throw new Error("No stored file returned"); stored.current.set(f, ref); }
+            } catch { failures.push(`${f.name} did not upload. Choose only this file to retry.`); continue; }
+            const attached: AttachedFile = { ...ref, purpose };
+            filesRef.current = filesRef.current.some((x) => x.path === attached.path) ? filesRef.current : [...filesRef.current, attached];
+            setFiles(filesRef.current);
+            try {
+              if (draftRef.current) { const r = await addFiles({ data: { importId: draftRef.current, files: [{ ...attached, type: attached.type ?? "" }] } }); setFiles((old) => [...old.filter((x) => !r.files.some((y) => y.path === x.path)), ...r.files]); }
+              else await ensureDraft([attached], "");
+            } catch { failures.push(`${f.name} uploaded and is kept here, but its job attachment could not be confirmed. Submit will retry attaching it without uploading again.`); }
+            if (purpose !== "quote") { setFileNote("Supporting file attached — it is reviewed before it is accepted."); continue; }
+            setFileNote("File uploaded. Checking optional quote details…");
+            try {
+              if (["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(f.type) && f.size <= 10_000_000) {
+                const bytes = new Uint8Array(await f.arrayBuffer()); let raw = ""; for (let i = 0; i < bytes.length; i += 0x8000) raw += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+                const r = await readFile({ data: { businessId, onBehalf: false, name: f.name, mime: f.type as "application/pdf" | "image/jpeg" | "image/png" | "image/webp", base64: btoa(raw) } });
+                setFileTexts((old) => ({ ...old, [attached.path]: r.text ?? "" }));
+                if (r.text && !multiCustomerAmbiguity(r.text)) {
+                  const { extractFromText } = await import("@/lib/pilot.core");
+                  const pre = prefillFromExtracted(extractFromText(r.text), r.text);
+                  setD((old) => { const next = { ...old }; for (const key of ["area", "amount", "includes", "proposedR"] as const) if (!old[key] && pre[key] && !typed.current.has(key)) { next[key] = pre[key]; setDerived((o) => ({ ...o, [key]: { path: attached.path, value: pre[key] } })); } return next; });
+                  setFileNote("File attached. Any details found are provisional — check them below.");
+                } else setFileNote(r.text ? "This file names more than one customer. Remove it and attach one customer's quote." : "File attached. No details could be read clearly; you can enter them or leave the price for office review.");
+              } else setFileNote("File attached.");
+            } catch { setFileNote("File uploaded and kept. The optional quote read failed; you can enter details or leave the price for office review. Do not upload it again."); }
+          }
+          if (failures.length) throw new Error(failures.join(" "));
+  };
+  const removeAttached = async (path: string) => {
+          if (draftRef.current) { const r = await dropFile({ data: { importId: draftRef.current, path } }); filesRef.current = r.files; } else filesRef.current = filesRef.current.filter((x) => x.path !== path);
+          setFiles(filesRef.current);
+          setFileTexts((old) => Object.fromEntries(Object.entries(old).filter(([key]) => key !== path)));
+          setD((old) => { const next = { ...old }; for (const key of ["area", "amount", "includes", "proposedR"] as const) if (derived[key]?.path === path && !typed.current.has(key) && next[key] === derived[key]?.value) next[key] = ""; return next; });
+          setDerived((old) => Object.fromEntries(Object.entries(old).filter(([, value]) => value.path !== path))); setFileNote("File removed. Details you entered were kept.");
+          };
 
   const idx = ADD_JOB_STEPS.findIndex((s) => s.key === step);
   const elName = elLater ? "To be arranged" : plan?.mode === "mine" ? (([...(el?.approved ?? []), ...(el?.pending ?? [])] as { businessId?: string; nominationId?: string; name: string }[]).find((x) => (plan.business_id && x.businessId === plan.business_id) || (plan.nomination_id && x.nominationId === plan.nomination_id))?.name ?? "your electrician") : "Home Insulation Victoria arranges";
@@ -232,7 +273,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
             {ATTENDED_CHOICES.map((c) => <Button key={c.value} disabled={busy || fileBusy} size="field" role="radio" aria-checked={d.attended === c.value} variant={d.attended === c.value ? "default" : "outline"} onClick={() => setD({ ...d, attended: c.value })}>{c.label}</Button>)}
           </div>
           {d.attended === "not_attended" && <p className="mt-2 text-sm text-sub" data-not-attended-note>That’s fine — we’ll save the job and a Ready Check will be needed.</p>}
-          {d.attended === "attended" && <label className="mt-2 block text-sm font-bold">Date of the visit<span className="block text-xs font-normal text-sub">Optional — leave blank if unsure</span><Input type="date" className="mt-1 h-12" max={new Date().toISOString().slice(0, 10)} value={d.attendedOn ?? ""} onChange={(e) => setD({ ...d, attendedOn: e.target.value })} /></label>}
+          {d.attended === "attended" && <label className="mt-2 block text-sm font-bold">Date of the visit<span className="block text-xs font-normal text-sub">Optional — leave blank if unsure</span><Input type="date" className="mt-1 h-12" max={melbourneToday()} value={d.attendedOn ?? ""} onChange={(e) => setD({ ...d, attendedOn: e.target.value })} /></label>}
         </fieldset>
         <fieldset data-measured-quoted><legend className="font-display text-lg font-bold">{QUOTE_PREPARED_QUESTION}</legend>
           <div className="mt-2 grid grid-cols-2 gap-2" role="radiogroup" aria-label={QUOTE_PREPARED_QUESTION}>
@@ -241,8 +282,9 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
           {d.quoteStatus === "not_quoted" && <p className="mt-2 text-sm text-sub" data-not-measured-note>{NOT_MEASURED_NOTE}</p>}
           {branches.preliminary && <p className="mt-2 text-sm text-sub" data-preliminary-note>{PRELIMINARY_QUOTE_NOTE}</p>}
         </fieldset>
-        {branches.siteFacts && <div className="space-y-4" data-measured-branch>
-        <label className="block text-sm font-bold">Measured ceiling area (m²)<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 120" value={d.area} onChange={(e) => { typed.current.add("area"); setD({ ...d, area: e.target.value }); }} /></label>
+        <div className="space-y-4" data-measured-branch data-estimate-only={branches.estimateOnly ? "true" : undefined}>
+        {branches.estimateOnly && <p className="text-xs text-sub" data-estimate-note>Optional. Without a site visit these are saved as a preliminary, unverified estimate — never as a measurement.</p>}
+        <label className="block text-sm font-bold">{branches.estimateOnly ? "Estimated ceiling area (m²) — optional" : "Measured ceiling area (m²)"}<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 120" value={d.area} onChange={(e) => { typed.current.add("area"); setD({ ...d, area: e.target.value }); }} /></label>
         <fieldset data-existing-insulation><legend className="text-sm font-bold">Existing insulation</legend>
           <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Existing insulation">
             {EXISTING_INSULATION_CHOICES.map((c) => <Button key={c.value} size="field" role="radio" aria-checked={d.insulation === c.value} variant={d.insulation === c.value ? "default" : "outline"} className="h-auto min-h-12 whitespace-normal px-1 text-xs leading-tight" onClick={() => setD({ ...d, insulation: c.value })}>{c.label}</Button>)}
@@ -251,45 +293,13 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         </fieldset>
         <ProposedRField value={d.proposedR} disabled={busy || fileBusy} onChange={(v) => { typed.current.add("proposedR"); setD({ ...d, proposedR: v }); }} />
         <RemovalQuoteFields value={d.removal ?? blankRemoval()} disabled={busy || fileBusy} onChange={(removal) => setD({ ...d, removal })} />
-        </div>}
+        <div data-supporting-files>
+        <AttachFiles businessId={businessId} files={files.filter((f) => f.purpose !== "quote")} disabled={busy} onBusyChange={fileBusyChange} label="Supporting photos, videos or measure-up (optional)" onAdd={(picked) => addPicked(picked, "supporting")} onRemove={removeAttached} />
+        <p className="mt-1 text-xs text-sub">These are supporting evidence only — they don't count as your quote. Each item is reviewed before it's accepted.</p>
+        </div>
+        </div>
         {branches.quoteFacts && <div className="space-y-4" data-quote-branch>
-        <AttachFiles businessId={businessId} files={files} disabled={busy} onBusyChange={fileBusyChange} label="Upload your quote" onAdd={async (picked) => {
-          const failures: string[] = [];
-          for (const f of picked) {
-            let ref = stored.current.get(f);
-            try {
-              if (!ref) { const up = await uploadFiles([f]); ref = up[0]; if (!ref) throw new Error("No stored file returned"); stored.current.set(f, ref); }
-            } catch { failures.push(`${f.name} did not upload. Choose only this file to retry.`); continue; }
-            const attached = ref;
-            filesRef.current = filesRef.current.some((x) => x.path === attached.path) ? filesRef.current : [...filesRef.current, attached];
-            setFiles(filesRef.current);
-            try {
-              if (draftRef.current) { const r = await addFiles({ data: { importId: draftRef.current, files: [{ ...attached, type: attached.type ?? "" }] } }); setFiles((old) => [...old.filter((x) => !r.files.some((y) => y.path === x.path)), ...r.files]); }
-              else await ensureDraft([attached], "");
-            } catch { failures.push(`${f.name} uploaded and is kept here, but its job attachment could not be confirmed. Submit will retry attaching it without uploading again.`); }
-            setFileNote("File uploaded. Checking optional quote details…");
-            try {
-              if (["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(f.type) && f.size <= 10_000_000) {
-                const bytes = new Uint8Array(await f.arrayBuffer()); let raw = ""; for (let i = 0; i < bytes.length; i += 0x8000) raw += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-                const r = await readFile({ data: { businessId, onBehalf: false, name: f.name, mime: f.type as "application/pdf" | "image/jpeg" | "image/png" | "image/webp", base64: btoa(raw) } });
-                setFileTexts((old) => ({ ...old, [attached.path]: r.text ?? "" }));
-                if (r.text && !multiCustomerAmbiguity(r.text)) {
-                  const { extractFromText } = await import("@/lib/pilot.core");
-                  const pre = prefillFromExtracted(extractFromText(r.text), r.text);
-                  setD((old) => { const next = { ...old }; for (const key of ["area", "amount", "includes", "proposedR"] as const) if (!old[key] && pre[key] && !typed.current.has(key)) { next[key] = pre[key]; setDerived((o) => ({ ...o, [key]: { path: attached.path, value: pre[key] } })); } return next; });
-                  setFileNote("File attached. Any details found are provisional — check them below.");
-                } else setFileNote(r.text ? "This file names more than one customer. Remove it and attach one customer's quote." : "File attached. No details could be read clearly; you can enter them or leave the price for office review.");
-              } else setFileNote("File attached.");
-            } catch { setFileNote("File uploaded and kept. The optional quote read failed; you can enter details or leave the price for office review. Do not upload it again."); }
-          }
-          if (failures.length) throw new Error(failures.join(" "));
-        }} onRemove={async (path) => {
-          if (draftRef.current) { const r = await dropFile({ data: { importId: draftRef.current, path } }); filesRef.current = r.files; } else filesRef.current = filesRef.current.filter((x) => x.path !== path);
-          setFiles(filesRef.current);
-          setFileTexts((old) => Object.fromEntries(Object.entries(old).filter(([key]) => key !== path)));
-          setD((old) => { const next = { ...old }; for (const key of ["area", "amount", "includes", "proposedR"] as const) if (derived[key]?.path === path && !typed.current.has(key) && next[key] === derived[key]?.value) next[key] = ""; return next; });
-          setDerived((old) => Object.fromEntries(Object.entries(old).filter(([, value]) => value.path !== path))); setFileNote("File removed. Details you entered were kept.");
-        }} />
+        <AttachFiles businessId={businessId} files={files.filter((f) => f.purpose === "quote")} disabled={busy} onBusyChange={fileBusyChange} label="Upload your quote" onAdd={(picked) => addPicked(picked, "quote")} onRemove={removeAttached} />
         {fileNote && <p className="text-xs text-sub" data-file-note>{fileNote}</p>}
         <p className="text-xs text-sub">No quote file? Enter the amount and what it includes.</p>
         <label className="block text-sm font-bold">Total installer quote inc GST<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 3,450" value={d.amount} onChange={(e) => { typed.current.add("amount"); setD({ ...d, amount: e.target.value }); }} /></label>
@@ -314,10 +324,10 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         <Summary title="Organise" disabled={busy || fileBusy} onEdit={() => setStep("organise")} rows={[coord === "self_managed" ? "I’ll manage the job myself (responsibility acknowledged)" : "Home Insulation Victoria manages the process"]} />
         <Summary title="Job" disabled={busy || fileBusy} onEdit={() => setStep("job")} rows={[
           d.attended === "attended" ? `Attended and assessed${d.attendedOn ? ` on ${d.attendedOn}` : " (date not given)"}` : "Not attended yet — Ready Check required",
-          !branches.siteFacts ? "Not measured yet" : intakeArea(d.area) ? `Ceiling ${d.area} m²` : "Ceiling area: not measured yet", `Existing insulation: ${EXISTING_INSULATION_CHOICES.find((c) => c.value === (d.insulation ?? "unknown"))?.label ?? "Not yet confirmed"}`,
-          ...(d.quoteStatus === "not_quoted" ? ["Quote: not prepared yet", d.proposedR && branches.siteFacts ? `Proposed product ${/^r/i.test(d.proposedR) ? d.proposedR : `R${d.proposedR}`}` : ""] : [branches.preliminary ? "Quote: preliminary estimate (no site visit yet)" : "", d.amount ? `Quote $${d.amount.replace(/^\$/, "")} inc GST` : "Quote amount not confirmed — from your uploaded file", d.includes ? `Includes: ${d.includes}` : "", d.proposedR ? `Proposed product ${/^r/i.test(d.proposedR) ? d.proposedR : `R${d.proposedR}`}` : ""]),
-          ...(branches.siteFacts && d.removal ? [removalSummary(removalPayload(d.removal, d.quoteStatus === "have_quote", d.attended === "attended"))] : []),
-          `${files.length} file${files.length === 1 ? "" : "s"} attached`, `Electrician: ${elName}`, ...(d.quoteStatus === "have_quote" ? [feeAck && feeText ? "Owner fees advised (declared)" : "Owner fees: not declared yet — owner quote waits"] : []),
+          branches.estimateOnly ? (intakeArea(d.area) ? `Preliminary estimate ${d.area} m² (unverified, not measured)` : "Not measured yet") : intakeArea(d.area) ? `Ceiling ${d.area} m²` : "Ceiling area: not measured yet", `Existing insulation: ${EXISTING_INSULATION_CHOICES.find((c) => c.value === (d.insulation ?? "unknown"))?.label ?? "Not yet confirmed"}`,
+          ...(d.quoteStatus === "not_quoted" ? ["Quote: not prepared yet", d.proposedR ? `Proposed product ${/^r/i.test(d.proposedR) ? d.proposedR : `R${d.proposedR}`}` : ""] : [branches.preliminary ? "Quote: preliminary estimate (no site visit yet)" : "", d.amount ? `Quote $${d.amount.replace(/^\$/, "")} inc GST` : "Quote amount not confirmed — from your uploaded file", d.includes ? `Includes: ${d.includes}` : "", d.proposedR ? `Proposed product ${/^r/i.test(d.proposedR) ? d.proposedR : `R${d.proposedR}`}` : ""]),
+          ...(d.removal ? [removalSummary(removalPayload(d.removal, d.quoteStatus === "have_quote", d.attended === "attended"))] : []),
+          `Quote files: ${quoteFileCount(files)} · Supporting files: ${files.length - quoteFileCount(files)}`, `Electrician: ${elName}`, ...(d.quoteStatus === "have_quote" ? [feeAck && feeText ? "Owner fees advised (declared)" : "Owner fees: not declared yet — owner quote waits"] : []),
         ]} />
         <label className="flex items-start gap-3 text-sm" data-evidence-ack><Checkbox className="mt-0.5" checked={ack} onCheckedChange={(c) => setAck(c === true)} aria-label={EVIDENCE_ACK} /><span>{EVIDENCE_ACK}</span></label>
         <div className="rounded-[12px] border border-line p-3" data-next-step><p className="text-xs font-bold uppercase tracking-wide text-sub">What happens next</p><p className="mt-1 text-sm">Nothing is sent or booked when you submit. {intakeNextAction(coord, d.quoteStatus === "have_quote", d.attended ?? null)}</p></div>

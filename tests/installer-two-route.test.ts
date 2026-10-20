@@ -5,10 +5,11 @@ import { applicableIntakeDetails, attendanceFromSiteCheck, attendedOnDate, intak
 const d = { area: "120", amount: "3450", includes: "R5 batts", proposedR: "5" };
 const st = { coordination: "hivic_managed" as const, insulation: "none" as const, electricianPayer: "hivic" as const, feeAwarenessRecorded: false, feeAwarenessPayer: null };
 describe("four attendance x quote combinations", () => {
-  test("(a) not visited / not quoted: no guessed size, price or product; Ready Check task", () => {
+  test("(a) not visited / not quoted: no price; any known size kept only as an optional estimate; Ready Check task", () => {
     const l = applicableIntakeDetails({ ...d, attended: "not_attended" as const, quoteStatus: "not_quoted" as const });
-    expect([l.area, l.amount, l.includes, l.proposedR]).toEqual(["", "", "", ""]);
-    expect(intakeBranches("not_attended", "not_quoted")).toMatchObject({ siteFacts: false, quoteFacts: false, readyCheckTask: true });
+    expect([l.amount, l.includes]).toEqual(["", ""]);
+    expect([l.area, l.proposedR]).toEqual(["120", "5"]); // typed by the installer: kept as a labelled preliminary estimate
+    expect(intakeBranches("not_attended", "not_quoted")).toMatchObject({ siteFacts: false, estimateOnly: true, quoteFacts: false, readyCheckTask: true });
     expect(intakeNextAction("hivic_managed", false, "not_attended")).toMatch(/arranges the Ready Check/);
   });
   test("(b) visited / not quoted: measurements and product kept; finish quote; no second visit", () => {

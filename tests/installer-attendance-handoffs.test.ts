@@ -10,7 +10,7 @@ describe("attendance drives Ready Check handoff", () => {
   test("visited but not quoted does not force a repeat visit", () => expect(rc("no", "yes")).toBe("none"));
   test("not visited, not quoted needs the visit", () => expect(rc("no", "no")).toBe("book"));
   test("visited and quoted needs no visit", () => expect(rc("yes", "yes")).toBe("none"));
-  test("legacy unknown attendance keeps the quote-answer fallback", () => { expect(rc("no", null)).toBe("book"); expect(rc("yes", null)).toBe("none"); });
+  test("unknown attendance is asked, never assumed yes or no", () => { expect(rc("no", null)).toBe("confirm_attendance"); expect(rc("yes", null)).toBe("confirm_attendance"); });
 });
 
 const base = { coordination: "hivic_managed" as const, quoteAmountKnown: true, eligibility: "eligible" as const, quoteHeld: [], quoteStatus: "none", quoteDelivery: null, quoteHoldReason: null, reconfirmationRequired: false, electricianPayer: "hivic", electricalCleared: false, electricalExpired: false, rectificationOpen: false, installBooking: null, installBlockers: [], installationCompleted: false, evidenceApprovedAt: null, veecStatus: null, stage: "new_enquiry", evidence: [] } as never as Parameters<typeof installerProgress>[0];
@@ -20,5 +20,5 @@ describe("attendance drives progress next action", () => {
   test("visited + unquoted: installer prices the same job", () => { const n = next("no", "yes"); expect(n.who).toBe("You"); expect(n.text).not.toMatch(/Ready Check/); });
   test("quoted + not visited: preliminary, Ready Check required", () => { const n = next("yes", "no"); expect(n.text).toMatch(/preliminary/); expect(n.text).toMatch(/Ready Check/); });
   test("not visited + unquoted: arrange Ready Check", () => expect(next("no", "no").text).toMatch(/Ready Check/));
-  test("unknown attendance keeps previous behaviour", () => expect(next("no", null).text).toMatch(/Ready Check/));
+  test("unknown attendance asks the installer, never assumes", () => { const n = next("no", null); expect(n.who).toBe("You"); expect(n.text).toMatch(/attended and assessed/); });
 });

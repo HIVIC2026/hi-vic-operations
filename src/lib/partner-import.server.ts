@@ -7,7 +7,7 @@ import { WorkflowError, logEvent } from "./workflow.server";
 import { confirmBlockers, extractFromCsvRow, extractFromText, mergeExtracted, parseCsv, planImportedMeasurement, relationshipOwnerFor, type ConfirmedFacts, type Extracted } from "./pilot.core";
 import { requireApprovedPartner, requireMember } from "./pilot.server";
 
-export type CreateImportInput = { businessId: string; sourceSystem: "easymate" | "manual_import" | "csv" | "email"; text?: undefined | string; csv?: undefined | string; csvRow: number; sourceUrl?: undefined | string; externalRefs?: undefined | Record<string, string>; files: { path: string; name: string; type: string }[] };
+export type CreateImportInput = { businessId: string; sourceSystem: "easymate" | "manual_import" | "csv" | "email"; text?: undefined | string; csv?: undefined | string; csvRow: number; sourceUrl?: undefined | string; externalRefs?: undefined | Record<string, string>; files: { path: string; name: string; type: string; purpose?: "quote" | "supporting" | undefined }[] };
 export type ConfirmImportInput = { importId: string; facts: Record<string, string | number | boolean | null>; progress?: undefined | "not_visited" | "measured" | "quoted"; occupancy?: undefined | "owner_occupied" | "rental"; details?: undefined | Record<string, unknown>;
   installer?: undefined | { quoted?: undefined | "yes" | "no" | null; site_check: "yes" | "no"; site_check_date?: undefined | string | null; quoted_price_inc_gst?: undefined | number | null; price_includes?: undefined | string | null; contact_permission?: undefined | boolean; fee_awareness?: undefined | boolean; existing_below_r2?: undefined | boolean; owner_agreed?: undefined | boolean;
     intake?: undefined | { existing_insulation: "none" | "below_r2" | "unknown"; removal_quote?: RemovalQuote | undefined; evidence_ack: boolean; proposed_r_value?: undefined | number | null; version: string; coordination: "hivic_managed" | "self_managed"; self_managed_ack: boolean; quote_status?: undefined | "not_quoted" | "have_quote"; attended?: undefined | "attended" | "not_attended" | null; attended_on?: undefined | string | null; measured_required?: undefined | boolean; electrician_payer?: undefined | "hivic" | "own" | "undecided"; fee_awareness?: undefined | { declared: boolean; payer: "hivic" | "own" | "undecided"; text: string; version: string } } };
@@ -104,13 +104,15 @@ export async function confirmClaimed(userId: string, data: ConfirmImportInput, i
     if (c.measured_area_m2 != null && c.measured_area_m2 !== "") { const a0 = Number(c.measured_area_m2); if (!Number.isFinite(a0) || a0 <= 0 || a0 > 5000) blockers.push("Check the ceiling area (m²)"); }
     else c.measured_area_m2 = null;
     const visited = intake.attended === "attended";
+    { const ic = await import("./installer-intake.core"); const dp = visited ? ic.visitDateProblem(intake.attended_on ?? null, ic.melbourneToday()) : null; if (dp) blockers.push(dp); }
     if (qs === "not_quoted") {
       // Not quoted clears only commercial facts. Measured area, proposed product and removal facts from a visit stay (Jo, 20 Oct).
       if (data.installer) { data.installer.quoted = "no"; data.installer.quoted_price_inc_gst = null; data.installer.price_includes = null; }
-      if (!visited) { intake.proposed_r_value = null; c.measured_area_m2 = null; }
+      // Not visited: area stays only as a preliminary estimate (attendance event) and the proposed product is kept, unverified.
     } else {
       const amt = data.installer?.quoted_price_inc_gst;
-      if (!(amt && amt > 0) && files0.length === 0) blockers.push("Upload your quote or enter the quote amount inc GST");
+      // Only files explicitly saved as the quote count; supporting photos never stand in for a quote.
+      if (!(amt && amt > 0) && (await import("./installer-intake.core")).quoteFileCount(files0 as { purpose?: string }[]) === 0) blockers.push("Upload your quote or enter the quote amount inc GST");
       if (amt && amt > 0 && !data.installer?.price_includes?.trim()) blockers.push("Tell us what the quote includes");
       // Upload-only quote: amount comes later; quoted stays unknown (never a false "yes").
       if (data.installer && !(amt && amt > 0)) { data.installer.quoted = null; data.installer.quoted_price_inc_gst = null; data.installer.price_includes = null; }
@@ -179,7 +181,7 @@ export async function confirmClaimed(userId: string, data: ConfirmImportInput, i
     // Single intake never asks whether the installer visited: record unknown (null), never an assumed visit.
     // Single intake records ONLY the installer's explicit attendance answer; unanswered stays null (unknown).
     installer_site_check: intake ? (intake.attended === "attended" ? "yes" : intake.attended === "not_attended" ? "no" : null) : inst.site_check,
-    installer_site_check_date: intake ? (intake.attended === "attended" ? (await import("./installer-intake.core")).attendedOnDate("attended", intake.attended_on, new Date().toISOString().slice(0, 10)) : null)
+    installer_site_check_date: intake ? (intake.attended === "attended" ? (await import("./installer-intake.core")).attendedOnDate("attended", intake.attended_on, (await import("./installer-intake.core")).melbourneToday()) : null)
       : inst.site_check === "yes" ? inst.site_check_date ?? null : null,
     installer_quoted: inst.quoted ?? null,
     installer_quoted_price_inc_gst: inst.quoted === "yes" ? inst.quoted_price_inc_gst ?? null : null, installer_price_includes: inst.quoted === "yes" && inst.quoted_price_inc_gst ? inst.price_includes || null : null,
@@ -232,7 +234,7 @@ export async function confirmClaimed(userId: string, data: ConfirmImportInput, i
       await once("installer_coordination_chosen", async () => logEvent(res.job_id, userId, "installer_coordination_chosen", intake.coordination === "self_managed" ? "Installer will organise the job themselves (AP checks, notices, evidence review and final approval still apply)" : "Home Insulation Victoria manages the process through the normal workflow", { import_id: data.importId, coordination: intake.coordination, version: ic.COORDINATION_VERSION, chosen_at: new Date().toISOString(), self_managed_ack: intake.coordination === "self_managed" ? { wording: ic.SELF_MANAGED_ACK, acknowledged: true } : null }, { internal: true })); }
     if (intake.fee_awareness?.declared) await once("installer_owner_fee_awareness", async () => logEvent(res.job_id, userId, "installer_owner_fee_awareness", intake.fee_awareness!.payer === "own" ? "Installer declared the owner was advised of the $349 AP management fee and that their own electrician invoices them separately" : "Installer declared the owner was advised of the $349 PIESA fee and $349 AP management fee", { import_id: data.importId, by: "installer", source: "installer_add_job", payer: intake.fee_awareness!.payer, wording: intake.fee_awareness!.text, version: intake.fee_awareness!.version, confirmed_at: new Date().toISOString(), not_owner_paperwork: true }, { internal: true }));
     if (intake.electrician_payer) await once("installer_electrician_payer", async () => logEvent(res.job_id, userId, "installer_electrician_payer", intake.electrician_payer === "own" ? "Installer will use their own electrician — electrician invoices the owner directly; Home Insulation Victoria's $349 PIESA fee excluded (provisional arrangement; office verifies electrician, PIESA, conditions, evidence and notices)" : intake.electrician_payer === "hivic" ? "Home Insulation Victoria arranges the electrician ($349 PIESA fee on the owner quote)" : "Electrician to be arranged — owner quote held until the electrician cost is known", { import_id: data.importId, payer: intake.electrician_payer }, { internal: true }));
-    if (intake.attended === "attended" || intake.attended === "not_attended") await once("installer_attendance_answer", async () => logEvent(res.job_id, userId, "installer_attendance_answer", intake.attended === "attended" ? "Installer answered: attended and assessed the property" : "Installer answered: not attended yet — Ready Check required", { answer: intake.attended, attended_on: intake.attended === "attended" ? (await import("./installer-intake.core")).attendedOnDate("attended", intake.attended_on, new Date().toISOString().slice(0, 10)) : null, reported_by: userId, source: "intake", import_id: data.importId, preliminary_area_m2: intake.attended === "not_attended" ? (c.measured_area_m2 == null ? null : Number(c.measured_area_m2)) : null }, { internal: true }));
+    if (intake.attended === "attended" || intake.attended === "not_attended") await once("installer_attendance_answer", async () => logEvent(res.job_id, userId, "installer_attendance_answer", intake.attended === "attended" ? "Installer answered: attended and assessed the property" : "Installer answered: not attended yet — Ready Check required", { answer: intake.attended, attended_on: intake.attended === "attended" ? (await import("./installer-intake.core")).attendedOnDate("attended", intake.attended_on, (await import("./installer-intake.core")).melbourneToday()) : null, reported_by: userId, source: "intake", import_id: data.importId, preliminary_area_m2: intake.attended === "not_attended" ? (c.measured_area_m2 == null ? null : Number(c.measured_area_m2)) : null }, { internal: true }));
     await once("installer_quote_answer", async () => logEvent(res.job_id, userId, "installer_quote_answer", (intake.quote_status ?? "have_quote") === "have_quote" ? "Installer answered: quote prepared" : "Installer answered: quote not prepared yet", { answer: intake.quote_status ?? "have_quote", import_id: data.importId, source: "intake" }, { internal: true }));
     if (intake.removal_quote) await once("installer_quote_removal_declared", async () => logEvent(res.job_id, userId, "installer_quote_removal_declared", removalSummary(intake.removal_quote as RemovalQuote), { import_id: data.importId, removal_quote: intake.removal_quote, source: "installer_add_job", verified: false, included_in_total: true }, { internal: true }));
     await once("installer_evidence_acknowledged", async () => logEvent(res.job_id, userId, "installer_evidence_acknowledged", "Installer acknowledged all required Ready Check and installation evidence must be supplied and accepted before the rebate", { import_id: data.importId, wording: (await import("./installer-intake.core")).EVIDENCE_ACK, version: intake.version, proposed_r_value: intake.proposed_r_value ?? null, acknowledged_at: new Date().toISOString() }, { internal: true }));
@@ -254,7 +256,7 @@ export async function confirmClaimed(userId: string, data: ConfirmImportInput, i
 }
 
 /** Add photos/files to a draft import (business owner only). Paths must be this business's own uploads. */
-export async function addImportFilesFor(userId: string, importId: string, files: { path: string; name: string; type: string }[]) {
+export async function addImportFilesFor(userId: string, importId: string, files: { path: string; name: string; type: string; purpose?: "quote" | "supporting" | undefined }[]) {
   const { data: imp } = await admin.from("job_imports").select("business_id, status, files, confirmed_by").eq("id", importId).single();
   if (!imp || imp.status !== "draft") throw new WorkflowError("This job was already added or discarded.");
   if ((imp as { confirmed_by?: string | null }).confirmed_by) throw new WorkflowError("This job is being saved — files can't change now.");
@@ -267,8 +269,9 @@ export async function addImportFilesFor(userId: string, importId: string, files:
   }
   const have = (imp.files as { path: string }[] | null) ?? [];
   const next = [...have, ...files.filter((f) => !have.some((h) => h.path === f.path))];
-  await admin.from("job_imports").update({ files: next as unknown as Json, updated_at: new Date().toISOString() }).eq("id", importId);
-  return { files: next as { path: string; name: string; type: string }[] };
+  const { error: upErr } = await admin.from("job_imports").update({ files: next as unknown as Json, updated_at: new Date().toISOString() }).eq("id", importId);
+  if (upErr) throw new WorkflowError("The file could not be attached. Please retry — it won't upload twice.");
+  return { files: next as { path: string; name: string; type: string; purpose?: "quote" | "supporting" }[] };
 }
 export async function removeImportFileFor(userId: string, importId: string, path: string) {
   const { data: imp } = await admin.from("job_imports").select("business_id, status, files, confirmed_by").eq("id", importId).single();
@@ -276,8 +279,9 @@ export async function removeImportFileFor(userId: string, importId: string, path
   if ((imp as { confirmed_by?: string | null }).confirmed_by) throw new WorkflowError("This job is being saved — files can't change now.");
   await requireMember(userId, imp.business_id, true);
   const next = ((imp.files as { path: string }[] | null) ?? []).filter((f) => f.path !== path);
-  await admin.from("job_imports").update({ files: next as unknown as Json, updated_at: new Date().toISOString() }).eq("id", importId);
-  return { files: next as { path: string; name: string; type: string }[] };
+  const { error: upErr } = await admin.from("job_imports").update({ files: next as unknown as Json, updated_at: new Date().toISOString() }).eq("id", importId);
+  if (upErr) throw new WorkflowError("The file could not be attached. Please retry — it won't upload twice.");
+  return { files: next as { path: string; name: string; type: string; purpose?: "quote" | "supporting" }[] };
 }
 
 /** Resume an Add job draft after refresh. Only the user who created it, still a member of its business, may read it. */

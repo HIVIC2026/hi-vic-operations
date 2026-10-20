@@ -11,13 +11,13 @@ describe("1) initial intake validates/saves only the chosen branch", () => {
     const r = check({ ...base, quoteStatus: "not_quoted" });
     expect(r.problems).toEqual([]); expect(r.area).toBeNull(); expect(r.q.quoted_price_inc_gst).toBeNull();
   });
-  test("Yes -> area -1 -> No: hidden invalid area does not block", () => {
+  test("area stays visible for every answer, so an invalid typed area is reported, not silently dropped", () => {
     const r = check({ ...base, area: "-1", quoteStatus: "not_quoted" });
-    expect(r.problems.some((p) => /ceiling area/i.test(p))).toBe(false);
+    expect(r.problems.some((p) => /ceiling area/i.test(p))).toBe(true);
   });
-  test("Yes -> valid area/quote -> No: hidden facts are NOT serialized", () => {
+  test("Yes -> valid area/quote -> Not yet: hidden COMMERCIAL facts are not serialized; physical facts kept", () => {
     const r = check({ ...base, area: "120", amount: "3450", includes: "R5 batts", proposedR: "R5", quoteStatus: "not_quoted" });
-    expect(r.area).toBeNull(); expect(r.q).toEqual({ quoted: "no", quoted_price_inc_gst: null, price_includes: null, proposed_r_value: null });
+    expect(r.area).toBe(120); expect(r.q).toEqual({ quoted: "no", quoted_price_inc_gst: null, price_includes: null, proposed_r_value: 5 });
   });
   test("Yes keeps validating the visible area and R5 text", () => {
     expect(check({ ...base, area: "-1", amount: "3450", includes: "x", quoteStatus: "have_quote" }).problems.some((p) => /ceiling area/i.test(p))).toBe(true);

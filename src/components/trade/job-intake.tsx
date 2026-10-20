@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { openFileViewer } from "@/components/portal/file-viewer";
 
-export type AttachedFile = { path: string; name: string; type?: string | null };
+export type AttachedFile = { path: string; name: string; type?: string | null; purpose?: "quote" | "supporting" | undefined };
 const isImage = (f: { name: string; type?: string | null }) => /^image\//.test(f.type ?? "") || /\.(jpe?g|png|heic|heif|webp)$/i.test(f.name);
 
 /** Uploads to this business's private import folder; returns stored refs (never public URLs). */
