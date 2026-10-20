@@ -523,13 +523,17 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
         must(await admin.from("owner_eligibility_links").insert({ job_id: job.id, business_id: batch.business_id, token_hash: await hashToken(ownerToken), created_by: actorId, expires_at: new Date(Date.now() + 30 * 86_400_000).toISOString() }).select("id").single(), "Owner link could not be saved");
         ownerLinks.push({ jobNumber: job.job_number, owner: e.full_name ?? "Customer", path: `/eligibility/${ownerToken}` });
       }
-      const logged = must(await admin.from("workflow_events").select("id").eq("job_id", job.id).eq("event_type", "bulk_import_confirmed").limit(1).maybeSingle(), "Could not check the job history");
-      if (!logged) {
+      // Each required history entry is checked and written on its own, so a retry finishes only what is missing.
+      const hasEvent = async (type: string) => !!must(await admin.from("workflow_events").select("id").eq("job_id", job.id).eq("event_type", type).limit(1).maybeSingle(), "Could not check the job history");
+      if (!(await hasEvent("bulk_import_confirmed"))) {
         await logEvent(job.id, actorId, "bulk_import_confirmed", `Job created from installer bulk upload (row ${row.row_index + 1})`, {
           batch_id: batchId, row_id: row.id, sort_result: row.sort_result,
           missing_evidence: row.missing_evidence, draft_quote: quoted, attached_files: attached.attached, files_not_attached: attached.notAttached,
           import_stage: importStage, electrician_plan: plan, resumed,
         });
+      }
+      // The installer's own submitted permission only — never synthesised.
+      if (permission && !(await hasEvent("bulk_import_contact_permission"))) {
         await logEvent(job.id, permission.confirmed_by, "bulk_import_contact_permission", permission.wording, {
           batch_id: batchId, confirmed_by: permission.confirmed_by, confirmed_at: permission.confirmed_at, wording: permission.wording,
         });
@@ -549,9 +553,14 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
     }
   }
   // The batch is only closed once nothing is left to fix; otherwise it stays open for another confirm.
-  const { count: left } = await admin.from("bulk_import_rows").select("id", { count: "exact", head: true }).eq("batch_id", batchId).eq("status", "pending");
-  if (!left) await admin.from("bulk_import_batches").update({ status: "confirmed", confirmed_at: new Date().toISOString() }).eq("id", batchId).eq("status", "analysed");
-  return { created, skipped, failed, alreadyTaken, remaining: left ?? 0, ownerLinks, incomplete, results };
+  // If the count can't be read, fail closed: keep the batch open and say so (never report "nothing left").
+  const { count: left, error: leftErr } = await admin.from("bulk_import_rows").select("id", { count: "exact", head: true }).eq("batch_id", batchId).eq("status", "pending");
+  const known = !leftErr && typeof left === "number";
+  if (known && left === 0) {
+    const { error: closeErr } = await admin.from("bulk_import_batches").update({ status: "confirmed", confirmed_at: new Date().toISOString() }).eq("id", batchId).eq("status", "analysed");
+    if (closeErr) return { created, skipped, failed, alreadyTaken, remaining: null, remainingUnknown: true as const, ownerLinks, incomplete, results };
+  }
+  return { created, skipped, failed, alreadyTaken, remaining: known ? left : null, ...(known ? {} : { remainingUnknown: true as const }), ownerLinks, incomplete, results };
 }
 
 /** Files matched to this customer become private job documents (kind installer_import), once each (keyed by the
