@@ -36,6 +36,13 @@ const good = { basis: "before_discount" as const, gst: "inc_gst" as const, inclu
 const evs = async (t: string) => (await db.query<{ details: Record<string, unknown> }>("select details from workflow_events where job_id=$1 and event_type=$2 order by created_at", [JOB, t])).rows;
 const comBlockers = async () => (await installerIntakeState(JOB)).readiness.blockers.filter((b) => /VEU discount|GST|Removal is required|removal price|Extra|Clarify the installer quote/.test(b));
 
+beforeEach(async () => {
+  drafted.length = 0;
+  await db.exec("delete from jobs; delete from workflow_events; delete from ceiling_measurements; delete from job_imports; delete from quotes;");
+  await db.query("insert into jobs (id, channel, originating_installer_business_id, installer_quoted, estimated_area_unknown) values ($1,'installer_sourced',$2,'no',true)", [JOB, BIZ]);
+  await db.query("insert into workflow_events (job_id, event_type, details) values ($1,'installer_evidence_acknowledged','{\"proposed_r_value\":null}'),($1,'installer_existing_insulation_declared','{\"value\":\"below_r2\"}'),($1,'installer_commercial_eligibility','{\"outcome\":\"eligible\"}')", [JOB]);
+  await db.query("insert into job_imports (job_id, business_id, files) values ($1,$2,'[]')", [JOB, BIZ]);
+});
 
 const st = () => installerIntakeState(JOB);
 describe("Dad trial shapes: edit -> read", () => {
