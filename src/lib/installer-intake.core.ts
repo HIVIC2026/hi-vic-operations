@@ -345,6 +345,8 @@ export function onsiteMeasuredFrom(m: { verified_area_m2?: unknown; provenance?:
   if (attended === "no" || !m) return false;
   return m.verified_area_m2 != null || m.provenance === "hivic_onsite";
 }
+/** Job document title carries the explicit file purpose so Office file lists show it (job_imports.files stays canonical). */
+export const intakeDocumentTitle = (f: { name: string; purpose?: string | null | undefined }) => `${f.purpose === "quote" ? "Installer quote" : f.purpose === "supporting" ? "Supporting evidence" : "Unclassified file"} — ${f.name}`.slice(0, 300);
 export const NOT_MEASURED_NOTE = "That’s fine — we’ll save the job now. Add your quote on this same job when ready.";
 /** Who arranges/pays the electrician on an installer-supplied job (separate from who manages the job). */
 export type ElectricianPayer = "hivic" | "own" | "undecided";

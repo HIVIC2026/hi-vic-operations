@@ -26,6 +26,7 @@ CREATE TABLE quotes (id uuid primary key default gen_random_uuid(), job_id uuid,
 CREATE TABLE owner_contact_consents (id uuid primary key default gen_random_uuid(), job_id uuid, owner_id uuid, source text, consent_key text, consent_status text, contact_consent boolean,
   consented_at timestamptz, snapshot jsonb, sha256 text, created_at timestamptz default now());
 CREATE TABLE evidence_requirements (id uuid primary key default gen_random_uuid(), job_id uuid, category text, label text, required boolean, status text, gate text);
+CREATE TABLE documents (id uuid primary key default gen_random_uuid(), job_id uuid, kind text, title text, original_name text, mime_type text, storage_path text, source_system text, external_id text, uploaded_by uuid, created_at timestamptz default now());
 CREATE TABLE workflow_settings (id int, measurement_standard_approved boolean);
 CREATE TABLE partner_measurement_methods (id uuid, business_id uuid, status text, approved_at timestamptz);`);
 
@@ -101,7 +102,7 @@ async function addJob(c: Combo, files: { n: string; bytes: Uint8Array; purpose?:
 }
 
 beforeEach(async () => {
-  await db.exec("delete from jobs; delete from workflow_events; delete from ceiling_measurements; delete from job_imports; delete from quotes; delete from owner_contact_consents; delete from job_assignments;");
+  await db.exec("delete from jobs; delete from workflow_events; delete from ceiling_measurements; delete from job_imports; delete from quotes; delete from owner_contact_consents; delete from job_assignments; delete from documents;");
   bucket.clear(); enquiryCalls = 0; rpcFail = false;
 });
 
@@ -122,6 +123,13 @@ describe("four attendance × quote combinations: create -> read -> edit -> read"
     s = await st.installerIntakeState(jobId);
     expect(s.quoteIncGst).toBe(3450); expect(s.areaM2).toBe(140); expect(s.readiness.ready).toBe(false);
     expect((await fileRow(jobId)).length).toBe(1);
+    expect((await db.query<{ title: string }>("select title from documents where job_id=$1", [jobId])).rows.map((r) => r.title)).toEqual(["Supporting evidence — roof.jpg"]);
+    // reopen later and add a quote file: same canonical documents, purpose kept, retry doesn't duplicate
+    const qf = { path: put("later-quote.pdf", PDF), name: "later-quote.pdf", type: "application/pdf", purpose: "quote" as const };
+    const edit = { areaM2: 140, insulation: "none" as const, quoteStatus: "have_quote" as const, quoteIncGst: 3450, includes: "R5 batts", proposedR: 5, files: [qf], commercial: COMMERCIAL as never };
+    await st.installerUpdateIntake(jobId, U, BIZ, edit); await st.installerUpdateIntake(jobId, U, BIZ, edit);
+    expect((await fileRow(jobId)).map((f) => f.purpose)).toEqual(["supporting", "quote"]);
+    expect(await count("select count(*)::int n from documents where job_id=$1 and title='Installer quote — later-quote.pdf'", [jobId])).toBe(1);
   });
   test("visited + not quoted keeps the measured area and needs no second visit", async () => {
     const { jobId } = await addJob({ attended: "attended", quote: "not_quoted", amount: null }, [PHOTO], 132);

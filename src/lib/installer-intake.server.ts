@@ -344,6 +344,15 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
       have.splice(0, have.length, ...next);
     }
     if (add.length) { const { error: e } = await admin.from("job_imports").update({ files: [...have, ...add] as never }).eq("id", imp.id); if (e) throw new WorkflowError(e.message); }
+    if (add.length) {
+      // Files added on edit become job documents too (same canonical record as Add job); dedup by storage path.
+      const { intakeDocumentTitle } = await import("./installer-intake.core");
+      const { data: haveDocs, error: hdErr } = await admin.from("documents").select("storage_path").eq("job_id", jobId).eq("kind", "installer_import");
+      if (hdErr) throw new WorkflowError("The job's files could not load. Please retry — nothing was added twice.");
+      const docPaths = new Set((haveDocs ?? []).map((d) => d.storage_path));
+      const docs = add.filter((f) => !docPaths.has(f.path)).map((f) => ({ job_id: jobId, kind: "installer_import", title: intakeDocumentTitle(f), original_name: f.name, mime_type: f.type || null, storage_path: f.path, source_system: "installer_edit", uploaded_by: actorId }));
+      if (docs.length) { const { error: de } = await admin.from("documents").insert(docs); if (de) throw new WorkflowError(`Uploaded files could not be attached to the job: ${de.message}`); }
+    }
     if (add.length) await logEvent(jobId, actorId, "installer_quote_file_added", `Installer added ${add.length} file${add.length === 1 ? "" : "s"} (originals kept)`, { files: add }, { internal: true });
   }
   let electrician: string | null = null;
