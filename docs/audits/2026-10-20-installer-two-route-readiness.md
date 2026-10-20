@@ -29,3 +29,16 @@ Items 1, 2, 3, 5 of the approved flow (attendance/quote split, four combinations
 ## NOT_RUN
 Authenticated TEST installer save/reopen on preview; live checks; Mitti fake-I/O end-to-end; full portal-qa (not rerun by instruction).
 Pre-existing failure: installer-progress.test.ts import `intakeProgressApplies`.
+
+## Addendum 10:58 UTC — attendance now drives the Ready Check and progress handoffs
+Coordination: the queued duplicate request is the same approved task; treated as gap coverage only.
+- `installer-ready-check.core.ts` `installerReadyCheckAction`: visit needed when `attended === "no"` (even if quoted), or legacy unknown attendance + not quoted. Attended + unquoted → no Ready Check prompt.
+- `installer-ready-check.server.ts` `installerRcState`: reads `jobs.installer_site_check` and passes `attended`.
+- `installer-progress.core.ts` `nextAction`: attended + unquoted → "You: finish missing assessment details and add your price on this job"; quoted + not attended → preliminary quote, onsite Ready Check required. Unknown attendance keeps previous behaviour.
+- `installer-quote.functions.ts` progress loader: reads `installer_site_check` into `attended`.
+- New test `tests/installer-attendance-handoffs.test.ts` 9/0 (pure rules; the two loaders were updated but not exercised end to end).
+- Re-run: installer-ready-check 6/0, installer-two-route 8/0, installer-ui-repairs 17/0; tsgo clean. installer-progress.test.ts still fails at import (`intakeProgressApplies` missing, pre-existing).
+- `scripts/installer-test.ts` deliberately NOT run (it restores snapshots/writes business memberships; sectionC contains old photos/price ⇒ visited checks and external operations).
+
+## Consolidated status
+Not live-ready: the signed-in TEST installer save → reload journey on preview has NOT_RUN. Not published. Dad/Deep access on hold. No sends, credential changes or approvals.
