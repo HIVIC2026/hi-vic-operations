@@ -548,9 +548,9 @@ export function renderJoOutcomeEmail(input: JoOutcomeEmailInput): JoWiredEmail |
     .replace('Please upload clear photos or a short video showing what’s above your ceiling, including any visible insulation labels. This will help us assess your enquiry sooner. If it looks eligible, we’ll invite you to save your spot.', 'Thank you for sending your photos or video. We already have your media — you do not need to upload it again. Our Office will review it and contact you about the next step. Final eligibility will be confirmed at your free Ready Check. If you want or need to add more evidence, you can optionally add multiple photos and/or videos using the link below.') : rendered.body;
   const ctas = rendered.ctas;
   const linkedBody = bindLinks(copy, input.links, ctas);
-  const body = received ? linkedBody.replace('Upload my photos or video →', 'Add more photos or video →') : linkedBody;
-  const missing = missingCta(ctas, body);
+  const missing = missingCta(ctas, linkedBody);
   if (missing) throw new Error(`The ${missing} link is missing for this customer; nothing was prepared.`);
+  const body = received ? linkedBody.replace('Upload my photos or video →', 'Add more photos or video →') : linkedBody;
   return assemble(id, rendered.subject, body, ctas, input);
 }
 
