@@ -67,7 +67,7 @@ async function loadCandidates(msgs: MailMessage[], mailbox: string) {
   return { byNumber, byEmail };
 }
 
-async function queueReview(m: MailMessage, kind: "unmatched" | "possible_not_proceeding" | "not_proceeding_progressed", reason: string, extra: { jobId?: string; commId?: string; candidates?: string[]; suggested?: string } = {}) {
+async function queueReview(m: MailMessage, kind: "unmatched" | "possible_not_proceeding" | "not_proceeding_progressed", reason: string, extra: { jobId?: string; commId?: string; candidates?: string[]; suggested?: string | undefined } = {}) {
   const { error } = await admin.from("correspondence_reviews").upsert({
     kind, provider: "outlook", provider_message_id: m.providerMessageId, provider_thread_id: m.threadId, job_id: extra.jobId ?? null,
     communication_id: extra.commId ?? null, candidate_job_ids: extra.candidates ?? [], direction: m.direction, from_address: m.from,

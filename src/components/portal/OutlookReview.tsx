@@ -35,7 +35,7 @@ export function OutlookReview() {
         {s?.last_error && <p className="mt-1 text-danger">Last problem: {s.last_error}</p>}
         <p className="mt-1 text-sub">Copies homeowner emails (in and out) from {fmt(s?.backfill_from)} onto each job, every 10 minutes. It never sends anything.
           {Object.keys(counts).length > 0 && <> Last pass: {counts["stored"] ?? 0} saved, {counts["unmatched"] ?? 0} to match, {counts["closed"] ?? 0} closed, {counts["flagged"] ?? 0} to check.</>}</p>
-        <Button className="mt-2" size="sm" variant="outline" disabled={busy || !data.connected} onClick={async () => { setBusy(true); await runNow({}, "Sync pass finished"); setBusy(false); }}>{busy ? "Syncing…" : "Sync now"}</Button>
+        <Button className="mt-2" size="sm" variant="outline" disabled={busy || !data.connected} onClick={async () => { setBusy(true); await runNow(undefined, "Sync pass finished"); setBusy(false); }}>{busy ? "Syncing…" : "Sync now"}</Button>
       </section>
 
       <ReviewList title={`Unmatched correspondence (${unmatched.length})`} empty="No emails waiting to be matched." items={unmatched} resolve={resolve} />
