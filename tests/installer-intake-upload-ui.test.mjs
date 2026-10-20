@@ -171,6 +171,6 @@ test('actual job-card save retains new quote/supporting purposes and untouched l
   await io.pick(io.control('quote'), picked('price.doc')); await io.settle();
   await button(io.tree, 'Save details').props.onClick(); await io.settle();
   assert.equal(io.callsOf('save').length, 1); assert.deepEqual(io.callsOf('save')[0].args.data.files.map(f => f.purpose), ['supporting', 'quote']);
-  assert.deepEqual(io.persisted[0], legacy); assert.equal(core.quoteFileCount(io.persisted), 2);
+  assert.deepEqual(io.persisted[0], legacy); assert.equal(core.quoteFileCount(io.persisted), 1); assert.equal(core.unclassifiedFileCount(io.persisted), 1);
   assert.equal(io.callsOf('refresh').length, 1);
 });
