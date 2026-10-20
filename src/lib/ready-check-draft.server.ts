@@ -52,7 +52,7 @@ export async function loadRcDraft(jobId: string) {
   const saved = rc ? await savedAreas(rc.id) : null;
   const suggested = saved ? [] : await suggestedAreas(jobId, st);
   const areas = saved ?? [];
-  const reqs = await areaReqs(jobId);
+  const reqs = areas.length ? await areaReqs(jobId) : []; // area_key read only once areas exist (pending 0214)
   return {
     areas, areasSaved: saved != null, suggestedAreas: suggested, preliminaryOnly: st.attended !== "yes",
     areaTotals: totals(areas), areaTasks: areaTasks(areas, reqs), areaWorksBlockers: areaWorksBlockers(areas, reqs),
@@ -200,9 +200,7 @@ export async function saveRcAreas(jobId: string, userId: string, businessId: str
   if (problems.length) throw new WorkflowError(problems.join(" • "));
   const { installerIntakeState } = await import("./installer-intake.server");
   const st = await installerIntakeState(jobId);
-  if (st.attended !== "yes" && input.some((a) => a.existing != null || a.removal != null)) {
-    // Not attended: allowed only as an onsite recording by the person saving it — never from the preliminary estimate.
-  }
+  // Not attended: no carry-forward exists, so every saved fact is attributed to the person recording it now.
   if (!rc) {
     const { data, error } = await admin.from("ready_checks").insert({ job_id: jobId, version: 1, status: "draft", installer_user_id: userId, installer_business_id: businessId }).select("id, version, status, submitted_at, updated_at, external_mitti_id").single();
     if (error) { if (!/duplicate|unique/i.test(error.message)) throw new WorkflowError(error.message); rc = await latestRc(jobId); if (!rc) throw new WorkflowError(error.message); }
