@@ -145,6 +145,7 @@ export const saveMyIntakeJob = createServerFn({ method: "POST" }).middleware([re
     electrician: z.object({ mode: z.literal("mine"), business_id: z.string().uuid().nullish(), nomination_id: z.string().uuid().nullish() }).optional(),
     electricianPayer: z.enum(["hivic", "own", "undecided"]).optional(),
     removalQuote: z.object({ answer: z.enum(["yes", "no", "unknown"]), areaM2: z.number().positive().max(5000).nullable(), chargeIncGst: z.number().min(0).max(1_000_000).nullable() }).optional(),
+    commercial: z.object({ basis: z.enum(["before_discount", "after_discount", "unsure"]).nullable(), gst: z.enum(["inc_gst", "ex_gst", "unsure"]).nullable(), inclusions: z.string().trim().max(1000).nullable(), exclusions: z.string().trim().max(1000).nullable(), originalStatus: z.enum(["prepared", "sent", "accepted_by_customer"]).nullable(), removalPricing: z.enum(["included", "additional", "not_priced"]).nullable(), removalAmountIncGst: z.number().min(0).max(1_000_000).nullable(), extras: z.array(z.object({ description: z.string().trim().min(1).max(300), pricing: z.enum(["included", "additional", "not_priced"]), amountIncGst: z.number().min(0).max(1_000_000).nullable() })).max(20) }).optional(),
     feeAwareness: z.object({ payer: z.enum(["hivic", "own"]), text: z.string().max(400) }).optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {

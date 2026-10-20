@@ -93,3 +93,6 @@ export function removalFactSummary(r: RemovalQuote | null, c: QuoteCommercial | 
 export const ORIGINAL_STATUS_LABEL: Record<OriginalQuoteStatus, string> = { prepared: "Prepared", sent: "Sent to their customer", accepted_by_customer: "Accepted by their customer" };
 /** Installer-customer acceptance is history only — never HIVIC acceptance, statutory consent or a signature. */
 export const ORIGINAL_STATUS_NOTE = "History only — this is not the owner's acceptance of the Home Insulation Victoria quote, consent or a signature.";
+
+/** Wire shape (zod lives in the .functions files; this keeps the bounds in one place). */
+export const COMMERCIAL_LIMITS = { text: 1000, extras: 20, money: 1_000_000 } as const;
