@@ -84,8 +84,8 @@ describe("bulk import core rules", () => {
 import { leadStage, CONTACT_PERMISSION_WORDING } from "../src/lib/bulk-import.core";
 describe("lead stage", () => {
   test("contact details only → not visited", () => expect(leadStage({ full_name: "A", phone: "1" }, 0)).toBe("not_visited"));
-  test("measurements or photos mean visited (Jo, 7 Oct 5:45pm)", () => {
-    expect(leadStage({ area_m2: 120 }, 0)).toBe("visited");
+  test("measurements or photos alone never mean visited (Jo 20 Oct supersedes 7 Oct)", () => {
+    expect(leadStage({ area_m2: 120 }, 0)).toBe("not_visited");
     expect(leadStage({ full_name: "A" }, 2)).toBe("not_visited"); // photos alone never mean a visit (Jo 20 Oct)
   });
   test("site check Yes → visited, No → not visited", () => {
@@ -96,7 +96,7 @@ describe("lead stage", () => {
     expect(leadStage({ full_name: "A", existing_insulation: "old batts, patchy" }, 0)).toBe("not_visited");
     expect(leadStage({ full_name: "A", access: "tight manhole in hallway", roof_type: "tile", hazards: "downlights" }, 0)).toBe("not_visited");
   });
-  test("a quote means visited (Jo, 7 Oct 5:45pm)", () => expect(leadStage({ price_inc_gst: 4000 }, 0)).toBe("quoted"));
+  test("a price alone never means visited (Jo 20 Oct supersedes 7 Oct)", () => expect(leadStage({ price_inc_gst: 4000 }, 0)).toBe("not_visited"));
   test("permission wording is exact (Jo, 7 Oct)", () => expect(CONTACT_PERMISSION_WORDING).toBe("The owner has given Home Insulation Victoria permission to contact them."));
 });
 
