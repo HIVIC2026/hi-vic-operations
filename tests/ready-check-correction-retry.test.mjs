@@ -78,7 +78,7 @@ CREATE TRIGGER copy_failure BEFORE INSERT ON ready_check_observations FOR EACH R
     };
     return b;
   } };
-  server = load("src/lib/ready-check-draft.server.ts", {
+  server = load("src/lib/ready-check-draft.server.ts", { "./file-links.server": { signFile: async () => ({ data: { signedUrl: null } }) },
     "@/integrations/supabase/client.server": { supabaseAdmin: admin },
     "./workflow.server": { WorkflowError: class WorkflowError extends Error {}, logEvent: async (job, actor, type, summary, details) => {
       await query("INSERT INTO workflow_events(job_id,actor_id,event_type,summary,details) VALUES($1,$2,$3,$4,$5)", [job, actor, type, summary, JSON.stringify(details || {})]);

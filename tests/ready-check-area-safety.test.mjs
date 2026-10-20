@@ -94,7 +94,7 @@ async function fixture(options = {}) {
   } };
   const intake = { isIntakeJob: async () => options.intake !== false, siteConditionsHoldFor: async () => ({ open: false, note: null }),
     installerIntakeState: async () => ({ attended: "yes", areaM2: 80, insulation: "below_r2", proposedR: null, includes: null, areaProvenance: "installer_provisional", coordination: "self_managed", readiness: { ready: false, blockers: [] }, releaseBlockers: [] }) };
-  const server = load("src/lib/ready-check-draft.server.ts", {
+  const server = load("src/lib/ready-check-draft.server.ts", { "./file-links.server": { signFile: async () => ({ data: { signedUrl: null } }) },
     "@/integrations/supabase/client.server": { supabaseAdmin: admin }, "./workflow.server": wf,
     "./ready-check-draft.core": draftCore, "./ready-check-areas.core": areaCore, "./installer-intake.server": intake,
   });
