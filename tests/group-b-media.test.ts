@@ -2,6 +2,54 @@ import { expect, test } from "bun:test";
 import { originalEnquiryMedia, groupBInvitationBlocker } from "../src/lib/group-b-media.core";
 import { buildBase44Raw, retainOriginalMedia } from "../src/lib/enquiry.core";
 
+test("explicit empty current media array clears the invitation blocker without extra verification", () => {
+  const state = originalEnquiryMedia({media:[]},[]);
+  expect(state).toEqual({excluded:false,received:false,uncertain:false,pendingSync:false,count:0});
+  expect(groupBInvitationBlocker(state)).toBeNull();
+});
+test("entirely absent media keys remain uncertain even with complete verification", () => {
+  for (const raw of [{},{original_media_verification:{complete:true}}]) {
+    const state = originalEnquiryMedia(raw,[]);
+    expect(state).toMatchObject({excluded:true,received:false,uncertain:true,pendingSync:false});
+    expect(groupBInvitationBlocker(state)).not.toBeNull();
+  }
+});
+test("null media alone is not a known manifest", () => {
+  expect(originalEnquiryMedia({media:null},[])).toMatchObject({excluded:true,received:false,uncertain:true});
+});
+test("persisted intake image takes precedence over explicit empty raw media", () => {
+  const state = originalEnquiryMedia({media:[]},[{kind:"intake_media",mime_type:"image/jpeg",storage_path:"J/intake/roof.jpg"}]);
+  expect(state).toEqual({excluded:true,received:true,uncertain:false,pendingSync:false,count:1});
+  expect(groupBInvitationBlocker(state)).not.toBeNull();
+});
+test("pending image reference still blocks when another recognised array is empty", () => {
+  const state = originalEnquiryMedia({media:[],answers:{photos:[{source_id:"pending",name:"roof.jpg",mime_type:"image/jpeg"}]}},[]);
+  expect(state).toEqual({excluded:true,received:true,uncertain:false,pendingSync:true,count:1});
+  expect(groupBInvitationBlocker(state)).not.toBeNull();
+});
+test("read failure always holds explicit empty arrays, including verified manifests", () => {
+  for (const raw of [{media:[]},{media:[],original_media_verification:{complete:true}}]) {
+    const state = originalEnquiryMedia(raw,[],true);
+    expect(state).toMatchObject({excluded:true,received:false,uncertain:true,pendingSync:false});
+    expect(groupBInvitationBlocker(state)).not.toBeNull();
+  }
+});
+test("every recognised empty array contributes a known manifest at either raw level", () => {
+  for (const key of ["media","photos","videos","attachments","uploaded_files","uploaded_photos","uploaded_videos"]) {
+    for (const raw of [{[key]:[]},{answers:{[key]:[]}}]) expect(originalEnquiryMedia(raw,[]).uncertain).toBe(false);
+  }
+  expect(originalEnquiryMedia({media:[],photos:[],answers:{videos:[]}},[]).excluded).toBe(false);
+});
+test("non-null non-array media values remain ambiguous despite an empty array", () => {
+  for (const photos of ["roof.jpg",{},false,42]) expect(originalEnquiryMedia({media:[],photos},[])).toMatchObject({excluded:true,uncertain:true});
+});
+test("historically uncertain manifests are not cleared by new empty arrays or verification", () => {
+  expect(originalEnquiryMedia({media:[],original_media_manifest_uncertain:true,original_media_verification:{complete:true}},[])).toMatchObject({excluded:true,uncertain:true});
+});
+test("non-empty ambiguous array entries still fail closed", () => {
+  for (const media of [[{id:"opaque"}],[null],[""]]) expect(originalEnquiryMedia({media},[]).uncertain).toBe(true);
+});
+
 test("media-choice intent alone is not an attachment when the manifest confirms zero", () => {
   for (const media_choice of ["yes", "no", "unsure"]) expect(originalEnquiryMedia({answers:{media_choice},media:[],original_media_verification:{complete:true}},[])).toEqual({excluded:false,received:false,uncertain:false,pendingSync:false,count:0});
 });
