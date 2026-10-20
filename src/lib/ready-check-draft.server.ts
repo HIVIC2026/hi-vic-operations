@@ -151,9 +151,10 @@ export async function reopenRcDraft(jobId: string, actorId: string, reason: stri
 /** Original-condition answers still missing for an installer-intake job (feeds the existing pre-start works lock). */
 export async function rcWorksBlockers(jobId: string): Promise<string[]> {
   const { isIntakeJob } = await import("./installer-intake.server");
-  if (!(await isIntakeJob(jobId))) return [];
+  const intake = await isIntakeJob(jobId);
   const rc = await latestRc(jobId);
-  return [...rcProgress(rc ? await observations(rc.id) : {}, []).worksBlockers, ...(rc ? await rcAreaWorksBlockers(jobId) : [])];
+  // Saved areas apply to legacy jobs too; the older job-wide answers remain intake-only.
+  return [...(intake ? rcProgress(rc ? await observations(rc.id) : {}, []).worksBlockers : []), ...(rc ? await rcAreaWorksBlockers(jobId) : [])];
 }
 
 /** The canonical Ready Check answer for existing insulation (latest non-superseded Ready Check), or null if not recorded. */
@@ -174,7 +175,7 @@ async function savedAreas(rcId: string): Promise<RcArea[] | null> {
 
 /** Area-tagged requirements. Read failure throws: never shown as "nothing missing". */
 async function areaReqs(jobId: string): Promise<AreaReq[]> {
-  const { data, error } = await admin.from("evidence_requirements").select("id, area_key, category, gate, status, label").eq("job_id", jobId).not("area_key", "is", null);
+  const { data, error } = await admin.from("evidence_requirements").select("id, area_key, category, gate, status, label, verified_by, verified_at, notes").eq("job_id", jobId).not("area_key", "is", null);
   if (error) throw new WorkflowError(/area_key/.test(error.message) ? "Per-area evidence needs the pending database update (0214) — not applied yet." : error.message);
   return (data ?? []) as unknown as AreaReq[];
 }
@@ -198,8 +199,14 @@ async function suggestedAreas(jobId: string, st: { attended: "yes" | "no" | null
 }
 
 /** Create any missing per-area evidence rows. Idempotent (retry/double-click) via the (job, category, area) unique index. */
+const AUTO_REMOVED_AREA_NOTE = "Ceiling area removed from the draft; evidence is not required while the area is absent.";
 async function ensureAreaReqs(jobId: string, areas: RcArea[]) {
   const have = await areaReqs(jobId);
+  // A returning area needs its evidence again. Only reverse our own retirement; retain every Office review.
+  for (const h of have.filter((h) => areas.some((a) => a.key === h.area_key) && h.status === "not_required" && h.notes === AUTO_REMOVED_AREA_NOTE && !h.verified_by && !h.verified_at)) {
+    const { error } = await admin.from("evidence_requirements").update({ required: true, status: "outstanding", notes: null }).eq("id", h.id).eq("status", "not_required").eq("notes", AUTO_REMOVED_AREA_NOTE).is("verified_by", null).is("verified_at", null);
+    if (error) throw new WorkflowError(error.message);
+  }
   const want = areas.flatMap(areaEvidenceSpecs).filter((w) => !have.some((h) => h.area_key === w.area_key && h.category === w.category));
   for (const w of want) {
     const { error } = await admin.from("evidence_requirements").insert({ job_id: jobId, category: w.category as never, label: w.label, gate: w.gate, required: true, status: "outstanding", responsible_role: "installer" as never, sort: AREA_EVIDENCE_SORT, area_key: w.area_key } as never);
@@ -207,7 +214,7 @@ async function ensureAreaReqs(jobId: string, areas: RcArea[]) {
   }
   // Areas removed from the draft: untouched outstanding rows stop being required; rows with files or reviews are kept.
   for (const h of have.filter((h) => !areas.some((a) => a.key === h.area_key) && h.status === "outstanding")) {
-    const { error } = await admin.from("evidence_requirements").update({ required: false, status: "not_required" } as never).eq("id", h.id).eq("status", "outstanding");
+    const { error } = await admin.from("evidence_requirements").update({ required: false, status: "not_required", notes: AUTO_REMOVED_AREA_NOTE } as never).eq("id", h.id).eq("status", "outstanding").is("verified_by", null).is("verified_at", null);
     if (error) throw new WorkflowError(error.message);
   }
 }

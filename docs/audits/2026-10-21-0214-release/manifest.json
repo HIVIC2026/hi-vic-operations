@@ -1,0 +1,37 @@
+{
+  "project_id": "fb35adfe-10bf-4d4c-987d-28567ca1ddeb",
+  "reviewed_commit": "1fb7a89d522490a14c88ff6bfa539ab76af7d1b3",
+  "scope": "Migration 0214 release prerequisite; no live SQL executed",
+  "files": [
+    {
+      "file": "0214-reviewed.sql",
+      "bytes": 946,
+      "sha256": "9524ea1570ab34a512704e8d764c1a67d5d35a0c1f5edf31bc2af027a4022450"
+    },
+    {
+      "file": "0214-preflight.sql",
+      "bytes": 4094,
+      "sha256": "d2ad5a181a9165b6f10105d4ffd4a486837d0d1210b0db329e86e33cd0177aed"
+    },
+    {
+      "file": "0214-apply-transaction.sql",
+      "bytes": 6862,
+      "sha256": "681e0801f91bbaf4f478e2745aa9b6951f5fe668d2f720259cea1b3d83802577"
+    },
+    {
+      "file": "0214-release-note.md",
+      "bytes": 9392,
+      "sha256": "d74e4153b0da373aa7748e4ce030a14a742b81cd1280e35b5c0140d6c38b8b92"
+    },
+    {
+      "file": "verify-0214-atomic.mjs",
+      "bytes": 11732,
+      "sha256": "2b2b7b8804caca208b9be97959f1b1b361fcdbf703797f1ed88d8a75ac198a2d"
+    },
+    {
+      "file": "verification.json",
+      "bytes": 1903,
+      "sha256": "417c4ee35f489069037f4c6e983cfbe03e2f35ecd738aaeb50c013df66464f9e"
+    }
+  ]
+}

@@ -112,7 +112,12 @@ export function EvidencePanel({ jobId, role, gates, excludeGates }: { jobId: str
   return (
     <Section title="Evidence" action={<span className="text-sm text-muted-foreground">{done}/{total} required</span>}>
       <div className="space-y-2">
-        {reqs.map((r) => <EvidenceRow key={r.id} req={r} canUpload={role === "admin" || r.responsible_role === role || (role === "measure" && ["measurement", "existing_insulation_r_value"].includes((r as { category?: string }).category ?? ""))} isAdmin={role === "admin"} />)}
+        {reqs.map((r) => {
+          // The installer's Ready Check uses "measure"; its area before-photos must stay uploadable before Start.
+          const areaBefore = r.responsible_role === "installer" && !!(r as { area_key?: string | null }).area_key && r.category === "before_ceiling_space";
+          const measureUpload = role === "measure" && (["measurement", "existing_insulation_r_value"].includes(r.category) || areaBefore);
+          return <EvidenceRow key={r.id} req={r} canUpload={role === "admin" || r.responsible_role === role || measureUpload} isAdmin={role === "admin"} />;
+        })}
       </div>
     </Section>
   );
