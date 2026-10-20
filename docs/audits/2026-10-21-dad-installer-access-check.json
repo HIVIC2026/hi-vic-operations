@@ -118,5 +118,126 @@
   "invoices": 0,
   "signed_in_rls_nonTest": 0
  },
- "verdict": "Ready for a restricted dummy-job preview on desktop only after the Add Job crash fix is published. NOT full live workflow ready."
+ "verdict": "Ready for a restricted dummy-job preview on desktop only after the Add Job crash fix is published. NOT full live workflow ready.",
+ "post_migration_run": {
+  "date": "2026-10-21T21:40Z (Australia/Sydney 22 Oct morning)",
+  "target": "http://localhost:8080 (local dev preview; single live Lovable Cloud backend)",
+  "tested_base_commit": "644ce07b1011e2125b163a14ba65af83c0b6e59c + correction/area patches + 0214 live (final SHA = next auto-commit)",
+  "migration_0214": "APPLIED live via single-transaction runner (drizzle/migrations/0157_0214_evidence_requirement_area_key.sql); PostgREST select id,area_key limit(0) = HTTP 200, 0 rows; see 2026-10-21-0214-release/applied.md",
+  "fixes_found_and_made": [
+   "Area key AREAS_FIELD_KEY 'areas.v1' violated live ready_check_observations.field_key check (^(attendance|measure|insulation|removal|access|elec)\\.[a-z0-9_]+$) - renamed to 'measure.areas_v1' (core + practice schemas + tests); correction marker renamed 'correction.copy.v1' -> 'measure.correction_copy_v1'",
+   "Practice schemas lacked the live field_key check and documents.storage_path / evidence_requirements.verified_by|verified_at|notes columns - added so this defect class fails in tests",
+   "journey.server TEST helper now orders by sort so a job-level row is preferred over per-area rows",
+   "Synthetic coordinates fact (qa_fixture, 'pass', direct, [lng,lat]) added to the synthetic TEST property for HV-2933 so the photo-location check could run end to end"
+  ],
+  "isolation_reproof": {
+   "authenticated_test_installer_reads": {
+    "jobs": 2,
+    "owners": 0,
+    "properties": 2,
+    "documents": 3,
+    "job_imports": 2,
+    "quotes": 0,
+    "businesses": 1,
+    "evidence_files": 0,
+    "non_test_jobs": 0
+   },
+   "permissions": "user_roles = installer only; business_members = business_admin (ordinary installer/business-owner)",
+   "creation_stamping": "all jobs source=qa_test (HV-2928/2929/2932/2933)",
+   "zero_outbound_readback": {
+    "external_action_outbox": 0,
+    "messages": 0,
+    "sms_messages": 0,
+    "customer_email_sends": 0,
+    "post_intake_work": 0,
+    "invoices": 0,
+    "customer_followups": 0,
+    "esc_notifications": 0
+   }
+  },
+  "steps": [
+   {
+    "journey": "A mobile",
+    "route": "/partner/import",
+    "device": "mobile 390x844",
+    "step": "add customer, supporting photo, submit",
+    "result": "PASS",
+    "note": "HV-2932 qa_test; photo stored job-files (1 object)"
+   },
+   {
+    "journey": "B mobile",
+    "route": "/partner/import",
+    "device": "mobile 390x844",
+    "step": "attended+quoted: 142 m2, R5, no removal, $3,450, quote.pdf + photo.jpg, submit",
+    "result": "PASS",
+    "note": "HV-2933 qa_test; both files stored (2 objects)"
+   },
+   {
+    "journey": "A/B desktop + mobile",
+    "route": "/field/<job>",
+    "device": "desktop+mobile",
+    "step": "hard refresh + reopen: exact values and file purposes intact",
+    "result": "PASS",
+    "note": "142 / 3,450 / Before discount / Includes GST / R5 all present; documents titled by purpose (Installer quote vs Supporting evidence); both files open in the viewer (HTTP 200, correct content-type, dialog)"
+   },
+   {
+    "journey": "B desktop",
+    "route": "/field/HV-2929",
+    "device": "desktop",
+    "step": "attended carry-forward suggestion; save; reopen",
+    "result": "PASS",
+    "note": "'Main ceiling 142' suggested with provenance; values persisted"
+   },
+   {
+    "journey": "B mobile",
+    "route": "/field/HV-2933",
+    "device": "mobile",
+    "step": "two areas 100+42 saved; reload shows exact values",
+    "result": "PASS",
+    "note": "previous absent-0214 failure gone; areas.v1 key defect found and fixed first"
+   },
+   {
+    "journey": "B mobile",
+    "route": "/field/HV-2933",
+    "device": "mobile",
+    "step": "area before-photo upload while works held",
+    "result": "PASS",
+    "note": "uploaded, waiting for office review; storage object verified; the other area still blocks; 'You can still upload the before photos now'"
+   },
+   {
+    "journey": "A",
+    "route": "/field/HV-2932",
+    "device": "mobile",
+    "step": "visited/unquoted + preliminary-quote/unvisited regression cases",
+    "result": "NOT_RUN",
+    "note": "time-bounded this turn; covered by practice-DB suites (24/0, 11/0) but not re-run in browser"
+   },
+   {
+    "journey": "A/B",
+    "route": "trade top-right menu",
+    "device": "mobile",
+    "step": "sign-out then re-login; areas/values persist",
+    "result": "PARTIAL",
+    "note": "re-login restores exact areas (100/42) and values; the automated sign-out control click did not locate the menu button this run - sign-out path NOT_RUN in browser (handler code unchanged, supabase.auth.signOut)"
+   },
+   {
+    "journey": "A/B",
+    "route": "-",
+    "device": "-",
+    "step": "failed/retried upload or save without lost files/duplicate jobs",
+    "result": "NOT_RUN",
+    "note": "practice-DB race/CAS suites cover it (34/0); deliberate browser failure-injection not run"
+   },
+   {
+    "journey": "-",
+    "route": "cross-business job URL",
+    "device": "-",
+    "step": "refusal to access another business's job",
+    "result": "NOT_RUN",
+    "note": "isolation readback shows the identity reaches only its own qa_test jobs; explicit cross-business browser refusal not run this turn"
+   }
+  ],
+  "gates_held": "Official form/safety gates untouched; expected safety refusals observed (owner fee awareness, removal confirmation) are not authentication failures",
+  "verdict": "Ready for a RESTRICTED dummy-job preview after publishing the matching build. Not full live workflow ready: sign-out browser step, failure-injection, regression matrix and cross-business refusal remain NOT_RUN; per-area works hold still requires Office review before work can start (by design)."
+ }
 }
