@@ -49,3 +49,24 @@ Source handling: no new original attachment arrived (Jo's upload failed with a D
 
 ### Remaining not proven end-to-end (fake I/O required, NOT_RUN)
 Native Mitti sync/prefill read-back to the same job/zone; per-zone evidence; server-side prestart/claim enforcement; timing boundary tests. Only the attendance/quote slice above is proven through real code (PGlite + preview UI). No customer, Dad, Deep or trade contact was made.
+
+## Commercial intake slice — 20 Oct 2026 (implemented)
+Canonical record: workflow event `installer_quote_commercial_declared` (`details.commercial`, append-only, no migration). Pure rules: `src/lib/installer-quote-commercial.core.ts`.
+- Captured on Add Job (`installer-intake-flow.tsx` -> `pilot.functions.ts` intake.commercial -> `partner-import.server.ts`) and the existing-job editor (`intake-details-editor.tsx` -> `saveMyIntakeJob` -> `installerUpdateIntake`); read back by `installerIntakeState` / `getMyIntakeJob` (`commercial`, `removalText`, `separateLines`).
+- Fields: price basis (before discount / already discounted / unsure), GST (inc / ex / unsure), inclusions, exclusions, original status (prepared / sent / accepted by their customer — history only, never HIVIC acceptance/consent/signature), removal pricing (in works total / additional agreed price / not priced), extras with the same rule.
+- Removal physical facts (yes/no/not sure + m²) are kept whatever the quote/attendance answer; "No" now reads "Removal: not required". Draft may omit removal m².
+- Readiness: quoted jobs without an explicit before-discount + inc-GST record, with unpriced required removal or unpriced extras, are blocked inside `installerIntakeState.readiness` — so draft (`draftQuoteFromIntake`), release (`releaseQueuedQuotes`), office approve (`approveHeldQuote`, installer queue), and owner accept (`portal.functions`) all use the same check through `intakeSendBlockers`. Job creation is never blocked. Historic jobs: "Clarify the installer quote…".
+- Builder: `buildInstallerQuoteDraft` adds only separately agreed removal/extras lines (`INSTALLER_REMOVAL` / `INSTALLER_EXTRA`) to the works total; AP fee, payer PIESA (own REC = no PIESA line), whole-VEEC discount once and $200 minimum unchanged. Exclusions appear in the works line text.
+- Changed commercial facts are material: drafts superseded, issued withdrawn (held), accepted kept and flagged for reconfirmation.
+
+Commands run (results):
+- `bun test ./tests/installer-commercial-db.test.ts` — 16 pass / 0 fail (real installerUpdateIntake/installerIntakeState/draftQuoteFromIntake on PGlite: unknown/net/ex-GST basis, included vs additional removal, extras, own REC vs HIVIC PIESA, accepted/issued changes, retry dedup, visited+not-quoted reload, Melbourne-today/invalid/future dates, unknown attendance).
+- `bun test ./tests/intake-quote-details.test.ts` 7/0; `installer-intake-edit-db` 18/0; `payer-bypass-db` 11/0 and `installer-payer-quote-db` 12/0 (fixtures now carry a commercial record); 18 other installer/add-job suites all pass.
+- `node --test tests/installer-receipt-read-errors.test.mjs` 32/0 (adds fail-closed read of the pricing record); `readiness-errors` 16/0.
+- Rendered `/installer-preview` editor (UI-only adapter, not authenticated proof) desktop 1280 + mobile 390: pricing questions, removal pricing, extras render, no page errors.
+
+Not run / remaining:
+- New-job create path (`confirmClaimed`) has no PGlite harness; covered by typecheck + shared validation only — NOT_RUN at DB level.
+- Signed-in TEST installer save/reopen: NOT_RUN (the only TEST installer login is the Deep account, excluded).
+- Office job page does not yet show the commercial record beyond readiness blockers.
+- Evidence deadlines at action boundaries, per-zone evidence/prefill, site-variation holds, Mitti form mapping, video storage cap — next slices.
