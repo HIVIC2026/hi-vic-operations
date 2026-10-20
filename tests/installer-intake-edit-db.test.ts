@@ -70,7 +70,7 @@ describe("installer edits the same received job (persistence boundary)", () => {
     expect((await db.query("select count(*)::int n from jobs")).rows[0]).toEqual({ n: 1 });
   });
   test("adds area + manual quote later on the SAME job; provisional measurement only", async () => {
-    await installerUpdateIntake(JOB, U, BIZ, { ...base, areaM2: 142, insulation: "none", quoteStatus: "have_quote", quoteIncGst: 3450, includes: "R5.0 batts supply and install", proposedR: 5 });
+    await installerUpdateIntake(JOB, U, BIZ, { ...base, attended: "attended", areaM2: 142, insulation: "none", quoteStatus: "have_quote", quoteIncGst: 3450, includes: "R5.0 batts supply and install", proposedR: 5 });
     const j = await job();
     expect(Number(j.installer_quoted_price_inc_gst)).toBe(3450);
     expect(j.installer_quoted).toBe("yes");
@@ -93,9 +93,20 @@ describe("installer edits the same received job (persistence boundary)", () => {
   });
 
   test("unknown insulation still saves an area and stays unknown", async () => {
-    await installerUpdateIntake(JOB, U, BIZ, { ...base, areaM2: 90 });
+    await installerUpdateIntake(JOB, U, BIZ, { ...base, attended: "attended", areaM2: 90 });
     expect(Number((await job()).estimated_area_m2)).toBe(90);
     expect(await evs()).not.toContain("installer_intake_corrected");
+  });
+
+  test("unknown/not-attended area is a preliminary estimate only: no measurement, restored on reopen", async () => {
+    await installerUpdateIntake(JOB, U, BIZ, { ...base, areaM2: 110 });
+    expect((await ms()).length).toBe(0);
+    expect(await evs()).toContain("installer_preliminary_estimate");
+    const st = await installerIntakeState(JOB);
+    expect(st.areaM2).toBeNull(); expect(st.preliminaryAreaM2).toBe(110);
+    expect(st.readiness.blockers).toContain("Site visit not recorded — confirm the property was attended and assessed");
+    await installerUpdateIntake(JOB, U, BIZ, { ...base, attended: "not_attended", areaM2: 110 });
+    expect((await installerIntakeState(JOB)).readiness.blockers.some((b) => /preliminary until the onsite Ready Check/.test(b))).toBe(true);
   });
 
   test("another business's files or another installer are refused", async () => {
@@ -161,9 +172,16 @@ describe("two-route attendance (Jo 20 Oct 'Ok fix')", () => {
     expect((await job()).installer_site_check).toBeNull();
     expect(await evs()).not.toContain("installer_attendance_answer");
   });
-  test("future visit date is never stored (no invented/backdated dates)", async () => {
-    await installerUpdateIntake(JOB, U, BIZ, { ...ATT, attended: "attended", attendedOn: "2999-01-01" });
-    const j = await job(); expect(j.installer_site_check).toBe("yes"); expect(j.installer_site_check_date).toBeNull();
+  test("future or impossible visit date is refused with a clear message, nothing saved", async () => {
+    await expect(installerUpdateIntake(JOB, U, BIZ, { ...ATT, attended: "attended", attendedOn: "2999-01-01" })).rejects.toThrow("can't be in the future");
+    await expect(installerUpdateIntake(JOB, U, BIZ, { ...ATT, attended: "attended", attendedOn: "2026-02-30" })).rejects.toThrow("Check the visit date");
+    const j = await job(); expect(j.installer_site_check).toBeNull(); expect(j.installer_site_check_date).toBeNull();
+  });
+  test("attendance correction after a quote is material: drafts go stale", async () => {
+    await installerUpdateIntake(JOB, U, BIZ, { ...ATT, attended: "attended" });
+    const before = (await evs()).filter((e) => e === "installer_intake_updated").length;
+    await installerUpdateIntake(JOB, U, BIZ, { ...ATT, attended: "not_attended" });
+    expect((await evs()).filter((e) => e === "installer_intake_updated").length).toBe(before + 1);
   });
   test("repeat identical save adds no duplicate attendance event", async () => {
     await installerUpdateIntake(JOB, U, BIZ, { ...ATT, attended: "not_attended" });
