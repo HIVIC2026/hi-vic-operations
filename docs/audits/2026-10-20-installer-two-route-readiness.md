@@ -31,3 +31,21 @@ Browser: /installer-preview loads at 1280 and 390 with no page errors. The suppo
 - "Site conditions differ" discrepancy hold through variation/Office review.
 - Removal included vs separately priced, and gross/net/GST ambiguity hold. Existing canonical quote arithmetic was not changed or re-verified this turn.
 - Storage: the job-files bucket limit is 200 MiB, below the guide's 250 MB video maximum. Raising it needs Jo's approval.
+
+## Dad-trial focused verification — 20 Oct 2026 (base revision 7075a22a + this pass)
+Verified on actual call sites + real handlers (`installerUpdateIntake` -> `installerIntakeState`) on PGlite:
+- Unvisited/unpriced saves; not ready; Ready Check still required. Attended + customer-quoted (with explicit pricing record) has no blockers. Measured/unpriced keeps the m². Unvisited + quoted is blocked as preliminary until the onsite Ready Check. Unknown history + quote stays null and is blocked "Site visit not recorded — confirm…" (no visit assumed). (`tests/installer-dad-trial-db.test.ts` 6/0, `installer-commercial-db` 16/0, edit-db 18/0, receipt 32/0, handoff/progress/next-step suites pass; typecheck clean.)
+- Add Job supporting uploader sits outside the quote branch (available with no quote); quote-purpose files use a separate uploader and are kept apart from roof media (`installer-intake-flow.tsx` data-supporting-files / data-quote-branch).
+- Confirmed-quote release/approve/accept all go through `intakeSendBlockers` (readiness incl. pricing record).
+
+Defects found and fixed this pass:
+1. `field.$jobId` MittiOnly ready_check fell back to the PIESA assessment's Mitti id. Now `mittiFormId` (`src/lib/mitti-form-link.core.ts`) uses only the Ready Check measurement's Mitti id; test `tests/mitti-form-link.test.ts` 2/0.
+2. `intakeNextAction` told unknown-visit + quoted jobs the owner quote would be prepared. Now asks to confirm the visit; regression test in `installer-dad-trial-db`.
+
+NOT_RUN / incomplete blockers:
+- Create path (`confirmClaimed`) has no canonical-schema harness: create->read verified only via the shared edit/read handlers, not the first-create insert.
+- Signed-in browser save/reopen: NOT_RUN. The available session is not a TEST installer, and saving would create a real record; no installer TEST account other than the excluded Deep account.
+- Evidence deadlines at action boundaries (Guide V1.2 timing, per-zone before/after, original condition before removal): NOT IMPLEMENTED — no deadline guard exists in intake/readiness code.
+- Per-zone prefill, site-variation holds, Office display of pricing record: not built.
+- `trade-view.server.ts` install-day Mitti link reuses the assessment id; not changed (outside Ready Check scope) — review.
+- Video storage cap 200 MiB < 250 MB legal maximum; needs approval.
