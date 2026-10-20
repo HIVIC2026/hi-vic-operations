@@ -285,7 +285,7 @@ export const createImport = createServerFn({ method: "POST" }).middleware([requi
     businessId: uuid, sourceSystem: z.enum(["easymate", "manual_import", "csv", "email"]).default("manual_import"),
     text: z.string().max(100_000).optional(), csv: z.string().max(500_000).optional(), csvRow: z.number().int().min(0).max(5000).default(0),
     sourceUrl: z.string().trim().url().max(1000).optional(), externalRefs: z.record(z.string(), z.string().max(200)).optional(),
-    files: z.array(z.object({ path: z.string().max(500), name: z.string().max(200), type: z.string().max(100) })).max(30).default([]),
+    files: z.array(z.object({ path: z.string().max(500), name: z.string().max(200), type: z.string().max(100), purpose: z.enum(["quote", "supporting"]).optional() })).max(30).default([]),
   }).parse(d))
   .handler(async ({ data, context }) => {
     const { createImportFor } = await import("./partner-import.server");
@@ -353,7 +353,7 @@ export const confirmImport = createServerFn({ method: "POST" }).middleware([requ
     return confirmImportFor(context.userId, data);
   });
 
-const importFile = z.object({ path: z.string().max(500), name: z.string().max(200), type: z.string().max(100) });
+const importFile = z.object({ path: z.string().max(500), name: z.string().max(200), type: z.string().max(100), purpose: z.enum(["quote", "supporting"]).optional() });
 export const addImportFiles = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ importId: uuid, files: z.array(importFile).min(1).max(20) }).parse(d))
   .handler(async ({ data, context }) => {

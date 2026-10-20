@@ -7,7 +7,7 @@ import { WorkflowError, logEvent } from "./workflow.server";
 import { confirmBlockers, extractFromCsvRow, extractFromText, mergeExtracted, parseCsv, planImportedMeasurement, relationshipOwnerFor, type ConfirmedFacts, type Extracted } from "./pilot.core";
 import { requireApprovedPartner, requireMember } from "./pilot.server";
 
-export type CreateImportInput = { businessId: string; sourceSystem: "easymate" | "manual_import" | "csv" | "email"; text?: undefined | string; csv?: undefined | string; csvRow: number; sourceUrl?: undefined | string; externalRefs?: undefined | Record<string, string>; files: { path: string; name: string; type: string }[] };
+export type CreateImportInput = { businessId: string; sourceSystem: "easymate" | "manual_import" | "csv" | "email"; text?: undefined | string; csv?: undefined | string; csvRow: number; sourceUrl?: undefined | string; externalRefs?: undefined | Record<string, string>; files: { path: string; name: string; type: string; purpose?: "quote" | "supporting" | undefined }[] };
 export type ConfirmImportInput = { importId: string; facts: Record<string, string | number | boolean | null>; progress?: undefined | "not_visited" | "measured" | "quoted"; occupancy?: undefined | "owner_occupied" | "rental"; details?: undefined | Record<string, unknown>;
   installer?: undefined | { quoted?: undefined | "yes" | "no" | null; site_check: "yes" | "no"; site_check_date?: undefined | string | null; quoted_price_inc_gst?: undefined | number | null; price_includes?: undefined | string | null; contact_permission?: undefined | boolean; fee_awareness?: undefined | boolean; existing_below_r2?: undefined | boolean; owner_agreed?: undefined | boolean;
     intake?: undefined | { existing_insulation: "none" | "below_r2" | "unknown"; removal_quote?: RemovalQuote | undefined; evidence_ack: boolean; proposed_r_value?: undefined | number | null; version: string; coordination: "hivic_managed" | "self_managed"; self_managed_ack: boolean; quote_status?: undefined | "not_quoted" | "have_quote"; attended?: undefined | "attended" | "not_attended" | null; attended_on?: undefined | string | null; measured_required?: undefined | boolean; electrician_payer?: undefined | "hivic" | "own" | "undecided"; fee_awareness?: undefined | { declared: boolean; payer: "hivic" | "own" | "undecided"; text: string; version: string } } };
@@ -256,7 +256,7 @@ export async function confirmClaimed(userId: string, data: ConfirmImportInput, i
 }
 
 /** Add photos/files to a draft import (business owner only). Paths must be this business's own uploads. */
-export async function addImportFilesFor(userId: string, importId: string, files: { path: string; name: string; type: string }[]) {
+export async function addImportFilesFor(userId: string, importId: string, files: { path: string; name: string; type: string; purpose?: "quote" | "supporting" | undefined }[]) {
   const { data: imp } = await admin.from("job_imports").select("business_id, status, files, confirmed_by").eq("id", importId).single();
   if (!imp || imp.status !== "draft") throw new WorkflowError("This job was already added or discarded.");
   if ((imp as { confirmed_by?: string | null }).confirmed_by) throw new WorkflowError("This job is being saved — files can't change now.");
@@ -269,8 +269,9 @@ export async function addImportFilesFor(userId: string, importId: string, files:
   }
   const have = (imp.files as { path: string }[] | null) ?? [];
   const next = [...have, ...files.filter((f) => !have.some((h) => h.path === f.path))];
-  await admin.from("job_imports").update({ files: next as unknown as Json, updated_at: new Date().toISOString() }).eq("id", importId);
-  return { files: next as { path: string; name: string; type: string }[] };
+  const { error: upErr } = await admin.from("job_imports").update({ files: next as unknown as Json, updated_at: new Date().toISOString() }).eq("id", importId);
+  if (upErr) throw new WorkflowError("The file could not be attached. Please retry — it won't upload twice.");
+  return { files: next as { path: string; name: string; type: string; purpose?: "quote" | "supporting" }[] };
 }
 export async function removeImportFileFor(userId: string, importId: string, path: string) {
   const { data: imp } = await admin.from("job_imports").select("business_id, status, files, confirmed_by").eq("id", importId).single();
@@ -278,8 +279,9 @@ export async function removeImportFileFor(userId: string, importId: string, path
   if ((imp as { confirmed_by?: string | null }).confirmed_by) throw new WorkflowError("This job is being saved — files can't change now.");
   await requireMember(userId, imp.business_id, true);
   const next = ((imp.files as { path: string }[] | null) ?? []).filter((f) => f.path !== path);
-  await admin.from("job_imports").update({ files: next as unknown as Json, updated_at: new Date().toISOString() }).eq("id", importId);
-  return { files: next as { path: string; name: string; type: string }[] };
+  const { error: upErr } = await admin.from("job_imports").update({ files: next as unknown as Json, updated_at: new Date().toISOString() }).eq("id", importId);
+  if (upErr) throw new WorkflowError("The file could not be attached. Please retry — it won't upload twice.");
+  return { files: next as { path: string; name: string; type: string; purpose?: "quote" | "supporting" }[] };
 }
 
 /** Resume an Add job draft after refresh. Only the user who created it, still a member of its business, may read it. */
