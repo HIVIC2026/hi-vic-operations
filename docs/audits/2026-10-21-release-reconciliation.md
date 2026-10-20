@@ -30,8 +30,10 @@ Older sections in 2026-10-20-installer-two-route-readiness.md, 2026-10-20-repair
 12. Installer onboarding signing + approval — excluded in --installer-app-only
 Deep stays excluded before lookup/sign-in; HV-1351 business not used for writes.
 
-## Video size (metadata only)
-job-files bucket: private, file_size_limit 209,715,200 bytes (200 MiB). The signed Activity 48 schedule text (activity48-agreement-schedule.text.ts) does state each zone video must be "no larger than 250 MB" — a maximum, not a promise to accept that size. Consequence: a compliant video between 200 MiB and 250 MB would be refused by storage. This is a capacity choice for Jo, not a business-approval blocker; no change made.
+## Video size (metadata only) — RESOLVED 2026-10-21 08:38 AEDT (21:38 UTC 20 Oct)
+HISTORICAL: the earlier note read "job-files bucket: private, file_size_limit 209,715,200 bytes (200 MiB) … This is a capacity choice for Jo, not a business-approval blocker; no change made." That statement is superseded.
+RESOLVED: the signed Activity 48 schedule text (src/lib/activity48-agreement-schedule.text.ts) requires before- and after-installation zone videos no larger than 250 MB; the affected upload routes have no lower app limit. Routine alignment applied as part of the authorised repair — no business-approval decision required.
+Change: job-files.file_size_limit 209,715,200 -> 250,000,000 bytes (exactly decimal 250 MB, not 250 MiB), via the supported Storage administration API (validated, not raw SQL). Verified by readback: file_size_limit = 250,000,000; public=false, allowed_mime_types NULL, owner NULL — all unchanged. No customer objects touched; narrower bulk limits (50,000,000 bytes/member, 500,000,000 bytes/batch) and all storage/RLS policies, signed URL/auth checks unchanged. No 250 MB dummy upload performed.
 
 ## Live observations (Root, pre-publication) — not inferred fixed
 HV2868 Office-review vs "Waiting for homeowner" label mismatch; HV2869 preview figures; batch 77313730… editable forms + "businessId Invalid uuid" on Open attachment; Outlook not connected; Xero Demo Company, real-job Xero off. Root to recheck after publication.
