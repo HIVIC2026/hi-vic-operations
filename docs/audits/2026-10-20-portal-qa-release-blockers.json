@@ -1,0 +1,328 @@
+{
+ "generated_at": "2026-10-20T10:58Z",
+ "purpose": "Read-only diagnosis of portal-qa release blockers; no app/data changes, no Office write actions re-run, full portal-qa not re-run.",
+ "source_run": {
+  "dir": "portal-qa/2026-10-20T10-34-05",
+  "started_at": "2026-10-20T10:34:05.864Z",
+  "finished_at": "2026-10-20T10:39:33.968Z",
+  "editor_revision": "ccf6ffee 2026-10-20T10:34:00Z",
+  "target": "local preview sandbox (unpublished working copy)",
+  "base": "http://localhost:8080",
+  "counts": {
+   "passed": 40,
+   "failed": 19,
+   "not_run": 5
+  },
+  "overall": "failed",
+  "preceding_run": "portal-qa/2026-10-20T10-23-45 (same failure set, same structure)",
+  "note": "Foundation commit 43045896 reported the same 40/19/5; this file uses the latest saved run."
+ },
+ "excluded": "sessions, tokens, .manifest/.browser auth files, account emails, customer message bodies, customer rows",
+ "rows": [
+  {
+   "status": "failed",
+   "area": "screens",
+   "route_or_action": "/admin/operations (phone)",
+   "persona": "office",
+   "environment": "local preview sandbox (unpublished working copy)",
+   "detail": "office /admin/operations at 390px: missing \"Leads\"",
+   "steps": "sign in as TEST office, open /admin/operations, check labels",
+   "screenshots": [
+    "portal-qa/2026-10-20T10-34-05/screens/00-office-operations-office-phone.png"
+   ]
+  },
+  {
+   "status": "failed",
+   "area": "screens",
+   "route_or_action": "/admin/operations (desktop)",
+   "persona": "office",
+   "environment": "local preview sandbox (unpublished working copy)",
+   "detail": "office /admin/operations at 1280px: missing \"Leads\"",
+   "steps": "sign in as TEST office, open /admin/operations, check labels",
+   "screenshots": [
+    "portal-qa/2026-10-20T10-34-05/screens/00-office-operations-office-desktop.png"
+   ]
+  },
+  {
+   "status": "failed",
+   "area": "screens",
+   "route_or_action": "/admin/campaign-emails (phone)",
+   "persona": "office",
+   "environment": "local preview sandbox (unpublished working copy)",
+   "detail": "office /admin/campaign-emails at 390px: missing \"Preview only\"",
+   "steps": "sign in as TEST office, open /admin/campaign-emails, check labels",
+   "screenshots": [
+    "portal-qa/2026-10-20T10-34-05/screens/02-office-campaign-emails-office-phone.png"
+   ]
+  },
+  {
+   "status": "failed",
+   "area": "screens",
+   "route_or_action": "/admin/campaign-emails (desktop)",
+   "persona": "office",
+   "environment": "local preview sandbox (unpublished working copy)",
+   "detail": "office /admin/campaign-emails at 1280px: missing \"Preview only\"",
+   "steps": "sign in as TEST office, open /admin/campaign-emails, check labels",
+   "screenshots": [
+    "portal-qa/2026-10-20T10-34-05/screens/02-office-campaign-emails-office-desktop.png"
+   ]
+  },
+  {
+   "status": "failed",
+   "area": "screens",
+   "route_or_action": "/admin/partners-overview (phone)",
+   "persona": "office",
+   "environment": "local preview sandbox (unpublished working copy)",
+   "detail": "office /admin/partners-overview at 390px: shows \"HI VIC\" in \"...y time 0.1 h DC Construction Solutions (HI VIC)  Installer  Active Live jobs 0 O...\" [stored record name, review data \u2014 not an app code fault]",
+   "steps": "sign in as TEST office, open /admin/partners-overview, check labels",
+   "screenshots": [
+    "portal-qa/2026-10-20T10-34-05/screens/03-office-partners-office-phone.png"
+   ]
+  },
+  {
+   "status": "failed",
+   "area": "screens",
+   "route_or_action": "/admin/partners-overview (desktop)",
+   "persona": "office",
+   "environment": "local preview sandbox (unpublished working copy)",
+   "detail": "office /admin/partners-overview at 1280px: shows \"HI VIC\" in \"...y time 0.1 h DC Construction Solutions (HI VIC)  Installer  Active Live jobs 0 O...\" [stored record name, review data \u2014 not an app code fault]",
+   "steps": "sign in as TEST office, open /admin/partners-overview, check labels",
+   "screenshots": [
+    "portal-qa/2026-10-20T10-34-05/screens/03-office-partners-office-desktop.png"
+   ]
+  },
+  {
+   "status": "failed",
+   "area": "office writes (denied)",
+   "route_or_action": "deleteJob direct call",
+   "persona": "installer",
+   "environment": "local preview sandbox",
+   "detail": "HTTP 500; NOT refused; DB unchanged",
+   "steps": "POST http://localhost:8080/_serverFn/<deleteJob> as TEST installer",
+   "screenshots": []
+  },
+  {
+   "status": "failed",
+   "area": "office writes (denied)",
+   "route_or_action": "restoreJob direct call",
+   "persona": "installer",
+   "environment": "local preview sandbox",
+   "detail": "HTTP 500; NOT refused; DB unchanged",
+   "steps": "POST http://localhost:8080/_serverFn/<restoreJob> as TEST installer",
+   "screenshots": []
+  },
+  {
+   "status": "failed",
+   "area": "office writes (denied)",
+   "route_or_action": "setEligibility direct call",
+   "persona": "installer",
+   "environment": "local preview sandbox",
+   "detail": "HTTP 500; NOT refused; DB unchanged",
+   "steps": "POST http://localhost:8080/_serverFn/<setEligibility> as TEST installer",
+   "screenshots": []
+  },
+  {
+   "status": "failed",
+   "area": "office writes (denied)",
+   "route_or_action": "deleteJob direct call",
+   "persona": "rec",
+   "environment": "local preview sandbox",
+   "detail": "HTTP 500; NOT refused; DB unchanged",
+   "steps": "POST http://localhost:8080/_serverFn/<deleteJob> as TEST rec",
+   "screenshots": []
+  },
+  {
+   "status": "failed",
+   "area": "office writes (denied)",
+   "route_or_action": "restoreJob direct call",
+   "persona": "rec",
+   "environment": "local preview sandbox",
+   "detail": "HTTP 500; NOT refused; DB unchanged",
+   "steps": "POST http://localhost:8080/_serverFn/<restoreJob> as TEST rec",
+   "screenshots": []
+  },
+  {
+   "status": "failed",
+   "area": "office writes (denied)",
+   "route_or_action": "setEligibility direct call",
+   "persona": "rec",
+   "environment": "local preview sandbox",
+   "detail": "HTTP 500; NOT refused; DB unchanged",
+   "steps": "POST http://localhost:8080/_serverFn/<setEligibility> as TEST rec",
+   "screenshots": []
+  },
+  {
+   "status": "failed",
+   "area": "office writes (denied)",
+   "route_or_action": "deleteJob direct call",
+   "persona": "owner",
+   "environment": "local preview sandbox",
+   "detail": "HTTP 500; NOT refused; DB unchanged",
+   "steps": "POST http://localhost:8080/_serverFn/<deleteJob> as TEST owner",
+   "screenshots": []
+  },
+  {
+   "status": "failed",
+   "area": "office writes (denied)",
+   "route_or_action": "restoreJob direct call",
+   "persona": "owner",
+   "environment": "local preview sandbox",
+   "detail": "HTTP 500; NOT refused; DB unchanged",
+   "steps": "POST http://localhost:8080/_serverFn/<restoreJob> as TEST owner",
+   "screenshots": []
+  },
+  {
+   "status": "failed",
+   "area": "office writes (denied)",
+   "route_or_action": "setEligibility direct call",
+   "persona": "owner",
+   "environment": "local preview sandbox",
+   "detail": "HTTP 500; NOT refused; DB unchanged",
+   "steps": "POST http://localhost:8080/_serverFn/<setEligibility> as TEST owner",
+   "screenshots": []
+  },
+  {
+   "status": "failed",
+   "area": "office writes (parity)",
+   "route_or_action": "before delete: counted + listed",
+   "persona": "office",
+   "environment": "local preview sandbox",
+   "detail": "office reads unreadable (pipeline HTTP 500, list HTTP 500)",
+   "steps": "getPipeline/listByStatus includeTest=true",
+   "screenshots": []
+  },
+  {
+   "status": "failed",
+   "area": "office writes (parity)",
+   "route_or_action": "while deleted: not counted, not listed",
+   "persona": "office",
+   "environment": "local preview sandbox",
+   "detail": "office reads unreadable (pipeline HTTP 500, list HTTP 500)",
+   "steps": "deleteJob, then same reads",
+   "screenshots": []
+  },
+  {
+   "status": "failed",
+   "area": "office writes (parity)",
+   "route_or_action": "after restore: counted + listed again",
+   "persona": "office",
+   "environment": "local preview sandbox",
+   "detail": "office reads unreadable (pipeline HTTP 500, list HTTP 500)",
+   "steps": "restoreJob, then same reads",
+   "screenshots": []
+  },
+  {
+   "status": "not_run",
+   "area": "installer journey",
+   "route_or_action": "installer-test --installer-app-only",
+   "persona": "-",
+   "environment": "local preview sandbox (localhost:8080) \u2014 never the deployed site",
+   "detail": "overall budget too low (needs ~4+ min)",
+   "steps": "",
+   "screenshots": []
+  },
+  {
+   "status": "failed",
+   "area": "emails (isolated)",
+   "route_or_action": "audience/price/routing/removal/idempotency/opt-out rules",
+   "persona": "-",
+   "environment": "isolated local tests (mocks/PGlite, no network)",
+   "detail": "86 pass, 15 fail",
+   "steps": "bun test tests/step3-email-parity.test.ts tests/save-spot.test.ts tests/save-spot-only-approved.test.ts tests/group-b-media.test.ts tests/group-b-declaration-routing.test.ts tests/existing-insulation-followup.test.ts tests/existing-insulation-send.test.ts tests/email-safety.test.ts tests/estimate-email.test.ts",
+   "screenshots": []
+  },
+  {
+   "status": "not_run",
+   "area": "coverage",
+   "route_or_action": "electrician/REC onboarding click-through (sign, rates, insurance)",
+   "persona": "-",
+   "environment": "local preview sandbox (unpublished working copy)",
+   "detail": "no TEST-scoped writable REC onboarding journey harness yet",
+   "steps": "",
+   "screenshots": []
+  },
+  {
+   "status": "not_run",
+   "area": "coverage",
+   "route_or_action": "office write actions (approve, send back, Save my spot send button)",
+   "persona": "-",
+   "environment": "local preview sandbox (unpublished working copy)",
+   "detail": "needs dedicated TEST office scope (delete/restore/classification covered by office writes rows)",
+   "steps": "",
+   "screenshots": []
+  },
+  {
+   "status": "not_run",
+   "area": "coverage",
+   "route_or_action": "owner signing / booking / payment choice",
+   "persona": "-",
+   "environment": "local preview sandbox (unpublished working copy)",
+   "detail": "no TEST owner signing harness with restore",
+   "steps": "",
+   "screenshots": []
+  },
+  {
+   "status": "not_run",
+   "area": "coverage",
+   "route_or_action": "installer onboarding signing + approval",
+   "persona": "-",
+   "environment": "local preview sandbox (unpublished working copy)",
+   "detail": "excluded in --installer-app-only; run `bun run installer-test --runs 3` deliberately",
+   "steps": "",
+   "screenshots": []
+  }
+ ],
+ "diagnosis": {
+  "screen_failures_390px_and_1280px": {
+   "summary": "Not layout, not a runtime exception, not auth. The same text check fails at 390px and 1280px. Two are outdated expected text in the QA script, one is a stored business name.",
+   "items": [
+    {
+     "rows": "/admin/operations phone+desktop: missing \"Leads\"",
+     "cause": "OBSOLETE EXPECTATION. src/routes/_authenticated/admin.operations.tsx is a legacy redirect (lines 7-9) to /admin/enquiries (or /admin/jobs/active|closed). Top navigation src/lib/office-nav.ts:17-19 labels are \"Enquiries\", \"Active jobs\", \"Closed jobs\"; no \"Leads\" label exists.",
+     "fix_location": "scripts/portal-qa.ts:136 mustSee [\"Leads\",\"Active\",\"Closed\"] \u2014 check the canonical route and current labels (product decision: either expect \"Enquiries\" or rename nav). Project note says 'Leads has one canonical screen', so confirm the wanted label with root/Jo before changing either side."
+    },
+    {
+     "rows": "/admin/campaign-emails phone+desktop: missing \"Preview only\"",
+     "cause": "OBSOLETE EXPECTATION. admin.campaign-emails.tsx:19 beforeLoad redirects to /admin/templates (with a category search); the 'Preview only' copy at lines 15/75 is in the old component and is never rendered.",
+     "fix_location": "scripts/portal-qa.ts:138 \u2014 target /admin/templates?category=... and expect its current text, or drop the legacy route check."
+    },
+    {
+     "rows": "/admin/partners-overview phone+desktop: shows \"HI VIC\"",
+     "cause": "STORED DATA, not code: partner business record name 'DC Construction Solutions (HI VIC)' (already flagged by the runner as review data).",
+     "fix_location": "Office data review of that business name (the retired 'HI VIC' brand), or a QA allow-list for stored legal names. No code change indicated; data not altered here."
+    }
+   ]
+  },
+  "office_http_500": {
+   "summary": "All 12 Office-write rows (9 denied-role probes + 3 parity reads via getPipeline/listByStatus) fail before reaching any handler: the QA script calls server-function IDs that do not exist on the dev preview server.",
+   "evidence": [
+    "scripts/qa-office-writes.ts:91 fnId = sha256(`${file}--${name}_createServerFn_handler`) \u2014 the hashed ID format used by production builds.",
+    "The dev preview server's own client code (GET /src/lib/office.functions.ts) uses base64url-JSON IDs, e.g. getPipeline = base64url({\"file\":\"/src/lib/office.functions.ts?tss-serverfn-split\",\"export\":\"getPipeline_createServerFn_handler\"}).",
+    "Signed-out read-only probe (no bearer token, cannot authenticate, so no handler body runs): a random 64-zero ID and the script's sha256 getPipeline ID both return the identical HTML 500 'This page didn't load' page; the real dev ID returns a serialised TanStack $TSR/Error (function found). So the script's ID is unregistered on this server.",
+    "Without the Origin header both return 403 (CSRF check); the script sends Origin, so that is not the cause."
+   ],
+   "cause": "Wrong server-function ID derivation for the dev/preview target in scripts/qa-office-writes.ts:91 (callFn at :92-100). Consequently 'NOT refused' on denied-role rows means unreachable, not a permission leak; 'DB unchanged' rows confirm no writes happened.",
+   "fix_location": "scripts/qa-office-writes.ts:91 \u2014 derive IDs per target (dev: base64url JSON of {file:'/'+path+'?tss-serverfn-split', export:name+'_createServerFn_handler'}; built: read from the build's server-fn manifest), or read the IDs from the served client module instead of hashing.",
+   "handlers_not_mutating_check": "getPipeline (office.functions.ts:23) and listByStatus (:43) are GET + requireSupabaseAuth; not invoked authenticated in this diagnosis.",
+   "unproven": [
+    "Whether getPipeline/listByStatus succeed with includeTest:true for TEST office once correctly addressed (not run: needs an authenticated call; no session issued here).",
+    "Whether deleteJob/restoreJob/setEligibility actually refuse non-admins over the wire (handlers not reached; source review only).",
+    "The 'Seroval Error (step: 3)' from the signed-out real-ID probe is from my plain-JSON test payload, not the script's toJSONAsync payload; not relevant to the script failure."
+   ]
+  },
+  "other": [
+   {
+    "row": "emails (isolated) 86 pass/15 fail",
+    "note": "Root is diagnosing the Group-B suites; failing assertion names are in portal-qa/2026-10-20T10-34-05/email-tests.log; not duplicated here."
+   },
+   {
+    "row": "installer journey NOT_RUN",
+    "note": "Runner budget too low (~4+ min needed)."
+   },
+   {
+    "rows": "coverage NOT_RUN x4",
+    "note": "No TEST harness yet for REC onboarding, office approve/send-back/Save my spot, owner signing/booking/payment; installer onboarding excluded by --installer-app-only."
+   }
+  ]
+ }
+}
