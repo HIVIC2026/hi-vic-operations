@@ -142,7 +142,7 @@ export const submitWorkerInvite = createServerFn({ method: "POST" }).middleware(
     if (inviteMode(inv) === "completion") {
       const errors = completionErrors(data);
       if (errors.length) return { ok: false as const, errors };
-      const { data: w } = await admin.from("partner_workers").select("id, trade_role, removed_at, certification_status, certification").eq("id", inv.worker_id).maybeSingle();
+      const { data: w } = await admin.from("partner_workers").select("id, trade_role, removed_at, certification_status, certification").eq("id", inv.worker_id!).maybeSingle();
       if (!w || w.removed_at || w.trade_role !== "installer") return { ok: false as const, errors: ["This completion link is no longer available. Ask the business owner for a new one."] };
       if (w.certification_status === "verified") return { ok: false as const, errors: ["This certificate is already verified — nothing more to do."] };
       try {
