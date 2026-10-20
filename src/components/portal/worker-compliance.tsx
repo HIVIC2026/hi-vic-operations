@@ -89,6 +89,7 @@ function PiisaForm({ workerId, onDone }: { workerId: string; onDone: () => void 
 /** Office: licence and PIISA flags across all trades, with Verify for uploaded PIISA certificates. */
 export function OfficeWorkerCompliance() {
   const load = useServerFn(officeWorkerCompliance); const verify = useServerFn(officeVerifyPiisa); const file = useServerFn(officePiisaFileUrl);
+  const eecFile = useServerFn(officeEecFileUrl); const verifyEec = useServerFn(officeVerifyEec);
   const { data, refetch } = useQuery({ queryKey: ["office-worker-compliance"], queryFn: () => load() });
   const [err, setErr] = useState("");
   if (!data?.length) return null;
@@ -110,5 +111,31 @@ export function OfficeWorkerCompliance() {
         </li>))}</ul>
       {err && <p role="alert" className="mt-2 text-sm text-destructive">{err}</p>}
     </section>
+  );
+}
+
+/** Business owner: generate a single-use link so the worker uploads their own EEC/CII certificate.
+ *  The owner never gets an upload control — only this link action. */
+function CertLinkInline({ workerId, name }: { workerId: string; name: string }) {
+  const create = useServerFn(createWorkerCompletionLink);
+  const [link, setLink] = useState<string | null>(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  if (link) return (
+    <span className="inline-flex flex-wrap items-center gap-2 text-xs">
+      <span className="break-all font-mono">{link}</span>
+      <Button size="sm" variant="outline" className="h-10" onClick={() => { void navigator.clipboard.writeText(link); }}>Copy link</Button>
+    </span>
+  );
+  return (
+    <span className="inline-flex items-center gap-2">
+      <Button size="sm" variant="outline" className="h-10" disabled={busy} onClick={async () => {
+        setBusy(true); setErr("");
+        try { const r = await create({ data: { workerId } }); setLink(`${window.location.origin}/join/${r.token}`); }
+        catch (e) { setErr(e instanceof Error ? e.message : "Please try again."); }
+        finally { setBusy(false); }
+      }}>{busy ? "Creating…" : `Create certificate link for ${name.split(" ")[0]}`}</Button>
+      {err && <span role="alert" className="text-xs text-destructive">{err}</span>}
+    </span>
   );
 }
