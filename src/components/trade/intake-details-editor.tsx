@@ -10,6 +10,7 @@ import { AttachFiles, ElectricianPicker, useUploadFiles, type AttachedFile } fro
 import { getMyIntakeJob, saveMyIntakeJob } from "@/lib/installer-quote.functions";
 import { bulkElectricianChoices } from "@/lib/bulk-import.functions";
 import { ELECTRICIAN_PAYER_CHOICES, editorElectricianSend, feeAwarenessText, type ElectricianPayer } from "@/lib/installer-intake.core";
+import { melbourneToday, quoteFileCount, visitDateProblem } from "@/lib/installer-intake.core";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EXISTING_INSULATION_CHOICES, JOB_DETAILS_LEAD, QUOTE_STATUS_CHOICES, intakeArea, intakeProblems, intakeQuotePayload, type ExistingInsulation, type QuoteStatus, type AttendanceAnswer, ATTENDED_CHOICES, ATTENDED_QUESTION, PRELIMINARY_QUOTE_NOTE } from "@/lib/installer-intake.core";
 import type { ElectricianPlan } from "@/lib/job-electrician.core";
@@ -18,7 +19,7 @@ import { blankRemoval, removalPayload, removalProblems, removalSummary, type Rem
 import { refreshInstallerJob } from "./job-cache";
 
 export type IntakeJobFacts = {
-  areaM2: number | null; insulation: ExistingInsulation | null; quoted: "yes" | "no" | null; quoteAnswer?: QuoteStatus | null; attended?: AttendanceAnswer | null; attendedOn?: string | null; quoteIncGst: number | null;
+  areaM2: number | null; preliminaryAreaM2?: number | null; insulation: ExistingInsulation | null; quoted: "yes" | "no" | null; quoteAnswer?: QuoteStatus | null; attended?: AttendanceAnswer | null; attendedOn?: string | null; quoteIncGst: number | null;
   includes: string | null; proposedR: number | null; files: AttachedFile[]; electricianChosen: boolean; quoteHeld: string[];
   removalQuote?: RemovalQuote | null;
   electricianPayer?: ElectricianPayer; feeAwarenessCurrent?: boolean; payerEditable?: boolean; payerLockReason?: string | null;
@@ -39,7 +40,8 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
 }) {
   const initStatus: QuoteStatus | null = facts.quoteAnswer !== undefined ? facts.quoteAnswer : facts.quoted === "yes" || facts.quoteIncGst != null ? "have_quote" : facts.quoted === "no" ? "not_quoted" : null;
   const [open, setOpen] = useState(false);
-  const [area, setArea] = useState(facts.areaM2 == null ? "" : String(facts.areaM2));
+  const savedArea = facts.areaM2 ?? facts.preliminaryAreaM2 ?? null;
+  const [area, setArea] = useState(savedArea == null ? "" : String(savedArea));
   const [ins, setIns] = useState<ExistingInsulation>(facts.insulation ?? "unknown");
   const [qs, setQs] = useState<QuoteStatus | null>(initStatus);
   const [att, setAtt] = useState<AttendanceAnswer | null>(facts.attended ?? null);
@@ -68,7 +70,7 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
   // Refresh idle forms only. An open edit must survive focus/refetch without losing input or feedback.
   useEffect(() => {
     if (open || busy || fileBusy) return;
-    setArea(facts.areaM2 == null ? "" : String(facts.areaM2)); setIns(facts.insulation ?? "unknown");
+    setArea(savedArea == null ? "" : String(savedArea)); setIns(facts.insulation ?? "unknown");
     setQs(initStatus); setAtt(facts.attended ?? null); setAttOn(facts.attendedOn ?? ""); setAmount(facts.quoteIncGst == null ? "" : String(facts.quoteIncGst));
     setIncludes(facts.includes ?? ""); setProposedR(facts.proposedR == null ? "" : String(facts.proposedR));
     setPayer(currentPayer); setRemoval(removalFromFacts()); setPlan(savedPlan());
@@ -76,9 +78,10 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
   const allFiles = [...facts.files, ...newFiles];
 
   const save = async () => {
-    const p = intakeProblems({ area, amount, includes, proposedR, insulation: ins, quoteStatus: qs, quoteFileCount: allFiles.length, evidenceAck: true });
+    const p = intakeProblems({ area, amount, includes, proposedR, insulation: ins, quoteStatus: qs, quoteFileCount: quoteFileCount(allFiles), evidenceAck: true });
+    { const dp = att === "attended" ? visitDateProblem(attOn || null, melbourneToday()) : null; if (dp) p.push(dp); }
     p.push(...removalProblems(removalPayload(removal, qs === "have_quote", att === "attended"), ins, intakeArea(area), intakeQuotePayload({ quoteStatus: qs, amount, includes, proposedR }).quoted_price_inc_gst, qs === "have_quote"));
-    if (facts.areaM2 != null && !area.trim()) p.push("The ceiling area is already saved — enter the corrected area instead of clearing it");
+    if (savedArea != null && !area.trim()) p.push("The ceiling area is already saved — enter the corrected area instead of clearing it");
     if (payerChanged && payer === "own" && !(plan?.mode === "mine" && (plan.business_id || plan.nomination_id))) p.push("Choose your electrician");
     setProblems(p); setMsg(null);
     if (p.length || busy || fileBusy || !qs) return;
@@ -97,7 +100,7 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
 
   const known = [
     facts.attended === "attended" ? `Site visit: attended and assessed${facts.attendedOn ? ` on ${facts.attendedOn}` : ""}` : facts.attended === "not_attended" ? "Site visit: not attended yet — Ready Check required" : "Site visit: not answered yet",
-    facts.areaM2 != null ? `Ceiling ${facts.areaM2} m² (your figure, not yet accepted)` : "Ceiling area: not measured yet",
+    facts.areaM2 != null ? `Ceiling ${facts.areaM2} m² (your figure, not yet accepted)` : facts.preliminaryAreaM2 != null ? `Preliminary estimate ${facts.preliminaryAreaM2} m² (unverified — not measured)` : "Ceiling area: not measured yet",
     `Existing insulation: ${EXISTING_INSULATION_CHOICES.find((c) => c.value === (facts.insulation ?? "unknown"))?.label}`,
     facts.quoteIncGst != null ? `Your quote $${facts.quoteIncGst.toLocaleString("en-AU")} inc GST` : initStatus === "not_quoted" ? "Quote: not quoted yet" : initStatus === "have_quote" ? (facts.files.length ? "Quote: your uploaded quote — office confirms the amount" : "Quote: amount still needed") : "Quote: not answered yet",
     ...(facts.removalQuote ? [removalSummary(facts.removalQuote)] : []),
@@ -114,10 +117,10 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
           <div className="mt-2 grid grid-cols-2 gap-2" role="radiogroup" aria-label={ATTENDED_QUESTION}>
             {ATTENDED_CHOICES.map((c) => <Button key={c.value} size="field" role="radio" aria-checked={att === c.value} variant={att === c.value ? "default" : "outline"} onClick={() => setAtt(c.value)}>{c.label}</Button>)}
           </div>
-          {att === "attended" && <label className="mt-2 block text-sm font-bold">Date of the visit<span className="block text-xs font-normal text-sub">Optional</span><Input type="date" className="mt-1 h-12" max={new Date().toISOString().slice(0, 10)} value={attOn} onChange={(e) => setAttOn(e.target.value)} /></label>}
+          {att === "attended" && <label className="mt-2 block text-sm font-bold">Date of the visit<span className="block text-xs font-normal text-sub">Optional</span><Input type="date" className="mt-1 h-12" max={melbourneToday()} value={attOn} onChange={(e) => setAttOn(e.target.value)} /></label>}
           {att === "not_attended" && qs === "have_quote" && <p className="mt-1 text-xs text-sub" data-preliminary-note>{PRELIMINARY_QUOTE_NOTE}</p>}
         </fieldset>
-        <label className="block text-sm font-bold">Ceiling area (m²)<span className="block text-xs font-normal text-sub">Optional — leave blank if not measured yet</span><Input className="mt-1 h-12" inputMode="decimal" placeholder="Not measured yet" value={area} onChange={(e) => setArea(e.target.value)} /></label>
+        <label className="block text-sm font-bold">{att === "attended" ? "Ceiling area (m²)" : "Estimated ceiling area (m²)"}<span className="block text-xs font-normal text-sub">{att === "attended" ? "Optional — leave blank if not measured yet" : "Optional — saved as a preliminary, unverified estimate"}</span><Input className="mt-1 h-12" inputMode="decimal" placeholder="Not measured yet" value={area} onChange={(e) => setArea(e.target.value)} /></label>
         <fieldset><legend className="text-sm font-bold">Existing insulation</legend>
           <div className="mt-2 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Existing insulation">
             {EXISTING_INSULATION_CHOICES.map((c) => <Button key={c.value} size="field" role="radio" aria-checked={ins === c.value} variant={ins === c.value ? "default" : "outline"} className="h-auto min-h-12 whitespace-normal px-1 text-xs leading-tight" onClick={() => setIns(c.value)}>{c.label}</Button>)}
@@ -129,11 +132,22 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
           </div>
           {qs === "not_quoted" && (facts.quoteIncGst != null || facts.includes) && <p className="mt-1 text-xs text-sub" data-quote-clear-note>Saving "Not quoted yet" removes only the quote amount and inclusions saved earlier. Measurements, product, removal facts and uploaded files are kept.</p>}
         </fieldset>
-        {qs === "have_quote" && <>
-          <AttachFiles businessId={businessId} files={allFiles} label="Upload your quote" disabled={busy} onBusyChange={setFileBusy} canRemove={(path) => newFiles.some((f) => f.path === path)} onAdd={async (picked) => {
+        <div data-editor-supporting-files>
+          <AttachFiles businessId={businessId} files={allFiles.filter((f) => f.purpose === "supporting")} label="Supporting photos, videos or measure-up (optional)" disabled={busy} onBusyChange={setFileBusy} canRemove={(path) => newFiles.some((f) => f.path === path)} onAdd={async (picked) => {
             const failed: string[] = [];
             for (const file of picked) {
-              try { const up = await upload([file]); setNewFiles((o) => [...o, ...up]); }
+              try { const up = await upload([file]); setNewFiles((o) => [...o, ...up.map((u) => ({ ...u, purpose: "supporting" as const }))]); }
+              catch { failed.push(file.name); }
+            }
+            if (failed.length) throw new Error(`${failed.join(", ")} didn't upload. Other uploaded files have been kept. Retry only the missing files.`);
+          }} onRemove={async (path) => setNewFiles((o) => o.filter((f) => f.path !== path))} />
+          <p className="mt-1 text-xs text-sub">Supporting evidence only — not your quote. Reviewed before it's accepted.</p>
+        </div>
+        {qs === "have_quote" && <>
+          <AttachFiles businessId={businessId} files={allFiles.filter((f) => f.purpose !== "supporting")} label="Upload your quote" disabled={busy} onBusyChange={setFileBusy} canRemove={(path) => newFiles.some((f) => f.path === path)} onAdd={async (picked) => {
+            const failed: string[] = [];
+            for (const file of picked) {
+              try { const up = await upload([file]); setNewFiles((o) => [...o, ...up.map((u) => ({ ...u, purpose: "quote" as const }))]); }
               catch { failed.push(file.name); }
             }
             if (failed.length) throw new Error(`${failed.join(", ")} didn't upload. Other uploaded files have been kept. Retry only the missing files.`);

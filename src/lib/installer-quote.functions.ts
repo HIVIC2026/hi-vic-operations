@@ -141,7 +141,7 @@ export const saveMyIntakeJob = createServerFn({ method: "POST" }).middleware([re
     jobId: z.string().uuid(), areaM2: z.number().positive().max(5000).nullable(), insulation: z.enum(["none", "below_r2", "unknown"]),
     quoteStatus: z.enum(["not_quoted", "have_quote"]), quoteIncGst: z.number().positive().max(1_000_000).nullable(), includes: z.string().trim().max(1000).nullable(), proposedR: z.number().positive().max(10).nullable(),
     attended: z.enum(["attended", "not_attended"]).nullish(), attendedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
-    files: z.array(z.object({ path: z.string().max(500), name: z.string().max(200), type: z.string().max(100) })).max(20),
+    files: z.array(z.object({ path: z.string().max(500), name: z.string().max(200), type: z.string().max(100), purpose: z.enum(["quote", "supporting"]).optional() })).max(20),
     electrician: z.object({ mode: z.literal("mine"), business_id: z.string().uuid().nullish(), nomination_id: z.string().uuid().nullish() }).optional(),
     electricianPayer: z.enum(["hivic", "own", "undecided"]).optional(),
     removalQuote: z.object({ answer: z.enum(["yes", "no", "unknown"]), areaM2: z.number().positive().max(5000).nullable(), chargeIncGst: z.number().min(0).max(1_000_000).nullable() }).optional(),

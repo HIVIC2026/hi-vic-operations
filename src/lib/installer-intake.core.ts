@@ -335,7 +335,9 @@ export function visitDateProblem(date: string | null | undefined, today: string)
 }
 /** Files saved with Add job have an explicit purpose. Only "quote" files can stand in for a typed quote amount. */
 export type IntakeFilePurpose = "quote" | "supporting";
-export const quoteFileCount = (files: { purpose?: string | null | undefined }[]) => files.filter((f) => f.purpose === "quote").length;
+// Files saved before the purpose contract (20 Oct) could only come from the "Upload your quote" control, so an
+// untagged Add job file is a legacy quote upload. New uploads are always tagged; "supporting" never counts.
+export const quoteFileCount = (files: { purpose?: string | null | undefined }[]) => files.filter((f) => f.purpose === "quote" || f.purpose == null).length;
 export const NOT_MEASURED_NOTE = "That’s fine — we’ll save the job now. Add your quote on this same job when ready.";
 /** Who arranges/pays the electrician on an installer-supplied job (separate from who manages the job). */
 export type ElectricianPayer = "hivic" | "own" | "undecided";
