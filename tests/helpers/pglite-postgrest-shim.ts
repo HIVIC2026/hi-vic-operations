@@ -6,7 +6,7 @@ type Filter = { sql: string; vals: unknown[] };
 export function postgrestShim(db: PGlite) {
   return {
     from(table: string) {
-      let op: "select" | "update" | "insert" = "select"; let orderBy = ""; let lim = "";
+      let op: "select" | "update" | "insert" | "delete" = "select"; let conflict: string | null = null; let orderBy = ""; let lim = "";
       let cols = "*"; let patch: Record<string, unknown> = {}; let returning: string | null = null;
       const filters: Filter[] = []; let single: "one" | "maybe" | null = null; let head = false; let wantCount = false;
       const b = {
@@ -19,6 +19,9 @@ export function postgrestShim(db: PGlite) {
         ilike(c: string, v: string) { filters.push({ sql: `"${c}" ILIKE $?`, vals: [v] }); return b; },
         in(c: string, v: unknown[]) { filters.push({ sql: `"${c}" = ANY($?)`, vals: [v] }); return b; },
         insert(p: Record<string, unknown>) { op = "insert"; patch = p; return b; },
+        upsert(p: Record<string, unknown>, o?: { onConflict?: string }) { op = "insert"; patch = p; conflict = o?.onConflict ?? "id"; return b; },
+        delete() { op = "delete"; return b; },
+        not(c: string, o: string, v: null) { if (o !== "is" || v !== null) throw new Error("shim: only not(col, 'is', null)"); filters.push({ sql: `"${c}" IS NOT NULL`, vals: [] }); return b; },
         order(c: string, o?: { ascending?: boolean }) { orderBy = ` ORDER BY "${c}" ${o?.ascending === false ? "DESC" : "ASC"}`; return b; },
         limit(n: number) { lim = ` LIMIT ${Number(n)}`; return b; },
         single() { single = "one"; return b; },
@@ -30,14 +33,16 @@ export function postgrestShim(db: PGlite) {
             const rowsIn = (Array.isArray(patch) ? patch : [patch]) as Record<string, unknown>[];
             const ks = Object.keys(rowsIn[0] ?? {});
             const tuples = rowsIn.map((p) => `(${ks.map((k) => { const v = p[k]; vals.push(v !== null && typeof v === "object" ? JSON.stringify(v) : v); return `$${vals.length}`; }).join(", ")})`);
-            sql = `INSERT INTO ${table} (${ks.map((k) => `"${k}"`).join(", ")}) VALUES ${tuples.join(", ")} RETURNING ${returning === "*" ? "*" : returning ? returning.split(",").map((c) => `"${c.trim()}"`).join(", ") : "1"}`;
+            const oc = conflict ? ` ON CONFLICT (${conflict.split(",").map((c) => `"${c.trim()}"`).join(", ")}) DO UPDATE SET ${ks.map((k) => `"${k}" = EXCLUDED."${k}"`).join(", ")}` : "";
+            sql = `INSERT INTO ${table} (${ks.map((k) => `"${k}"`).join(", ")}) VALUES ${tuples.join(", ")}${oc} RETURNING ${returning === "*" ? "*" : returning ? returning.split(",").map((c) => `"${c.trim()}"`).join(", ") : "1"}`;
           } else if (op === "update") {
             const sets = Object.entries(patch).map(([k, v]) => { vals.push(v !== null && typeof v === "object" ? JSON.stringify(v) : v); return `"${k}" = $${vals.length}`; });
             sql = `UPDATE ${table} SET ${sets.join(", ")}`;
-          } else sql = `SELECT ${head ? "count(*)::int AS n" : cols === "*" ? "*" : cols.split(",").map((c) => `"${c.trim()}"`).join(", ")} FROM ${table}`;
+          } else if (op === "delete") sql = `DELETE FROM ${table}`;
+          else sql = `SELECT ${head ? "count(*)::int AS n" : cols === "*" ? "*" : cols.split(",").map((c) => `"${c.trim()}"`).join(", ")} FROM ${table}`;
           if (op !== "insert" && filters.length) sql += " WHERE " + filters.map((f) => ph(f.sql, [...f.vals])).join(" AND ");
           if (op === "select") sql += orderBy + lim;
-          if (op === "update") sql += ` RETURNING ${returning === "*" ? "*" : returning ? returning.split(",").map((c) => `"${c.trim()}"`).join(", ") : "1"}`;
+          if (op === "update" || op === "delete") sql += ` RETURNING ${returning === "*" ? "*" : returning ? returning.split(",").map((c) => `"${c.trim()}"`).join(", ") : "1"}`;
           try {
             const r = await db.query<Record<string, unknown>>(sql, vals);
             const rows = r.rows.map((row) => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, v instanceof Date ? v.toISOString() : v])));
