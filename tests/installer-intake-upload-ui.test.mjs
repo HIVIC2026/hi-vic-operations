@@ -36,7 +36,8 @@ function load(path, imports = {}, globals = {}, override) {
   return module.exports;
 }
 const removal = load('src/lib/intake-quote-details.core.ts');
-const core = load('src/lib/installer-intake.core.ts', { './intake-quote-details.core': removal });
+const melb = load('src/lib/melbourne-time.core.ts');
+const core = load('src/lib/installer-intake.core.ts', { './intake-quote-details.core': removal, './melbourne-time.core': melb });
 // Customer/electrical validation is outside this upload regression; existing intake/file rules remain actual source.
 const flowCore = load('src/lib/add-job-flow.core.ts', { './onsite-ready-check.core': { onsiteProblems: () => [] }, './later-ready-check.core': {}, './installer-quote-intake.core': {} });
 const legacy = { path: 'partners/business/imports/legacy.pdf', name: 'legacy.pdf', type: 'application/pdf' };
