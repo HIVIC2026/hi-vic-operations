@@ -310,3 +310,9 @@ export function manifestHtml(title: string, header: Record<string, unknown>, m: 
   const rows = m.map((e) => `<tr><td>${esc(e.category)}</td><td>${esc(e.title)}</td><td>${esc(e.status)}${e.immutable ? " (immutable)" : ""}</td><td>${esc(e.version)}</td><td>${esc(e.source_system)}</td><td>${esc(e.at)}</td><td>${esc(e.pack_path ?? (e.storage_ref ? "see links" : "record only"))}</td><td style="font-family:monospace">${esc(e.sha256)}</td></tr>`).join("");
   return `<!doctype html><meta charset="utf-8"><title>${esc(title)}</title><style>body{font-family:sans-serif;font-size:13px}td,th{border:1px solid #ccc;padding:4px;text-align:left}table{border-collapse:collapse}</style><h1>${esc(title)}</h1><dl>${Object.entries(header).map(([k, v]) => `<dt><b>${esc(k)}</b></dt><dd>${esc(v)}</dd>`).join("")}</dl><table><tr><th>Category</th><th>Title</th><th>Status</th><th>Version</th><th>Source</th><th>Date</th><th>File</th><th>SHA-256</th></tr>${rows}</table>`;
 }
+
+/** The ONE decision the private-file signer uses: the indexed file this role may open, or null (deny). */
+export function authorizedStoredDoc(src: JobSources, role: Role, docId: string): DocItem | null {
+  const doc = visibleTo(buildDocumentIndex(src), role).find((d) => d.id === docId);
+  return doc?.storagePath ? doc : null;
+}
