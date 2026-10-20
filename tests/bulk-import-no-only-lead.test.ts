@@ -8,7 +8,7 @@ test("1 one customer: matching file links, unrelated file stays unlinked and war
   const files = [f("111-testcase-street-quote.pdf"), f("random-receipt.jpg")];
   const [r] = linkFiles([amy], files);
   expect(r!.matched.map((m) => m.name)).toEqual(["111-testcase-street-quote.pdf"]);
-  expect(r!.matched.some((m) => m.how === "only_lead")).toBe(false);
+  expect(r!.matched.map((m) => m.how)).toEqual(["filename"]);
   const out = fileResults(files.map((x) => ({ name: x.name, status: "ok", message: "Read" })), [amy], [r!.matched]);
   expect(out[0]!.status).toBe("ok");
   expect(out[1]!.status).toBe("warn");

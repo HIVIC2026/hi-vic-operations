@@ -35,7 +35,7 @@ describe("Upload jobs redesign (Jo, 7 Oct)", () => {
   });
   test("grammar and plain file note", () => {
     expect(jobsFound(1)).toBe("1 job found"); expect(jobsFound(3)).toBe("3 jobs found");
-    expect(attachedFilesNote([{ name: "uploads/Job Sheet.docx", how: "only_lead" }])).toBe("We attached Job Sheet.docx to this customer — is that right?");
+    expect(attachedFilesNote([{ name: "uploads/Job Sheet.docx", how: "filename" }])).toBe("We attached Job Sheet.docx to this customer — is that right?");
     expect(attachedFilesNote([{ name: "a.jpg", how: "folder" }])).toBeNull();
   });
   test("page: 3 steps, help collapsed, one Confirm, no Save button, no old tiles", () => {
