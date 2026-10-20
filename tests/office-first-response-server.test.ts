@@ -11,7 +11,7 @@ select:()=>q,eq:(k:string,v:unknown)=>{filters.push(r=>r[k]===v);return q},neq:(
 }};return q}
 mock.module('@/integrations/supabase/client.server',()=>({supabaseAdmin:{from}}));
 mock.module('../src/lib/comms.server',()=>({recordCommunication:async(x:Row)=>{if(commFailure)throw new Error('log unavailable');const id=`comm${++seq}`;(tables.job_communications??=[]).push({id,job_id:x.jobId,direction:x.direction,channel:x.channel,visibility:x.visibility,provider_message_id:x.providerMessageId});return id}}));
-mock.module('../src/lib/emailsafety.server',()=>({unsubscribeUrlForJob:async()=> 'https://example.org/unsubscribe'}));
+mock.module('../src/lib/emailsafety.server',()=>({unsubscribeUrlForJob:async()=> `https://example.org/api/public/unsubscribe?t=${'u'.repeat(32)}`}));
 let media={excluded:false,received:false,uncertain:false,pendingSync:false,count:0};
 mock.module('../src/lib/group-b-media.server',()=>({groupBMediaForJob:async()=>media}));
 mock.module('../src/lib/comms-test-recipient.core',()=>({testRecipientBoundary:()=>({status:'allowed'})}));
