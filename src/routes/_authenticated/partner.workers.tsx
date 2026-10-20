@@ -7,8 +7,10 @@ import { TradeShell } from "@/components/trade/TradeShell";
 import { Button } from "@/components/trade/trade-ui";
 import { WorkerForm, WorkerRemoveButton, WorkerStatus } from "@/components/portal/workers";
 import { listMyWorkers } from "@/lib/worker-links.functions";
+import { createWorkerCompletionLink } from "@/lib/worker-invite.functions";
 import { WorkerInvites } from "@/components/portal/worker-invites";
 import { workerListQueryKey } from "@/lib/worker-invite.core";
+import { EEC_TEAM_LABEL, eecState } from "@/lib/worker-compliance.core";
 
 export const Route = createFileRoute("/_authenticated/partner/workers")({
   head: () => ({ meta: [
@@ -38,13 +40,15 @@ function Workers() {
       <ul className="space-y-2">
         {data.workers.map((w) => !sample && editing === w.id ? <li key={w.id}><WorkerForm businessId={data.business!.id} worker={w} onDone={done} /></li> : (
           <li key={w.id} className="flex flex-wrap items-center justify-between gap-2 rounded-[18px] border border-line bg-paper shadow-card p-3 text-sm">
-            <div>
+            <div className="min-w-0">
               <div className="font-semibold">{w.full_legal_name} <span className="font-normal text-sub">· {w.trade_role === "electrician" ? `Electrician · licence ${w.licence_number}` : "Installer"}</span></div>
               <div className="text-sub">{w.mobile} · {w.email}</div>
+              {w.trade_role === "installer" && (() => { const s = eecState(w as never); return s !== "not_applicable" && <div className={s === "verified" ? "text-xs font-bold text-estimate-green" : s === "awaiting_check" ? "text-xs text-sub" : "text-xs font-bold text-danger"}>{EEC_TEAM_LABEL[s]}</div>; })()}
               {w.approval_status === "rejected" && w.rejection_reason && <div className="text-xs text-danger">Reason: {w.rejection_reason}</div>}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <WorkerStatus s={w.approval_status} />
+              {!sample && data.canManage && w.trade_role === "installer" && eecState(w as never) !== "verified" && <CertLinkButton workerId={w.id} name={w.full_legal_name} />}
               {!sample && data.canManage && <><Button size="sm" variant="outline" onClick={() => setEditing(w.id)}>Edit</Button><WorkerRemoveButton id={w.id} onDone={refetch} /></>}
             </div>
           </li>
@@ -52,5 +56,32 @@ function Workers() {
         {!data.workers.length && <li className="text-sm text-sub">No staff added yet.</li>}
       </ul>
     </TradeShell>
+  );
+}
+
+/** Owner action: generate a single-use link so the worker uploads their own certificate. No upload control here. */
+function CertLinkButton({ workerId, name }: { workerId: string; name: string }) {
+  const create = useServerFn(createWorkerCompletionLink);
+  const [link, setLink] = useState<string | null>(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  if (link) return (
+    <div className="w-full rounded-lg bg-success-soft p-2 text-xs">
+      <div className="mb-1 font-semibold">Certificate link for {name} — send this to them:</div>
+      <div className="break-all font-mono">{link}</div>
+      <Button size="sm" className="mt-1 h-10" onClick={() => { void navigator.clipboard.writeText(link); }}>Copy link</Button>
+      <p className="mt-1 text-sub">Single use, lasts 14 days. You won't see it again — create a new one if it's lost.</p>
+    </div>
+  );
+  return (
+    <span className="inline-flex items-center gap-2">
+      <Button size="sm" variant="outline" className="h-10" disabled={busy} onClick={async () => {
+        setBusy(true); setErr("");
+        try { const r = await create({ data: { workerId } }); setLink(`${window.location.origin}/join/${r.token}`); }
+        catch (e) { setErr(e instanceof Error ? e.message : "Please try again."); }
+        finally { setBusy(false); }
+      }}>{busy ? "Creating…" : "Create certificate link"}</Button>
+      {err && <span role="alert" className="text-xs text-danger">{err}</span>}
+    </span>
   );
 }

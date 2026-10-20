@@ -22,6 +22,26 @@ export const INVITE_STATE_MESSAGE: Record<"used" | "revoked" | "expired", string
 
 export const WORKER_DECLARATIONS_VERSION = "worker-v1";
 
+// ---- Invite modes: "registration" creates a new worker; "completion" lets an existing worker
+// (invite already carries worker_id) upload their own missing EEC/CII certificate. Same token table,
+// same single-use rules — a completion link never inserts a second worker record.
+export type InviteMode = "registration" | "completion";
+export const inviteMode = (invitee: { worker_id?: string | null }): InviteMode => (invitee.worker_id ? "completion" : "registration");
+
+/** EEC/CII certificate upload metadata stored on partner_workers.certification (jsonb), preserving other fields. */
+export type EecUploadMeta = { eec_upload: { path: string; uploaded_at: string; number: string | null } };
+export function eecUploadMeta(path: string, uploadedAt: string, number?: string | null): EecUploadMeta {
+  return { eec_upload: { path, uploaded_at: uploadedAt, number: (number ?? "").trim() || null } };
+}
+/** Merge EEC upload metadata into the existing certification JSON without dropping earlier fields. */
+export function mergeEec(certification: unknown, meta: EecUploadMeta): Record<string, unknown> {
+  const base = certification && typeof certification === "object" && !Array.isArray(certification) ? (certification as Record<string, unknown>) : {};
+  return { ...base, ...meta };
+}
+/** The only storage path shape a worker's certificate upload may use. */
+export const inviteCertPath = (inviteId: string, ext: string) => `worker-invites/${inviteId}/eec-${ext}`;
+export const isInviteCertPath = (inviteId: string, path: string) => path.startsWith(`worker-invites/${inviteId}/eec-`) && !path.includes("..");
+
 export const workerListQueryKey = (sample: boolean) => ["my-workers", sample ? "sample" : "live"] as const;
 export const workerInviteQueryKey = (businessId: string, sample: boolean) => ["worker-invites", businessId, sample ? "sample" : "live"] as const;
 
@@ -41,6 +61,7 @@ type Opt<T> = T | undefined;
 export type WorkerSubmission = {
   full_legal_name?: Opt<string>; mobile?: Opt<string>; email?: Opt<string>;
   licence_number?: Opt<string>; qualification?: Opt<string>;
+  certificate_path?: Opt<string>; certificate_number?: Opt<string>;
   accepted?: Opt<string[]>; signed_name?: Opt<string>;
 };
 
@@ -53,8 +74,17 @@ export function workerSubmissionErrors(trade: "electrician" | "installer", s: Wo
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((s.email ?? "").trim())) e.push("Enter a valid email address.");
   if (trade === "electrician" && !txt(s.licence_number)) e.push("Enter your Victorian electrician licence number.");
   if (trade === "installer" && !txt(s.qualification)) e.push("Enter your training or qualification (e.g. Cert III, or 'Experienced installer').");
+  // Installers must upload their own EEC / Certified Insulation Installer certificate — free text never counts.
+  if (trade === "installer" && !txt(s.certificate_path)) e.push("Upload the EEC / Certified Insulation Installer certificate.");
   const got = new Set(s.accepted ?? []);
   if (!keys.every((k) => got.has(k))) e.push("Tick every box before signing.");
   if (!txt(s.signed_name)) e.push("Type your full name to sign.");
+  return e;
+}
+
+/** Completion link (existing worker): only the missing certificate is asked for — no declarations, no re-sign. */
+export function completionErrors(s: { certificate_path?: Opt<string> }): string[] {
+  const e: string[] = [];
+  if (!txt(s.certificate_path)) e.push("Upload the EEC / Certified Insulation Installer certificate.");
   return e;
 }

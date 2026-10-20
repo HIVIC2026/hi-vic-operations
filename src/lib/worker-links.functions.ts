@@ -14,7 +14,7 @@ const workerInput = z.object({
   licence_number: z.string().trim().max(60).optional().nullable(),
   qualification: z.string().trim().max(200).optional().nullable(),
 });
-const WORKER_COLS = "id, business_id, full_legal_name, email, mobile, trade_role, licence_number, qualification, approval_status, approved_at, rejection_reason, removed_at, created_at, certification_status";
+const WORKER_COLS = "id, business_id, full_legal_name, email, mobile, trade_role, licence_number, qualification, approval_status, approved_at, rejection_reason, removed_at, created_at, certification_status, certification";
 
 async function isAdminCaller(sb: Parameters<typeof requireAdmin>[0]) {
   const { data } = await sb.rpc("is_admin");

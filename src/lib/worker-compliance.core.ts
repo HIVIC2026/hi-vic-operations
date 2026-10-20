@@ -1,10 +1,30 @@
-// Worker compliance rules: electrician licence expiry + installer PIISA training. PURE: no I/O.
+// Worker compliance rules: electrician licence expiry + installer PIISA training + installer EEC/CII
+// certificate. PURE: no I/O. EEC status is office-verified only; a worker-uploaded file is "awaiting_check"
+// until the office verifies it (certification_status stays 'unverified' until then).
 export type WorkerCompliance = {
   trade_role: "electrician" | "installer" | string;
   licence_expires_on?: string | null;
   piisa_status?: "done" | "not_done" | null;
   piisa_certificate_path?: string | null;
   piisa_verified_at?: string | null;
+  certification_status?: "unverified" | "verified" | "rejected" | null;
+  certification?: { eec_upload?: { path?: string | null } | null } | null;
+};
+
+export type EecState = "not_applicable" | "missing" | "awaiting_check" | "verified" | "rejected";
+/** EEC/CII certificate state for installers. A file being present is NOT verification. */
+export function eecState(w: Pick<WorkerCompliance, "trade_role" | "certification_status" | "certification">): EecState {
+  if (w.trade_role !== "installer") return "not_applicable";
+  if (w.certification_status === "verified") return "verified";
+  if (w.certification_status === "rejected") return "rejected";
+  return w.certification?.eec_upload?.path ? "awaiting_check" : "missing";
+}
+/** Business-owner-facing label (no internal paths, no office-only data). */
+export const EEC_TEAM_LABEL: Record<Exclude<EecState, "not_applicable">, string> = {
+  missing: "EEC/CII certificate missing — the worker needs to upload it.",
+  awaiting_check: "Certificate uploaded — office checking.",
+  verified: "Certificate verified.",
+  rejected: "Certificate was not accepted — ask the office.",
 };
 
 const days = (iso: string, today: string) => Math.round((Date.parse(`${iso}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86400_000);
@@ -38,6 +58,10 @@ export function approvalFlags(w: WorkerCompliance, today: string): string[] {
     if (s === "not_done") out.push("PIISA training not done");
     if (s === "missing") out.push("PIISA training missing");
     if (s === "awaiting_check") out.push("PIISA certificate to verify");
+    const e = eecState(w);
+    if (e === "missing") out.push("EEC certificate missing");
+    if (e === "awaiting_check") out.push("EEC certificate to verify");
+    if (e === "rejected") out.push("EEC certificate rejected");
   }
   return out;
 }

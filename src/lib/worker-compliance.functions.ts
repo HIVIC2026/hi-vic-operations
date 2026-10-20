@@ -2,12 +2,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { approvalFlags, licenceWarning, missingItems, piisaState } from "./worker-compliance.core";
+import { approvalFlags, eecState, licenceWarning, missingItems, piisaState } from "./worker-compliance.core";
+import { eecUploadMeta, mergeEec } from "./worker-invite.core";
 
 const uuid = z.string().uuid();
 const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" });
-const COLS = "id, business_id, profile_id, trade_role, full_legal_name, licence_expires_on, piisa_status, piisa_completed_on, piisa_certificate_path, piisa_verified_at, approval_status, removed_at";
+const COLS = "id, business_id, profile_id, trade_role, full_legal_name, licence_expires_on, piisa_status, piisa_completed_on, piisa_certificate_path, piisa_verified_at, approval_status, removed_at, certification_status, certification";
 
 /** The caller may edit a worker if it's their own record or they're an active member of the worker's business. */
 async function canEditWorker(sb: { from: (t: string) => any }, userId: string, workerId: string) {
@@ -28,7 +29,7 @@ export const myTeamCompliance = createServerFn({ method: "POST" }).middleware([r
     const q = admin.from("partner_workers").select(COLS).is("removed_at", null);
     const { data } = ids.length ? await q.or(`business_id.in.(${ids.join(",")}),profile_id.eq.${context.userId}`) : await q.eq("profile_id", context.userId);
     const t = today();
-    return (data ?? []).map((w) => ({ id: w.id, name: w.full_legal_name, role: w.trade_role, missing: missingItems(w as never), warning: licenceWarning(w as never, t), piisa: piisaState(w as never), licenceExpiry: w.licence_expires_on }));
+    return (data ?? []).map((w) => ({ id: w.id, name: w.full_legal_name, role: w.trade_role, missing: missingItems(w as never), warning: licenceWarning(w as never, t), piisa: piisaState(w as never), eec: eecState(w as never), licenceExpiry: w.licence_expires_on }));
   });
 
 export const addLicenceExpiry = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -76,8 +77,46 @@ export const officeWorkerCompliance = createServerFn({ method: "POST" }).middlew
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { data } = await admin.from("partner_workers").select(`${COLS}, businesses(name, trading_name)`).is("removed_at", null);
     const t = today();
-    return (data ?? []).map((w) => ({ id: w.id, name: w.full_legal_name, role: w.trade_role, business: (w.businesses as { trading_name: string | null; name: string } | null)?.trading_name ?? (w.businesses as { name: string } | null)?.name ?? null, flags: approvalFlags(w as never, t), warning: licenceWarning(w as never, t), piisa: piisaState(w as never), hasPiisaFile: !!w.piisa_certificate_path }))
+    return (data ?? []).map((w) => ({ id: w.id, name: w.full_legal_name, role: w.trade_role, business: (w.businesses as { trading_name: string | null; name: string } | null)?.trading_name ?? (w.businesses as { name: string } | null)?.name ?? null, flags: approvalFlags(w as never, t), warning: licenceWarning(w as never, t), piisa: piisaState(w as never), hasPiisaFile: !!w.piisa_certificate_path, eec: eecState(w as never) }))
       .filter((r) => r.flags.length || r.warning);
+  });
+
+/** Office: short-lived signed link to the worker's uploaded EEC/CII certificate (never a public URL). */
+export const officeEecFileUrl = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ workerId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { requireAdmin } = await import("./workflow.server");
+    await requireAdmin(context.supabase);
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const { data: w } = await admin.from("partner_workers").select("certification").eq("id", data.workerId).maybeSingle();
+    const path = (w?.certification as { eec_upload?: { path?: string | null } } | null)?.eec_upload?.path ?? null;
+    if (!path) throw new Error("No certificate uploaded.");
+    const { signFile } = await import("./file-links.server");
+    const { data: s } = await signFile("partner-files", path, 300);
+    return { url: s?.signedUrl ?? null };
+  });
+
+/** Office: verify an uploaded EEC/CII certificate. Sets certification_status='verified' and keeps the
+ *  upload metadata + any other certification JSON fields. Worker approval stays a separate gate. */
+export const officeVerifyEec = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ workerId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { requireAdmin } = await import("./workflow.server");
+    await requireAdmin(context.supabase);
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const { data: w } = await admin.from("partner_workers").select("id, trade_role, certification_status, certification").eq("id", data.workerId).is("removed_at", null).maybeSingle();
+    if (!w || w.trade_role !== "installer") throw new Error("EEC certificate checks are only for installer workers.");
+    const upload = (w.certification as { eec_upload?: { path?: string | null; uploaded_at?: string; number?: string | null } } | null)?.eec_upload;
+    if (!upload?.path) throw new Error("No certificate uploaded to verify.");
+    if (w.certification_status === "verified") throw new Error("This certificate is already verified.");
+    const now = new Date().toISOString();
+    const { error } = await admin.from("partner_workers").update({
+      certification_status: "verified",
+      certification: mergeEec(w.certification, { ...eecUploadMeta(upload.path, upload.uploaded_at ?? now, upload.number), eec_verified_at: now, eec_verified_by: context.userId } as never) as never,
+    }).eq("id", w.id);
+    if (error) throw new Error("Couldn't verify the certificate. Please try again.");
+    await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: "eec_certificate_verified", summary: "EEC/CII certificate verified", details: { worker_id: w.id } });
+    return { ok: true };
   });
 
 export const officeVerifyPiisa = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
