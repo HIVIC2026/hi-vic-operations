@@ -246,12 +246,13 @@ export async function confirmClaimed(userId: string, data: ConfirmImportInput, i
     await logEvent(res.job_id, userId, "installer_owner_fee_awareness", "Installer confirmed the owner is aware that the full quote will include the rebate, Home Insulation Victoria AP management fee and electrician PIESA fee", { import_id: data.importId, wording: (await import("./owner-confirm.core")).OWNER_FEE_AWARENESS_TICK, confirmed_at: new Date().toISOString() }, { internal: true });
     await logEvent(res.job_id, userId, "installer_existing_insulation_below_r2", "Installer confirmed any existing insulation is below R2.0", { import_id: data.importId, confirmed_at: new Date().toISOString() }, { internal: true });
   }
-  const importFiles = (imp.files as { path: string; name: string; type: string }[] | null) ?? [];
+  const importFiles = (imp.files as { path: string; name: string; type: string; purpose?: string | null }[] | null) ?? [];
+  const { intakeDocumentTitle } = await import("./installer-intake.core");
   const { data: haveDocs } = await admin.from("documents").select("storage_path").eq("job_id", res.job_id).eq("kind", "installer_import");
   const docPaths = new Set((haveDocs ?? []).map((d) => d.storage_path));
   const newFiles = importFiles.filter((f) => !docPaths.has(f.path));
   if (newFiles.length) {
-    const { error: de } = await admin.from("documents").insert(newFiles.map((f) => ({ job_id: res.job_id, kind: "installer_import", title: f.name, original_name: f.name, mime_type: f.type || null, storage_path: f.path, source_system: imp.source_system, uploaded_by: context.userId })));
+    const { error: de } = await admin.from("documents").insert(newFiles.map((f) => ({ job_id: res.job_id, kind: "installer_import", title: intakeDocumentTitle(f), original_name: f.name, mime_type: f.type || null, storage_path: f.path, source_system: imp.source_system, uploaded_by: context.userId })));
     if (de) throw new WorkflowError(`Uploaded files could not be attached to the job: ${de.message}`);
   }
   // Every step succeeded: only now is the import confirmed.

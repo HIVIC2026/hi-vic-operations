@@ -323,7 +323,7 @@ export function attendedOnDate(a: AttendanceAnswer | null | undefined, date: str
   return date <= today ? date : null;
 }
 /** Today's calendar date in Melbourne (YYYY-MM-DD). */
-export const melbourneToday = (now = new Date()) => new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+export { melbourneToday } from "./melbourne-time.core"; // shared helper — no duplicate definition
 /** Truthful visit-date validation: blank is fine; an entered date must be a real calendar date, not in the future. */
 export function visitDateProblem(date: string | null | undefined, today: string): string | null {
   if (!date) return null;
@@ -335,9 +335,18 @@ export function visitDateProblem(date: string | null | undefined, today: string)
 }
 /** Files saved with Add job have an explicit purpose. Only "quote" files can stand in for a typed quote amount. */
 export type IntakeFilePurpose = "quote" | "supporting";
-// Files saved before the purpose contract (20 Oct) could only come from the "Upload your quote" control, so an
-// untagged Add job file is a legacy quote upload. New uploads are always tagged; "supporting" never counts.
-export const quoteFileCount = (files: { purpose?: string | null | undefined }[]) => files.filter((f) => f.purpose === "quote" || f.purpose == null).length;
+// A file without an explicit purpose (older saves) is UNCLASSIFIED: never assumed to be a quote from the old button
+// label. It needs an explicit classification before it can stand in for a typed quote amount.
+export const quoteFileCount = (files: { purpose?: string | null | undefined }[]) => files.filter((f) => f.purpose === "quote").length;
+export const unclassifiedFileCount = (files: { purpose?: string | null | undefined }[]) => files.filter((f) => f.purpose !== "quote" && f.purpose !== "supporting").length;
+/** Onsite proof is explicit: verified area, or a recognised onsite provenance — never "anything not provisional" —
+ * and an explicit not-attended answer always wins over stale measurement metadata. */
+export function onsiteMeasuredFrom(m: { verified_area_m2?: unknown; provenance?: string | null } | null, attended: "yes" | "no" | null): boolean {
+  if (attended === "no" || !m) return false;
+  return m.verified_area_m2 != null || m.provenance === "hivic_onsite";
+}
+/** Job document title carries the explicit file purpose so Office file lists show it (job_imports.files stays canonical). */
+export const intakeDocumentTitle = (f: { name: string; purpose?: string | null | undefined }) => `${f.purpose === "quote" ? "Installer quote" : f.purpose === "supporting" ? "Supporting evidence" : "Unclassified file"} — ${f.name}`.slice(0, 300);
 export const NOT_MEASURED_NOTE = "That’s fine — we’ll save the job now. Add your quote on this same job when ready.";
 /** Who arranges/pays the electrician on an installer-supplied job (separate from who manages the job). */
 export type ElectricianPayer = "hivic" | "own" | "undecided";

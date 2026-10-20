@@ -77,7 +77,10 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
     setIncludes(facts.includes ?? ""); setProposedR(facts.proposedR == null ? "" : String(facts.proposedR));
     setPayer(currentPayer); setRemoval(removalFromFacts()); setCom(commercialInputFrom(facts.commercial)); setPlan(savedPlan());
   }, [facts, open, busy, fileBusy, initStatus, currentPayer]);
-  const allFiles = [...facts.files, ...newFiles];
+  // Earlier files without a purpose stay UNCLASSIFIED until the installer explicitly says what each one is.
+  const [classified, setClassified] = useState<Record<string, "quote" | "supporting">>({});
+  const allFiles = [...facts.files.map((f) => (f.purpose == null && classified[f.path] ? { ...f, purpose: classified[f.path] } : f)), ...newFiles];
+  const unclassified = facts.files.filter((f) => f.purpose == null);
 
   const save = async () => {
     const p = intakeProblems({ area, amount, includes, proposedR, insulation: ins, quoteStatus: qs, quoteFileCount: quoteFileCount(allFiles), evidenceAck: true });
@@ -91,7 +94,7 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
     const q = intakeQuotePayload({ quoteStatus: qs, amount, includes, proposedR });
     setBusy(true);
     try {
-      const r = await onSave({ areaM2: intakeArea(area), insulation: ins, quoteStatus: qs, quoteIncGst: q.quoted_price_inc_gst, includes: q.price_includes, proposedR: q.proposed_r_value, files: newFiles, ...(att && (att !== (facts.attended ?? null) || (att === "attended" && attOn !== (facts.attendedOn ?? ""))) ? { attended: att, attendedOn: att === "attended" ? attOn || null : null } : {}), removalQuote: removalPayload(removal, qs === "have_quote", att === "attended"), ...(qs === "have_quote" ? { commercial: commercialPayload(com, q.price_includes, removal.answer === "yes") } : {}),
+      const r = await onSave({ areaM2: intakeArea(area), insulation: ins, quoteStatus: qs, quoteIncGst: q.quoted_price_inc_gst, includes: q.price_includes, proposedR: q.proposed_r_value, files: [...newFiles, ...facts.files.filter((f) => f.purpose == null && classified[f.path]).map((f) => ({ ...f, purpose: classified[f.path]! }))], ...(att && (att !== (facts.attended ?? null) || (att === "attended" && attOn !== (facts.attendedOn ?? ""))) ? { attended: att, attendedOn: att === "attended" ? attOn || null : null } : {}), removalQuote: removalPayload(removal, qs === "have_quote", att === "attended"), ...(qs === "have_quote" ? { commercial: commercialPayload(com, q.price_includes, removal.answer === "yes") } : {}),
         ...(feeTick && feeText && (payer === "hivic" || payer === "own") ? { feeAwareness: { payer, text: feeText } } : {}),
         ...(payerChanged ? { electricianPayer: payer } : {}),
         ...(sendElectrician ? { electrician: sendElectrician } : {}) });
@@ -135,6 +138,14 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
           </div>
           {qs === "not_quoted" && (facts.quoteIncGst != null || facts.includes) && <p className="mt-1 text-xs text-sub" data-quote-clear-note>Saving "Not quoted yet" removes only the quote amount and inclusions saved earlier. Measurements, product, removal facts and uploaded files are kept.</p>}
         </fieldset>
+        {unclassified.length > 0 && <div className="rounded-[13px] border border-line p-3" data-editor-unclassified-files>
+          <p className="text-sm font-bold">Earlier files — tell us what each one is</p>
+          <p className="text-xs text-sub">These were saved before files were labelled. They don't count as your quote until you say so.</p>
+          <ul className="mt-2 space-y-2">{unclassified.map((f) => <li key={f.path} className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="min-w-0 flex-1 truncate">{f.name}</span>
+            {(["quote", "supporting"] as const).map((p) => <button key={p} type="button" disabled={busy} aria-pressed={classified[f.path] === p} className={`h-12 rounded-[12px] border px-3 text-sm font-semibold ${classified[f.path] === p ? "border-action bg-mint" : "border-line"}`} onClick={() => setClassified((o) => ({ ...o, [f.path]: p }))}>{p === "quote" ? "My quote" : "Supporting evidence"}</button>)}
+          </li>)}</ul>
+        </div>}
         <div data-editor-supporting-files>
           <AttachFiles businessId={businessId} files={allFiles.filter((f) => f.purpose === "supporting")} label="Supporting photos, videos or measure-up (optional)" disabled={busy} onBusyChange={setFileBusy} canRemove={(path) => newFiles.some((f) => f.path === path)} onAdd={async (picked) => {
             const failed: string[] = [];
@@ -147,7 +158,7 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
           <p className="mt-1 text-xs text-sub">Supporting evidence only — not your quote. Reviewed before it's accepted.</p>
         </div>
         {qs === "have_quote" && <>
-          <AttachFiles businessId={businessId} files={allFiles.filter((f) => f.purpose !== "supporting")} label="Upload your quote" disabled={busy} onBusyChange={setFileBusy} canRemove={(path) => newFiles.some((f) => f.path === path)} onAdd={async (picked) => {
+          <AttachFiles businessId={businessId} files={allFiles.filter((f) => f.purpose === "quote")} label="Upload your quote" disabled={busy} onBusyChange={setFileBusy} canRemove={(path) => newFiles.some((f) => f.path === path)} onAdd={async (picked) => {
             const failed: string[] = [];
             for (const file of picked) {
               try { const up = await upload([file]); setNewFiles((o) => [...o, ...up.map((u) => ({ ...u, purpose: "quote" as const }))]); }

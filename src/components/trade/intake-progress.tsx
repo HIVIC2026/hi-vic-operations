@@ -15,7 +15,22 @@ export function InstallerProgressCard({ jobId }: { jobId: string }) {
   if (isPending) return null;
   if (isError || !data) return <section className="space-y-2"><p role="alert" className="text-sm text-sub">Couldn't load current job progress.</p><Button variant="outline" disabled={isFetching} onClick={() => void refetch()}>Retry</Button></section>;
   if (!data.applies) return <InstallerJourney jobId={jobId} />;
-  return <><ProgressView steps={data.steps} next={data.next} /><SiteConditionsCard jobId={jobId} open={data.siteHold.open} note={data.siteHold.note} /></>;
+  return <><ProgressView steps={data.steps} next={data.next} /><MissingTasksCard m={data.missing} /><SiteConditionsCard jobId={jobId} open={data.siteHold.open} note={data.siteHold.note} /></>;
+}
+
+/** Only what is still missing, grouped by the step it blocks. */
+function MissingTasksCard({ m }: { m: { quote: string[]; beforeStart: string[]; afterCompletion: string[]; unknown: string[] } }) {
+  const groups: [string, string[], string][] = [["For the quote", m.quote, "quote"], ["Before removal or start of work", m.beforeStart, "before"], ["After completion", m.afterCompletion, "after"], ["Stage not recorded — office to check", m.unknown, "unknown"]];
+  return (
+    <section className="mt-3 rounded-[18px] border border-line bg-paper p-4" data-missing-tasks>
+      <h2 className="font-display text-base font-bold">Still missing</h2>
+      {groups.map(([title, items, key]) => (key === "unknown" && !items.length) ? null : (
+        <div key={key} className="mt-2" data-missing-group={key}>
+          <p className="text-sm font-bold">{title}</p>
+          {items.length ? <ul className="mt-1 list-disc pl-5 text-sm">{items.map((x) => <li key={x}>{x}</li>)}</ul> : <p className="text-sm text-sub">Nothing missing for this step right now.</p>}
+        </div>))}
+    </section>
+  );
 }
 
 /** "Site conditions differ" — installer flags a mismatch; the office reviews and clears it. */

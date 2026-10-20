@@ -15,6 +15,8 @@ export function postgrestShim(db: PGlite) {
         eq(c: string, v: unknown) { filters.push({ sql: `"${c}" = $?`, vals: [v] }); return b; },
         neq(c: string, v: unknown) { filters.push({ sql: `"${c}" <> $?`, vals: [v] }); return b; },
         is(c: string, v: null) { filters.push({ sql: `"${c}" IS ${v === null ? "NULL" : "NOT NULL"}`, vals: [] }); return b; },
+        contains(c: string, v: unknown) { filters.push({ sql: `"${c}" @> $?::jsonb`, vals: [JSON.stringify(v)] }); return b; },
+        ilike(c: string, v: string) { filters.push({ sql: `"${c}" ILIKE $?`, vals: [v] }); return b; },
         in(c: string, v: unknown[]) { filters.push({ sql: `"${c}" = ANY($?)`, vals: [v] }); return b; },
         insert(p: Record<string, unknown>) { op = "insert"; patch = p; return b; },
         order(c: string, o?: { ascending?: boolean }) { orderBy = ` ORDER BY "${c}" ${o?.ascending === false ? "DESC" : "ASC"}`; return b; },
@@ -25,8 +27,10 @@ export function postgrestShim(db: PGlite) {
           const vals: unknown[] = []; const ph = (s: string, vs: unknown[]) => s.replace(/\$\?/g, () => { vals.push(vs.shift()); return `$${vals.length}`; });
           let sql: string;
           if (op === "insert") {
-            const ks = Object.keys(patch); const vs = ks.map((k) => { const v = patch[k]; vals.push(v !== null && typeof v === "object" ? JSON.stringify(v) : v); return `$${vals.length}`; });
-            sql = `INSERT INTO ${table} (${ks.map((k) => `"${k}"`).join(", ")}) VALUES (${vs.join(", ")}) RETURNING ${returning ? returning.split(",").map((c) => `"${c.trim()}"`).join(", ") : "1"}`;
+            const rowsIn = (Array.isArray(patch) ? patch : [patch]) as Record<string, unknown>[];
+            const ks = Object.keys(rowsIn[0] ?? {});
+            const tuples = rowsIn.map((p) => `(${ks.map((k) => { const v = p[k]; vals.push(v !== null && typeof v === "object" ? JSON.stringify(v) : v); return `$${vals.length}`; }).join(", ")})`);
+            sql = `INSERT INTO ${table} (${ks.map((k) => `"${k}"`).join(", ")}) VALUES ${tuples.join(", ")} RETURNING ${returning ? returning.split(",").map((c) => `"${c.trim()}"`).join(", ") : "1"}`;
           } else if (op === "update") {
             const sets = Object.entries(patch).map(([k, v]) => { vals.push(v !== null && typeof v === "object" ? JSON.stringify(v) : v); return `"${k}" = $${vals.length}`; });
             sql = `UPDATE ${table} SET ${sets.join(", ")}`;

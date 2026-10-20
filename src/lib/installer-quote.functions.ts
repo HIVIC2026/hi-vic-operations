@@ -133,7 +133,7 @@ export const getMyIntakeJob = createServerFn({ method: "POST" }).middleware([req
     const currentElectrician = s.electricianPayer === "own" && nom ? { businessId: (nom.business_id as string | null) ?? null, name: (nom.contact_name as string | null) ?? "Your electrician" } : null;
     const payerLock = await m.intakePayerLock(data.jobId, s.electricianPayer, context.userId, biz);
     const quoteAnswer = (await m.intakeQuoteAnswers([data.jobId])).get(data.jobId) ?? null;
-    return { applies: true as const, businessId: biz, areaM2: s.areaM2, preliminaryAreaM2: s.preliminaryAreaM2, areaProvenance: s.areaProvenance, insulation: s.insulation, quoted: (job?.installer_quoted ?? null) as "yes" | "no" | null, quoteAnswer, attended: (await import("./installer-intake.core")).attendanceFromSiteCheck(job?.installer_site_check as string | null), attendedOn: (job?.installer_site_check_date as string | null) ?? null, quoteIncGst: s.quoteIncGst, includes: s.includes, proposedR: s.proposedR, removalQuote: s.removalQuote, commercial: s.commercial, removalText: s.removalText, files: ((imp?.files as { path: string; name: string; type: string }[] | null) ?? []), electricianChosen: s.electricianPayer !== "undecided", payerEditable: !payerLock, payerLockReason: payerLock, currentElectrician, quoteHeld: [...s.readiness.blockers, ...s.releaseBlockers.filter((b) => !/contact consent/.test(b))], electricianPayer: s.electricianPayer, feeAwarenessCurrent: s.feeAwarenessRecorded && (s.feeAwarenessPayer ?? "hivic") === s.electricianPayer };
+    return { applies: true as const, businessId: biz, areaM2: s.areaM2, preliminaryAreaM2: s.preliminaryAreaM2, areaProvenance: s.areaProvenance, insulation: s.insulation, quoted: (job?.installer_quoted ?? null) as "yes" | "no" | null, quoteAnswer, attended: (await import("./installer-intake.core")).attendanceFromSiteCheck(job?.installer_site_check as string | null), attendedOn: (job?.installer_site_check_date as string | null) ?? null, quoteIncGst: s.quoteIncGst, includes: s.includes, proposedR: s.proposedR, removalQuote: s.removalQuote, commercial: s.commercial, removalText: s.removalText, files: ((imp?.files as { path: string; name: string; type: string; purpose?: unknown }[] | null) ?? []).map((f) => ({ path: f.path, name: f.name, type: f.type, purpose: f.purpose === "quote" || f.purpose === "supporting" ? f.purpose : null })), electricianChosen: s.electricianPayer !== "undecided", payerEditable: !payerLock, payerLockReason: payerLock, currentElectrician, quoteHeld: [...s.readiness.blockers, ...s.releaseBlockers.filter((b) => !/contact consent/.test(b))], electricianPayer: s.electricianPayer, feeAwarenessCurrent: s.feeAwarenessRecorded && (s.feeAwarenessPayer ?? "hivic") === s.electricianPayer };
   });
 
 export const saveMyIntakeJob = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -214,7 +214,13 @@ export const getMyIntakeProgress = createServerFn({ method: "POST" }).middleware
     });
     // Open "Site conditions differ" hold outranks every other next action until the office reviews it.
     const next = s.siteHold.open ? { who: "Home Insulation Victoria" as const, text: `Site conditions differ — the office is reviewing${s.siteHold.note ? ` (${s.siteHold.note})` : ""}. The quote and works are on hold until then.` } : prog.next;
-    return { applies: true as const, ...prog, next, siteHold: s.siteHold };
+    const { missingTasks } = await import("./installer-missing-tasks.core");
+    const { SITE_HOLD_BLOCKER } = await import("./site-conditions.core");
+    const worksBlockers = await (await import("./ready-check-draft.server")).rcWorksBlockers(id); // throws on read failure (fail closed)
+    const missing = missingTasks({ quoteBlockers: [...s.readiness.blockers, ...s.releaseBlockers.filter((b: string) => !/contact consent/.test(b))], worksBlockers,
+      siteHoldBlocker: s.siteHold.open ? (s.siteHold.note ? `${SITE_HOLD_BLOCKER}: ${s.siteHold.note}` : SITE_HOLD_BLOCKER) : null,
+      evidence: (ev ?? []).map((e) => ({ label: e.label, status: e.status, gate: e.gate })) });
+    return { applies: true as const, ...prog, next, siteHold: s.siteHold, missing };
   });
 
 /** Supplying installer flags "Site conditions differ". Holds quote release/acceptance and start of works until office review. */
