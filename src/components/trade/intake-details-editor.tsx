@@ -109,14 +109,14 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
       setNewFiles([]); if (feeTick) setFeeTick(false);
       setMsg(preview ? "Preview only — nothing was saved." : r.quoteHeld.length ? "Saved. The owner quote is still on hold until the remaining items are ready." : "Saved.");
     } catch (e) { setMsg(e instanceof Error ? e.message : "Couldn't save. Try again."); }
-    finally { setBusy(false); }
+    finally { saveFlight.current = false; setBusy(false); }
   };
 
   const known = [
     facts.attended === "attended" ? `Site visit: attended and assessed${facts.attendedOn ? ` on ${facts.attendedOn}` : ""}` : facts.attended === "not_attended" ? "Site visit: not attended yet — Ready Check required" : "Site visit: not answered yet",
     facts.areaM2 != null ? `Ceiling ${facts.areaM2} m² (your figure, not yet accepted)` : facts.preliminaryAreaM2 != null ? `Preliminary estimate ${facts.preliminaryAreaM2} m² (unverified — not measured)` : "Ceiling area: not measured yet",
     `Existing insulation: ${EXISTING_INSULATION_CHOICES.find((c) => c.value === (facts.insulation ?? "unknown"))?.label}`,
-    facts.quoteIncGst != null ? `Your quote $${facts.quoteIncGst.toLocaleString("en-AU")} inc GST` : initStatus === "not_quoted" ? "Quote: not quoted yet" : initStatus === "have_quote" ? (facts.files.length ? "Quote: your uploaded quote — office confirms the amount" : "Quote: amount still needed") : "Quote: not answered yet",
+    facts.quoteIncGst != null ? `Your quote $${facts.quoteIncGst.toLocaleString("en-AU")} inc GST` : initStatus === "not_quoted" ? "Quote: not quoted yet" : initStatus === "have_quote" ? (quoteFileCount(facts.files) ? "Quote: your uploaded quote — office confirms the amount" : "Quote: amount still needed") : "Quote: not answered yet",
     ...(facts.removalText ? [facts.removalText] : facts.removalQuote ? [removalFactSummary(facts.removalQuote, facts.commercial ?? null)] : []),
   ];
   return (
@@ -155,25 +155,25 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
           </li>)}</ul>
         </div>}
         <div data-editor-supporting-files>
-          <AttachFiles businessId={businessId} files={allFiles.filter((f) => f.purpose === "supporting")} label="Supporting photos, videos or measure-up (optional)" disabled={busy} onBusyChange={setFileBusy} canRemove={(path) => newFiles.some((f) => f.path === path)} onAdd={async (picked) => {
+          <AttachFiles businessId={businessId} files={allFiles.filter((f) => f.purpose === "supporting")} label="Supporting photos, videos or measure-up (optional)" disabled={busy || fileBusy} canRemove={(path) => newFiles.some((f) => f.path === path)} onAdd={(picked) => changeFiles(async () => {
             const failed: string[] = [];
             for (const file of picked) {
               try { const up = await upload([file]); setNewFiles((o) => [...o, ...up.map((u) => ({ ...u, purpose: "supporting" as const }))]); }
               catch { failed.push(file.name); }
             }
             if (failed.length) throw new Error(`${failed.join(", ")} didn't upload. Other uploaded files have been kept. Retry only the missing files.`);
-          }} onRemove={async (path) => setNewFiles((o) => o.filter((f) => f.path !== path))} />
+          })} onRemove={(path) => changeFiles(async () => setNewFiles((o) => o.filter((f) => f.path !== path)))} />
           <p className="mt-1 text-xs text-sub">Supporting evidence only — not your quote. Reviewed before it's accepted.</p>
         </div>
         {qs === "have_quote" && <>
-          <AttachFiles businessId={businessId} files={allFiles.filter((f) => f.purpose === "quote")} label="Upload your quote" disabled={busy} onBusyChange={setFileBusy} canRemove={(path) => newFiles.some((f) => f.path === path)} onAdd={async (picked) => {
+          <AttachFiles businessId={businessId} files={allFiles.filter((f) => f.purpose === "quote")} label="Upload your quote" disabled={busy || fileBusy} canRemove={(path) => newFiles.some((f) => f.path === path)} onAdd={(picked) => changeFiles(async () => {
             const failed: string[] = [];
             for (const file of picked) {
               try { const up = await upload([file]); setNewFiles((o) => [...o, ...up.map((u) => ({ ...u, purpose: "quote" as const }))]); }
               catch { failed.push(file.name); }
             }
             if (failed.length) throw new Error(`${failed.join(", ")} didn't upload. Other uploaded files have been kept. Retry only the missing files.`);
-          }} onRemove={async (path) => setNewFiles((o) => o.filter((f) => f.path !== path))} />
+          })} onRemove={(path) => changeFiles(async () => setNewFiles((o) => o.filter((f) => f.path !== path)))} />
           <p className="text-xs text-sub">No quote file? Enter the amount and what it includes.</p>
           <label className="block text-sm font-bold">Total installer quote inc GST<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 3,450" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
           <p className="text-xs text-sub">Your works price before the VEU discount. Removal or extras you priced separately go below — never include them twice.</p>
