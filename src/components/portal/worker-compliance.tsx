@@ -5,15 +5,16 @@ import { AlertTriangle, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
-import { addLicenceExpiry, myTeamCompliance, officePiisaFileUrl, officeVerifyPiisa, officeWorkerCompliance, piisaUploadSlot, savePiisa } from "@/lib/worker-compliance.functions";
+import { addLicenceExpiry, createWorkerCompletionLink, myTeamCompliance, officeEecFileUrl, officePiisaFileUrl, officeVerifyEec, officeVerifyPiisa, officeWorkerCompliance, piisaUploadSlot, savePiisa } from "@/lib/worker-compliance.functions";
+import { EEC_TEAM_LABEL } from "@/lib/worker-compliance.core";
 
-type Row = { id: string; name: string; role: string; missing: ("licence_expiry" | "piisa")[]; warning: string | null; piisa: string; licenceExpiry: string | null };
+type Row = { id: string; name: string; role: string; missing: ("licence_expiry" | "piisa")[]; warning: string | null; piisa: string; eec: string; licenceExpiry: string | null };
 
 /** Trade My business: "missing" items with a one-tap Add it, plus licence lapse warnings. */
 export function TeamCompliancePrompts() {
   const load = useServerFn(myTeamCompliance);
   const { data } = useQuery({ queryKey: ["team-compliance"], queryFn: () => load() as Promise<Row[]> });
-  const rows = (data ?? []).filter((r) => r.missing.length || r.warning || r.piisa === "awaiting_check");
+  const rows = (data ?? []).filter((r) => r.missing.length || r.warning || r.piisa === "awaiting_check" || r.eec === "awaiting_check" || r.eec === "missing");
   if (!rows.length) return null;
   return (
     <section data-testid="team-compliance" className="mb-4 space-y-3">
@@ -33,6 +34,9 @@ function PromptCard({ r }: { r: Row }) {
       {r.missing.includes("licence_expiry") && <MissingLine label="Electrical licence expiry date: missing" onAdd={() => setOpen("licence_expiry")} />}
       {r.missing.includes("piisa") && <MissingLine label={r.piisa === "not_done" ? "PIISA training: not done yet" : "PIISA training: missing"} onAdd={() => setOpen("piisa")} />}
       {r.piisa === "awaiting_check" && <p className="mt-2 text-sm text-muted-foreground">PIISA certificate uploaded. Our office is checking it.</p>}
+      {r.eec === "awaiting_check" && <p className="mt-2 text-sm text-muted-foreground">{EEC_TEAM_LABEL.awaiting_check}</p>}
+      {r.eec === "verified" && <p className="mt-2 text-sm font-bold text-estimate-green">{EEC_TEAM_LABEL.verified}</p>}
+      {r.eec === "missing" && <div className="mt-2 flex flex-wrap items-center justify-between gap-3 text-sm"><span>{EEC_TEAM_LABEL.missing}</span><CertLinkInline workerId={r.id} name={r.name} /></div>}
       {r.warning && !r.missing.length && open !== "licence_expiry" && <Button size="sm" variant="outline" className="mt-2" onClick={() => setOpen("licence_expiry")}>Add new expiry date</Button>}
       {open === "licence_expiry" && <LicenceForm workerId={r.id} onDone={done} />}
       {open === "piisa" && <PiisaForm workerId={r.id} onDone={done} />}
@@ -98,6 +102,10 @@ export function OfficeWorkerCompliance() {
           {r.piisa === "awaiting_check" && <div className="flex gap-2">
             <Button size="sm" variant="outline" onClick={async () => { const u = await file({ data: { workerId: r.id } }); if (u.url) window.open(u.url, "_blank", "noopener"); }}>View certificate</Button>
             <Button size="sm" onClick={async () => { setErr(""); try { await verify({ data: { workerId: r.id } }); await refetch(); } catch (e) { setErr(e instanceof Error ? e.message : "Please try again."); } }}><Check className="mr-1 h-4 w-4" />Verify PIISA</Button>
+          </div>}
+          {r.eec === "awaiting_check" && <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={async () => { const u = await eecFile({ data: { workerId: r.id } }); if (u.url) window.open(u.url, "_blank", "noopener"); }}>View certificate</Button>
+            <Button size="sm" onClick={async () => { setErr(""); try { await verifyEec({ data: { workerId: r.id } }); await refetch(); } catch (e) { setErr(e instanceof Error ? e.message : "Please try again."); } }}><Check className="mr-1 h-4 w-4" />Verify certificate</Button>
           </div>}
         </li>))}</ul>
       {err && <p role="alert" className="mt-2 text-sm text-destructive">{err}</p>}
