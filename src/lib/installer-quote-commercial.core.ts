@@ -96,3 +96,19 @@ export const ORIGINAL_STATUS_NOTE = "History only — this is not the owner's ac
 
 /** Wire shape (zod lives in the .functions files; this keeps the bounds in one place). */
 export const COMMERCIAL_LIMITS = { text: 1000, extras: 20, money: 1_000_000 } as const;
+
+/** Form state (strings for money so blank stays blank — never 0). */
+export type CommercialInput = Omit<QuoteCommercial, "removalAmountIncGst" | "extras"> & { removalAmount: string; extras: { description: string; pricing: ChargePricing; amount: string }[] };
+export const blankCommercialInput = (): CommercialInput => ({ basis: null, gst: null, inclusions: null, exclusions: null, originalStatus: null, removalPricing: null, removalAmount: "", extras: [] });
+const num = (v: string) => (v.trim() ? Number(v.replace(/[$,\s]/g, "")) : null);
+export function commercialPayload(i: CommercialInput, includes: string | null, removalRequired: boolean): QuoteCommercial {
+  return {
+    basis: i.basis, gst: i.gst, inclusions: includes?.trim() || null, exclusions: i.exclusions?.trim() || null, originalStatus: i.originalStatus,
+    removalPricing: removalRequired ? i.removalPricing : null, removalAmountIncGst: removalRequired && i.removalPricing === "additional" ? num(i.removalAmount) : null,
+    extras: i.extras.filter((e) => e.description.trim()).map((e) => ({ description: e.description.trim(), pricing: e.pricing, amountIncGst: e.pricing === "additional" ? num(e.amount) : null })),
+  };
+}
+export function commercialInputFrom(c: QuoteCommercial | null | undefined): CommercialInput {
+  if (!c) return blankCommercialInput();
+  return { basis: c.basis, gst: c.gst, inclusions: c.inclusions, exclusions: c.exclusions, originalStatus: c.originalStatus, removalPricing: c.removalPricing, removalAmount: c.removalAmountIncGst == null ? "" : String(c.removalAmountIncGst), extras: c.extras.map((e) => ({ description: e.description, pricing: e.pricing, amount: e.amountIncGst == null ? "" : String(e.amountIncGst) })) };
+}
