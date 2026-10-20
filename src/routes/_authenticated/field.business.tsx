@@ -34,6 +34,11 @@ function Business() {
         <span><span className="block font-bold">Taking new jobs</span><span className="block text-sm text-sub">{data.taking ? "On. New job offers come straight to you." : "Paused, no new offers until you switch back on"}</span></span>
         <button type="button" role="switch" aria-checked={data.taking} aria-label="Taking new jobs" disabled={busy || !data.boss} onClick={async () => { setBusy(true); try { await setTaking({ data: { taking: !data.taking } }); await refetch(); } finally { setBusy(false); } }} className={`relative h-8 w-14 shrink-0 rounded-full ${data.taking ? "bg-estimate-green" : "bg-estimate-line"}`}><span className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow transition-all ${data.taking ? "left-7" : "left-1"}`} /></button>
       </section>
+      {data.boss && <section className={`${card} space-y-3`} data-boss-actions>
+        <h2 className="font-bold">Grow your business</h2>
+        <Link to="/partner/workers" className="flex h-12 w-full items-center justify-center rounded-[10px] bg-action px-4 text-[13px] font-bold text-action-foreground">Add team members</Link>
+        {installer && <Link to="/partner/bulk-import" className="flex h-12 w-full items-center justify-center rounded-[10px] border-2 border-estimate-blue px-4 text-[13px] font-bold text-estimate-blue">Upload multiple jobs</Link>}
+      </section>}
       {alert && <section className="rounded-[18px] bg-owner-house-pink p-5"><p className="font-bold">{alert.doc} runs out in {alert.d} days. Upload the renewed certificate to keep receiving job offers</p><Link to="/field/business/insurance" className="mt-3 flex h-12 w-full items-center justify-center rounded-[10px] bg-estimate-navy font-bold text-estimate-canvas">Upload</Link></section>}
       <section>
         <h2 className="sr-only">Your business file</h2>

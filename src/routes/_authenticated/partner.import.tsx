@@ -18,7 +18,10 @@ function ImportPage() {
   const businessId = (profile?.business as { id?: string } | undefined)?.id;
   return (
     <TradeShell installer>
-      <h1 className="font-display text-[26px] font-bold leading-tight">Add a job</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="font-display text-[26px] font-bold leading-tight">Add a job</h1>
+        <Link to="/partner/bulk-import" data-bulk-upload-link className="inline-flex h-12 items-center rounded-[10px] border-2 border-estimate-blue px-4 text-sm font-bold text-estimate-blue md:h-[42px]">Upload multiple jobs</Link>
+      </div>
       {isLoading ? <p className="text-sm text-sub">Loading…</p>
         : isError ? <div className="mt-3 space-y-2"><p className="text-sm" role="alert">Your business details couldn't load. Check your signal and try again.</p><Button disabled={isFetching} onClick={() => refetch()}>{isFetching ? "Retrying…" : "Retry"}</Button></div>
         : !businessId ? <div className="mt-3 space-y-2 rounded-[18px] border border-line bg-paper p-4" data-no-business><p className="text-sm">This sign-in isn't linked to an approved installer business, so jobs can't be added here.</p><p className="text-sm text-sub">Contact Home Insulation Victoria if you think this is wrong.</p><Link to="/field" className="text-sm font-bold underline">Back to My work</Link></div>
