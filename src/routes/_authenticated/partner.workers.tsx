@@ -40,13 +40,15 @@ function Workers() {
       <ul className="space-y-2">
         {data.workers.map((w) => !sample && editing === w.id ? <li key={w.id}><WorkerForm businessId={data.business!.id} worker={w} onDone={done} /></li> : (
           <li key={w.id} className="flex flex-wrap items-center justify-between gap-2 rounded-[18px] border border-line bg-paper shadow-card p-3 text-sm">
-            <div>
+            <div className="min-w-0">
               <div className="font-semibold">{w.full_legal_name} <span className="font-normal text-sub">· {w.trade_role === "electrician" ? `Electrician · licence ${w.licence_number}` : "Installer"}</span></div>
               <div className="text-sub">{w.mobile} · {w.email}</div>
+              {w.trade_role === "installer" && (() => { const s = eecState(w); return s !== "not_applicable" && <div className={s === "verified" ? "text-xs font-bold text-estimate-green" : s === "awaiting_check" ? "text-xs text-sub" : "text-xs font-bold text-danger"}>{EEC_TEAM_LABEL[s]}</div>; })()}
               {w.approval_status === "rejected" && w.rejection_reason && <div className="text-xs text-danger">Reason: {w.rejection_reason}</div>}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <WorkerStatus s={w.approval_status} />
+              {!sample && data.canManage && w.trade_role === "installer" && eecState(w) !== "verified" && <CertLinkButton workerId={w.id} name={w.full_legal_name} />}
               {!sample && data.canManage && <><Button size="sm" variant="outline" onClick={() => setEditing(w.id)}>Edit</Button><WorkerRemoveButton id={w.id} onDone={refetch} /></>}
             </div>
           </li>
