@@ -1,0 +1,292 @@
+[
+  {
+    "screenshots": [],
+    "environment": "local preview sandbox",
+    "area": "office writes",
+    "route_or_action": "server function ID resolution",
+    "persona": "-",
+    "status": "passed",
+    "detail": "target http://localhost:8080; mode dev; identity dev:3fee4c24234ce27c; dev IDs read from served transforms",
+    "steps": "served transform / compiled client scan"
+  },
+  {
+    "screenshots": [],
+    "environment": "local preview sandbox",
+    "area": "office writes (denied)",
+    "route_or_action": "deleteJob direct call",
+    "persona": "installer",
+    "status": "not_run",
+    "detail": "persona excluded for this run (--personas)",
+    "steps": ""
+  },
+  {
+    "screenshots": [],
+    "environment": "local preview sandbox",
+    "area": "office writes (denied)",
+    "route_or_action": "restoreJob direct call",
+    "persona": "installer",
+    "status": "not_run",
+    "detail": "persona excluded for this run (--personas)",
+    "steps": ""
+  },
+  {
+    "screenshots": [],
+    "environment": "local preview sandbox",
+    "area": "office writes (denied)",
+    "route_or_action": "setEligibility direct call",
+    "persona": "installer",
+    "status": "not_run",
+    "detail": "persona excluded for this run (--personas)",
+    "steps": ""
+  },
+  {
+    "screenshots": [],
+    "environment": "local preview sandbox",
+    "area": "office writes (denied)",
+    "route_or_action": "deleteJob direct call",
+    "persona": "rec",
+    "status": "passed",
+    "detail": "HTTP 200 error \"Admin only.\"; handler admin refusal; DB unchanged",
+    "steps": "POST http://localhost:8080/_serverFn/<deleteJob> as TEST rec"
+  },
+  {
+    "screenshots": [],
+    "environment": "local preview sandbox",
+    "area": "office writes (denied)",
+    "route_or_action": "restoreJob direct call",
+    "persona": "rec",
+    "status": "passed",
+    "detail": "HTTP 200 error \"Admin only.\"; handler admin refusal; DB unchanged",
+    "steps": "POST http://localhost:8080/_serverFn/<restoreJob> as TEST rec"
+  },
+  {
+    "screenshots": [],
+    "environment": "local preview sandbox",
+    "area": "office writes (denied)",
+    "route_or_action": "setEligibility direct call",
+    "persona": "rec",
+    "status": "passed",
+    "detail": "HTTP 200 error \"Admin only.\"; handler admin refusal; DB unchanged",
+    "steps": "POST http://localhost:8080/_serverFn/<setEligibility> as TEST rec"
+  },
+  {
+    "screenshots": [],
+    "environment": "local preview sandbox",
+    "area": "office writes (denied)",
+    "route_or_action": "deleteJob direct call",
+    "persona": "owner",
+    "status": "passed",
+    "detail": "HTTP 200 error \"Admin only.\"; handler admin refusal; DB unchanged",
+    "steps": "POST http://localhost:8080/_serverFn/<deleteJob> as TEST owner"
+  },
+  {
+    "screenshots": [],
+    "environment": "local preview sandbox",
+    "area": "office writes (denied)",
+    "route_or_action": "restoreJob direct call",
+    "persona": "owner",
+    "status": "passed",
+    "detail": "HTTP 200 error \"Admin only.\"; handler admin refusal; DB unchanged",
+    "steps": "POST http://localhost:8080/_serverFn/<restoreJob> as TEST owner"
+  },
+  {
+    "screenshots": [],
+    "environment": "local preview sandbox",
+    "area": "office writes (denied)",
+    "route_or_action": "setEligibility direct call",
+    "persona": "owner",
+    "status": "passed",
+    "detail": "HTTP 200 error \"Admin only.\"; handler admin refusal; DB unchanged",
+    "steps": "POST http://localhost:8080/_serverFn/<setEligibility> as TEST owner"
+  },
+  {
+    "screenshots": [],
+    "environment": "local preview sandbox",
+    "area": "office writes (parity)",
+    "route_or_action": "before delete: counted + listed",
+    "persona": "office",
+    "status": "passed",
+    "detail": "status waiting_list.ready_to_send: pipeline count 15, drilldown total 15, HV-2111 in drilldown=true, in all-live list=true; all-statuses sum 1605 vs all-live total 1605",
+    "steps": "getPipeline/listByStatus includeTest=true"
+  },
+  {
+    "screenshots": [],
+    "environment": "local preview sandbox",
+    "area": "office writes (parity)",
+    "route_or_action": "while deleted: not counted, not listed",
+    "persona": "office",
+    "status": "passed",
+    "detail": "HTTP 200 result ok=true; status waiting_list.ready_to_send: pipeline count 14, drilldown total 14, HV-2111 in drilldown=false, in all-live list=false; all-statuses sum 1604 vs all-live total 1604",
+    "steps": "deleteJob, then same reads"
+  },
+  {
+    "screenshots": [],
+    "environment": "local preview sandbox",
+    "area": "office writes (parity)",
+    "route_or_action": "after restore: counted + listed again",
+    "persona": "office",
+    "status": "passed",
+    "detail": "HTTP 200 result ok=true; status waiting_list.ready_to_send: pipeline count 15, drilldown total 15, HV-2111 in drilldown=true, in all-live list=true; all-statuses sum 1605 vs all-live total 1605",
+    "steps": "restoreJob, then same reads"
+  },
+  {
+    "screenshots": [
+      "/tmp/qa-ow2/screens/desktop-1-deleted.png"
+    ],
+    "environment": "local preview sandbox",
+    "area": "office writes",
+    "route_or_action": "delete job (desktop)",
+    "persona": "office",
+    "status": "passed",
+    "detail": "empty/2-char reason blocked=True/True; deleted banner after reload=True",
+    "steps": "TEST office on http://localhost:8080"
+  },
+  {
+    "screenshots": [
+      "/tmp/qa-ow2/screens/desktop-2-deleted-page.png"
+    ],
+    "environment": "local preview sandbox",
+    "area": "office writes",
+    "route_or_action": "deleted page lists job (desktop)",
+    "persona": "office",
+    "status": "passed",
+    "detail": "on Deleted jobs=True",
+    "steps": "TEST office on http://localhost:8080"
+  },
+  {
+    "screenshots": [
+      "/tmp/qa-ow2/screens/desktop-4-after-restore.png",
+      "/tmp/qa-ow2/screens/desktop-5-job-restored.png"
+    ],
+    "environment": "local preview sandbox",
+    "area": "office writes",
+    "route_or_action": "restore job (desktop)",
+    "persona": "office",
+    "status": "passed",
+    "detail": "empty reason blocked=True; gone from Deleted after reload=True",
+    "steps": "TEST office on http://localhost:8080"
+  },
+  {
+    "screenshots": [
+      "/tmp/qa-ow2/screens/desktop-6-ineligible.png",
+      "/tmp/qa-ow2/screens/desktop-7-likely.png"
+    ],
+    "environment": "local preview sandbox",
+    "area": "office writes",
+    "route_or_action": "classification ineligible -> likely (desktop)",
+    "persona": "office",
+    "status": "passed",
+    "detail": "persisted after reload: ineligible=True, likely=True",
+    "steps": "TEST office on http://localhost:8080"
+  },
+  {
+    "screenshots": [
+      "/tmp/qa-ow2/screens/phone-1-deleted.png"
+    ],
+    "environment": "local preview sandbox",
+    "area": "office writes",
+    "route_or_action": "delete job (phone)",
+    "persona": "office",
+    "status": "passed",
+    "detail": "empty/2-char reason blocked=True/True; deleted banner after reload=True",
+    "steps": "TEST office on http://localhost:8080"
+  },
+  {
+    "screenshots": [
+      "/tmp/qa-ow2/screens/phone-2-deleted-page.png"
+    ],
+    "environment": "local preview sandbox",
+    "area": "office writes",
+    "route_or_action": "deleted page lists job (phone)",
+    "persona": "office",
+    "status": "passed",
+    "detail": "on Deleted jobs=True",
+    "steps": "TEST office on http://localhost:8080"
+  },
+  {
+    "screenshots": [
+      "/tmp/qa-ow2/screens/phone-4-after-restore.png",
+      "/tmp/qa-ow2/screens/phone-5-job-restored.png"
+    ],
+    "environment": "local preview sandbox",
+    "area": "office writes",
+    "route_or_action": "restore job (phone)",
+    "persona": "office",
+    "status": "passed",
+    "detail": "empty reason blocked=True; gone from Deleted after reload=True",
+    "steps": "TEST office on http://localhost:8080"
+  },
+  {
+    "screenshots": [
+      "/tmp/qa-ow2/screens/phone-6-ineligible.png",
+      "/tmp/qa-ow2/screens/phone-7-likely.png"
+    ],
+    "environment": "local preview sandbox",
+    "area": "office writes",
+    "route_or_action": "classification ineligible -> likely (phone)",
+    "persona": "office",
+    "status": "passed",
+    "detail": "persisted after reload: ineligible=True, likely=True",
+    "steps": "TEST office on http://localhost:8080"
+  },
+  {
+    "screenshots": [],
+    "environment": "local preview sandbox",
+    "area": "office writes (DB)",
+    "route_or_action": "job_deleted audit",
+    "persona": "office",
+    "status": "passed",
+    "detail": "3 event(s), all office actor + reason",
+    "steps": "read workflow_events"
+  },
+  {
+    "screenshots": [],
+    "environment": "local preview sandbox",
+    "area": "office writes (DB)",
+    "route_or_action": "job_restored audit",
+    "persona": "office",
+    "status": "passed",
+    "detail": "3 event(s), all office actor + reason",
+    "steps": "read workflow_events"
+  },
+  {
+    "screenshots": [],
+    "environment": "local preview sandbox",
+    "area": "office writes (DB)",
+    "route_or_action": "classification audit",
+    "persona": "office",
+    "status": "passed",
+    "detail": "4 classification event(s): eligibility_override, eligibility_set, eligibility_set, eligibility_set",
+    "steps": "read workflow_events"
+  },
+  {
+    "screenshots": [],
+    "environment": "local preview sandbox",
+    "area": "office writes",
+    "route_or_action": "TEST snapshot restored",
+    "persona": "-",
+    "status": "passed",
+    "detail": "HV-2111 back to preliminary_estimate_ready / needs_onsite_confirmation (system), not deleted=true; audit events kept (end of run)",
+    "steps": "restore snapshot (qa_test only) in finally"
+  },
+  {
+    "screenshots": [],
+    "environment": "local preview sandbox",
+    "area": "office writes (DB)",
+    "route_or_action": "owner answers unchanged",
+    "persona": "-",
+    "status": "passed",
+    "detail": "properties.enrichment hash before = after",
+    "steps": "sha256 compare"
+  },
+  {
+    "screenshots": [],
+    "environment": "local preview sandbox",
+    "area": "office writes (DB)",
+    "route_or_action": "3 real deleted jobs untouched",
+    "persona": "-",
+    "status": "passed",
+    "detail": "HV-1981 deleted, HV-2010 deleted, HV-2015 deleted",
+    "steps": "read-only"
+  }
+]
