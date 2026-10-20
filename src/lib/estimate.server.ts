@@ -8,6 +8,7 @@ import { evaluateJobGate1 } from "./eligibility.server";
 import { selectCurrentEstimate, type AreaTier } from "./intelligence.core";
 import { A48_SPEC, type LocationVariables } from "./activity48.core";
 import { TRUSTED_ESTIMATE_TIERS, computeEstimate, customerCanSee, displayModeFor, estimateSignature, pickArea, type DisplayMode, type EstimateResult, type RetailSettings } from "./estimate.core";
+import { reviewedEstimateInsulation, type EstimateMediaReview, type OfferReviewOutcome } from './reviewed-estimate.core';
 
 export type EstimateView = {
   mode: DisplayMode; reason: string | null; measureRequired: boolean;
@@ -21,17 +22,22 @@ export async function currentRetailSettings(): Promise<RetailSettings | null> {
   return (data as unknown as RetailSettings) ?? null;
 }
 
-export async function refreshIndicativeEstimate(jobId: string): Promise<EstimateView> {
+export async function refreshIndicativeEstimate(jobId: string, options?: { officeReview: OfferReviewOutcome }): Promise<EstimateView> {
   const { data: j } = await admin.from("jobs").select("eligibility_outcome, eligibility_decision_source, eligibility_review_required, estimated_area_m2, estimated_area_unknown, properties(postcode, enrichment)").eq("id", jobId).single();
   if (!j) throw new Error("Job not found");
   const p = j.properties as { postcode: string | null; enrichment: Record<string, unknown> | null } | null;
   const b44 = (p?.enrichment?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } };
   const declaredInsulation = normaliseInsulation(declaredExtras(b44.raw?.answers ?? null).existing_insulation);
-  // Latest authoritative Office media review "no_insulation" sets the EFFECTIVE fact; the raw owner answer is untouched.
-  const { data: latestReview, error: reviewError } = await admin.from("customer_engagement_events").select("metadata").eq("job_id", jobId).eq("event_type", "intake_media_reviewed").order("occurred_at", { ascending: false }).limit(1);
-  if (reviewError) throw new Error("Could not read the office photo review.");
-  const { effectiveInsulation } = await import("./enquiry-groups.core");
-  const insulation = effectiveInsulation(declaredInsulation, (latestReview?.[0]?.metadata as { outcome?: string } | null)?.outcome ?? null);
+  const [reviews, current] = await Promise.all([
+    admin.from("customer_engagement_events").select("id,metadata,occurred_at").eq("job_id", jobId).eq("event_type", "intake_media_reviewed").eq('source', 'office').order("occurred_at", { ascending: false }).order('id', { ascending: false }).limit(1),
+    admin.from("indicative_estimates").select("id,input_signature,created_at,settings_version,snapshot").eq("job_id", jobId).eq("status", "current").maybeSingle(),
+  ]);
+  if (reviews.error || current.error) throw new Error("Could not verify the Office review and current estimate.");
+  const latest = reviews.data?.[0];
+  const latestReview = latest ? { id: latest.id, outcome: (latest.metadata as { outcome?: string } | null)?.outcome ?? '', occurredAt: latest.occurred_at } : null;
+  const preparedReview = (current.data?.snapshot as { office_media_review?: EstimateMediaReview } | null)?.office_media_review ?? null;
+  const effective = reviewedEstimateInsulation(declaredInsulation, latestReview, preparedReview, options?.officeReview);
+  const insulation = effective.insulation;
   const recorded = j.eligibility_decision_source === "system" || j.eligibility_decision_source === "admin";
   const mode = displayModeFor({ outcome: j.eligibility_outcome, reviewRequired: !!j.eligibility_review_required, recorded });
   const d = await evaluateJobGate1(jobId); // read-only: drivers + flags
@@ -61,14 +67,19 @@ export async function refreshIndicativeEstimate(jobId: string): Promise<Estimate
     owner: j.estimated_area_unknown ? null : j.estimated_area_m2 == null ? null : Number(j.estimated_area_m2),
   });
   if (!area) return out({ measureRequired: true, reason: "We need a ceiling-area estimate before we can calculate indicative savings" });
-  const sig = estimateSignature({ mode, area, postcode: loc.postcode, insulation, settingsId: settings.id, settingsVersion: settings.version, veecValue: settings.indicative_veec_value, veecSource: `${settings.veec_value_source_url}|${settings.veec_value_checked_at}`, specVersion: A48_SPEC.version });
+  // Review provenance is a material input even when two consecutive reviews produce the same price.
+  // Keeping it in the signature prevents a subsequent refresh reverting an explicitly prepared estimate.
+  const sig = estimateSignature({ mode, area, postcode: loc.postcode, insulation, settingsId: settings.id, settingsVersion: settings.version, veecValue: settings.indicative_veec_value, veecSource: `${settings.veec_value_source_url}|${settings.veec_value_checked_at}`, specVersion: A48_SPEC.version }) + (effective.review ? `:office_review:${effective.review.id}` : '');
   const r = computeEstimate(area, loc, insulation, settings);
-  const { data: cur } = await admin.from("indicative_estimates").select("id, input_signature, created_at, settings_version").eq("job_id", jobId).eq("status", "current").maybeSingle();
+  const cur = current.data ? { id: current.data.id, input_signature: current.data.input_signature, created_at: current.data.created_at, settings_version: current.data.settings_version } : null;
   let row = cur && cur.input_signature === sig ? cur : null;
   if (!row) {
     const now = new Date().toISOString();
-    if (cur) await admin.from("indicative_estimates").update({ status: "superseded", superseded_at: now }).eq("id", cur.id);
-    const snapshot = { formula: "GHG Eq. Reduction = GHG Savings × Area × Lifetime × Regional Factor (Spec v25 Eq 48.1)", inputs: { area, location: loc, insulation, mode }, settings, ghg: r.ghg, raw_estimated_discount: r.raw_estimated_discount, scenarios: r.scenarios, spec: A48_SPEC, calculated_at: now };
+    if (cur) {
+      const { error } = await admin.from("indicative_estimates").update({ status: "superseded", superseded_at: now }).eq("id", cur.id);
+      if (error) throw new Error('The current estimate could not be updated. No email was sent.');
+    }
+    const snapshot = { formula: "GHG Eq. Reduction = GHG Savings × Area × Lifetime × Regional Factor (Spec v25 Eq 48.1)", inputs: { area, location: loc, insulation, mode }, ...(effective.review ? { office_media_review: effective.review } : {}), settings, ghg: r.ghg, raw_estimated_discount: r.raw_estimated_discount, scenarios: r.scenarios, spec: A48_SPEC, calculated_at: now };
     const { data: ins, error } = await admin.from("indicative_estimates").insert({
       job_id: jobId, status: "current", input_signature: sig, eligibility_outcome: j.eligibility_outcome, display_mode: mode,
       area_m2: area.m2, area_source: area.source, area_basis: area.basis, area_source_id: area.id, postcode: loc.postcode, location: loc as unknown as Json,

@@ -12,6 +12,7 @@ import {
   getEnquiryGroups,
   getLeadMedia,
   noInsulationSaveSpotFn,
+  morePhotosRequestFn,
   removeLeadsFn,
   reviewLeadMediaFn,
 } from "@/lib/enquiry-groups.functions";
@@ -23,6 +24,7 @@ import {
 } from "@/lib/enquiry-groups.core";
 import { OFFICE_ENQUIRY_LABEL } from "@/lib/office-nav";
 import { RESPONSE_STATE_LABEL, showingRange } from "@/lib/enquiry-response.core";
+import { followupSendMessage, followupRequestError, uncertainAttempt } from '@/lib/followup-result.core';
 import { cn } from "@/lib/utils";
 
 export type EnquiryView = EnquiryStatus | "all" | "new" | "photos" | "removed";
@@ -37,6 +39,7 @@ const when = (value: string | null | undefined) =>
         month: "short",
         hour: "numeric",
         minute: "2-digit",
+        timeZone: 'Australia/Melbourne',
       })
     : "—";
 const ageDays = (value: string | null | undefined) => {
@@ -53,13 +56,15 @@ const INSULATION_LABEL: Record<string, string> = {
 type SendResult = { outcome: string; detail: string; preview?: { subject: string; html: string }; needsEstimate?: boolean };
 
 /** Preview → (optional estimate update) → Send. Send is enabled only after the server's own preview validation passed. */
-function GuardedFollowup({ title, run, onDone }: { title: string; run: (mode: "preview" | "prepare" | "send") => Promise<SendResult>; onDone: () => void }) {
+function GuardedFollowup({ jobId, title, run, onDone, deliveryUncertain = false }: { jobId: string; title: string; run: (mode: "preview" | "prepare" | "send") => Promise<SendResult>; onDone: () => void; deliveryUncertain?: boolean }) {
   const [busy, setBusy] = useState<null | "preview" | "prepare" | "send">(null);
   const [message, setMessage] = useState<{ text: string; tone: "ok" | "error" | "info" } | null>(null);
   const [preview, setPreview] = useState<{ subject: string; html: string } | null>(null);
   const [needsEstimate, setNeedsEstimate] = useState(false);
   const [sent, setSent] = useState(false);
+  const [locked, setLocked] = useState(false);
   const go = async (mode: "preview" | "prepare" | "send") => {
+    if (busy || locked || deliveryUncertain || sent) return;
     if (mode === "send" && !confirm(`Send the ${title} email to this homeowner now? It is checked again before sending.`)) return;
     setBusy(mode);
     setMessage(null);
@@ -70,20 +75,24 @@ function GuardedFollowup({ title, run, onDone }: { title: string; run: (mode: "p
         setPreview(r.preview ?? null);
         setMessage(r.preview ? { text: "Preview only — not sent. Check it, then press Send.", tone: "info" } : { text: r.detail, tone: "error" });
       } else if (mode === "prepare") {
-        setNeedsEstimate(false);
+        setNeedsEstimate(!!r.needsEstimate);
         setPreview(null);
-        setMessage({ text: r.detail, tone: "info" });
-      } else if (r.outcome === "sent") {
-        setSent(true);
-        setPreview(null);
-        setMessage({ text: "Sent — accepted by the email service.", tone: "ok" });
+        setMessage({ text: r.detail, tone: r.outcome === 'blocked' || r.outcome === 'failed' ? 'error' : 'info' });
         onDone();
       } else {
+        const status = followupSendMessage(r.outcome, r.detail);
+        setSent(r.outcome === 'sent');
+        setLocked(status.lock);
         setPreview(null);
-        setMessage({ text: `Not sent: ${r.detail}`, tone: "error" });
+        setMessage(status);
+        onDone();
       }
-    } catch (e) {
-      setMessage({ text: e instanceof Error ? e.message : "Something went wrong. Nothing was sent.", tone: "error" });
+    } catch {
+      const status = followupRequestError(mode);
+      setPreview(null);
+      setLocked(status.lock);
+      setMessage(status);
+      onDone();
     } finally {
       setBusy(null);
     }
@@ -93,7 +102,7 @@ function GuardedFollowup({ title, run, onDone }: { title: string; run: (mode: "p
       <p className="text-xs text-muted-foreground">
         Preliminary only. The free Ready Check confirms insulation, eligibility and price.
       </p>
-      {!sent && (
+      {!sent && !locked && !deliveryUncertain && (
         <div className="flex flex-wrap gap-2">
           {needsEstimate && (
             <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => go("prepare")}>
@@ -114,6 +123,8 @@ function GuardedFollowup({ title, run, onDone }: { title: string; run: (mode: "p
           {message.text}
         </p>
       )}
+      {deliveryUncertain && !message && <p role="alert" className="text-sm text-destructive">An earlier email attempt is pending or uncertain. Check communication history before any further send.</p>}
+      {(locked || deliveryUncertain) && !sent && <Link to="/admin/jobs/$jobId" params={{ jobId }} className="text-sm text-primary underline">Open enquiry communication history</Link>}
       {preview && (
         <>
           <p className="text-sm font-semibold">{preview.subject}</p>
@@ -124,14 +135,14 @@ function GuardedFollowup({ title, run, onDone }: { title: string; run: (mode: "p
   );
 }
 
-function ExistingInsulationFollowup({ jobId, onDone }: { jobId: string; onDone: () => void }) {
+function ExistingInsulationFollowup({ jobId, onDone, deliveryUncertain }: { jobId: string; onDone: () => void; deliveryUncertain: boolean }) {
   const action = useServerFn(existingInsulationSaveSpotFn);
-  return <GuardedFollowup title="Save your spot" onDone={onDone} run={(mode) => action({ data: { jobId, preview: mode !== "send" } })} />;
+  return <GuardedFollowup jobId={jobId} deliveryUncertain={deliveryUncertain} title="Save your spot" onDone={onDone} run={(mode) => action({ data: { jobId, mode } })} />;
 }
 
-function NoInsulationFollowup({ jobId, onDone }: { jobId: string; onDone: () => void }) {
+function NoInsulationFollowup({ jobId, onDone, deliveryUncertain }: { jobId: string; onDone: () => void; deliveryUncertain: boolean }) {
   const action = useServerFn(noInsulationSaveSpotFn);
-  return <GuardedFollowup title="Save your spot offer" onDone={onDone} run={(mode) => action({ data: { jobId, mode } })} />;
+  return <GuardedFollowup jobId={jobId} deliveryUncertain={deliveryUncertain} title="Save your spot offer" onDone={onDone} run={(mode) => action({ data: { jobId, mode } })} />;
 }
 
 function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
@@ -235,6 +246,16 @@ function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
   );
 }
 
+function MorePhotosFollowup({ row, onDone }: { row: Row; onDone: () => void }) {
+  const action = useServerFn(morePhotosRequestFn);
+  const [reviewId, setReviewId] = useState<string | undefined>();
+  return <GuardedFollowup jobId={row.id} title="request for more photos/video" deliveryUncertain={uncertainAttempt(row.latestAttemptStatus)} onDone={onDone} run={async mode => {
+    const result = await action({ data: { jobId: row.id, mode: mode === 'send' ? 'send' : 'preview', ...(mode === 'send' ? { reviewId } : {}) } });
+    if (mode === 'preview') setReviewId(result.reviewId);
+    return result;
+  }} />;
+}
+
 const VIEW_ORDER: EnquiryView[] = ["all", "new", ...STATUS_ORDER, "photos", "removed"];
 const VIEW_LABEL: Record<EnquiryView, string> = {
   all: "All enquiries",
@@ -280,6 +301,7 @@ export function EnquiriesWorkspace({
   const [removeReason, setRemoveReason] = useState("Fake or test enquiry");
   const rows = data?.rows ?? [];
   const doRemove = async () => {
+    if (stale || removing) return;
     const ids = [...picked].filter((id) => rows.some((r) => r.id === id && r.kind === "job"));
     if (!ids.length) return;
     const reason = removeReason.trim() || "Fake or test enquiry";
@@ -452,6 +474,7 @@ export function EnquiriesWorkspace({
               {view !== "removed" && (
                 <Input
                   aria-label="Reason for removing"
+                  disabled={stale || removing}
                   value={removeReason}
                   onChange={(e) => setRemoveReason(e.target.value)}
                   className="h-9 w-56"
@@ -461,7 +484,7 @@ export function EnquiriesWorkspace({
                 <Button
                   size="sm"
                   variant="destructive"
-                  disabled={picked.size === 0 || removing}
+                  disabled={stale || picked.size === 0 || removing}
                   onClick={doRemove}
                 >
                   {removing ? "Removing…" : `Remove selected (${picked.size})`}
@@ -608,9 +631,11 @@ export function EnquiriesWorkspace({
                         ) : view === "removed" ? (
                           "Removed by office"
                         ) : row.mediaOutcome === "no_insulation" && !["spot_saved", "ineligible", "offered_spot"].includes(row.status) ? (
-                          <NoInsulationFollowup jobId={row.id} onDone={() => void refetch()} />
+                          <NoInsulationFollowup jobId={row.id} deliveryUncertain={uncertainAttempt(row.latestAttemptStatus)} onDone={() => void refetch()} />
                         ) : row.mediaOutcome === "below_r2" && !["spot_saved", "ineligible", "offered_spot"].includes(row.status) ? (
-                          <ExistingInsulationFollowup jobId={row.id} onDone={() => void refetch()} />
+                          <ExistingInsulationFollowup jobId={row.id} deliveryUncertain={uncertainAttempt(row.latestAttemptStatus)} onDone={() => void refetch()} />
+                        ) : row.mediaOutcome === 'unclear' && row.nextParty === 'office' ? (
+                          <MorePhotosFollowup row={row} onDone={() => void refetch()} />
                         ) : row.status === "needs_attention" && !row.mediaOutcome ? (
                           (row.attentionReason ?? row.reason)
                         ) : (

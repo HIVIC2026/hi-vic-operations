@@ -73,6 +73,18 @@ function VideoPage() {
             <h1 className="font-display text-2xl font-bold">{data?.state === "closed" ? "This request has closed" : "This link isn't available"}</h1>
             <p className="mt-2 text-sm text-muted-foreground">Please contact Home Insulation Victoria and we'll help.</p>{isError && <Button className="mt-3" onClick={() => void refetch()}>Retry</Button>}
           </div>
+        ) : data.morePhotosUploadAllowed ? (
+          <section className="mt-6 space-y-4 rounded-2xl border bg-card p-6">
+            <h1 className="font-display text-3xl font-bold">Add the photos or video we requested</h1>
+            <p>Our office needs clearer photos or video to continue reviewing your enquiry. Final eligibility is confirmed at your free Ready Check.</p>
+            <div className="flex gap-2">
+              <Button variant={option === 'photos' ? 'default' : 'outline'} disabled={uploading} onClick={() => setOption('photos')}>Photos</Button>
+              <Button variant={option === 'video' ? 'default' : 'outline'} disabled={uploading} onClick={() => setOption('video')}>Video</Button>
+            </div>
+            {(option === 'photos' || option === 'video') && <CaptureUploads kind={option} remaining={data.remaining} received={data.received} uploadFile={upload} onSaved={refetch} onBusyChange={setUploading} />}
+            <p className="text-sm text-muted-foreground">Do not enter the roof space. If you cannot check safely, contact us.</p>
+            {!uploading && <Button asChild variant="link"><Link to="/estimate/$token/campaign" params={{ token }}>Return to my savings</Link></Button>}
+          </section>
         ) : data.originalMedia?.excluded ? (
           <section className="mt-6 p-6" role="status">
             <h1 className="font-display text-3xl font-bold">{data.originalMedia.received ? "We've received your insulation photos/video" : "We're checking your enquiry uploads"}</h1>

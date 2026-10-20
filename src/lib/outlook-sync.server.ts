@@ -2,13 +2,19 @@
 // Microsoft Outlook connector, stores each homeowner email once on its job (job_communications, provider=outlook),
 // queues ambiguous ones for Office, and closes early-stage records only on an explicit "not proceeding" email.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { logEvent } from "./workflow.server";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { checkedOutlookHealth, normaliseMailbox, outlookGatewayUrl, outlookMailboxPath, uncheckedOutlookHealth, type OutlookHealth } from "./outlook-connection.core";
 import {
   classifyIntent, closureDecision, counterpartEmails, extractJobNumbers, isPortalDuplicate, matchMessage, normaliseMessage,
-  type AttachmentRef, type CandidateJob, type GraphMessage, type MailMessage,
+  type AttachmentRef, type CandidateJob, type GraphMessage, type MailMessage, type MatchResult,
 } from "./outlook-correspondence.core";
 
-const GATEWAY = "https://connector-gateway.lovable.dev/microsoft_outlook";
+// New migration types are local until the database-generated types are refreshed on integration.
+const syncAdmin = admin as SupabaseClient;
+type Work = { provider_message_id: string; mailbox: string; message: MailMessage; route: Exclude<MatchResult, { kind: "not_homeowner" }>; attachments_complete: boolean; attachment_refs: AttachmentRef[]; status: "pending" | "complete" };
+type SyncState = { id: number; expected_mailbox: string | null; mailbox: string | null; backfill_from: string; inbox_cursor: string | null; sent_cursor: string | null; inbox_next_link: string | null; sent_next_link: string | null; updated_at: string; last_run_at: string | null; last_ok_at: string | null; last_error: string | null; last_counts: Record<string, number> };
+type WorkResult = { stored?: boolean; unmatched?: boolean; closed?: boolean; flagged?: boolean; duplicate?: boolean; ignored?: boolean; replayed?: boolean };
+type ClosureWindow = { inboxCompleteThrough: string | null };
 const OUR_DOMAINS = ["homeinsulationvictoria.com.au"];
 const SELECT = "id,conversationId,internetMessageId,subject,body,bodyPreview,from,sender,toRecipients,ccRecipients,receivedDateTime,sentDateTime,hasAttachments,isDraft";
 
@@ -19,21 +25,89 @@ export function outlookConfigured(): boolean {
 }
 
 async function graph<T>(path: string): Promise<T> {
-  const res = await fetch(path.startsWith("http") ? path : `${GATEWAY}${path}`, {
+  // Never follow redirects with connector credentials, or use an arbitrary provider next-link origin.
+  const res = await fetch(outlookGatewayUrl(path), {
+    method: "GET", redirect: "error", signal: AbortSignal.timeout(20_000),
     headers: {
       Authorization: `Bearer ${process.env["LOVABLE_API_KEY"]}`,
       "X-Connection-Api-Key": process.env["MICROSOFT_OUTLOOK_API_KEY"]!,
       Prefer: 'IdType="ImmutableId", outlook.body-content-type="text"',
     },
   });
-  if (!res.ok) throw new Error(`Outlook request failed [${res.status}]: ${(await res.text()).slice(0, 300)}`);
-  return (await res.json()) as T;
+  if (!res.ok) throw new Error(`Outlook request failed (HTTP ${res.status}). Check the connector account and permissions.`);
+  try { return (await res.json()) as T; }
+  catch { throw new Error("Outlook returned an unreadable response."); }
 }
 
-async function attachmentsFor(id: string): Promise<AttachmentRef[]> {
-  const r = await graph<{ value: { id: string; name: string; contentType?: string; size?: number; isInline?: boolean }[] }>(
-    `/me/messages/${encodeURIComponent(id)}/attachments?$select=id,name,contentType,size,isInline`);
-  return r.value.map((a) => ({ id: a.id, name: a.name, contentType: a.contentType ?? null, size: a.size ?? null, isInline: !!a.isInline }));
+export async function readOutlookSyncState(): Promise<SyncState> {
+  const { data, error } = await syncAdmin.from("outlook_sync_state").select("*").eq("id", 1).single();
+  if (error || !data) throw new Error(`Outlook sync settings unavailable: ${error?.message ?? "state row missing"}`);
+  return data as SyncState;
+}
+
+/** Read-only: no sync, configuration write, cursor update, message import or job action. */
+export async function checkOutlookConnection(candidateMailbox?: string): Promise<OutlookHealth> {
+  const state = await readOutlookSyncState();
+  const configured = outlookConfigured();
+  const unchecked = uncheckedOutlookHealth(configured, state.expected_mailbox ?? null);
+  if (!configured) return unchecked;
+  const checkedAt = new Date().toISOString();
+  const target = normaliseMailbox(candidateMailbox ?? state.expected_mailbox);
+  let health: OutlookHealth = { ...unchecked, targetMailbox: target, checkedAt };
+  try {
+    const me = await graph<{ id?: string; mail?: string | null; userPrincipalName?: string | null; displayName?: string | null }>("/me?$select=id,mail,userPrincipalName,displayName");
+    health = checkedOutlookHealth(configured, state.expected_mailbox ?? null, me, checkedAt);
+    if (!target) return health;
+    await verifyMailboxReadAccess(target);
+    return checkedOutlookHealth(configured, state.expected_mailbox ?? null, me, checkedAt, target);
+  } catch (e) {
+    return { ...health, targetMailbox: target, status: "failed", readyForSync: false, mailboxReadable: false,
+      problem: e instanceof Error ? e.message : "Outlook connection check failed." };
+  }
+}
+
+async function verifyMailboxReadAccess(mailbox: string): Promise<void> {
+  // /me identifies the delegate; it is not necessarily the shared mailbox. Read and discard one
+  // message per required folder to check message/body access, including on empty mailboxes.
+  for (const folder of ["inbox", "sentitems"]) {
+    const response = await graph<{ value?: unknown[] }>(`${outlookMailboxPath(mailbox)}/mailFolders/${folder}/messages?$top=1&$select=id,body`);
+    if (!Array.isArray(response.value)) throw new Error(`Outlook could not verify ${folder} access for the selected shared mailbox.`);
+  }
+}
+
+/** Explicit Office configuration, separate from both the read-only health check and the sync action. */
+export async function confirmOutlookMailbox(mailbox: string, actorId: string): Promise<void> {
+  const expected = normaliseMailbox(mailbox);
+  if (!expected) throw new Error("A valid mailbox address is required.");
+  const health = await checkOutlookConnection(expected);
+  if (!health.mailboxReadable || health.targetMailbox !== expected)
+    throw new Error(health.problem ?? "Shared mailbox access could not be verified. Check the connection again.");
+  const { error } = await syncAdmin.rpc("confirm_outlook_mailbox", { _mailbox: expected, _actor: actorId });
+  if (error) throw new Error(`Mailbox confirmation was not saved: ${error.message}`);
+}
+
+export async function pendingOutlookWorkCount(): Promise<number> {
+  const { count, error } = await syncAdmin.from("outlook_message_work").select("provider_message_id", { count: "exact", head: true }).eq("status", "pending");
+  if (error || count == null) throw new Error(`Outlook pending work unavailable: ${error?.message ?? "exact count missing"}`);
+  return count;
+}
+
+async function attachmentsFor(id: string, mailbox: string): Promise<AttachmentRef[]> {
+  const refs: AttachmentRef[] = [];
+  let url: string | null = `${outlookMailboxPath(mailbox)}/messages/${encodeURIComponent(id)}/attachments?$select=id,name,contentType,size,isInline`;
+  const visited = new Set<string>();
+  while (url) {
+    const canonical = outlookGatewayUrl(url);
+    if (visited.has(canonical)) throw new Error("Outlook repeated an attachment continuation.");
+    visited.add(canonical);
+    const r: { value: { id: string; name: string; contentType?: string; size?: number; isInline?: boolean }[]; "@odata.nextLink"?: string } = await graph(canonical);
+    if (!Array.isArray(r.value)) throw new Error("Outlook returned an invalid attachment response.");
+    if (r.value.some(a => typeof a.id !== "string" || !a.id || typeof a.name !== "string"))
+      throw new Error("Outlook returned incomplete attachment metadata.");
+    refs.push(...r.value.map((a) => ({ id: a.id, name: a.name, contentType: a.contentType ?? null, size: a.size ?? null, isInline: !!a.isInline })));
+    url = r["@odata.nextLink"] ? outlookGatewayUrl(r["@odata.nextLink"]) : null;
+  }
+  return refs;
 }
 
 async function loadCandidates(msgs: MailMessage[], mailbox: string) {
@@ -46,7 +120,7 @@ async function loadCandidates(msgs: MailMessage[], mailbox: string) {
   };
   const byNumber = new Map<string, CandidateJob>(), byEmail = new Map<string, CandidateJob[]>();
   for (let i = 0; i < numbers.length; i += 100) {
-    const { data, error } = await admin.from("jobs").select(sel).in("job_number", numbers.slice(i, i + 100)).is("deleted_at", null);
+    const { data, error } = await admin.from("jobs").select(sel).in("job_number", numbers.slice(i, i + 100)).is("deleted_at", null).neq("source", "qa_test");
     if (error) throw new Error(error.message);
     for (const j of data ?? []) { const c = toCand(j as never); byNumber.set(c.jobNumber, c); }
   }
@@ -65,15 +139,6 @@ async function loadCandidates(msgs: MailMessage[], mailbox: string) {
     }
   }
   return { byNumber, byEmail };
-}
-
-async function queueReview(m: MailMessage, kind: "unmatched" | "possible_not_proceeding" | "not_proceeding_progressed", reason: string, extra: { jobId?: string; commId?: string; candidates?: string[]; suggested?: string | undefined } = {}) {
-  const { error } = await admin.from("correspondence_reviews").upsert({
-    kind, provider: "outlook", provider_message_id: m.providerMessageId, provider_thread_id: m.threadId, job_id: extra.jobId ?? null,
-    communication_id: extra.commId ?? null, candidate_job_ids: extra.candidates ?? [], direction: m.direction, from_address: m.from,
-    recipients: [...m.to, ...m.cc], subject: m.subject, body: m.body, message_at: m.at, attachment_refs: m.attachments, reason, suggested_reason: extra.suggested ?? null,
-  }, { onConflict: "provider,provider_message_id,kind", ignoreDuplicates: true });
-  if (error) throw new Error(error.message);
 }
 
 /** Stores one matched message on its job. Returns the new communication id, or null when it was already stored. */

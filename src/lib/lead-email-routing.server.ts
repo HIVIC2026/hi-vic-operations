@@ -31,22 +31,21 @@ export async function selectLeadEmailRoute(jobId: string) {
 export async function maybeAutoRouteLeadEmail(jobId: string, ctx: import("./manual-backlog.core").LeadRouteContext = {}): Promise<LeadEmailRouteResult> {
   try {
     const { readAutomaticRules } = await import('./save-spot-rules.server');
-    const { automaticFirstResponseStatus, automaticFirstResponseBlocker, FIRST_RESPONSE_PURPOSES } = await import('./automatic-first-response.core');
+    const { automaticFirstResponseStatus, automaticFirstResponseBlocker } = await import('./automatic-first-response.core');
     const activation = await readAutomaticRules();
     const status = automaticFirstResponseStatus(activation.state === 'ok' && activation.config.enabled, activation.state === 'ok' ? activation.config.activatedAt : null);
     if (!status.on) return { route: 'none', sent: false, reason: status.reason };
-    const { priorInitialResponseBlocker, EXPLICITLY_EXCLUDED_JOBS } = await import('./automatic-first-response.core');
-    void FIRST_RESPONSE_PURPOSES;
+    const { EXPLICITLY_EXCLUDED_JOBS } = await import('./automatic-first-response.core');
+    const { initialResponseHistoryBlocker } = await import('./initial-response-history.server');
     // Any own-job send (any purpose), uncertain attempt or customer-visible outbound correspondence blocks a resend.
-    const [creation, sends, outbound] = await Promise.all([
+    const [creation, historyBlocker] = await Promise.all([
       admin.from('jobs').select('created_at, job_number').eq('id', jobId).maybeSingle(),
-      admin.from('customer_email_sends').select('status').eq('job_id', jobId),
-      admin.from('job_communications').select('id', { count: 'exact', head: true }).eq('job_id', jobId).eq('direction', 'outbound').eq('channel', 'email').eq('visibility', 'customer'),
+      initialResponseHistoryBlocker(jobId),
     ]);
-    if (creation.error || sends.error || outbound.error) return { route: 'none', sent: false, reason: 'Could not verify first-response safety facts.' };
+    if (creation.error) return { route: 'none', sent: false, reason: 'Could not verify first-response safety facts.' };
     if ((EXPLICITLY_EXCLUDED_JOBS as readonly string[]).includes(creation.data?.job_number ?? '')) return { route: 'none', sent: false, reason: 'Explicitly excluded by Jo' };
     const initialBlocker = automaticFirstResponseBlocker({ activatedAt: activation.state === 'ok' ? activation.config.activatedAt : null, createdAt: creation.data?.created_at ?? null, held: false, confirmed: false })
-      ?? priorInitialResponseBlocker({ sendStatuses: (sends.data ?? []).map(x => x.status), customerOutboundEmails: outbound.count ?? 0 });
+      ?? historyBlocker;
     if (initialBlocker) return { route: 'none', sent: false, reason: initialBlocker };
     const held = await admin.from('post_intake_work').select('id').eq('job_id', jobId).eq('reason', 'ENQUIRY_BACKLOG_MANUAL').eq('facts_version', 'enquiry-backlog-manual').eq('status', 'failed').limit(1);
     if (held.error || held.data?.length) return { route: 'none', sent: false, reason: 'Backlog held for explicit Office release.' };
@@ -78,7 +77,7 @@ export async function maybeAutoRouteLeadEmail(jobId: string, ctx: import("./manu
       const gate = await automaticSaveSpotGate(jobId, { route: "offer_spot", coverageVerified: true, ...(manualBacklog ? { manualBacklog: ctx.manualBacklog } : {}) });
       if (!gate.allowed) return { route: "none", sent: false, reason: gate.reason };
       const { sendSaveMySpot } = await import("./hot-leads-send.server");
-      const result = (await sendSaveMySpot([jobId], null, { ...(route.assumedArea ? { automaticInitial: true } : {}), ...(manualBacklog ? { manualBacklog: ctx.manualBacklog } : {}) }))[0];
+      const result = (await sendSaveMySpot([jobId], null, { automaticInitial: true, ...(manualBacklog ? { manualBacklog: ctx.manualBacklog } : {}) }))[0];
       return { route: route.email, sent: result?.outcome === "sent", reason: result?.detail ?? "No send result" };
     }
     if (route.email === "request_insulation") {

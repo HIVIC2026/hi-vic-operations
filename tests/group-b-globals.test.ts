@@ -42,6 +42,6 @@ test("sender re-checks Group B globals after reservation and before the provider
   expect(g).toBeGreaterThan(-1);
   expect(g).toBeLessThan(s.indexOf("await resendSend(to"));
   expect(g).toBeLessThan(s.indexOf("jobDeletedBlocker(jobId)"));
-  expect(s.indexOf("if (!(await groupBGlobalsOn()))")).toBeLessThan(s.indexOf("groupBInvitationBlocker(await groupBMediaForJob(jobId));\n  if (blocker) return { jobId"));
-  for (const k of ["groupBInvitationBlocker", "NO_SIZE_REAL_SEND_HELD", "customer_email_optouts", "INSULATION_DETAILS_REAL_SEND_APPROVED"]) expect(s).toContain(k);
+  expect(s).toContain("const initial = groupBInitialAction(await groupBMediaForJob(jobId))");
+  for (const k of ["onsiteInitialBlocker", "initialResponseHistoryBlocker", "NO_SIZE_REAL_SEND_HELD", "customer_email_optouts", "INSULATION_DETAILS_REAL_SEND_APPROVED"]) expect(s).toContain(k);
 });

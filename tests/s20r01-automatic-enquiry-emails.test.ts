@@ -10,6 +10,12 @@ type Row = Record<string, unknown>;
 const T: Record<string, Row[]> = {};
 let seq = 0;
 let failSentWrite = false;
+let failAllOutcomeWrites = false;
+let unavailableCounts = false;
+let beforeFinalSend: (() => void) | null = null;
+let mediaReadHook: ((read: number) => void) | null = null;
+let mediaReads = 0;
+const historyReads: { table: string; head: boolean; exact: boolean }[] = [];
 const writes: string[] = [];
 
 // P1-R3-S103: automatic Save-my-spot SELECTION must be explicitly enabled (with no extra filters,
@@ -24,7 +30,9 @@ const S103_AUTO_RULES = { version: 1, enabled: true, activatedAt: "2020-01-01T00
 function from(table: string) {
   let op: "select" | "insert" | "update" = "select"; let values: unknown = null; let returning = false;
   const f: [string, string, unknown][] = [];
-  const match = (r: Row) => f.every(([k, kind, v]) => kind === "eq" ? r[k] === v : kind === "in" ? (v as unknown[]).includes(r[k]) : kind === "is" ? (r[k] ?? null) === v : kind === "like" ? String(r[k] ?? "").startsWith(String(v).replace(/%$/, "")) : true);
+  let head = false, exact = false, rowLimit = Infinity;
+  const orders: { key: string; ascending: boolean }[] = [];
+  const match = (r: Row) => f.every(([k, kind, v]) => kind === "eq" ? r[k] === v : kind === "neq" ? r[k] !== v : kind === "gte" ? String(r[k]) >= String(v) : kind === "in" ? (v as unknown[]).includes(r[k]) : kind === "is" ? (r[k] ?? null) === v : kind === "like" ? String(r[k] ?? "").startsWith(String(v).replace(/%$/, "")) : true);
   const rows = () => (T[table] ??= []);
   const run = () => {
     if (op === "insert") {
@@ -38,19 +46,23 @@ function from(table: string) {
     }
     if (op === "update") {
       writes.push(`update:${table}`);
-      if (failSentWrite && table === "customer_email_sends" && (values as Row).status === "sent") return { data: null, error: { message: "db write failed" } };
+      if (table === "customer_email_sends" && (failAllOutcomeWrites || (failSentWrite && (values as Row).status === "sent"))) return { data: null, error: { message: "db write failed" } };
       const hit = rows().filter(match); for (const r of hit) Object.assign(r, values as Row);
       return { data: returning ? hit.map((r) => ({ id: r.id })) : null, error: null };
     }
-    return { data: rows().filter(match), error: null };
+    const hit = rows().filter(match);
+    for (const o of [...orders].reverse()) hit.sort((a, b) => String(a[o.key] ?? '').localeCompare(String(b[o.key] ?? '')) * (o.ascending ? 1 : -1));
+    if (exact && ['customer_email_sends', 'job_communications'].includes(table)) historyReads.push({ table, head, exact });
+    return { data: head ? null : hit.slice(0, Math.min(rowLimit, 1000)), error: null, count: exact && !unavailableCounts ? hit.length : null };
   };
   const q: Record<string, unknown> = {};
   Object.assign(q, {
-    select: () => { if (op !== "select") returning = true; return q; },
+    select: (_columns?: string, options?: { count?: string; head?: boolean }) => { if (op !== 'select') returning = true; head = options?.head === true; exact = options?.count === 'exact'; return q; },
     eq: (k: string, v: unknown) => { f.push([k, "eq", v]); return q; }, in: (k: string, v: unknown[]) => { f.push([k, "in", v]); return q; },
     is: (k: string, v: unknown) => { f.push([k, "is", v]); return q; },
     like: (k: string, pat: string) => { f.push([k, "like", pat]); return q; },
-    neq: () => q, not: () => q, gte: () => q, order: () => q, limit: () => q, range: () => q, or: () => q,
+    neq: (k: string, v: unknown) => { f.push([k, 'neq', v]); return q; }, not: () => q, gte: (k: string, v: unknown) => { f.push([k, 'gte', v]); return q; },
+    order: (key: string, options?: { ascending?: boolean }) => { orders.push({ key, ascending: options?.ascending !== false }); return q; }, limit: (n: number) => { rowLimit = n; return q; }, range: () => q, or: () => q,
     insert: (v: unknown) => { op = "insert"; values = v; return q; }, update: (v: unknown) => { op = "update"; values = v; return q; },
     maybeSingle: async () => { const r = run(); return { data: Array.isArray(r.data) ? r.data[0] ?? null : r.data, error: r.error }; },
     single: async () => { const r = run(); const d = Array.isArray(r.data) ? r.data[0] ?? null : r.data; return { data: d, error: r.error ?? (d ? null : { message: "none" }) }; },
@@ -65,19 +77,30 @@ mock.module("../src/lib/workflow.server", () => ({ WorkflowError, logEvent: asyn
 const UNSUB = `https://estimate.homeinsulationvictoria.com.au/api/public/unsubscribe?t=${"u".repeat(32)}`;
 const realSafety = await import("../src/lib/emailsafety.server");
 let unsubIssued = 0; // "Create sending links" issues the owner's unsubscribe link only after every guard passed
-mock.module("../src/lib/emailsafety.server", () => ({ ...realSafety, unsubscribeUrlForJob: async () => { unsubIssued++; return UNSUB; } }));
+mock.module("../src/lib/emailsafety.server", () => ({ ...realSafety, unsubscribeUrlForJob: async () => { unsubIssued++; beforeFinalSend?.(); beforeFinalSend = null; return UNSUB; } }));
 mock.module("../src/lib/referral.server", () => ({ referralUrlForJob: async () => `https://homeinsulationvictoria.com.au/homeowner?ref=${"r".repeat(43)}` }));
-let media: { received: boolean; uncertain: boolean } = { received: false, uncertain: false };
-mock.module("../src/lib/group-b-media.server", () => ({ groupBMediaForJob: async () => media }));
+let media: { received: boolean; uncertain: boolean; pendingSync?: boolean } = { received: false, uncertain: false };
+mock.module("../src/lib/group-b-media.server", () => ({ groupBMediaForJob: async () => { mediaReads++; mediaReadHook?.(mediaReads); return media; } }));
 mock.module("../src/lib/estimatelink.server", () => ({ syncStep3: async () => ({}) })); // estimate/link refresh is not under test
 const realComms = await import("../src/lib/comms.server");
 const comms: Row[] = [];
 // The recorded row also lands in the in-memory job_communications table, as the real insert would.
 mock.module("../src/lib/comms.server", () => ({ ...realComms, recordCommunication: async (x: Row) => {
   comms.push(x);
-  (T.job_communications ??= []).push({ id: `comm-${comms.length}`, job_id: x.jobId, source_event: x.sourceEvent, source_reference: x.sourceReference, created_at: new Date().toISOString() });
+  (T.job_communications ??= []).push({ id: `comm-${comms.length}`, job_id: x.jobId, source_event: x.sourceEvent, source_reference: x.sourceReference, direction: x.direction, channel: x.channel, visibility: x.visibility, delivery_status: x.deliveryStatus ?? "sent", sent_at: new Date().toISOString(), created_at: new Date().toISOString() });
   return `comm-${comms.length}`;
 } }));
+
+// The campaign read-model is isolated; the router and delivery sender remain the real implementation.
+mock.module('../src/lib/launch-campaign.server', () => ({
+  campaignLink: async (token: string) => {
+    const link = T.customer_estimate_links?.find(r => r.token === token);
+    const job = T.jobs?.find(r => r.id === link?.job_id);
+    const review = [...(T.customer_engagement_events ?? [])].filter(r => r.job_id === job?.id && r.event_type === 'intake_media_reviewed' && r.source === 'office').sort((a, b) => String(b.occurred_at).localeCompare(String(a.occurred_at)))[0];
+    return job ? { job, link, group: 'onsite', criteriaPassed: true, ownerQualified: false, mediaReview: (review?.metadata as Row)?.outcome ?? null } : null;
+  },
+  campaignPermission: (c: { mediaReview: string }, desk: string | null) => c.mediaReview === 'below_r2' && !['not_eligible', 'needs_onsite_check'].includes(desk ?? ''),
+}));
 
 // ---------- stubbed email service (the connector gateway) ----------
 type Mode = "ok" | "422" | "429" | "409" | "502" | "timeout" | "disconnect" | "hang";
@@ -99,7 +122,7 @@ process.env["HIVIC_COM04_ENV"] = "production"; // S102: these cases exercise the
 const { maybeAutoRouteLeadEmail } = await import("../src/lib/lead-email-routing.server");
 const { processPendingInitialEstimateEmails, sendPreliminaryIneligibleEmail } = await import("../src/lib/followups.server");
 const C = await import("../src/lib/enquiry-auto-reply.core");
-const { GROUP_B_GLOBALS_OFF } = await import("../src/lib/hot-leads-send.server");
+const { GROUP_B_GLOBALS_OFF, sendExistingInsulationSaveSpot, sendMorePhotosRequest } = await import("../src/lib/hot-leads-send.server");
 
 const TO = "jet.zhezhang@gmail.com";
 const L = "a0000000-0000-4000-8000-0000000030a1"; // likely eligible, no existing insulation, owner gave a size → Save my spot
@@ -126,6 +149,7 @@ const autoOn = (startsAt = ago(2 * HOUR)) => { T.customer_delivery_settings = [{
 
 beforeEach(() => {
   for (const k of Object.keys(T)) delete T[k];
+  failAllOutcomeWrites = false; unavailableCounts = false; beforeFinalSend = null; mediaReadHook = null; mediaReads = 0; historyReads.length = 0;
   mode = "ok"; failSentWrite = false; calls.length = 0; events.length = 0; comms.length = 0; writes.length = 0; media = { received: false, uncertain: false }; unsubIssued = 0;
   Object.assign(T, {
     jobs: [job(L, "HV-3001", "likely_eligible", "none", ago(HOUR)), job(B, "HV-3002", "needs_onsite_confirmation", "Yes - some batts", ago(HOUR)), job(I, "HV-3003", "does_not_appear_eligible", "Yes", ago(HOUR))],
@@ -256,7 +280,7 @@ describe("what the automatic ineligible email says", () => {
     autoOn();
     expect((await maybeAutoRouteLeadEmail(I)).sent).toBe(true);
     expect(String(calls[0]!.body.text)).toContain("Ceiling already has R2.5 or more");
-    for (const k of Object.keys(T)) if (k === "customer_email_sends") T[k] = [];
+    T.customer_email_sends = []; T.job_communications = []; // separate delivery scenario: no prior recorded reply
     Object.assign(T.jobs![2]!, { eligibility_decision_source: "admin", eligibility_reason: "INTERNAL NOTE owner was difficult on the phone, see HV-1234" });
     expect((await maybeAutoRouteLeadEmail(I)).sent).toBe(true);
     const mail = `${calls[1]!.body.text} ${calls[1]!.body.html}`;
