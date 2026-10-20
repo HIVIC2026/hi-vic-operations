@@ -22,6 +22,7 @@ export type IntakeJobFacts = {
   includes: string | null; proposedR: number | null; files: AttachedFile[]; electricianChosen: boolean; quoteHeld: string[];
   removalQuote?: RemovalQuote | null;
   electricianPayer?: ElectricianPayer; feeAwarenessCurrent?: boolean; payerEditable?: boolean; payerLockReason?: string | null;
+  currentElectrician?: { businessId: string | null; name: string } | null;
 };
 export type IntakeSave = {
   areaM2: number | null; insulation: ExistingInsulation; quoteStatus: QuoteStatus; quoteIncGst: number | null; includes: string | null;
@@ -47,11 +48,15 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
   const removalFromFacts = (): RemovalInput => facts.removalQuote ? { answer: facts.removalQuote.answer, area: facts.removalQuote.areaM2 == null ? "" : String(facts.removalQuote.areaM2), charge: facts.removalQuote.chargeIncGst == null ? "" : String(facts.removalQuote.chargeIncGst) } : blankRemoval();
   const [removal, setRemoval] = useState<RemovalInput>(removalFromFacts);
   const [newFiles, setNewFiles] = useState<AttachedFile[]>([]);
-  const [plan, setPlan] = useState<ElectricianPlan | null>(null);
+  const savedPlan = (): ElectricianPlan | null => facts.currentElectrician?.businessId ? { mode: "mine", business_id: facts.currentElectrician.businessId } : null;
+  const [plan, setPlan] = useState<ElectricianPlan | null>(savedPlan);
   const [feeTick, setFeeTick] = useState(false);
   const currentPayer: ElectricianPayer = facts.electricianPayer ?? "undecided";
   const [payer, setPayer] = useState<ElectricianPayer>(currentPayer);
   const payerChanged = payer !== currentPayer;
+  const pickedOwn = plan?.mode === "mine" && !!(plan.business_id || plan.nomination_id);
+  // Own -> a different own electrician is a real change and is sent (server re-checks every lock).
+  const ownSwap = !payerChanged && payer === "own" && pickedOwn && !(plan?.business_id && plan.business_id === facts.currentElectrician?.businessId);
   // The declaration always follows the PROPOSED payer; any change clears the tick.
   const feeText = !payerChanged && facts.feeAwarenessCurrent ? null : feeAwarenessText(payer);
   useEffect(() => { setFeeTick(false); }, [payer]);
@@ -65,7 +70,7 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
     setArea(facts.areaM2 == null ? "" : String(facts.areaM2)); setIns(facts.insulation ?? "unknown");
     setQs(initStatus); setAmount(facts.quoteIncGst == null ? "" : String(facts.quoteIncGst));
     setIncludes(facts.includes ?? ""); setProposedR(facts.proposedR == null ? "" : String(facts.proposedR));
-    setPayer(currentPayer); setRemoval(removalFromFacts());
+    setPayer(currentPayer); setRemoval(removalFromFacts()); setPlan(savedPlan());
   }, [facts, open, busy, fileBusy, initStatus, currentPayer]);
   const allFiles = [...facts.files, ...newFiles];
 
@@ -82,7 +87,7 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
       const r = await onSave({ areaM2: intakeArea(area), insulation: ins, quoteStatus: qs, quoteIncGst: q.quoted_price_inc_gst, includes: q.price_includes, proposedR: q.proposed_r_value, files: newFiles, removalQuote: removalPayload(removal, qs === "have_quote"),
         ...(feeTick && feeText && (payer === "hivic" || payer === "own") ? { feeAwareness: { payer, text: feeText } } : {}),
         ...(payerChanged ? { electricianPayer: payer } : {}),
-        ...(payerChanged && payer === "own" && plan?.mode === "mine" && (plan.business_id || plan.nomination_id) ? { electrician: { mode: "mine" as const, business_id: plan.business_id ?? null, nomination_id: plan.nomination_id ?? null } } : {}) });
+        ...((payerChanged || ownSwap) && payer === "own" && plan?.mode === "mine" && (plan.business_id || plan.nomination_id) ? { electrician: { mode: "mine" as const, business_id: plan.business_id ?? null, nomination_id: plan.nomination_id ?? null } } : {}) });
       setNewFiles([]); if (feeTick) setFeeTick(false);
       setMsg(preview ? "Preview only — nothing was saved." : r.quoteHeld.length ? "Saved. The owner quote is still on hold until the remaining items are ready." : "Saved.");
     } catch (e) { setMsg(e instanceof Error ? e.message : "Couldn't save. Try again."); }
@@ -136,6 +141,7 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
           <div className="mt-2 space-y-2" role="radiogroup" aria-label="Who arranges the electrician">
             {ELECTRICIAN_PAYER_CHOICES.map((c) => <button key={c.value} type="button" role="radio" aria-checked={payer === c.value} onClick={() => { setPayer(c.value); if (c.value === "own" && plan?.mode !== "mine") setPlan({ mode: "mine" }); }} className={`w-full rounded-[14px] border p-3 text-left ${payer === c.value ? "border-primary bg-primary/5" : "border-line bg-paper"}`}><span className="block text-sm font-bold text-ink">{c.label}</span><span className="block text-xs text-sub">{c.body}</span></button>)}
           </div>
+          {payer === "own" && !payerChanged && facts.currentElectrician && <p className="mt-2 text-sm" data-editor-current-electrician>Current electrician: {facts.currentElectrician.name}</p>}
           {payer === "own" && electricians && <div className="mt-2"><ElectricianPicker ownOnly value={plan?.mode === "mine" ? plan : { mode: "mine" }} onChange={(n) => setPlan(n)} note={false} approved={electricians.approved as never} pending={electricians.pending as never} /></div>}
         </fieldset>}
         {!facts.payerEditable && <p className="text-sm" data-editor-payer-fixed>Electrician: {currentPayer === "own" ? "your own electrician (invoices the owner directly)" : currentPayer === "hivic" ? "Home Insulation Victoria arranges" : "to be arranged"}. {facts.payerLockReason ?? "Ask Home Insulation Victoria to change it."}</p>}
