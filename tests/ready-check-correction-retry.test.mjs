@@ -55,7 +55,7 @@ CREATE TABLE evidence_requirements (id uuid primary key default gen_random_uuid(
   label text, gate text, required boolean, status text, sort int default 0, area_key text);
 CREATE TABLE ceiling_measurements (id uuid primary key default gen_random_uuid(), job_id uuid, is_current boolean,
   removal_required boolean, removal_m2 numeric, supplied_removal_m2 numeric, created_by uuid, created_at timestamptz default now());
-CREATE TABLE documents (id uuid primary key default gen_random_uuid(), job_id uuid, kind text, title text, uploaded_by uuid, created_at timestamptz default now());
+CREATE TABLE documents (id uuid primary key default gen_random_uuid(), job_id uuid, kind text, title text, storage_path text, uploaded_by uuid, created_at timestamptz default now());
 CREATE TABLE workflow_events (id uuid primary key default gen_random_uuid(), job_id uuid, actor_id uuid, event_type text,
   summary text, details jsonb, created_at timestamptz default now());
 CREATE FUNCTION fail_correction_copy() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN

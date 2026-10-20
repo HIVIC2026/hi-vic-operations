@@ -18,7 +18,7 @@ CREATE TABLE ready_check_observations (id uuid primary key default gen_random_uu
 CREATE TABLE public.evidence_requirements (id uuid primary key default gen_random_uuid(), job_id uuid, category text, label text, gate text, responsible_role text,
   required boolean, status text, verified_by uuid, verified_at timestamptz, notes text, sort int default 0, constraint evidence_requirements_job_id_category_key unique (job_id, category));
 CREATE TABLE ceiling_measurements (id uuid primary key default gen_random_uuid(), job_id uuid, is_current boolean, removal_required boolean, removal_m2 numeric, supplied_removal_m2 numeric, created_by uuid, created_at timestamptz default now());
-CREATE TABLE documents (id uuid primary key default gen_random_uuid(), job_id uuid, kind text, title text, uploaded_by uuid, created_at timestamptz default now());
+CREATE TABLE documents (id uuid primary key default gen_random_uuid(), job_id uuid, kind text, title text, storage_path text, uploaded_by uuid, created_at timestamptz default now());
 CREATE TABLE workflow_events (id uuid primary key default gen_random_uuid(), job_id uuid, event_type text, summary text, details jsonb, created_at timestamptz default now());
 CREATE TABLE bookings (id uuid primary key default gen_random_uuid(), job_id uuid, kind text, status text, scheduled_start timestamptz, assignment_id uuid, created_at timestamptz default now());
 CREATE TABLE pre_start_checks (id uuid primary key default gen_random_uuid(), job_id uuid, scheduled_start timestamptz, passed boolean, failures jsonb, checked_at timestamptz default now());`);
