@@ -18,7 +18,11 @@ import { loadBusiness, myBusinesses, requireApprovedPartner, requireMember, sha,
 import { signFile } from "./file-links.server";
 
 const uuid = z.string().uuid();
-const isAdmin = async (sb: { rpc: (n: "is_admin") => PromiseLike<{ data: unknown }> }) => !!(await sb.rpc("is_admin")).data;
+const isAdmin = async (sb: { rpc: (n: "is_admin") => PromiseLike<{ data: unknown; error?: { message: string } | null }> }) => {
+  const { data, error } = await sb.rpc("is_admin");
+  if (error) throw new WorkflowError(`Could not check Office access: ${error.message}`);
+  return data === true;
+};
 const txt = (n: number) => z.string().trim().max(n).nullish();
 
 // ---------- Business file ----------
@@ -256,7 +260,7 @@ export const getPartnerProfile = createServerFn({ method: "POST" }).middleware([
     if (!adminUser && mine.get(id) !== "business_admin") throw new WorkflowError(mine.has(id) ? "Only the business owner can see this." : "Not your business.");
     const { business, credentials } = await loadBusiness(id);
     if (!business) return null;
-    const [{ data: creds }, { data: members }, { data: workers }, { data: rels }, { data: agreements }, { data: cards }, { data: electricians }] = await Promise.all([
+    const [{ data: creds, error: credsError }, { data: members, error: membersError }, { data: workers, error: workersError }, { data: rels, error: relsError }, { data: agreements, error: agreementsError }, { data: cards, error: cardsError }, { data: electricians, error: electriciansError }] = await Promise.all([
       admin.from("business_credentials").select("*").eq("business_id", id).order("created_at"),
       admin.from("business_members").select("user_id, member_role, active, profiles!business_members_user_id_fkey(full_name, email)").eq("business_id", id),
       admin.from("partner_workers").select("id, profile_id, trade_role, full_legal_name, email, mobile, licence_number, qualification, account_status").eq("business_id", id).order("full_legal_name"),
@@ -265,7 +269,11 @@ export const getPartnerProfile = createServerFn({ method: "POST" }).middleware([
       admin.from("rate_cards").select("id, kind, name, version, effective_from, is_active").eq("business_id", id).order("version", { ascending: false }),
       admin.from("businesses").select("id, name, onboarding_status, business_type, capabilities").or("business_type.eq.rec,capabilities.cs.{electrician}"),
     ]);
-    const { data: methods } = await admin.from("partner_measurement_methods").select("*").eq("business_id", id).order("created_at", { ascending: false });
+    for (const [label, error] of [["credentials", credsError], ["members", membersError], ["workers", workersError], ["electrician relationships", relsError], ["agreements", agreementsError], ["rate cards", cardsError], ["electrician businesses", electriciansError]] as const) {
+      if (error) throw new WorkflowError(`Could not read partner ${label}: ${error.message}`);
+    }
+    const { data: methods, error: methodsError } = await admin.from("partner_measurement_methods").select("*").eq("business_id", id).order("created_at", { ascending: false });
+    if (methodsError) throw new WorkflowError(`Could not read partner measurement methods: ${methodsError.message}`);
     const checklist = onboardingChecklist(business as BusinessLike, credentials, !!agreements?.length);
     const { xero_contact_id: _x, xero_contact_error: _e, ...safe } = business;
     return { business: adminUser ? business : safe, credentials: creds ?? [], members: members ?? [], workers: workers ?? [], relationships: rels ?? [], agreements: agreements ?? [], rateCards: cards ?? [], electricianBusinesses: adminUser ? (electricians ?? []) : [] /* trades never see HIV's electrician network */, measurementMethods: methods ?? [], checklist, myRole: adminUser ? "hivic_admin" : mine.get(id) };
@@ -758,7 +766,8 @@ export const reviewPartnerMethod = createServerFn({ method: "POST" }).middleware
 export const getMeasurementStandard = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await requireAdmin(context.supabase);
-    const { data } = await admin.from("workflow_settings").select("measurement_standard_version, measurement_standard_approved, measurement_standard_approved_at, measurement_variance_tolerance_pct").limit(1).single();
+    const { data, error } = await admin.from("workflow_settings").select("measurement_standard_version, measurement_standard_approved, measurement_standard_approved_at, measurement_variance_tolerance_pct").limit(1).single();
+    if (error || !data) throw new WorkflowError(`Could not read the AP measurement standard: ${error?.message ?? "settings are missing"}`);
     return data;
   });
 
@@ -768,13 +777,15 @@ export const setMeasurementStandard = createServerFn({ method: "POST" }).middlew
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     if (data.approved && !data.version) throw new WorkflowError("Give the approved measurement standard a version.");
-    const { data: ws } = await admin.from("workflow_settings").select("id").limit(1).single();
-    if (!ws) throw new WorkflowError("Workflow settings missing.");
-    await admin.from("workflow_settings").update({
+    const { data: ws, error: settingsError } = await admin.from("workflow_settings").select("id").limit(1).single();
+    if (settingsError || !ws) throw new WorkflowError(`Could not read workflow settings: ${settingsError?.message ?? "settings are missing"}`);
+    const { data: saved, error: saveError } = await admin.from("workflow_settings").update({
       measurement_standard_version: data.version ?? null, measurement_standard_approved: data.approved, measurement_variance_tolerance_pct: data.tolerancePct,
       measurement_standard_approved_by: data.approved ? context.userId : null, measurement_standard_approved_at: data.approved ? new Date().toISOString() : null,
-    }).eq("id", ws.id);
-    await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: "measurement_standard_updated", summary: `Measurement standard ${data.version ?? "(none)"} ${data.approved ? "approved" : "not approved"}; tolerance ${data.tolerancePct ?? "not set"}: ${data.reason}`, details: data as unknown as Json });
+    }).eq("id", ws.id).select("id").single();
+    if (saveError || saved?.id !== ws.id) throw new WorkflowError(`The AP measurement standard was not confirmed saved: ${saveError?.message ?? "settings row was not updated"}`);
+    const { error: auditError } = await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: "measurement_standard_updated", summary: `Measurement standard ${data.version ?? "(none)"} ${data.approved ? "approved" : "not approved"}; tolerance ${data.tolerancePct ?? "not set"}: ${data.reason}`, details: data as unknown as Json });
+    if (auditError) throw new WorkflowError(`The AP measurement standard was saved, but its audit record failed: ${auditError.message}. Review the current setting before making further changes.`);
     return { ok: true };
   });
 

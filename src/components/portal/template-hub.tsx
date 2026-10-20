@@ -205,7 +205,7 @@ function MittiDetail({ formKey }: { formKey: keyof typeof FORMS }) {
       <dl className="grid grid-cols-[150px_minmax(0,1fr)] gap-x-3 gap-y-1 rounded-[14px] border border-line bg-paper p-4 text-sm">
         <dt className="text-sub">Template version</dt><dd>Portal build sheet · {FORMS[formKey].fields.length} required questions (no version number stored)</dd>
         <dt className="text-sub">Saved connection</dt><dd className="break-all">{q.isError ? <span className="text-rose">Settings could not load</span> : q.isLoading ? "Loading…" : id ? `Form ID saved in settings: ${id}` : "No form ID saved"}</dd>
-        <dt className="text-sub">Live health</dt><dd>Not checked here. "Check &amp; connect" contacts Mitti only when you press it.</dd>
+        <dt className="text-sub">Live health</dt><dd>Use the form checks below to verify access, identity and required questions. A replacement connection is saved only through "Check &amp; connect".</dd>
       </dl>
       {q.data && <MittiFormCard formKey={formKey} connected={id} />}
     </div>
@@ -228,7 +228,7 @@ function ComplianceVersions({ templateKey }: { templateKey: string }) {
           : q.isLoading ? <p className="mt-2 text-sm text-sub">Loading versions…</p>
           : rows.length === 0 ? <p className="mt-2 text-sm text-rose">Not configured</p>
           : <ul className="mt-2 space-y-2">{rows.map((r) => <li key={r.id} className="rounded-[10px] border border-line p-3 text-sm">
-            <div className="flex flex-wrap items-center gap-2"><b>{r.version}</b>{r.is_active ? <Pill tone="green">Active</Pill> : r.approved ? <Pill>Superseded</Pill> : <Pill tone="amber">Draft</Pill>}
+            <div className="flex flex-wrap items-center gap-2"><b>{r.version}</b>{r.approved && r.is_active ? <Pill tone="green">Approved and active</Pill> : r.approved ? <Pill>Superseded</Pill> : <Pill tone="amber">{r.is_active ? "Selected draft · not approved" : "Draft · not approved"}</Pill>}
               {!r.approved && <Btn className="ml-auto min-h-9 px-3 py-1 text-xs" onClick={() => void approve({ id: r.id }, "Approved and activated")}>Approve &amp; activate</Btn>}</div>
             {r.source_note && <p className="mt-1 text-xs text-sub">{r.source_note}</p>}
             <details className="mt-1"><summary className="cursor-pointer text-xs text-hiv-blue">Official wording</summary><pre className="mt-1 max-h-96 overflow-auto whitespace-pre-wrap text-xs">{r.body}</pre></details>
@@ -249,8 +249,9 @@ function RegisterDetail({ index, mitti }: { index: number; mitti: (keyof typeof 
         <dt className="text-sub">Retention</dt><dd>Permanent job record; keep Activity 48 records for six years after registration.</dd>
       </dl>
       {"pdf" in f && <a className="mt-3 inline-flex items-center gap-1 font-semibold text-hiv-blue hover:underline" href={f.pdf} target="_blank" rel="noreferrer">Open official form (read-only)<ArrowUpRight className="h-4 w-4" /></a>}
-      {mitti.length > 0 && <div className="mt-3 border-t border-line pt-3"><p className="text-xs text-sub">Completed through the connected Mitti form — not a separate editable copy:</p>
-        <ul className="mt-1 space-y-1">{mitti.map((k) => { const o = MITTI_FORM_ORDER.find((m) => m.key === k)!; return <li key={k} className="flex flex-wrap items-center gap-2"><Link to="/admin/templates" search={{ cat: "mitti", t: `mitti:${k}` }} className="font-semibold text-hiv-blue hover:underline">Mitti {o.letter} · {o.forWho}</Link>{q.data ? (q.data[k] ? <Pill tone="green">ID saved</Pill> : <Pill tone="amber">Not connected</Pill>) : null}</li>; })}</ul></div>}
+      {mitti.length > 0 && <div className="mt-3 border-t border-line pt-3"><p className="text-xs text-sub">The Mitti entry shows the saved form and its separate access, question and approval checks.</p>
+        {q.isError && <p role="alert" className="mt-1 text-xs text-rose">Form settings could not load.</p>}
+        <ul className="mt-1 space-y-1">{mitti.map((k) => { const o = MITTI_FORM_ORDER.find((m) => m.key === k)!; return <li key={k} className="flex flex-wrap items-center gap-2"><Link to="/admin/templates" search={{ cat: "mitti", t: `mitti:${k}` }} className="font-semibold text-hiv-blue hover:underline">Mitti {o.letter} · {o.forWho}</Link>{q.data ? (q.data[k] ? <Pill>ID saved · check required</Pill> : <Pill tone="amber">No ID saved</Pill>) : null}</li>; })}</ul></div>}
     </div>
   );
 }

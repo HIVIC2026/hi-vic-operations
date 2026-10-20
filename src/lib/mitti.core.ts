@@ -2,6 +2,7 @@
 // No network, no database. The only network boundary is mitti.server.ts (injected here as MittiCall).
 // Mitti sync NEVER completes an assessment, writes PIESA records, moves stages or issues quotes —
 // completeAssessment remains the authoritative gate.
+import { canonicalMittiTemplateId, mittiTemplateIdentity, sameMittiTemplateId } from "./mitti-identity.core";
 
 export const MITTI_TEMPLATE_ID = "template_fd20c6437f4e4db2b49b2d6dbe0d3f91";
 /** Electrical rate codes Lovable can price. Everything else from Mitti is manual office review. */
@@ -11,7 +12,15 @@ export const MITTI_ASSIGN_STAGES = ["piesa_and_install_window_pending", "piesa_s
 /** The installer's Ready Check form (never PIESA) may be sent while the Ready Check is being arranged. */
 export const MITTI_READY_CHECK_STAGES = ["ready_check_ready_to_schedule", "ready_check_scheduled"] as const;
 
-export class MittiError extends Error {}
+export class MittiError extends Error {
+  readonly status?: number;
+  readonly code?: "not_configured" | "unavailable" | "api_error";
+  constructor(message: string, details: { status?: number; code?: "not_configured" | "unavailable" | "api_error" } = {}) {
+    super(message);
+    this.status = details.status;
+    this.code = details.code;
+  }
+}
 
 export type MittiCall = (method: "GET" | "POST" | "PUT", path: string, body?: unknown) => Promise<unknown>;
 
@@ -256,7 +265,7 @@ export async function createOrReuseAudit(api: MittiApi, ctx: CreateCtx): Promise
   if (!readyCheckSend && !(MITTI_ASSIGN_STAGES as readonly string[]).includes(ctx.stage)) throw new MittiError("Mitti assessments can only be created once the job is waiting on or has booked its PIESA.");
   const who = ctx.assigneeRole ?? "electrician";
   const templateId = ctx.templateId ?? MITTI_TEMPLATE_ID;
-  if (!templateId.trim()) throw new MittiError("The Mitti template for this scope is not configured.");
+  if (!canonicalMittiTemplateId(templateId)) throw new MittiError("The Mitti template for this scope is not configured with a valid form ID.");
   const email = ctx.electricianEmail?.trim();
   if (!email) throw new MittiError(`Assign an ${who} with an email address before creating the Mitti assessment.`);
   const user = pickUser(await api.searchUsers(email), email);
@@ -264,6 +273,9 @@ export async function createOrReuseAudit(api: MittiApi, ctx: CreateCtx): Promise
   if (!userId) throw new MittiError(`The assigned ${who} (${email}) was not found in Mitti. Invite them to Mitti with that exact email, then retry.`);
 
   if (ctx.existingAuditId) {
+    validateStoredMittiAudit(await api.getAudit(ctx.existingAuditId), {
+      storedAuditId: ctx.existingAuditId, jobNumber: ctx.jobNumber, templateId,
+    });
     await api.shareAudit(ctx.existingAuditId, String(userId));
     await api.setAuditOwner(ctx.existingAuditId, String(userId));
     return { auditId: ctx.existingAuditId, reused: true, mittiUserId: String(userId), assigneeEmail: email, prefillCount: null, createdAt: null };
@@ -271,8 +283,8 @@ export async function createOrReuseAudit(api: MittiApi, ctx: CreateCtx): Promise
   const blankRequired = (["jobNumber", "address", "ownerName", "assessorName"] as const).filter((k) => String(ctx.prefill[k] ?? "").trim() === "");
   if (blankRequired.length) throw new MittiError(`Required office details are blank: ${blankRequired.join(", ")}. Fill them in before creating the Mitti assessment.`);
   const template = await api.getTemplateDefinition(templateId);
-  const tid = template?.template?.template_id ?? template?.template_id ?? template?.id;
-  if (tid && tid !== templateId) throw new MittiError("Mitti returned an unexpected template.");
+  if (!sameMittiTemplateId(mittiTemplateIdentity(template).id, templateId))
+    throw new MittiError("Mitti returned an unexpected or unidentifiable template.");
   const p = buildPrefill(template, ctx.prefill);
   if (p.ambiguous.length) throw new MittiError(`The Mitti template has ambiguous office fields (more than one match): ${p.ambiguous.join(", ")}.`);
   if (p.missing.length) throw new MittiError(`The Mitti template is missing required office fields: ${p.missing.join(", ")}.`);
@@ -494,14 +506,20 @@ export function parseAudit(audit: Any) {
   };
 }
 
+/** Verify the stored audit's exact identity, template and job before any reuse write or sync. */
+export function validateStoredMittiAudit(audit: Any, ctx: { storedAuditId: string; jobNumber: string; templateId?: string }) {
+  const p = parseAudit(audit);
+  if (!p.auditId || p.auditId !== ctx.storedAuditId) throw new MittiError("Mitti returned a different audit or no verifiable audit ID for this job.");
+  if (!sameMittiTemplateId(p.templateId, ctx.templateId ?? MITTI_TEMPLATE_ID)) throw new MittiError("This Mitti audit does not use the expected Home Insulation Victoria assessment template.");
+  if (!ctx.jobNumber?.trim() || !p.jobNumber || p.jobNumber.trim().toUpperCase() !== ctx.jobNumber.trim().toUpperCase())
+    throw new MittiError(`Mitti Portal Job Number (${p.jobNumber ?? "missing"}) does not match ${ctx.jobNumber}.`);
+  return p;
+}
+
 /** Validate a fetched audit belongs to this job, then plan a safe (non-completing) sync. */
 export function planSync(audit: Any, ctx: { storedAuditId: string; jobNumber: string; assessmentStatus: string | null; templateId?: string }) {
   if (ctx.assessmentStatus === "complete") return { locked: true as const };
-  const p = parseAudit(audit);
-  if (p.auditId && p.auditId !== ctx.storedAuditId) throw new MittiError("Mitti returned a different audit than the one stored for this job.");
-  if (p.templateId !== (ctx.templateId ?? MITTI_TEMPLATE_ID)) throw new MittiError("This Mitti audit does not use the expected Home Insulation Victoria assessment template.");
-  if (!p.jobNumber || p.jobNumber.trim().toUpperCase() !== ctx.jobNumber.trim().toUpperCase())
-    throw new MittiError(`Mitti Portal Job Number (${p.jobNumber ?? "missing"}) does not match ${ctx.jobNumber}.`);
+  const p = validateStoredMittiAudit(audit, ctx);
   return {
     locked: false as const, ...p,
     syncStatus: (p.completed ? "synced" : "pending") as "synced" | "pending",

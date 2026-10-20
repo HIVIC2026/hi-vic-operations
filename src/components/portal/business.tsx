@@ -24,7 +24,8 @@ const list = (s: string) => s.split(/[,;\n]/).map((x) => x.trim()).filter(Boolea
 
 export function BusinessProfile({ businessId, isHivicAdmin }: { businessId?: string; isHivicAdmin: boolean }) {
   const load = useServerFn(getPartnerProfile);
-  const { data, refetch } = useQuery({ queryKey: ["partner-profile", businessId ?? "mine"], queryFn: () => load({ data: businessId ? { businessId } : {} }) });
+  const { data, error, refetch } = useQuery({ queryKey: ["partner-profile", businessId ?? "mine"], queryFn: () => load({ data: businessId ? { businessId } : {} }) });
+  if (error) return <p role="alert" className="rounded border border-danger p-3 text-sm text-danger">Business details and approval checks could not load. <Button size="sm" variant="outline" onClick={() => void refetch()}>Try again</Button></p>;
   if (data === undefined) return <p className="text-muted-foreground">Loading…</p>;
   if (data === null) return <p className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">Your account isn't linked to a partner business yet. Ask Home Insulation Victoria to set up your business.</p>;
   const b = data.business as Record<string, unknown> & { id: string; name: string; onboarding_status: string };
@@ -33,6 +34,8 @@ export function BusinessProfile({ businessId, isHivicAdmin }: { businessId?: str
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-bold">{b.name}</h2><Badge className="capitalize">{b.onboarding_status.replace("_", " ")}</Badge>{!!b["onboarding_notes"] && <span className="text-sm text-muted-foreground">{String(b["onboarding_notes"])}</span>}</div>
       <Checklist items={data.checklist} />
+      {isHivicAdmin && (!Array.isArray(b["service_postcodes"]) || !b["service_postcodes"].length || !b["coverage_verified_at"]) && <p role="status" className="rounded border border-warning p-3 text-sm"><b>Work allocation needs verified coverage.</b> Review the business's declared service area, enter its service postcodes below and save the verified list. Declared suburbs or a travel radius do not establish verified postcode coverage.</p>}
+      {isHivicAdmin && <p className="text-xs text-muted-foreground">Worker approval and current qualifications are checked separately during matching. <a className="font-semibold text-primary underline" href="/admin/workers">Review worker records</a>.</p>}
       {isHivicAdmin && <AdminControls businessId={b.id} status={b.onboarding_status} xero={{ status: String(b["xero_contact_status"] ?? ""), id: (b["xero_contact_id"] as string) ?? null, error: (b["xero_contact_error"] as string) ?? null }} onDone={refetch} />}
       {!isHivicAdmin && data.myRole === "business_admin" && ["draft", "needs_info"].includes(b.onboarding_status) && <SubmitForReview businessId={b.id} onDone={refetch} />}
       <Details b={b} canEdit={canEdit} isHivicAdmin={isHivicAdmin} onDone={refetch} />
@@ -260,7 +263,7 @@ function MeasurementMethods({ businessId, methods, canEdit, isHivicAdmin, onDone
   const [reason, setReason] = useState("");
   return (
     <Section title="Measurement method">
-      <p className="mb-2 text-sm text-muted-foreground">How this business measures ceiling area. Until Home Insulation Victoria approves a method, supplied measurements are provisional and the ceiling area is measured again onsite. Aerial / map estimates are never accepted as an onsite measurement.</p>
+      <p className="mb-2 text-sm text-muted-foreground">How this business measures ceiling area. The AP measurement standard and this business's method require separate approval. Supplied measurements remain provisional until the applicable checks and job review are complete. Aerial / map estimates are never accepted as an onsite measurement.</p>
       {methods.length === 0 && <p className="text-sm">No method recorded yet.</p>}
       {methods.map((m) => (
         <div key={m.id} className="mb-2 rounded-lg border p-2 text-sm">
@@ -299,17 +302,18 @@ function MeasurementMethods({ businessId, methods, canEdit, isHivicAdmin, onDone
 /** Admin-only: Home Insulation Victoria AP measurement standard + optional pilot variance tolerance. */
 export function MeasurementStandardCard() {
   const load = useServerFn(getMeasurementStandard);
-  const { data, refetch } = useQuery({ queryKey: ["measurement-standard"], queryFn: () => load() });
+  const { data, error, isPending, refetch } = useQuery({ queryKey: ["measurement-standard"], queryFn: () => load() });
   const set = useAction(setMeasurementStandard);
   const [version, setVersion] = useState("");
   const [tol, setTol] = useState("");
   const [reason, setReason] = useState("");
   useEffect(() => { if (data) { setVersion(data.measurement_standard_version ?? ""); setTol(data.measurement_variance_tolerance_pct == null ? "" : String(data.measurement_variance_tolerance_pct)); } }, [data]);
-  if (!data) return null;
-  const submit = async (approved: boolean) => { await set({ version: version.trim() || null, approved, tolerancePct: tol === "" ? null : Number(tol), reason }, "Saved"); setReason(""); refetch(); };
+  if (error) return <Section title="AP measurement standard"><p role="alert" className="text-sm text-danger">The approval status could not load. <Button size="sm" variant="outline" onClick={() => void refetch()}>Try again</Button></p></Section>;
+  if (isPending || !data) return <Section title="AP measurement standard"><p role="status" className="text-sm text-muted-foreground">Loading the recorded standard and approval…</p></Section>;
+  const submit = async (approved: boolean) => { const result = await set({ version: version.trim() || null, approved, tolerancePct: tol === "" ? null : Number(tol), reason }, "Saved"); if (result?.ok) setReason(""); await refetch(); };
   return (
     <Section title="AP measurement standard">
-      <p className="mb-2 text-sm">{data.measurement_standard_approved ? <>Approved standard <b>{data.measurement_standard_version}</b>. Measurements from partners with an approved method can be accepted after Home Insulation Victoria review.</> : <>Not approved. Installer-supplied measurements stay provisional and an independent onsite trade measures the ceiling area on every job.</>}</p>
+      <p className="mb-2 text-sm">{data.measurement_standard_approved ? <>Approved standard <b>{data.measurement_standard_version}</b>. Measurements from partners with an approved method can be accepted after Home Insulation Victoria review.</> : <><b>AP standard not approved.</b> The AP needs to identify and approve the measurement method, evidence, exclusions and version. Installer-supplied measurements remain provisional under the existing review requirements.</>}</p>
       <p className="mb-2 text-xs text-muted-foreground">Variance tolerance is for pilot calibration only. Leave it empty until you've reviewed the pilot jobs – every variance is then shown without a pass/fail.</p>
       <div className="grid gap-2 sm:grid-cols-3">
         <Input placeholder="Standard version" value={version} onChange={(e) => setVersion(e.target.value)} />

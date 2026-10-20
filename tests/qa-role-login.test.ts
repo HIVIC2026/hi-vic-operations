@@ -4,13 +4,15 @@ import { qaAccessPath, qaPersonaMissingMessage } from "../src/lib/qa-role-link.c
 
 const fns = readFileSync("src/lib/test-accounts.functions.ts", "utf8");
 const ui = readFileSync("src/routes/_authenticated/admin.test-centre.tsx", "utf8");
+const server = readFileSync("src/lib/qa-access.server.ts", "utf8");
+const roleIssuer = server.slice(server.indexOf("export async function issueQaRoleAccess"), server.indexOf("async function rejectRevokedWorkerFixture"));
 const issueBody = fns.slice(fns.indexOf("export const issueQaPersonaLink"), fns.indexOf("export const simulateQaJourneyTime"));
 const openAs = ui.slice(ui.indexOf("const openAs"), ui.indexOf("const runTime"));
 
 describe("Open as … is sign-in only", () => {
   test("login path performs no account/role/credential writes", () => {
     for (const w of [".insert(", ".update(", ".upsert(", ".delete(", "updateUserById", "createUser", "prepareQaJourney"]) expect(issueBody.includes(w)).toBe(false);
-    expect(issueBody).toContain("generateLink");
+    expect(roleIssuer).toContain("generateLink");
   });
   test("Open as never calls prepare and never uses window.open", () => {
     expect(openAs).not.toContain("ready(");

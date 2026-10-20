@@ -24,7 +24,7 @@ import { COMPLIANCE_TEMPLATE_KEYS as KEYS, ACTIVITY_48_FORMS } from "@/lib/templ
 
 function Compliance() {
   const list = useServerFn(listComplianceTemplates);
-  const { data = [] } = useQuery({ queryKey: ["compliance_templates"], queryFn: () => list() });
+  const { data = [], error: templatesError, isPending: templatesPending, refetch: refetchTemplates } = useQuery({ queryKey: ["compliance_templates"], queryFn: () => list() });
   const add = useAction(addComplianceTemplate);
   const approve = useAction(approveComplianceTemplate);
   const { key: initialKey } = Route.useSearch();
@@ -34,7 +34,7 @@ function Compliance() {
   const [note, setNote] = useState("");
   const [fields, setFields] = useState<FormField[]>([]);
   const setup = useServerFn(getComplianceSetup);
-  const { data: cards = [] } = useQuery({ queryKey: ["compliance_setup"], queryFn: () => setup() });
+  const { data: cards = [], error: setupError, isPending: setupPending, refetch: refetchSetup } = useQuery({ queryKey: ["compliance_setup"], queryFn: () => setup() });
   return (
     <AppShell wide>
       <p className="text-xs font-bold uppercase text-primary">Activity 48 control centre</p>
@@ -46,20 +46,24 @@ function Compliance() {
         <article key={form.name} className="rounded-md border bg-card p-4 shadow-sm"><div className="flex items-start gap-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-workspace-blush font-bold">{index + 1}</span><div><h3 className="font-bold">{form.name}</h3><p className="mt-1 text-sm text-muted-foreground">{form.purpose}</p><dl className="mt-3 grid grid-cols-[90px_1fr] gap-x-2 gap-y-1 text-xs"><dt className="font-bold">Signed by</dt><dd>{form.signer}</dd><dt className="font-bold">When</dt><dd>{form.timing}</dd><dt className="font-bold">Blocks</dt><dd>{form.blocks}</dd><dt className="font-bold">Source</dt><dd>{form.source}{"pdf" in form ? <> · <a className="font-semibold text-primary underline" href={form.pdf} target="_blank" rel="noreferrer">Open official form</a></> : null}</dd><dt className="font-bold">Retention</dt><dd>Permanent job record; keep Activity 48 records for six years after registration.</dd></dl></div></div></article>
       ))}</div></section>
       <MittiFormsSection />
-      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{cards.map((c) => (
+      {setupError ? <p role="alert" className="mb-4 rounded border border-danger p-3 text-sm text-danger">Compliance readiness could not be checked. <Button size="sm" variant="outline" onClick={() => void refetchSetup()}>Try again</Button></p> : setupPending ? <p role="status" className="mb-4 text-sm text-muted-foreground">Checking compliance readiness…</p> : <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{cards.map((c) => (
         <div key={c.key} className={`rounded-xl border-2 p-3 ${c.ready ? "border-success" : "border-warning"}`}>
           <div className="flex items-center justify-between"><b>{c.label}</b>{c.ready ? <Pill t="good"><CheckCircle2 className="mr-1 h-3 w-3" /> Ready</Pill> : <Pill t="warn"><Clock3 className="mr-1 h-3 w-3" /> Not ready</Pill>}</div>
           <p className="mt-1 text-xs text-muted-foreground">{c.message}</p>
-        </div>))}</div>
+        </div>))}</div>}
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-4">
+          {templatesError && <p role="alert" className="rounded border border-danger p-3 text-sm text-danger">Template versions and approvals could not load. <Button size="sm" variant="outline" onClick={() => void refetchTemplates()}>Try again</Button></p>}
+          {templatesPending && <p role="status" className="text-sm text-muted-foreground">Loading template versions…</p>}
           {KEYS.map(([k, label]) => (
             <section key={k} id={`tpl-${k}`} className="scroll-mt-24 rounded-xl border bg-card p-4">
               <h2 className="mb-2 font-semibold">{label}</h2>
-              {data.filter((t) => t.template_key === k).length === 0 && <p className="text-sm text-danger">Not configured</p>}
-              <ul className="space-y-2">{data.filter((t) => t.template_key === k).map((t) => (
+              {!templatesError && !templatesPending && data.filter((t) => t.template_key === k).length === 0 && <p className="text-sm text-danger">No version recorded</p>}
+              {k === "installer_declaration" && <p className="mb-2 text-xs text-muted-foreground">The AP must approve the wording and evidence required to confirm completed work. PIISA Part 8 records the installer's declaration before installation.</p>}
+              {k === "consumer_declaration" && <p className="mb-2 text-xs text-muted-foreground">Before approval, the AP checks the current official Activity 48 assignment source, required fields, final facts and signature order against this version.</p>}
+              <ul className="space-y-2">{(!templatesError && !templatesPending ? data : []).filter((t) => t.template_key === k).map((t) => (
                 <li key={t.id} className="rounded border p-2 text-sm">
-                  <div className="flex items-center gap-2"><b>{t.version}</b>{t.is_active ? <Pill t="good">Active</Pill> : t.approved ? <Pill>Superseded</Pill> : <Pill t="warn">Draft</Pill>}
+                  <div className="flex items-center gap-2"><b>{t.version}</b>{t.approved && t.is_active ? <Pill t="good">Approved and active</Pill> : t.approved ? <Pill>Superseded</Pill> : <Pill t="warn">{t.is_active ? "Selected draft · not approved" : "Draft · not approved"}</Pill>}
                     {!t.approved && <Button size="sm" className="ml-auto" onClick={() => approve({ id: t.id }, "Approved and activated")}>Approve & activate</Button>}</div>
                   {t.source_note && <div className="text-xs text-muted-foreground">{t.source_note}</div>}
                   <details><summary className="cursor-pointer text-xs">Official wording</summary><pre className="whitespace-pre-wrap text-xs">{t.body}</pre></details>

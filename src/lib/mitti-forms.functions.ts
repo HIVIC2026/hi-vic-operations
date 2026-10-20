@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin } from "./workflow.server";
+import { canonicalMittiTemplateId, sameMittiTemplateId } from "./mitti-identity.core";
 
 const COL = { ready_check: "mitti_ready_check_template_id", ready_check_priced: "mitti_ready_check_priced_template_id", piesa: "mitti_piesa_template_id", piisa: "mitti_piisa_template_id" } as const;
 
@@ -9,13 +10,13 @@ export const getMittiForms = createServerFn({ method: "POST" }).middleware([requ
   await requireAdmin(context.supabase);
   const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await admin.from("workflow_settings").select("mitti_ready_check_template_id,mitti_ready_check_priced_template_id,mitti_piesa_template_id,mitti_piisa_template_id").eq("id", 1).maybeSingle();
-  if (error) throw new Error(`Mitti form settings could not be loaded: ${error.message}`);
+  if (error || !data) throw new Error(`Mitti form settings could not be loaded: ${error?.message ?? "configuration record missing"}`);
   return { ready_check: data?.mitti_ready_check_template_id ?? null, ready_check_priced: data?.mitti_ready_check_priced_template_id ?? null, piesa: data?.mitti_piesa_template_id ?? null, piisa: data?.mitti_piisa_template_id ?? null };
 });
 
 /** Fetches the Mitti form, checks it against the required list, and saves the ID only if every check passes. */
 export const connectMittiForm = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ key: z.enum(["ready_check", "ready_check_priced", "piesa", "piisa"]), templateId: z.string().trim().regex(/^(template_[a-f0-9]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i, "Mitti form IDs look like template_ followed by 32 letters/numbers (or the ID Mitti shows in the form link).") }).parse(d))
+  .inputValidator((d) => z.object({ key: z.enum(["ready_check", "ready_check_priced", "piesa", "piisa"]), templateId: z.string().trim().refine(id => canonicalMittiTemplateId(id) !== null, "Use a Mitti template ID or the UUID shown in its form link.") }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     if (data.key === "piesa" || data.key === "piisa") {

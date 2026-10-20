@@ -8,19 +8,23 @@ import { cobrandSnapshot, partnerWorkBlocker, type BusinessLike, type Credential
 export const sha = (v: unknown) => createHash("sha256").update(typeof v === "string" ? v : JSON.stringify(v)).digest("hex");
 
 export async function loadBusiness(id: string) {
-  const [{ data: b }, { data: creds }] = await Promise.all([
+  const [{ data: b, error: businessError }, { data: creds, error: credentialsError }] = await Promise.all([
     admin.from("businesses").select("*").eq("id", id).maybeSingle(),
     admin.from("business_credentials").select("kind,label,expires_at,critical,verification,profile_id").eq("business_id", id),
   ]);
+  if (businessError) throw new WorkflowError(`Could not read business approval: ${businessError.message}`);
+  if (credentialsError) throw new WorkflowError(`Could not read business credentials: ${credentialsError.message}`);
   return { business: b, credentials: (creds ?? []) as Credential[] };
 }
 
 /** Businesses the user belongs to (profile link or membership), with their member role. */
 export async function myBusinesses(userId: string) {
-  const [{ data: p }, { data: m }] = await Promise.all([
+  const [{ data: p, error: profileError }, { data: m, error: membershipError }] = await Promise.all([
     admin.from("profiles").select("business_id").eq("id", userId).maybeSingle(),
     admin.from("business_members").select("business_id, member_role").eq("user_id", userId).eq("active", true),
   ]);
+  if (profileError) throw new WorkflowError(`Could not read the business profile link: ${profileError.message}`);
+  if (membershipError) throw new WorkflowError(`Could not read active business memberships: ${membershipError.message}`);
   const map = new Map<string, "business_admin" | "member">();
   if (p?.business_id) map.set(p.business_id, "member");
   for (const r of m ?? []) map.set(r.business_id, r.member_role === "business_admin" ? "business_admin" : (map.get(r.business_id) ?? "member"));

@@ -4,7 +4,8 @@
 import type { Json } from "@/integrations/supabase/types";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
-import { MITTI_TEMPLATE_ID, MittiError, builtLast5YearsOption, createOrReuseAudit, mittiApi, planSync, propertyTypeOption, splitPatch, type MittiCall } from "./mitti.core";
+import { MITTI_TEMPLATE_ID, MittiError, builtLast5YearsOption, createOrReuseAudit, mittiApi, planSync, propertyTypeOption, splitPatch, validateStoredMittiAudit, type MittiCall } from "./mitti.core";
+import { canonicalMittiTemplateId, mittiTemplateIdentity, sameMittiTemplateId } from "./mitti-identity.core";
 const MITTI_BASE_URL = "https://api.mitti.com"; // network boundary lives only here
 import { planMeasurementUpdate, type MeasurementLike } from "./scope.core";
 import { jobScope } from "./requirements.server";
@@ -25,7 +26,7 @@ type Any = any;
 
 export const realMittiCall: MittiCall = async (method, path, body) => {
   const token = process.env["MITTI_API_TOKEN"];
-  if (!token) throw new MittiError("Mitti is not configured. Add the MITTI_API_TOKEN secret.");
+  if (!token) throw new MittiError("Mitti is not configured. Add the MITTI_API_TOKEN secret.", { code: "not_configured" });
   let res: Response;
   try {
     res = await fetch(`${MITTI_BASE_URL}${path}`, {
@@ -35,19 +36,19 @@ export const realMittiCall: MittiCall = async (method, path, body) => {
       signal: timeoutSignal(MITTI_FETCH_TIMEOUT_MS),
     });
   } catch {
-    throw new MittiError("Mitti could not be reached. Try again shortly.");
+    throw new MittiError("Mitti could not be reached. Try again shortly.", { code: "unavailable" });
   }
   if (!res.ok) {
-    const detail = (await res.text().catch(() => "")).replace(/[\w.+-]+@[\w.-]+/g, "[email]").slice(0, 300);
-    console.error(`[mitti] ${method} ${path.split("/")[1]} -> ${res.status} ${detail}`); // no token, no PII
+    console.error(`[mitti] ${method} ${path.split("/")[1]} -> ${res.status}`); // no provider body, token or personal fields
     throw new MittiError(
       res.status === 401 || res.status === 403 ? "Mitti rejected the API token."
       : res.status === 404 ? "Mitti record not found."
       : res.status === 400 ? "Mitti rejected the request (400) – check the assigned user's email is a real address registered in your Mitti account."
-      : `Mitti request failed (${res.status}).`);
+      : `Mitti request failed (${res.status}).`, { status: res.status, code: "api_error" });
   }
   const t = await res.text();
-  return t ? JSON.parse(t) : {};
+  try { return t ? JSON.parse(t) : {}; }
+  catch { throw new MittiError("Mitti returned an unreadable response.", { code: "api_error" }); }
 };
 
 /** Binary media download (supported audit media route). Used only to store the PIISA signature image itself. */
@@ -365,7 +366,7 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string, call
   if (block) throw new WorkflowError(block);
   const { data: ws } = await admin.from("workflow_settings").select("mitti_piisa_template_id").eq("id", 1).maybeSingle();
   const MITTI_PIISA_TEMPLATE_ID = ws?.mitti_piisa_template_id?.trim() ?? "";
-  if (!MITTI_PIISA_TEMPLATE_ID) throw new WorkflowError("PIISA Mitti form is not configured. Add the validated PIISA form before it can be sent.");
+  if (!canonicalMittiTemplateId(MITTI_PIISA_TEMPLATE_ID)) throw new WorkflowError("PIISA Mitti form is not configured with a valid ID. Add the validated PIISA form before it can be sent.");
   const { data: job } = await admin.from("jobs").select("job_number,business_unit,stage").eq("id", jobId).single();
   if (!job) throw new WorkflowError("Job not found.");
   if (job.business_unit !== "hivic") throw new WorkflowError("Mitti automation is only available for Home Insulation Victoria jobs.");
@@ -377,7 +378,8 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string, call
   const { data: asg } = await admin.from("job_assignments").select("user_id, profiles:user_id(email)").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
   const email = (asg as unknown as { profiles: { email: string | null } | null } | null)?.profiles?.email?.trim();
   if (!asg || !email) throw new WorkflowError("Assign an installer with an email address before sending the safety form.");
-  const { data: prev } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_piisa_audit_created").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const { data: prev, error: previousError } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_piisa_audit_created").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (previousError) throw new WorkflowError("The existing PIISA audit could not be checked. Try again; no replacement form was created.");
   const api = mittiApi(call);
   const users = (await api.searchUsers(email)) as { users?: { id?: string; user_id?: string; email?: string }[] } | { id?: string; user_id?: string; email?: string }[];
   const list = Array.isArray(users) ? users : users?.users ?? [];
@@ -387,8 +389,7 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string, call
   const prevId = (prev?.details as { audit_id?: string } | null)?.audit_id;
   if (prevId) {
     const previous = await api.getAudit(prevId);
-    const parsed = (await import("./mitti.core")).parseAudit(previous);
-    if (parsed.templateId !== MITTI_PIISA_TEMPLATE_ID || parsed.jobNumber?.trim() !== job.job_number.trim()) throw new WorkflowError("Stored PIISA does not match this job/template; office review is required.");
+    validateStoredMittiAudit(previous, { storedAuditId: prevId, jobNumber: job.job_number, templateId: MITTI_PIISA_TEMPLATE_ID });
     const { ensurePiisaAp } = await import("./piisa-ap.core");
     await ensurePiisaAp(previous, (items) => api.updateAuditText(prevId, items), () => api.getAudit(prevId));
     await api.shareAudit(prevId, String(userId)); await api.setAuditOwner(prevId, String(userId));
@@ -397,7 +398,7 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string, call
   }
   const hints = piisaPrefill(await officialPrefillContext(jobId, todayMelbourne(), asg.user_id));
   const items = OFFICIAL_ITEMS.piisa;
-  const isA3 = MITTI_PIISA_TEMPLATE_ID === PIISA_A3_TEMPLATE_ID;
+  const isA3 = sameMittiTemplateId(MITTI_PIISA_TEMPLATE_ID, PIISA_A3_TEMPLATE_ID);
   type Pre = { itemId: string; label: string; kind: string; value: string; occurrence: number; row: number };
   const toPre = (itemId: string, value: string, row = 0): Pre => {
     const it = items.find((i) => i.id === itemId);
@@ -425,6 +426,8 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string, call
     for (const id of a3.A3_NOT_ON_NATIVE) preMap.delete(`${id}#0`);
   }
   const template = await api.getTemplateDefinition(MITTI_PIISA_TEMPLATE_ID);
+  if (!sameMittiTemplateId(mittiTemplateIdentity(template).id, MITTI_PIISA_TEMPLATE_ID))
+    throw new WorkflowError("Mitti returned an unexpected or unidentifiable PIISA template; office review is required.");
   const native = await import("./piisa-native-version.core");
   const resolved = isA3 ? native.resolvePiisaNativeVersion(template) : null;
   if (resolved && (!resolved.active || !resolved.mapping)) throw new WorkflowError(`The PIISA mapping needs review: ${resolved.problems.join("; ")}`);

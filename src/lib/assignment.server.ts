@@ -16,7 +16,8 @@ import { WorkflowError, logEvent } from "./workflow.server";
 import { formatPropertyAddress } from "./address";
 
 export async function loadTemplates(): Promise<Template[]> {
-  const { data } = await admin.from("compliance_templates").select("template_key, version, body, approved, is_active, required, form_fields, requires_final_consumer_signature").eq("is_active", true);
+  const { data, error } = await admin.from("compliance_templates").select("template_key, version, body, approved, is_active, required, form_fields, requires_final_consumer_signature").eq("is_active", true);
+  if (error) throw new WorkflowError(`Could not read compliance template approvals: ${error.message}`);
   return (data ?? []) as Template[];
 }
 

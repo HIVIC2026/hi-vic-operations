@@ -5,7 +5,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import {
   assertHivicInvoice, assertHivicJob, assertHivicPayload, assertHivicReference, buildDueDateUpdate, buildInvoicePayload, evaluateXeroInvoice, findInvoiceByReference, findOrCreateContact, findTrackingOption,
-  invoiceIdemKey, LOCK_STALE_MS, pickXeroTenant, type XeroMode, type XeroTenant, melbourneDate, quoteGuard, XERO_DUE_DATE_UPDATES_ENABLED, xeroReference, type XeroCall,
+  invoiceIdemKey, LOCK_STALE_MS, pickXeroTenant, describeXeroRouting, type XeroMode, type XeroTenant, melbourneDate, quoteGuard, XERO_DUE_DATE_UPDATES_ENABLED, xeroReference, type XeroCall,
 } from "./xero.core";
 import { clearInstallDueDatePatch, ensureInvoice, installDueDatePatch, paymentPatch, xeroDueDate, type InvoiceRow, type InvoiceStore } from "./invoice.lifecycle";
 import { XERO_FETCH_TIMEOUT_MS, timeoutSignal } from "./network-timeout.core";
@@ -46,9 +46,13 @@ async function tenantCall(mode: XeroMode): Promise<XeroCall> {
 
 /** Which Xero organisations are reachable, for the office settings display. Never returns tokens. */
 export async function xeroConnectionStatus() {
-  if (!creds()) return { connected: false, orgs: [] as { name: string; test: boolean }[] };
-  const conns = (await rawFetch("/connections")) as XeroTenant[];
-  return { connected: true, orgs: conns.map((c) => ({ name: c.tenantName ?? "Unnamed organisation", test: /demo company/i.test(c.tenantName ?? "") })) };
+  const checkedAt = new Date().toISOString();
+  if (!creds()) return { configured: false, connected: false, checkedAt, routing: describeXeroRouting([]), orgs: [] as { name: string; test: boolean }[] };
+  const result: unknown = await rawFetch("/connections");
+  if (!Array.isArray(result) || result.some(c => !c || typeof c.tenantId !== "string" || !c.tenantId || (c.tenantName != null && typeof c.tenantName !== "string")))
+    throw new Error("Xero returned an unreadable organisation list.");
+  const conns = result as XeroTenant[];
+  return { configured: true, connected: conns.length > 0, checkedAt, routing: describeXeroRouting(conns), orgs: conns.map((c) => ({ name: c.tenantName ?? "Unnamed organisation", test: /demo company/i.test(c.tenantName ?? "") })) };
 }
 
 async function modeForInvoice(invoiceId: string): Promise<XeroMode> {
