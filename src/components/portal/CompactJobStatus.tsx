@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { operationsOptions } from "@/lib/operations-query";
+import { operationsJobOptions } from "@/lib/operations-query";
 import { fmtDate } from "@/lib/workflow";
 import type { OperationRow } from "@/lib/operations-preview.core";
 import type { PortalTarget } from "@/lib/portal-presentation.core";
@@ -31,7 +31,7 @@ export function JobStatusSummary({ row, loadedAt, onOpen }: { row: OperationRow;
 }
 
 export function CompactJobStatus({ jobId, onOpen }: { jobId: string; onOpen: (target: PortalTarget) => void }) {
-  const query = useQuery(operationsOptions);
+  const query = useQuery(operationsJobOptions(jobId));
   const row = query.data?.rows.find(r => r.id === jobId);
   if (query.error) return <div role="alert" className="my-3 text-sm text-rose">Current operational facts could not load. No status inferred. <Button size="sm" variant="outline" onClick={() => void query.refetch()}>Retry status read</Button></div>;
   if (!query.data) return <p role="status" className="my-3 text-sm text-sub">Loading current operational facts…</p>;
