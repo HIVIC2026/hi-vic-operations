@@ -195,3 +195,4 @@ Locked rules:
 - Capture batches serialize signed uploads and retain uncertain paths; capture reads exclude owner-capture files. Why: later uploads without repeat invitations.
 - Intake serializes files, retains partial uploads/provenance and locks pending/dirty drafts. Why: safe retries.
 - Group B guards are shared; follow-up removal uses snapshot facts; initial email stays separate. Why: no repeat requests or price drift.
+- Bulk import rows stay `pending` (lease `confirm_lease_until`, reason `confirm_error`) until every record is saved; each step re-reads and reuses its own record, so retries finish the same job. Files match by full canonical relative path; a file two customers could claim attaches to neither. ZIP/folder members are stored privately by full path. Why: no lost partial saves, no cross-customer evidence.

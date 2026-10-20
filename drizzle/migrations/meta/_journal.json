@@ -1065,6 +1065,13 @@
       "when": 1792486739638,
       "tag": "0151_enquiry_response_scope_0208",
       "breakpoints": true
+    },
+    {
+      "idx": 152,
+      "version": "7",
+      "when": 1792488390711,
+      "tag": "0152_bulk_import_confirm_lease_0209",
+      "breakpoints": true
     }
   ]
 }

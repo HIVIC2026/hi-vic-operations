@@ -17,8 +17,9 @@ test("matched files are attached only from this business's own stored imports, o
   expect(server).toContain('"bulk_import_files_not_attached"');
 });
 
-test("customer lists and ZIPs are not stored as job files; reload resumes the same upload", () => {
-  expect(page).toContain("!LIST_RE.test(f.name) && !/\\.zip$/i.test(f.name)");
+test("customer lists are not stored as job files; ZIP/folder members are stored by full path; reload resumes", () => {
+  expect(page).toContain("if (!LIST_RE.test(name)) bytes.set(path, { buf, name, type });");
+  expect(page).toContain("stored.get(f.path) ? { ...f, stored_path: stored.get(f.path)! } : f");
   expect(page).toContain('get("batch")');
   expect(page).toContain('reviewStatus !== "analysed"');
 });

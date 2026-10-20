@@ -256,7 +256,7 @@ export async function analyseBatch(batchId: string, actorId: string) {
   const allMatches: ReturnType<typeof matchFiles>["matched"][] = [];
   const links = linkFiles(extracted, manifest);
   const rows = extracted.map((e, i) => {
-    const { matched, confidence } = links[i]!;
+    const { matched, confidence, ambiguous } = links[i]!;
     allMatches.push(matched);
     const duplicate = dupNotes.has(i);
     const { result, reasons } = sortJob(e, { matchConfidence: confidence, duplicate });
@@ -269,6 +269,7 @@ export async function analyseBatch(batchId: string, actorId: string) {
     reasons.push(...cleaned[i]!.issues);
     if (/Listed \d+ times in the upload/i.test(e.notes ?? "")) reasons.push("Listed more than once in this upload — merged into one customer, please check");
     else if (matched.length > 0 && confidence === "low") reasons.push("Files matched by filename only — please check");
+    if (ambiguous.length) reasons.push(`${ambiguous.length} file${ambiguous.length > 1 ? "s" : ""} could belong to more than one customer and ${ambiguous.length > 1 ? "were" : "was"} NOT attached — add the right one${ambiguous.length > 1 ? "s" : ""} to this card by hand: ${ambiguous.join(", ").slice(0, 300)}`);
     return {
       batch_id: batchId, row_index: i, extracted: { ...e, lead_stage: stage, site_check: sc.check, site_check_date: sc.date, site_check_source: sc.check ? "file" : null } as unknown as Json,
       import_stage: stage,
@@ -317,6 +318,34 @@ export const stagePlacement: Record<ImportStage, { stage: "ready_check_ready_to_
   installed: { stage: "on_hold", next: INSTALLED_HISTORY_NOTE },
 };
 
+/** Every write is checked; a failure throws so the row stays pending and can be retried. */
+function must<T>(r: { data: T; error: { message: string } | null }, what: string): T {
+  if (r.error) throw new BulkImportError(`${what}: ${r.error.message}`);
+  return r.data;
+}
+
+/** The job for this row: the one already made (by `bulk:<row>`) or a new one. Resumable — retries finish the same job. */
+export async function ensureBulkJob(e: BulkExtracted, batch: { id: string; business_id: string }, actorId: string, rowId: string, importStage: ImportStage) {
+  const prior = must(await admin.from("jobs").select("id, job_number").eq("external_enquiry_id", `bulk:${rowId}`).maybeSingle(), "Could not check for an earlier job");
+  const job = prior ?? await createBulkJob(e, batch, actorId, rowId, importStage);
+  const asg = must(await admin.from("job_assignments").select("id").eq("job_id", job.id).eq("user_id", actorId).eq("role", "installer").limit(1).maybeSingle(), "Could not check the installer assignment");
+  if (!asg) must(await admin.from("job_assignments").insert({ job_id: job.id, user_id: actorId, role: "installer", business_id: batch.business_id, assigned_by: actorId }).select("id").single(), "Installer assignment could not be saved");
+  if (importStage !== "not_visited" && e.area_m2 && e.area_m2 > 0) {
+    const have = must(await admin.from("ceiling_measurements").select("id").eq("job_id", job.id).eq("external_source", "bulk_import").eq("external_id", rowId).limit(1).maybeSingle(), "Could not check the measure-up");
+    if (!have) {
+      const { error: me } = await admin.from("ceiling_measurements").insert({
+        job_id: job.id, source_role: "installer", status: "needs_review", is_current: true,
+        supplied_area_m2: e.area_m2, measured_area_m2: e.area_m2, measured_by_business_id: batch.business_id,
+        provenance: "installer_supplied_provisional", external_source: "bulk_import", external_id: rowId,
+        raw_snapshot: { row_id: rowId, import_stage: importStage, supplied: e } as unknown as Json,
+        review_flags: ["Imported installer measurement requires office acceptance"] as unknown as Json,
+      });
+      if (me) throw new BulkImportError(`Measure-up could not be saved: ${me.message}`);
+    }
+  }
+  return { job, resumed: !!prior };
+}
+
 async function createBulkJob(e: BulkExtracted, batch: { id: string; business_id: string }, actorId: string, rowId: string, importStage: ImportStage) {
   // Security review (Jo, 6 Oct): an installer upload NEVER reuses an existing owner. A new owner is always created;
   // an exact (case-insensitive) email match is only flagged for the office under Possible duplicates.
@@ -324,11 +353,20 @@ async function createBulkJob(e: BulkExtracted, batch: { id: string; business_id:
   const { createInstallerOwner } = await import("./installer-owner.server");
   const created = await createInstallerOwner(admin, batch.business_id, { full_name: e.full_name ?? "Unknown", email, phone: e.phone ?? null });
   const ownerId = created.id;
+  // If the job itself is not saved, remove only the owner/property THIS attempt made, so a retry never leaves duplicates.
+  let propId: string | null = null;
+  const cleanup = async () => {
+    if (propId) await admin.from("properties").delete().eq("id", propId);
+    const { count } = await admin.from("properties").select("id", { count: "exact", head: true }).eq("owner_id", ownerId);
+    if (count === 0) await admin.from("owners").delete().eq("id", ownerId);
+  };
+  try {
   const sameEmail = email ? (await admin.from("owners").select("id").ilike("email", exactLike(email)).neq("id", ownerId).limit(5)).data ?? [] : [];
   const { data: prop, error: pe } = await admin.from("properties").insert({
     owner_id: ownerId, address_line: e.address_line!, suburb: e.suburb ?? null, postcode: e.postcode ?? null, state: "VIC",
   }).select("id").single();
   if (pe || !prop) throw new BulkImportError(pe?.message ?? "Property could not be created.");
+  propId = prop.id;
   const { intakeSourceFor } = await import("./pilot.server");
   const source = await intakeSourceFor(actorId, batch.business_id, "bulk_import");
   const placement = stagePlacement[importStage];
@@ -342,36 +380,41 @@ async function createBulkJob(e: BulkExtracted, batch: { id: string; business_id:
     installer_quoted_price_inc_gst: e.quoted_answer === "yes" ? e.price_inc_gst ?? null : null, installer_price_includes: e.quoted_answer === "yes" ? e.price_includes ?? null : null,
     next_action: importStage === "installed" ? placement.next : e.quoted_answer == null ? `${placement.next} · ${QUOTED_ANSWER_NEEDED}` : e.quoted_answer === "no" ? `${placement.next} · ${QUOTE_NEEDED_LABEL}` : placement.next,
   }).select("id, job_number").single();
-  if (je || !job) throw new BulkImportError(je?.message ?? "Job could not be created.");
-  if (sameEmail.length) await admin.from("workflow_events").insert({ job_id: job.id, actor_id: actorId, event_type: "possible_duplicate_owner", summary: "Possible duplicate owner (same email) — office to check", details: { note: "Bulk upload: this owner's email matches an existing owner. A new owner was created; office to check under Possible duplicates.", existing_owner_ids: sameEmail.map((o) => o.id), source: "bulk_import" } as unknown as Json });
-  await admin.from("job_assignments").insert({ job_id: job.id, user_id: actorId, role: "installer", business_id: batch.business_id, assigned_by: actorId });
-  if (importStage !== "not_visited" && e.area_m2 && e.area_m2 > 0) {
-    const { error: me } = await admin.from("ceiling_measurements").insert({
-      job_id: job.id, source_role: "installer", status: "needs_review", is_current: true,
-      supplied_area_m2: e.area_m2, measured_area_m2: e.area_m2, measured_by_business_id: batch.business_id,
-      provenance: "installer_supplied_provisional", external_source: "bulk_import", external_id: rowId,
-      raw_snapshot: { row_id: rowId, import_stage: importStage, supplied: e } as unknown as Json,
-      review_flags: ["Imported installer measurement requires office acceptance"] as unknown as Json,
-    });
-    if (me) throw new BulkImportError(`Measure-up could not be saved: ${me.message}`);
+  if (je || !job) {
+    // Unique `bulk:<row>`: another confirm (or an earlier uncertain attempt) already made this row's job — use that one.
+    const other = (await admin.from("jobs").select("id, job_number, property_id").eq("external_enquiry_id", `bulk:${rowId}`).maybeSingle()).data;
+    if (other?.property_id === propId) { propId = null; return { id: other.id, job_number: other.job_number }; } // our own write landed (lost response)
+    await cleanup();
+    if (other) return { id: other.id, job_number: other.job_number };
+    throw new BulkImportError(je?.message ?? "Job could not be created.");
   }
+  propId = null;
+  if (sameEmail.length) await admin.from("workflow_events").insert({ job_id: job.id, actor_id: actorId, event_type: "possible_duplicate_owner", summary: "Possible duplicate owner (same email) — office to check", details: { note: "Bulk upload: this owner's email matches an existing owner. A new owner was created; office to check under Possible duplicates.", existing_owner_ids: sameEmail.map((o) => o.id), source: "bulk_import" } as unknown as Json });
   return job;
+  } catch (err) { if (propId) await cleanup(); throw err; }
 }
 
+/** true = a draft quote exists for this row's job; false = office quotes by hand (no price/area/settings). Errors throw. */
 async function draftQuoteFromImport(jobId: string, e: BulkExtracted, actorId: string, partnerBusinessId: string) {
   if (!(e.price_inc_gst && e.price_inc_gst > 0) || !(e.area_m2 && e.area_m2 > 0)) return false;
-  const { data: job } = await admin.from("jobs").select("ap_fee_override_inc_gst, electrician_choice, properties(postcode)").eq("id", jobId).single();
+  const existing = must(await admin.from("quotes").select("id").eq("job_id", jobId).eq("option_code", "INSTALLER_A1").limit(1).maybeSingle(), "Could not check the draft quote");
+  const job = must(await admin.from("jobs").select("ap_fee_override_inc_gst, electrician_choice, properties(postcode)").eq("id", jobId).single(), "Could not read the job for its quote");
   const postcode = String((job?.properties as { postcode: string | null } | null)?.postcode ?? "").trim();
-  const [{ data: loc }, { data: rs }] = await Promise.all([
+  const [locR, rsR] = await Promise.all([
     admin.from("veu_location_variables").select("*").eq("postcode", postcode).maybeSingle(),
     admin.from("retail_estimator_settings").select("ap_management_inc_gst, piesa_assessment_inc_gst, indicative_veec_value, minimum_customer_copayment_inc_gst").eq("is_current", true).maybeSingle(),
   ]);
+  const loc = must(locR, "Could not read the rebate area"), rs = must(rsR, "Could not read the price settings");
   const veecValue = rs ? Number(rs.indicative_veec_value) : null;
   const apFee = job?.ap_fee_override_inc_gst != null ? Number(job.ap_fee_override_inc_gst) : rs ? Number(rs.ap_management_inc_gst) : null;
   // Current recorded payer: own electrician = no HIV PIESA line; undecided = no automatic quote (office quotes later).
   const { piesaChargeIncGst } = await import("./installer-led.core");
   const piesa = piesaChargeIncGst(job?.electrician_choice ?? null, rs ? Number(rs.piesa_assessment_inc_gst) : null);
   if (!loc || veecValue == null || apFee == null || piesa == null) return false; // office quotes manually
+  if (existing) {
+    const items = must(await admin.from("quote_items").select("id").eq("quote_id", existing.id).limit(1).maybeSingle(), "Could not check the quote lines");
+    if (items) return true;
+  }
   const rawDiscount = wholeVeecDiscount(e.area_m2, loc as unknown as LocationVariables, veecValue).raw;
   const lines = [
     { code: "INSTALLER_PRICE", description: e.price_includes ? `Insulation works by your installer — includes: ${e.price_includes}`.slice(0, 500) : "Insulation works by your installer", quantity: 1, unit: "flat", unit_price_inc_gst: e.price_inc_gst, line_total_inc_gst: e.price_inc_gst, is_other: false, explanation: null, sort: 0 },
@@ -386,7 +429,7 @@ async function draftQuoteFromImport(jobId: string, e: BulkExtracted, actorId: st
   const discount = Math.round(rules.discount * 100) / 100;
   const customerTotal = Math.round((subtotal - discount) * 100) / 100;
   const release = confirmedQuoteDecision({ estimateTotal: null, quoteTotal: customerTotal, tolerancePct: 15, hasUnratedExtras: false, externalSendingEnabled: false });
-  const { data: q, error } = await admin.from("quotes").insert({
+  const { data: q, error } = existing ? { data: existing, error: null } : await admin.from("quotes").insert({
     job_id: jobId, kind: "installation", option_label: "Installer's quote (from bulk upload)", option_code: "INSTALLER_A1", status: "draft",
     subtotal_inc_gst: subtotal, gst_amount: Math.round((subtotal - subtotal / 1.1) * 100) / 100,
     veec_discount_inc_gst: discount, discount_note: [piesa === 0 ? (await import("./installer-quote.server")).OWN_REC_QUOTE_NOTE : null, discountNotes(rules).join(" ")].filter(Boolean).join(" ") || null, customer_total_inc_gst: customerTotal, created_by: actorId,
@@ -398,6 +441,7 @@ async function draftQuoteFromImport(jobId: string, e: BulkExtracted, actorId: st
   return true;
 }
 
+const LEASE_MS = 5 * 60_000;
 export async function confirmBatch(batchId: string, actorId: string, skipRowIds: string[]) {
   const { data: batch } = await admin.from("bulk_import_batches").select("*").eq("id", batchId).single();
   if (!batch || batch.status !== "analysed") throw new BulkImportError("This upload is not ready to confirm.");
@@ -406,6 +450,8 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
   // Owner consent (Jo, 7 Oct): ticked per customer on the review card; older uploads carry one tick for the whole upload.
   const batchPermission = (batch.summary as { permission?: Perm } | null)?.permission ?? null;
   let created = 0, skipped = 0, failed = 0, alreadyTaken = 0;
+  const incomplete: { row: number; jobNumber?: string | null; reason: string }[] = [];
+  const results: { row: number; jobNumber: string; quote: "draft_saved" | "office_quotes" | "not_quoted"; attached: string[]; notAttached: string[] }[] = [];
   const ownerLinks: { jobNumber: string; owner: string; path: string }[] = [];
   for (const row of rows ?? []) {
     if (skipRowIds.includes(row.id) || row.duplicate_note) {
@@ -416,13 +462,13 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
     const e = row.extracted as unknown as BulkExtracted;
     const gap = customerDetailsReason(e);
     if (gap) {
-      failed++;
+      failed++; incomplete.push({ row: row.row_index + 1, reason: gap });
       await logPartner(null, actorId, "bulk_import_row_failed", `Row ${row.row_index + 1}: ${gap} in the review table, then confirm again`, { batch_id: batchId, row_id: row.id });
       continue;
     }
     const permission = ((e as { owner_consent?: Perm | null }).owner_consent ?? batchPermission) as Perm | null;
     if (!permission?.confirmed_by || !permission.confirmed_at || (e as { owner_consent?: unknown }).owner_consent === false) {
-      failed++;
+      failed++; incomplete.push({ row: row.row_index + 1, reason: `owner consent not ticked — tick it on the card, then confirm again` });
       await logPartner(null, actorId, "bulk_import_row_failed", `Row ${row.row_index + 1}: owner consent not ticked — tick it on the card, then confirm again`, { batch_id: batchId, row_id: row.id });
       continue;
     }
@@ -434,86 +480,111 @@ export async function confirmBatch(batchId: string, actorId: string, skipRowIds:
     // Quoted? never blocks (Jo, 5:46pm): blank = confirm anyway, job shows "Quoted? – answer needed". Only Yes-without-price stops a row.
     const qg = e.quoted_answer === "yes" ? quotedGap(e.quoted_answer, e.price_inc_gst) : null;
     if (qg) {
-      failed++;
+      failed++; incomplete.push({ row: row.row_index + 1, reason: `${qg} in the review table, then confirm again` });
       await logPartner(null, actorId, "bulk_import_row_failed", `Row ${row.row_index + 1}: ${qg} in the review table, then confirm again`, { batch_id: batchId, row_id: row.id });
       continue;
     }
     if (siteCheckFromFile(e).check == null && row.import_stage !== "installed") {
-      failed++;
+      failed++; incomplete.push({ row: row.row_index + 1, reason: `tell us whether you've already done the site check (Yes or No), then confirm again` });
       await logPartner(null, actorId, "bulk_import_row_failed", `Row ${row.row_index + 1}: tell us whether you've already done the site check (Yes or No), then confirm again`, { batch_id: batchId, row_id: row.id });
       continue;
     }
     if (row.sort_result === "office_review") {
-      failed++;
+      failed++; incomplete.push({ row: row.row_index + 1, reason: `needs office review first — clear it, then confirm again` });
       await logPartner(null, actorId, "bulk_import_row_failed", `Row ${row.row_index + 1} needs office review first — clear it, then confirm again`, { batch_id: batchId, row_id: row.id });
       continue;
     }
-    // Atomic claim: only one click/tab can move this row out of "pending"; the other skips it.
-    const { data: claimed } = await admin.from("bulk_import_rows").update({ status: "confirmed" }).eq("id", row.id).eq("status", "pending").select("id").maybeSingle();
+    // Lease: only one click/tab works on a row at a time. The row stays "pending" until EVERY record is saved,
+    // so a failure part-way is retried and finishes the SAME job (nothing is ever marked done early).
+    const now = new Date();
+    const { data: claimed, error: ce } = await admin.from("bulk_import_rows")
+      .update({ confirm_lease_until: new Date(now.getTime() + LEASE_MS).toISOString() })
+      .eq("id", row.id).eq("status", "pending").or(`confirm_lease_until.is.null,confirm_lease_until.lt.${now.toISOString()}`)
+      .select("id").maybeSingle();
+    if (ce) { failed++; incomplete.push({ row: row.row_index + 1, reason: `Could not start: ${ce.message}` }); continue; }
     if (!claimed) { alreadyTaken++; continue; }
     try {
       const importStage = row.import_stage as ImportStage;
-      // Backstop: a job already made for this row (unique bulk:<row>) is reused, never duplicated.
-      const { data: prior } = await admin.from("jobs").select("id, job_number").eq("external_enquiry_id", `bulk:${row.id}`).maybeSingle();
-      if (prior) { await admin.from("bulk_import_rows").update({ job_id: prior.id }).eq("id", row.id); alreadyTaken++; continue; }
-      const job = await createBulkJob(e, batch, actorId, row.id, importStage);
+      const { job, resumed } = await ensureBulkJob(e, batch, actorId, row.id, importStage);
+      must(await admin.from("bulk_import_rows").update({ job_id: job.id }).eq("id", row.id).select("id").single(), "Could not link the job to this row");
       const plan = ((row.electrician_plan ?? batch.electrician_plan ?? { mode: "hivic" }) as ElectricianPlan);
-      // The electrician choice decides the PIESA line, so it is recorded before the draft quote is priced.
-      await (await import("./job-electrician.server")).recordJobElectricianChoice(job.id, batch.business_id, plan as never, actorId);
-      const quoted = importStage === "quoted" ? await draftQuoteFromImport(job.id, e, actorId, batch.business_id).catch(() => false) : false;
+      // The electrician choice decides the PIESA line, so it is recorded before the draft quote is priced (once per job).
+      const chosen = must(await admin.from("workflow_events").select("id").eq("job_id", job.id).eq("event_type", "bulk_import_electrician_recorded").limit(1).maybeSingle(), "Could not check the electrician choice");
+      if (!chosen) {
+        await (await import("./job-electrician.server")).recordJobElectricianChoice(job.id, batch.business_id, plan as never, actorId);
+        await logEvent(job.id, actorId, "bulk_import_electrician_recorded", "Electrician choice recorded from bulk upload", { row_id: row.id }, { internal: true });
+      }
+      const quoted = importStage === "quoted" ? await draftQuoteFromImport(job.id, e, actorId, batch.business_id) : false;
       const attached = await attachMatchedFiles(job.id, batch, row.matched_files as unknown as FileMatch[], actorId);
-      await admin.from("bulk_import_rows").update({ job_id: job.id }).eq("id", row.id);
-      const ownerToken = newToken();
-      await admin.from("owner_eligibility_links").insert({ job_id: job.id, business_id: batch.business_id, token_hash: await hashToken(ownerToken), created_by: actorId, expires_at: new Date(Date.now() + 30 * 86_400_000).toISOString() });
-      ownerLinks.push({ jobNumber: job.job_number, owner: e.full_name ?? "Customer", path: `/eligibility/${ownerToken}` });
-      await logEvent(job.id, actorId, "bulk_import_confirmed", `Job created from installer bulk upload (row ${row.row_index + 1})`, {
-        batch_id: batchId, row_id: row.id, sort_result: row.sort_result,
-        missing_evidence: row.missing_evidence, draft_quote: quoted, attached_files: attached.attached, files_not_attached: attached.notAttached,
-        import_stage: importStage, electrician_plan: plan,
-      });
-      await logEvent(job.id, permission.confirmed_by, "bulk_import_contact_permission", permission.wording, {
-        batch_id: batchId, confirmed_by: permission.confirmed_by, confirmed_at: permission.confirmed_at, wording: permission.wording,
-      });
+      if (attached.failed.length) throw new BulkImportError(`${attached.failed.length} file${attached.failed.length > 1 ? "s" : ""} could not be attached yet (${attached.failed.join(", ").slice(0, 200)}) — confirm again to finish`);
+      const link = must(await admin.from("owner_eligibility_links").select("id").eq("job_id", job.id).limit(1).maybeSingle(), "Could not check the owner link");
+      if (!link) {
+        const ownerToken = newToken();
+        must(await admin.from("owner_eligibility_links").insert({ job_id: job.id, business_id: batch.business_id, token_hash: await hashToken(ownerToken), created_by: actorId, expires_at: new Date(Date.now() + 30 * 86_400_000).toISOString() }).select("id").single(), "Owner link could not be saved");
+        ownerLinks.push({ jobNumber: job.job_number, owner: e.full_name ?? "Customer", path: `/eligibility/${ownerToken}` });
+      }
+      const logged = must(await admin.from("workflow_events").select("id").eq("job_id", job.id).eq("event_type", "bulk_import_confirmed").limit(1).maybeSingle(), "Could not check the job history");
+      if (!logged) {
+        await logEvent(job.id, actorId, "bulk_import_confirmed", `Job created from installer bulk upload (row ${row.row_index + 1})`, {
+          batch_id: batchId, row_id: row.id, sort_result: row.sort_result,
+          missing_evidence: row.missing_evidence, draft_quote: quoted, attached_files: attached.attached, files_not_attached: attached.notAttached,
+          import_stage: importStage, electrician_plan: plan, resumed,
+        });
+        await logEvent(job.id, permission.confirmed_by, "bulk_import_contact_permission", permission.wording, {
+          batch_id: batchId, confirmed_by: permission.confirmed_by, confirmed_at: permission.confirmed_at, wording: permission.wording,
+        });
+      }
+      // Only now — every record saved — is the row confirmed.
+      must(await admin.from("bulk_import_rows").update({ status: "confirmed", confirm_lease_until: null, confirm_error: null }).eq("id", row.id).eq("status", "pending").select("id").single(), "Could not mark this row finished");
       created++;
+      results.push({ row: row.row_index + 1, jobNumber: job.job_number, quote: importStage === "quoted" ? (quoted ? "draft_saved" : "office_quotes") : "not_quoted", attached: attached.attached, notAttached: attached.notAttached });
     } catch (err) {
       failed++;
-      // Release the claim only if no job was made, so the row can be fixed and confirmed again.
-      const { data: made } = await admin.from("jobs").select("id").eq("external_enquiry_id", `bulk:${row.id}`).maybeSingle();
-      if (made) await admin.from("bulk_import_rows").update({ job_id: made.id }).eq("id", row.id);
-      else await admin.from("bulk_import_rows").update({ status: "pending", job_id: null }).eq("id", row.id);
-      await logPartner(null, actorId, "bulk_import_row_failed", `Row ${row.row_index + 1} could not be imported: ${(err as Error).message}`, { batch_id: batchId, row_id: row.id });
+      const reason = (err as Error).message;
+      const { data: made } = await admin.from("jobs").select("id, job_number").eq("external_enquiry_id", `bulk:${row.id}`).maybeSingle();
+      // The row stays pending (with its partial job linked) so "confirm again" finishes the same job.
+      await admin.from("bulk_import_rows").update({ confirm_lease_until: null, confirm_error: reason.slice(0, 500), job_id: made?.id ?? null }).eq("id", row.id).eq("status", "pending");
+      incomplete.push({ row: row.row_index + 1, jobNumber: made?.job_number ?? null, reason });
+      await logPartner(null, actorId, "bulk_import_row_failed", `Row ${row.row_index + 1} ${made ? `(job ${made.job_number}) is not finished` : "could not be imported"}: ${reason}`, { batch_id: batchId, row_id: row.id, partial_job_id: made?.id ?? null });
     }
   }
   // The batch is only closed once nothing is left to fix; otherwise it stays open for another confirm.
   const { count: left } = await admin.from("bulk_import_rows").select("id", { count: "exact", head: true }).eq("batch_id", batchId).eq("status", "pending");
   if (!left) await admin.from("bulk_import_batches").update({ status: "confirmed", confirmed_at: new Date().toISOString() }).eq("id", batchId).eq("status", "analysed");
-  return { created, skipped, failed, alreadyTaken, remaining: left ?? 0, ownerLinks };
+  return { created, skipped, failed, alreadyTaken, remaining: left ?? 0, ownerLinks, incomplete, results };
 }
 
-/** Files matched to this customer become private job documents (kind installer_import), once each.
- * Only this business's own stored uploads are attached; anything else is listed as not attached, never guessed. */
+/** Files matched to this customer become private job documents (kind installer_import), once each (keyed by the
+ * stored path). Only this business's own stored uploads are attached. notAttached = no stored copy / unsupported (shown
+ * to the installer, never guessed); failed = a stored copy that could not be checked or saved — the row stays pending. */
 export async function attachMatchedFiles(jobId: string, batch: { business_id: string; file_manifest: unknown }, matched: FileMatch[], actorId: string) {
   const manifest = ((batch.file_manifest ?? []) as (BulkFile & { stored_path?: string })[]);
   const prefix = `partners/${batch.business_id}/imports/`;
   const { allowedUpload } = await import("./upload-safety.core");
   const { verifyStoredUpload } = await import("./upload-safety.server");
-  const { data: have } = await admin.from("documents").select("storage_path").eq("job_id", jobId).eq("kind", "installer_import");
+  const { data: have, error: he } = await admin.from("documents").select("storage_path").eq("job_id", jobId).eq("kind", "installer_import");
+  if (he) throw new BulkImportError(`Could not check this job's files: ${he.message}`);
   const done = new Set((have ?? []).map((d) => d.storage_path));
-  const attached: string[] = [], notAttached: string[] = [];
+  const attached: string[] = [], notAttached: string[] = [], failed: string[] = [];
   for (const m of matched ?? []) {
-    const stored = m.path.startsWith(prefix) ? m.path : manifest.find((f) => f.path === m.path)?.stored_path;
-    const mime = allowedUpload(m.name, manifest.find((f) => f.path === m.path)?.type ?? null, { imports: true });
-    if (!stored || !stored.startsWith(prefix) || !mime) { notAttached.push(m.name); continue; }
-    if (done.has(stored)) { attached.push(m.name); continue; }
+    const entry = manifest.find((f) => f.path === m.path);
+    const label = m.path || m.name;
+    const stored = m.path.startsWith(prefix) ? m.path : entry?.stored_path;
+    const mime = allowedUpload(m.name, entry?.type ?? null, { imports: true });
+    if (!stored || !stored.startsWith(prefix) || stored.includes("..") || !mime) { notAttached.push(label); continue; }
+    if (done.has(stored)) { attached.push(label); continue; }
     try {
       await verifyStoredUpload("job-files", stored, mime);
-      const { error } = await admin.from("documents").insert({ job_id: jobId, kind: "installer_import", title: m.name, original_name: m.name, mime_type: mime, storage_path: stored, source_system: "bulk_import", uploaded_by: actorId });
-      if (error) throw error;
-      done.add(stored); attached.push(m.name);
-    } catch { notAttached.push(m.name); }
+      const { error } = await admin.from("documents").insert({ job_id: jobId, kind: "installer_import", title: m.name, original_name: label.slice(0, 300), mime_type: mime, storage_path: stored, source_system: "bulk_import", external_id: stored, uploaded_by: actorId });
+      if (error && (error as { code?: string }).code !== "23505") throw error;
+      done.add(stored); attached.push(label);
+    } catch { failed.push(label); }
   }
-  if (notAttached.length) await logEvent(jobId, actorId, "bulk_import_files_not_attached", `Some upload files could not be attached: ${notAttached.join(", ")}`.slice(0, 500), { files: notAttached });
-  return { attached, notAttached };
+  if (notAttached.length) {
+    const seen = must(await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "bulk_import_files_not_attached").limit(1).maybeSingle(), "Could not check the job history");
+    if (!seen) await logEvent(jobId, actorId, "bulk_import_files_not_attached", `Some upload files could not be attached: ${notAttached.join(", ")}`.slice(0, 500), { files: notAttached });
+  }
+  return { attached, notAttached, failed };
 }
 
 /** Office/installer adds the missing address to a review row; the row is re-sorted (never auto-confirmed). */
