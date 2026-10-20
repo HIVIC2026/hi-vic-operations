@@ -1,7 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Check, Circle } from "lucide-react";
-import { getMyIntakeProgress } from "@/lib/installer-quote.functions";
+import { getMyIntakeProgress, raiseSiteConditionsHold } from "@/lib/installer-quote.functions";
+import { siteHoldNoteProblem } from "@/lib/site-conditions.core";
 import { InstallerJourney } from "@/components/portal/installer-journey";
 import type { NextAction, ProgressStep } from "@/lib/installer-progress.core";
 import { Button } from "@/components/trade/trade-ui";
@@ -13,7 +15,31 @@ export function InstallerProgressCard({ jobId }: { jobId: string }) {
   if (isPending) return null;
   if (isError || !data) return <section className="space-y-2"><p role="alert" className="text-sm text-sub">Couldn't load current job progress.</p><Button variant="outline" disabled={isFetching} onClick={() => void refetch()}>Retry</Button></section>;
   if (!data.applies) return <InstallerJourney jobId={jobId} />;
-  return <ProgressView steps={data.steps} next={data.next} />;
+  return <><ProgressView steps={data.steps} next={data.next} /><SiteConditionsCard jobId={jobId} open={data.siteHold.open} note={data.siteHold.note} /></>;
+}
+
+/** "Site conditions differ" — installer flags a mismatch; the office reviews and clears it. */
+function SiteConditionsCard({ jobId, open, note }: { jobId: string; open: boolean; note: string | null }) {
+  const raise = useServerFn(raiseSiteConditionsHold); const qc = useQueryClient();
+  const [show, setShow] = useState(false); const [text, setText] = useState(""); const [busy, setBusy] = useState(false); const [err, setErr] = useState<string | null>(null);
+  if (open) return <section className="mt-3 rounded-[18px] border border-line bg-paper p-4" data-site-hold="open"><h2 className="font-display text-base font-bold">Site conditions differ — on hold</h2><p className="mt-1 text-sm text-sub">{note ?? "Waiting for the office to review."} The quote and works can't continue until the office has reviewed it.</p></section>;
+  return (
+    <section className="mt-3 rounded-[18px] border border-line bg-paper p-4" data-site-hold="closed">
+      {!show ? <Button variant="outline" onClick={() => setShow(true)}>Site conditions differ?</Button> : (
+        <div className="space-y-2">
+          <label className="block text-sm font-semibold" htmlFor="site-hold-note">What is different onsite?</label>
+          <textarea id="site-hold-note" className="min-h-24 w-full rounded-[12px] border border-line bg-paper p-2 text-sm" value={text} onChange={(e) => setText(e.target.value)} />
+          {err && <p role="alert" className="text-sm text-destructive">{err}</p>}
+          <Button disabled={busy} onClick={async () => {
+            const p = siteHoldNoteProblem(text); if (p) { setErr(p); return; }
+            setBusy(true); setErr(null);
+            try { await raise({ data: { jobId, note: text.trim() } }); await qc.invalidateQueries({ queryKey: ["intake-progress", jobId] }); }
+            catch (e) { setErr(e instanceof Error ? e.message : "Couldn't save. Please retry."); }
+            finally { setBusy(false); }
+          }}>{busy ? "Saving…" : "Ask the office to review"}</Button>
+        </div>)}
+    </section>
+  );
 }
 
 export function ProgressView({ steps, next }: { steps: ProgressStep[]; next: NextAction }) {

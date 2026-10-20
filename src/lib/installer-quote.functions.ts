@@ -197,7 +197,7 @@ export const getMyIntakeProgress = createServerFn({ method: "POST" }).middleware
     const q = core.currentQuote(qs ?? []);
     const installBlockers = inst && inst.status === "confirmed" ? (await (await import("./esc.server")).installReadiness(id).catch(() => ({ blockers: ["Installation readiness could not be checked"] }))).blockers : [];
     const answer = (await m.intakeQuoteAnswers([id])).get(id) ?? null;
-    return { applies: true as const, ...core.installerProgress({
+    const prog = core.installerProgress({
       coordination: s.coordination, quoted: answer === "have_quote" ? "yes" : answer === "not_quoted" ? "no" : null,
       attended: ((job as { installer_site_check?: string | null } | null)?.installer_site_check ?? null) as "yes" | "no" | null,
       quoteAmountKnown: s.quoteIncGst != null,
@@ -211,7 +211,10 @@ export const getMyIntakeProgress = createServerFn({ method: "POST" }).middleware
       installationCompleted: !!installedAt, evidence,
       evidenceApprovedAt: core.apApprovalCurrent({ stage, approvedAt: ap?.created_at ?? null, evidence, lastVerifiedAt }) ? ap!.created_at : null,
       veecStatus: veec?.status ?? null, stage, now,
-    }) };
+    });
+    // Open "Site conditions differ" hold outranks every other next action until the office reviews it.
+    const next = s.siteHold.open ? { who: "Home Insulation Victoria" as const, text: `Site conditions differ — the office is reviewing${s.siteHold.note ? ` (${s.siteHold.note})` : ""}. The quote and works are on hold until then.` } : prog.next;
+    return { applies: true as const, ...prog, next, siteHold: s.siteHold };
   });
 
 /** Supplying installer flags "Site conditions differ". Holds quote release/acceptance and start of works until office review. */
