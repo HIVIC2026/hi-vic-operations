@@ -52,11 +52,21 @@ export function categoriseDocument(kind: string, title: string): { category: Doc
     const final = t.includes("final") || t.includes("completed");
     return { category: "ESC / VEEC", alsoIn: ["Customer / Consent", "Quotes"], sub: final ? "Completed VEEC assignment" : "Signed customer acceptance", audience: ["owner"], status: final ? "final" : "signed", immutable: true };
   }
-  if (/piesa|coes|piisa|electrical/.test(k + " " + t)) return { category: "Electrical / PIESA", alsoIn: /piisa/.test(k + t) ? ["Installation", "ESC / VEEC"] : [], sub: null, audience: ["electrician", "installer", "owner"], status: "current", immutable: false };
+  // Sensitive financial/customer kinds are decided by KIND first; a title can never widen who sees them.
+  if (/quote|invoice|xero|payment|receipt|customer_agreement|owner_paperwork|esc_consent|installer_import/.test(k)) {
+    if (/invoice|xero|payment|receipt/.test(k)) return { category: "Payments", alsoIn: ["Quotes"], sub: null, audience: ["owner"], status: "current", immutable: false };
+    if (/quote/.test(k) || (k === "installer_import" && /quote|invoice/.test(t))) return { category: "Quotes", alsoIn: [], sub: null, audience: ["owner"], status: "current", immutable: false };
+    return { category: k === "esc_consent" ? "ESC / VEEC" : k === "installer_import" ? "Other" : "Customer / Consent", alsoIn: [], sub: null, audience: k === "installer_import" ? [] : ["owner"], status: "current", immutable: false };
+  }
+  // Trade audiences come from a known trade KIND (Mitti reports: our own generated title), never from a free title.
+  const trusted = k === "mitti_report" ? k + " " + t : k;
+  if (/piesa|coes|piisa|electrical/.test(trusted)) return { category: "Electrical / PIESA", alsoIn: /piisa/.test(trusted) ? ["Installation", "ESC / VEEC"] : [], sub: null, audience: ["electrician", "installer", "owner"], status: "current", immutable: false };
+  if (/piesa|coes|piisa|electrical/.test(t)) return { category: "Electrical / PIESA", alsoIn: [], sub: null, audience: [], status: "current", immutable: false };
   if (/floor|plan|property|imagery|outline/.test(k + " " + t)) return { category: "Property", alsoIn: [], sub: null, audience: [], status: "current", immutable: false };
-  if (/measure|sketch/.test(k + " " + t)) return { category: "Measure-up", alsoIn: [], sub: null, audience: ["electrician", "installer"], status: "current", immutable: false };
-  if (/quote/.test(k + " " + t)) return { category: "Quotes", alsoIn: [], sub: null, audience: ["owner"], status: "current", immutable: false };
-  if (/invoice|xero|payment|receipt/.test(k + " " + t)) return { category: "Payments", alsoIn: ["Quotes"], sub: null, audience: ["owner"], status: "current", immutable: false };
+  if (/measure|sketch/.test(k)) return { category: "Measure-up", alsoIn: [], sub: null, audience: ["electrician", "installer"], status: "current", immutable: false };
+  if (/measure|sketch/.test(t)) return { category: "Measure-up", alsoIn: [], sub: null, audience: [], status: "current", immutable: false };
+  if (/quote/.test(t)) return { category: "Quotes", alsoIn: [], sub: null, audience: ["owner"], status: "current", immutable: false };
+  if (/invoice|xero|payment|receipt/.test(t)) return { category: "Payments", alsoIn: ["Quotes"], sub: null, audience: ["owner"], status: "current", immutable: false };
   if (/esc|veec/.test(k + " " + t)) return { category: "ESC / VEEC", alsoIn: [], sub: null, audience: [], status: "current", immutable: false };
   if (/declaration/.test(k + " " + t)) return { category: "Installation", alsoIn: ["ESC / VEEC"], sub: null, audience: ["installer"], status: "signed", immutable: true };
   return { category: "Other", alsoIn: [], sub: null, audience: [], status: "current", immutable: false };
