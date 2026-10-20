@@ -44,3 +44,8 @@ export function originalEnquiryMedia(raw: unknown, documents: EnquiryMediaDocume
 export function groupBInvitationBlocker(state: GroupBMediaState): string | null {
   return state.received ? "Existing enquiry photos/video received — office review, no repeat invitation" : state.uncertain ? "Original media sync is not confirmed — invitation held" : null;
 }
+
+/** Upload-only view; invitation/sender reads continue to count all homeowner files. */
+export function originalMediaForCapture(raw: unknown, documents: EnquiryMediaDocument[], readFailed = false) {
+  return originalEnquiryMedia(raw, documents.filter((document) => document.source_system !== "owner_capture"), readFailed);
+}
