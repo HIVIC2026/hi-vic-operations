@@ -80,12 +80,14 @@ async function sessionFor(email: string) {
 const roles = async (email: string) => { const { data: p } = await admin.from("profiles").select("id").eq("email", email).maybeSingle(); if (!p) return null; const { data: r } = await admin.from("user_roles").select("role").eq("user_id", p.id); return (r ?? []).map((x) => x.role as string); };
 const sessions: Record<string, Awaited<ReturnType<typeof sessionFor>>> = {};
 for (const [persona, email, role] of [["office", "admin@hivic.test", "admin"], ["installer", "deep-test@hivic.test", "installer"], ["rec", "qa.rec.delta@hivic-test.example", "electrician"]] as const) {
+  // Excluded personas must not be looked up or signed in, as well as not being probed below.
+  if (persona !== "office" && !PERSONAS.has(persona)) continue;
   const r = await roles(email);
   const ok = r && r.includes(role) && (role === "admin" || !r.includes("admin"));
   if (!ok) { add({ area: "office writes", route_or_action: "TEST sign-in", persona, status: "blocked", detail: `${email} missing, lacks ${role}, or non-office persona is also admin`, steps: "read-only role preflight" }); continue; }
   try { sessions[persona] = await sessionFor(email); } catch (e) { add({ area: "office writes", route_or_action: "TEST sign-in", persona, status: "blocked", detail: (e as Error).message, steps: "magic link" }); }
 }
-{
+if (PERSONAS.has("owner")) {
   const { data: owners } = await admin.from("owners").select("email").ilike("email", "%@hivic-test.example").not("user_id", "is", null).limit(30);
   for (const o of owners ?? []) { const r = o.email ? await roles(o.email) : null; if (!r || !r.includes("owner") || r.includes("admin")) continue; try { sessions["owner"] = await sessionFor(o.email!); break; } catch { /* next */ } }
   if (!sessions["owner"]) add({ area: "office writes", route_or_action: "TEST sign-in", persona: "owner", status: "blocked", detail: "no non-admin TEST owner login", steps: "read-only preflight" });
@@ -171,7 +173,7 @@ try {
       add({ area: "office writes (denied)", route_or_action: `${a.name} direct call`, persona, status: refused && before === after ? "passed" : r.kind === "blocked" ? "blocked" : "failed", detail: `${describeReply(r)}; ${refused ? "handler admin refusal" : "NOT the handler admin refusal"}; DB ${before === after ? "unchanged" : "CHANGED"}`, steps: `POST ${BASE}/_serverFn/<${a.name}> as TEST ${persona}` });
     }
   }
-  if (!sessions["rec"]) add({ area: "office writes (denied)", route_or_action: "REC direct calls", persona: "rec", status: "blocked", detail: "no TEST REC session", steps: "" });
+  if (PERSONAS.has("rec") && !sessions["rec"]) add({ area: "office writes (denied)", route_or_action: "REC direct calls", persona: "rec", status: "blocked", detail: "no TEST REC session", steps: "" });
   if (!sessions["office"]) throw new Error("no TEST office session");
   const tok = sessions["office"].access_token;
 

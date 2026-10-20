@@ -224,20 +224,47 @@ const structural = (it: RawItem) => [...NON_QUESTION].find((k) => it[k] != null)
 function rawItems(def: unknown): RawItem[] {
   const root = ((def as { template?: unknown })?.template ?? def) as { header_items?: unknown; items?: unknown } | null;
   const out: RawItem[] = [];
-  const walk = (it: unknown) => { if (!it || typeof it !== "object") return; const r = it as RawItem; out.push(r); for (const c of ((r.children ?? r.items ?? []) as unknown[])) walk(c); };
-  for (const k of ["header_items", "items"] as const) if (Array.isArray(root?.[k])) (root![k] as unknown[]).forEach(walk);
+  const walk = (it: unknown, reference = false): void => {
+    // Flat definitions may also list child IDs; the corresponding objects are read from the item arrays.
+    if (reference && typeof it === "string") return;
+    if (!it || typeof it !== "object" || Array.isArray(it)) throw new Error("Unsupported Mitti item structure");
+    const r = it as RawItem; out.push(r);
+    for (const key of ["children", "items"] as const) {
+      const children = r[key];
+      if (children == null) continue;
+      if (!Array.isArray(children)) throw new Error("Unsupported Mitti child structure");
+      // The shared native/prefill reader chooses children OR items. Do not diagnose absent questions
+      // from a mixed tree whose second stream that reader cannot consume.
+      if (key === "items" && children.length > 0 && r.children != null) throw new Error("Unsupported mixed Mitti child structure");
+      children.forEach((child) => walk(child, true));
+    }
+  };
+  for (const key of ["header_items", "items"] as const) {
+    const items = root?.[key];
+    if (items == null) continue;
+    if (!Array.isArray(items)) throw new Error("Unsupported Mitti definition structure");
+    items.forEach((it) => walk(it));
+  }
   return out;
 }
 const itemType = (it: RawItem) => mittiItemType(it) || structural(it) || "";
+// Keep every existing validator alias plus the other known Mitti question kinds. An arbitrary explicit
+// `type` is not proof that this reader understands the definition (mittiItemType deliberately preserves it).
+const SUPPORTED_QUESTION_TYPES = new Set([...Object.values(TYPE_ALIASES).flat(), "textmulti", "site", "switch"]);
 export function flattenDefinition(def: unknown): TemplateItem[] {
-  return rawItems(def).filter((it) => typeof it.label === "string" && it.label.trim()).map((it) => ({ label: it.label as string, type: itemType(it) })).filter((e) => !NON_QUESTION.has(e.type));
+  return rawItems(def).filter((it) => typeof it.label === "string" && it.label.trim()).map((it) => ({ label: it.label as string, type: itemType(it) })).filter((e) => !NON_QUESTION.has(e.type.toLowerCase()));
 }
 /** Readable = the envelope carries item arrays AND at least one item with a supported type. Otherwise the check
  *  can't prove anything (metadata-only/unsupported envelopes are "unreadable", never "questions missing"). */
 export function definitionReadable(def: unknown): boolean {
-  const root = ((def as { template?: unknown })?.template ?? def) as { header_items?: unknown; items?: unknown } | null;
-  if (!root || (!Array.isArray(root.header_items) && !Array.isArray(root.items))) return false;
-  return rawItems(def).some((it) => { const t = itemType(it); return t !== "" && !NON_QUESTION.has(t); });
+  try {
+    const items = rawItems(def);
+    // A partly unreadable definition cannot prove the remaining questions are absent either.
+    if (!items.every((it) => { const t = itemType(it).toLowerCase(); return NON_QUESTION.has(t) || SUPPORTED_QUESTION_TYPES.has(t); })) return false;
+    return items.some((it) => typeof it.label === "string" && it.label.trim() !== "" && SUPPORTED_QUESTION_TYPES.has(itemType(it).toLowerCase()));
+  } catch {
+    return false;
+  }
 }
 
 const MITTI_TYPE: Record<FieldType, string> = {

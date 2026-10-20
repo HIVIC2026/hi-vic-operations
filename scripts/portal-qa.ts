@@ -1,6 +1,8 @@
 // Whole-portal recurring QA — ONE bounded command (no AI, no sends, no publishing):
 //   bun scripts/portal-qa.ts [--label morning|midday|afternoon|release] [--base http://localhost:8080] [--skip-installer]
-//                            [--office-only] [--budget 540]
+//                            [--office-only] [--budget 540] [--personas installer,rec,owner]
+// --personas excludes unselected trade/owner accounts from sign-in, screens and journeys; excluded checks stay NOT_RUN.
+// Office remains required. The exact persona list is also passed to qa-office-writes.
 // Single run at a time (lock file). One overall budget: every step gets min(its cap, time left); steps that no longer
 // fit are reported NOT_RUN. results.json/report.md are rewritten after every row and again in finally, so a killed
 // run still leaves its partial results. Each row carries its real environment.
@@ -17,6 +19,9 @@ const arg = (k: string, d: string) => { const i = process.argv.indexOf(k); retur
 const LABEL = arg("--label", "manual");
 const BASE = arg("--base", "http://localhost:8080");
 const OFFICE_ONLY = process.argv.includes("--office-only");
+const PERSONA_LIST = arg("--personas", "installer,rec,owner");
+const ALLOWED_PERSONAS = new Set(PERSONA_LIST.split(",").map((s) => s.trim()));
+const personaAllowed = (persona: string) => persona === "office" || ALLOWED_PERSONAS.has(persona);
 const BUDGET_MS = Number(arg("--budget", "540")) * 1000;
 const START = Date.now(), DEADLINE = START + BUDGET_MS;
 const left = () => DEADLINE - Date.now();
@@ -87,7 +92,7 @@ if (DEPLOYED) {
     else production_fingerprint = { error: "index asset not found in served HTML" };
   } catch (e) { production_fingerprint = { error: (e as Error).message }; }
 }
-const env = { label: LABEL, base: BASE, target: ENV_BASE, editor_revision: git || "unknown", production_fingerprint, budget_s: BUDGET_MS / 1000, office_only: OFFICE_ONLY, started_at: new Date().toISOString() };
+const env = { label: LABEL, base: BASE, target: ENV_BASE, editor_revision: git || "unknown", production_fingerprint, budget_s: BUDGET_MS / 1000, office_only: OFFICE_ONLY, personas: PERSONA_LIST, started_at: new Date().toISOString() };
 
 function writeReport(final: boolean) {
   const counts = results.reduce((m, r) => ({ ...m, [r.status]: (m[r.status] ?? 0) + 1 }), {} as Record<string, number>);
@@ -147,19 +152,22 @@ try {
   let ownerJob: string | undefined;
   if (!OFFICE_ONLY) {
     for (const [persona, p] of Object.entries(PERSONAS)) {
+      if (!personaAllowed(persona)) { add({ area: "setup", route_or_action: `TEST sign-in ${persona}`, persona, status: "not_run", detail: "persona excluded by --personas; no lookup or sign-in", steps: "", environment: ENV_DB }); continue; }
       const { data: prof } = await admin.from("profiles").select("id").eq("email", p.email).maybeSingle();
       const { data: role } = prof ? await admin.from("user_roles").select("id").eq("user_id", prof.id).eq("role", p.role as never).maybeSingle() : { data: null };
       if (!prof || !role) { add({ area: "setup", route_or_action: `TEST sign-in ${persona}`, persona, status: "blocked", detail: `${p.email} missing or lacks ${p.role} role — ask root to provision this TEST account`, steps: "preflight read-only", environment: ENV_DB }); continue; }
       try { sessions[persona] = await sessionFor(p.email); add({ area: "setup", route_or_action: `TEST sign-in ${persona}`, persona, status: "passed", detail: p.email, steps: "magic-link session for TEST account", environment: ENV_DB }); }
       catch (e) { add({ area: "setup", route_or_action: `TEST sign-in ${persona}`, persona, status: "blocked", detail: (e as Error).message, steps: "magic-link session", environment: ENV_DB }); }
     }
-    const { data: owners } = await admin.from("owners").select("id,user_id,email").ilike("email", "%@hivic-test.example").not("user_id", "is", null).limit(50);
-    for (const o of owners ?? []) {
-      const { data: j } = await admin.from("jobs").select("id").eq("owner_id", o.id).eq("source", "qa_test").is("qa_archived_at" as never, null).limit(1).maybeSingle();
-      if (j && o.email && TEST_EMAIL.test(o.email)) { try { sessions["owner"] = await sessionFor(o.email); ownerJob = j.id; break; } catch { /* next */ } }
-    }
-    if (ownerJob) add({ area: "setup", route_or_action: "TEST sign-in owner", persona: "owner", status: "passed", detail: `owner of qa_test job ${ownerJob}`, steps: "first TEST owner with an open qa_test job", environment: ENV_DB });
-    else add({ area: "setup", route_or_action: "TEST sign-in owner", persona: "owner", status: "blocked", detail: "no TEST owner login linked to an open qa_test job — run `bun run journey` to create one", steps: "preflight read-only", environment: ENV_DB });
+    if (personaAllowed("owner")) {
+      const { data: owners } = await admin.from("owners").select("id,user_id,email").ilike("email", "%@hivic-test.example").not("user_id", "is", null).limit(50);
+      for (const o of owners ?? []) {
+        const { data: j } = await admin.from("jobs").select("id").eq("owner_id", o.id).eq("source", "qa_test").is("qa_archived_at" as never, null).limit(1).maybeSingle();
+        if (j && o.email && TEST_EMAIL.test(o.email)) { try { sessions["owner"] = await sessionFor(o.email); ownerJob = j.id; break; } catch { /* next */ } }
+      }
+      if (ownerJob) add({ area: "setup", route_or_action: "TEST sign-in owner", persona: "owner", status: "passed", detail: `owner of qa_test job ${ownerJob}`, steps: "first TEST owner with an open qa_test job", environment: ENV_DB });
+      else add({ area: "setup", route_or_action: "TEST sign-in owner", persona: "owner", status: "blocked", detail: "no TEST owner login linked to an open qa_test job — run `bun run journey` to create one", steps: "preflight read-only", environment: ENV_DB });
+    } else add({ area: "setup", route_or_action: "TEST sign-in owner", persona: "owner", status: "not_run", detail: "persona excluded by --personas; no lookup or sign-in", steps: "", environment: ENV_DB });
 
     // ---- authenticated screens (read-only visits) ----
     const RETIRED = ["HI VIC", "undefined", "NaN", "[object", "50% deposit", "Lorem ipsum", "TODO"];
@@ -185,7 +193,7 @@ try {
       ...(s.step === "office-partners" ? { mustNotSeeExactOutside: [{ text: "HI VIC", ignoreSelector: "[data-partner-record-name]" }] } : {}),
     }));
     const runnable = screens.filter((s) => s.persona === "public" || sessions[s.persona]);
-    for (const s of screens.filter((x) => !runnable.includes(x))) add({ area: "screens", route_or_action: s.path, persona: s.persona, status: "blocked", detail: "no TEST session for this role", steps: "see setup rows" });
+    for (const s of screens.filter((x) => !runnable.includes(x))) add({ area: "screens", route_or_action: s.path, persona: s.persona, status: personaAllowed(s.persona) ? "blocked" : "not_run", detail: personaAllowed(s.persona) ? "no TEST session for this role" : "persona excluded by --personas", steps: "see setup rows" });
     const storageKey = `sb-${process.env["SUPABASE_PROJECT_ID"] ?? new URL(process.env["SUPABASE_URL"]!).hostname.split(".")[0]}-auth-token`;
     if (!fits(60_000)) notRun("screens", "authenticated screen visits", "overall budget exhausted");
     else {
@@ -204,7 +212,7 @@ try {
   if (!fits(150_000)) notRun("office writes", "qa-office-writes", "overall budget exhausted");
   else {
     const budget = Math.floor(Math.min(420_000, left() - 30_000) / 1000);
-    const ow = sh(["bun", "scripts/qa-office-writes.ts", "--base", BASE, "--out", `${OUT}/office-writes`, "--budget", String(budget)], (budget + 20) * 1000);
+    const ow = sh(["bun", "scripts/qa-office-writes.ts", "--base", BASE, "--out", `${OUT}/office-writes`, "--budget", String(budget), "--personas", PERSONA_LIST], (budget + 20) * 1000);
     writeFileSync(`${OUT}/office-writes.log`, `${ow.stdout}\n${ow.stderr}`);
     const f = `${OUT}/office-writes/office-writes.json`;
     if (ow.error) add({ area: "office writes", route_or_action: "qa-office-writes", persona: "office", status: "failed", detail: `killed: ${ow.error.message}; its snapshot (if any) is recovered on next run`, steps: "bun scripts/qa-office-writes.ts" });
@@ -214,7 +222,8 @@ try {
 
   if (!OFFICE_ONLY) {
     // ---- installer app click-through (existing harness; ALWAYS local, never the deployed site) ----
-    if (process.argv.includes("--skip-installer")) notRun("installer journey", "installer-test --installer-app-only", "skipped by flag", ENV_LOCAL);
+    if (!personaAllowed("installer")) notRun("installer journey", "installer-test --installer-app-only", "persona excluded by --personas; harness not started", ENV_LOCAL);
+    else if (process.argv.includes("--skip-installer")) notRun("installer journey", "installer-test --installer-app-only", "skipped by flag", ENV_LOCAL);
     else if (!fits(240_000)) notRun("installer journey", "installer-test --installer-app-only", "overall budget too low (needs ~4+ min)", ENV_LOCAL);
     else {
       const it = sh(["bun", "scripts/installer-test.ts", "--runs", "1", "--installer-app-only"], left() - 120_000);

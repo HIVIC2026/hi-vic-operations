@@ -115,6 +115,11 @@ export function quoteAcceptanceReady(vars: Record<string, string | null | undefi
 }
 
 export type Signed = { key: string; version: string; draft: boolean };
+/** Only the saved attendance answer describes an earlier visit. Unknown stays unknown. */
+export function installerVisitFromSiteCheck(siteCheck: unknown): boolean | null {
+  return siteCheck === "yes" ? true : siteCheck === "no" ? false : null;
+}
+
 export type GateFacts = {
   isTest: boolean;
   signed: Signed[];
@@ -122,7 +127,7 @@ export type GateFacts = {
   approved: Record<string, string>;
   tenant: boolean;
   lifeSupport: boolean;
-  visitedByInstaller: boolean;
+  visitedByInstaller: boolean | null; // null is an unanswered visit, never inferred from quote/files
   hasQuote: boolean;
   /** Existing systems. */
   agreementSigned: boolean;
