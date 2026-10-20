@@ -12831,6 +12831,8 @@ export type Database = {
           latest_media_at: string | null
           media_count: number | null
           media_to_review: boolean | null
+          more_photos_requested: boolean | null
+          more_photos_requested_at: string | null
           needs_first_response: boolean | null
           office_bucket: string | null
           owner_email: string | null
@@ -12901,14 +12903,14 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "job_assignments_user_id_fkey"
-            columns: ["installer_id"]
+            columns: ["electrician_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "job_assignments_user_id_fkey"
-            columns: ["electrician_id"]
+            columns: ["installer_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
