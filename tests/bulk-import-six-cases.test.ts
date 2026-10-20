@@ -4,7 +4,7 @@
 import { expect, test } from "bun:test";
 import * as XLSX from "xlsx";
 import {
-  cleanLead, customerDetailsReason, effectiveSiteCheck, findDuplicates, gridToRecords, leadStage, linkFiles, quoteNeeded, sortJob,
+  cleanLead, customerDetailsReason, dedupeKey, effectiveSiteCheck, findDuplicates, gridToRecords, leadStage, linkFiles, quoteNeeded, sortJob,
   type BulkExtracted, type BulkFile,
 } from "../src/lib/bulk-import.core";
 
@@ -79,11 +79,15 @@ test("6 duplicate inside the upload (St vs Street) → flagged and office review
   expect(r[5]!.dup).toContain("Same address as row 1"); expect(r[5]!.result).toBe("office_review");
 });
 test("duplicate of an existing portal property is flagged", () => {
-  const again = run(new Set(["addr:" + "333 sample avenue" + "|3220"]));
-  // key format comes from normaliseAddress; assert via the generated note rather than guessing
-  const anyExisting = again.some((x) => x.dup?.startsWith("Already in the portal"));
-  const direct = run(new Set([`email:cara@hivic-test.example`]));
-  expect(anyExisting || direct.some((x) => x.dup?.startsWith("Already in the portal"))).toBe(true);
+  const key = dedupeKey(cleanLead(mapped[2]!).lead)!;
+  const again = run(new Set([key]));
+  expect(again[2]!.dup).toContain("Already in the portal");
+  expect(again[2]!.result).toBe("office_review");
+});
+test("existing insulation typed in a list (not photo-only) is not sent to office review by the sorter", () => {
+  // Current rule: the sorter routes on missing Ready Check facts, not on the insulation level.
+  const e = cleanLead({ ...mapped[3]!, unsure: false }).lead;
+  expect(sortJob(e, { matchConfidence: "low", duplicate: false }).result).toBe("covers_ready_check");
 });
 test("unrelated receipt is never attached to anyone", () => {
   expect(r.flatMap((x) => x.files)).not.toContain("random-receipt.jpg");
