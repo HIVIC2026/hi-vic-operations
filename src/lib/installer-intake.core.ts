@@ -300,8 +300,6 @@ export const COORDINATION_CHOICES: { value: Coordination; title: string; badge?:
 
 // ---------- Jo, 9 Oct 2026: measured/quoted question, electrician payer and installer fee declaration ----------
 export const INSTALLER_CONTACT_PERMISSION = "The owner has given permission for Home Insulation Victoria to contact them to check eligibility and discuss this job.";
-export const MEASURED_QUOTED_QUESTION = "Have you measured and quoted this job?";
-export const MEASURED_QUOTED_CHOICES: { value: QuoteStatus; label: string }[] = [{ value: "have_quote", label: "Yes" }, { value: "not_quoted", label: "No" }];
 // Jo, 20 Oct 2026 ("Ok fix"): attendance and quote are two independent answers. Unanswered stays null (unknown).
 export type AttendanceAnswer = "attended" | "not_attended";
 export const ATTENDED_QUESTION = "Have you attended and assessed this property?";
