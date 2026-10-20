@@ -1,5 +1,5 @@
 import { GlobalRegistrator } from '@happy-dom/global-registrator';
-GlobalRegistrator.register();
+GlobalRegistrator.register({ url: "http://localhost" });
 import { afterEach, beforeEach, expect, mock, test } from 'bun:test';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
