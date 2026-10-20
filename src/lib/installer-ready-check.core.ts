@@ -23,7 +23,6 @@ export type InstallerRcAction = "none" | "book" | "waiting_for_owner" | "pick_ow
 /** What the installer's job page shows for the Ready Check. Only unquoted installer jobs still waiting for one. */
 export function installerReadyCheckAction(f: InstallerRcFacts): InstallerRcAction {
   if (f.channel !== "installer_sourced") return "none";
-  if (f.booked || f.stage === "ready_check_scheduled") { if (f.attended === "no" || f.quoted === "no") return "booked"; }
   // Visit needed when the installer says they have NOT attended (even if quoted); attended+unquoted needs no repeat visit.
   const needsVisit = f.attended === "no" || (f.attended == null && f.quoted === "no");
   if (!needsVisit) return "none";
