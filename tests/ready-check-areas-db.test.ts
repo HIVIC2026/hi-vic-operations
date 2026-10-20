@@ -14,7 +14,7 @@ CREATE TABLE jobs (id uuid primary key);
 CREATE TABLE ready_checks (id uuid primary key default gen_random_uuid(), job_id uuid, version int, status text, installer_user_id uuid, installer_business_id uuid,
   attended_at timestamptz, external_mitti_id text, submitted_at timestamptz, created_at timestamptz default now(), updated_at timestamptz default now(), unique (job_id, version));
 CREATE TABLE ready_check_observations (id uuid primary key default gen_random_uuid(), ready_check_id uuid, job_id uuid, field_key text, value jsonb, evidence_document_ids uuid[],
-  recorded_by uuid, recorded_at timestamptz default now(), unique (ready_check_id, field_key));
+  recorded_by uuid, recorded_at timestamptz default now(), unique (ready_check_id, field_key), constraint rc_obs_key check (field_key ~ '^(attendance|measure|insulation|removal|access|elec)\.[a-z0-9_]+$'));
 CREATE TABLE public.evidence_requirements (id uuid primary key default gen_random_uuid(), job_id uuid, category text, label text, gate text, responsible_role text,
   required boolean, status text, verified_by uuid, verified_at timestamptz, notes text, sort int default 0, constraint evidence_requirements_job_id_category_key unique (job_id, category));
 CREATE TABLE ceiling_measurements (id uuid primary key default gen_random_uuid(), job_id uuid, is_current boolean, removal_required boolean, removal_m2 numeric, supplied_removal_m2 numeric, created_by uuid, created_at timestamptz default now());
@@ -116,7 +116,7 @@ describe("two areas, save/reopen, retry", () => {
     expect(d.areaTotals).toEqual({ areaM2: 80, removalM2: 30 });
     expect((await q("select area_key, category from evidence_requirements where job_id=$1 order by area_key, category", [JOB])).map((r) => `${r.area_key}/${r.category}`))
       .toEqual(["garage/before_ceiling_space", "garage/completed_installation", "main/before_ceiling_space", "main/completed_installation"]);
-    expect((await q("select * from ready_check_observations where job_id=$1 and field_key='areas.v1'", [JOB])).length).toBe(1);
+    expect((await q("select * from ready_check_observations where job_id=$1 and field_key='measure.areas_v1'", [JOB])).length).toBe(1);
     expect((await q("select * from ready_checks where job_id=$1", [JOB])).length).toBe(1);
     // job-level rows still unique per job+category
     await q("insert into evidence_requirements (job_id, category, status) values ($1,'before_ceiling_space','outstanding')", [JOB]);
@@ -154,7 +154,7 @@ describe("original-condition hold at the works boundary", () => {
     await newJob(ATT);
     await S.saveRcAreas(JOB, USER, BIZ, [area("main", "Main", { areaM2: 80, existing: "unknown" })]);
     expect(await S.rcWorksBlockers(JOB)).toEqual(expect.arrayContaining(["Main: existing insulation not recorded", "Main: removal not recorded"]));
-    await q("update ready_check_observations set value='{\"areas\":\"x\"}' where job_id=$1 and field_key='areas.v1'", [JOB]);
+    await q("update ready_check_observations set value='{\"areas\":\"x\"}' where job_id=$1 and field_key='measure.areas_v1'", [JOB]);
     await expect(S.rcWorksBlockers(JOB)).rejects.toThrow(/could not be read/);
     await expect(S.loadRcDraft(JOB)).rejects.toThrow(/could not be read/);
   });

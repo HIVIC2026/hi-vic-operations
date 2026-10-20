@@ -29,3 +29,8 @@
 - resilience — failed/retried upload/save: **NOT_RUN (covered only by local PGlite suites)**
 - isolation — refusal of another business's job in browser: **NOT_RUN**
 - Ready Check areas — save per-area (needs migration 0214, not live): **NOT_RUN — release blocker; read section rendered without error**
+
+
+## Post-0214 signed-in rerun (2026-10-21 21:40 UTC)
+
+See post_migration_run in the JSON for full detail. Summary: 0214 is live and recognised; two real defects were found and fixed (area observation key violated the live field_key format rule; practice schemas missed that rule and two live columns). Mobile journeys A and B passed; desktop/mobile hard-refresh reopen passed with exact values, file purposes and working file previews; two ceiling areas saved/reloaded; an area before-photo uploaded while work stayed held for Office review. The sign-out browser step, deliberate failure-injection, regression matrix and cross-business refusal are NOT_RUN (practice-DB suites cover them). Zero outbound rows; identity reaches only its four qa_test jobs. Tested base 644ce07b + patches; final SHA = next auto-commit. Verdict: suitable for a restricted dummy-job preview after publishing the matching build.

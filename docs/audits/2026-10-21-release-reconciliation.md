@@ -12,7 +12,7 @@ Older sections in 2026-10-20-installer-two-route-readiness.md, 2026-10-20-repair
 - ready-check-correction-retry 13/0; ready-check-area-safety 11/0; ready-check-areas-db 11/0; site-hold-boundaries 34/0; intake-document-onsite 14/0; owner-gate-attendance 19/0; upload UI 9/0; create roundtrip 24/0; related hold/quote/Ready Check group 53 pass/1 skip/0 fail; typecheck clean; build OK; retired-term scan 0 customer-visible.
 - The related-group case not counted among the 53: SKIPPED "installer changes the payer later on the same job > own -> to be arranged by installer is refused (office changes a chosen own electrician)".
 - NOT_RUN (environment): brief-n/brief-o Ready Check suites need a disposable local stack at localhost:54331 that is not running here.
-- Per-area: implemented, tested on practice database, and the schema (0214) is now LIVE (see 2026-10-21-0214-release/applied.md). Signed-in browser area save was NOT re-run this turn.
+- Per-area: implemented, tested on practice database, and the schema (0214) is now LIVE (see 2026-10-21-0214-release/applied.md). Signed-in browser area save PASSED in the post-0214 rerun (2026-10-21-dad-installer-access-check.md): two areas saved/reloaded on mobile, before-photo uploaded while held. Two real defects were found and fixed (area observation key vs live field_key format rule; practice schemas). Sign-out browser step, failure-injection, regression matrix and cross-business refusal remain NOT_RUN.
 - Mitti schema checks remain separate from any compliance/form approval (none granted).
 
 ## Bounded portal QA (--personas rec,owner, run 2026-10-20T20-40-46): 59 pass / 0 fail / 12 NOT_RUN — not rerun

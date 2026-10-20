@@ -50,7 +50,7 @@ CREATE TABLE ready_checks (id uuid primary key default gen_random_uuid(), job_id
   installer_user_id uuid, installer_business_id uuid, external_mitti_id text, submitted_at timestamptz,
   created_at timestamptz default now(), updated_at timestamptz default now(), unique(job_id, version));
 CREATE TABLE ready_check_observations (id uuid primary key default gen_random_uuid(), ready_check_id uuid, job_id uuid,
-  field_key text, value jsonb, recorded_by uuid, recorded_at timestamptz default now(), unique(ready_check_id, field_key));
+  field_key text, value jsonb, recorded_by uuid, recorded_at timestamptz default now(), unique(ready_check_id, field_key), constraint rc_obs_key check (field_key ~ '^(attendance|measure|insulation|removal|access|elec)\.[a-z0-9_]+$'));
 CREATE TABLE evidence_requirements (id uuid primary key default gen_random_uuid(), job_id uuid, category text,
   label text, gate text, required boolean, status text, verified_by uuid, verified_at timestamptz, notes text, sort int default 0, area_key text);
 CREATE TABLE ceiling_measurements (id uuid primary key default gen_random_uuid(), job_id uuid, is_current boolean,
@@ -104,7 +104,7 @@ async function seed(options = {}) {
   const values = {
     "measure.eligible_area_m2": 80,
     "insulation.existing": "present",
-    "areas.v1": { areas: [{ key: "main", label: "Main", areaM2: 80, existing: "present", rValue: 1,
+    "measure.areas_v1": { areas: [{ key: "main", label: "Main", areaM2: 80, existing: "present", rValue: 1,
       removal: "yes", removalM2: 20, product: "R4", scope: "Ceiling", sources: {
         areaM2: { kind: "recorded_onsite", by: AUTHOR, at: ORIGINAL_TIME } } }] },
   };
@@ -114,7 +114,7 @@ async function seed(options = {}) {
 const versions = () => query("SELECT id,version,status,submitted_at,updated_at FROM ready_checks ORDER BY version");
 const original = async () => ({ row: (await query("SELECT * FROM ready_checks WHERE id=$1", [RC]))[0],
   answers: await query("SELECT * FROM ready_check_observations WHERE ready_check_id=$1 ORDER BY field_key", [RC]) });
-const answers = id => query("SELECT field_key,value,recorded_by,recorded_at FROM ready_check_observations WHERE ready_check_id=$1 AND field_key <> 'correction.copy.v1' ORDER BY field_key", [id]);
+const answers = id => query("SELECT field_key,value,recorded_by,recorded_at FROM ready_check_observations WHERE ready_check_id=$1 AND field_key <> 'measure.correction_copy_v1' ORDER BY field_key", [id]);
 const completionEvents = () => query("SELECT actor_id,details,summary,created_at FROM workflow_events WHERE event_type='ready_check_correction_started'");
 async function assertCopied(id) {
   assert.deepEqual(await answers(id), await answers(RC), "answers, area sources and original recorder/time are copied intact");
