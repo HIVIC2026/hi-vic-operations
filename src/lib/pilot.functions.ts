@@ -334,6 +334,7 @@ export const confirmImport = createServerFn({ method: "POST" }).middleware([requ
         evidence_ack: z.boolean(),
         proposed_r_value: z.number().positive().max(10).nullish(),
         removal_quote: z.object({ answer: z.enum(["yes", "no", "unknown"]), areaM2: z.number().positive().max(5000).nullable(), chargeIncGst: z.number().min(0).max(1_000_000).nullable() }).optional(),
+        commercial: z.object({ basis: z.enum(["before_discount", "after_discount", "unsure"]).nullable(), gst: z.enum(["inc_gst", "ex_gst", "unsure"]).nullable(), inclusions: z.string().trim().max(1000).nullable(), exclusions: z.string().trim().max(1000).nullable(), originalStatus: z.enum(["prepared", "sent", "accepted_by_customer"]).nullable(), removalPricing: z.enum(["included", "additional", "not_priced"]).nullable(), removalAmountIncGst: z.number().min(0).max(1_000_000).nullable(), extras: z.array(z.object({ description: z.string().trim().min(1).max(300), pricing: z.enum(["included", "additional", "not_priced"]), amountIncGst: z.number().min(0).max(1_000_000).nullable() })).max(20) }).optional(),
         version: z.string().max(60),
         coordination: z.enum(["hivic_managed", "self_managed"]),
         self_managed_ack: z.boolean(),

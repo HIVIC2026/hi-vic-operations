@@ -78,7 +78,8 @@ function fixture({ feeAt = '2026-10-20T08:00:00Z', changeAt = '2026-10-20T05:00:
   const workflow = { WorkflowError: class WorkflowError extends Error {}, logEvent: async (...args) => { writes.push({ op: 'logEvent', args }); throw new Error('Unexpected event write'); } };
   const details = load('src/lib/intake-quote-details.core.ts');
   const core = load('src/lib/installer-intake.core.ts', { './intake-quote-details.core': details });
-  const imports = { './intake-quote-details.core': details, './installer-intake.core': core, '@/integrations/supabase/client.server': { supabaseAdmin: admin }, './workflow.server': workflow };
+  const commercial = load('src/lib/installer-quote-commercial.core.ts');
+  const imports = { './intake-quote-details.core': details, './installer-quote-commercial.core': commercial, './installer-intake.core': core, '@/integrations/supabase/client.server': { supabaseAdmin: admin }, './workflow.server': workflow };
   const intake = load('src/lib/installer-intake.server.ts', imports);
   const recovery = load('src/lib/partner-import.server.ts', { ...imports, './installer-intake.server': intake, './pilot.core': {}, './pilot.server': { requireMember: async (...args) => membershipChecks.push(args) } });
   return { intake, recovery, reads, writes, membershipChecks };
@@ -140,6 +141,7 @@ const canonicalReadFailures = [
   ['Ready Check evidence', q => q.table === 'evidence_requirements'],
   ['fee declaration actor', q => q.table === 'profiles'],
   ['quote removal details', failsEvent('installer_quote_removal_declared')],
+  ['quote pricing details', failsEvent('installer_quote_commercial_declared')],
   ['proposed insulation', failsAnyEvent('installer_intake_updated')],
   ['quote reconfirmation', failsAnyEvent('installer_quote_reconfirmation_required')],
 ];

@@ -68,6 +68,8 @@ async function seed(choice: string | null) {
   await db.query("insert into jobs (id, channel, originating_installer_business_id, installer_site_check, installer_quoted, installer_quoted_price_inc_gst, installer_price_includes, electrician_choice, properties) values ($1,'installer_sourced',$2,'yes','yes',3450,'R5.0 batts supply and install',$3,'{\"postcode\":\"3000\"}')", [JOB, BIZ, choice]);
   await db.query("insert into ceiling_measurements (job_id, is_current, provenance, supplied_area_m2) values ($1,true,'installer_supplied_provisional',142)", [JOB]);
   await db.query("insert into workflow_events (job_id, event_type, details) values ($1,'installer_evidence_acknowledged','{\"proposed_r_value\":5}')", [JOB]);
+  // Jo 20 Oct: quoted intake jobs record the price basis/GST explicitly before any owner quote.
+  await db.query("insert into workflow_events (job_id, event_type, details) values ($1,'installer_quote_commercial_declared',$2)", [JOB, JSON.stringify({ commercial: { basis: "before_discount", gst: "inc_gst", inclusions: null, exclusions: null, originalStatus: null, removalPricing: null, removalAmountIncGst: null, extras: [] } })]);
   await db.query("insert into workflow_events (job_id, event_type, details) values ($1,'installer_existing_insulation_declared','{\"value\":\"none\"}')", [JOB]);
   await db.query("insert into workflow_events (job_id, event_type, details) values ($1,'installer_commercial_eligibility','{\"outcome\":\"eligible\"}')", [JOB]);
   await db.query("insert into job_imports (job_id, business_id, files) values ($1,$2,'[]')", [JOB, BIZ]);

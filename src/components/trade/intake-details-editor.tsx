@@ -14,14 +14,15 @@ import { melbourneToday, quoteFileCount, visitDateProblem } from "@/lib/installe
 import { Checkbox } from "@/components/ui/checkbox";
 import { EXISTING_INSULATION_CHOICES, JOB_DETAILS_LEAD, QUOTE_STATUS_CHOICES, intakeArea, intakeProblems, intakeQuotePayload, type ExistingInsulation, type QuoteStatus, type AttendanceAnswer, ATTENDED_CHOICES, ATTENDED_QUESTION, PRELIMINARY_QUOTE_NOTE } from "@/lib/installer-intake.core";
 import type { ElectricianPlan } from "@/lib/job-electrician.core";
-import { ProposedRField, RemovalQuoteFields } from "./intake-quote-fields";
+import { ProposedRField, QuoteCommercialFields, RemovalQuoteFields } from "./intake-quote-fields";
+import { commercialInputFrom, commercialInputProblems, commercialPayload, removalFactSummary, type CommercialInput, type QuoteCommercial } from "@/lib/installer-quote-commercial.core";
 import { blankRemoval, removalPayload, removalProblems, removalSummary, type RemovalInput, type RemovalQuote } from "@/lib/intake-quote-details.core";
 import { refreshInstallerJob } from "./job-cache";
 
 export type IntakeJobFacts = {
   areaM2: number | null; preliminaryAreaM2?: number | null; insulation: ExistingInsulation | null; quoted: "yes" | "no" | null; quoteAnswer?: QuoteStatus | null; attended?: AttendanceAnswer | null; attendedOn?: string | null; quoteIncGst: number | null;
   includes: string | null; proposedR: number | null; files: AttachedFile[]; electricianChosen: boolean; quoteHeld: string[];
-  removalQuote?: RemovalQuote | null;
+  removalQuote?: RemovalQuote | null; commercial?: QuoteCommercial | null; removalText?: string | null;
   electricianPayer?: ElectricianPayer; feeAwarenessCurrent?: boolean; payerEditable?: boolean; payerLockReason?: string | null;
   currentElectrician?: { businessId: string | null; name: string } | null;
 };
@@ -29,7 +30,7 @@ export type IntakeSave = {
   areaM2: number | null; insulation: ExistingInsulation; quoteStatus: QuoteStatus; quoteIncGst: number | null; includes: string | null;
   proposedR: number | null; files: AttachedFile[]; attended?: AttendanceAnswer; attendedOn?: string | null; electrician?: { mode: "mine"; business_id?: string | null; nomination_id?: string | null };
   electricianPayer?: ElectricianPayer;
-  removalQuote?: RemovalQuote;
+  removalQuote?: RemovalQuote; commercial?: QuoteCommercial;
   feeAwareness?: { payer: "hivic" | "own"; text: string };
 };
 type ElChoices = { approved: { businessId?: string; nominationId?: string; name: string }[]; pending: { businessId?: string; nominationId?: string; name: string }[] };
@@ -51,6 +52,7 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
   const [proposedR, setProposedR] = useState(facts.proposedR == null ? "" : String(facts.proposedR));
   const removalFromFacts = (): RemovalInput => facts.removalQuote ? { answer: facts.removalQuote.answer, area: facts.removalQuote.areaM2 == null ? "" : String(facts.removalQuote.areaM2), charge: facts.removalQuote.chargeIncGst == null ? "" : String(facts.removalQuote.chargeIncGst) } : blankRemoval();
   const [removal, setRemoval] = useState<RemovalInput>(removalFromFacts);
+  const [com, setCom] = useState<CommercialInput>(() => commercialInputFrom(facts.commercial));
   const [newFiles, setNewFiles] = useState<AttachedFile[]>([]);
   const savedPlan = (): ElectricianPlan | null => facts.currentElectrician?.businessId ? { mode: "mine", business_id: facts.currentElectrician.businessId } : null;
   const [plan, setPlan] = useState<ElectricianPlan | null>(savedPlan);
@@ -73,14 +75,15 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
     setArea(savedArea == null ? "" : String(savedArea)); setIns(facts.insulation ?? "unknown");
     setQs(initStatus); setAtt(facts.attended ?? null); setAttOn(facts.attendedOn ?? ""); setAmount(facts.quoteIncGst == null ? "" : String(facts.quoteIncGst));
     setIncludes(facts.includes ?? ""); setProposedR(facts.proposedR == null ? "" : String(facts.proposedR));
-    setPayer(currentPayer); setRemoval(removalFromFacts()); setPlan(savedPlan());
+    setPayer(currentPayer); setRemoval(removalFromFacts()); setCom(commercialInputFrom(facts.commercial)); setPlan(savedPlan());
   }, [facts, open, busy, fileBusy, initStatus, currentPayer]);
   const allFiles = [...facts.files, ...newFiles];
 
   const save = async () => {
     const p = intakeProblems({ area, amount, includes, proposedR, insulation: ins, quoteStatus: qs, quoteFileCount: quoteFileCount(allFiles), evidenceAck: true });
     { const dp = att === "attended" ? visitDateProblem(attOn || null, melbourneToday()) : null; if (dp) p.push(dp); }
-    p.push(...removalProblems(removalPayload(removal, qs === "have_quote", att === "attended"), ins, intakeArea(area), intakeQuotePayload({ quoteStatus: qs, amount, includes, proposedR }).quoted_price_inc_gst, qs === "have_quote"));
+    p.push(...removalProblems(removalPayload(removal, qs === "have_quote", att === "attended"), ins, intakeArea(area), intakeQuotePayload({ quoteStatus: qs, amount, includes, proposedR }).quoted_price_inc_gst, false, false)); // draft may omit removal m²
+    if (qs === "have_quote") p.push(...commercialInputProblems(commercialPayload(com, includes || null, removal.answer === "yes"), removalPayload(removal, true)));
     if (savedArea != null && !area.trim()) p.push("The ceiling area is already saved — enter the corrected area instead of clearing it");
     if (payerChanged && payer === "own" && !(plan?.mode === "mine" && (plan.business_id || plan.nomination_id))) p.push("Choose your electrician");
     setProblems(p); setMsg(null);
@@ -88,7 +91,7 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
     const q = intakeQuotePayload({ quoteStatus: qs, amount, includes, proposedR });
     setBusy(true);
     try {
-      const r = await onSave({ areaM2: intakeArea(area), insulation: ins, quoteStatus: qs, quoteIncGst: q.quoted_price_inc_gst, includes: q.price_includes, proposedR: q.proposed_r_value, files: newFiles, ...(att && (att !== (facts.attended ?? null) || (att === "attended" && attOn !== (facts.attendedOn ?? ""))) ? { attended: att, attendedOn: att === "attended" ? attOn || null : null } : {}), removalQuote: removalPayload(removal, qs === "have_quote", att === "attended"),
+      const r = await onSave({ areaM2: intakeArea(area), insulation: ins, quoteStatus: qs, quoteIncGst: q.quoted_price_inc_gst, includes: q.price_includes, proposedR: q.proposed_r_value, files: newFiles, ...(att && (att !== (facts.attended ?? null) || (att === "attended" && attOn !== (facts.attendedOn ?? ""))) ? { attended: att, attendedOn: att === "attended" ? attOn || null : null } : {}), removalQuote: removalPayload(removal, qs === "have_quote", att === "attended"), ...(qs === "have_quote" ? { commercial: commercialPayload(com, q.price_includes, removal.answer === "yes") } : {}),
         ...(feeTick && feeText && (payer === "hivic" || payer === "own") ? { feeAwareness: { payer, text: feeText } } : {}),
         ...(payerChanged ? { electricianPayer: payer } : {}),
         ...(sendElectrician ? { electrician: sendElectrician } : {}) });
@@ -103,7 +106,7 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
     facts.areaM2 != null ? `Ceiling ${facts.areaM2} m² (your figure, not yet accepted)` : facts.preliminaryAreaM2 != null ? `Preliminary estimate ${facts.preliminaryAreaM2} m² (unverified — not measured)` : "Ceiling area: not measured yet",
     `Existing insulation: ${EXISTING_INSULATION_CHOICES.find((c) => c.value === (facts.insulation ?? "unknown"))?.label}`,
     facts.quoteIncGst != null ? `Your quote $${facts.quoteIncGst.toLocaleString("en-AU")} inc GST` : initStatus === "not_quoted" ? "Quote: not quoted yet" : initStatus === "have_quote" ? (facts.files.length ? "Quote: your uploaded quote — office confirms the amount" : "Quote: amount still needed") : "Quote: not answered yet",
-    ...(facts.removalQuote ? [removalSummary(facts.removalQuote)] : []),
+    ...(facts.removalText ? [facts.removalText] : facts.removalQuote ? [removalFactSummary(facts.removalQuote, facts.commercial ?? null)] : []),
   ];
   return (
     <section className="space-y-3 rounded-[18px] border border-line bg-paper p-4" data-intake-editor>
@@ -154,11 +157,12 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
           }} onRemove={async (path) => setNewFiles((o) => o.filter((f) => f.path !== path))} />
           <p className="text-xs text-sub">No quote file? Enter the amount and what it includes.</p>
           <label className="block text-sm font-bold">Total installer quote inc GST<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 3,450" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
-          <p className="text-xs text-sub">Include any removal charge in this total.</p>
+          <p className="text-xs text-sub">Your works price before the VEU discount. Removal or extras you priced separately go below — never include them twice.</p>
           <label className="block text-sm font-bold">What the quote includes<Textarea className="mt-1" rows={3} maxLength={1000} value={includes} onChange={(e) => setIncludes(e.target.value)} /></label>
         </>}
         <ProposedRField value={proposedR} disabled={busy || fileBusy} onChange={setProposedR} />
         <RemovalQuoteFields value={removal} disabled={busy || fileBusy} onChange={setRemoval} />
+        {qs === "have_quote" && <QuoteCommercialFields value={com} removalRequired={removal.answer === "yes"} disabled={busy || fileBusy} onChange={setCom} />}
         {facts.payerEditable && <fieldset data-editor-payer><legend className="text-sm font-bold">Electrician (PIESA)</legend>
           <p className="text-xs text-sub">Choosing doesn't book anyone. Changing this updates the owner quote.</p>
           <div className="mt-2 space-y-2" role="radiogroup" aria-label="Who arranges the electrician">

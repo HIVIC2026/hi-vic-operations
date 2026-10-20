@@ -1,5 +1,6 @@
 // Installer-supplied intake persistence/read model (Jo, 8 Oct 2026). Server-only; callers authorise first.
 import { readRemoval, removalProblems, removalSummary, type RemovalQuote } from "./intake-quote-details.core";
+import { commercialBlockers, commercialInputProblems, readCommercial, removalFactSummary, separatelyPricedLines, type QuoteCommercial } from "./installer-quote-commercial.core";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
 import { intakeScopeArea, staleQuoteAction, installerQuoteReadiness, installerQuoteReleaseBlockers, insulationQualifies, readyCheckOutstanding, type EvidenceItem, type ExistingInsulation } from "./installer-intake.core";
@@ -122,13 +123,18 @@ export async function installerIntakeState(jobId: string) {
   const { data: removalEvent, error: removalError } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "installer_quote_removal_declared").order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (removalError) throw new WorkflowError("The quote removal details could not load. Please retry.");
   const removalQuote = readRemoval((removalEvent?.details as { removal_quote?: unknown } | null)?.removal_quote);
+  const { data: comEvent, error: comError } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "installer_quote_commercial_declared").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (comError) throw new WorkflowError("The installer quote pricing details could not load. Please retry.");
+  const commercial = readCommercial((comEvent?.details as { commercial?: unknown } | null)?.commercial);
+  // Quoted jobs: price basis/GST/removal+extras pricing must be explicit before ANY owner quote is drafted/released/accepted.
+  if (job.installer_quoted_price_inc_gst != null) for (const b of commercialBlockers(commercial, removalQuote)) { readiness.blockers.push(b); readiness.ready = false; }
   const release = installerQuoteReleaseBlockers({ consentStatus: consent?.consent_status ?? null, feeAwarenessRecorded: feeCurrent, feeAwarenessPayer: feeRow?.payer ?? null, electricianPayer });
   if (removalQuote) release.push(...(removalQuote.answer === "unknown" ? ["Confirm whether the installer quote includes removal before release"] : removalProblems(removalQuote, ins.value, area, job.installer_quoted_price_inc_gst == null ? null : Number(job.installer_quoted_price_inc_gst))));
   const rc = readyCheckOutstanding((ev ?? []).map((r) => ({ category: r.category, label: r.label, blocking: r.required, status: r.status })) as EvidenceItem[]);
   return {
     coordination, coordinationNext: (await import("./installer-intake.core")).coordinationNextAction(coordination),
     channel: job.channel, insulation: ins.value, insulationSource: ins.source, areaM2: area, areaProvenance: scope.provenance, preliminaryAreaM2, attended, onsiteMeasured,
-    removalQuote, proposedR: await latestProposedR(jobId), reconfirmationRequired: await reconfirmationOpen(jobId), measuredR,
+    removalQuote, commercial, separateLines: separatelyPricedLines(commercial, removalQuote), removalText: removalFactSummary(removalQuote, commercial), proposedR: await latestProposedR(jobId), reconfirmationRequired: await reconfirmationOpen(jobId), measuredR,
     quoteIncGst: job.installer_quoted_price_inc_gst == null ? null : Number(job.installer_quoted_price_inc_gst), includes: job.installer_price_includes,
     officeEligibility, readiness, releaseBlockers: release, electricianPayer, feeAwarenessPayer: feeRow?.payer ?? null, feeAwarenessRecorded: feeCurrent, feeRecord,
     readyCheck: { outstandingCount: rc.count, outstanding: rc.outstanding.map((i) => ({ label: i.label, status: i.status })) },
@@ -198,7 +204,7 @@ export async function draftQuoteFromIntake(jobId: string, actorId: string) {
   const s = await installerIntakeState(jobId);
   if (!s.readiness.ready) throw new WorkflowError(s.readiness.blockers.join(" • "));
   const { draftInstallerQuoteFromReadyCheck } = await import("./installer-quote.server");
-  return draftInstallerQuoteFromReadyCheck(jobId, actorId, [], `intake:${jobId}`, { totalIncGst: s.quoteIncGst!, includes: s.includes ?? "As quoted by the installer", areaM2: s.areaM2! });
+  return draftInstallerQuoteFromReadyCheck(jobId, actorId, [], `intake:${jobId}`, { totalIncGst: s.quoteIncGst!, includes: s.includes ?? "As quoted by the installer", areaM2: s.areaM2!, separateLines: s.separateLines, exclusions: s.commercial?.exclusions ?? null });
 }
 
 /** Draft quotes superseded, issued withdrawn, accepted flagged for owner reconfirmation (never repriced). */
@@ -223,6 +229,8 @@ export type InstallerIntakeUpdate = {
   /** Explicit attendance answer; omitted/null = unchanged (never inferred from price, area or files). */
   attended?: "attended" | "not_attended" | null | undefined; attendedOn?: string | null | undefined;
   removalQuote?: RemovalQuote;
+  /** Installer's own quoted works: basis/GST/inclusions/exclusions/original status/removal+extras pricing. Omitted = unchanged. */
+  commercial?: QuoteCommercial | undefined;
   files: { path: string; name: string; type: string }[];
   electrician?: { mode: "mine"; business_id?: string | null; nomination_id?: string | null } | undefined;
   /** Who arranges/pays the electrician: HIV ($349 on quote) / own (direct billing, needs `electrician`) / to be arranged. */
@@ -250,8 +258,12 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
   const nextAttended = p.attended ?? curAttended;
   { const dp = p.attended === "attended" ? ic0.visitDateProblem(p.attendedOn ?? null, ic0.melbourneToday()) : null; if (dp) throw new WorkflowError(dp); } // never silently drop an entered date
   // Removal facts are site facts: kept on "quote not yet" when the property was attended; only the charge is commercial.
-  const nextRemoval = p.removalQuote === undefined ? st.removalQuote : p.quoteStatus === "not_quoted" ? (nextAttended === "attended" ? ((r) => r ? { ...r, chargeIncGst: null } : null)(readRemoval(p.removalQuote)) : { answer: "unknown" as const, areaM2: null, chargeIncGst: null }) : readRemoval(p.removalQuote);
-  if (nextRemoval) { const problems = removalProblems(nextRemoval, p.insulation, p.areaM2 ?? st.areaM2, p.quoteIncGst, p.quoteStatus === "have_quote"); if (problems.length) throw new WorkflowError(problems.join(" • ")); }
+  // Physical removal facts are kept regardless of quote/attendance; only the amount inside the works total is quote-bound.
+  const nextRemoval = p.removalQuote === undefined ? st.removalQuote : ((r) => r && p.quoteStatus === "not_quoted" ? { ...r, chargeIncGst: null } : r)(readRemoval(p.removalQuote));
+  if (nextRemoval) { const problems = removalProblems(nextRemoval, p.insulation, p.areaM2 ?? st.areaM2, p.quoteIncGst, false, false); if (problems.length) throw new WorkflowError(problems.join(" • ")); }
+  const nextCommercial = p.commercial === undefined ? st.commercial : readCommercial(p.commercial);
+  if (nextCommercial) { const problems = commercialInputProblems(nextCommercial, nextRemoval); if (problems.length) throw new WorkflowError(problems.join(" • ")); }
+  const commercialChanged = p.commercial !== undefined && JSON.stringify(nextCommercial) !== JSON.stringify(st.commercial);
   const removalChanged = p.removalQuote !== undefined && JSON.stringify(nextRemoval) !== JSON.stringify(st.removalQuote);
   // ---- Validate the electrician/payer change and fee declaration BEFORE any write (no misleading partial saves). ----
   const { planPayerChange } = await import("./installer-intake.core");
@@ -336,10 +348,11 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
     await logEvent(jobId, actorId, "installer_owner_fee_awareness", payer === "own" ? "Installer declared the owner was advised of the $349 AP management fee and that their own electrician invoices them separately" : "Installer declared the owner was advised of the $349 PIESA fee and $349 AP management fee", { by: "installer", source: "installer_job_page", payer, wording: p.feeAwareness.text, version: FEE_AWARENESS_VERSION, confirmed_at: new Date().toISOString(), not_owner_paperwork: true }, { internal: true });
     feeRecorded = true;
   }
-  if (removalChanged && nextRemoval) await logEvent(jobId, actorId, "installer_quote_removal_declared", removalSummary(nextRemoval), { removal_quote: nextRemoval, source: "installer_edit", verified: false, included_in_total: true }, { internal: true });
+  if (removalChanged && nextRemoval) await logEvent(jobId, actorId, "installer_quote_removal_declared", removalSummary(nextRemoval), { removal_quote: nextRemoval, source: "installer_edit", verified: false }, { internal: true });
+  if (commercialChanged && nextCommercial) await logEvent(jobId, actorId, "installer_quote_commercial_declared", removalFactSummary(nextRemoval, nextCommercial), { commercial: nextCommercial, previous: st.commercial, source: "installer_edit", note: "Installer's own quote facts — original customer acceptance is history only, never Home Insulation Victoria acceptance" }, { internal: true });
   // A payer change is material: it changes the owner quote's lines (HIV PIESA line on/off).
   const attendanceChanged = nextAttended !== curAttended;
-  const material = attendanceChanged || estimateChanged || ch.area !== undefined || !!ch.quote || ch.proposedR !== undefined || ch.insulation !== undefined || pc.change || removalChanged;
+  const material = attendanceChanged || estimateChanged || ch.area !== undefined || !!ch.quote || ch.proposedR !== undefined || ch.insulation !== undefined || pc.change || removalChanged || commercialChanged;
   let quotes: { id: string; action: string }[] = [];
   if (material) {
     quotes = await staleIntakeQuotes(jobId, actorId);

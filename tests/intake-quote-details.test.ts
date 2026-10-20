@@ -8,11 +8,12 @@ test("R5/R6/R7 and custom R prefixes normalize without eligibility proof", () =>
 });
 test("explicit zero removal charge is valid and blank is not zero", () => {
   expect(removalProblems(removalPayload({ answer: "yes", area: "120", charge: "0" }, true), "below_r2", 120, 3450)).toEqual([]);
-  expect(removalProblems(removalPayload({ answer: "yes", area: "120", charge: "" }, true), "below_r2", 120, 3450)).toHaveLength(1);
+  expect(removalProblems(removalPayload({ answer: "yes", area: "120", charge: "" }, true), "below_r2", 120, 3450)).toEqual([]); // amount inside works total is optional now (pricing is explicit)
+  expect(removalProblems(removalPayload({ answer: "yes", area: "", charge: "" }, true), "below_r2", 120, 3450, false, false)).toEqual([]); // draft may omit m²
 });
 test("No or unquoted clears active removal values", () => {
   expect(removalPayload({ answer: "no", area: "120", charge: "500" }, true)).toEqual({ answer: "no", areaM2: null, chargeIncGst: null });
-  expect(removalPayload({ answer: "yes", area: "120", charge: "500" }, false)).toEqual({ answer: "unknown", areaM2: null, chargeIncGst: null });
+  expect(removalPayload({ answer: "yes", area: "120", charge: "500" }, false)).toEqual({ answer: "yes", areaM2: 120, chargeIncGst: null }); // physical facts kept without a quote
 });
 test("reselecting Yes retains 120 m² and $500", () => {
   const value = { answer: "yes" as const, area: "120", charge: "500" };

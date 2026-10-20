@@ -21,8 +21,9 @@ import type { IntakeApi } from "./intake-preview-adapter";
 import { BUSY_LABEL, blankCustomer, customerProblems, restoreCustomer, saveErrorMessage } from "@/lib/add-job-flow.core";
 import { ELECTRICIAN_PAYER_CHOICES, FEE_AWARENESS_VERSION, INSTALLER_CONTACT_PERMISSION, ATTENDED_CHOICES, ATTENDED_QUESTION, PRELIMINARY_QUOTE_NOTE, QUOTE_PREPARED_CHOICES, QUOTE_PREPARED_QUESTION, intakeBranches, melbourneToday, quoteFileCount, visitDateProblem, type AttendanceAnswer, NOT_MEASURED_NOTE, ORGANISE_QUESTION, feeAwarenessText, intakeNextAction, type ElectricianPayer } from "@/lib/installer-intake.core";
 
-import { ProposedRField, RemovalQuoteFields } from "./intake-quote-fields";
-import { blankRemoval, removalPayload, removalProblems, removalSummary, type RemovalInput } from "@/lib/intake-quote-details.core";
+import { ProposedRField, QuoteCommercialFields, RemovalQuoteFields } from "./intake-quote-fields";
+import { blankCommercialInput, commercialInputProblems, commercialPayload, removalFactSummary, type CommercialInput } from "@/lib/installer-quote-commercial.core";
+import { blankRemoval, removalPayload, removalProblems, type RemovalInput } from "@/lib/intake-quote-details.core";
 
 type AddJobStep = "customer" | "organise" | "job" | "review";
 const ADD_JOB_STEPS: { key: AddJobStep; label: string }[] = [
@@ -37,7 +38,7 @@ import { COORDINATION_CHOICES, COORDINATION_VERSION, SELF_MANAGED_ACK, VEEC_NOTE
 // The server owns the draft id's files; consent and both acknowledgements are never stored or restored.
 const resumeKey = (userId: string, businessId: string) => `hiv-intake:${userId}:${businessId}`;
 const LEGACY_KEYS = (businessId: string) => ["hiv-intake-draft", `hiv-intake-draft:${businessId}`, `hiv-intake-draft-id:${businessId}`];
-type Details = { area: string; amount: string; includes: string; proposedR: string; insulation: ExistingInsulation | null; quoteStatus?: QuoteStatus | null; attended?: AttendanceAnswer | null; attendedOn?: string; removal?: RemovalInput };
+type Details = { area: string; amount: string; includes: string; proposedR: string; insulation: ExistingInsulation | null; quoteStatus?: QuoteStatus | null; attended?: AttendanceAnswer | null; attendedOn?: string; removal?: RemovalInput; commercial?: CommercialInput };
 
 /** `preview` swaps every server/storage call for a local adapter (no auth, saving or sending). */
 export function InstallerIntakeFlow({ businessId, preview }: { businessId: string; preview?: IntakeApi }) {
@@ -96,7 +97,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         if (raw) {
           const r = JSON.parse(raw) as { customer?: unknown; d?: Details; coord?: Coordination | null; draftId?: string | null; step?: AddJobStep; fileTexts?: Record<string, string>; derived?: Record<string, { path: string; value: string }>; typed?: string[]; payer?: ElectricianPayer | null; plan?: ElectricianPlan | null };
           if (r.customer) setCustomer(restoreCustomer(r.customer as never));
-          if (r.d) setD({ area: r.d.area ?? "", amount: r.d.amount ?? "", includes: r.d.includes ?? "", proposedR: r.d.proposedR ?? "", insulation: r.d.insulation ?? null, quoteStatus: r.d.quoteStatus ?? null, attended: r.d.attended ?? null, attendedOn: r.d.attendedOn ?? "", ...(r.d.removal ? { removal: r.d.removal } : {}) });
+          if (r.d) setD({ area: r.d.area ?? "", amount: r.d.amount ?? "", includes: r.d.includes ?? "", proposedR: r.d.proposedR ?? "", insulation: r.d.insulation ?? null, quoteStatus: r.d.quoteStatus ?? null, attended: r.d.attended ?? null, attendedOn: r.d.attendedOn ?? "", ...(r.d.removal ? { removal: r.d.removal } : {}), ...(r.d.commercial ? { commercial: r.d.commercial } : {}) });
           if (r.coord) setCoord(r.coord);
           if (r.payer) setPayer(r.payer);
           if (r.plan) setPlan(r.plan);
@@ -142,7 +143,8 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
     const p = intakeProblems({ ...live, quoteStatus: d.quoteStatus ?? null, quoteFileCount: quoteFileCount(files), evidenceAck: ack, requireMeasured: true, attended: d.attended ?? null }).map((x) => x === "Choose the quote status" ? "Choose whether you have prepared a quote" : x);
     if (!d.attended) p.unshift("Choose whether you have attended and assessed this property");
     { const dp = d.attended === "attended" ? visitDateProblem(d.attendedOn ?? null, melbourneToday()) : null; if (dp) p.unshift(dp); }
-    p.push(...removalProblems(removalPayload(d.removal ?? blankRemoval(), d.quoteStatus === "have_quote", d.attended === "attended"), d.insulation, intakeArea(live.area), intakeQuotePayload({ ...live, quoteStatus: d.quoteStatus ?? null }).quoted_price_inc_gst, d.quoteStatus === "have_quote"));
+    if (d.quoteStatus === "have_quote") p.push(...commercialInputProblems(commercialPayload(d.commercial ?? blankCommercialInput(), live.includes || null, d.removal?.answer === "yes"), removalPayload(d.removal ?? blankRemoval(), true)));
+    p.push(...removalProblems(removalPayload(d.removal ?? blankRemoval(), d.quoteStatus === "have_quote", d.attended === "attended"), d.insulation, intakeArea(live.area), intakeQuotePayload({ ...live, quoteStatus: d.quoteStatus ?? null }).quoted_price_inc_gst, false, false)); // drafts may omit removal m²; quote readiness re-checks
     if (!payer) p.push("Choose who arranges the electrician");
     else if (payer === "own") { const eb = electricianPlanBlocker(plan); if (eb) p.push(eb); }
     if (fileText && d.quoteStatus === "have_quote" && multiCustomerAmbiguity(fileText)) p.push("Your file names more than one customer — upload one customer's quote per job");
@@ -184,6 +186,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         contact_permission: customer.contact_permission, owner_agreed: false,
         intake: { existing_insulation: d.insulation ?? "unknown", evidence_ack: ack, proposed_r_value: q.proposed_r_value, quote_status: d.quoteStatus, attended: d.attended, attended_on: d.attended === "attended" && d.attendedOn ? d.attendedOn : null, version: `${INTAKE_RULESET_VERSION}+${COORDINATION_VERSION}`, coordination: coord, self_managed_ack: coord === "self_managed" && selfAck,
           measured_required: true, electrician_payer: payer, ...(d.removal ? { removal_quote: removalPayload(d.removal, d.quoteStatus === "have_quote", d.attended === "attended") } : {}),
+          ...(d.quoteStatus === "have_quote" ? { commercial: commercialPayload(d.commercial ?? blankCommercialInput(), live.includes || null, d.removal?.answer === "yes") } : {}),
           ...(d.quoteStatus === "have_quote" && feeAck && feeText ? { fee_awareness: { declared: true, payer: payer, text: feeText, version: FEE_AWARENESS_VERSION } } : {}) },
       }, electrician: payer === "undecided" ? { mode: "later" } : payer === "own" && plan?.mode === "mine" ? { mode: "mine", business_id: plan.business_id ?? null, nomination_id: plan.nomination_id ?? null } : { mode: "hivic" } } as never });
       try { if (userId) localStorage.removeItem(resumeKey(userId, businessId)); } catch { /* ignore */ }
@@ -303,8 +306,9 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         {fileNote && <p className="text-xs text-sub" data-file-note>{fileNote}</p>}
         <p className="text-xs text-sub">No quote file? Enter the amount and what it includes.</p>
         <label className="block text-sm font-bold">Total installer quote inc GST<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 3,450" value={d.amount} onChange={(e) => { typed.current.add("amount"); setD({ ...d, amount: e.target.value }); }} /></label>
-        <p className="text-xs text-sub">Include any removal charge in this total.</p>
+        <p className="text-xs text-sub">Your works price before the VEU discount. Removal or extras you priced separately go below — never include them twice.</p>
         <label className="block text-sm font-bold">What the quote includes<Textarea className="mt-1" rows={3} maxLength={1000} value={d.includes} onChange={(e) => { typed.current.add("includes"); setD({ ...d, includes: e.target.value }); }} /></label>
+        <QuoteCommercialFields value={d.commercial ?? blankCommercialInput()} removalRequired={d.removal?.answer === "yes"} disabled={busy || fileBusy} onChange={(commercial) => setD({ ...d, commercial })} />
         </div>}
         <p className="pt-1 text-xs font-bold uppercase tracking-wide text-sub" data-section-electrician>Electrician & owner fees</p>
         <fieldset data-electrician-payer><legend className="text-sm font-bold">Electrician (PIESA)</legend>
@@ -326,7 +330,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
           d.attended === "attended" ? `Attended and assessed${d.attendedOn ? ` on ${d.attendedOn}` : " (date not given)"}` : "Not attended yet — Ready Check required",
           branches.estimateOnly ? (intakeArea(d.area) ? `Preliminary estimate ${d.area} m² (unverified, not measured)` : "Not measured yet") : intakeArea(d.area) ? `Ceiling ${d.area} m²` : "Ceiling area: not measured yet", `Existing insulation: ${EXISTING_INSULATION_CHOICES.find((c) => c.value === (d.insulation ?? "unknown"))?.label ?? "Not yet confirmed"}`,
           ...(d.quoteStatus === "not_quoted" ? ["Quote: not prepared yet", d.proposedR ? `Proposed product ${/^r/i.test(d.proposedR) ? d.proposedR : `R${d.proposedR}`}` : ""] : [branches.preliminary ? "Quote: preliminary estimate (no site visit yet)" : "", d.amount ? `Quote $${d.amount.replace(/^\$/, "")} inc GST` : "Quote amount not confirmed — from your uploaded file", d.includes ? `Includes: ${d.includes}` : "", d.proposedR ? `Proposed product ${/^r/i.test(d.proposedR) ? d.proposedR : `R${d.proposedR}`}` : ""]),
-          ...(d.removal ? [removalSummary(removalPayload(d.removal, d.quoteStatus === "have_quote", d.attended === "attended"))] : []),
+          ...(d.removal ? [removalFactSummary(removalPayload(d.removal, d.quoteStatus === "have_quote", d.attended === "attended"), d.quoteStatus === "have_quote" ? commercialPayload(d.commercial ?? blankCommercialInput(), live.includes || null, d.removal.answer === "yes") : null)] : []),
           `Quote files: ${quoteFileCount(files)} · Supporting files: ${files.length - quoteFileCount(files)}`, `Electrician: ${elName}`, ...(d.quoteStatus === "have_quote" ? [feeAck && feeText ? "Owner fees advised (declared)" : "Owner fees: not declared yet — owner quote waits"] : []),
         ]} />
         <label className="flex items-start gap-3 text-sm" data-evidence-ack><Checkbox className="mt-0.5" checked={ack} onCheckedChange={(c) => setAck(c === true)} aria-label={EVIDENCE_ACK} /><span>{EVIDENCE_ACK}</span></label>
