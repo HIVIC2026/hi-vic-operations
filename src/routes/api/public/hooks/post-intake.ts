@@ -30,8 +30,16 @@ export const Route = createFileRoute("/api/public/hooks/post-intake")({
           await alloc.sweepCoordination().catch((e) => console.error("coordination sweep failed", (e as Error).message));
           // Durable retry for automatic initial enquiry responses (held/failed ones are re-routed under every guard).
           const sweep = await import("@/lib/first-response-sweep.server");
-          await sweep.sweepUnansweredFirstResponses().catch((e) => console.error("first-response sweep failed", (e as Error).message));
-          return Response.json({ ok: true, recovered: r.recovered, claimed: r.claimed, results: r.results.map((x) => ({ status: x.status })) });
+          try {
+            const firstResponse = await sweep.sweepUnansweredFirstResponses();
+            return Response.json({ ok: true, recovered: r.recovered, claimed: r.claimed,
+              results: r.results.map((x) => ({ status: x.status })), first_response: firstResponse });
+          } catch (e) {
+            console.error("first-response sweep failed", (e as Error).message);
+            // Initial intake already finished; report that accurately while making retry/database/audit failures visible.
+            return Response.json({ ok: false, recovered: r.recovered, claimed: r.claimed,
+              results: r.results.map((x) => ({ status: x.status })), error: "first-response sweep failed" }, { status: 500 });
+          }
         } catch (e) {
           console.error("post-intake worker failed", (e as Error).message);
           await recordWorkerRun({ recovered: 0, claimed: 0, failed: 0 }, "worker failed").catch(() => {});

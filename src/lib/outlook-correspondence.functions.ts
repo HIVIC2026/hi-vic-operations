@@ -9,18 +9,24 @@ export const getOutlookCorrespondenceOverview = createServerFn({ method: "GET" }
     const { requireAdmin } = await import("./workflow.server");
     await requireAdmin(context.supabase);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
-    const { outlookConfigured } = await import("./outlook-sync.server");
-    const [{ data: st }, { data: reviews, error }] = await Promise.all([
-      admin.from("outlook_sync_state").select("backfill_from, inbox_cursor, sent_cursor, mailbox, last_run_at, last_ok_at, last_error, last_counts").eq("id", 1).maybeSingle(),
-      admin.from("correspondence_reviews").select("id, kind, reason, suggested_reason, direction, from_address, recipients, subject, body, message_at, candidate_job_ids, job_id, jobs(job_number, stage)").eq("status", "open").order("created_at", { ascending: false }).limit(100),
+    const { readOutlookSyncState, pendingOutlookWorkCount, outlookConfigured } = await import("./outlook-sync.server");
+    const { uncheckedOutlookHealth } = await import("./outlook-connection.core");
+    const [st, pending, { data: reviews, error }] = await Promise.all([
+      readOutlookSyncState(), pendingOutlookWorkCount(),
+      admin.from("correspondence_reviews").select("id, kind, reason, suggested_reason, direction, from_address, recipients, subject, body, message_at, candidate_job_ids, job_id, jobs(job_number, stage)")
+        .eq("status", "open").order("created_at", { ascending: false }).limit(100),
     ]);
     if (error) throw new Error(`Review queue unavailable: ${error.message}`);
     const ids = [...new Set((reviews ?? []).flatMap((r) => r.candidate_job_ids ?? []))];
-    const { data: cands } = ids.length ? await admin.from("jobs").select("id, job_number").in("id", ids) : { data: [] as { id: string; job_number: string }[] };
+    const { data: cands, error: ce } = ids.length ? await admin.from("jobs").select("id, job_number").in("id", ids)
+      : { data: [] as { id: string; job_number: string }[], error: null };
+    if (ce) throw new Error(`Candidate jobs unavailable: ${ce.message}`);
     const num = new Map((cands ?? []).map((c) => [c.id, c.job_number]));
     return {
-      connected: outlookConfigured(),
-      state: st ?? null,
+      connection: uncheckedOutlookHealth(outlookConfigured(), st.expected_mailbox ?? null), pending,
+      // Provider continuation tokens are server-only and never returned to this screen.
+      state: { backfill_from: st.backfill_from, mailbox: st.mailbox, expected_mailbox: st.expected_mailbox,
+        last_run_at: st.last_run_at, last_ok_at: st.last_ok_at, last_error: st.last_error, last_counts: st.last_counts },
       reviews: (reviews ?? []).map((r) => ({
         id: r.id, kind: r.kind as "unmatched" | "possible_not_proceeding" | "not_proceeding_progressed", reason: r.reason, suggestedReason: r.suggested_reason,
         direction: r.direction, from: r.from_address, recipients: (r.recipients as string[]) ?? [], subject: r.subject, body: r.body.slice(0, 2000), at: r.message_at,
@@ -28,6 +34,27 @@ export const getOutlookCorrespondenceOverview = createServerFn({ method: "GET" }
         candidates: (r.candidate_job_ids ?? []).map((id: string) => ({ id, jobNumber: num.get(id) ?? id.slice(0, 8) })),
       })),
     };
+  });
+
+export const checkOutlookConnectionHealth = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ mailbox: z.string().trim().email().optional() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { requireAdmin } = await import("./workflow.server");
+    await requireAdmin(context.supabase);
+    const { checkOutlookConnection } = await import("./outlook-sync.server");
+    return checkOutlookConnection(data.mailbox);
+  });
+
+export const confirmOutlookSyncMailbox = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ mailbox: z.string().trim().email() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { requireAdmin } = await import("./workflow.server");
+    await requireAdmin(context.supabase);
+    const { confirmOutlookMailbox } = await import("./outlook-sync.server");
+    await confirmOutlookMailbox(data.mailbox, context.userId);
+    return { ok: true };
   });
 
 export const resolveCorrespondenceReview = createServerFn({ method: "POST" })

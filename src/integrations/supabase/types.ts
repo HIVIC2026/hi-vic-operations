@@ -4701,6 +4701,81 @@ export type Database = {
         }
         Relationships: []
       }
+      first_response_retries: {
+        Row: {
+          attempt_count: number
+          claim_token: string | null
+          job_id: string
+          last_attempt_at: string | null
+          last_outcome: string | null
+          last_reason: string | null
+          last_recorded_at: string | null
+          last_route: string | null
+          lease_until: string | null
+          next_attempt_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          claim_token?: string | null
+          job_id: string
+          last_attempt_at?: string | null
+          last_outcome?: string | null
+          last_reason?: string | null
+          last_recorded_at?: string | null
+          last_route?: string | null
+          lease_until?: string | null
+          next_attempt_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          claim_token?: string | null
+          job_id?: string
+          last_attempt_at?: string | null
+          last_outcome?: string | null
+          last_reason?: string | null
+          last_recorded_at?: string | null
+          last_route?: string | null
+          lease_until?: string | null
+          next_attempt_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "first_response_retries_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "first_response_retries_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "first_response_retries_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "first_response_retries_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "first_response_retries_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       indicative_estimates: {
         Row: {
           applied_discount: number
@@ -6906,41 +6981,134 @@ export type Database = {
         }
         Relationships: []
       }
+      outlook_message_work: {
+        Row: {
+          attachment_refs: Json
+          attachments_complete: boolean
+          created_at: string
+          job_id: string | null
+          last_error: string | null
+          mailbox: string
+          message: Json
+          message_at: string
+          provider_message_id: string
+          result: Json | null
+          route: Json
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attachment_refs?: Json
+          attachments_complete?: boolean
+          created_at?: string
+          job_id?: string | null
+          last_error?: string | null
+          mailbox: string
+          message: Json
+          message_at: string
+          provider_message_id: string
+          result?: Json | null
+          route: Json
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attachment_refs?: Json
+          attachments_complete?: boolean
+          created_at?: string
+          job_id?: string | null
+          last_error?: string | null
+          mailbox?: string
+          message?: Json
+          message_at?: string
+          provider_message_id?: string
+          result?: Json | null
+          route?: Json
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outlook_message_work_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outlook_message_work_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "outlook_message_work_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outlook_message_work_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outlook_message_work_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       outlook_sync_state: {
         Row: {
           backfill_from: string
+          expected_mailbox: string | null
           id: number
           inbox_cursor: string | null
+          inbox_next_link: string | null
           last_counts: Json
           last_error: string | null
           last_ok_at: string | null
           last_run_at: string | null
           mailbox: string | null
           sent_cursor: string | null
+          sent_next_link: string | null
           updated_at: string
         }
         Insert: {
           backfill_from?: string
+          expected_mailbox?: string | null
           id?: number
           inbox_cursor?: string | null
+          inbox_next_link?: string | null
           last_counts?: Json
           last_error?: string | null
           last_ok_at?: string | null
           last_run_at?: string | null
           mailbox?: string | null
           sent_cursor?: string | null
+          sent_next_link?: string | null
           updated_at?: string
         }
         Update: {
           backfill_from?: string
+          expected_mailbox?: string | null
           id?: number
           inbox_cursor?: string | null
+          inbox_next_link?: string | null
           last_counts?: Json
           last_error?: string | null
           last_ok_at?: string | null
           last_run_at?: string | null
           mailbox?: string | null
           sent_cursor?: string | null
+          sent_next_link?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -12831,6 +12999,8 @@ export type Database = {
           latest_media_at: string | null
           media_count: number | null
           media_to_review: boolean | null
+          more_photos_requested: boolean | null
+          more_photos_requested_at: string | null
           needs_first_response: boolean | null
           office_bucket: string | null
           owner_email: string | null
@@ -12901,14 +13071,14 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "job_assignments_user_id_fkey"
-            columns: ["installer_id"]
+            columns: ["electrician_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "job_assignments_user_id_fkey"
-            columns: ["electrician_id"]
+            columns: ["installer_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -13045,6 +13215,10 @@ export type Database = {
         Args: { _proposal: string; _quote: string; _user: string }
         Returns: string
       }
+      begin_outlook_message: {
+        Args: { _mailbox: string; _message: Json; _route: Json }
+        Returns: Json
+      }
       begin_quarantine_validation: {
         Args: { _app: string; _path: string }
         Returns: boolean
@@ -13085,6 +13259,20 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      claim_first_response_retries: {
+        Args: { p_activated_at: string; p_limit?: number }
+        Returns: {
+          business_unit: string
+          channel: string
+          claim_token: string
+          created_at: string
+          job_id: string
+          job_number: string
+          needs_first_response: boolean
+          office_bucket: string
+          source: string
+        }[]
       }
       claim_partner_login_link: {
         Args: { _token_hash: string }
@@ -13148,6 +13336,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      confirm_outlook_mailbox: {
+        Args: { _actor: string; _mailbox: string }
+        Returns: undefined
+      }
       consume_cron_nonce: {
         Args: { _nonce: string; _purpose: string }
         Returns: boolean
@@ -13197,6 +13389,20 @@ export type Database = {
         }
         Returns: string
       }
+      finish_first_response_retry: {
+        Args: {
+          p_claim_token: string
+          p_job_id: string
+          p_outcome: string
+          p_reason: string
+          p_route: string
+        }
+        Returns: boolean
+      }
+      finish_outlook_message: {
+        Args: { _decision: Json; _message_id: string }
+        Returns: Json
+      }
       finish_quarantine_cleanup: {
         Args: {
           _actor?: string
@@ -13218,6 +13424,19 @@ export type Database = {
           _path: string
         }
         Returns: boolean
+      }
+      first_response_retry_scope: {
+        Args: { p_activated_at: string; p_now: string }
+        Returns: {
+          business_unit: string
+          channel: string
+          created_at: string
+          job_id: string
+          job_number: string
+          needs_first_response: boolean
+          office_bucket: string
+          source: string
+        }[]
       }
       format_property_address: {
         Args: {
@@ -13425,6 +13644,14 @@ export type Database = {
           partner_enquiry_id: string
           signed_at: string
         }[]
+      }
+      start_first_response_retry: {
+        Args: {
+          p_activated_at: string
+          p_claim_token: string
+          p_job_id: string
+        }
+        Returns: boolean
       }
       trade_quote_scope: {
         Args: { _job: string }

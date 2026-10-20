@@ -85,9 +85,13 @@ test("received unreviewed media is Office's turn even when the lane is 'insulati
   expect(n.party).toBe("office");
   expect(n.label).toContain("review 1 photo");
 });
-test("open request for more media waits for the homeowner until new media arrives", () => {
-  expect(enquiryNextStep({ status: "insulation_requested", mediaToReview: false, reviewOutcome: "unclear", mediaCount: 2, fallback: null }).party).toBe("homeowner");
-  expect(enquiryNextStep({ status: "insulation_requested", mediaToReview: true, reviewOutcome: "unclear", mediaCount: 3, fallback: null }).party).toBe("office");
+test("an unclear review alone leaves Office responsible for the request", () => {
+  const next = enquiryNextStep({ status: "insulation_requested", mediaToReview: false, reviewOutcome: "unclear", mediaCount: 2, fallback: null });
+  expect(next.party).toBe('office'); expect(next.label).toContain('request more photos/video');
+});
+test("an actual post-review request waits for the homeowner until new media arrives", () => {
+  expect(enquiryNextStep({ status: "insulation_requested", mediaToReview: false, reviewOutcome: "unclear", morePhotosRequested: true, mediaCount: 2, fallback: null }).party).toBe("homeowner");
+  expect(enquiryNextStep({ status: "insulation_requested", mediaToReview: true, reviewOutcome: "unclear", morePhotosRequested: true, mediaCount: 3, fallback: null }).party).toBe("office");
 });
 test("reviewed below-R2 / no-insulation show the explicit Office send action until an offer exists", () => {
   expect(enquiryNextStep({ status: "insulation_requested", mediaToReview: false, reviewOutcome: "below_r2", mediaCount: 2, fallback: null }).label).toContain("existing-insulation");

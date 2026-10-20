@@ -10,6 +10,12 @@ type Row = Record<string, unknown>;
 const T: Record<string, Row[]> = {};
 let seq = 0;
 let failSentWrite = false;
+let failAllOutcomeWrites = false;
+let unavailableCounts = false;
+let beforeFinalSend: (() => void) | null = null;
+let mediaReadHook: ((read: number) => void) | null = null;
+let mediaReads = 0;
+const historyReads: { table: string; head: boolean; exact: boolean }[] = [];
 const writes: string[] = [];
 
 // P1-R3-S103: automatic Save-my-spot SELECTION must be explicitly enabled (with no extra filters,
@@ -24,7 +30,9 @@ const S103_AUTO_RULES = { version: 1, enabled: true, activatedAt: "2020-01-01T00
 function from(table: string) {
   let op: "select" | "insert" | "update" = "select"; let values: unknown = null; let returning = false;
   const f: [string, string, unknown][] = [];
-  const match = (r: Row) => f.every(([k, kind, v]) => kind === "eq" ? r[k] === v : kind === "in" ? (v as unknown[]).includes(r[k]) : kind === "is" ? (r[k] ?? null) === v : kind === "like" ? String(r[k] ?? "").startsWith(String(v).replace(/%$/, "")) : true);
+  let head = false, exact = false, rowLimit = Infinity;
+  const orders: { key: string; ascending: boolean }[] = [];
+  const match = (r: Row) => f.every(([k, kind, v]) => kind === "eq" ? r[k] === v : kind === "neq" ? r[k] !== v : kind === "gte" ? String(r[k]) >= String(v) : kind === "in" ? (v as unknown[]).includes(r[k]) : kind === "is" ? (r[k] ?? null) === v : kind === "like" ? String(r[k] ?? "").startsWith(String(v).replace(/%$/, "")) : true);
   const rows = () => (T[table] ??= []);
   const run = () => {
     if (op === "insert") {
@@ -38,19 +46,23 @@ function from(table: string) {
     }
     if (op === "update") {
       writes.push(`update:${table}`);
-      if (failSentWrite && table === "customer_email_sends" && (values as Row).status === "sent") return { data: null, error: { message: "db write failed" } };
+      if (table === "customer_email_sends" && (failAllOutcomeWrites || (failSentWrite && (values as Row).status === "sent"))) return { data: null, error: { message: "db write failed" } };
       const hit = rows().filter(match); for (const r of hit) Object.assign(r, values as Row);
       return { data: returning ? hit.map((r) => ({ id: r.id })) : null, error: null };
     }
-    return { data: rows().filter(match), error: null };
+    const hit = rows().filter(match);
+    for (const o of [...orders].reverse()) hit.sort((a, b) => String(a[o.key] ?? '').localeCompare(String(b[o.key] ?? '')) * (o.ascending ? 1 : -1));
+    if (exact && ['customer_email_sends', 'job_communications'].includes(table)) historyReads.push({ table, head, exact });
+    return { data: head ? null : hit.slice(0, Math.min(rowLimit, 1000)), error: null, count: exact && !unavailableCounts ? hit.length : null };
   };
   const q: Record<string, unknown> = {};
   Object.assign(q, {
-    select: () => { if (op !== "select") returning = true; return q; },
+    select: (_columns?: string, options?: { count?: string; head?: boolean }) => { if (op !== 'select') returning = true; head = options?.head === true; exact = options?.count === 'exact'; return q; },
     eq: (k: string, v: unknown) => { f.push([k, "eq", v]); return q; }, in: (k: string, v: unknown[]) => { f.push([k, "in", v]); return q; },
     is: (k: string, v: unknown) => { f.push([k, "is", v]); return q; },
     like: (k: string, pat: string) => { f.push([k, "like", pat]); return q; },
-    neq: () => q, not: () => q, gte: () => q, order: () => q, limit: () => q, range: () => q, or: () => q,
+    neq: (k: string, v: unknown) => { f.push([k, 'neq', v]); return q; }, not: () => q, gte: (k: string, v: unknown) => { f.push([k, 'gte', v]); return q; },
+    order: (key: string, options?: { ascending?: boolean }) => { orders.push({ key, ascending: options?.ascending !== false }); return q; }, limit: (n: number) => { rowLimit = n; return q; }, range: () => q, or: () => q,
     insert: (v: unknown) => { op = "insert"; values = v; return q; }, update: (v: unknown) => { op = "update"; values = v; return q; },
     maybeSingle: async () => { const r = run(); return { data: Array.isArray(r.data) ? r.data[0] ?? null : r.data, error: r.error }; },
     single: async () => { const r = run(); const d = Array.isArray(r.data) ? r.data[0] ?? null : r.data; return { data: d, error: r.error ?? (d ? null : { message: "none" }) }; },
@@ -58,26 +70,40 @@ function from(table: string) {
   });
   return q;
 }
-mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from, rpc: async () => ({ data: null, error: null }) } }));
+let rpcImpl: ((name: string, args: Row) => { data: unknown; error: unknown }) | null = null;
+mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from, rpc: async (name: string, args: Row) => rpcImpl ? rpcImpl(name, args) : ({ data: null, error: null }) } }));
 const events: { type: string; details: Row }[] = [];
 class WorkflowError extends Error {}
 mock.module("../src/lib/workflow.server", () => ({ WorkflowError, logEvent: async (_j: string, _a: unknown, type: string, _s: string, details: Row) => { events.push({ type, details }); }, requireAdmin: async () => {}, transition: async () => {} }));
 const UNSUB = `https://estimate.homeinsulationvictoria.com.au/api/public/unsubscribe?t=${"u".repeat(32)}`;
 const realSafety = await import("../src/lib/emailsafety.server");
 let unsubIssued = 0; // "Create sending links" issues the owner's unsubscribe link only after every guard passed
-mock.module("../src/lib/emailsafety.server", () => ({ ...realSafety, unsubscribeUrlForJob: async () => { unsubIssued++; return UNSUB; } }));
+mock.module("../src/lib/emailsafety.server", () => ({ ...realSafety, unsubscribeUrlForJob: async () => { unsubIssued++; beforeFinalSend?.(); beforeFinalSend = null; return UNSUB; } }));
 mock.module("../src/lib/referral.server", () => ({ referralUrlForJob: async () => `https://homeinsulationvictoria.com.au/homeowner?ref=${"r".repeat(43)}` }));
-let media: { received: boolean; uncertain: boolean } = { received: false, uncertain: false };
-mock.module("../src/lib/group-b-media.server", () => ({ groupBMediaForJob: async () => media }));
+let media: { received: boolean; uncertain: boolean; pendingSync?: boolean } = { received: false, uncertain: false };
+mock.module("../src/lib/group-b-media.server", () => ({ groupBMediaForJob: async () => { mediaReads++; mediaReadHook?.(mediaReads); return media; } }));
 mock.module("../src/lib/estimatelink.server", () => ({ syncStep3: async () => ({}) })); // estimate/link refresh is not under test
 const realComms = await import("../src/lib/comms.server");
 const comms: Row[] = [];
 // The recorded row also lands in the in-memory job_communications table, as the real insert would.
+let failComms = false;
 mock.module("../src/lib/comms.server", () => ({ ...realComms, recordCommunication: async (x: Row) => {
+  if (failComms) throw new Error("communication write failed");
   comms.push(x);
-  (T.job_communications ??= []).push({ id: `comm-${comms.length}`, job_id: x.jobId, source_event: x.sourceEvent, source_reference: x.sourceReference, created_at: new Date().toISOString() });
+  (T.job_communications ??= []).push({ id: `comm-${comms.length}`, job_id: x.jobId, source_event: x.sourceEvent, source_reference: x.sourceReference, direction: x.direction, channel: x.channel, visibility: x.visibility, delivery_status: x.deliveryStatus ?? "sent", sent_at: new Date().toISOString(), created_at: new Date().toISOString() });
   return `comm-${comms.length}`;
 } }));
+
+// The campaign read-model is isolated; the router and delivery sender remain the real implementation.
+mock.module('../src/lib/launch-campaign.server', () => ({
+  campaignLink: async (token: string) => {
+    const link = T.customer_estimate_links?.find(r => r.token === token);
+    const job = T.jobs?.find(r => r.id === link?.job_id);
+    const review = [...(T.customer_engagement_events ?? [])].filter(r => r.job_id === job?.id && r.event_type === 'intake_media_reviewed' && r.source === 'office').sort((a, b) => String(b.occurred_at).localeCompare(String(a.occurred_at)))[0];
+    return job ? { job, link, group: 'onsite', criteriaPassed: true, ownerQualified: false, mediaReview: (review?.metadata as Row)?.outcome ?? null } : null;
+  },
+  campaignPermission: (c: { mediaReview: string }, desk: string | null) => c.mediaReview === 'below_r2' && !['not_eligible', 'needs_onsite_check'].includes(desk ?? ''),
+}));
 
 // ---------- stubbed email service (the connector gateway) ----------
 type Mode = "ok" | "422" | "429" | "409" | "502" | "timeout" | "disconnect" | "hang";
@@ -99,7 +125,7 @@ process.env["HIVIC_COM04_ENV"] = "production"; // S102: these cases exercise the
 const { maybeAutoRouteLeadEmail } = await import("../src/lib/lead-email-routing.server");
 const { processPendingInitialEstimateEmails, sendPreliminaryIneligibleEmail } = await import("../src/lib/followups.server");
 const C = await import("../src/lib/enquiry-auto-reply.core");
-const { GROUP_B_GLOBALS_OFF } = await import("../src/lib/hot-leads-send.server");
+const { GROUP_B_GLOBALS_OFF, sendExistingInsulationSaveSpot, sendMorePhotosRequest } = await import("../src/lib/hot-leads-send.server");
 
 const TO = "jet.zhezhang@gmail.com";
 const L = "a0000000-0000-4000-8000-0000000030a1"; // likely eligible, no existing insulation, owner gave a size → Save my spot
@@ -126,6 +152,7 @@ const autoOn = (startsAt = ago(2 * HOUR)) => { T.customer_delivery_settings = [{
 
 beforeEach(() => {
   for (const k of Object.keys(T)) delete T[k];
+  failAllOutcomeWrites = false; unavailableCounts = false; beforeFinalSend = null; mediaReadHook = null; mediaReads = 0; historyReads.length = 0;
   mode = "ok"; failSentWrite = false; calls.length = 0; events.length = 0; comms.length = 0; writes.length = 0; media = { received: false, uncertain: false }; unsubIssued = 0;
   Object.assign(T, {
     jobs: [job(L, "HV-3001", "likely_eligible", "none", ago(HOUR)), job(B, "HV-3002", "needs_onsite_confirmation", "Yes - some batts", ago(HOUR)), job(I, "HV-3003", "does_not_appear_eligible", "Yes", ago(HOUR))],
@@ -256,7 +283,7 @@ describe("what the automatic ineligible email says", () => {
     autoOn();
     expect((await maybeAutoRouteLeadEmail(I)).sent).toBe(true);
     expect(String(calls[0]!.body.text)).toContain("Ceiling already has R2.5 or more");
-    for (const k of Object.keys(T)) if (k === "customer_email_sends") T[k] = [];
+    T.customer_email_sends = []; T.job_communications = []; // separate delivery scenario: no prior recorded reply
     Object.assign(T.jobs![2]!, { eligibility_decision_source: "admin", eligibility_reason: "INTERNAL NOTE owner was difficult on the phone, see HV-1234" });
     expect((await maybeAutoRouteLeadEmail(I)).sent).toBe(true);
     const mail = `${calls[1]!.body.text} ${calls[1]!.body.html}`;
@@ -340,5 +367,177 @@ describe("the scheduled backlog worker stays OFF", () => {
     expect(await processPendingInitialEstimateEmails(20)).toEqual({ scanned: 0, sent: 0, blocked: 0 });
     expect(delivered).toBe(0);
     expect(calls.length).toBe(0);
+  });
+});
+
+
+
+describe('Phase 1 actual initial router → sender boundaries', () => {
+  test('fully received media gets the approved acknowledgement once under the original initial key', async () => {
+    autoOn(); media.received = true;
+    expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(true);
+    expect(mediaReads).toBeGreaterThanOrEqual(4); // router, automatic wrapper, pre-reservation, final delivery
+    expect(calls.map(c => c.idem)).toEqual([KEYS.B]);
+    expect(String(calls[0]!.body.text)).toContain('you do not need to upload it again');
+    expect(String(calls[0]!.body.text)).not.toContain('Please upload clear photos');
+    expect(String(calls[0]!.body.text)).toContain('free Ready Check');
+    expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(false);
+    expect(calls).toHaveLength(1);
+  });
+  for (const status of ['sent', 'delivered', 'sending', 'queued', 'delivered_unrecorded', 'sending_unknown']) {
+    test(`any-purpose ${status} holds the actual automatic sender`, async () => {
+      autoOn();
+      T.customer_email_sends = [{ id: 'earlier', job_id: B, status, purpose: 'other_customer_email', idempotency_key: 'different-key' }];
+      expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(false);
+      expect(calls).toHaveLength(0);
+    });
+  }
+  test('customer-visible correspondence alone blocks; unrelated/internal/inbound rows do not', async () => {
+    autoOn();
+    T.job_communications = [{ job_id: L, direction: 'outbound', channel: 'email', visibility: 'customer' }, { job_id: B, direction: 'inbound', channel: 'email', visibility: 'customer' }, { job_id: B, direction: 'outbound', channel: 'email', visibility: 'internal' }];
+    expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(true);
+    T.customer_email_sends = []; T.job_communications.push({ job_id: B, direction: 'outbound', channel: 'email', visibility: 'customer' });
+    expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(false);
+    expect(calls).toHaveLength(1);
+  });
+  test('unavailable exact counts hold instead of becoming zero', async () => {
+    autoOn(); unavailableCounts = true;
+    expect(await maybeAutoRouteLeadEmail(B)).toMatchObject({ sent: false, reason: 'Could not verify first-response safety facts.' });
+    expect(calls).toHaveLength(0);
+  });
+  test('an older response beyond 1000 unrelated attempts is still found by exact server counts', async () => {
+    autoOn(); T.customer_email_sends = Array.from({ length: 1200 }, (_, i) => ({ id: `failed-${i}`, job_id: B, status: 'failed', purpose: 'other', idempotency_key: `k-${i}` }));
+    T.customer_email_sends.push({ id: 'old-response', job_id: B, status: 'sent', purpose: 'other', idempotency_key: 'old-key' });
+    expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(false);
+    expect(calls).toHaveLength(0);
+    expect(historyReads.every(r => r.head && r.exact)).toBe(true);
+  });
+  test('a definite Group B failure retries once; accepted/uncertain attempts never retry', async () => {
+    autoOn(); mode = '422';
+    expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(false);
+    expect(sentRow(KEYS.B)?.status).toBe('failed');
+    mode = 'ok'; expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(true);
+    expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(false);
+    expect(calls).toHaveLength(2);
+  });
+  for (const id of [L, B]) {
+    test(`${id === L ? 'known-size offer' : 'Group B acknowledgement'} rechecks correspondence after reservation`, async () => {
+      autoOn(); Object.assign(T.workflow_settings![0]!, { customer_comms_enabled: true, save_my_spot_real_send_enabled: true }); media.received = true;
+      beforeFinalSend = () => T.job_communications!.push({ job_id: id, direction: 'outbound', channel: 'email', visibility: 'customer' });
+      expect((await maybeAutoRouteLeadEmail(id)).sent).toBe(false);
+      expect(calls).toHaveLength(0);
+      expect(sends().find(s => s.job_id === id)).toMatchObject({ status: 'failed', provider: 'not_sent' });
+    });
+  }
+  for (const status of ['sent', 'delivered', 'queued', 'sending_unknown']) {
+    test(`intervening different-purpose ${status} blocks immediately before delivery`, async () => {
+      autoOn(); beforeFinalSend = () => T.customer_email_sends!.push({ id: 'intervening', job_id: B, status, purpose: 'other', idempotency_key: 'other' });
+      expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(false); expect(calls).toHaveLength(0);
+    });
+  }
+  for (const change of ['consent', 'optout', 'suppression', 'count-unavailable']) {
+    test(`${change} changing after preparation blocks the actual provider call`, async () => {
+      autoOn(); beforeFinalSend = () => {
+        if (change === 'consent') T.owner_contact_consents!.find(r => r.job_id === B)!.consent_status = 'withdrawn';
+        if (change === 'optout') T.customer_email_optouts!.push({ job_id: B, opted_out_at: new Date().toISOString() });
+        if (change === 'suppression') T.customer_engagement_events!.push({ job_id: B, event_type: 'email_bounced' });
+        if (change === 'count-unavailable') unavailableCounts = true;
+      };
+      expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(false); expect(calls).toHaveLength(0);
+    });
+  }
+  for (const boundary of [3, 4]) {
+    test(`changed media holds the acknowledgement at ${boundary === 3 ? 'reservation' : 'delivery'} boundary`, async () => {
+      autoOn(); media.received = true;
+      mediaReadHook = read => { if (read === boundary) media.uncertain = true; };
+      expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(false); expect(calls).toHaveLength(0);
+    });
+  }
+  test('initial acknowledgement permits a later separately keyed explicit reviewed offer exactly once', async () => {
+    autoOn(); media.received = true;
+    expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(true);
+    T.customer_engagement_events!.push({ id: 'review-below', job_id: B, event_type: 'intake_media_reviewed', source: 'office', occurred_at: new Date().toISOString(), metadata: { outcome: 'below_r2', manualOnly: true } });
+    T.workflow_settings![0]!.customer_comms_enabled = true;
+    expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(false);
+    expect((await sendExistingInsulationSaveSpot(B, 'office', true)).preview).toBeDefined();
+    expect(calls).toHaveLength(1); // preview did not send
+    expect((await sendExistingInsulationSaveSpot(B, 'office', false)).outcome).toBe('sent');
+    expect((await sendExistingInsulationSaveSpot(B, 'office', false)).outcome).toBe('skipped');
+    expect(calls.map(c => c.idem)).toEqual([KEYS.B, `${LAUNCH_CAMPAIGN}:existing_insulation_save_spot:${B}`]);
+    expect(String(calls[1]!.body.text)).not.toContain('you do not need to upload it again');
+  });
+});
+
+
+describe('explicit Office more-photo request through the real sender', () => {
+  const reviewId = 'a0000000-0000-4000-8000-00000000a001';
+  function unclear() {
+    autoOn(); T.workflow_settings![0]!.customer_comms_enabled = true; media.received = true;
+    T.customer_engagement_events!.push({ id: reviewId, job_id: B, event_type: 'intake_media_reviewed', source: 'office', occurred_at: ago(HOUR / 2), metadata: { outcome: 'unclear', manualOnly: true } });
+    T.office_enquiry_index = [{ id: B, source: 'base44', office_bucket: 'enquiry', latest_media_at: ago(HOUR) }];
+  }
+  test('preview sends nothing; explicit submit uses approved T6 with one per-review attempt', async () => {
+    unclear();
+    const preview = await sendMorePhotosRequest(B, 'office', true);
+    expect(preview.reviewId).toBe(reviewId); expect(preview.preview).toBeDefined(); expect(calls).toHaveLength(0);
+    expect((await sendMorePhotosRequest(B, 'office', false, preview.reviewId)).outcome).toBe('sent');
+    expect((await sendMorePhotosRequest(B, 'office', false, preview.reviewId)).outcome).toBe('skipped');
+    expect(calls).toHaveLength(1); expect(String(calls[0]!.body.text)).toContain('Please upload clear photos');
+    expect(sends()[0]).toMatchObject({ purpose: 'insulation_video_request', idempotency_key: `office_more_photos:${B}:${reviewId}` });
+    expect(comms[0]).toMatchObject({ sourceEvent: 'office_more_photos_requested', sourceReference: `intake_media_review:${reviewId}`, visibility: 'customer', deliveryStatus: 'sent' });
+  });
+  test('review → upload → stale submit is blocked; new upload during rendering is also blocked', async () => {
+    unclear(); const preview = await sendMorePhotosRequest(B, 'office', true);
+    T.office_enquiry_index![0]!.latest_media_at = new Date().toISOString();
+    expect((await sendMorePhotosRequest(B, 'office', false, preview.reviewId)).outcome).toBe('blocked'); expect(calls).toHaveLength(0);
+    T.office_enquiry_index![0]!.latest_media_at = ago(HOUR);
+    beforeFinalSend = () => { T.office_enquiry_index![0]!.latest_media_at = new Date().toISOString(); };
+    expect((await sendMorePhotosRequest(B, 'office', false, preview.reviewId)).outcome).toBe('blocked'); expect(calls).toHaveLength(0);
+  });
+  test('an unclear review alone never triggers automatic delivery', async () => {
+    unclear(); expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(false); expect(calls).toHaveLength(0);
+    expect((await sendMorePhotosRequest(B, 'office', false)).outcome).toBe('blocked');
+  });
+});
+
+
+test('accepted initial email with failed local history writes is not resent on worker retry', async () => {
+  autoOn(); failAllOutcomeWrites = true;
+  expect((await maybeAutoRouteLeadEmail(B)).sent).toBe(false);
+  expect(calls).toHaveLength(1); expect(sentRow(KEYS.B)?.status).toBe('sending');
+  expect(T.job_communications).toHaveLength(0);
+  // Simulates the next router invocation after a sweep completion/lease write failed; the canonical
+  // view may still show no confirmed reply. The durable send reservation itself must stop delivery.
+  failAllOutcomeWrites = false;
+  expect(await maybeAutoRouteLeadEmail(B)).toMatchObject({ sent: false, reason: 'Earlier email outcome pending or uncertain — never resent automatically' });
+  expect(calls).toHaveLength(1);
+});
+
+
+describe("ACTUAL sweep -> router -> sender: accepted by provider, every local write fails", () => {
+  test("a later sweep with a stale response_state=none makes NO second provider call", async () => {
+    autoOn(); media.received = true;
+    const { sweepUnansweredFirstResponses } = await import("../src/lib/first-response-sweep.server");
+    const job = (T.jobs ?? []).find((r) => r.id === B)!;
+    const claim = { job_id: B, job_number: job.job_number ?? "HV-TEST", created_at: new Date(Date.now() - 60_000).toISOString(), source: "base44", channel: "hivic_sourced",
+      business_unit: "hivic", office_bucket: "enquiry", needs_first_response: true, claim_token: "tok-1" };
+    let finishFails = true; const finishes: Row[] = [];
+    rpcImpl = (name, args) => {
+      if (name === "claim_first_response_retries") return { data: [claim], error: null }; // stale: still reports no response
+      if (name === "start_first_response_retry") return { data: true, error: null };
+      if (name === "finish_first_response_retry") { finishes.push(args); return finishFails ? { data: null, error: { message: "finish write failed" } } : { data: true, error: null }; }
+      return { data: null, error: null };
+    };
+    failAllOutcomeWrites = true; failComms = true;
+    let firstError: unknown = null;
+    try { await sweepUnansweredFirstResponses(1); } catch (e) { firstError = e; }
+    expect(calls).toHaveLength(1); // provider accepted exactly once
+    expect(firstError).toBeTruthy(); // failure surfaced, not reported as success
+    // Later run: local writes recovered, ledger still says nothing was sent.
+    failAllOutcomeWrites = false; failComms = false; finishFails = false;
+    const second = await sweepUnansweredFirstResponses(1).catch((e) => ({ error: String(e) }));
+    expect(calls).toHaveLength(1); // NO second provider call
+    expect(second).not.toMatchObject({ sent: 1 });
+    rpcImpl = null;
   });
 });

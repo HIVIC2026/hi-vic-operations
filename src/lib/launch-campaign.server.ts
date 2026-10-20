@@ -2,6 +2,7 @@ import { fullAddress } from "./address";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { declaredExtras } from "./enquiry.core";
 import { normaliseInsulation } from "./eligibility.core";
+import { effectiveInsulation } from './enquiry-groups.core';
 import { isWellFormedToken, LINK_PURPOSE, linkUsable } from "./estimatelink.core";
 import { LAUNCH_BATCH_SIZE, LAUNCH_CAMPAIGN, LAUNCH_COPY_APPROVED, campaignSaveAllowed, deskCheckReasonError, launchGroup, ownerCalculatorChangeNote, savedPriceFromCalculator, savedPriceFromEstimate, savedPriceLabel, type DeskCheckOutcome } from "./launch-campaign.core";
 import { logEvent } from "./workflow.server";
@@ -21,7 +22,12 @@ export async function campaignLink(token: unknown) {
   if (!LAUNCH_COPY_APPROVED && job.source !== "qa_test") return null;
   const property = job.properties as { enrichment: Record<string, unknown> | null } | null;
   const base44 = (property?.enrichment?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } };
-  const insulation = normaliseInsulation(declaredExtras(base44.raw?.answers ?? null).existing_insulation);
+  const { data: mediaReviews, error: mediaReviewError } = await admin.from("customer_engagement_events").select("metadata").eq("job_id", job.id).eq("event_type", "intake_media_reviewed").eq('source', 'office').order("occurred_at", { ascending: false }).order('id', { ascending: false }).limit(1);
+  if (mediaReviewError) throw new Error("We couldn't check your evidence review. Please try again.");
+  const mediaReview = (mediaReviews?.[0]?.metadata as { outcome?: string } | null)?.outcome ?? null;
+  // Keep the homeowner's declaration intact. A reviewed no-insulation offer must open its matching
+  // campaign lane; the recorded official eligibility outcome is still required by launchGroup.
+  const insulation = effectiveInsulation(normaliseInsulation(declaredExtras(base44.raw?.answers ?? null).existing_insulation), mediaReview);
   const group = launchGroup(job.eligibility_outcome, insulation);
   if (!group) return null;
   const { data: response } = await admin.from("lead_campaign_responses").select("opted_out_at").eq("job_id", job.id).maybeSingle();
@@ -42,9 +48,6 @@ export async function campaignLink(token: unknown) {
     ownerQualified = criteriaPassed && qualifyingDeclaration(events ?? []);
   }
   const media = group === "onsite" ? await groupBMediaForJob(job.id) : null;
-  const { data: mediaReviews, error: mediaReviewError } = group === "onsite" ? await admin.from("customer_engagement_events").select("metadata").eq("job_id", job.id).eq("event_type", "intake_media_reviewed").order("occurred_at", { ascending: false }).limit(1) : { data: [], error: null };
-  if (mediaReviewError) throw new Error("We couldn't check your evidence review. Please try again.");
-  const mediaReview = (mediaReviews?.[0]?.metadata as { outcome?: string } | null)?.outcome ?? null;
   return { link, job, group, ownerQualified, criteriaPassed, media, mediaReview };
 }
 

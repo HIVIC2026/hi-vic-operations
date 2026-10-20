@@ -67,9 +67,13 @@ export const removeLeadsFn = createServerFn({ method: "POST" }).middleware([requ
 
 /** Explicit one-owner action, not Group B invitation or automatic sending. */
 export const existingInsulationSaveSpotFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), preview: z.boolean().default(false) }).parse(d))
+  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), preview: z.boolean().default(false), mode: z.enum(['preview', 'prepare', 'send']).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
+    if (data.mode) {
+      const { reviewedInsulationOffer } = await import('./reviewed-insulation-offer.server');
+      return reviewedInsulationOffer(data.jobId, context.userId, 'below_r2', data.mode);
+    }
     const { sendExistingInsulationSaveSpot } = await import("./hot-leads-send.server");
     return sendExistingInsulationSaveSpot(data.jobId, context.userId, data.preview);
   });
@@ -82,3 +86,13 @@ export const noInsulationSaveSpotFn = createServerFn({ method: "POST" }).middlew
     const { noInsulationOffer } = await import("./no-insulation-offer.server");
     return noInsulationOffer(data.jobId, context.userId, data.mode);
   });
+
+/** Preview and explicit Office submit only; saving an unclear review never calls this sender. */
+export const morePhotosRequestFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), mode: z.enum(["preview", "send"]), reviewId: z.string().uuid().optional() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { sendMorePhotosRequest } = await import("./hot-leads-send.server");
+    return sendMorePhotosRequest(data.jobId, context.userId, data.mode === "preview", data.reviewId);
+  });
+

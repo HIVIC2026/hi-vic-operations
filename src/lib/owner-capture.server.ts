@@ -6,6 +6,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { LINK_PURPOSE, isWellFormedToken } from "./estimatelink.core";
 import { groupBMediaForJob } from "./group-b-media.server";
 import { logEvent } from "./workflow.server";
+import { requestedMorePhotosUploadAllowed } from './owner-capture-permission.core';
 import { CAPTURE_KIND, CAPTURE_MAX_FILES, CAPTURE_SOURCE_SYSTEM, captureLinkState, capturePath, parseCapturePath, validateCaptureFile, normaliseCaptureType, CAPTURE_MAX_BYTES } from "./owner-capture.core";
 
 const BUCKET = "job-files";
@@ -30,12 +31,18 @@ async function existing(jobId: string) {
 
 import { captureResume } from "./capture-resume.core";
 
+async function requestedUploads(jobId: string, media: Awaited<ReturnType<typeof groupBMediaForJob>>) {
+  const { data, error } = await admin.from('office_enquiry_index').select('office_bucket,review_outcome,more_photos_requested_at').eq('id', jobId).maybeSingle();
+  if (error || !data) throw new Error('Evidence request check unavailable. Please try again.');
+  return data.office_bucket === 'enquiry' && requestedMorePhotosUploadAllowed(media, data.review_outcome, data.more_photos_requested_at);
+}
+
 export async function captureStatus(token: unknown) {
   const r = await resolve(token);
   if (r.state !== "ok") return { state: r.state };
   if (!r.link || !r.job) return { state: "invalid" as const };
   const media = await groupBMediaForJob(r.link.job_id, "capture");
-  const { data: reviews, error: reviewError } = await admin.from("customer_engagement_events").select("metadata").eq("job_id", r.link.job_id).eq("event_type", "intake_media_reviewed").order("occurred_at", { ascending: false }).limit(1);
+  const { data: reviews, error: reviewError } = await admin.from("customer_engagement_events").select("metadata").eq("job_id", r.link.job_id).eq("event_type", "intake_media_reviewed").eq('source', 'office').order("occurred_at", { ascending: false }).order('id', { ascending: false }).limit(1);
   if (reviewError) throw new Error("Evidence review check unavailable. Please try again.");
   const mediaReview = (reviews?.[0]?.metadata as { outcome?: string } | null)?.outcome ?? null;
   const files = await existing(r.link.job_id);
@@ -46,7 +53,8 @@ export async function captureStatus(token: unknown) {
   if (respError) throw new Error("Saved spot check unavailable. Please try again.");
   const c = await (await import("./launch-campaign.server")).campaignLink(token);
   const resume = captureResume({ spotSaved: !!resp?.spot_saved_at && !resp?.opted_out_at, ownerQualified: !!c?.ownerQualified });
-  return { state: "ok" as const, suburb, reference: r.job.job_number, originalMedia: media, mediaReview, resume, received: files.length, remaining: Math.max(0, CAPTURE_MAX_FILES - files.length) };
+  const morePhotosUploadAllowed = await requestedUploads(r.link.job_id, media);
+  return { state: "ok" as const, suburb, reference: r.job.job_number, originalMedia: media, mediaReview, morePhotosUploadAllowed, resume, received: files.length, remaining: Math.max(0, CAPTURE_MAX_FILES - files.length) };
 }
 
 export async function startCapture(token: unknown, f: { fileName: string; mime: string; size: number }) {
@@ -54,7 +62,7 @@ export async function startCapture(token: unknown, f: { fileName: string; mime: 
   if (r.state !== "ok") throw new Error(GENERIC);
   if (!r.link) throw new Error(GENERIC);
   const media = await groupBMediaForJob(r.link.job_id, "capture");
-  if (media.excluded) throw new Error(media.received ? "We already have your enquiry photos/video. Our office will review them." : "We are checking your original enquiry uploads. Please contact our office.");
+  if (media.excluded && !(await requestedUploads(r.link.job_id, media))) throw new Error(media.received ? "We already have your enquiry photos/video. Our office will review them." : "We are checking your original enquiry uploads. Please contact our office.");
   const v = validateCaptureFile({ mime: f.mime, fileName: f.fileName, size: f.size });
   if (!v.ok) throw new Error(v.error);
   if ((await existing(r.link.job_id)).length >= CAPTURE_MAX_FILES) throw new Error("We've already received the maximum number of files for this property. Thank you!");
@@ -69,6 +77,8 @@ export async function finishCapture(token: unknown, x: { path: string; fileName:
   if (r.state !== "ok") throw new Error(GENERIC);
   if (!r.link) throw new Error(GENERIC);
   const jobId = r.link.job_id;
+  const media = await groupBMediaForJob(jobId, 'capture');
+  if (media.excluded && !(await requestedUploads(jobId, media))) throw new Error('The photo request has changed. Please contact our office before adding more evidence.');
   const uploadId = parseCapturePath(jobId, x.path);
   if (!uploadId) throw new Error(GENERIC);
   const folder = x.path.slice(0, x.path.lastIndexOf("/"));

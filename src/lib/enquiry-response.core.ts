@@ -22,14 +22,14 @@ export function parseResponseCounts(x: unknown): ResponseCounts | null {
 
 export type NextParty = 'office' | 'homeowner' | 'none';
 /** Who owes the next step. Received-but-unreviewed media is always Office's turn, whatever the lane says. */
-export function enquiryNextStep(f: { status: string; mediaToReview: boolean; reviewOutcome: string | null; mediaCount: number; fallback: string | null }): { party: NextParty; label: string } {
-  if (f.mediaToReview) return { party: 'office', label: `Office: review ${f.mediaCount} photo${f.mediaCount === 1 ? '' : 's'}/video${f.reviewOutcome === 'unclear' ? ' (new upload after more were requested)' : ''}` };
+export function enquiryNextStep(f: { status: string; mediaToReview: boolean; reviewOutcome: string | null; morePhotosRequested?: boolean; mediaCount: number; fallback: string | null }): { party: NextParty; label: string } {
+  if (f.mediaToReview) return { party: 'office', label: `Office: review ${f.mediaCount} photo${f.mediaCount === 1 ? '' : 's'}/video${f.reviewOutcome === 'unclear' ? ' (new upload after the last review)' : ''}` };
   if (f.status === 'spot_saved') return { party: 'office', label: 'Continue from Active jobs' };
   if (f.status === 'ineligible') return { party: 'none', label: 'No action unless the owner replies' };
+  if (f.reviewOutcome === 'unclear') return f.morePhotosRequested === true ? { party: 'homeowner', label: 'Waiting for the homeowner to send more photos/video' } : { party: 'office', label: 'Office: request more photos/video' };
   if (f.status === 'offered_spot') return { party: 'homeowner', label: 'Waiting for the homeowner to save their spot' };
   if (f.reviewOutcome === 'below_r2') return { party: 'office', label: 'Office: send the existing-insulation Save your spot follow-up' };
   if (f.reviewOutcome === 'no_insulation') return { party: 'office', label: 'Office: send the no-insulation Save your spot offer' };
-  if (f.reviewOutcome === 'unclear') return { party: 'homeowner', label: 'Waiting for the homeowner to send more photos/video' };
   if (f.status === 'insulation_requested') return { party: 'homeowner', label: 'Waiting for the homeowner’s photos/video' };
   return { party: 'office', label: f.fallback ?? 'Office: decide the next step' };
 }
