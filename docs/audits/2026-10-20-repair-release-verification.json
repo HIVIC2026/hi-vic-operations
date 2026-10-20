@@ -149,6 +149,28 @@
    "date": "2026-10-20",
    "item": "Persona-exclusion correction",
    "note": "Earlier Office rec/owner refusals passed, but the old bootstrap still visited the excluded installer before skipping assertions; earlier installer NOT_RUN did not prove no sign-in. Fixed: exclusion now precedes profile lookup/sign-in."
+  },
+  {
+   "date": "2026-10-20T20:55Z",
+   "item": "Final correction pass: site-hold-boundary-fixes.patch (30211 B, sha 45a45eea\u2026) + intake-document-onsite-closure.patch (27473 B, sha 7ecc3334\u2026) merged by hunk; one hunk offset 6 lines, no fuzz; null-count guard and area/CAS work retained",
+   "results": {
+    "site-hold-boundaries": "34/0",
+    "intake-document-onsite-closure": "14/0",
+    "owner-gate-attendance-readers": "19/0",
+    "installer-intake-upload-ui": "9/0",
+    "qa-persona-exclusion": "6/0",
+    "installer-create-roundtrip-db": "24/0",
+    "installer-upload-revision": "34/0",
+    "ready-check-areas-db": "11/0",
+    "existing-insulation-send": "7/0",
+    "mitti-form-schema": "12/0",
+    "holds/quote/ReadyCheck related (9 files)": "53 pass/0 fail/1 not counted as pass",
+    "typecheck": "PASS",
+    "build": "OK",
+    "retired-terms": "0 customer-visible",
+    "portal-qa --personas rec,owner": "exit 1, OVERALL BLOCKED: 59 PASSED / 0 FAILED / 12 NOT_RUN; installer excluded before lookup/sign-in; TEST snapshot restored; owner answers and 3 real deleted jobs unchanged; results /mnt/documents/portal-qa/2026-10-20T20-40-46/results.json"
+   },
+   "note": "Node 22 rejects --test-isolation=none; run without it. b0 18-case roundtrip ran 4 create/read cases, one full lifecycle and success/success retries \u2014 not full lifecycle per combination; current 24 and new 14 counted separately."
   }
  ],
  "followups": [
@@ -195,5 +217,11 @@
   "Authenticated TEST installer browser: NOT_RUN",
   "Final bounded portal run --personas rec,owner: NOT_RUN (pending)",
   "Site-hold and document/onsite boundary fixes: separate follow-up"
+ ],
+ "release_prerequisites": [
+  "Review + apply docs/pending-migrations/0214_evidence_requirement_area_key.sql (sha256 9524ea15\u20264022450; PGlite-tested via tests/ready-check-areas-db.test.ts 11/0) BEFORE publishing per-area code",
+  "Publish matching app version (bulk 0213 live; hold new bulk confirmations until then)",
+  "Authenticated TEST installer browser: NOT_RUN",
+  "Portal QA NOT_RUN coverage rows (12)"
  ]
 }
