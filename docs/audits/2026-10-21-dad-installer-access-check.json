@@ -1,7 +1,7 @@
 {
  "date": "2026-10-21T08:10+11:00",
  "target": "http://localhost:8080 (local dev preview; single live Lovable Cloud backend)",
- "tested_base_commit": "fe86d630 + uncommitted fixes (final SHA = next auto-commit)",
+ "tested_base_commit": "fe86d630 + uncommitted fixes; authoritative completed source commit 80e1720f1c67938fdb8b3e3dbca2a82f5e02974a (HISTORICAL run)",
  "qa_identity": {
   "userId": "1befe5c2-dc86-4503-afef-604295d8e638",
   "businessId": "6a1cfe8a-9314-4f41-bcd9-4b6d15b25a0f",
@@ -120,9 +120,9 @@
  },
  "verdict": "Ready for a restricted dummy-job preview on desktop only after the Add Job crash fix is published. NOT full live workflow ready.",
  "post_migration_run": {
-  "date": "2026-10-21T21:40Z (Australia/Sydney 22 Oct morning)",
+  "date": "2026-10-20T21:38:17Z = 21 October 2026 08:38:17 Australia/Sydney (completion observed by root; not an exact run-finished time)",
   "target": "http://localhost:8080 (local dev preview; single live Lovable Cloud backend)",
-  "tested_base_commit": "644ce07b1011e2125b163a14ba65af83c0b6e59c + correction/area patches + 0214 live (final SHA = next auto-commit)",
+  "tested_base_commit": "94423f47c4afa462dda33effc8168db625ec25a5 (base) + correction/area patches + 0214 live",
   "migration_0214": "APPLIED live via single-transaction runner (drizzle/migrations/0157_0214_evidence_requirement_area_key.sql); PostgREST select id,area_key limit(0) = HTTP 200, 0 rows; see 2026-10-21-0214-release/applied.md",
   "fixes_found_and_made": [
    "Area key AREAS_FIELD_KEY 'areas.v1' violated live ready_check_observations.field_key check (^(attendance|measure|insulation|removal|access|elec)\\.[a-z0-9_]+$) - renamed to 'measure.areas_v1' (core + practice schemas + tests); correction marker renamed 'correction.copy.v1' -> 'measure.correction_copy_v1'",
@@ -238,6 +238,7 @@
    }
   ],
   "gates_held": "Official form/safety gates untouched; expected safety refusals observed (owner fee awareness, removal confirmation) are not authentication failures",
-  "verdict": "Ready for a RESTRICTED dummy-job preview after publishing the matching build. Not full live workflow ready: sign-out browser step, failure-injection, regression matrix and cross-business refusal remain NOT_RUN; per-area works hold still requires Office review before work can start (by design)."
+  "verdict": "Ready for a RESTRICTED dummy-job preview after publishing the matching build. Not full live workflow ready: sign-out browser step, failure-injection, regression matrix and cross-business refusal remain NOT_RUN; per-area works hold still requires Office review before work can start (by design).",
+  "tested_source_commit": "680d5cb333b88ba589432ada4196f2faec73a530"
  }
 }
