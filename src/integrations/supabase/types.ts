@@ -4701,6 +4701,81 @@ export type Database = {
         }
         Relationships: []
       }
+      first_response_retries: {
+        Row: {
+          attempt_count: number
+          claim_token: string | null
+          job_id: string
+          last_attempt_at: string | null
+          last_outcome: string | null
+          last_reason: string | null
+          last_recorded_at: string | null
+          last_route: string | null
+          lease_until: string | null
+          next_attempt_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          claim_token?: string | null
+          job_id: string
+          last_attempt_at?: string | null
+          last_outcome?: string | null
+          last_reason?: string | null
+          last_recorded_at?: string | null
+          last_route?: string | null
+          lease_until?: string | null
+          next_attempt_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          claim_token?: string | null
+          job_id?: string
+          last_attempt_at?: string | null
+          last_outcome?: string | null
+          last_reason?: string | null
+          last_recorded_at?: string | null
+          last_route?: string | null
+          lease_until?: string | null
+          next_attempt_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "first_response_retries_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "first_response_retries_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "first_response_retries_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "first_response_retries_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "first_response_retries_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       indicative_estimates: {
         Row: {
           applied_discount: number
@@ -13088,6 +13163,20 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      claim_first_response_retries: {
+        Args: { p_activated_at: string; p_limit?: number }
+        Returns: {
+          business_unit: string
+          channel: string
+          claim_token: string
+          created_at: string
+          job_id: string
+          job_number: string
+          needs_first_response: boolean
+          office_bucket: string
+          source: string
+        }[]
+      }
       claim_partner_login_link: {
         Args: { _token_hash: string }
         Returns: {
@@ -13199,6 +13288,16 @@ export type Database = {
         }
         Returns: string
       }
+      finish_first_response_retry: {
+        Args: {
+          p_claim_token: string
+          p_job_id: string
+          p_outcome: string
+          p_reason: string
+          p_route: string
+        }
+        Returns: boolean
+      }
       finish_quarantine_cleanup: {
         Args: {
           _actor?: string
@@ -13220,6 +13319,19 @@ export type Database = {
           _path: string
         }
         Returns: boolean
+      }
+      first_response_retry_scope: {
+        Args: { p_activated_at: string; p_now: string }
+        Returns: {
+          business_unit: string
+          channel: string
+          created_at: string
+          job_id: string
+          job_number: string
+          needs_first_response: boolean
+          office_bucket: string
+          source: string
+        }[]
       }
       format_property_address: {
         Args: {
@@ -13427,6 +13539,14 @@ export type Database = {
           partner_enquiry_id: string
           signed_at: string
         }[]
+      }
+      start_first_response_retry: {
+        Args: {
+          p_activated_at: string
+          p_claim_token: string
+          p_job_id: string
+        }
+        Returns: boolean
       }
       trade_quote_scope: {
         Args: { _job: string }
