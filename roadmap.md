@@ -1,4 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Homeowner multi-file evidence (Jo, 20 Oct 06:36 UTC)
+- [ ] Add selection/removal and serialized uploads with safe per-file retry; preserve tokens, validation and prior evidence.
+- [ ] Verify multiple files, later uploads, Office aggregation and mobile width; no publication or customer communications.
 ## Urgent Base44 delivery failure (Jo, 19 Oct 09:35 UTC)
 - [x] Inspected exact payload and response handling; signed recipient-free probe returned 400 Invalid recipient. Added bounded redacted rejection reasons; preserved payload, templates, workflow and idempotency. No backlog retries.
 - [x] 17 focused delivery tests and affected-file lint pass; automatic build OK. Recovered historical manual_template_test bridge path; exactly one canonical T7 dummy request to current TEST inbox was rejected HTTP 423 "Customer email delivery is disabled" after recipient/subject/body validation. No customer sends, backlog retries, settings changes or publication.
