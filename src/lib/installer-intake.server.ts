@@ -238,6 +238,7 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
   const ic0 = await import("./installer-intake.core");
   const curAttended = ic0.attendanceFromSiteCheck(job.installer_site_check as string | null);
   const nextAttended = p.attended ?? curAttended;
+  { const dp = p.attended === "attended" ? ic0.visitDateProblem(p.attendedOn ?? null, ic0.melbourneToday()) : null; if (dp) throw new WorkflowError(dp); } // never silently drop an entered date
   // Removal facts are site facts: kept on "quote not yet" when the property was attended; only the charge is commercial.
   const nextRemoval = p.removalQuote === undefined ? st.removalQuote : p.quoteStatus === "not_quoted" ? (nextAttended === "attended" ? ((r) => r ? { ...r, chargeIncGst: null } : null)(readRemoval(p.removalQuote)) : { answer: "unknown" as const, areaM2: null, chargeIncGst: null }) : readRemoval(p.removalQuote);
   if (nextRemoval) { const problems = removalProblems(nextRemoval, p.insulation, p.areaM2 ?? st.areaM2, p.quoteIncGst, p.quoteStatus === "have_quote"); if (problems.length) throw new WorkflowError(problems.join(" • ")); }
@@ -287,8 +288,8 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
     }
     await admin.from("jobs").update({ estimated_area_m2: ch.area, estimated_area_unknown: false }).eq("id", jobId);
   }
-  if ((p.attended && p.attended !== curAttended) || (p.attended === "attended" && p.attendedOn !== undefined && ic0.attendedOnDate("attended", p.attendedOn, new Date().toISOString().slice(0, 10)) !== (job.installer_site_check_date ?? null))) {
-    const on = ic0.attendedOnDate(p.attended, p.attendedOn ?? (p.attended === curAttended ? job.installer_site_check_date as string | null : null), new Date().toISOString().slice(0, 10));
+  if ((p.attended && p.attended !== curAttended) || (p.attended === "attended" && p.attendedOn !== undefined && ic0.attendedOnDate("attended", p.attendedOn, ic0.melbourneToday()) !== (job.installer_site_check_date ?? null))) {
+    const on = ic0.attendedOnDate(p.attended, p.attendedOn ?? (p.attended === curAttended ? job.installer_site_check_date as string | null : null), ic0.melbourneToday());
     const { error: e } = await admin.from("jobs").update({ installer_site_check: ic0.siteCheckFromAttendance(p.attended), installer_site_check_date: on }).eq("id", jobId);
     if (e) throw new WorkflowError(e.message);
     await logEvent(jobId, actorId, "installer_attendance_answer", p.attended === "attended" ? "Installer answered: attended and assessed the property" : "Installer answered: not attended yet — Ready Check required", { answer: p.attended, previous: curAttended, attended_on: on, reported_by: actorId, source: "installer_edit" }, { internal: true });
