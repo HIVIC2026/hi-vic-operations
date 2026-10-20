@@ -1,4 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Office persisted-media catch-up (Jo, 20 Oct 07:09 UTC)
+- [ ] Add Office-only persisted-media precedence and safe legacy declarations; focused tests, no publish or automatic-guard changes.
+- [ ] Recheck and invoke the guarded preview action once per specified 14 jobs; verify both provider-ID logs after each success and reconcile remaining unanswered.
 ## Office first-response catch-up (Jo, 20 Oct 06:55 UTC)
 - [x] Implemented one-job admin-only catch-up guards, current-fact routing, media acknowledgement, shared reservation and complete logs; normal automation unchanged.
 - [x] Focused isolated tests and automatic preview build/typecheck pass; production SELECT-only reconciliation: 1,264 enquiry-lane records, 1,245 answered (includes same recipient/manual/Outlook), 2 explicit exclusions, 17 real unanswered at snapshot. No sends/provider calls/writes/settings/backlog changes. Runtime check used simulated provider and in-memory records only.
