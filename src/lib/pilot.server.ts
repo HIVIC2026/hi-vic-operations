@@ -78,10 +78,12 @@ export async function logPartner(jobId: string | null, actorId: string, type: st
 
 /** Jobs created by TEST sign-ins or for TEST businesses are always saved as qa_test so they never touch live automation. */
 export async function intakeSourceFor(userId: string, businessId: string | null, fallback: string): Promise<string> {
-  const [{ data: u }, { data: b }] = await Promise.all([
+  const [{ data: u, error: ue }, { data: b, error: be }] = await Promise.all([
     admin.auth.admin.getUserById(userId),
-    businessId ? admin.from("businesses").select("name, onboarding_notes").eq("id", businessId).maybeSingle() : Promise.resolve({ data: null as { name: string; onboarding_notes: string | null } | null }),
+    businessId ? admin.from("businesses").select("name, onboarding_notes").eq("id", businessId).maybeSingle() : Promise.resolve({ data: null as { name: string; onboarding_notes: string | null } | null, error: null }),
   ]);
+  // Fail closed: an unreadable user/business must never silently stamp a TEST job as live.
+  if (ue || !u?.user || be || (businessId && !b)) throw new Error("Could not confirm whether this job is TEST or live. Please retry.");
   const testUser = u?.user?.user_metadata?.["qa_test"] === true || /@hivic-test\.example$/i.test(u?.user?.email ?? "");
   const testBiz = /^TEST\b/i.test(b?.name ?? "") || (b?.onboarding_notes ?? "").includes("[TEST PARTNER]"); // TEST-partner mark, e.g. "[TEST PARTNER] Reinsulate"
   return testUser || testBiz ? "qa_test" : fallback;
