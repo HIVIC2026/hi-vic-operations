@@ -106,6 +106,7 @@ async function harness(options = {}) {
     "./site-conditions.core": source("site-conditions.core"),
   };
   const mocks = {
+    "./ready-check-draft.server": { rcAreaWorksBlockers: async () => [] }, // unrelated area facts; actual area guard has its own PGlite regressions
     "./installer-quote.server": { quoteBillingBlocker: async () => options.billingBlocker ?? null },
     "./owner-quote-visibility.core": { ownerQuoteReleased: (q) => q.status === "issued" && q.release_state === "released" && !!q.sent_at, QUOTE_NOT_RELEASED: "Quote not released" },
     "./quote-expiry.core": { quoteIsExpired: () => false },

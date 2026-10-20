@@ -4437,6 +4437,7 @@ export type Database = {
       }
       evidence_requirements: {
         Row: {
+          area_key: string | null
           category: Database["public"]["Enums"]["evidence_category"]
           gate: string
           id: string
@@ -4453,6 +4454,7 @@ export type Database = {
           verified_by: string | null
         }
         Insert: {
+          area_key?: string | null
           category: Database["public"]["Enums"]["evidence_category"]
           gate: string
           id?: string
@@ -4469,6 +4471,7 @@ export type Database = {
           verified_by?: string | null
         }
         Update: {
+          area_key?: string | null
           category?: Database["public"]["Enums"]["evidence_category"]
           gate?: string
           id?: string

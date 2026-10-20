@@ -1,3 +1,5 @@
+> HISTORICAL NOTE (21 Oct 2026): "per-area NOT_IMPLEMENTED", "final bounded QA NOT_RUN" and "0214 not applied" statements below are historical. Current status: 2026-10-21-release-reconciliation.md; 0214 is live (2026-10-21-0214-release/applied.md).
+
 # Dad installer access check — 21 Oct 2026
 
 - **date**: "2026-10-21T08:10+11:00"

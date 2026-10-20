@@ -290,6 +290,9 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
       const { SITE_HOLD_BLOCKER } = await import("./site-conditions.core");
       return [hold.note ? `${SITE_HOLD_BLOCKER}: ${hold.note}` : SITE_HOLD_BLOCKER];
     }
+    // Completion must read current area evidence even after an earlier pre-start check passed.
+    const areas = await (await import("./ready-check-draft.server")).rcAreaWorksBlockers(jobId);
+    if (areas.length) return areas;
   }
   blockers.push(...(await readyCheckBlockers(jobId, to)));
   // Owner paperwork gates A–D (one rule set for every journey).

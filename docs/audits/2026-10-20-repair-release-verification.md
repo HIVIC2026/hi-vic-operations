@@ -1,3 +1,5 @@
+> HISTORICAL NOTE (21 Oct 2026): "per-area NOT_IMPLEMENTED", "final bounded QA NOT_RUN" and "0214 not applied" statements below are historical. Current status: 2026-10-21-release-reconciliation.md; 0214 is live (2026-10-21-0214-release/applied.md).
+
 # Repair release verification — 20 Oct 2026 (sanitized)
 
 Not published. No sends, provider writes, invoices, payments, claims, role/account changes, or historical backfills.

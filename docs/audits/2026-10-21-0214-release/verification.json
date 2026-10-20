@@ -1,0 +1,52 @@
+{
+  "kind": "isolated PGlite execution; no live SQL or real accounts",
+  "payload_bytes": 946,
+  "payload_sha256": "9524ea1570ab34a512704e8d764c1a67d5d35a0c1f5edf31bc2af027a4022450",
+  "preflight_sha256": "d2ad5a181a9165b6f10105d4ffd4a486837d0d1210b0db329e86e33cd0177aed",
+  "apply_wrapper_sha256": "681e0801f91bbaf4f478e2745aa9b6951f5fe668d2f720259cea1b3d83802577",
+  "passed": 5,
+  "failed": 0,
+  "checks": [
+    {
+      "name": "exact payload embedded unchanged",
+      "passed": true,
+      "bytes": 946,
+      "sha256": "9524ea1570ab34a512704e8d764c1a67d5d35a0c1f5edf31bc2af027a4022450"
+    },
+    {
+      "name": "bounded read-only preflight detects legacy public callers without emitting bodies",
+      "passed": true,
+      "matching_public_routines": 6,
+      "private_routine_excluded": true
+    },
+    {
+      "name": "apply and reapply preserve records, linked files and RLS while supporting areas",
+      "passed": true,
+      "applied_twice": true,
+      "error_codes": {
+        "duplicate_job": "23505",
+        "duplicate_area": "23505",
+        "empty_collides_with_null": "23505",
+        "old_conflict_target": "42P10"
+      },
+      "area_rows_plus_original": 3
+    },
+    {
+      "name": "wrong existing replacement index aborts before any schema or data change",
+      "passed": true,
+      "original_unique_constraint_preserved": true,
+      "existing_row_and_file_preserved": true
+    },
+    {
+      "name": "forced error after reviewed DDL atomically rolls back the added column and dropped constraint",
+      "passed": true,
+      "column_addition_rolled_back": true,
+      "original_unique_constraint_restored": true,
+      "row_and_file_preserved": true
+    }
+  ],
+  "limits": [
+    "Minimal original-schema fixture, not a copy of the live database.",
+    "Does not establish live caller compatibility, lock availability or deployed PostgREST schema-cache readiness."
+  ]
+}

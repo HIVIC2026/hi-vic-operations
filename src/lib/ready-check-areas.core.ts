@@ -19,7 +19,7 @@ export type RcArea = {
   /** Who supplied each fact and when. Carried-forward facts keep their original supplier/time. */
   sources: Partial<Record<"areaM2" | "existing" | "removal" | "removalM2" | "product" | "scope", AreaSource>>;
 };
-export type AreaReq = { id: string; area_key: string | null; category: string; gate: string; status: string; label: string };
+export type AreaReq = { id: string; area_key: string | null; category: string; gate: string; status: string; label: string; verified_by?: string | null; verified_at?: string | null; notes?: string | null };
 
 const KEY = /^[a-z0-9][a-z0-9-]{0,39}$/;
 const num = (x: unknown) => (x == null || x === "" ? null : Number(x));
@@ -78,6 +78,8 @@ export function areaEvidenceSpecs(a: RcArea) {
 }
 
 const statusText = (s: string) => (s === "rejected" ? "rejected — upload again" : s === "uploaded" ? "uploaded, waiting for office review" : "photo or video not uploaded");
+// An automatically retired area row is not an Office waiver when that area is present again.
+const areaRequirementCleared = (r: AreaReq) => r.status === "verified" || (r.status === "not_required" && !!r.verified_by && !!r.verified_at);
 
 /**
  * Server action-boundary hold: an area's removal, disturbance or covering may not start until its ORIGINAL-condition
@@ -92,7 +94,7 @@ export function areaWorksBlockers(areas: RcArea[], reqs: AreaReq[]): string[] {
     if (a.removal === "yes" && a.removalM2 == null) out.push(`${a.label}: removal area not recorded`);
     const before = reqs.find((r) => r.area_key === a.key && r.category === "before_ceiling_space");
     if (!before) out.push(`${a.label}: original-condition evidence item not set up — save the areas again`);
-    else if (before.status !== "verified" && before.status !== "not_required") out.push(`${a.label}: original-condition evidence ${statusText(before.status)}`);
+    else if (!areaRequirementCleared(before)) out.push(`${a.label}: original-condition evidence ${statusText(before.status)}`);
   }
   return out;
 }
@@ -102,7 +104,7 @@ export type AreaTask = { area: string; item: string; status: string; suppliedBy:
 export function areaTasks(areas: RcArea[], reqs: AreaReq[]): AreaTask[] {
   const out: AreaTask[] = [];
   for (const a of areas) for (const r of reqs.filter((x) => x.area_key === a.key)) {
-    if (r.status === "verified" || r.status === "not_required") continue;
+    if (areaRequirementCleared(r)) continue;
     out.push({ area: a.label, item: r.label, status: statusText(r.status), suppliedBy: SUPPLIER, reviewedBy: REVIEWER,
       due: r.category === "before_ceiling_space" ? "before any removal or covering of this area" : "after the work, before office AP review" });
   }

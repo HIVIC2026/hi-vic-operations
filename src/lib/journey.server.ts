@@ -212,7 +212,7 @@ const FRANKSTON = { lat: -38.1446, lng: 145.1257 };
 /** Upload one TEST evidence photo (geotagged at the TEST address) into the job's private files, as a phone upload would. */
 async function uploadEvidence(ctx: JourneyCtx, category: string, by: string, gate: "assessment" | "electrical" | "installation" = "assessment") {
   await assertOwnTestJob(ctx);
-  let { data: req } = await admin.from("evidence_requirements").select("id").eq("job_id", ctx.jobId!).eq("category", category as never).limit(1).maybeSingle();
+  let { data: req } = await admin.from("evidence_requirements").select("id").eq("job_id", ctx.jobId!).eq("category", category as never).order("sort").limit(1).maybeSingle();
   if (!req) {
     const ins = await admin.from("evidence_requirements").insert({ job_id: ctx.jobId!, category: category as never, label: `TEST ${category}`, gate, required: false, status: "outstanding", sort: 900 } as never).select("id").single();
     if (ins.error) throw new Error(`evidence requirement: ${ins.error.message}`);
