@@ -283,11 +283,10 @@ export async function getImportDraftFor(userId: string, importId: string, busine
   let receipt: import("./installer-intake.core").RecoveredIntakeReceipt | null = null;
   if (imp.job_id) { const { data: j } = await admin.from("jobs").select("job_number").eq("id", imp.job_id).maybeSingle(); jobNumber = (j?.job_number as string | null) ?? null; }
   if (imp.status === "confirmed" && imp.job_id) {
-    // Lost reply / refresh: rebuild the receipt from the job's own recorded intake facts, newest first.
-    const { data: ev, error } = await admin.from("workflow_events").select("event_type, details").eq("job_id", imp.job_id)
-      .in("event_type", ["installer_quote_answer", "installer_coordination_chosen", "installer_existing_insulation_declared", "installer_owner_fee_awareness"]).order("created_at", { ascending: false });
-    if (error) throw new WorkflowError("Your saved job could not be loaded. Try again.");
-    receipt = (await import("./installer-intake.core")).recoveredIntakeReceipt((ev ?? []) as { event_type: string; details: Record<string, unknown> | null }[]);
+    // Lost reply / refresh: rebuild the receipt from the job's canonical CURRENT state (payer, fee freshness, insulation).
+    const m = await import("./installer-intake.server");
+    const [st, answers] = await Promise.all([m.installerIntakeState(imp.job_id), m.intakeQuoteAnswers([imp.job_id])]);
+    receipt = (await import("./installer-intake.core")).recoveredIntakeReceipt(st, answers.get(imp.job_id) ?? null);
   }
   return { status: (imp.status === "confirmed" ? "confirmed" : "draft") as "draft" | "confirmed", files: (imp.files as { path: string; name: string; type: string }[] | null) ?? [], jobId: (imp.status === "confirmed" ? imp.job_id : null) as string | null, jobNumber, receipt };
 }

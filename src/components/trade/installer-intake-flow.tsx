@@ -105,7 +105,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
           if (r.draftId) {
             const srv = await loadDraft({ data: { importId: r.draftId, businessId } });
             if (!live) return;
-            if (srv.status === "confirmed" && srv.jobId) { localStorage.removeItem(resumeKey(userId, businessId)); setSaved({ jobId: srv.jobId, jobNumber: srv.jobNumber, ...(srv.receipt ?? { insulation: "unknown" as const, quoted: true, next: intakeNextAction(null, true), feeHeld: false }) }); }
+            if (srv.status === "confirmed" && srv.jobId) { localStorage.removeItem(resumeKey(userId, businessId)); setSaved({ jobId: srv.jobId, jobNumber: srv.jobNumber, ...(srv.receipt ?? { insulation: "unknown" as const, quoted: null, next: intakeNextAction(null, false), feeHeld: true }) }); }
             else if (srv.status === "draft") { draftRef.current = r.draftId; filesRef.current = srv.files; setDraftId(r.draftId); setFiles(srv.files); setFileTexts(Object.fromEntries(Object.entries(r.fileTexts ?? {}).filter(([path]) => srv.files.some((f) => f.path === path)))); setDerived(r.derived ?? {}); if (srv.files.length) setFileNote("Your attached files were kept."); }
           }
         }
@@ -330,7 +330,7 @@ function Summary({ title, rows, onEdit, disabled }: { title: string; rows: strin
   </div>;
 }
 
-type Saved = { jobId: string; jobNumber: string | null; insulation: ExistingInsulation; quoted?: boolean; next?: string; feeHeld?: boolean };
+type Saved = { jobId: string; jobNumber: string | null; insulation: ExistingInsulation; quoted?: boolean | null; next?: string; feeHeld?: boolean };
 function Received({ saved, preview = false }: { saved: Saved; preview?: boolean }) {
   const get = useServerFn(getMyIntakeReadyCheck);
   const { data } = useQuery({ queryKey: ["intake-rc", saved.jobId], queryFn: () => get({ data: { jobId: saved.jobId } }), retry: false, enabled: !preview });
@@ -350,6 +350,7 @@ function Received({ saved, preview = false }: { saved: Saved; preview?: boolean 
       <h2 className="font-display text-xl font-bold">Job received</h2>
       <p className="text-sm" data-received-next>{saved.next ?? "Home Insulation Victoria checks the owner's eligibility next."} Nobody has been contacted and nothing is booked yet.</p>
       {saved.feeHeld && <p className="text-sm font-semibold" data-fee-held>The owner quote waits until you confirm the owner has been advised of the fees — you can do this on the job.</p>}
+      {saved.quoted === null && <p className="text-sm font-semibold" data-quote-unknown>Quote status: not answered yet — answer it on the job.</p>}
       {!saved.quoted && <p className="text-sm font-semibold" data-add-when-ready>Add your measurements and quote on this job when ready.</p>}
       {saved.quoted && saved.insulation === "unknown" && <p className="text-sm font-semibold">The owner quote waits until the existing insulation is confirmed as none or below R2.0.</p>}
       {data?.coordination && <p className="text-sm" data-coordination-saved>Organised by: {data.coordination === "self_managed" ? "you" : "Home Insulation Victoria"}</p>}
