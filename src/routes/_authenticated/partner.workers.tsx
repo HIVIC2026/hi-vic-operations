@@ -7,8 +7,10 @@ import { TradeShell } from "@/components/trade/TradeShell";
 import { Button } from "@/components/trade/trade-ui";
 import { WorkerForm, WorkerRemoveButton, WorkerStatus } from "@/components/portal/workers";
 import { listMyWorkers } from "@/lib/worker-links.functions";
+import { createWorkerCompletionLink } from "@/lib/worker-invite.functions";
 import { WorkerInvites } from "@/components/portal/worker-invites";
 import { workerListQueryKey } from "@/lib/worker-invite.core";
+import { EEC_TEAM_LABEL, eecState } from "@/lib/worker-compliance.core";
 
 export const Route = createFileRoute("/_authenticated/partner/workers")({
   head: () => ({ meta: [
