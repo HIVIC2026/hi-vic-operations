@@ -38,3 +38,19 @@ Typecheck clean; build OK; retired-term scan 0 customer-visible.
 
 ## Remaining first-slice limits
 Signed-in installer save/reload matrix, per-zone evidence/prefill, action-boundary evidence deadlines, discrepancy holds and readiness panels remain unbuilt/NOT_RUN. Video storage cap 200 MiB < 250 MB still needs approval.
+
+## Office QA harness acceptance addendum — 20 Oct 2026 (reviewed at ee7a7865)
+Fixes in `scripts/qa-office-writes.ts`, `scripts/qa-serverfn-resolve.ts`, new pure `scripts/qa-office-response.ts`:
+- All five targets (office.functions getPipeline/listByStatus/deleteJob/restoreJob, portal.functions setEligibility) resolve from the served dev transform or the served compiled client only; the row records target, mode and a build identity hash. A name served with two IDs, two functions sharing one ID, or a file mismatch -> unresolved, no calls made.
+- Replies decode with the framework's standard plugins (src/start.ts registers no adapters). Redirects (manual), HTML, non-JSON, undecodable, framed, envelope-less and HTTP-200 error envelopes are blocked/failed, never passed.
+- Reads must decode to a well-formed pipeline/list; writes need decoded `{ok:true}` plus a strict TEST-job readback. Before/after DB reads throw on error or missing row; events/protected-job reads check errors.
+- A refusal passes only on the decoded handler error "Admin only." with an unchanged TEST row. Generic 500/403, HTML or unresolved endpoints are not authorization evidence.
+- Persistent pre-mutation snapshot and verified restore are unchanged.
+
+Tests: `bun test ./tests/qa-office-response.test.ts ./tests/qa-serverfn-resolve.test.ts` -> 16 pass / 0 fail (HTTP-200 serialized error, framework-format thrown error, malformed results, DB read failure/missing row, duplicate/mismatched IDs, identity). Typecheck clean.
+
+Signed-in run: `bun scripts/qa-office-writes.ts --base http://localhost:8080 --budget 500 --personas rec,owner` (local preview, dev mode, identity dev:3fee4c24234ce27c). Rows: `docs/audits/2026-10-20-office-writes-rows.json`.
+- PASSED: resolution; 6/9 refusals (REC and owner × deleteJob/restoreJob/setEligibility, all decoded "Admin only.", DB unchanged); Office parity before/deleted/restored (15 -> 14 -> 15, sums 1605/1604/1605); desktop + phone delete/restore/classification journeys; audit events; TEST snapshot restored; owner answers unchanged; 3 protected real jobs untouched.
+- Earlier run of the same harness BLOCKED all six refusals as undecodable — exactly the false-pass the old harness would have hidden; fixed by using the framework plugins.
+- NOT_RUN: installer refusals (3) — the only TEST installer login is the excluded Deep account. Production/compiled-build target — not run (no deployed run requested; IDs are never inferred from a local build).
+- Exit status 1 because of the NOT_RUN rows.
