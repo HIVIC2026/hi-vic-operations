@@ -410,7 +410,8 @@ function BulkImportPage() {
     confirming.current = true;
     setBusy(true);
     try {
-      await savePlan({ data: { batchId, batchPlan, rows: rows.map((r) => ({ rowId: r.id, stage: rowStages[r.id] ?? "not_visited", siteCheck: rowChecks[r.id]?.check ?? null, ...quotedSend(r.id), siteCheckDate: rowChecks[r.id]?.check === "yes" ? rowChecks[r.id]?.date ?? null : null, consent: !!consent[r.id], plan: planFor(r.id) })) } });
+      const saved = await savePlan({ data: { batchId, batchPlan, rows: rows.map((r) => ({ rowId: r.id, stage: rowStages[r.id] ?? "not_visited", siteCheck: rowChecks[r.id]?.check ?? null, ...quotedSend(r.id), siteCheckDate: rowChecks[r.id]?.check === "yes" ? rowChecks[r.id]?.date ?? null : null, consent: !!consent[r.id], plan: planFor(r.id) })) } });
+      if (saved.lockedRows?.length) toast.info(`Row${saved.lockedRows.length > 1 ? "s" : ""} ${saved.lockedRows.join(", ")}: job already started — answers there are locked; confirm finishes that job, then correct details on the job page.`);
       const res = await confirm({ data: { batchId, skipRowIds: [...skip, ...rows.filter((r) => statusOf(r).excluded).map((r) => r.id)] } });
       setDone(res);
       qc.invalidateQueries({ queryKey: ["bulk-review", batchId] });
