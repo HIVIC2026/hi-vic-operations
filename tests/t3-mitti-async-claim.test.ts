@@ -73,6 +73,10 @@ function fakeMitti(b: Behaviour = {}) {
     calls.push(`${method} ${path}`);
     if (path === "/users/search") { if (b.search === "timeout") throw new Error("Mitti could not be reached. Try again shortly."); return { users: [{ id: "user_9", email: "ivan@hivic-local.test" }] }; }
     if (path.startsWith("/templates/")) return TEMPLATE;
+    if (method === "GET" && path.startsWith("/audits/")) return {
+      audit_id: decodeURIComponent(path.slice("/audits/".length)), template_id: MITTI_TEMPLATE_ID,
+      header_items: [{ item_id: "h1", label: "Portal Job Number", responses: { text: "HV-9001" } }], items: [],
+    };
     if (path === "/audits") {
       if (b.create === "hang") await gate;
       if (b.create === "timeout") throw new Error("Mitti could not be reached. Try again shortly.");
@@ -273,6 +277,7 @@ describe("7. a stored audit is reused (never re-created)", () => {
     const m = fakeMitti();
     const r = await createAssignMittiAudit(JOB, INSTALLER, m.call, { readyCheck: true, assignee: ASSIGNEE });
     expect(r).toMatchObject({ auditId: "audit_existing", reused: true });
+    expect(m.calls).toEqual(["POST /users/search", "GET /audits/audit_existing", "POST /audits/audit_existing/share", "PUT /inspections/v1/inspections/audit_existing/owner"]);
     expect(m.creates()).toBe(0);
     expect(events(CLAIM_EVENT)).toEqual([]);
   });
@@ -281,6 +286,7 @@ describe("7. a stored audit is reused (never re-created)", () => {
     expect(storedAudit()).toBe("audit_1");
     const retry = fakeMitti();
     expect((await createAssignMittiAudit(JOB, INSTALLER, retry.call, { readyCheck: true, assignee: ASSIGNEE })).reused).toBe(true);
+    expect(retry.calls).toContain("GET /audits/audit_1");
     expect(retry.creates()).toBe(0);
   });
 });

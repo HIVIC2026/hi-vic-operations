@@ -138,6 +138,17 @@ export type XeroMode = "test" | "live";
 export type XeroTenant = { tenantId: string; tenantName?: string | null };
 const DEMO = /demo company/i;
 const LIVE = /dc construction solutions/i;
+/** Read-only description of the existing routes. Availability does not enable a route. */
+export function describeXeroRouting(conns: XeroTenant[]) {
+  const testOrganisation = conns.find(c => DEMO.test(c.tenantName ?? ""))?.tenantName ?? null;
+  const liveCandidates = conns.filter(c => LIVE.test(c.tenantName ?? "") && !DEMO.test(c.tenantName ?? ""))
+    .map(c => c.tenantName ?? "Unnamed organisation");
+  let liveOrganisation: string | null = null;
+  let liveBlocker: string | null = null;
+  try { liveOrganisation = pickXeroTenant(conns, "live").tenantName ?? "Unnamed organisation"; }
+  catch (error) { liveBlocker = error instanceof Error ? error.message : "The real-job Xero route could not be verified."; }
+  return { liveCallsEnabled: XERO_LIVE_CALLS_ENABLED, testOrganisation, liveOrganisation, liveCandidates, liveBlocker };
+}
 /** TEST (qa_test) jobs only ever reach the Xero Demo Company; live jobs only ever reach DC Construction Solutions. Never "first org". */
 export function pickXeroTenant(conns: XeroTenant[], mode: XeroMode): XeroTenant {
   const name = (t: XeroTenant) => t.tenantName ?? "";

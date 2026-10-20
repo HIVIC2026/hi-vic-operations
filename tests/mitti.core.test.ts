@@ -56,12 +56,13 @@ describe("create & assign", () => {
     expect(body.items.map((i) => i.item_id).sort()).toEqual(["i1", "i2", "i3"]);
     expect(calls[3].body).toEqual({ shares: [{ id: "user_77", permission: "edit" }] });
   });
-  test("retry reuses the stored audit and only re-shares", async () => {
-    const { api, calls } = fake();
+  test("retry verifies the stored audit before re-sharing it", async () => {
+    const { api, calls } = fake({ audit: { ...audit(), audit_id: "audit_existing" } });
     const r = await createOrReuseAudit(api, ctx({ existingAuditId: "audit_existing" }));
     expect(r.reused).toBe(true);
     expect(r.auditId).toBe("audit_existing");
     expect(calls.some((c) => c.path === "/audits")).toBe(false);
+    expect(calls.map((c) => c.path)).toEqual(["/users/search", "/audits/audit_existing", "/audits/audit_existing/share", "/inspections/v1/inspections/audit_existing/owner"]);
   });
   test("missing / wrong Mitti user blocks before creation", async () => {
     const { api, calls } = fake({ users: [{ id: "x", email: "other@hivic.test" }] });

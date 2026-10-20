@@ -1606,8 +1606,9 @@ export const confirmApConsentFn = createServerFn({ method: "POST" }).middleware(
 export const getComplianceSetup = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   await requireAdmin(context.supabase);
   const templates = await loadTemplates();
-  const { count } = await admin.from("esc_notification_config").select("id", { count: "exact", head: true }).eq("approved", true).eq("is_active", true);
-  return setupStatus(templates, (count ?? 0) > 0);
+  const { count, error } = await admin.from("esc_notification_config").select("id", { count: "exact", head: true }).eq("approved", true).eq("is_active", true);
+  if (error || count === null) throw new WorkflowError(`Could not read ESC notification approval: ${error?.message ?? "missing count"}`);
+  return setupStatus(templates, count > 0);
 });
 
 export const raiseAssignmentVariation = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -1646,7 +1647,8 @@ export const getAssignmentDocUrl = createServerFn({ method: "POST" }).middleware
 // Admin: versioned compliance wording. The portal never supplies official text itself.
 export const listComplianceTemplates = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   await requireAdmin(context.supabase);
-  const { data } = await admin.from("compliance_templates").select("*").order("template_key").order("created_at", { ascending: false });
+  const { data, error } = await admin.from("compliance_templates").select("*").order("template_key").order("created_at", { ascending: false });
+  if (error) throw new WorkflowError(`Could not read compliance versions: ${error.message}`);
   return data ?? [];
 });
 
@@ -1798,8 +1800,9 @@ export const getXeroConnection = createServerFn({ method: "GET" }).middleware([r
   .handler(async ({ context }) => {
     await requireAdmin(context.supabase);
     const { xeroConnectionStatus } = await import("./xero.server");
+    const { describeXeroRouting } = await import("./xero.core");
     try { return { ...(await xeroConnectionStatus()), error: null as string | null }; }
-    catch (e) { return { connected: false, orgs: [] as { name: string; test: boolean }[], error: (e as Error).message }; }
+    catch (e) { return { configured: Boolean(process.env["LOVABLE_API_KEY"] && process.env["XERO_API_KEY"]), connected: false, checkedAt: new Date().toISOString(), routing: describeXeroRouting([]), orgs: [] as { name: string; test: boolean }[], error: e instanceof Error ? e.message : "The Xero connection could not be checked." }; }
   });
 
 export const recordXeroTestPayment = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
