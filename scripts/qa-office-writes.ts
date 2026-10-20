@@ -88,7 +88,13 @@ for (const [persona, email, role] of [["office", "admin@hivic.test", "admin"], [
 }
 
 // ---- deployed server function calls (same wire format as the app's own client) ----
-const fnId = (file: string, name: string) => createHash("sha256").update(`${file}--${name}_createServerFn_handler`).digest("hex");
+// Target-specific IDs from the served dev transform or the served compiled client (never guessed; see qa-serverfn-resolve.ts).
+const { resolveServerFns, fnKey } = await import("./qa-serverfn-resolve");
+const FN_SPECS = [["src/lib/office.functions.ts", "getPipeline"], ["src/lib/office.functions.ts", "listByStatus"], ["src/lib/office.functions.ts", "deleteJob"], ["src/lib/office.functions.ts", "restoreJob"], ["src/lib/portal.functions.ts", "setEligibility"]].map(([file, name]) => ({ file: file!, name: name! }));
+const resolution = await resolveServerFns(BASE, FN_SPECS);
+add({ area: "office writes", route_or_action: "server function ID resolution", persona: "-", status: resolution.missing.length ? "failed" : "passed", detail: `${resolution.mode}: ${resolution.detail}`, steps: "served transform / compiled client scan" });
+if (resolution.missing.length) { add({ area: "office writes", route_or_action: "office endpoint probes", persona: "-", status: "not_run", detail: "server function IDs unresolved for this target — diagnostic failure, not a permission result; no calls made", steps: "" }); process.exit(1); }
+const fnId = (file: string, name: string) => resolution.ids[fnKey({ file, name })]!;
 async function callFn(id: string, token: string, data: unknown, method: "GET" | "POST" = "POST") {
   const payload = JSON.stringify(await toJSONAsync({ data }));
   const headers: Record<string, string> = { "x-tsr-serverFn": "true", accept: "application/json", authorization: `Bearer ${token}`, origin: BASE };

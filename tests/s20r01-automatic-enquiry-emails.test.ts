@@ -152,7 +152,7 @@ const autoOn = (startsAt = ago(2 * HOUR)) => { T.customer_delivery_settings = [{
 
 beforeEach(() => {
   for (const k of Object.keys(T)) delete T[k];
-  failAllOutcomeWrites = false; unavailableCounts = false; beforeFinalSend = null; mediaReadHook = null; mediaReads = 0; historyReads.length = 0;
+  failAllOutcomeWrites = false; failComms = false; rpcImpl = null; unavailableCounts = false; beforeFinalSend = null; mediaReadHook = null; mediaReads = 0; historyReads.length = 0;
   mode = "ok"; failSentWrite = false; calls.length = 0; events.length = 0; comms.length = 0; writes.length = 0; media = { received: false, uncertain: false }; unsubIssued = 0;
   Object.assign(T, {
     jobs: [job(L, "HV-3001", "likely_eligible", "none", ago(HOUR)), job(B, "HV-3002", "needs_onsite_confirmation", "Yes - some batts", ago(HOUR)), job(I, "HV-3003", "does_not_appear_eligible", "Yes", ago(HOUR))],
@@ -535,9 +535,13 @@ describe("ACTUAL sweep -> router -> sender: accepted by provider, every local wr
     expect(firstError).toBeTruthy(); // failure surfaced, not reported as success
     // Later run: local writes recovered, ledger still says nothing was sent.
     failAllOutcomeWrites = false; failComms = false; finishFails = false;
-    const second = await sweepUnansweredFirstResponses(1).catch((e) => ({ error: String(e) }));
+    const second = await sweepUnansweredFirstResponses(1);
     expect(calls).toHaveLength(1); // NO second provider call
-    expect(second).not.toMatchObject({ sent: 1 });
+    expect(second).toEqual({ checked: 1, sent: 0 });
+    expect(finishes.at(-1)).toMatchObject({
+      p_job_id: B, p_outcome: "held",
+      p_reason: "Earlier email outcome pending or uncertain — never resent automatically",
+    });
     rpcImpl = null;
   });
 });

@@ -862,6 +862,99 @@ export type Database = {
           },
         ]
       }
+      bulk_import_attachment_repairs: {
+        Row: {
+          actor_id: string
+          business_id: string
+          created_at: string
+          document_id: string
+          id: string
+          job_id: string
+          original_path: string
+          row_id: string
+          storage_path: string
+        }
+        Insert: {
+          actor_id: string
+          business_id: string
+          created_at?: string
+          document_id: string
+          id?: string
+          job_id: string
+          original_path: string
+          row_id: string
+          storage_path: string
+        }
+        Update: {
+          actor_id?: string
+          business_id?: string
+          created_at?: string
+          document_id?: string
+          id?: string
+          job_id?: string
+          original_path?: string
+          row_id?: string
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bulk_import_attachment_repairs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bulk_import_attachment_repairs_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bulk_import_attachment_repairs_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bulk_import_attachment_repairs_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_piesa_deadlines"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "bulk_import_attachment_repairs_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bulk_import_attachment_repairs_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_enquiry_index"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bulk_import_attachment_repairs_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "office_job_list"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bulk_import_attachment_repairs_row_id_fkey"
+            columns: ["row_id"]
+            isOneToOne: false
+            referencedRelation: "bulk_import_rows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bulk_import_batches: {
         Row: {
           business_id: string
@@ -915,8 +1008,10 @@ export type Database = {
       bulk_import_rows: {
         Row: {
           batch_id: string
+          confirm_claim_token: string | null
           confirm_error: string | null
           confirm_lease_until: string | null
+          confirm_snapshot: Json | null
           created_at: string
           duplicate_note: string | null
           electrician_plan: Json | null
@@ -935,8 +1030,10 @@ export type Database = {
         }
         Insert: {
           batch_id: string
+          confirm_claim_token?: string | null
           confirm_error?: string | null
           confirm_lease_until?: string | null
+          confirm_snapshot?: Json | null
           created_at?: string
           duplicate_note?: string | null
           electrician_plan?: Json | null
@@ -955,8 +1052,10 @@ export type Database = {
         }
         Update: {
           batch_id?: string
+          confirm_claim_token?: string | null
           confirm_error?: string | null
           confirm_lease_until?: string | null
+          confirm_snapshot?: Json | null
           created_at?: string
           duplicate_note?: string | null
           electrician_plan?: Json | null
@@ -13094,6 +13193,49 @@ export type Database = {
       }
     }
     Functions: {
+      _bulk_import_access: {
+        Args: { _actor: string; _business: string; _work?: boolean }
+        Returns: undefined
+      }
+      _bulk_import_claimed: {
+        Args: { _actor: string; _row: string; _token: string }
+        Returns: {
+          batch_id: string
+          confirm_claim_token: string | null
+          confirm_error: string | null
+          confirm_lease_until: string | null
+          confirm_snapshot: Json | null
+          created_at: string
+          duplicate_note: string | null
+          electrician_plan: Json | null
+          extracted: Json
+          id: string
+          import_stage: string
+          job_id: string | null
+          match_confidence: string | null
+          matched_files: Json
+          missing_evidence: Json
+          office_review_reason: string | null
+          row_index: number
+          sort_reasons: Json
+          sort_result: string | null
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bulk_import_rows"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      _bulk_import_document: {
+        Args: { _actor: string; _business: string; _file: Json; _job: string }
+        Returns: string
+      }
+      _bulk_import_quote_complete: {
+        Args: { _job: string; _quote: string }
+        Returns: boolean
+      }
       accept_install_day: {
         Args: {
           _assignment: string
@@ -13223,6 +13365,10 @@ export type Database = {
         Args: { _app: string; _path: string }
         Returns: boolean
       }
+      bulk_import_batch_counts: {
+        Args: { _actor: string; _batches: string[] }
+        Returns: Json
+      }
       bump_referral_counter: {
         Args: { _field: string; _id: string }
         Returns: undefined
@@ -13232,6 +13378,10 @@ export type Database = {
         Returns: boolean
       }
       can_access_job: { Args: { _job: string }; Returns: boolean }
+      claim_bulk_import_row: {
+        Args: { _actor: string; _row: string; _token: string }
+        Returns: Json
+      }
       claim_customer_followups: {
         Args: { _lease_seconds: number; _limit: number }
         Returns: {
@@ -13323,6 +13473,10 @@ export type Database = {
         }
         Returns: number
       }
+      close_bulk_import_batch: {
+        Args: { _actor: string; _batch: string }
+        Returns: Json
+      }
       commit_guarded_stage: {
         Args: {
           _actor: string
@@ -13375,6 +13529,10 @@ export type Database = {
         Args: { _actor: string; _rate_id: string; _reason: string }
         Returns: undefined
       }
+      edit_bulk_import_row: {
+        Args: { _actor: string; _expected: Json; _patch: Json; _row: string }
+        Returns: Json
+      }
       enqueue_external_action: {
         Args: {
           _action: string
@@ -13388,6 +13546,18 @@ export type Database = {
           _version: string
         }
         Returns: string
+      }
+      finish_bulk_import_row: {
+        Args: {
+          _actor: string
+          _audit: Json
+          _files: Json
+          _owner_link: Json
+          _quote: Json
+          _row: string
+          _token: string
+        }
+        Returns: Json
       }
       finish_first_response_retry: {
         Args: {
@@ -13548,6 +13718,10 @@ export type Database = {
         Returns: string
       }
       post_intake_tick: { Args: { _url: string }; Returns: number }
+      prepare_bulk_import_job: {
+        Args: { _actor: string; _job_input: Json; _row: string; _token: string }
+        Returns: Json
+      }
       publish_owner_prices: {
         Args: { _actor: string; _prices: Json; _reason: string }
         Returns: number
@@ -13592,6 +13766,24 @@ export type Database = {
         }
         Returns: string
       }
+      release_bulk_import_row: {
+        Args: {
+          _actor: string
+          _error: string
+          _row: string
+          _skip?: boolean
+          _token: string
+        }
+        Returns: undefined
+      }
+      renew_bulk_import_row: {
+        Args: { _actor: string; _row: string; _token: string }
+        Returns: undefined
+      }
+      repair_bulk_import_attachment: {
+        Args: { _actor: string; _file: Json; _row: string }
+        Returns: string
+      }
       required_deposit_amount: { Args: { _total: number }; Returns: number }
       review_external_action: {
         Args: {
@@ -13605,6 +13797,14 @@ export type Database = {
       revoke_onboarding_authorisation: {
         Args: { _actor: string; _id: string }
         Returns: boolean
+      }
+      save_bulk_import_analysis: {
+        Args: { _actor: string; _batch: string; _rows: Json; _summary: Json }
+        Returns: undefined
+      }
+      set_bulk_import_plan: {
+        Args: { _actor: string; _batch: string; _plan: Json }
+        Returns: undefined
       }
       set_external_action_mode: {
         Args: {

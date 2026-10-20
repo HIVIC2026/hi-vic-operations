@@ -11,7 +11,14 @@ The following versions and flags come from the prior read-only database evidence
 | Installer post-installation declaration | `DEECA-PIISA-March-2026-DRAFT` | `true` | `false` |
 | Final Activity 48 VEEC assignment | `Activity48-VEEC-Assignment-v16-DRAFT` | `true` | `false` |
 
-Active selection does not establish approval. Row IDs and draft hashes have not been fetched; no identity or equivalence beyond the recorded version labels is asserted here.
+Active selection does not establish approval.
+
+The following row identities were subsequently verified by a read-only query on 20 October 2026. SHA-256 covers the exact stored body text, not a rendered document or the complete template record. Both rows have `form_fields = []`; any code-derived prefill still requires the source/evidence mapping review below.
+
+| Draft | Row ID | Stored body SHA-256 |
+| --- | --- | --- |
+| `Activity48-VEEC-Assignment-v16-DRAFT` | `a3c1b3e5-b40b-414d-9359-05b529c45790` | `f9457bcd31d73b102aebb2bcb03c37e08012ea1c150cd9e44ab7eb5b83a6779f` |
+| `DEECA-PIISA-March-2026-DRAFT` | `774b1a70-2b0d-4249-b455-317b8ddb0f05` | `09a8da4286a3f4e9640944b778e1974310d53d70671647569dde3575e2b81d99` |
 
 ## Verified primary sources
 
@@ -26,7 +33,7 @@ Prior indexed ESC update: **Stage two of VEU ceiling insulation activity starts 
 
 https://www.esc.vic.gov.au/victorian-energy-upgrades/updates-reports-reviews-and-data/updates-veu-program/stage-two-veu-ceiling-insulation-activity-starts-1-october-2026-updated-requirements-accreditation
 
-The indexed update is a retrieval lead. The single current activity-page retrieval attempted through DEECA returned an internal error, and retrieval stopped. The exact current official assignment's title, edition, body, effective date and signature requirements remain unverified. The portal label `v16` is not proof of equivalence to the current ESC form.
+The indexed update is a retrieval lead. Direct retrieval of the current ESC activity page and the linked release page returned HTTP 404 in this review, although search still indexes the activity page and its 1 October assignment-form entry. The exact current official assignment's title, edition, body, effective date and signature requirements remain unverified. The portal label `v16` is not proof of equivalence to the current ESC form.
 
 ## Required before AP approval
 
@@ -34,4 +41,4 @@ The indexed update is a retrieval lead. The single current activity-page retriev
 
 **Activity 48 assignment draft:** obtain the current official assignment and applicable ESC activity guidance. Record source URL, document title, edition/date, stated applicability, retrieval date and original-file SHA-256. Compare the specific portal draft item by item, including declarations, required fields, instructions, notices and signature blocks. Confirm authorised signers, sequence and timing from that source; the portal's existing installer → AP → homeowner sequence still requires validation.
 
-**Both drafts:** fetch their row IDs and hashes, complete a field-to-source/evidence mapping, and inspect a rendered signed example. Missing or stale required facts must block signing. Bind AP approval to the exact reviewed version and content, preserving earlier signed records unchanged. Keep both drafts unapproved until these checks are complete.
+**Both drafts:** use the verified row IDs and stored-body hashes above to identify the drafts, complete a field-to-source/evidence mapping, and inspect a rendered signed example. Missing or stale required facts must block signing. Bind AP approval to the exact reviewed version and content, preserving earlier signed records unchanged. Keep both drafts unapproved until these checks are complete.

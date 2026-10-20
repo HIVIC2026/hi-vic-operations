@@ -24,18 +24,16 @@ describe("template records", () => {
       expect(officialFormUseBlocker(k, { ...t, sourceUrl: null, sourceUrlStatus: "NEEDS CONFIRMATION" })).toMatch(/source web address/);
       expect(officialFormUseBlocker(k, { ...t, superseded: true })).toMatch(/superseded/);
     });
-    // STEP 97: the PIISA mapping is approved by the project owner (official DEECA template). PIESA is unchanged.
-    test(`${k}: ${k === "piisa" ? "approved mapping is usable live" : "not approved, blocked from use"}`, () => {
+    test(`${k}: the current unapproved mapping stays blocked; an isolated approved fixture is usable`, () => {
       const t = OFFICIAL_TEMPLATES[k];
-      if (k === "piisa") {
-        const a = t.approved as { by: string; at: string };
-        expect(a.by.length).toBeGreaterThan(0); expect(Number.isNaN(Date.parse(a.at))).toBe(false);
-        expect(officialFormUseBlocker(k)).toBeNull();
-      } else {
-        expect(t.approved).toBe(false);
-        expect(officialFormUseBlocker(k)).toMatch(/approved/);
-        expect(officialFormUseBlocker(k, { ...t, approved: { by: "jo", at: "x" } })).toBeNull();
-      }
+      expect(t.approved).toBe(false);
+      expect(officialFormUseBlocker(k)).toMatch(/hasn't been approved/);
+      // This copied record exercises the approval branch; it never approves the application mapping.
+      const approved = { ...t, approved: { by: "TEST fixture approver", at: "2026-10-20T00:00:00Z" } };
+      expect(officialFormUseBlocker(k, approved)).toBeNull();
+      expect(officialFormUseBlocker(k, { ...approved, superseded: true })).toMatch(/superseded/);
+      expect(officialFormUseBlocker(k, { ...approved, sourceUrlStatus: "NEEDS CONFIRMATION" })).toMatch(/source web address/);
+      expect(OFFICIAL_TEMPLATES[k].approved).toBe(false);
     });
   }
 });
@@ -211,12 +209,14 @@ describe("PIISA installation-day gate", () => {
   const base = (over: Partial<Parameters<typeof piisaGate>[0]> = {}) => piisaGate({ today: "2026-10-10", installDate: "2026-10-10", piisa: copy("piisa", { ...piisaPass(), "p8.date": "2026-10-10" }, "2026-10-10"), piesa: copy("piesa", piesaPass(), "2026-10-01"),
     facts, piesaReceivedAt: "2026-10-02T00:00:00Z", conductiveExistingInsulation: false, conductivityEvidence: "f1", hazardResolution: null, formUse: { piesa: null, piisa: null }, ...over });
   test("happy path passes", () => { const r = base(); expect(r.blockers).toEqual([]); expect(r.due).toBe("passed"); });
-  // STEP 97: the PIISA mapping is approved by the project owner, so live use is no longer blocked by approval.
-  // Fail-closed is preserved — an unapproved or superseded mapping still blocks immediately.
-  test("approved PIISA is usable by default; fail-closed still holds", () => {
-    expect(base({ formUse: undefined }).blockers).toEqual([]);
+  test("the default PIISA gate blocks the current unapproved mapping; explicit approved fixtures remain isolated", () => {
+    expect(base({ formUse: undefined }).blockers).toContain(`PIISA: ${officialFormUseBlocker("piisa")}`);
+    expect(base({ formUse: undefined }).due).toBe("blocked");
+    const approved = { ...OFFICIAL_TEMPLATES.piisa, approved: { by: "TEST fixture approver", at: "2026-10-20T00:00:00Z" } };
+    expect(base({ formUse: { piesa: null, piisa: officialFormUseBlocker("piisa", approved) } }).blockers).toEqual([]);
     expect(base({ formUse: { piesa: null, piisa: officialFormUseBlocker("piisa", { ...OFFICIAL_TEMPLATES.piisa, approved: false }) } }).blockers.some((b) => b.includes("can't be used yet"))).toBe(true);
     expect(base({ formUse: { piesa: null, piisa: officialFormUseBlocker("piisa", { ...OFFICIAL_TEMPLATES.piisa, superseded: true }) } }).blockers.some((b) => b.includes("superseded"))).toBe(true);
+    expect(OFFICIAL_TEMPLATES.piisa.approved).toBe(false);
   });
   test("missing PIISA: installer responsible, due states", () => {
     expect(base({ piisa: null }).responsible).toBe("installer");

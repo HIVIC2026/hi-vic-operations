@@ -1,0 +1,2439 @@
+{
+ "generated_utc": "2026-10-20",
+ "method": "READ-ONLY: workflow_settings select + one Mitti template GET per form; no saves/audits/approvals",
+ "note": "Labels/types of published template questions only. No inspection answers, customer data, credentials or provider bodies.",
+ "forms": [
+  {
+   "title": "HIV Ready Check",
+   "key": "ready_check",
+   "id": "dbaf67a2-c9c5-4120-8c69-0f4a43c5bd39",
+   "health": {
+    "identity": "verified",
+    "schema": "invalid",
+    "ok": false,
+    "templateName": "A1 \u2013 Ready Check | HIVIC Sourced Customer"
+   },
+   "publishedQuestionCount": 189,
+   "publishedQuestions": [
+    {
+     "label": "Portal Job Number",
+     "type": "textsingle"
+    },
+    {
+     "label": "Site address",
+     "type": "textsingle"
+    },
+    {
+     "label": "Inspection Date and Time",
+     "type": "datetime"
+    },
+    {
+     "label": "Homeowner name",
+     "type": "textsingle"
+    },
+    {
+     "label": "Property type",
+     "type": "textsingle"
+    },
+    {
+     "label": "Life support equipment at property?",
+     "type": "textsingle"
+    },
+    {
+     "label": "Was the ceiling or roof built or replaced in the last 5 years?",
+     "type": "textsingle"
+    },
+    {
+     "label": "Assessor",
+     "type": "textsingle"
+    },
+    {
+     "label": "Are the property details provided above correct?",
+     "type": "question"
+    },
+    {
+     "label": "What needs to be corrected?",
+     "type": "textsingle"
+    },
+    {
+     "label": "What type of roof does the home have? ",
+     "type": "question"
+    },
+    {
+     "label": "Describe the roof type",
+     "type": "textsingle"
+    },
+    {
+     "label": "How would you rate the ceiling access?",
+     "type": "question"
+    },
+    {
+     "label": "Upload a clear photo of the ceiling access point",
+     "type": "media"
+    },
+    {
+     "label": "How many ceiling areas need to be measured separately? \nCount areas separately where they have different roof/ceiling sections or need their own measurements. ",
+     "type": "list"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan. Rough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan. Rough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan. Rough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan. Rough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan. Rough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan. Rough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan. Rough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan. Rough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan. Rough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan. Rough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan. Rough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan. Rough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan. Rough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan. Rough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan. Rough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan. Rough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan. Rough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan. Rough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan. Rough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan. Rough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan. Rough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Based on your onsite assessment, does this property meet the Ready Check requirements to proceed?",
+     "type": "question"
+    },
+    {
+     "label": "Why did the property fail the ready check? Select all that apply",
+     "type": "textsingle"
+    },
+    {
+     "label": "I confirm I have not discussed or agreed pricing with the homeowner during this Ready Check. All quotes and pricing discussions will be handled directly by Home Insulation Victoria",
+     "type": "checkbox"
+    },
+    {
+     "label": "I confirm the information, measurements and photos provided in this Ready Check are accurate to the best of my knowledge.",
+     "type": "signature"
+    },
+    {
+     "label": "Date and time of approval",
+     "type": "datetime"
+    },
+    {
+     "label": "Approver's signature",
+     "type": "signature"
+    }
+   ],
+   "schemaIssues": [
+    "Missing: Insulation type (tick all that apply)",
+    "Missing: Depth (mm)",
+    "Missing: Photo with tape measure showing depth",
+    "Missing: No photo? I confirm the existing insulation is below R2.0 and the home is eligible for the rebate",
+    "Missing: What needs to happen to it?",
+    "Missing: Area to remove (m2)",
+    "Missing: How many?",
+    "Missing: Describe them and add a photo",
+    "Missing: Explain the method",
+    "Missing: Upgrade area diagram or floor plan",
+    "Missing: Are any extras needed beyond the standard install and removal?",
+    "Missing: Describe each extra and why it is needed",
+    "Missing: Photos of each extra"
+   ],
+   "missingCount": 13,
+   "missingWithClosestPublished": [
+    {
+     "expected": "Insulation type (tick all that apply)",
+     "closestPublished": null
+    },
+    {
+     "expected": "Depth (mm)",
+     "closestPublished": null
+    },
+    {
+     "expected": "Photo with tape measure showing depth",
+     "closestPublished": null
+    },
+    {
+     "expected": "No photo? I confirm the existing insulation is below R2.0 and the home is eligible for the rebate",
+     "closestPublished": null
+    },
+    {
+     "expected": "What needs to happen to it?",
+     "closestPublished": {
+      "label": "What needs to be corrected?",
+      "type": "textsingle",
+      "overlap": 0.67
+     }
+    },
+    {
+     "expected": "Area to remove (m2)",
+     "closestPublished": null
+    },
+    {
+     "expected": "How many?",
+     "closestPublished": {
+      "label": "How many ceiling areas need to be measured separately? \nCount areas separately where they have different roof/ceiling sections or need their own measurements. ",
+      "type": "list",
+      "overlap": 1
+     }
+    },
+    {
+     "expected": "Describe them and add a photo",
+     "closestPublished": null
+    },
+    {
+     "expected": "Explain the method",
+     "closestPublished": null
+    },
+    {
+     "expected": "Upgrade area diagram or floor plan",
+     "closestPublished": {
+      "label": "Upload your area sketch or floor plan. Rough is fine. Mark this ceiling area and show the measurements used.",
+      "type": "media",
+      "overlap": 0.6
+     }
+    },
+    {
+     "expected": "Are any extras needed beyond the standard install and removal?",
+     "closestPublished": null
+    },
+    {
+     "expected": "Describe each extra and why it is needed",
+     "closestPublished": null
+    },
+    {
+     "expected": "Photos of each extra",
+     "closestPublished": null
+    }
+   ]
+  },
+  {
+   "title": "Installer Ready Check (priced)",
+   "key": "ready_check_priced",
+   "id": "template_01ee0428be6d4435b34d8b738935f099",
+   "health": {
+    "identity": "verified",
+    "schema": "invalid",
+    "ok": false,
+    "templateName": "A1 \u2013 Ready Check | Installer-Supplied Customer"
+   },
+   "publishedQuestionCount": 208,
+   "publishedQuestions": [
+    {
+     "label": "Portal Job Number",
+     "type": "textsingle"
+    },
+    {
+     "label": "Site address",
+     "type": "textsingle"
+    },
+    {
+     "label": "Inspection Date and Time",
+     "type": "datetime"
+    },
+    {
+     "label": "Homeowner name",
+     "type": "textsingle"
+    },
+    {
+     "label": "Property type",
+     "type": "textsingle"
+    },
+    {
+     "label": "Life support equipment at property?",
+     "type": "textsingle"
+    },
+    {
+     "label": "Was the ceiling or roof built or replaced in the last 5 years?",
+     "type": "textsingle"
+    },
+    {
+     "label": "Assessor",
+     "type": "textsingle"
+    },
+    {
+     "label": "Are the property details provided above correct?",
+     "type": "question"
+    },
+    {
+     "label": "What needs to be corrected?",
+     "type": "textsingle"
+    },
+    {
+     "label": "What type of roof does the home have? ",
+     "type": "question"
+    },
+    {
+     "label": "Describe the roof type",
+     "type": "textsingle"
+    },
+    {
+     "label": "How would you rate the ceiling access?",
+     "type": "question"
+    },
+    {
+     "label": "Upload a clear photo of the ceiling access point",
+     "type": "media"
+    },
+    {
+     "label": "How many ceiling areas need to be measured separately? \nCount areas separately where they have different roof/ceiling sections or need their own measurements.",
+     "type": "list"
+    },
+    {
+     "label": "CLICK ON ME to add a ceiling area",
+     "type": "dynamicfield"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?\ne.g. Main house \u2013 bedrooms and hallway",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Tell us how you measured it ",
+     "type": "textsingle"
+    },
+    {
+     "label": "Upload your area sketch or floor plan.\nRough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "What type of existing insulation is installed? Select all that apply",
+     "type": "list"
+    },
+    {
+     "label": "Please describe the existing insulation type ",
+     "type": "textsingle"
+    },
+    {
+     "label": "What is the measured insulation depth (mm)?",
+     "type": "textsingle"
+    },
+    {
+     "label": "What is the determined R value of the existing ceiling insulation?",
+     "type": "question"
+    },
+    {
+     "label": "Upload a photo clearly showing the measured insulation depth",
+     "type": "media"
+    },
+    {
+     "label": "What is required for the existing insulation?",
+     "type": "question"
+    },
+    {
+     "label": "How much existing insulation needs to be removed? (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "How many recessed downlights?",
+     "type": "textsingle"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Describe the issue and add a photo",
+     "type": "media"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?\ne.g. Main house \u2013 bedrooms and hallway",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan.\nRough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?\ne.g. Main house \u2013 bedrooms and hallway",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan.\nRough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?\ne.g. Main house \u2013 bedrooms and hallway",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan.\nRough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?\ne.g. Main house \u2013 bedrooms and hallway",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan.\nRough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?\ne.g. Main house \u2013 bedrooms and hallway",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan.\nRough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?\ne.g. Main house \u2013 bedrooms and hallway",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan.\nRough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?\ne.g. Main house \u2013 bedrooms and hallway",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan.\nRough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?\ne.g. Main house \u2013 bedrooms and hallway",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan.\nRough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?\ne.g. Main house \u2013 bedrooms and hallway",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan.\nRough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?\ne.g. Main house \u2013 bedrooms and hallway",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan.\nRough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?\ne.g. Main house \u2013 bedrooms and hallway",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan.\nRough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?\ne.g. Main house \u2013 bedrooms and hallway",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan.\nRough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?\ne.g. Main house \u2013 bedrooms and hallway",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan.\nRough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?\ne.g. Main house \u2013 bedrooms and hallway",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan.\nRough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?\ne.g. Main house \u2013 bedrooms and hallway",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan.\nRough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?\ne.g. Main house \u2013 bedrooms and hallway",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan.\nRough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?\ne.g. Main house \u2013 bedrooms and hallway",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan.\nRough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?\ne.g. Main house \u2013 bedrooms and hallway",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan.\nRough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?\ne.g. Main house \u2013 bedrooms and hallway",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan.\nRough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?\ne.g. Main house \u2013 bedrooms and hallway",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan.\nRough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "Which part of the home does this ceiling area cover?\ne.g. Main house \u2013 bedrooms and hallway",
+     "type": "textsingle"
+    },
+    {
+     "label": "How was this ceiling area measured?",
+     "type": "question"
+    },
+    {
+     "label": "Upload your area sketch or floor plan.\nRough is fine. Mark this ceiling area and show the measurements used.",
+     "type": "media"
+    },
+    {
+     "label": "Enter the measured ceiling area (m\u00b2)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is there existing insulation in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Upload an overview photo of this ceiling area",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed downlights in this ceiling area?",
+     "type": "question"
+    },
+    {
+     "label": "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
+     "type": "question"
+    },
+    {
+     "label": "What\u2019s included in your quote?",
+     "type": "list"
+    },
+    {
+     "label": "What else is included?",
+     "type": "textsingle"
+    },
+    {
+     "label": "Total quoted price (inc GST)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Based on your onsite assessment, does this property meet the Ready Check requirements to proceed?",
+     "type": "question"
+    },
+    {
+     "label": "Why did the property fail the ready check? Select all that apply",
+     "type": "textsingle"
+    },
+    {
+     "label": "I confirm the information, measurements, photos and quote provided in this Ready Check are accurate to the best of my knowledge.",
+     "type": "signature"
+    }
+   ],
+   "schemaIssues": [
+    "Missing: Are any extras needed beyond the standard install and removal?",
+    "Missing: Describe each extra and why it is needed",
+    "Missing: Photos of each extra"
+   ],
+   "missingCount": 3,
+   "missingWithClosestPublished": [
+    {
+     "expected": "Are any extras needed beyond the standard install and removal?",
+     "closestPublished": null
+    },
+    {
+     "expected": "Describe each extra and why it is needed",
+     "closestPublished": null
+    },
+    {
+     "expected": "Photos of each extra",
+     "closestPublished": null
+    }
+   ]
+  },
+  {
+   "title": "PIISA",
+   "key": "piisa",
+   "id": "template_f6a2597479164eb181453eb335ce5125",
+   "health": {
+    "identity": "verified",
+    "schema": "invalid",
+    "ok": false,
+    "templateName": "A3 - PIISA + AP Evidence"
+   },
+   "publishedQuestionCount": 48,
+   "publishedQuestions": [
+    {
+     "label": "Job number",
+     "type": "textsingle"
+    },
+    {
+     "label": "Property address",
+     "type": "textsingle"
+    },
+    {
+     "label": "Installation date",
+     "type": "datetime"
+    },
+    {
+     "label": "Accredited person (AP)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Installer company",
+     "type": "textsingle"
+    },
+    {
+     "label": "Lead installer \u2014 full legal name",
+     "type": "textsingle"
+    },
+    {
+     "label": "Lead installer \u2014 CII certification number (issued by the EEC)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Additional installer 1 \u2014 full legal name (leave blank if not applicable)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Additional installer 1 \u2014 CII certification number (issued by the EEC)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Additional installer 2 \u2014 full legal name (leave blank if not applicable)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Additional installer 2 \u2014 CII certification number (issued by the EEC)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Additional installer 3 \u2014 full legal name (leave blank if not applicable)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Additional installer 3 \u2014 CII certification number (issued by the EEC)",
+     "type": "textsingle"
+    },
+    {
+     "label": "Please take a clear, geotagged photo of every installer at this property. Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).",
+     "type": "media"
+    },
+    {
+     "label": "Before installation, please record a clear video of every ceiling area being upgraded, including any existing insulation. Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).",
+     "type": "media"
+    },
+    {
+     "label": "Has the household or tenant been told the power will be off during installation?",
+     "type": "question"
+    },
+    {
+     "label": "Does anyone at this property rely on life support?",
+     "type": "question"
+    },
+    {
+     "label": "Have you received written consent or a medical plan before starting this assessment?",
+     "type": "question"
+    },
+    {
+     "label": "Please upload the written consent or medical plan with every page clearly readable. Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).",
+     "type": "media"
+    },
+    {
+     "label": "Has the Safe Work Method Statement (SWMS) been completed for this job and all risks identified?",
+     "type": "question"
+    },
+    {
+     "label": "Have all Table 1 hazards been assessed and controlled in the SWMS?",
+     "type": "question"
+    },
+    {
+     "label": "Have the main and any alternative power supplies been isolated, locked out and tagged, and the roof cavity confirmed electrically safe to enter?",
+     "type": "question"
+    },
+    {
+     "label": "Before work starts, please take a clear, geotagged photo showing the power isolated, locked out and tagged. Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).",
+     "type": "media"
+    },
+    {
+     "label": "Is there solar, a battery or another power supply, such as a generator?",
+     "type": "question"
+    },
+    {
+     "label": "Are safe shutdown, isolation and restart instructions available for every alternative power supply?",
+     "type": "question"
+    },
+    {
+     "label": "Is the ground-level AC/DC isolator accessible, working and safe to isolate?",
+     "type": "question"
+    },
+    {
+     "label": "Has the lead installer read the electrical safety assessment (PIESA) and confirmed it is safe to start work?",
+     "type": "question"
+    },
+    {
+     "label": "If the PIESA requires an electrician at the start, has the electrician attended? Choose N/A only when attendance is not required by the PIESA or solar shutdown instructions.",
+     "type": "question"
+    },
+    {
+     "label": "Please take a clear, geotagged photo of the electrician attending this property. Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).",
+     "type": "media"
+    },
+    {
+     "label": "Are there recessed lights in the ceiling?",
+     "type": "question"
+    },
+    {
+     "label": "How many recessed lights are there?",
+     "type": "textsingle"
+    },
+    {
+     "label": "Does the PIESA confirm all ceiling lights are classified and marked IC or IC-4?",
+     "type": "question"
+    },
+    {
+     "label": "Does the PIESA confirm that all recessed lights are safe to cover with insulation?",
+     "type": "question"
+    },
+    {
+     "label": "Does the PIESA confirm all mains cables in the ceiling have RCD protection where required?",
+     "type": "question"
+    },
+    {
+     "label": "Does the PIESA confirm all mains cables in the ceiling are TPS or an equivalent cable type?",
+     "type": "question"
+    },
+    {
+     "label": "Does the PIESA confirm all mains cables in the ceiling meet Basic Protection Requirements?",
+     "type": "question"
+    },
+    {
+     "label": "Has the owner or occupier confirmed that nobody has entered or worked in the ceiling since the PIESA?",
+     "type": "question"
+    },
+    {
+     "label": "Is there existing insulation in the ceiling?",
+     "type": "question"
+    },
+    {
+     "label": "What is the average depth of the existing insulation (mm)?",
+     "type": "textsingle"
+    },
+    {
+     "label": "What is the existing insulation R-value, if known?",
+     "type": "textsingle"
+    },
+    {
+     "label": "Will the existing insulation be removed, topped up, or both? Foil-backed or electrically conductive insulation must be removed.",
+     "type": "question"
+    },
+    {
+     "label": "Why is the existing insulation being retained?",
+     "type": "textsingle"
+    },
+    {
+     "label": "Is the existing insulation suitable to lay new insulation over?",
+     "type": "question"
+    },
+    {
+     "label": "Before installation, please take a clear, geotagged photo of each product label showing the brand, model and R-value. Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).",
+     "type": "media"
+    },
+    {
+     "label": "All information contained in and attached to this form is correct and not misleading by inclusion or omission",
+     "type": "checkbox"
+    },
+    {
+     "label": "Signature",
+     "type": "signature"
+    },
+    {
+     "label": "After installation, please record a clear video showing all insulated areas, coverage, depth and removal of waste. Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).",
+     "type": "media"
+    },
+    {
+     "label": "Please upload a clear final roof-space plan showing the installed area in m\u00b2 and the products used. Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).",
+     "type": "media"
+    }
+   ],
+   "schemaIssues": [
+    "Missing: Job Reference ID",
+    "Missing: Address including postcode",
+    "Missing: Installation start date:",
+    "Missing: Predicted installation completion date:",
+    "Missing: Has the household been told the power will be off during the installation?",
+    "Missing: Office life support record",
+    "Missing: Is the life support record shown above still correct?",
+    "Missing: Have you received written consent or a medical plan? Please attach a photo of it.",
+    "Missing: Written consent or medical plan (kept as an attachment to this assessment)",
+    "Missing: Accredited person name:",
+    "Missing: Installer company name:",
+    "Missing: Lead installer name:",
+    "Missing: EEC certification number:",
+    "Missing: Has the Safe Work Method Statement been completed, have the common hazards been considered, and has the power been isolated, locked out and tagged?",
+    "Missing: Have you read the electrical safety assessment, and has nobody worked in the ceiling since it was done?",
+    "Missing: The electrical safety assessment requires an electrician here at the start today. Is the electrician here?",
+    "Missing: Will it be removed or topped up?",
+    "Missing: What is its average height in millimetres?",
+    "Missing: Why is the existing insulation not being removed?",
+    "Missing: List the insulation product(s) brand, model and R-value being installed",
+    "Missing: Area installed (m\u00b2)",
+    "Missing: I make the installer declaration above",
+    "Missing: Installer signature",
+    "Missing: Installer full name:",
+    "Missing: Date:",
+    "Missing: SWMS",
+    "Missing: Is the existing insulation foil backed or electrically conductive?",
+    "Missing: HI VIC supporting evidence: photo of existing insulation showing whether it is foil backed or conductive",
+    "Missing: Isolation photo \u2013 switchboard tagged and locked out, solar and battery isolators off",
+    "Missing: Electrician photo at front of premises with photo ID on install day",
+    "Missing: Product packaging photo \u2013 brand, model, R-value",
+    "Missing: Daily re-check completed",
+    "Missing: 360 video of ceiling space after upgrade",
+    "Missing: New insulation depth photo with vertical ruler",
+    "Missing: Final floor plan \u2013 installed m\u00b2 and products per area"
+   ],
+   "missingCount": 35,
+   "missingWithClosestPublished": [
+    {
+     "expected": "Job Reference ID",
+     "closestPublished": null
+    },
+    {
+     "expected": "Address including postcode",
+     "closestPublished": null
+    },
+    {
+     "expected": "Installation start date:",
+     "closestPublished": {
+      "label": "Installation date",
+      "type": "datetime",
+      "overlap": 0.67
+     }
+    },
+    {
+     "expected": "Predicted installation completion date:",
+     "closestPublished": null
+    },
+    {
+     "expected": "Has the household been told the power will be off during the installation?",
+     "closestPublished": {
+      "label": "Has the household or tenant been told the power will be off during installation?",
+      "type": "question",
+      "overlap": 1
+     }
+    },
+    {
+     "expected": "Office life support record",
+     "closestPublished": null
+    },
+    {
+     "expected": "Is the life support record shown above still correct?",
+     "closestPublished": null
+    },
+    {
+     "expected": "Have you received written consent or a medical plan? Please attach a photo of it.",
+     "closestPublished": {
+      "label": "Have you received written consent or a medical plan before starting this assessment?",
+      "type": "question",
+      "overlap": 0.67
+     }
+    },
+    {
+     "expected": "Written consent or medical plan (kept as an attachment to this assessment)",
+     "closestPublished": {
+      "label": "Have you received written consent or a medical plan before starting this assessment?",
+      "type": "question",
+      "overlap": 0.75
+     }
+    },
+    {
+     "expected": "Accredited person name:",
+     "closestPublished": {
+      "label": "Accredited person (AP)",
+      "type": "textsingle",
+      "overlap": 0.67
+     }
+    },
+    {
+     "expected": "Installer company name:",
+     "closestPublished": {
+      "label": "Installer company",
+      "type": "textsingle",
+      "overlap": 0.67
+     }
+    },
+    {
+     "expected": "Lead installer name:",
+     "closestPublished": {
+      "label": "Lead installer \u2014 full legal name",
+      "type": "textsingle",
+      "overlap": 1
+     }
+    },
+    {
+     "expected": "EEC certification number:",
+     "closestPublished": {
+      "label": "Lead installer \u2014 CII certification number (issued by the EEC)",
+      "type": "textsingle",
+      "overlap": 1
+     }
+    },
+    {
+     "expected": "Has the Safe Work Method Statement been completed, have the common hazards been considered, and has the power been isolated, locked out and tagged?",
+     "closestPublished": null
+    },
+    {
+     "expected": "Have you read the electrical safety assessment, and has nobody worked in the ceiling since it was done?",
+     "closestPublished": null
+    },
+    {
+     "expected": "The electrical safety assessment requires an electrician here at the start today. Is the electrician here?",
+     "closestPublished": null
+    },
+    {
+     "expected": "Will it be removed or topped up?",
+     "closestPublished": {
+      "label": "Will the existing insulation be removed, topped up, or both? Foil-backed or electrically conductive insulation must be removed.",
+      "type": "question",
+      "overlap": 1
+     }
+    },
+    {
+     "expected": "What is its average height in millimetres?",
+     "closestPublished": null
+    },
+    {
+     "expected": "Why is the existing insulation not being removed?",
+     "closestPublished": {
+      "label": "Before installation, please record a clear video of every ceiling area being upgraded, including any existing insulation. Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).",
+      "type": "media",
+      "overlap": 0.75
+     }
+    },
+    {
+     "expected": "List the insulation product(s) brand, model and R-value being installed",
+     "closestPublished": null
+    },
+    {
+     "expected": "Area installed (m\u00b2)",
+     "closestPublished": {
+      "label": "Please upload a clear final roof-space plan showing the installed area in m\u00b2 and the products used. Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).",
+      "type": "media",
+      "overlap": 1
+     }
+    },
+    {
+     "expected": "I make the installer declaration above",
+     "closestPublished": null
+    },
+    {
+     "expected": "Installer signature",
+     "closestPublished": null
+    },
+    {
+     "expected": "Installer full name:",
+     "closestPublished": {
+      "label": "Lead installer \u2014 full legal name",
+      "type": "textsingle",
+      "overlap": 1
+     }
+    },
+    {
+     "expected": "Date:",
+     "closestPublished": {
+      "label": "Installation date",
+      "type": "datetime",
+      "overlap": 1
+     }
+    },
+    {
+     "expected": "SWMS",
+     "closestPublished": {
+      "label": "Has the Safe Work Method Statement (SWMS) been completed for this job and all risks identified?",
+      "type": "question",
+      "overlap": 1
+     }
+    },
+    {
+     "expected": "Is the existing insulation foil backed or electrically conductive?",
+     "closestPublished": {
+      "label": "Will the existing insulation be removed, topped up, or both? Foil-backed or electrically conductive insulation must be removed.",
+      "type": "question",
+      "overlap": 1
+     }
+    },
+    {
+     "expected": "HI VIC supporting evidence: photo of existing insulation showing whether it is foil backed or conductive",
+     "closestPublished": null
+    },
+    {
+     "expected": "Isolation photo \u2013 switchboard tagged and locked out, solar and battery isolators off",
+     "closestPublished": null
+    },
+    {
+     "expected": "Electrician photo at front of premises with photo ID on install day",
+     "closestPublished": null
+    },
+    {
+     "expected": "Product packaging photo \u2013 brand, model, R-value",
+     "closestPublished": {
+      "label": "Before installation, please take a clear, geotagged photo of each product label showing the brand, model and R-value. Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).",
+      "type": "media",
+      "overlap": 0.83
+     }
+    },
+    {
+     "expected": "Daily re-check completed",
+     "closestPublished": null
+    },
+    {
+     "expected": "360 video of ceiling space after upgrade",
+     "closestPublished": {
+      "label": "Before installation, please record a clear video of every ceiling area being upgraded, including any existing insulation. Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).",
+      "type": "media",
+      "overlap": 0.6
+     }
+    },
+    {
+     "expected": "New insulation depth photo with vertical ruler",
+     "closestPublished": null
+    },
+    {
+     "expected": "Final floor plan \u2013 installed m\u00b2 and products per area",
+     "closestPublished": {
+      "label": "Please upload a clear final roof-space plan showing the installed area in m\u00b2 and the products used. Unclear or incomplete evidence may be rejected by the Essential Services Commission (ESC).",
+      "type": "media",
+      "overlap": 0.83
+     }
+    }
+   ]
+  },
+  {
+   "title": "PIESA (saved)",
+   "key": "piesa",
+   "savedId": null,
+   "result": "NOT_RUN: no saved ID"
+  },
+  {
+   "title": "PIESA candidate",
+   "key": "piesa",
+   "id": "template_c88b7f90e54743d990ef229ccac9687a",
+   "health": {
+    "identity": "verified",
+    "schema": "invalid",
+    "ok": false,
+    "templateName": "A2 - PIESA + AP Evidence"
+   },
+   "publishedQuestionCount": 4,
+   "publishedQuestions": [
+    {
+     "label": "Site conducted",
+     "type": "site"
+    },
+    {
+     "label": "Conducted on",
+     "type": "datetime"
+    },
+    {
+     "label": "Prepared by",
+     "type": "textsingle"
+    },
+    {
+     "label": "Location",
+     "type": "address"
+    }
+   ],
+   "schemaIssues": [
+    "Missing: Job Reference ID",
+    "Missing: Address including postcode",
+    "Missing: Date of inspection",
+    "Missing: Office life support record",
+    "Missing: Is the life support record shown above still correct?",
+    "Missing: Have you received written consent or a medical plan? Please attach a photo of it.",
+    "Missing: Written consent or medical plan (kept as an attachment to this assessment)",
+    "Missing: Is the mains power set-up safe? This means the mains cable in the ceiling is identified and marked, the main switch works and can be locked off, the ceiling is confirmed dead when the switch is off, and safety switches (RCDs) are fitted and tested.",
+    "Missing: Please tick each item that is not right.",
+    "Missing: Is there solar, a battery or a generator at the property?",
+    "Missing: Can it be safely shut down, and are its cables in the ceiling labelled, in conduit and protected?",
+    "Missing: Please tick each item that is not right.",
+    "Missing: Are the cables, connections and fittings in the ceiling safe to work around and cover with insulation?",
+    "Missing: Please tick each problem you found.",
+    "Missing: Are there any downlights or other recessed lights in the ceiling?",
+    "Missing: How many are there?",
+    "Missing: Are any of them not IC or IC-4 rated?",
+    "Missing: Are there any appliances, exhaust fans or flues in the ceiling space?",
+    "Missing: Please describe each one, where it is, the hazard it creates, and what was done or needs to be done about it.",
+    "Missing: Is any electrical repair work needed before insulation can be installed?",
+    "Missing: Please tick the repair work that is required.",
+    "Missing: Please describe the other repair work.",
+    "Missing: Licence no:",
+    "Missing: Full Name:",
+    "Missing: Name:",
+    "Missing: REC registration no:",
+    "Missing: Telephone no:",
+    "Missing: I declare that all information contained in and attached to this form is correct and not misleading by inclusion or omission",
+    "Missing: Electrician signature",
+    "Missing: Have you completed all of the repair work listed above, and is the ceiling now safe for insulation?",
+    "Missing: Certificate of Electrical Safety number (required for any electrical works completed):",
+    "Missing: Date of Certification:",
+    "Missing: Licence no:",
+    "Missing: Full Name:",
+    "Missing: Name:",
+    "Missing: REC registration no:",
+    "Missing: Telephone no:",
+    "Missing: Please confirm that the assessment was completed today, and that you understand that anyone going into the ceiling before installation may cancel this assessment.",
+    "Missing: Name:",
+    "Missing: Date:",
+    "Missing: Owner signature",
+    "Missing: Electrician photo at front of premises with photo ID",
+    "Missing: Switchboard cable photo"
+   ],
+   "missingCount": 43,
+   "missingWithClosestPublished": [
+    {
+     "expected": "Job Reference ID",
+     "closestPublished": null
+    },
+    {
+     "expected": "Address including postcode",
+     "closestPublished": null
+    },
+    {
+     "expected": "Date of inspection",
+     "closestPublished": null
+    },
+    {
+     "expected": "Office life support record",
+     "closestPublished": null
+    },
+    {
+     "expected": "Is the life support record shown above still correct?",
+     "closestPublished": null
+    },
+    {
+     "expected": "Have you received written consent or a medical plan? Please attach a photo of it.",
+     "closestPublished": null
+    },
+    {
+     "expected": "Written consent or medical plan (kept as an attachment to this assessment)",
+     "closestPublished": null
+    },
+    {
+     "expected": "Is the mains power set-up safe? This means the mains cable in the ceiling is identified and marked, the main switch works and can be locked off, the ceiling is confirmed dead when the switch is off, and safety switches (RCDs) are fitted and tested.",
+     "closestPublished": null
+    },
+    {
+     "expected": "Please tick each item that is not right.",
+     "closestPublished": null
+    },
+    {
+     "expected": "Is there solar, a battery or a generator at the property?",
+     "closestPublished": null
+    },
+    {
+     "expected": "Can it be safely shut down, and are its cables in the ceiling labelled, in conduit and protected?",
+     "closestPublished": null
+    },
+    {
+     "expected": "Please tick each item that is not right.",
+     "closestPublished": null
+    },
+    {
+     "expected": "Are the cables, connections and fittings in the ceiling safe to work around and cover with insulation?",
+     "closestPublished": null
+    },
+    {
+     "expected": "Please tick each problem you found.",
+     "closestPublished": null
+    },
+    {
+     "expected": "Are there any downlights or other recessed lights in the ceiling?",
+     "closestPublished": null
+    },
+    {
+     "expected": "How many are there?",
+     "closestPublished": null
+    },
+    {
+     "expected": "Are any of them not IC or IC-4 rated?",
+     "closestPublished": null
+    },
+    {
+     "expected": "Are there any appliances, exhaust fans or flues in the ceiling space?",
+     "closestPublished": null
+    },
+    {
+     "expected": "Please describe each one, where it is, the hazard it creates, and what was done or needs to be done about it.",
+     "closestPublished": null
+    },
+    {
+     "expected": "Is any electrical repair work needed before insulation can be installed?",
+     "closestPublished": null
+    },
+    {
+     "expected": "Please tick the repair work that is required.",
+     "closestPublished": null
+    },
+    {
+     "expected": "Please describe the other repair work.",
+     "closestPublished": null
+    },
+    {
+     "expected": "Licence no:",
+     "closestPublished": null
+    },
+    {
+     "expected": "Full Name:",
+     "closestPublished": null
+    },
+    {
+     "expected": "Name:",
+     "closestPublished": null
+    },
+    {
+     "expected": "REC registration no:",
+     "closestPublished": null
+    },
+    {
+     "expected": "Telephone no:",
+     "closestPublished": null
+    },
+    {
+     "expected": "I declare that all information contained in and attached to this form is correct and not misleading by inclusion or omission",
+     "closestPublished": null
+    },
+    {
+     "expected": "Electrician signature",
+     "closestPublished": null
+    },
+    {
+     "expected": "Have you completed all of the repair work listed above, and is the ceiling now safe for insulation?",
+     "closestPublished": null
+    },
+    {
+     "expected": "Certificate of Electrical Safety number (required for any electrical works completed):",
+     "closestPublished": null
+    },
+    {
+     "expected": "Date of Certification:",
+     "closestPublished": null
+    },
+    {
+     "expected": "Licence no:",
+     "closestPublished": null
+    },
+    {
+     "expected": "Full Name:",
+     "closestPublished": null
+    },
+    {
+     "expected": "Name:",
+     "closestPublished": null
+    },
+    {
+     "expected": "REC registration no:",
+     "closestPublished": null
+    },
+    {
+     "expected": "Telephone no:",
+     "closestPublished": null
+    },
+    {
+     "expected": "Please confirm that the assessment was completed today, and that you understand that anyone going into the ceiling before installation may cancel this assessment.",
+     "closestPublished": null
+    },
+    {
+     "expected": "Name:",
+     "closestPublished": null
+    },
+    {
+     "expected": "Date:",
+     "closestPublished": null
+    },
+    {
+     "expected": "Owner signature",
+     "closestPublished": null
+    },
+    {
+     "expected": "Electrician photo at front of premises with photo ID",
+     "closestPublished": null
+    },
+    {
+     "expected": "Switchboard cable photo",
+     "closestPublished": null
+    }
+   ]
+  }
+ ]
+}

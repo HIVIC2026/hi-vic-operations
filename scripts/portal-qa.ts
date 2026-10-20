@@ -44,6 +44,38 @@ const results: Result[] = [];
 const sh = (cmd: string[], cap: number) => spawnSync(cmd[0]!, cmd.slice(1), { encoding: "utf8", timeout: Math.max(1_000, Math.min(cap, left() - 15_000)), maxBuffer: 64 * 1024 * 1024 });
 const fits = (needMs: number) => left() > needMs;
 
+type EmailFileResult = { file: string; status: "passed" | "failed" | "not_run"; pass: number; fail: number; detail: string };
+/** Bun module mocks are process-wide. Each file gets a fresh child, within one shared phase/overall budget. */
+function isolatedEmailFiles(files: string[], io: {
+  now: () => number; leftMs: () => number; exists: (file: string) => boolean;
+  run: (file: string, cap: number) => { status: number | null; stdout?: string | null; stderr?: string | null; error?: { message: string }; signal?: string | null };
+  record: (row: EmailFileResult) => void; log: (text: string) => void;
+}) {
+  const deadline = io.now() + 120_000, rows: EmailFileResult[] = [], logs: string[] = [];
+  for (const file of files) {
+    const cap = Math.min(deadline - io.now(), io.leftMs()), available = io.exists(file);
+    let row: EmailFileResult;
+    if (!available || cap < 1_000) {
+      row = { file, status: "not_run", pass: 0, fail: 0, detail: !available ? "test file is missing" : "email phase or overall budget exhausted" };
+      logs.push(`NOT_RUN ${file}: ${row.detail}`);
+    } else {
+      let result: ReturnType<typeof io.run>;
+      try { result = io.run(file, cap); }
+      catch (error) { result = { status: null, error: { message: error instanceof Error ? error.message : String(error) } }; }
+      const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
+      const plain = output.replace(/\u001b\[[0-9;]*m/g, "");
+      const pass = Number(plain.match(/^\s*(\d+) pass\b/m)?.[1] ?? 0), fail = Number(plain.match(/^\s*(\d+) fail\b/m)?.[1] ?? 0);
+      const status = result.status === 0 && !result.error && !result.signal && pass > 0 && fail === 0 ? "passed" : "failed";
+      row = { file, status, pass, fail, detail: `${pass} pass, ${fail} fail; exit ${result.status ?? "none"}${result.signal ? ` (${result.signal})` : ""}${result.error ? `; stopped: ${result.error.message}` : ""}` };
+      logs.push(`\n=== ${file} (${row.status}) ===\n${row.detail}\n${output}`);
+    }
+    rows.push(row); io.log(logs.join("\n")); io.record(row);
+  }
+  const passedFiles = rows.filter(r => r.status === "passed").length, failedFiles = rows.filter(r => r.status === "failed").length, notRunFiles = rows.filter(r => r.status === "not_run").length;
+  const status = failedFiles ? "failed" : notRunFiles || !rows.length ? "not_run" : "passed";
+  return { status, pass: rows.reduce((n, r) => n + r.pass, 0), fail: rows.reduce((n, r) => n + r.fail, 0), passedFiles, failedFiles, notRunFiles } as const;
+}
+
 // ---- version / environment (editor revision is NOT the production version) ----
 const git = spawnSync("git", ["log", "-1", "--format=%h %cI"], { encoding: "utf8" }).stdout.trim();
 let production_fingerprint: Record<string, unknown> = { note: "not fetched (local target)" };
@@ -131,11 +163,11 @@ try {
 
     // ---- authenticated screens (read-only visits) ----
     const RETIRED = ["HI VIC", "undefined", "NaN", "[object", "50% deposit", "Lorem ipsum", "TODO"];
-    type Screen = { step: string; persona: string; path: string; mustSee?: string[]; mustNotSeeExact?: string[]; noPrices?: boolean };
+    type Screen = { step: string; persona: string; path: string; expectedPath?: string; expectedSearch?: Record<string, string>; mustSee?: string[]; mustNotSeeExact?: string[]; mustNotSeeExactOutside?: { text: string; ignoreSelector: string }[]; noPrices?: boolean };
     const screens: Screen[] = [
-      { step: "office-operations", persona: "office", path: "/admin/operations", mustSee: ["Leads", "Active", "Closed"] },
+      { step: "office-operations", persona: "office", path: "/admin/operations", expectedPath: "/admin/enquiries", mustSee: ["Enquiries", "Active", "Closed"] },
       { step: "office-enquiry-groups", persona: "office", path: "/admin/enquiry-groups" },
-      { step: "office-campaign-emails", persona: "office", path: "/admin/campaign-emails", mustSee: ["Preview only"] },
+      { step: "office-campaign-emails", persona: "office", path: "/admin/campaign-emails", expectedPath: "/admin/templates", expectedSearch: { cat: "email" }, mustSee: ["Templates", "Viewing here never sends, saves or connects anything."] },
       { step: "office-partners", persona: "office", path: "/admin/partners-overview" },
       { step: "office-templates", persona: "office", path: "/admin/templates" },
       { step: "rec-home", persona: "rec", path: "/field", noPrices: false },
@@ -146,7 +178,12 @@ try {
       { step: "installer-team", persona: "installer", path: "/partner/workers" },
       ...(ownerJob ? [{ step: "owner-job", persona: "owner", path: `/owner/${ownerJob}` }] : []),
       { step: "public-calculator", persona: "public", path: "/" },
-    ].map((s) => ({ ...s, mustNotSeeExact: RETIRED }));
+    ].map((s) => ({ ...s,
+      // Partner legal/record names are shown verbatim. Check retired branding everywhere else,
+      // while preserving every other forbidden-text and page-error check over the whole page.
+      mustNotSeeExact: s.step === "office-partners" ? RETIRED.filter(t => t !== "HI VIC") : RETIRED,
+      ...(s.step === "office-partners" ? { mustNotSeeExactOutside: [{ text: "HI VIC", ignoreSelector: "[data-partner-record-name]" }] } : {}),
+    }));
     const runnable = screens.filter((s) => s.persona === "public" || sessions[s.persona]);
     for (const s of screens.filter((x) => !runnable.includes(x))) add({ area: "screens", route_or_action: s.path, persona: s.persona, status: "blocked", detail: "no TEST session for this role", steps: "see setup rows" });
     const storageKey = `sb-${process.env["SUPABASE_PROJECT_ID"] ?? new URL(process.env["SUPABASE_URL"]!).hostname.split(".")[0]}-auth-token`;
@@ -158,7 +195,7 @@ try {
       if (br.status !== 0 || !existsSync(`${OUT}/.browser.json`)) add({ area: "screens", route_or_action: "browser harness", persona: "-", status: "failed", detail: (br.error ? `timeout/error: ${br.error.message} ` : "") + (br.stderr || "harness did not finish").slice(-400), steps: "python3 e2e/journey/shoot.py" });
       else for (const r of JSON.parse(readFileSync(`${OUT}/.browser.json`, "utf8")) as { step: string; ok: boolean; detail: string; shots: string[] }[]) {
         const s = runnable.find((x) => x.step === r.step)!;
-        add({ area: "screens", route_or_action: `${s.path} (${r.detail.includes("390px") ? "phone" : "desktop"})`, persona: s.persona, status: r.ok ? "passed" : "failed", detail: r.detail + (/HI VIC/.test(r.detail) ? " [stored record name, review data — not an app code fault]" : ""), steps: `sign in as TEST ${s.persona}, open ${s.path}, check labels`, screenshots: r.shots });
+        add({ area: "screens", route_or_action: `${s.path} (${r.detail.includes("390px") ? "phone" : "desktop"})`, persona: s.persona, status: r.ok ? "passed" : "failed", detail: r.detail, steps: `sign in as TEST ${s.persona}, open ${s.path}, check labels`, screenshots: r.shots });
       }
     }
   }
@@ -189,13 +226,16 @@ try {
     }
 
     // ---- isolated email rule tests ----
-    const EMAIL_TESTS = ["tests/step3-email-parity.test.ts", "tests/save-spot.test.ts", "tests/save-spot-only-approved.test.ts", "tests/group-b-media.test.ts", "tests/group-b-declaration-routing.test.ts", "tests/existing-insulation-followup.test.ts", "tests/existing-insulation-send.test.ts", "tests/email-safety.test.ts", "tests/estimate-email.test.ts"].filter(existsSync);
+    const EMAIL_TESTS = ["tests/step3-email-parity.test.ts", "tests/save-spot.test.ts", "tests/save-spot-only-approved.test.ts", "tests/group-b-media.test.ts", "tests/group-b-declaration-routing.test.ts", "tests/existing-insulation-followup.test.ts", "tests/existing-insulation-send.test.ts", "tests/email-safety.test.ts", "tests/estimate-email.test.ts"];
     if (!fits(60_000)) notRun("emails (isolated)", "email rule tests", "overall budget exhausted", ENV_ISOLATED);
     else {
-      const et = sh(["bun", "test", ...EMAIL_TESTS.map((t) => `./${t}`)], 120_000);
-      const etOut = `${et.stdout}\n${et.stderr}`; writeFileSync(`${OUT}/email-tests.log`, etOut);
-      const pass = Number(etOut.match(/(\d+) pass/)?.[1] ?? 0), fail = Number(etOut.match(/(\d+) fail/)?.[1] ?? 0);
-      add({ area: "emails (isolated)", route_or_action: "audience/price/routing/removal/idempotency/opt-out rules", persona: "-", status: et.status === 0 && pass > 0 ? "passed" : "failed", detail: `${pass} pass, ${fail} fail${et.error ? ` (stopped: ${et.error.message})` : ""}`, steps: `bun test ${EMAIL_TESTS.join(" ")}`, environment: ENV_ISOLATED });
+      const summary = isolatedEmailFiles(EMAIL_TESTS, {
+        now: Date.now, leftMs: () => left() - 15_000, exists: existsSync,
+        run: (file, cap) => sh(["bun", "test", `./${file}`], cap),
+        log: text => writeFileSync(`${OUT}/email-tests.log`, text),
+        record: row => add({ area: "emails (isolated)", route_or_action: row.file, persona: "-", status: row.status, detail: row.detail, steps: `bun test ./${row.file}`, environment: ENV_ISOLATED }),
+      });
+      add({ area: "emails (isolated)", route_or_action: "audience/price/routing/removal/idempotency/opt-out rules", persona: "-", status: summary.status, detail: `${summary.pass} pass, ${summary.fail} fail; ${summary.passedFiles} files passed, ${summary.failedFiles} failed, ${summary.notRunFiles} NOT_RUN`, steps: "one fresh bun test process per file; see individual rows and email-tests.log", environment: ENV_ISOLATED });
     }
 
     // ---- read-only email record log (last 24h): recorded state only, not provider delivery proof ----

@@ -12,11 +12,12 @@ CREATE TABLE owner_contact_consents(job_id uuid, consent_status text, created_at
 CREATE TABLE customer_email_optouts(job_id uuid, opted_out_at timestamptz);
 CREATE TABLE post_intake_work(id uuid DEFAULT gen_random_uuid(), job_id uuid, status text, reason text, facts_version text);
 CREATE TABLE customer_email_sends(id uuid DEFAULT gen_random_uuid(), job_id uuid, status text, purpose text);
+CREATE TABLE job_communications(id uuid DEFAULT gen_random_uuid(), job_id uuid, direction text, channel text, visibility text);
 CREATE TABLE workflow_events(id uuid DEFAULT gen_random_uuid(), job_id uuid, event_type text, summary text, details jsonb, created_at timestamptz DEFAULT now());
 CREATE TABLE indicative_estimates(id uuid DEFAULT gen_random_uuid(), job_id uuid, status text, area_m2 numeric, area_source text, insulation_declared text, scenarios jsonb, snapshot jsonb);
 CREATE TABLE documents(job_id uuid, kind text, mime_type text, storage_path text, source_system text, external_id text);
 CREATE TABLE evidence_files(job_id uuid, mime_type text, storage_path text);
-CREATE TABLE customer_engagement_events(job_id uuid, event_type text, source text DEFAULT 'office', metadata jsonb, occurred_at timestamptz DEFAULT now());
+CREATE TABLE customer_engagement_events(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), job_id uuid, event_type text, source text DEFAULT 'office', metadata jsonb, occurred_at timestamptz DEFAULT now());
 ALTER TABLE customer_delivery_settings ADD IF NOT EXISTS ready_check_available_postcodes text[];
 -- Pricing fixture parity (P1-FA05A): retail_estimator_settings must carry the full column set the
 -- pricing reader converts (id/version/removal_inc_gst_per_m2/ready_check_fee_inc_gst) or toRates
@@ -57,7 +58,7 @@ const { maybeAutoRouteLeadEmail } = await import("../src/lib/lead-email-routing.
 const token = "A".repeat(43);
 const audit = { ruleset_version: GATE1_RULESET_VERSION, rules: ["location", "residential", "ceiling_age", "previous_activity", "roof_access"].map((key) => ({ key, result: "pass" })).concat([{ key: "existing_insulation", result: "onsite" }]), hard_failures: [], review_reasons: [] };
 beforeEach(async () => {
-  await db.exec("DELETE FROM documents; DELETE FROM evidence_files; DELETE FROM customer_engagement_events; DELETE FROM lead_campaign_responses; DELETE FROM workflow_events; DELETE FROM owner_contact_consents; DELETE FROM customer_email_optouts; DELETE FROM post_intake_work; DELETE FROM indicative_estimates;");
+  await db.exec("DELETE FROM documents; DELETE FROM evidence_files; DELETE FROM customer_engagement_events; DELETE FROM lead_campaign_responses; DELETE FROM workflow_events; DELETE FROM owner_contact_consents; DELETE FROM customer_email_optouts; DELETE FROM post_intake_work; DELETE FROM indicative_estimates; DELETE FROM customer_email_sends; DELETE FROM job_communications;");
   await db.query("UPDATE jobs SET source='qa_test',stage='preliminary_estimate_ready',eligibility_outcome='needs_onsite_confirmation',eligibility_review_required=false,eligibility_decision_source='system',eligibility_decision_rules=$1,estimated_area_m2=120,owners=$2,properties=$3", [JSON.stringify(audit), JSON.stringify({full_name:"TEST Owner"}), JSON.stringify({postcode:"3000",enrichment:{base44:{raw:{media:[],original_media_verification:{complete:true},answers:{existing_insulation:"present"}}}}})]);
   await db.query("UPDATE customer_estimate_links SET token=$1,purpose='step3_estimate',status='active',expires_at=now()+interval '1 day'", [token]);
   await db.query("INSERT INTO owner_contact_consents VALUES($1,'granted',now())", [LAUNCH_ID.job]);
@@ -155,12 +156,23 @@ test("actual original evidence review unlocks save without rewriting declared in
   expect((await db.query("SELECT saved_insulation FROM lead_campaign_responses")).rows[0]).toEqual({saved_insulation:"present"});
   expect((await db.query("SELECT metadata FROM customer_engagement_events")).rows[0]).toEqual({metadata:{outcome:"below_r2",by:"office"}});
 });
-test("original evidence overrides old Yes, repeated automatic routing never requests again", async () => {
+test("original evidence overrides old Yes; an already-responded enquiry never sends again", async () => {
   await recordInsulationDeclaration(token,"loose_fill_only",true);
   await db.query("INSERT INTO evidence_files VALUES($1,'video/mp4',$2)",[LAUNCH_ID.job,`${LAUNCH_ID.job}/intake/video.mp4`]);
   expect(JSON.parse(await campaignPage(token) ?? "null").saveAllowed).toBe(false);
   await expect(saveCampaignSpot(token)).rejects.toThrow();
   await db.query("UPDATE jobs SET source='base44'");
-  for(let i=0;i<3;i++) expect(await maybeAutoRouteLeadEmail(LAUNCH_ID.job)).toMatchObject({route:"none",sent:false,reason:"Existing enquiry photos/video received — office review, no repeat invitation"});
+  // Received media now permits one guarded acknowledgement. A recorded response, of any purpose,
+  // blocks later initial routing; the media itself still cannot approve eligibility or Save my spot.
+  await db.query("INSERT INTO customer_email_sends(job_id,status,purpose) VALUES($1,'sent','recorded_customer_reply')",[LAUNCH_ID.job]);
+  for(let i=0;i<3;i++) expect(await maybeAutoRouteLeadEmail(LAUNCH_ID.job)).toMatchObject({route:"none",sent:false,reason:"Confirmed first response already sent"});
+  expect((await db.query("SELECT count(*)::int n FROM evidence_files")).rows[0]).toEqual({n:1});
+});
+test("unclear Office review remains manual even when no initial reply is recorded", async () => {
+  await db.query("UPDATE jobs SET source='base44'");
+  await db.query("INSERT INTO evidence_files VALUES($1,'video/mp4',$2)",[LAUNCH_ID.job,`${LAUNCH_ID.job}/intake/video.mp4`]);
+  await db.query("INSERT INTO customer_engagement_events(job_id,event_type,metadata) VALUES($1,'intake_media_reviewed',$2)",[LAUNCH_ID.job,JSON.stringify({outcome:"unclear",manualOnly:true})]);
+  for(let i=0;i<3;i++) expect(await maybeAutoRouteLeadEmail(LAUNCH_ID.job)).toMatchObject({route:"none",sent:false,reason:"Office review recorded; manual next action only."});
+  expect((await db.query("SELECT count(*)::int n FROM customer_email_sends")).rows[0]).toEqual({n:0});
   expect((await db.query("SELECT count(*)::int n FROM evidence_files")).rows[0]).toEqual({n:1});
 });

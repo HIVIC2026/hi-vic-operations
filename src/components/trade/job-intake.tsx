@@ -28,15 +28,16 @@ export function useUploadFiles(businessId: string) {
   };
 }
 
-function Thumb({ f, businessId }: { f: AttachedFile; businessId: string }) {
+type FileResolver = (file: AttachedFile) => Promise<{ url: string }>;
+function Thumb({ f, businessId, resolveUrl }: { f: AttachedFile; businessId: string; resolveUrl?: FileResolver | undefined }) {
   const sign = useServerFn(partnerFileUrl);
   const [url, setUrl] = useState<string | null>(null);
-  useEffect(() => { let on = true; if (isImage(f) && f.path.startsWith(`partners/${businessId}/`)) sign({ data: { businessId, path: f.path } }).then((r) => on && setUrl(r.url)).catch(() => {}); return () => { on = false; }; /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [f.path]);
+  useEffect(() => { let on = true; if (isImage(f) && (resolveUrl || f.path.startsWith(`partners/${businessId}/`))) (resolveUrl ? resolveUrl(f) : sign({ data: { businessId, path: f.path } })).then((r) => on && setUrl(r.url)).catch(() => {}); return () => { on = false; }; /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [f.path, businessId, resolveUrl]);
   return url ? <img src={url} alt="" className="h-full w-full object-cover" /> : <FileText className="h-5 w-5 text-sub" />;
 }
 
 /** "Take photo" (phone camera) + "Choose files", with small previews and a remove button on each. */
-export function AttachFiles({ businessId, files, onAdd, onRemove, canRemove = () => true, disabled = false, onBusyChange, label = "Photos and files" }: { businessId: string; files: AttachedFile[]; onAdd: (f: File[]) => Promise<void>; onRemove: (path: string) => Promise<void>; canRemove?: (path: string) => boolean; disabled?: boolean; onBusyChange?: (busy: boolean) => void; label?: string }) {
+export function AttachFiles({ businessId, files, onAdd, onRemove, canRemove = () => true, disabled = false, onBusyChange, resolveUrl, readOnly = false, label = "Photos and files" }: { businessId: string; files: AttachedFile[]; onAdd: (f: File[]) => Promise<void>; onRemove: (path: string) => Promise<void>; canRemove?: (path: string) => boolean; disabled?: boolean; onBusyChange?: (busy: boolean) => void; resolveUrl?: FileResolver; readOnly?: boolean; label?: string }) {
   const [operation, setOperation] = useState<"adding" | "removing" | null>(null);
   const locked = useRef(false);
   const busy = operation !== null;
@@ -44,12 +45,12 @@ export function AttachFiles({ businessId, files, onAdd, onRemove, canRemove = ()
   const sign = useServerFn(partnerFileUrl);
   const view = async (f: AttachedFile) => {
     setErr(null);
-    try { const r = await sign({ data: { businessId, path: f.path } }); openFileViewer(r.url, f.name); }
+    try { const r = await (resolveUrl ? resolveUrl(f) : sign({ data: { businessId, path: f.path } })); openFileViewer(r.url, f.name); }
     catch (e) { setErr(e instanceof Error ? e.message : "Couldn't open this file. Try again."); }
   };
   const cam = useRef<HTMLInputElement>(null), pick = useRef<HTMLInputElement>(null);
   const mutate = async (kind: "adding" | "removing", action: () => Promise<void>) => {
-    if (locked.current || disabled) return;
+    if (locked.current || disabled || readOnly) return;
     locked.current = true; setOperation(kind); onBusyChange?.(true); setErr(null);
     try { await action(); } catch (e) { setErr(e instanceof Error ? e.message : "Couldn't save the file change. Try again."); }
     finally { locked.current = false; setOperation(null); onBusyChange?.(false); }
@@ -62,20 +63,20 @@ export function AttachFiles({ businessId, files, onAdd, onRemove, canRemove = ()
   return (
     <div className="space-y-2" data-attach-files>
       <div className="flex flex-col gap-2 sm:grid sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"><span className="flex items-center gap-1.5 text-sm font-semibold"><Paperclip className="h-4 w-4 text-hiv-blue" />{label}</span>
-        <div className="grid grid-cols-2 gap-1.5 sm:flex">
+        {!readOnly && <div className="grid grid-cols-2 gap-1.5 sm:flex">
           <Button type="button" variant="outline" disabled={busy || disabled} onClick={() => cam.current?.click()} className="min-h-11 rounded-[9px] px-2.5 text-xs font-semibold text-hiv-blue sm:h-8 sm:min-h-0"><Camera className="h-3.5 w-3.5" />Take photo</Button>
           <Button type="button" variant="outline" disabled={busy || disabled} onClick={() => pick.current?.click()} className="min-h-11 rounded-[9px] px-2.5 text-xs font-semibold text-hiv-blue sm:h-8 sm:min-h-0">Choose files</Button>
-        </div>
+        </div>}
       </div>
-      <input ref={cam} disabled={busy || disabled} type="file" accept="image/*" capture="environment" className="sr-only" aria-label="Take photo" onChange={(e) => add(e.target.files)} />
-      <input ref={pick} disabled={busy || disabled} type="file" multiple accept="image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx,.csv,.eml,.msg" className="sr-only" aria-label="Choose files" onChange={(e) => add(e.target.files)} />
+      <input ref={cam} disabled={busy || disabled || readOnly} type="file" accept="image/*" capture="environment" className="sr-only" aria-label="Take photo" onChange={(e) => add(e.target.files)} />
+      <input ref={pick} disabled={busy || disabled || readOnly} type="file" multiple accept="image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx,.csv,.eml,.msg" className="sr-only" aria-label="Choose files" onChange={(e) => add(e.target.files)} />
       {busy && <p role="status" className="text-xs text-sub">{operation === "removing" ? "Removing file…" : "Saving and checking files…"}</p>}
       {err && <p role="alert" className="text-xs text-danger">{err}</p>}
       {files.length > 0 && <ul className="flex flex-wrap gap-2">{files.map((f) => (
         <li key={f.path} className="relative w-20">
-          <Button type="button" variant="outline" aria-label={`Open ${f.name}`} onClick={() => view(f)} className="grid h-16 w-20 place-items-center overflow-hidden rounded-[10px] border border-line bg-mist p-0"><Thumb f={f} businessId={businessId} /></Button>
+          <Button type="button" variant="outline" aria-label={`Open ${f.name}`} onClick={() => view(f)} className="grid h-16 w-20 place-items-center overflow-hidden rounded-[10px] border border-line bg-mist p-0"><Thumb f={f} businessId={businessId} resolveUrl={resolveUrl} /></Button>
           <span className="mt-0.5 block truncate text-[10px] text-sub">{f.name.split("/").pop()}</span>
-          {canRemove(f.path) && <Button type="button" variant="outline" size="icon" aria-label={`Remove ${f.name}`} disabled={busy || disabled} onClick={() => mutate("removing", () => onRemove(f.path))} className="absolute -right-1.5 -top-1.5 h-6 w-6 rounded-full border border-line bg-paper text-ink shadow-card"><X className="h-3 w-3" /></Button>}
+          {!readOnly && canRemove(f.path) && <Button type="button" variant="outline" size="icon" aria-label={`Remove ${f.name}`} disabled={busy || disabled} onClick={() => mutate("removing", () => onRemove(f.path))} className="absolute -right-1.5 -top-1.5 h-6 w-6 rounded-full border border-line bg-paper text-ink shadow-card"><X className="h-3 w-3" /></Button>}
         </li>))}</ul>}
     </div>
   );

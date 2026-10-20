@@ -297,7 +297,10 @@ export async function getImportDraftFor(userId: string, importId: string, busine
     // Lost reply / refresh: rebuild the receipt from the job's canonical CURRENT state (payer, fee freshness, insulation).
     const m = await import("./installer-intake.server");
     const [st, answers] = await Promise.all([m.installerIntakeState(imp.job_id), m.intakeQuoteAnswers([imp.job_id])]);
-    const { data: sj } = await admin.from("jobs").select("installer_site_check").eq("id", imp.job_id).maybeSingle();
+    const { data: sj, error: sjErr } = await admin.from("jobs").select("installer_site_check").eq("id", imp.job_id).maybeSingle();
+    // Fail closed: a failed read or a missing saved job is never reported as an "unknown visit" receipt. A real null stays unknown.
+    if (sjErr) throw new WorkflowError("The saved job's visit answer could not load. Please retry.");
+    if (!sj) throw new WorkflowError("The saved job could not be found. Please retry or contact the office.");
     const ic = await import("./installer-intake.core");
     receipt = ic.recoveredIntakeReceipt(st, answers.get(imp.job_id) ?? null, ic.attendanceFromSiteCheck(sj?.installer_site_check as string | null));
   }

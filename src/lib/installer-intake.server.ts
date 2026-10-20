@@ -8,7 +8,8 @@ const INSULATION_EVENTS = ["installer_existing_insulation_declared", "installer_
 
 /** Latest insulation value: an office correction overrides the installer's declaration. Missing = null (never assumed). */
 async function latestInsulation(jobId: string): Promise<{ value: ExistingInsulation | null; source: string | null }> {
-  const { data } = await admin.from("workflow_events").select("event_type, details, created_at").eq("job_id", jobId).in("event_type", INSULATION_EVENTS).order("created_at", { ascending: false }).limit(10);
+  const { data, error } = await admin.from("workflow_events").select("event_type, details, created_at").eq("job_id", jobId).in("event_type", INSULATION_EVENTS).order("created_at", { ascending: false }).limit(10);
+  if (error) throw new WorkflowError("The latest insulation details could not load. Please retry.");
   for (const e of data ?? []) {
     const v = (e.details as { value?: unknown; insulation?: unknown } | null);
     const val = e.event_type === "installer_intake_corrected" ? v?.insulation : v?.value;
@@ -23,7 +24,8 @@ async function latestInsulation(jobId: string): Promise<{ value: ExistingInsulat
  * intake correction makes an earlier decision stale (unresolved) until the office decides again.
  */
 export async function commercialEligibility(jobId: string): Promise<"eligible" | "declined" | "unresolved"> {
-  const { data } = await admin.from("workflow_events").select("event_type, details").eq("job_id", jobId).in("event_type", ["installer_commercial_eligibility", "installer_intake_corrected"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const { data, error } = await admin.from("workflow_events").select("event_type, details").eq("job_id", jobId).in("event_type", ["installer_commercial_eligibility", "installer_intake_corrected"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new WorkflowError("The office eligibility decision could not load. Please retry.");
   if (!data || data.event_type !== "installer_commercial_eligibility") return "unresolved";
   const o = (data.details as { outcome?: string } | null)?.outcome;
   return o === "eligible" ? "eligible" : o === "not_eligible" ? "declined" : "unresolved";
@@ -37,22 +39,24 @@ export async function recordCommercialEligibility(jobId: string, actorId: string
 }
 
 async function latestProposedR(jobId: string): Promise<number | null> {
-  const { data } = await admin.from("workflow_events").select("event_type, details").eq("job_id", jobId).in("event_type", ["installer_evidence_acknowledged", "installer_intake_corrected", "installer_intake_updated"]).order("created_at", { ascending: false }).limit(10);
+  const { data, error } = await admin.from("workflow_events").select("event_type, details").eq("job_id", jobId).in("event_type", ["installer_evidence_acknowledged", "installer_intake_corrected", "installer_intake_updated"]).order("created_at", { ascending: false }).limit(10);
+  if (error) throw new WorkflowError("The proposed insulation details could not load. Please retry.");
   for (const e of data ?? []) { const d = e.details as { proposed_r_value?: unknown } | null; if (d && "proposed_r_value" in d) return typeof d.proposed_r_value === "number" ? d.proposed_r_value : null; }
   return null;
 }
 
 /** An accepted quote whose facts were materially corrected needs the owner to reconfirm; cleared only by a new acceptance. */
 export async function reconfirmationOpen(jobId: string): Promise<boolean> {
-  const { data } = await admin.from("workflow_events").select("event_type").eq("job_id", jobId).in("event_type", ["installer_quote_reconfirmation_required", "QUOTE_ACCEPTED"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const { data, error } = await admin.from("workflow_events").select("event_type").eq("job_id", jobId).in("event_type", ["installer_quote_reconfirmation_required", "QUOTE_ACCEPTED"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new WorkflowError("The quote reconfirmation history could not load. Please retry.");
   return data?.event_type === "installer_quote_reconfirmation_required";
 }
 
 /** True only for jobs that came through the approved single installer intake. */
 export async function isIntakeJob(jobId: string): Promise<boolean> {
   const { count, error } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "installer_evidence_acknowledged");
-  if (error) throw new WorkflowError("Could not check how this job was added. Please retry."); // fail closed: never "no blockers"
-  return (count ?? 0) > 0;
+  if (error || count == null) throw new WorkflowError("The installer intake history could not load. Please retry."); // fail closed: never "no blockers"
+  return count > 0;
 }
 
 /** Every send/release/approve/accept path for an intake job re-checks readiness, consent, fee awareness and reconfirmation. [] for other jobs. */
@@ -66,7 +70,7 @@ export const OWN_ELECTRICIAN_OFFICE_CHANGE = "To change your own electrician, em
 
 export async function installerIntakeState(jobId: string) {
   const { data: co, error: coErr } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "installer_coordination_chosen").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (coErr) throw new WorkflowError("The job details could not load. Please retry.");
+  if (coErr) throw new WorkflowError("The job coordination details could not load. Please retry.");
   const coordination = ((co?.details as { coordination?: string } | null)?.coordination ?? null) as "hivic_managed" | "self_managed" | null;
   const [{ data: job, error }, ins, { data: m, error: mErr }, decision, { data: consent, error: cErr }, { count: fee, data: feeRows, error: fErr }, { data: ev, error: evErr }, { data: est, error: estErr }] = await Promise.all([
     admin.from("jobs").select("channel, installer_quoted_price_inc_gst, installer_price_includes, electrician_choice, installer_site_check").eq("id", jobId).single(),
@@ -80,7 +84,11 @@ export async function installerIntakeState(jobId: string) {
   ]);
   if (error) throw new WorkflowError(error.message);
   // Fail closed: an unreadable measurement/consent/fee/evidence read is never treated as "nothing missing".
-  if (mErr || cErr || fErr || evErr || estErr) throw new WorkflowError("Some job details could not load. Please retry.");
+  if (mErr) throw new WorkflowError("The ceiling measurements could not load. Please retry.");
+  if (cErr) throw new WorkflowError("The owner contact consent could not load. Please retry.");
+  if (fErr || fee == null) throw new WorkflowError("The owner fee declarations could not load. Please retry.");
+  if (evErr) throw new WorkflowError("The Ready Check evidence requirements could not load. Please retry.");
+  if (estErr) throw new WorkflowError("The preliminary estimate history could not load. Please retry.");
   const scope = intakeScopeArea(m ?? null); const area = scope.areaM2;
   const measuredR = m?.existing_r_value == null ? null : Number(m.existing_r_value);
   const officeEligibility = decision;
@@ -95,7 +103,8 @@ export async function installerIntakeState(jobId: string) {
   const electricianPayer = payerFromChoice(job.electrician_choice);
   const feeRow = (feeRows ?? [])[0]?.details as { payer?: "hivic" | "own" | "undecided" } | null | undefined;
   // A declaration made before the latest electrician-arrangement change no longer counts (material change).
-  const { data: lastChange } = await admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "installer_electrician_payer_changed").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const { data: lastChange, error: payerChangeError } = await admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "installer_electrician_payer_changed").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (payerChangeError) throw new WorkflowError("The electrician arrangement history could not load. Please retry.");
   const feeAt = (feeRows ?? [])[0]?.created_at ?? null;
   const feeCurrent = (fee ?? 0) > 0 && !(lastChange && feeAt && feeAt < lastChange.created_at);
   // Office-reviewable record of the latest owner fee declaration (who/when/payer/exact wording/version/source).
@@ -103,7 +112,8 @@ export async function installerIntakeState(jobId: string) {
   let feeRecord: null | { by: string; actorName: string | null; at: string; payer: "hivic" | "own" | null; wording: string | null; version: string | null; source: string | null; note: string | null; current: boolean; coversCurrentPayer: boolean } = null;
   if (feeLatest) {
     const d = feeLatest.details ?? {};
-    const { data: who } = feeLatest.actor_id ? await admin.from("profiles").select("full_name, email").eq("id", feeLatest.actor_id).maybeSingle() : { data: null };
+    const { data: who, error: actorError } = feeLatest.actor_id ? await admin.from("profiles").select("full_name, email").eq("id", feeLatest.actor_id).maybeSingle() : { data: null, error: null };
+    if (actorError) throw new WorkflowError("The fee declaration actor details could not load. Please retry.");
     const fp = (d["payer"] === "hivic" || d["payer"] === "own") ? d["payer"] as "hivic" | "own" : null;
     feeRecord = { by: String(d["by"] ?? "unknown"), actorName: who?.full_name || who?.email || null, at: String(d["confirmed_at"] ?? feeLatest.created_at), payer: fp,
       wording: typeof d["wording"] === "string" ? d["wording"] : null, version: typeof d["version"] === "string" ? d["version"] : null, source: typeof d["source"] === "string" ? d["source"] : null,
@@ -347,10 +357,11 @@ export async function intakeQuoteAnswers(jobIds: string[]): Promise<Map<string, 
   const out = new Map<string, "have_quote" | "not_quoted" | null>();
   if (!jobIds.length) return out;
   const { resolveQuoteAnswer } = await import("./installer-intake.core");
-  const [{ data: ev }, { data: jobs }] = await Promise.all([
+  const [{ data: ev, error: answerError }, { data: jobs, error: jobsError }] = await Promise.all([
     admin.from("workflow_events").select("job_id, created_at, details").in("job_id", jobIds).eq("event_type", "installer_quote_answer"),
     admin.from("jobs").select("id, installer_quoted").in("id", jobIds),
   ]);
+  if (answerError || jobsError) throw new WorkflowError("The installer quote answers could not load. Please retry.");
   for (const j of jobs ?? []) out.set(j.id, resolveQuoteAnswer((ev ?? []).filter((e) => e.job_id === j.id).map((e) => ({ answer: (e.details as { answer?: unknown } | null)?.answer, at: e.created_at })), j.installer_quoted));
   return out;
 }

@@ -232,9 +232,44 @@ const baseOf = (p: string) => canonicalFilePath(p).split("/").pop()!;
  * one uploaded file has that name — otherwise it is ambiguous and links nothing. */
 export function sourceFileMatches(source: string, filePath: string, allPaths: string[]): boolean {
   const s = canonicalFilePath(source), f = canonicalFilePath(filePath);
-  if (s === f) return true;
-  if (s.includes("/")) return false;
+  if (s.includes("/")) return s === f && allPaths.filter(x => canonicalFilePath(x) === s).length === 1;
   return baseOf(f) === s && allPaths.filter((x) => baseOf(x) === s).length === 1;
+}
+
+export type BulkCounts = { found: number; added: number; skipped: number; pending: number; needsRepair: number };
+export function bulkCounts(rows: { status: string; job_id?: string | null }[]): BulkCounts {
+  return { found: rows.length, added: rows.filter(r => r.status === "confirmed" && !!r.job_id).length,
+    skipped: rows.filter(r => r.status === "skipped").length, pending: rows.filter(r => r.status === "pending").length,
+    needsRepair: rows.filter(r => r.status === "confirmed" && !r.job_id).length };
+}
+export function bulkCountsLabel(c: BulkCounts): string {
+  return `${c.found} found · ${c.added} added · ${c.skipped} skipped${c.pending ? ` · ${c.pending} unfinished` : ""}${c.needsRepair ? ` · ${c.needsRepair} need Office review` : ""}`;
+}
+/** A lost response can follow a committed job. Completion notices use persisted totals, never attempt counters. */
+export function bulkCompletionMessage(result: { counts?: BulkCounts | null; remainingUnknown?: boolean; failed?: number }): string {
+  if (result.remainingUnknown || !result.counts) return "The final upload status could not be verified. Open saved progress before retrying.";
+  return `${bulkCountsLabel(result.counts)}${result.failed ? " · Check the completion messages." : ""}`;
+}
+export function bulkRowEditable(batchStatus: string | undefined, row: { status: string; job_id?: string | null; confirm_lease_until?: string | null }, now = Date.now()): boolean {
+  return batchStatus === "analysed" && row.status === "pending" && !row.job_id && !(row.confirm_lease_until && Date.parse(row.confirm_lease_until) > now);
+}
+
+/** Authoritative full-path mapping. A stored ref is valid only when recorded on this exact row or its batch manifest. */
+export function resolveBulkFile(businessId: string, manifestValue: unknown, matchedValue: unknown, originalPath: string) {
+  const manifest = Array.isArray(manifestValue) ? manifestValue as (BulkFile & { stored_path?: string })[] : [];
+  const matched = Array.isArray(matchedValue) ? matchedValue as FileMatch[] : [];
+  const matches = matched.filter(f => f.path === originalPath);
+  if (matches.length !== 1) throw new Error("This file is not recorded on this upload customer.");
+  const match = matches[0]!;
+  const entries = manifest.filter(f => f.path === originalPath);
+  if (entries.length > 1) throw new Error("This upload file has an ambiguous original path. Ask the office to check it.");
+  const prefix = `partners/${businessId}/imports/`;
+  const entry = entries[0];
+  const storedPath = entry?.stored_path ?? (match.how === "added" && originalPath.startsWith(prefix) ? originalPath : null);
+  if (!storedPath || !storedPath.startsWith(prefix) || /[\\?#%]/.test(storedPath) || storedPath.split("/").some(p => !p || p === "." || p === "..")) {
+    throw new Error("This file has no valid stored copy for this business. Its upload history has been retained.");
+  }
+  return { storedPath, name: match.name, type: entry?.type ?? null, originalPath };
 }
 
 /** Link uploaded files to every lead: folder/filename/GPS first, then files whose own text (photo or PDF) the lead was
@@ -242,6 +277,9 @@ export function sourceFileMatches(source: string, filePath: string, allPaths: st
  * one customer's evidence never attaches silently to another. No single-customer fallback. */
 export function linkFiles(leads: BulkExtracted[], files: BulkFile[]): { matched: FileMatch[]; confidence: "high" | "low" | "none"; ambiguous: string[] }[] {
   const allPaths = files.map((f) => f.path);
+  const pathCounts = new Map<string, number>();
+  for (const p of allPaths) { const key = canonicalFilePath(p); pathCounts.set(key, (pathCounts.get(key) ?? 0) + 1); }
+  const collisions = new Set(allPaths.filter(p => (pathCounts.get(canonicalFilePath(p)) ?? 0) > 1));
   const out = leads.map((e) => {
     const r = matchFiles(e, files);
     const have = new Set(r.matched.map((m) => m.path));
@@ -251,8 +289,8 @@ export function linkFiles(leads: BulkExtracted[], files: BulkFile[]): { matched:
   const claims = new Map<string, number>();
   for (const m of out) for (const x of new Set(m.map((y) => y.path))) claims.set(x, (claims.get(x) ?? 0) + 1);
   return out.map((m) => {
-    const ambiguous = m.filter((x) => (claims.get(x.path) ?? 0) > 1).map((x) => x.path);
-    const matched = m.filter((x) => (claims.get(x.path) ?? 0) === 1);
+    const ambiguous = m.filter((x) => collisions.has(x.path) || (claims.get(x.path) ?? 0) > 1).map((x) => x.path);
+    const matched = m.filter((x) => !collisions.has(x.path) && (claims.get(x.path) ?? 0) === 1);
     const strong = matched.some((x) => x.how === "folder" || x.how === "gps" || x.how === "photo_text");
     return { matched, ambiguous, confidence: ambiguous.length ? (matched.length ? "low" : "none") : strong ? "high" : matched.length ? "low" : "none" };
   });

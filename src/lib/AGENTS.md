@@ -200,3 +200,5 @@ Locked rules:
 - Outlook sync processes only NEW provider messages through durable `outlook_message_work` (begin/finish RPCs commit correspondence, review/closure, audit and completion atomically); imports need an explicit audited Office mailbox confirmation, and automatic closure needs a completed fresh Inbox window. Why: crashes or partial pages never lose, duplicate or prematurely close correspondence.
 
 - Installer attendance (`jobs.installer_site_check`, explicit answer only, null = unknown) and quote status are independent; site facts (area, proposed R, removal answer/area) are never cleared by quote status, only commercial facts are. Why: Jo 20 Oct two-route Add job; price/area/files never imply a visit.
+
+- Bulk confirmation uses service-only UUID claim RPCs: draft analysis, job intake and final documents/quote/permission event are atomic. Recheck current approved business and active boss, keep started intake immutable, and verify bytes without deleting. Closed-history attachment repair appends separate immutable records. AI/client extracted permission is discarded; only explicit server-stamped review/batch consent is accepted.

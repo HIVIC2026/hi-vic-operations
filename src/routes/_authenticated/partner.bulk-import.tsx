@@ -3,12 +3,12 @@ import { legacyBulkImportRedirect, loadAccess, userIdOf } from "@/lib/route-guar
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { addBulkRowFiles, removeBulkRowFile, addBulkElectrician, bulkBatchReview, bulkElectricianChoices, bulkImportBusinesses, confirmBulkBatch, createBulkBatch, geocodeBulkPhotos, listBulkBatches, readBulkFile, readBulkRows, setBulkReviewPlan, setBulkRowAddress } from "@/lib/bulk-import.functions";
+import { bulkImportFileUrl, repairBulkImportFiles, addBulkRowFiles, removeBulkRowFile, addBulkElectrician, bulkBatchReview, bulkElectricianChoices, bulkImportBusinesses, confirmBulkBatch, createBulkBatch, geocodeBulkPhotos, listBulkBatches, readBulkFile, readBulkRows, setBulkReviewPlan, setBulkRowAddress } from "@/lib/bulk-import.functions";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { quotedGap, CONTACT_PERMISSION_WORDING, gridToRecords, QUOTE_NEEDED_LABEL, fieldProblems, rowStatusLine, jobsFound, attachedFilesNote, outsideVictoria, OUTSIDE_VIC_MESSAGE, chunkRows, readInChunks, readingProgress, rowRangeLabel, READ_CHUNK_ROWS, safeMemberPath, uniqueManifestPath, MAX_MEMBER_BYTES, memberSizeGate, type RowChunk, type FileResult, type LeadStage, type SecondContact } from "@/lib/bulk-import.core";
+import { bulkCompletionMessage, bulkCountsLabel, bulkRowEditable, quotedGap, CONTACT_PERMISSION_WORDING, gridToRecords, QUOTE_NEEDED_LABEL, fieldProblems, rowStatusLine, jobsFound, attachedFilesNote, outsideVictoria, OUTSIDE_VIC_MESSAGE, chunkRows, readInChunks, readingProgress, rowRangeLabel, READ_CHUNK_ROWS, safeMemberPath, uniqueManifestPath, MAX_MEMBER_BYTES, memberSizeGate, type RowChunk, type FileResult, type LeadStage, type SecondContact } from "@/lib/bulk-import.core";
 import { TradeShell } from "@/components/trade/TradeShell";
 import { Check, ChevronDown, UploadCloud } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -37,7 +37,7 @@ export const Route = createFileRoute("/_authenticated/partner/bulk-import")({
 
 type ManifestFile = { path: string; name: string; folder: string | null; type: string; gps_lat: number | null; gps_lng: number | null; taken_at: string | null; geo_address?: string | null; stored_path?: string };
 type ReviewRow = {
-  id: string; row_index: number; status: string; duplicate_note: string | null;
+  id: string; row_index: number; status: string; duplicate_note: string | null; job_id: string | null; confirm_lease_until?: string | null; confirm_error?: string | null;
   extracted: { full_name?: string | null; address_line?: string | null; suburb?: string | null; postcode?: string | null; area_m2?: number | null; price_inc_gst?: number | null; quoted_answer?: "yes" | "no" | null; lead_stage?: LeadStage; phone?: string | null; email?: string | null; price_includes?: string | null; site_check?: "yes" | "no" | null; site_check_date?: string | null; site_check_source?: "file" | "asked" | null; second_contact?: SecondContact | null; notes?: string | null; owner_consent?: unknown };
   matched_files: { path: string; name: string; how: string }[]; sort_result: "covers_ready_check" | "needs_visit" | "office_review" | null;
   sort_reasons: string[]; missing_evidence: string[];
@@ -281,9 +281,8 @@ function BulkImportPage() {
   const [extraFiles, setExtraFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [batchId, setBatchId] = useState<string | null>(null);
-  const resumed = useRef<string | null>(null);
   // Refresh-safe review: the open upload stays in the address bar so a reload resumes it (never a second upload).
-  useEffect(() => { const b = new URLSearchParams(window.location.search).get("batch"); if (b && /^[0-9a-f-]{36}$/i.test(b)) { resumed.current = b; setBatchId(b); } }, []);
+  useEffect(() => { const b = new URLSearchParams(window.location.search).get("batch"); if (b && /^[0-9a-f-]{36}$/i.test(b)) { setBatchId(b); } }, []);
   useEffect(() => { const u = new URL(window.location.href); if (batchId) u.searchParams.set("batch", batchId); else u.searchParams.delete("batch"); window.history.replaceState(window.history.state, "", u.toString()); }, [batchId]);
   const [skip, setSkip] = useState<Set<string>>(new Set());
   const [consent, setConsent] = useState<Record<string, boolean>>({});
@@ -291,7 +290,7 @@ function BulkImportPage() {
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [showAllPast, setShowAllPast] = useState(false);
   const confirming = useRef(false);
-  const [done, setDone] = useState<{ created: number; skipped: number; failed: number; alreadyTaken?: number; remaining?: number | null; remainingUnknown?: boolean; ownerLinks: { jobNumber: string; owner: string; path: string }[]; incomplete?: { row: number; jobNumber?: string | null; reason: string }[]; results?: { row: number; jobNumber: string; quote: string; attached: string[]; notAttached: string[] }[] } | null>(null);
+  const [done, setDone] = useState<{ created: number; skipped: number; failed: number; alreadyTaken?: number; remaining?: number | null; remainingUnknown?: boolean; counts?: { found: number; added: number; skipped: number; pending: number; needsRepair: number } | null; closeError?: string; ownerLinks: { jobNumber: string; owner: string; path: string }[]; incomplete?: { row: number; jobNumber?: string | null; reason: string }[]; results?: { row: number; jobNumber: string; quote: string; attached: string[]; notAttached: string[] }[] } | null>(null);
   const [batchPlan, setBatchPlan] = useState<ElectricianPlan>({ mode: "hivic" });
   const [rowStages, setRowStages] = useState<Record<string, LeadStage>>({});
   const [rowPlans, setRowPlans] = useState<Record<string, ElectricianPlan>>({});
@@ -322,9 +321,11 @@ function BulkImportPage() {
     enabled: !!batchId,
   });
   const rows = (review?.rows ?? []) as unknown as ReviewRow[];
-  // A reloaded upload that is already confirmed is never shown as editable again (see Past uploads instead).
+  // All entry paths use the persisted batch and row statuses, including history click, URL, refresh and Back.
   const reviewStatus = (review?.batch as { status?: string } | undefined)?.status;
-  useEffect(() => { if (batchId && batchId === resumed.current && !done && reviewStatus && reviewStatus !== "analysed") { resumed.current = null; setBatchId(null); toast.info("That upload is already finished — see Past uploads below."); } }, [batchId, done, reviewStatus]);
+  const historyOnly = !!reviewStatus && reviewStatus !== "analysed";
+  const reviewBusiness = review?.batch?.business_id ?? effectiveBiz;
+
   const summary = review?.batch?.summary as { file_results?: FileResult[]; rows?: number; covers_ready_check?: number; needs_visit?: number; office_review?: number; duplicates?: number; not_visited?: number; visited?: number; visited_quoted?: number; quote_needed?: number; site_check_unclear?: number } | null;
   useEffect(() => {
     if (!rows.length) return;
@@ -337,8 +338,8 @@ function BulkImportPage() {
   }, [review?.rows]);
 
   const statusOf = (r: ReviewRow) => { const q = quotedSend(r.id); return rowStatusLine({ lead: leads[r.id] ?? r.extracted, consent: !!consent[r.id], quoted: rowQuoted[r.id]?.confirmed ? rowQuoted[r.id]!.answer : null, quotedPrice: q.quotedPrice ?? null, siteCheck: rowChecks[r.id]?.check ?? null, installed: r.import_stage === "installed", duplicate: r.duplicate_note }); };
-  const toAdd = rows.filter((r) => !skip.has(r.id) && !statusOf(r).excluded);
-  const notReady = toAdd.filter((r) => !statusOf(r).ready || r.sort_result === "office_review");
+  const toAdd = rows.filter((r) => r.status === "pending" && (r.job_id || (!skip.has(r.id) && !statusOf(r).excluded)));
+  const notReady = toAdd.filter((r) => !r.job_id && (!statusOf(r).ready || r.sort_result === "office_review"));
   const anySaving = Object.values(saving).some(Boolean);
   const reset = () => { setBatchId(null); setDone(null); setExtraFiles([]); setSkip(new Set()); setLocalReads([]); setConsent({}); setLeads({}); };
   const step = done ? 3 : batchId ? 2 : 1;
@@ -413,18 +414,18 @@ function BulkImportPage() {
   }
 
   async function confirmAll() {
-    if (!batchId || confirming.current) return;
+    if (!batchId || historyOnly || confirming.current) return;
     confirming.current = true;
     setBusy(true);
     try {
-      const saved = await savePlan({ data: { batchId, batchPlan, rows: rows.map((r) => ({ rowId: r.id, stage: rowStages[r.id] ?? "not_visited", siteCheck: rowChecks[r.id]?.check ?? null, ...quotedSend(r.id), siteCheckDate: rowChecks[r.id]?.check === "yes" ? rowChecks[r.id]?.date ?? null : null, consent: !!consent[r.id], plan: planFor(r.id) })) } });
+      const saved = await savePlan({ data: { batchId, batchPlan, rows: rows.filter(r => bulkRowEditable(reviewStatus,r)).map((r) => ({ rowId: r.id, stage: rowStages[r.id] ?? "not_visited", siteCheck: rowChecks[r.id]?.check ?? null, ...quotedSend(r.id), siteCheckDate: rowChecks[r.id]?.check === "yes" ? rowChecks[r.id]?.date ?? null : null, consent: !!consent[r.id], plan: planFor(r.id) })) } });
       if (saved.lockedRows?.length) toast.info(`Row${saved.lockedRows.length > 1 ? "s" : ""} ${saved.lockedRows.join(", ")}: job already started — answers there are locked; confirm finishes that job, then correct details on the job page.`);
-      const res = await confirm({ data: { batchId, skipRowIds: [...skip, ...rows.filter((r) => statusOf(r).excluded).map((r) => r.id)] } });
+      const res = await confirm({ data: { batchId, skipRowIds: rows.filter(r => r.status === "pending" && !r.job_id && (skip.has(r.id) || statusOf(r).excluded)).map(r => r.id) } });
       setDone(res);
       qc.invalidateQueries({ queryKey: ["bulk-review", batchId] });
-      if (res.incomplete?.length) toast.warning(`${res.created} job${res.created === 1 ? "" : "s"} added · ${res.incomplete.length} not finished — see below.`);
-      else toast.success(`${res.created} job${res.created === 1 ? "" : "s"} added.`);
-    } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); confirming.current = false; }
+      if (res.failed || res.remainingUnknown || res.counts?.pending) toast.warning(bulkCompletionMessage(res));
+      else toast.success(bulkCompletionMessage(res));
+    } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); confirming.current = false; await qc.invalidateQueries({ queryKey: ["bulk-review", batchId] }); await refreshPast(); }
   }
 
   return (
@@ -473,23 +474,23 @@ function BulkImportPage() {
         </section>
       )}
 
-      {step === 2 && summary && (
+      {step === 2 && summary && !historyOnly && (
         <section className="space-y-3">
           <h2 className="font-display text-lg font-bold">{jobsFound(summary.rows ?? 0)}</h2>
           {(summary.rows ?? 0) === 0 && <div className="rounded-[14px] border border-line bg-paper p-4 text-sm">We couldn't find a customer in these files. Add a customer list, or name files by address (e.g. "14 Example St"), then upload again.<div className="mt-2"><SmallButton onClick={reset}>Upload again</SmallButton></div></div>}
           {(summary.rows ?? 0) > 1 && <ElectricianPicker title="Electrician for every customer" value={batchPlan} onChange={(v) => { setBatchPlan(v); setRowPlans({}); }} approved={electricianData?.approved ?? []} pending={electricianData?.pending ?? []} onAdd={async (d) => { const { made, message } = await addNewElectrician(d); setBatchPlan({ mode: "mine", ...(made.businessId ? { business_id: made.businessId } : { nomination_id: made.nominationId }) }); setRowPlans({}); return { message }; }} />}
-          {rows.length > 1 && (() => { const open = rows.filter((r) => !skip.has(r.id) && !statusOf(r).excluded && r.import_stage !== "installed"); return (
+          {rows.length > 1 && (() => { const open = rows.filter((r) => bulkRowEditable(reviewStatus,r) && !skip.has(r.id) && !statusOf(r).excluded && r.import_stage !== "installed"); return (
             <div className="flex flex-wrap items-center gap-2 text-sm" data-site-check-all><span className="text-sub">Site check for all:</span>{(["yes", "no"] as const).map((v) => <SmallButton key={v} onClick={() => { const nc = { ...rowChecks }; const ns = { ...rowStages }; for (const r of open) { nc[r.id] = { check: v, date: v === "yes" ? rowChecks[r.id]?.date ?? null : null }; ns[r.id] = v === "yes" ? (r.extracted.price_inc_gst ? "quoted" : "visited") : "not_visited"; } setRowChecks(nc); setRowStages(ns); }}>{v === "yes" ? "Yes to all" : "No to all"}</SmallButton>)}</div>); })()}
           <div className="grid gap-3">
-            {rows.map((r) => (
+            {rows.map((r) => bulkRowEditable(reviewStatus,r) ? (
               <CustomerCard key={r.id} row={r} status={statusOf(r)} skipped={skip.has(r.id)} onSkip={(v) => { const n = new Set(skip); if (v) n.add(r.id); else n.delete(r.id); setSkip(n); }}
                 consent={!!consent[r.id]} onConsent={(v) => setConsent({ ...consent, [r.id]: v })}
                 quoted={rowQuoted[r.id] ?? { answer: null, price: "", confirmed: false }} onQuoted={(q) => setRowQuoted({ ...rowQuoted, [r.id]: q })}
                 check={rowChecks[r.id] ?? { check: null, date: null }} onCheck={(v) => { setRowChecks({ ...rowChecks, [r.id]: v }); setRowStages({ ...rowStages, [r.id]: r.import_stage === "installed" ? "installed" : v.check === "yes" ? (r.extracted.price_inc_gst ? "quoted" : "visited") : "not_visited" }); }}
                 onLead={(l) => setLeads((o) => ({ ...o, [r.id]: l }))} onSaving={(v) => setSaving((o) => ({ ...o, [r.id]: v }))}
-                businessId={effectiveBiz}
+                businessId={reviewBusiness}
                 electrician={<ElectricianPicker compact note={(summary.rows ?? 0) <= 1} value={planFor(r.id)} onChange={(plan) => setRowPlans((o) => ({ ...o, [r.id]: plan }))} approved={electricianData?.approved ?? []} pending={electricianData?.pending ?? []} onAdd={async (d) => { const { made, message } = await addNewElectrician(d); setRowPlans((o) => ({ ...o, [r.id]: { mode: "mine", ...(made.businessId ? { business_id: made.businessId } : { nomination_id: made.nominationId }) } })); return { message }; }} />} />
-            ))}
+            ) : <BulkHistoryRow key={r.id} row={r} businessId={reviewBusiness} canRepair={false} canEditFiles={reviewStatus === "analysed" && r.status === "pending" && !!r.job_id && !(r.confirm_lease_until && Date.parse(r.confirm_lease_until) > Date.now())} onSaving={v => setSaving(o => ({ ...o, [r.id]: v }))} />)}
           </div>
           <FileResultList items={summary.file_results ?? localReads} />
           {(summary.rows ?? 0) > 0 && toAdd.length === 0 && rows.every((r) => statusOf(r).excluded || skip.has(r.id)) && <div className="rounded-[14px] border border-line bg-paper p-3 text-sm">Nothing from this upload can be added.<div className="mt-2"><SmallButton onClick={reset}>Upload something else</SmallButton></div></div>}
@@ -497,28 +498,37 @@ function BulkImportPage() {
             <div className="sticky bottom-2 z-10 space-y-2 rounded-[18px] border border-line bg-paper p-3 shadow-card" data-confirm-bar>
               {notReady.length > 0 ? <p className="text-sm"><b>Still missing:</b> {notReady.slice(0, 3).map((r) => `${(leads[r.id] ?? r.extracted).full_name || "Unnamed customer"} — ${r.sort_result === "office_review" && statusOf(r).ready ? "held for the office to check" : statusOf(r).text.replace(/^Needs: /, "")}`).join("; ")}{notReady.length > 3 ? ` and ${notReady.length - 3} more` : ""}. Or tap "Don't add" on that card.</p>
                 : <p className="text-sm text-sub">Nothing is sent to any customer when you confirm.</p>}
-              {toAdd.some((r) => electricianPlanBlocker(planFor(r.id))) && <p className="text-sm text-danger">Choose the electrician on each customer marked "My electrician".</p>}
-              <PrimaryButton disabled={busy || anySaving || toAdd.length === 0 || notReady.length > 0 || toAdd.some((r) => !!electricianPlanBlocker(planFor(r.id)))} onClick={confirmAll}>{busy ? "Adding…" : anySaving ? "Saving…" : `Confirm ${toAdd.length} job${toAdd.length === 1 ? "" : "s"}`}</PrimaryButton>
+              {toAdd.some((r) => !r.job_id && electricianPlanBlocker(planFor(r.id))) && <p className="text-sm text-danger">Choose the electrician on each customer marked "My electrician".</p>}
+              <PrimaryButton disabled={busy || anySaving || toAdd.length === 0 || notReady.length > 0 || toAdd.some((r) => !r.job_id && !!electricianPlanBlocker(planFor(r.id)))} onClick={confirmAll}>{busy ? "Adding…" : anySaving ? "Saving…" : `Confirm ${toAdd.length} job${toAdd.length === 1 ? "" : "s"}`}</PrimaryButton>
             </div>
           )}
         </section>
       )}
 
+      {step === 2 && historyOnly && review && <section className="space-y-3" data-bulk-history>
+        <h2 className="font-display text-lg font-bold">Upload history</h2>
+        <p className="text-sm font-semibold">{bulkCountsLabel(review.counts)}</p>
+        <p className="text-sm text-sub">These recorded customer outcomes are read-only.</p>
+        {rows.map(row => <BulkHistoryRow key={row.id} row={row} businessId={reviewBusiness} canRepair={review.isAdmin && row.status === "confirmed" && !!row.job_id} />)}
+        <SmallButton onClick={reset}>Start another upload</SmallButton>
+      </section>}
+
       {done && (
         <section className="space-y-2 rounded-[18px] border border-line bg-paper p-4 shadow-card">
-          <h2 className="font-display text-lg font-bold">{done.created} job{done.created === 1 ? "" : "s"} added</h2>
-          {(done.skipped > 0 || done.failed > 0) && <p className="text-sm">{done.skipped ? `${done.skipped} not added. ` : ""}{done.failed ? `${done.failed} still need fixing.` : ""}</p>}
-          {!!done.incomplete?.length && <div role="alert" className="rounded-[10px] border border-rose/40 p-2 text-sm"><b>Not finished — nothing is lost:</b><ul className="mt-1 list-disc pl-5">{done.incomplete.map((x) => <li key={x.row}>Customer {x.row}{x.jobNumber ? ` (job ${x.jobNumber} started)` : ""}: {x.reason}</li>)}</ul></div>}
-          {(done.results ?? []).some((r) => r.notAttached.length) && <div className="rounded-[10px] bg-mist p-2 text-sm"><b>Files not attached</b> (unsupported or not saved — add them on the job by hand):<ul className="mt-1 list-disc pl-5">{(done.results ?? []).filter((r) => r.notAttached.length).map((r) => <li key={r.row}>{r.jobNumber}: {r.notAttached.join(", ")}</li>)}</ul></div>}
-          {done.remainingUnknown ? <p className="text-sm font-semibold" data-remaining-unknown>We couldn't check whether every customer is finished. This upload stays open — open it under Past uploads and confirm again. Jobs already added are never added twice.</p> : null}
+          <h2 className="font-display text-lg font-bold">{done.counts ? bulkCountsLabel(done.counts) : `${done.created} job${done.created === 1 ? "" : "s"} confirmed by this attempt`}</h2>
+          {(done.skipped > 0 || done.failed > 0) && <p className="text-sm">{done.skipped ? `${done.skipped} not added. ` : ""}{done.failed ? `${done.failed} attempt${done.failed === 1 ? "" : "s"} need review; saved totals are shown above.` : ""}</p>}
+          {!!done.incomplete?.length && <div role="alert" className="rounded-[10px] border border-rose/40 p-2 text-sm"><b>Completion messages — check the saved upload status before retrying:</b><ul className="mt-1 list-disc pl-5">{done.incomplete.map((x) => <li key={x.row}>Customer {x.row}{x.jobNumber ? ` (job ${x.jobNumber} started)` : ""}: {x.reason}</li>)}</ul></div>}
+          {(done.results ?? []).some((r) => r.notAttached.length) && <div className="rounded-[10px] bg-mist p-2 text-sm"><b>Files not attached</b> (unsupported type — add a supported copy on the job if needed):<ul className="mt-1 list-disc pl-5">{(done.results ?? []).filter((r) => r.notAttached.length).map((r) => <li key={r.row}>{r.jobNumber}: {r.notAttached.join(", ")}</li>)}</ul></div>}
+          {done.remainingUnknown ? <p className="text-sm font-semibold" data-remaining-unknown>We couldn't verify the final upload status. Open it under Past uploads to see saved progress before retrying. Jobs already added are never added twice.</p> : null}
+          {done.closeError && <p role="alert" className="text-sm text-danger">{done.closeError}</p>}
           {done.remaining ? <p className="text-sm font-semibold">{done.remaining} still to fix — open this upload under Past uploads and confirm again. Jobs already added are never added twice.</p> : null}
           <p className="text-sm text-sub">Nothing has been sent to any customer.</p>
-          {!!done.ownerLinks.length && <details className="text-sm"><summary className="cursor-pointer font-semibold">Owner links (queued, not sent)</summary><div className="mt-2 space-y-1">{done.ownerLinks.map((l) => <div key={l.path} className="rounded-[10px] bg-mist p-2"><b>{l.jobNumber} · {l.owner}</b><div className="break-all text-xs text-sub">{l.path}</div></div>)}</div></details>}
+          {!!done.ownerLinks.length && <details className="text-sm"><summary className="cursor-pointer font-semibold">Owner links</summary><div className="mt-2 space-y-1">{done.ownerLinks.map((l) => <div key={l.path} className="rounded-[10px] bg-mist p-2"><b>{l.jobNumber} · {l.owner}</b><div className="break-all text-xs text-sub">{l.path}</div></div>)}</div></details>}
           <SmallButton onClick={reset}>Upload more</SmallButton>
         </section>
       )}
 
-      <section className="space-y-2"><h2 className="font-display text-base font-bold">Past uploads</h2>{(past?.batches ?? []).length === 0 ? <p className="text-sm text-sub">No previous uploads yet.</p> : <div className="grid gap-2">{(past?.batches ?? []).slice(0, showAllPast ? undefined : 5).map((b) => { const s = b.summary as { rows?: number } | null; return <button key={b.id} type="button" className="grid min-h-12 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-[14px] border border-line bg-paper px-3 py-2 text-left" onClick={() => { setDone(null); setBatchId(b.id); }}><span className="min-w-0"><b className="block truncate text-sm">{b.list_filename ?? "Upload"}</b><span className="block text-xs text-sub">{new Date(b.created_at).toLocaleDateString("en-AU")} · {jobsFound(s?.rows ?? 0).replace(" found", "")}</span></span><span className="flex items-center gap-1 text-xs font-semibold capitalize text-sub">{b.status}<ChevronDown className="h-4 w-4"/></span></button>; })}{!showAllPast && (past?.batches ?? []).length > 5 && <SmallButton onClick={() => setShowAllPast(true)}>Show all {(past?.batches ?? []).length}</SmallButton>}</div>}</section>
+      <section className="space-y-2"><h2 className="font-display text-base font-bold">Past uploads</h2>{(past?.batches ?? []).length === 0 ? <p className="text-sm text-sub">No previous uploads yet.</p> : <div className="grid gap-2">{(past?.batches ?? []).slice(0, showAllPast ? undefined : 5).map((b) => { return <button key={b.id} type="button" className="grid min-h-12 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-[14px] border border-line bg-paper px-3 py-2 text-left" onClick={() => { setDone(null); setBatchId(b.id); }}><span className="min-w-0"><b className="block truncate text-sm">{b.list_filename ?? "Upload"}</b><span className="block text-xs text-sub">{new Date(b.created_at).toLocaleDateString("en-AU")} · {bulkCountsLabel(b.counts)}</span></span><span className="flex items-center gap-1 text-xs font-semibold capitalize text-sub">{b.status}<ChevronDown className="h-4 w-4"/></span></button>; })}{!showAllPast && (past?.batches ?? []).length > 5 && <SmallButton onClick={() => setShowAllPast(true)}>Show all {(past?.batches ?? []).length}</SmallButton>}</div>}</section>
     </div>
     </TradeShell>
   );
@@ -527,6 +537,31 @@ function BulkImportPage() {
 function Steps({ step }: { step: number }) {
   const items = ["Upload", "Check customers", "Confirm"];
   return <ol className="grid grid-cols-3 gap-1" aria-label="Steps">{items.map((t, i) => { const n = i + 1; return <li key={t} aria-current={n === step ? "step" : undefined} className={cn("flex min-w-0 items-center gap-1.5 rounded-[10px] px-2 py-1.5 text-xs font-semibold", n === step ? "bg-hiv-blue text-primary-foreground" : n < step ? "bg-success-soft text-success" : "bg-mist text-sub")}><span className="grid h-5 w-5 shrink-0 place-items-center rounded-full border border-current text-[11px]">{n < step ? <Check className="h-3 w-3" /> : n}</span><span className="leading-tight">{t}</span></li>; })}</ol>;
+}
+
+/** Intake answers remain frozen. Only pending, unclaimed jobs may replace files; closed-history repair is a separate Office action. */
+function BulkHistoryRow({ row, businessId, canRepair, canEditFiles = false, onSaving }: { row: ReviewRow; businessId: string; canRepair: boolean; canEditFiles?: boolean; onSaving?: (saving: boolean) => void }) {
+  const fileUrl = useServerFn(bulkImportFileUrl), repair = useServerFn(repairBulkImportFiles);
+  const addFiles = useServerFn(addBulkRowFiles), dropFile = useServerFn(removeBulkRowFile);
+  const uploadFiles = useUploadFiles(businessId), qc = useQueryClient();
+  const [busy, setBusy] = useState(false), [message, setMessage] = useState<string | null>(null);
+  const x = row.extracted;
+  return <article className="space-y-2 rounded-[18px] border border-line bg-paper p-4" data-bulk-history-row>
+    <h3 className="font-display font-bold">{x.full_name || "Unnamed customer"}</h3>
+    <p className="text-sm font-semibold">{row.status === "confirmed" ? row.job_id ? "Added to a job" : "Recorded as confirmed — Office needs to review the missing job link" : row.status === "skipped" ? "Skipped — no job added" : row.job_id ? "Job started — confirm again to finish it" : "Confirmation is in progress — refresh to check"}</p>
+    <p className="text-sm">{[x.address_line,x.suburb,x.postcode].filter(Boolean).join(", ") || "Address was not recorded"}</p>
+    <p className="text-xs text-sub">{[x.phone,x.email].filter(Boolean).join(" · ")}</p>
+    {row.confirm_error && <p role="alert" className="text-sm text-danger">{row.confirm_error}</p>}
+    {canEditFiles && <p className="text-xs text-sub">The customer details are saved. Add or remove files here, then confirm again to finish the same job.</p>}
+    <AttachFiles businessId={businessId} files={row.matched_files} readOnly={!canEditFiles} resolveUrl={file => fileUrl({ data: { rowId: row.id, originalPath: file.path } })}
+      onAdd={async files => { if (!canEditFiles) return; onSaving?.(true); try { const uploaded = await uploadFiles(files); await addFiles({ data: { rowId: row.id, files: uploaded.map(f => ({ path: f.path, name: f.name, type: f.type ?? "" })) } }); await qc.invalidateQueries({ queryKey: ["bulk-review"] }); } finally { onSaving?.(false); } }}
+      onRemove={async path => { if (!canEditFiles) return; onSaving?.(true); try { await dropFile({ data: { rowId: row.id, path } }); await qc.invalidateQueries({ queryKey: ["bulk-review"] }); } finally { onSaving?.(false); } }} />
+    {canRepair && <details className="text-xs text-sub"><summary className="cursor-pointer font-semibold">Office: repair missing job attachments</summary>
+      <p className="my-2">This checks the recorded stored files and adds missing job attachments with a separate repair record. The upload, customer permission and quote history remain as recorded.</p>
+      <SmallButton disabled={busy} onClick={async () => { setBusy(true); setMessage(null); try { const r = await repair({ data: { rowId: row.id } }); setMessage(`${r.repairRecords} file repair record${r.repairRecords === 1 ? "" : "s"} verified.${r.unsupported.length ? ` Unsupported: ${r.unsupported.join(", ")}.` : ""}`); } catch (error) { setMessage(error instanceof Error ? error.message : "The repair could not be completed."); } finally { setBusy(false); } }}>{busy ? "Checking files…" : "Check and repair job attachments"}</SmallButton>
+      {message && <p role="status" className="mt-2">{message}</p>}
+    </details>}
+  </article>;
 }
 
 function PrimaryButton({ className, ...p }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
@@ -552,7 +587,7 @@ function CustomerCard({ row, status, skipped, onSkip, consent, onConsent, quoted
   quoted: Quoted; onQuoted: (q: Quoted) => void; check: CheckV; onCheck: (v: CheckV) => void; onLead: (l: ReviewRow["extracted"]) => void; onSaving: (v: boolean) => void; electrician: React.ReactNode; businessId: string;
 }) {
   const uploadFiles = useUploadFiles(businessId);
-  const addFiles = useServerFn(addBulkRowFiles), dropFile = useServerFn(removeBulkRowFile);
+  const addFiles = useServerFn(addBulkRowFiles), dropFile = useServerFn(removeBulkRowFile), fileUrl = useServerFn(bulkImportFileUrl);
   const [cardFiles, setCardFiles] = useState(row.matched_files);
   const qc = useQueryClient();
   const save = useServerFn(setBulkRowAddress);
@@ -617,12 +652,12 @@ function CustomerCard({ row, status, skipped, onSkip, consent, onConsent, quoted
             {check.check === "yes" && <Field label="Site check date (if known)" type="date" value={check.date ?? ""} onChange={(v) => onCheck({ check: "yes", date: v || null })} />}
           </>}
         </div>
-        <AttachFiles businessId={businessId} files={cardFiles} onAdd={async (f) => { const up = await uploadFiles(f); const r = await addFiles({ data: { rowId: row.id, files: up.map((x) => ({ path: x.path, name: x.name, type: x.type ?? "" })) } }); setCardFiles(r.files as typeof cardFiles); if (!check.check && r.files.some((m) => /\.(jpe?g|png|heic|heif|webp)$/i.test(m.name))) onCheck({ check: "yes", date: check.date }); await qc.invalidateQueries({ queryKey: ["bulk-review"] }); }} onRemove={async (path) => { const r = await dropFile({ data: { rowId: row.id, path } }); setCardFiles(r.files as typeof cardFiles); }} />
+        <AttachFiles businessId={businessId} files={cardFiles} resolveUrl={file => fileUrl({ data: { rowId: row.id, originalPath: file.path } })} onAdd={async (f) => { const up = await uploadFiles(f); const r = await addFiles({ data: { rowId: row.id, files: up.map((x) => ({ path: x.path, name: x.name, type: x.type ?? "" })) } }); setCardFiles(r.files as typeof cardFiles); await qc.invalidateQueries({ queryKey: ["bulk-review"] }); }} onRemove={async (path) => { const r = await dropFile({ data: { rowId: row.id, path } }); setCardFiles(r.files as typeof cardFiles); }} />
         {electrician}
         <ul className="space-y-0.5 text-xs text-sub">
           <li>Ceiling size: {x.area_m2 ? `${x.area_m2} m²` : "not given"}</li>
           {fileNote && <li>{fileNote}</li>}
-          {/Listed \d+ times in the upload/i.test(x.notes ?? "") && <li className="font-semibold text-danger" data-repeat-note>This customer was listed more than once in your upload. We kept one job only — please check the details.</li>}
+          {/Listed \d+ times in the upload/i.test(x.notes ?? "") && <li className="font-semibold text-danger" data-repeat-note>This customer was listed more than once in your upload. We kept one customer card — please check the details before confirming.</li>}
           {row.sort_result === "office_review" && <li className="font-semibold text-danger">Held for the office to check{(row.sort_reasons ?? []).filter((r) => !/^(Stage|Site check|Missing|Customer details|Phone|Email|Postcode|Measurements|Small items)/.test(r) && r !== QUOTE_NEEDED_LABEL && r !== OUTSIDE_VIC_MESSAGE).slice(0, 1).map((r) => `: ${r}`)}</li>}
         </ul>
       </div>}

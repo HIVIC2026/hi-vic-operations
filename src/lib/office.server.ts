@@ -153,11 +153,17 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
   {
     const { evaluateOwnerGates, gatesForStage } = await import("./owner-gates.core");
     const { approvedVersions } = await import("./owner-gates.server");
-    const [{ data: gsig }, appr, { data: brows }] = await Promise.all([
-      admin.from("owner_gate_signatures").select("job_id, doc_key, doc_version, doc_draft, answers").in("job_id", ids),
+    // Bounded id batches: one URL carrying every live job id exceeds the gateway limit (400 + client retries ≈ 60 s each).
+    const batches: string[][] = []; for (let i = 0; i < ids.length; i += 200) batches.push(ids.slice(i, i + 200));
+    const inBatches = async (what: string, q: (b: string[], a: number, z: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>) =>
+      (await Promise.all(batches.map((b) => all(what, (a, z) => q(b, a, z))))).flat();
+    const [gsigRows, appr, browRows] = await Promise.all([
+      inBatches("owner paperwork signatures", (b, a, z) => admin.from("owner_gate_signatures").select("job_id, doc_key, doc_version, doc_draft, answers").in("job_id", b).order("signed_at").order("id").range(a, z)),
       approvedVersions(),
-      admin.from("bulk_import_rows").select("job_id, import_stage").in("job_id", ids),
+      inBatches("bulk import rows", (b, a, z) => admin.from("bulk_import_rows").select("job_id, import_stage").in("job_id", b).order("id").range(a, z)),
     ]);
+    const gsig = gsigRows as { job_id: string; doc_key: string; doc_version: string; doc_draft: boolean; answers: unknown }[];
+    const brows = browRows as { job_id: string; import_stage: string }[];
     for (const j of live) {
       const id = String(j["id"]); const stage = String(j["stage"]);
       const need = new Set(gatesForStage(stage));
