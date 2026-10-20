@@ -411,11 +411,11 @@ export type RecoveredIntakeReceipt = { insulation: ExistingInsulation; quoted: b
  */
 export function recoveredIntakeReceipt(events: { event_type: string; details: Record<string, unknown> | null }[]): RecoveredIntakeReceipt {
   const latest = (t: string) => events.find((e) => e.event_type === t)?.details ?? null;
-  const answer = latest("installer_quote_answer")?.answer;
+  const answer = latest("installer_quote_answer")?.["answer"];
   const quoted = answer !== "not_quoted";
-  const coordRaw = latest("installer_coordination_chosen")?.coordination;
+  const coordRaw = latest("installer_coordination_chosen")?.["coordination"];
   const coord: Coordination | null = coordRaw === "self_managed" || coordRaw === "hivic_managed" ? coordRaw : null;
-  const ins = latest("installer_existing_insulation_declared")?.value;
+  const ins = latest("installer_existing_insulation_declared")?.["value"];
   const insulation: ExistingInsulation = ins === "none" || ins === "below_r2" ? ins : "unknown";
   const fee = events.some((e) => e.event_type === "installer_owner_fee_awareness");
   return { insulation, quoted, next: intakeNextAction(coord, quoted), feeHeld: quoted && !fee };
