@@ -256,6 +256,9 @@ function BulkImportPage() {
   const [extraFiles, setExtraFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [batchId, setBatchId] = useState<string | null>(null);
+  // Refresh-safe review: the open upload stays in the address bar so a reload resumes it (never a second upload).
+  useEffect(() => { const b = new URLSearchParams(window.location.search).get("batch"); if (b && /^[0-9a-f-]{36}$/i.test(b)) setBatchId(b); }, []);
+  useEffect(() => { const u = new URL(window.location.href); if (batchId) u.searchParams.set("batch", batchId); else u.searchParams.delete("batch"); window.history.replaceState(window.history.state, "", u.toString()); }, [batchId]);
   const [skip, setSkip] = useState<Set<string>>(new Set());
   const [consent, setConsent] = useState<Record<string, boolean>>({});
   const [leads, setLeads] = useState<Record<string, ReviewRow["extracted"]>>({});
