@@ -59,7 +59,7 @@ export async function confirmImportFor(userId: string, data: ConfirmImportInput,
   if (decision === "busy") throw new WorkflowError("This job is already being saved — wait a moment and try again.");
   let q = admin.from("job_imports").update({ confirmed_by: userId, confirmed_at: new Date().toISOString() }).eq("id", imp0.id).eq("status", "draft");
   q = imp0.confirmed_by ? q.eq("confirmed_by", imp0.confirmed_by).eq("confirmed_at", imp0.confirmed_at as string) : q.is("confirmed_by", null);
-  const { data: won, error: ce } = await q.select("id, confirmed_at, job_id, confirmed_facts").maybeSingle();
+  const { data: won, error: ce } = await q.select("*").maybeSingle(); // winning row = authoritative snapshot (files appended before the claim included)
   if (ce) throw new WorkflowError(ce.message);
   if (!won?.confirmed_at) throw new WorkflowError("This job is already being saved — wait a moment and try again.");
   const claim: ImportClaim = { id: imp0.id, userId, at: won.confirmed_at as string };
@@ -71,7 +71,8 @@ export async function confirmImportFor(userId: string, data: ConfirmImportInput,
     if (prev && prev !== attempt) { await release(); throw new WorkflowError("This job was already partly saved with different details. Go back, keep the details you first submitted, and submit again — or ask Home Insulation Victoria to correct it."); }
   }
   try {
-    return await run(userId, data, imp0, resumeJobId, claim, attempt);
+    if (won.business_id !== imp0.business_id) { await release(); throw new WorkflowError("This import was not found."); }
+    return await run(userId, data, won as typeof imp0, resumeJobId, claim, attempt);
   } catch (e) { await release(); throw e; }
 }
 
@@ -260,9 +261,31 @@ export async function confirmClaimed(userId: string, data: ConfirmImportInput, i
   return { jobId: res.job_id, jobNumber: res.job_number };
 }
 
+type ImportFile = { path: string; name: string; type: string; purpose?: "quote" | "supporting" | undefined };
+/** Compare-and-set on the CURRENT draft's files: only an unclaimed draft of the same business whose files still equal what
+ * we read. A collision re-reads and re-merges (bounded); a claimed/confirmed draft refuses; read/write errors never say Saved. */
+export async function casImportFiles(importId: string, businessId: string, change: (have: ImportFile[]) => ImportFile[]) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const { data: cur, error: re } = await admin.from("job_imports").select("business_id, status, files, confirmed_by").eq("id", importId).maybeSingle();
+    if (re) throw new WorkflowError("The job's files could not load. Please retry — nothing was changed.");
+    if (!cur || cur.business_id !== businessId || cur.status !== "draft") throw new WorkflowError("This job was already added or discarded.");
+    if (cur.confirmed_by) throw new WorkflowError("This job is being saved — files can't change now.");
+    const have = (cur.files as ImportFile[] | null) ?? [];
+    const next = change(have);
+    let q = admin.from("job_imports").update({ files: next as unknown as Json, updated_at: new Date().toISOString() })
+      .eq("id", importId).eq("business_id", businessId).eq("status", "draft").is("confirmed_by", null);
+    q = cur.files == null ? q.is("files", null) : q.eq("files", JSON.stringify(cur.files));
+    const { data: saved, error: we } = await q.select("files").maybeSingle();
+    if (we) throw new WorkflowError("The file could not be attached. Please retry — it won't upload twice.");
+    if (saved) return { files: ((saved.files as ImportFile[] | null) ?? []) as { path: string; name: string; type: string; purpose?: "quote" | "supporting" }[] };
+  }
+  throw new WorkflowError("Files were changing at the same time. Please retry — nothing was lost.");
+}
+
 /** Add photos/files to a draft import (business owner only). Paths must be this business's own uploads. */
-export async function addImportFilesFor(userId: string, importId: string, files: { path: string; name: string; type: string; purpose?: "quote" | "supporting" | undefined }[]) {
-  const { data: imp } = await admin.from("job_imports").select("business_id, status, files, confirmed_by").eq("id", importId).single();
+export async function addImportFilesFor(userId: string, importId: string, files: ImportFile[]) {
+  const { data: imp, error } = await admin.from("job_imports").select("business_id, status, files, confirmed_by").eq("id", importId).maybeSingle();
+  if (error) throw new WorkflowError("The job's files could not load. Please retry — nothing was changed.");
   if (!imp || imp.status !== "draft") throw new WorkflowError("This job was already added or discarded.");
   if ((imp as { confirmed_by?: string | null }).confirmed_by) throw new WorkflowError("This job is being saved — files can't change now.");
   await requireMember(userId, imp.business_id, true);
@@ -272,21 +295,17 @@ export async function addImportFilesFor(userId: string, importId: string, files:
     const m = allowedUpload(f.name, f.type, { imports: true }); if (!m) throw new WorkflowError(`${f.name}: that file type isn't accepted.`);
     await verifyStoredUpload("job-files", f.path, m);
   }
-  const have = (imp.files as { path: string }[] | null) ?? [];
-  const next = [...have, ...files.filter((f) => !have.some((h) => h.path === f.path))];
-  const { error: upErr } = await admin.from("job_imports").update({ files: next as unknown as Json, updated_at: new Date().toISOString() }).eq("id", importId);
-  if (upErr) throw new WorkflowError("The file could not be attached. Please retry — it won't upload twice.");
-  return { files: next as { path: string; name: string; type: string; purpose?: "quote" | "supporting" }[] };
+  // Verified once; the write merges into whatever the draft holds NOW (concurrent additions kept).
+  return casImportFiles(importId, imp.business_id, (have) => [...have, ...files.filter((f) => !have.some((h) => h.path === f.path))]);
 }
 export async function removeImportFileFor(userId: string, importId: string, path: string) {
-  const { data: imp } = await admin.from("job_imports").select("business_id, status, files, confirmed_by").eq("id", importId).single();
+  const { data: imp, error } = await admin.from("job_imports").select("business_id, status, files, confirmed_by").eq("id", importId).maybeSingle();
+  if (error) throw new WorkflowError("The job's files could not load. Please retry — nothing was changed.");
   if (!imp || imp.status !== "draft") throw new WorkflowError("This job was already added or discarded.");
   if ((imp as { confirmed_by?: string | null }).confirmed_by) throw new WorkflowError("This job is being saved — files can't change now.");
   await requireMember(userId, imp.business_id, true);
-  const next = ((imp.files as { path: string }[] | null) ?? []).filter((f) => f.path !== path);
-  const { error: upErr } = await admin.from("job_imports").update({ files: next as unknown as Json, updated_at: new Date().toISOString() }).eq("id", importId);
-  if (upErr) throw new WorkflowError("The file could not be attached. Please retry — it won't upload twice.");
-  return { files: next as { path: string; name: string; type: string; purpose?: "quote" | "supporting" }[] };
+  // The stored original is never deleted; only this draft's list entry is removed.
+  return casImportFiles(importId, imp.business_id, (have) => have.filter((f) => f.path !== path));
 }
 
 /** Resume an Add job draft after refresh. Only the user who created it, still a member of its business, may read it. */
