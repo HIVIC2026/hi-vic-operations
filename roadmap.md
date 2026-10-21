@@ -1,6 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Ready Check naming (Jo, 21 Oct 03:50 UTC)
-- [ ] Replace retired customer service name across pages, emails and previews; preserve FREE price, links, workflow and signed history. Run affected tests; no sends/publication.
+- [x] Replaced retired service name across customer pages, email HTML/plain text/preheaders and preview labels, including Save Spot replacement anchors; FREE price, links, workflow and signed history unchanged. Affected tests: 68 PASS/1 historical SKIP/0 FAIL; preview build OK, wording scan zero visible failures. Broader engagement suite has an unrelated stale groupBInvitationBlocker source assertion; left unchanged. No sends/publication.
 ## Customer SMS activation (Jo, 21 Oct 03:48 UTC)
 - [x] Verify AU1 connection via no-send GET: Joannah's Twilio (1) returns HTTP 200, Australian mobile has sms capability. Global communications on; every SMS type switch off. Existing app sends via direct Sydney/AU1 credentials, not linked US1 connector.
 - [ ] Enable future-only customer SMS blocked: app lacks TWILIO_AU1_ACCOUNT_SID, TWILIO_AU1_API_KEY_SID, TWILIO_AU1_API_KEY_SECRET and TWILIO_FROM_NUMBER (both configured-secret names and sandbox presence checked). Jo must add AU1 credentials/sender in Project Settings → Secrets; then verify live sending path before enabling. No blocked retries/reminder sends/settings mutations/publication. Current blocked rows 117 (116 historic plus later attempt); preserved all.
