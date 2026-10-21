@@ -74,17 +74,24 @@ export async function loadJobListPage(params: JobListParams) {
   const stage = toEnum(params.stage, JOB_STAGES, null);
   const sortKey = toEnum(params.sort, JOB_SORT_KEYS, "last_activity_at") ?? "last_activity_at";
   const ascending = toDirection(params.direction) === "asc";
-  const archiveRows: Array<{ id: string; source: string | null; qa_archived_at: string | null }> = [];
-  for (let from = 0; ; from += 1000) {
-    const { data, error } = await admin.from("jobs").select("id,source,qa_archived_at")
-      .or("source.eq.qa_test,qa_archived_at.not.is.null").order("id").range(from, from + 999);
-    if (error) throw new Error(`Archived TEST jobs could not be read: ${error.message}`);
-    archiveRows.push(...(data ?? []));
-    if (!data || data.length < 1000) break;
-  }
+  // Archived TEST jobs and deleted jobs are independent reads, so they run side by side (speed, 21 Oct).
+  const readArchived = async () => {
+    const rows: Array<{ id: string; source: string | null; qa_archived_at: string | null }> = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await admin.from("jobs").select("id,source,qa_archived_at")
+        .or("source.eq.qa_test,qa_archived_at.not.is.null").order("id").range(from, from + 999);
+      if (error) throw new Error(`Archived TEST jobs could not be read: ${error.message}`);
+      rows.push(...(data ?? []));
+      if (!data || data.length < 1000) break;
+    }
+    return rows;
+  };
+  const [archiveRows, { data: deleted, error: deletedError }] = await Promise.all([
+    readArchived(),
+    // Deleted jobs live only on the Deleted jobs page.
+    admin.from("jobs").select("id").not("deleted_at", "is", null).limit(5000),
+  ]);
   const archived = jobArchiveFilter(archiveRows);
-  // Deleted jobs live only on the Deleted jobs page.
-  const { data: deleted, error: deletedError } = await admin.from("jobs").select("id").not("deleted_at", "is", null).limit(5000);
   if (deletedError) throw new Error(`Deleted jobs could not be read: ${deletedError.message}`);
   archived.archivedOtherIds.push(...(deleted ?? []).map(r => r.id).filter(id => !archived.archivedOtherIds.includes(id)));
   const scoped = (m: JobMode = mode, v: JobClosedView = closedView) => scope(jobOverview("exact", true), archived, m, v);
@@ -104,15 +111,8 @@ export async function loadJobListPage(params: JobListParams) {
     return { rows: data ?? [], total: count ?? 0 };
   };
 
-  const first = await run(wanted);
-  const totalPages = totalPagesFor(first.total, size);
-  const current = clampPage(wanted, totalPages);
-  // A page can point past the end once the result set shrinks; re-read the clamped page rather than
-  // showing an empty list the office cannot escape.
-  const page = current === wanted ? first : await run(current);
-
-  const [stageRows, tiles, oldest] = await Promise.all([
-    // One narrow single-column read feeds the stage chips; full rows are never downloaded just to count.
+  // The chips, tiles and oldest-job reads do not depend on the page, so they start alongside it.
+  const sidePromise = Promise.all([
     searched(scope(admin.from("office_job_list" as "job_overview").select("stage"), archived, mode, closedView), search).limit(5000),
     mode === "active"
       ? Promise.all([
@@ -128,7 +128,16 @@ export async function loadJobListPage(params: JobListParams) {
         ]),
     // Oldest open job, so the footer no longer needs every row to find one value.
     mode === "active" ? searchedScope().order("created_at", { ascending: true, nullsFirst: false }).limit(1) : Promise.resolve({ data: [], error: null }),
-  ]);
+  ] as const);
+  sidePromise.catch(() => undefined);
+  const first = await run(wanted);
+  const totalPages = totalPagesFor(first.total, size);
+  const current = clampPage(wanted, totalPages);
+  // A page can point past the end once the result set shrinks; re-read the clamped page rather than
+  // showing an empty list the office cannot escape.
+  const page = current === wanted ? first : await run(current);
+
+  const [stageRows, tiles, oldest] = await sidePromise;
   if (stageRows.error) throw new Error(`Stage counts unavailable: ${stageRows.error.message}`);
 
   const stageCounts: Record<string, number> = {};
