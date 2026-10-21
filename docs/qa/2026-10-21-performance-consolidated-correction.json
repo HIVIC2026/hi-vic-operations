@@ -53868,7 +53868,7 @@
   "blockers": [
     "ordinary staff session unavailable",
     "private TEST file/offer fixture not established",
-    "New owner authorized, but prepareQaAccess would add an existing Alpha worker membership; forbidden existing-membership changes prevent exact safe fixture preparation",
+    "Existing preparation writes field_worker, rejected by live business_members CHECK allowing only business_admin/member; user authorized association, no bypass or migration",
     "token phone happy paths unavailable",
     "backup/PITR not verified; index application not authorised",
     "218 assignments on historically archived jobs outside active-only action scope"
@@ -56283,7 +56283,8 @@
     "audit_events": 19,
     "email_attempts": 0,
     "status": "root-reported completed live; not duplicated by this agent",
-    "independently_verified_exact_root_event_counts": false
+    "independently_verified_exact_root_event_counts": false,
+    "remaining_14_archive_attribution": "Root independently archived at 03:25:05 UTC after HV1027 marked_test Dummy / cancelled_reason Fake evidence"
   },
   "narrow_phone_list_completion": {
     "target": "local preview http://localhost:8080/admin/list?test=true",
@@ -56352,5 +56353,78 @@
     },
     "live_owner_flow": "NOT_RUN: existing preparation would change existing worker membership; no new fixture created",
     "no_sends_publication_migration_or_real_edits": true
+  },
+  "authorized_minimum_fixture_attempt": {
+    "observed_utc": "2026-10-21T03:38:31Z",
+    "target": "local preview, existing authenticated Office action",
+    "attribution_correction": "Blanket TEST membership-addition prohibition was an assistant safeguard, not user instruction. Exact one membership explicitly authorized at 03:35.",
+    "practice_tests": {
+      "passed": 28,
+      "failed": 0,
+      "caveat": "Isolated PGlite schema did not expose live membership CHECK incompatibility"
+    },
+    "preflight": {
+      "exact_worker_user_id": "2f5755e4-17e1-4756-825e-371ea293f533",
+      "alpha_business_id": "62956b54-2e44-4c96-a156-33949b20fa82",
+      "existing_role": "installer only",
+      "existing_profile_matches_business": true,
+      "worker_approved_verified_not_removed": true,
+      "membership_rows_before_after": 0,
+      "accessible_non_test_jobs": 0,
+      "historical_non_test_job": "HV-1554 installer_import cancelled with ended assignment; inactive access and TEST history exclusion; unchanged"
+    },
+    "preparation": "FAIL: Could not add missing TEST membership: business_members_member_role_check permits business_admin/member, not field_worker",
+    "fixture": {
+      "job_number": "HV-2987",
+      "job_id": "10013124-fd02-49a6-812b-c7186e883bb7",
+      "source": "qa_test",
+      "phone": null,
+      "owner_identity_created": true,
+      "two_test_assignments_created_then_ended": true
+    },
+    "archive": {
+      "status": "PASS",
+      "archived_at": "2026-10-21T03:38:22.320Z",
+      "deleted": false,
+      "active_assignments": 0,
+      "live_worker_links": 0,
+      "audit_rows": 4
+    },
+    "zero_readbacks": [
+      "campaign responses",
+      "ready check acceptances",
+      "ready check windows",
+      "bookings",
+      "invoices",
+      "ready check payments/attempts",
+      "assessment payments/attempts",
+      "email sends",
+      "sms records",
+      "job communications",
+      "partner offers",
+      "post intake work"
+    ],
+    "final_counts": {
+      "total_qa_test": 438,
+      "archived_qa_test": 438,
+      "active_qa_test": 0,
+      "old_records_retained": 437,
+      "original_active_archived": 145,
+      "original_agent_archives": 131,
+      "root_remaining_archives": 14,
+      "new_fixture_archives": 1,
+      "root_legacy_recoverably_deleted": 8,
+      "root_ineligible_closed": 11,
+      "paused_followups_untouched": 641
+    },
+    "remaining_not_run": [
+      "Save My Spot first save",
+      "refresh/double tap idempotence",
+      "stored FREE 0/paymentId null",
+      "persisted allowed OPEN windows",
+      "confirmed TAKEN/scheduled booking"
+    ],
+    "existing_roles_profiles_approvals_unchanged": true,
+    "no_sends_provider_calls_publication_migration_price_copy_real_customer_changes": true
   }
 }
