@@ -156,6 +156,7 @@ function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
   const [reason, setReason] = useState("");
   const [saved, setSaved] = useState<string | null>(null);
   const [savedOutcome, setSavedOutcome] = useState<MediaReviewOutcome | null>(null);
+  const [overOpen, setOverOpen] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const act = async (outcome: MediaReviewOutcome) => {
     setBusy(outcome);
