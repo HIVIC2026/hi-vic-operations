@@ -225,28 +225,19 @@ function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
               Review saved: {saved}. No email has been sent — the next action now shows on this row.
             </p>
           ) : (
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" disabled={busy !== null} onClick={() => act("no_insulation")}>{MEDIA_OUTCOME_LABEL.no_insulation}</Button>
-              <Input aria-label="Ineligible reason" placeholder="Reason for R2 or above decision" value={reason} onChange={e => setReason(e.target.value)} />
-              <Button size="sm" disabled={busy !== null} onClick={() => act("below_r2")}>
-                {MEDIA_OUTCOME_LABEL.below_r2}
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                disabled={busy !== null || !reason.trim()}
-                onClick={() => act("over_r2")}
-              >
-                {MEDIA_OUTCOME_LABEL.over_r2}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={busy !== null}
-                onClick={() => act("unclear")}
-              >
-                {MEDIA_OUTCOME_LABEL.unclear}
-              </Button>
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" disabled={busy !== null} onClick={() => act("below_r2")}>Under R2 – send Save your spot</Button>
+                <Button size="sm" disabled={busy !== null} onClick={() => act("no_insulation")}>No insulation – send Save your spot</Button>
+                <Button size="sm" variant="destructive" disabled={busy !== null} onClick={() => setOverOpen(true)}>R2 or above – ineligible</Button>
+                <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => act("unclear")}>{MEDIA_OUTCOME_LABEL.unclear}</Button>
+              </div>
+              {overOpen && (
+                <div className="flex flex-wrap gap-2">
+                  <Input aria-label="Ineligible reason" placeholder="Why it's ineligible (e.g. R3.5 batts visible)" value={reason} onChange={e => setReason(e.target.value)} className="min-w-0 flex-1" />
+                  <Button size="sm" variant="destructive" disabled={busy !== null || !reason.trim()} onClick={() => act("over_r2")}>Confirm ineligible</Button>
+                </div>
+              )}
             </div>
           )}
           {failed && <p role="alert" className="text-sm text-destructive">{failed}</p>}
