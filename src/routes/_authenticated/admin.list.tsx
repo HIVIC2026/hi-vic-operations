@@ -28,7 +28,7 @@ function JobList() {
         : <>
           <h1 className="mb-3 mt-1 font-display text-2xl font-extrabold">{data.title}{sp.late ? " — late" : ""} <span className="text-base font-semibold text-muted-foreground">({data.total})</span></h1>
           {data.rows.length === 0 ? <p className="rounded-[22px] border bg-card p-5 text-sm text-muted-foreground">No jobs here.</p> : (
-            <div className="overflow-x-auto rounded-[22px] border bg-card shadow-sm">
+            <div className="relative min-w-0 max-w-full overflow-x-auto rounded-[22px] border bg-card shadow-sm">
               <table className="w-full min-w-[720px] text-sm">
                 <thead className="border-b text-left text-xs text-muted-foreground"><tr><th className="p-3">Job</th><th className="p-3">Owner</th><th className="p-3">Suburb</th><th className="p-3">Status</th><th className="p-3">Waiting on</th><th className="p-3 text-right">Days in status</th><th className="p-3">Due</th><th className="p-3"><span className="sr-only">Delete</span></th></tr></thead>
                 <tbody>
