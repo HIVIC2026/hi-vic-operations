@@ -61,20 +61,28 @@ async function logJob(input: RealSmsInput, to: string, status: string, detail: s
 }
 
 /** Send one real SMS. Every check runs first; blocked attempts are logged and never reach Twilio. */
-export async function sendRealSms(input: RealSmsInput): Promise<RealSmsResult> {
+export async function sendRealSms(input: RealSmsInput, blast?: { claimId: string; adminSpotReminderBlast: true }): Promise<RealSmsResult> {
+  const blastAllowed = input.type === "save_spot_reminder" && blast?.adminSpotReminderBlast === true &&
+    input.idempotencyKey === `save-spot-reminder-blast:v1:${input.jobId}`;
+  if (blast && !blastAllowed) throw new Error("Invalid one-off SMS authorization");
   const to = toAuE164(input.to);
   const from = sendingNumber();
   const { consent, isTest } = await consentAndTest(input);
   const blocked = smsBlocker({
     type: input.type, to: input.to, commsEnabled: await customerCommsEnabled(), typeSwitchOn: await typeSwitchOn(input.type),
     senderConfigured: !!from, optedOut: to ? await isOptedOut(to) : false, consent, isTestRecord: isTest,
+    adminSpotReminderBlast: blastAllowed,
   });
   // Claim the idempotency key first (unique). An existing claim means this message was already handled.
   const { data: row, error } = await db.from("sms_messages").insert({
+    ...(blastAllowed && blast ? { id: blast.claimId } : {}),
     message_type: input.type, idempotency_key: input.idempotencyKey, job_id: input.jobId ?? null, business_id: input.businessId ?? null,
     to_number: to ?? String(input.to ?? ""), from_sender: from, body: brandSmsBody(input.body), status: blocked ? "blocked" : "sending", detail: blocked,
   }).select("id").maybeSingle();
-  if (error || !row) return { status: "already", detail: "Already handled for this key – not sent again", sid: null };
+  if (error || !row) {
+    if (error && error.code !== "23505") throw new Error("Could not reserve SMS safely; nothing sent");
+    return { status: "already", detail: "Already handled for this key – not sent again", sid: null };
+  }
   if (blocked) { await logJob(input, to ?? String(input.to ?? ""), "blocked", blocked); return { status: "blocked", detail: blocked, sid: null }; }
 
   { const { jobDeletedBlocker } = await import("./job-live.server"); const del = await jobDeletedBlocker(input.jobId ?? null);
@@ -84,7 +92,8 @@ export async function sendRealSms(input: RealSmsInput): Promise<RealSmsResult> {
   let r: RealSmsResult;
   if (!au1Configured()) r = { status: "failed", detail: "Twilio AU1 is not set up", sid: null };
   else {
-    const params = new URLSearchParams({ To: to!, From: from!, Body: brandSmsBody(input.body) });
+    if (!to || !from) throw new Error("SMS recipient or sender unavailable");
+    const params = new URLSearchParams({ To: to, From: from, Body: brandSmsBody(input.body) });
     if (hook) params.set("StatusCallback", `${WEBHOOK_BASE}/api/public/twilio/status?t=${encodeURIComponent(hook)}`);
     try {
       const res = await au1SendMessage(params);
@@ -96,7 +105,7 @@ export async function sendRealSms(input: RealSmsInput): Promise<RealSmsResult> {
     }
   }
   await db.from("sms_messages").update({ status: r.status, detail: r.detail, provider_sid: r.sid, updated_at: new Date().toISOString() }).eq("id", row.id);
-  await logJob(input, to!, r.status, r.detail);
+  await logJob(input, to ?? "", r.status, r.detail);
   return r;
 }
 
