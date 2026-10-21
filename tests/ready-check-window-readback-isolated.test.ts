@@ -40,7 +40,7 @@ mock.module('../src/lib/ready-check-booking-access.server', () => ({
   readyCheckBookingAccess: async () => ({ allowed: bookingAllowed }),
 }));
 globalThis.fetch = (async () => { providerCalls++; throw new Error('network forbidden'); }) as typeof fetch;
-const { submitReadyCheckWindows } = await import('../src/lib/readycheck-booking.server');
+const { submitReadyCheckWindows, ownerReadyCheckWindowState, sweepReadyCheckOffers } = await import('../src/lib/readycheck-booking.server');
 const { acceptReadyCheck, readyCheckAcceptanceState } = await import('../src/lib/readycheck-payment.server');
 const now = new Date('2026-10-21T02:34:00Z');
 for (const count of [3, 4, 5]) test(`actual submit saves and reads back ${count} allowed windows; isolated only`, async () => {
@@ -176,6 +176,15 @@ test('locked owner acceptance and exact retry reject before writes; receipt surv
   await expect(acceptReadyCheck(token, {}, picks)).rejects.toThrow('booking is not open');
   expect((await readyCheckAcceptanceState(token))?.acceptanceId).toBe('accepted-once');
   expect({ windows, acceptance, events }).toEqual(before); expect(providerCalls).toBe(0);
+});
+
+test('closed legacy times do not prompt again while locked; windows stay intact', async () => {
+  const picks = resetRequest(); await acceptReadyCheck(token, {}, picks);
+  windows = windows.map(row => ({ ...row, status: 'closed' })); bookingAllowed = false;
+  const before = structuredClone(windows);
+  const state = await ownerReadyCheckWindowState(jobId);
+  expect(state.canPick).toBe(false); expect(state.moreTimes).toBe(false); expect(state.bookingAllowed).toBe(false);
+  expect(windows).toEqual(before); expect(providerCalls).toBe(0);
 });
 
 test('changed estimate still marks the recorded acceptance stale', async () => {
