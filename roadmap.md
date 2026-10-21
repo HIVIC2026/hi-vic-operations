@@ -1,4 +1,8 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Office-controlled owner Ready Check booking (Jo, 21 Oct 23:39 UTC)
+- [ ] Default-OFF setting and per-job Office-only offer; guard every owner acceptance/time mutation and suppress automatic more-times prompts while locked; preserve Save my spot and receipts.
+- [ ] HV-2524 held message without changing estimate/saved history; read-only list of other real requests/windows.
+- [ ] Practice-database guards and TEST-only UI/flow verification; report before publishing. No sends or unrelated switches.
 ## Saved Ready Check request receipt (Jo, 21 Oct 22:52 UTC)
 - [x] Confirmed the receipt read incorrectly depended on current usable windows; decoupled recorded acceptance from window lifecycle, preserving secure-link/stale-estimate checks and all submission/retry guards. No customer writes, sends, migrations or publication.
 - [x] 50 focused tests PASS (20 actual isolated persistence/window checks, 27 free/booking regressions, 3 confirmation-render checks); preview build OK. Actual acceptance read → actual ConfirmQuote, sealed browser receipt/reload and screenshot PASS, no picker/checkbox/duplicate submit. Hosted live-owner flow NOT_RUN; no live fixture or customer changes.
