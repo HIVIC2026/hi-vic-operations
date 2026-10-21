@@ -1,5 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Bounded preview performance and QA (Jo, 21 Oct 01:36 UTC)
+- [ ] Finish narrow timestamp/actual FREE/two-phase booking proof correction; retain missing reversible owner fixture and unverified backup as blockers.
 - [x] Correct actual route/role/viewport coverage and loaded-panel interaction evidence; targeted canonical runs and consolidated correction report preserve historical limitations without declaring full coverage.
 - [ ] Full route/control/owner-flow readiness remains blocked: missing private token/document/offer/ordinary-staff and reversible owner fixtures; missing /admin/job-queue source and phone /admin/list overflow reported, not fixed in QA-only scope.
 - [x] Apply narrow 30-second Job File freshness and once-opened document-state correction; actual React Query remount/invalidation and disclosure regressions 5 PASS/0 FAIL, no full QA rerun.
