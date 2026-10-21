@@ -17,8 +17,10 @@ test('missing route fixture or unvisited page never means PASS', () => {
 test('Gate A hold is NOT_RUN, never a completed Ready Check', () => {
   expect(readyCheckBookingOutcome(false, { stage: 'ready_check_ready_to_schedule' }, 'paperwork A')).toEqual({ status: 'not_run', detail: 'booking not completed: paperwork A' });
 });
-test('booking PASS requires concrete scheduled state read back', () => {
-  expect(readyCheckBookingOutcome(true, { stage: 'ready_check_scheduled', next_action: 'Ready Check booked' }).status).toBe('passed');
+test('booking PASS requires persisted windows in addition to scheduled state read back', () => {
+  expect(readyCheckBookingOutcome(true, { stage: 'ready_check_scheduled', next_action: 'Ready Check booked' }).status).toBe('not_run');
+  expect(readyCheckBookingOutcome(true, { stage: 'ready_check_scheduled', next_action: 'Ready Check booked' }, undefined, { verified: true, detail: 'checked window readback' }).status).toBe('passed');
+  expect(readyCheckBookingOutcome(true, { stage: 'ready_check_scheduled', next_action: 'Ready Check booked' }, undefined, { verified: false, detail: 'windows_not_saved' }).status).toBe('failed');
   expect(readyCheckBookingOutcome(true, { stage: 'ready_check_ready_to_schedule' }).status).toBe('failed');
   expect(readyCheckBookingOutcome(true, null).status).toBe('failed');
 });

@@ -1,5 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Bounded preview performance and QA (Jo, 21 Oct 01:36 UTC)
+- [x] Add reserved-contact and persisted-window proof helpers/tests, provider-denial boundary test and landed-route reporting; 37 focused checks PASS, live workflow/destination rerun blocked by no permitted existing session.
 - [x] Incorporate additional read-only document performance and expanded canonical route/control QA evidence: final 82 PASS, 0 FAIL, 114 NOT_RUN; booking gaps retained.
 - [x] Measure cold/warm public and authenticated TEST Office preview reads; optimize verified code-only waterfalls.
 - [x] Run focused regression tests and canonical bounded portal QA, excluding Deep and real personas (43 PASS, 23 NOT_RUN).
