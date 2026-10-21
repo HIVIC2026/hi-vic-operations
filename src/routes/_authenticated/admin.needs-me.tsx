@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { DispatchModeSwitch } from "@/components/portal/dispatch-mode";
 
 export const Route = createFileRoute("/_authenticated/admin/needs-me")({
-  head: () => ({ meta: [{ title: "Needs me – Home Insulation Victoria" }, { name: "description", content: "Every job that needs the office, most urgent first." }, { property: "og:title", content: "Needs me – Home Insulation Victoria" }, { property: "og:description", content: "Every job that needs the office, most urgent first." }] }),
+  head: () => ({ meta: [{ title: "Needs me – Home Insulation Victoria" }, { name: "description", content: "Every job that needs the office, most urgent first." }, { property: "og:title", content: "Needs me – Home Insulation Victoria" }, { property: "og:description", content: "Every job that needs the office, most urgent first." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   validateSearch: (s: Record<string, unknown>): { test?: boolean } => (s["test"] === true || s["test"] === "true" ? { test: true } : {}),
   component: NeedsMe,
 });

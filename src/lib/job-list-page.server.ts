@@ -37,7 +37,8 @@ interface ScopeChain<T> {
  */
 function scope<T extends ScopeChain<T>>(q: T, archived: ReturnType<typeof jobArchiveFilter>, mode: JobMode, closedView: JobClosedView): T {
   let cur = q;
-  cur = cur.eq('office_bucket', mode === 'active' ? 'active' : 'closed');
+  if (mode === "active") return cur.eq("office_bucket", "active");
+  cur = cur.eq("office_bucket", "closed");
   if (mode === "closed" && closedView === "test") {
     cur = cur.or('source.eq.qa_test,office_removed.eq.true,contact_rank.gt.1');
   } else if (mode === "closed") {
