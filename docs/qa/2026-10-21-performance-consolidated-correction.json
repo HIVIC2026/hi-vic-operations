@@ -56426,5 +56426,70 @@
     ],
     "existing_roles_profiles_approvals_unchanged": true,
     "no_sends_provider_calls_publication_migration_price_copy_real_customer_changes": true
+  },
+  "canonical_member_customer_run": {
+    "fixture": "HV-2994",
+    "helper": "PASS canonical member; no migration",
+    "focused_handler_tests": {
+      "pass": 18,
+      "fail": 0,
+      "live_check_reproduced": true
+    },
+    "first_save": "PASS",
+    "refresh": "PASS",
+    "two_simultaneous_calls": "PASS one campaign row/save/confirmation event",
+    "supported_test_owner_login": "PASS",
+    "stored_acceptance_amount": 0,
+    "snapshot_amount": 0,
+    "response_paymentId": null,
+    "payment_rows": 0,
+    "picks": [
+      {
+        "date": "2026-10-23",
+        "slot": "8-10"
+      },
+      {
+        "date": "2026-10-26",
+        "slot": "8-10"
+      },
+      {
+        "date": "2026-10-27",
+        "slot": "8-10"
+      }
+    ],
+    "open_windows": {
+      "status": "FAIL",
+      "stored_count": 0,
+      "exact_gate": "An installer is already arranging your Ready Check."
+    },
+    "confirmed_appointment": "NOT_RUN",
+    "fixture_archive": "PASS 2026-10-21T03:47:26.220Z",
+    "active_fixture_assignments": 0,
+    "live_fixture_worker_links": 0,
+    "zero_effect_rows": [
+      "invoices",
+      "payments/attempts",
+      "customer_email_sends",
+      "SMS",
+      "external_action_outbox",
+      "offers",
+      "bookings",
+      "post_intake_work"
+    ],
+    "internal_communication_logs": {
+      "queued": 2,
+      "blocked_before_provider": 1
+    },
+    "global_counts": {
+      "total": 442,
+      "archived": 439,
+      "active": 3,
+      "other_concurrent_fixtures": [
+        "HV-2991",
+        "HV-2992",
+        "HV-2993"
+      ]
+    },
+    "no_publication_migration_sends_real_customer_changes": true
   }
 }

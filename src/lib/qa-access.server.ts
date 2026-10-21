@@ -80,7 +80,7 @@ async function qaBusiness(admin: Admin, businessId: string, role: "installer" | 
   return business;
 }
 
-async function membership(admin: Admin, userId: string, businessId: string, memberRole: "business_admin" | "field_worker", allowMissing = false) {
+async function membership(admin: Admin, userId: string, businessId: string, memberRole: "business_admin" | "member", allowMissing = false) {
   const members = checked(await admin.from("business_members").select("business_id, user_id, member_role, active").eq("user_id", userId), "Could not check TEST business membership") ?? [];
   if (!members.length && allowMissing) return false;
   if (members.length !== 1 || members[0]!.business_id !== businessId || members[0]!.member_role !== memberRole || members[0]!.active !== true) {
@@ -89,7 +89,7 @@ async function membership(admin: Admin, userId: string, businessId: string, memb
   return true;
 }
 
-async function tradeIdentity(admin: Admin, userId: string, businessId: string, role: "installer" | "electrician", memberRole: "business_admin" | "field_worker") {
+async function tradeIdentity(admin: Admin, userId: string, businessId: string, role: "installer" | "electrician", memberRole: "business_admin" | "member") {
   const identity = await qaIdentity(admin, userId);
   if (identity.profile?.business_id !== businessId) throw new WorkflowError("The TEST profile is associated with another business.");
   await rolesFor(admin, userId, role);
@@ -144,7 +144,7 @@ async function assignment(admin: Admin, jobId: string, role: "installer" | "elec
 }
 
 /** Only called by an explicit preparation action. Existing attributes are preserved; missing links use checked CAS/insert. */
-async function addIdentityAssociations(admin: Admin, actorId: string, identity: Awaited<ReturnType<typeof qaIdentity>>, name: string, role: Role, businessId?: string, memberRole?: "business_admin" | "field_worker") {
+async function addIdentityAssociations(admin: Admin, actorId: string, identity: Awaited<ReturnType<typeof qaIdentity>>, name: string, role: Role, businessId?: string, memberRole?: "business_admin" | "member") {
   const { userId, email, profile } = identity;
   if (!profile) {
     checked(await admin.from("profiles").insert({ id: userId, email, full_name: name, ...(businessId ? { business_id: businessId } : {}) }), "Could not add the missing TEST profile");
@@ -228,7 +228,7 @@ export async function prepareQaAccess(admin: Admin, actorId: string, jobId: stri
   if (workerIdentity) {
     if (workerIdentity.profile?.business_id && workerIdentity.profile.business_id !== installer.businessId) throw new WorkflowError("The TEST worker belongs to another business.");
     await rolesFor(admin, workerIdentity.userId, "installer", true);
-    await membership(admin, workerIdentity.userId, installer.businessId, "field_worker", true);
+    await membership(admin, workerIdentity.userId, installer.businessId, "member", true);
   }
   const worker = checked(await admin.from("partner_workers").select("id, business_id, profile_id, full_legal_name, email, trade_role, approval_status, certification_status, removed_at").eq("business_id", installer.businessId).eq("email", WORKER_EMAIL).maybeSingle(), "Could not read the existing TEST worker");
   if (worker) {
@@ -247,7 +247,7 @@ export async function prepareQaAccess(admin: Admin, actorId: string, jobId: stri
     checked(await admin.from("job_assignments").insert({ job_id: jobId, user_id: trade.identity.userId, role: trade.role, business_id: trade.businessId, active: true, assigned_by: actorId }), "Could not add the missing TEST assignment");
   }
   const workerAccount = workerIdentity ?? await createMissingIdentity(admin, WORKER_EMAIL, "TEST Alpha Field Worker");
-  await addIdentityAssociations(admin, actorId, workerAccount, "TEST Alpha Field Worker", "installer", installer.businessId, "field_worker");
+  await addIdentityAssociations(admin, actorId, workerAccount, "TEST Alpha Field Worker", "installer", installer.businessId, "member");
   if (!worker) checked(await admin.from("partner_workers").insert({ business_id: installer.businessId, profile_id: workerAccount.userId, trade_role: "installer",
     full_legal_name: "TEST Alpha Field Worker", email: WORKER_EMAIL, mobile: "0400000199", qualification: installerQualification({}),
     approval_status: "pending", certification_status: "unverified", added_by: actorId }), "Could not add the missing TEST worker");
@@ -287,7 +287,7 @@ export async function issueQaWorkerAccess(admin: Admin, actorId: string, jobId: 
   await tradeIdentity(admin, assigned.user_id, assigned.business_id, "installer", "business_admin");
   const worker = checked(await admin.from("partner_workers").select("id, business_id, profile_id, email, trade_role, approval_status, certification_status, removed_at").eq("business_id", assigned.business_id).eq("email", WORKER_EMAIL).maybeSingle(), "Could not read the TEST worker");
   if (!worker?.profile_id || worker.trade_role !== "installer") throw new WorkflowError("The existing TEST worker association is missing.");
-  const identity = await tradeIdentity(admin, worker.profile_id, assigned.business_id, "installer", "field_worker");
+  const identity = await tradeIdentity(admin, worker.profile_id, assigned.business_id, "installer", "member");
   if (identity.email !== safeEmail(worker.email)) throw new WorkflowError("The TEST worker and sign-in identities do not match.");
   const blocker = assignBlocker(worker, [assigned.business_id]);
   if (blocker) throw new WorkflowError(blocker);

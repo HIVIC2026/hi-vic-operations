@@ -12,7 +12,7 @@ const schema=`
  CREATE TABLE user_roles(user_id uuid,role text,PRIMARY KEY(user_id,role));
  CREATE TABLE businesses(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),name text UNIQUE,legal_name text,trading_name text,business_type text,email text,phone text,
  commercial_route text,default_comms_owner text,onboarding_status text,is_active boolean,approved_by uuid,approved_at timestamptz,gst_registered boolean,onboarding_notes text);
- CREATE TABLE business_members(business_id uuid,user_id uuid,member_role text,active boolean,added_by uuid,PRIMARY KEY(business_id,user_id));
+ CREATE TABLE business_members(business_id uuid,user_id uuid,member_role text CONSTRAINT business_members_member_role_check CHECK (member_role IN ('business_admin','member')),active boolean,added_by uuid,PRIMARY KEY(business_id,user_id));
  CREATE TABLE job_assignments(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),job_id uuid,user_id uuid,business_id uuid,role text,active boolean,assigned_by uuid,ended_at timestamptz,end_reason text);
  CREATE TABLE partner_workers(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),business_id uuid,profile_id uuid,full_legal_name text,email text,mobile text,trade_role text,
  qualification text,licence_number text,approval_status text,approved_by uuid,approved_at timestamptz,certification_status text DEFAULT 'unverified',removed_at timestamptz,added_by uuid,
@@ -101,7 +101,7 @@ export async function fixture(t,{seed=true}={}) {
   await db.query('INSERT INTO owners(id,user_id,full_name,email) VALUES($1,$2,$3,$4)',[id(2),id(10),'TEST homeowner',email.owner]);
   await db.query("INSERT INTO businesses(id,name,email,business_type,onboarding_notes,onboarding_status,is_active) VALUES($1,'TEST Alpha Insulation',$2,'eec_installer','[TEST PARTNER] fixture','approved',true),($3,'TEST Delta Electrical',$4,'rec','[TEST PARTNER] fixture','approved',true)",[id(20),email.installer,id(21),email.electrician]);
   await io.user(10,email.owner,null,'owner');await io.user(11,email.installer,id(20),'installer');await io.user(12,email.electrician,id(21),'electrician');await io.user(13,email.worker,id(20),'installer');
-  await db.query("INSERT INTO business_members(business_id,user_id,member_role,active) VALUES($1,$2,'business_admin',true),($3,$4,'business_admin',true),($1,$5,'field_worker',true)",[id(20),id(11),id(21),id(12),id(13)]);
+  await db.query("INSERT INTO business_members(business_id,user_id,member_role,active) VALUES($1,$2,'business_admin',true),($3,$4,'business_admin',true),($1,$5,'member',true)",[id(20),id(11),id(21),id(12),id(13)]);
   await db.query("INSERT INTO job_assignments(job_id,user_id,business_id,role,active) VALUES($1,$2,$3,'installer',true),($1,$4,$5,'electrician',true)",[id(1),id(11),id(20),id(12),id(21)]);
   await db.query("INSERT INTO partner_workers(id,business_id,profile_id,full_legal_name,email,trade_role,approval_status,certification_status,qualification) VALUES($1,$2,$3,'Existing TEST worker',$4,'installer','approved','verified','Existing verified qualification')",[id(30),id(20),id(13),email.worker]);
   await db.query("INSERT INTO worker_job_links(id,worker_id,business_id,job_id,token_hash,created_at,expires_at) VALUES($1,$2,$3,$4,'original-hash',now()-interval '1 day',now()+interval '1 day')",[id(40),id(30),id(20),id(1)]);
