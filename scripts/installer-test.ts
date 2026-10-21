@@ -13,6 +13,7 @@ import { ACKNOWLEDGEMENTS, INSTALLER_AGREEMENT_VERSION, INSTALLER_VISIBLE_PAGES,
 import { performInstallerSign, signedData } from "../src/lib/installer-sign.core";
 import { activationBlockers, latestCertifications, mandatoryActivationBlockers, planActivation, approvedRateItems } from "../src/lib/partner-activation.core";
 import { JOURNEY_ACTOR_EMAIL } from "../src/lib/journey.server";
+import { readyCheckBookingOutcome } from './portal-qa-coverage';
 
 const RUNS = Number(process.argv[process.argv.indexOf("--runs") + 1]) || 1;
 const noBrowser = process.argv.includes("--no-browser");
@@ -28,7 +29,8 @@ const root = `/mnt/documents/installer-test/${stamp}`;
 const sha256 = async (s: string) => createHash("sha256").update(s).digest("hex");
 
 type Check = { name: string; ok: boolean; detail?: string };
-type Step = { key: string; label: string; passed: boolean; checks: Check[]; error?: string; shots?: string[] };
+type Step = { key: string; label: string; passed: boolean; checks: Check[]; error?: string; shots?: string[]; notRun?: string };
+class NotRun extends Error {}
 type Screen = { step: string; persona: string; path: string; mustSee?: string[]; mustNotSee?: string[]; noPrices?: boolean };
 class Fail extends Error {}
 
@@ -36,8 +38,8 @@ async function step(steps: Step[], key: string, label: string, fn: (c: (name: st
   const s: Step = { key, label, passed: false, checks: [] };
   const c = (name: string, ok: boolean, detail?: string) => { s.checks.push(detail === undefined ? { name, ok } : { name, ok, detail }); };
   try { await fn(c); s.passed = s.checks.length > 0 && s.checks.every((x) => x.ok); if (!s.passed) s.error = s.checks.filter((x) => !x.ok).map((x) => `${x.name}${x.detail ? ` (${x.detail})` : ""}`).join("; ") || "no checks ran"; }
-  catch (e) { s.error = (e as Error).message; if (process.env["IT_STACK"]) console.error(key, (e as Error).stack); s.checks.push({ name: "step stopped", ok: false, detail: s.error }); }
-  steps.push(s); console.log(`${s.passed ? "PASS" : "FAIL"}  ${label}${s.passed ? "" : `  —  ${s.error}`}`);
+  catch (e) { if (e instanceof NotRun) s.notRun = e.message; else { s.error = (e as Error).message; if (process.env["IT_STACK"]) console.error(key, (e as Error).stack); s.checks.push({ name: "step stopped", ok: false, detail: s.error }); } }
+  steps.push(s); console.log(`${s.notRun ? 'NOT_RUN' : s.passed ? "PASS" : "FAIL"}  ${label}${s.passed ? "" : `  —  ${s.notRun ?? s.error}`}`);
   return s;
 }
 
@@ -573,11 +575,13 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
       const own = await rc.bookOwnReadyCheck(j1, ownerId, when.toISOString()).then(() => "booked", (e) => (e as Error).message);
       where = 'const { data: b1 } = await admin.from("jobs").select("stage,';
       const { data: b1 } = await admin.from("jobs").select("stage, next_action").eq("id", j1).single();
-      c("I'll book it: held until the owner signs paperwork A (existing rule — needs Jo's decision for supplied customers)", own === "booked" ? b1?.stage === "ready_check_scheduled" && b1?.next_action === "Ready Check booked" : /paperwork A/.test(own) && b1?.stage === "ready_check_ready_to_schedule", own === "booked" ? `${b1?.stage} / ${b1?.next_action}` : own);
+      const booking = readyCheckBookingOutcome(own === 'booked', b1, own);
+      if (booking.status === 'not_run') throw new NotRun(booking.detail);
+      c("I'll book it: completed booking read back", booking.status === 'passed', booking.detail);
       where = 'const { count: sent1 } = await admin.from("job_communication';
       const { count: sent1 } = await admin.from("job_communications").select("id", { count: "exact", head: true }).eq("job_id", j1);
       c("I'll book it: nothing sent to the owner", !sent1, String(sent1));
-      if (!process.argv.includes("--allow-test-email")) { c("ask-the-owner email path not run: no communications allowed in this run (use --allow-test-email)", true, "skipped"); return; }
+      if (!process.argv.includes("--allow-test-email")) throw new NotRun('own-booking checks above recorded separately; ask-owner path NOT_RUN because it sends to a real recipient');
       where = 'const j2 = await mk("2");';
       const j2 = await mk("2");
       where = 'const ask = await rc.askOwnerForReadyCheckTimes(j2, ownerId)';
@@ -614,7 +618,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
       const { data: b2 } = await admin.from("jobs").select("stage").eq("id", j2).single();
       c("installer taps a time: booked, or held until the owner signs paperwork A", first === "booked" ? b2?.stage === "ready_check_scheduled" : /paperwork A/.test(first), first === "booked" ? String(b2?.stage) : first);
     
-    } catch (e) { c(`stopped at: ${where}`, false, (e as Error).message); }
+    } catch (e) { if (e instanceof NotRun) throw e; c(`stopped at: ${where}`, false, (e as Error).message); }
   });
 
   await step(steps, "C15", "C15 At the property now: Start Ready Check creates the job and opens (or explains) the Mitti form", async (c) => {
@@ -762,8 +766,8 @@ const keys = [...new Set(allRuns.flatMap((r) => r.steps.map((s) => s.key)))].sor
 const ready = allRuns.every((r) => r.steps.every((s) => s.passed));
 const verdict = ready ? "CHECKED TEST FLOWS PASSED — UNTESTED FLOWS REMAIN" : "NOT READY";
 const md = [`# New-installer test — ${new Date().toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })}`, "", `**${verdict}** (${RUNS} run${RUNS > 1 ? "s" : ""})`, "", "| Step | " + allRuns.map((r) => `Run ${r.run}`).join(" | ") + " |", "|---|" + allRuns.map(() => "---").join("|") + "|",
-  ...keys.map((k) => { const label = allRuns.flatMap((r) => r.steps).find((s) => s.key === k)!.label; return `| ${label} | ${allRuns.map((r) => { const s = r.steps.find((x) => x.key === k); return s ? (s.passed ? "PASS" : "FAIL") : "-"; }).join(" | ")} |`; }), "",
-  ...allRuns.flatMap((r) => [`## Run ${r.run}`, ...r.steps.flatMap((s) => [`### ${s.passed ? "PASS" : "FAIL"} — ${s.label}`, ...s.checks.map((c) => `- ${c.ok ? "ok" : "FAILED"} — ${c.name}${c.detail ? ` (${c.detail})` : ""}`)]), ""])].join("\n");
+  ...keys.map((k) => { const label = allRuns.flatMap((r) => r.steps).find((s) => s.key === k)!.label; return `| ${label} | ${allRuns.map((r) => { const s = r.steps.find((x) => x.key === k); return s ? (s.notRun ? 'NOT_RUN' : s.passed ? "PASS" : "FAIL") : "-"; }).join(" | ")} |`; }), "",
+  ...allRuns.flatMap((r) => [`## Run ${r.run}`, ...r.steps.flatMap((s) => [`### ${s.notRun ? 'NOT_RUN' : s.passed ? "PASS" : "FAIL"} — ${s.label}`, ...(s.notRun ? [`- NOT_RUN — ${s.notRun}`] : []), ...s.checks.map((c) => `- ${c.ok ? "ok" : "FAILED"} — ${c.name}${c.detail ? ` (${c.detail})` : ""}`)]), ""])].join("\n");
 writeFileSync(`${root}/report.md`, md);
 console.log(`\n${verdict}\nReport: ${root}/report.md`);
 void copyFileSync;

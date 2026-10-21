@@ -1,0 +1,3 @@
+# QA tooling
+- Canonical portal QA supports bounded read-only preview route inventory; unvisited routes, unexecuted controls and incomplete booking readbacks remain NOT_RUN. Why: screenshots or gate refusals are not completed workflows.
+- Expanded performance QA never invokes legacy mutation journeys or recipient email flags, uses existing isolated TEST personas and 390x844 phones, and records navigation cancellations separately from transport failures. Why: safe, truthful coverage without sends or account changes.

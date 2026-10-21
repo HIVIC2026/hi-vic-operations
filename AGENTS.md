@@ -14,7 +14,7 @@
 - Incoming reset credentials bind Save to the verified user; old sessions never satisfy links. Office TEST handover uses exact QA preflight and a private download. Why: no cross-account access or public credential files.
 - Installer/REC contracts use canonical sections, signing versions and shared versioned Schedule 4 in review/signing; retain prior activatable versions and stored-text historic PDFs. Why: new terms bind exact signatures without rewriting history or revoking approvals.
 - Staff labels/disclosure targets use pure `src/lib/portal-presentation.core.ts`, never workflow or eligibility decisions. Why: presentation must not duplicate domain rules.
-- Domain, workflow, payment, compliance and integration rules live in `src/lib/AGENTS.md`; read it before changing `src/lib`. Why: keeps this file small.
+- Read nested `AGENTS.md` before changing subdirectories, including `src/lib` domain rules and `scripts` QA rules. Why: keeps scoped rules local.
 - Server functions are literal `createServerFn(...).middleware(...).inputValidator(...).handler(...)` chains; never import `@tanstack/react-start/server` in `*.functions.ts`. Why: factories/that import break the client bundle.
 - Pure rules in `*.core.ts` (tested via `bun test ./tests/`), persistence in `*.server.ts`, RPC in `*.functions.ts`. Why: testable, central guards.
 - Test Centre jobs start with `jobs.source = 'qa_test'` and never enter post-intake automation. Why: isolate tests from live work and external actions.
