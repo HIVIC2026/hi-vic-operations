@@ -41,3 +41,9 @@ describe("mismatch alarm", () => {
   test("moved on while ineligible flagged", () => expect(stageMismatches({ ...ok, eligibility_outcome: "does_not_appear_eligible" }).length).toBeGreaterThan(0));
   test("post-acceptance stage without accepted quote flagged", () => expect(stageMismatches({ ...ok, stage: "installation_booked" }).length).toBe(1));
 });
+
+import { nextStep as ns2 } from "../src/lib/nextstep.core";
+test("saved spot at preliminary estimate shows Spot saved", () => {
+  expect(ns2({ stage: "preliminary_estimate_ready", eligibility_outcome: "likely_eligible", office_status: "spot_saved" }).label).toBe("Spot saved");
+  expect(ns2({ stage: "preliminary_estimate_ready", eligibility_outcome: "likely_eligible", office_status: "offered_spot" }).label).toBe("Preliminary Estimate Ready");
+});
