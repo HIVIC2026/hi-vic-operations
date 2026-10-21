@@ -23,6 +23,8 @@ const OFFICE_ONLY = process.argv.includes("--office-only");
 const READ_ONLY = process.argv.includes("--read-only");
 const REVIEW_GAPS = process.argv.includes('--review-gaps');
 const REVIEW_RETRY = process.argv.includes('--review-retry');
+const COMPLETION = process.argv.includes('--remaining-pages');
+if (COMPLETION && (!READ_ONLY || !REVIEW_GAPS)) throw new Error('Remaining pages requires read-only review-gaps mode.');
 if (REVIEW_GAPS && !READ_ONLY) throw new Error('Review gaps requires read-only mode.');
 if (process.argv.includes('--allow-test-email') || process.argv.includes('--setup-fixtures')) throw new Error('Portal QA never permits recipient emails or fixture setup flags.');
 if (READ_ONLY && BASE !== 'http://localhost:8080') throw new Error('Read-only expanded performance QA targets localhost preview only.');
@@ -249,6 +251,7 @@ try {
         if (REVIEW_RETRY && installerJobIds[0]) screens.push({ step: 'gap-installer-job', path: `/field/${installerJobIds[0]}`, persona: 'installer', expectedPath: `/field/${installerJobIds[0]}`, verifyContent: true, readinessSelector: 'main h1' }, { step: 'gap-installer-day', path: `/field/day/${installerJobIds[0]}`, persona: 'installer', expectedPath: `/field/day/${installerJobIds[0]}`, verifyContent: true, readinessSelector: 'main h1' });
       }
     }
+    if (COMPLETION) screens = JSON.parse(readFileSync('/tmp/browser/remaining-pages/screens.json', 'utf8'));
     const inventory = uiRouteInventory(readFileSync('src/routeTree.gen.ts', 'utf8'));
     writeFileSync(`${OUT}/route-inventory.json`, JSON.stringify(inventory, null, 2));
     const runnable = screens.filter((s) => s.persona === "public" || sessions[s.persona]);
@@ -257,7 +260,7 @@ try {
     if (!fits(60_000)) notRun("screens", "authenticated screen visits", "overall budget exhausted");
     else {
       writeFileSync(`${OUT}/.manifest.json`, JSON.stringify({ outDir: OUT, base: BASE, storageKey, sessions, screens: runnable }), { mode: 0o600 });
-      const br = sh(["python3", "e2e/journey/shoot.py", `${OUT}/.manifest.json`], READ_ONLY ? 600_000 : 300_000);
+      const br = sh(["python3", COMPLETION ? "/tmp/browser/remaining-pages/check_pages.py" : "e2e/journey/shoot.py", `${OUT}/.manifest.json`], READ_ONLY ? 600_000 : 300_000);
       writeFileSync(`${OUT}/.manifest.json`, "{}");
       if (br.status !== 0 || !existsSync(`${OUT}/.browser.json`)) add({ area: "screens", route_or_action: "browser harness", persona: "-", status: "failed", detail: (br.error ? `timeout/error: ${br.error.message} ` : "") + (br.stderr || "harness did not finish").slice(-400), steps: "python3 e2e/journey/shoot.py" });
       let completed: { step: string; persona?: string; ok: boolean; content_verified?: boolean; detail: string; shots: string[]; requested_path?: string; landed_path?: string | null; viewport?: { width: number }; controls?: { name: string; status: string; reason: string }[] }[] = [];
