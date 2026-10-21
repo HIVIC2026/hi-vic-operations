@@ -27,3 +27,13 @@ Actual protected dry-run desktop/phone: no page errors/overflow; reminder OFF an
 4. Catch-up: rerun Dry run after publication, review skips/samples, then separately authorize/send by typing `SEND SAVE SPOT REMINDER BLAST` and pressing Send reminders. Never done here; automatic enable does not send catch-up.
 
 Basic link fetch/scanning cannot save; a scanner executing JavaScript can still imitate opening the link. Literal zero-step activation cannot prove a human tap. One-tap links are longer than the prior estimate links and may use multiple billed SMS segments.
+
+## Recipient-link correction — Jo 05:14 UTC
+
+Reminder URLs now use the newest usable own `customer_estimate_links` record; provider-linked sent email content is no longer required for the URL. Actual sent-offer timestamps remain required for the unchanged 24-hour rule. One-tap wrapper, canonical save checks, prices, exact message, consent, exclusions, phone/job claims and switches unchanged.
+
+Actual protected Office Dry run at 05:17 UTC: **246 recipients / 156 skipped**. Browser screenshot verified, automatic switch OFF. Live SELECT found **402 offered records / 402 with active unexpired own quote links**; zero offered records lack a working own link. The previously referenced stale email-linked records no longer constrain selection. Consequently no link renewal, estimate refresh, database write or migration was necessary or performed. No actual recipient link was opened/redeemed. Zero reminder SMS records after run.
+
+Skips: 106 already saved; 33 offers under 24 hours old; 6 TEST; 2 no consent (HV-2517, HV-1995); 3 cancelled; 5 duplicate phones; 1 current canonical Save My Spot eligibility/estimate office review (HV-2291). No missing-provider-URL or expired/missing-own-link skips remain. 246 is the measured result, not the suggested approximate 265; guards were not changed to force a target.
+
+Focused actual-handler tests: 4 PASS, including own link without linked email and unchanged no-consent exclusion, zero writes/sends. Selection/automatic/idempotency/one-tap suites: 38 PASS including practice-database claim uniqueness. Latest preview build OK. Full skipped job IDs/reasons retained from actual DOM in `/tmp/browser/reminder-links/skips.json`; two sample prices: HV-2779 Liu $2,718 / $980, HV-2773 Hadi $4,738 / $1,960. Private one-tap credentials remain only in protected preview, not copied into this report. No texts, provider calls, switch changes or publication.
