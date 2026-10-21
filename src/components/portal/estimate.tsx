@@ -5,7 +5,7 @@ import { EngagementPanel } from "./engagement";
 import { useServerFn } from "@tanstack/react-start";
 import { BadgeCheck, Check, ChevronDown, ClipboardCheck, Flame, Leaf, ShieldCheck, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getAdminEstimate, getAdminEstimateLink, getAdminEstimateLinkUrl, getOwnerEstimate } from "@/lib/estimate.functions";
+import { getAdminEstimate, getAdminEstimateLink, getAdminEstimateLinkUrl, getOwnerEstimate, getAdminJobEmailPreview } from "@/lib/estimate.functions";
 import { LINK_ADMIN_WARNING, LINK_COMMS_OFF } from "@/lib/estimatelink.core";
 import { BENCHMARK_LABEL, FEE_DESCRIPTION, FEE_LABEL, dollars, type RetailSettings, type Scenario } from "@/lib/estimate.core";
 import type { LocationVariables } from "@/lib/activity48.core";
@@ -266,10 +266,6 @@ export function AdminEstimateCard({ jobId }: { jobId: string }) {
   if (isLoading) return <div className="rounded-xl border p-4 text-sm text-muted-foreground">Loading estimate…</div>;
   if (!v) return null;
   const e = v.estimate, s = v.settings;
-  const cust: CustomerData = { visible: v.mode === "likely" || v.mode === "onsite", mode: v.mode, measureRequired: v.measureRequired, onsiteDrivers: v.onsiteDrivers, rolloutHold: v.rolloutHold, accessConcern: v.accessConcern,
-    fees: s ? { piesa: Number(s.piesa_assessment_inc_gst), ap: Number(s.ap_management_inc_gst), minCopay: Number(s.minimum_customer_copayment_inc_gst) } : null,
-    calc: s && v.location ? { location: v.location, insulation: v.insulationDeclared, settings: s } : null, postcodeUnlisted: v.postcodeUnlisted,
-    estimate: e ? { area: { m2: e.area.m2, label: e.area.label }, scenarios: e.scenarios, access_adjustment: e.access_adjustment } : null };
   return (
     <section className="rounded-xl border bg-card p-4">
       <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -290,10 +286,22 @@ export function AdminEstimateCard({ jobId }: { jobId: string }) {
       )}
       <EstimateLinkPanel jobId={jobId} />
       <EngagementPanel jobId={jobId} />
-       <div className="rounded-lg border border-dashed p-3 sm:p-5"><div className="mb-4 text-xs font-bold uppercase text-muted-foreground">Customer-facing preview</div>{cust.visible ? <CustomerEstimate data={cust} /> : <p className="text-sm text-muted-foreground">Nothing is shown to the customer.</p>}</div>
+      <AdminCustomerEmailPreview jobId={jobId} estimateId={e?.id} />
       {e && <details className="mt-3 text-xs"><summary className="cursor-pointer font-medium">Exact calculation audit</summary><pre className="mt-2 max-h-96 overflow-auto rounded bg-muted p-2">{JSON.stringify({ area: e.area, location: e.location, ghg: e.ghg, raw_estimated_discount: e.raw_estimated_discount, scenarios: e.scenarios, settings: s, history: v.history }, null, 2)}</pre></details>}
     </section>
   );
+}
+
+function AdminCustomerEmailPreview({ jobId, estimateId }: { jobId: string; estimateId?: string }) {
+  const fn = useServerFn(getAdminJobEmailPreview);
+  const { data, isPending, error, refetch } = useQuery({ queryKey: ['admin_job_email_preview', jobId, estimateId], queryFn: () => fn({ data: { jobId } }), retry: false });
+  return <div className="min-w-0 rounded-lg border border-dashed p-3 sm:p-5">
+    <h4 className="mb-4 text-xs font-bold uppercase text-muted-foreground">Customer-facing preview</h4>
+    {isPending ? <p className="text-sm text-muted-foreground">Loading customer email…</p> : error ? <div role="alert"><p className="text-sm text-danger">Could not load the customer email preview.</p><Button variant="outline" size="sm" onClick={() => refetch()}>Try again</Button></div> : data?.mail ? <>
+      <p className="mb-3 text-sm font-semibold">{data.mail.subject}</p>
+      <iframe title="Customer-facing email preview" sandbox="" referrerPolicy="no-referrer" srcDoc={data.mail.html} className="h-[750px] w-full min-w-0 border" />
+    </> : <p className="text-sm text-muted-foreground">{data?.reason}</p>}
+  </div>;
 }
 
 type LinkStatus = { link: { status: string; created_at: string; expires_at: string; revocation_reason: string | null; last_viewed_at: string | null; view_count: number } | null; delivery: { ready: boolean; state: string; consent: boolean; commsEnabled: boolean } };
