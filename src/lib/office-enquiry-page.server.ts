@@ -12,7 +12,7 @@ export async function loadOfficeEnquiryPage(view: EnquiryPageView, search: strin
   const [details, { data: facts, error: factsError }] = await Promise.all([
     result.ids.length ? loadEnquiryGroups(result.ids) : Promise.resolve({ rows: [] }),
     result.ids.length
-    ? await admin.from('office_enquiry_index').select('id,enquiry_status,needs_first_response,review_outcome,media_to_review,media_count,response_state,latest_attempt_status,latest_attempt_at,review_at,latest_media_at,more_photos_requested').in('id', result.ids)
+    ? admin.from('office_enquiry_index').select('id,enquiry_status,needs_first_response,review_outcome,media_to_review,media_count,response_state,latest_attempt_status,latest_attempt_at,more_photos_requested').in('id', result.ids)
     : Promise.resolve({ data: [], error: null }),
   ]);
   if (factsError) throw new Error('Could not verify enquiry page facts.');

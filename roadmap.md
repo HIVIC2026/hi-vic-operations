@@ -1,12 +1,13 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Bounded preview performance and QA (Jo, 21 Oct 01:36 UTC)
-- [x] Add reserved-contact and persisted-window proof helpers/tests, provider-denial boundary test and landed-route reporting; 37 focused checks PASS, live workflow/destination rerun blocked by no permitted existing session.
-- [x] Incorporate additional read-only document performance and expanded canonical route/control QA evidence: final 82 PASS, 0 FAIL, 114 NOT_RUN; booking gaps retained.
+- [x] Finish enquiry computation diagnosis/unapplied proposal and meaningful-page timings; expand all 87 route families with explicit fixture gaps. Customer-flow fixture remains separately blocked below.
+- [x] Add reserved-contact and persisted-window proof helpers/tests, provider-denial boundary test and landed-route reporting; historical 37 focused checks PASS. Existing approved Office/Alpha TEST sessions now available; restorable customer fixture is the remaining flow blocker.
+- [x] Expanded final canonical route/control QA complete: 179 PASS, 0 FAIL, 83 NOT_RUN; 162 viewport renders/51 destinations, 36 clicked read-only controls; earlier 82/0/114 and historical 59/0/12 preserved separately.
 - [x] Measure cold/warm public and authenticated TEST Office preview reads; optimize verified code-only waterfalls.
 - [x] Run focused regression tests and canonical bounded portal QA, excluding Deep and real personas (43 PASS, 23 NOT_RUN).
 - [x] Check desktop/390x844 public/Office/Alpha installer routes, read-only history controls and dummy calculator result; no overflow or runtime errors observed.
-- [ ] Live TEST Save My Spot/Ready Check booking: blocked by sender/queue side effects and no vetted restorable owner-booking fixture; isolated rule tests passed, not live-flow proof.
-- [ ] Consistent Office <1s: enquiries remain ~1.4–1.6s backend, ~2.8s browser settled; schema changes require separate user approval.
+- [ ] Live TEST Save My Spot/Ready Check booking: blocked by no verified complete reversible owner/token/consent/TEST-business fixture; existing preparation may change owner auth, outside this task. Isolated rule tests passed, not live-flow proof.
+- [ ] Consistent Office <1s: enquiries remain ~1.4–1.5s backend, ~3.2–3.4s browser settled; exact PGlite-tested SQL proposal remains unapplied pending user/root approval.
 - [x] Report timings, route checklist, evidence, unchanged wording/prices, and remaining blockers; no publish or schema changes.
 ## Live portal health check (Jo, 21 Oct 01:04 UTC)
 - [x] Read-only speed/errors/flows/mobile/data check of published site; report only, no changes.

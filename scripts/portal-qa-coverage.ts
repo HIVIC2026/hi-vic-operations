@@ -17,6 +17,13 @@ export const READ_ONLY_PATHS = [
   '/field', '/field/money', '/field/business', '/field/business/details', '/field/business/insurance',
   '/field/business/rates', '/field/business/bank', '/field/business/agreement', '/field/business/team',
   '/partner', '/partner/add', '/partner/import', '/partner/bulk-import', '/partner/payments', '/partner/workers',
+  '/admin', '/admin/campaign-emails', '/admin/communications', '/admin/compliance', '/admin/coverage',
+  '/admin/deleted', '/admin/electrician-rates', '/admin/hot-leads', '/admin/interests', '/admin/jobs',
+  '/admin/launch-campaign', '/admin/list', '/admin/needs-me', '/admin/partners', '/admin/pricing',
+  '/admin/ready-check', '/admin/save-my-spot-rules', '/admin/team-ups', '/admin/test-centre',
+  '/admin/today', '/admin/todo', '/admin/users', '/field/setup', '/field/welcome', '/home', '/portal',
+  '/partner/profile', '/campaign-preview', '/electrician-onboarding', '/installer-onboarding',
+  '/installer-preview', '/reset-password', '/step3-email-preview',
 ];
 export function uncoveredReason(route: RouteCoverage, attempted: Set<string>): string | null {
   if (attempted.has(route.path)) return null;
