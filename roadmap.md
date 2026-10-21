@@ -415,5 +415,5 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Photo review: send Save your spot email right after marking under R2 / no insulation
 - [x] Photo review R2 or above: send ineligible email with reason (Jo 21 Oct)
 - [x] Office review labels: insulation email and estimated-size email shown as 'not sent yet' (templates already approved)
-- [ ] Office review: send insulation email to 11 who only got capacity update; estimated-size emails for 6 + HV-1029; fresh link HV-1251
+- [x] Office review: send insulation email to 11 who only got capacity update; estimated-size emails for 6 + HV-1029; fresh link HV-1251
 - [ ] Auto-send ineligible email when an enquiry answer makes them ineligible
