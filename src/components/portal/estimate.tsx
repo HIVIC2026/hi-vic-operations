@@ -36,7 +36,7 @@ type Est = { scenarios: Scenario[]; access_adjustment: { moderate: number; diffi
 
 /** Customer-facing copy for the free check confirmation (presentation-only rename of the Home Insulation Ready Check). */
 export const FREE_CHECK_CONFIRM_COPY = {
-  name: "Free Insulation Measure-Up & Eligibility Check",
+  name: "Free Ready Check",
   intro: "Confirm your request below. Choose a few times that suit you. The first approved installer to accept one is booked.",
   free: "FREE · No payment required",
   checklistHeading: "What happens at your visit",
@@ -45,10 +45,10 @@ export const FREE_CHECK_CONFIRM_COPY = {
   piesa: "The mandatory electrical safety assessment (PIESA) is a separate paid step, completed later by a licensed electrician, close to installation.",
   reassurance: "No payment required. No obligation to proceed with installation.",
   acceptance: "I understand this is a free installer visit to measure my ceiling and check eligibility details. It is not the electrical safety assessment (PIESA), and I have no obligation to proceed with installation.",
-  cta: "Confirm my free measure-up & eligibility check →",
-  stale: "Your estimate changed. Please review it and confirm your free measure-up & eligibility check again.",
+  cta: "Confirm my free Ready Check →",
+  stale: "Your estimate changed. Please review it and confirm your free Ready Check again.",
   successHeading: "We’ve received your request",
-  successBody: "You’ll choose 3–5 times that suit you for your Free Insulation Measure-Up & Eligibility Check. The first approved installer to accept one is booked.",
+  successBody: "You’ll choose 3–5 times that suit you for your Free Ready Check. The first approved installer to accept one is booked.",
   successNext: "They’ll measure your ceiling, assess any existing insulation, confirm eligibility and prepare the job scope so we can confirm your quote.",
 } as const;
 

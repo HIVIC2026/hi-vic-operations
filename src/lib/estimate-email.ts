@@ -178,7 +178,7 @@ export function likelySubjectLine(firstName: string | null | undefined, discount
   const subject = amount
     ? `${name ? `${name}, you` : "You"} could save ${amount} on ceiling insulation`
     : `${name ? `${name}, your` : "Your"} preliminary ceiling insulation estimate is ready`;
-  const previewText = "See your estimated VEU rebate, then arrange your free measure-up & eligibility check — no obligation to proceed.";
+  const previewText = "See your estimated VEU rebate, then arrange your free Ready Check — no obligation to proceed.";
   return { subject, previewText };
 }
 
@@ -232,7 +232,7 @@ function v2SavingsModule(input: V2SavingsInput) {
   const summary = `${input.address ? `<tr><td style="padding:4px 0;${F}color:${INK};font-size:13px;">Property</td><td align="right" style="padding:4px 0 4px 12px;${F}color:${INK};font-size:13px;font-weight:800;">${escape(input.address)}</td></tr>` : ""}<tr><td style="padding:4px 0;${F}color:${INK};font-size:13px;">Ceiling</td><td align="right" style="padding:4px 0 4px 12px;${F}color:${INK};font-size:13px;font-weight:800;">${areaNote}</td></tr>`;
   const line = (t: string, amt: string, note: string, top: boolean) => `<tr><td valign="top" style="padding:8px 12px 2px 0;${top ? "" : `border-top:1px solid ${LINE};`}${F}color:${INK};font-size:14px;line-height:1.45;">${t}</td><td class="lx-row-amt" width="96" align="right" valign="top" style="width:96px;padding:8px 0 2px;${top ? "" : `border-top:1px solid ${LINE};`}${F}color:${INK};font-size:14px;line-height:1.45;font-weight:700;white-space:nowrap;">${amt}</td></tr><tr><td colspan="2" style="padding:0 0 8px;${F}color:${INK};font-size:12.5px;line-height:1.45;">${note}</td></tr>`;
   const rows = [
-    { title: "Free Insulation Measure-Up & Eligibility Check", description: "We measure your ceiling, assess whether any existing insulation can stay or needs removal, and confirm eligibility and the job scope.", amount: `<span style="color:${GREEN};font-weight:800;">FREE</span>`, plain: ": FREE" },
+    { title: "Free Ready Check", description: "We measure your ceiling, assess whether any existing insulation can stay or needs removal, and confirm eligibility and the job scope.", amount: `<span style="color:${GREEN};font-weight:800;">FREE</span>`, plain: ": FREE" },
     { title: "R5.0 ceiling insulation — supply & install", description: "Fitted by a pre-vetted Certified Insulation Installer (CII) from our panel.", amount: input.hasBreakdown ? escape(money(input.installation)) : "", plain: input.hasBreakdown ? `: ${money(input.installation)}` : "" },
     ...(input.removal?.kind === "included" ? [{ title: "Removal of existing insulation", description: `${number(input.removal.areaM2)} m² included in this estimate; scope confirmed at your free Ready Check.`, amount: escape(money(input.removal.amount)), plain: `: ${money(input.removal.amount)} inc GST` }] : []),
     { title: "Electrical safety assessment (PIESA)", description: "A mandatory check by a pre-vetted REC electrician, close to installation.", amount: input.hasBreakdown ? escape(money(input.assessment)) : "", plain: input.hasBreakdown ? `: ${money(input.assessment)}` : "" },
@@ -279,7 +279,7 @@ function renderV2QuoteEmail(input: EstimateEmailInput, kind: "likely" | "onsite"
   const name = input.firstName?.trim().replace(/\s+/g, " ").slice(0, 60) || null;
   const address = input.address?.trim().replace(/\s+/g, " ").slice(0, 180) || null;
   const { subject, previewText } = onsite
-    ? { subject: "Your insulation estimate — a few details to confirm", previewText: "See your potential VEU rebate, then arrange your free measure-up & eligibility check — no obligation to proceed." }
+    ? { subject: "Your insulation estimate — a few details to confirm", previewText: "See your potential VEU rebate, then arrange your free Ready Check — no obligation to proceed." }
     : likelySubjectLine(name, discount);
   const onsiteReasons = onsite ? (customerSafeOnsiteReasons(input.reasons).length ? customerSafeOnsiteReasons(input.reasons) : [ONSITE_FALLBACK_REASON]) : [];
   const onsiteIntro = `${name ? `${name}, your` : "Your"} home may qualify for a VEU ceiling insulation rebate. We just need to confirm a few details onsite.`;
@@ -306,7 +306,7 @@ function renderV2QuoteEmail(input: EstimateEmailInput, kind: "likely" | "onsite"
   const { rows, apCountText } = savingsModule;
 
   // 4. Primary conversion: the next step
-  const nextStep = `<table data-likely-next-step="true" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BLUSH}" style="width:100%;border-collapse:separate;background-color:${BLUSH};border-radius:20px;"><tr><td style="padding:22px 22px;${F}">${h2("Free Insulation Measure-Up &amp; Eligibility Check")}<p class="lx-body" style="margin:0 0 12px;${F}color:${INK};font-size:14px;line-height:1.55;">Your installer measures the ceiling, assesses any existing insulation, confirms eligibility and prepares the job scope so we can confirm your quote.</p><p style="margin:0 0 12px;${F}color:${INK};font-size:14px;line-height:1.45;font-weight:800;">Demand is high. Installer availability is limited.</p>${v2Button(confirmTarget, "Arrange my free measure-up &amp; eligibility check →")}<p style="margin:10px 0 0;${F}color:${INK};font-size:12.5px;line-height:1.5;text-align:center;">Confirm your request on the next page. An installer from our panel will then contact you to arrange a time.</p><p style="margin:8px 0 0;${F}color:${INK};font-size:12.5px;line-height:1.5;font-weight:700;text-align:center;">No payment required. No obligation to proceed with installation.</p></td></tr></table>`;
+  const nextStep = `<table data-likely-next-step="true" role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BLUSH}" style="width:100%;border-collapse:separate;background-color:${BLUSH};border-radius:20px;"><tr><td style="padding:22px 22px;${F}">${h2("Free Ready Check")}<p class="lx-body" style="margin:0 0 12px;${F}color:${INK};font-size:14px;line-height:1.55;">Your installer measures the ceiling, assesses any existing insulation, confirms eligibility and prepares the job scope so we can confirm your quote.</p><p style="margin:0 0 12px;${F}color:${INK};font-size:14px;line-height:1.45;font-weight:800;">Demand is high. Installer availability is limited.</p>${v2Button(confirmTarget, "Arrange my free Ready Check →")}<p style="margin:10px 0 0;${F}color:${INK};font-size:12.5px;line-height:1.5;text-align:center;">Confirm your request on the next page. An installer from our panel will then contact you to arrange a time.</p><p style="margin:8px 0 0;${F}color:${INK};font-size:12.5px;line-height:1.5;font-weight:700;text-align:center;">No payment required. No obligation to proceed with installation.</p></td></tr></table>`;
 
   // 6. Price qualifications
   const changesModule = v2WhatCouldChange();
@@ -340,10 +340,10 @@ function renderV2QuoteEmail(input: EstimateEmailInput, kind: "likely" | "onsite"
     `Want to explore a different ceiling size? Open the calculator: ${PUBLIC_CALCULATOR_URL}`, "", "WHAT THIS INCLUDES", ...rows.map(({ title, description, plain }) => `✓ ${title}${plain}
 ${description}`),
     ...(apCountText ? [`We’re one of only ${apCountText} Accredited Person${input.apCount === 1 ? "" : "s"} approved for VEU ceiling insulation in Victoria.`] : []), "",
-    "FREE INSULATION MEASURE-UP & ELIGIBILITY CHECK",
+    "FREE READY CHECK",
     "Your installer measures the ceiling, assesses any existing insulation, confirms eligibility and prepares the job scope so we can confirm your quote.",
     "Demand is high. Installer availability is limited.",
-    `Arrange my free measure-up & eligibility check: ${confirmTarget}`,
+    `Arrange my free Ready Check: ${confirmTarget}`,
     "Confirm your request on the next page. An installer from our panel will then contact you to arrange a time.",
     "No payment required. No obligation to proceed with installation.", "",
     "WHAT COULD CHANGE THIS PRICE?",
@@ -556,15 +556,15 @@ export function renderSaveSpotFromLikelyEmail(input: EstimateEmailInput & { camp
   const must = (s: string, from: string | RegExp, to: string) => { const out = s.replace(from, () => to); if (out === s) throw new Error(`Save-spot render: anchor missing (${String(from).slice(0, 40)})`); return out; };
   const card0 = base.html.match(/<table data-likely-next-step="true"[\s\S]*?No obligation to proceed with installation\.<\/p><\/td><\/tr><\/table>/)?.[0];
   if (!card0) throw new Error("Save-spot render: next-step card missing");
-  let card = must(card0, "Free Insulation Measure-Up &amp; Eligibility Check", "Save your spot");
+  let card = must(card0, "Free Ready Check", "Save your spot");
   card = must(card, LIKELY_NEXT_STEP_INSTRUCTION, SAVE_SPOT_INSTRUCTION);
-  card = must(card, "Arrange my free measure-up &amp; eligibility check →", "Save my spot →");
+  card = must(card, "Arrange my free Ready Check →", "Save my spot →");
   card = must(card, /href="[^"]*"/, `href="${escape(input.campaignUrl)}"`);
   card = must(card, LIKELY_SMALL_PRINT, SAVE_SPOT_SMALL_PRINT);
   let html = base.html.replace(card0, () => card);
-  let text = must(base.plainText, /FREE INSULATION MEASURE-UP & ELIGIBILITY CHECK\n/, "SAVE YOUR SPOT\n");
+  let text = must(base.plainText, /FREE READY CHECK\n/, "SAVE YOUR SPOT\n");
   text = must(text, LIKELY_NEXT_STEP_INSTRUCTION, SAVE_SPOT_INSTRUCTION);
-  text = must(text, /Arrange my free measure-up & eligibility check: .*/, `Save my spot: ${input.campaignUrl}`);
+  text = must(text, /Arrange my free Ready Check: .*/, `Save my spot: ${input.campaignUrl}`);
   text = must(text, LIKELY_SMALL_PRINT, SAVE_SPOT_SMALL_PRINT);
   return applyReadyCheckFee({ subject: base.subject, previewText: base.previewText, html, plainText: text }, input, true);
 }
