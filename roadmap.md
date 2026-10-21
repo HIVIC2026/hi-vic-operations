@@ -1,4 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Reminder switch failure screenshot (Jo, 21 Oct 05:49 UTC)
+- [x] Fix invalid object-coerced JSON equality filter; actual SDK reproduced eq.[object Object], explicit JSON retains CAS. Practice settings/audit/concurrent-edit tests 3 PASS; reminder safeguards 38 PASS; preview build OK. Read-only live check: activation absent (OFF), zero reminder logs. No live switch writes, sends or publication. Actual signed-in switch mutation intentionally untested; one-off send remains separately approved, automatic stays OFF.
 ## Reminder stored offer/attempt time (Jo, 21 Oct 05:20 UTC)
 - [x] Stored attempt/offer time accepted for spot_offered reminder audience; no email URL match. Actual TEST Office dry run 246 recipients/156 skipped (106 saved, 33 under24h, 6 TEST, 2 consent, 3 cancelled, 5 duplicate, 1 office review); all other gates unchanged. 6 handler +43 regression tests pass, build OK; zero reminder SMS, switch OFF, no publication.
 ## Reminder recipient links (Jo, 21 Oct 05:14 UTC)

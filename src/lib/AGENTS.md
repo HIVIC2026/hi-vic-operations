@@ -1,4 +1,5 @@
 # Server/domain rules (src/lib)
+- Reminder settings equality filters serialize JSON explicitly and retain compare-and-swap protection. Why: SDK object coercion otherwise breaks saving and concurrent edits must not be overwritten.
 - Save My Spot reminders share phone/job claims across admin catch-up and authenticated scheduled processing; scheduled sends require the dedicated SMS switch and activation timestamp, never releasing historical offers. One-tap credentials are purpose-bound encrypted capabilities redeemed by browser POST through canonical save guards, never GET mutations or duplicate save writes. Why: prevent duplicate sends, unintended backlog release and weakening owner eligibility/consent.
 
 ## Architecture rules
