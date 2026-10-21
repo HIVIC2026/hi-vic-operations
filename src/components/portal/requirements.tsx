@@ -109,7 +109,7 @@ export function RequirementCards({ jobId, isAdmin, job }: { jobId: string; isAdm
           {s.measurement.state !== "accepted" && s.measurement.missing.length > 0 && <p className="mt-2 text-xs text-danger">Missing: {s.measurement.missing.map((f) => MEASURE_FIELD_LABEL[f]).join(", ")}</p>}
           {isAdmin && (
             <div className="mt-3 space-y-2 border-t pt-3">
-              <div className="flex items-center gap-2 text-sm"><Label>Eligibility Ready Check</Label><span className="font-semibold">Installer only</span></div>
+              <div className="flex items-center gap-2 text-sm"><Label>Ready Check</Label><span className="font-semibold">Installer only</span></div>
               {m && (
                 <>
                   {m.status !== "complete" && !!rv?.blockers.length && <ul className="rounded bg-warning-soft p-2 text-xs text-warning">{rv.blockers.map((b) => <li key={b}>{b}</li>)}</ul>}

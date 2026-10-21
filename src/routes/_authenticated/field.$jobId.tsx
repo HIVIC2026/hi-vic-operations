@@ -156,7 +156,7 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
   const canEnter = manualPath && manualResultEntry(a);
   const showManual = manualPath && (assessing || locked);
   const { data: scope } = useJobScope(jobId);
-  const measureBlock = !scope || !assessing ? null : scope.measurement.state === "accepted" ? <MeasurementReadOnly jobId={jobId} canFlag /> : <Section title="Installer eligibility Ready Check"><p className="text-sm text-sub">The installer does the Ready Check, not you.</p></Section>;
+  const measureBlock = !scope || !assessing ? null : scope.measurement.state === "accepted" ? <MeasurementReadOnly jobId={jobId} canFlag /> : <Section title="Installer Ready Check"><p className="text-sm text-sub">The installer does the Ready Check, not you.</p></Section>;
 
   return (
     <>

@@ -39,7 +39,7 @@ describe("legacy electrician-assessment path retired", () => {
     const intakeRoute = (r: Stage[]) => { const i = r.indexOf("measured_estimate_ready"); return i > 0 && ["new_enquiry", "eligibility_review"].includes(r[i - 1]!); };
     const w = src("src/lib/workflow.server.ts");
     expect(w).toContain('if (to === "measured_estimate_ready" && (await (await import("./installer-intake.server")).isIntakeJob(jobId))) {');
-    expect(w).toContain("Free Ready Check eligibility Ready Check not yet completed by the installer.");
+    expect(w).toContain("Ready Check not yet completed by the installer.");
     const bad = all.filter((r) => !r.slice(0, -1).includes("ready_check_complete") && !intakeRoute(r));
     console.log(`route proof: ${all.length - bad.length} of ${all.length} pass through ready_check_complete`);
     expect(all.length).toBeGreaterThan(0);

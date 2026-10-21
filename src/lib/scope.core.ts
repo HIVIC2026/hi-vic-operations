@@ -10,7 +10,7 @@ export type VisitScope =
   | "COMPLETE";
 
 export const SCOPE_LABEL: Record<VisitScope, string> = {
-  COMBINED: "Separate visits – installer eligibility Ready Check, electrician PIESA",
+  COMBINED: "Separate visits – installer Ready Check, electrician PIESA",
   ELECTRICAL_ONLY: "Electrical assessment only – Ready Check already accepted",
   MEASURE_UP_ONLY: "Ready Check only – PIESA already current",
   ELECTRICAL_PLUS_MEASUREUP_COMPLETION: "PIESA by electrician; installer must complete Ready Check evidence",
@@ -108,7 +108,7 @@ export function deriveScope(input: { measurement: MeasurementLike | null; electr
 
   const need: string[] = [];
   if (!elecDone) need.push(electrical.state === "expired" ? "PIESA reassessment" : "electrical assessment / PIESA");
-  if (!accepted) need.push(measurement.state === "needs_review" ? "installer eligibility Ready Check review / missing evidence" : "installer eligibility Ready Check");
+  if (!accepted) need.push(measurement.state === "needs_review" ? "installer Ready Check review / missing evidence" : "installer Ready Check");
   return { scope, label: SCOPE_LABEL[scope], measurement, electrical, electricianTasks, installerTasks, editableMeasureFields, nextAction: need.length ? `Still required: ${need.join(" and ")}` : null };
 }
 
@@ -134,7 +134,7 @@ export function planMeasurementUpdate(p: {
   if (!Object.keys(vals).length) return { action: "skip", reason: "No Ready Check values supplied." };
   if (cur && measurementAccepted(cur)) return { action: "skip", reason: "An accepted Ready Check already exists – it is not overwritten." };
   if (p.scope === "ELECTRICAL_ONLY" || p.scope === "COMPLETE") return { action: "skip", reason: "Electrical-only scope – Ready Check values ignored." };
-  if (p.source === "electrician") return { action: "skip", reason: "Eligibility Ready Check belongs to the installer; electricians record PIESA only." };
+  if (p.source === "electrician") return { action: "skip", reason: "Ready Check belongs to the installer; electricians record PIESA only." };
   if (!cur) return { action: "create", values: vals, source: p.source };
   if (p.scope === "ELECTRICAL_PLUS_MEASUREUP_COMPLETION" && cur.source_role !== p.source) {
     const allowed = new Set<MeasureField>(completionFields(missingMeasureFields(cur), flaggedFields(cur)));

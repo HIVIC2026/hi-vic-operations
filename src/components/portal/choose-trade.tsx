@@ -11,7 +11,7 @@ import { Section } from "@/components/portal/panels";
 import { listChooseTrades, sendChosenOffers, setJobOfficePicks } from "@/lib/offer-dispatch.functions";
 
 type Kind = "ready_check" | "piesa";
-const KIND_LABEL: Record<Kind, string> = { ready_check: "Ready Check (installers)", piesa: "Pre Insulation Electrical Safety Assessment (PIESA) (electricians)" };
+const KIND_LABEL: Record<Kind, string> = { ready_check: "Ready Check (installers)", piesa: "PIESA (electricians)" };
 const money = (n: number) => `$${n.toLocaleString("en-AU", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
 
 export function ChooseTradePanel({ jobId }: { jobId: string }) {
