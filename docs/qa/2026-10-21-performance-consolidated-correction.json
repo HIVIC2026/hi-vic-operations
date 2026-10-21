@@ -53887,6 +53887,42 @@
     "cache_disclosure_reused": {
       "pass": 5,
       "fail": 0
+    },
+    "window_safety": {
+      "pass": 9,
+      "fail": 0
+    },
+    "isolated_window_persistence": {
+      "pass": 4,
+      "fail": 0
     }
+  },
+  "final_window_proof_correction": {
+    "scope": "Narrow safety helper and report correction only; no live writes or broad QA",
+    "timestamp_comparison": "validated epoch, equivalent Z/+00:00/fractional formatting; invalid rejected",
+    "unchanged_rules": {
+      "lead_business_days": 2,
+      "distinct_allowed_days": 3,
+      "min_windows": 3,
+      "max_windows": 5,
+      "horizon_days": 21
+    },
+    "requested_windows": {
+      "status": "NOT_RUN",
+      "required": "actual same-job DB OPEN window readback, acceptance.ready_check_amount_inc_gst exactly 0, paymentId null, zero effects"
+    },
+    "confirmed_appointment": {
+      "status": "NOT_RUN",
+      "required": "actual TAKEN window, matching confirmed bookings scheduled_start and job ready_check_scheduled"
+    },
+    "stored_free_evidence": {
+      "status": "NOT_RUN",
+      "acceptance_ready_check_amount_inc_gst": null,
+      "paymentId_readback_available": false,
+      "reason": "No minimal vetted reversible reserved-domain owner fixture; no live acceptance readback supplied"
+    },
+    "fixture": "HV2111 hivic.test rejected; no guard bypass, Jo contact or wider prepareQaAccess account/membership preparation",
+    "backup": "NOT_VERIFIED: Lovable browser sign-in blocked as suspicious activity; stopped",
+    "indexes": "UNAPPLIED"
   }
 }
