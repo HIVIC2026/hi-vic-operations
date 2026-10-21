@@ -32,8 +32,8 @@ async function loadPlan(jobIds?: string[]) {
       readAll("indicative_estimates", "job_id,scenarios", (q) => q.in("job_id", ids).eq("status", "current").order("id")),
       readAll("customer_estimate_links", "id,job_id,token,status,expires_at", (q) => q.in("job_id", ids).eq("purpose", "step3_estimate").order("created_at", { ascending: false }).order("id")),
       readAll("owner_contact_consents", "job_id,consent_status", (q) => q.in("job_id", ids).order("created_at", { ascending: false }).order("id")),
-      readAll("customer_email_sends", "job_id,estimate_link_id,purpose,idempotency_key,communication_id", (q) => q.in("job_id", ids).eq("status", "sent").order("sent_at", { ascending: false }).order("id")),
-      readAll("job_communications", "id,job_id,body,source_event", (q) => q.in("job_id", ids).eq("direction", "outbound").eq("channel", "email").in("delivery_status", ["sent", "delivered"]).order("sent_at", { ascending: false }).order("id")),
+      readAll("customer_email_sends", "job_id,estimate_link_id,purpose,idempotency_key,communication_id,provider_message_id", (q) => q.in("job_id", ids).eq("status", "sent").order("sent_at", { ascending: false }).order("id")),
+      readAll("job_communications", "id,job_id,body,source_event,source_reference,provider_message_id,delivery_status", (q) => q.in("job_id", ids).eq("direction", "outbound").eq("channel", "email").in("delivery_status", ["sent", "delivered", "recorded"]).order("sent_at", { ascending: false }).order("id")),
     ]);
     for (const enquiry of slice) {
       const estimate = estimates.find((r) => r.job_id === enquiry.id);
@@ -44,7 +44,8 @@ async function loadPlan(jobIds?: string[]) {
       const mails = communications.filter((r) => r.job_id === enquiry.id);
       // Prefer the precise sent-offer communication; a missing body is a skip, never a generated URL.
       const mail = send?.communication_id ? mails.find((r) => r.id === send.communication_id) :
-        mails.find((r) => ["existing_leads_launch_v1", "step3_estimate", "jo_tradie:hot_leads_save_my_spot", "office_manual_email"].includes(r.source_event) && offeredLink(r.body, link?.token ?? null));
+        send?.provider_message_id ? mails.find((r) => r.provider_message_id === send.provider_message_id && r.source_reference === send.idempotency_key) :
+        mails.find((r) => ["sent", "delivered"].includes(r.delivery_status) && ["existing_leads_launch_v1", "step3_estimate", "jo_tradie:hot_leads_save_my_spot", "office_manual_email"].includes(r.source_event) && offeredLink(r.body, link?.token ?? null));
       rows.push({ ...enquiry, ...currentBlastPrice(estimate?.scenarios),
         link: offeredLink(mail?.body ?? null, link?.token ?? null),
         linkProblem: !link ? "Offered link missing, expired or revoked" : "Existing offer URL not found in sent email",

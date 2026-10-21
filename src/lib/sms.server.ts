@@ -65,12 +65,23 @@ export async function sendRealSms(input: RealSmsInput, blast?: { claimId: string
   const blastAllowed = input.type === "save_spot_reminder" && blast?.adminSpotReminderBlast === true &&
     input.idempotencyKey === `save-spot-reminder-blast:v1:${input.jobId}`;
   if (blast && !blastAllowed) throw new Error("Invalid one-off SMS authorization");
+  if (blastAllowed && blast) {
+    const { blastClaimId } = await import("./save-spot-reminder-blast.core");
+    if (blast.claimId !== await blastClaimId(input.to ?? "")) throw new Error("Invalid one-off phone claim");
+  }
   const to = toAuE164(input.to);
   const from = sendingNumber();
   const { consent, isTest } = await consentAndTest(input);
+  let blastOptedOut = false;
+  if (blastAllowed && to) {
+    // This one-off audience excludes every recorded opt-out, even if START was later recorded.
+    const { data: opts, error: oe } = await db.from("sms_optouts").select("phone").not("opted_out_at", "is", null);
+    if (oe) throw new Error("Could not verify SMS opt-outs; nothing sent");
+    blastOptedOut = (opts ?? []).some((r: { phone: string }) => toAuE164(r.phone) === to);
+  }
   const blocked = smsBlocker({
     type: input.type, to: input.to, commsEnabled: await customerCommsEnabled(), typeSwitchOn: await typeSwitchOn(input.type),
-    senderConfigured: !!from, optedOut: to ? await isOptedOut(to) : false, consent, isTestRecord: isTest,
+    senderConfigured: !!from, optedOut: blastAllowed ? blastOptedOut : to ? await isOptedOut(to) : false, consent, isTestRecord: isTest,
     adminSpotReminderBlast: blastAllowed,
   });
   // Claim the idempotency key first (unique). An existing claim means this message was already handled.
