@@ -33,7 +33,7 @@ function TodayPage() {
   const load = useServerFn(getTodayBrief);
   const { data, error, isPending, refetch } = useQuery({ queryKey: ["today-brief"], queryFn: () => load(), staleTime: 60_000 });
   const loadSpots = useServerFn(getLaunchCampaignOffice);
-  const { data: spots } = useQuery({ queryKey: ["today-spots"], queryFn: () => loadSpots(), staleTime: 60_000 });
+  const { data: spots } = useQuery({ queryKey: ["launch_campaign_office"], queryFn: () => loadSpots(), staleTime: 60_000 });
   return (
     <AppShell>
       <div className="space-y-6">
@@ -43,7 +43,7 @@ function TodayPage() {
             {data?.stored ? `This morning's brief was made at ${fmt(data.stored.createdAt)}. Sending is off, so it is shown here only.` : "This morning's brief is made at 7am Melbourne. Sending is off, so it is shown here only."} Figures below are live.
           </p>
         </div>
-        {!!spots?.counts.spotSaved && <section className="border bg-card p-4"><h2 className="font-heading text-lg font-bold">Wants a spot ({spots.counts.spotSaved})</h2><div className="mt-2 space-y-1 text-sm">{spots.rows.filter((r) => r.spotSavedAt && !r.optedOutAt).slice(0, 10).map((r) => <p key={r.id}><Link to="/admin/jobs/$jobId" params={{ jobId: r.jobId }} className="font-semibold text-primary underline">{r.owner || r.jobNumber || "Enquiry"}</Link> · {r.property}</p>)}</div><Link to="/admin/launch-campaign" className="mt-3 inline-block text-sm text-primary underline">See all saved spots</Link></section>}
+        {!!spots?.counts.spotSaved && <section className="border bg-card p-4"><h2 className="font-heading text-lg font-bold">Spots saved: {spots.counts.spotSaved}</h2><div className="mt-2 space-y-1 text-sm">{spots.rows.filter((r) => r.spotSavedAt && !r.optedOutAt).slice(0, 10).map((r) => <p key={r.id}><Link to="/admin/jobs/$jobId" params={{ jobId: r.jobId }} className="font-semibold text-primary underline">{r.owner || r.jobNumber || "Enquiry"}</Link> · {r.property}</p>)}</div><Link to="/admin/launch-campaign" className="mt-3 inline-block text-sm text-primary underline">See all saved spots</Link></section>}
         {isPending && <p className="text-sm text-muted-foreground">Loading…</p>}
         {error && <div className="rounded-lg border border-danger/40 bg-danger-soft p-4 text-sm text-danger">Could not load the brief: {(error as Error).message} <Button size="sm" variant="outline" onClick={() => refetch()}>Try again</Button></div>}
         {data && (() => { const b = data.brief; return (<>
