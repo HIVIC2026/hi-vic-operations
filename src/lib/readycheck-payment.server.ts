@@ -49,7 +49,8 @@ async function loadAcceptance(jobId: string, current: Identity) {
 
 export async function readyCheckAcceptanceState(token: unknown) {
   const ctx = await secureContext(token);
-  return ctx ? loadAcceptance(ctx.link.job_id, ctx.estimate) : null;
+  if (!ctx || !(await requestedWindowsSaved(ctx.link.job_id))) return null;
+  return loadAcceptance(ctx.link.job_id, ctx.estimate);
 }
 
 /** Job for a usable estimate link (owner no-login pages). */
@@ -60,13 +61,51 @@ export async function jobIdForToken(token: unknown): Promise<string | null> {
 
 type WindowPick = { date: string; slot: import("./piesa-windows.core").PiesaSlot };
 
+/** Acceptance is retained independently; customer success also requires persisted times. */
+async function requestedWindowsSaved(jobId: string, picks?: WindowPick[]) {
+  const { data, error } = await admin.from("ready_check_windows")
+    .select("round, status, starts_at, ends_at").eq("job_id", jobId);
+  if (error) throw new Error(error.message);
+  const rows = data ?? [];
+  const round = Math.max(0, ...rows.map((row) => row.round));
+  const current = rows.filter((row) => row.round === round);
+  if (current.length < 3 || current.length > 5 || current.some((row) =>
+    !["open", "taken"].includes(row.status) || !Number.isFinite(Date.parse(row.starts_at))
+    || !Number.isFinite(Date.parse(row.ends_at)))) return false;
+  if (!picks) return true;
+  const { windowBounds } = await import("./piesa-windows.core");
+  return current.length === picks.length && picks.every((pick) => {
+    const bounds = windowBounds(pick.date, pick.slot);
+    return current.some((row) => Date.parse(row.starts_at) === Date.parse(bounds.starts_at)
+      && Date.parse(row.ends_at) === Date.parse(bounds.ends_at));
+  });
+}
+
+async function saveRequestedWindows(jobId: string, picks: WindowPick[]) {
+  if (await requestedWindowsSaved(jobId, picks)) return;
+  try {
+    const { submitReadyCheckWindows } = await import("./readycheck-booking.server");
+    await submitReadyCheckWindows(jobId, picks);
+    if (!(await requestedWindowsSaved(jobId, picks))) throw new Error("Ready Check times can't be chosen at this point.");
+  } catch (e) {
+    // A concurrent identical request may have won while this call hit the existing-window guard.
+    if (await requestedWindowsSaved(jobId, picks)) return;
+    const { logEvent } = await import("./workflow.server");
+    await logEvent(jobId, null, "ready_check_windows_not_saved", `Owner's Ready Check times could not be saved: ${(e as Error).message}`, {}, { internal: true });
+    throw e;
+  }
+}
+
 /** Idempotent per job + estimate. A changed estimate requires reconfirmation.
  *  picks: the owner's 3–5 Ready Check times, validated BEFORE anything is recorded. */
 export async function acceptReadyCheck(token: unknown, meta: RequestMeta = {}, picks?: WindowPick[]) {
   const ctx = await secureContext(token);
   if (!ctx) throw new Error("Estimate unavailable");
   const existing = await loadAcceptance(ctx.link.job_id, ctx.estimate);
-  if (existing && !existing.stale) return existing;
+  if (existing && !existing.stale) {
+    if (picks) await saveRequestedWindows(ctx.link.job_id, picks);
+    return existing;
+  }
   const cost = costAfterDiscount(ctx.estimate);
   if (cost == null) throw new Error("The current estimate cannot be accepted.");
   // Price seen first: this link must have shown the estimate (view recorded) before booking.
@@ -93,19 +132,11 @@ export async function acceptReadyCheck(token: unknown, meta: RequestMeta = {}, p
     estimated_remaining_balance_inc_gst: remaining, copy_version: READY_CHECK_COPY_VERSION, snapshot: snapshot as unknown as Json,
     accepted_ip: meta.ip ?? null, accepted_user_agent: meta.userAgent ?? null,
   });
-  if (error) throw new Error(error.message);
+  if (error && error.code !== "23505") throw new Error(error.message);
   const created = await loadAcceptance(ctx.link.job_id, ctx.estimate);
-  if (!created) throw new Error("Ready Check acceptance unavailable");
+  if (!created || created.stale) throw new Error("Ready Check acceptance unavailable");
   await advanceAfterReadyCheckAcceptance(ctx.link.job_id, created.acceptanceId);
-  if (picks) {
-    try {
-      const { submitReadyCheckWindows } = await import("./readycheck-booking.server");
-      await submitReadyCheckWindows(ctx.link.job_id, picks);
-    } catch (e) {
-      const { logEvent } = await import("./workflow.server");
-      await logEvent(ctx.link.job_id, null, "ready_check_windows_not_saved", `Owner's Ready Check times could not be saved: ${(e as Error).message}`, {}, { internal: true });
-    }
-  }
+  if (picks) await saveRequestedWindows(ctx.link.job_id, picks);
   return created;
 }
 
