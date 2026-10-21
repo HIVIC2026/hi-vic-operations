@@ -204,12 +204,14 @@ function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
           <div className="flex flex-wrap gap-3">
             {(data?.files ?? []).map((f) =>
               f.mimeType?.startsWith("video/") ? (
-                <video
-                  key={f.id}
-                  src={f.url}
-                  controls
-                  className="h-40 rounded-md border bg-black"
-                />
+                <div key={f.id} className="flex flex-col gap-1">
+                  <video controls playsInline preload="metadata" className="h-40 rounded-md border bg-foreground">
+                    {/* iPhone .mov files are usually H.264, which most browsers play when offered as mp4. */}
+                    <source src={f.url} type={f.mimeType === "video/quicktime" ? "video/mp4" : f.mimeType ?? undefined} />
+                    <source src={f.url} />
+                  </video>
+                  <a href={f.url} target="_blank" rel="noopener" className="text-xs underline">Open video</a>
+                </div>
               ) : (
                 <a key={f.id} href={f.url} target="_blank" rel="noopener">
                   <img

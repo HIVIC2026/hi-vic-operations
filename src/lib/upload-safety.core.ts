@@ -60,7 +60,7 @@ export function signatureMatches(bytes: Uint8Array, mime: string): boolean {
   return s === mime;
 }
 
-const INLINE_OK = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "image/gif"]);
+const INLINE_OK = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "image/gif", "video/mp4", "video/quicktime", "video/webm"]);
 
 /** Response headers for serving a stored file on our own domain. */
 export function servedFileHeaders(storedMime: string | null | undefined, fileName: string, wantDownload: boolean): Record<string, string> {
