@@ -9,3 +9,4 @@
 - [Owner-agreed installer price](mem://features/owner-agreed-price) — Jo 7 Oct 9:25pm: tick "The owner has agreed to my price" → owner link "Confirm your insulation job" + "As agreed with [installer]"; unquoted → "Your confirmed quote"; exact PIESA fixes note on quote/booking/email/signed Gate B
 - [No-size Save my spot](mem://features/no-size-save-spot-copy) — Jo 10 Oct: same as normal Save your spot, only adds labelled 150 m² assumption; no bespoke copy
 - [Reviewed no-size estimate](mem://features/reviewed-no-size-estimate) — Jo 19 Oct: below-R2 reviewed emails may use labelled 150 m² when no owner size
+- [Owner paperwork + one pile](mem://features/owner-paperwork-21oct.md) — Jo 21 Oct: Gate A retired, no cooling-off, every job in ONE pile only, uploads show "Photos to check"
