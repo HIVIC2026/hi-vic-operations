@@ -104,4 +104,31 @@ test('normal booked round retains received status after losing windows close', a
   const picks = resetRequest(); await acceptReadyCheck(token, {}, picks);
   windows = windows.map((row, i) => ({ ...row, status: i === 0 ? 'taken' : 'closed' }));
   expect((await readyCheckAcceptanceState(token))?.acceptanceId).toBe('accepted-once');
+  const saved = structuredClone(windows);
+  expect((await acceptReadyCheck(token, {}, picks)).acceptanceId).toBe('accepted-once');
+  expect(windows).toEqual(saved);
+});
+test('stored A/B/C cannot satisfy duplicate retry picks A/A/A', async () => {
+  const picks = resetRequest(); await acceptReadyCheck(token, {}, picks);
+  const saved = structuredClone(windows);
+  await expect(acceptReadyCheck(token, {}, [picks[0], picks[0], picks[0]])).rejects.toThrow();
+  expect(windows).toEqual(saved); expect(acceptanceInserts).toBe(1);
+  expect(events).toContain('ready_check_windows_not_saved'); expect(providerCalls).toBe(0);
+});
+test('duplicate persisted timestamp keys cannot satisfy retries or received state', async () => {
+  const picks = resetRequest(); await acceptReadyCheck(token, {}, picks);
+  windows[1] = { ...windows[1], starts_at: windows[0]?.starts_at, ends_at: windows[0]?.ends_at };
+  expect(await readyCheckAcceptanceState(token)).toBeNull();
+  await expect(acceptReadyCheck(token, {}, picks)).rejects.toThrow();
+  expect(acceptanceInserts).toBe(1); expect(providerCalls).toBe(0);
+});
+test('equivalent timestamp formats and reversed exact picks preserve valid retry', async () => {
+  const picks = resetRequest(); const first = await acceptReadyCheck(token, {}, picks);
+  windows = windows.map(row => ({ ...row,
+    starts_at: String(row.starts_at).replace('Z', '+00:00'),
+    ends_at: String(row.ends_at).replace('Z', '+00:00'),
+  }));
+  const saved = structuredClone(windows);
+  expect(await acceptReadyCheck(token, {}, [...picks].reverse())).toEqual(first);
+  expect(windows).toEqual(saved); expect(acceptanceInserts).toBe(1); expect(providerCalls).toBe(0);
 });

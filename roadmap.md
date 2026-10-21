@@ -1,4 +1,8 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Final narrow Ready Check correction (Jo, 21 Oct 04:41 UTC)
+- [ ] Require unique normalized timestamp sets on both stored/requested windows; focused duplicate/format/retry regressions.
+- [ ] One fresh unassigned reserved-contact qa_test homeowner in verified Frankston 3199; normal FREE request, TEST Alpha acceptance and persisted booking readback, no providers; cancel/archive with audit retained.
+- [x] Prior remaining UI QA completed above; reuse evidence without rerunning sweep.
 ## Automatic one-tap spot reminders (Jo, 21 Oct 04:28 UTC)
 - [x] Added encrypted expiring one-tap save-only links, browser POST through canonical save/result and audited reminder-only default-OFF switch. All unrelated switches unchanged.
 - [x] Added 24-hour actual-send selection and future-only automatic callback; hourly managed schedule registered, switch OFF. Practice tests cover switch/audit and replay/deduplication; no schema migration/live sends/publication.
