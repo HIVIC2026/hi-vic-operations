@@ -125,6 +125,23 @@ test('a specific post-review request hands off; generic email or stale request c
   expect(roles.rows).toEqual([{ role: 'anon', permitted: false }, { role: 'authenticated', permitted: false }, { role: 'service_role', permitted: true }]);
 });
 
+test('unapplied page-facts proposal returns exact classifier facts without changing any counts or IDs', async () => {
+  const views = ['all', 'new', 'photos', 'needs_attention', 'offered_spot', 'insulation_requested', 'spot_saved', 'ineligible', 'removed'];
+  const before = await Promise.all(views.map(v => page(v)));
+  const columns = 'id,enquiry_status,needs_first_response,review_outcome,media_to_review,media_count,response_state,latest_attempt_status,latest_attempt_at,more_photos_requested';
+  await db.exec(read('PROPOSED_office_enquiry_page_facts.sql'));
+  await db.exec(read('PROPOSED_office_enquiry_page_facts.sql'));
+  for (let i = 0; i < views.length; i++) {
+    const after = await page(views[i] ?? 'all') as Awaited<ReturnType<typeof page>> & { facts: Record<string, unknown>[] };
+    const { facts, ...unchanged } = after;
+    expect(unchanged).toEqual(before[i]);
+    const expected = await db.query(`SELECT ${columns} FROM office_enquiry_index WHERE id=ANY($1::uuid[]) ORDER BY created_at DESC,id ASC`, [after.ids]);
+    expect(facts).toEqual(JSON.parse(JSON.stringify(expected.rows)));
+  }
+  const permissions = await db.query<{ role: string; permitted: boolean }>(`SELECT role,has_function_privilege(role,'public.office_enquiry_page(text,text,integer)','EXECUTE') permitted FROM (VALUES ('anon'),('authenticated'),('service_role')) r(role)`);
+  expect(permissions.rows).toEqual([{ role: 'anon', permitted: false }, { role: 'authenticated', permitted: false }, { role: 'service_role', permitted: true }]);
+});
+
 test("rollback restores the previous definition", async () => {
   await db.exec(read("0208_enquiry_response_scope.rollback.sql"));
   const cols = await db.query<{ column_name: string }>(`SELECT column_name FROM information_schema.columns WHERE table_name = 'office_enquiry_index'`);
