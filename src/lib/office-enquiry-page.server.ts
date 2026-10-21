@@ -2,13 +2,38 @@ import { supabaseAdmin as admin } from '@/integrations/supabase/client.server';
 import { loadEnquiryGroups } from './enquiry-groups.server';
 import type { EnquiryPageView } from './enquiry-list-page.core';
 import { enquiryNextStep, type ResponseCounts, type ResponseState } from './enquiry-response.core';
+import { OFFICE_PENDING_PHOTOS_FILTER, OFFICE_REVIEW_FILTER, officeReviewSearch } from './office-review.core';
 
 type Page = { ids: string[]; total: number; page: number; pageSize: number; totalPages: number; counts: Record<EnquiryPageView, number>; responses?: ResponseCounts };
 export async function loadOfficeEnquiryPage(view: EnquiryPageView, search: string, page: number) {
-  const { data, error } = await admin.rpc('office_enquiry_page', { p_view: view, p_search: search, p_page: page });
+  const indexRead = (filter: string, head = false) => {
+    let query = admin.from('office_enquiry_index').select('id', { count: 'exact', head })
+      .eq('source', 'base44').eq('channel', 'hivic_sourced').or(filter);
+    const searchFilter = officeReviewSearch(search);
+    if (searchFilter) query = query.or(searchFilter);
+    return query;
+  };
+  const [rpc, reviewCount, photoCount] = await Promise.all([
+    admin.rpc('office_enquiry_page', { p_view: view, p_search: search, p_page: page }),
+    indexRead(OFFICE_REVIEW_FILTER, true), indexRead(OFFICE_PENDING_PHOTOS_FILTER, true),
+  ]);
+  const { data, error } = rpc;
   if (error) throw new Error(`Enquiries could not load: ${error.message}`);
-  const result = data as unknown as Page;
+  if (reviewCount.error || photoCount.error || reviewCount.count == null || photoCount.count == null) throw new Error('Could not verify Office review counts.');
+  let result = data as unknown as Page;
   if (!result || !Array.isArray(result.ids) || result.ids.length > 50) throw new Error('Invalid enquiry page');
+  result = { ...result, counts: { ...result.counts, needs_attention: reviewCount.count, photos: photoCount.count } };
+  // Exact server paging over one predicate, not a merge of two separately paginated lists.
+  if (view === 'needs_attention' || view === 'photos') {
+    const total = view === 'photos' ? photoCount.count : reviewCount.count;
+    const totalPages = Math.max(1, Math.ceil(total / 50));
+    const currentPage = Math.max(1, Math.min(page, totalPages));
+    const selected = await indexRead(view === 'photos' ? OFFICE_PENDING_PHOTOS_FILTER : OFFICE_REVIEW_FILTER)
+      .order('created_at', { ascending: false }).order('id', { ascending: true })
+      .range((currentPage - 1) * 50, currentPage * 50 - 1);
+    if (selected.error || !selected.data || selected.count !== total) throw new Error('Office review changed while loading. Refresh the list before taking action.');
+    result = { ...result, ids: selected.data.map(row => row.id), total, totalPages, page: currentPage, pageSize: 50 };
+  }
   const [details, { data: facts, error: factsError }] = await Promise.all([
     result.ids.length ? loadEnquiryGroups(result.ids) : Promise.resolve({ rows: [] }),
     result.ids.length

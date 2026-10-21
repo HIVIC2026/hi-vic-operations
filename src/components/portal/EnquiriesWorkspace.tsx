@@ -279,7 +279,7 @@ function MorePhotosFollowup({ row, onDone }: { row: Row; onDone: () => void }) {
   }} />;
 }
 
-const VIEW_ORDER: EnquiryView[] = ["all", "new", ...STATUS_ORDER, "photos", "removed"];
+const VIEW_ORDER: EnquiryView[] = ["needs_attention", "all", "new", ...STATUS_ORDER.filter(key => key !== "needs_attention")];
 const VIEW_LABEL: Record<EnquiryView, string> = {
   all: "All enquiries",
   new: "New · no reply recorded",
@@ -419,7 +419,7 @@ export function EnquiriesWorkspace({
                 aria-selected={view === key}
                 data-testid={`enquiries-view-${key}`}
                 variant={view === key ? "default" : "outline"}
-                className="h-auto min-h-20 flex-col items-start px-4 py-3 text-left"
+                className={cn("h-auto min-h-20 flex-col items-start px-4 py-3 text-left", key === "needs_attention" && "col-span-2 border-warning bg-warning-soft text-foreground hover:bg-warning-soft md:col-span-3 lg:col-span-5", key === "needs_attention" && view === key && "ring-2 ring-warning")}
                 onClick={() => {
                   onView(key);
                   setPage(0);
@@ -427,7 +427,7 @@ export function EnquiriesWorkspace({
                 }}
               >
                 <span className="font-display text-2xl font-bold">{viewCount(key)}</span>
-                <span className="whitespace-normal text-sm">{VIEW_LABEL[key]}</span>
+                <span className="whitespace-normal text-sm">{key === "needs_attention" ? "OFFICE REVIEW" : VIEW_LABEL[key]}</span>
               </Button>
             ))}
           </div>
@@ -437,20 +437,13 @@ export function EnquiriesWorkspace({
             className="rounded-md border border-warning/40 bg-warning/5 p-3 text-sm"
           >
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <b>Office review:</b>
+              <b>Office tools:</b>
               <Link
                 to="/admin/enquiries"
                 search={{ status: "needs_attention" }}
                 className="font-semibold text-primary underline"
               >
-                Eligibility &amp; sending decisions ({counts?.needs_attention ?? 0})
-              </Link>
-              <Link
-                to="/admin/enquiries"
-                search={{ status: "photos" }}
-                className="font-semibold text-primary underline"
-              >
-                Photos/videos ({counts?.photos ?? 0})
+                Office review ({counts?.needs_attention ?? 0})
               </Link>
               <Link
                 to="/admin/board"
@@ -473,8 +466,7 @@ export function EnquiriesWorkspace({
 
           {view === "needs_attention" && (
             <div className="rounded-md border border-warning/40 bg-warning/5 p-3 text-sm">
-              <strong>Only exceptions appear here.</strong> The reason tells the office what stopped
-              automatic sending.
+              <strong>Photos/videos to check and exceptions needing an Office decision.</strong>
             </div>
           )}
           {view === "photos" && (
