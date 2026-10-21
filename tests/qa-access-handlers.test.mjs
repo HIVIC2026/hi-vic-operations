@@ -91,7 +91,7 @@ test('actual persona issuer: unsafe identity, business, role and assignment stat
 
 test('actual worker issuer: removed, pending, unverified and revoked fixtures remain blocked and unchanged',async t=>{
  const io=await fixture(t);
- for(const sql of ["UPDATE partner_workers SET removed_at=now()","UPDATE partner_workers SET approval_status='pending'","UPDATE partner_workers SET approval_status='rejected'", "UPDATE partner_workers SET certification_status='pending'", "UPDATE worker_job_links SET revoked_at=now()", "UPDATE business_members SET active=false WHERE member_role='field_worker'", "UPDATE businesses SET onboarding_status='revoked' WHERE id='"+id(20)+"'"]){
+ for(const sql of ["UPDATE partner_workers SET removed_at=now()","UPDATE partner_workers SET approval_status='pending'","UPDATE partner_workers SET approval_status='rejected'", "UPDATE partner_workers SET certification_status='pending'", "UPDATE worker_job_links SET revoked_at=now()", "UPDATE business_members SET active=false WHERE member_role='member'", "UPDATE businesses SET onboarding_status='revoked' WHERE id='"+id(20)+"'"]){
   await io.db.exec('BEGIN');try{await io.db.exec(sql);const before=await io.snapshot();await assert.rejects(io.handlers.issueQaWorkerLink({data}));assert.deepEqual(await io.snapshot(),before);}finally{await io.db.exec('ROLLBACK');}
  }
 });
@@ -128,7 +128,7 @@ test('actual explicit preparation: already prepared fixtures have no writes or n
 
 test('actual explicit preparation: blocked/revoked and intentionally ended states are never repaired',async t=>{
  const io=await fixture(t);
- for(const sql of ["UPDATE job_assignments SET active=false WHERE role='installer'","UPDATE business_members SET active=false WHERE member_role='field_worker'","UPDATE partner_workers SET approval_status='rejected',certification_status='rejected'","UPDATE worker_job_links SET revoked_at=now()","UPDATE businesses SET onboarding_status='rejected' WHERE id='"+id(20)+"'"]){
+ for(const sql of ["UPDATE job_assignments SET active=false WHERE role='installer'","UPDATE business_members SET active=false WHERE member_role='member'","UPDATE partner_workers SET approval_status='rejected',certification_status='rejected'","UPDATE worker_job_links SET revoked_at=now()","UPDATE businesses SET onboarding_status='rejected' WHERE id='"+id(20)+"'"]){
   await io.db.exec('BEGIN');try{await io.db.exec(sql);const before=await io.snapshot();await assert.rejects(io.handlers.prepareQaJourneyAccess({data}));assert.deepEqual(await io.snapshot(),before);}finally{await io.db.exec('ROLLBACK');}
  }
  assert.equal(io.issued.length,0);
@@ -136,7 +136,7 @@ test('actual explicit preparation: blocked/revoked and intentionally ended state
 
 test('actual explicit preparation: only missing safe links are added; a new worker starts pending and unverified',async t=>{
  const io=await fixture(t);
- await io.db.exec("DELETE FROM worker_job_links; DELETE FROM partner_workers; DELETE FROM business_members WHERE member_role='field_worker'; DELETE FROM user_roles WHERE user_id='"+id(13)+"'; DELETE FROM profiles WHERE id='"+id(13)+"'; DELETE FROM job_assignments; UPDATE owners SET user_id=NULL;");
+ await io.db.exec("DELETE FROM worker_job_links; DELETE FROM partner_workers; DELETE FROM business_members WHERE member_role='member'; DELETE FROM user_roles WHERE user_id='"+id(13)+"'; DELETE FROM profiles WHERE id='"+id(13)+"'; DELETE FROM job_assignments; UPDATE owners SET user_id=NULL;");
  io.users.delete(id(13));const before=await io.snapshot();const result=await io.handlers.prepareQaJourneyAccess({data});
  assert.match(result.message,/still needs Office approval/);const after=await io.snapshot();
  assert.equal(after.job_assignments.length,2);assert.equal(after.partner_workers.length,1);assert.equal(after.partner_workers[0].approval_status,'pending');assert.equal(after.partner_workers[0].certification_status,'unverified');assert.equal(after.partner_workers[0].qualification,'EEC CII not stated (declared, not verified)');
@@ -189,3 +189,12 @@ test('actual owner isolation: null source and capped owner/job results fail clos
  await rejected(/complete TEST owner access scope/);
  assert.ok(!io.calls.some(c=>c.endsWith(':insert')||c.endsWith(':update')||c==='auth:createUser'||c==='auth:generateLink'));
 });
+
+ test('actual preparation respects live member CHECK and adds only ordinary missing worker membership',async t=>{
+ const io=await fixture(t);await io.db.query('DELETE FROM business_members WHERE user_id=$1',[id(13)]);const before=await io.snapshot();
+ await io.handlers.prepareQaJourneyAccess({data});const after=await io.snapshot();
+ const worker=after.business_members.find(row=>row.user_id===id(13));assert.equal(worker.member_role,'member');assert.equal(worker.business_id,id(20));assert.equal(worker.active,true);
+ after.business_members=after.business_members.filter(row=>row.user_id!==id(13));assert.deepEqual(after,before);
+ await assert.rejects(io.db.query("INSERT INTO business_members(business_id,user_id,member_role,active) VALUES($1,$2,'field_worker',true)",[id(20),id(77)]),/business_members_member_role_check/);
+ const stable=await io.snapshot();await io.handlers.prepareQaJourneyAccess({data});assert.deepEqual(await io.snapshot(),stable);
+ });
