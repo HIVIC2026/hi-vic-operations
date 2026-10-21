@@ -1,4 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Twilio repair (Jo, 21 Oct 23:56 UTC)
+- [ ] Explicitly select already-linked US1 SMS connection; preserve sender number, delivery guards, switches and no-retry rules. Verify actual sender through read-only GET plus mocked send tests. No real sends or publication.
 ## Twilio configured-for-SMS question (Jo, 21 Oct 23:53 UTC)
 - [x] Read-only connector checks: Joannah's Twilio (1) AU1 number SMS-capable, IncomingPhoneNumbers HTTP200; Messages GET HTTP503/code20503. Existing Joannah's Twilio US1 Messages GET HTTP200, latest returned test from 8 Oct marked delivered. Current portal code uses AU1 connection. Number capability confirmed; current AU1 messaging failing, US1 send not tested. No sends/retries/reconnects/switch changes/publication; switching sender requires separate authorization, not automatic fallback.
 ## Office-controlled owner Ready Check booking (Jo, 21 Oct 23:39 UTC)
