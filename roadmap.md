@@ -1,6 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Job customer preview correction (Jo, 21 Oct 09:03 UTC)
-- [ ] Replace the retired inline estimate preview with the approved outcome email for the job's recorded facts and stored current figures; read-only, no sends or publication. Verify focused rendering and Office display.
+- [x] Replaced retired inline preview with canonical approved outcome email from recorded eligibility/review and stored current figures. SELECT-only admin read, sandboxed inert links; 6 focused tests and 61 existing renderer/safety tests PASS. Actual signed-in Office enquiry preview loaded approved insulation-details email, no page errors/overflow; no sends/publication. Existing estimate panel refresh behaviour unchanged.
 ## Reminder switch failure screenshot (Jo, 21 Oct 05:49 UTC)
 - [x] Fix invalid object-coerced JSON equality filter; actual SDK reproduced eq.[object Object], explicit JSON retains CAS. Practice settings/audit/concurrent-edit tests 3 PASS; reminder safeguards 38 PASS; preview build OK. Read-only live check: activation absent (OFF), zero reminder logs. No live switch writes, sends or publication. Actual signed-in switch mutation intentionally untested; one-off send remains separately approved, automatic stays OFF.
 ## Reminder stored offer/attempt time (Jo, 21 Oct 05:20 UTC)

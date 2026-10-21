@@ -31,6 +31,7 @@ export async function jobEmailPreview(jobId: string) {
     deskCheckStatus: review === 'below_r2' || review === 'no_insulation' ? 'looks_eligible' : null,
     recipient: { firstName: who.firstName ?? 'there', propertyAddress: who.address ?? 'your property', enquiryReference: who.reference ?? j.job_number ?? '' },
     reason: safeReason(j.eligibility_reason),
+    previewArtSrc: j.eligibility_outcome === 'does_not_appear_eligible' ? null : '/api/public/email-art-preview/headline.png',
     links: { saveMySpotUrl: `${base}/campaign`, uploadMediaUrl: `${base}/video`, reviewResultUrl: base, calculatorUrl: `${base}/calculator` },
     ...(standard && e && snapshot?.settings ? { figures: {
       veuRebate: Number(standard.applied_discount), customerTotal: Number(standard.estimated_customer_total), totalBeforeRebate: Number(standard.pre_discount_total), installation: Number(standard.installation),
