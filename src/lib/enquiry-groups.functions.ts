@@ -96,3 +96,22 @@ export const morePhotosRequestFn = createServerFn({ method: "POST" }).middleware
     return sendMorePhotosRequest(data.jobId, context.userId, data.mode === "preview", data.reviewId);
   });
 
+
+/** Explicit one-owner ineligible email after a recorded "R2 or above" photo review and Office ineligible decision. */
+export const reviewedIneligibleEmailFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), mode: z.enum(["preview", "prepare", "send"]).default("preview") }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const { data: rev } = await admin.from("customer_engagement_events").select("metadata").eq("job_id", data.jobId).eq("event_type", "intake_media_reviewed").eq("source", "office").order("occurred_at", { ascending: false }).limit(1);
+    if ((rev?.[0]?.metadata as { outcome?: string } | undefined)?.outcome !== "over_r2") return { outcome: "blocked", detail: "The latest photo review is not R2 or above." };
+    const f = await import("./followups.server");
+    if (data.mode !== "send") {
+      const { customerCommsEnabled } = await import("./comms.server");
+      if (!(await customerCommsEnabled())) return { outcome: "blocked", detail: "Customer emails are switched off." };
+      const p = await f.prepareIneligibleEmailForOffice(data.jobId);
+      return p.ok ? { outcome: "preview", detail: "Preview only", preview: { subject: p.subject, html: p.html } } : { outcome: "blocked", detail: p.reason };
+    }
+    const r = await f.sendPreliminaryIneligibleEmail(data.jobId, context.userId ?? null);
+    return r.sent ? { outcome: "sent", detail: "Sent" } : { outcome: r.reason === "delivered_unrecorded" ? "uncertain" : "blocked", detail: r.reason };
+  });

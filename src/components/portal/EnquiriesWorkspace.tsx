@@ -2,6 +2,7 @@
 // Reuses the existing enquiry-groups read + actions. Presentation only: the office-facing outcomes are a
 // single label per enquiry (mapped from the canonical enquiryStatus), never a competing status system.
 import { Link } from "@tanstack/react-router";
+import { setEligibility } from "@/lib/portal.functions";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
@@ -9,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   existingInsulationSaveSpotFn,
+  reviewedIneligibleEmailFn,
   getEnquiryGroups,
   getLeadMedia,
   noInsulationSaveSpotFn,
@@ -69,9 +71,15 @@ function GuardedFollowup({ jobId, title, run, onDone, deliveryUncertain = false 
     setBusy(mode);
     setMessage(null);
     try {
-      const r = await run(mode);
+      let r = await run(mode);
+      if (mode === "preview" && r.needsEstimate && !r.preview) {
+        // One tap: update the reviewed estimate and secure link (no email), then preview again.
+        const p = await run("prepare");
+        if (p.outcome === "blocked" || p.outcome === "failed") r = p;
+        else r = await run("preview");
+      }
       if (mode === "preview") {
-        setNeedsEstimate(!!r.needsEstimate);
+        setNeedsEstimate(!!r.needsEstimate && !r.preview);
         setPreview(r.preview ?? null);
         setMessage(r.preview ? { text: "Preview only — not sent. Check it, then press Send.", tone: "info" } : { text: r.detail, tone: "error" });
       } else if (mode === "prepare") {
@@ -140,6 +148,11 @@ function ExistingInsulationFollowup({ jobId, onDone, deliveryUncertain }: { jobI
   return <GuardedFollowup jobId={jobId} deliveryUncertain={deliveryUncertain} title="Save your spot" onDone={onDone} run={(mode) => action({ data: { jobId, mode } })} />;
 }
 
+function IneligibleFollowup({ jobId, onDone }: { jobId: string; onDone: () => void }) {
+  const action = useServerFn(reviewedIneligibleEmailFn);
+  return <GuardedFollowup jobId={jobId} title="ineligible email" onDone={onDone} run={(mode) => action({ data: { jobId, mode } })} />;
+}
+
 function NoInsulationFollowup({ jobId, onDone, deliveryUncertain }: { jobId: string; onDone: () => void; deliveryUncertain: boolean }) {
   const action = useServerFn(noInsulationSaveSpotFn);
   return <GuardedFollowup jobId={jobId} deliveryUncertain={deliveryUncertain} title="Save your spot offer" onDone={onDone} run={(mode) => action({ data: { jobId, mode } })} />;
@@ -148,6 +161,7 @@ function NoInsulationFollowup({ jobId, onDone, deliveryUncertain }: { jobId: str
 function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
   const loadMedia = useServerFn(getLeadMedia);
   const review = useServerFn(reviewLeadMediaFn);
+  const decide = useServerFn(setEligibility);
   const { data, isLoading, error } = useQuery({
     queryKey: ["lead-media", row.id],
     queryFn: () => loadMedia({ data: { jobId: row.id } }),
@@ -163,10 +177,12 @@ function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
     setFailed(null);
     try {
       await review({ data: { jobId: row.id, outcome, reason } });
+      // R2 or above: record the Office ineligible decision with the reason so the approved ineligible email can be sent.
+      if (outcome === "over_r2") await decide({ data: { jobId: row.id, outcome: "does_not_appear_eligible", reason: reason.trim(), nextAction: "Send ineligible response" } });
       setSaved(MEDIA_OUTCOME_LABEL[outcome]);
       setSavedOutcome(outcome);
       // Keep the row open so the Save your spot email can be sent right here; refresh after that.
-      if (outcome !== "below_r2" && outcome !== "no_insulation") onDone();
+      if (outcome === "unclear") onDone();
     } catch (e) {
       setFailed(e instanceof Error ? e.message : "The review could not be saved.");
     } finally {
@@ -220,6 +236,11 @@ function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
               {savedOutcome === "below_r2"
                 ? <ExistingInsulationFollowup jobId={row.id} deliveryUncertain={uncertainAttempt(row.latestAttemptStatus)} onDone={onDone} />
                 : <NoInsulationFollowup jobId={row.id} deliveryUncertain={uncertainAttempt(row.latestAttemptStatus)} onDone={onDone} />}
+            </div>
+          ) : saved && savedOutcome === "over_r2" ? (
+            <div className="space-y-2">
+              <p role="status" className="text-sm font-semibold text-primary">Marked ineligible: {reason.trim()}. Now send the ineligible email:</p>
+              <IneligibleFollowup jobId={row.id} onDone={onDone} />
             </div>
           ) : saved ? (
             <p role="status" className="text-sm font-semibold text-primary">
