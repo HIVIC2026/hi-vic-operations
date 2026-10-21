@@ -15,14 +15,14 @@ export const getJobFile = createServerFn({ method: "POST" }).middleware([require
   });
 
 export const getJobFileHeader = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid, includeReadiness: z.boolean().default(true) }).parse(d))
+  .inputValidator((d) => z.object({ jobId: uuid, includeReadiness: z.boolean().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { installReadiness } = await import("./esc.server");
     const [{ data: esc }, ready] = await Promise.all([
       supabaseAdmin.from("esc_notifications").select("status, due_by").eq("job_id", data.jobId).not("status", "in", "(cancelled,stale)").order("created_at", { ascending: false }).limit(1).maybeSingle(),
-      data.includeReadiness ? installReadiness(data.jobId).catch(() => null) : Promise.resolve(null),
+      data.includeReadiness !== false ? installReadiness(data.jobId).catch(() => null) : Promise.resolve(null),
     ]);
     return { escDueBy: esc?.due_by ?? null, escStatus: esc?.status ?? null, ready: ready ? JSON.parse(JSON.stringify(ready)) as { ready: boolean; blockers: string[] } : null };
   });
