@@ -1,7 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Bounded preview performance and QA (Jo, 21 Oct 01:36 UTC)
 - [x] Fix only /admin/list phone table containment; loaded eight-column/1519-row table verified at 390x844 and 1280x1800 with existing TEST Office session, page scrollWidth matches viewport and no page/request errors. /admin/job-queue is obsolete QA inventory, not current navigation.
-- [x] Finish narrow fixture preflight and final report: 28 focused safety/handler checks pass; no fixture created because prepareQaAccess would add an existing worker membership, explicitly excluded. Live SaveSpot/FREE/windows/booking remain NOT_RUN. Root cleanup attribution and latest 0 active / 437 archived TEST readback recorded.
+- [x] Correct membership attribution (prior assistant safeguard, not user prohibition); exact TEST preflight and 28 isolated checks pass. Existing preparation failed live CHECK: field_worker not allowed (only business_admin/member). New HV-2987 archived through existing action; 438 retained/archived, zero active. No bypass/migration.
 - [x] Archive authorized 131-ID eligible qa_test manifest through archiveQaJourney after practice checks; independently verified zero manifest-active assignments/links; active jobs 145→14, total 437 retained; HV2648/root cleanup untouched.
 - [x] Recheck 14 previously held genuine-contact exceptions: subsequently archived outside this agent's 131-action run; all 14 have zero active assignments/live links. Latest total 0 active / 437 archived TEST jobs. Root's 11 cancellations/8 recoverable deletions not duplicated.
 - [ ] 218 active assignment rows on older archived TEST jobs remain; existing archive action rejects already-archived jobs. Requires separately reviewed authority/guarded operation, not bypass; zero live TEST worker links verified.
@@ -15,7 +15,7 @@
 - [x] Measure cold/warm public and authenticated TEST Office preview reads; optimize verified code-only waterfalls.
 - [x] Run focused regression tests and canonical bounded portal QA, excluding Deep and real personas (43 PASS, 23 NOT_RUN).
 - [x] Check desktop/390x844 public/Office/Alpha installer routes, read-only history controls and dummy calculator result; no overflow or runtime errors observed.
-- [ ] Live TEST Save My Spot/Ready Check booking: new isolated owner creation is authorized, but prepareQaAccess also adds an existing worker membership; changing existing memberships remains forbidden. No approved minimal helper meets all constraints; no fixture created or guard bypass, stored FREE/open windows/confirmed booking NOT_RUN.
+- [ ] Live TEST Save My Spot/Ready Check booking: authorized exact field_worker association blocked by live business_members CHECK allowing only business_admin/member. HV-2987 partial TEST preparation archived; SaveSpot/FREE/open windows/confirmed booking NOT_RUN pending separately reviewed helper/schema compatibility, no gate bypass.
 - [ ] Consistent Office <1s: enquiries remain ~1.4–1.5s backend, ~3.2–3.4s browser settled; exact PGlite-tested SQL proposal remains unapplied pending user/root approval.
 - [x] Stage exact two media job-lookup index statements and provenance-guarded rollback; record root-provided practice/plan evidence without rerunning QA or applying SQL.
 - [ ] Live index application/rebenchmark blocked: no verified recoverable backup/PITR and no user-approved application; Drizzle journal untouched.
