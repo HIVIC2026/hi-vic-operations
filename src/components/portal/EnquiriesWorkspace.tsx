@@ -25,8 +25,7 @@ import {
   type MediaReviewOutcome,
 } from "@/lib/enquiry-groups.core";
 import { OFFICE_ENQUIRY_LABEL } from "@/lib/office-nav";
-import { enquiryRowTag } from "@/lib/enquiry-response.core";
-import { RESPONSE_STATE_LABEL, showingRange } from "@/lib/enquiry-response.core";
+import { RESPONSE_STATE_LABEL, showingRange, enquiryRowTag } from "@/lib/enquiry-response.core";
 import { followupSendMessage, followupRequestError, uncertainAttempt } from '@/lib/followup-result.core';
 import { cn } from "@/lib/utils";
 
