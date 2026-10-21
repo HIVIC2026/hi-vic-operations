@@ -42,6 +42,7 @@ function BlastPage() {
   }
   return <AppShell><div className="mx-auto w-full max-w-5xl space-y-6 p-4 md:p-6">
     <h1 className="text-2xl font-bold">Save My Spot reminder blast</h1>
+    {settings.isError && <p role="alert" className="text-danger">Could not load the reminder switch.</p>}
     <div className="flex items-center gap-3"><Switch id="auto-reminder" checked={settings.data?.enabled ?? false} disabled={busy || !settings.data} onCheckedChange={async (enabled) => {
       setBusy(true); setError(null);
       try { await saveSettings({ data: { enabled } }); await settings.refetch(); }

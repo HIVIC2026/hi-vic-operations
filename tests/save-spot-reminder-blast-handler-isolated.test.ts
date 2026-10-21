@@ -33,3 +33,7 @@ test("unlinked recorded copy cannot count as a sent offered URL", async () => {
   expect(result.recipientCount).toBe(0); expect(result.skipped[0]?.reason).toContain("URL");
   expect(writes).toBe(0); expect(sends).toBe(0);
 });
+test("automatic OFF returns before audience scan and creates no SMS claim",async()=>{
+  const r=await runSaveSpotReminderBlast(false,true);
+  expect(r.recipientCount).toBe(0);expect(r.results).toHaveLength(0);expect(writes).toBe(0);expect(sends).toBe(0);
+});
