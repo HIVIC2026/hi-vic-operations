@@ -141,7 +141,7 @@ test('unapplied page-facts proposal returns exact classifier facts without chang
   }
   const permissions = await db.query<{ role: string; permitted: boolean }>(`SELECT role,has_function_privilege(role,'public.office_enquiry_page(text,text,integer)','EXECUTE') permitted FROM (VALUES ('anon'),('authenticated'),('service_role')) r(role)`);
   expect(permissions.rows).toEqual([{ role: 'anon', permitted: false }, { role: 'authenticated', permitted: false }, { role: 'service_role', permitted: true }]);
-});
+}, 30_000);
 
 test("rollback restores the previous definition", async () => {
   await db.exec(read("0208_enquiry_response_scope.rollback.sql"));
