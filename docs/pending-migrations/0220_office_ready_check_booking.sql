@@ -15,6 +15,8 @@ GRANT EXECUTE ON FUNCTION public.owner_ready_check_booking_allowed(uuid) TO serv
 CREATE OR REPLACE FUNCTION public.guard_owner_ready_check_booking()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 BEGIN
+  PERFORM 1 FROM public.workflow_settings WHERE id=1 FOR SHARE;
+  PERFORM 1 FROM public.jobs WHERE id=NEW.job_id FOR SHARE;
   IF NOT public.owner_ready_check_booking_allowed(NEW.job_id) THEN
     RAISE EXCEPTION 'Ready Check booking is not open. We''ll be in touch when the office offers your booking.';
   END IF;
@@ -69,3 +71,13 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.set_ready_check_booking_enabled(boolean) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.set_ready_check_booking_enabled(boolean) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.guard_ready_check_times_prompt()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+BEGIN
+  IF (NEW.payload_ref LIKE 'ready_check_windows:%' OR NEW.payload_ref='visit_new_times:ready_check')
+    AND NOT public.owner_ready_check_booking_allowed(NEW.job_id) THEN RETURN NULL; END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER ready_check_times_prompt_office_gate BEFORE INSERT ON public.external_action_outbox
+FOR EACH ROW EXECUTE FUNCTION public.guard_ready_check_times_prompt();

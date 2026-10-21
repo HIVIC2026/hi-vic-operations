@@ -22,6 +22,7 @@ beforeAll(async () => {
     CREATE TABLE ready_check_windows(id serial, job_id uuid, status text DEFAULT 'open');
     CREATE TABLE workflow_events(job_id uuid,actor_id uuid,event_type text,summary text,details jsonb,internal boolean);
     CREATE TABLE admin_config_events(actor_id uuid,event_type text,summary text,details jsonb);
+    CREATE TABLE external_action_outbox(job_id uuid,payload_ref text);
   `);
   await db.exec(readFileSync('docs/pending-migrations/0220_office_ready_check_booking.sql', 'utf8'));
 });
@@ -36,6 +37,8 @@ test('setting defaults OFF; old acceptance and times inserts reject with no rows
   expect((await db.query('select count(*)::int n from ready_check_acceptances')).rows[0]?.n).toBe(0);
   expect((await db.query('select count(*)::int n from ready_check_windows')).rows[0]?.n).toBe(0);
   expect((await db.query('select customer_comms_enabled from workflow_settings')).rows[0]?.customer_comms_enabled).toBe(false);
+  await db.exec(`insert into external_action_outbox(job_id,payload_ref) values('${job}','ready_check_windows:round1'),('${job}','visit_new_times:ready_check')`);
+  expect((await db.query('select count(*)::int n from external_action_outbox')).rows[0]?.n).toBe(0);
 });
 test('switch ON alone never authorises an owner; Office offer required for exact job', async () => {
   await db.exec('select set_ready_check_booking_enabled(true)');
