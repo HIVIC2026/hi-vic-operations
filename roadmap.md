@@ -1,4 +1,9 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Bounded preview performance and QA (Jo, 21 Oct 01:36 UTC)
+- [ ] Measure cold/warm public and authenticated TEST Office preview reads; optimize verified code-only waterfalls.
+- [ ] Run focused regression tests and canonical bounded portal QA, excluding Deep and real personas.
+- [ ] Check desktop/390x844 canonical public/Office/installer routes and calculator results; TEST-only Save My Spot/Ready Check where safe.
+- [ ] Report timings, route checklist, evidence, unchanged wording/prices, and remaining blockers; no publish or schema changes.
 ## Live portal health check (Jo, 21 Oct 01:04 UTC)
 - [x] Read-only speed/errors/flows/mobile/data check of published site; report only, no changes.
 ## Adam optional evidence link (Jo, 20 Oct 07:30 UTC)
