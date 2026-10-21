@@ -5,14 +5,14 @@ import { fmtDate } from "@/lib/workflow";
 import type { OperationRow } from "@/lib/operations-preview.core";
 import type { PortalTarget } from "@/lib/portal-presentation.core";
 import { getJobBlockers } from "@/lib/portal.functions";
-import { BlockersPanel } from "./panels";
+import { BlockersContent } from "./panels";
 import { communicationPurposeLabel, latestConfirmedSend, taskTags } from "@/lib/portal-presentation.core";
 
 export function CurrentJobBlockers({ jobId }: { jobId: string }) {
   const query = useQuery({ queryKey: ["blockers", jobId], queryFn: () => getJobBlockers({ data: { jobId } }) });
   if (query.error) return <p role="alert" className="my-2 text-sm text-rose">Current blockers could not load — progression is unverified. <Button variant="outline" size="sm" onClick={() => void query.refetch()}>Retry blockers</Button></p>;
   if (!query.data) return <p role="status" className="my-2 text-sm text-sub">Loading current blockers…</p>;
-  return <BlockersPanel jobId={jobId} />;
+  return <BlockersContent data={query.data} />;
 }
 
 export function JobStatusSummary({ row, loadedAt, onOpen }: { row: OperationRow; loadedAt: string; onOpen: (target: PortalTarget) => void }) {

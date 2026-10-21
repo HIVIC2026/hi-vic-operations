@@ -41,7 +41,7 @@ export async function loadOperationsPreview(admin: SupabaseClient<Database>, job
     for (let i = 0; i < ids.length; i += 150) rows.push(...await all(label, (a, b) => q(ids.slice(i, i + 150), a, b)));
     return rows;
   }
-  const [campaigns, offers, bookings, readyChecks, measurements, requirements, sends, communications, media, reviews, verifications, quotes, payments, deadlines, stages, handoffs, assignments, cfg, delivery] = await Promise.all([
+  const [campaigns, offers, bookings, readyChecks, measurements, requirements, sends, communications, media, reviews, verifications, quotes, payments, deadlines, stages, handoffs, assignments, cfg, delivery, outboxFailures, xeroFailures, smsUnknown, piesa, rectQuotes, windows, proposals, origins] = await Promise.all([
     byJobs('saved spots', (c,a,b) => admin.from('lead_campaign_responses').select('job_id, spot_saved_at, opted_out_at, video_requested, media_received_at, desk_check_status, queue_priority, created_at').in('job_id',c).order('created_at').order('id').range(a,b)),
     byJobs('offers', (c,a,b) => admin.from('partner_offers').select('job_id, kind, status, offered_at').in('job_id',c).in('status',['pending','accepted']).order('offered_at').order('id').range(a,b)),
     byJobs('bookings', (c,a,b) => admin.from('bookings').select('job_id, kind, status, scheduled_start').in('job_id',c).in('status',['proposed','confirmed','completed']).order('scheduled_start').order('id').range(a,b)),
@@ -61,10 +61,6 @@ export async function loadOperationsPreview(admin: SupabaseClient<Database>, job
     byJobs('assigned installers', (c,a,b) => admin.from('job_assignments').select('job_id, role, user_id, businesses(name)').in('job_id',c).eq('active',true).eq('role','installer').order('id').range(a,b)),
     admin.from('workflow_settings').select('customer_comms_enabled, auto_send_quote, auto_send_mitti, auto_send_installer, auto_send_rec, offer_dispatch_mode, payment_option_gate_enabled').eq('id',1).maybeSingle(),
     admin.from('customer_delivery_settings').select('enabled').eq('id',1).maybeSingle(),
-  ]);
-  if (cfg.error) throw new Error(`Automation settings could not load: ${cfg.error.message}`);
-  if (delivery.error) throw new Error(`Delivery settings could not load: ${delivery.error.message}`);
-  const [outboxFailures, xeroFailures, smsUnknown, piesa, rectQuotes, windows, proposals] = await Promise.all([
     byJobs('failed external actions', (c,a,b) => admin.from('external_action_outbox').select('job_id, action_type, last_error_code').in('job_id',c).eq('status','failed').order('id').range(a,b)),
     byJobs('invoice errors', (c,a,b) => admin.from('invoices').select('job_id, last_sync_error').in('job_id',c).not('last_sync_error','is',null).order('id').range(a,b)),
     byJobs('uncertain SMS', (c,a,b) => admin.from('sms_messages').select('job_id, message_type, status, detail, created_at, updated_at').in('job_id',c).in('status',['sent_unknown','sending']).order('created_at').order('id').range(a,b)),
@@ -72,10 +68,15 @@ export async function loadOperationsPreview(admin: SupabaseClient<Database>, job
     byJobs('rectification quotes', (c,a,b) => admin.from('quotes').select('job_id, status, release_state, sent_at').in('job_id',c).eq('kind','rectification').in('status',['issued','accepted']).order('created_at').order('id').range(a,b)),
     byJobs('owner time windows', (c,a,b) => admin.from('ready_check_windows').select('job_id, status').in('job_id',c).eq('status','open').order('id').range(a,b)),
     byJobs('proposed appointments', (c,a,b) => admin.from('appointment_proposals').select('job_id, kind, created_at').in('job_id',c).eq('status','proposed').order('created_at').order('id').range(a,b)),
+    (async () => {
+      const originIds = [...new Set(jobs.map(j => text(j['originating_installer_business_id'])).filter((id): id is string => !!id))];
+      const rows: Row[] = [];
+      for (let i = 0; i < originIds.length; i += 150) rows.push(...await all('originating installers', (a,b) => admin.from('businesses').select('id,name').in('id',originIds.slice(i,i+150)).order('id').range(a,b)));
+      return rows;
+    })(),
   ]);
-  const originIds = [...new Set(jobs.map(j => text(j['originating_installer_business_id'])).filter((id): id is string => !!id))];
-  const origins: Row[] = [];
-  for(let i=0;i<originIds.length;i+=150) origins.push(...await all('originating installers',(a,b)=>admin.from('businesses').select('id,name').in('id',originIds.slice(i,i+150)).order('id').range(a,b)));
+  if (cfg.error) throw new Error(`Automation settings could not load: ${cfg.error.message}`);
+  if (delivery.error) throw new Error(`Delivery settings could not load: ${delivery.error.message}`);
   const grouped=(rows:Row[])=>{const m=new Map<string,Row[]>();for(const r of rows){const id=String(r['job_id']);m.set(id,[...(m.get(id)??[]),r]);}return m;};
   const maps=[campaigns,offers,bookings,readyChecks,measurements,requirements,sends,communications,media,reviews,verifications,quotes,payments,deadlines,stages,handoffs,assignments,outboxFailures,xeroFailures,smsUnknown,piesa,rectQuotes,windows,proposals].map(grouped);
   const mine=(n:number,id:string)=>maps[n]?.get(id)??[];
