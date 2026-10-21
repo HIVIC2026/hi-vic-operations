@@ -90,7 +90,7 @@ export function saveSpotPriceLines(f: Pick<SaveSpotOfferFacts, "installation" | 
 export const SAVE_SPOT_INCLUDES = [
   "A free onsite ceiling measure, eligibility and access check (Ready Check)",
   "Installation by a vetted Certified Insulation Installer (CII)",
-  "The Pre-Installation Electrical Safety Assessment (PIESA), carried out separately by a licensed electrician before installation",
+  "The Pre Insulation Electrical Safety Assessment (PIESA), carried out separately by a licensed electrician before installation",
   "Accredited Person coordination, compliance, paperwork and your rebate claim",
 ];
 export function saveSpotExclusions(f: Pick<SaveSpotOfferFacts, "variant" | "removal" | "removalRatePerM2">): string[] {

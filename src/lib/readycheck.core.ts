@@ -250,7 +250,7 @@ export const MEASURED_QUOTE_LABELS = {
   removal: "Existing insulation removal",
   access: "Access adjustment",
   allowance: "Preliminary electrical allowance",
-  piesa: "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)",
+  piesa: "Mandatory Pre Insulation Electrical Safety Assessment (PIESA)",
   apManagement: "Home Insulation Victoria — Accredited Person Management",
   projectTotal: "Estimated project total",
   discount: "Estimated VEU / VEEC discount",

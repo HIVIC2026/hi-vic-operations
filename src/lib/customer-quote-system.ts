@@ -31,7 +31,7 @@ export const CUSTOMER_CALCULATOR_COPY = "Use this calculator to compare how a di
 /** Pre-Ready-Check preliminary estimate labels. No electrical allowance appears before the Ready Check. */
 export const CUSTOMER_QUOTE_LABELS = {
   insulation: "R5.0 ceiling insulation — supply & install",
-  piesa: "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)",
+  piesa: "Mandatory Pre Insulation Electrical Safety Assessment (PIESA)",
   apManagement: "Home Insulation Victoria — Accredited Person Management",
   projectTotal: "Estimated project total",
   discount: "Estimated VEU / VEEC discount",
@@ -72,7 +72,7 @@ export const CUSTOMER_READY_CHECK = {
 /** Concise email invitation; the secure confirmation page carries the full service explanation. */
 export const CUSTOMER_READY_CHECK_EMAIL_ACTION = {
   eyebrow: "NEXT STEP",
-  heading: "BOOK YOUR HOME INSULATION READY CHECK",
+  heading: "BOOK YOUR READY CHECK",
   sentence: "Your free Ready Check confirms the ceiling measurements and eligibility details needed to progress your preliminary estimate.",
   credit: "There is no charge for the Ready Check.",
   helper: "See exactly what’s included on the next page.",
@@ -85,7 +85,7 @@ export const CUSTOMER_APPROVAL_REASSURANCE = "We will never proceed with additio
 
 export const CUSTOMER_WHAT_COULD_CHANGE: { heading: string; intro: string; items: readonly { lead: string; copy: string }[]; closing: string; gst: string } = {
   heading: "WHAT COULD CHANGE MY ESTIMATE?",
-  intro: "This estimate is based on the information currently available. The final scope and price may change after we confirm the measured ceiling size, existing insulation and any required removal, ceiling access conditions, and any electrical fixes identified through the mandatory Pre-Installation Electrical Safety Assessment (PIESA).",
+  intro: "This estimate is based on the information currently available. The final scope and price may change after we confirm the measured ceiling size, existing insulation and any required removal, ceiling access conditions, and any electrical fixes identified through the mandatory Pre Insulation Electrical Safety Assessment (PIESA).",
   items: [],
   closing: CUSTOMER_APPROVAL_REASSURANCE,
   gst: "All prices include GST.",
@@ -138,9 +138,9 @@ export const CUSTOMER_ONSITE_HERO = {
 
 export const CUSTOMER_READY_CHECK_PAGE = {
   eyebrow: "NEXT STEP",
-  heading: "BOOK YOUR HOME INSULATION READY CHECK",
+  heading: "BOOK YOUR READY CHECK",
   intro: "We’ll arrange a free onsite Ready Check so an insulation installer can measure your ceiling and collect the eligibility evidence needed for your quote.",
-  cardTitle: "FREE HOME INSULATION READY CHECK",
+  cardTitle: "FREE READY CHECK",
   credit: "No payment is required.",
   whatHappensHeading: "What happens",
   whatHappens: [
@@ -174,7 +174,7 @@ export const CUSTOMER_MEASURED_QUOTE = {
 } as const;
 
 export const CUSTOMER_PIESA_STAGE = {
-  heading: "ELECTRICAL SAFETY CHECK",
+  heading: "PIESA",
   before: "Your mandatory PIESA is the next step before installation.",
   after: "Your PIESA is complete.",
   performedBy: "Your PIESA is completed by a licensed electrician, close to installation.",

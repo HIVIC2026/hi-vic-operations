@@ -37,7 +37,7 @@ export function priceHivQuote(i: HivQuoteInput) {
     lines.push({ code, description, quantity, unit, unit_price_inc_gst: r2(unitInc), line_total_inc_gst: r2(unitInc * quantity), is_other: false, explanation: null, sort: lines.length });
   add("R5_BATTS", "R5.0 ceiling insulation supply & install", i.areaM2, "m2", ownerR5);
   if (i.removalM2 > 0) add("REMOVAL", "Removal & disposal of existing insulation", i.removalM2, "m2", i.ownerRemovalIncPerM2);
-  add("PIESA", "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", 1, "flat", i.piesaIncGst);
+  add("PIESA", "Mandatory Pre Insulation Electrical Safety Assessment (PIESA)", 1, "flat", i.piesaIncGst);
   add("AP_FEE", "Accredited Provider fee (Home Insulation Victoria)", 1, "flat", i.apFeeIncGst);
 
   const r5MarkupInc = r2((ownerR5 - instR5Inc) * i.areaM2);

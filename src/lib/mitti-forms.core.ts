@@ -144,7 +144,7 @@ export const FORMS: Record<FormKey, { title: string; role: "installer" | "electr
   },
   // Short onsite forms (approved 3 Oct 2026): clear full-sentence questions. The portal expands the answers
   // into every official Word-form item (official-expand.core.ts) and fills the official document itself.
-  piesa: { title: "VEU pre-installation Pre Insulation Electrical Safety Assessment (PIESA) form", role: "electrician", fields: [...SHORT_PIESA_FIELDS, ...PIESA_SUPPLEMENTAL] },
+  piesa: { title: "VEU Pre Insulation Electrical Safety Assessment (PIESA) form", role: "electrician", fields: [...SHORT_PIESA_FIELDS, ...PIESA_SUPPLEMENTAL] },
   piisa: { title: "VEU pre-installation installer safety assessment form", role: "installer", fields: [...SHORT_PIISA_FIELDS.slice(0, -3), ...PIISA_DECLARATION_FIELDS, ...SHORT_PIISA_FIELDS.slice(-3), ...PIISA_SUPPLEMENTAL] },
 };
 

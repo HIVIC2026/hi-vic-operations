@@ -414,7 +414,7 @@ async function draftQuoteFromImport(jobId: string, e: BulkExtracted, actorId: st
   const rawDiscount = wholeVeecDiscount(e.area_m2, loc as unknown as LocationVariables, veecValue).raw;
   const lines = [
     { code: "INSTALLER_PRICE", description: e.price_includes ? `Insulation works by your installer — includes: ${e.price_includes}`.slice(0, 500) : "Insulation works by your installer", quantity: 1, unit: "flat", unit_price_inc_gst: e.price_inc_gst, line_total_inc_gst: e.price_inc_gst, is_other: false, explanation: null, sort: 0 },
-    ...(piesa > 0 ? [{ code: "PIESA", description: "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", quantity: 1, unit: "flat", unit_price_inc_gst: piesa, line_total_inc_gst: piesa, is_other: false, explanation: null, sort: 1 }] : []),
+    ...(piesa > 0 ? [{ code: "PIESA", description: "Mandatory Pre Insulation Electrical Safety Assessment (PIESA)", quantity: 1, unit: "flat", unit_price_inc_gst: piesa, line_total_inc_gst: piesa, is_other: false, explanation: null, sort: 1 }] : []),
     { code: "AP_FEE", description: "Home Insulation Victoria — Accredited Person fee", quantity: 1, unit: "flat", unit_price_inc_gst: apFee, line_total_inc_gst: apFee, is_other: false, explanation: null, sort: 2 },
   ];
   const subtotal = Math.round((e.price_inc_gst + piesa + apFee) * 100) / 100;
@@ -457,7 +457,7 @@ export async function bulkQuotePlan(jobId: string, e: BulkExtracted, actorId: st
   const rawDiscount = wholeVeecDiscount(e.area_m2, loc as unknown as LocationVariables, veecValue).raw;
   const lines = [
     { code: "INSTALLER_PRICE", description: e.price_includes ? `Insulation works by your installer — includes: ${e.price_includes}`.slice(0, 500) : "Insulation works by your installer", quantity: 1, unit: "flat", unit_price_inc_gst: e.price_inc_gst, line_total_inc_gst: e.price_inc_gst, is_other: false, explanation: null, sort: 0 },
-    ...(piesa > 0 ? [{ code: "PIESA", description: "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", quantity: 1, unit: "flat", unit_price_inc_gst: piesa, line_total_inc_gst: piesa, is_other: false, explanation: null, sort: 1 }] : []),
+    ...(piesa > 0 ? [{ code: "PIESA", description: "Mandatory Pre Insulation Electrical Safety Assessment (PIESA)", quantity: 1, unit: "flat", unit_price_inc_gst: piesa, line_total_inc_gst: piesa, is_other: false, explanation: null, sort: 1 }] : []),
     { code: "AP_FEE", description: "Home Insulation Victoria — Accredited Person fee", quantity: 1, unit: "flat", unit_price_inc_gst: apFee, line_total_inc_gst: apFee, is_other: false, explanation: null, sort: 2 },
   ];
   const subtotal = Math.round((e.price_inc_gst + piesa + apFee) * 100) / 100;

@@ -490,7 +490,7 @@ function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor
           <Field label="Do you want to receive our owner leads?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "No — my customers only" }]} value={d.wants_hivic_leads ?? null} onChange={(v) => up(v ? { wants_hivic_leads: v } : { wants_hivic_leads: v, free_measureups_for_hivic_quote_leads: null })} /></Field>
           {d.wants_hivic_leads === true && <>
             <p style={note}>A Ready Check is a free onsite visit: measure the ceiling, confirm what we couldn't verify from the office and collect site evidence. No electrical work. You receive the job if it proceeds, unless the owner specifies otherwise.</p>
-            <Check required checked={d.free_measureups_for_hivic_quote_leads === true} onChange={(v) => up({ free_measureups_for_hivic_quote_leads: v })}>I'll provide free Home Insulation Ready Checks (Ready Check) for Home Insulation Victoria leads.</Check>
+            <Check required checked={d.free_measureups_for_hivic_quote_leads === true} onChange={(v) => up({ free_measureups_for_hivic_quote_leads: v })}>I'll provide free Ready Checks for Home Insulation Victoria leads.</Check>
           </>}
         </Section>
         <Section title="Where you work">

@@ -175,7 +175,7 @@ function VeecPage() {
           })()}
         </table>
       </div>
-      <p className="mt-2 text-xs text-muted-foreground">Electrical upgrades pass through at the agreed electrical rate card — no markup. The VEU pre-installation Pre Insulation Electrical Safety Assessment (PIESA) is charged at $349 inc GST ($317.27 ex GST); the REC is paid its negotiated supplier rate. Profit also deducts the ESC $4.35 per VEEC lodgement fee. "—" means a figure is not recorded yet.</p>
+      <p className="mt-2 text-xs text-muted-foreground">Electrical upgrades pass through at the agreed electrical rate card — no markup. The VEU Pre Insulation Electrical Safety Assessment (PIESA) is charged at $349 inc GST ($317.27 ex GST); the REC is paid its negotiated supplier rate. Profit also deducts the ESC $4.35 per VEEC lodgement fee. "—" means a figure is not recorded yet.</p>
       </>}
     </section>}
   </AppShell>;

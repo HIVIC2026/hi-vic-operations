@@ -88,7 +88,7 @@ const REGISTER_FOR_TEMPLATE: Record<string, string> = { esc_consent: "ESC Owner 
 const MERGED = new Set(Object.values(REGISTER_FOR_TEMPLATE));
 const MITTI_FOR_REGISTER: Record<string, FormKey[]> = {
   "Ready Check (Home Insulation Victoria checklist)": ["ready_check_priced", "ready_check"],
-  "Pre-installation electrical safety assessment (PIESA)": ["piesa"],
+  "Pre Insulation Electrical Safety Assessment (PIESA)": ["piesa"],
   "Pre-installation installer safety assessment (PIISA)": ["piisa"],
 };
 

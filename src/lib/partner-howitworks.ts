@@ -84,7 +84,7 @@ export const AP_WORKLOAD = {
   items: [
     "Eligibility checks on every property and owner",
     "Owner consent and permission, captured legally and directly",
-    "VEU pre-installation Pre Insulation Electrical Safety Assessment (PIESA) coordination",
+    "VEU Pre Insulation Electrical Safety Assessment (PIESA) coordination",
     "Official electrical and installer safety assessment forms completed, signed and stored",
     "24-hour notices to the regulator before every install",
     "The quote and the invoice, issued correctly",
@@ -97,7 +97,7 @@ export const AP_WORKLOAD = {
 
 export const WHY_349 = {
   title: "Our fees, plainly",
-  body: "Two separate charges, each $349 inc GST, both paid by the owner on the one co-branded invoice — never by you. (1) The VEU pre-installation Pre Insulation Electrical Safety Assessment (PIESA): the owner charge is $349 whether the approved electrician is yours or ours; we pay the electrician their agreed supplier rate. (2) Our Accredited Person fee: $349 on every job — it covers eligibility, owner consent, official forms, required notices, the quote and invoice, payment chasing, evidence review, VEEC creation and lodgement, and audit records. Both charges are separate and clearly shown.",
+  body: "Two separate charges, each $349 inc GST, both paid by the owner on the one co-branded invoice — never by you. (1) The VEU Pre Insulation Electrical Safety Assessment (PIESA): the owner charge is $349 whether the approved electrician is yours or ours; we pay the electrician their agreed supplier rate. (2) Our Accredited Person fee: $349 on every job — it covers eligibility, owner consent, official forms, required notices, the quote and invoice, payment chasing, evidence review, VEEC creation and lodgement, and audit records. Both charges are separate and clearly shown.",
 };
 
 export const ELECTRICIAN_JOB_FLOW: { title: string; tagline: string; steps: HowStep[]; footer: string } = {
@@ -106,7 +106,7 @@ export const ELECTRICIAN_JOB_FLOW: { title: string; tagline: string; steps: HowS
   steps: [
     { n: 1, title: "You get the job offer", body: "It appears in your portal with the suburb, property type and what's needed. Accept or decline — no penalty for declining." },
     { n: 2, title: "Book the visit in the portal", body: "You propose times, the owner accepts, it's locked in. Everyone — you, the installer and our office — sees the same timeline." },
-    { n: 3, title: "Complete the electrical assessment", body: "Complete and sign the current official VEU pre-installation Pre Insulation Electrical Safety Assessment (PIESA) no earlier than 30 days before installation. Our app walks you through the required photos and readings." },
+    { n: 3, title: "Complete the electrical assessment", body: "Complete and sign the current official VEU Pre Insulation Electrical Safety Assessment (PIESA) no earlier than 30 days before installation. Our app walks you through the required photos and readings." },
     { n: 4, title: "Submit the result before you leave", body: "The PIESA result and your electrical fixes quote (or confirmation none is needed) go in through the portal on the day. The job can't move forward without it." },
     { n: 5, title: "Electrical fixes, if approved", body: "If the owner approves electrical fixes, it's booked in the portal and you do the work at your agreed rates." },
     { n: 6, title: "You get paid", body: "At the rate we agreed with you at onboarding, once the owner's invoice is paid. We chase the money — you never do." },
@@ -117,7 +117,7 @@ export const ELECTRICIAN_JOB_FLOW: { title: string; tagline: string; steps: HowS
 export const ELECTRICIAN_SAME_DAY = {
   title: "The same-day rule",
   points: [
-    "The completed signed VEU pre-installation Pre Insulation Electrical Safety Assessment (PIESA) and any mandatory electrical fixes quote (or confirmation none is needed) must be submitted through the portal on the day of the assessment.",
+    "The completed signed VEU Pre Insulation Electrical Safety Assessment (PIESA) and any mandatory electrical fixes quote (or confirmation none is needed) must be submitted through the portal on the day of the assessment.",
     "Our office can't quote the owner until your result is in — the whole job waits on it.",
     "Installation must start within 30 days of the electrical assessment. The countdown is shown on every job so nothing expires quietly.",
   ],
