@@ -1,11 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Switch } from "@/components/ui/switch";
 import { Eye, Send } from "lucide-react";
 import { AppShell } from "@/components/portal/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { saveSpotReminderBlast } from "@/lib/save-spot-reminder-blast.functions";
+import { saveSpotReminderBlast, getSpotReminderSettings, setSpotReminderSettings } from "@/lib/save-spot-reminder-blast.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/save-spot-reminder-blast")({
   head: () => ({ meta: [{ title: "Save My Spot reminder blast – Home Insulation Victoria" }, { name: "description", content: "Admin-only one-off Save My Spot SMS reminder review and send." }, { property: "og:title", content: "Save My Spot reminder blast – Home Insulation Victoria" }, { property: "og:description", content: "Admin-only one-off Save My Spot SMS reminder review and send." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -14,6 +16,8 @@ export const Route = createFileRoute("/_authenticated/admin/save-spot-reminder-b
 
 function BlastPage() {
   const invoke = useServerFn(saveSpotReminderBlast);
+  const getSettings = useServerFn(getSpotReminderSettings), saveSettings = useServerFn(setSpotReminderSettings);
+  const settings = useQuery({ queryKey: ["spot-reminder-settings"], queryFn: () => getSettings() });
   const [report, setReport] = useState<Awaited<ReturnType<typeof saveSpotReminderBlast>> | null>(null);
   const [confirmation, setConfirmation] = useState("");
   const [busy, setBusy] = useState(false);
@@ -38,6 +42,12 @@ function BlastPage() {
   }
   return <AppShell><div className="mx-auto w-full max-w-5xl space-y-6 p-4 md:p-6">
     <h1 className="text-2xl font-bold">Save My Spot reminder blast</h1>
+    <div className="flex items-center gap-3"><Switch id="auto-reminder" checked={settings.data?.enabled ?? false} disabled={busy || !settings.data} onCheckedChange={async (enabled) => {
+      setBusy(true); setError(null);
+      try { await saveSettings({ data: { enabled } }); await settings.refetch(); }
+      catch (e) { setError(e instanceof Error ? e.message : "Reminder switch failed"); }
+      finally { setBusy(false); }
+    }} /><label htmlFor="auto-reminder" className="font-semibold">24-hour Save My Spot reminder</label></div>
     <div className="flex flex-wrap items-center gap-3"><Button disabled={busy} onClick={() => run(true)}><Eye className="mr-2 h-4 w-4" />Dry run</Button>
       {report && <span className="font-semibold">{report.recipientCount} recipients · {report.skipped.length} skipped</span>}</div>
     {error && <p role="alert" className="text-danger">{error}</p>}

@@ -1,5 +1,5 @@
 # Server/domain rules (src/lib)
-- The one-off Save My Spot reminder uses an explicit admin-authenticated action, read-only dry run, exact provider-linked offered URL and current estimate; only its server-authorized call skips its SMS type switch, while master/consent/STOP/TEST guards remain. Phone-derived sms_messages primary-key claims plus unique per-job keys fence concurrent and later runs. Why: one approved blast cannot activate other texts or resend the same phone through another enquiry.
+- Save My Spot reminders share phone/job claims across admin catch-up and authenticated scheduled processing; scheduled sends require the dedicated SMS switch and activation timestamp, never releasing historical offers. One-tap credentials are purpose-bound encrypted capabilities redeemed by browser POST through canonical save guards, never GET mutations or duplicate save writes. Why: prevent duplicate sends, unintended backlog release and weakening owner eligibility/consent.
 
 ## Architecture rules
 - Installer quote price basis/GST/removal+extras pricing is an append-only `installer_quote_commercial_declared` event read by `installerIntakeState`; its blockers live in readiness so every draft/release/approve/accept path enforces them. Why: one factual check, no migration, history preserved.

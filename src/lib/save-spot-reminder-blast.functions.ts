@@ -11,3 +11,19 @@ export const saveSpotReminderBlast = createServerFn({ method: "POST" }).middlewa
     const { runSaveSpotReminderBlast } = await import("./save-spot-reminder-blast.server");
     return runSaveSpotReminderBlast(data.dryRun);
   });
+
+export const getSpotReminderSettings = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { requireAdmin } = await import("./workflow.server");
+    await requireAdmin(context.supabase);
+    const { enabled, activatedAt } = await (await import("./save-spot-reminder-settings.server")).reminderSettings();
+    return { enabled, activatedAt };
+  });
+
+export const setSpotReminderSettings = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ enabled: z.boolean() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { requireAdmin } = await import("./workflow.server");
+    await requireAdmin(context.supabase);
+    return (await import("./save-spot-reminder-settings.server")).setReminderEnabled(data.enabled,context.userId);
+  });

@@ -21,6 +21,7 @@ import { Route as PortalRouteImport } from './routes/portal'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as QaAccessRouteImport } from './routes/qa-access'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as SaveSpotRouteImport } from './routes/save-spot'
 import { Route as Step3EmailPreviewRouteImport } from './routes/step3-email-preview'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedFieldRouteImport } from './routes/_authenticated/field'
@@ -178,6 +179,11 @@ const QaAccessRoute = QaAccessRouteImport.update({
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SaveSpotRoute = SaveSpotRouteImport.update({
+  id: '/save-spot',
+  path: '/save-spot',
   getParentRoute: () => rootRouteImport,
 } as any)
 const Step3EmailPreviewRoute = Step3EmailPreviewRouteImport.update({
@@ -745,6 +751,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/qa-access': typeof QaAccessRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/save-spot': typeof SaveSpotRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/field': typeof AuthenticatedFieldRouteWithChildren
@@ -857,6 +864,7 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/qa-access': typeof QaAccessRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/save-spot': typeof SaveSpotRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/home': typeof AuthenticatedHomeRoute
   '/eligibility/$token': typeof EligibilityTokenRoute
@@ -967,6 +975,7 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/qa-access': typeof QaAccessRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/save-spot': typeof SaveSpotRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/field': typeof AuthenticatedFieldRouteWithChildren
@@ -1081,6 +1090,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/qa-access'
     | '/reset-password'
+    | '/save-spot'
     | '/step3-email-preview'
     | '/admin'
     | '/field'
@@ -1193,6 +1203,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/qa-access'
     | '/reset-password'
+    | '/save-spot'
     | '/step3-email-preview'
     | '/home'
     | '/eligibility/$token'
@@ -1302,6 +1313,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/qa-access'
     | '/reset-password'
+    | '/save-spot'
     | '/step3-email-preview'
     | '/_authenticated/admin'
     | '/_authenticated/field'
@@ -1416,6 +1428,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   QaAccessRoute: typeof QaAccessRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  SaveSpotRoute: typeof SaveSpotRoute
   Step3EmailPreviewRoute: typeof Step3EmailPreviewRoute
   EligibilityTokenRoute: typeof EligibilityTokenRoute
   EstimateTokenRoute: typeof EstimateTokenRoute
@@ -1532,6 +1545,13 @@ declare module '@tanstack/react-router' {
       path: '/reset-password'
       fullPath: '/reset-password'
       preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/save-spot': {
+      id: '/save-spot'
+      path: '/save-spot'
+      fullPath: '/save-spot'
+      preLoaderRoute: typeof SaveSpotRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/step3-email-preview': {
@@ -2446,6 +2466,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   QaAccessRoute: QaAccessRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  SaveSpotRoute: SaveSpotRoute,
   Step3EmailPreviewRoute: Step3EmailPreviewRoute,
   EligibilityTokenRoute: EligibilityTokenRoute,
   EstimateTokenRoute: EstimateTokenRoute,
