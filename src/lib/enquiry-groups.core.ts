@@ -111,7 +111,10 @@ export function insulationOnly(audit: StoredAudit, declared: EnquiryInput["decla
   const rules = Array.isArray(audit?.rules) ? audit.rules : [];
   if (!rules.length) return { ok: false, why: "Screening reasons were not recorded", missing: false };
   const canonical = normaliseInsulation(declared ?? null);
-  if (canonical === "none") return { ok: false, why: "Owner declared no insulation – screening disagrees", missing: false };
+  if (canonical === "none") {
+    const open = rules.find((r) => r.result !== "pass" && r.result !== "info");
+    return { ok: false, why: open?.reason ? `Also open: ${open.reason}` : "Owner declared no insulation – screening disagrees", missing: false };
+  }
   if (canonical === null) return { ok: false, why: "Owner did not answer the insulation question", missing: true };
   const ins = rules.find((r) => r.key === "existing_insulation");
   if (!ins || ins.result !== "onsite") return { ok: false, why: "Existing-insulation check not recorded as open", missing: false };
