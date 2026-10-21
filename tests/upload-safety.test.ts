@@ -30,6 +30,7 @@ describe("upload safety (review A)", () => {
       expect(h["Content-Type"]).toBe("application/octet-stream"); expect(h["Content-Disposition"]).toStartWith("attachment"); expect(h["Content-Security-Policy"]).toStartWith("sandbox");
     }
     expect(servedFileHeaders("image/png", "p.png", false)["Content-Security-Policy"]).toStartWith("sandbox");
+    expect(servedFileHeaders("video/quicktime", "v.mov", false)["Content-Disposition"]).toStartWith("inline");
     expect(servedFileHeaders("image/png", "p.png", true)["Content-Disposition"]).toStartWith("attachment");
   });
 });
