@@ -32,7 +32,11 @@ export async function loadOfficeEnquiryPage(view: EnquiryPageView, search: strin
       .order('created_at', { ascending: false }).order('id', { ascending: true })
       .range((currentPage - 1) * 50, currentPage * 50 - 1);
     if (selected.error || !selected.data || selected.count !== total) throw new Error('Office review changed while loading. Refresh the list before taking action.');
-    result = { ...result, ids: selected.data.map(row => row.id), total, totalPages, page: currentPage, pageSize: 50 };
+    const ids = selected.data.map(row => {
+      if (!row.id) throw new Error('Invalid Office review record.');
+      return row.id;
+    });
+    result = { ...result, ids, total, totalPages, page: currentPage, pageSize: 50 };
   }
   const [details, { data: facts, error: factsError }] = await Promise.all([
     result.ids.length ? loadEnquiryGroups(result.ids) : Promise.resolve({ rows: [] }),

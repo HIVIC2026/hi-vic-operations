@@ -9,7 +9,9 @@ mock.module('../src/lib/enquiry-groups.server', () => ({ loadEnquiryGroups: asyn
 } }));
 mock.module('@/integrations/supabase/client.server', () => ({ supabaseAdmin: {
   rpc: async () => ({ data: { ids: ['test-id'], page: 1 }, error: null }),
-  from: () => ({ select: () => ({ in: () => ({ then: (resolve: (v: unknown) => unknown) => {
+  from: () => ({ select: (_fields: string, options?: { head?: boolean }) => options?.head ? {
+    eq() { return this; }, or() { return this; }, then(resolve: (v: unknown) => unknown) { return Promise.resolve(resolve({ count: 0, error: null })); },
+  } : ({ in: () => ({ then: (resolve: (v: unknown) => unknown) => {
     factsStarted = true;
     return Promise.resolve(resolve({ data: [{ id: 'test-id' }], error: failFacts ? { message: 'TEST denied' } : null }));
   } }) }) }),
