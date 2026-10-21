@@ -155,6 +155,7 @@ function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
   const [busy, setBusy] = useState<MediaReviewOutcome | null>(null);
   const [reason, setReason] = useState("");
   const [saved, setSaved] = useState<string | null>(null);
+  const [savedOutcome, setSavedOutcome] = useState<MediaReviewOutcome | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const act = async (outcome: MediaReviewOutcome) => {
     setBusy(outcome);
@@ -162,7 +163,9 @@ function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
     try {
       await review({ data: { jobId: row.id, outcome, reason } });
       setSaved(MEDIA_OUTCOME_LABEL[outcome]);
-      onDone();
+      setSavedOutcome(outcome);
+      // Keep the row open so the Save your spot email can be sent right here; refresh after that.
+      if (outcome !== "below_r2" && outcome !== "no_insulation") onDone();
     } catch (e) {
       setFailed(e instanceof Error ? e.message : "The review could not be saved.");
     } finally {
@@ -210,7 +213,14 @@ function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
               <p className="text-sm text-muted-foreground">No files found.</p>
             )}
           </div>
-          {saved ? (
+          {saved && (savedOutcome === "below_r2" || savedOutcome === "no_insulation") ? (
+            <div className="space-y-2">
+              <p role="status" className="text-sm font-semibold text-primary">Review saved: {saved}. Now send the Save your spot email:</p>
+              {savedOutcome === "below_r2"
+                ? <ExistingInsulationFollowup jobId={row.id} deliveryUncertain={uncertainAttempt(row.latestAttemptStatus)} onDone={onDone} />
+                : <NoInsulationFollowup jobId={row.id} deliveryUncertain={uncertainAttempt(row.latestAttemptStatus)} onDone={onDone} />}
+            </div>
+          ) : saved ? (
             <p role="status" className="text-sm font-semibold text-primary">
               Review saved: {saved}. No email has been sent — the next action now shows on this row.
             </p>
