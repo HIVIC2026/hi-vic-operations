@@ -136,7 +136,8 @@ test('unapplied page-facts proposal returns exact classifier facts without chang
     const { facts, ...unchanged } = after;
     expect(unchanged).toEqual(before[i]);
     const expected = await db.query(`SELECT ${columns} FROM office_enquiry_index WHERE id=ANY($1::uuid[]) ORDER BY created_at DESC,id ASC`, [after.ids]);
-    expect(facts).toEqual(JSON.parse(JSON.stringify(expected.rows)));
+    const normalise = (rows: Record<string, unknown>[]) => rows.map(row => ({ ...row, latest_attempt_at: row.latest_attempt_at ? new Date(String(row.latest_attempt_at)).toISOString() : null }));
+    expect(normalise(facts)).toEqual(normalise(expected.rows));
   }
   const permissions = await db.query<{ role: string; permitted: boolean }>(`SELECT role,has_function_privilege(role,'public.office_enquiry_page(text,text,integer)','EXECUTE') permitted FROM (VALUES ('anon'),('authenticated'),('service_role')) r(role)`);
   expect(permissions.rows).toEqual([{ role: 'anon', permitted: false }, { role: 'authenticated', permitted: false }, { role: 'service_role', permitted: true }]);
