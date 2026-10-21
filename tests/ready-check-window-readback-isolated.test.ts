@@ -100,3 +100,14 @@ test('window read errors fail closed rather than claiming success or replacing a
   await expect(readyCheckAcceptanceState(token)).rejects.toThrow('window read failed');
   expect(acceptanceInserts).toBe(1);
 });
+test('simultaneous identical first requests preserve one acceptance and one saved window set', async () => {
+  const picks = resetRequest();
+  const [first, duplicate] = await Promise.all([acceptReadyCheck(token, {}, picks), acceptReadyCheck(token, {}, picks)]);
+  expect(duplicate).toEqual(first); expect(acceptanceInserts).toBe(1);
+  expect(windows).toHaveLength(3); expect(events).toEqual(['ready_check_windows_chosen']);
+});
+test('normal booked round retains received status after losing windows close', async () => {
+  const picks = resetRequest(); await acceptReadyCheck(token, {}, picks);
+  windows = windows.map((row, i) => ({ ...row, status: i === 0 ? 'taken' : 'closed' }));
+  expect((await readyCheckAcceptanceState(token))?.acceptanceId).toBe('accepted-once');
+});
