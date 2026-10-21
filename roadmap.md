@@ -1,6 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Live portal health check (Jo, 21 Oct 01:04 UTC)
-- [ ] Read-only speed/errors/flows/mobile/data check of published site; report only, no changes.
+- [x] Read-only speed/errors/flows/mobile/data check of published site; report only, no changes.
 ## Adam optional evidence link (Jo, 20 Oct 07:30 UTC)
 - [x] Verified HV-2521 current link and consent; one authorised follow-up accepted by Joannah's Resend and recorded through admin logging with provider ID; stage/eligibility unchanged.
 - [x] Retained optional upload CTA for received-media outcome emails, missing-link fail-closed guard, 75 focused/regression tests and preview build pass; no publish.
