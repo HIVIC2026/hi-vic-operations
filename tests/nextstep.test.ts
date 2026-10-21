@@ -18,7 +18,7 @@ describe("one next-step rule", () => {
     expect(nextStep({ stage: "new_enquiry", eligibility_review_required: true, next_action: "Review required: Address ambiguous" }).next).toBe("Review eligibility");
   });
   test("ineligible and review override the stage", () => {
-    expect(nextStep({ stage: "ready_check_scheduled", eligibility_outcome: "does_not_appear_eligible" }).label).toBe("Ineligible");
+    expect(nextStep({ stage: "ready_check_scheduled", eligibility_outcome: "does_not_appear_eligible" }).label).toBe("Not eligible");
     expect(nextStep({ stage: "new_enquiry", eligibility_review_required: true }).label).toBe("Needs review");
   });
   test("every stage produces a label and a next step", () => {
@@ -45,5 +45,5 @@ describe("mismatch alarm", () => {
 import { nextStep as ns2 } from "../src/lib/nextstep.core";
 test("saved spot at preliminary estimate shows Spot saved", () => {
   expect(ns2({ stage: "preliminary_estimate_ready", eligibility_outcome: "likely_eligible", office_status: "spot_saved" }).label).toBe("Spot saved");
-  expect(ns2({ stage: "preliminary_estimate_ready", eligibility_outcome: "likely_eligible", office_status: "offered_spot" }).label).toBe("Preliminary Estimate Ready");
+  expect(ns2({ stage: "preliminary_estimate_ready", eligibility_outcome: "likely_eligible", office_status: "offered_spot" }).label).toBe("Estimate sent");
 });

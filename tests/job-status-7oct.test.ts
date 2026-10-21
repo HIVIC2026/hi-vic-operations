@@ -42,7 +42,7 @@ describe("trade job status line (Jo 7 Oct)", () => {
     expect(forViewer(jobStatusLine(base({ stage: "installation_scheduling", stageSince: daysAgo(1) })), "installer").who).toBe("You");
   });
   test("fix quote, office check, payment coming", () => {
-    expect(jobStatusLine(base({ stage: "awaiting_owner_rectification_approval", rectQuoteSentAt: "2026-10-04T01:00:00Z" })).text).toBe("Electrical fix quote awaiting owner approval · sent Sun 4 Oct · waiting 4 days · Owner");
+    expect(jobStatusLine(base({ stage: "awaiting_owner_rectification_approval", rectQuoteSentAt: "2026-10-04T01:00:00Z" })).text).toBe("Electrical fixes quote waiting for owner · sent Sun 4 Oct · waiting 4 days · Owner");
     expect(jobStatusLine(base({ stage: "ap_review", stageSince: "2026-10-07T01:00:00Z" })).text).toBe("Being checked by Home Insulation Victoria · since Wed 7 Oct");
     expect(jobStatusLine(base({ stage: "ready_for_veec", payout: { kind: "coming", on: "2026-10-24T01:00:00Z" } })).text).toBe("Payment coming Sat 24 Oct");
   });
