@@ -132,7 +132,7 @@ describe("Safety check payment status", () => {
   test("missing payment information is never presented as paid", () => {
     const s = safetyCheckPayState({ requiredAmount: null, invoicePaid: null, overrideCount: 0, qaSimulated: false });
     expect(s.kind).toBe("unknown");
-    expect(safetyCheckPayLabel(s, false)).toBe("Safety check payment to confirm");
+    expect(safetyCheckPayLabel(s, false)).toBe("PIESA payment to confirm");
     expect(safetyCheckPayNote(s, false)).toContain("No payment information yet");
   });
 
@@ -149,14 +149,14 @@ describe("Safety check payment status", () => {
     const rows = (p: Partial<StatusFacts>) => jobTimeline(facts(p)).find((r) => r.key === "safety_paid")!;
     // Unknown is never "paid": the step stays open and says so.
     expect(rows({ safetyPaidAt: "2026-10-18T01:00:00Z", safetyPay: { kind: "unknown" } }))
-      .toMatchObject({ label: "Safety check payment to confirm", state: "later" });
+      .toMatchObject({ label: "PIESA payment to confirm", state: "later" });
     // Real money closes the step.
     expect(rows({ safetyPaidAt: "2026-10-18T01:00:00Z", safetyPay: { kind: "paid", paidAt: "2026-10-18T01:00:00Z" } }))
       .toMatchObject({ label: "$349 paid", state: "done" });
     // An override keeps the step open and names itself.
     expect(rows({ safetyPay: { kind: "overridden", at: null } })).toMatchObject({ label: "Payment requirement overridden", state: "later" });
     expect(rows({ safetyPay: { kind: "unpaid" } })).toMatchObject({ label: "$349 due" });
-    expect(rows({ staff: true, safetyPaidAt: "2026-10-18T01:00:00Z", safetyPay: { kind: "paid", paidAt: "2026-10-18T01:00:00Z" } }).label).toBe("Safety check paid");
+    expect(rows({ staff: true, safetyPaidAt: "2026-10-18T01:00:00Z", safetyPay: { kind: "paid", paidAt: "2026-10-18T01:00:00Z" } }).label).toBe("PIESA paid");
   });
 
   test("the payment gate is unchanged: an override still clears it, with the same option", () => {

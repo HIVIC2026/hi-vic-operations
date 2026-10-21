@@ -1,6 +1,7 @@
 // ONE rule for "who has the ball" on a job: party, plain sentence, due time, overdue flag and the admin's next click.
 // Built on nextStep() so stage/next wording never drifts between screens. Pure (no I/O).
 import { nextStep, type NextStepInput } from "./nextstep.core";
+import { stageNext } from "./job-wording";
 
 export type Party = "Owner" | "Electrician" | "Installer" | "Home Insulation Victoria";
 export type AdminTab = "overview" | "eligibility" | "assessment" | "quotes" | "piesa" | "installation" | "evidence" | "authority" | "veec" | "messages";
@@ -61,12 +62,7 @@ const TAB: Record<string, AdminTab> = {
   rectification_scheduling: "piesa", rectification_booked: "piesa",
   installation_scheduling: "installation", installation_booked: "installation", evidence_outstanding: "evidence", ap_review: "evidence", ready_for_veec: "veec",
 };
-const ACTION: Record<string, string> = {
-  new_enquiry: "Review eligibility", eligibility_review: "Review eligibility", ready_check_ready_to_schedule: "Book the Ready Check", ready_check_complete: "Review measure-up",
-  measured_quote_accepted: "Open quote", piesa_and_install_window_pending: "Assign electrician", awaiting_electrician: "Assign electrician", piesa_complete: "Reconcile PIESA",
-  assessment_complete: "Review PIESA", rectification_required: "Review rectification", ready_for_installer_quotes: "Issue quotes", awaiting_deposit_payment: "Check deposit",
-  ap_review: "Do AP review", ready_for_veec: "Lodge VEECs", on_hold: "Resolve hold",
-};
+const ACTION: Record<string, string> = Object.fromEntries(["new_enquiry", "eligibility_review", "ready_check_ready_to_schedule", "ready_check_complete", "measured_quote_accepted", "piesa_and_install_window_pending", "awaiting_electrician", "piesa_complete", "assessment_complete", "rectification_required", "ready_for_installer_quotes", "awaiting_deposit_payment", "ap_review", "ready_for_veec", "on_hold"].map((k) => [k, stageNext(k)]));
 
 type Rule = { party: Party; who?: (f: WaitingFacts) => string; say: (f: WaitingFacts, who: string) => string; bookingKind?: "assessment" | "rectification" | "installation" | "ready_check"; due?: "tradeReply" | "owner" | "endOfBookingDay" | "bookingEnd" };
 const elec = (f: WaitingFacts) => f.electricianName ?? "the electrician";
@@ -75,19 +71,19 @@ const RULES: Record<string, Rule> = {
   preliminary_estimate_ready: { party: "Owner", say: () => "Waiting on the owner to book the free Ready Check.", due: "owner" },
   ready_check_awaiting_acceptance: { party: "Owner", say: () => "Waiting on the owner to accept the Ready Check.", due: "owner" },
   ready_check_awaiting_payment: { party: "Owner", say: () => "Waiting on the owner to book the free Ready Check.", due: "owner" },
-  ready_check_scheduled: { party: "Installer", who: inst, say: (_f, w) => `Waiting on ${w} to do the Ready Check and submit the measure-up.`, bookingKind: "ready_check", due: "endOfBookingDay" },
-  measured_estimate_ready: { party: "Owner", say: () => "Waiting on the owner to accept the measured estimate.", due: "owner" },
-  piesa_scheduled: { party: "Electrician", who: elec, say: (_f, w) => `Waiting on ${w} to do the onsite PIESA and submit results + rectification quote.`, bookingKind: "assessment", due: "endOfBookingDay" },
+  ready_check_scheduled: { party: "Installer", who: inst, say: (_f, w) => `Waiting on ${w} to do the Ready Check.`, bookingKind: "ready_check", due: "endOfBookingDay" },
+  measured_estimate_ready: { party: "Owner", say: () => "Waiting on the owner to accept the quote.", due: "owner" },
+  piesa_scheduled: { party: "Electrician", who: elec, say: (_f, w) => `Waiting on ${w} to do the PIESA.`, bookingKind: "assessment", due: "endOfBookingDay" },
   assessment_booking: { party: "Electrician", who: elec, say: (_f, w) => `Waiting on ${w} to propose a PIESA date to the owner.`, due: "tradeReply" },
-  assessment_booked: { party: "Electrician", who: elec, say: (_f, w) => `Waiting on ${w} to do the onsite PIESA and submit results + rectification quote.`, bookingKind: "assessment", due: "endOfBookingDay" },
-  electrical_variation_pending: { party: "Owner", say: () => "Waiting on the owner to approve the electrical variation.", due: "owner" },
-  awaiting_owner_rectification_approval: { party: "Owner", say: () => "Waiting on the owner to approve the rectification quote.", due: "owner" },
+  assessment_booked: { party: "Electrician", who: elec, say: (_f, w) => `Waiting on ${w} to do the PIESA.`, bookingKind: "assessment", due: "endOfBookingDay" },
+  electrical_variation_pending: { party: "Owner", say: () => "Waiting on the owner to approve the electrical fixes.", due: "owner" },
+  awaiting_owner_rectification_approval: { party: "Owner", say: () => "Waiting on the owner to approve the electrical fixes quote.", due: "owner" },
   awaiting_quote_acceptance: { party: "Owner", say: () => "Waiting on the owner to accept and sign the quote.", due: "owner" },
-  rectification_scheduling: { party: "Electrician", who: elec, say: (_f, w) => `Waiting on ${w} to arrange the rectification date with the owner.`, due: "tradeReply" },
-  rectification_booked: { party: "Electrician", who: elec, say: (_f, w) => `Waiting on ${w} to complete the rectification and upload sign-off.`, bookingKind: "rectification", due: "endOfBookingDay" },
+  rectification_scheduling: { party: "Electrician", who: elec, say: (_f, w) => `Waiting on ${w} to book the electrical fixes with the owner.`, due: "tradeReply" },
+  rectification_booked: { party: "Electrician", who: elec, say: (_f, w) => `Waiting on ${w} to do the electrical fixes.`, bookingKind: "rectification", due: "endOfBookingDay" },
   installation_scheduling: { party: "Installer", who: inst, say: (_f, w) => `Waiting on ${w} to lock in the install date with the owner.`, due: "tradeReply" },
-  installation_booked: { party: "Installer", who: inst, say: (_f, w) => `Waiting on ${w} to install and submit the PIISA + evidence.`, bookingKind: "installation", due: "endOfBookingDay" },
-  evidence_outstanding: { party: "Installer", who: inst, say: (_f, w) => `Waiting on ${w} to finish uploading install evidence.`, due: "tradeReply" },
+  installation_booked: { party: "Installer", who: inst, say: (_f, w) => `Waiting on ${w} to install and submit the PIISA and photos.`, bookingKind: "installation", due: "endOfBookingDay" },
+  evidence_outstanding: { party: "Installer", who: inst, say: (_f, w) => `Waiting on ${w} to upload the missing photos and PIISA.`, due: "tradeReply" },
 };
 
 export function waitingOn(job: NextStepInput, f: WaitingFacts): Waiting {
@@ -109,7 +105,7 @@ export function waitingOn(job: NextStepInput, f: WaitingFacts): Waiting {
     if (stage === "awaiting_deposit_payment") {
       if (f.depositRequestRaised) { parties = ["Owner"]; sentence = "Waiting on the owner to complete the approved payment option (deposit request sent from Xero)."; label = "Check deposit"; }
       else { sentence = "Home Insulation Victoria to action: raise the deposit request in Xero, then record it here."; label = "Record deposit request"; }
-    } else if (ns.waitingOn === "AP") sentence = `Home Insulation Victoria (AP) to action: ${ns.next}`;
+    } else if (ns.waitingOn === "AP") sentence = `Home Insulation Victoria to action: ${ns.next}`;
     out = { ...base, parties, sentence, action: { label, tab: job.eligibility_review_required ? "eligibility" : tab } };
     if (parties[0] === "Home Insulation Victoria" && f.stageEnteredAt) setDue(out, addH(f.stageEnteredAt, cfg.tradeExceptionHours), f.now, addH(f.stageEnteredAt, cfg.tradeWarnHours), "Target");
     if (parties[0] === "Owner" && f.stageEnteredAt) setDue(out, addH(f.stageEnteredAt, cfg.ownerFlagDays * 24), f.now, addH(f.stageEnteredAt, cfg.ownerReminderDays * 24), "Follow up by");

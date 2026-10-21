@@ -14,11 +14,9 @@
 - Office saved headlines share campaign cache. Office review count/paging shares one SELECT-only photos/exception predicate excluding offers; Removed is hidden, history retained; 0216 preserved. Why: exact totals, no duplicated piles or customer changes.
 - Save My Spot reminders use own active estimate links, stored offer/attempt timestamps on spot_offered enquiries, shared phone/job claims and reminder-only activation; encrypted links POST through canonical save. Why: decouple email URL matching without weakening other guards.
 - Incoming reset credentials bind Save to the verified user; old sessions never satisfy links. Office TEST handover uses exact QA preflight and a private download. Why: no cross-account access or public credential files.
-- Installer/REC contracts use canonical sections, signing versions and shared versioned Schedule 4 in review/signing; retain prior activatable versions and stored-text historic PDFs. Why: new terms bind exact signatures without rewriting history or revoking approvals.
 - Staff labels/disclosure targets use pure `src/lib/portal-presentation.core.ts`, never workflow or eligibility decisions. Why: presentation must not duplicate domain rules.
 - Read nested `AGENTS.md` before changing subdirectories, including `src/lib` domain rules and `scripts` QA rules. Why: keeps scoped rules local.
 - Server functions are literal `createServerFn(...).middleware(...).inputValidator(...).handler(...)` chains; never import `@tanstack/react-start/server` in `*.functions.ts`. Why: factories/that import break the client bundle.
-- Core/server/functions split keeps guards testable; job previews use approved emails and stored facts via SELECT-only admin reads, never retired copy or customer activity.
 - Test Centre jobs start `source='qa_test'`, bypassing post-intake. Why: no live automation.
 - `/` on every host and `/calculator` serve the same current public calculator; staff sign in at `/auth`. Secure estimates never embed the retired what-if calculator or track calculator use. Why: preserve customer links and one calculator without obsolete variants.
 - The server entry detaches GET/HEAD rendering requests from the local adapter's socket-owned abort signal; keep mutation requests unchanged. Why: cancelled preview navigation must not throw after response close and blank the page.
@@ -31,5 +29,4 @@
 - Office operations categories and compact job status reuse the operations read classifier and one shared Query cache; legacy preview remains direct-link. Why: unique counts and factual precedence must agree without navigation polling.
 - Installer Add job shares CustomerFields and guarded import handlers; legacy bookmarks redirect there. Quote-removal events stay separate from measured facts; `intake-quote-details.core.ts` validates shared quote inputs. Why: one intake, no double counting.
 - Portal QA = `bun run portal-qa` only; gaps NOT_RUN, never PASS. Why: honest bounded checks.
-- The /admin board places jobs by the facts-based office classifier (`board-phase.core.ts` via `getBoardStages`), never the stored stage alone. Why: stored Ready Check stages without a real Ready Check must not appear in Ready Check.
 - QA scripts resolve server-function IDs from the target's served dev transform or served compiled client (`scripts/qa-serverfn-resolve.ts`); unresolved = diagnostic failure, never a permission result. Office bulk lookups by job id are batched. Why: guessed IDs gave 500s and one all-ids URL stalled Office reads for minutes.

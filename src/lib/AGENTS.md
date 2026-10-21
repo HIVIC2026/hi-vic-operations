@@ -212,3 +212,8 @@ Locked rules:
 
 - Mitti saved-form health: unreadable definitions report `schema: "unreadable"` (never missing questions); a native-A3 PIISA is checked with `a3MissingFields`; results record `schemaBasis`. Why: issue counts must not be mistaken for proven absent questions.
 - TEST access preparation and worker validation use the schema's ordinary `member` membership; only business owners use `business_admin`. Practice fixtures enforce the same membership CHECK. Why: QA must respect live permissions rather than inventing a field-worker database role.
+
+- Installer/REC contracts use canonical sections, signing versions and shared versioned Schedule 4 in review/signing; retain prior activatable versions and stored-text historic PDFs. Why: new terms bind exact signatures without rewriting history or revoking approvals.
+- Core/server/functions split keeps guards testable; job previews use approved emails and stored facts via SELECT-only admin reads, never retired copy or customer activity.
+- The /admin board places jobs by the facts-based office classifier (`board-phase.core.ts` via `getBoardStages`), never the stored stage alone. Why: stored Ready Check stages without a real Ready Check must not appear in Ready Check.
+- All job status words (stage tags, next steps, owner/trade lines, office situation labels) come from `src/lib/job-wording.ts`; older label maps are thin wrappers and `STORED_NEXT_ACTION` keeps the legacy stored jobs.next_action text unchanged. Why: identical words on every screen without changing waitingOn() or stored data.

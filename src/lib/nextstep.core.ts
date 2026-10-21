@@ -1,6 +1,7 @@
 // ONE rule for what every screen shows as a job's stage tag, next step and who it waits on.
 // Derived from the stage + Gate 1 state only; stored free-text next_action is never displayed as the step.
-import { DEFAULT_NEXT_ACTION, STAGE_LABEL, waitingOn, type Stage, type WaitingOn } from "./workflow";
+import { waitingOn, type Stage, type WaitingOn } from "./workflow";
+import { stageWording, ELIGIBILITY_WORDS } from "./job-wording";
 
 export type NextStepInput = {
   stage: string | null | undefined;
@@ -17,19 +18,15 @@ const EARLY = ["new_enquiry", "eligibility_review"];
 
 export function nextStep(j: NextStepInput): NextStep {
   const stage = (j.stage ?? "new_enquiry") as Stage;
-  if (stage === "complete") return { label: STAGE_LABEL.complete, next: "No action", waitingOn: null, tone: "good" };
-  if (stage === "cancelled") return { label: STAGE_LABEL.cancelled, next: "No action", waitingOn: null, tone: "bad" };
-  if (stage === "on_hold") return { label: STAGE_LABEL.on_hold, next: j.hold_reason ? `Resolve hold: ${j.hold_reason}` : "Resolve hold", waitingOn: "Home Insulation Victoria", tone: "bad" };
-  if (j.eligibility_review_required) {
-    const reason = j.next_action?.startsWith("Review required") ? j.next_action : "Review required: resolve the flagged Gate 1 checks";
-    return { label: "Review required", next: reason, waitingOn: "Home Insulation Victoria", tone: "warn" };
-  }
-  if (j.eligibility_outcome === "does_not_appear_eligible") return { label: "Ineligible", next: "Send ineligible result, then retain on hold", waitingOn: "Home Insulation Victoria", tone: "bad" };
-  const eligible = ["likely_eligible", "needs_onsite_confirmation"].includes(j.eligibility_outcome ?? "");
-  if (eligible && EARLY.includes(stage)) return { label: "Ready Check needed", next: "Arrange the free installer Ready Check (or approve the installer's measure-up)", waitingOn: "Home Insulation Victoria", tone: "brand" };
-  if (EARLY.includes(stage)) return { label: STAGE_LABEL[stage], next: DEFAULT_NEXT_ACTION[stage], waitingOn: "Home Insulation Victoria", tone: "brand" };
-  if (stage === "preliminary_estimate_ready" && j.office_status === "spot_saved") return { label: "Spot saved", next: "Owner saved their spot – book the free Ready Check when capacity allows", waitingOn: "Home Insulation Victoria", tone: "good" };
-  return { label: STAGE_LABEL[stage] ?? stage, next: DEFAULT_NEXT_ACTION[stage] ?? "Review this job", waitingOn: waitingOn(stage, null), tone: stage === "awaiting_deposit_payment" ? "warn" : "brand" };
+  const w = stageWording(stage, { spotSaved: stage === "preliminary_estimate_ready" && j.office_status === "spot_saved" });
+  if (stage === "complete") return { label: w.tag, next: w.next, waitingOn: null, tone: "good" };
+  if (stage === "cancelled") return { label: w.tag, next: w.next, waitingOn: null, tone: "bad" };
+  if (stage === "on_hold") return { label: w.tag, next: j.hold_reason ? `${w.next}: ${j.hold_reason}` : w.next, waitingOn: "Home Insulation Victoria", tone: "bad" };
+  if (j.eligibility_review_required) return { label: ELIGIBILITY_WORDS.review, next: "Review eligibility", waitingOn: "Home Insulation Victoria", tone: "warn" };
+  if (j.eligibility_outcome === "does_not_appear_eligible") return { label: ELIGIBILITY_WORDS.does_not_appear_eligible, next: "Send not eligible email", waitingOn: "Home Insulation Victoria", tone: "bad" };
+  if (EARLY.includes(stage)) return { label: w.tag, next: w.next, waitingOn: "Home Insulation Victoria", tone: "brand" };
+  if (w.tag === "Spot saved" && stage === "preliminary_estimate_ready") return { label: w.tag, next: w.next, waitingOn: "Home Insulation Victoria", tone: "good" };
+  return { label: w.tag, next: w.next, waitingOn: waitingOn(stage, null), tone: stage === "awaiting_deposit_payment" ? "warn" : "brand" };
 }
 
 /** Stage vs records mismatches. Anything returned is shown on To action as "Stage doesn't match records". */

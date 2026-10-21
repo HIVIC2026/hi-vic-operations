@@ -244,7 +244,7 @@ export const STATUS_LABEL: Record<EnquiryStatus, string> = {
   spot_saved: "Spot saved",
   offered_spot: "Email sent – offering spot",
   insulation_requested: "Email sent – insulation details needed",
-  ineligible: "Ineligible",
+  ineligible: "Not eligible",
   needs_attention: "Needs attention",
 };
 /** Exactly one office outcome. Unsent results are exceptions, never a normal waiting queue. */

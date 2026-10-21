@@ -184,11 +184,11 @@ export function safetyCheckPayState(i: SafetyCheckPayInput): SafetyCheckPayState
 /** Timeline/step wording. `staff` hides amounts from non-owner staff logins, as before. */
 export function safetyCheckPayLabel(s: SafetyCheckPayState, staff: boolean): string {
   switch (s.kind) {
-    case "paid": return staff ? "Safety check paid" : "$349 paid";
+    case "paid": return staff ? "PIESA paid" : "$349 paid";
     case "overridden": return "Payment requirement overridden";
     case "test_simulated": return "TEST payment (simulated)";
-    case "unpaid": return staff ? "Safety check payment due" : "$349 due";
-    case "unknown": return staff ? "Safety check payment to confirm" : "Safety check payment to confirm";
+    case "unpaid": return staff ? "PIESA payment due" : "$349 due";
+    case "unknown": return staff ? "PIESA payment to confirm" : "PIESA payment to confirm";
   }
 }
 
