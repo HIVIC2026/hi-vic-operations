@@ -74,7 +74,7 @@ export const PRICING_FIELDS: FormField[] = [
   { label: "Total quoted price (inc GST)", type: "number", required: true, source: "portal – one total incl GST; becomes the installer line on the owner's co-branded quote" },
 ];
 
-const READY_CHECK_TITLE = "Home Insulation Victoria | Ready Check – Eligibility & Ready Check (Installer)";
+const READY_CHECK_TITLE = "Home Insulation Victoria | Ready Check – Eligibility & Measure-up (Installer)";
 
 /** Shared evidence fields for both Ready Check variants (A1 installer-sourced, A2 HI VIC-sourced).
  *  Aliases cover the exact wording of both live Mitti templates (A1 `template_01ee…`, A2 `template_aafa…`),
@@ -83,13 +83,13 @@ const READY_CHECK_FIELDS: FormField[] = [
       // 1. Check the job details (portal-prefilled; installer confirms)
       { label: "Portal Job Number", type: "text", required: true, prefill: true, source: "portal" },
       { label: "Site address", type: "text", required: true, prefill: true, source: "portal" },
-      { label: "Owner name", type: "text", required: true, prefill: true, aliases: ["Owner name"], source: "portal" },
+      { label: "Owner name", type: "text", required: true, prefill: true, aliases: ["Homeowner name"], source: "portal" },
       { label: "Property type", type: "choice", required: true, prefill: true, choices: ["House", "Townhouse", "Unit or apartment"], types: ["text"], source: "portal – prefilled from enquiry; portal derives building class (House/Townhouse = Class 1, Unit = Class 2 sole-occupancy unit)" },
       { label: "Office life support result", type: "text", required: true, prefill: true, aliases: ["Life support equipment at property?"], source: "portal – office screening result; display only, never re-asked" },
       { label: "Are these details correct?", type: "choice", required: true, choices: ["Yes", "No"], aliases: ["Are the property details provided above correct?"], source: "portal – installer confirms prefilled details" },
       { label: "What needs correcting?", type: "text", required: true, when: "No", aliases: ["What needs to be corrected?"], source: "portal – corrections go to the office" },
       // 2. Getting into the ceiling
-      { label: "Assessor", type: "text", required: true, prefill: true, source: "portal – person doing the Ready Check" },
+      { label: "Assessor", type: "text", required: true, prefill: true, source: "portal – person doing the measure-up" },
       { label: "Installer photo at front of premises with photo ID", type: "media", required: false, source: `${G} Table 4 – the installer-sourced A1 form collects it at installation instead` },
       { label: "Roof type", type: "choice", required: true, choices: ["Tiles", "Metal sheet", "Other"], aliases: ["What type of roof does the home have?"], source: "portal – site context for the install crew" },
       // A1 has no separate "Other" detail question for the roof; the office sees the parsed report on review.
@@ -144,7 +144,7 @@ export const FORMS: Record<FormKey, { title: string; role: "installer" | "electr
   },
   // Short onsite forms (approved 3 Oct 2026): clear full-sentence questions. The portal expands the answers
   // into every official Word-form item (official-expand.core.ts) and fills the official document itself.
-  piesa: { title: "VEU Pre Insulation Electrical Safety Assessment (PIESA) form", role: "electrician", fields: [...SHORT_PIESA_FIELDS, ...PIESA_SUPPLEMENTAL] },
+  piesa: { title: "VEU pre-installation electrical safety assessment form", role: "electrician", fields: [...SHORT_PIESA_FIELDS, ...PIESA_SUPPLEMENTAL] },
   piisa: { title: "VEU pre-installation installer safety assessment form", role: "installer", fields: [...SHORT_PIISA_FIELDS.slice(0, -3), ...PIISA_DECLARATION_FIELDS, ...SHORT_PIISA_FIELDS.slice(-3), ...PIISA_SUPPLEMENTAL] },
 };
 
@@ -308,7 +308,7 @@ export function mittiAiPrompt(key: FormKey): string {
     key === "ready_check" || key === "ready_check_priced" ? `- For "Upgrade area diagram or floor plan": allow the installer to DRAW the diagram inside the form (sketch/drawing input), photograph a paper sketch, or upload a plan. Help text: "Rough is fine. Draw the house shape, split it into the areas you measured, write the length and width on each, take a photo, done."` : "",
     key === "ready_check" || key === "ready_check_priced" ? `- Extras section: "Are any extras needed beyond the standard install and removal?" is a Yes/No question. When Yes, show and require "Describe each extra and why it is needed" and "Photos of each extra" (Mitti logic on the Yes answer). Help text on the Yes/No: "Anything beyond your agreed install and removal rates - for example tile lift, metal-sheet access or difficult access. The office prices these; do not add a price here."` : "",
     rowGroups.length ? `- Build each repeating table (${rowGroups.join(", ")}) as a repeatable section with exactly the listed columns, limited to the listed number of rows.` : "",
-    key === "piesa" ? "- Section C fields are completed after electrical fixes and are shown only when the B1 answer is \"electrical fixes work is required before insulation is installed or upgraded.\"" : "",
+    key === "piesa" ? "- Section C fields are completed after rectification and are shown only when the B1 answer is \"Electrical rectification work is required before insulation is installed or upgraded.\"" : "",
     key === "piesa" || key === "piisa" ? "- If \"Is anyone at this property dependent on life support?\" is Yes, the consent/medical-plan question and attachment are required; if neither was received, the assessment must not proceed (add an instruction saying: STOP – do not start the assessment. Call the Home Insulation Victoria office.)." : "",
     "- Order the fields exactly as listed.",
     "",
