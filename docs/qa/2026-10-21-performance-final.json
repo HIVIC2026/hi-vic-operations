@@ -22031,5 +22031,82 @@
       "skipped": 1,
       "log": "/tmp/browser/performance-final/pricing.log"
     }
+  },
+  "root_index_completion_2026_10_21_0302": {
+    "attribution": "Root-provided supporting evidence; not assistant-run SQL diagnostics or PGlite tests",
+    "scope_jobs": 1523,
+    "sequential_scan_loops_per_node": 1523,
+    "repeated_scan_nodes": {
+      "documents": 2,
+      "evidence_files": 2
+    },
+    "reported_live_sizes": {
+      "documents": {
+        "rows": 999,
+        "bytes": 811008
+      },
+      "evidence_files": {
+        "rows": 322,
+        "bytes": 303104
+      }
+    },
+    "reported_timings_ms": {
+      "seven_column_facts": 558,
+      "proposed_combined_rpc": 874,
+      "per_node_timing": "OFF"
+    },
+    "root_practice": {
+      "engine": "PGlite 0.5.9",
+      "synthetic_rows": {
+        "documents": 999,
+        "evidence_files": 322
+      },
+      "result": "PASS (root-provided, not rerun)",
+      "checks": [
+        "row/all-column hashes unchanged",
+        "nine query results unchanged",
+        "columns/privileges/RLS unchanged",
+        "valid nonunique btrees",
+        "idempotent apply",
+        "rollback",
+        "targeted intake-media/UNION plans use indexes"
+      ],
+      "caveat": "Small full evidence-history SELECT* retains Seq Scan; no universal history latency claim"
+    },
+    "staged_files": [
+      {
+        "path": "docs/pending-migrations/perf-enquiry-media-job-idx.sql",
+        "sha256": "9ae9718a3b2a4aecb6fcbe3132ec658914be076263bf64ca2c44776ab2873be7"
+      },
+      {
+        "path": "docs/pending-migrations/perf-enquiry-media-job-idx.rollback.sql",
+        "sha256": "e8ea214f053b4bb30f8b7623d60843e23506b69886610e728dac832afff1d9ee"
+      }
+    ],
+    "applied": false,
+    "drizzle_journal_changed": false,
+    "rollback_requirement": "Drop each named index only with recorded pre-apply absence and evidence it was newly created by this proposal; do not drop pre-existing skipped indexes",
+    "blockers": [
+      "Recoverable completed backup/PITR not exposed or verified",
+      "Live apply requires user notice/authority",
+      "Same query/page benchmark required after authorised apply"
+    ],
+    "reported_live_max_migration_id": 159,
+    "live_baseline_verified_here": false,
+    "old_applied_manually_149": "stale root-reported documentation; not used to edit journal",
+    "new_tests_run": false,
+    "reused_canonical_counts": {
+      "passed": 179,
+      "failed": 0,
+      "not_run": 83
+    },
+    "matched_cold_first_visit": "Unavailable; no cold/warm equivalence claim",
+    "clarification_changed_files": [
+      "docs/pending-migrations/perf-enquiry-media-job-idx.sql",
+      "docs/pending-migrations/perf-enquiry-media-job-idx.rollback.sql",
+      "docs/qa/2026-10-21-performance-final.md",
+      "docs/qa/2026-10-21-performance-final.json",
+      "roadmap.md"
+    ]
   }
 }
