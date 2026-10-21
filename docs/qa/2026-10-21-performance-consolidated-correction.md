@@ -6,7 +6,7 @@ QA ran only on preview `http://localhost:8080`; no publication, live DDL, sends,
 
 Historical82/0/114 and179/0/83 report counts remain historical execution totals, **not completed 87-family/control coverage**. The earlier34 targets×2 viewports and6 disclosure-click records did not prove490 unexecuted controls. Later1472 button instances likewise were unexecuted, not inherently blocked or passed. The consolidated JSON derives coverage solely from actual requested URL, loaded final URL, normalized route family, TEST role and viewport. Parameterized HV-2111 correctly maps to `/admin/jobs/$jobId`; planned targets, invalid tokens, auth/loading screens and wrong redirects do not count.
 
-Current generated source has87 normalized UI families; **`/admin/job-queue` is absent both from routeTree and route files**. Explicit Office desktop/390×844 probes failed to find loaded queue content. No new route was invented in this QA-only task. `/admin/list?test=true` loaded on desktop but has confirmed phone horizontal overflow; left unchanged and FAIL, not hidden. Other canonical failures were QA marker/disclosure ambiguity corrected by targeted retries; originals remain recorded.
+Current generated source has87 normalized UI families; **`/admin/job-queue` is obsolete QA inventory, not a product defect**: its only reference is the planned target in `scripts/portal-qa.ts`; no current route or visible navigation points there. Historical failed probes remain recorded, but no page or replacement link is invented. The confirmed `/admin/list?test=true` phone overflow is now fixed and verified by the narrow completion below. Other canonical failures were QA marker/disclosure ambiguity corrected by targeted retries; originals remain recorded.
 
 ## Affected canonical runs only
 
@@ -27,7 +27,7 @@ Office Ready Check invitations and Prices/margins loaded both viewports; configu
 
 ## Remaining NOT_RUN and failures
 
-- `/admin/job-queue`: absent current source; both explicit probes FAIL. Queue controls cannot be exercised without a real route. `/admin/list` phone overflow FAIL. No app changes made to conceal these findings.
+- Historical queue probes and list overflow remain in raw evidence; current classification is obsolete queue inventory and verified fixed phone overflow, respectively. Neither requires another broad crawl.
 - Ordinary installer staff: no approved existing isolated staff session in supplied sessions, no role/account changes permitted. Business-owner access verified only; not ordinary-staff permission coverage.
 - Offer happy path and private document rendering: no exact safe accessible TEST offer/private-file fixture established. Native section/disclosure inspection does not prove signed-file rendering. No arbitrary storage path signing or provider action.
 - Save My Spot first save/refresh/duplicate tap, current FREE Ready Check request with3–5 persisted allowed windows over3 Melbourne business days, provider-zero and full restoration: no complete reversible reserved-contact/consent/token/TEST-business fixture proved. Existing active trade fixture is not owner authorization. Isolated tests remain isolated, not live booking proof.
@@ -75,3 +75,13 @@ The public owner-code path could create an isolated owner without mail, but does
 **Root-reported authorized live cleanup:** 11 confirmed-ineligible old jobs cancelled, eight legacy cancelled fakeexample.com TEST jobs recoverably deleted, 19 audit events and zero email attempts. These writes were completed by root and not repeated here; exact root audit-event/email counts are attributed, not independently reconstructed. HV-2648 independently remains `base44`, nondeleted and unarchived. The 641 held follow-ups, prices, copy, permissions and communication switches remain untouched by this agent. Backup still NOT verified; proposed indexes remain unapplied. No publication or migration.
 
 Requested Partners metadata removal was not performed: route-level `og:type` and `twitter:card` are mandatory project requirements. Existing head metadata and the phone layout remain unchanged.
+
+## Narrow phone-list completion (21 Oct, observed after 03:34 UTC)
+
+**PASS: `/admin/list?test=true` at 390×844 and 1280×1800**, local preview with the existing approved TEST Office session. Only this page was exercised; no broad suite repeated. All 1,519 loaded rows and eight columns remain. The existing table wrapper now establishes the containing block for the visually hidden Delete heading, which previously escaped the scroll container and inflated the page to 664px on a 390px phone. No columns, functions, prices or customer words changed.
+
+Phone page `scrollWidth=390`; table viewport 356px, content 720px, tested horizontal offset 364px with the rightmost Delete controls visible/enabled. Desktop page `scrollWidth=1280`; table viewport/content 1226px. Phone More menu opened, displayed its Office links and closed; Pipeline link retains `/admin/pipeline`. Job links and Delete controls remain present; no real job navigation or delete/save action was executed. Screenshots inspected; zero page/console errors, failed list-page requests or HTTP errors on both sizes. One earlier auth-page script cancellation during navigation was isolated from page errors and resolved by waiting for auth-page readiness, not swallowed. Preview build signal: build OK at 03:31:57 UTC.
+
+Evidence: `/tmp/browser/list-phone/results.json`, `after-390.png`, `after-1280.png`. Current source search finds `/admin/job-queue` only in the obsolete QA planned target; no current visible link needs changing.
+
+**Cleanup totals reused from verified prior readback: 437 archived / zero active TEST jobs**; 131 archived by this agent, 14 subsequently archived outside that run, with previously archived records retained. No additional cleanup writes or new owner fixture here. The owner SaveSpot/FREE/window/confirmed-booking flow remains NOT_RUN because the approved helper would alter an existing worker membership; 218 historical assignment rows remain the separately guarded cleanup exception. Root's 11 real ineligible cancellations and eight recoverable legacy deletions are attributed above, not duplicated. No sends, publication, migrations or real customer edits in this completion.

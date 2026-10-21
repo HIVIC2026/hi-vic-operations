@@ -53864,10 +53864,7 @@
     "docs/qa/2026-10-21-performance-addendum.md"
   ],
   "historical_count_caveat": "179/0/83 and82/0/114 are historical totals, not full coverage",
-  "unresolved_failures": [
-    "/admin/job-queue absent source; desktop/phone probes have no loaded queue",
-    "/admin/list?test=true phone overflow"
-  ],
+  "unresolved_failures": [],
   "blockers": [
     "ordinary staff session unavailable",
     "private TEST file/offer fixture not established",
@@ -56287,5 +56284,73 @@
     "email_attempts": 0,
     "status": "root-reported completed live; not duplicated by this agent",
     "independently_verified_exact_root_event_counts": false
+  },
+  "narrow_phone_list_completion": {
+    "target": "local preview http://localhost:8080/admin/list?test=true",
+    "observed_after_utc": "2026-10-21T03:34:00Z",
+    "results": [
+      {
+        "viewport": [
+          390,
+          844
+        ],
+        "target": "http://localhost:8080/admin/list?test=true",
+        "final_path": "/admin/list?test=true",
+        "table_rows": 1519,
+        "columns": 8,
+        "page": {
+          "width": 390,
+          "scrollWidth": 390
+        },
+        "table_scroll": {
+          "clientWidth": 356,
+          "scrollWidth": 720,
+          "scrollLeft": 364
+        },
+        "row_controls": 1519,
+        "pipeline_href": "/admin/pipeline",
+        "errors": [],
+        "failed_requests": [],
+        "http_errors": [],
+        "mutations_exercised": false
+      },
+      {
+        "viewport": [
+          1280,
+          1800
+        ],
+        "target": "http://localhost:8080/admin/list?test=true",
+        "final_path": "/admin/list?test=true",
+        "table_rows": 1519,
+        "columns": 8,
+        "page": {
+          "width": 1280,
+          "scrollWidth": 1280
+        },
+        "table_scroll": {
+          "clientWidth": 1226,
+          "scrollWidth": 1226,
+          "scrollLeft": 0
+        },
+        "row_controls": 1519,
+        "pipeline_href": "/admin/pipeline",
+        "errors": [],
+        "failed_requests": [],
+        "http_errors": [],
+        "mutations_exercised": false
+      }
+    ],
+    "fix": "Existing table scroll wrapper establishes containing block for absolute visually-hidden heading; min-width/maximum-width containment added. No columns/functions/words changed.",
+    "queue_inventory": "Obsolete planned target only in scripts/portal-qa.ts; no current source route or visible navigation reference. Historical probe failures preserved.",
+    "controls": "More menu open/close verified on phone; horizontal table scroll verified; Pipeline href inspected. Delete/job links present, mutation actions NOT_RUN.",
+    "historical_cleanup_reused": {
+      "total_archived": 437,
+      "active": 0,
+      "agent_archived": 131,
+      "later_archived_outside_agent_run": 14,
+      "historical_active_assignment_exception": 218
+    },
+    "live_owner_flow": "NOT_RUN: existing preparation would change existing worker membership; no new fixture created",
+    "no_sends_publication_migration_or_real_edits": true
   }
 }
