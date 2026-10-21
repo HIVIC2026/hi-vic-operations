@@ -234,7 +234,7 @@ export async function launchCampaignOffice() {
     sendingLocked: !LAUNCH_COPY_APPROVED,
     batchSize: LAUNCH_BATCH_SIZE,
     counts: {
-      ...campaignSendCounts(sends ?? []),
+      ...campaignSendCounts((sends ?? []).map((s) => ({ status: s.status, idempotency_key: s.idempotency_key, source: (s.jobs as { source: string | null } | null)?.source ?? null }))),
       sent: count(sends, "status", "sent") + count(sends, "status", "delivered_unrecorded"), opened: count(events, "event_type", "email_opened"),
       spotSaved: (rows ?? []).filter((r) => r.spot_saved_at && !r.opted_out_at).length, optedOut: (rows ?? []).filter((r) => r.opted_out_at).length,
       videosUploaded: (rows ?? []).filter((r) => r.media_received_at).length,
