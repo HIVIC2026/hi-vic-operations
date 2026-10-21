@@ -21,7 +21,7 @@ export function qaWorkflowFixtureBlocker(f: QaContactFixture): string | null {
 
 export type WindowProof = {
   picks: PiesaWindowPick[];
-  saved: { starts_at: string; ends_at: string | null; status: string; purpose: string; round: number }[];
+  saved: { starts_at: string; ends_at: string | null; status: string; round: number }[];
   round: number;
   checkedJobId: string;
   expectedJobId: string;
@@ -34,7 +34,7 @@ export type WindowProof = {
 export function readyCheckWindowProofBlocker(p: WindowProof, now: Date): string | null {
   if (!p.readsOk || !p.expectedJobId || p.checkedJobId !== p.expectedJobId) return 'checked same-job readback required';
   if (piesaWindowBlockers(p.picks, now).length) return '3–5 allowed windows on at least three Melbourne business days required';
-  const saved = p.saved.filter(w => w.purpose === 'ready_check' && w.round === p.round && w.status === 'available');
+  const saved = p.saved.filter(w => w.round === p.round && w.status === 'open');
   const expected = p.picks.map(w => windowBounds(w.date, w.slot));
   if (saved.length !== expected.length || new Set(saved.map(w => `${w.starts_at}/${w.ends_at}`)).size !== expected.length || expected.some(w => !saved.some(s => s.starts_at === w.starts_at && s.ends_at === w.ends_at))) return 'exact persisted allowed windows not read back';
   if (p.events.some(e => /windows_not_saved|advance_blocked/.test(e))) return 'booking failure event recorded';

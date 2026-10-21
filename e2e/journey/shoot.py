@@ -49,6 +49,7 @@ async def main(manifest_path):
                 started = time.monotonic()
                 controls = []
                 overflow = False
+                landed_path = None
                 try:
                     await page.goto(m["base"] + s["path"], wait_until="domcontentloaded", timeout=15000)
                     try:
@@ -60,6 +61,7 @@ async def main(manifest_path):
                     if "/auth" in page.url and s["persona"] not in ("public", "owner_token"):
                         ok, detail = False, f"{detail}: bounced to sign-in"
                     landed = urlparse(page.url)
+                    landed_path = landed.path
                     if s.get("expectedPath") and landed.path != s["expectedPath"]:
                         ok, detail = False, f'{detail}: landed on "{landed.path}", expected "{s["expectedPath"]}"'
                     for key, value in (s.get("expectedSearch") or {}).items():
@@ -95,7 +97,7 @@ async def main(manifest_path):
                 except Exception as e:
                     ok, detail = False, f"{detail}: {str(e)[:200]}"
                 await page.screenshot(path=str(shots / name))
-                results.append({"step": s["step"], "ok": ok, "detail": detail if not ok else f"{detail} render checks ok; controls listed separately", "shots": [str(shots / name)], 'viewport': {'width': width, 'height': 844 if width == 390 else 1800}, 'elapsed_ms': round((time.monotonic()-started)*1000), 'page_errors': errors, 'console_errors': console_errors, 'failed_requests': failed_requests, 'navigation_aborts': navigation_aborts, 'http_errors': http_errors, 'overflow': overflow, 'controls': controls})
+                results.append({"step": s["step"], "requested_path": s["path"], "landed_path": landed_path, "ok": ok, "detail": detail if not ok else f"{detail} render checks ok; controls listed separately", "shots": [str(shots / name)], 'viewport': {'width': width, 'height': 844 if width == 390 else 1800}, 'elapsed_ms': round((time.monotonic()-started)*1000), 'page_errors': errors, 'console_errors': console_errors, 'failed_requests': failed_requests, 'navigation_aborts': navigation_aborts, 'http_errors': http_errors, 'overflow': overflow, 'controls': controls})
                 partial = out / '.browser.tmp.json'
                 partial.write_text(json.dumps(results))
                 partial.replace(out / '.browser.json')

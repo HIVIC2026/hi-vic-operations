@@ -21,7 +21,7 @@ const LABEL = arg("--label", "manual");
 const BASE = arg("--base", "http://localhost:8080");
 const OFFICE_ONLY = process.argv.includes("--office-only");
 const READ_ONLY = process.argv.includes("--read-only");
-if (process.argv.includes('--allow-test-email')) throw new Error('Portal QA never permits recipient emails.');
+if (process.argv.includes('--allow-test-email') || process.argv.includes('--setup-fixtures')) throw new Error('Portal QA never permits recipient emails or fixture setup flags.');
 if (READ_ONLY && BASE !== 'http://localhost:8080') throw new Error('Read-only expanded performance QA targets localhost preview only.');
 const PERSONA_LIST = arg("--personas", "installer,rec,owner");
 const ALLOWED_PERSONAS = new Set(PERSONA_LIST.split(",").map((s) => s.trim()));
@@ -231,12 +231,18 @@ try {
       const br = sh(["python3", "e2e/journey/shoot.py", `${OUT}/.manifest.json`], READ_ONLY ? 450_000 : 300_000);
       writeFileSync(`${OUT}/.manifest.json`, "{}");
       if (br.status !== 0 || !existsSync(`${OUT}/.browser.json`)) add({ area: "screens", route_or_action: "browser harness", persona: "-", status: "failed", detail: (br.error ? `timeout/error: ${br.error.message} ` : "") + (br.stderr || "harness did not finish").slice(-400), steps: "python3 e2e/journey/shoot.py" });
-      let completed: { step: string; ok: boolean; detail: string; shots: string[] }[] = [];
+      let completed: { step: string; ok: boolean; detail: string; shots: string[]; requested_path?: string; landed_path?: string | null; viewport?: { width: number } }[] = [];
       try { if (existsSync(`${OUT}/.browser.json`)) completed = JSON.parse(readFileSync(`${OUT}/.browser.json`, 'utf8')); }
       catch { add({ area: 'screens', route_or_action: 'partial browser results', persona: '-', status: 'failed', detail: 'browser results unreadable; no coverage inferred', steps: '' }); }
       for (const r of completed) {
-        const s = runnable.find((x) => x.step === r.step)!;
+        const s = runnable.find((x) => x.step === r.step);
+        if (!s) { notRun('screens', r.step, 'unknown browser screen; no coverage inferred'); continue; }
         add({ area: "screens", route_or_action: `${s.path} (${r.detail.includes("390px") ? "phone" : "desktop"})`, persona: s.persona, status: r.ok ? "passed" : "failed", detail: r.detail, steps: `sign in as TEST ${s.persona}, open ${s.path}, check labels`, screenshots: r.shots });
+      }
+      const destinations = completed.filter(r => r.ok && r.landed_path).map(r => ({ requested_path: r.requested_path, landed_path: r.landed_path, width: r.viewport?.width }));
+      writeFileSync(`${OUT}/landed-route-coverage.json`, JSON.stringify({ requested_screens: completed.length, distinct_landed_paths: [...new Set(destinations.map(r => r.landed_path))], destinations, note: 'Redirect aliases are not distinct-page coverage. Older rows without landed_path establish no destination coverage.' }, null, 2));
+      for (const route of inventory.filter(route => screens.some(s => s.path === route.path))) for (const width of [390, 1280]) {
+        if (!completed.some(r => r.ok && r.landed_path === route.path && r.viewport?.width === width)) notRun('destination coverage', `${route.path} (${width}px)`, 'requested alias redirected, unavailable or missing successful landed-path evidence; no distinct-page PASS');
       }
       for (const s of runnable) for (const viewport of ['390px', '1280px']) if (!completed.some(r => r.step === s.step && r.detail.includes(viewport))) add({ area: 'screens', route_or_action: `${s.path} (${viewport})`, persona: s.persona, status: 'not_run', detail: 'browser budget ended before this viewport completed', steps: '' });
     }

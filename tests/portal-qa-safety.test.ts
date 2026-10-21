@@ -14,7 +14,7 @@ const now = new Date('2026-10-21T02:34:00Z');
 function proof(count = 3): WindowProof {
   const days = allowedPiesaDays(now);
   const picks = days.slice(0, count).map(date => ({ date, slot: '10-12' as const }));
-  return { picks, saved: picks.map(w => ({ ...windowBounds(w.date, w.slot), status: 'available', purpose: 'ready_check', round: 1 })), round: 1, checkedJobId: 'test-job', expectedJobId: 'test-job', events: [], readsOk: true, paymentRows: 0, invoiceRows: 0, providerSends: 0 };
+  return { picks, saved: picks.map(w => ({ ...windowBounds(w.date, w.slot), status: 'open', round: 1 })), round: 1, checkedJobId: 'test-job', expectedJobId: 'test-job', events: [], readsOk: true, paymentRows: 0, invoiceRows: 0, providerSends: 0 };
 }
 test('exact three through five persisted allowed windows pass; fewer or more fail', () => {
   for (const n of [3, 4, 5]) expect(readyCheckWindowProofBlocker(proof(n), now)).toBeNull();
