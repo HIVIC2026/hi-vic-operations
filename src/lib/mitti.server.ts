@@ -331,8 +331,8 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
 
 export async function syncPendingMitti(actorId: string | null, call: MittiCall = realMittiCall) {
   const [{ data: as }, { data: ms }] = await Promise.all([
-    admin.from("assessments").select("job_id,jobs!inner(business_unit)").not("external_mitti_id", "is", null).neq("status", "complete").eq("jobs.business_unit", "hivic").is("jobs.deleted_at", null).not("jobs.stage", "in", "(complete,cancelled)"),
-    admin.from("ceiling_measurements").select("job_id,jobs!inner(business_unit)").eq("external_source", "mitti").eq("is_current", true).neq("status", "complete").eq("jobs.business_unit", "hivic").is("jobs.deleted_at", null).not("jobs.stage", "in", "(complete,cancelled)"),
+    admin.from("assessments").select("job_id,jobs!inner(business_unit)").not("external_mitti_id", "is", null).neq("status", "complete").eq("jobs.business_unit", "hivic").is("jobs.deleted_at", null),
+    admin.from("ceiling_measurements").select("job_id,jobs!inner(business_unit)").eq("external_source", "mitti").eq("is_current", true).neq("status", "complete").eq("jobs.business_unit", "hivic").is("jobs.deleted_at", null),
   ]);
   const ids = [...new Set([...(as ?? []), ...(ms ?? [])].map((r) => r.job_id))];
   const results: { jobId: string; ok: boolean; message: string }[] = [];
@@ -347,7 +347,10 @@ export async function syncPendingMitti(actorId: string | null, call: MittiCall =
   // Installer declarations signed inside the Mitti PIISA.
   const { data: pe } = await admin.from("workflow_events").select("job_id").eq("event_type", "mitti_piisa_audit_created");
   const { syncPiisaDeclaration } = await import("./piisa-declaration.server");
-  for (const jobId of [...new Set((pe ?? []).map((e) => e.job_id as string))]) {
+  const peIds = [...new Set((pe ?? []).map((e) => e.job_id as string).filter(Boolean))];
+  const { data: gone } = peIds.length ? await admin.from("jobs").select("id").in("id", peIds).not("deleted_at", "is", null) : { data: [] };
+  const deletedIds = new Set((gone ?? []).map((j) => j.id));
+  for (const jobId of peIds.filter((id) => !deletedIds.has(id))) {
     try { const r = await syncPiisaDeclaration(jobId, actorId, call); if (r.status !== "already") results.push({ jobId, ok: r.status === "saved" || r.status === "pending", message: r.message }); }
     catch (e) { results.push({ jobId, ok: false, message: e instanceof Error ? e.message : "error" }); }
   }
