@@ -26,7 +26,7 @@ export type OperationRow = OperationInput & {
   communicationLabel: string; tasks: OperationTask[]; nextAction: string;
   issues: string[]; onHold: boolean; overdue: boolean; blocked: boolean;
 };
-export const PROCESS_ORDER = ["Eligibility & estimate", "Insulation review", "Offer & owner response", "Spot saved — waiting for availability", "Ineligible enquiry", "On hold", "Ready Check", "Quote & payment", "Pre Insulation Electrical Safety Assessment (PIESA) & fixes", "Installation", "Evidence & Final check", "VEEC lodgement", "Completed", "Cancelled", "Needs classification"];
+export const PROCESS_ORDER = ["Eligibility & estimate", "Insulation review", "Offer & owner response", "Spot saved — waiting for availability", "Ineligible enquiry", "On hold", "Ready Check", "Quote & payment", "Electrical safety & fixes", "Installation", "Evidence & AP review", "VEEC lodgement", "Completed", "Cancelled", "Needs classification"];
 const PRE_HANDOFF = new Set(["new_enquiry", "eligibility_review", "preliminary_estimate_ready", "ready_check_awaiting_acceptance", "ready_check_awaiting_payment", "ready_check_ready_to_schedule"]);
 const validTime = (at: string | null | undefined) => !!at && Number.isFinite(Date.parse(at));
 export function communicationLabel(c: CommunicationFact | null): string {
@@ -135,7 +135,7 @@ export function classifyOperation(input: OperationInput, now: number): Operation
     const currentEvidence = input.evidence.filter(e => evidenceApplicability(e.gate, operationalFacts, now) === "current");
     const status = officeStatus({ ...operationalFacts, evidenceMissing: currentEvidence.filter(e => ["outstanding", "rejected"].includes(e.status)).length }, now);
     const stage = status?.stage;
-    process = stage === "quote" ? "Quote & payment" : stage === "safety" ? "Pre Insulation Electrical Safety Assessment (PIESA) & fixes" : stage === "install" ? "Installation" : stage === "signoff" ? (f.stage === "ready_for_veec" ? "VEEC lodgement" : "Evidence & Final check") : "Ready Check";
+    process = stage === "quote" ? "Quote & payment" : stage === "safety" ? "Electrical safety & fixes" : stage === "install" ? "Installation" : stage === "signoff" ? (f.stage === "ready_for_veec" ? "VEEC lodgement" : "Evidence & AP review") : "Ready Check";
     const who = status?.waitingOn;
     const parties: Party[] = who === "Owner + Installer" ? ["Owner", "Installer"] : who === "Owner + Electrician" ? ["Owner", "Electrician"] : [who === "Us" || who === "Office / campaign" ? "Office" : who === "Owner" ? "Owner" : who === "Installer" ? "Installer" : who === "Electrician" ? "Electrician" : "System"];
     // Do not reuse legacy sent/overdue claims. Only evidence-backed deadlines survive here.
