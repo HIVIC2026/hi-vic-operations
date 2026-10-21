@@ -1,5 +1,5 @@
 {
-  "scope": "Preview QA plus separately authorized existing-action TEST archival; no publication/migration/sends/real-customer writes",
+  "scope": "Preview QA plus separately authorized TEST archival; root separately completed authorized live real-record cancellations/legacy recoverable deletions; no publication/migration/sends by this agent",
   "source_revision_before_report": "0f2afda94fd0a887ec827dcbb388e2c7c612bfe9",
   "raw_runs": {
     "2026-10-21T03-06-55": {
@@ -53871,10 +53871,9 @@
   "blockers": [
     "ordinary staff session unavailable",
     "private TEST file/offer fixture not established",
-    "safe reversible owner consent/token/business fixture unavailable; live SaveSpot/ReadyCheck NOT_RUN",
+    "New owner authorized, but prepareQaAccess would add an existing Alpha worker membership; forbidden existing-membership changes prevent exact safe fixture preparation",
     "token phone happy paths unavailable",
     "backup/PITR not verified; index application not authorised",
-    "14 active qa_test genuine-contact exceptions retained",
     "218 assignments on historically archived jobs outside active-only action scope"
   ],
   "tests": {
@@ -56223,5 +56222,70 @@
       "paused followups/global switches"
     ],
     "no_hard_delete": true
+  },
+  "latest_narrow_fixture_preflight": {
+    "observed_after_utc": "2026-10-21T03:28:59Z",
+    "source_revision": "3518b0b95aabd2d9cecd6f2f14111d0efbc6bce4",
+    "target": "http://localhost:8080",
+    "new_test_owner_authorized": true,
+    "existing_worker_membership_present": false,
+    "existing_worker_approval": "approved",
+    "existing_worker_certification": "verified",
+    "blocker": "prepareQaAccess has no skip-worker mode and would add an existing worker membership. Existing memberships must remain unchanged.",
+    "other_paths": "Public code flow lacks required Alpha business association; direct assignment requires absent recorded Mitti access and prevents public windows without the installer request action, which sends TEST mail to Jo.",
+    "fixture_created": false,
+    "accounts_created": 0,
+    "tokens_issued": 0,
+    "writes": 0,
+    "provider_effects_triggered": 0,
+    "invoice_effects_triggered": 0,
+    "first_save_spot": "NOT_RUN",
+    "refresh_double_tap": "NOT_RUN",
+    "stored_free_amount_and_payment_id": "NOT_RUN",
+    "persisted_open_windows": "NOT_RUN",
+    "confirmed_appointment": "NOT_RUN",
+    "focused_tests": {
+      "pass": 28,
+      "fail": 0,
+      "files": [
+        "tests/qa-access-handlers.test.mjs",
+        "tests/qa-archive-handler.test.mjs",
+        "tests/portal-qa-safety.test.ts"
+      ],
+      "practice_database": "PGlite actual preparation/archive handlers; not live workflow proof"
+    },
+    "broad_audit_repeated": false,
+    "fixture_archive": "NOT_APPLICABLE: no fixture created",
+    "backup": "NOT_VERIFIED",
+    "indexes": "UNAPPLIED",
+    "metadata_tidy": "NOT_CHANGED: route head metadata remains mandatory; existing phone layout preserved"
+  },
+  "latest_cleanup_readback": {
+    "active_qa_test": 0,
+    "total_qa_test": 437,
+    "archived_qa_test": 437,
+    "agent_archived": 131,
+    "agent_before_active": 145,
+    "agent_after_active": 14,
+    "subsequent_archived_outside_agent_run": 14,
+    "subsequent_archive_timestamp": "2026-10-21T03:25:05.264397Z",
+    "subsequent_14_active_assignments": 0,
+    "subsequent_14_live_worker_links": 0,
+    "all_archived_live_worker_links": 0,
+    "historically_archived_active_assignment_rows": 218,
+    "HV2648": {
+      "source": "base44",
+      "nondeleted": true,
+      "unarchived": true
+    },
+    "attribution": "Later 14 closures are independently read back, not attributed to this agent; historical 131-action manifest and exceptions preserved"
+  },
+  "root_reported_cleanup": {
+    "ineligible_jobs_cancelled": 11,
+    "legacy_test_jobs_recoverably_deleted": 8,
+    "audit_events": 19,
+    "email_attempts": 0,
+    "status": "root-reported completed live; not duplicated by this agent",
+    "independently_verified_exact_root_event_counts": false
   }
 }
