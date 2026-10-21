@@ -29,6 +29,22 @@ export function uncoveredReason(route: RouteCoverage, attempted: Set<string>): s
   if (attempted.has(route.path)) return null;
   return route.fixture ?? 'not visited by this bounded run; no interaction/flow coverage implied';
 }
+export type CompletedRoute = { requested_path?: string; landed_path?: string | null; persona?: string; ok: boolean; content_verified?: boolean; viewport?: { width: number; height?: number } };
+export function normalizedRouteFamily(path: string, inventory: RouteCoverage[]): string | null {
+  const clean = path.split('?')[0]?.replace(/\/$/, '') || '/';
+  const exact = inventory.find(r => r.path === clean);
+  if (exact) return exact.path;
+  return inventory.find(r => {
+    const parts = r.path.split('/'), actual = clean.split('/');
+    return parts.length === actual.length && parts.every((p, i) => p.startsWith('$') ? Boolean(actual[i]) : p === actual[i]);
+  })?.path ?? null;
+}
+export function completedRouteCoverage(inventory: RouteCoverage[], rows: CompletedRoute[]) {
+  return inventory.flatMap(route => [1280, 390].map(width => {
+    const matches = rows.filter(r => r.ok && r.content_verified === true && r.persona === route.persona && r.viewport?.width === width && r.landed_path && normalizedRouteFamily(r.landed_path, inventory) === route.path);
+    return { ...route, viewport: width === 390 ? { width, height: 844 } : { width, height: 1800 }, status: matches.length ? 'PASS' : 'NOT_RUN', evidence: matches.map(r => ({ requestedURL: r.requested_path, finalURL: r.landed_path, normalizedRouteFamily: route.path, role: r.persona, viewport: r.viewport })), reason: matches.length ? 'Actual loaded destination and role/viewport verified' : route.fixture ?? 'No verified loaded destination for this role/viewport; requested targets alone are not evidence' };
+  }));
+}
 export function readyCheckBookingOutcome(booked: boolean, readback: { stage?: string | null; next_action?: string | null } | null, error?: string, windowProof?: { verified: boolean; detail: string }) {
   if (!booked) return { status: 'not_run' as const, detail: `booking not completed: ${error ?? 'fixture/gate unavailable'}` };
   if (readback?.stage !== 'ready_check_scheduled' || readback.next_action !== 'Ready Check booked') return { status: 'failed' as const, detail: 'booking call returned but scheduled stage/next action not read back' };

@@ -30,6 +30,8 @@ async def main(manifest_path):
         browser = await p.chromium.launch(headless=True)
         for i, s in enumerate(m["screens"]):
             for width, label in ((390, "phone"), (1280, "desktop")):
+                if s.get('widths') and width not in s['widths']:
+                    continue
                 ctx = await browser.new_context(viewport={"width": width, "height": 844 if width == 390 else 1800})
                 page = await ctx.new_page()
                 page.set_default_timeout(10000)
@@ -51,6 +53,25 @@ async def main(manifest_path):
                 overflow = False
                 landed_path = None
                 page_ready_ms = None
+                content_verified = False
+                async def healthy_panel(scope):
+                    await scope.wait_for(state='visible', timeout=15000)
+                    for attempt in range(150):
+                        pending = await scope.locator('p,[role=status]').evaluate_all('''es => es.some(e => e.getClientRects().length && /^(loading|checking|please wait)|loading .*…|updating…/i.test(e.textContent.trim()))''')
+                        if not pending:
+                            break
+                        await page.wait_for_timeout(100)
+                    else:
+                        raise RuntimeError('Intended panel remained loading')
+                    if not (await scope.inner_text()).strip():
+                        raise RuntimeError('Intended panel has no loaded content')
+                    if await scope.locator('[role=alert]:visible').evaluate_all('''es => es.some(e => /could not.*load|couldn.t.*load|failed.*load|error loading/i.test(e.textContent))'''):
+                        raise RuntimeError('Intended panel reports a load failure')
+                    if errors or console_errors or failed_requests or http_errors:
+                        raise RuntimeError('Errors after interaction')
+                    if await page.evaluate('document.documentElement.scrollWidth > innerWidth'):
+                        raise RuntimeError('Horizontal overflow after interaction')
+                    return True
                 try:
                     await page.goto(m["base"] + s["path"], wait_until="domcontentloaded", timeout=15000)
                     # A painted heading alone can precede loaded data. Require visible controls/content
@@ -63,6 +84,10 @@ async def main(manifest_path):
                     }''', timeout=15000)
                     if s.get('readinessSelector'):
                         await page.locator(s['readinessSelector']).wait_for(state='visible', timeout=15000)
+                    if s.get('verifyContent'):
+                        await healthy_panel(page.locator('main').first)
+                        for marker in s.get('mustSee') or []:
+                            await page.wait_for_function('''marker => [...document.querySelectorAll('main *')].some(e => e.getClientRects().length && e.textContent.includes(marker))''', arg=marker, timeout=15000)
                     page_ready_ms = round((time.monotonic()-started)*1000)
                     body = await page.inner_text("body")
                     if "/auth" in page.url and s["persona"] not in ("public", "owner_token"):
@@ -91,14 +116,25 @@ async def main(manifest_path):
                     overflow = await page.evaluate('document.documentElement.scrollWidth > innerWidth')
                     if overflow: ok, detail = False, f'{detail}: horizontal overflow'
                     if console_errors or failed_requests or http_errors: ok, detail = False, f'{detail}: console/network failures ({len(console_errors)}/{len(failed_requests)}/{len(http_errors)})'
-                    controls = await page.get_by_role('button').evaluate_all('(buttons) => buttons.filter(b => b.getClientRects().length).map(b => ({name: b.getAttribute("aria-label") || b.textContent.trim(), disabled: b.disabled, status: "NOT_RUN", reason: "inventoried only; no mutation/control execution implied"}))')
+                    content_verified = bool(ok and s.get('verifyContent') and (s.get('readinessSelector') or s.get('mustSee')))
+                    controls = await page.get_by_role('button').evaluate_all('''buttons => buttons.filter(b => b.getClientRects().length).map(b => {
+                        const name = b.getAttribute('aria-label') || b.textContent.trim();
+                        const excluded = /send|retry|resume|save|approve|decline|delete|restore|invite|download.*login|connect|sync|pay|confirm|submit|upload|start|requeue|run automated/i.test(name);
+                        return {name, disabled: b.disabled, status: 'NOT_RUN', classification: excluded ? 'excluded potential mutation/outbound' : 'remaining unexecuted control requiring reviewed read-only proof', reason: excluded ? 'Excluded without invoking: may write, send or alter global/financial/account state; no permission/guard PASS inferred' : 'Remaining runbook item: review intended read-only state, click safely, then verify panel/data and errors/overflow; not blocked merely because inventoried'};
+                    })''')
                     if s.get('safeTabs'):
                         links = await page.locator('nav[aria-label="Communications sections"] a').all_text_contents()
                         for link in links:
                             try:
                                 await page.get_by_role('navigation', name='Communications sections').get_by_role('link', name=link, exact=True).click()
-                                await page.wait_for_load_state('networkidle', timeout=5000)
-                                controls.append({'name': link, 'status': 'PASS', 'reason': 'read-only Communications section clicked'})
+                                chosen = page.get_by_role('navigation', name='Communications sections').get_by_role('link', name=link, exact=True)
+                                await page.wait_for_function('''name => [...document.querySelectorAll('nav[aria-label="Communications sections"] a')].some(e => e.textContent.trim() === name && e.getAttribute('aria-current') === 'page')''', arg=link, timeout=15000)
+                                await healthy_panel(page.locator('main').first)
+                                if link == 'Overview':
+                                    await page.wait_for_function('''() => /The same [0-9,]+ open website enquiries/.test(document.querySelector('main')?.innerText || '')''', timeout=15000)
+                                if link in ['Sent & history', 'Failed / attention']:
+                                    await page.wait_for_function('''() => /[0-9,]+ matching/.test(document.querySelector('main')?.innerText || '')''', timeout=15000)
+                                controls.append({'name': link, 'status': 'PASS', 'reason': 'Section selected; loaded panel content, errors and overflow verified', 'requestedURL': s['path'], 'finalURL': urlparse(page.url).path + ('?' + urlparse(page.url).query if urlparse(page.url).query else '')})
                             except Exception:
                                 controls.append({'name': link, 'status': 'FAIL', 'reason': 'Communications section interaction failed'})
                                 ok = False
@@ -106,25 +142,34 @@ async def main(manifest_path):
                         for tab in tabs:
                             try:
                                 await page.get_by_role('tab', name=tab, exact=True).click()
-                                await page.wait_for_function('() => !document.querySelector("[role=tabpanel][data-state=active] [aria-busy=true]")')
-                                controls.append({'name': tab, 'status': 'PASS', 'reason': 'read-only tab clicked'})
+                                await healthy_panel(page.locator('[role=tabpanel]:visible').first)
+                                controls.append({'name': tab, 'status': 'PASS', 'reason': 'Selected tab and loaded panel verified; overflow/errors rechecked'})
                             except Exception:
                                 controls.append({'name': tab, 'status': 'FAIL', 'reason': 'tab interaction failed'})
                                 ok = False
                     for control_name in s.get('safeButtons') or []:
-                        target = page.get_by_role('button', name=re.compile('^' + re.escape(control_name) + '(?:\\s|$)'))
-                        await target.first.click()
+                        target = page.get_by_role('button', name=re.compile('^' + re.escape(control_name) + '(?:\\s|$)')).and_(page.locator('[aria-controls]'))
                         try:
-                            await page.wait_for_load_state('networkidle', timeout=3000)
-                        except Exception:
-                            pass
-                        controls.append({'name': control_name, 'status': 'PASS', 'reason': 'explicit read-only disclosure clicked'})
+                            button = target.first
+                            panel_id = await button.get_attribute('aria-controls')
+                            if not panel_id:
+                                raise RuntimeError('No intended panel relationship; click alone is not evidence')
+                            if await button.get_attribute('aria-expanded') != 'true':
+                                await button.click()
+                            await page.wait_for_function('''id => document.getElementById(id)?.getAttribute('aria-expanded') === 'true' ''', arg=await button.get_attribute('id'), timeout=15000)
+                            await healthy_panel(page.locator('[id="' + panel_id + '"]'))
+                            interaction_shot = shots / (name.replace('.png', '-' + re.sub('[^a-zA-Z0-9]+', '-', control_name) + '.png'))
+                            await page.locator('[id="' + panel_id + '"]').screenshot(path=str(interaction_shot))
+                            controls.append({'name': control_name, 'status': 'PASS', 'reason': 'Expanded intended panel and loaded data verified; overflow/errors rechecked', 'panel': panel_id, 'screenshot': str(interaction_shot)})
+                        except Exception as exc:
+                            controls.append({'name': control_name, 'status': 'FAIL', 'reason': 'Intended panel/data or post-interaction checks failed: ' + str(exc)[:150]})
+                            ok = False
                     if errors or console_errors or failed_requests or http_errors:
                         ok, detail = False, f'{detail}: errors after disclosure interaction'
                 except Exception as e:
                     ok, detail = False, f"{detail}: {str(e)[:200]}"
                 await page.screenshot(path=str(shots / name))
-                results.append({"step": s["step"], "requested_path": s["path"], "landed_path": landed_path, "ok": ok, "detail": detail if not ok else f"{detail} render checks ok; controls listed separately", "shots": [str(shots / name)], 'viewport': {'width': width, 'height': 844 if width == 390 else 1800}, 'page_ready_ms': page_ready_ms, 'elapsed_ms': round((time.monotonic()-started)*1000), 'page_errors': errors, 'console_errors': console_errors, 'failed_requests': failed_requests, 'navigation_aborts': navigation_aborts, 'http_errors': http_errors, 'overflow': overflow, 'controls': controls})
+                results.append({"step": s["step"], "persona": s["persona"], "requested_path": s["path"], "landed_path": landed_path, "ok": ok, 'content_verified': content_verified and ok, "detail": detail if not ok else f"{detail} render checks ok; controls listed separately", "shots": [str(shots / name)], 'viewport': {'width': width, 'height': 844 if width == 390 else 1800}, 'page_ready_ms': page_ready_ms, 'elapsed_ms': round((time.monotonic()-started)*1000), 'page_errors': errors, 'console_errors': console_errors, 'failed_requests': failed_requests, 'navigation_aborts': navigation_aborts, 'http_errors': http_errors, 'overflow': overflow, 'controls': controls})
                 partial = out / '.browser.tmp.json'
                 partial.write_text(json.dumps(results))
                 partial.replace(out / '.browser.json')
