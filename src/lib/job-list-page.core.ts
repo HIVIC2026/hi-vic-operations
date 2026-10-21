@@ -72,3 +72,12 @@ export type JobListParams = {
   page: number;
   pageSize: number;
 };
+
+/** The one Closed pile for a job (mirrors the loader's scope). Deleted jobs belong only on the Deleted jobs page. */
+export function closedPile(j: { source: string | null; office_removed: boolean | null; contact_rank: number | null; stage: string | null; deleted: boolean }): JobClosedView | "deleted" {
+  if (j.deleted) return "deleted";
+  if (j.source === "qa_test" || j.office_removed || (j.contact_rank ?? 1) > 1) return "test";
+  if (j.stage === "complete") return "completed";
+  if (j.stage === "cancelled") return "cancelled";
+  return "ineligible";
+}

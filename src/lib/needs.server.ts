@@ -7,7 +7,7 @@ export async function loadNeedsHivic() {
     return (r.data ?? []) as T;
   };
   const [jobs, exh, elec, rel, comms, rq, rp, unav, timing, esc, ev, veec, unappr, rsent] = await Promise.all([
-    admin.from("jobs").select("id, job_number, source, stage, properties(suburb, postcode)").not("stage", "in", "(complete,cancelled)"),
+    admin.from("jobs").select("id, job_number, source, stage, properties(suburb, postcode)").not("stage", "in", "(complete,cancelled)").is("deleted_at", null),
     admin.from("workflow_events").select("job_id, created_at, details").eq("event_type", "rec_coverage_exhausted").order("created_at", { ascending: false }),
     admin.from("job_assignments").select("job_id").eq("role", "electrician").eq("active", true),
     admin.from("contact_releases").select("job_id, visit_kind, released_at, job_assignments!inner(active, booking_confirmed_at)").is("revoked_at", null),
@@ -102,5 +102,15 @@ export async function loadNeedsHivic() {
     readyCheckNoTaker: (rcEv ?? []).filter((e): e is { job_id: string; created_at: string } => !!e.job_id && !withInst.has(e.job_id)),
     installFlags: (instEv ?? []).filter((e) => !!e.job_id).map((e) => ({ job_id: e.job_id!, code: e.event_type as "install_ten_days_left" | "install_days_declined", created_at: e.created_at, detail: e.event_type === "install_ten_days_left" ? `Last day ${(e.details as { deadline?: string } | null)?.deadline ?? "?"}.` : undefined })),
   });
-  return { items, checkedAt: now.toISOString() };
+  // Never nag about closed, deleted or removed jobs (Jo 21 Oct).
+  const closed = new Set<string>();
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await admin.from("office_enquiry_index").select("id").eq("office_bucket", "closed").order("id").range(from, from + 999);
+    if (error) throw new Error(`Could not load closed jobs: ${error.message}`);
+    (data ?? []).forEach((r) => r.id && closed.add(r.id));
+    if (!data || data.length < 1000) break;
+  }
+  const open = new Set(jobRows.filter((j) => !closed.has(j.id)).map((j) => j.id));
+  const kept = items.filter((it) => !it.jobId || open.has(it.jobId));
+  return { items: kept, checkedAt: now.toISOString() };
 }
