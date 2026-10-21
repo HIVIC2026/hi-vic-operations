@@ -6133,6 +6133,8 @@ export type Database = {
           prior_stage: Database["public"]["Enums"]["job_stage"] | null
           property_id: string
           qa_archived_at: string | null
+          ready_check_booking_offered_at: string | null
+          ready_check_booking_offered_by: string | null
           source: string
           source_system: string | null
           stage: Database["public"]["Enums"]["job_stage"]
@@ -6193,6 +6195,8 @@ export type Database = {
           prior_stage?: Database["public"]["Enums"]["job_stage"] | null
           property_id: string
           qa_archived_at?: string | null
+          ready_check_booking_offered_at?: string | null
+          ready_check_booking_offered_by?: string | null
           source?: string
           source_system?: string | null
           stage?: Database["public"]["Enums"]["job_stage"]
@@ -6253,6 +6257,8 @@ export type Database = {
           prior_stage?: Database["public"]["Enums"]["job_stage"] | null
           property_id?: string
           qa_archived_at?: string | null
+          ready_check_booking_offered_at?: string | null
+          ready_check_booking_offered_by?: string | null
           source?: string
           source_system?: string | null
           stage?: Database["public"]["Enums"]["job_stage"]
@@ -12656,6 +12662,7 @@ export type Database = {
           photo_max_distance_m: number
           piesa_install_window_days: number
           quote_estimate_variance_tolerance_pct: number
+          ready_check_booking_enabled: boolean
           rec_offer_batch_size: number
           rec_offer_business_hours: number
           rec_offer_expiry_hours: number
@@ -12704,6 +12711,7 @@ export type Database = {
           photo_max_distance_m?: number
           piesa_install_window_days?: number
           quote_estimate_variance_tolerance_pct?: number
+          ready_check_booking_enabled?: boolean
           rec_offer_batch_size?: number
           rec_offer_business_hours?: number
           rec_offer_expiry_hours?: number
@@ -12752,6 +12760,7 @@ export type Database = {
           photo_max_distance_m?: number
           piesa_install_window_days?: number
           quote_estimate_variance_tolerance_pct?: number
+          ready_check_booking_enabled?: boolean
           rec_offer_batch_size?: number
           rec_offer_business_hours?: number
           rec_offer_expiry_hours?: number
@@ -13697,6 +13706,10 @@ export type Database = {
         }[]
       }
       my_job_role: { Args: { _job: string }; Returns: string }
+      offer_owner_ready_check_booking: {
+        Args: { _job: string }
+        Returns: undefined
+      }
       office_enquiry_page: {
         Args: { p_page?: number; p_search?: string; p_view?: string }
         Returns: Json
@@ -13707,6 +13720,10 @@ export type Database = {
           _sent_at: string
           _status: Database["public"]["Enums"]["quote_status"]
         }
+        Returns: boolean
+      }
+      owner_ready_check_booking_allowed: {
+        Args: { _job: string }
         Returns: boolean
       }
       place_install_hold: {
@@ -13816,6 +13833,10 @@ export type Database = {
           _mode: string
           _reason: string
         }
+        Returns: undefined
+      }
+      set_ready_check_booking_enabled: {
+        Args: { _enabled: boolean }
         Returns: undefined
       }
       shares_job_with: { Args: { _profile: string }; Returns: boolean }
