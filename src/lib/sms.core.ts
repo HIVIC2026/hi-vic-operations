@@ -3,6 +3,7 @@ import { normaliseAuMobile } from "./test-send.core";
 
 /** Every message type that may use the real sender. `wordingApproved=false` means it can never send yet. */
 export const SMS_MESSAGE_TYPES = {
+  save_spot_reminder: { audience: "owner", label: "One-off Save My Spot reminder", wordingApproved: true },
   spot_saved: { audience: "owner", label: "Spot saved confirmation", wordingApproved: true },
   owner_code: { audience: "owner", label: "Owner 6-digit sign-in / signing code", wordingApproved: true },
   ready_check_booking: { audience: "owner", label: "Ready Check booking confirmation", wordingApproved: false },
@@ -25,6 +26,8 @@ export type SmsGateInput = {
   /** Owner: current contact consent. Partner: approved active partner. */
   consent: boolean;
   isTestRecord: boolean;
+  /** Set only by the explicit admin blast; never enables other SMS types. */
+  adminSpotReminderBlast?: boolean;
 };
 
 /** First reason a real text must NOT go, or null. Fails closed on anything unknown. */
@@ -34,7 +37,7 @@ export function smsBlocker(x: SmsGateInput): string | null {
   if (x.isTestRecord) return "TEST record – use the test sender";
   if (!t.wordingApproved) return "Wording not approved yet";
   if (!x.commsEnabled) return "Customer communications are switched off";
-  if (!x.typeSwitchOn) return `"${t.label}" texts are switched off`;
+  if (!x.typeSwitchOn && !(x.type === "save_spot_reminder" && x.adminSpotReminderBlast === true)) return `"${t.label}" texts are switched off`;
   if (!x.senderConfigured) return "No Australian sending number set up";
   if (!toAuE164(x.to)) return "Not an Australian mobile number";
   if (x.optedOut) return "This number replied STOP";
