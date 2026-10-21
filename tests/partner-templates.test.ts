@@ -8,7 +8,7 @@ const styleOf = (h: string) => /<style>[\s\S]*?<\/style>/.exec(h)?.[0];
 describe("partner invitation templates", () => {
   test("installer invitation metadata is exact", () => {
     expect(INSTALLER_TEMPLATE.label).toBe("Installer partnership invitation");
-    expect(INSTALLER_TEMPLATE.subject).toBe("Hundreds of owner leads — let’s work together");
+    expect(INSTALLER_TEMPLATE.subject).toBe("Hundreds of homeowner leads — let’s work together");
     expect(INSTALLER_TEMPLATE.registrationUrl).toBe("https://estimate.homeinsulationvictoria.com.au/installer-onboarding");
     expect(PARTNER_TEMPLATES.map((t) => t.key)).toContain("installer_invitation");
   });
@@ -49,7 +49,7 @@ describe("partner invitation templates", () => {
     expect(html).not.toContain("manage bookings and messages");
     expect(html).not.toContain("You bring the installation expertise");
     expect(html).not.toContain("enquiries");
-    expect(html).toContain("owner leads.");
+    expect(html).toContain("homeowner leads.");
     expect(html).toContain('<strong style="color:#22376B;background:#FFDDEB;">Know another great installer?</strong>');
     expect(html).not.toMatch(/HI VIC|HIVIC|JOIN OUR INSTALLER NETWORK|Kind regards|Warm regards/);
     expect(html.startsWith("<!doctype html>")).toBe(true);

@@ -173,7 +173,7 @@ describe("Pre Insulation Electrical Safety Assessment (PIESA) payment status is 
     expect(src).toContain("safetyPay: SafetyCheckPayState;");
     expect(src).toContain("safetyCheckPayLabel(f.safetyPay, f.staff)");
     // the old unconditional "$349 paid" label is gone
-    expect(src).not.toContain('label: f.staff ? "Pre Insulation Electrical Safety Assessment (PIESA) paid" : "$349 paid"');
+    expect(src).not.toContain('label: f.staff ? "Safety check paid" : "$349 paid"');
   });
 
   test("the server gathers the facts the state needs (paid, override, TEST simulation)", () => {
