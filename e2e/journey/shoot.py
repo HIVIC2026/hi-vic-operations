@@ -82,10 +82,10 @@ async def main(manifest_path):
                     if overflow: ok, detail = False, f'{detail}: horizontal overflow'
                     if console_errors or failed_requests or http_errors: ok, detail = False, f'{detail}: console/network failures ({len(console_errors)}/{len(failed_requests)}/{len(http_errors)})'
                     controls = await page.get_by_role('button').evaluate_all('(buttons) => buttons.filter(b => b.getClientRects().length).map(b => ({name: b.getAttribute("aria-label") || b.textContent.trim(), disabled: b.disabled, status: "NOT_RUN", reason: "inventoried only; no mutation/control execution implied"}))')
-                    for name in s.get('safeButtons') or []:
-                        await page.get_by_role('button', name=name, exact=True).click()
+                    for control_name in s.get('safeButtons') or []:
+                        await page.get_by_role('button', name=control_name, exact=True).click()
                         await page.wait_for_load_state('networkidle')
-                        controls.append({'name': name, 'status': 'PASS', 'reason': 'explicit read-only disclosure clicked'})
+                        controls.append({'name': control_name, 'status': 'PASS', 'reason': 'explicit read-only disclosure clicked'})
                 except Exception as e:
                     ok, detail = False, f"{detail}: {str(e)[:200]}"
                 await page.screenshot(path=str(shots / name))

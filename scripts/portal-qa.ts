@@ -186,7 +186,7 @@ try {
 
     // ---- authenticated screens (read-only visits) ----
     const RETIRED = ["HI VIC", "undefined", "NaN", "[object", "50% deposit", "Lorem ipsum", "TODO"];
-    type Screen = { step: string; persona: string; path: string; expectedPath?: string; expectedSearch?: Record<string, string>; mustSee?: string[]; mustNotSeeExact?: string[]; mustNotSeeExactOutside?: { text: string; ignoreSelector: string }[]; noPrices?: boolean };
+    type Screen = { step: string; persona: string; path: string; expectedPath?: string; expectedSearch?: Record<string, string>; mustSee?: string[]; mustNotSeeExact?: string[]; mustNotSeeExactOutside?: { text: string; ignoreSelector: string }[]; noPrices?: boolean; safeButtons?: string[] };
     let screens: Screen[] = [
       { step: "office-operations", persona: "office", path: "/admin/operations", expectedPath: "/admin/enquiries", mustSee: ["Enquiries", "Active", "Closed"] },
       { step: "office-enquiry-groups", persona: "office", path: "/admin/enquiry-groups" },
@@ -211,6 +211,10 @@ try {
       // Explicit audited read-only route allowlist, no form submissions or provider actions.
       const existing = new Map(screens.map(s => [s.path, s]));
       screens = READ_ONLY_PATHS.map((path, i) => existing.get(path) ?? ({ step: `read-only-${i}`, path, persona: path.startsWith('/admin') ? 'office' : path.startsWith('/field') || path.startsWith('/partner') ? 'installer' : 'public' }));
+      const fixtureId = '518271f4-90b5-4d16-8ccc-2d2a5a0a12c1'; // existing Office QA fixture, never changed in read-only mode
+      const { data: fixture, error: fixtureError } = await admin.from('jobs').select('id,source').eq('id', fixtureId).single();
+      if (!fixtureError && fixture?.source === 'qa_test') screens.push({ step: 'office-test-history', path: `/admin/jobs/${fixtureId}`, persona: 'office', safeButtons: ['History', 'Communications', 'Forms & evidence'] });
+      else notRun('screens', '/admin/jobs/$jobId', 'existing isolated TEST Office fixture unavailable');
     }
     const inventory = uiRouteInventory(readFileSync('src/routeTree.gen.ts', 'utf8'));
     writeFileSync(`${OUT}/route-inventory.json`, JSON.stringify(inventory, null, 2));
