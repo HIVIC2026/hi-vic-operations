@@ -12,6 +12,7 @@ import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from "node
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { READ_ONLY_PATHS, uiRouteInventory, uncoveredReason } from './portal-qa-coverage';
 
 type Status = "passed" | "failed" | "blocked" | "not_run";
 type Result = { area: string; route_or_action: string; persona: string; status: Status; detail: string; steps: string; screenshots: string[]; environment: string };
@@ -19,6 +20,9 @@ const arg = (k: string, d: string) => { const i = process.argv.indexOf(k); retur
 const LABEL = arg("--label", "manual");
 const BASE = arg("--base", "http://localhost:8080");
 const OFFICE_ONLY = process.argv.includes("--office-only");
+const READ_ONLY = process.argv.includes("--read-only");
+if (process.argv.includes('--allow-test-email')) throw new Error('Portal QA never permits recipient emails.');
+if (READ_ONLY && BASE !== 'http://localhost:8080') throw new Error('Read-only expanded performance QA targets localhost preview only.');
 const PERSONA_LIST = arg("--personas", "installer,rec,owner");
 const ALLOWED_PERSONAS = new Set(PERSONA_LIST.split(",").map((s) => s.trim()));
 const personaAllowed = (persona: string) => persona === "office" || ALLOWED_PERSONAS.has(persona);
@@ -135,7 +139,7 @@ try {
   const PERSONAS: Record<string, { email: string; role: string; job?: string }> = {
     office: { email: "admin@hivic.test", role: "admin" },
     rec: { email: "qa.rec.delta@hivic-test.example", role: "electrician" },
-    installer: { email: "deep-test@hivic.test", role: "installer" },
+    installer: { email: READ_ONLY ? "qa.installer.alpha@hivic-test.example" : "deep-test@hivic.test", role: "installer" },
   };
   async function sessionFor(email: string) {
     if (!TEST_EMAIL.test(email)) throw new Error("SAFETY STOP: TEST accounts only");
@@ -156,10 +160,21 @@ try {
       const { data: prof } = await admin.from("profiles").select("id").eq("email", p.email).maybeSingle();
       const { data: role } = prof ? await admin.from("user_roles").select("id").eq("user_id", prof.id).eq("role", p.role as never).maybeSingle() : { data: null };
       if (!prof || !role) { add({ area: "setup", route_or_action: `TEST sign-in ${persona}`, persona, status: "blocked", detail: `${p.email} missing or lacks ${p.role} role — ask root to provision this TEST account`, steps: "preflight read-only", environment: ENV_DB }); continue; }
-      try { sessions[persona] = await sessionFor(p.email); add({ area: "setup", route_or_action: `TEST sign-in ${persona}`, persona, status: "passed", detail: p.email, steps: "magic-link session for TEST account", environment: ENV_DB }); }
+      try {
+        const session = await sessionFor(p.email);
+        if (session.user.id !== prof.id) throw new Error('TEST session identity mismatch');
+        if (READ_ONLY && persona === 'installer') {
+          const { createClient } = await import('@supabase/supabase-js');
+          const scoped = createClient(process.env['SUPABASE_URL']!, process.env['SUPABASE_PUBLISHABLE_KEY']!, { auth: { persistSession: false, autoRefreshToken: false }, global: { headers: { Authorization: `Bearer ${session.access_token}` } } });
+          const { data: jobs, error: scopeError } = await scoped.from('jobs').select('id,source').limit(1000);
+          if (scopeError || !jobs || jobs.length === 1000 || jobs.some(j => j.source !== 'qa_test')) throw new Error('TEST installer scope could not be verified or reaches non-TEST jobs');
+          add({ area: 'setup', route_or_action: 'installer reachable-job scope', persona, status: 'passed', detail: `${jobs.length} accessible jobs; all qa_test; zero non-test`, steps: 'user-scoped SELECT, no writes', environment: ENV_DB });
+        }
+        sessions[persona] = session;
+        add({ area: "setup", route_or_action: `TEST sign-in ${persona}`, persona, status: "passed", detail: p.email, steps: "magic-link session for TEST account", environment: ENV_DB }); }
       catch (e) { add({ area: "setup", route_or_action: `TEST sign-in ${persona}`, persona, status: "blocked", detail: (e as Error).message, steps: "magic-link session", environment: ENV_DB }); }
     }
-    if (personaAllowed("owner")) {
+    if (personaAllowed("owner") && !READ_ONLY) {
       const { data: owners } = await admin.from("owners").select("id,user_id,email").ilike("email", "%@hivic-test.example").not("user_id", "is", null).limit(50);
       for (const o of owners ?? []) {
         const { data: j } = await admin.from("jobs").select("id").eq("owner_id", o.id).eq("source", "qa_test").is("qa_archived_at" as never, null).limit(1).maybeSingle();
@@ -167,12 +182,12 @@ try {
       }
       if (ownerJob) add({ area: "setup", route_or_action: "TEST sign-in owner", persona: "owner", status: "passed", detail: `owner of qa_test job ${ownerJob}`, steps: "first TEST owner with an open qa_test job", environment: ENV_DB });
       else add({ area: "setup", route_or_action: "TEST sign-in owner", persona: "owner", status: "blocked", detail: "no TEST owner login linked to an open qa_test job — run `bun run journey` to create one", steps: "preflight read-only", environment: ENV_DB });
-    } else add({ area: "setup", route_or_action: "TEST sign-in owner", persona: "owner", status: "not_run", detail: "persona excluded by --personas; no lookup or sign-in", steps: "", environment: ENV_DB });
+    } else add({ area: "setup", route_or_action: "TEST sign-in owner", persona: "owner", status: "not_run", detail: "persona excluded or read-only mode has no vetted owner fixture; no lookup or sign-in", steps: "", environment: ENV_DB });
 
     // ---- authenticated screens (read-only visits) ----
     const RETIRED = ["HI VIC", "undefined", "NaN", "[object", "50% deposit", "Lorem ipsum", "TODO"];
     type Screen = { step: string; persona: string; path: string; expectedPath?: string; expectedSearch?: Record<string, string>; mustSee?: string[]; mustNotSeeExact?: string[]; mustNotSeeExactOutside?: { text: string; ignoreSelector: string }[]; noPrices?: boolean };
-    const screens: Screen[] = [
+    let screens: Screen[] = [
       { step: "office-operations", persona: "office", path: "/admin/operations", expectedPath: "/admin/enquiries", mustSee: ["Enquiries", "Active", "Closed"] },
       { step: "office-enquiry-groups", persona: "office", path: "/admin/enquiry-groups" },
       { step: "office-campaign-emails", persona: "office", path: "/admin/campaign-emails", expectedPath: "/admin/templates", expectedSearch: { cat: "email" }, mustSee: ["Templates", "Viewing here never sends, saves or connects anything."] },
@@ -192,24 +207,38 @@ try {
       mustNotSeeExact: s.step === "office-partners" ? RETIRED.filter(t => t !== "HI VIC") : RETIRED,
       ...(s.step === "office-partners" ? { mustNotSeeExactOutside: [{ text: "HI VIC", ignoreSelector: "[data-partner-record-name]" }] } : {}),
     }));
+    if (READ_ONLY) {
+      // Explicit audited read-only route allowlist, no form submissions or provider actions.
+      const existing = new Map(screens.map(s => [s.path, s]));
+      screens = READ_ONLY_PATHS.map((path, i) => existing.get(path) ?? ({ step: `read-only-${i}`, path, persona: path.startsWith('/admin') ? 'office' : path.startsWith('/field') || path.startsWith('/partner') ? 'installer' : 'public' }));
+    }
+    const inventory = uiRouteInventory(readFileSync('src/routeTree.gen.ts', 'utf8'));
+    writeFileSync(`${OUT}/route-inventory.json`, JSON.stringify(inventory, null, 2));
+    for (const route of inventory) {
+      const reason = uncoveredReason(route, new Set(screens.map(s => s.path)));
+      if (reason) for (const viewport of ['desktop', 'phone 390x844']) add({ area: 'route checklist', route_or_action: `${route.path} (${viewport})`, persona: route.persona, status: 'not_run', detail: reason, steps: 'source route inventory only; not a visited page' });
+    }
     const runnable = screens.filter((s) => s.persona === "public" || sessions[s.persona]);
     for (const s of screens.filter((x) => !runnable.includes(x))) add({ area: "screens", route_or_action: s.path, persona: s.persona, status: personaAllowed(s.persona) ? "blocked" : "not_run", detail: personaAllowed(s.persona) ? "no TEST session for this role" : "persona excluded by --personas", steps: "see setup rows" });
     const storageKey = `sb-${process.env["SUPABASE_PROJECT_ID"] ?? new URL(process.env["SUPABASE_URL"]!).hostname.split(".")[0]}-auth-token`;
     if (!fits(60_000)) notRun("screens", "authenticated screen visits", "overall budget exhausted");
     else {
-      writeFileSync(`${OUT}/.manifest.json`, JSON.stringify({ outDir: OUT, base: BASE, storageKey, sessions, screens: runnable }));
+      writeFileSync(`${OUT}/.manifest.json`, JSON.stringify({ outDir: OUT, base: BASE, storageKey, sessions, screens: runnable }), { mode: 0o600 });
       const br = sh(["python3", "e2e/journey/shoot.py", `${OUT}/.manifest.json`], 300_000);
       writeFileSync(`${OUT}/.manifest.json`, "{}");
       if (br.status !== 0 || !existsSync(`${OUT}/.browser.json`)) add({ area: "screens", route_or_action: "browser harness", persona: "-", status: "failed", detail: (br.error ? `timeout/error: ${br.error.message} ` : "") + (br.stderr || "harness did not finish").slice(-400), steps: "python3 e2e/journey/shoot.py" });
-      else for (const r of JSON.parse(readFileSync(`${OUT}/.browser.json`, "utf8")) as { step: string; ok: boolean; detail: string; shots: string[] }[]) {
+      const completed = existsSync(`${OUT}/.browser.json`) ? JSON.parse(readFileSync(`${OUT}/.browser.json`, 'utf8')) as { step: string; ok: boolean; detail: string; shots: string[] }[] : [];
+      for (const r of completed) {
         const s = runnable.find((x) => x.step === r.step)!;
         add({ area: "screens", route_or_action: `${s.path} (${r.detail.includes("390px") ? "phone" : "desktop"})`, persona: s.persona, status: r.ok ? "passed" : "failed", detail: r.detail, steps: `sign in as TEST ${s.persona}, open ${s.path}, check labels`, screenshots: r.shots });
       }
+      for (const s of runnable) for (const viewport of ['390px', '1280px']) if (!completed.some(r => r.step === s.step && r.detail.includes(viewport))) add({ area: 'screens', route_or_action: `${s.path} (${viewport})`, persona: s.persona, status: 'not_run', detail: 'browser budget ended before this viewport completed', steps: '' });
     }
   }
 
   // ---- office delete / restore / classification + parity + denied roles (one qa_test job, snapshot restore) ----
-  if (!fits(150_000)) notRun("office writes", "qa-office-writes", "overall budget exhausted");
+  if (READ_ONLY) notRun('office writes', 'qa-office-writes', 'read-only mode: no writes or snapshots started');
+  else if (!fits(150_000)) notRun("office writes", "qa-office-writes", "overall budget exhausted");
   else {
     const budget = Math.floor(Math.min(420_000, left() - 30_000) / 1000);
     const ow = sh(["bun", "scripts/qa-office-writes.ts", "--base", BASE, "--out", `${OUT}/office-writes`, "--budget", String(budget), "--personas", PERSONA_LIST], (budget + 20) * 1000);
@@ -222,16 +251,17 @@ try {
 
   if (!OFFICE_ONLY) {
     // ---- installer app click-through (existing harness; ALWAYS local, never the deployed site) ----
-    if (!personaAllowed("installer")) notRun("installer journey", "installer-test --installer-app-only", "persona excluded by --personas; harness not started", ENV_LOCAL);
+    if (READ_ONLY) notRun('installer journey', 'installer-test --installer-app-only', 'read-only mode: legacy mutation harness not started', ENV_LOCAL);
+    else if (!personaAllowed("installer")) notRun("installer journey", "installer-test --installer-app-only", "persona excluded by --personas; harness not started", ENV_LOCAL);
     else if (process.argv.includes("--skip-installer")) notRun("installer journey", "installer-test --installer-app-only", "skipped by flag", ENV_LOCAL);
     else if (!fits(240_000)) notRun("installer journey", "installer-test --installer-app-only", "overall budget too low (needs ~4+ min)", ENV_LOCAL);
     else {
       const it = sh(["bun", "scripts/installer-test.ts", "--runs", "1", "--installer-app-only"], left() - 120_000);
       const out = `${it.stdout}\n${it.stderr}`; writeFileSync(`${OUT}/installer-test.log`, out);
-      const lines = out.split("\n").filter((l) => /^(PASS|FAIL)\s/.test(l));
+      const lines = out.split("\n").filter((l) => /^(PASS|FAIL|NOT_RUN)\s/.test(l));
       if (it.error) add({ area: "installer journey", route_or_action: "installer-test", persona: "installer", status: "failed", detail: `stopped at budget: ${it.error.message}`, steps: "see installer-test.log", environment: ENV_LOCAL });
       if (!lines.length) add({ area: "installer journey", route_or_action: "installer-test", persona: "installer", status: "failed", detail: `harness produced no results (exit ${it.status})`, steps: "bun scripts/installer-test.ts --runs 1 --installer-app-only", environment: ENV_LOCAL });
-      for (const l of lines) add({ area: "installer journey", route_or_action: l.replace(/^(PASS|FAIL)\s+/, "").split("  —  ")[0]!, persona: "installer", status: l.startsWith("PASS") ? "passed" : "failed", detail: l.split("  —  ")[1] ?? "ok", steps: "see installer-test.log", environment: ENV_LOCAL });
+      for (const l of lines) add({ area: "installer journey", route_or_action: l.replace(/^(PASS|FAIL|NOT_RUN)\s+/, "").split("  —  ")[0]!, persona: "installer", status: l.startsWith("PASS") ? "passed" : l.startsWith('NOT_RUN') ? 'not_run' : "failed", detail: l.split("  —  ")[1] ?? "ok", steps: "see installer-test.log", environment: ENV_LOCAL });
     }
 
     // ---- isolated email rule tests ----
@@ -250,8 +280,9 @@ try {
     // ---- read-only email record log (last 24h): recorded state only, not provider delivery proof ----
     {
       const since = new Date(Date.now() - 864e5).toISOString();
-      const { data, error } = await admin.from("customer_email_sends").select("status,purpose,error,provider_message_id").gte("created_at", since);
-      if (error) add({ area: "emails (live log)", route_or_action: "customer_email_sends last 24h", persona: "-", status: "blocked", detail: error.message, steps: "read-only select", environment: ENV_DB });
+      const { data, error } = READ_ONLY ? { data: null, error: null } : await admin.from("customer_email_sends").select("status,purpose,error,provider_message_id").gte("created_at", since);
+      if (READ_ONLY) notRun('emails (live log)', 'customer_email_sends last 24h', 'root-owned audit excluded from read-only performance pass', ENV_DB);
+      else if (error) add({ area: "emails (live log)", route_or_action: "customer_email_sends last 24h", persona: "-", status: "blocked", detail: error.message, steps: "read-only select", environment: ENV_DB });
       else {
         const rows = data ?? [];
         const bad = rows.filter((r) => /fail|error|unrecorded/i.test(r.status) || r.error);

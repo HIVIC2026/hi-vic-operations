@@ -23,7 +23,7 @@ const fmtDT = (s: string | null) => (s ? new Date(s).toLocaleString("en-AU", { t
 
 export function useJobFile(jobId: string) {
   const fn = useServerFn(getJobFile);
-  return useQuery({ queryKey: ["jobfile", jobId], queryFn: () => fn({ data: { jobId } }) as Promise<JobFile> });
+  return useQuery({ queryKey: ["jobfile", jobId], queryFn: () => fn({ data: { jobId } }) as Promise<JobFile>, refetchOnMount: query => query.state.isInvalidated });
 }
 
 const STATUS_TONE: Record<string, "good" | "info" | "warn" | "bad" | "neutral" | "brand"> = {
@@ -65,7 +65,7 @@ export function JobFileHeader({ jobId, job }: { jobId: string; job: JobRow }) {
 }
 
 function DocRow({ jobId, d }: { jobId: string; d: DocItem }) {
-  const open = useAction(openJobDocument);
+  const open = useAction(openJobDocument, { refresh: false });
   const [more, setMore] = useState(false);
   return (
     <li className="py-2">
@@ -92,9 +92,10 @@ function DocRow({ jobId, d }: { jobId: string; d: DocItem }) {
 /** Documents for one Job File section, filed automatically. */
 export function SectionDocuments({ jobId, categories, title = "Documents in this section" }: { jobId: string; categories: DocCategory[]; title?: string }) {
   const { data } = useJobFile(jobId);
+  const [expanded, setExpanded] = useState(false);
   const docs = useMemo(() => { const all = (data?.documents ?? []) as DocItem[]; const set = new Map<string, DocItem>(); categories.forEach((c) => inCategory(all, c).forEach((d) => set.set(d.id, d))); return [...set.values()]; }, [data, categories]);
   if (!docs.length) return null;
-  return <details className="rounded-xl border p-3"><summary className="cursor-pointer text-sm font-medium">{title} ({docs.length})</summary><ul className="mt-2 divide-y">{docs.map((d) => <DocRow key={d.id} jobId={jobId} d={d} />)}</ul></details>;
+  return <details className="rounded-xl border p-3" onToggle={(e) => setExpanded(e.currentTarget.open)}><summary className="cursor-pointer text-sm font-medium">{title} ({docs.length})</summary>{expanded && <ul className="mt-2 divide-y">{docs.map((d) => <DocRow key={d.id} jobId={jobId} d={d} />)}</ul>}</details>;
 }
 
 export function AllDocuments({ jobId }: { jobId: string }) {
@@ -182,6 +183,13 @@ function LogCommunication({ jobId }: { jobId: string }) {
 }
 
 const FILTERS: [TimelineFilter, string][] = [["all", "All"], ["customer", "Customer"], ["trades", "Trades"], ["money", "Money"], ["compliance", "Compliance"], ["documents", "Documents"], ["internal", "Internal"]];
+function TimelineDetail({ item: t }: { item: JobFile["timeline"][number] }) {
+  const [expanded, setExpanded] = useState(false);
+  return <details className="rounded-md border px-2 py-1.5 text-sm" onToggle={(e) => setExpanded(e.currentTarget.open)}>
+    <summary className="flex cursor-pointer flex-wrap items-center gap-2"><span className="w-36 shrink-0 text-xs text-muted-foreground">{fmtDT(t.at)}</span><span className="flex-1">{t.summary}</span>{t.internal && <Pill t="warn">Internal</Pill>}<span className="text-xs text-muted-foreground">{t.source} · {t.actor}</span></summary>
+    {expanded && t.detail != null && <pre className="mt-2 max-h-64 overflow-auto rounded bg-muted p-2 text-xs">{JSON.stringify(t.detail, null, 2)}</pre>}
+  </details>;
+}
 export function JobTimeline({ jobId }: { jobId: string }) {
   const { data } = useJobFile(jobId);
   const [f, setF] = useState<TimelineFilter>("all"); const [q, setQ] = useState("");
@@ -193,10 +201,7 @@ export function JobTimeline({ jobId }: { jobId: string }) {
         <Input className="ml-auto w-56" placeholder="Search timeline…" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
       <ol className="space-y-1">{[...items].reverse().map((t) => (
-        <li key={t.id}><details className="rounded-md border px-2 py-1.5 text-sm">
-          <summary className="flex cursor-pointer flex-wrap items-center gap-2"><span className="w-36 shrink-0 text-xs text-muted-foreground">{fmtDT(t.at)}</span><span className="flex-1">{t.summary}</span>{t.internal && <Pill t="warn">Internal</Pill>}<span className="text-xs text-muted-foreground">{t.source} · {t.actor}</span></summary>
-          {t.detail != null && <pre className="mt-2 max-h-64 overflow-auto rounded bg-muted p-2 text-xs">{JSON.stringify(t.detail, null, 2)}</pre>}
-        </details></li>))}
+        <li key={t.id}><TimelineDetail item={t} /></li>))}
       </ol>
       {!items.length && <p className="text-sm text-muted-foreground">No events for this filter.</p>}
     </Section>

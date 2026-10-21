@@ -39,10 +39,9 @@ export async function loadSources(jobId: string): Promise<JobSources & { events:
 }
 
 export async function buildJobFile(jobId: string, role: Role) {
-  const [src, { data: ownerRow }, { data: job }] = await Promise.all([
+  const [src, { data: job }] = await Promise.all([
     loadSources(jobId),
-    admin.from("jobs").select("owners(user_id)").eq("id", jobId).maybeSingle(),
-    admin.from("jobs").select("created_at, stage, updated_at").eq("id", jobId).single(),
+    admin.from("jobs").select("owners(user_id), created_at, stage, updated_at").eq("id", jobId).single(),
   ]);
   const docs = buildDocumentIndex(src);
   const ids = [...new Set([...src.messages.map((m) => m["sender_id"]), ...src.events.map((e) => e["actor_id"]), ...src.proposals.flatMap((p) => [p["proposed_by"], p["responded_by"]]), ...src.bookings.map((b) => b["booked_by"]), ...docs.map((d) => d.actor)].filter(Boolean) as string[])];
@@ -55,7 +54,7 @@ export async function buildJobFile(jobId: string, role: Role) {
   const isAdminUser = new Set((roles ?? []).filter((r) => r.role === "admin").map((r) => r.user_id));
   const correspondence = buildCorrespondence(src.messages, src.comms, (id) => (id && isAdminUser.has(id) ? "admin" : null));
   const timeline = buildTimeline({ events: src.events, correspondence, bookings: src.bookings, evidence: docs, proposals: src.proposals });
-  const ownerUser = (ownerRow?.owners as { user_id: string | null } | null)?.user_id ?? null;
+  const ownerUser = (job?.owners as { user_id: string | null } | null)?.user_id ?? null;
   const ROLE_NAME: Record<string, string> = { electrician: "Electrician", installer: "Installer", property_manager: "Property manager" };
   const roleOf = (id: string | null): string => {
     if (!id) return "System";

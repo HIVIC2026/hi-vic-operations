@@ -22,14 +22,14 @@ export function useMe() {
 }
 
 /** Run a server action with toast feedback and refresh all data. */
-export function useAction<TIn, TOut>(fn: (opts: { data: TIn }) => Promise<TOut>) {
+export function useAction<TIn, TOut>(fn: (opts: { data: TIn }) => Promise<TOut>, options?: { refresh?: boolean }) {
   const call = useServerFn(fn as never) as unknown as (opts: { data: TIn }) => Promise<TOut>;
   const qc = useQueryClient();
   return async (data: TIn, success?: string): Promise<TOut | undefined> => {
     try {
       const out = await call({ data });
       if (success) toast.success(success);
-      await qc.invalidateQueries();
+      if (options?.refresh !== false) await qc.invalidateQueries();
       return out;
     } catch (e) {
       // Blocked/failed actions are expected (workflow gates): show them, never crash the page.
