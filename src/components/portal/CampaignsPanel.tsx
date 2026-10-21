@@ -74,15 +74,12 @@ export function CampaignsPanel() {
     <div className="space-y-6">
       <section aria-label="Campaign numbers" className="grid gap-2 md:grid-cols-2">
         <div className="rounded-md border bg-card p-4">
-          <div className="text-xs font-bold uppercase tracking-wide text-sub">Save my spot offer email</div>
+          <div className="text-xs font-bold uppercase tracking-wide text-sub">Save my spot</div>
           <div className="mt-2 font-display text-2xl font-bold">
-            Spots offered: {data.counts.spotsOffered.toLocaleString("en-AU")}
+            Save my spot emails sent: {data.counts.spotsOffered.toLocaleString("en-AU")}
           </div>
           <div className="mt-1 text-sm">
             <b>Spots saved: {data.counts.spotSaved.toLocaleString("en-AU")}</b>
-            {data.counts.spotsOffered > 0 && (
-              <span> ({Math.round((data.counts.spotSaved / data.counts.spotsOffered) * 100)}% of spots offered)</span>
-            )}
           </div>
         </div>
         <div className="rounded-md border bg-card p-4">
@@ -102,9 +99,9 @@ export function CampaignsPanel() {
         ))}
       </section>
       <p className="text-xs text-sub">
-        Spots offered counts confirmed Save my spot emails sent to real homes (initial + follow-up versions together).
-        “Spots saved” counts every enquiry that has saved a spot, including any that have since moved to an active job
-        or been closed. Insulation details requested counts the separate Group B “tell us about your insulation” email
+        Save my spot emails sent includes the initial and follow-up versions together.
+        “Spots saved” counts all saved responses across both email groups, excluding opted-out homeowners,
+        TEST jobs and cancelled jobs. Insulation details requested counts the separate Group B “tell us about your insulation” email
         only. TEST copies and failed sends never count in either.
       </p>
       <div className="rounded-md border border-warning/40 bg-warning/5 p-4 text-sm">

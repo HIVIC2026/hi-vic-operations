@@ -1,8 +1,18 @@
 import { describe, expect, test } from "bun:test";
-import { campaignSaveAllowed, campaignSendCounts, deskCheckReasonError, launchGroup, LAUNCH_BATCH_SIZE, LAUNCH_COPY_APPROVED } from "../src/lib/launch-campaign.core";
+import { officeSpotSavedCount, campaignSaveAllowed, campaignSendCounts, deskCheckReasonError, launchGroup, LAUNCH_BATCH_SIZE, LAUNCH_COPY_APPROVED } from "../src/lib/launch-campaign.core";
 import { readFileSync } from "node:fs";
 
 describe("existing leads launch campaign", () => {
+  test("office headline counts all saved responses except opt-outs, TEST and cancelled jobs", () => {
+    const saved = { spot_saved_at: "2026-10-21T00:00:00Z", opted_out_at: null, source: "base44", stage: "ready_check_scheduled" };
+    const rows = Array.from({ length: 117 }, () => ({ ...saved }));
+    expect(officeSpotSavedCount([...rows,
+      { ...saved, opted_out_at: "2026-10-21T01:00:00Z" },
+      { ...saved, source: "qa_test" }, { ...saved, stage: "cancelled" },
+      { ...saved, spot_saved_at: null },
+    ])).toBe(117);
+    expect(officeSpotSavedCount([{ ...saved, source: null, stage: "complete" }])).toBe(1);
+  });
   test("office numbers keep the two email versions separate (Jo 21 Oct)", () => {
     const rows = [
       { status: "sent", idempotency_key: "existing_leads_launch_v1:save_my_spot:job1", source: "base44" },

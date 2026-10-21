@@ -23,6 +23,12 @@ export function campaignSendCounts(rows: { status: string; idempotency_key: stri
   return { spotsOffered, insulationDetails };
 }
 
+/** Office headline only: saved responses across all email groups. */
+export function officeSpotSavedCount(rows: { spot_saved_at: string | null; opted_out_at: string | null; source: string | null; stage: string }[]) {
+  return rows.filter((row) => row.spot_saved_at !== null && row.opted_out_at === null
+    && row.source !== "qa_test" && row.stage !== "cancelled").length;
+}
+
 export function campaignSaveAllowed(group: LaunchGroup, deskStatus: string | null | undefined, ownerQualified = false) {
   if (group === "likely") return true;
   if (deskStatus === "not_eligible" || deskStatus === "needs_onsite_check") return false;
