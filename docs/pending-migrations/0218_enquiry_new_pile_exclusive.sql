@@ -13,6 +13,8 @@ AS $function$
  SELECT * FROM scope WHERE office_bucket='enquiry' AND media_to_review
  AND NOT spot_offered AND enquiry_status NOT IN ('offered_spot','spot_saved','ineligible')
  AND NOT spot_saved AND NOT removed AND deleted_at IS NULL AND NOT owner_progressed
+ ), new_pile AS (
+ SELECT * FROM scope WHERE office_bucket='enquiry' AND needs_first_response AND id NOT IN (SELECT id FROM pending_photos)
  ), filtered AS (
  SELECT * FROM scope WHERE CASE p_view
  WHEN 'removed' THEN office_bucket='closed' AND (removed OR deleted_at IS NOT NULL OR source='qa_test' OR contact_rank>1)
