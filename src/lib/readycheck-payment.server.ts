@@ -69,8 +69,9 @@ async function requestedWindowsSaved(jobId: string, picks?: WindowPick[]) {
   const rows = data ?? [];
   const round = Math.max(0, ...rows.map((row) => row.round));
   const current = rows.filter((row) => row.round === round);
+  const booked = current.some((row) => row.status === "taken");
   if (current.length < 3 || current.length > 5 || current.some((row) =>
-    !["open", "taken"].includes(row.status) || !Number.isFinite(Date.parse(row.starts_at))
+    !(row.status === "open" || row.status === "taken" || (booked && row.status === "closed")) || !Number.isFinite(Date.parse(row.starts_at))
     || !Number.isFinite(Date.parse(row.ends_at)))) return false;
   if (!picks) return true;
   const { windowBounds } = await import("./piesa-windows.core");

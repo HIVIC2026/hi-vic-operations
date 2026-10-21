@@ -1,4 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Narrow Ready Check request closure (Jo, 21 Oct 03:57 UTC)
+- [x] Surface existing window gate errors and retry missing windows against retained acceptance; verify current-round saved times before customer success, including refresh.
+- [ ] Complete one fresh reserved-contact UNASSIGNED TEST request; independently prove OPEN windows and FREE 0/null, assess guarded appointment and archive only this fixture.
 ## Ready Check naming (Jo, 21 Oct 03:50 UTC)
 - [x] Replaced retired service name across customer pages, email HTML/plain text/preheaders and preview labels, including Save Spot replacement anchors; FREE price, links, workflow and signed history unchanged. Affected tests: 68 PASS/1 historical SKIP/0 FAIL; preview build OK, wording scan zero visible failures. Broader engagement suite has an unrelated stale groupBInvitationBlocker source assertion; left unchanged. No sends/publication.
 ## Customer SMS activation (Jo, 21 Oct 03:48 UTC)
