@@ -9,10 +9,12 @@ export async function loadOfficeEnquiryPage(view: EnquiryPageView, search: strin
   if (error) throw new Error(`Enquiries could not load: ${error.message}`);
   const result = data as unknown as Page;
   if (!result || !Array.isArray(result.ids) || result.ids.length > 50) throw new Error('Invalid enquiry page');
-  const details = result.ids.length ? await loadEnquiryGroups(result.ids) : { rows: [] };
-  const { data: facts, error: factsError } = result.ids.length
+  const [details, { data: facts, error: factsError }] = await Promise.all([
+    result.ids.length ? loadEnquiryGroups(result.ids) : Promise.resolve({ rows: [] }),
+    result.ids.length
     ? await admin.from('office_enquiry_index').select('id,enquiry_status,needs_first_response,review_outcome,media_to_review,media_count,response_state,latest_attempt_status,latest_attempt_at,review_at,latest_media_at,more_photos_requested').in('id', result.ids)
-    : { data: [], error: null };
+    : Promise.resolve({ data: [], error: null }),
+  ]);
   if (factsError) throw new Error('Could not verify enquiry page facts.');
   const factById = new Map((facts ?? []).map(row => [row.id, row]));
   const byId = new Map(details.rows.map(row => [row.id, row]));

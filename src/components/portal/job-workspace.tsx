@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/portal/badges";
 import { getJobWaiting } from "@/lib/waiting.functions";
 import { getGate1Evidence, getIntakeSummary } from "@/lib/portal.functions";
-import { getJobFileHeader } from "@/lib/jobfile.functions";
+import { getJobContactConsent, getJobFileHeader } from "@/lib/jobfile.functions";
 import { buildJourney, type JourneyInput } from "@/lib/journey.core";
 import { ELIGIBILITY_LABEL, fmtDate } from "@/lib/workflow";
 import type { AdminTab } from "@/lib/waiting.core";
@@ -83,10 +83,11 @@ const fmtDT = (s: string | null | undefined) => (s ? new Date(s).toLocaleString(
 
 /** 1. Compact identity: address, job no, owner contact, consent, one eligibility outcome. */
 export function JobIdentity({ jobId, job, onOpen }: { jobId: string; job: JobRow; onOpen: (target: PortalTarget) => void }) {
-  const intakeFn = useServerFn(getIntakeSummary);
+  const intakeFn = useServerFn(getJobContactConsent);
   const headerFn = useServerFn(getJobFileHeader);
-  const intake = useQuery({ queryKey: ["intake_summary", jobId], queryFn: () => intakeFn({ data: { jobId } }) });
-  const { data: h } = useQuery({ queryKey: ["jobfile-header", jobId], queryFn: () => headerFn({ data: { jobId } }) });
+  const showReady = ["installation_scheduling", "installation_booked", "evidence_outstanding"].includes(job.stage ?? "");
+  const intake = useQuery({ queryKey: ["intake_summary", jobId, "consent"], queryFn: () => intakeFn({ data: { jobId } }) });
+  const { data: h } = useQuery({ queryKey: ["jobfile-header", jobId, showReady], queryFn: () => headerFn({ data: { jobId, includeReadiness: showReady } }) });
   const consent = intake.data?.consent ?? null;
   const outcome = job.eligibility_review_required ? { t: "warn" as const, l: "Gate 1 review required (internal)" }
     : job.eligibility_outcome ? { t: job.eligibility_outcome === "does_not_appear_eligible" ? "bad" as const : job.eligibility_outcome === "likely_eligible" ? "good" as const : "info" as const, l: ELIGIBILITY_LABEL[job.eligibility_outcome] }
@@ -96,7 +97,6 @@ export function JobIdentity({ jobId, job, onOpen }: { jobId: string; job: JobRow
   else if (job.install_deadline) warnings.push({ t: job.urgency === "urgent" ? "bad" : "info", text: `Install by ${fmtDate(job.install_deadline)} (PIESA +30 days)` });
   if (h?.escDueBy && h.escStatus !== "sent") warnings.push({ t: "warn", text: `ESC notice due by ${fmtDT(h.escDueBy)}` });
   if (job.payment_status && !job.deposit_cleared && ["deposit_due", "invoice_created", "overdue"].includes(job.payment_status)) warnings.push({ t: "bad", text: "Approved payment option not yet verified" });
-  const showReady = ["installation_scheduling", "installation_booked", "evidence_outstanding"].includes(job.stage ?? "");
   return (
     <header className="mb-3 border-b border-line py-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-muted-foreground">

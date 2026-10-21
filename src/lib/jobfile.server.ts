@@ -39,19 +39,22 @@ export async function loadSources(jobId: string): Promise<JobSources & { events:
 }
 
 export async function buildJobFile(jobId: string, role: Role) {
-  const src = await loadSources(jobId);
+  const [src, { data: ownerRow }, { data: job }] = await Promise.all([
+    loadSources(jobId),
+    admin.from("jobs").select("owners(user_id)").eq("id", jobId).maybeSingle(),
+    admin.from("jobs").select("created_at, stage, updated_at").eq("id", jobId).single(),
+  ]);
   const docs = buildDocumentIndex(src);
   const ids = [...new Set([...src.messages.map((m) => m["sender_id"]), ...src.events.map((e) => e["actor_id"]), ...src.proposals.flatMap((p) => [p["proposed_by"], p["responded_by"]]), ...src.bookings.map((b) => b["booked_by"]), ...docs.map((d) => d.actor)].filter(Boolean) as string[])];
-  const [{ data: profiles }, { data: roles }] = await Promise.all([
+  const [{ data: profiles }, { data: roles }, { data: jobRoles }] = await Promise.all([
     ids.length ? admin.from("profiles").select("id, full_name").in("id", ids) : Promise.resolve({ data: [] as { id: string; full_name: string | null }[] }),
     ids.length ? admin.from("user_roles").select("user_id, role").in("user_id", ids) : Promise.resolve({ data: [] as { user_id: string; role: string }[] }),
+    ids.length ? admin.from("job_assignments").select("user_id, role").eq("job_id", jobId).in("user_id", ids) : Promise.resolve({ data: [] as { user_id: string; role: string }[] }),
   ]);
   const name = new Map((profiles ?? []).map((p) => [p.id, p.full_name ?? "User"]));
   const isAdminUser = new Set((roles ?? []).filter((r) => r.role === "admin").map((r) => r.user_id));
   const correspondence = buildCorrespondence(src.messages, src.comms, (id) => (id && isAdminUser.has(id) ? "admin" : null));
   const timeline = buildTimeline({ events: src.events, correspondence, bookings: src.bookings, evidence: docs, proposals: src.proposals });
-  const { data: jobRoles } = ids.length ? await admin.from("job_assignments").select("user_id, role").eq("job_id", jobId).in("user_id", ids) : { data: [] as { user_id: string; role: string }[] };
-  const { data: ownerRow } = await admin.from("jobs").select("owners(user_id)").eq("id", jobId).maybeSingle();
   const ownerUser = (ownerRow?.owners as { user_id: string | null } | null)?.user_id ?? null;
   const ROLE_NAME: Record<string, string> = { electrician: "Electrician", installer: "Installer", property_manager: "Property manager" };
   const roleOf = (id: string | null): string => {
@@ -62,7 +65,6 @@ export async function buildJobFile(jobId: string, role: Role) {
     return r ? ROLE_NAME[r] ?? r : "Portal user";
   };
   const label = (id: string | null) => (id ? name.get(id) ?? (role === "admin" ? id.slice(0, 8) : "Portal user") : "System");
-  const { data: job } = await admin.from("jobs").select("created_at, stage, updated_at").eq("id", jobId).single();
   const a = src.assignments.find((x) => x["status"] !== "cancelled");
   const retention = retentionFor({ assignmentRetainUntil: (a?.["retain_until"] as string | null) ?? null, jobCreatedAt: job?.created_at ?? new Date().toISOString(), completedAt: job?.stage === "complete" ? job.updated_at : null });
   return {

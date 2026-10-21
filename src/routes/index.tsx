@@ -5,7 +5,6 @@ import { PublicCalculatorPage, publicCalculatorHead } from "@/components/portal/
 // link. The same calculator also answers at /calculator, and staff sign in
 // at /auth (signed-in staff are bounced from /auth to /home).
 export const Route = createFileRoute("/")({
-  ssr: false,
   headers: () => ({ "Cache-Control": "no-store" }),
   head: publicCalculatorHead,
   component: PublicCalculatorPage,

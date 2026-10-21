@@ -60,6 +60,10 @@ export function BlockersPanel({ jobId, quietWhenClear = false, partner = false }
   const fn = useServerFn(getJobBlockers);
   const { data } = useQuery({ queryKey: ["blockers", jobId], queryFn: () => fn({ data: { jobId } }) });
   if (!data) return null;
+  return <BlockersContent data={data} quietWhenClear={quietWhenClear} partner={partner} />;
+}
+
+export function BlockersContent({ data, quietWhenClear = false, partner = false }: { data: Awaited<ReturnType<typeof getJobBlockers>>; quietWhenClear?: boolean; partner?: boolean }) {
   if (!data.blockers.length)
     return quietWhenClear ? null : (
       <div className="rounded-xl border border-success/30 bg-success-soft p-3 text-sm text-success">

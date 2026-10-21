@@ -69,7 +69,7 @@ export async function loadEnquiryGroups(visibleIds: string[]) {
     .eq("source", WEBSITE_SOURCE).eq("channel", WEBSITE_CHANNEL).in("id", visibleIds).order("created_at", { ascending: true }).order("id").range(f, t));
   const outside: { source: string; channel: string }[] = [];
   const ids = jobs.map((j) => j.id);
-  const [meas, ests, docs, work, sends, consents, optouts, events, interests, cfg, responses, media, reviewed] = await Promise.all([
+  const [meas, ests, docs, work, sends, consents, optouts, events, interests, cfg, responses, media, reviewed, removedRows] = await Promise.all([
     byJobs(ids, (c, f, t) => admin.from("ceiling_measurements").select("job_id, verified_area_m2, measured_area_m2").in("job_id", c).eq("is_current", true).eq("status", "complete").range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("property_area_estimates").select("id, job_id, tier, net_m2, created_at").in("job_id", c).in("tier", TRUSTED_ESTIMATE_TIERS).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("evidence_files").select("job_id, mime_type, storage_path").in("job_id", c).range(f, t)),
@@ -83,8 +83,8 @@ export async function loadEnquiryGroups(visibleIds: string[]) {
     byJobs(ids, (c, f, t) => admin.from("lead_campaign_responses").select("job_id, spot_saved_at").in("job_id", c).range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("documents").select("job_id, kind, mime_type, storage_path, source_system, external_id").in("job_id", c).eq("kind", "intake_media").range(f, t)),
     byJobs(ids, (c, f, t) => admin.from("customer_engagement_events").select("job_id, occurred_at, metadata").in("job_id", c).eq("event_type", "intake_media_reviewed").eq('source', 'office').order("occurred_at").range(f, t)),
+    byJobs(ids, (c, f, t) => admin.from("workflow_events").select("job_id").in("job_id", c).eq("event_type", "lead_removed").range(f, t)),
   ]);
-  const removedRows = await byJobs(ids, (c, f, t) => admin.from("workflow_events").select("job_id").in("job_id", c).eq("event_type", "lead_removed").range(f, t));
   const removedSet = new Set(removedRows.map((r) => r.job_id));
   const savedSet = new Set(responses.filter((r) => r.spot_saved_at).map((r) => r.job_id));
   const deliveryCfg = must(cfg, "Delivery settings");

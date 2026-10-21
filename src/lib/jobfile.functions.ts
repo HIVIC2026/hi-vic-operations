@@ -15,16 +15,29 @@ export const getJobFile = createServerFn({ method: "POST" }).middleware([require
   });
 
 export const getJobFileHeader = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .inputValidator((d) => z.object({ jobId: uuid, includeReadiness: z.boolean().default(true) }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { installReadiness } = await import("./esc.server");
     const [{ data: esc }, ready] = await Promise.all([
       supabaseAdmin.from("esc_notifications").select("status, due_by").eq("job_id", data.jobId).not("status", "in", "(cancelled,stale)").order("created_at", { ascending: false }).limit(1).maybeSingle(),
-      installReadiness(data.jobId).catch(() => null),
+      data.includeReadiness ? installReadiness(data.jobId).catch(() => null) : Promise.resolve(null),
     ]);
     return { escDueBy: esc?.due_by ?? null, escStatus: esc?.status ?? null, ready: ready ? JSON.parse(JSON.stringify(ready)) as { ready: boolean; blockers: string[] } : null };
+  });
+
+/** Identity needs the same latest consent, not the intake's signed media or queue reads. */
+export const getJobContactConsent = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: consents, error } = await supabaseAdmin.from("owner_contact_consents")
+      .select("consent_status, consent_version, consented_at, age_confirmed, assistance, contact_preference, created_at, sha256")
+      .eq("job_id", data.jobId).order("created_at", { ascending: false }).limit(1);
+    if (error) throw new Error(`Contact consent could not load: ${error.message}`);
+    return { consent: consents?.[0] ?? null };
   });
 
 export const logCommunication = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
