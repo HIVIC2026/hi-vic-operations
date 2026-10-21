@@ -21,7 +21,7 @@ describe("Scenario F — owner paperwork gates", () => {
   for (const j of JOURNEYS) {
     test(`${j.name}: blocked at every gate until each record is signed`, () => {
       // Jo 21 Oct: no paperwork before any visit (Gate A retired).
-      expect(blocked(base(j.f), j.firstVisit)).toEqual([]);
+      expect(blocked(base(j.f), "ready_check_scheduled")).toEqual([]);
       const aDone = sign(...j.extraA);
       // Gate B
       const bStage = "awaiting_deposit_payment";
