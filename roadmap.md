@@ -1,7 +1,9 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Bounded preview performance and QA (Jo, 21 Oct 01:36 UTC)
+- [x] Finish narrow fixture preflight and final report: 28 focused safety/handler checks pass; no fixture created because prepareQaAccess would add an existing worker membership, explicitly excluded. Live SaveSpot/FREE/windows/booking remain NOT_RUN. Root cleanup attribution and latest 0 active / 437 archived TEST readback recorded.
 - [x] Archive authorized 131-ID eligible qa_test manifest through archiveQaJourney after practice checks; independently verified zero manifest-active assignments/links; active jobs 145→14, total 437 retained; HV2648/root cleanup untouched.
-- [ ] Cleanup exceptions: 14 qa_test rows with genuine-contact conflicts left untouched; 218 active assignment rows on previously archived jobs cannot use active-only archive action. Requires separately reviewed authority/guarded operation, not bypass.
+- [x] Recheck 14 previously held genuine-contact exceptions: subsequently archived outside this agent's 131-action run; all 14 have zero active assignments/live links. Latest total 0 active / 437 archived TEST jobs. Root's 11 cancellations/8 recoverable deletions not duplicated.
+- [ ] 218 active assignment rows on older archived TEST jobs remain; existing archive action rejects already-archived jobs. Requires separately reviewed authority/guarded operation, not bypass; zero live TEST worker links verified.
 - [x] Finish narrow timestamp/actual FREE/two-phase booking proof correction; live proof remains NOT_RUN pending a minimal vetted reversible owner fixture; backup NOT verified after suspicious-activity sign-in refusal.
 - [x] Correct actual route/role/viewport coverage and loaded-panel interaction evidence; targeted canonical runs and consolidated correction report preserve historical limitations without declaring full coverage.
 - [ ] Full route/control/owner-flow readiness remains blocked: missing private token/document/offer/ordinary-staff and reversible owner fixtures; missing /admin/job-queue source and phone /admin/list overflow reported, not fixed in QA-only scope.
@@ -12,7 +14,7 @@
 - [x] Measure cold/warm public and authenticated TEST Office preview reads; optimize verified code-only waterfalls.
 - [x] Run focused regression tests and canonical bounded portal QA, excluding Deep and real personas (43 PASS, 23 NOT_RUN).
 - [x] Check desktop/390x844 public/Office/Alpha installer routes, read-only history controls and dummy calculator result; no overflow or runtime errors observed.
-- [ ] Live TEST Save My Spot/Ready Check booking: blocked by no verified complete reversible owner/token/consent/TEST-business fixture; existing preparation may change owner auth, outside this task. Isolated rule tests passed, not live-flow proof.
+- [ ] Live TEST Save My Spot/Ready Check booking: new isolated owner creation is authorized, but prepareQaAccess also adds an existing worker membership; changing existing memberships remains forbidden. No approved minimal helper meets all constraints; no fixture created or guard bypass, stored FREE/open windows/confirmed booking NOT_RUN.
 - [ ] Consistent Office <1s: enquiries remain ~1.4–1.5s backend, ~3.2–3.4s browser settled; exact PGlite-tested SQL proposal remains unapplied pending user/root approval.
 - [x] Stage exact two media job-lookup index statements and provenance-guarded rollback; record root-provided practice/plan evidence without rerunning QA or applying SQL.
 - [ ] Live index application/rebenchmark blocked: no verified recoverable backup/PITR and no user-approved application; Drizzle journal untouched.
