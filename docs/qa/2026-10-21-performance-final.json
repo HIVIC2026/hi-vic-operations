@@ -1,0 +1,4715 @@
+{
+  "baseline.json": [
+    {
+      "path": "/",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "visible_ms": 17251,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 21.19999999999709,
+        "dom_ms": 5745,
+        "duration": 5892.899999999994
+      },
+      "resources": [
+        {
+          "path": "/@tanstack-start/styles.css",
+          "duration_ms": 5372.599999999991,
+          "bytes": 300
+        },
+        {
+          "path": "/src/styles.css",
+          "duration_ms": 3486.899999999994,
+          "bytes": 300
+        },
+        {
+          "path": "/node_modules/.vite/deps/lucide-react.js",
+          "duration_ms": 432.3000000000029,
+          "bytes": 4012218
+        },
+        {
+          "path": "/node_modules/.vite/deps/@supabase_supabase-js.js",
+          "duration_ms": 407.3000000000029,
+          "bytes": 2396265
+        },
+        {
+          "path": "/src/lib/set-password-link.core.ts",
+          "duration_ms": 376.90000000000873,
+          "bytes": 7122
+        },
+        {
+          "path": "/src/lib/login.core.ts",
+          "duration_ms": 376.8999999999942,
+          "bytes": 11975
+        },
+        {
+          "path": "/src/components/portal/NoAccess.tsx",
+          "duration_ms": 376.70000000001164,
+          "bytes": 12364
+        },
+        {
+          "path": "/src/components/portal/SignInCard.tsx",
+          "duration_ms": 376.5,
+          "bytes": 23385
+        },
+        {
+          "path": "/node_modules/.vite/deps/zod.js",
+          "duration_ms": 376.5,
+          "bytes": 409189
+        },
+        {
+          "path": "/src/lib/route-guards.ts",
+          "duration_ms": 374.70000000001164,
+          "bytes": 7194
+        },
+        {
+          "path": "/src/lib/lovable-error-reporting.ts",
+          "duration_ms": 362.5,
+          "bytes": 4655
+        },
+        {
+          "path": "/src/assets/home-insulation-victoria-logo.png.asset.json",
+          "duration_ms": 362.1999999999971,
+          "bytes": 3850
+        }
+      ],
+      "heading": "How much could you save on ceiling insulation?"
+    },
+    {
+      "path": "/calculator",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "visible_ms": 1412,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 11.799999999988358,
+        "dom_ms": 107.09999999999127,
+        "duration": 120.89999999999418
+      },
+      "resources": [
+        {
+          "path": "/src/lib/login.core.ts",
+          "duration_ms": 589.0999999999913,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/route-guards.ts",
+          "duration_ms": 579.1999999999971,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/set-password-link.core.ts",
+          "duration_ms": 574.6999999999971,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/NoAccess.tsx",
+          "duration_ms": 561.5,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/SignInCard.tsx",
+          "duration_ms": 561.3999999999942,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/template-catalog.ts",
+          "duration_ms": 557.5,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/public-calculator-page.tsx",
+          "duration_ms": 549.1000000000058,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/admin.communications.tsx",
+          "duration_ms": 548.3999999999942,
+          "bytes": 300
+        },
+        {
+          "path": "/src/assets/home-insulation-victoria-logo.png.asset.json",
+          "duration_ms": 540,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/page-recovery.core.ts",
+          "duration_ms": 538.1000000000058,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/my-profile.ts",
+          "duration_ms": 537.6999999999971,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/lovable-error-reporting.ts",
+          "duration_ms": 536,
+          "bytes": 300
+        }
+      ],
+      "heading": "How much could you save on ceiling insulation?"
+    },
+    {
+      "path": "/privacy",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "visible_ms": 67,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 25.90000000000873,
+        "dom_ms": 43.40000000000873,
+        "duration": 60
+      },
+      "resources": [
+        {
+          "path": "/src/routes/_authenticated/admin.hot-leads.tsx",
+          "duration_ms": 376.1000000000058,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/admin.enquiry-groups.tsx",
+          "duration_ms": 362.5,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/admin.enquiries.tsx",
+          "duration_ms": 348.6999999999971,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/admin.electrician-rates.tsx",
+          "duration_ms": 332.6999999999971,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/admin.deleted.tsx",
+          "duration_ms": 319,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/admin.coverage.tsx",
+          "duration_ms": 304.5,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/admin.compliance.tsx",
+          "duration_ms": 290.90000000000873,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/admin.communications.tsx",
+          "duration_ms": 275.3000000000029,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/admin.campaign-emails.tsx",
+          "duration_ms": 261.6999999999971,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/admin.businesses.tsx",
+          "duration_ms": 246.60000000000582,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/admin.board.tsx",
+          "duration_ms": 232.6999999999971,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/admin.ap-queue.tsx",
+          "duration_ms": 218.6999999999971,
+          "bytes": 300
+        }
+      ],
+      "heading": "Privacy policy"
+    },
+    {
+      "path": "/auth",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "visible_ms": 316,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 80.59999999999127,
+        "dom_ms": 285.70000000001164,
+        "duration": 440.6000000000058
+      },
+      "resources": [
+        {
+          "path": "/src/routes/_authenticated/field.index.tsx",
+          "duration_ms": 361.59999999999127,
+          "bytes": 54969
+        },
+        {
+          "path": "/src/routes/_authenticated/admin.workers.tsx",
+          "duration_ms": 361.3999999999942,
+          "bytes": 17785
+        },
+        {
+          "path": "/src/routes/_authenticated/admin.veec.tsx",
+          "duration_ms": 361.3000000000029,
+          "bytes": 36207
+        },
+        {
+          "path": "/src/routes/_authenticated/admin.users.tsx",
+          "duration_ms": 361.1000000000058,
+          "bytes": 21139
+        },
+        {
+          "path": "/src/routes/estimate.$token.tsx",
+          "duration_ms": 359.59999999999127,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/eligibility.$token.tsx",
+          "duration_ms": 310.40000000000873,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/admin.todo.tsx",
+          "duration_ms": 281.59999999999127,
+          "bytes": 11147
+        },
+        {
+          "path": "/src/routes/_authenticated/admin.today.tsx",
+          "duration_ms": 281.5,
+          "bytes": 19067
+        },
+        {
+          "path": "/src/routes/_authenticated/partner.tsx",
+          "duration_ms": 253.60000000000582,
+          "bytes": 300
+        },
+        {
+          "path": "/__l5e/assets-v1/df85f2cb-02cb-4fce-ae2b-bc12bf600919/home-insulation-victoria-logo.png",
+          "duration_ms": 240.29999999998836,
+          "bytes": 13773
+        },
+        {
+          "path": "/src/routes/_authenticated/owner.tsx",
+          "duration_ms": 238.60000000000582,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/home.tsx",
+          "duration_ms": 224.09999999999127,
+          "bytes": 300
+        }
+      ],
+      "heading": "Welcome back."
+    },
+    {
+      "path": "/",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "visible_ms": 2966,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 7.2000000000116415,
+        "dom_ms": 147.6999999999971,
+        "duration": 158.1999999999971
+      },
+      "resources": [
+        {
+          "path": "/src/lib/login.core.ts",
+          "duration_ms": 901.0999999999913,
+          "bytes": 11975
+        },
+        {
+          "path": "/src/routes/_authenticated/admin.communications.tsx",
+          "duration_ms": 898.6999999999971,
+          "bytes": 26756
+        },
+        {
+          "path": "/src/routes/_authenticated/field.welcome.tsx",
+          "duration_ms": 887.0999999999913,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/set-password-link.core.ts",
+          "duration_ms": 884.7999999999884,
+          "bytes": 7122
+        },
+        {
+          "path": "/src/components/portal/NoAccess.tsx",
+          "duration_ms": 884.6999999999971,
+          "bytes": 12364
+        },
+        {
+          "path": "/src/components/portal/SignInCard.tsx",
+          "duration_ms": 884.6000000000058,
+          "bytes": 23385
+        },
+        {
+          "path": "/src/lib/my-profile.ts",
+          "duration_ms": 884.5,
+          "bytes": 4937
+        },
+        {
+          "path": "/src/lib/template-catalog.ts",
+          "duration_ms": 878.0999999999913,
+          "bytes": 20630
+        },
+        {
+          "path": "/src/routes/_authenticated/field.setup.tsx",
+          "duration_ms": 871.5999999999913,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.money.tsx",
+          "duration_ms": 856.3999999999942,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business.tsx",
+          "duration_ms": 841.1000000000058,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.$jobId.tsx",
+          "duration_ms": 830.9000000000087,
+          "bytes": 300
+        }
+      ],
+      "heading": "How much could you save on ceiling insulation?"
+    },
+    {
+      "path": "/calculator",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "visible_ms": 3398,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 7.099999999991269,
+        "dom_ms": 78.30000000000291,
+        "duration": 129
+      },
+      "resources": [
+        {
+          "path": "/src/routes/_authenticated/field.offer.$offerId.tsx",
+          "duration_ms": 1440.199999999997,
+          "bytes": 300
+        },
+        {
+          "path": "/src/assets/home-insulation-victoria-logo.png.asset.json",
+          "duration_ms": 1438.8999999999942,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/public-calculator-page.tsx",
+          "duration_ms": 1438.6000000000058,
+          "bytes": 300
+        },
+        {
+          "path": "/src/integrations/supabase/previewAuthStorage.ts",
+          "duration_ms": 1432.9000000000087,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.day.$jobId.tsx",
+          "duration_ms": 1425.6000000000058,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/page-recovery.core.ts",
+          "duration_ms": 1422.3999999999942,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/local-network-fixtures.ts",
+          "duration_ms": 1417.5,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/lovable-error-reporting.ts",
+          "duration_ms": 1412.199999999997,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.team.tsx",
+          "duration_ms": 1410,
+          "bytes": 300
+        },
+        {
+          "path": "/src/styles.css",
+          "duration_ms": 1407.699999999997,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/file-viewer.tsx",
+          "duration_ms": 1404.5,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/ui/sonner.tsx",
+          "duration_ms": 1402.5,
+          "bytes": 300
+        }
+      ],
+      "heading": "How much could you save on ceiling insulation?"
+    },
+    {
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "errors": []
+    },
+    {
+      "path": "/",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "visible_ms": 920,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 8.80000000000291,
+        "dom_ms": 76.69999999999709,
+        "duration": 97.60000000000582
+      },
+      "resources": [
+        {
+          "path": "/node_modules/.vite/deps/@supabase_supabase-js.js",
+          "duration_ms": 210.5,
+          "bytes": 2396265
+        },
+        {
+          "path": "/src/lib/lovable-error-reporting.ts",
+          "duration_ms": 200.89999999999418,
+          "bytes": 4655
+        },
+        {
+          "path": "/src/integrations/supabase/previewAuthStorage.ts",
+          "duration_ms": 200.70000000001164,
+          "bytes": 15842
+        },
+        {
+          "path": "/src/assets/home-insulation-victoria-logo.png.asset.json",
+          "duration_ms": 200.70000000001164,
+          "bytes": 3850
+        },
+        {
+          "path": "/src/lib/page-recovery.core.ts",
+          "duration_ms": 200.5,
+          "bytes": 2850
+        },
+        {
+          "path": "/src/lib/local-network-fixtures.ts",
+          "duration_ms": 200.3000000000029,
+          "bytes": 12321
+        },
+        {
+          "path": "/src/components/portal/public-calculator-page.tsx",
+          "duration_ms": 200.29999999998836,
+          "bytes": 8735
+        },
+        {
+          "path": "/src/lib/login.core.ts",
+          "duration_ms": 199.1999999999971,
+          "bytes": 11975
+        },
+        {
+          "path": "/src/lib/set-password-link.core.ts",
+          "duration_ms": 199.09999999999127,
+          "bytes": 7122
+        },
+        {
+          "path": "/src/components/portal/NoAccess.tsx",
+          "duration_ms": 198.79999999998836,
+          "bytes": 12364
+        },
+        {
+          "path": "/src/components/portal/SignInCard.tsx",
+          "duration_ms": 197.1999999999971,
+          "bytes": 23385
+        },
+        {
+          "path": "/node_modules/.vite/deps/zod.js",
+          "duration_ms": 195.09999999999127,
+          "bytes": 409189
+        }
+      ],
+      "heading": "How much could you save on ceiling insulation?"
+    },
+    {
+      "path": "/calculator",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "visible_ms": 863,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 7.69999999999709,
+        "dom_ms": 63.69999999999709,
+        "duration": 75.60000000000582
+      },
+      "resources": [
+        {
+          "path": "/src/assets/home-insulation-victoria-logo.png.asset.json",
+          "duration_ms": 178.8000000000029,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/public-calculator-page.tsx",
+          "duration_ms": 177.60000000000582,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/page-recovery.core.ts",
+          "duration_ms": 177.10000000000582,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/lovable-error-reporting.ts",
+          "duration_ms": 175.70000000001164,
+          "bytes": 300
+        },
+        {
+          "path": "/src/styles.css",
+          "duration_ms": 173.90000000000873,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/local-network-fixtures.ts",
+          "duration_ms": 172.6999999999971,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/file-viewer.tsx",
+          "duration_ms": 171.89999999999418,
+          "bytes": 300
+        },
+        {
+          "path": "/src/integrations/supabase/previewAuthStorage.ts",
+          "duration_ms": 171.3000000000029,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.offer.$offerId.tsx",
+          "duration_ms": 171.09999999999127,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/ui/sonner.tsx",
+          "duration_ms": 170.39999999999418,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.day.$jobId.tsx",
+          "duration_ms": 169.6999999999971,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.team.tsx",
+          "duration_ms": 168,
+          "bytes": 300
+        }
+      ],
+      "heading": "How much could you save on ceiling insulation?"
+    },
+    {
+      "path": "/privacy",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "visible_ms": 47,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 8,
+        "dom_ms": 25.09999999999127,
+        "duration": 35.29999999998836
+      },
+      "resources": [
+        {
+          "path": "/src/components/portal/public-calculator-page.tsx",
+          "duration_ms": 171,
+          "bytes": 300
+        },
+        {
+          "path": "/src/assets/home-insulation-victoria-logo.png.asset.json",
+          "duration_ms": 170.5,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/page-recovery.core.ts",
+          "duration_ms": 169,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/lovable-error-reporting.ts",
+          "duration_ms": 167.5,
+          "bytes": 300
+        },
+        {
+          "path": "/src/styles.css",
+          "duration_ms": 165.60000000000582,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/file-viewer.tsx",
+          "duration_ms": 164.10000000000582,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/ui/sonner.tsx",
+          "duration_ms": 162.6999999999971,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/local-network-fixtures.ts",
+          "duration_ms": 161.5,
+          "bytes": 300
+        },
+        {
+          "path": "/src/integrations/supabase/previewAuthStorage.ts",
+          "duration_ms": 160.59999999999127,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.offer.$offerId.tsx",
+          "duration_ms": 160.40000000000873,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.day.$jobId.tsx",
+          "duration_ms": 158.8000000000029,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.team.tsx",
+          "duration_ms": 157.39999999999418,
+          "bytes": 300
+        }
+      ],
+      "heading": "Privacy policy"
+    },
+    {
+      "path": "/auth",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "visible_ms": 56,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 6.400000000008731,
+        "dom_ms": 37.10000000000582,
+        "duration": 94.39999999999418
+      },
+      "resources": [
+        {
+          "path": "/src/assets/home-insulation-victoria-logo.png.asset.json",
+          "duration_ms": 172.6999999999971,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/public-calculator-page.tsx",
+          "duration_ms": 172.09999999999127,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/page-recovery.core.ts",
+          "duration_ms": 171.3000000000029,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/lovable-error-reporting.ts",
+          "duration_ms": 169,
+          "bytes": 300
+        },
+        {
+          "path": "/src/styles.css",
+          "duration_ms": 167.60000000000582,
+          "bytes": 300
+        },
+        {
+          "path": "/src/integrations/supabase/previewAuthStorage.ts",
+          "duration_ms": 167.39999999999418,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/local-network-fixtures.ts",
+          "duration_ms": 166.89999999999418,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.offer.$offerId.tsx",
+          "duration_ms": 166.60000000000582,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/file-viewer.tsx",
+          "duration_ms": 166.09999999999127,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.day.$jobId.tsx",
+          "duration_ms": 165.10000000000582,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/ui/sonner.tsx",
+          "duration_ms": 164.6999999999971,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.team.tsx",
+          "duration_ms": 163.5,
+          "bytes": 300
+        }
+      ],
+      "heading": "Welcome back."
+    },
+    {
+      "path": "/",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "visible_ms": 2881,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 5.80000000000291,
+        "dom_ms": 65.59999999999127,
+        "duration": 75.39999999999418
+      },
+      "resources": [
+        {
+          "path": "/src/lib/login.core.ts",
+          "duration_ms": 1079.300000000003,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/set-password-link.core.ts",
+          "duration_ms": 1077.5999999999913,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/route-guards.ts",
+          "duration_ms": 1072.1000000000058,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/NoAccess.tsx",
+          "duration_ms": 1064.3999999999942,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/public-calculator-page.tsx",
+          "duration_ms": 1051.6000000000058,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/SignInCard.tsx",
+          "duration_ms": 1049.800000000003,
+          "bytes": 300
+        },
+        {
+          "path": "/src/assets/home-insulation-victoria-logo.png.asset.json",
+          "duration_ms": 1037.8999999999942,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/admin.communications.tsx",
+          "duration_ms": 1035.8999999999942,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/template-catalog.ts",
+          "duration_ms": 1035.8999999999942,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/my-profile.ts",
+          "duration_ms": 1034.3999999999942,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/page-recovery.core.ts",
+          "duration_ms": 1022.6000000000058,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/lovable-error-reporting.ts",
+          "duration_ms": 1008.5,
+          "bytes": 300
+        }
+      ],
+      "heading": "How much could you save on ceiling insulation?"
+    },
+    {
+      "path": "/calculator",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "visible_ms": 3413,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 6.400000000008731,
+        "dom_ms": 86,
+        "duration": 111.5
+      },
+      "resources": [
+        {
+          "path": "/src/assets/home-insulation-victoria-logo.png.asset.json",
+          "duration_ms": 1513.800000000003,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/public-calculator-page.tsx",
+          "duration_ms": 1511.9000000000087,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/page-recovery.core.ts",
+          "duration_ms": 1499.1000000000058,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/lovable-error-reporting.ts",
+          "duration_ms": 1484.1000000000058,
+          "bytes": 300
+        },
+        {
+          "path": "/src/styles.css",
+          "duration_ms": 1469.1000000000058,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/file-viewer.tsx",
+          "duration_ms": 1454,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/ui/sonner.tsx",
+          "duration_ms": 1439.5999999999913,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/local-network-fixtures.ts",
+          "duration_ms": 1438.300000000003,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/login.core.ts",
+          "duration_ms": 1434.800000000003,
+          "bytes": 300
+        },
+        {
+          "path": "/src/integrations/supabase/previewAuthStorage.ts",
+          "duration_ms": 1432.9000000000087,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.offer.$offerId.tsx",
+          "duration_ms": 1428.1000000000058,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/set-password-link.core.ts",
+          "duration_ms": 1420.5,
+          "bytes": 300
+        }
+      ],
+      "heading": "How much could you save on ceiling insulation?"
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "errors": []
+    }
+  ],
+  "after.json": [
+    {
+      "path": "/",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "visible_ms": 275,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 15.899999999906868,
+        "dom_ms": 225.39999999990687,
+        "duration": 419.39999999990687
+      },
+      "resources": [
+        {
+          "path": "/home-insulation-victoria-logo.png",
+          "duration_ms": 395.5,
+          "bytes": 0
+        },
+        {
+          "path": "/src/routes/_authenticated/field.offer.$offerId.tsx",
+          "duration_ms": 217.5,
+          "bytes": 26857
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.team.tsx",
+          "duration_ms": 217.29999999981374,
+          "bytes": 15883
+        },
+        {
+          "path": "/src/routes/_authenticated/field.day.$jobId.tsx",
+          "duration_ms": 217.29999999981374,
+          "bytes": 25946
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.rates.tsx",
+          "duration_ms": 217.10000000009313,
+          "bytes": 13217
+        },
+        {
+          "path": "/@fs/persist/node_modules/@tanstack/start-client-core/dist/esm/client-rpc/frame-decoder.js",
+          "duration_ms": 206.39999999990687,
+          "bytes": 20991
+        },
+        {
+          "path": "/@fs/persist/node_modules/@tanstack/start-client-core/dist/esm/getDefaultSerovalPlugins.js",
+          "duration_ms": 205.79999999981374,
+          "bytes": 2958
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.insurance.tsx",
+          "duration_ms": 204.8000000002794,
+          "bytes": 19241
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.details.tsx",
+          "duration_ms": 204.70000000018626,
+          "bytes": 12881
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.bank.tsx",
+          "duration_ms": 204.5,
+          "bytes": 15779
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.agreement.tsx",
+          "duration_ms": 204.40000000037253,
+          "bytes": 13975
+        },
+        {
+          "path": "/src/routes/_authenticated/admin.jobs.closed.tsx",
+          "duration_ms": 204.39999999990687,
+          "bytes": 13500
+        }
+      ],
+      "heading": "How much could you save on ceiling insulation?"
+    },
+    {
+      "path": "/calculator",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "visible_ms": 160,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 25.300000000279397,
+        "dom_ms": 128,
+        "duration": 140.10000000009313
+      },
+      "resources": [
+        {
+          "path": "/src/routes/_authenticated/field.offer.$offerId.tsx",
+          "duration_ms": 214,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.day.$jobId.tsx",
+          "duration_ms": 212.20000000018626,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.team.tsx",
+          "duration_ms": 210.5,
+          "bytes": 300
+        },
+        {
+          "path": "/src/integrations/supabase/previewAuthStorage.ts",
+          "duration_ms": 209.70000000018626,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.rates.tsx",
+          "duration_ms": 208.90000000037253,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/local-network-fixtures.ts",
+          "duration_ms": 207.89999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/file-viewer.tsx",
+          "duration_ms": 207.5,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.insurance.tsx",
+          "duration_ms": 207.20000000018626,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/ui/sonner.tsx",
+          "duration_ms": 206.10000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.details.tsx",
+          "duration_ms": 205.79999999981374,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.bank.tsx",
+          "duration_ms": 204.1999999997206,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/route-guards.ts",
+          "duration_ms": 200.79999999981374,
+          "bytes": 7194
+        }
+      ],
+      "heading": "How much could you save on ceiling insulation?"
+    },
+    {
+      "path": "/privacy",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "visible_ms": 58,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 5.699999999720603,
+        "dom_ms": 39.60000000009313,
+        "duration": 57.700000000186265
+      },
+      "resources": [
+        {
+          "path": "/src/assets/home-insulation-victoria-logo.png.asset.json",
+          "duration_ms": 189.5,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/public-calculator-page.tsx",
+          "duration_ms": 189.5,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/page-recovery.core.ts",
+          "duration_ms": 187.89999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/lovable-error-reporting.ts",
+          "duration_ms": 185.89999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/styles.css",
+          "duration_ms": 184.29999999981374,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/file-viewer.tsx",
+          "duration_ms": 182.59999999962747,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/local-network-fixtures.ts",
+          "duration_ms": 181.10000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/ui/sonner.tsx",
+          "duration_ms": 180.89999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/integrations/supabase/previewAuthStorage.ts",
+          "duration_ms": 179.70000000018626,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.offer.$offerId.tsx",
+          "duration_ms": 179.20000000018626,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.day.$jobId.tsx",
+          "duration_ms": 177.70000000018626,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.team.tsx",
+          "duration_ms": 176,
+          "bytes": 300
+        }
+      ],
+      "heading": "Privacy policy"
+    },
+    {
+      "path": "/auth",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "visible_ms": 66,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 5.800000000279397,
+        "dom_ms": 51,
+        "duration": 179.20000000018626
+      },
+      "resources": [
+        {
+          "path": "/src/assets/home-insulation-victoria-logo.png.asset.json",
+          "duration_ms": 192,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/public-calculator-page.tsx",
+          "duration_ms": 191.5,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/page-recovery.core.ts",
+          "duration_ms": 190.09999999962747,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/lovable-error-reporting.ts",
+          "duration_ms": 188,
+          "bytes": 300
+        },
+        {
+          "path": "/src/styles.css",
+          "duration_ms": 186.5,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/file-viewer.tsx",
+          "duration_ms": 184.79999999981374,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/local-network-fixtures.ts",
+          "duration_ms": 183.89999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/integrations/supabase/previewAuthStorage.ts",
+          "duration_ms": 183.39999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/ui/sonner.tsx",
+          "duration_ms": 183.20000000018626,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.offer.$offerId.tsx",
+          "duration_ms": 182.79999999981374,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.day.$jobId.tsx",
+          "duration_ms": 181.10000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.team.tsx",
+          "duration_ms": 179.39999999990687,
+          "bytes": 300
+        }
+      ],
+      "heading": "Welcome back."
+    },
+    {
+      "path": "/",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "visible_ms": 201,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 9.899999999906868,
+        "dom_ms": 183.39999999990687,
+        "duration": 196.39999999990687
+      },
+      "resources": [
+        {
+          "path": "/src/assets/home-insulation-victoria-logo.png.asset.json",
+          "duration_ms": 184.60000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/public-calculator-page.tsx",
+          "duration_ms": 183.60000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/page-recovery.core.ts",
+          "duration_ms": 182.8000000002794,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/lovable-error-reporting.ts",
+          "duration_ms": 181.1999999997206,
+          "bytes": 300
+        },
+        {
+          "path": "/src/styles.css",
+          "duration_ms": 179.59999999962747,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/file-viewer.tsx",
+          "duration_ms": 178,
+          "bytes": 300
+        },
+        {
+          "path": "/src/integrations/supabase/previewAuthStorage.ts",
+          "duration_ms": 177,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/local-network-fixtures.ts",
+          "duration_ms": 176.90000000037253,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/ui/sonner.tsx",
+          "duration_ms": 176.29999999981374,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.offer.$offerId.tsx",
+          "duration_ms": 176.1999999997206,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.day.$jobId.tsx",
+          "duration_ms": 174.60000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.team.tsx",
+          "duration_ms": 173,
+          "bytes": 300
+        }
+      ],
+      "heading": "How much could you save on ceiling insulation?"
+    },
+    {
+      "path": "/calculator",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "visible_ms": 170,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 11.100000000093132,
+        "dom_ms": 146.29999999981374,
+        "duration": 168.20000000018626
+      },
+      "resources": [
+        {
+          "path": "/src/assets/home-insulation-victoria-logo.png.asset.json",
+          "duration_ms": 203.29999999981374,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/public-calculator-page.tsx",
+          "duration_ms": 202.1999999997206,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/page-recovery.core.ts",
+          "duration_ms": 201.39999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/lovable-error-reporting.ts",
+          "duration_ms": 199.29999999981374,
+          "bytes": 300
+        },
+        {
+          "path": "/src/styles.css",
+          "duration_ms": 197.5,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/file-viewer.tsx",
+          "duration_ms": 195.60000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/local-network-fixtures.ts",
+          "duration_ms": 190.8000000002794,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/ui/sonner.tsx",
+          "duration_ms": 189.5,
+          "bytes": 300
+        },
+        {
+          "path": "/src/integrations/supabase/previewAuthStorage.ts",
+          "duration_ms": 189.29999999981374,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.offer.$offerId.tsx",
+          "duration_ms": 188.59999999962747,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/login.core.ts",
+          "duration_ms": 188.20000000018626,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.day.$jobId.tsx",
+          "duration_ms": 186.89999999990687,
+          "bytes": 300
+        }
+      ],
+      "heading": "How much could you save on ceiling insulation?"
+    },
+    {
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "errors": []
+    },
+    {
+      "path": "/",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "visible_ms": 208,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 10.5,
+        "dom_ms": 173.5,
+        "duration": 203.89999999990687
+      },
+      "resources": [
+        {
+          "path": "/src/routes/_authenticated/field.business_.insurance.tsx",
+          "duration_ms": 205.10000000009313,
+          "bytes": 19241
+        },
+        {
+          "path": "/src/routes/_authenticated/field.day.$jobId.tsx",
+          "duration_ms": 205.09999999962747,
+          "bytes": 25946
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.rates.tsx",
+          "duration_ms": 205,
+          "bytes": 13217
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.team.tsx",
+          "duration_ms": 205,
+          "bytes": 15883
+        },
+        {
+          "path": "/src/routes/_authenticated/field.offer.$offerId.tsx",
+          "duration_ms": 205,
+          "bytes": 26857
+        },
+        {
+          "path": "/src/routes/_authenticated/admin.jobs.$jobId.tsx",
+          "duration_ms": 195.89999999990687,
+          "bytes": 75045
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.bank.tsx",
+          "duration_ms": 195.39999999990687,
+          "bytes": 15779
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.details.tsx",
+          "duration_ms": 195.39999999990687,
+          "bytes": 12881
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.agreement.tsx",
+          "duration_ms": 195.3000000002794,
+          "bytes": 13975
+        },
+        {
+          "path": "/src/routes/_authenticated/admin.jobs.closed.tsx",
+          "duration_ms": 195.20000000018626,
+          "bytes": 13500
+        },
+        {
+          "path": "/src/routes/_authenticated/admin.jobs.active.tsx",
+          "duration_ms": 195.1999999997206,
+          "bytes": 13805
+        },
+        {
+          "path": "/@fs/persist/node_modules/@tanstack/start-client-core/dist/esm/safeObjectMerge.js",
+          "duration_ms": 184.6999999997206,
+          "bytes": 3803
+        }
+      ],
+      "heading": "How much could you save on ceiling insulation?"
+    },
+    {
+      "path": "/calculator",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "visible_ms": 157,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 10.600000000093132,
+        "dom_ms": 130.60000000009313,
+        "duration": 147
+      },
+      "resources": [
+        {
+          "path": "/src/routes/_authenticated/field.offer.$offerId.tsx",
+          "duration_ms": 182.60000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/integrations/supabase/previewAuthStorage.ts",
+          "duration_ms": 182.59999999962747,
+          "bytes": 300
+        },
+        {
+          "path": "/src/styles.css",
+          "duration_ms": 181.40000000037253,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.day.$jobId.tsx",
+          "duration_ms": 181,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/local-network-fixtures.ts",
+          "duration_ms": 180.89999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/node_modules/.vite/deps/zod.js",
+          "duration_ms": 179.89999999990687,
+          "bytes": 409189
+        },
+        {
+          "path": "/src/components/portal/file-viewer.tsx",
+          "duration_ms": 179.8000000002794,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.team.tsx",
+          "duration_ms": 179.39999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/ui/sonner.tsx",
+          "duration_ms": 178.09999999962747,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.rates.tsx",
+          "duration_ms": 177.8000000002794,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.insurance.tsx",
+          "duration_ms": 175.89999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.details.tsx",
+          "duration_ms": 173.89999999990687,
+          "bytes": 300
+        }
+      ],
+      "heading": "How much could you save on ceiling insulation?"
+    },
+    {
+      "path": "/privacy",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "visible_ms": 55,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 7.899999999906868,
+        "dom_ms": 38.200000000186265,
+        "duration": 51
+      },
+      "resources": [
+        {
+          "path": "/src/assets/home-insulation-victoria-logo.png.asset.json",
+          "duration_ms": 204.3000000002794,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/page-recovery.core.ts",
+          "duration_ms": 202.3000000002794,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/public-calculator-page.tsx",
+          "duration_ms": 201.8000000002794,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/lovable-error-reporting.ts",
+          "duration_ms": 200.20000000018626,
+          "bytes": 300
+        },
+        {
+          "path": "/src/styles.css",
+          "duration_ms": 198.39999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/local-network-fixtures.ts",
+          "duration_ms": 195.10000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/file-viewer.tsx",
+          "duration_ms": 194,
+          "bytes": 300
+        },
+        {
+          "path": "/src/integrations/supabase/previewAuthStorage.ts",
+          "duration_ms": 193.70000000018626,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.offer.$offerId.tsx",
+          "duration_ms": 193.10000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/ui/sonner.tsx",
+          "duration_ms": 192.39999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.day.$jobId.tsx",
+          "duration_ms": 191.3000000002794,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/login.core.ts",
+          "duration_ms": 190.60000000009313,
+          "bytes": 300
+        }
+      ],
+      "heading": "Privacy policy"
+    },
+    {
+      "path": "/auth",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "visible_ms": 65,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 5.100000000093132,
+        "dom_ms": 48.799999999813735,
+        "duration": 122.1999999997206
+      },
+      "resources": [
+        {
+          "path": "/src/assets/home-insulation-victoria-logo.png.asset.json",
+          "duration_ms": 204.39999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/public-calculator-page.tsx",
+          "duration_ms": 203.89999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/page-recovery.core.ts",
+          "duration_ms": 202.70000000018626,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/lovable-error-reporting.ts",
+          "duration_ms": 200.3000000002794,
+          "bytes": 300
+        },
+        {
+          "path": "/src/styles.css",
+          "duration_ms": 198.60000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/file-viewer.tsx",
+          "duration_ms": 196.79999999981374,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/local-network-fixtures.ts",
+          "duration_ms": 195.5,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/ui/sonner.tsx",
+          "duration_ms": 195.29999999981374,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.offer.$offerId.tsx",
+          "duration_ms": 193.90000000037253,
+          "bytes": 300
+        },
+        {
+          "path": "/src/integrations/supabase/previewAuthStorage.ts",
+          "duration_ms": 193.8000000002794,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.day.$jobId.tsx",
+          "duration_ms": 192.10000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.team.tsx",
+          "duration_ms": 190.39999999990687,
+          "bytes": 300
+        }
+      ],
+      "heading": "Welcome back."
+    },
+    {
+      "path": "/",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "visible_ms": 151,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 9.700000000186265,
+        "dom_ms": 133.60000000009313,
+        "duration": 146
+      },
+      "resources": [
+        {
+          "path": "/src/assets/home-insulation-victoria-logo.png.asset.json",
+          "duration_ms": 200.90000000037253,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/public-calculator-page.tsx",
+          "duration_ms": 200.10000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/page-recovery.core.ts",
+          "duration_ms": 199.39999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/lovable-error-reporting.ts",
+          "duration_ms": 197.60000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/styles.css",
+          "duration_ms": 195.60000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/local-network-fixtures.ts",
+          "duration_ms": 194.79999999981374,
+          "bytes": 300
+        },
+        {
+          "path": "/src/integrations/supabase/previewAuthStorage.ts",
+          "duration_ms": 193.89999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/file-viewer.tsx",
+          "duration_ms": 193.89999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.offer.$offerId.tsx",
+          "duration_ms": 193.10000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/ui/sonner.tsx",
+          "duration_ms": 192.3000000002794,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.day.$jobId.tsx",
+          "duration_ms": 191,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.team.tsx",
+          "duration_ms": 189.20000000018626,
+          "bytes": 300
+        }
+      ],
+      "heading": "How much could you save on ceiling insulation?"
+    },
+    {
+      "path": "/calculator",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "visible_ms": 135,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 11.099999999627471,
+        "dom_ms": 119.5,
+        "duration": 134.6999999997206
+      },
+      "resources": [
+        {
+          "path": "/src/assets/home-insulation-victoria-logo.png.asset.json",
+          "duration_ms": 193,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/public-calculator-page.tsx",
+          "duration_ms": 192.60000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/page-recovery.core.ts",
+          "duration_ms": 191,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/lovable-error-reporting.ts",
+          "duration_ms": 189.20000000018626,
+          "bytes": 300
+        },
+        {
+          "path": "/src/styles.css",
+          "duration_ms": 187.39999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/file-viewer.tsx",
+          "duration_ms": 185.70000000018626,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/local-network-fixtures.ts",
+          "duration_ms": 185,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/ui/sonner.tsx",
+          "duration_ms": 183.89999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/integrations/supabase/previewAuthStorage.ts",
+          "duration_ms": 183.29999999981374,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.offer.$offerId.tsx",
+          "duration_ms": 182.59999999962747,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.day.$jobId.tsx",
+          "duration_ms": 180.79999999981374,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/login.core.ts",
+          "duration_ms": 179.40000000037253,
+          "bytes": 300
+        }
+      ],
+      "heading": "How much could you save on ceiling insulation?"
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "errors": []
+    }
+  ],
+  "backend-baseline.json": [
+    {
+      "run": 0,
+      "name": "active",
+      "ms": 743,
+      "ok": true
+    },
+    {
+      "run": 0,
+      "name": "enquiries",
+      "ms": 1563,
+      "ok": true
+    },
+    {
+      "run": 0,
+      "name": "history",
+      "ms": 338,
+      "ok": true
+    },
+    {
+      "run": 0,
+      "name": "operations-excluded-QA",
+      "ms": 153,
+      "ok": true
+    },
+    {
+      "run": 1,
+      "name": "active",
+      "ms": 686,
+      "ok": true
+    },
+    {
+      "run": 1,
+      "name": "enquiries",
+      "ms": 1611,
+      "ok": true
+    },
+    {
+      "run": 1,
+      "name": "history",
+      "ms": 456,
+      "ok": true
+    },
+    {
+      "run": 1,
+      "name": "operations-excluded-QA",
+      "ms": 104,
+      "ok": true
+    },
+    {
+      "run": 2,
+      "name": "active",
+      "ms": 583,
+      "ok": true
+    },
+    {
+      "run": 2,
+      "name": "enquiries",
+      "ms": 1551,
+      "ok": true
+    },
+    {
+      "run": 2,
+      "name": "history",
+      "ms": 291,
+      "ok": true
+    },
+    {
+      "run": 2,
+      "name": "operations-excluded-QA",
+      "ms": 106,
+      "ok": true
+    }
+  ],
+  "backend-after.json": [
+    {
+      "run": 0,
+      "name": "active",
+      "ms": 628,
+      "ok": true
+    },
+    {
+      "run": 0,
+      "name": "enquiries",
+      "ms": 1504,
+      "ok": true
+    },
+    {
+      "run": 0,
+      "name": "history",
+      "ms": 181,
+      "ok": true
+    },
+    {
+      "run": 0,
+      "name": "operations-excluded-QA",
+      "ms": 99,
+      "ok": true
+    },
+    {
+      "run": 1,
+      "name": "active",
+      "ms": 606,
+      "ok": true
+    },
+    {
+      "run": 1,
+      "name": "enquiries",
+      "ms": 1414,
+      "ok": true
+    },
+    {
+      "run": 1,
+      "name": "history",
+      "ms": 172,
+      "ok": true
+    },
+    {
+      "run": 1,
+      "name": "operations-excluded-QA",
+      "ms": 86,
+      "ok": true
+    },
+    {
+      "run": 2,
+      "name": "active",
+      "ms": 564,
+      "ok": true
+    },
+    {
+      "run": 2,
+      "name": "enquiries",
+      "ms": 1409,
+      "ok": true
+    },
+    {
+      "run": 2,
+      "name": "history",
+      "ms": 207,
+      "ok": true
+    },
+    {
+      "run": 2,
+      "name": "operations-excluded-QA",
+      "ms": 102,
+      "ok": true
+    }
+  ],
+  "backend-addendum.json": [
+    {
+      "run": 0,
+      "name": "active",
+      "ms": 823,
+      "ok": true
+    },
+    {
+      "run": 0,
+      "name": "enquiries",
+      "ms": 1443,
+      "ok": true
+    },
+    {
+      "run": 0,
+      "name": "history",
+      "ms": 181,
+      "ok": true
+    },
+    {
+      "run": 0,
+      "name": "operations-excluded-QA",
+      "ms": 104,
+      "ok": true
+    },
+    {
+      "run": 1,
+      "name": "active",
+      "ms": 589,
+      "ok": true
+    },
+    {
+      "run": 1,
+      "name": "enquiries",
+      "ms": 1423,
+      "ok": true
+    },
+    {
+      "run": 1,
+      "name": "history",
+      "ms": 183,
+      "ok": true
+    },
+    {
+      "run": 1,
+      "name": "operations-excluded-QA",
+      "ms": 102,
+      "ok": true
+    },
+    {
+      "run": 2,
+      "name": "active",
+      "ms": 715,
+      "ok": true
+    },
+    {
+      "run": 2,
+      "name": "enquiries",
+      "ms": 1407,
+      "ok": true
+    },
+    {
+      "run": 2,
+      "name": "history",
+      "ms": 216,
+      "ok": true
+    },
+    {
+      "run": 2,
+      "name": "operations-excluded-QA",
+      "ms": 88,
+      "ok": true
+    }
+  ],
+  "backend-remaining.json": [
+    {
+      "run": 0,
+      "name": "active",
+      "ms": 787,
+      "ok": true
+    },
+    {
+      "run": 0,
+      "name": "enquiries",
+      "ms": 1536,
+      "ok": true
+    },
+    {
+      "run": 0,
+      "name": "history",
+      "ms": 208,
+      "ok": true
+    },
+    {
+      "run": 0,
+      "name": "operations-excluded-QA",
+      "ms": 107,
+      "ok": true
+    },
+    {
+      "run": 1,
+      "name": "active",
+      "ms": 573,
+      "ok": true
+    },
+    {
+      "run": 1,
+      "name": "enquiries",
+      "ms": 1392,
+      "ok": true
+    },
+    {
+      "run": 1,
+      "name": "history",
+      "ms": 186,
+      "ok": true
+    },
+    {
+      "run": 1,
+      "name": "operations-excluded-QA",
+      "ms": 89,
+      "ok": true
+    },
+    {
+      "run": 2,
+      "name": "active",
+      "ms": 664,
+      "ok": true
+    },
+    {
+      "run": 2,
+      "name": "enquiries",
+      "ms": 1505,
+      "ok": true
+    },
+    {
+      "run": 2,
+      "name": "history",
+      "ms": 165,
+      "ok": true
+    },
+    {
+      "run": 2,
+      "name": "operations-excluded-QA",
+      "ms": 116,
+      "ok": true
+    }
+  ],
+  "public-addendum.json": [
+    {
+      "path": "/",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "visible_ms": 275,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 15.899999999906868,
+        "dom_ms": 225.39999999990687,
+        "duration": 419.39999999990687
+      },
+      "resources": [
+        {
+          "path": "/home-insulation-victoria-logo.png",
+          "duration_ms": 395.5,
+          "bytes": 0
+        },
+        {
+          "path": "/src/routes/_authenticated/field.offer.$offerId.tsx",
+          "duration_ms": 217.5,
+          "bytes": 26857
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.team.tsx",
+          "duration_ms": 217.29999999981374,
+          "bytes": 15883
+        },
+        {
+          "path": "/src/routes/_authenticated/field.day.$jobId.tsx",
+          "duration_ms": 217.29999999981374,
+          "bytes": 25946
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.rates.tsx",
+          "duration_ms": 217.10000000009313,
+          "bytes": 13217
+        },
+        {
+          "path": "/@fs/persist/node_modules/@tanstack/start-client-core/dist/esm/client-rpc/frame-decoder.js",
+          "duration_ms": 206.39999999990687,
+          "bytes": 20991
+        },
+        {
+          "path": "/@fs/persist/node_modules/@tanstack/start-client-core/dist/esm/getDefaultSerovalPlugins.js",
+          "duration_ms": 205.79999999981374,
+          "bytes": 2958
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.insurance.tsx",
+          "duration_ms": 204.8000000002794,
+          "bytes": 19241
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.details.tsx",
+          "duration_ms": 204.70000000018626,
+          "bytes": 12881
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.bank.tsx",
+          "duration_ms": 204.5,
+          "bytes": 15779
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.agreement.tsx",
+          "duration_ms": 204.40000000037253,
+          "bytes": 13975
+        },
+        {
+          "path": "/src/routes/_authenticated/admin.jobs.closed.tsx",
+          "duration_ms": 204.39999999990687,
+          "bytes": 13500
+        }
+      ],
+      "heading": "How much could you save on ceiling insulation?"
+    },
+    {
+      "path": "/calculator",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "visible_ms": 160,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 25.300000000279397,
+        "dom_ms": 128,
+        "duration": 140.10000000009313
+      },
+      "resources": [
+        {
+          "path": "/src/routes/_authenticated/field.offer.$offerId.tsx",
+          "duration_ms": 214,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.day.$jobId.tsx",
+          "duration_ms": 212.20000000018626,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.team.tsx",
+          "duration_ms": 210.5,
+          "bytes": 300
+        },
+        {
+          "path": "/src/integrations/supabase/previewAuthStorage.ts",
+          "duration_ms": 209.70000000018626,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.rates.tsx",
+          "duration_ms": 208.90000000037253,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/local-network-fixtures.ts",
+          "duration_ms": 207.89999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/file-viewer.tsx",
+          "duration_ms": 207.5,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.insurance.tsx",
+          "duration_ms": 207.20000000018626,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/ui/sonner.tsx",
+          "duration_ms": 206.10000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.details.tsx",
+          "duration_ms": 205.79999999981374,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.bank.tsx",
+          "duration_ms": 204.1999999997206,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/route-guards.ts",
+          "duration_ms": 200.79999999981374,
+          "bytes": 7194
+        }
+      ],
+      "heading": "How much could you save on ceiling insulation?"
+    },
+    {
+      "path": "/privacy",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "visible_ms": 58,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 5.699999999720603,
+        "dom_ms": 39.60000000009313,
+        "duration": 57.700000000186265
+      },
+      "resources": [
+        {
+          "path": "/src/assets/home-insulation-victoria-logo.png.asset.json",
+          "duration_ms": 189.5,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/public-calculator-page.tsx",
+          "duration_ms": 189.5,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/page-recovery.core.ts",
+          "duration_ms": 187.89999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/lovable-error-reporting.ts",
+          "duration_ms": 185.89999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/styles.css",
+          "duration_ms": 184.29999999981374,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/file-viewer.tsx",
+          "duration_ms": 182.59999999962747,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/local-network-fixtures.ts",
+          "duration_ms": 181.10000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/ui/sonner.tsx",
+          "duration_ms": 180.89999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/integrations/supabase/previewAuthStorage.ts",
+          "duration_ms": 179.70000000018626,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.offer.$offerId.tsx",
+          "duration_ms": 179.20000000018626,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.day.$jobId.tsx",
+          "duration_ms": 177.70000000018626,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.team.tsx",
+          "duration_ms": 176,
+          "bytes": 300
+        }
+      ],
+      "heading": "Privacy policy"
+    },
+    {
+      "path": "/auth",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "visible_ms": 66,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 5.800000000279397,
+        "dom_ms": 51,
+        "duration": 179.20000000018626
+      },
+      "resources": [
+        {
+          "path": "/src/assets/home-insulation-victoria-logo.png.asset.json",
+          "duration_ms": 192,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/public-calculator-page.tsx",
+          "duration_ms": 191.5,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/page-recovery.core.ts",
+          "duration_ms": 190.09999999962747,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/lovable-error-reporting.ts",
+          "duration_ms": 188,
+          "bytes": 300
+        },
+        {
+          "path": "/src/styles.css",
+          "duration_ms": 186.5,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/file-viewer.tsx",
+          "duration_ms": 184.79999999981374,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/local-network-fixtures.ts",
+          "duration_ms": 183.89999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/integrations/supabase/previewAuthStorage.ts",
+          "duration_ms": 183.39999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/ui/sonner.tsx",
+          "duration_ms": 183.20000000018626,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.offer.$offerId.tsx",
+          "duration_ms": 182.79999999981374,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.day.$jobId.tsx",
+          "duration_ms": 181.10000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.team.tsx",
+          "duration_ms": 179.39999999990687,
+          "bytes": 300
+        }
+      ],
+      "heading": "Welcome back."
+    },
+    {
+      "path": "/",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "visible_ms": 201,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 9.899999999906868,
+        "dom_ms": 183.39999999990687,
+        "duration": 196.39999999990687
+      },
+      "resources": [
+        {
+          "path": "/src/assets/home-insulation-victoria-logo.png.asset.json",
+          "duration_ms": 184.60000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/public-calculator-page.tsx",
+          "duration_ms": 183.60000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/page-recovery.core.ts",
+          "duration_ms": 182.8000000002794,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/lovable-error-reporting.ts",
+          "duration_ms": 181.1999999997206,
+          "bytes": 300
+        },
+        {
+          "path": "/src/styles.css",
+          "duration_ms": 179.59999999962747,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/file-viewer.tsx",
+          "duration_ms": 178,
+          "bytes": 300
+        },
+        {
+          "path": "/src/integrations/supabase/previewAuthStorage.ts",
+          "duration_ms": 177,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/local-network-fixtures.ts",
+          "duration_ms": 176.90000000037253,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/ui/sonner.tsx",
+          "duration_ms": 176.29999999981374,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.offer.$offerId.tsx",
+          "duration_ms": 176.1999999997206,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.day.$jobId.tsx",
+          "duration_ms": 174.60000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.team.tsx",
+          "duration_ms": 173,
+          "bytes": 300
+        }
+      ],
+      "heading": "How much could you save on ceiling insulation?"
+    },
+    {
+      "path": "/calculator",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "visible_ms": 170,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 11.100000000093132,
+        "dom_ms": 146.29999999981374,
+        "duration": 168.20000000018626
+      },
+      "resources": [
+        {
+          "path": "/src/assets/home-insulation-victoria-logo.png.asset.json",
+          "duration_ms": 203.29999999981374,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/public-calculator-page.tsx",
+          "duration_ms": 202.1999999997206,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/page-recovery.core.ts",
+          "duration_ms": 201.39999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/lovable-error-reporting.ts",
+          "duration_ms": 199.29999999981374,
+          "bytes": 300
+        },
+        {
+          "path": "/src/styles.css",
+          "duration_ms": 197.5,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/file-viewer.tsx",
+          "duration_ms": 195.60000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/local-network-fixtures.ts",
+          "duration_ms": 190.8000000002794,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/ui/sonner.tsx",
+          "duration_ms": 189.5,
+          "bytes": 300
+        },
+        {
+          "path": "/src/integrations/supabase/previewAuthStorage.ts",
+          "duration_ms": 189.29999999981374,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.offer.$offerId.tsx",
+          "duration_ms": 188.59999999962747,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/login.core.ts",
+          "duration_ms": 188.20000000018626,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.day.$jobId.tsx",
+          "duration_ms": 186.89999999990687,
+          "bytes": 300
+        }
+      ],
+      "heading": "How much could you save on ceiling insulation?"
+    },
+    {
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "errors": []
+    },
+    {
+      "path": "/",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "visible_ms": 208,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 10.5,
+        "dom_ms": 173.5,
+        "duration": 203.89999999990687
+      },
+      "resources": [
+        {
+          "path": "/src/routes/_authenticated/field.business_.insurance.tsx",
+          "duration_ms": 205.10000000009313,
+          "bytes": 19241
+        },
+        {
+          "path": "/src/routes/_authenticated/field.day.$jobId.tsx",
+          "duration_ms": 205.09999999962747,
+          "bytes": 25946
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.rates.tsx",
+          "duration_ms": 205,
+          "bytes": 13217
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.team.tsx",
+          "duration_ms": 205,
+          "bytes": 15883
+        },
+        {
+          "path": "/src/routes/_authenticated/field.offer.$offerId.tsx",
+          "duration_ms": 205,
+          "bytes": 26857
+        },
+        {
+          "path": "/src/routes/_authenticated/admin.jobs.$jobId.tsx",
+          "duration_ms": 195.89999999990687,
+          "bytes": 75045
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.bank.tsx",
+          "duration_ms": 195.39999999990687,
+          "bytes": 15779
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.details.tsx",
+          "duration_ms": 195.39999999990687,
+          "bytes": 12881
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.agreement.tsx",
+          "duration_ms": 195.3000000002794,
+          "bytes": 13975
+        },
+        {
+          "path": "/src/routes/_authenticated/admin.jobs.closed.tsx",
+          "duration_ms": 195.20000000018626,
+          "bytes": 13500
+        },
+        {
+          "path": "/src/routes/_authenticated/admin.jobs.active.tsx",
+          "duration_ms": 195.1999999997206,
+          "bytes": 13805
+        },
+        {
+          "path": "/@fs/persist/node_modules/@tanstack/start-client-core/dist/esm/safeObjectMerge.js",
+          "duration_ms": 184.6999999997206,
+          "bytes": 3803
+        }
+      ],
+      "heading": "How much could you save on ceiling insulation?"
+    },
+    {
+      "path": "/calculator",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "visible_ms": 157,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 10.600000000093132,
+        "dom_ms": 130.60000000009313,
+        "duration": 147
+      },
+      "resources": [
+        {
+          "path": "/src/routes/_authenticated/field.offer.$offerId.tsx",
+          "duration_ms": 182.60000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/integrations/supabase/previewAuthStorage.ts",
+          "duration_ms": 182.59999999962747,
+          "bytes": 300
+        },
+        {
+          "path": "/src/styles.css",
+          "duration_ms": 181.40000000037253,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.day.$jobId.tsx",
+          "duration_ms": 181,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/local-network-fixtures.ts",
+          "duration_ms": 180.89999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/node_modules/.vite/deps/zod.js",
+          "duration_ms": 179.89999999990687,
+          "bytes": 409189
+        },
+        {
+          "path": "/src/components/portal/file-viewer.tsx",
+          "duration_ms": 179.8000000002794,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.team.tsx",
+          "duration_ms": 179.39999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/ui/sonner.tsx",
+          "duration_ms": 178.09999999962747,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.rates.tsx",
+          "duration_ms": 177.8000000002794,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.insurance.tsx",
+          "duration_ms": 175.89999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.details.tsx",
+          "duration_ms": 173.89999999990687,
+          "bytes": 300
+        }
+      ],
+      "heading": "How much could you save on ceiling insulation?"
+    },
+    {
+      "path": "/privacy",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "visible_ms": 55,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 7.899999999906868,
+        "dom_ms": 38.200000000186265,
+        "duration": 51
+      },
+      "resources": [
+        {
+          "path": "/src/assets/home-insulation-victoria-logo.png.asset.json",
+          "duration_ms": 204.3000000002794,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/page-recovery.core.ts",
+          "duration_ms": 202.3000000002794,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/public-calculator-page.tsx",
+          "duration_ms": 201.8000000002794,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/lovable-error-reporting.ts",
+          "duration_ms": 200.20000000018626,
+          "bytes": 300
+        },
+        {
+          "path": "/src/styles.css",
+          "duration_ms": 198.39999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/local-network-fixtures.ts",
+          "duration_ms": 195.10000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/file-viewer.tsx",
+          "duration_ms": 194,
+          "bytes": 300
+        },
+        {
+          "path": "/src/integrations/supabase/previewAuthStorage.ts",
+          "duration_ms": 193.70000000018626,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.offer.$offerId.tsx",
+          "duration_ms": 193.10000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/ui/sonner.tsx",
+          "duration_ms": 192.39999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.day.$jobId.tsx",
+          "duration_ms": 191.3000000002794,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/login.core.ts",
+          "duration_ms": 190.60000000009313,
+          "bytes": 300
+        }
+      ],
+      "heading": "Privacy policy"
+    },
+    {
+      "path": "/auth",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "visible_ms": 65,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 5.100000000093132,
+        "dom_ms": 48.799999999813735,
+        "duration": 122.1999999997206
+      },
+      "resources": [
+        {
+          "path": "/src/assets/home-insulation-victoria-logo.png.asset.json",
+          "duration_ms": 204.39999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/public-calculator-page.tsx",
+          "duration_ms": 203.89999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/page-recovery.core.ts",
+          "duration_ms": 202.70000000018626,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/lovable-error-reporting.ts",
+          "duration_ms": 200.3000000002794,
+          "bytes": 300
+        },
+        {
+          "path": "/src/styles.css",
+          "duration_ms": 198.60000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/file-viewer.tsx",
+          "duration_ms": 196.79999999981374,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/local-network-fixtures.ts",
+          "duration_ms": 195.5,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/ui/sonner.tsx",
+          "duration_ms": 195.29999999981374,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.offer.$offerId.tsx",
+          "duration_ms": 193.90000000037253,
+          "bytes": 300
+        },
+        {
+          "path": "/src/integrations/supabase/previewAuthStorage.ts",
+          "duration_ms": 193.8000000002794,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.day.$jobId.tsx",
+          "duration_ms": 192.10000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.team.tsx",
+          "duration_ms": 190.39999999990687,
+          "bytes": 300
+        }
+      ],
+      "heading": "Welcome back."
+    },
+    {
+      "path": "/",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "visible_ms": 151,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 9.700000000186265,
+        "dom_ms": 133.60000000009313,
+        "duration": 146
+      },
+      "resources": [
+        {
+          "path": "/src/assets/home-insulation-victoria-logo.png.asset.json",
+          "duration_ms": 200.90000000037253,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/public-calculator-page.tsx",
+          "duration_ms": 200.10000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/page-recovery.core.ts",
+          "duration_ms": 199.39999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/lovable-error-reporting.ts",
+          "duration_ms": 197.60000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/styles.css",
+          "duration_ms": 195.60000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/local-network-fixtures.ts",
+          "duration_ms": 194.79999999981374,
+          "bytes": 300
+        },
+        {
+          "path": "/src/integrations/supabase/previewAuthStorage.ts",
+          "duration_ms": 193.89999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/file-viewer.tsx",
+          "duration_ms": 193.89999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.offer.$offerId.tsx",
+          "duration_ms": 193.10000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/ui/sonner.tsx",
+          "duration_ms": 192.3000000002794,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.day.$jobId.tsx",
+          "duration_ms": 191,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.business_.team.tsx",
+          "duration_ms": 189.20000000018626,
+          "bytes": 300
+        }
+      ],
+      "heading": "How much could you save on ceiling insulation?"
+    },
+    {
+      "path": "/calculator",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "visible_ms": 135,
+      "status": 200,
+      "overflow": false,
+      "navigation": {
+        "ttfb_ms": 11.099999999627471,
+        "dom_ms": 119.5,
+        "duration": 134.6999999997206
+      },
+      "resources": [
+        {
+          "path": "/src/assets/home-insulation-victoria-logo.png.asset.json",
+          "duration_ms": 193,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/public-calculator-page.tsx",
+          "duration_ms": 192.60000000009313,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/page-recovery.core.ts",
+          "duration_ms": 191,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/lovable-error-reporting.ts",
+          "duration_ms": 189.20000000018626,
+          "bytes": 300
+        },
+        {
+          "path": "/src/styles.css",
+          "duration_ms": 187.39999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/portal/file-viewer.tsx",
+          "duration_ms": 185.70000000018626,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/local-network-fixtures.ts",
+          "duration_ms": 185,
+          "bytes": 300
+        },
+        {
+          "path": "/src/components/ui/sonner.tsx",
+          "duration_ms": 183.89999999990687,
+          "bytes": 300
+        },
+        {
+          "path": "/src/integrations/supabase/previewAuthStorage.ts",
+          "duration_ms": 183.29999999981374,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.offer.$offerId.tsx",
+          "duration_ms": 182.59999999962747,
+          "bytes": 300
+        },
+        {
+          "path": "/src/routes/_authenticated/field.day.$jobId.tsx",
+          "duration_ms": 180.79999999981374,
+          "bytes": 300
+        },
+        {
+          "path": "/src/lib/login.core.ts",
+          "duration_ms": 179.40000000037253,
+          "bytes": 300
+        }
+      ],
+      "heading": "How much could you save on ceiling insulation?"
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "errors": []
+    }
+  ],
+  "office-baseline-correct.json": [
+    {
+      "role": "office",
+      "path": "/admin/jobs/active",
+      "final_path": "/admin/jobs/active",
+      "settled_ms": 2330,
+      "overflow": false,
+      "error_page": false,
+      "rpc_count": 1,
+      "rpc_statuses": [
+        200
+      ],
+      "errors": []
+    },
+    {
+      "role": "office",
+      "path": "/admin/enquiries",
+      "final_path": "/admin/enquiries?page=0",
+      "settled_ms": 3075,
+      "overflow": false,
+      "error_page": false,
+      "rpc_count": 1,
+      "rpc_statuses": [
+        200
+      ],
+      "errors": []
+    },
+    {
+      "role": "office",
+      "path": "/admin/jobs/closed",
+      "final_path": "/admin/jobs/closed",
+      "settled_ms": 1637,
+      "overflow": false,
+      "error_page": false,
+      "rpc_count": 1,
+      "rpc_statuses": [
+        200
+      ],
+      "errors": []
+    },
+    {
+      "role": "office",
+      "path": "/admin/jobs/518271f4-90b5-4d16-8ccc-2d2a5a0a12c1",
+      "final_path": "/admin/jobs/518271f4-90b5-4d16-8ccc-2d2a5a0a12c1",
+      "settled_ms": 3585,
+      "overflow": false,
+      "error_page": false,
+      "rpc_count": 7,
+      "rpc_statuses": [
+        200,
+        200,
+        200,
+        200,
+        200,
+        200,
+        200
+      ],
+      "errors": []
+    },
+    {
+      "role": "installer",
+      "path": "/partner",
+      "final_path": "/field",
+      "settled_ms": 2214,
+      "overflow": false,
+      "error_page": false,
+      "rpc_count": 1,
+      "rpc_statuses": [
+        200
+      ],
+      "errors": []
+    },
+    {
+      "role": "installer",
+      "path": "/partner/add",
+      "final_path": "/partner/import",
+      "settled_ms": 1730,
+      "overflow": false,
+      "error_page": false,
+      "rpc_count": 2,
+      "rpc_statuses": [
+        200,
+        200
+      ],
+      "errors": []
+    },
+    {
+      "role": "installer",
+      "path": "/field/business",
+      "final_path": "/field/business",
+      "settled_ms": 1352,
+      "overflow": false,
+      "error_page": false,
+      "rpc_count": 1,
+      "rpc_statuses": [
+        200
+      ],
+      "errors": []
+    },
+    {
+      "role": "installer",
+      "path": "/partner/workers",
+      "final_path": "/partner/workers",
+      "settled_ms": 1281,
+      "overflow": false,
+      "error_page": false,
+      "rpc_count": 2,
+      "rpc_statuses": [
+        200,
+        200
+      ],
+      "errors": []
+    }
+  ],
+  "office-after.json": [
+    {
+      "role": "office",
+      "path": "/admin/jobs/active",
+      "final_path": "/admin/jobs/active",
+      "settled_ms": 2369,
+      "overflow": false,
+      "error_page": false,
+      "rpc_count": 1,
+      "rpc_statuses": [
+        200
+      ],
+      "errors": []
+    },
+    {
+      "role": "office",
+      "path": "/admin/enquiries",
+      "final_path": "/admin/enquiries?page=0",
+      "settled_ms": 2878,
+      "overflow": false,
+      "error_page": false,
+      "rpc_count": 1,
+      "rpc_statuses": [
+        200
+      ],
+      "errors": []
+    },
+    {
+      "role": "office",
+      "path": "/admin/jobs/closed",
+      "final_path": "/admin/jobs/closed",
+      "settled_ms": 1647,
+      "overflow": false,
+      "error_page": false,
+      "rpc_count": 1,
+      "rpc_statuses": [
+        200
+      ],
+      "errors": []
+    },
+    {
+      "role": "office",
+      "path": "/admin/jobs/518271f4-90b5-4d16-8ccc-2d2a5a0a12c1",
+      "final_path": "/admin/jobs/518271f4-90b5-4d16-8ccc-2d2a5a0a12c1",
+      "settled_ms": 1954,
+      "overflow": false,
+      "error_page": false,
+      "rpc_count": 6,
+      "rpc_statuses": [
+        200,
+        200,
+        200,
+        200,
+        200,
+        200
+      ],
+      "errors": []
+    },
+    {
+      "role": "installer",
+      "path": "/partner",
+      "final_path": "/field",
+      "settled_ms": 2232,
+      "overflow": false,
+      "error_page": false,
+      "rpc_count": 1,
+      "rpc_statuses": [
+        200
+      ],
+      "errors": []
+    },
+    {
+      "role": "installer",
+      "path": "/partner/add",
+      "final_path": "/partner/import",
+      "settled_ms": 1716,
+      "overflow": false,
+      "error_page": false,
+      "rpc_count": 2,
+      "rpc_statuses": [
+        200,
+        200
+      ],
+      "errors": []
+    },
+    {
+      "role": "installer",
+      "path": "/field/business",
+      "final_path": "/field/business",
+      "settled_ms": 1338,
+      "overflow": false,
+      "error_page": false,
+      "rpc_count": 1,
+      "rpc_statuses": [
+        200
+      ],
+      "errors": []
+    },
+    {
+      "role": "installer",
+      "path": "/partner/workers",
+      "final_path": "/partner/workers",
+      "settled_ms": 1350,
+      "overflow": false,
+      "error_page": false,
+      "rpc_count": 2,
+      "rpc_statuses": [
+        200,
+        200
+      ],
+      "errors": []
+    }
+  ],
+  "rpc-after.json": [
+    {
+      "run": 0,
+      "path": "/admin/jobs/active",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "settled_ms": 2489,
+      "requests": [
+        {
+          "name": "getJobListPage",
+          "ms": 793,
+          "status": 200
+        }
+      ],
+      "overflow": false
+    },
+    {
+      "run": 0,
+      "path": "/admin/enquiries",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "settled_ms": 3352,
+      "requests": [
+        {
+          "name": "getEnquiryGroups",
+          "ms": 2041,
+          "status": 200
+        }
+      ],
+      "overflow": false
+    },
+    {
+      "run": 0,
+      "path": "/admin/jobs/518271f4-90b5-4d16-8ccc-2d2a5a0a12c1",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "settled_ms": 2452,
+      "requests": [
+        {
+          "name": "getJobOverview",
+          "ms": 182,
+          "status": 200
+        },
+        {
+          "name": "getJobContactConsent",
+          "ms": 104,
+          "status": 200
+        },
+        {
+          "name": "getJobFileHeader",
+          "ms": 114,
+          "status": 200
+        },
+        {
+          "name": "getJobDeleteState",
+          "ms": 226,
+          "status": 200
+        },
+        {
+          "name": "getOperationsJob",
+          "ms": 250,
+          "status": 200
+        },
+        {
+          "name": "getJobBlockers",
+          "ms": 727,
+          "status": 200
+        }
+      ],
+      "overflow": false
+    },
+    {
+      "run": 1,
+      "path": "/admin/jobs/active",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "settled_ms": 2028,
+      "requests": [
+        {
+          "name": "getJobListPage",
+          "ms": 750,
+          "status": 200
+        }
+      ],
+      "overflow": false
+    },
+    {
+      "run": 1,
+      "path": "/admin/enquiries",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "settled_ms": 3184,
+      "requests": [
+        {
+          "name": "getEnquiryGroups",
+          "ms": 1870,
+          "status": 200
+        }
+      ],
+      "overflow": false
+    },
+    {
+      "run": 1,
+      "path": "/admin/jobs/518271f4-90b5-4d16-8ccc-2d2a5a0a12c1",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "settled_ms": 4559,
+      "requests": [
+        {
+          "name": "getJobOverview",
+          "ms": 195,
+          "status": 200
+        },
+        {
+          "name": "getJobContactConsent",
+          "ms": 115,
+          "status": 200
+        },
+        {
+          "name": "getJobFileHeader",
+          "ms": 127,
+          "status": 200
+        },
+        {
+          "name": "getJobDeleteState",
+          "ms": 141,
+          "status": 200
+        },
+        {
+          "name": "getOperationsJob",
+          "ms": 195,
+          "status": 200
+        },
+        {
+          "name": "getJobBlockers",
+          "ms": 585,
+          "status": 200
+        }
+      ],
+      "overflow": false
+    },
+    {
+      "run": 0,
+      "path": "/admin/jobs/active",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "settled_ms": 2654,
+      "requests": [
+        {
+          "name": "getJobListPage",
+          "ms": 753,
+          "status": 200
+        }
+      ],
+      "overflow": false
+    },
+    {
+      "run": 0,
+      "path": "/admin/enquiries",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "settled_ms": 3222,
+      "requests": [
+        {
+          "name": "getEnquiryGroups",
+          "ms": 1768,
+          "status": 200
+        }
+      ],
+      "overflow": false
+    },
+    {
+      "run": 0,
+      "path": "/admin/jobs/518271f4-90b5-4d16-8ccc-2d2a5a0a12c1",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "settled_ms": 2238,
+      "requests": [
+        {
+          "name": "getJobOverview",
+          "ms": 195,
+          "status": 200
+        },
+        {
+          "name": "getJobContactConsent",
+          "ms": 92,
+          "status": 200
+        },
+        {
+          "name": "getJobFileHeader",
+          "ms": 99,
+          "status": 200
+        },
+        {
+          "name": "getJobDeleteState",
+          "ms": 145,
+          "status": 200
+        },
+        {
+          "name": "getOperationsJob",
+          "ms": 208,
+          "status": 200
+        },
+        {
+          "name": "getJobBlockers",
+          "ms": 676,
+          "status": 200
+        }
+      ],
+      "overflow": false
+    },
+    {
+      "run": 1,
+      "path": "/admin/jobs/active",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "settled_ms": 2019,
+      "requests": [
+        {
+          "name": "getJobListPage",
+          "ms": 739,
+          "status": 200
+        }
+      ],
+      "overflow": false
+    },
+    {
+      "run": 1,
+      "path": "/admin/enquiries",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "settled_ms": 2916,
+      "requests": [
+        {
+          "name": "getEnquiryGroups",
+          "ms": 1717,
+          "status": 200
+        }
+      ],
+      "overflow": false
+    },
+    {
+      "run": 1,
+      "path": "/admin/jobs/518271f4-90b5-4d16-8ccc-2d2a5a0a12c1",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "settled_ms": 2387,
+      "requests": [
+        {
+          "name": "getJobOverview",
+          "ms": 138,
+          "status": 200
+        },
+        {
+          "name": "getJobFileHeader",
+          "ms": 140,
+          "status": 200
+        },
+        {
+          "name": "getJobContactConsent",
+          "ms": 144,
+          "status": 200
+        },
+        {
+          "name": "getJobDeleteState",
+          "ms": 214,
+          "status": 200
+        },
+        {
+          "name": "getOperationsJob",
+          "ms": 246,
+          "status": 200
+        },
+        {
+          "name": "getJobBlockers",
+          "ms": 562,
+          "status": 200
+        }
+      ],
+      "overflow": false
+    }
+  ],
+  "flows.json": [
+    {
+      "path": "/",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "status": "PASS",
+      "method": "typed dummy VIC address, 150m2, None; local result only; address search stubbed; no submit",
+      "pre_rebate": 5198,
+      "installation": 4500,
+      "implied_rate_inc_gst": 30,
+      "ready_check": "free",
+      "errors": []
+    },
+    {
+      "role": "office",
+      "path": "/admin/jobs/518271f4-90b5-4d16-8ccc-2d2a5a0a12c1",
+      "control": "History",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "status": "PASS",
+      "elapsed_ms": 94,
+      "errors": []
+    },
+    {
+      "role": "office",
+      "path": "/admin/jobs/518271f4-90b5-4d16-8ccc-2d2a5a0a12c1",
+      "control": "Communications",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "status": "PASS",
+      "elapsed_ms": 70,
+      "errors": []
+    },
+    {
+      "role": "office",
+      "path": "/admin/jobs/518271f4-90b5-4d16-8ccc-2d2a5a0a12c1",
+      "control": "Forms & evidence",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "status": "PASS",
+      "elapsed_ms": 461,
+      "errors": []
+    },
+    {
+      "role": "installer",
+      "path": "/field",
+      "final_path": "/field",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "status": "PASS",
+      "controls": [
+        "TA"
+      ],
+      "errors": [],
+      "writes": false
+    },
+    {
+      "role": "installer",
+      "path": "/partner/add",
+      "final_path": "/partner/import",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "status": "PASS",
+      "controls": [
+        "TA",
+        "Next"
+      ],
+      "errors": [],
+      "writes": false
+    },
+    {
+      "role": "installer",
+      "path": "/field/business",
+      "final_path": "/field/business",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "status": "PASS",
+      "controls": [
+        "TA",
+        "Sign out"
+      ],
+      "errors": [],
+      "writes": false
+    },
+    {
+      "role": "installer",
+      "path": "/partner/workers",
+      "final_path": "/partner/workers",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "status": "PASS",
+      "controls": [
+        "TA",
+        "Installer",
+        "Electrician",
+        "Create invite link",
+        "+ Add staff member manually",
+        "Edit",
+        ""
+      ],
+      "errors": [],
+      "writes": false
+    },
+    {
+      "path": "/",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "PASS",
+      "method": "typed dummy VIC address, 150m2, None; local result only; address search stubbed; no submit",
+      "pre_rebate": 5198,
+      "installation": 4500,
+      "implied_rate_inc_gst": 30,
+      "ready_check": "free",
+      "errors": []
+    },
+    {
+      "role": "office",
+      "path": "/admin/jobs/518271f4-90b5-4d16-8ccc-2d2a5a0a12c1",
+      "control": "History",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "PASS",
+      "elapsed_ms": 102,
+      "errors": []
+    },
+    {
+      "role": "office",
+      "path": "/admin/jobs/518271f4-90b5-4d16-8ccc-2d2a5a0a12c1",
+      "control": "Communications",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "PASS",
+      "elapsed_ms": 1661,
+      "errors": []
+    },
+    {
+      "role": "office",
+      "path": "/admin/jobs/518271f4-90b5-4d16-8ccc-2d2a5a0a12c1",
+      "control": "Forms & evidence",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "PASS",
+      "elapsed_ms": 1600,
+      "errors": []
+    },
+    {
+      "role": "installer",
+      "path": "/field",
+      "final_path": "/field",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "PASS",
+      "controls": [
+        "TA"
+      ],
+      "errors": [],
+      "writes": false
+    },
+    {
+      "role": "installer",
+      "path": "/partner/add",
+      "final_path": "/partner/import",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "PASS",
+      "controls": [
+        "TA",
+        "Next"
+      ],
+      "errors": [],
+      "writes": false
+    },
+    {
+      "role": "installer",
+      "path": "/field/business",
+      "final_path": "/field/business",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "PASS",
+      "controls": [
+        "TA",
+        "Sign out"
+      ],
+      "errors": [],
+      "writes": false
+    },
+    {
+      "role": "installer",
+      "path": "/partner/workers",
+      "final_path": "/partner/workers",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "PASS",
+      "controls": [
+        "TA",
+        "Installer",
+        "Electrician",
+        "Create invite link",
+        "+ Add staff member manually",
+        "Edit",
+        ""
+      ],
+      "errors": [],
+      "writes": false
+    }
+  ],
+  "controls.json": [
+    {
+      "path": "/admin/communications",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "status": "PASS",
+      "controls": [
+        {
+          "name": "Overview",
+          "status": "PASS",
+          "method": "clicked read-only section link"
+        },
+        {
+          "name": "Outgoing",
+          "status": "PASS",
+          "method": "clicked read-only section link"
+        },
+        {
+          "name": "Sent & history",
+          "status": "PASS",
+          "method": "clicked read-only section link"
+        },
+        {
+          "name": "Failed / attention",
+          "status": "PASS",
+          "method": "clicked read-only section link"
+        },
+        {
+          "name": "Campaigns",
+          "status": "PASS",
+          "method": "clicked read-only section link"
+        },
+        {
+          "name": "Outlook & review",
+          "status": "PASS",
+          "method": "clicked read-only section link"
+        },
+        {
+          "name": "Rows per page",
+          "status": "PASS",
+          "method": "read-only pagination clicked"
+        },
+        {
+          "name": "Next page",
+          "status": "PASS",
+          "method": "read-only pagination clicked"
+        },
+        {
+          "name": "Previous page",
+          "status": "PASS",
+          "method": "disabled boundary verified; not clicked"
+        }
+      ],
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/admin/templates",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "status": "PASS",
+      "controls": [
+        {
+          "name": "All 21",
+          "status": "PASS",
+          "method": "clicked read-only tab"
+        },
+        {
+          "name": "Current approved 12",
+          "status": "PASS",
+          "method": "clicked read-only tab"
+        },
+        {
+          "name": "Drafts & unrecorded 2",
+          "status": "PASS",
+          "method": "clicked read-only tab"
+        },
+        {
+          "name": "Reference & versioned 0",
+          "status": "PASS",
+          "method": "clicked read-only tab"
+        },
+        {
+          "name": "Historical 7",
+          "status": "PASS",
+          "method": "clicked read-only tab"
+        }
+      ],
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/admin/enquiries",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "status": "PASS",
+      "controls": [
+        {
+          "name": "Search enquiries",
+          "status": "PASS",
+          "method": "dummy job search then clear; no write"
+        }
+      ],
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/admin/jobs/active",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "status": "PASS",
+      "controls": [
+        {
+          "name": "Rows per page",
+          "status": "PASS",
+          "method": "read-only pagination clicked"
+        },
+        {
+          "name": "Next page",
+          "status": "PASS",
+          "method": "read-only pagination clicked"
+        },
+        {
+          "name": "Previous page",
+          "status": "PASS",
+          "method": "disabled boundary verified; not clicked"
+        }
+      ],
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/admin/jobs/closed",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "status": "PASS",
+      "controls": [
+        {
+          "name": "Rows per page",
+          "status": "PASS",
+          "method": "read-only pagination clicked"
+        },
+        {
+          "name": "Next page",
+          "status": "PASS",
+          "method": "disabled boundary verified; not clicked"
+        },
+        {
+          "name": "Previous page",
+          "status": "PASS",
+          "method": "disabled boundary verified; not clicked"
+        }
+      ],
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/admin/communications",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "PASS",
+      "controls": [
+        {
+          "name": "Overview",
+          "status": "PASS",
+          "method": "clicked read-only section link"
+        },
+        {
+          "name": "Outgoing",
+          "status": "PASS",
+          "method": "clicked read-only section link"
+        },
+        {
+          "name": "Sent & history",
+          "status": "PASS",
+          "method": "clicked read-only section link"
+        },
+        {
+          "name": "Failed / attention",
+          "status": "PASS",
+          "method": "clicked read-only section link"
+        },
+        {
+          "name": "Campaigns",
+          "status": "PASS",
+          "method": "clicked read-only section link"
+        },
+        {
+          "name": "Outlook & review",
+          "status": "PASS",
+          "method": "clicked read-only section link"
+        },
+        {
+          "name": "Rows per page",
+          "status": "PASS",
+          "method": "read-only pagination clicked"
+        },
+        {
+          "name": "Next page",
+          "status": "PASS",
+          "method": "read-only pagination clicked"
+        },
+        {
+          "name": "Previous page",
+          "status": "PASS",
+          "method": "disabled boundary verified; not clicked"
+        }
+      ],
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/admin/templates",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "PASS",
+      "controls": [
+        {
+          "name": "All 21",
+          "status": "PASS",
+          "method": "clicked read-only tab"
+        },
+        {
+          "name": "Current approved 12",
+          "status": "PASS",
+          "method": "clicked read-only tab"
+        },
+        {
+          "name": "Drafts & unrecorded 2",
+          "status": "PASS",
+          "method": "clicked read-only tab"
+        },
+        {
+          "name": "Reference & versioned 0",
+          "status": "PASS",
+          "method": "clicked read-only tab"
+        },
+        {
+          "name": "Historical 7",
+          "status": "PASS",
+          "method": "clicked read-only tab"
+        }
+      ],
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/admin/enquiries",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "PASS",
+      "controls": [
+        {
+          "name": "Search enquiries",
+          "status": "PASS",
+          "method": "dummy job search then clear; no write"
+        }
+      ],
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/admin/jobs/active",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "PASS",
+      "controls": [
+        {
+          "name": "Rows per page",
+          "status": "PASS",
+          "method": "read-only pagination clicked"
+        },
+        {
+          "name": "Next page",
+          "status": "PASS",
+          "method": "read-only pagination clicked"
+        },
+        {
+          "name": "Previous page",
+          "status": "PASS",
+          "method": "disabled boundary verified; not clicked"
+        }
+      ],
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/admin/jobs/closed",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "PASS",
+      "controls": [
+        {
+          "name": "Rows per page",
+          "status": "PASS",
+          "method": "read-only pagination clicked"
+        },
+        {
+          "name": "Next page",
+          "status": "PASS",
+          "method": "disabled boundary verified; not clicked"
+        },
+        {
+          "name": "Previous page",
+          "status": "PASS",
+          "method": "disabled boundary verified; not clicked"
+        }
+      ],
+      "errors": [],
+      "overflow": false
+    }
+  ],
+  "extra-controls.json": [
+    {
+      "path": "/admin/templates",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "status": "PASS",
+      "controls": [
+        {
+          "name": "All 21",
+          "status": "PASS",
+          "method": "clicked read-only tab"
+        },
+        {
+          "name": "Current approved 12",
+          "status": "PASS",
+          "method": "clicked read-only tab"
+        },
+        {
+          "name": "Drafts & unrecorded 2",
+          "status": "PASS",
+          "method": "clicked read-only tab"
+        },
+        {
+          "name": "Reference & versioned 0",
+          "status": "PASS",
+          "method": "clicked read-only tab"
+        },
+        {
+          "name": "Historical 7",
+          "status": "PASS",
+          "method": "clicked read-only tab"
+        },
+        {
+          "name": "Email 21",
+          "status": "PASS",
+          "method": "read-only template category clicked"
+        },
+        {
+          "name": "Mitti 4",
+          "status": "PASS",
+          "method": "read-only template category clicked"
+        },
+        {
+          "name": "Compliance 17",
+          "status": "PASS",
+          "method": "read-only template category clicked"
+        },
+        {
+          "name": "Template detail",
+          "status": "PASS",
+          "method": "second template selected"
+        }
+      ],
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/admin/jobs/active",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "status": "PASS",
+      "controls": [
+        {
+          "name": "Sort jobs",
+          "status": "PASS",
+          "method": "selected sort then browser back"
+        },
+        {
+          "name": "Sort direction",
+          "status": "PASS",
+          "method": "clicked ascending"
+        },
+        {
+          "name": "Browser back",
+          "status": "PASS",
+          "method": "navigation back completed"
+        },
+        {
+          "name": "Rows per page",
+          "status": "PASS",
+          "method": "read-only pagination clicked"
+        },
+        {
+          "name": "Next page",
+          "status": "PASS",
+          "method": "read-only pagination clicked"
+        },
+        {
+          "name": "Previous page",
+          "status": "PASS",
+          "method": "disabled boundary verified; not clicked"
+        }
+      ],
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/admin/jobs/closed",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "status": "PASS",
+      "controls": [
+        {
+          "name": "Sort jobs",
+          "status": "PASS",
+          "method": "selected sort then browser back"
+        },
+        {
+          "name": "Sort direction",
+          "status": "PASS",
+          "method": "clicked ascending"
+        },
+        {
+          "name": "Browser back",
+          "status": "PASS",
+          "method": "navigation back completed"
+        },
+        {
+          "name": "Rows per page",
+          "status": "PASS",
+          "method": "read-only pagination clicked"
+        },
+        {
+          "name": "Next page",
+          "status": "PASS",
+          "method": "disabled boundary verified; not clicked"
+        },
+        {
+          "name": "Previous page",
+          "status": "PASS",
+          "method": "disabled boundary verified; not clicked"
+        }
+      ],
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/admin/templates",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "PASS",
+      "controls": [
+        {
+          "name": "All 21",
+          "status": "PASS",
+          "method": "clicked read-only tab"
+        },
+        {
+          "name": "Current approved 12",
+          "status": "PASS",
+          "method": "clicked read-only tab"
+        },
+        {
+          "name": "Drafts & unrecorded 2",
+          "status": "PASS",
+          "method": "clicked read-only tab"
+        },
+        {
+          "name": "Reference & versioned 0",
+          "status": "PASS",
+          "method": "clicked read-only tab"
+        },
+        {
+          "name": "Historical 7",
+          "status": "PASS",
+          "method": "clicked read-only tab"
+        },
+        {
+          "name": "Email 21",
+          "status": "PASS",
+          "method": "read-only template category clicked"
+        },
+        {
+          "name": "Mitti 4",
+          "status": "PASS",
+          "method": "read-only template category clicked"
+        },
+        {
+          "name": "Compliance 17",
+          "status": "PASS",
+          "method": "read-only template category clicked"
+        },
+        {
+          "name": "Template detail",
+          "status": "PASS",
+          "method": "second template selected"
+        }
+      ],
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/admin/jobs/active",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "PASS",
+      "controls": [
+        {
+          "name": "Sort jobs",
+          "status": "PASS",
+          "method": "selected sort then browser back"
+        },
+        {
+          "name": "Sort direction",
+          "status": "PASS",
+          "method": "clicked ascending"
+        },
+        {
+          "name": "Browser back",
+          "status": "PASS",
+          "method": "navigation back completed"
+        },
+        {
+          "name": "Rows per page",
+          "status": "PASS",
+          "method": "read-only pagination clicked"
+        },
+        {
+          "name": "Next page",
+          "status": "PASS",
+          "method": "read-only pagination clicked"
+        },
+        {
+          "name": "Previous page",
+          "status": "PASS",
+          "method": "disabled boundary verified; not clicked"
+        }
+      ],
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "path": "/admin/jobs/closed",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "PASS",
+      "controls": [
+        {
+          "name": "Sort jobs",
+          "status": "PASS",
+          "method": "selected sort then browser back"
+        },
+        {
+          "name": "Sort direction",
+          "status": "PASS",
+          "method": "clicked ascending"
+        },
+        {
+          "name": "Browser back",
+          "status": "PASS",
+          "method": "navigation back completed"
+        },
+        {
+          "name": "Rows per page",
+          "status": "PASS",
+          "method": "read-only pagination clicked"
+        },
+        {
+          "name": "Next page",
+          "status": "PASS",
+          "method": "disabled boundary verified; not clicked"
+        },
+        {
+          "name": "Previous page",
+          "status": "PASS",
+          "method": "disabled boundary verified; not clicked"
+        }
+      ],
+      "errors": [],
+      "overflow": false
+    }
+  ],
+  "calculator.json": [
+    {
+      "path": "/",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "status": "PASS",
+      "areas_m2": [
+        100,
+        150
+      ],
+      "before_rebate": [
+        3698,
+        5198
+      ],
+      "installation_rate_inc_gst": 30,
+      "ready_check": "FREE",
+      "method": "dummy local calculator; address service stub only; registration never submitted",
+      "errors": []
+    },
+    {
+      "path": "/calculator",
+      "viewport": {
+        "width": 1280,
+        "height": 1800
+      },
+      "status": "PASS",
+      "areas_m2": [
+        100,
+        150
+      ],
+      "before_rebate": [
+        3698,
+        5198
+      ],
+      "installation_rate_inc_gst": 30,
+      "ready_check": "FREE",
+      "method": "dummy local calculator; address service stub only; registration never submitted",
+      "errors": []
+    },
+    {
+      "path": "/",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "PASS",
+      "areas_m2": [
+        100,
+        150
+      ],
+      "before_rebate": [
+        3698,
+        5198
+      ],
+      "installation_rate_inc_gst": 30,
+      "ready_check": "FREE",
+      "method": "dummy local calculator; address service stub only; registration never submitted",
+      "errors": []
+    },
+    {
+      "path": "/calculator",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "PASS",
+      "areas_m2": [
+        100,
+        150
+      ],
+      "before_rebate": [
+        3698,
+        5198
+      ],
+      "installation_rate_inc_gst": 30,
+      "ready_check": "FREE",
+      "method": "dummy local calculator; address service stub only; registration never submitted",
+      "errors": []
+    }
+  ],
+  "proposal": {
+    "path": "docs/pending-migrations/PROPOSED_office_enquiry_page_facts.sql",
+    "sha256": "9d4246857d95a44b30a76f0c06778bf18423e782e8d897276958383b696c158b",
+    "applied": false,
+    "practice": "8 PASS / 0 FAIL, 44 assertions; exact IDs/counts/facts across nine views and preserved live RPC grants; timestamp representations normalized without discarding milliseconds",
+    "client_enabled": false
+  },
+  "baseline_revision": "5f862f3437fa4a207905a0c8af7ad1f2ca348f92",
+  "verified_code_revision": "52332aa2050f87c071f4c68159b31cf8b343d83f",
+  "observed_utc": "2026-10-21T02:55:05.838596+00:00",
+  "changed_files": [
+    "AGENTS.md",
+    "docs/pending-migrations/PROPOSED_office_enquiry_page_facts.sql",
+    "docs/qa/2026-10-21-performance-addendum.json",
+    "docs/qa/2026-10-21-performance-addendum.md",
+    "docs/qa/2026-10-21-preview-performance.md",
+    "docs/qa/2026-10-21-qa-safety-clarification.md",
+    "e2e/journey/shoot.py",
+    "roadmap.md",
+    "scripts/AGENTS.md",
+    "scripts/installer-test.ts",
+    "scripts/portal-qa-coverage.ts",
+    "scripts/portal-qa-safety.ts",
+    "scripts/portal-qa.ts",
+    "src/components/portal/CompactJobStatus.tsx",
+    "src/components/portal/job-workspace.tsx",
+    "src/components/portal/jobfile.tsx",
+    "src/components/portal/panels.tsx",
+    "src/hooks/use-me.ts",
+    "src/lib/AGENTS.md",
+    "src/lib/enquiry-groups.server.ts",
+    "src/lib/jobfile.functions.ts",
+    "src/lib/jobfile.server.ts",
+    "src/lib/office-enquiry-page.server.ts",
+    "src/lib/operations-preview.server.ts",
+    "src/routes/_authenticated/admin.compliance.tsx",
+    "src/routes/_authenticated/admin.owner-paperwork.tsx",
+    "src/routes/_authenticated/admin.partners-overview.tsx",
+    "src/routes/_authenticated/admin.partners.tsx",
+    "src/routes/calculator.tsx",
+    "src/routes/index.tsx",
+    "tests/document-read-refresh.test.ts",
+    "tests/enquiry-read-concurrency.test.ts",
+    "tests/enquiry-response-scope-practice-db.test.ts",
+    "tests/jobfile-read-concurrency.test.ts",
+    "tests/office-enquiry-page-concurrency.test.ts",
+    "tests/office-read-performance.test.ts",
+    "tests/operations-read-concurrency.test.ts",
+    "tests/portal-qa-coverage.test.ts",
+    "tests/portal-qa-safety.test.ts",
+    "tests/ready-check-window-readback-isolated.test.ts",
+    "tests/test-send-reserved-boundary.test.ts"
+  ],
+  "customer_flows": [
+    {
+      "action": "first Save My Spot + refresh + double-tap",
+      "status": "NOT_RUN",
+      "reason": "No existing candidate has verified complete owner/token/consent/business and reversible linked-record scope. Approved preparation creates/repairs owner auth when missing and broad journey is not a minimal reversible helper; no new owner account or raw admin writes authorized. Reserved contact provider denial proven only in isolated actual sender test."
+    },
+    {
+      "action": "Ready Check request + exact allowed saved-window readback",
+      "status": "NOT_RUN",
+      "reason": "No existing candidate has verified complete owner/token/consent/business and reversible linked-record scope. Approved preparation creates/repairs owner auth when missing and broad journey is not a minimal reversible helper; no new owner account or raw admin writes authorized. Reserved contact provider denial proven only in isolated actual sender test."
+    },
+    {
+      "action": "live blocked_prelaunch + zero payment/invoice/provider readback",
+      "status": "NOT_RUN",
+      "reason": "No existing candidate has verified complete owner/token/consent/business and reversible linked-record scope. Approved preparation creates/repairs owner auth when missing and broad journey is not a minimal reversible helper; no new owner account or raw admin writes authorized. Reserved contact provider denial proven only in isolated actual sender test."
+    }
+  ],
+  "historical_failures": [
+    {
+      "run": "2026-10-21T02-41-28",
+      "status": "FAILED",
+      "counts": {
+        "passed": 161,
+        "failed": 3,
+        "not_run": 98
+      },
+      "reason": "Two phone overflows (subsequently repaired and checked); browser timed out at 450s. 146 completed render rows; unvisited cases remain NOT_RUN."
+    },
+    {
+      "test": "tests/owner-calculator.test.ts",
+      "status": "FAIL",
+      "reason": "Pre-existing source assertion requires SavedSpotPanel; baseline owner route has inline saved state; not changed because user forbids customer wording changes."
+    },
+    {
+      "run": "final-expanded-preview initial attempt",
+      "status": "BLOCKED",
+      "reason": "Canonical lock correctly refused concurrent run; not coverage."
+    }
+  ]
+}
