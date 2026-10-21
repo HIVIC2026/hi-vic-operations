@@ -8,6 +8,8 @@ export type NextStepInput = {
   eligibility_review_required?: boolean | null;
   next_action?: string | null; // only used for REVIEW REQUIRED reasons and hold reasons
   hold_reason?: string | null;
+  /** Office-only display: a saved spot keeps its stored stage but is labelled plainly. */
+  office_status?: string | null;
 };
 export type NextStep = { label: string; next: string; waitingOn: WaitingOn; tone: "brand" | "warn" | "bad" | "good" };
 
@@ -26,6 +28,7 @@ export function nextStep(j: NextStepInput): NextStep {
   const eligible = ["likely_eligible", "needs_onsite_confirmation"].includes(j.eligibility_outcome ?? "");
   if (eligible && EARLY.includes(stage)) return { label: "Ready Check needed", next: "Arrange the free installer Ready Check (or approve the installer's measure-up)", waitingOn: "Home Insulation Victoria", tone: "brand" };
   if (EARLY.includes(stage)) return { label: STAGE_LABEL[stage], next: DEFAULT_NEXT_ACTION[stage], waitingOn: "Home Insulation Victoria", tone: "brand" };
+  if (stage === "preliminary_estimate_ready" && j.office_status === "spot_saved") return { label: "Spot saved", next: "Owner saved their spot – book the free Ready Check when capacity allows", waitingOn: "Home Insulation Victoria", tone: "good" };
   return { label: STAGE_LABEL[stage] ?? stage, next: DEFAULT_NEXT_ACTION[stage] ?? "Review this job", waitingOn: waitingOn(stage, null), tone: stage === "awaiting_deposit_payment" ? "warn" : "brand" };
 }
 
