@@ -8,7 +8,8 @@ const rows: Record<string, unknown> = {
 };
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: {
   from(table: string) {
-    const query = { select: () => query, eq: () => query, order: () => query, limit: () => query, maybeSingle: async () => ({ data: rows[table], error: null }) };
+    const result = () => ({ data: table === "ready_check_windows" ? [1, 2, 3].map(day => ({ round: 1, status: "open", starts_at: `2026-10-${21 + day}T00:00:00Z`, ends_at: `2026-10-${21 + day}T02:00:00Z` })) : rows[table], error: null });
+    const query = { select: () => query, eq: () => query, order: () => query, limit: () => query, maybeSingle: async () => result(), then: (resolve: (r: unknown) => unknown) => Promise.resolve(result()).then(resolve) };
     return query;
   },
 } }));
