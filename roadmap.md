@@ -8,6 +8,8 @@
 - [x] Check desktop/390x844 public/Office/Alpha installer routes, read-only history controls and dummy calculator result; no overflow or runtime errors observed.
 - [ ] Live TEST Save My Spot/Ready Check booking: blocked by no verified complete reversible owner/token/consent/TEST-business fixture; existing preparation may change owner auth, outside this task. Isolated rule tests passed, not live-flow proof.
 - [ ] Consistent Office <1s: enquiries remain ~1.4–1.5s backend, ~3.2–3.4s browser settled; exact PGlite-tested SQL proposal remains unapplied pending user/root approval.
+- [x] Stage exact two media job-lookup index statements and provenance-guarded rollback; record root-provided practice/plan evidence without rerunning QA or applying SQL.
+- [ ] Live index application/rebenchmark blocked: no verified recoverable backup/PITR and no user-approved application; Drizzle journal untouched.
 - [x] Report timings, route checklist, evidence, unchanged wording/prices, and remaining blockers; no publish or schema changes.
 ## Live portal health check (Jo, 21 Oct 01:04 UTC)
 - [x] Read-only speed/errors/flows/mobile/data check of published site; report only, no changes.
