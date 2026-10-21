@@ -4,8 +4,11 @@ import { allowedPiesaDays } from '../src/lib/piesa-windows.core';
 import { readyCheckWindowProofBlocker } from '../scripts/portal-qa-safety';
 type Row = Record<string, unknown>;
 let windows: Row[] = [], events: string[] = [], failInsert = false, providerCalls = 0;
+const touchedTables: string[] = [];
 const jobId = 'isolated-qa-job';
 mock.module('@/integrations/supabase/client.server', () => ({ supabaseAdmin: { from: (table: string) => {
+  touchedTables.push(table);
+  if (!['jobs', 'job_assignments', 'ready_check_windows', 'workflow_events'].includes(table)) throw new Error(`unexpected persistence boundary: ${table}`);
   let payload: Row[] | null = null;
   const result = () => {
     if (table === 'ready_check_windows' && payload) {
@@ -24,7 +27,7 @@ globalThis.fetch = (async () => { providerCalls++; throw new Error('network forb
 const { submitReadyCheckWindows } = await import('../src/lib/readycheck-booking.server');
 const now = new Date('2026-10-21T02:34:00Z');
 for (const count of [3, 4, 5]) test(`actual submit saves and reads back ${count} allowed windows; isolated only`, async () => {
-  windows = []; events = []; failInsert = false;
+  windows = []; events = []; failInsert = false; touchedTables.length = 0;
   const picks = allowedPiesaDays(now).slice(0, count).map(date => ({ date, slot: '10-12' as const }));
   const result = await submitReadyCheckWindows(jobId, picks, now);
   expect(result).toEqual({ ok: true, round: 1 });
@@ -32,6 +35,7 @@ for (const count of [3, 4, 5]) test(`actual submit saves and reads back ${count}
   const saved = windows.map(w => ({ starts_at: String(w.starts_at), ends_at: String(w.ends_at), round: Number(w.round), status: String(w.status) }));
   expect(readyCheckWindowProofBlocker({ picks, saved, round: result.round, checkedJobId: jobId, expectedJobId: jobId, readsOk: true, events, paymentRows: 0, invoiceRows: 0, providerSends: providerCalls }, now)).toBeNull();
   expect(providerCalls).toBe(0);
+  expect(touchedTables.some(t => /payment|invoice|communication|outbound/.test(t))).toBe(false);
 });
 test('failed actual window insertion rejects, persists nothing and cannot be a booking PASS', async () => {
   windows = []; events = []; failInsert = true;
