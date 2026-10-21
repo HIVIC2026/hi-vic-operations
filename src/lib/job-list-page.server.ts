@@ -42,10 +42,11 @@ function scope<T extends ScopeChain<T>>(q: T, archived: ReturnType<typeof jobArc
   if (mode === "closed" && closedView === "test") {
     cur = cur.or('source.eq.qa_test,office_removed.eq.true,contact_rank.gt.1');
   } else if (mode === "closed") {
-    cur = cur.neq("source", "qa_test");
+    // One pile per job (Jo 21 Oct): Removed/test wins; Ineligible is the catch-all for any other closure.
+    cur = cur.neq("source", "qa_test").eq("office_removed", false).or("contact_rank.is.null,contact_rank.lte.1");
     if (closedView === "completed") cur = cur.eq("stage", "complete");
     else if (closedView === "cancelled") cur = cur.eq("stage", "cancelled");
-    else if (closedView === "ineligible") cur = cur.not("stage", "in", OPEN_STAGES).eq("eligibility_outcome", "does_not_appear_eligible");
+    else if (closedView === "ineligible") cur = cur.not("stage", "in", OPEN_STAGES);
   }
   // Multiple not.in clauses still share ONE URL. Use the much smaller live TEST complement.
   cur = cur.or(archived.visible);
@@ -82,6 +83,10 @@ export async function loadJobListPage(params: JobListParams) {
     if (!data || data.length < 1000) break;
   }
   const archived = jobArchiveFilter(archiveRows);
+  // Deleted jobs live only on the Deleted jobs page.
+  const { data: deleted, error: deletedError } = await admin.from("jobs").select("id").not("deleted_at", "is", null).limit(5000);
+  if (deletedError) throw new Error(`Deleted jobs could not be read: ${deletedError.message}`);
+  archived.archivedOtherIds.push(...(deleted ?? []).map(r => r.id).filter(id => !archived.archivedOtherIds.includes(id)));
   const scoped = (m: JobMode = mode, v: JobClosedView = closedView) => scope(jobOverview("exact", true), archived, m, v);
   const searchedScope = () => searched(scoped(), search);
 
