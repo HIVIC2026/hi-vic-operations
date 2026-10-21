@@ -93,6 +93,7 @@ import { Route as ApiFilesSplatRouteImport } from './routes/api/files/$'
 import { Route as ApiPublicAddressSearchRouteImport } from './routes/api/public/address-search'
 import { Route as ApiPublicEnquiryRouteImport } from './routes/api/public/enquiry'
 import { Route as ApiPublicPartnerEnquiryRouteImport } from './routes/api/public/partner-enquiry'
+import { Route as ApiPublicSaveSpotRemindersRouteImport } from './routes/api/public/save-spot-reminders'
 import { Route as ApiPublicUnsubscribeRouteImport } from './routes/api/public/unsubscribe'
 import { Route as EstimateTokenCalculatorRouteImport } from './routes/estimate_.$token.calculator'
 import { Route as EstimateTokenCampaignRouteImport } from './routes/estimate_.$token.campaign'
@@ -578,6 +579,12 @@ const ApiPublicPartnerEnquiryRoute = ApiPublicPartnerEnquiryRouteImport.update({
   path: '/api/public/partner-enquiry',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicSaveSpotRemindersRoute =
+  ApiPublicSaveSpotRemindersRouteImport.update({
+    id: '/api/public/save-spot-reminders',
+    path: '/api/public/save-spot-reminders',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicUnsubscribeRoute = ApiPublicUnsubscribeRouteImport.update({
   id: '/api/public/unsubscribe',
   path: '/api/public/unsubscribe',
@@ -819,6 +826,7 @@ export interface FileRoutesByFullPath {
   '/api/public/address-search': typeof ApiPublicAddressSearchRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
+  '/api/public/save-spot-reminders': typeof ApiPublicSaveSpotRemindersRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
   '/estimate/$token/calculator': typeof EstimateTokenCalculatorRoute
   '/estimate/$token/campaign': typeof EstimateTokenCampaignRoute
@@ -928,6 +936,7 @@ export interface FileRoutesByTo {
   '/api/public/address-search': typeof ApiPublicAddressSearchRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
+  '/api/public/save-spot-reminders': typeof ApiPublicSaveSpotRemindersRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
   '/estimate/$token/calculator': typeof EstimateTokenCalculatorRoute
   '/estimate/$token/campaign': typeof EstimateTokenCampaignRoute
@@ -1043,6 +1052,7 @@ export interface FileRoutesById {
   '/api/public/address-search': typeof ApiPublicAddressSearchRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
+  '/api/public/save-spot-reminders': typeof ApiPublicSaveSpotRemindersRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
   '/estimate_/$token/calculator': typeof EstimateTokenCalculatorRoute
   '/estimate_/$token/campaign': typeof EstimateTokenCampaignRoute
@@ -1158,6 +1168,7 @@ export interface FileRouteTypes {
     | '/api/public/address-search'
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
+    | '/api/public/save-spot-reminders'
     | '/api/public/unsubscribe'
     | '/estimate/$token/calculator'
     | '/estimate/$token/campaign'
@@ -1267,6 +1278,7 @@ export interface FileRouteTypes {
     | '/api/public/address-search'
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
+    | '/api/public/save-spot-reminders'
     | '/api/public/unsubscribe'
     | '/estimate/$token/calculator'
     | '/estimate/$token/campaign'
@@ -1381,6 +1393,7 @@ export interface FileRouteTypes {
     | '/api/public/address-search'
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
+    | '/api/public/save-spot-reminders'
     | '/api/public/unsubscribe'
     | '/estimate_/$token/calculator'
     | '/estimate_/$token/campaign'
@@ -1442,6 +1455,7 @@ export interface RootRouteChildren {
   ApiPublicAddressSearchRoute: typeof ApiPublicAddressSearchRoute
   ApiPublicEnquiryRoute: typeof ApiPublicEnquiryRoute
   ApiPublicPartnerEnquiryRoute: typeof ApiPublicPartnerEnquiryRoute
+  ApiPublicSaveSpotRemindersRoute: typeof ApiPublicSaveSpotRemindersRoute
   ApiPublicUnsubscribeRoute: typeof ApiPublicUnsubscribeRoute
   EstimateTokenCalculatorRoute: typeof EstimateTokenCalculatorRoute
   EstimateTokenCampaignRoute: typeof EstimateTokenCampaignRoute
@@ -2051,6 +2065,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicPartnerEnquiryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/save-spot-reminders': {
+      id: '/api/public/save-spot-reminders'
+      path: '/api/public/save-spot-reminders'
+      fullPath: '/api/public/save-spot-reminders'
+      preLoaderRoute: typeof ApiPublicSaveSpotRemindersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/unsubscribe': {
       id: '/api/public/unsubscribe'
       path: '/api/public/unsubscribe'
@@ -2480,6 +2501,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicAddressSearchRoute: ApiPublicAddressSearchRoute,
   ApiPublicEnquiryRoute: ApiPublicEnquiryRoute,
   ApiPublicPartnerEnquiryRoute: ApiPublicPartnerEnquiryRoute,
+  ApiPublicSaveSpotRemindersRoute: ApiPublicSaveSpotRemindersRoute,
   ApiPublicUnsubscribeRoute: ApiPublicUnsubscribeRoute,
   EstimateTokenCalculatorRoute: EstimateTokenCalculatorRoute,
   EstimateTokenCampaignRoute: EstimateTokenCampaignRoute,
