@@ -52,7 +52,7 @@ describe("measurement gate (new)", () => {
     seed({ ceiling_measurements: [] });
     expect(await stageEntryBlockers(J, "ready_for_installer_quotes")).toContain("Ready Check missing.");
     seed({ ceiling_measurements: [{ job_id: J, is_current: true, status: "needs_review", measured_area_m2: 120 }] });
-    expect(await stageEntryBlockers(J, "awaiting_quote_acceptance")).toContain("Ceiling Ready Check needs review / missing evidence.");
+    expect(await stageEntryBlockers(J, "awaiting_quote_acceptance")).toContain("Ready Check needs review / missing evidence.");
     seed();
     expect((await stageEntryBlockers(J, "ready_for_installer_quotes")).some((b) => /measure-up/i.test(b))).toBe(false);
   });

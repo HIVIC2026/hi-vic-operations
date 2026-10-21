@@ -202,7 +202,7 @@ export function tagEvent(type: string): Exclude<TimelineFilter, "all" | "interna
   if (/eligib|piesa|assessment|compliance|assignment|authority|esc|veec|declaration|ap_|consent|variation/.test(t)) tags.push("compliance");
   if (/evidence|document|upload|copy|intelligence/.test(t)) tags.push("documents");
   if (/owner|customer|consumer|quote_accept|message/.test(t)) tags.push("customer");
-  if (/electrician|installer|assign|booking|measure|install|rectification/.test(t)) tags.push("trades");
+  if (/electrician|installer|assign|booking|measure|install|rectification|electrical fixes|ready check/i.test(t)) tags.push("trades");
   return tags;
 }
 

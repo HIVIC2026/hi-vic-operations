@@ -45,7 +45,7 @@ describe("free Ready Check", () => {
 describe("customer copy", () => {
   test("preliminary order, no electrical allowance", () => {
     expect(CUSTOMER_QUOTE_ORDER).toEqual([
-      "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "R5.0 ceiling insulation — supply & install",
+      "Mandatory Pre Insulation Electrical Safety Assessment (PIESA)", "R5.0 ceiling insulation — supply & install",
       "Home Insulation Victoria — Accredited Person Management", "Estimated project total", "Estimated VEU / VEEC discount",
       "YOUR ESTIMATED COST AFTER DISCOUNT",
     ]);
