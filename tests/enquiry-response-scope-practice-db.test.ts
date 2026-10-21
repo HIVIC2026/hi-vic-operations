@@ -136,7 +136,7 @@ test('unapplied page-facts proposal returns exact classifier facts without chang
     const { facts, ...unchanged } = after;
     expect(unchanged).toEqual(before[i]);
     const expected = await db.query(`SELECT ${columns} FROM office_enquiry_index WHERE id=ANY($1::uuid[]) ORDER BY created_at DESC,id ASC`, [after.ids]);
-    const normalise = (rows: Record<string, unknown>[]) => rows.map(row => ({ ...row, latest_attempt_at: row.latest_attempt_at ? new Date(String(row.latest_attempt_at)).toISOString() : null }));
+    const normalise = (rows: Record<string, unknown>[]) => rows.map(row => ({ ...row, latest_attempt_at: row.latest_attempt_at instanceof Date ? row.latest_attempt_at.toISOString() : row.latest_attempt_at ? new Date(String(row.latest_attempt_at)).toISOString() : null }));
     expect(normalise(facts)).toEqual(normalise(expected.rows));
   }
   const permissions = await db.query<{ role: string; permitted: boolean }>(`SELECT role,has_function_privilege(role,'public.office_enquiry_page(text,text,integer)','EXECUTE') permitted FROM (VALUES ('anon'),('authenticated'),('service_role')) r(role)`);
