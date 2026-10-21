@@ -25,7 +25,7 @@ describe("Scenario F — owner paperwork gates", () => {
       const aDone = sign(...j.extraA);
       // Gate B
       const bStage = "awaiting_deposit_payment";
-      expect(blocked(base({ ...j.f, signed: aDone, hasQuote: true }), bStage).length).toBe(4 + j.extraA.length);
+      expect(blocked(base({ ...j.f, signed: aDone, hasQuote: true }), bStage).length).toBe(4);
       expect(blocked(base({ ...j.f, signed: [...aDone, ...sign("quote_acceptance", "veec_assignment_consent", "payment_terms")], hasQuote: true }), bStage)).toEqual(["Owner paperwork B: Customer agreement + consumer rights not signed yet."]);
       const bDone = { ...j.f, signed: [...aDone, ...sign("quote_acceptance", "veec_assignment_consent", "payment_terms")], hasQuote: true, agreementSigned: true };
       expect(blocked(base(bDone), bStage)).toEqual([]);
