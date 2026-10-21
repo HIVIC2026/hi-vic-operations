@@ -1,4 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Combined Office review and hidden Removed (Jo, 21 Oct 09:19 UTC)
+- [ ] Hide Removed navigation without deleting records/history; put distinct-colour Office review first with one exact, paginated photos/exceptions read. Preserve pending 0216 and customer-preview work; no sends or publication.
+- [ ] Focused predicate/pagination checks and signed-in desktop/phone read-only verification.
 ## Exclusive Spot offered / pending photo pile (Jo, 21 Oct 09:14 UTC)
 - [x] Prepared unapplied 0216 RPC/rollback: shared pending-photo CTE excludes actual offers, saved/ineligible/removed/deleted/progressed facts; aggregate and all other queues unchanged. 17 focused checks PASS including practice DB, rollback, later media and matching pagination/counts. Read-only live snapshot 09:16:31 UTC: 105 old photos, 20 offered overlap; proposed 85 photos, 0 overlap/state leaks; 313 offered unchanged. Navigation already consumes RPC counts. Customer-preview work preserved; no sends/live writes/deployment. Review: docs/qa/2026-10-21-exclusive-photo-pile.md.
 ## Job customer preview correction (Jo, 21 Oct 09:03 UTC)
