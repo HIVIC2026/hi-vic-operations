@@ -22,8 +22,10 @@ export function uncoveredReason(route: RouteCoverage, attempted: Set<string>): s
   if (attempted.has(route.path)) return null;
   return route.fixture ?? 'not visited by this bounded run; no interaction/flow coverage implied';
 }
-export function readyCheckBookingOutcome(booked: boolean, readback: { stage?: string | null; next_action?: string | null } | null, error?: string) {
+export function readyCheckBookingOutcome(booked: boolean, readback: { stage?: string | null; next_action?: string | null } | null, error?: string, windowProof?: { verified: boolean; detail: string }) {
   if (!booked) return { status: 'not_run' as const, detail: `booking not completed: ${error ?? 'fixture/gate unavailable'}` };
   if (readback?.stage !== 'ready_check_scheduled' || readback.next_action !== 'Ready Check booked') return { status: 'failed' as const, detail: 'booking call returned but scheduled stage/next action not read back' };
+  if (!windowProof) return { status: 'not_run' as const, detail: 'scheduled UI/state alone: persisted allowed-window and zero-side-effect readback missing' };
+  if (!windowProof.verified) return { status: 'failed' as const, detail: windowProof.detail };
   return { status: 'passed' as const, detail: 'TEST booking completed and scheduled state read back' };
 }
