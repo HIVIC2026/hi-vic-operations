@@ -148,7 +148,7 @@ export function approvedRateItems(type: PartnerType, raw: RecData | InstData) {
   }
   const d = raw as RecData;
   const rows = [
-    { code: "PIESA", description: "Pre-insulation Pre Insulation Electrical Safety Assessment (PIESA)", category: "electrical", unit: "flat", value: d.assessment_rate, r_value: null, sort: 1 },
+    { code: "PIESA", description: "Pre Insulation Electrical Safety Assessment (PIESA)", category: "electrical", unit: "flat", value: d.assessment_rate, r_value: null, sort: 1 },
     { code: "INSTALL_ATTENDANCE", description: "Installation-day electrical attendance", category: "electrical", unit: "flat", value: d.installation_attendance_rate, r_value: null, sort: 2 },
     ...RECT_ITEMS.map((item, i) => ({ code: item.rateCode, description: item.label, category: "electrical", unit: "each", display_unit: item.unit, value: d.rectification_rates?.[item.key], r_value: null, sort: 10 + i })),
     ...(d.custom_rectification_rates ?? []).map((item, i) => ({ code: customRateCode(item.id), description: item.description.trim(), category: "electrical", unit: "each", display_unit: item.unit.trim(), value: item.price, r_value: null, sort: 30 + i })),

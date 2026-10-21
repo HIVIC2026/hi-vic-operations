@@ -147,8 +147,8 @@ export function planMeasurementUpdate(p: {
 
 /** Quote inputs come ONLY from the accepted/current ceiling measurement. */
 export function quoteInputsFromMeasurement(m: MeasurementLike | null | undefined) {
-  if (!m) throw new Error("Ceiling Ready Check missing – quotes need an accepted Ready Check.");
-  if (m.status !== "complete") throw new Error(`Ceiling Ready Check is ${m.status.replace("_", " ")} – it must be accepted before quoting.`);
+  if (!m) throw new Error("Ready Check missing – quotes need an accepted Ready Check.");
+  if (m.status !== "complete") throw new Error(`Ready Check is ${m.status.replace("_", " ")} – it must be accepted before quoting.`);
   if (!(Number(m.measured_area_m2) > 0)) throw new Error("Accepted Ready Check has no measured ceiling area.");
   return {
     areaM2: Number(m.measured_area_m2),

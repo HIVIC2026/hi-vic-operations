@@ -426,7 +426,7 @@ export function scheduleText(d: RecData): string {
   lines.push(`Service origin: ${d.service_origin ?? ""}; radius: ${d.travel_radius_km === 9999 ? "anywhere in Victoria" : `${d.travel_radius_km} km`}${d.excluded_areas ? `; excluded: ${d.excluded_areas}` : ""}`);
   lines.push(`Days: ${(d.typical_days ?? []).join(", ")}; lead time: ${d.normal_attendance_speed ?? ""}`);
   lines.push("", `SCHEDULE 3 — PROPOSED SUPPLIER RATES (${gst}; not binding until accepted by Home Insulation Victoria under clause 17)`);
-  lines.push(`Pre-insulation Pre Insulation Electrical Safety Assessment (PIESA): ${money(d.assessment_rate)} / visit`);
+  lines.push(`Pre Insulation Electrical Safety Assessment (PIESA): ${money(d.assessment_rate)} / visit`);
   lines.push(`Installation-day attendance: ${money(d.installation_attendance_rate)} / visit`);
   for (const it of RECT_ITEMS) lines.push(`${it.label}: ${money(d.rectification_rates?.[it.key] ?? null)} / ${it.unit}`);
   for (const it of d.custom_rectification_rates ?? []) lines.push(`${it.description.trim()}: ${money(it.price)} / ${it.unit.trim()} (custom approved item ${customRateCode(it.id)})`);

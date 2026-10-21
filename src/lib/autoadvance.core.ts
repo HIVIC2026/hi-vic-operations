@@ -75,7 +75,7 @@ export function planStep(stage: Stage, f: AdvanceFacts): Step {
     case "rectification_scheduling":
       return f.rectBookingConfirmed ? t("rectification_booked", "Electrical fixes booking confirmed") : stop("Electrical fixes booking not confirmed");
     case "rectification_booked":
-      return f.openRectItems === 0 ? t("installation_scheduling", "Electrical fixes complete, PIESA passed – installation scheduling unlocked") : stop("Electrical fixes works not yet completed");
+      return f.openRectItems === 0 ? t("installation_scheduling", "Electrical fixes complete, PIESA passed – installation scheduling unlocked") : stop("Electrical fixes not yet completed");
     case "installation_scheduling":
       return f.installBookingConfirmed ? t("installation_booked", "Installation booking confirmed") : stop("Installation booking not confirmed");
     case "installation_booked":

@@ -104,7 +104,7 @@ export function buildDocumentIndex(src: JobSources): DocItem[] {
     relatedEntity: "piesa_records", relatedId: String(p["id"]), audience: ["electrician", "installer", "owner"] }));
   for (const d of src.piesaDeliveries) out.push(base({ id: `piesa_deliveries:${d["id"]}`, title: `PIESA copy delivered to ${d["recipient"]} (${d["method"] ?? "method n/a"})`, category: "Electrical / PIESA", alsoIn: ["ESC / VEEC"],
     subcategory: "PIESA delivery", docType: "piesa_delivery", sourceSystem: "portal", at: s(d["delivered_at"]), actor: s(d["recorded_by"]), status: "final", immutable: true, relatedEntity: "piesa_deliveries", relatedId: String(d["id"]), audience: [] }));
-  for (const m of src.measurements) out.push(base({ id: `ceiling_measurements:${m["id"]}`, title: `Ceiling Ready Check ${m["measured_area_m2"] ?? "?"} m² (${m["status"]})`, category: "Ready Check", docType: "measurement",
+  for (const m of src.measurements) out.push(base({ id: `ceiling_measurements:${m["id"]}`, title: `Ready Check ${m["measured_area_m2"] ?? "?"} m² (${m["status"]})`, category: "Ready Check", docType: "measurement",
     sourceSystem: String(m["external_source"] ?? "portal"), at: s(m["completed_at"] ?? m["created_at"]), actor: s(m["completed_by"]), status: m["is_current"] ? (m["status"] === "complete" ? "verified" : "current") : "superseded",
     verifiedBy: s(m["reviewed_by"]), verifiedAt: s(m["reviewed_at"]), relatedEntity: "ceiling_measurements", relatedId: String(m["id"]), audience: ["electrician", "installer"] }));
   for (const q of src.quotes) {

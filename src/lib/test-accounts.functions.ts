@@ -59,7 +59,7 @@ const SPECS: Spec[] = [
     key: "delta", role: "electrician", businessType: "rec", cardKind: "electrical",
     name: "TEST Delta Electrical", email: "qa.rec.delta@hivic-test.example", phone: "0400000201",
     items: [
-      { code: "PIESA", description: "Pre-insulation Pre Insulation Electrical Safety Assessment (PIESA)", category: "electrical", unit: "flat", sort: 1, unit_price_ex_gst: 349 },
+      { code: "PIESA", description: "Pre Insulation Electrical Safety Assessment (PIESA)", category: "electrical", unit: "flat", sort: 1, unit_price_ex_gst: 349 },
       { code: "INSTALL_ATTENDANCE", description: "Installation-day electrical attendance", category: "electrical", unit: "flat", sort: 2, unit_price_ex_gst: 180 },
       { code: "DOWNLIGHT_UPGRADE", description: "Downlight upgrade to IC-4 LED", category: "electrical", unit: "each", display_unit: "light", sort: 10, unit_price_ex_gst: 45 },
       { code: "SWITCHBOARD_UPGRADE", description: "Switchboard upgrade", category: "electrical", unit: "each", display_unit: "switchboard", sort: 11, unit_price_ex_gst: 1200 },
@@ -73,7 +73,7 @@ const SPECS: Spec[] = [
     key: "echo", role: "electrician", businessType: "rec", cardKind: "electrical",
     name: "TEST Echo Electrical", email: "qa.rec.echo@hivic-test.example", phone: "0400000202",
     items: [
-      { code: "PIESA", description: "Pre-insulation Pre Insulation Electrical Safety Assessment (PIESA)", category: "electrical", unit: "flat", sort: 1, unit_price_ex_gst: 349 },
+      { code: "PIESA", description: "Pre Insulation Electrical Safety Assessment (PIESA)", category: "electrical", unit: "flat", sort: 1, unit_price_ex_gst: 349 },
       { code: "INSTALL_ATTENDANCE", description: "Installation-day electrical attendance", category: "electrical", unit: "flat", sort: 2, unit_price_ex_gst: 200 },
       { code: "DOWNLIGHT_UPGRADE", description: "Downlight upgrade to IC-4 LED", category: "electrical", unit: "each", display_unit: "light", sort: 10, unit_price_ex_gst: 52 },
       { code: "SWITCHBOARD_UPGRADE", description: "Switchboard upgrade", category: "electrical", unit: "each", display_unit: "switchboard", sort: 11, unit_price_ex_gst: 1350 },
@@ -87,7 +87,7 @@ const SPECS: Spec[] = [
     key: "foxtrot", role: "electrician", businessType: "rec", cardKind: "electrical",
     name: "TEST Foxtrot Electrical", email: "qa.rec.foxtrot@hivic-test.example", phone: "0400000203",
     items: [
-      { code: "PIESA", description: "Pre-insulation Pre Insulation Electrical Safety Assessment (PIESA)", category: "electrical", unit: "flat", sort: 1, unit_price_ex_gst: 349 },
+      { code: "PIESA", description: "Pre Insulation Electrical Safety Assessment (PIESA)", category: "electrical", unit: "flat", sort: 1, unit_price_ex_gst: 349 },
       { code: "INSTALL_ATTENDANCE", description: "Installation-day electrical attendance", category: "electrical", unit: "flat", sort: 2, unit_price_ex_gst: 165 },
       { code: "DOWNLIGHT_UPGRADE", description: "Downlight upgrade to IC-4 LED", category: "electrical", unit: "each", display_unit: "light", sort: 10, unit_price_ex_gst: 40 },
       { code: "SWITCHBOARD_UPGRADE", description: "Switchboard upgrade", category: "electrical", unit: "each", display_unit: "switchboard", sort: 11, unit_price_ex_gst: 1100 },

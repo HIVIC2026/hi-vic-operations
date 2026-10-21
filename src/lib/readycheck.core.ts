@@ -54,7 +54,7 @@ export const READY_CHECK_BOOKING_SUCCESS = {
   heading: "YOUR READY CHECK IS BOOKING NEXT",
   received: "Your free Ready Check request has been received.",
   assignment: "An Installer from our partner network will be assigned to your job and will contact you to arrange a suitable time for your onsite Ready Check.",
-  visit: "During the Ready Check they’ll measure your ceiling space and collect the site information we need to prepare your measured project estimate.",
+  visit: "During the Ready Check they’ll measure your ceiling space and collect the site information we need to prepare your quote.",
   reassurance: "Home Insulation Victoria will keep the booking and job progress recorded in your project.",
 } as const;
 

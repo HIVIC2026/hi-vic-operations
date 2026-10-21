@@ -327,7 +327,7 @@ export const completeMeasurement = createServerFn({ method: "POST" }).middleware
       ...(own || !m.completed_by ? { completed_by: m.completed_by ?? context.userId } : {}),
       ...(role === "admin" ? { reviewed_by: context.userId, reviewed_at: new Date().toISOString() } : {}),
     }).eq("id", m.id);
-    await logEvent(data.jobId, context.userId, "measurement_completed", `Ceiling Ready Check completed (${m.source_role}${own ? "" : `, completed by ${role}`}) – ${Number(m.measured_area_m2)} m²${verification["verified_at"] ? ` · installer-supplied ${m.supplied_area_m2 ?? "—"} m², variance ${verification["variance_m2"] ?? "—"} m² (${verification["variance_pct"] ?? "—"}%)` : ""}`, { measurement_id: m.id, source_role: m.source_role, supplemented_fields: m.supplemented_fields, ...verification });
+    await logEvent(data.jobId, context.userId, "measurement_completed", `Ready Check completed (${m.source_role}${own ? "" : `, completed by ${role}`}) – ${Number(m.measured_area_m2)} m²${verification["verified_at"] ? ` · installer-supplied ${m.supplied_area_m2 ?? "—"} m², variance ${verification["variance_m2"] ?? "—"} m² (${verification["variance_pct"] ?? "—"}%)` : ""}`, { measurement_id: m.id, source_role: m.source_role, supplemented_fields: m.supplemented_fields, ...verification });
     if ((await getStage(data.jobId)) === "ready_check_scheduled") {
       await transition(data.jobId, "ready_check_complete", context.userId, "Ready Check completed", { measurement_id: m.id, measured_area_m2: m.measured_area_m2 }, { nextAction: "Office records verified eligibility, then prepares the measured quote" });
       // The measured-estimate stage needs the office's verified-eligibility record, which can only be made now that the

@@ -411,7 +411,7 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
       return <InsuranceStep d={d} up={up} token={token} setError={setError} preview={preview} onRevision={onRevision} />;
     case "services":
       return <>
-        <TickList items={["PIESA PIESAs", "Approved electrical fixes", "Installation-day electrical attendance when required"]} />
+        <TickList items={["PIESAs", "Approved electrical fixes", "Installation-day electrical attendance when required"]} />
         <Check required checked={d.services_all_confirmed === true} error={showErrors && d.services_all_confirmed !== true ? "Confirm your REC can provide all three electrical services." : null} onChange={(v) => up({ services_all_confirmed: v })}>I confirm our REC can provide all three electrical services listed above, as required for each job.</Check>
         <div style={{ borderTop: "1px solid #E4E8F0", margin: "18px 0 16px" }} />
          <Field label="Victorian service starting location" required hint="Choose a verified Victorian address"><AddressInput id="service-origin" victoriaOnly value={d.service_origin ?? ""} resolved={d.service_origin_details} onChange={(v) => up({ service_origin: v })} onSelect={(v) => up({ service_origin_details: v })} onPendingChange={onAddressPending} /></Field>

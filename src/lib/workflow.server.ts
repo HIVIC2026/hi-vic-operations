@@ -249,9 +249,9 @@ export async function commercialBlocker(jobId: string): Promise<string | null> {
 /** Quoting needs an ACCEPTED current ceiling measurement with area > 0 (not "assessment complete"). */
 export async function measurementBlocker(jobId: string): Promise<string | null> {
   const { data: m } = await admin.from("ceiling_measurements").select("status, measured_area_m2").eq("job_id", jobId).eq("is_current", true).maybeSingle();
-  if (!m) return "Ceiling Ready Check missing.";
-  if (m.status === "needs_review") return "Ceiling Ready Check needs review / missing evidence.";
-  if (m.status !== "complete") return "Ceiling Ready Check not yet completed.";
+  if (!m) return "Ready Check missing.";
+  if (m.status === "needs_review") return "Ready Check needs review / missing evidence.";
+  if (m.status !== "complete") return "Ready Check not yet completed.";
   if (!(Number(m.measured_area_m2) > 0)) return "Accepted ceiling Ready Check has no measured area.";
   return null;
 }
@@ -416,7 +416,7 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
     if (!g.cleared) blockers.push(g.blocker);
   }
   if (to === "installation_scheduling" || to === "installation_booked") {
-    if (rect > 0) blockers.push("Electrical fixes works not yet completed.");
+    if (rect > 0) blockers.push("Electrical fixes not yet completed.");
     if (!piesa?.piesa_date || piesa.piesa_outcome !== "pass") blockers.push("A passing PIESA / electrical sign-off is required before installation.");
   }
   if (to === "installation_booked" || to === "evidence_outstanding") {

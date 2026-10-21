@@ -65,7 +65,7 @@ export const CUSTOMER_READY_CHECK = {
     "Your Ready Check is free.",
     "One of our insulation partners visits to measure the ceiling space and collect the eligibility evidence needed to prepare a more accurate project estimate.",
     "The Ready Check is not the mandatory Pre Insulation Electrical Safety Assessment (PIESA). Your PIESA is completed later by a licensed electrician, close to installation.",
-    "If the Ready Check identifies something that wasn’t known beforehand — such as existing insulation that needs removal or difficult access — we’ll show you your measured project estimate before you decide whether to proceed.",
+    "If the Ready Check identifies something that wasn’t known beforehand — such as existing insulation that needs removal or difficult access — we’ll show you your quote before you decide whether to proceed.",
   ],
 } as const;
 
@@ -139,7 +139,7 @@ export const CUSTOMER_ONSITE_HERO = {
 export const CUSTOMER_READY_CHECK_PAGE = {
   eyebrow: "NEXT STEP",
   heading: "BOOK YOUR HOME INSULATION READY CHECK",
-  intro: "We’ll arrange a free onsite Ready Check so an insulation installer can measure your ceiling and collect the eligibility evidence needed for your measured project estimate.",
+  intro: "We’ll arrange a free onsite Ready Check so an insulation installer can measure your ceiling and collect the eligibility evidence needed for your quote.",
   cardTitle: "FREE HOME INSULATION READY CHECK",
   credit: "No payment is required.",
   whatHappensHeading: "What happens",

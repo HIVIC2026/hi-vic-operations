@@ -51,7 +51,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
   // Two-requirement model: quote inputs come ONLY from the accepted/current ceiling measurement.
   const { data: m } = await admin.from("ceiling_measurements").select("*").eq("job_id", jobId).eq("is_current", true).maybeSingle();
   let qi: ReturnType<typeof quoteInputsFromMeasurement>;
-  try { qi = quoteInputsFromMeasurement(m as MeasurementLike | null); } catch (e) { throw new WorkflowError(e instanceof Error ? e.message : "Ceiling Ready Check missing."); }
+  try { qi = quoteInputsFromMeasurement(m as MeasurementLike | null); } catch (e) { throw new WorkflowError(e instanceof Error ? e.message : "Ready Check missing."); }
   const { data: inst } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
   if (!inst?.business_id) throw new WorkflowError("Assign the installer before quoting – the quote uses that installer's agreed rates.");
   const settings = await activePricing();
