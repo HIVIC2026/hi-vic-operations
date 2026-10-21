@@ -1,5 +1,5 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { BLAST_KEY, BLAST_TYPE, blastClaimId, currentBlastPrice, offeredLink, selectBlast, type BlastRow } from "./save-spot-reminder-blast.core";
+import { BLAST_KEY, BLAST_TYPE, blastClaimId, currentBlastPrice, selectBlast, type BlastRow } from "./save-spot-reminder-blast.core";
 import { linkUsable } from "./estimatelink.core";
 import { customerCommsEnabled } from "./comms.server";
 import { sendRealSms, sendingNumber } from "./sms.server";
@@ -22,7 +22,7 @@ async function readAll(table: string, columns: string, configure: (q: any) => an
 
 async function loadPlan(jobIds?: string[], automatic = false) {
   const settings = automatic ? await reminderSettings() : null;
-  const enquiries = await readAll("office_enquiry_index", "id,job_number,created_at,source,owner_name,owner_phone,spot_offered,spot_saved,deleted_at,removed,stage", (q) => {
+  const enquiries = await readAll("office_enquiry_index", "id,job_number,created_at,source,owner_name,owner_phone,spot_offered,spot_saved,deleted_at,removed,stage,latest_attempt_at", (q) => {
     q = q.eq("spot_offered", true).order("created_at", { ascending: false }).order("id");
     return jobIds ? q.in("id", jobIds) : q;
   });
@@ -47,12 +47,12 @@ async function loadPlan(jobIds?: string[], automatic = false) {
       const jobLinks = links.filter((r) => r.job_id === enquiry.id && linkUsable(r));
       const link = jobLinks[0];
       const mails = communications.filter((r) => r.job_id === enquiry.id);
-      // Sent records establish offer timing only; the homeowner's active estimate owns the URL.
+      // Reminder-only offer timing: stored offer record or attempt; never require email URL matching.
       const mail = send?.communication_id ? mails.find((r) => r.id === send.communication_id) :
         send?.provider_message_id ? mails.find((r) => r.provider_message_id === send.provider_message_id && r.source_reference === send.idempotency_key) :
-        mails.find((r) => ["sent", "delivered"].includes(r.delivery_status) && ["existing_leads_launch_v1", "step3_estimate", "jo_tradie:hot_leads_save_my_spot", "office_manual_email"].includes(r.source_event) && offeredLink(r.body, link?.token ?? null));
+        mails.find((r) => ["sent", "delivered"].includes(r.delivery_status) && ["existing_leads_launch_v1", "step3_estimate", "jo_tradie:hot_leads_save_my_spot", "office_manual_email"].includes(r.source_event));
       rows.push({ ...enquiry, ...currentBlastPrice(estimate?.scenarios),
-        offeredAt: send?.sent_at ?? mail?.sent_at ?? null,
+        offeredAt: send?.sent_at ?? mail?.sent_at ?? enquiry.latest_attempt_at ?? null,
         link: link ? `https://estimate.homeinsulationvictoria.com.au/estimate/${link.token}/campaign` : null,
         linkProblem: "Quote/savings link missing, expired or revoked",
         consent: consents.find((r) => r.job_id === enquiry.id)?.consent_status === "granted" });
