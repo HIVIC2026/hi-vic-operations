@@ -20,7 +20,19 @@ function BlastPage() {
   const [error, setError] = useState<string | null>(null);
   async function run(dryRun: boolean) {
     setBusy(true); setError(null);
-    try { setReport(await invoke({ data: dryRun ? { dryRun: true } : { dryRun: false, confirmation: "SEND SAVE SPOT REMINDER BLAST" } })); }
+    try {
+      if (dryRun) setReport(await invoke({ data: { dryRun: true } }));
+      else {
+        let more = true;
+        const all: Array<{ jobId: string; jobNumber: string | null; status: string; detail: string }> = [];
+        while (more) {
+          const next = await invoke({ data: { dryRun: false, confirmation: "SEND SAVE SPOT REMINDER BLAST" } });
+          all.push(...next.results); setReport({ ...next, results: [...all] });
+          more = next.hasMore;
+        }
+        setConfirmation("");
+      }
+    }
     catch (e) { setError(e instanceof Error ? e.message : "Reminder action failed"); }
     finally { setBusy(false); }
   }
@@ -35,7 +47,7 @@ function BlastPage() {
       <section><h2 className="mb-3 text-lg font-bold">Skipped records</h2><div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th className="py-2">Job</th><th>Reason</th></tr></thead><tbody>{report.skipped.map((s) => <tr key={s.jobId} className="border-t border-border"><td className="py-2 pr-4">{s.jobNumber ?? s.jobId}</td><td>{s.reason}</td></tr>)}</tbody></table></div></section>
       {report.results.length > 0 && <section><h2 className="text-lg font-bold">Send results</h2>{report.results.map((r) => <p key={r.jobId} className="py-2 text-sm">{r.jobNumber}: {r.status} — {r.detail}</p>)}</section>}
       <section className="space-y-3 border-t border-border pt-5"><label htmlFor="blast-confirm" className="block font-semibold">Type SEND SAVE SPOT REMINDER BLAST</label><Input id="blast-confirm" value={confirmation} onChange={(e) => setConfirmation(e.target.value)} autoComplete="off" />
-        <Button disabled={busy || confirmation !== "SEND SAVE SPOT REMINDER BLAST" || report.sendBlockers.length > 0 || report.recipientCount === 0} onClick={() => run(false)}><Send className="mr-2 h-4 w-4" />{report.hasMore ? "Send next batch (up to 10)" : "Send reminders (up to 10)"}</Button></section>
+        <Button disabled={busy || confirmation !== "SEND SAVE SPOT REMINDER BLAST" || report.sendBlockers.length > 0 || report.recipientCount === 0} onClick={() => run(false)}><Send className="mr-2 h-4 w-4" />{busy ? "Working…" : "Send reminders"}</Button></section>
     </>}
   </div></AppShell>;
 }
