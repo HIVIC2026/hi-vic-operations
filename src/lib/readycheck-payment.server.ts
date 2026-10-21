@@ -49,7 +49,9 @@ async function loadAcceptance(jobId: string, current: Identity) {
 
 export async function readyCheckAcceptanceState(token: unknown) {
   const ctx = await secureContext(token);
-  if (!ctx || !(await requestedWindowsSaved(ctx.link.job_id))) return null;
+  if (!ctx) return null;
+  // A recorded request survives expired/closed times and bookings made another way.
+  // Window proof belongs to submission/retry, not the read-only receipt display.
   return loadAcceptance(ctx.link.job_id, ctx.estimate);
 }
 
@@ -61,7 +63,7 @@ export async function jobIdForToken(token: unknown): Promise<string | null> {
 
 type WindowPick = { date: string; slot: import("./piesa-windows.core").PiesaSlot };
 
-/** Acceptance is retained independently; customer success also requires persisted times. */
+/** New submissions and exact retries require persisted times independently of the receipt. */
 async function requestedWindowsSaved(jobId: string, picks?: WindowPick[]) {
   const { data, error } = await admin.from("ready_check_windows")
     .select("round, status, starts_at, ends_at").eq("job_id", jobId);

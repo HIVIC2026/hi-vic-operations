@@ -63,12 +63,12 @@ function resetRequest() {
   failInsert = false; activeInstaller = false; failRead = false;
   return allowedPiesaDays(new Date()).slice(0, 3).map(date => ({ date, slot: '10-12' as const }));
 }
-test('actual acceptance surfaces active-installer gate, retains acceptance and hides success after refresh', async () => {
+test('actual acceptance surfaces active-installer gate but refresh retains the recorded request', async () => {
   const picks = resetRequest(); activeInstaller = true;
   await expect(acceptReadyCheck(token, {}, picks)).rejects.toThrow('An installer is already arranging your Ready Check.');
   expect(acceptanceInserts).toBe(1); expect(windows).toEqual([]);
   expect(events).toEqual(['ready_check_windows_not_saved']);
-  expect(await readyCheckAcceptanceState(token)).toBeNull();
+  expect((await readyCheckAcceptanceState(token))?.acceptanceId).toBe('accepted-once');
 });
 test('stored acceptance with failed windows retries safely without erasing history or inserting acceptance again', async () => {
   const picks = resetRequest(); failInsert = true;
@@ -94,10 +94,10 @@ test('persisted different times cannot turn a rejected request into success', as
   await expect(acceptReadyCheck(token, {}, picks.map(p => ({ ...p, slot: '12-14' as const })))).rejects.toThrow('Your Ready Check times are already with our installers.');
   expect(acceptanceInserts).toBe(1); expect(windows).toHaveLength(3);
 });
-test('window read errors fail closed rather than claiming success or replacing acceptance', async () => {
+test('window read errors fail closed on retries without hiding the recorded request', async () => {
   const picks = resetRequest(); await acceptReadyCheck(token, {}, picks); failRead = true;
   await expect(acceptReadyCheck(token, {}, picks)).rejects.toThrow('window read failed');
-  await expect(readyCheckAcceptanceState(token)).rejects.toThrow('window read failed');
+  expect((await readyCheckAcceptanceState(token))?.acceptanceId).toBe('accepted-once');
   expect(acceptanceInserts).toBe(1);
 });
 test('normal booked round retains received status after losing windows close', async () => {
@@ -115,10 +115,10 @@ test('stored A/B/C cannot satisfy duplicate retry picks A/A/A', async () => {
   expect(windows).toEqual(saved); expect(acceptanceInserts).toBe(1);
   expect(events).toContain('ready_check_windows_not_saved'); expect(providerCalls).toBe(0);
 });
-test('duplicate persisted timestamp keys cannot satisfy retries or received state', async () => {
+test('duplicate persisted timestamp keys cannot satisfy retries but retain the recorded request', async () => {
   const picks = resetRequest(); await acceptReadyCheck(token, {}, picks);
   windows[1] = { ...windows[1], starts_at: windows[0]?.starts_at, ends_at: windows[0]?.ends_at };
-  expect(await readyCheckAcceptanceState(token)).toBeNull();
+  expect((await readyCheckAcceptanceState(token))?.acceptanceId).toBe('accepted-once');
   await expect(acceptReadyCheck(token, {}, picks)).rejects.toThrow();
   expect(acceptanceInserts).toBe(1); expect(providerCalls).toBe(0);
 });
@@ -131,4 +131,44 @@ test('equivalent timestamp formats and reversed exact picks preserve valid retry
   const saved = structuredClone(windows);
   expect(await acceptReadyCheck(token, {}, [...picks].reverse())).toEqual(first);
   expect(windows).toEqual(saved); expect(acceptanceInserts).toBe(1); expect(providerCalls).toBe(0);
+});
+
+for (const scenario of ['legacy without windows', 'expired times', 'no installer took times', 'office booked without taken windows']) {
+  test(`read-only receipt survives ${scenario}`, async () => {
+    const picks = resetRequest();
+    await acceptReadyCheck(token, {}, picks);
+    if (scenario === 'legacy without windows') windows = [];
+    else windows = windows.map(row => ({ ...row, status: 'closed',
+      ...(scenario === 'expired times' ? { starts_at: '2026-01-01T00:00:00Z', ends_at: '2026-01-01T02:00:00Z' } : {}),
+    }));
+    const before = structuredClone({ acceptance, windows, events });
+    touchedTables.length = 0;
+    const state = await readyCheckAcceptanceState(token);
+    expect(state?.acceptanceId).toBe('accepted-once');
+    expect(state?.stale).toBe(false);
+    expect(state?.amountIncGst).toBe(0);
+    expect(state?.paymentId).toBeNull();
+    expect({ acceptance, windows, events }).toEqual(before);
+    expect(touchedTables).toEqual(['customer_estimate_links', 'indicative_estimates', 'ready_check_acceptances']);
+    expect(providerCalls).toBe(0);
+  });
+}
+
+test('no recorded acceptance still returns no receipt', async () => {
+  resetRequest();
+  expect(await readyCheckAcceptanceState(token)).toBeNull();
+  expect(acceptanceInserts).toBe(0);
+});
+
+test('changed estimate still marks the recorded acceptance stale', async () => {
+  const picks = resetRequest(); await acceptReadyCheck(token, {}, picks);
+  acceptance = { ...acceptance, estimate_id: 'old-estimate' };
+  expect((await readyCheckAcceptanceState(token))?.stale).toBe(true);
+});
+
+test('malformed link never reveals a recorded acceptance', async () => {
+  const picks = resetRequest(); await acceptReadyCheck(token, {}, picks);
+  touchedTables.length = 0;
+  expect(await readyCheckAcceptanceState('invalid')).toBeNull();
+  expect(touchedTables).toEqual([]);
 });
