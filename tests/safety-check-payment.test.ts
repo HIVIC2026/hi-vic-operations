@@ -41,7 +41,7 @@ describe("Pre Insulation Electrical Safety Assessment (PIESA) payment (Jo 7 Oct)
     expect(d.version).toBe("draft-2026-10-07"); expect(d.draftNote).toBe("Draft, awaiting lawyer");
     const m = { fee: "$349.00", balance: "$3,379.00", half: "$1,689.50", half2: "$1,689.50", total: "$3,728.00" };
     const c = paymentChoices(m);
-    expect(c.safetyFee).toBe("I'll pay the $349.00 Pre Insulation Electrical Safety Assessment (PIESA) fee now. I understand it is non-refundable once the Pre Insulation Electrical Safety Assessment (PIESA) has been done, even if the check finds the job can't go ahead.");
+    expect(c.safetyFee).toBe("I'll pay the $349.00 electrical safety check fee now. I understand it is non-refundable once the safety check has been done, even if the check finds the job can't go ahead.");
     expect(c.options.map((o) => o.text)).toEqual(["Pay the balance of $3,379.00 in two instalments: $1,689.50 when my install is booked and $1,689.50 on install day.", "Pay the full $3,728.00 now."]);
     const v = answerVars({ payment_option: "pay_in_full", total: "$1.00" }, m);
     expect(v["payment_option_text"]).toBe("Pay the full $3,728.00 now.");

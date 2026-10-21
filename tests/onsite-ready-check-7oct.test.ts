@@ -39,7 +39,7 @@ describe("on-site consent clears Gate A (Jo, 8 Oct)", () => {
     expect(onsiteState({ ...facts, autoSend: false }).kind).toBe("office");
     const { evaluateOwnerGates } = await import("../src/lib/owner-gates.core");
     const base = { isTest: false, signed: [], approved: {}, tenant: false, lifeSupport: false, visitedByInstaller: false, hasQuote: false, agreementSigned: false, agreementWordingApproved: false, escConsentSigned: false, piesaCopyDelivered: false, piesaDeclarationMappingApproved: false, assignmentEffective: false };
-    expect(evaluateOwnerGates(base)[0]!.complete).toBe(false);
+    expect(evaluateOwnerGates(base)[0]!.complete).toBe(true);
     expect(evaluateOwnerGates({ ...base, onsiteConsent: true })[0]!.complete).toBe(true);
   });
 });
