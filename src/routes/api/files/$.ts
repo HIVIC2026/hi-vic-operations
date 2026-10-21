@@ -17,7 +17,17 @@ export const Route = createFileRoute("/api/files/$")({
         const { servedFileHeaders } = await import("@/lib/upload-safety.core");
         const download = new URL(request.url).searchParams.has("download");
         // Security review A: only PDFs/images inline, everything else downloads; never HTML/SVG; sandboxed.
-        return new Response(blob.stream(), { headers: servedFileHeaders(blob.type, name, download) });
+        const headers: Record<string, string> = { ...servedFileHeaders(blob.type, name, download), "Accept-Ranges": "bytes" };
+        // Phones only play videos when the server answers byte-range requests.
+        const range = /^bytes=(\d*)-(\d*)$/.exec(request.headers.get("range") ?? "");
+        if (range && (range[1] || range[2])) {
+          const size = blob.size;
+          let start = range[1] ? Number(range[1]) : Math.max(0, size - Number(range[2]));
+          let end = range[1] && range[2] ? Math.min(Number(range[2]), size - 1) : size - 1;
+          if (start >= size || start > end) return new Response(null, { status: 416, headers: { ...headers, "Content-Range": `bytes */${size}` } });
+          return new Response(blob.slice(start, end + 1).stream(), { status: 206, headers: { ...headers, "Content-Range": `bytes ${start}-${end}/${size}`, "Content-Length": String(end - start + 1) } });
+        }
+        return new Response(blob.stream(), { headers: { ...headers, "Content-Length": String(blob.size) } });
       },
     },
   },
