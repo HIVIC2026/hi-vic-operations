@@ -50,6 +50,7 @@ async def main(manifest_path):
                 controls = []
                 overflow = False
                 landed_path = None
+                page_ready_ms = None
                 try:
                     await page.goto(m["base"] + s["path"], wait_until="domcontentloaded", timeout=15000)
                     # A painted heading alone can precede loaded data. Require visible controls/content
@@ -113,7 +114,7 @@ async def main(manifest_path):
                 except Exception as e:
                     ok, detail = False, f"{detail}: {str(e)[:200]}"
                 await page.screenshot(path=str(shots / name))
-                results.append({"step": s["step"], "requested_path": s["path"], "landed_path": landed_path, "ok": ok, "detail": detail if not ok else f"{detail} render checks ok; controls listed separately", "shots": [str(shots / name)], 'viewport': {'width': width, 'height': 844 if width == 390 else 1800}, 'page_ready_ms': locals().get('page_ready_ms'), 'elapsed_ms': round((time.monotonic()-started)*1000), 'page_errors': errors, 'console_errors': console_errors, 'failed_requests': failed_requests, 'navigation_aborts': navigation_aborts, 'http_errors': http_errors, 'overflow': overflow, 'controls': controls})
+                results.append({"step": s["step"], "requested_path": s["path"], "landed_path": landed_path, "ok": ok, "detail": detail if not ok else f"{detail} render checks ok; controls listed separately", "shots": [str(shots / name)], 'viewport': {'width': width, 'height': 844 if width == 390 else 1800}, 'page_ready_ms': page_ready_ms, 'elapsed_ms': round((time.monotonic()-started)*1000), 'page_errors': errors, 'console_errors': console_errors, 'failed_requests': failed_requests, 'navigation_aborts': navigation_aborts, 'http_errors': http_errors, 'overflow': overflow, 'controls': controls})
                 partial = out / '.browser.tmp.json'
                 partial.write_text(json.dumps(results))
                 partial.replace(out / '.browser.json')

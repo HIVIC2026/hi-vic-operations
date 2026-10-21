@@ -212,7 +212,7 @@ try {
       const existing = new Map(screens.map(s => [s.path, s]));
       screens = [...new Set(READ_ONLY_PATHS)].map((path, i) => existing.get(path) ?? ({ step: `read-only-${i}`, path, persona: path.startsWith('/admin') || path.endsWith('email-preview') ? 'office' : path.startsWith('/field') || path.startsWith('/partner') || ['/portal', '/home'].includes(path) ? 'installer' : 'public' }));
       screens = screens.map(s => ({ ...s, safeTabs: ['/admin/communications', '/admin/templates'].includes(s.path) }));
-      for (const status of ['all', 'new', 'spot_saved', 'offered_spot', 'insulation_requested', 'ineligible', 'needs_attention', 'photos', 'removed']) screens.push({ step: `enquiry-view-${status}`, path: `/admin/enquiries?status=${status}`, persona: 'office', readinessSelector: 'input[placeholder="Search name, address, email or job number"]' });
+      for (const status of ['all', 'new', 'spot_saved', 'offered_spot', 'insulation_requested', 'ineligible', 'needs_attention', 'photos', 'removed']) screens.push({ step: `enquiry-view-${status}`, path: `/admin/enquiries?status=${status}`, persona: 'office', readinessSelector: 'input[aria-label="Search enquiries"]' });
       for (const path of ['/admin/board?tab=quotes', '/admin/money?tab=payouts']) screens.push({ step: `additional-${screens.length}`, path, persona: 'office' });
       const fixtureId = '518271f4-90b5-4d16-8ccc-2d2a5a0a12c1'; // existing Office QA fixture, never changed in read-only mode
       const { data: fixture, error: fixtureError } = await admin.from('jobs').select('id,source').eq('id', fixtureId).single();
