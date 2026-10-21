@@ -13,7 +13,7 @@ describe("missing-only task lists", () => {
     const m = missingTasks({ quoteBlockers: ["Confirm the price basis"], worksBlockers: ["Existing insulation"], siteHoldBlocker: null, evidence: ev });
     expect(m.quote).toEqual(["Confirm the price basis"]);
     expect(m.beforeStart).toEqual(["Record the original condition: Existing insulation — due before any removal or covering", "Before photos — zone 1 — due before Start work"]);
-    expect(m.afterCompletion).toEqual(["After photos — zone 1 — due before office AP review"]); // uploaded but not yet verified still counts as missing acceptance
+    expect(m.afterCompletion).toEqual(["After photos — zone 1 — due before office Final check"]); // uploaded but not yet verified still counts as missing acceptance
     expect(m.unknown).toEqual(["Legacy item"]);
   });
   test("open site hold appears first for the quote and before start", () => {

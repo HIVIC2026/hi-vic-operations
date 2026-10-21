@@ -159,7 +159,7 @@ describe("removal allowance", () => {
   });
   test("eligible-no-insulation templates exclude removal (no $15 budget line)", () => {
     const out = renderJoEstimateEmail("eligible_no_insulation_size_known", recipient, liveFigures({ areaEstimated: false, ceilingAreaM2: 200 }));
-    expect(out.body).toContain("Insulation removal and electrical rectification are excluded");
+    expect(out.body).toContain("Insulation removal and electrical fixes are excluded");
     expect(out.body).not.toContain("budget $15 per m²");
   });
 });

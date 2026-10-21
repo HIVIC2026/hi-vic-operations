@@ -22,7 +22,7 @@ describe("staff portal presentation helpers", () => {
 
   test("maps evidence sources to meaningful labels without hiding the raw audit", () => {
     expect(evidenceSourceLabel("properties.is_residential")).toBe("Property record");
-    expect(evidenceSourceLabel("base44 answers.insulation")).toBe("Homeowner enquiry");
+    expect(evidenceSourceLabel("base44 answers.insulation")).toBe("Owner enquiry");
     expect(evidenceSourceLabel("base44.property_research.year_built")).toBe("Website property research");
     expect(evidenceSourceLabel("verified onsite finding")).toBe("Onsite assessment");
     expect(evidenceSourceLabel("unmapped.provider.fact")).toBe("Other recorded evidence");

@@ -42,7 +42,7 @@ describe("phase 3 presentation mapping", () => {
     a.communications = [{ purpose: "step3_estimate", status: "sent", at: "2026-10-08T08:00:00Z" }];
     const row = buildOperationsPreview([a], [], now).rows[0];
     expect(row?.process).toBe("Offer & owner response");
-    expect(row?.tasks[0]?.party).toBe("Homeowner");
+    expect(row?.tasks[0]?.party).toBe("Owner");
     expect(row?.communicationLabel).toBe("Sent — timestamp recorded");
   });
 });

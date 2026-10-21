@@ -21,7 +21,7 @@ describe("owner confirm link for installer-quoted jobs (Jo 7 Oct 9:25pm)", () =>
     expect(ownerAgreedBlocker({ ownerAgreed: true, quoted: "yes", price: 3450 })).toBeNull();
   });
   test("exact PIESA note in email and signed summary", () => {
-    expect(PIESA_FIXES_NOTE).toBe("Your electrical safety check may find electrical work that needs fixing before insulation can go in. Any electrical fixes are completely separate from this price. If needed, you'll receive a separate quote for that work to approve. Nothing is done without your OK.");
+    expect(PIESA_FIXES_NOTE).toBe("Your Pre Insulation Electrical Safety Assessment (PIESA) may find electrical work that needs fixing before insulation can go in. Any electrical fixes are completely separate from this price. If needed, you'll receive a separate quote for that work to approve. Nothing is done without your OK.");
     const e = ownerPriceEmailText({ firstName: "Sam", agreed: { agreed: true, installerName: "Reinsulate" }, total: 1234.5, link: "https://x/my-job/t" });
     expect(e.subject).toContain("Confirm your insulation job");
     expect(e.text).toContain(PIESA_FIXES_NOTE);

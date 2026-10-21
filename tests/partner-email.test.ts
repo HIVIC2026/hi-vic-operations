@@ -9,7 +9,7 @@ describe("partner emails (Jo 8 Oct)", () => {
     expect(i.subject).toBe("You're approved — welcome to Home Insulation Victoria");
     expect(i.text).toContain("Hi Sam,\n\nGreat news — Acme Insulation is now an approved Home Insulation Victoria partner.");
     expect(i.text).toContain("• see and accept insulation jobs near you");
-    expect(e.text).toContain("• see and accept electrical safety checks near you");
+    expect(e.text).toContain("• see and accept PIESAs near you");
     expect(i.text).toContain("Tap below to set your password. The link works once and lasts 24 hours.");
     expect(i.text).toContain("Set up my account: https://x.test/l");
     expect(i.text).toContain("You'll sign in with: sam@acme.test");

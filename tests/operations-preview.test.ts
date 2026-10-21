@@ -117,7 +117,7 @@ describe("isolated operations presentation", () => {
       expect(photos.tasks[0]?.party).toBe("System");
     }
     const photoMail = sent("existing_leads_launch_v1", "sent", "existing_leads_launch_v1:insulation_details:x");
-    expect(classifyOperation(fixture("photo-mail", { insulation: "present", eligibility: "needs_onsite_confirmation", insulationOnlyPassed: true, communications: [photoMail] }), now).tasks[0]?.party).toBe("Homeowner");
+    expect(classifyOperation(fixture("photo-mail", { insulation: "present", eligibility: "needs_onsite_confirmation", insulationOnlyPassed: true, communications: [photoMail] }), now).tasks[0]?.party).toBe("Owner");
     expect(classifyOperation(fixture("offer-mail", { communications: [sent("existing_leads_launch_v1", "sent", "existing_leads_launch_v1:save_my_spot:x")] }), now).process).toBe("Offer & owner response");
   });
   test("latest purpose outcome recovers failures without deleting history; unknown send protects against retry", () => {

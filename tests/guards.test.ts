@@ -50,9 +50,9 @@ beforeEach(() => seed());
 describe("measurement gate (new)", () => {
   test("8 quote stages blocked without an accepted measure-up", async () => {
     seed({ ceiling_measurements: [] });
-    expect(await stageEntryBlockers(J, "ready_for_installer_quotes")).toContain("Ceiling measure-up missing.");
+    expect(await stageEntryBlockers(J, "ready_for_installer_quotes")).toContain("Ceiling Ready Check missing.");
     seed({ ceiling_measurements: [{ job_id: J, is_current: true, status: "needs_review", measured_area_m2: 120 }] });
-    expect(await stageEntryBlockers(J, "awaiting_quote_acceptance")).toContain("Ceiling measure-up needs review / missing evidence.");
+    expect(await stageEntryBlockers(J, "awaiting_quote_acceptance")).toContain("Ceiling Ready Check needs review / missing evidence.");
     seed();
     expect((await stageEntryBlockers(J, "ready_for_installer_quotes")).some((b) => /measure-up/i.test(b))).toBe(false);
   });

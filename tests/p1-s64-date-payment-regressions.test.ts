@@ -46,7 +46,7 @@ describe("S64 manual PIESA form is wired into the electrician portal", () => {
     expect(block).toContain("<OtherItems jobId={jobId} editable />");
     expect(block).toContain("{planBlock}");
     expect(block).toContain("Complete PIESA");
-    expect(block).toContain("Safety check complete."); // locked state is still shown
+    expect(block).toContain("Pre Insulation Electrical Safety Assessment (PIESA) complete."); // locked state is still shown
   });
 
   test("the Mitti-integrated pathway is preserved for jobs that really use Mitti", () => {
@@ -147,7 +147,7 @@ describe("PIESA assessment date cannot be in the future", () => {
 
 // ---------- Defect 3: an override is never presented as money received ----------
 
-describe("Safety check payment status is stated honestly", () => {
+describe("Pre Insulation Electrical Safety Assessment (PIESA) payment status is stated honestly", () => {
   test("the state union distinguishes money, override, simulation, due and unknown", () => {
     const src = srcText("../src/lib/payment-gate.core.ts");
     expect(src).toContain('| { kind: "paid"; paidAt: string | null }');
@@ -173,7 +173,7 @@ describe("Safety check payment status is stated honestly", () => {
     expect(src).toContain("safetyPay: SafetyCheckPayState;");
     expect(src).toContain("safetyCheckPayLabel(f.safetyPay, f.staff)");
     // the old unconditional "$349 paid" label is gone
-    expect(src).not.toContain('label: f.staff ? "Safety check paid" : "$349 paid"');
+    expect(src).not.toContain('label: f.staff ? "Pre Insulation Electrical Safety Assessment (PIESA) paid" : "$349 paid"');
   });
 
   test("the server gathers the facts the state needs (paid, override, TEST simulation)", () => {
@@ -189,7 +189,7 @@ describe("Safety check payment status is stated honestly", () => {
   test("Office spells out that an override is not a payment", () => {
     const src = srcText("../src/components/portal/panels.tsx");
     expect(src).toContain("data-testid=\"safety-check-payment-override\"");
-    expect(src).toContain("the safety check payment has not been received");
+    expect(src).toContain("the Pre Insulation Electrical Safety Assessment (PIESA) payment has not been received");
     // only the deposit-gate override speaks about the safety check payment
     expect(src).toContain('const safetyOverrides = ov.filter((o) => o.gate === "deposit");');
   });

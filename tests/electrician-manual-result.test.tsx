@@ -26,7 +26,7 @@ describe("ElectricianManualResult render branch", () => {
     expect(container.textContent).toContain("Hazards");
     expect(container.textContent).toContain("Notes");
     expect(container.textContent).toContain("Assessment date");
-    expect(container.textContent).toContain("No rectification required");
+    expect(container.textContent).toContain("No electrical fixes required");
     expect(container.textContent).toContain("PIESA outcome");
   });
 

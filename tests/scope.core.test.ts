@@ -71,7 +71,7 @@ describe("measurement update planning", () => {
     const audit = { audit_id: "a1", template_id: MITTI_TEMPLATE_ID, items: [
       { item_id: "1", label: "Net insulation area (m²) = Gross minus Excluded", responses: { text: "88.5" } },
       { item_id: "2", label: "Existing insulation present", responses: { selected: [{ label: "No" }] } },
-      { item_id: "3", label: "PIESA outcome", responses: { selected: [{ label: "No rectification required" }] } },
+      { item_id: "3", label: "PIESA outcome", responses: { selected: [{ label: "No electrical fixes required" }] } },
       { item_id: "4", label: "RCDs present", responses: { selected: [{ label: "Yes" }] } },
     ] };
     const { measure, electrical } = splitPatch(parseAudit(audit).patch);
