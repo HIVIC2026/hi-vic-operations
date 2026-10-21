@@ -153,7 +153,7 @@ export async function loadEnquiryGroups(visibleIds: string[]) {
         : !r.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(r.email) ? "Missing or invalid email"
         : r.group === "insulation_check" ? "Insulation details email not sent yet"
         : r.group === "likely_size" ? "Save my spot email not sent yet"
-        : r.group === "likely_no_size" ? "Eligible, but owner gave no ceiling size"
+        : r.group === "likely_no_size" ? "Save my spot email (estimated size) not sent yet"
         : r.otherReason === "not_eligible" ? "Ineligible email not sent yet"
         : r.reason;
     }

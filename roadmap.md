@@ -414,3 +414,4 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Find enquiry Jo marked below R2 after photo review; explain where it went / offer save spot
 - [x] Photo review: send Save your spot email right after marking under R2 / no insulation
 - [x] Photo review R2 or above: send ineligible email with reason (Jo 21 Oct)
+- [x] Office review labels: insulation email and estimated-size email shown as 'not sent yet' (templates already approved)
