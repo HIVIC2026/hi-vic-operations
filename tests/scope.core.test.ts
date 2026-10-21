@@ -32,7 +32,7 @@ describe("visit-scope derivation", () => {
     expect(s.electricianTasks).toEqual(["electrical"]);
     expect(s.installerTasks).toEqual(["measure_up"]);
     expect(s.editableMeasureFields).toEqual([]);
-    expect(s.nextAction).toMatch(/installer eligibility measure-up review/);
+    expect(s.nextAction).toMatch(/installer eligibility Ready Check review/);
   });
   test("4 PIESA first → MEASURE_UP_ONLY for installer", () => {
     const s = deriveScope({ measurement: null, electrical: piesa });
