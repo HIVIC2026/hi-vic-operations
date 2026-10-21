@@ -331,8 +331,8 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
 
 export async function syncPendingMitti(actorId: string | null, call: MittiCall = realMittiCall) {
   const [{ data: as }, { data: ms }] = await Promise.all([
-    admin.from("assessments").select("job_id,jobs!inner(business_unit)").not("external_mitti_id", "is", null).neq("status", "complete").eq("jobs.business_unit", "hivic"),
-    admin.from("ceiling_measurements").select("job_id,jobs!inner(business_unit)").eq("external_source", "mitti").eq("is_current", true).neq("status", "complete").eq("jobs.business_unit", "hivic"),
+    admin.from("assessments").select("job_id,jobs!inner(business_unit)").not("external_mitti_id", "is", null).neq("status", "complete").eq("jobs.business_unit", "hivic").is("jobs.deleted_at", null).not("jobs.stage", "in", "(complete,cancelled)"),
+    admin.from("ceiling_measurements").select("job_id,jobs!inner(business_unit)").eq("external_source", "mitti").eq("is_current", true).neq("status", "complete").eq("jobs.business_unit", "hivic").is("jobs.deleted_at", null).not("jobs.stage", "in", "(complete,cancelled)"),
   ]);
   const ids = [...new Set([...(as ?? []), ...(ms ?? [])].map((r) => r.job_id))];
   const results: { jobId: string; ok: boolean; message: string }[] = [];
