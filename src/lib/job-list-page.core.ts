@@ -58,6 +58,7 @@ export const JOB_STAGES = [
   "complete", "cancelled", "on_hold", "preliminary_estimate_ready", "ready_check_awaiting_acceptance",
   "ready_check_awaiting_payment", "ready_check_ready_to_schedule", "ready_check_scheduled", "ready_check_complete",
   "measured_estimate_ready", "measured_quote_accepted", "piesa_and_install_window_pending",
+  "piesa_scheduled", "piesa_complete", "electrical_variation_pending",
 ] as const;
 export type JobStage = (typeof JOB_STAGES)[number];
 

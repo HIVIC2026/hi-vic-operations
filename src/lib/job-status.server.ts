@@ -11,10 +11,10 @@ type Ctx = { biz: { id: string; name: string }; boss: boolean; kind: "installer"
 
 export async function statusFactsFor(c: Ctx, jobIds: string[]): Promise<Map<string, StatusFacts & { channel: string | null; originating: string | null; jobNumber: string }>> {
   const ids = jobIds.length ? jobIds : none;
-  const [{ data: jobs }, { data: books }, { data: ev }, { data: quotes }, { data: invs }, { data: props }, { data: ws }, { data: aps }, { data: sims }, { data: ovs }] = await Promise.all([
+  const [{ data: jobs }, { data: books }, { data: ev }, { data: quotes }, { data: invs }, { data: props }, { data: ws }, { data: aps }, { data: sims }, { data: ovs }, { data: rcw }] = await Promise.all([
     admin.from("jobs").select("id, job_number, stage, channel, originating_installer_business_id, created_at").in("id", ids),
     admin.from("bookings").select("job_id, kind, status, scheduled_start, scheduled_end, business_id, businesses(name, trading_name)").in("job_id", ids).in("status", ["confirmed", "completed"]),
-    admin.from("workflow_events").select("job_id, event_type, to_stage, created_at").in("job_id", ids).in("event_type", ["stage_changed", "payout_marked_paid"]).order("created_at", { ascending: false }).limit(5000),
+    admin.from("workflow_events").select("job_id, event_type, to_stage, created_at").in("job_id", ids).in("event_type", ["stage_changed", "payout_marked_paid", "installer_ready_check_times_delivery", "ready_check_more_times_requested"]).order("created_at", { ascending: false }).limit(5000),
     admin.from("quotes").select("job_id, kind, status, sent_at, accepted_at").in("job_id", ids).in("status", ["issued", "accepted"]),
     admin.from("invoices").select("id, job_id, kind, status, deposit_paid_at, balance_paid_at, paid_at, total_paid, deposit_paid_amount, deposit_amount").in("job_id", ids),
     admin.from("appointment_proposals").select("job_id, kind, created_at, proposer_role").in("job_id", ids).eq("kind", "assessment").eq("proposer_role", "owner").order("created_at", { ascending: false }),
@@ -24,6 +24,7 @@ export async function statusFactsFor(c: Ctx, jobIds: string[]): Promise<Map<stri
     admin.from("workflow_events").select("job_id, details").in("job_id", ids).in("event_type", ["qa_payment_simulated", "payment_simulated"]).order("created_at", { ascending: false }).limit(2000),
     // Audited office overrides on the deposit gate: permission to proceed, not a payment.
     admin.from("payment_overrides").select("job_id, invoice_id").in("job_id", ids).eq("gate", "deposit"),
+    admin.from("ready_check_windows").select("job_id, created_at").in("job_id", ids).order("created_at", { ascending: false }),
   ]);
   const settings: DueSettings | null = ws ? { tradeWarnHours: Number(ws.due_trade_reply_warn_hours ?? 24), tradeExceptionHours: Number(ws.due_trade_reply_exception_hours ?? 48), ownerReminderDays: Number(ws.due_owner_reminder_days ?? 3), ownerFlagDays: Number(ws.due_owner_flag_days ?? 7) } : null;
   const now = new Date();
@@ -62,6 +63,8 @@ export async function statusFactsFor(c: Ctx, jobIds: string[]): Promise<Map<stri
       safetyPaidAt: pd.safetyPaidAt, firstHalfPaidAt: pd.firstHalfPaidAt, fixesPaidAt: pd.fixesPaidAt,
       safetyPay,
       ownerTimesChosenAt: (props ?? []).find((p) => p.job_id === j.id)?.created_at ?? null,
+      rcTimesAskedAt: e.find((x) => x.event_type === "installer_ready_check_times_delivery" || x.event_type === "ready_check_more_times_requested")?.created_at ?? null,
+      rcTimesGivenAt: (rcw ?? []).find((w) => w.job_id === j.id)?.created_at ?? null,
       rectQuoteSentAt: rect?.sent_at ?? null, paidInFullAt: full, apApprovedAt: apAt,
       payout: workDone ? payState({ paidAt: paidOut, apApprovedAt: apAt, installerSupplied: supplied, ownerPaidInFullAt: full }) : null,
       settings,
