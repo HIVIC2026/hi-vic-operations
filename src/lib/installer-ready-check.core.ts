@@ -60,8 +60,8 @@ const first = (n: string | null | undefined) => (n ?? "").trim().split(/\s+/)[0]
 export function renderRcTimesEmail(v: { ownerName: string | null; installerBusiness: string; link: string }) {
   const hi = first(v.ownerName) ? `Hi ${first(v.ownerName)},` : "Hi,";
   const subject = `${v.installerBusiness} – choose a time for your free Ready Check`;
-  const text = `${hi}\n\n${v.installerBusiness} has asked Home Insulation Victoria to arrange your free Home Insulation Ready Check. Please choose 3 to 5 times that suit you, and ${v.installerBusiness} will confirm one.\n\nChoose my times: ${v.link}\n\nKind regards,\nHome Insulation Victoria`;
+  const text = `${hi}\n\n${v.installerBusiness} has asked Home Insulation Victoria to arrange your free Ready Check. Please choose 3 to 5 times that suit you, and ${v.installerBusiness} will confirm one.\n\nChoose my times: ${v.link}\n\nKind regards,\nHome Insulation Victoria`;
   const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
-  const html = `<p>${esc(hi)}</p><p>${esc(v.installerBusiness)} has asked Home Insulation Victoria to arrange your free Home Insulation Ready Check. Please choose 3 to 5 times that suit you, and ${esc(v.installerBusiness)} will confirm one.</p><p><a href="${esc(v.link)}" style="display:inline-block;padding:12px 20px;border-radius:999px;background:#3C51C4;color:#ffffff;font-weight:700;text-decoration:none">Choose my times</a></p><p>Kind regards,<br>Home Insulation Victoria</p>`;
+  const html = `<p>${esc(hi)}</p><p>${esc(v.installerBusiness)} has asked Home Insulation Victoria to arrange your free Ready Check. Please choose 3 to 5 times that suit you, and ${esc(v.installerBusiness)} will confirm one.</p><p><a href="${esc(v.link)}" style="display:inline-block;padding:12px 20px;border-radius:999px;background:#3C51C4;color:#ffffff;font-weight:700;text-decoration:none">Choose my times</a></p><p>Kind regards,<br>Home Insulation Victoria</p>`;
   return { subject, text, html };
 }

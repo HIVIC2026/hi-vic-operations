@@ -30,7 +30,7 @@ export type PartnerItem = { key: string; title: string; why: string; dueAt: stri
  *  TEST businesses (name starts "TEST" or "[TEST PARTNER]") are left out, like every other Needs me row. */
 export const MITTI_FORMS: [string, string][] = [
   ["A1 Ready Check (installer's own customer)", "mitti_ready_check_priced_template_id"], ["A2 Ready Check (our lead)", "mitti_ready_check_template_id"],
-  ["B PIESA electrical safety check", "mitti_piesa_template_id"], ["C PIISA installer safety check", "mitti_piisa_template_id"],
+  ["B Pre Insulation Electrical Safety Assessment (PIESA)", "mitti_piesa_template_id"], ["C PIISA installer Pre Insulation Electrical Safety Assessment (PIESA)", "mitti_piisa_template_id"],
 ];
 const isTestBiz = (n: string | null | undefined) => /^\s*(\[TEST PARTNER\]|TEST\b)/i.test(n ?? "");
 export function movedFromTodo(f: { formIds: Record<string, string | null | undefined> | null; pendingWorkers: { id: string; full_legal_name: string | null; business: string | null }[] }): PartnerItem[] {

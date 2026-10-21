@@ -10,7 +10,7 @@ export const RECT_UNANSWERED_DAYS = 5;
 const HOUR = 3_600_000, DAY = 86_400_000;
 
 export function rectHoursBlocker(h: number | null | undefined): string | null {
-  if (h == null || !Number.isFinite(h)) return "Enter the estimated hours for the rectification work.";
+  if (h == null || !Number.isFinite(h)) return "Enter the estimated hours for the electrical fixes work.";
   if (h <= 0 || h > 100) return "Estimated hours must be more than 0 and no more than 100.";
   return null;
 }

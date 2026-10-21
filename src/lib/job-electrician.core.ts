@@ -2,12 +2,12 @@
 
 /** Required owner-consent tick (Jo's exact wording). */
 /** Onsite + later Ready Check consent wording (Jo, 8 Oct 2026). */
-export const READY_CHECK_CONTACT_PERMISSION = "The homeowner has given Home Insulation Victoria permission to contact them for the eligibility assessment.";
+export const READY_CHECK_CONTACT_PERMISSION = "The owner has given Home Insulation Victoria permission to contact them for the eligibility assessment.";
 export const OWNER_CONTACT_PERMISSION = "The owner has given Home Insulation Victoria permission to contact them.";
 
 /** Note under the electrician choice (wording approved by Jo, 7 Oct 2026). */
 export const SAFETY_CHECK_NOTE =
-  "Once the owner accepts the quote and pays the $349 safety check, they'll choose 3 days and times that suit them. These go to the electrician to accept, and the booking updates in the job automatically so everyone can see it.";
+  "Once the owner accepts the quote and pays the $349 Pre Insulation Electrical Safety Assessment (PIESA), they'll choose 3 days and times that suit them. These go to the electrician to accept, and the booking updates in the job automatically so everyone can see it.";
 
 export const ELECTRICIAN_INVITED_LABEL = "Electrician invited – waiting to onboard";
 export const HIV_ARRANGES_LABEL = "Home Insulation Victoria arranges";
@@ -55,7 +55,7 @@ export function electricianInviteEmail(x: { electricianName: string; installerNa
   return {
     subject: `${x.installerName} has invited you to Home Insulation Victoria`,
     message: [
-      `${x.installerName} would like you to do the electrical safety checks on their Home Insulation Victoria jobs.`,
+      `${x.installerName} would like you to do the PIESAs on their Home Insulation Victoria jobs.`,
       `To get started, fill in the electrician application here: ${x.link}`,
       "Once you're approved, their jobs come straight to you.",
     ].join("\n\n"),

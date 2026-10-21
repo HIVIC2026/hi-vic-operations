@@ -6,7 +6,7 @@ export const OWNER_CHANGE_CUTOFF_HOURS = 24;
 export const TRADE_NO_SHOW_HOURS = 4;
 export const RELIABILITY_DAYS = 90;
 
-export const VISIT_LABEL: Record<VisitKind, string> = { ready_check: "Ready Check", assessment: "PIESA", rectification: "Rectification", installation: "Installation" };
+export const VISIT_LABEL: Record<VisitKind, string> = { ready_check: "Ready Check", assessment: "PIESA", rectification: "Electrical fixes", installation: "Installation" };
 
 /** Owner may reschedule/cancel by link only when the visit starts more than 24h from now. */
 export function ownerChangeAllowed(startIso: string, now: Date = new Date()): boolean {

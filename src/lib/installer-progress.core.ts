@@ -44,7 +44,7 @@ export type ProgressFacts = {
 export type NextAction = { who: "You" | "Home Insulation Victoria" | "Owner" | "Electrician" | "Regulator" | null; text: string };
 
 export const PROGRESS_LABELS: Record<ProgressStepKey, string> = {
-  review: "Job review", quote: "Quote", electrical: "Electrical safety", installation: "Installation", evidence: "Evidence review", veec: "VEEC submission",
+  review: "Job review", quote: "Quote", electrical: "Pre Insulation Electrical Safety Assessment (PIESA)", installation: "Installation", evidence: "Evidence review", veec: "VEEC submission",
 };
 
 const OK = new Set(["verified", "not_required"]);
@@ -94,7 +94,7 @@ export function installerProgress(f: ProgressFacts): { steps: ProgressStep[]; ne
   if (f.quoteStatus === "issued") notes.quote = f.quoteDelivery === "released" ? "Available to owner" : "Waiting to be sent";
   if (f.reconfirmationRequired) notes.quote = f.quoteStatus === "issued" && f.quoteDelivery === "released" ? "Owner must reconfirm" : "Updated quote being prepared";
   if (f.electricalCleared && f.electricalExpired) notes.electrical = "Completed — 30-day window expired";
-  else if (f.rectificationOpen) notes.electrical = "Fix-up required";
+  else if (f.rectificationOpen) notes.electrical = "Electrical fixes required";
   if (f.veecStatus === "approved") notes.veec = "Registered";
   else if (f.veecStatus === "submitted") notes.veec = "Submitted — awaiting registration";
   else if (f.veecStatus === "query") notes.veec = "Submitted — regulator query";
@@ -143,13 +143,13 @@ function nextAction(f: ProgressFacts, done: Record<ProgressStepKey, boolean>): N
     if (f.quoteHeld.length) return { who: f.quoteHeld.some((b) => /installer|you|area|quote|fee|electrician/i.test(b)) ? "You" : HIV, text: `Owner quote on hold: ${f.quoteHeld[0]}` };
     return { who: HIV, text: "Prepare and send the owner quote." };
   }
-  if (!done.installation && f.rectificationOpen) return { who: f.electricianPayer === "own" ? "Electrician" : HIV, text: "Electrical fix-up required before installation can be booked." };
+  if (!done.installation && f.rectificationOpen) return { who: f.electricianPayer === "own" ? "Electrician" : HIV, text: "Electrical fixes required before installation can be booked." };
   if (!done.electrical) return f.electricianPayer === "own"
-    ? { who: "Electrician", text: "Your electrician completes the electrical safety check; the office verifies the report." }
+    ? { who: "Electrician", text: "Your electrician completes the Pre Insulation Electrical Safety Assessment (PIESA); the office verifies the report." }
     : f.electricianPayer === "undecided" ? { who: "You", text: "Choose who arranges the electrician (below)." }
-    : { who: HIV, text: "Arrange the electrical safety check." };
+    : { who: HIV, text: "Arrange the Pre Insulation Electrical Safety Assessment (PIESA)." };
   if (!done.installation) {
-    if (f.electricalExpired) return { who: HIV, text: "The electrical safety check's 30-day window has expired — a new check is needed before installation." };
+    if (f.electricalExpired) return { who: HIV, text: "The Pre Insulation Electrical Safety Assessment (PIESA)'s 30-day window has expired — a new check is needed before installation." };
     const b = f.installBooking;
     if (!b || !["proposed", "confirmed"].includes(b.status)) return { who: f.coordination === "self_managed" ? "You" : HIV, text: "Book the installation date." };
     if (b.status === "proposed") return { who: HIV, text: "Confirm the proposed installation date." };
@@ -158,7 +158,7 @@ function nextAction(f: ProgressFacts, done: Record<ProgressStepKey, boolean>): N
     if (b.start && Date.parse(b.start) > now) return { who: "You", text: `Install on ${when}.` };
     return { who: "You", text: "Complete the booked installation and record it." };
   }
-  if (!done.evidence) return evidenceNext(f.evidence) ?? { who: HIV, text: "Final AP review of the installation evidence." };
+  if (!done.evidence) return evidenceNext(f.evidence) ?? { who: HIV, text: "Final Final check of the installation evidence." };
   if (f.veecStatus === "rejected") return { who: HIV, text: "Resolve the regulator's rejection." };
   if (!done.veec) return { who: HIV, text: "Submit the VEEC claim." };
   if (f.veecStatus === "approved") return { who: null, text: "VEECs registered — nothing more to do." };

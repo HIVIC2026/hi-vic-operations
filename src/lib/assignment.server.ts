@@ -72,7 +72,7 @@ export async function buildAcceptancePackage(quoteId: string) {
     quoted_product: product, quoted_area_m2: m?.measured_area_m2 != null ? Number(m.measured_area_m2) : null,
     price_before_benefit_inc_gst: Number(q.subtotal_inc_gst), veu_benefit_inc_gst: Number(q.veec_discount_inc_gst), final_customer_price_inc_gst: total,
     rectification_scope: (rect ?? []).map((r) => r.description),
-    payment_terms: `One Xero invoice for ${total.toFixed(2)} inc GST. The safety check payment of ${(requiredDepositCents(total) / 100).toFixed(2)} is required before the PIESA is booked. Balance in two halves (install booked / install day) or paid in full.`,
+    payment_terms: `One Xero invoice for ${total.toFixed(2)} inc GST. The Pre Insulation Electrical Safety Assessment (PIESA) payment of ${(requiredDepositCents(total) / 100).toFixed(2)} is required before the PIESA is booked. Balance in two halves (install booked / install day) or paid in full.`,
     ap_legal_entity: AP_LEGAL_ENTITY,
   };
 }
@@ -121,7 +121,7 @@ export async function signCustomerAgreement(p: { quoteId: string; actorId: strin
   const copyText = [`CUSTOMER AGREEMENT / QUOTE ACCEPTANCE – ${pkg.ap_legal_entity}`, `Job ${pkg.job_number} · Quote ${pkg.quote.option_label} v${pkg.quote.version}`, snapshot.scope_note, "",
     `Consumer rights information (${rights.version}):`, rights.body, "", ...(agreement ? [`Agreement (${agreement.version}):`, agreement.body, ""] : []),
     `Property: ${pkg.property_address}`, `Signatory: ${p.input.signatoryName} (${p.input.authorityType})`, `Product/scope: ${pkg.quoted_product} · Quoted area: ${pkg.quoted_area_m2 ?? "TBC"} m²`,
-    ...(pkg.rectification_scope.length ? [`Approved rectification scope: ${pkg.rectification_scope.join("; ")}`] : []),
+    ...(pkg.rectification_scope.length ? [`Approved electrical fixes scope: ${pkg.rectification_scope.join("; ")}`] : []),
     `Price before VEU benefit: ${pkg.price_before_benefit_inc_gst.toFixed(2)} · VEU benefit: ${pkg.veu_benefit_inc_gst.toFixed(2)} · Final price: ${pkg.final_customer_price_inc_gst.toFixed(2)} (inc GST)`,
     pkg.payment_terms, `Installer: ${pkg.installer.name ?? "To be confirmed"} ${pkg.installer.business ? `(${pkg.installer.business})` : ""}`, "",
     `Typed signature: ${p.input.signatureName} · ${now.toISOString()} · IP ${p.ip ?? "unknown"}`, `SHA-256 of signed record: ${hash}`, "", "Machine-readable snapshot:", json].join("\n");
@@ -244,7 +244,7 @@ export async function prepareFinalAssignment(jobId: string, actorId: string, fie
 /** Signs the final assignment for one party, strictly in order: lead installer -> AP representative -> consumer. */
 export async function signFinalAssignment(p: { jobId: string; actorId: string; party: Party; signatureName: string; ip: string | null; userAgent: string | null; signatoryName?: string | undefined; authorityType?: "owner" | "authorised_representative" | undefined; over18?: boolean | undefined }) {
   const a = await currentAssignment(p.jobId);
-  if (!a) throw new WorkflowError("The final VEEC assignment has not been prepared yet (it is prepared after installation and AP review).");
+  if (!a) throw new WorkflowError("The final VEEC assignment has not been prepared yet (it is prepared after installation and Final check).");
   const { count: openVar } = await admin.from("assignment_variations").select("id", { count: "exact", head: true }).eq("assignment_id", a.id).eq("status", "pending");
   const ob = signingOrderBlocker({ status: a.status, installerSigned: !!a.installer_signed_at, apSigned: !!a.ap_signed_at, consumerSigned: !!a.consumer_signed_at, openVariation: (openVar ?? 0) > 0, consumerFinalRequired: a.consumer_final_required, consumerFinalSigned: !!a.consumer_final_signed_at }, p.party);
   if (ob) throw new WorkflowError(ob);

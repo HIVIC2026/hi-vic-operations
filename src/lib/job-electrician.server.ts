@@ -21,7 +21,7 @@ export async function recordJobElectricianChoice(jobId: string, installerBusines
     const { data: eb } = await admin.from("businesses").select("name, trading_name, email, phone").eq("id", plan.business_id).maybeSingle();
     await admin.from("electrician_nominations").insert({ job_id: jobId, business_id: plan.business_id, nominating_business_id: installerBusinessId, nominated_by: actorId, nominated_for: "installer", contact_name: eb?.trading_name || eb?.name || "Your electrician", business_name: eb?.name ?? null, email: eb?.email ?? null, phone: eb?.phone ?? null, status: "approved" });
     await admin.from("jobs").update({ electrician_choice: "preferred" }).eq("id", jobId);
-    await logEvent(jobId, actorId, "electrician_chosen_by_installer", `Installer chose ${eb?.trading_name || eb?.name || "their electrician"} — offered the owner's safety check times first`, { business_id: plan.business_id });
+    await logEvent(jobId, actorId, "electrician_chosen_by_installer", `Installer chose ${eb?.trading_name || eb?.name || "their electrician"} — offered the owner's Pre Insulation Electrical Safety Assessment (PIESA) times first`, { business_id: plan.business_id });
     return { choice: "preferred" as const };
   }
   if (plan.nomination_id) {

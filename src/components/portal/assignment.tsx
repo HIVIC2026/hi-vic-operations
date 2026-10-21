@@ -242,7 +242,7 @@ export function AdminAssignmentPanel({ jobId }: { jobId: string }) {
       <Section title="4. Final Activity 48 VEEC assignment (post-install)">
         {data.finalBlockers.length > 0 && <div className="mb-3 flex gap-2 rounded border border-warning bg-warning-soft p-3 text-sm"><ShieldAlert className="h-4 w-4 shrink-0" /><div>{data.finalBlockers.map((b) => <div key={b}>{b}</div>)}<a className="underline" href="/admin/compliance">Open Compliance Setup</a></div></div>}
         {!a ? (
-          <div className="space-y-2 text-sm"><p className="text-muted-foreground">Prepared during AP review, after installation, installer declaration and evidence.</p>
+          <div className="space-y-2 text-sm"><p className="text-muted-foreground">Prepared during Final check, after installation, installer declaration and evidence.</p>
             <Button disabled={data.stage !== "ap_review"} onClick={() => prepare({ jobId, fieldValues: {} }, "Final assignment prepared")}>Prepare final assignment</Button></div>
         ) : (
           <div className="space-y-2 text-sm">

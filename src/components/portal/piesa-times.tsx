@@ -25,7 +25,7 @@ export function PiesaTimesCard({ jobId }: { jobId: string }) {
     const open = data.windows.filter((w) => w.status === "proposed");
     if (!open.length) return null;
     return (
-      <Section title="Your electrical safety check (PIESA) times">
+      <Section title="Your Pre Insulation Electrical Safety Assessment (PIESA) times">
         <p className="text-sm text-muted-foreground">We have shared these times with approved electricians. You'll be told as soon as one is booked.</p>
         <ul className="mt-2 space-y-1 text-sm">{open.map((w) => <li key={w.id}>{formatPiesaWindow(w.starts_at, w.ends_at)}</li>)}</ul>
       </Section>
@@ -36,7 +36,7 @@ export function PiesaTimesCard({ jobId }: { jobId: string }) {
   const toggle = (date: string, slot: PiesaSlot) => setPicks((cur) => has(date, slot) ? cur.filter((p) => !(p.date === date && p.slot === slot)) : cur.length >= PIESA_WINDOW_MAX ? cur : [...cur, { date, slot }]);
   const blockers = piesaWindowBlockers(picks);
   return (
-    <Section title="Choose times for your electrical safety check (PIESA)">
+    <Section title="Choose times for your Pre Insulation Electrical Safety Assessment (PIESA)">
       <p className="text-sm">{data.moreTimes ? "None of the electricians could make your earlier times. Please choose some new times." : `Please choose ${PIESA_WINDOW_MIN} to ${PIESA_WINDOW_MAX} times that suit you, on at least ${PIESA_WINDOW_MIN_DAYS} different days.`} The first electrician to take one of your times is booked, and we'll let you know.</p>
       <div className="mt-3 space-y-2">
         {days.map((d) => (

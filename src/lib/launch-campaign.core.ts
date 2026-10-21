@@ -42,7 +42,7 @@ export function launchGroup(outcome: string | null, insulation: string | null): 
 }
 
 export function deskCheckReasonError(outcome: DeskCheckOutcome, reason: string) {
-  return outcome === "not_eligible" && reason.trim().length < 3 ? "Add a short reason for the homeowner record." : null;
+  return outcome === "not_eligible" && reason.trim().length < 3 ? "Add a short reason for the owner record." : null;
 }
 
 export type SavedPrice = { estimateId: string | null; total: number; discount: number; gross: number; areaM2: number | null; insulation: string | null };

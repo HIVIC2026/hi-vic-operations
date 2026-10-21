@@ -137,7 +137,7 @@ function VeecPage() {
       {profit.rows.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">No accepted jobs yet — this table fills in as quotes are accepted.</p> : <>
       <div className="mt-3 overflow-x-auto rounded-md border bg-card">
         <table className="w-full text-sm"><thead className="bg-muted text-left text-xs uppercase">
-          <tr><th className="p-3" rowSpan={2}>Job</th><th className="border-b p-3 text-center" colSpan={3}>Installer</th><th className="border-b p-3 text-center" colSpan={3}>Electrician (rectification)</th><th className="border-b p-3 text-center" colSpan={2}>Electrical assessment ($349 inc GST)</th><th className="p-3 text-right" rowSpan={2}>VEEC margin</th><th className="p-3 text-right" rowSpan={2}>Home Insulation Victoria profit</th></tr>
+          <tr><th className="p-3" rowSpan={2}>Job</th><th className="border-b p-3 text-center" colSpan={3}>Installer</th><th className="border-b p-3 text-center" colSpan={3}>Electrician (electrical fixes)</th><th className="border-b p-3 text-center" colSpan={2}>Electrical assessment ($349 inc GST)</th><th className="p-3 text-right" rowSpan={2}>VEEC margin</th><th className="p-3 text-right" rowSpan={2}>Home Insulation Victoria profit</th></tr>
           <tr><th className="p-3 text-right">Paid</th><th className="p-3 text-right">Charged</th><th className="p-3 text-right">Markup</th><th className="p-3 text-right">Paid</th><th className="p-3 text-right">Charged</th><th className="p-3 text-right">Markup</th><th className="p-3 text-right">Charged (ex GST)</th><th className="p-3 text-right">REC paid</th></tr>
         </thead>
           <tbody>{profit.rows.map((r) => {
@@ -175,7 +175,7 @@ function VeecPage() {
           })()}
         </table>
       </div>
-      <p className="mt-2 text-xs text-muted-foreground">Electrical upgrades pass through at the agreed electrical rate card — no markup. The VEU pre-installation electrical safety assessment is charged at $349 inc GST ($317.27 ex GST); the REC is paid its negotiated supplier rate. Profit also deducts the ESC $4.35 per VEEC lodgement fee. "—" means a figure is not recorded yet.</p>
+      <p className="mt-2 text-xs text-muted-foreground">Electrical upgrades pass through at the agreed electrical rate card — no markup. The VEU Pre Insulation Electrical Safety Assessment (PIESA) is charged at $349 inc GST ($317.27 ex GST); the REC is paid its negotiated supplier rate. Profit also deducts the ESC $4.35 per VEEC lodgement fee. "—" means a figure is not recorded yet.</p>
       </>}
     </section>}
   </AppShell>;

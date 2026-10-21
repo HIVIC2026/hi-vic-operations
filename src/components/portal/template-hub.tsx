@@ -108,10 +108,10 @@ function JoSample({ templateId }: { templateId: JoTemplateId }) {
   }, [templateId]);
   if (!mail) return <p className="text-sm text-rose">This template could not be previewed with sample data.</p>;
   const areaNote = templateId.endsWith("size_known")
-    ? " Sample ceiling area: 210 m² provided by the homeowner."
+    ? " Sample ceiling area: 210 m² provided by the owner."
     : templateId === "ineligible"
       ? ""
-      : " Sample ceiling area: 150 m² assumed (homeowner did not provide one).";
+      : " Sample ceiling area: 150 m² assumed (owner did not provide one).";
   return <HtmlEmail subject={mail.subject} html={mail.html} note={`Sample values only.${areaNote} Rendered by the same function every real send uses.`} />;
 }
 

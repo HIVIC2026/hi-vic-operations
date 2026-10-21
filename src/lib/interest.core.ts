@@ -21,11 +21,11 @@ export type InterestStatus = (typeof INTEREST_STATUSES)[number];
  */
 export const INTEREST_INCLUDED = [
   {
-    label: "Home Insulation Ready Check — free",
+    label: "Ready Check — free",
     detail: "$0. We confirm your ceiling size, access and what is needed before anyone is booked — no surprises, no second visits.",
   },
   {
-    label: "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)",
+    label: "Mandatory Pre Insulation Electrical Safety Assessment (PIESA)",
     detail: "Carried out by a licensed electrician we have checked and approved, close to installation day.",
   },
   {

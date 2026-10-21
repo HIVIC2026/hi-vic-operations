@@ -141,7 +141,7 @@ export function Correspondence({ jobId }: { jobId: string }) {
           <ul className="space-y-2">{items.map((c) => (
             <li key={c.id} className={`rounded-lg border p-2 text-sm ${c.direction === "inbound" ? "mr-8 border-l-4 border-l-primary" : c.direction === "outbound" ? "ml-8 border-r-4 border-r-success" : ""}`}>
               <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                <Pill t={c.direction === "inbound" ? "info" : c.direction === "outbound" ? "good" : "warn"}>{c.direction === "inbound" ? "Homeowner sent" : c.direction === "outbound" ? "We sent" : "Internal note"}</Pill>
+                <Pill t={c.direction === "inbound" ? "info" : c.direction === "outbound" ? "good" : "warn"}>{c.direction === "inbound" ? "Owner sent" : c.direction === "outbound" ? "We sent" : "Internal note"}</Pill>
                 {c.provider === "outlook" && <span className="font-semibold">Outlook</span>}
                 <Pill t={c.internal ? "warn" : "info"}>{c.internal ? "Internal" : c.audience.length === 1 && c.audience[0] === "owner" ? "Customer" : c.audience.includes("owner") ? "Shared" : "Trades"}</Pill>
                 <span>{c.channel} · {c.direction}</span><span>{c.from ?? ""}</span><span>{fmtDT(c.at)}</span>

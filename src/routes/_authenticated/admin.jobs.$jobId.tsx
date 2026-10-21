@@ -129,8 +129,8 @@ function JobDetail() {
           <SubHeading>Contact consent and photos</SubHeading>
           <div id="panel-intake-consent" className="scroll-mt-4"><IntakeSummary jobId={jobId} /></div><SectionDocuments jobId={jobId} categories={["Property"]} />
         </RecordDisclosure>
-        <RecordDisclosure {...g("ready_check")} title="Ready Check" summary="Requirements, appointment, booking, Mitti and measure-up">
-          <ChooseTradePanel jobId={jobId} /><RequirementCards jobId={jobId} isAdmin job={job} /><AppointmentPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="assessment" canBook={false} isAdmin /><AdminBookingOverride jobId={jobId} /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /><SectionDocuments jobId={jobId} categories={["Measure-up"]} />
+        <RecordDisclosure {...g("ready_check")} title="Ready Check" summary="Requirements, appointment, booking, Mitti and Ready Check">
+          <ChooseTradePanel jobId={jobId} /><RequirementCards jobId={jobId} isAdmin job={job} /><AppointmentPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="assessment" canBook={false} isAdmin /><AdminBookingOverride jobId={jobId} /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /><SectionDocuments jobId={jobId} categories={["Ready Check"]} />
         </RecordDisclosure>
         <RecordDisclosure {...g("quote")} title="Quotes & payments" summary="Exact quotes, payment mirror, signing and source-specific invoice controls">
           <div id="target-quotes" data-portal-focus="target" tabIndex={-1} className="scroll-mt-4 outline-none"><AdminQuotes jobId={jobId} /></div><InstallerIntakeReviewPanel jobId={jobId} /><InstallerQuoteDraftPanel jobId={jobId} /><InstallerLedInvoicePanel jobId={jobId} /><div id="panel-deposit-request" className="scroll-mt-4"><PaymentsPanel jobId={jobId} isAdmin /></div><OfficeInstalmentPlanCard jobId={jobId} /><SectionDocuments jobId={jobId} categories={["Quotes", "Payments"]} />
@@ -143,14 +143,14 @@ function JobDetail() {
             {job.piesa_date ? <p className="text-sm">Current PIESA {fmtDate(job.piesa_date)} → install by <strong>{fmtDate(job.install_deadline)}</strong> ({job.days_remaining} days) <UrgencyBadge urgency={job.urgency} days={job.days_remaining} /></p> : <p className="text-sm text-muted-foreground">No PIESA recorded yet.</p>}
           </Section>
           <AssessmentView jobId={jobId} part="piesa" />
-          <SubHeading>Rectification</SubHeading>
+          <SubHeading>Electrical fixes</SubHeading>
           <AssessmentView jobId={jobId} part="rectification" /><BookingPanel jobId={jobId} kind="rectification" canBook isAdmin />
           <SectionDocuments jobId={jobId} categories={["Electrical / PIESA"]} />
         </RecordDisclosure>
         <RecordDisclosure {...g("installation")} title="Installation" summary="Pre-install ESC controls, PIISA, booking and installation evidence">
           <EscInstallPanel jobId={jobId} /><PiisaPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="installation" canBook isAdmin /><div id="target-installation-evidence" tabIndex={-1} className="scroll-mt-4 outline-none"><EvidencePanel jobId={jobId} role="admin" gates={["installation"]} /></div><SectionDocuments jobId={jobId} categories={["Installation"]} />
         </RecordDisclosure>
-        <RecordDisclosure {...g("ap_veec")} title="AP review & VEECs" summary="Other evidence, Activity 48 records, compliance review, VEEC lodgement">
+        <RecordDisclosure {...g("ap_veec")} title="Final check & VEECs" summary="Other evidence, Activity 48 records, compliance review, VEEC lodgement">
           <SubHeading>Evidence (installation evidence is under Installation)</SubHeading>
           <Button type="button" size="sm" variant="outline" onClick={() => openTarget("installation-evidence")}>Open installation evidence</Button>
           <div id="target-ap-evidence" tabIndex={-1} className="scroll-mt-4 outline-none"><EvidencePanel jobId={jobId} role="admin" excludeGates={["installation"]} /></div><SectionDocuments jobId={jobId} categories={["Evidence"]} />
@@ -235,7 +235,7 @@ function JobSource({ jobId, channel, model, business }: { jobId: string; channel
       </dl>
       {channel === "installer_sourced" && (
         <form className="mt-3 space-y-2" onSubmit={async (e) => { e.preventDefault(); await set({ jobId, model: m as "not_configured", reason }, "Invoice route updated"); setReason(""); }}>
-          {model !== "hivic_invoices_owner" && <p className="rounded bg-warning-soft p-2 text-xs">Payment, deposit and rectification/installation scheduling stay locked until an invoice route is set. Installer-invoices route is recorded but not yet supported – it stays locked.</p>}
+          {model !== "hivic_invoices_owner" && <p className="rounded bg-warning-soft p-2 text-xs">Payment, deposit and electrical fixes/installation scheduling stay locked until an invoice route is set. Installer-invoices route is recorded but not yet supported – it stays locked.</p>}
           <select className="h-10 w-full rounded-md border bg-background px-2 text-sm" value={m} onChange={(e) => setM(e.target.value)}>
             {Object.entries(MODEL_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
           </select>
@@ -299,7 +299,7 @@ function Assignments({ jobId }: { jobId: string }) {
       {pending ? (
         <div className="mt-2 rounded-md border border-warning bg-warning-soft p-3">
           <p className="text-sm font-semibold">{pending.name} is not confirmed in the Home Insulation Victoria Mitti organisation.</p>
-          <p className="mt-1 text-xs text-muted-foreground">They cannot be sent the {pending.role === "electrician" ? "electrical safety (PIESA)" : "Ready Check / installer safety"} form until invited with their exact email. Assigning anyway is recorded with your reason.</p>
+          <p className="mt-1 text-xs text-muted-foreground">They cannot be sent the {pending.role === "electrician" ? "Pre Insulation Electrical Safety Assessment (PIESA)" : "Ready Check / installer safety"} form until invited with their exact email. Assigning anyway is recorded with your reason.</p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <Input value={why} onChange={(e) => setWhy(e.target.value)} placeholder="Why assign them anyway? (required)" className="h-9 max-w-sm" />
             <Button size="sm" onClick={async () => { await assign({ jobId, userId: pending.userId, role: pending.role, mittiOverrideReason: why }, "Assigned with a recorded exception"); setPending(null); }}>Assign anyway</Button>
@@ -359,8 +359,8 @@ function AssessmentView({ jobId, part }: { jobId: string; part: "assessment" | "
     );
   if (part === "rectification")
     return (
-      <Section title="Rectification items">
-        {data.items.length ? <ul className="space-y-1 text-sm">{data.items.map((i) => <li key={i.id}><div className="flex justify-between gap-2"><span>{i.description} × {Number(i.quantity)}{i.is_other && <span className="text-xs text-muted-foreground"> — {i.other_unit_price_inc_gst != null ? `${aud(i.other_unit_price_inc_gst)} ea · ` : ""}{i.explanation}</span>}{i.source === "mitti" && <span className="text-xs text-muted-foreground"> · from Mitti</span>}</span><span className="flex gap-1">{i.needs_office_pricing && <Pill t="bad">needs office pricing</Pill>}<Pill t={i.status === "completed" ? "good" : "warn"}>{i.status}</Pill></span></div>{i.needs_office_pricing && i.status === "required" && <PriceItemForm itemId={i.id} />}</li>)}</ul> : <p className="text-sm text-muted-foreground">No rectification required.</p>}
+      <Section title="Electrical fixes items">
+        {data.items.length ? <ul className="space-y-1 text-sm">{data.items.map((i) => <li key={i.id}><div className="flex justify-between gap-2"><span>{i.description} × {Number(i.quantity)}{i.is_other && <span className="text-xs text-muted-foreground"> — {i.other_unit_price_inc_gst != null ? `${aud(i.other_unit_price_inc_gst)} ea · ` : ""}{i.explanation}</span>}{i.source === "mitti" && <span className="text-xs text-muted-foreground"> · from Mitti</span>}</span><span className="flex gap-1">{i.needs_office_pricing && <Pill t="bad">needs office pricing</Pill>}<Pill t={i.status === "completed" ? "good" : "warn"}>{i.status}</Pill></span></div>{i.needs_office_pricing && i.status === "required" && <PriceItemForm itemId={i.id} />}</li>)}</ul> : <p className="text-sm text-muted-foreground">No electrical fixes required.</p>}
       </Section>
     );
   return (
@@ -387,7 +387,7 @@ function AdminQuotes({ jobId }: { jobId: string }) {
     <>
       <div className="flex flex-wrap gap-2">
         <Button onClick={() => gen({ jobId }, "Installer quotes generated")}>Generate installer quotes</Button>
-        <Button variant="outline" onClick={() => regen({ jobId }, "Rectification quote regenerated")}>Regenerate rectification quote</Button>
+        <Button variant="outline" onClick={() => regen({ jobId }, "Electrical fixes quote regenerated")}>Regenerate electrical fixes quote</Button>
       </div>
       <QuotesPanel jobId={jobId} canRespond={false} />
       <Section title="Internal pricing (admin only)">
@@ -520,7 +520,7 @@ function ComplianceRecords({ jobId }: { jobId: string }) {
   const today = melbourneToday();
   return (
     <Section title="Activity 48 records">
-      <p className="mb-2 text-xs text-muted-foreground">Permanent once saved. Missing items block the stage shown: life support plan (PIESA booking), pre-install documents (install start), safety assessment, completion documents and $200 co-payment (AP review — co-payment also clears when Xero shows ≥ $200 paid), assignment copy (Ready for VEEC).</p>
+      <p className="mb-2 text-xs text-muted-foreground">Permanent once saved. Missing items block the stage shown: life support plan (PIESA booking), pre-install documents (install start), safety assessment, completion documents and $200 co-payment (Final check — co-payment also clears when Xero shows ≥ $200 paid), assignment copy (Ready for VEEC).</p>
       <ul className="divide-y text-sm">
         {(Object.keys(RECORD_LABELS) as RecordKey[]).map((k) => {
           const r = data.find((x) => x.record_key === k);

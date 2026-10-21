@@ -95,13 +95,13 @@ export async function finishCapture(token: unknown, x: { path: string; fileName:
   { const { verifyStoredUpload } = await import("./upload-safety.server"); await verifyStoredUpload(BUCKET, x.path, storedMime); }
   const safeName = x.fileName.replace(/[^\w.\- ]+/g, "_").slice(0, 120) || "file";
   const { error, data: ins } = await admin.from("documents").insert({
-    job_id: jobId, kind: CAPTURE_KIND, title: `Homeowner insulation ${storedMime.startsWith("video/") ? "video" : "photo"}: ${safeName}`, storage_path: x.path, mime_type: storedMime,
+    job_id: jobId, kind: CAPTURE_KIND, title: `Owner insulation ${storedMime.startsWith("video/") ? "video" : "photo"}: ${safeName}`, storage_path: x.path, mime_type: storedMime,
     source_system: CAPTURE_SOURCE_SYSTEM, external_id: uploadId, original_name: safeName, size_bytes: size,
   }).select("id").maybeSingle();
   const duplicate = !!error && /duplicate/i.test(error.message);
   if (error && !duplicate) throw new Error("Your video uploaded but could not be recorded. Please try again.");
   if (!duplicate) {
-    await logEvent(jobId, null, "owner_video_received", "Homeowner video received – priority review (does not confirm eligibility)", {
+    await logEvent(jobId, null, "owner_video_received", "Owner video received – priority review (does not confirm eligibility)", {
       document_id: ins?.id ?? null, size_bytes: size, mime_type: storedMime, user_agent: meta.userAgent?.slice(0, 300) ?? null,
       device_reported_modified_at: x.deviceModifiedAt && Number.isFinite(x.deviceModifiedAt) ? new Date(x.deviceModifiedAt).toISOString() : null,
       location: "not captured",

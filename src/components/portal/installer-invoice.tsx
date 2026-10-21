@@ -39,7 +39,7 @@ export function InstallerLedInvoicePanel({ jobId }: { jobId: string }) {
 
   const rows: [string, number | null][] = [
     ["Installer's quote", d.quote ? Number(d.quote.subtotal_inc_gst) : null],
-    ["PIESA (electrical safety assessment)", d.piesa],
+    ["Pre Insulation Electrical Safety Assessment (PIESA)", d.piesa],
     ["Home Insulation Victoria Accredited Person fee", d.apFee],
     ["Project total", d.price.total],
     ["VEU discount", -d.price.discount],

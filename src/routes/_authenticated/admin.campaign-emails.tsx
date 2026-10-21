@@ -74,7 +74,7 @@ function CampaignEmailsPage() {
           <h1 className="font-display text-2xl font-bold">Campaign emails (legacy drafts)</h1>
           <p className="text-sm text-muted-foreground">Preview only — there is no send button and nothing is sent from this page.</p>
           <p className="mt-1 text-sm font-semibold text-warning">
-            These drafts are NOT used by any email. The homeowner emails that actually send are Jo's approved T1–T8 in{" "}
+            These drafts are NOT used by any email. The owner emails that actually send are Jo's approved T1–T8 in{" "}
             <Link to="/admin/templates" className="underline">Templates</Link>.
           </p>
         </div>

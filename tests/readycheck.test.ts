@@ -29,7 +29,7 @@ describe("free Ready Check", () => {
   });
   test("payment advances once to scheduling, never PIESA/Xero/invoice/deposit", () => {
     expect(READY_CHECK_PAID_STAGE).toBe("ready_check_ready_to_schedule");
-    expect(READY_CHECK_PAID_NEXT_ACTION).toBe("Assign EEC Certified Insulation Installer and arrange Ready Check");
+    expect(READY_CHECK_PAID_NEXT_ACTION).toBe("Assign Installer and arrange Ready Check");
     for (const banned of ["xero", "invoice", "deposit", "piesa_scheduled", "quotes"]) expect(server.toLowerCase().includes(`from("${banned}`)).toBe(false);
     expect(server).not.toMatch(/xero\.server|invoice\.lifecycle/);
   });
@@ -45,14 +45,14 @@ describe("free Ready Check", () => {
 describe("customer copy", () => {
   test("preliminary order, no electrical allowance", () => {
     expect(CUSTOMER_QUOTE_ORDER).toEqual([
-      "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", "R5.0 ceiling insulation — supply & install",
+      "Mandatory Pre Insulation Electrical Safety Assessment (PIESA)", "R5.0 ceiling insulation — supply & install",
       "Home Insulation Victoria — Accredited Person Management", "Estimated project total", "Estimated VEU / VEEC discount",
       "YOUR ESTIMATED COST AFTER DISCOUNT",
     ]);
     expect(customerQuoteRows({ installation: 1, piesa: 2, apManagement: 3 }).map((r) => r.key)).toEqual(["piesa", "insulation", "apManagement"]);
     expect(JSON.stringify(CUSTOMER_QUOTE_LABELS)).not.toMatch(/allowance/i);
-    expect(CUSTOMER_PAYMENT_COPY.credited).toBe("Your Home Insulation Ready Check is free.");
-    expect(CUSTOMER_READY_CHECK.paragraphs).toContain("The Ready Check is not the mandatory electrical safety assessment. Your PIESA is completed later by a licensed electrician, close to installation.");
+    expect(CUSTOMER_PAYMENT_COPY.credited).toBe("Your Ready Check is free.");
+    expect(CUSTOMER_READY_CHECK.paragraphs).toContain("The Ready Check is not the mandatory Pre Insulation Electrical Safety Assessment (PIESA). Your PIESA is completed later by a licensed electrician, close to installation.");
   });
 });
 
@@ -84,7 +84,7 @@ describe("workflow", () => {
   });
   test("payment success copy names the certified installer-led booking step", () => {
     expect(READY_CHECK_BOOKING_SUCCESS.heading).toBe("YOUR READY CHECK IS BOOKING NEXT");
-    expect(READY_CHECK_BOOKING_SUCCESS.assignment).toContain("EEC Certified Insulation Installer");
+    expect(READY_CHECK_BOOKING_SUCCESS.assignment).toContain("Installer");
     expect(READY_CHECK_BOOKING_SUCCESS.assignment).toContain("will contact you");
   });
 });

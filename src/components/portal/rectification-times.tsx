@@ -20,7 +20,7 @@ export function RectPlanFields({ value, onChange }: { value: RectPlan; onChange:
   return (
     <div className="space-y-3 rounded-lg border p-3">
       <div>
-        <Label>Estimated hours for the rectification work</Label>
+        <Label>Estimated hours for the electrical fixes work</Label>
         <Input className="h-12 text-base" type="number" inputMode="decimal" step="0.5" min="0.5" value={value.hours} onChange={(e) => onChange({ ...value, hours: e.target.value })} />
       </div>
       <div>

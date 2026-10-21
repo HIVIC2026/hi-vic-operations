@@ -492,7 +492,7 @@ export const proposeTime = createServerFn({ method: "POST" }).middleware([requir
     if (Date.parse(data.start) <= Date.now()) throw new WorkflowError("Propose a time in the future.");
     const { data: a } = await admin.from("job_assignments").select("id, user_id, first_response_at").eq("job_id", data.jobId).eq("role", data.kind === "installation" || data.kind === "ready_check" ? "installer" : "electrician").eq("active", true).maybeSingle();
     if (!a) throw new WorkflowError("No trade is assigned yet.");
-    if (data.kind === "ready_check" && role !== "installer" && role !== "owner") throw new WorkflowError("The assigned installer contacts the homeowner to arrange the Ready Check.");
+    if (data.kind === "ready_check" && role !== "installer" && role !== "owner") throw new WorkflowError("The assigned installer contacts the owner to arrange the Ready Check.");
     await admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", data.jobId).eq("kind", data.kind).eq("status", "proposed");
     await admin.from("appointment_proposals").insert({ job_id: data.jobId, kind: data.kind, assignment_id: a.id, proposed_by: context.userId, proposer_role: role, starts_at: data.start, note: data.note ?? null });
     if (a.user_id === context.userId && !a.first_response_at) await admin.from("job_assignments").update({ first_response_at: new Date().toISOString() }).eq("id", a.id);
@@ -522,7 +522,7 @@ export const respondToProposal = createServerFn({ method: "POST" }).middleware([
   .handler(async ({ data, context }) => {
     const { data: p } = await admin.from("appointment_proposals").select("*").eq("id", data.proposalId).single();
     if (!p) throw new WorkflowError("Proposal not found.");
-    if (p.electrician_window) throw new WorkflowError("Pick rectification times when approving the rectification quote.");
+    if (p.electrician_window) throw new WorkflowError("Pick electrical fixes times when approving the electrical fixes quote.");
     const role = await requireJobRole(context.supabase, p.job_id, ["admin", "owner", "electrician", "installer"]);
     const b = proposalResponse(p, role, data.action);
     if (b) throw new WorkflowError(b);
@@ -571,7 +571,7 @@ export const offerToPartner = createServerFn({ method: "POST" }).middleware([req
     if (b) throw new WorkflowError(b);
     const p = j.properties as { suburb: string | null; postcode: string | null } | null;
     if (!verifiedServiceAreaMatch(biz, p?.postcode ?? null)) throw new WorkflowError(`${biz.name} does not have office-verified coverage for postcode ${p?.postcode ?? "unknown"}. Confirm the partner's service postcodes before offering this job.`);
-    if (biz.free_measureups_for_hivic_quote_leads !== true) throw new WorkflowError(`${biz.name} has not agreed to free Home Insulation Victoria quote-lead measure-ups.`);
+    if (biz.free_measureups_for_hivic_quote_leads !== true) throw new WorkflowError(`${biz.name} has not agreed to free Home Insulation Victoria quote-lead Ready Checks.`);
     const summary = offerSummary({ job_number: j.job_number, stage: j.stage, suburb: p?.suburb ?? null, postcode: p?.postcode ?? null, estimated_area_m2: j.estimated_area_m2, measured_area_m2: m?.status === "complete" ? m.measured_area_m2 : null, eligibility_outcome: j.eligibility_outcome });
     await (await import("./offer-guard.server")).assertOfferPairsAllowed(data.jobId, [data.businessId]);
     await admin.from("partner_offers").insert({ job_id: data.jobId, business_id: data.businessId, summary: summary as unknown as Json, offered_by: context.userId, expires_at: new Date(Date.now() + data.expiresInDays * 86_400_000).toISOString() });

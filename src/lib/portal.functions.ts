@@ -126,7 +126,7 @@ export const assignContractor = createServerFn({ method: "POST" }).middleware([r
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const stage = await getStage(data.jobId);
-    if (stage === "ready_check_ready_to_schedule" && data.role === "electrician") throw new WorkflowError("Do not assign an electrician for the Ready Check. Assign an EEC Certified Insulation Installer.");
+    if (stage === "ready_check_ready_to_schedule" && data.role === "electrician") throw new WorkflowError("Do not assign an electrician for the Ready Check. Assign an Installer.");
     const { data: hasRole } = await admin.from("user_roles").select("id").eq("user_id", data.userId).eq("role", data.role).maybeSingle();
     if (!hasRole) throw new WorkflowError(`User does not hold the ${data.role} role.`);
     const { data: prof } = await admin.from("profiles").select("full_name, business_id").eq("id", data.userId).single();
@@ -155,7 +155,7 @@ export const assignContractor = createServerFn({ method: "POST" }).middleware([r
       if (!prof?.business_id) throw new WorkflowError("The installer must belong to an approved EEC installer business.");
       const { requireApprovedPartner } = await import("./pilot.server");
       const business = await requireApprovedPartner(prof.business_id);
-      if (business.business_type !== "eec_installer" && !business.capabilities.includes("installer")) throw new WorkflowError("The Ready Check requires an EEC Certified Insulation Installer.");
+      if (business.business_type !== "eec_installer" && !business.capabilities.includes("installer")) throw new WorkflowError("The Ready Check requires an Installer.");
     }
     await admin.from("job_assignments").update({ active: false, ended_at: new Date().toISOString(), end_reason: "reassigned" }).eq("job_id", data.jobId).eq("role", data.role).eq("active", true);
     await admin.from("job_assignments").insert({ job_id: data.jobId, user_id: data.userId, role: data.role, business_id: prof?.business_id ?? null, assigned_by: context.userId });
@@ -164,7 +164,7 @@ export const assignContractor = createServerFn({ method: "POST" }).middleware([r
     const { data: src } = await admin.from("jobs").select("channel, originating_installer_user_id").eq("id", data.jobId).single();
     const awayFromOrigin = data.role === "installer" && src?.channel === "installer_sourced" && src.originating_installer_user_id !== data.userId;
     await logEvent(data.jobId, context.userId, "contractor_assigned", `${data.role === "electrician" ? "Electrician" : "Installer"} assigned: ${prof?.full_name ?? "user"}${awayFromOrigin ? " (admin reassignment away from originating installer – attribution unchanged)" : ""}`);
-    if (stage === "ready_check_ready_to_schedule" && data.role === "installer") await admin.from("jobs").update({ next_action: "Assigned EEC Certified Insulation Installer to contact owner and arrange Ready Check" }).eq("id", data.jobId);
+    if (stage === "ready_check_ready_to_schedule" && data.role === "installer") await admin.from("jobs").update({ next_action: "Assigned Installer to contact owner and arrange Ready Check" }).eq("id", data.jobId);
     await autoAdvanceJob(data.jobId, context.userId, "contractor assigned");
     return { ok: true };
   });
@@ -264,11 +264,11 @@ export const saveMeasurement = createServerFn({ method: "POST" }).middleware([re
   .inputValidator((d) => z.object({ jobId: uuid, patch: measurementPatch }).parse(d))
   .handler(async ({ data, context }) => {
     const role = await requireJobRole(context.supabase, data.jobId, ["admin", "installer"]);
-    if (!SITE_STAGES.includes(await getStage(data.jobId))) throw new WorkflowError("Measure-up can only be recorded during assessment booking.");
+    if (!SITE_STAGES.includes(await getStage(data.jobId))) throw new WorkflowError("Ready Check can only be recorded during assessment booking.");
     const { jobScope } = await import("./requirements.server");
     const { planMeasurementUpdate } = await import("./scope.core");
     const s = await jobScope(data.jobId);
-    if (role === "installer" && !s.installerTasks.includes("measure_up")) throw new WorkflowError("The eligibility measure-up is already complete.");
+    if (role === "installer" && !s.installerTasks.includes("measure_up")) throw new WorkflowError("The eligibility Ready Check is already complete.");
     const source = role === "admin" ? "admin_import" : "installer";
     const { evidence_notes, ...vals } = data.patch;
     const plan = planMeasurementUpdate({ scope: s.scope, current: s.measurementRow as never, incoming: vals, source });
@@ -290,7 +290,7 @@ export const saveMeasurement = createServerFn({ method: "POST" }).middleware([re
 async function requireMeasureEvidence(jobId: string) {
   const { data: ev } = await admin.from("evidence_requirements").select("label,status,category").eq("job_id", jobId).eq("required", true).in("category", MEASURE_EVIDENCE as never);
   const miss = (ev ?? []).filter((e) => !["uploaded", "verified"].includes(e.status)).map((e) => e.label);
-  if (miss.length) throw new WorkflowError(`Upload measure-up evidence first: ${miss.join(", ")}`);
+  if (miss.length) throw new WorkflowError(`Upload Ready Check evidence first: ${miss.join(", ")}`);
 }
 
 /** Complete the ceiling measure-up requirement (installer / electrician in scope, or admin). */
@@ -298,14 +298,14 @@ export const completeMeasurement = createServerFn({ method: "POST" }).middleware
   .inputValidator((d) => z.object({ jobId: uuid, method: z.enum(["laser", "tape", "floorplan", "other"]).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     const role = await requireJobRole(context.supabase, data.jobId, ["admin", "installer"]);
-    if (!SITE_STAGES.includes(await getStage(data.jobId))) throw new WorkflowError("Measure-up can only be completed during assessment booking.");
+    if (!SITE_STAGES.includes(await getStage(data.jobId))) throw new WorkflowError("Ready Check can only be completed during assessment booking.");
     const { jobScope, advanceSiteRequirements } = await import("./requirements.server");
     const { missingMeasureFields, MEASURE_FIELD_LABEL } = await import("./scope.core");
     const s = await jobScope(data.jobId);
-    if (role === "installer" && !s.installerTasks.includes("measure_up")) throw new WorkflowError("The eligibility measure-up is already complete.");
+    if (role === "installer" && !s.installerTasks.includes("measure_up")) throw new WorkflowError("The eligibility Ready Check is already complete.");
     const m = s.measurementRow;
-    if (!m) throw new WorkflowError("Enter the measure-up first.");
-    if (m.status === "complete") throw new WorkflowError("Measure-up is already accepted.");
+    if (!m) throw new WorkflowError("Enter the Ready Check first.");
+    if (m.status === "complete") throw new WorkflowError("Ready Check is already accepted.");
     const miss = missingMeasureFields(m as never);
     if (miss.length) throw new WorkflowError(`Still needed: ${miss.map((f) => MEASURE_FIELD_LABEL[f]).join(", ")}`);
     await requireMeasureEvidence(data.jobId);
@@ -327,16 +327,16 @@ export const completeMeasurement = createServerFn({ method: "POST" }).middleware
       ...(own || !m.completed_by ? { completed_by: m.completed_by ?? context.userId } : {}),
       ...(role === "admin" ? { reviewed_by: context.userId, reviewed_at: new Date().toISOString() } : {}),
     }).eq("id", m.id);
-    await logEvent(data.jobId, context.userId, "measurement_completed", `Ceiling measure-up completed (${m.source_role}${own ? "" : `, completed by ${role}`}) – ${Number(m.measured_area_m2)} m²${verification["verified_at"] ? ` · installer-supplied ${m.supplied_area_m2 ?? "—"} m², variance ${verification["variance_m2"] ?? "—"} m² (${verification["variance_pct"] ?? "—"}%)` : ""}`, { measurement_id: m.id, source_role: m.source_role, supplemented_fields: m.supplemented_fields, ...verification });
+    await logEvent(data.jobId, context.userId, "measurement_completed", `Ready Check completed (${m.source_role}${own ? "" : `, completed by ${role}`}) – ${Number(m.measured_area_m2)} m²${verification["verified_at"] ? ` · installer-supplied ${m.supplied_area_m2 ?? "—"} m², variance ${verification["variance_m2"] ?? "—"} m² (${verification["variance_pct"] ?? "—"}%)` : ""}`, { measurement_id: m.id, source_role: m.source_role, supplemented_fields: m.supplemented_fields, ...verification });
     if ((await getStage(data.jobId)) === "ready_check_scheduled") {
-      await transition(data.jobId, "ready_check_complete", context.userId, "Free installer Ready Check completed", { measurement_id: m.id, measured_area_m2: m.measured_area_m2 }, { nextAction: "Office records verified eligibility, then prepares the measured quote" });
+      await transition(data.jobId, "ready_check_complete", context.userId, "Ready Check completed", { measurement_id: m.id, measured_area_m2: m.measured_area_m2 }, { nextAction: "Office records verified eligibility, then prepares the measured quote" });
       // The measured-estimate stage needs the office's verified-eligibility record, which can only be made now that the
       // Ready Check is final, so the old hard second transition always threw AFTER the first had committed. The office
       // now records eligibility and prepares the measured quote (generateInstallerQuotes), which moves the stage.
       return { advanced: true, scope: "MEASURE_UP_ONLY" as const };
     }
     const res = await advanceSiteRequirements(data.jobId, context.userId);
-    await autoAdvanceJob(data.jobId, context.userId, "measure-up completed");
+    await autoAdvanceJob(data.jobId, context.userId, "Ready Check completed");
     return res;
   });
 
@@ -349,11 +349,11 @@ export const flagMeasurement = createServerFn({ method: "POST" }).middleware([re
       throw new WorkflowError("Measurement can only be flagged before the owner accepts a quote.");
     const { currentMeasurement } = await import("./requirements.server");
     const m = await currentMeasurement(data.jobId);
-    if (!m) throw new WorkflowError("No measure-up to flag.");
+    if (!m) throw new WorkflowError("No Ready Check to flag.");
     const at = new Date().toISOString();
     const flags = [...((m.review_flags as unknown[]) ?? []), ...(data.fields.length ? data.fields : ["measured_area_m2"]).map((field) => ({ field, reason: data.reason, by: context.userId, at }))];
     await admin.from("ceiling_measurements").update({ status: "needs_review", review_flags: flags as never, review_reason: data.reason }).eq("id", m.id);
-    await logEvent(data.jobId, context.userId, "measurement_flagged", `Measure-up flagged for review: ${data.reason}`, { measurement_id: m.id, fields: data.fields, previous_status: m.status });
+    await logEvent(data.jobId, context.userId, "measurement_flagged", `Ready Check flagged for review: ${data.reason}`, { measurement_id: m.id, fields: data.fields, previous_status: m.status });
     return { ok: true };
   });
 
@@ -364,7 +364,7 @@ export const reviewMeasurement = createServerFn({ method: "POST" }).middleware([
     const { currentMeasurement, advanceSiteRequirements } = await import("./requirements.server");
     const { missingMeasureFields, MEASURE_FIELD_LABEL } = await import("./scope.core");
     const m = await currentMeasurement(data.jobId);
-    if (!m) throw new WorkflowError("No measure-up to review.");
+    if (!m) throw new WorkflowError("No Ready Check to review.");
     const at = new Date().toISOString();
     if (data.action === "accept") {
       const blockers = await measurementAcceptanceBlockers(m);
@@ -378,7 +378,7 @@ export const reviewMeasurement = createServerFn({ method: "POST" }).middleware([
     } else {
       await admin.from("ceiling_measurements").update({ status: "rejected", is_current: false, review_reason: data.reason, reviewed_by: context.userId, reviewed_at: at }).eq("id", m.id);
     }
-    await logEvent(data.jobId, context.userId, "measurement_reviewed", `Measure-up ${data.action.replace("_", " ")}: ${data.reason}`, { measurement_id: m.id, previous_status: m.status });
+    await logEvent(data.jobId, context.userId, "measurement_reviewed", `Ready Check ${data.action.replace("_", " ")}: ${data.reason}`, { measurement_id: m.id, previous_status: m.status });
     if (data.action === "accept" && SITE_STAGES.includes(await getStage(data.jobId))) await advanceSiteRequirements(data.jobId, context.userId);
     return { ok: true };
   });
@@ -413,7 +413,7 @@ export const setMeasureUpResponsibility = createServerFn({ method: "POST" }).mid
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     await admin.from("jobs").update({ measure_up_responsibility: "installer" }).eq("id", data.jobId);
-    await logEvent(data.jobId, context.userId, "measure_up_responsibility_set", "Eligibility measure-up assigned to installer");
+    await logEvent(data.jobId, context.userId, "measure_up_responsibility_set", "Eligibility Ready Check assigned to installer");
     return { ok: true };
   });
 
@@ -423,9 +423,9 @@ export const addOtherRectItem = createServerFn({ method: "POST" }).middleware([r
     await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
     const stage = await getStage(data.jobId);
     if (!["piesa_scheduled", "assessment_booked", "assessment_booking", "assessment_complete", "rectification_required", "awaiting_owner_rectification_approval"].includes(stage))
-      throw new WorkflowError("Other items can only be added before the owner approves rectification.");
+      throw new WorkflowError("Other items can only be added before the owner approves electrical fixes.");
     await admin.from("rectification_items").insert({ job_id: data.jobId, description: data.description, quantity: data.quantity, is_other: true, other_unit_price_inc_gst: data.unitPriceIncGst, explanation: data.explanation, added_by: context.userId });
-    await logEvent(data.jobId, context.userId, "rectification_other_added", `Other rectification item added: ${data.description}`, { explanation: data.explanation });
+    await logEvent(data.jobId, context.userId, "rectification_other_added", `Other electrical fixes item added: ${data.description}`, { explanation: data.explanation });
     if (stage === "awaiting_owner_rectification_approval") await generateRectificationQuote(data.jobId, context.userId);
     return { ok: true };
   });
@@ -448,14 +448,14 @@ export const addApprovedRectItem = createServerFn({ method: "POST" }).middleware
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, data.jobId, ["admin", "electrician"]);
     const stage = await getStage(data.jobId);
-    if (!["piesa_scheduled", "assessment_booked", "assessment_booking", "assessment_complete", "rectification_required", "awaiting_owner_rectification_approval"].includes(stage)) throw new WorkflowError("Approved items can only be added before the owner approves rectification.");
+    if (!["piesa_scheduled", "assessment_booked", "assessment_booking", "assessment_complete", "rectification_required", "awaiting_owner_rectification_approval"].includes(stage)) throw new WorkflowError("Approved items can only be added before the owner approves electrical fixes.");
     const { data: assigned } = await admin.from("job_assignments").select("business_id").eq("job_id", data.jobId).eq("role", "electrician").eq("active", true).maybeSingle();
     if (!assigned?.business_id) throw new WorkflowError("No REC business is assigned to this job.");
     const { data: cards } = await admin.from("rate_cards").select("id,rate_card_items(code,description)").eq("business_id", assigned.business_id).eq("kind", "electrical").eq("is_active", true).order("version", { ascending: false }).limit(1);
     const approved = (cards?.[0]?.rate_card_items as { code: string; description: string }[] | undefined)?.find((item) => item.code === data.rateCode);
     if (!approved) throw new WorkflowError("That item is not on the assigned REC's approved rate card.");
     await admin.from("rectification_items").insert({ job_id: data.jobId, rate_code: approved.code, description: approved.description, quantity: data.quantity, is_other: false, explanation: data.explanation ?? null, added_by: context.userId });
-    await logEvent(data.jobId, context.userId, "rectification_approved_item_added", `Approved rectification item added: ${approved.description}`, { rate_code: approved.code, quantity: data.quantity });
+    await logEvent(data.jobId, context.userId, "rectification_approved_item_added", `Approved electrical fixes item added: ${approved.description}`, { rate_code: approved.code, quantity: data.quantity });
     if (stage === "awaiting_owner_rectification_approval") await generateRectificationQuote(data.jobId, context.userId);
     return { ok: true };
   });
@@ -542,14 +542,14 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
     if (unpriced?.length) throw new WorkflowError(`Home Insulation Victoria must price these items first: ${unpriced.map((u) => u.description).join(", ")}`);
     // Same-day rule: the PIESA submission must carry the rectification decision – priced items, or an explicit "none required".
     const { count: rectCount } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", data.jobId).eq("status", "required");
-    if (!rectCount && a.no_rectification_confirmed !== true) throw new WorkflowError("Add the rectification items for today's quote, or tick \"No rectification required\", before completing the PIESA.");
-    if (rectCount && a.no_rectification_confirmed === true) throw new WorkflowError("You ticked \"No rectification required\" but rectification items are listed – untick it or remove the items.");
+    if (!rectCount && a.no_rectification_confirmed !== true) throw new WorkflowError("Add the electrical fixes items for today's quote, or tick \"No electrical fixes required\", before completing the PIESA.");
+    if (rectCount && a.no_rectification_confirmed === true) throw new WorkflowError("You ticked \"No electrical fixes required\" but electrical fixes items are listed – untick it or remove the items.");
 
     // Rectification needed: the electrician also gives estimated hours + 3-5 windows (asked once, here).
     if (rectCount) {
       const { rectPlanBlockers } = await import("./rectification.core");
       const rb = rectPlanBlockers(data.rectHours, data.rectWindows ?? []);
-      if (rb.length) throw new WorkflowError(`Rectification times: ${rb.join(" ")}`);
+      if (rb.length) throw new WorkflowError(`Electrical fixes times: ${rb.join(" ")}`);
     }
     const stage = await getStage(data.jobId);
     // Current model: the PIESA is booked at piesa_scheduled. assessment_booked is the retired legacy stage, kept for old jobs.
@@ -566,7 +566,7 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
     await logEvent(data.jobId, context.userId, "electrical_assessment_complete", `Electrical assessment complete – PIESA ${a.piesa_outcome} (${s.label})`, { scope: s.scope });
     let res: { advanced: boolean; scope: string };
     if (stage === "piesa_scheduled") {
-      await transition(data.jobId, "piesa_complete", context.userId, `PIESA complete – ${a.piesa_outcome}${rectCount ? `, ${rectCount} rectification item(s) listed` : ", no rectification required"}`, { piesa_outcome: a.piesa_outcome, rectification_items: rectCount ?? 0 });
+      await transition(data.jobId, "piesa_complete", context.userId, `PIESA complete – ${a.piesa_outcome}${rectCount ? `, ${rectCount} electrical fixes item(s) listed` : ", no electrical fixes required"}`, { piesa_outcome: a.piesa_outcome, rectification_items: rectCount ?? 0 });
       res = { advanced: true, scope: s.scope };
     } else res = await advanceSiteRequirements(data.jobId, context.userId);
     if (rectCount && data.rectWindows?.length) {
@@ -576,10 +576,10 @@ export const completeAssessment = createServerFn({ method: "POST" }).middleware(
       const { data: asg } = await admin.from("job_assignments").select("id").eq("job_id", data.jobId).eq("role", "electrician").eq("active", true).maybeSingle();
       const { error: we } = await admin.from("appointment_proposals").insert(data.rectWindows.map((w) => ({
         job_id: data.jobId, kind: "rectification" as const, assignment_id: asg?.id ?? null, proposed_by: context.userId, proposer_role: "electrician",
-        ...windowBounds(w.date, w.slot), electrician_window: true, note: `Electrician's rectification window (est. ${data.rectHours} h)`,
+        ...windowBounds(w.date, w.slot), electrician_window: true, note: `Electrician's electrical fixes window (est. ${data.rectHours} h)`,
       })));
       if (we) throw new WorkflowError(we.message);
-      await logEvent(data.jobId, context.userId, "rectification_windows_given", `Electrician gave ${data.rectWindows.length} rectification windows and an estimate of ${data.rectHours} hours`, { hours: data.rectHours });
+      await logEvent(data.jobId, context.userId, "rectification_windows_given", `Electrician gave ${data.rectWindows.length} electrical fixes windows and an estimate of ${data.rectHours} hours`, { hours: data.rectHours });
     }
     await autoAdvanceJob(data.jobId, context.userId, "assessment completed");
     return res;
@@ -603,12 +603,12 @@ export const recordPiesa = createServerFn({ method: "POST" }).middleware([requir
     if (dateBlockers.length) throw new WorkflowError(dateBlockers[0]!);
     const stage = await getStage(data.jobId);
     if (data.kind === "post_rectification") {
-      if (stage !== "rectification_booked") throw new WorkflowError("Rectification must be booked first.");
+      if (stage !== "rectification_booked") throw new WorkflowError("Electrical fixes must be booked first.");
       const { data: ev } = await admin.from("evidence_requirements").select("status").eq("job_id", data.jobId).eq("category", "rectification_completion").single();
-      if (ev && !["uploaded", "verified"].includes(ev.status)) throw new WorkflowError("Upload rectification completion evidence first.");
+      if (ev && !["uploaded", "verified"].includes(ev.status)) throw new WorkflowError("Upload electrical fixes completion evidence first.");
       if (data.outcome === "pass") {
         const { data: ps } = await admin.from("evidence_requirements").select("status").eq("job_id", data.jobId).eq("category", "piesa_signoff").single();
-        if (ps && !["uploaded", "verified"].includes(ps.status)) throw new WorkflowError("Upload the PIESA / electrical safety sign-off first.");
+        if (ps && !["uploaded", "verified"].includes(ps.status)) throw new WorkflowError("Upload the PIESA / Pre Insulation Electrical Safety Assessment (PIESA) sign-off first.");
         const { sectionCBlockers } = await import("./rectification.core");
         const sc = sectionCBlockers(clean({ outcome: data.outcome, completedDate: data.completedDate, sectionCCompleted: data.sectionCCompleted, sectionCSignedDate: data.sectionCSignedDate }));
         if (sc.length) throw new WorkflowError(`Section C: ${sc.join(" ")}`);
@@ -633,7 +633,7 @@ export const recordPiesa = createServerFn({ method: "POST" }).middleware([requir
     if (data.kind === "post_rectification" && data.outcome === "pass") {
       await admin.from("compliance_checks").update({ status: "pass", checked_at: new Date().toISOString() }).eq("job_id", data.jobId).in("check_key", ["rectification", "electrical_assessment"]);
       await admin.from("bookings").update({ status: "completed" }).eq("job_id", data.jobId).eq("kind", "rectification").eq("status", "confirmed");
-      await transition(data.jobId, "installation_scheduling", context.userId, "Rectification complete, PIESA passed – installation scheduling unlocked");
+      await transition(data.jobId, "installation_scheduling", context.userId, "Electrical fixes complete, PIESA passed – installation scheduling unlocked");
     }
     await autoAdvanceJob(data.jobId, context.userId, "PIESA recorded");
     return { ok: true };
@@ -671,7 +671,7 @@ export const regenerateRectificationQuote = createServerFn({ method: "POST" }).m
     const stage = await getStage(data.jobId);
     const quoteId = await generateRectificationQuote(data.jobId, context.userId);
     const { data: released } = await admin.from("quotes").select("id").eq("id", quoteId).eq("status", "issued").maybeSingle();
-    if (stage === "rectification_required" && released) await transition(data.jobId, "awaiting_owner_rectification_approval", context.userId, "Fix-up quote released to owner");
+    if (stage === "rectification_required" && released) await transition(data.jobId, "awaiting_owner_rectification_approval", context.userId, "Electrical fixes quote released to owner");
     return { ok: true };
   });
 
@@ -771,7 +771,7 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
       if (cb) throw new WorkflowError(`Blocked: ${cb}`);
       const p = await piesaStatus(q.job_id);
       const { count: rect } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", q.job_id).eq("status", "required");
-      if (!rect && p?.piesa_expired) throw new WorkflowError("The electrical safety assessment has expired. Home Insulation Victoria will arrange a reassessment.");
+      if (!rect && p?.piesa_expired) throw new WorkflowError("The Pre Insulation Electrical Safety Assessment (PIESA) has expired. Home Insulation Victoria will arrange a reassessment.");
     }
     if (q.kind === "installation" && data.signing) {
       const { assistance, ...input } = data.signing;
@@ -792,7 +792,7 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
         throw new WorkflowError("Please choose one of the electrician's times, or tap \"None of these work\".");
       } else if (ws?.length) {
         await admin.from("appointment_proposals").update({ status: "superseded", response_note: "Owner: none of these work" }).eq("job_id", q.job_id).eq("electrician_window", true).eq("status", "proposed");
-        await logEvent(q.job_id, context.userId, "rectification_windows_declined", "Owner said none of the electrician's times work — contacts will be shared for the rectification visit when scheduling opens");
+        await logEvent(q.job_id, context.userId, "rectification_windows_declined", "Owner said none of the electrician's times work — contacts will be shared for the electrical fixes visit when scheduling opens");
       }
     }
     if (!pickedWindow) {
@@ -803,7 +803,7 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
     }
     await admin.from("quotes").update({ status: "superseded" }).eq("job_id", q.job_id).eq("kind", q.kind).eq("status", "issued");
     if (priorAccepted.length) await admin.from("quotes").update({ status: "superseded" }).in("id", priorAccepted).eq("status", "accepted"); // intake reconfirmation: replaced (no invoice on it — checked above)
-    if (pickedWindow) await logEvent(q.job_id, context.userId, "rectification_window_picked", `Owner picked the rectification time ${new Date(pickedWindow).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })}; it becomes the confirmed booking when rectification scheduling opens`, { quote_id: q.id, starts_at: pickedWindow });
+    if (pickedWindow) await logEvent(q.job_id, context.userId, "rectification_window_picked", `Owner picked the electrical fixes time ${new Date(pickedWindow).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })}; it becomes the confirmed booking when electrical fixes scheduling opens`, { quote_id: q.id, starts_at: pickedWindow });
     if (pickedWindow) {
       const { moveHoldForRectification } = await import("./install-holds.server");
       await moveHoldForRectification(q.job_id, pickedWindow, context.userId).catch((e) => console.error("install hold move skipped", (e as Error).message));
@@ -811,12 +811,12 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
 
     if (q.kind === "rectification") {
       // Scope approval only – no invoice. The rectification lines are folded into the final installation quote.
-      await logEvent(q.job_id, context.userId, "rectification_scope_approved", `Owner approved rectification scope (${q.customer_total_inc_gst} inc GST)`, { quote_id: q.id });
-      await transition(q.job_id, "ready_for_installer_quotes", context.userId, "Rectification scope approved – preparing final installation quotes");
+      await logEvent(q.job_id, context.userId, "rectification_scope_approved", `Owner approved electrical fixes scope (${q.customer_total_inc_gst} inc GST)`, { quote_id: q.id });
+      await transition(q.job_id, "ready_for_installer_quotes", context.userId, "Electrical fixes scope approved – preparing final installation quotes");
       await genInstaller(q.job_id, context.userId);
       { const { applyCobrand } = await import("./pilot.server"); await applyCobrand(q.job_id); }
-      await transition(q.job_id, "awaiting_quote_acceptance", context.userId, "Final installation quotes (incl. rectification) issued to owner");
-      await autoAdvanceJob(q.job_id, context.userId, "rectification approved");
+      await transition(q.job_id, "awaiting_quote_acceptance", context.userId, "Final installation quotes (incl. electrical fixes) issued to owner");
+      await autoAdvanceJob(q.job_id, context.userId, "electrical fixes approved");
       return { ok: true };
     }
 
@@ -835,7 +835,7 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
     }
     if (measuredPath) {
       // Ready Check path: next is the safety check payment, then the owner picks safety check times.
-      await transition(q.job_id, "measured_quote_accepted", context.userId, "Owner accepted the measured quote – safety check payment due next");
+      await transition(q.job_id, "measured_quote_accepted", context.userId, "Owner accepted the measured quote – Pre Insulation Electrical Safety Assessment (PIESA) payment due next");
       await invoiceAfterAcceptance(q.id, q.job_id, context.userId);
       await autoAdvanceJob(q.job_id, context.userId, "measured quote accepted");
       return { ok: true };
@@ -1033,7 +1033,7 @@ export const submitForApReview = createServerFn({ method: "POST" }).middleware([
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     await requireJobRole(context.supabase, data.jobId, ["admin", "installer"]);
-    await transition(data.jobId, "ap_review", context.userId, "Evidence submitted for AP review");
+    await transition(data.jobId, "ap_review", context.userId, "Evidence submitted for Final check");
     return { ok: true };
   });
 

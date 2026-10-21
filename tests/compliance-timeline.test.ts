@@ -61,7 +61,7 @@ describe("official ESC additions", () => {
     expect(buildComplianceTimeline({ ...f, coPaymentPaidAt: base.now, completionDocsGivenAt: base.now }).find((x) => x.key === "ap_approved")!.status).toBe("open");
   });
   test("official form labels keep the two assessments separate and the co-payment non-reimbursable", () => {
-    expect(g(base, "piesa_completed").label).toContain("electrical safety assessment");
+    expect(g(base, "piesa_completed").label).toContain("Pre Insulation Electrical Safety Assessment (PIESA)");
     expect(g(base, "installer_safety_assessment").label).toContain("installer safety assessment");
     expect(g(base, "co_payment_paid").when).toContain("must not be reimbursed");
   });

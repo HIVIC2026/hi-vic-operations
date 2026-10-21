@@ -487,10 +487,10 @@ function StepBody({ step, d, up, token, setError, preview, onReviewReady, errFor
             "Your customers: bring the job to us for Accredited Person support.",
           ]} />
           <p style={note}>No lead fee — you are never charged for a lead.</p>
-          <Field label="Do you want to receive our homeowner leads?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "No — my customers only" }]} value={d.wants_hivic_leads ?? null} onChange={(v) => up(v ? { wants_hivic_leads: v } : { wants_hivic_leads: v, free_measureups_for_hivic_quote_leads: null })} /></Field>
+          <Field label="Do you want to receive our owner leads?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "No — my customers only" }]} value={d.wants_hivic_leads ?? null} onChange={(v) => up(v ? { wants_hivic_leads: v } : { wants_hivic_leads: v, free_measureups_for_hivic_quote_leads: null })} /></Field>
           {d.wants_hivic_leads === true && <>
-            <p style={note}>A Ready Check is a free onsite measure-up: measure the ceiling, confirm what we couldn't verify from the office and collect site evidence. No electrical work. You receive the job if it proceeds, unless the owner specifies otherwise.</p>
-            <Check required checked={d.free_measureups_for_hivic_quote_leads === true} onChange={(v) => up({ free_measureups_for_hivic_quote_leads: v })}>I'll provide free Home Insulation Ready Checks (measure-up) for Home Insulation Victoria leads.</Check>
+            <p style={note}>A Ready Check is a free onsite visit: measure the ceiling, confirm what we couldn't verify from the office and collect site evidence. No electrical work. You receive the job if it proceeds, unless the owner specifies otherwise.</p>
+            <Check required checked={d.free_measureups_for_hivic_quote_leads === true} onChange={(v) => up({ free_measureups_for_hivic_quote_leads: v })}>I'll provide free Ready Checks for Home Insulation Victoria leads.</Check>
           </>}
         </Section>
         <Section title="Where you work">
@@ -649,7 +649,7 @@ function InstallersStep({ d, up, errFor, token, setError, preview, revision, onU
             <Field label="Mobile" required htmlFor={`installer-${i}-mobile`} error={errFor(`installer-${i}-mobile`)}><input id={`installer-${i}-mobile`} style={input} type="tel" value={x.mobile ?? ""} onChange={(e) => set(i, { mobile: e.target.value })} /></Field>
             <Field label="Email" required htmlFor={`installer-${i}-email`} error={errFor(`installer-${i}-email`)}><input id={`installer-${i}-email`} style={input} type="email" value={x.email ?? ""} onChange={(e) => set(i, { email: e.target.value })} /></Field>
           </>}
-          <Field label="EEC Certified Insulation Installer (CII)?" required htmlFor={`installer-${i}-cii`} error={errFor(`installer-${i}-cii`)}><div id={`installer-${i}-cii`} tabIndex={-1}><Choice options={WORKER_CII.map((c) => ({ v: c.v as string, l: c.l }))} value={x.cii_holds ?? null} onChange={(v) => set(i, { cii_holds: v as "held" | "in_training" | "not_held" })} /></div></Field>
+          <Field label="Installer (CII)?" required htmlFor={`installer-${i}-cii`} error={errFor(`installer-${i}-cii`)}><div id={`installer-${i}-cii`} tabIndex={-1}><Choice options={WORKER_CII.map((c) => ({ v: c.v as string, l: c.l }))} value={x.cii_holds ?? null} onChange={(v) => set(i, { cii_holds: v as "held" | "in_training" | "not_held" })} /></div></Field>
           {x.cii_holds === "held" && <>
             <Field label="Certificate or ID number" required htmlFor={`installer-${i}-cii-number`} error={errFor(`installer-${i}-cii-number`)}><input id={`installer-${i}-cii-number`} style={input} value={x.cii_certificate_number ?? ""} onChange={(e) => set(i, { cii_certificate_number: e.target.value })} /></Field>
             <Field label="Issued by" required htmlFor={`installer-${i}-cii-issuer`} error={errFor(`installer-${i}-cii-issuer`)}><input id={`installer-${i}-cii-issuer`} style={input} placeholder="e.g. Energy Efficiency Council Victoria" value={x.cii_issuer ?? ""} onChange={(e) => set(i, { cii_issuer: e.target.value })} /></Field>

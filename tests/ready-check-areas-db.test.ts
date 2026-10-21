@@ -148,7 +148,7 @@ describe("original-condition hold at the works boundary", () => {
     expect(await S.rcWorksBlockers(JOB)).toEqual([]);
     await requirePrestartClear(JOB); // no booking -> cleared
     const d = await S.loadRcDraft(JOB); // completion evidence is due after work, not a start blocker, and is not "verified" because it exists
-    expect(d.areaTasks.map((t) => [t.area, t.due, t.reviewedBy])).toEqual([["Main", "after the work, before office AP review", "Home Insulation Victoria office"], ["Garage", "after the work, before office AP review", "Home Insulation Victoria office"]]);
+    expect(d.areaTasks.map((t) => [t.area, t.due, t.reviewedBy])).toEqual([["Main", "after the work, before office Final check", "Home Insulation Victoria office"], ["Garage", "after the work, before office Final check", "Home Insulation Victoria office"]]);
   });
   test("unknown answers block; read failures fail closed", async () => {
     await newJob(ATT);

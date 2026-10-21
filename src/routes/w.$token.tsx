@@ -60,7 +60,7 @@ function WorkerJob() {
 
       {worker.role === "electrician" && approvedRates.length > 0 && (
         <div className={card}>
-          <h2 className="mb-1 font-display text-lg font-bold">Mandatory safety rectification</h2>
+          <h2 className="mb-1 font-display text-lg font-bold">Mandatory safety electrical fixes</h2>
           <p className="mb-3 text-sm text-sub">Add only an item identified by the assessment and listed on your REC business's approved supplier rate schedule.</p>
           <select className={`${inputCls} mb-2`} value={approved.code} onChange={(e) => setApproved((x) => ({ ...x, code: e.target.value, error: "", saved: "" }))}><option value="">Choose an approved item</option>{approvedRates.map((rate) => <option key={rate.code} value={rate.code}>{rate.description} · {rate.display_unit || rate.unit}</option>)}</select>
           <input className={`${inputCls} mb-2`} aria-label="Quantity" type="number" min="0.01" step="0.01" value={approved.quantity} onChange={(e) => setApproved((x) => ({ ...x, quantity: e.target.value, error: "", saved: "" }))} />

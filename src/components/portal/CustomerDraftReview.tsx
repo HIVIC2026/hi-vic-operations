@@ -45,7 +45,7 @@ export function CustomerDraftReview({ initialKey }: { initialKey?: string }) {
     >
       <h2 className="text-lg font-bold">Review drafts</h2>
       <p className="mt-1 text-sm text-sub">
-        Jo's approved homeowner emails are listed above (Jo's approved homeowner emails, 15 Oct
+        Jo's approved owner emails are listed above (Jo's approved owner emails, 15 Oct
         2026). This section records personal review versions for older customer wording — approving
         a draft does not send it.
       </p>

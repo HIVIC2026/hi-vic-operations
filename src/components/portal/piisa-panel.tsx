@@ -37,7 +37,7 @@ export function PiisaPanel({ jobId }: { jobId: string }) {
               <ul className="space-y-1">
                 {data.hazards.map((h) => (
                   <li key={h.key} className={h.resolved ? "rounded-md border p-2" : "rounded-md border border-destructive/30 bg-destructive/5 p-2"}>
-                    <strong>{h.text}</strong> — {h.resolved ? "Resolved by verified rectification." : h.reason}
+                    <strong>{h.text}</strong> — {h.resolved ? "Resolved by verified electrical fixes." : h.reason}
                     {!h.resolved && <div className="text-muted-foreground">Next action: {h.nextAction}</div>}
                   </li>
                 ))}

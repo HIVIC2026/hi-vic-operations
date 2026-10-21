@@ -112,7 +112,7 @@ export function piisaCarryOver(missing: string[]): CarryOver {
 
 export type JourneyStep = "submit" | "eligibility" | "measure_up" | "electrician" | "piesa" | "quote" | "pre_install" | "install" | "completion" | "veecs";
 export const JOURNEY: { key: JourneyStep; label: string }[] = [
-  { key: "submit", label: "Job submitted" }, { key: "eligibility", label: "Eligibility" }, { key: "measure_up", label: "Measure-up" },
+  { key: "submit", label: "Job submitted" }, { key: "eligibility", label: "Eligibility" }, { key: "measure_up", label: "Ready Check" },
   { key: "electrician", label: "Electrician" }, { key: "piesa", label: "PIESA" }, { key: "quote", label: "Quote + e-sign" },
   { key: "pre_install", label: "Pre-install checks" }, { key: "install", label: "Install day" }, { key: "completion", label: "Completion sign-off" }, { key: "veecs", label: "VEECs" },
 ];
@@ -239,7 +239,7 @@ export function buildInstallerQuoteDraft(i: {
     lines.push({ code: "INSTALLER_PRICE", description: `Insulation works by your installer — includes: ${inc.join(", ")}`, quantity: 1, unit: "flat", unit_price_inc_gst: p.totalIncGst, line_total_inc_gst: p.totalIncGst, is_other: false, explanation: inc.join("\n"), sort: 0 });
   }
   if (p) (i.separateLines ?? []).forEach((l, n) => lines.push({ code: l.code, description: l.description, quantity: 1, unit: "flat", unit_price_inc_gst: l.amountIncGst, line_total_inc_gst: l.amountIncGst, is_other: l.code === "INSTALLER_EXTRA", explanation: l.code === "INSTALLER_EXTRA" ? "Agreed additional price from the installer's quote" : null, sort: 0 }));
-  if (i.piesaIncGst != null && i.piesaIncGst > 0) lines.push({ code: "PIESA", description: "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", quantity: 1, unit: "flat", unit_price_inc_gst: i.piesaIncGst, line_total_inc_gst: i.piesaIncGst, is_other: false, explanation: null, sort: 1 });
+  if (i.piesaIncGst != null && i.piesaIncGst > 0) lines.push({ code: "PIESA", description: "Mandatory Pre Insulation Electrical Safety Assessment (PIESA)", quantity: 1, unit: "flat", unit_price_inc_gst: i.piesaIncGst, line_total_inc_gst: i.piesaIncGst, is_other: false, explanation: null, sort: 1 });
   if (i.apFeeIncGst != null && i.apFeeIncGst > 0) lines.push({ code: "AP_FEE", description: "Home Insulation Victoria — Accredited Person fee", quantity: 1, unit: "flat", unit_price_inc_gst: i.apFeeIncGst, line_total_inc_gst: i.apFeeIncGst, is_other: false, explanation: null, sort: 2 });
   return { ready: blockers.length === 0, blockers, lines, subtotal: owner.total, discount: owner.discount, afterDiscount: owner.afterDiscount, discountNote: discountNotes(rules).join(" ") || null };
 }

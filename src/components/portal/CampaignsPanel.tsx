@@ -100,7 +100,7 @@ export function CampaignsPanel() {
       </section>
       <p className="text-xs text-sub">
         Save my spot emails sent includes the initial and follow-up versions together.
-        “Spots saved” counts all saved responses across both email groups, excluding opted-out homeowners,
+        “Spots saved” counts all saved responses across both email groups, excluding opted-out owners,
         TEST jobs and cancelled jobs. Insulation details requested counts the separate Group B “tell us about your insulation” email
         only. TEST copies and failed sends never count in either.
       </p>

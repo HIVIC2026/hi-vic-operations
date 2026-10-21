@@ -58,7 +58,7 @@ export function ElectricianManualResult({ value, locked, savedAt, onPut }: {
         <div><Label>Hazards</Label><Textarea className="mt-1" value={hazards} disabled={locked} onChange={(e) => setHazards(e.target.value)} onBlur={() => onPut("hazards", hazards === "" ? null : hazards)} /></div>
         <div><Label>Notes</Label><Textarea className="mt-1" value={notes} disabled={locked} onChange={(e) => setNotes(e.target.value)} onBlur={() => onPut("notes", notes === "" ? null : notes)} /></div>
         <div><Label>Assessment date</Label><Input className="mt-1 h-12" type="date" value={(value.assessed_on as string) ?? ""} disabled={locked} max={melbourneToday()} onChange={(e) => onPut("assessed_on", e.target.value || null)} /><p className="mt-1 text-xs text-sub">The date you carried out the check. It cannot be in the future — the install deadline runs 30 days from it.</p></div>
-        <Yn k="no_rectification_confirmed" label="No rectification required" />
+        <Yn k="no_rectification_confirmed" label="No electrical fixes required" />
         <Choice k="piesa_outcome" label="PIESA outcome" opts={[["pass", "Pass"], ["fail", "Fail"]]} />
       </div>
     </Section>

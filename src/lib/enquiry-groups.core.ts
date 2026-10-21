@@ -277,7 +277,7 @@ export function automaticLeadEmail(x: {
   ownerEnteredArea: boolean;
 }): { email: AutomaticLeadEmail; blocker: string | null; assumedArea?: true } {
   if (x.source === "qa_test") return { email: "none", blocker: "TEST enquiry" };
-  if (x.source !== "base44" || x.channel !== "hivic_sourced") return { email: "none", blocker: "Not a website homeowner enquiry" };
+  if (x.source !== "base44" || x.channel !== "hivic_sourced") return { email: "none", blocker: "Not a website owner enquiry" };
   if (x.intakeWorkActive) return { email: "none", blocker: "Initial checks are still running" };
   if (x.decisionSource !== "system" && x.decisionSource !== "admin") return { email: "none", blocker: "Official eligibility result is missing" };
   if (x.reviewRequired) return { email: "none", blocker: "Eligibility needs office review" };

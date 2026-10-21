@@ -22,11 +22,11 @@ export function rectFingerprint(i: Pick<RectItem, "status" | "description" | "qu
 
 function check(v: HazardVerification, items: Map<string, RectItem>, jobId: string): string | null {
   const item = items.get(v.rectificationItemId);
-  if (!item) return "The linked rectification item no longer exists.";
-  if (item.jobId !== jobId) return "The linked rectification item belongs to a different job.";
-  if (item.status !== "completed") return "The linked rectification item isn't marked completed.";
-  if (rectFingerprint(item) !== v.rectificationFingerprint) return "The rectification item changed after it was verified.";
-  if (!v.verifiedBy || !v.verifiedAt) return "The rectification hasn't been verified (who and when).";
+  if (!item) return "The linked electrical fixes item no longer exists.";
+  if (item.jobId !== jobId) return "The linked electrical fixes item belongs to a different job.";
+  if (item.status !== "completed") return "The linked electrical fixes item isn't marked completed.";
+  if (rectFingerprint(item) !== v.rectificationFingerprint) return "The electrical fixes item changed after it was verified.";
+  if (!v.verifiedBy || !v.verifiedAt) return "The electrical fixes hasn't been verified (who and when).";
   if (v.evidenceFileIds.length === 0) return "No supporting evidence is attached to the verification.";
   if (v.cesRequired === null) return "The verifier hasn't recorded whether a Certificate of Electrical Safety is required.";
   if (v.cesRequired && (!v.cesNumber?.trim() || !v.cesEvidenceFileId)) return "A Certificate of Electrical Safety is required: its number and a copy must be recorded.";
@@ -41,12 +41,12 @@ export function evaluateHazardRectifications(i: {
     // Only records for this job, this signed PIESA and this hazard count; wrong-job/stale/superseded are ignored.
     const mine = i.verifications.filter((v) => v.status === "current" && v.jobId === i.jobId && v.piesaCopyId === i.piesaCopyId && v.hazardKey === h.key);
     const none = { key: h.key, text: h.text, resolved: false, verificationId: null };
-    if (mine.length === 0) return { ...none, reason: "No verified rectification is recorded for this hazard.", nextAction: "Electrician completes the rectification; office verifies it with evidence and links it to this hazard." };
+    if (mine.length === 0) return { ...none, reason: "No verified electrical fixes are recorded for this hazard.", nextAction: "Electrician completes the electrical fixes; office verifies it with evidence and links it to this hazard." };
     if (mine.length > 1) return { ...none, reason: "More than one current verification is linked to this hazard.", nextAction: "Office supersedes the duplicate verification." };
     const v = mine[0]!;
     const problem = check(v, items, i.jobId);
-    if (problem) return { ...none, verificationId: v.id, reason: problem, nextAction: "Office re-verifies the rectification against the current record and evidence." };
-    return { key: h.key, text: h.text, resolved: true, verificationId: v.id, reason: "Verified rectification on record.", nextAction: "None." };
+    if (problem) return { ...none, verificationId: v.id, reason: problem, nextAction: "Office re-verifies the electrical fixes against the current record and evidence." };
+    return { key: h.key, text: h.text, resolved: true, verificationId: v.id, reason: "Verified electrical fixes on record.", nextAction: "None." };
   });
   return { hazards, resolution: { kind: "verified_rectification", resolvedHazards: hazards.filter((h) => h.resolved).map((h) => h.key) } };
 }

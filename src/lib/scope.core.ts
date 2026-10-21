@@ -10,11 +10,11 @@ export type VisitScope =
   | "COMPLETE";
 
 export const SCOPE_LABEL: Record<VisitScope, string> = {
-  COMBINED: "Separate visits – installer eligibility measure-up, electrician PIESA",
-  ELECTRICAL_ONLY: "Electrical assessment only – measure-up already accepted",
-  MEASURE_UP_ONLY: "Measure-up only – PIESA already current",
-  ELECTRICAL_PLUS_MEASUREUP_COMPLETION: "PIESA by electrician; installer must complete measure-up evidence",
-  SPLIT: "Electrical by electrician, measure-up by installer",
+  COMBINED: "Separate visits – installer eligibility Ready Check, electrician PIESA",
+  ELECTRICAL_ONLY: "Electrical assessment only – Ready Check already accepted",
+  MEASURE_UP_ONLY: "Ready Check only – PIESA already current",
+  ELECTRICAL_PLUS_MEASUREUP_COMPLETION: "PIESA by electrician; installer must complete Ready Check evidence",
+  SPLIT: "Electrical by electrician, Ready Check by installer",
   COMPLETE: "Requirements complete",
 };
 
@@ -108,7 +108,7 @@ export function deriveScope(input: { measurement: MeasurementLike | null; electr
 
   const need: string[] = [];
   if (!elecDone) need.push(electrical.state === "expired" ? "PIESA reassessment" : "electrical assessment / PIESA");
-  if (!accepted) need.push(measurement.state === "needs_review" ? "installer eligibility measure-up review / missing evidence" : "installer eligibility measure-up");
+  if (!accepted) need.push(measurement.state === "needs_review" ? "installer eligibility Ready Check review / missing evidence" : "installer eligibility Ready Check");
   return { scope, label: SCOPE_LABEL[scope], measurement, electrical, electricianTasks, installerTasks, editableMeasureFields, nextAction: need.length ? `Still required: ${need.join(" and ")}` : null };
 }
 
@@ -131,15 +131,15 @@ export function planMeasurementUpdate(p: {
 }): MeasurementPlan {
   const vals = Object.fromEntries(MEASURE_FIELDS.filter((k) => p.incoming[k] !== undefined && p.incoming[k] !== null).map((k) => [k, p.incoming[k]])) as CleanMeasurementValues;
   const cur = p.current && p.current.status !== "rejected" ? p.current : null;
-  if (!Object.keys(vals).length) return { action: "skip", reason: "No measure-up values supplied." };
-  if (cur && measurementAccepted(cur)) return { action: "skip", reason: "An accepted measure-up already exists – it is not overwritten." };
-  if (p.scope === "ELECTRICAL_ONLY" || p.scope === "COMPLETE") return { action: "skip", reason: "Electrical-only scope – measure-up values ignored." };
-  if (p.source === "electrician") return { action: "skip", reason: "Eligibility measure-up belongs to the installer; electricians record PIESA only." };
+  if (!Object.keys(vals).length) return { action: "skip", reason: "No Ready Check values supplied." };
+  if (cur && measurementAccepted(cur)) return { action: "skip", reason: "An accepted Ready Check already exists – it is not overwritten." };
+  if (p.scope === "ELECTRICAL_ONLY" || p.scope === "COMPLETE") return { action: "skip", reason: "Electrical-only scope – Ready Check values ignored." };
+  if (p.source === "electrician") return { action: "skip", reason: "Eligibility Ready Check belongs to the installer; electricians record PIESA only." };
   if (!cur) return { action: "create", values: vals, source: p.source };
   if (p.scope === "ELECTRICAL_PLUS_MEASUREUP_COMPLETION" && cur.source_role !== p.source) {
     const allowed = new Set<MeasureField>(completionFields(missingMeasureFields(cur), flaggedFields(cur)));
     const filtered = Object.fromEntries(Object.entries(vals).filter(([k]) => allowed.has(k as MeasureField))) as CleanMeasurementValues;
-    if (!Object.keys(filtered).length) return { action: "skip", reason: "No missing or flagged measure-up fields to complete." };
+    if (!Object.keys(filtered).length) return { action: "skip", reason: "No missing or flagged Ready Check fields to complete." };
     return { action: "update", id: cur.id!, values: filtered, supplemented: Object.keys(filtered) as MeasureField[] };
   }
   return { action: "update", id: cur.id!, values: vals, supplemented: [] };
@@ -147,9 +147,9 @@ export function planMeasurementUpdate(p: {
 
 /** Quote inputs come ONLY from the accepted/current ceiling measurement. */
 export function quoteInputsFromMeasurement(m: MeasurementLike | null | undefined) {
-  if (!m) throw new Error("Ceiling measure-up missing – quotes need an accepted measure-up.");
-  if (m.status !== "complete") throw new Error(`Ceiling measure-up is ${m.status.replace("_", " ")} – it must be accepted before quoting.`);
-  if (!(Number(m.measured_area_m2) > 0)) throw new Error("Accepted measure-up has no measured ceiling area.");
+  if (!m) throw new Error("Ready Check missing – quotes need an accepted Ready Check.");
+  if (m.status !== "complete") throw new Error(`Ready Check is ${m.status.replace("_", " ")} – it must be accepted before quoting.`);
+  if (!(Number(m.measured_area_m2) > 0)) throw new Error("Accepted Ready Check has no measured ceiling area.");
   return {
     areaM2: Number(m.measured_area_m2),
     removalM2: m.removal_required ? Number(m.removal_m2 ?? 0) : 0,

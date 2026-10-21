@@ -47,7 +47,7 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           const { sweepRectQuotes, sweepHeldRectWindows } = await import("@/lib/rectification.server");
           (out as Record<string, unknown>)['rectification'] = { ...(await sweepRectQuotes()), ...(await sweepHeldRectWindows()) };
         } catch (e) {
-          console.error("allocation tick: rectification sweep failed", (e as Error).message);
+          console.error("allocation tick: electrical fixes sweep failed", (e as Error).message);
           out['ok'] = false;
           (out as Record<string, unknown>)['rectification'] = "failed";
         }

@@ -60,7 +60,7 @@ describe("installation timing", () => {
     expect(r.next.text).toContain("expired");
     expect(r.steps.find((s) => s.key === "electrical")).toMatchObject({ state: "done", note: "Completed — 30-day window expired" });
   });
-  test("fix-up required blocks install", () => expect(run({ ...cleared, rectificationOpen: true }).next.text).toContain("fix-up"));
+  test("fix-up required blocks install", () => expect(run({ ...cleared, rectificationOpen: true }).next.text).toContain("Electrical fixes"));
   test("no booking → book", () => expect(run(cleared).next.text).toBe("Book the installation date."));
   test("proposed → confirm", () => expect(run({ ...cleared, installBooking: { status: "proposed", start: null } }).next.text).toContain("Confirm"));
   test("ESC not sent → HIV before install", () => expect(run({ ...cleared, installBooking: { status: "confirmed", start: "2026-10-20" }, installBlockers: ["ESC notification not sent"] }).next.who).toBe("Home Insulation Victoria"));

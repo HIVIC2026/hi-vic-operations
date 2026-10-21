@@ -45,7 +45,7 @@ export async function bossOrThrow(userId: string) {
   return c;
 }
 
-const VISIT: Record<string, string> = { assessment: "Safety check", rectification: "Fixes", ready_check: "Ready Check", installation: "Install" };
+const VISIT: Record<string, string> = { assessment: "Pre Insulation Electrical Safety Assessment (PIESA)", rectification: "Fixes", ready_check: "Ready Check", installation: "Install" };
 
 /** My work: open offers, things that need this trade, booked visits, and this month. */
 export async function tradeHome(userId: string) {
@@ -90,7 +90,7 @@ export async function tradeHome(userId: string) {
   const month = money.filter((r) => r.doneAt && new Date(r.doneAt) >= m0);
   const offerList = (offers ?? []).filter((o) => (c.kind === "installer" ? o.kind === "ready_check" || o.kind === "installer" : o.kind === "piesa" || o.kind === "rectification"))
     .map((o) => ({ id: o.id, kind: o.kind, suburb: (o.summary as { suburb?: string | null })?.suburb ?? null, expiresAt: o.expires_at }));
-  const STATUS: Record<string, string> = { ready_check_ready_to_schedule: "Waiting for owner to pick Ready Check times", ready_check_complete: "Office checking your measure-up", on_hold: "On hold (office review)" };
+  const STATUS: Record<string, string> = { ready_check_ready_to_schedule: "Waiting for owner to pick Ready Check times", ready_check_complete: "Office checking your Ready Check", on_hold: "On hold (office review)" };
   // Installer-sourced jobs: his own site-check answer and price (labels only; never HIV owner prices or margins).
   const { statusFactsFor, statusView } = await import("./job-status.server");
   const sf = await statusFactsFor(c, live.map((j) => j.id));
@@ -171,7 +171,7 @@ export async function tradeTakeTime(offerId: string, windowId: string, userId: s
   await admin.from("job_assignments").insert({ job_id: o.job_id, user_id: userId, business_id: c.biz.id, role, assigned_by: userId, booking_confirmed_at: now } as never);
   await admin.from("bookings").insert({ job_id: o.job_id, kind: isRc ? "ready_check" : "assessment", scheduled_start: w.starts_at, scheduled_end: w.ends_at, status: "confirmed", booked_by: userId, contractor_id: userId, business_id: c.biz.id, notes: "TEST booking (trade view)" } as never);
   await admin.from("jobs").update({ stage: isRc ? "ready_check_scheduled" : "piesa_scheduled" } as never).eq("id", o.job_id);
-  await logEvent(o.job_id, userId, "booking_confirmed", `TEST: ${isRc ? "Ready Check" : "safety check"} taken from the trade view`, { window_id: windowId }, { internal: true });
+  await logEvent(o.job_id, userId, "booking_confirmed", `TEST: ${isRc ? "Ready Check" : "Pre Insulation Electrical Safety Assessment (PIESA)"} taken from the trade view`, { window_id: windowId }, { internal: true });
   return { tooSlow: false };
 }
 
@@ -405,7 +405,7 @@ export async function tradeBusinessFile(userId: string) {
   const rates = [
     ...((cards ?? []) as { rate_card_items: { description: string; unit: string; display_unit: string | null; unit_price_ex_gst: number; sort: number | null }[] }[])
       .flatMap((cd) => [...cd.rate_card_items].sort((a, z) => (a.sort ?? 0) - (z.sort ?? 0)).map((i) => ({ label: i.description, unit: i.display_unit ?? i.unit, inc_gst: cents(Number(i.unit_price_ex_gst) * 1.1) }))),
-    ...((erates ?? []) as { service_type: string; rate_inc_gst: number }[]).map((e) => ({ label: e.service_type === "piesa" ? "Safety check (PIESA)" : e.service_type.replace(/_/g, " "), unit: "each", inc_gst: Number(e.rate_inc_gst) })),
+    ...((erates ?? []) as { service_type: string; rate_inc_gst: number }[]).map((e) => ({ label: e.service_type === "piesa" ? "Pre Insulation Electrical Safety Assessment (PIESA)" : e.service_type.replace(/_/g, " "), unit: "each", inc_gst: Number(e.rate_inc_gst) })),
   ];
   return {
     businessId: b.id, kind: c.kind, boss: c.boss,

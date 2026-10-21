@@ -51,7 +51,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
   // Two-requirement model: quote inputs come ONLY from the accepted/current ceiling measurement.
   const { data: m } = await admin.from("ceiling_measurements").select("*").eq("job_id", jobId).eq("is_current", true).maybeSingle();
   let qi: ReturnType<typeof quoteInputsFromMeasurement>;
-  try { qi = quoteInputsFromMeasurement(m as MeasurementLike | null); } catch (e) { throw new WorkflowError(e instanceof Error ? e.message : "Ceiling measure-up missing."); }
+  try { qi = quoteInputsFromMeasurement(m as MeasurementLike | null); } catch (e) { throw new WorkflowError(e instanceof Error ? e.message : "Ready Check missing."); }
   const { data: inst } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
   if (!inst?.business_id) throw new WorkflowError("Assign the installer before quoting – the quote uses that installer's agreed rates.");
   const settings = await activePricing();
@@ -68,7 +68,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
   // Known rectification scope (owner-approved) is folded in so the single accepted total covers the whole job. Lines stay itemised, no markup.
   const { data: rectQuote } = await admin.from("quotes").select("id, quote_items(*)").eq("job_id", jobId).eq("kind", "rectification").eq("status", "accepted").order("created_at", { ascending: false }).limit(1).maybeSingle();
   const rectLines = ((rectQuote?.quote_items ?? []) as { code: string | null; description: string; quantity: number; unit: string; unit_price_inc_gst: number; line_total_inc_gst: number; is_other: boolean; explanation: string | null }[])
-    .map((l) => ({ code: l.code, description: `Electrical rectification: ${l.description}`, quantity: Number(l.quantity), unit: l.unit, unit_price_inc_gst: Number(l.unit_price_inc_gst), line_total_inc_gst: Number(l.line_total_inc_gst), is_other: l.is_other, explanation: l.explanation }));
+    .map((l) => ({ code: l.code, description: `electrical fixes: ${l.description}`, quantity: Number(l.quantity), unit: l.unit, unit_price_inc_gst: Number(l.unit_price_inc_gst), line_total_inc_gst: Number(l.line_total_inc_gst), is_other: l.is_other, explanation: l.explanation }));
   const rectTotal = r2(rectLines.reduce((a, l) => a + l.line_total_inc_gst, 0));
   const gstMul = 1 + Number(settings.gst_rate);
   const { priceHivQuote, HIV_PRICING_RULE } = await import("./hiv-quote.core");
@@ -111,7 +111,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
   const releasedAt = release.status === "issued" ? new Date().toISOString() : null;
   const availableToOwner = release.state !== "held";
   const discountNote = discountNotes(rules).join(" ") || null;
-  const label = rectLines.length ? "R5.0 ceiling insulation + electrical rectification" : "R5.0 ceiling insulation";
+  const label = rectLines.length ? "R5.0 ceiling insulation + electrical fixes" : "R5.0 ceiling insulation";
   const { data: q, error } = await admin.from("quotes").insert({
     job_id: jobId, kind: "installation", option_label: label, option_code: "R5_BATTS", status: availableToOwner ? "issued" : "draft", sent_at: releasedAt,
     release_state: release.state, release_hold_reason: release.reason,
@@ -158,11 +158,11 @@ export async function deriveRectificationItems(jobId: string, actorId: string) {
 export async function generateRectificationQuote(jobId: string, actorId: string) {
   const settings = await activePricing();
   const { data: rec } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).maybeSingle();
-  if (!rec?.business_id) throw new WorkflowError("Assign an approved REC business before generating the rectification quote.");
+  if (!rec?.business_id) throw new WorkflowError("Assign an approved REC business before generating the electrical fixes quote.");
   const card = await activeRateCard("electrical", rec.business_id, false);
   const rates = card.rate_card_items as { code: string; description: string; unit: string; display_unit?: string | null; unit_price_ex_gst: number }[];
   const { data: items } = await admin.from("rectification_items").select("*").eq("job_id", jobId).eq("status", "required");
-  if (!items?.length) throw new WorkflowError("No rectification items.");
+  if (!items?.length) throw new WorkflowError("No electrical fixes items.");
   const gst = 1 + Number(settings.gst_rate);
   const lines = [] as { code: string | null; description: string; quantity: number; unit: string; unit_price_inc_gst: number; line_total_inc_gst: number; is_other: boolean; explanation: string | null; sort: number }[];
   const callout = rates.find((r) => r.code === "CALLOUT");
@@ -184,7 +184,7 @@ export async function generateRectificationQuote(jobId: string, actorId: string)
   await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "rectification").in("status", ["draft", "issued"]);
   const { data: q, error } = await admin
     .from("quotes")
-    .insert({ job_id: jobId, kind: "rectification", option_label: "Electrical rectification", status: "draft", rate_card_id: card.id, pricing_settings_id: settings.id, subtotal_inc_gst: subtotal, gst_amount: r2(subtotal - subtotal / gst), veec_discount_inc_gst: 0, customer_total_inc_gst: subtotal, created_by: actorId })
+    .insert({ job_id: jobId, kind: "rectification", option_label: "electrical fixes", status: "draft", rate_card_id: card.id, pricing_settings_id: settings.id, subtotal_inc_gst: subtotal, gst_amount: r2(subtotal - subtotal / gst), veec_discount_inc_gst: 0, customer_total_inc_gst: subtotal, created_by: actorId })
     .select("id")
     .single();
   if (error || !q) throw new Error(error?.message);
@@ -198,7 +198,7 @@ export async function generateRectificationQuote(jobId: string, actorId: string)
   });
   const now = new Date().toISOString();
   await admin.from("quotes").update({ status: release.state === "held" ? "draft" : "issued", sent_at: release.state === "released" ? now : null, office_reviewed_at: release.state === "released" ? now : null, office_reviewed_by: null, release_state: release.state, release_hold_reason: release.reason }).eq("id", q.id);
-  const summary = release.state === "held" ? (release.reason ?? "Fix-up quote held for office review") : release.state === "queued" ? "Fix-up quote ready to send — queued behind the launch switches" : "Standard-rate fix-up quote automatically released to the owner";
+  const summary = release.state === "held" ? (release.reason ?? "Electrical fixes quote held for office review") : release.state === "queued" ? "Electrical fixes quote ready to send — queued behind the launch switches" : "Standard-rate electrical fixes quote automatically released to the owner";
   await logEvent(jobId, actorId, release.state === "held" ? "rectification_quote_held" : release.state === "queued" ? "rectification_quote_queued" : "rectification_quote_released", summary, { quote_id: q.id, release_state: release.state }, { internal: release.state !== "released" });
   return q.id;
 }
@@ -217,7 +217,7 @@ export async function releaseQueuedQuotes() {
     const now = new Date().toISOString();
     const { data: updated } = await admin.from("quotes").update({ sent_at: now, release_state: "released" }).eq("id", quote.id).eq("status", "issued").eq("release_state", "queued").select("id").maybeSingle();
     if (!updated) continue;
-    await logEvent(quote.job_id, null, `${quote.kind}_quote_released`, `${quote.kind === "rectification" ? "Fix-up" : "Installation"} quote automatically released to the owner`, { quote_id: quote.id }, { internal: false });
+    await logEvent(quote.job_id, null, `${quote.kind}_quote_released`, `${quote.kind === "rectification" ? "Electrical fixes" : "Installation"} quote automatically released to the owner`, { quote_id: quote.id }, { internal: false });
     released++;
   }
   return { released };

@@ -15,7 +15,7 @@ export const Route = createFileRoute("/_authenticated/field/day/$jobId")({
   component: DayPage,
 });
 
-const WHAT = { safety_check: "Safety check", ready_check: "Ready Check", install: "Install" } as const;
+const WHAT = { safety_check: "Pre Insulation Electrical Safety Assessment (PIESA)", ready_check: "Ready Check", install: "Install" } as const;
 
 function DayPage() {
   const { jobId } = Route.useParams();
@@ -62,7 +62,7 @@ function DayPage() {
           {data.mittiId ? (
             <div className="grid gap-3 md:grid-cols-[1.4fr_1fr]" data-mitti-handoff>
               <section className={navyCard}>
-                <p className="text-xs font-bold uppercase tracking-wide opacity-80">{data.kind === "safety_check" ? "Safety check" : data.kind === "ready_check" ? "Ready Check" : "Install"} · Mitti</p>
+                <p className="text-xs font-bold uppercase tracking-wide opacity-80">{data.kind === "safety_check" ? "Pre Insulation Electrical Safety Assessment (PIESA)" : data.kind === "ready_check" ? "Ready Check" : "Install"} · Mitti</p>
                 <h2 className="mt-1 font-display text-xl font-bold">Over to your onsite form</h2>
                 <p className="mt-1 text-sm opacity-90">Complete it onsite, in order. Your answers and required evidence come back to this job, and this page updates itself.</p>
                 <a className={`${greenBtn} mt-4`} href={`https://app.au.mitti.com/inspections/${data.mittiId}`} target="_blank" rel="noreferrer">Open form in Mitti<ArrowUpRight className="h-4 w-4" /></a>
@@ -92,7 +92,7 @@ function DayPage() {
         <>
           <section className={card}>
             <h2 className="font-display text-xl font-bold">Ready when you are</h2>
-            <p className="mt-1 text-sm">{data.kind === "safety_check" ? "Tap below to open the safety check form. We'll pick it up from there." : data.kind === "ready_check" ? "Tap below to open the Ready Check form. Measure, photos and your quote all go in there." : "Tap below to open the install form. PIISA, photos and bag labels are all in there."}</p>
+            <p className="mt-1 text-sm">{data.kind === "safety_check" ? "Tap below to open the Pre Insulation Electrical Safety Assessment (PIESA) form. We'll pick it up from there." : data.kind === "ready_check" ? "Tap below to open the Ready Check form. Measure, photos and your quote all go in there." : "Tap below to open the install form. PIISA, photos and bag labels are all in there."}</p>
             {data.kind === "ready_check" && <button type="button" className={`${ghostBtn} mt-4`} onClick={() => setAsking(true)}>Couldn't get in?</button>}
           </section>
           {data.kind !== "ready_check" && data.kind !== "safety_check" && <PiisaCrewPicker jobId={jobId} />}

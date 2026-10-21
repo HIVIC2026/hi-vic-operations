@@ -27,7 +27,7 @@ export const COMMERCIAL_DECISIONS: readonly CommercialDecision[] = [
   {
     code: "C02",
     question: "Installer-led own-electrician pricing, invoice ownership and Ready Check coverage.",
-    decided: "The owner is still charged the standard $349 electrical safety assessment while Home Insulation Victoria pays that electrician their agreed onboarding rate. The customer's invoice is co-branded. What the installer already supplied is matched against the Ready Check list; anything still missing is collected with the PIISA. An installer who has not been on site uploads the job and is given the Ready Check template to fill in. The installer enters their own price to the customer in the quote section — Home Insulation Victoria does not mark that figure up, it only adds its own Accredited Person fee and the $349 set electrical assessment fee.",
+    decided: "The owner is still charged the standard $349 Pre Insulation Electrical Safety Assessment (PIESA) while Home Insulation Victoria pays that electrician their agreed onboarding rate. The customer's invoice is co-branded. What the installer already supplied is matched against the Ready Check list; anything still missing is collected with the PIISA. An installer who has not been on site uploads the job and is given the Ready Check template to fill in. The installer enters their own price to the customer in the quote section — Home Insulation Victoria does not mark that figure up, it only adds its own Accredited Person fee and the $349 set electrical assessment fee.",
     decidedAt: "2026-10-02",
     enforcedBy: "installer-led.core.ts, ready-check-template.core.ts, quotes.server.ts, installer-invoice.functions.ts",
     status: "decided",

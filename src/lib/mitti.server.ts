@@ -65,7 +65,7 @@ export const realMittiMedia: MittiMediaFetch = async (auditId, mediaId) => {
 
 const wrap = (e: unknown) => (e instanceof MittiError ? new WorkflowError(e.message) : e);
 
-export const MEASUREUP_TEMPLATE_MISSING = "Measure-up-only Mitti template is not configured. An admin must add the measure-up template ID in workflow settings before a measure-up-only Mitti audit can be sent.";
+export const MEASUREUP_TEMPLATE_MISSING = "Ready Check-only Mitti template is not configured. An admin must add the Ready Check template ID in workflow settings before a Ready Check-only Mitti audit can be sent.";
 
 export const PIESA_TEMPLATE_MISSING = "PIESA Mitti form is not configured. An admin must add the validated PIESA form ID in workflow settings before a PIESA audit can be sent.";
 
@@ -323,7 +323,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
           if (d?.ready) await applyCobrand(jobId);
         } catch (e) { issues = [...issues, `Owner quote could not be drafted: ${e instanceof Error ? e.message : "error"}`]; }
       }
-      await logEvent(jobId, actorId, "mitti_measureup_synced", plan.completed ? "Mitti measure-up synced (completed in Mitti)" : "Mitti measure-up partial data synced", { audit_id: measureAudit, measurement: mp.action, issues: mIssues });
+      await logEvent(jobId, actorId, "mitti_measureup_synced", plan.completed ? "Mitti Ready Check synced (completed in Mitti)" : "Mitti Ready Check partial data synced", { audit_id: measureAudit, measurement: mp.action, issues: mIssues });
     }
   }
   return { locked, completed, issues };

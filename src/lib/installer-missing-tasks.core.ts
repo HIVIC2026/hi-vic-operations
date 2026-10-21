@@ -6,7 +6,7 @@ const DONE = new Set(["verified", "not_required"]);
 /** Collection deadlines (Activity Guide sequencing): original condition can never be deferred past removal or covering. */
 export const DUE_BEFORE_DISTURBANCE = "due before any removal or covering";
 export const DUE_BEFORE_START = "due before Start work";
-export const DUE_AFTER_COMPLETION = "due before office AP review";
+export const DUE_AFTER_COMPLETION = "due before office Final check";
 
 export function missingTasks(i: { quoteBlockers: string[]; worksBlockers: string[]; siteHoldBlocker: string | null; evidence: MissingEvidence[] }): MissingTasks {
   const open = i.evidence.filter((e) => !DONE.has(e.status));

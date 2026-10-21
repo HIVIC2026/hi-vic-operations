@@ -4,7 +4,7 @@
 export type ApEvidenceRow = { label: string; status: string; required: boolean; gate?: string | null };
 
 export const EVIDENCE_READ_FAILED = "The evidence checklist could not be checked — please try again.";
-export const EVIDENCE_CHECKLIST_MISSING = "This job has no installation evidence checklist — Home Insulation Victoria must restore it before AP review.";
+export const EVIDENCE_CHECKLIST_MISSING = "This job has no installation evidence checklist — Home Insulation Victoria must restore it before Final check.";
 
 export function evidenceStageBlockers(to: "ap_review" | "ready_for_veec", rows: ApEvidenceRow[] | null, readFailed: boolean): string[] {
   if (readFailed || !rows) return [EVIDENCE_READ_FAILED];

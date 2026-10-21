@@ -93,8 +93,8 @@ roof_type (short text, e.g. "tiled"/"tin", or "unknown"), hazards (short text or
 building_age (short text, e.g. "built 1978", or "unknown"), notes (anything else useful, short),
 price_inc_gst (number, the installer's quoted total price including GST, exactly as given; null when there is no price — never work one out),
 price_includes (short free text: what the quoted price includes, e.g. R-value/product, area, removal, extras — from the price/quote column, notes or a quote document; null if not stated),
-site_check (text exactly as written in a "Visited"/"Measured"/"Site check done"/"Measure-up" column or note, e.g. "Y", "No", "Visited 3/10/26"; null when nothing says whether the site check was done — never guess from area or photos),
-site_check_date (the site check / measure-up date as YYYY-MM-DD if stated, else null),
+site_check (text exactly as written in a "Visited"/"Measured"/"Site check done"/"Ready Check" column or note, e.g. "Y", "No", "Visited 3/10/26"; null when nothing says whether the site check was done — never guess from area or photos),
+site_check_date (the site check / Ready Check date as YYYY-MM-DD if stated, else null),
 unsure (boolean), source_files (array of the uploaded file names/paths this lead was read from).
 If the same customer appears more than once in the list, return it once and add "Listed N times in the upload" to notes. Never invent values. If a column is ambiguous, put it in notes. Return [] only if there is truly no customer, contact, address or property detail anywhere.`;
 
@@ -308,8 +308,8 @@ type ElectricianPlan = { mode?: "mine" | "hivic"; nomination_id?: string | null;
 export const INSTALLED_HISTORY_NOTE = "History: already installed before Home Insulation Victoria — not claimable. Office review only.";
 export const stagePlacement: Record<ImportStage, { stage: "ready_check_ready_to_schedule" | "ready_check_complete" | "on_hold"; next: string }> = {
   not_visited: { stage: "ready_check_ready_to_schedule", next: "Owner chooses Ready Check times" },
-  visited: { stage: "ready_check_complete", next: "Office reviews the supplied measure-up and evidence" },
-  quoted: { stage: "ready_check_complete", next: "Office reviews the supplied measure-up and draft quote — it only goes to the owner through the usual gates" },
+  visited: { stage: "ready_check_complete", next: "Office reviews the supplied measurements and evidence" },
+  quoted: { stage: "ready_check_complete", next: "Office reviews the supplied measurements and draft quote — it only goes to the owner through the usual gates" },
   installed: { stage: "on_hold", next: INSTALLED_HISTORY_NOTE },
 };
 
@@ -327,7 +327,7 @@ export async function ensureBulkJob(e: BulkExtracted, batch: { id: string; busin
   if (!asg) must(await admin.from("job_assignments").insert({ job_id: job.id, user_id: actorId, role: "installer", business_id: batch.business_id, assigned_by: actorId }).select("id").single(), "Installer assignment could not be saved");
   // Known installer-supplied area is kept whatever the stage (provisional, needs office acceptance).
   if (e.area_m2 && e.area_m2 > 0) {
-    const have = must(await admin.from("ceiling_measurements").select("id").eq("job_id", job.id).eq("external_source", "bulk_import").eq("external_id", rowId).limit(1).maybeSingle(), "Could not check the measure-up");
+    const have = must(await admin.from("ceiling_measurements").select("id").eq("job_id", job.id).eq("external_source", "bulk_import").eq("external_id", rowId).limit(1).maybeSingle(), "Could not check the Ready Check");
     if (!have) {
       const { error: me } = await admin.from("ceiling_measurements").insert({
         job_id: job.id, source_role: "installer", status: "needs_review", is_current: true,
@@ -336,7 +336,7 @@ export async function ensureBulkJob(e: BulkExtracted, batch: { id: string; busin
         raw_snapshot: { row_id: rowId, import_stage: importStage, supplied: e } as unknown as Json,
         review_flags: ["Imported installer measurement requires office acceptance"] as unknown as Json,
       });
-      if (me) throw new BulkImportError(`Measure-up could not be saved: ${me.message}`);
+      if (me) throw new BulkImportError(`Ready Check could not be saved: ${me.message}`);
     }
   }
   return { job, resumed: !!prior };
@@ -414,7 +414,7 @@ async function draftQuoteFromImport(jobId: string, e: BulkExtracted, actorId: st
   const rawDiscount = wholeVeecDiscount(e.area_m2, loc as unknown as LocationVariables, veecValue).raw;
   const lines = [
     { code: "INSTALLER_PRICE", description: e.price_includes ? `Insulation works by your installer — includes: ${e.price_includes}`.slice(0, 500) : "Insulation works by your installer", quantity: 1, unit: "flat", unit_price_inc_gst: e.price_inc_gst, line_total_inc_gst: e.price_inc_gst, is_other: false, explanation: null, sort: 0 },
-    ...(piesa > 0 ? [{ code: "PIESA", description: "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", quantity: 1, unit: "flat", unit_price_inc_gst: piesa, line_total_inc_gst: piesa, is_other: false, explanation: null, sort: 1 }] : []),
+    ...(piesa > 0 ? [{ code: "PIESA", description: "Mandatory Pre Insulation Electrical Safety Assessment (PIESA)", quantity: 1, unit: "flat", unit_price_inc_gst: piesa, line_total_inc_gst: piesa, is_other: false, explanation: null, sort: 1 }] : []),
     { code: "AP_FEE", description: "Home Insulation Victoria — Accredited Person fee", quantity: 1, unit: "flat", unit_price_inc_gst: apFee, line_total_inc_gst: apFee, is_other: false, explanation: null, sort: 2 },
   ];
   const subtotal = Math.round((e.price_inc_gst + piesa + apFee) * 100) / 100;
@@ -457,7 +457,7 @@ export async function bulkQuotePlan(jobId: string, e: BulkExtracted, actorId: st
   const rawDiscount = wholeVeecDiscount(e.area_m2, loc as unknown as LocationVariables, veecValue).raw;
   const lines = [
     { code: "INSTALLER_PRICE", description: e.price_includes ? `Insulation works by your installer — includes: ${e.price_includes}`.slice(0, 500) : "Insulation works by your installer", quantity: 1, unit: "flat", unit_price_inc_gst: e.price_inc_gst, line_total_inc_gst: e.price_inc_gst, is_other: false, explanation: null, sort: 0 },
-    ...(piesa > 0 ? [{ code: "PIESA", description: "Mandatory Pre-Installation Electrical Safety Assessment (PIESA)", quantity: 1, unit: "flat", unit_price_inc_gst: piesa, line_total_inc_gst: piesa, is_other: false, explanation: null, sort: 1 }] : []),
+    ...(piesa > 0 ? [{ code: "PIESA", description: "Mandatory Pre Insulation Electrical Safety Assessment (PIESA)", quantity: 1, unit: "flat", unit_price_inc_gst: piesa, line_total_inc_gst: piesa, is_other: false, explanation: null, sort: 1 }] : []),
     { code: "AP_FEE", description: "Home Insulation Victoria — Accredited Person fee", quantity: 1, unit: "flat", unit_price_inc_gst: apFee, line_total_inc_gst: apFee, is_other: false, explanation: null, sort: 2 },
   ];
   const subtotal = Math.round((e.price_inc_gst + piesa + apFee) * 100) / 100;

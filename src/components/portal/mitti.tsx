@@ -46,7 +46,7 @@ export function MittiCard({ jobId, isAdmin }: { jobId: string; isAdmin: boolean 
   const run = async (f: () => Promise<unknown>) => { setBusy(true); try { await f(); } finally { setBusy(false); } };
   const mittiUrl = a?.external_mitti_id ? `https://app.au.mitti.com/inspections/${a.external_mitti_id}` : null;
   return (
-    <Section title={a?.mitti_scope === "MEASURE_UP_ONLY" ? "Mitti installer measure-up" : "Mitti electrical assessment · PIESA"} action={<Pill t={tone as never}>{label}</Pill>}>
+    <Section title={a?.mitti_scope === "MEASURE_UP_ONLY" ? "Mitti installer measurements" : "Mitti electrical assessment · PIESA"} action={<Pill t={tone as never}>{label}</Pill>}>
       <dl className="grid grid-cols-2 gap-1 text-sm">
         <dt className="text-muted-foreground">Audit ID</dt><dd className="break-all">{a?.external_mitti_id ?? "—"}</dd>
         <dt className="text-muted-foreground">Assignee</dt><dd className="break-all">{a?.mitti_assignee_email ?? "—"}</dd>
@@ -63,7 +63,7 @@ export function MittiCard({ jobId, isAdmin }: { jobId: string; isAdmin: boolean 
       {issues.length > 0 && <ul className="mt-2 list-disc pl-5 text-sm text-muted-foreground">{issues.map((i) => <li key={i}>{i}</li>)}</ul>}
       {a?.mitti_completed && !locked && (
         <div className="mt-3 rounded-md border border-warning bg-accent px-3 py-2 text-sm font-medium text-accent-foreground">
-          Onsite assessment completed in Mitti. Next: {piesaMissing ? "Upload signed PIESA / electrical safety sign-off" : evMissing.length ? `Upload ${evMissing.map((e) => e.label).join(", ")}` : "Review and press Complete assessment"}.
+          Onsite assessment completed in Mitti. Next: {piesaMissing ? "Upload signed PIESA / Pre Insulation Electrical Safety Assessment (PIESA) sign-off" : evMissing.length ? `Upload ${evMissing.map((e) => e.label).join(", ")}` : "Review and press Complete assessment"}.
         </div>
       )}
       {locked && <p className="mt-2 text-sm text-muted-foreground">Assessment complete in the portal – Mitti can no longer change it.</p>}

@@ -7,7 +7,7 @@ export type Role = "admin" | "owner" | "electrician" | "installer";
 export type Audience = Exclude<Role, "admin">;
 
 export const DOC_CATEGORIES = [
-  "Property", "Customer / Consent", "Electrical / PIESA", "Measure-up", "Quotes", "Payments", "Installation", "Evidence", "ESC / VEEC", "Correspondence attachments", "Other",
+  "Property", "Customer / Consent", "Electrical / PIESA", "Ready Check", "Quotes", "Payments", "Installation", "Evidence", "ESC / VEEC", "Correspondence attachments", "Other",
 ] as const;
 export type DocCategory = (typeof DOC_CATEGORIES)[number];
 export type DocStatus = "current" | "superseded" | "draft" | "signed" | "verified" | "rejected" | "final" | "historical" | "outstanding";
@@ -31,8 +31,8 @@ const s = (v: unknown) => (v == null ? null : String(v));
 const EXPORT_PREFIX = "/exports/";
 
 const EVIDENCE_CATEGORY: Record<string, [DocCategory, Audience[]]> = {
-  measurement: ["Measure-up", ["electrician", "installer"]],
-  existing_insulation_r_value: ["Measure-up", ["electrician", "installer"]],
+  measurement: ["Ready Check", ["electrician", "installer"]],
+  existing_insulation_r_value: ["Ready Check", ["electrician", "installer"]],
   piesa_signoff: ["Electrical / PIESA", ["electrician", "installer"]],
   rectification_completion: ["Electrical / PIESA", ["electrician"]],
   before_ceiling_space: ["Installation", ["installer"]],
@@ -47,7 +47,7 @@ const EVIDENCE_CATEGORY: Record<string, [DocCategory, Audience[]]> = {
 export function categoriseDocument(kind: string, title: string): { category: DocCategory; alsoIn: DocCategory[]; sub: string | null; audience: Audience[]; status: DocStatus; immutable: boolean; deprecated?: boolean } {
   const k = kind.toLowerCase(), t = title.toLowerCase();
   if (k === "owner_authority") return { category: "Customer / Consent", alsoIn: [], sub: "Legacy Owner Authority (historical – no longer a gate)", audience: ["owner"], status: "historical", immutable: true, deprecated: true };
-  if (k === "intake_media") return { category: "Property", alsoIn: [], sub: "Homeowner photos/videos (website)", audience: [], status: "current", immutable: true };
+  if (k === "intake_media") return { category: "Property", alsoIn: [], sub: "Owner photos/videos (website)", audience: [], status: "current", immutable: true };
   if (k === "veec_assignment") {
     const final = t.includes("final") || t.includes("completed");
     return { category: "ESC / VEEC", alsoIn: ["Customer / Consent", "Quotes"], sub: final ? "Completed VEEC assignment" : "Signed customer acceptance", audience: ["owner"], status: final ? "final" : "signed", immutable: true };
@@ -63,8 +63,8 @@ export function categoriseDocument(kind: string, title: string): { category: Doc
   if (/piesa|coes|piisa|electrical/.test(trusted)) return { category: "Electrical / PIESA", alsoIn: /piisa/.test(trusted) ? ["Installation", "ESC / VEEC"] : [], sub: null, audience: ["electrician", "installer", "owner"], status: "current", immutable: false };
   if (/piesa|coes|piisa|electrical/.test(t)) return { category: "Electrical / PIESA", alsoIn: [], sub: null, audience: [], status: "current", immutable: false };
   if (/floor|plan|property|imagery|outline/.test(k + " " + t)) return { category: "Property", alsoIn: [], sub: null, audience: [], status: "current", immutable: false };
-  if (/measure|sketch/.test(k)) return { category: "Measure-up", alsoIn: [], sub: null, audience: ["electrician", "installer"], status: "current", immutable: false };
-  if (/measure|sketch/.test(t)) return { category: "Measure-up", alsoIn: [], sub: null, audience: [], status: "current", immutable: false };
+  if (/measure|sketch/.test(k)) return { category: "Ready Check", alsoIn: [], sub: null, audience: ["electrician", "installer"], status: "current", immutable: false };
+  if (/measure|sketch/.test(t)) return { category: "Ready Check", alsoIn: [], sub: null, audience: [], status: "current", immutable: false };
   if (/quote/.test(t)) return { category: "Quotes", alsoIn: [], sub: null, audience: ["owner"], status: "current", immutable: false };
   if (/invoice|xero|payment|receipt/.test(t)) return { category: "Payments", alsoIn: ["Quotes"], sub: null, audience: ["owner"], status: "current", immutable: false };
   if (/esc|veec/.test(k + " " + t)) return { category: "ESC / VEEC", alsoIn: [], sub: null, audience: [], status: "current", immutable: false };
@@ -104,12 +104,12 @@ export function buildDocumentIndex(src: JobSources): DocItem[] {
     relatedEntity: "piesa_records", relatedId: String(p["id"]), audience: ["electrician", "installer", "owner"] }));
   for (const d of src.piesaDeliveries) out.push(base({ id: `piesa_deliveries:${d["id"]}`, title: `PIESA copy delivered to ${d["recipient"]} (${d["method"] ?? "method n/a"})`, category: "Electrical / PIESA", alsoIn: ["ESC / VEEC"],
     subcategory: "PIESA delivery", docType: "piesa_delivery", sourceSystem: "portal", at: s(d["delivered_at"]), actor: s(d["recorded_by"]), status: "final", immutable: true, relatedEntity: "piesa_deliveries", relatedId: String(d["id"]), audience: [] }));
-  for (const m of src.measurements) out.push(base({ id: `ceiling_measurements:${m["id"]}`, title: `Ceiling measure-up ${m["measured_area_m2"] ?? "?"} m² (${m["status"]})`, category: "Measure-up", docType: "measurement",
+  for (const m of src.measurements) out.push(base({ id: `ceiling_measurements:${m["id"]}`, title: `Ready Check ${m["measured_area_m2"] ?? "?"} m² (${m["status"]})`, category: "Ready Check", docType: "measurement",
     sourceSystem: String(m["external_source"] ?? "portal"), at: s(m["completed_at"] ?? m["created_at"]), actor: s(m["completed_by"]), status: m["is_current"] ? (m["status"] === "complete" ? "verified" : "current") : "superseded",
     verifiedBy: s(m["reviewed_by"]), verifiedAt: s(m["reviewed_at"]), relatedEntity: "ceiling_measurements", relatedId: String(m["id"]), audience: ["electrician", "installer"] }));
   for (const q of src.quotes) {
     const st = String(q["status"]);
-    out.push(base({ id: `quotes:${q["id"]}`, title: `${q["kind"] === "rectification" ? "Rectification" : "Installation"} quote ${q["option_label"] ?? ""} v${q["version"]}`, category: "Quotes", docType: "quote",
+    out.push(base({ id: `quotes:${q["id"]}`, title: `${q["kind"] === "rectification" ? "Electrical fixes" : "Installation"} quote ${q["option_label"] ?? ""} v${q["version"]}`, category: "Quotes", docType: "quote",
       sourceSystem: "portal", at: s(q["accepted_at"] ?? q["created_at"]), actor: s(q["created_by"]), version: s(q["version"]),
       status: st === "accepted" ? "signed" : st === "superseded" || st === "declined" ? "superseded" : st === "draft" ? "draft" : "current", immutable: st === "accepted",
       relatedEntity: "quotes", relatedId: String(q["id"]), audience: st === "draft" ? [] : ["owner"] }));
@@ -202,7 +202,7 @@ export function tagEvent(type: string): Exclude<TimelineFilter, "all" | "interna
   if (/eligib|piesa|assessment|compliance|assignment|authority|esc|veec|declaration|ap_|consent|variation/.test(t)) tags.push("compliance");
   if (/evidence|document|upload|copy|intelligence/.test(t)) tags.push("documents");
   if (/owner|customer|consumer|quote_accept|message/.test(t)) tags.push("customer");
-  if (/electrician|installer|assign|booking|measure|install|rectification/.test(t)) tags.push("trades");
+  if (/electrician|installer|assign|booking|measure|install|rectification|electrical fixes|ready check/i.test(t)) tags.push("trades");
   return tags;
 }
 

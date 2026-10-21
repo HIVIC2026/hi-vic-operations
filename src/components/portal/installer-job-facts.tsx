@@ -31,7 +31,7 @@ export function OfficeInstallerFactsCard({ jobId }: { jobId: string }) {
   return (
     <Section title="Installer's job">
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm" data-installer-facts-card>
-        <dt className="text-muted-foreground">Site check / measure-up</dt><dd className="font-semibold">{l.siteCheck.replace(/^Site check( done)?: /, "")}</dd>
+        <dt className="text-muted-foreground">Site check / Ready Check</dt><dd className="font-semibold">{l.siteCheck.replace(/^Site check( done)?: /, "")}</dd>
         <dt className="text-muted-foreground">Installer's quoted price</dt><dd className={f.quoted_price_inc_gst ? "font-semibold" : "font-semibold text-destructive"}>{f.quoted_price_inc_gst ? `$${f.quoted_price_inc_gst.toLocaleString("en-AU")} inc GST` : l.price}</dd>
         <dt className="text-muted-foreground">Price includes</dt><dd>{f.price_includes ?? "—"}</dd>
       </dl>

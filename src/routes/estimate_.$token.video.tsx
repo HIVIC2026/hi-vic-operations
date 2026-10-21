@@ -94,7 +94,7 @@ function VideoPage() {
         ) : data.resume === "spot_saved" || data.resume === "declared" ? (
           <section className="mt-6 p-6" role="status">
             <h1 className="font-display text-3xl font-bold">{data.resume === "spot_saved" ? "Your spot is saved" : "Answer received"}</h1>
-            <p className="mt-3">{data.resume === "spot_saved" ? "You don't need to answer these questions again." : "Your Yes is recorded as a homeowner declaration, not verified insulation. You can now save your spot."}</p>
+            <p className="mt-3">{data.resume === "spot_saved" ? "You don't need to answer these questions again." : "Your Yes is recorded as a owner declaration, not verified insulation. You can now save your spot."}</p>
             <Button asChild className="mt-4 h-12"><Link to="/estimate/$token/campaign" params={{ token }}>{data.resume === "spot_saved" ? "Return to my savings" : "Continue to Save my spot"}</Link></Button>
           </section>
         ) : (
@@ -116,7 +116,7 @@ function VideoPage() {
             </section>}
             {(option === "loose_fill_only" || option === "below_r2") && <section className="rounded-2xl border bg-card p-6 text-sm">
               <h2 className="font-display text-lg font-bold">Your answer</h2>
-              <p className="mt-2">Your Yes is recorded as a homeowner declaration, not verified insulation. Final onsite checks still apply.</p>
+              <p className="mt-2">Your Yes is recorded as a owner declaration, not verified insulation. Final onsite checks still apply.</p>
               {declared ? <p role="status" className="mt-3">Answer received. You can now save your spot.</p> : <>
                 <div className="mt-4 flex gap-2"><Button className="h-12 flex-1" disabled={declaring} onClick={() => void submitDeclaration()}>{declaring ? "Saving answer…" : "Yes"}</Button><Button variant="outline" className="h-12 flex-1" disabled={declaring} onClick={() => setDeclarationError("Please upload photos or a video, or we can check onsite.")}>No</Button><Button variant="outline" className="h-12 flex-1" disabled={declaring} onClick={() => setDeclarationError("Please upload photos or a video, or we can check onsite.")}>Not sure</Button></div>
                 {declarationError && <p role="status" className="mt-2">{declarationError}</p>}

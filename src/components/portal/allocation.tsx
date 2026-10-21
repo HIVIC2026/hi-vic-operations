@@ -10,7 +10,7 @@ import { Pill } from "@/components/portal/badges";
 import { useReasonDialog } from "@/components/portal/reason-dialog";
 import { getVisitContacts, listRecCandidates, releaseInstallContacts, reviewRectificationQuote, sendRectificationQuote, startPiesaOffers } from "@/lib/allocation.functions";
 
-const VISIT: Record<string, string> = { ready_check: "Ready Check", piesa: "PIESA electrical safety visit", rectification: "Electrical rectification", installation: "Installation" };
+const VISIT: Record<string, string> = { ready_check: "Ready Check", piesa: "Pre Insulation Electrical Safety Assessment (PIESA) visit", rectification: "electrical fixes", installation: "Installation" };
 
 /** Office: PIESA allocation, rectification quote review/send, installation contact release. */
 export function OfficeAllocationPanel({ jobId }: { jobId: string }) {
@@ -38,7 +38,7 @@ export function OfficeAllocationPanel({ jobId }: { jobId: string }) {
         {!!offers.data?.length && <ul className="space-y-1">{offers.data.map((o) => <li key={o.id} className="flex justify-between gap-2"><span>{(o.businesses as { name: string } | null)?.name} · {o.kind} · batch {o.batch}</span><Pill t={o.status === "accepted" ? "good" : o.status === "pending" ? "info" : "bad"}>{o.status}</Pill></li>)}</ul>}
         {rect.data && (
           <div className="rounded-lg border p-3">
-            <div className="font-semibold">Draft rectification quote — office review required before the owner sees it</div>
+            <div className="font-semibold">Draft electrical fixes quote — office review required before the owner sees it</div>
             <RectWindowsSummary jobId={jobId} />
             <div className="mt-2 flex gap-2">
               {!rect.data.office_reviewed_at

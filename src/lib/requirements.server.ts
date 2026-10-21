@@ -53,21 +53,21 @@ export async function advanceSiteRequirements(jobId: string, actorId: string) {
   }
   const { data: a } = await admin.from("assessments").select("id, piesa_outcome").eq("job_id", jobId).single();
   if (!a) throw new WorkflowError("No electrical assessment.");
-  await transition(jobId, "assessment_complete", actorId, `Site requirements complete – measure-up accepted, PIESA ${a.piesa_outcome}`, { measured_area_m2: s.measurementRow?.measured_area_m2, measurement_id: s.measurementRow?.id });
+  await transition(jobId, "assessment_complete", actorId, `Site requirements complete – Ready Check accepted, PIESA ${a.piesa_outcome}`, { measured_area_m2: s.measurementRow?.measured_area_m2, measurement_id: s.measurementRow?.id });
   const rectCount = await deriveRectificationItems(jobId, actorId);
   await admin.from("compliance_checks").update({ status: a.piesa_outcome === "pass" && rectCount === 0 ? "pass" : "pending" }).eq("job_id", jobId).eq("check_key", "electrical_assessment");
   if (rectCount > 0 || a.piesa_outcome === "fail") {
     await admin.from("evidence_requirements").update({ required: true, status: "outstanding" }).eq("job_id", jobId).eq("category", "rectification_completion");
-    await transition(jobId, "rectification_required", actorId, `${rectCount} rectification item(s) required`);
+    await transition(jobId, "rectification_required", actorId, `${rectCount} electrical fixes item(s) required`);
     if (rectCount > 0) {
       await generateRectificationQuote(jobId, actorId);
-      await transition(jobId, "awaiting_owner_rectification_approval", actorId, "Rectification quote issued to owner");
+      await transition(jobId, "awaiting_owner_rectification_approval", actorId, "Electrical fixes quote issued to owner");
     }
   } else {
     await admin.from("compliance_checks").update({ status: "pass" }).eq("job_id", jobId).eq("check_key", "rectification");
-    await transition(jobId, "ready_for_installer_quotes", actorId, "No rectification required – ready for installer quotes");
+    await transition(jobId, "ready_for_installer_quotes", actorId, "No electrical fixes required – ready for installer quotes");
   }
-  await logEvent(jobId, actorId, "site_requirements_complete", "Measure-up and electrical/PIESA requirements both complete", { measurement_id: s.measurementRow?.id }, { internal: true });
+  await logEvent(jobId, actorId, "site_requirements_complete", "Ready Check and electrical/PIESA requirements both complete", { measurement_id: s.measurementRow?.id }, { internal: true });
   return { advanced: true, scope: "COMPLETE" as const };
 }
 
@@ -94,7 +94,7 @@ async function advanceAfterPiesa(jobId: string, actorId: string, scope: string) 
   });
   if (decision.action === "hold") return { advanced: false, scope, held: decision.reason };
   try {
-    await transition(jobId, "piesa_complete", actorId, `PIESA ${decision.outcome} recorded – safety check complete`, { assessment_id: a?.id, piesa_outcome: decision.outcome });
+    await transition(jobId, "piesa_complete", actorId, `PIESA ${decision.outcome} recorded – Pre Insulation Electrical Safety Assessment (PIESA) complete`, { assessment_id: a?.id, piesa_outcome: decision.outcome });
   } catch (e) {
     if (!(e instanceof WorkflowError)) throw e;
     await admin.from("jobs").update({ next_action: e.message.replace(/^Blocked:\s*/, "") }).eq("id", jobId);
@@ -107,6 +107,6 @@ async function advanceAfterPiesa(jobId: string, actorId: string, scope: string) 
   } else {
     await admin.from("compliance_checks").update({ status: "pass" }).eq("job_id", jobId).eq("check_key", "rectification");
   }
-  await logEvent(jobId, actorId, "site_requirements_complete", `PIESA ${decision.outcome} recorded – safety check complete`, { assessment_id: a?.id, rectification_items: rectCount }, { internal: true });
+  await logEvent(jobId, actorId, "site_requirements_complete", `PIESA ${decision.outcome} recorded – Pre Insulation Electrical Safety Assessment (PIESA) complete`, { assessment_id: a?.id, rectification_items: rectCount }, { internal: true });
   return { advanced: true, scope: "COMPLETE" as const };
 }

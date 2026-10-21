@@ -62,7 +62,7 @@ describe("Add job flow (Jo 8 Oct)", () => {
 
 import { READY_CHECK_CONTACT_PERMISSION } from "../src/lib/job-electrician.core";
 test("onsite/later consent wording is Jo's exact text and an unticked box blocks progress", () => {
-  expect(READY_CHECK_CONTACT_PERMISSION).toBe("The homeowner has given Home Insulation Victoria permission to contact them for the eligibility assessment.");
+  expect(READY_CHECK_CONTACT_PERMISSION).toBe("The owner has given Home Insulation Victoria permission to contact them for the eligibility assessment.");
   const c = { ...restoreCustomer({ full_name: "TEST Owner", address_line: "1 Test St", suburb: "Melbourne", postcode: "3000", phone: "0400000000", email: "t@example.test", contact_permission: true, consent_by: "installer" }) };
   expect(c.contact_permission).toBe(false);
   expect(onsiteProblems(c).some((m) => /permission/.test(m))).toBe(true);

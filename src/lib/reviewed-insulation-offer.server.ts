@@ -40,7 +40,7 @@ export async function reviewedInsulationOffer(jobId: string, actorId: string | n
     if (current.error || link.error || !current.data || current.data.insulation_declared !== expected || !linkUsable(link.data) || link.data?.current_estimate_id !== current.data.id) return result('blocked', 'The reviewed estimate and secure link could not be verified. Refresh this enquiry before continuing.', true);
     return result('skipped', 'Reviewed estimate and secure link prepared using current pricing. No email was sent. Preview the email before sending.');
   }
-  if (estimate.data?.insulation_declared !== expected || !linkUsable(existingLink.data)) return result('blocked', 'Prepare the reviewed estimate and secure link first. The homeowner’s original answer will be preserved.', true);
+  if (estimate.data?.insulation_declared !== expected || !linkUsable(existingLink.data)) return result('blocked', 'Prepare the reviewed estimate and secure link first. The owner’s original answer will be preserved.', true);
   if (review === 'below_r2') return sendExistingInsulationSaveSpot(jobId, actorId, mode === 'preview');
   const [sent] = await sendSaveMySpot([jobId], actorId, mode === 'preview' ? { mode: 'preview' } : {});
   return sent ?? result('uncertain', 'No send result was returned. Check communication history before retrying.');

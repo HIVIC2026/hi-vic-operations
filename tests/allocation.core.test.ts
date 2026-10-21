@@ -55,7 +55,7 @@ describe("direct coordination", () => {
   });
 });
 
-describe("clearance and rectification", () => {
+describe("clearance and electrical fixes", () => {
   const c = { piesaOutcome: "pass" as const, piesaCompletedAt: "2026-10-01", rectificationRequired: false, rectificationQuoteAccepted: false, rectificationCompletedAt: null, sectionCSignedAt: null };
   test("installation blocked before clearance", () => {
     expect(installationCoordinationBlocker(electricalClearance({ ...c, piesaCompletedAt: null }))).not.toBeNull();
@@ -130,7 +130,7 @@ describe("Finish pass: deep links, status wording, planning notice", () => {
     expect(l({ stage: "piesa_and_install_window_pending", proposalPending: true })).toBe("Awaiting owner confirmation");
     expect(l({ stage: "piesa_scheduled" })).toBe("Booked");
     expect(l({ stage: "piesa_complete" })).toBe("PIESA complete");
-    expect(l({ stage: "rectification_required" })).toBe("Rectification required");
+    expect(l({ stage: "rectification_required" })).toBe("Electrical fixes required");
     expect(l({ stage: "installation_scheduling" })).toBe("Electrically cleared");
   });
   test("planning notice is queued only after a confirmed PIESA booking, through the outbox, never as a stage change", () => {

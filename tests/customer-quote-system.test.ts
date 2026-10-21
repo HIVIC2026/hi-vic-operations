@@ -18,9 +18,9 @@ describe("customer quote system", () => {
     expect(CUSTOMER_CALCULATOR_COPY).toBe("Use this calculator to compare how a different Victorian property address or ceiling size could change your estimated project total, VEU / VEEC discount and estimated cost after discount.");
     expect(CUSTOMER_VISUAL_SYSTEM).toEqual({ quoteRadiusPx: 20, secondaryRadiusPx: 16, secondaryPaddingPx: 20, actionRadiusPx: 16, actionPaddingPx: 16, softBlueBorder: "#D4DAF5", softGreenBorder: "#BEE8CE", paleGreen: "#ECF9F1", footer: "#F1F8F3" });
     expect(CUSTOMER_ASSESSMENT_ACTION.cta).toBe("BOOK MY READY CHECK →");
-    expect(CUSTOMER_ASSESSMENT_ACTION.paragraphs[0]).toBe("Your Home Insulation Ready Check is free.");
+    expect(CUSTOMER_ASSESSMENT_ACTION.paragraphs[0]).toBe("Your Ready Check is free.");
     expect(CUSTOMER_WHAT_COULD_CHANGE.heading).toBe("WHAT COULD CHANGE MY ESTIMATE?");
-    expect(CUSTOMER_WHAT_COULD_CHANGE.items).toEqual([]); expect(CUSTOMER_WHAT_COULD_CHANGE.intro).toContain("measured ceiling size, existing insulation and any required removal, ceiling access conditions, and any electrical rectification");
+    expect(CUSTOMER_WHAT_COULD_CHANGE.items).toEqual([]); expect(CUSTOMER_WHAT_COULD_CHANGE.intro).toContain("measured ceiling size, existing insulation and any required removal, ceiling access conditions, and any electrical fixes");
     expect(CUSTOMER_WHAT_COULD_CHANGE.closing).toBe("We will never proceed with additional work or additional costs without first showing you the scope and price and getting your approval.");
   });
 

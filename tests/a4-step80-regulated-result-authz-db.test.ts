@@ -217,7 +217,7 @@ describe("B · licensed electrician (electrician app role) assigned to the job k
   });
   test("recordPiesa passes the guard (reaches the stage rule)", async () => {
     const r = await outcome(call(portal.recordPiesa, U.licensed, { jobId: JOB.e, kind: "post_rectification", outcome: "pass", completedDate: "2026-10-01" }));
-    expect(r).toEqual({ ok: false, error: "Rectification must be booked first." });
+    expect(r).toEqual({ ok: false, error: "Electrical fixes must be booked first." });
   });
   test("submitDeclaration('electrician_declaration') is recorded", async () => {
     const r = await outcome(call(portal.submitDeclaration, U.licensed, { jobId: JOB.e, kind: "electrician_declaration", statement: "I declare the electrical work is safe." }));
@@ -249,7 +249,7 @@ describe("C · licence validity (characterisation: what HEAD enforces today)", (
 
 describe("D/E · installer-only, unapproved business, other REC, customers", () => {
   const denied: [string, string][] = [["installer-only user on the job", U.installerOnly], ["admin of an unapproved business not assigned to the job", U.unapprovedBizAdmin],
-    ["another REC's licensed electrician", U.otherRecElectrician], ["the job's own homeowner", U.ownerA], ["an unrelated customer", U.ownerB]];
+    ["another REC's licensed electrician", U.otherRecElectrician], ["the job's own owner", U.ownerA], ["an unrelated customer", U.ownerB]];
   for (const [who, uid] of denied) test(`${who}: every regulated-result path is refused before any write`, async () => {
     const before = await draft(JOB.e);
     for (const [f, data] of [
@@ -268,7 +268,7 @@ describe("D/E · installer-only, unapproved business, other REC, customers", () 
   });
 });
 
-describe("F/G/H · Homeowner job route data (getJobOverview)", () => {
+describe("F/G/H · Owner job route data (getJobOverview)", () => {
   test("F: own job loads in full", async () => {
     const r = await outcome(call(records.getJobOverview, U.ownerA, { jobId: JOB.e }));
     expect(r.ok).toBe(true);

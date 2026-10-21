@@ -51,7 +51,7 @@ export function partnerWelcomeEmail(i: { firstName: string | null; businessName:
     { kind: "p", text: `Great news — ${i.businessName} is now an approved Home Insulation Victoria partner.` },
     { kind: "p", text: "Your partner portal is where you'll:" },
     { kind: "list", items: [
-      i.trade === "installer" ? "see and accept insulation jobs near you" : "see and accept electrical safety checks near you",
+      i.trade === "installer" ? "see and accept insulation jobs near you" : "see and accept PIESAs near you",
       "add your own customers",
       "track every job, payment and form in one place",
     ] },

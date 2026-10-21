@@ -86,7 +86,7 @@ export function OutlookReview() {
         <p className="mt-3">Last synced mailbox: <b>{s.mailbox ?? "—"}</b> · last run {fmt(s.last_run_at)} · last success {fmt(s.last_ok_at)}</p>
         {s?.last_error && <p className="mt-1 text-danger">Last problem: {s.last_error}</p>}
         {data.pending > 0 && <p className="mt-1 text-danger">{data.pending} message(s) still await completed processing. Pending work is retained for retry.</p>}
-        <p className="mt-1 text-sub">Copies homeowner emails (in and out) from {fmt(s?.backfill_from)} onto each job, every 10 minutes. It never sends anything.
+        <p className="mt-1 text-sub">Copies owner emails (in and out) from {fmt(s?.backfill_from)} onto each job, every 10 minutes. It never sends anything.
           {Object.keys(counts).length > 0 && <> Last pass: {counts["stored"] ?? 0} saved, {counts["unmatched"] ?? 0} to match, {counts["closed"] ?? 0} closed, {counts["flagged"] ?? 0} to check.</>}</p>
       </section>
 

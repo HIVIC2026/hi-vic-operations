@@ -7,7 +7,7 @@ export const JOURNEY_STEPS = [
   { key: "s3_office_offer", label: "3. Office: Spot saved / Hot leads, offered to TEST installer" },
   { key: "s4_ready_check", label: "4. TEST installer: Ready Check and quote maths" },
   { key: "s5_owner_accept", label: "5. Owner: accepts quote and paperwork" },
-  { key: "s6_electrician", label: "6. TEST electrician: safety check (all clear, and with fixes), certificate" },
+  { key: "s6_electrician", label: "6. TEST electrician: Pre Insulation Electrical Safety Assessment (PIESA) (all clear, and with fixes), certificate" },
   { key: "s7_install", label: "7. Installer: install booking (deadline rules), install day, evidence" },
   { key: "s8_ap_payout", label: "8. Office: AP sign-off, payout Coming in 7 days" },
   { key: "s9_visibility", label: "9. Who sees what (prices, owner details, Money)" },

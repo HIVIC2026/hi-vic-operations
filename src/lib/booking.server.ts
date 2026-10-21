@@ -31,7 +31,7 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
   if (kind === "ready_check") {
     const business = contractor.businesses as { business_type: string; onboarding_status: string; is_active: boolean; capabilities: string[] | null } | null;
     if (!contractor.business_id || !business?.is_active || business.onboarding_status !== "approved" || (business.business_type !== "eec_installer" && !business.capabilities?.includes("installer")))
-      throw new WorkflowError("The Ready Check must be assigned to an approved EEC Certified Insulation Installer.");
+      throw new WorkflowError("The Ready Check must be assigned to an approved installer.");
     const { requireApprovedPartner } = await import("./pilot.server");
     await requireApprovedPartner(contractor.business_id);
   }

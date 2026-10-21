@@ -20,8 +20,8 @@ export const INSTALLER_AGREEMENT_TITLE = "Activity 48 Insulation Installer Partn
 
 export const ACKNOWLEDGEMENTS = [
   { key: "authority", text: "I am authorised to bind the Installer business to this agreement." },
-  { key: "personnel", text: "The Installer will ensure every person who installs on Home Insulation Victoria jobs is competent, holds a current EEC Certified Insulation Installer (CII) certification verified by Home Insulation Victoria before they are assigned, and complies with the obligations that apply to them." },
-  { key: "compliance", text: "I understand the Installer and its personnel must comply with current VEU, Code of Conduct, Activity 48, AS 3999, safety and Home Insulation Victoria requirements, and must not install without a current signed VEU pre-installation electrical safety assessment and Home Insulation Victoria ready-to-install confirmation." },
+  { key: "personnel", text: "The Installer will ensure every person who installs on Home Insulation Victoria jobs is competent, holds a current Installer (CII) certification verified by Home Insulation Victoria before they are assigned, and complies with the obligations that apply to them." },
+  { key: "compliance", text: "I understand the Installer and its personnel must comply with current VEU, Code of Conduct, Activity 48, AS 3999, safety and Home Insulation Victoria requirements, and must not install without a current signed VEU Pre Insulation Electrical Safety Assessment (PIESA) and Home Insulation Victoria ready-to-install confirmation." },
   { key: "records", text: "I confirm the Installer will provide truthful measurements, records and evidence and cooperate with Home Insulation Victoria, ESC and regulator compliance checks." },
   { key: "no_bypass", text: "I understand that removal, access, extras and other work identified through a Home Insulation Victoria Activity 48 job must be quoted, approved, scheduled and completed through the Home Insulation Victoria workflow and must not be taken off-platform or dealt with directly." },
   { key: "pricing", text: "I understand our approved rates are supplier rates, not customer prices. On Home Insulation Victoria-sourced jobs, Home Insulation Victoria sets the customer price and may include its own margin, which it is not required to disclose to us. On jobs we bring in ourselves, we set our own price and Home Insulation Victoria adds no lead fee and no margin to it; the customer quote adds the Accredited Person fee recorded for the Installer in Home Insulation Victoria (standard $349 including GST, or a lower pilot rate agreed in writing) and that fee is fixed once the customer accepts the quote. The PIESA is a compliance step arranged or required by Home Insulation Victoria and is not part of our supplier rate. I will not share our rates with customers." },
@@ -212,7 +212,7 @@ export function stepFieldErrors(step: StepKey, d: InstData, now = new Date()): F
       break;
     case "services":
       if (typeof d.wants_hivic_leads !== "boolean") add("wants_hivic_leads", "Tell us if you want to receive pre-qualified leads from Home Insulation Victoria.");
-      if (d.wants_hivic_leads === true && d.free_measureups_for_hivic_quote_leads !== true) add("free_measureups", "Free Home Insulation Ready Checks (measure-up) are required to receive pre-qualified Home Insulation Victoria leads.");
+      if (d.wants_hivic_leads === true && d.free_measureups_for_hivic_quote_leads !== true) add("free_measureups", "Free Ready Checks are required to receive pre-qualified Home Insulation Victoria leads.");
       break;
     case "coverage":
       if (!txt(d.service_origin)) add("service-origin", "Enter your service starting location.");
@@ -325,13 +325,13 @@ export function scheduleText(d: InstData): string {
     `Public liability: ${d.insurer ?? ""} policy ${d.insurance_policy_number ?? ""}, cover ${money(d.public_liability_cover_amount)}, expires ${d.public_liability_expiry ?? ""}`);
   L.push("", "Nominated installers:");
   (d.installers ?? []).forEach((x, i) => L.push(`${i + 1}. ${x.full_legal_name} — ${workerCiiLabel(x)}`));
-  L.push("Only people whose EEC Certified Insulation Installer (CII) certification Home Insulation Victoria has verified may be assigned to install.");
+  L.push("Only people whose Installer (CII) certification Home Insulation Victoria has verified may be assigned to install.");
   L.push("", "SCHEDULE 2 — SERVICES, COVERAGE AND CAPACITY");
-  L.push("Free Home Insulation Ready Check: installer eligibility check, ceiling measure-up and required site evidence; no electrical assessment or PIESA");
+  L.push("Free Ready Check: installer eligibility check, ceiling Ready Check and required site evidence; no electrical assessment or PIESA");
   L.push("Ceiling insulation supply & installation: included");
   L.push("Removal of existing insulation (batts and loose fill): included — required of all installer partners",
     `Receives pre-qualified Home Insulation Victoria leads: ${d.wants_hivic_leads ? "yes" : "no"}`);
-  if (d.wants_hivic_leads) L.push("Free Home Insulation Ready Checks (measure-up) for those leads: yes — the installer receives the job if it proceeds, unless the owner specifies otherwise");
+  if (d.wants_hivic_leads) L.push("Free Ready Checks for those leads: yes — the installer receives the job if it proceeds, unless the owner specifies otherwise");
   L.push(`Service origin: ${d.service_origin ?? ""}; radius: ${d.travel_radius_km === 9999 ? "anywhere in Victoria" : `${d.travel_radius_km} km`}${d.excluded_areas ? `; excluded: ${d.excluded_areas}` : ""}`);
   L.push(`Days: ${(d.typical_days ?? []).join(", ")}; lead time: ${d.normal_attendance_speed ?? ""}`);
   L.push(`Available for new work at signing: ${d.accepting_jobs === true ? "yes" : "no — Home Insulation Victoria will not offer new leads until the Installer updates this"}`);

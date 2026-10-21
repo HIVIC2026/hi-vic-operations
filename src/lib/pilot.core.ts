@@ -124,7 +124,7 @@ export const FIELD_LABEL: Record<ImportField, string> = {
   full_name: "Owner name", email: "Owner email", phone: "Owner phone", address_line: "Street address", suburb: "Suburb", postcode: "Postcode",
   external_reference: "Your job / lead reference", measured_area_m2: "Measured ceiling area (m²)", removal_required: "Removal required",
   removal_m2: "Removal area (m²)", existing_r_value: "Existing insulation R-value", product: "Proposed product", r_value: "Proposed R-value",
-  access_notes: "Roof access / special access", inspection_status: "Inspection / measure-up status", electrical_status: "Electrical safety status",
+  access_notes: "Roof access / special access", inspection_status: "Inspection / Ready Check status", electrical_status: "Pre Insulation Electrical Safety Assessment (PIESA) status",
   swms_status: "SWMS / evidence status", electrician_name: "Named electrician", notes: "Notes",
   measurement_purpose: "Measurement purpose (sales estimate / onsite / final)", measurement_method: "Measurement method (laser, tape, floor plan, aerial…)",
   measured_by: "Measured by", measured_on: "Measured date", gross_area_m2: "Gross area (m²)", excluded_area_m2: "Excluded / non-ceiling area (m²)",
@@ -456,9 +456,9 @@ export function bucketFor(stage: string): PartnerBucket {
 }
 
 /** Electrician (REC) dashboard groups, in source-of-truth wording. Presentation only. */
-export const REC_BUCKETS = ["Accepted · Arrange visit", "Awaiting owner confirmation", "Booked", "PIESA complete", "Rectification required", "Electrically cleared", "Other"] as const;
+export const REC_BUCKETS = ["Accepted · Arrange visit", "Awaiting owner confirmation", "Booked", "PIESA complete", "Electrical fixes required", "Electrically cleared", "Other"] as const;
 export function recBucketFor(label: string): (typeof REC_BUCKETS)[number] {
-  if (label === "Rectification required · Arrange visit") return "Rectification required";
+  if (label === "Electrical fixes required · Arrange visit") return "Electrical fixes required";
   return (REC_BUCKETS as readonly string[]).includes(label) ? (label as (typeof REC_BUCKETS)[number]) : "Other";
 }
 

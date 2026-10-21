@@ -54,7 +54,7 @@ export async function moveHoldForPiesa(jobId: string, piesaStartIso: string, act
 export async function moveHoldForRectification(jobId: string, rectStartIso: string, actorId: string | null) {
   const { data: h } = await admin.from("install_holds").select("id").eq("job_id", jobId).eq("status", "active").maybeSingle();
   if (!h) return null;
-  return place(jobId, rectificationHoldWeek(rectStartIso), undefined, "rectification expected", actorId, "install_hold_moved");
+  return place(jobId, rectificationHoldWeek(rectStartIso), undefined, "electrical fixes expected", actorId, "install_hold_moved");
 }
 
 /** 15-minute timer: release holds with no PIESA booked within 10 days. */

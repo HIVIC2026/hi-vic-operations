@@ -55,7 +55,7 @@ export const DEFAULT_ESTIMATED_AREA_M2 = 150;
 /** Strongest preliminary area: accepted current measurement > job (owner) estimate > trusted area estimate > typical-home default (clearly labelled, never presented as measured). */
 export function pickArea(c: { measurement?: { id: string; m2: number | null; label?: string } | null; estimate?: { id: string; m2: number | null; tier: string } | null; owner?: number | null }): AreaCandidate {
   const ok = (v: number | null | undefined): v is number => typeof v === "number" && Number.isFinite(v) && v > 0;
-  if (c.measurement && ok(c.measurement.m2)) return { m2: c.measurement.m2, source: "accepted_measurement", basis: "measured", id: c.measurement.id, label: c.measurement.label ?? "Accepted ceiling measure-up" };
+  if (c.measurement && ok(c.measurement.m2)) return { m2: c.measurement.m2, source: "accepted_measurement", basis: "measured", id: c.measurement.id, label: c.measurement.label ?? "Accepted ceiling Ready Check" };
   // Owner-supplied size beats any research area for the preliminary enquiry quote (Jo, 19 Oct 2026).
   if (ok(c.owner)) return { m2: c.owner, source: "owner_estimate", basis: "declared", id: null, label: "Your estimate" };
   if (c.estimate && ok(c.estimate.m2)) return { m2: c.estimate.m2, source: "area_estimate", basis: `researched (tier ${c.estimate.tier})`, id: c.estimate.id, label: `Property research estimate (tier ${c.estimate.tier})` };
@@ -134,8 +134,8 @@ export function estimateSignature(i: { mode: DisplayMode; area: AreaCandidate; p
 }
 
 export const dollars = (n: number) => `$${Math.round(n).toLocaleString("en-AU")}`;
-export const electricalNote = (fee: number) => `Electrical safety assessment included in the ${dollars(fee)} onsite assessment. Any electrical rectification identified by the PIESA is not included in this estimate and will be itemised for approval before work proceeds.`;
-export const DISCLAIMER = "Indicative estimate only. Your final price depends on the onsite measurement, existing insulation, access, electrical safety, eligibility and the VEEC market value at the time.";
+export const electricalNote = (fee: number) => `Pre Insulation Electrical Safety Assessment (PIESA) included in the ${dollars(fee)} onsite assessment. Any electrical fixes identified by the PIESA is not included in this estimate and will be itemised for approval before work proceeds.`;
+export const DISCLAIMER = "Indicative estimate only. Your final price depends on the onsite measurement, existing insulation, access, Pre Insulation Electrical Safety Assessment (PIESA), eligibility and the VEEC market value at the time.";
 export const MEASURE_REQUIRED = "We need a ceiling-area estimate before we can calculate indicative savings";
 
 // ---- Step 3 refinement: public wording + customer what-if calculator (pure; never persisted) ----

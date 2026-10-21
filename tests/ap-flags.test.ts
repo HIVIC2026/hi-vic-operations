@@ -47,7 +47,7 @@ describe("AP approval only through the queue (static)", () => {
   const pf = readFileSync(new URL("../src/lib/portal.functions.ts", import.meta.url), "utf8");
   test("no compliance or evidence action can promote AP review", () => {
     expect(pf).not.toContain("allowApPromotion");
-    expect(readFileSync(new URL("../src/lib/autoadvance.core.ts", import.meta.url), "utf8")).toContain('stop("AP review: approve in AP queue")');
+    expect(readFileSync(new URL("../src/lib/autoadvance.core.ts", import.meta.url), "utf8")).toContain('stop("Final check: approve in AP queue")');
   });
   test("old Ready for VEEC action refuses AP review jobs", () => expect(pf).toContain("Final AP approval happens only in the AP approval queue"));
   test("job page links to the AP queue", () => expect(readFileSync(new URL("../src/routes/_authenticated/admin.jobs.$jobId.tsx", import.meta.url), "utf8")).toContain("Approve in AP queue"));

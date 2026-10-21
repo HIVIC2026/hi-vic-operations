@@ -15,7 +15,7 @@ describe("Jo 7 Oct: Add one job + each Upload jobs card", () => {
     expect(ONE_JOB_PERMISSION_WORDING).toBe(OWNER_CONTACT_PERMISSION);
   });
   test("safety check note is Jo's approved wording, shown under the choice", () => {
-    expect(SAFETY_CHECK_NOTE).toBe("Once the owner accepts the quote and pays the $349 safety check, they'll choose 3 days and times that suit them. These go to the electrician to accept, and the booking updates in the job automatically so everyone can see it.");
+    expect(SAFETY_CHECK_NOTE).toBe("Once the owner accepts the quote and pays the $349 Pre Insulation Electrical Safety Assessment (PIESA), they'll choose 3 days and times that suit them. These go to the electrician to accept, and the booking updates in the job automatically so everyone can see it.");
     expect(read("src/components/trade/job-intake.tsx")).toContain("{SAFETY_CHECK_NOTE}");
   });
   test("My electrician needs a pick; Home Insulation Victoria arranges never blocks", () => {

@@ -25,7 +25,7 @@ export function createPreviewIntakeApi() {
   let files: Files = [];
   const submitted: unknown[] = [];
   const api: IntakeApi = {
-    sampleCustomer: { full_name: "Sample Homeowner", address_line: "1 Example Street", suburb: "Melbourne", postcode: "3000", phone: "0400 000 000", email: "sample.homeowner@example.invalid" },
+    sampleCustomer: { full_name: "Sample Owner", address_line: "1 Example Street", suburb: "Melbourne", postcode: "3000", phone: "0400 000 000", email: "sample.homeowner@example.invalid" },
     getEl: async () => ({ approved: [{ businessId: "preview-electrician", name: "Sample Electrical (sample)", status: "approved", primary: true }], pending: [] }),
     addEl: async () => ({ businessId: null, nominationId: "preview-nomination", invited: false, preview: true }),
     loadDraft: async () => ({ status: "gone", files: [], jobId: null, jobNumber: null, receipt: null }),

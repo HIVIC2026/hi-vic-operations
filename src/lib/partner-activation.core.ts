@@ -70,7 +70,7 @@ export function mandatoryActivationBlockers(type: PartnerType, data: RecData | I
   if (type !== "installer") return [];
   const emails = ((data as InstData).installers ?? []).map((w) => (w.email ?? "").trim().toLowerCase());
   const verified = emails.filter((e) => certifications?.get(e)?.status === "verified");
-  return verified.length ? [] : ["At least one nominated installer needs an office-verified EEC Certified Insulation Installer (CII) certification before activation."];
+  return verified.length ? [] : ["At least one nominated installer needs an office-verified Installer (CII) certification before activation."];
 }
 
 export function activationBlockers(type: PartnerType, data: RecData | InstData, agreementVersion: string | null, signedAt: string | null, now = new Date()) {
@@ -148,7 +148,7 @@ export function approvedRateItems(type: PartnerType, raw: RecData | InstData) {
   }
   const d = raw as RecData;
   const rows = [
-    { code: "PIESA", description: "Pre-insulation electrical safety assessment (PIESA)", category: "electrical", unit: "flat", value: d.assessment_rate, r_value: null, sort: 1 },
+    { code: "PIESA", description: "Pre Insulation Electrical Safety Assessment (PIESA)", category: "electrical", unit: "flat", value: d.assessment_rate, r_value: null, sort: 1 },
     { code: "INSTALL_ATTENDANCE", description: "Installation-day electrical attendance", category: "electrical", unit: "flat", value: d.installation_attendance_rate, r_value: null, sort: 2 },
     ...RECT_ITEMS.map((item, i) => ({ code: item.rateCode, description: item.label, category: "electrical", unit: "each", display_unit: item.unit, value: d.rectification_rates?.[item.key], r_value: null, sort: 10 + i })),
     ...(d.custom_rectification_rates ?? []).map((item, i) => ({ code: customRateCode(item.id), description: item.description.trim(), category: "electrical", unit: "each", display_unit: item.unit.trim(), value: item.price, r_value: null, sort: 30 + i })),

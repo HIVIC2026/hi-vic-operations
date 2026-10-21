@@ -117,7 +117,7 @@ export async function gatherEvidence(i: GatherInput, fetchJson: FetchJson): Prom
   else {
     if (prov?.floorplan?.area_m2 && prov.floorplan.ties_to_relevant_ceiling) areas.push({ tier: "B", method: "Sourced floor plan", source_name: i.provider!.key, source_url: prov.floorplan.url, gross_m2: prov.floorplan.area_m2, excluded_m2: null, net_m2: prov.floorplan.area_m2, confidence: TIER_CONFIDENCE.B, notes: null });
     if (prov?.listing?.floor_area_m2 && (prov.listing.storeys ?? 0) === 1) areas.push({ tier: "D", method: "Sourced listing floor area (single storey)", source_name: i.provider!.key, source_url: prov.listing.url, gross_m2: prov.listing.floor_area_m2, excluded_m2: null, net_m2: prov.listing.floor_area_m2, confidence: TIER_CONFIDENCE.D, notes: "Listing floor area – may include garage/alfresco" });
-    if (i.ownerEstimateM2 && i.ownerEstimateM2 > 0) areas.push({ tier: "F", method: "Owner estimate (enquiry)", source_name: "Homeowner enquiry", source_url: null, gross_m2: i.ownerEstimateM2, excluded_m2: null, net_m2: i.ownerEstimateM2, confidence: TIER_CONFIDENCE.F, notes: null });
+    if (i.ownerEstimateM2 && i.ownerEstimateM2 > 0) areas.push({ tier: "F", method: "Owner estimate (enquiry)", source_name: "Owner enquiry", source_url: null, gross_m2: i.ownerEstimateM2, excluded_m2: null, net_m2: i.ownerEstimateM2, confidence: TIER_CONFIDENCE.F, notes: null });
   }
   // 6. Licensed providers (isolated; each may fail alone). Merge by purpose priority; never overwrite partner evidence.
   let floorplans: FloorplanRow[] = []; let storagePolicy: StoragePolicy = "unknown";

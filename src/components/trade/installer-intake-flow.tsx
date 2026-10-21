@@ -310,7 +310,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
         <RemovalQuoteFields value={d.removal ?? blankRemoval()} disabled={busy || fileBusy} onChange={(removal) => setD({ ...d, removal })} />
         <div data-supporting-files>
         {fileNote && <p className="text-xs text-sub" data-file-note>{fileNote}</p>}
-        <AttachFiles businessId={businessId} files={files.filter((f) => f.purpose === "supporting")} disabled={busy || fileBusy} label="Supporting photos, videos or measure-up (optional)" onAdd={(picked) => changeFiles(() => addPicked(picked, "supporting"))} onRemove={(path) => changeFiles(() => removeAttached(path))} />
+        <AttachFiles businessId={businessId} files={files.filter((f) => f.purpose === "supporting")} disabled={busy || fileBusy} label="Supporting photos, videos or Ready Check (optional)" onAdd={(picked) => changeFiles(() => addPicked(picked, "supporting"))} onRemove={(path) => changeFiles(() => removeAttached(path))} />
         <p className="mt-1 text-xs text-sub">These are supporting evidence only — they don't count as your quote. Each item is reviewed before it's accepted.</p>
         {files.some((f) => f.purpose == null) && <p className="mt-1 text-xs text-sub" data-unclassified-files>{files.filter((f) => f.purpose == null).length} earlier file(s) have no label yet. They are kept and don't count as your quote — say what each one is from the job page after saving.</p>}
         </div>

@@ -41,11 +41,11 @@ export function planStep(stage: Stage, f: AdvanceFacts): Step {
     case "eligibility_review":
       if (!f.eligibilityConfirmed) return stop("Home Insulation Victoria must confirm Gate 1 eligibility");
       // Jo, 8 Oct: the Ready Check comes only AFTER the owner saves their spot.
-      return f.measureUpAccepted ? t("ready_check_complete", "Eligibility confirmed – accepted measure-up already on file, no Ready Check needed") : t("preliminary_estimate_ready", "Eligibility passed – waiting for the owner to save their spot");
+      return f.measureUpAccepted ? t("ready_check_complete", "Eligibility confirmed – accepted Ready Check already on file, no Ready Check needed") : t("preliminary_estimate_ready", "Eligibility passed – waiting for the owner to save their spot");
     case "preliminary_estimate_ready":
-      return f.measureUpAccepted ? t("ready_check_complete", "Accepted measure-up on file – Ready Check not needed") : stop("Waiting for the owner to save their spot");
+      return f.measureUpAccepted ? t("ready_check_complete", "Accepted Ready Check on file – Ready Check not needed") : stop("Waiting for the owner to save their spot");
     case "ready_check_ready_to_schedule":
-      return f.measureUpAccepted ? t("ready_check_complete", "Accepted measure-up on file – Ready Check not needed") : stop("Home Insulation Victoria must assign an installer for the free Ready Check");
+      return f.measureUpAccepted ? t("ready_check_complete", "Accepted Ready Check on file – Ready Check not needed") : stop("Home Insulation Victoria must assign an installer for the free Ready Check");
     case "awaiting_electrician":
     case "assessment_booking":
     case "assessment_booked":
@@ -55,13 +55,13 @@ export function planStep(stage: Stage, f: AdvanceFacts): Step {
       // No rectification: the same unlock as after payment (installation_scheduling entry still needs a passing current
       // PIESA, the accepted quote, a verified payment option and a valid 30-day window). Rectification found at the PIESA
       // is routed by Home Insulation Victoria (variation vs rectification scheduling is not automated).
-      return f.openRectItems > 0 ? stop("Rectification listed at the PIESA – Home Insulation Victoria must route the rectification") : t("installation_scheduling", "PIESA complete, no rectification – installation scheduling unlocked");
+      return f.openRectItems > 0 ? stop("Electrical fixes listed at the PIESA – Home Insulation Victoria must route the electrical fixes") : t("installation_scheduling", "PIESA complete, no electrical fixes – installation scheduling unlocked");
     case "assessment_complete":
-      return f.openRectItems > 0 ? t("rectification_required", `${f.openRectItems} rectification item(s) required`) : t("ready_for_installer_quotes", "No rectification required – ready for installer quotes");
+      return f.openRectItems > 0 ? t("rectification_required", `${f.openRectItems} electrical fixes item(s) required`) : t("ready_for_installer_quotes", "No electrical fixes required – ready for installer quotes");
     case "rectification_required":
-      return f.rectQuoteIssued ? t("awaiting_owner_rectification_approval", "Rectification quote issued to owner") : stop("Rectification quote not yet issued");
+      return f.rectQuoteIssued ? t("awaiting_owner_rectification_approval", "Electrical fixes quote issued to owner") : stop("Electrical fixes quote not yet issued");
     case "awaiting_owner_rectification_approval":
-      return f.rectQuoteAccepted ? t("ready_for_installer_quotes", "Rectification scope approved – preparing final installation quotes") : stop("Owner must approve the rectification scope");
+      return f.rectQuoteAccepted ? t("ready_for_installer_quotes", "Electrical fixes scope approved – preparing final installation quotes") : stop("Owner must approve the electrical fixes scope");
     case "ready_for_installer_quotes":
       return f.installQuotesIssued ? t("awaiting_quote_acceptance", "Installation quotes issued to owner") : { kind: "generate_quotes", to: "awaiting_quote_acceptance", summary: "Installation quotes auto-generated from active rate cards and issued to owner" };
     case "awaiting_quote_acceptance":
@@ -71,11 +71,11 @@ export function planStep(stage: Stage, f: AdvanceFacts): Step {
       return t("awaiting_deposit_payment", "Owner accepted final installation quote – approved payment option due");
     case "awaiting_deposit_payment":
       if (!f.depositCleared) return stop("Waiting on approved payment option (minimum deposit, paid in full or active 3-instalment plan)");
-      return f.openRectItems > 0 ? t("rectification_scheduling", "Payment option verified – rectification scheduling unlocked") : t("installation_scheduling", "Payment option verified – installation scheduling unlocked");
+      return f.openRectItems > 0 ? t("rectification_scheduling", "Payment option verified – electrical fixes scheduling unlocked") : t("installation_scheduling", "Payment option verified – installation scheduling unlocked");
     case "rectification_scheduling":
-      return f.rectBookingConfirmed ? t("rectification_booked", "Rectification booking confirmed") : stop("Rectification booking not confirmed");
+      return f.rectBookingConfirmed ? t("rectification_booked", "Electrical fixes booking confirmed") : stop("Electrical fixes booking not confirmed");
     case "rectification_booked":
-      return f.openRectItems === 0 ? t("installation_scheduling", "Rectification complete, PIESA passed – installation scheduling unlocked") : stop("Rectification works not yet completed");
+      return f.openRectItems === 0 ? t("installation_scheduling", "Electrical fixes complete, PIESA passed – installation scheduling unlocked") : stop("Electrical fixes not yet completed");
     case "installation_scheduling":
       return f.installBookingConfirmed ? t("installation_booked", "Installation booking confirmed") : stop("Installation booking not confirmed");
     case "installation_booked":
@@ -83,10 +83,10 @@ export function planStep(stage: Stage, f: AdvanceFacts): Step {
     case "evidence_outstanding":
       if (!f.installationCompleted) return stop("Installation not recorded as complete");
       if (!f.installerDeclarationSigned) return stop("Missing evidence: installer declaration");
-      return t("ap_review", "All required evidence uploaded and declarations signed – submitted for AP review");
+      return t("ap_review", "All required evidence uploaded and declarations signed – submitted for Final check");
     case "ap_review":
       // AP judgement is human: final approval happens only in the AP queue (approveApJob), never here.
-      return stop("AP review: approve in AP queue");
+      return stop("Final check: approve in AP queue");
     case "ready_for_veec":
       return f.veecLodged ? t("complete", "VEEC lodged – job complete") : stop("VEEC lodgement not submitted");
     default:
@@ -121,7 +121,7 @@ export async function runAutoAdvance(deps: AdvanceDeps): Promise<AdvanceResult> 
     if (step.kind === "complete_site") {
       const ok = await deps.completeSite();
       const next = await deps.getStage();
-      if (!ok || next === stage) return { from, to: next, steps, stoppedBecause: "Site requirements outstanding (measure-up and/or electrical/PIESA)" };
+      if (!ok || next === stage) return { from, to: next, steps, stoppedBecause: "Site requirements outstanding (Ready Check and/or electrical/PIESA)" };
       stage = next; steps.push(stage); seen.add(stage);
       continue;
     }

@@ -12,7 +12,7 @@ export async function releaseRectContacts(jobId: string, actorId: string | null,
   const { OWNER_CONTACT_NOTICE, TRADE_CONTACT_NOTICE } = await import("./allocation.core");
   const { error } = await admin.from("contact_releases").upsert({ job_id: jobId, assignment_id: a.id, visit_kind: "rectification", released_by: actorId, owner_notice: OWNER_CONTACT_NOTICE, trade_notice: TRADE_CONTACT_NOTICE }, { onConflict: "assignment_id,visit_kind", ignoreDuplicates: true });
   if (error) throw new Error(error.message);
-  await logEvent(jobId, actorId, "contact_released", `Owner and electrician contact details released for the rectification visit only: ${why}`, { assignment_id: a.id, visit_kind: "rectification" }, { internal: true });
+  await logEvent(jobId, actorId, "contact_released", `Owner and electrician contact details released for the electrical fixes visit only: ${why}`, { assignment_id: a.id, visit_kind: "rectification" }, { internal: true });
   return true;
 }
 
@@ -31,14 +31,14 @@ export async function sweepRectQuotes(now: Date = new Date()) {
     const tag = act === "nudge_24h" ? "24h" : "day3";
     const { data: u } = await admin.from("quotes").update({ [col]: iso } as never).eq("id", q.id).eq("status", "issued").is(col, null).select("id").maybeSingle();
     if (!u) continue;
-    await logEvent(q.job_id, null, "rect_quote_nudge", `${label} reminder to owner about their rectification quote (prepared; delivery follows the sending switches)`, { quote_id: q.id, tag }, { internal: true });
+    await logEvent(q.job_id, null, "rect_quote_nudge", `${label} reminder to owner about their electrical fixes quote (prepared; delivery follows the sending switches)`, { quote_id: q.id, tag }, { internal: true });
     const { data: ev } = await admin.from("workflow_events").select("id").eq("job_id", q.job_id).eq("event_type", "rect_quote_nudge").contains("details", { quote_id: q.id, tag }).order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (ev) {
       const { error: e } = await admin.rpc("enqueue_external_action", {
         _job: q.job_id, _event: ev.id, _action: "customer_email", _target: `quote:${q.id}`, _basis: "transactional_quote_reminder",
         _version: `rect-quote-nudge-${tag}-v1`, _payload: `quote:${q.id}`, _facts: await sha256Hex(`${q.id}-rect-${tag}`), _key: `rect-quote-nudge-${q.id}-${tag}`,
       });
-      if (e) console.error("rectification nudge outbox enqueue skipped", e.message);
+      if (e) console.error("electrical fixes nudge outbox enqueue skipped", e.message);
     }
     nudges++;
   }
@@ -69,10 +69,10 @@ export async function sweepHeldRectWindows(now: Date = new Date()) {
     }
     try {
       const { confirmBooking } = await import("./booking.server");
-      await confirmBooking(j.id, "rectification", p.starts_at, p.responded_by!, "owner", "Owner's chosen rectification time");
+      await confirmBooking(j.id, "rectification", p.starts_at, p.responded_by!, "owner", "Owner's chosen electrical fixes time");
       booked++;
     } catch (e) {
-      console.error("held rectification booking not confirmed yet", (e as Error).message);
+      console.error("held electrical fixes booking not confirmed yet", (e as Error).message);
     }
   }
   return { booked, lapsed };

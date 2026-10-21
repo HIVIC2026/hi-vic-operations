@@ -95,13 +95,13 @@ export async function cancelOwnerJob(token: unknown): Promise<{ ok: boolean; rea
   ]);
   if (!j) return { ok: false, reason: "Link not recognised." };
   if (j.stage === "cancelled") return { ok: true };
-  if (!ownerCanCancel(j.stage, (bk ?? []).map((b) => b.kind))) return { ok: false, reason: "Your safety check is booked, so this can't be cancelled here. Reply to any of our emails and we'll help." };
+  if (!ownerCanCancel(j.stage, (bk ?? []).map((b) => b.kind))) return { ok: false, reason: "Your Pre Insulation Electrical Safety Assessment (PIESA) is booked, so this can't be cancelled here. Reply to any of our emails and we'll help." };
   const { data: moved, error } = await admin.from("jobs").update({ stage: "cancelled", cancelled_reason: "Owner cancelled from My job", next_action: "Owner cancelled. Tell any assigned trade." }).eq("id", l.job_id).eq("stage", j.stage).select("id");
   if (error) throw new Error(error.message);
   // Nothing changed (the stage moved between the read and the update): report it, touch nothing else.
   if (!moved?.length) return { ok: false, reason: "Your job has just changed. Refresh the page and try again." };
   if (bk?.length) await admin.from("bookings").update({ status: "cancelled" }).in("id", bk.map((b) => b.id));
   const { logEvent } = await import("./workflow.server");
-  await logEvent(l.job_id, null, "owner_cancelled_job", "Owner cancelled their job from My job (before the safety check was booked). No charge.", { bookings_cancelled: bk?.length ?? 0, trades_to_notify: true }, { from: j.stage as never, to: "cancelled" });
+  await logEvent(l.job_id, null, "owner_cancelled_job", "Owner cancelled their job from My job (before the Pre Insulation Electrical Safety Assessment (PIESA) was booked). No charge.", { bookings_cancelled: bk?.length ?? 0, trades_to_notify: true }, { from: j.stage as never, to: "cancelled" });
   return { ok: true };
 }

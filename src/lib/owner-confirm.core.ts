@@ -21,7 +21,7 @@ export const CONFIRMED_QUOTE_TITLE = "Your confirmed quote";
 
 /** Jo insists this is clear: quote page, confirm page, safety-check booking, plain-text email, signed summary. */
 export const PIESA_FIXES_NOTE =
-  "Your electrical safety check may find electrical work that needs fixing before insulation can go in. Any electrical fixes are completely separate from this price. If needed, you'll receive a separate quote for that work to approve. Nothing is done without your OK.";
+  "Your Pre Insulation Electrical Safety Assessment (PIESA) may find electrical work that needs fixing before insulation can go in. Any electrical fixes are completely separate from this price. If needed, you'll receive a separate quote for that work to approve. Nothing is done without your OK.";
 
 export type AgreedPrice = { agreed: boolean; installerName: string | null };
 
@@ -52,7 +52,7 @@ export function ownerPriceEmailText(x: { firstName: string | null; agreed: Agree
     text: [
       x.firstName ? `Hi ${x.firstName},` : "Hi,",
       `${title}: ${aud(x.total)} inc GST${as ? ` (${as})` : ""}.`,
-      `Sign, pay the safety check and pick your times here: ${x.link}`,
+      `Sign, pay the Pre Insulation Electrical Safety Assessment (PIESA) and pick your times here: ${x.link}`,
       PIESA_FIXES_NOTE,
       "Home Insulation Victoria",
     ].join("\n\n"),

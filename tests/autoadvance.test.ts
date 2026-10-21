@@ -83,7 +83,7 @@ describe("autoAdvance", () => {
     const x = fake("evidence_outstanding", { installationCompleted: true, installerDeclarationSigned: true });
     const r = await runAutoAdvance(x.deps);
     expect(r.to).toBe("ap_review");
-    expect(r.stoppedBecause).toContain("AP review");
+    expect(r.stoppedBecause).toContain("Final check");
   });
   test("missing evidence keeps job in evidence_outstanding", async () => {
     const x = fake("evidence_outstanding", { installationCompleted: true, installerDeclarationSigned: true }, { blockers: (to) => to === "ap_review" ? ["Evidence missing: Completed installation"] : [] });

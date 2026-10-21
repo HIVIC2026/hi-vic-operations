@@ -15,7 +15,7 @@ export const approveApJob = createServerFn({ method: "POST" }).middleware([requi
   .inputValidator((d) => z.object({ jobId: z.string().uuid(), note: z.string().max(2000).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    if ((await getStage(data.jobId)) !== "ap_review") throw new WorkflowError("This job is no longer waiting for AP review.");
+    if ((await getStage(data.jobId)) !== "ap_review") throw new WorkflowError("This job is no longer waiting for Final check.");
     const { jobApFlags } = await import("./ap-queue.server");
     const { approvalNoteBlocker } = await import("./ap-flags.core");
     const flags = (await jobApFlags([data.jobId])).get(data.jobId) ?? [];

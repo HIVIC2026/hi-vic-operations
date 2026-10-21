@@ -76,7 +76,7 @@ describe("A. size-unknown previews state the 150 m² assumption", () => {
 
 describe("B. size-known previews state the provided size, not the assumption", () => {
   for (const [name, facts] of KNOWN) {
-    test(`${name}: 210 m² sample, described as provided by the homeowner`, () => {
+    test(`${name}: 210 m² sample, described as provided by the owner`, () => {
       const m = render({ ...facts, ceilingSizeKnown: true, figures: figures(210, false) });
       expect(m.plainText).toContain("Ceiling size: 210 m² — based on the size you provided");
       expect(m.html).toContain("210 m² — based on the size you provided"); // approved layout: "Ceiling" row
@@ -113,7 +113,7 @@ describe("C. real customer data is preserved, never replaced with the sample or 
   });
 });
 
-describe("D. property-research area is never described as homeowner-provided", () => {
+describe("D. property-research area is never described as owner-provided", () => {
   test("the single area-basis rule accepts only owner size or the labelled 150 m² default", () => {
     expect(
       joAreaBasis({ areaSource: "owner_estimate", areaM2: 185, ownerAreaM2: 185 }),
@@ -140,7 +140,7 @@ describe("D. property-research area is never described as homeowner-provided", (
   test("the Office draft path holds a researched/measured size instead of claiming the owner supplied it", () => {
     const src = readFileSync("src/lib/enquiry-groups.server.ts", "utf8");
     expect(src).toContain('if (!assumed && r.area.source !== "declared")');
-    expect(src).toContain("came from ${from}, not the homeowner");
+    expect(src).toContain("came from ${from}, not the owner");
     expect(src).toContain('r.area.source === "estimated" ? "property research" : "a measurement"');
     expect(src).toContain("Jo's approved email only states an owner-provided size");
   });
@@ -331,7 +331,7 @@ describe("G. email safety is unchanged", () => {
     expect(src).toContain("ceilingAreaM2: ceilingSizeKnown ? 210 : 150");
     expect(src).toContain("areaEstimated: !ceilingSizeKnown");
     expect(src).toContain("Sample values only.");
-    expect(src).toContain("210 m² provided by the homeowner");
+    expect(src).toContain("210 m² provided by the owner");
   });
 });
 

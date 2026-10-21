@@ -137,7 +137,7 @@ export function finalAssignmentAvailability(i: { stage: string; installationComp
   if (!i.agreementSigned) b.push("Customer agreement / quote acceptance not signed");
   if (!i.installationCompleted) b.push("Installation not yet completed");
   if (!i.installerDeclared) b.push("Missing evidence: installer declaration");
-  if (!["ap_review", "ready_for_veec"].includes(i.stage)) b.push("Final VEEC assignment is prepared during AP review (after evidence is uploaded)");
+  if (!["ap_review", "ready_for_veec"].includes(i.stage)) b.push("Final VEEC assignment is prepared during Final check (after evidence is uploaded)");
   for (const e of i.evidenceMissing) b.push(`Evidence missing: ${e}`);
   b.push(...templateBlockers(i.templates, "final"));
   return b;
@@ -178,7 +178,7 @@ export function finalConsumerSignatureRequired(templates: Template[]): boolean {
 export function signingOrderBlocker(s: Pick<FinalState, "status" | "installerSigned" | "apSigned" | "consumerSigned" | "openVariation" | "consumerFinalRequired" | "consumerFinalSigned">, party: Party): string | null {
   if (s.status === "effective_complete" || s.status === "cancelled") return "This assignment is closed.";
   if (s.openVariation || s.status === "variation_required") return "A variation must be reconfirmed by the customer first.";
-  if (s.status === "consumer_signed_pending_install" || s.status === "draft") return "Final assignment details are completed after installation and AP review.";
+  if (s.status === "consumer_signed_pending_install" || s.status === "draft") return "Final assignment details are completed after installation and Final check.";
   const consumerDone = s.consumerSigned && (!s.consumerFinalRequired || !!s.consumerFinalSigned);
   const done = { installer: s.installerSigned, ap: s.apSigned, consumer: consumerDone };
   if (done[party]) return "Already signed.";
@@ -285,7 +285,7 @@ export function setupStatus(templates: Template[], escConfigReady: boolean): Set
     card("agreement", "Customer agreement / consumer rights (pre-install)", "agreement", activeTemplate(templates, "customer_agreement") ? "Customers can accept quotes electronically (commercial agreement only)." : "Customers can accept quotes electronically. Optional Home Insulation Victoria commercial agreement wording not configured."),
     card("esc_consent", "ESC owner consent (after booking)", "consent", "Owner consent is generated once an exact installation date is booked."),
     card("installer", "Installer declaration (post-install)", "installer", "Installers can sign their declaration electronically after installation."),
-    card("final_assignment", "Final Activity 48 VEEC assignment (post-install)", "final", "Final assignment can be prepared in AP review and signed installer → AP → customer."),
+    card("final_assignment", "Final Activity 48 VEEC assignment (post-install)", "final", "Final assignment can be prepared in Final check and signed installer → AP → customer."),
     { key: "ap", label: "AP declaration (if required)", ready: !(apActive && apActive.required && !apActive.approved), message: activeTemplate(templates, "ap_declaration") ? "AP declaration wording approved." : "No separate AP declaration configured – AP representative signs the final assignment form." },
     { key: "esc_config", label: "ESC notification fields", ready: escConfigReady, message: escConfigReady ? "ESC notice fields are approved." : "ESC notices are not ready: approve the current ESC notification field list." },
   ];

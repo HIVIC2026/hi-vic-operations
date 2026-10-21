@@ -32,7 +32,7 @@ const CHANGE_FACTORS = [
   "The measured ceiling size",
   "Existing insulation, and whether any has to be removed",
   "Ceiling access conditions",
-  "Any electrical rectification found during the mandatory PIESA",
+  "Any electrical fixes found during the mandatory PIESA",
 ];
 
 function Question({ id, n, label, children }: { id: string; n: number; label: string; children: React.ReactNode }) {

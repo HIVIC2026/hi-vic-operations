@@ -28,7 +28,7 @@ export async function runPropertyIntelligence(jobId: string, actorId: string | n
   try {
     const { data: m } = await admin.from("ceiling_measurements").select("measured_area_m2, status, external_source, external_id").eq("job_id", jobId).eq("is_current", true).maybeSingle();
     // Accepted onsite/partner measurement is always tier A; no remote provider can outrank it.
-    const partner = m && m.status === "complete" && Number(m.measured_area_m2) > 0 ? { net_m2: Number(m.measured_area_m2), source: m.external_source ?? "Onsite measure-up (accepted)", external_id: m.external_id } : null;
+    const partner = m && m.status === "complete" && Number(m.measured_area_m2) > 0 ? { net_m2: Number(m.measured_area_m2), source: m.external_source ?? "Onsite Ready Check (accepted)", external_id: m.external_id } : null;
     const g = await gatherEvidence({ addressLine: p.address_line, suburb: p.suburb, postcode: p.postcode, state: p.state, ownerEstimateM2: job.estimated_area_unknown ? null : Number(job.estimated_area_m2) || null, partnerMeasurement: partner, provider: configuredProvider(), providers: { cfg: providerConfigFromEnv(process.env as Record<string, string | undefined>), http: providerHttp, referenceDate: ref.date } }, fetchJson);
 
     // Area hierarchy: keep every estimate; only equal-or-stronger evidence becomes current.

@@ -34,7 +34,7 @@ function OfferPage() {
   const rc = data?.kind === "ready_check";
   if (error) return <TradeShell installer={false}><p role="alert" className={card}>{(error as Error).message}</p></TradeShell>;
   if (!data) return <TradeShell installer={false}><p className="text-sm">Loading the job…</p></TradeShell>;
-  const what = rc ? "Ready Check" : "Safety check";
+  const what = rc ? "Ready Check" : "Pre Insulation Electrical Safety Assessment (PIESA)";
   const tap = async (id: string, start: string) => {
     if (busy || flight.current) return;
     flight.current = true; setBusy(id); setFail(null);

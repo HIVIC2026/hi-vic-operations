@@ -21,7 +21,7 @@ export const READY_CHECK_TEMPLATE_PRICING = [
   "YOUR PRICE TO THE OWNER",
   "Enter your own price. Home Insulation Victoria does not mark this figure up: the owner's",
   "invoice is your price plus our Accredited Person management fee and the $349 mandatory",
-  "electrical safety assessment, less the VEU discount.",
+  "Pre Insulation Electrical Safety Assessment (PIESA), less the VEU discount.",
 ].join("\n");
 
 const HINTS: Record<FormField["type"], string> = {

@@ -155,7 +155,7 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
           </li>)}</ul>
         </div>}
         <div data-editor-supporting-files>
-          <AttachFiles businessId={businessId} files={allFiles.filter((f) => f.purpose === "supporting")} label="Supporting photos, videos or measure-up (optional)" disabled={busy || fileBusy} canRemove={(path) => newFiles.some((f) => f.path === path)} onAdd={(picked) => changeFiles(async () => {
+          <AttachFiles businessId={businessId} files={allFiles.filter((f) => f.purpose === "supporting")} label="Supporting photos, videos or Ready Check (optional)" disabled={busy || fileBusy} canRemove={(path) => newFiles.some((f) => f.path === path)} onAdd={(picked) => changeFiles(async () => {
             const failed: string[] = [];
             for (const file of picked) {
               try { const up = await upload([file]); setNewFiles((o) => [...o, ...up.map((u) => ({ ...u, purpose: "supporting" as const }))]); }

@@ -12,9 +12,9 @@ export const Route = createFileRoute("/_authenticated/admin/interests")({
   head: () => ({
     meta: [
       { title: "Registered interest – Home Insulation Victoria Operations" },
-      { name: "description", content: "Homeowners who registered interest from the public calculator, with their details and what happens next." },
+      { name: "description", content: "Owners who registered interest from the public calculator, with their details and what happens next." },
       { property: "og:title", content: "Registered interest – Home Insulation Victoria Operations" },
-      { property: "og:description", content: "Homeowners who registered interest from the public calculator." },
+      { property: "og:description", content: "Owners who registered interest from the public calculator." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -57,7 +57,7 @@ function Interests() {
     <AppShell wide>
       <h1 className="text-2xl font-bold">Registered interest</h1>
       <p className="mb-4 text-sm text-muted-foreground">
-        Homeowners who asked us to follow up from the calculator. Nothing is sent to them automatically — you call or email.
+        Owners who asked us to follow up from the calculator. Nothing is sent to them automatically — you call or email.
       </p>
 
       <div className="mb-5 flex flex-wrap items-center gap-2">

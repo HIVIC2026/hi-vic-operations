@@ -14,7 +14,7 @@ export async function morePhotosRequestReview(jobId: string, expectedReviewId?: 
   ]);
   const review = reviews.data?.[0];
   if (reviews.error || index.error || uploads.error || uploads.count == null || !index.data) return { reviewId: null, blocker: 'Could not verify the latest Office review and uploads.' };
-  if (uploads.count >= CAPTURE_MAX_FILES) return { reviewId: review?.id ?? null, blocker: 'This homeowner has reached the upload limit. Arrange the next evidence check with the homeowner before requesting more files.' };
+  if (uploads.count >= CAPTURE_MAX_FILES) return { reviewId: review?.id ?? null, blocker: 'This owner has reached the upload limit. Arrange the next evidence check with the owner before requesting more files.' };
   const safeMedia = groupBInitialAction(media);
   if ('held' in safeMedia) return { reviewId: review?.id ?? null, blocker: 'Original uploads are still importing or could not be verified. Check the uploads before requesting more.' };
   const blocker = morePhotosReviewBlocker({ reviewId: review?.id ?? null, expectedReviewId, reviewOutcome: (review?.metadata as { outcome?: string } | null)?.outcome ?? null, reviewAt: review?.occurred_at ?? null, latestMediaAt: index.data.latest_media_at, openEnquiry: index.data.office_bucket === 'enquiry' && index.data.source === 'base44' });

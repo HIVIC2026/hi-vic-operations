@@ -214,7 +214,7 @@ function renderDraft(r: EnquiryGroupRow, sel: Selected, ctx: Ctx): Draft | { err
   if (m2 == null) return { error: "No usable area" };
   if (!assumed && r.area.source !== "declared") {
     const from = r.area.source === "estimated" ? "property research" : "a measurement";
-    return { error: `This ceiling size came from ${from}, not the homeowner. Jo's approved email only states an owner-provided size — held for Office review.` };
+    return { error: `This ceiling size came from ${from}, not the owner. Jo's approved email only states an owner-provided size — held for Office review.` };
   }
   const area: AreaCandidate = assumed ? { m2, source: "typical_default", basis: "assumed", id: null, label: `Assumed area: ${m2} m²` } : { m2, source: r.area.source === "measured" ? "accepted_measurement" : r.area.source === "estimated" ? "area_estimate" : "owner_estimate", basis: r.area.source, id: null, label: r.areaLabel };
   const e = computeEstimate(area, loc, r.declaredInsulation, ctx.settings);

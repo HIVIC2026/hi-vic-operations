@@ -167,7 +167,7 @@ export function retiredStageBlocker(to: string): string | null {
 }
 /** Who/what the job waits on – derived from stage, refined by next_action text. */
 /** Early-stage jobs that passed or need onsite confirmation go to the free installer Ready Check before any electrician. */
-export const READY_CHECK_NEXT = "Arrange the free installer Ready Check";
+export const READY_CHECK_NEXT = "Arrange the Ready Check";
 export function needsReadyCheckFirst(stage: string | null | undefined, outcome: string | null | undefined, reviewRequired?: boolean | null) {
   return !reviewRequired && ["likely_eligible", "needs_onsite_confirmation"].includes(outcome ?? "") && ["new_enquiry", "eligibility_review", "awaiting_electrician"].includes(stage ?? "");
 }
