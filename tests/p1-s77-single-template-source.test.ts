@@ -138,7 +138,7 @@ describe("Part B — one template source; superseded templates unreachable", () 
     // Draft review moved into the ONE Templates location; Communications no longer edits templates.
     expect(code("src/components/portal/CustomerDraftReview.tsx")).toContain("filter(([k]) => !isRetiredCommunicationKey(k))");
     expect(code("src/routes/_authenticated/admin.communications.tsx")).not.toContain("saveCustomerCommunicationDraft");
-    expect(code("src/routes/_authenticated/admin.templates.tsx")).toContain("CustomerDraftReview");
+    expect(code("src/routes/_authenticated/admin.templates.tsx")).not.toContain("CustomerDraftReview"); // empty list removed 21 Oct (Jo)
   });
 
   test("legacy preview / copy-editing pages redirect to Templates and cannot save copy", () => {
