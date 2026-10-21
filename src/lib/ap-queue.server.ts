@@ -36,7 +36,7 @@ export async function jobApFlags(jobIds: string[]) {
 
 export async function loadApQueue() {
   const { data, error } = await admin.from("job_overview").select("id, job_number, property_address, source, stage, last_activity_at").eq("stage", "ap_review");
-  if (error) throw new Error(`Could not load AP review jobs: ${error.message}`);
+  if (error) throw new Error(`Could not load Final check jobs: ${error.message}`);
   const rows = (data ?? []).filter((j) => j.source !== "qa_test" && j.id);
   const flags = await jobApFlags(rows.map((r) => r.id!));
   const items = rows.map((r) => ({ id: r.id!, jobNumber: r.job_number, property: r.property_address, since: r.last_activity_at, flags: flags.get(r.id!) ?? [] }));

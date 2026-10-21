@@ -41,7 +41,7 @@ function SavedPricing({ snapshot }: { snapshot: ReadyCheckSavedPricing }) {
   const rows: [string, string][] = [
     ["Ceiling size", `${snapshot.ceilingAreaM2} m²`],
     ["R5.0 insulation, supply and installation", money(snapshot.installation)],
-    ["Electrical safety assessment (PIESA)", money(snapshot.piesaFee)],
+    ["Pre Insulation Electrical Safety Assessment (PIESA)", money(snapshot.piesaFee)],
     ["Accredited Person management", money(snapshot.apFee)],
     ["Before rebate", money(snapshot.totalBeforeRebate)],
     ["VEU rebate", `− ${money(snapshot.veuRebate)}`],

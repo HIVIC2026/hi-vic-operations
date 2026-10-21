@@ -55,7 +55,7 @@ export const samples = {
   onsite: withUnsubscribe(renderEstimateEmail({
     ...quote,
     outcome: "onsite",
-    reasons: ["The existing insulation and eligible ceiling area need to be confirmed onsite.", "Roof access and electrical safety need to be checked."],
+    reasons: ["The existing insulation and eligible ceiling area need to be confirmed onsite.", "Roof access and Pre Insulation Electrical Safety Assessment (PIESA) need to be checked."],
   }), unsubscribeUrl),
   ineligible: withUnsubscribe(renderIneligibleOutcomeEmail({
     referralUrl,

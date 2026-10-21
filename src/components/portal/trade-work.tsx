@@ -31,8 +31,8 @@ export function OfferCard({ o, onDone }: { o: OfferRow; onDone: () => void }) {
   const s = o.summary as Summary;
   const area = s.approx_area_m2 ?? s.area_m2;
   const what = o.kind === "ready_check" ? "Free Ready Check — win the install"
-    : o.kind === "piesa" ? `Safety check — ${electricianRateText(s).replace(/^Your agreed rate:\s*/i, "your rate ")}`
-    : o.kind === "rectification" ? "Electrical fix-up work" : "Installation job";
+    : o.kind === "piesa" ? `Pre Insulation Electrical Safety Assessment (PIESA) — ${electricianRateText(s).replace(/^Your agreed rate:\s*/i, "your rate ")}`
+    : o.kind === "rectification" ? "Electrical electrical fixes work" : "Installation job";
   const accept = async (proposalId?: string) => { await respond({ offerId: o.id, accept: true, reason: null, ...(proposalId ? { proposalId } : {}) }, proposalId ? "Booked — it's in Coming up" : "Accepted — call the owner to agree a time"); onDone(); };
   return (
     <div className="rounded-[22px] border bg-card p-4 shadow-sm">

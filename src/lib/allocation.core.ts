@@ -12,7 +12,7 @@ export type VisitKind = "ready_check" | "piesa" | "rectification" | "installatio
 export const OWNER_CONTACT_NOTICE = WORKFLOW_DECISIONS.directContact.ownerNotice;
 export const TRADE_CONTACT_NOTICE = WORKFLOW_DECISIONS.directContact.tradeNotice;
 export const INSTALLER_PLANNING_NOTICE =
-  "The PIESA electrical safety visit is booked. This is for planning only. Do not book installation until electrical clearance is complete.";
+  "The Pre Insulation Electrical Safety Assessment (PIESA) visit is booked. This is for planning only. Do not book installation until electrical clearance is complete.";
 export const REMINDER_AFTER_H = WORKFLOW_DECISIONS.directContact.reminderAfterHours; // 24
 export const OFFICE_ALERT_AFTER_H = WORKFLOW_DECISIONS.directContact.officeAlertAfterHours; // 48
 
@@ -166,9 +166,9 @@ export function offerRateBlocker(rate: number | null | undefined, rateToConfirm:
 
 // ---------- Office electrician rate card ----------
 export const ELECTRICIAN_RATE_SERVICES = {
-  piesa: "PIESA electrical safety visit",
-  rectification_visit: "Rectification visit",
-  section_c_signoff: "Section C / rectification sign-off",
+  piesa: "Pre Insulation Electrical Safety Assessment (PIESA) visit",
+  rectification_visit: "Electrical fixes visit",
+  section_c_signoff: "Section C / electrical fixes sign-off",
   installation_attendance: "Installation electrical attendance",
 } as const;
 export type ElectricianRateService = keyof typeof ELECTRICIAN_RATE_SERVICES;
@@ -270,8 +270,8 @@ export function electricalClearance(f: ClearanceFacts): Clearance {
     if (f.piesaOutcome !== "pass") return { ...base, cleared: false, timingDate: null, basis: null, blocker: "PIESA did not pass." };
     return { ...base, cleared: true, timingDate: f.piesaCompletedAt, basis: "initial_piesa", blocker: null };
   }
-  if (!f.rectificationQuoteAccepted) return { ...base, cleared: false, timingDate: null, basis: null, blocker: "Owner has not approved the rectification quote." };
-  if (!f.rectificationCompletedAt) return { ...base, cleared: false, timingDate: null, basis: null, blocker: "Rectification not completed yet." };
+  if (!f.rectificationQuoteAccepted) return { ...base, cleared: false, timingDate: null, basis: null, blocker: "Owner has not approved the electrical fixes quote." };
+  if (!f.rectificationCompletedAt) return { ...base, cleared: false, timingDate: null, basis: null, blocker: "Electrical fixes not completed yet." };
   if (!f.sectionCSignedAt) return { ...base, cleared: false, timingDate: null, basis: null, blocker: "Section C not completed and signed yet." };
   return { ...base, cleared: true, timingDate: f.sectionCSignedAt, basis: "section_c", blocker: null };
 }
@@ -285,14 +285,14 @@ export type RectQuoteFacts = { kind: string; status: string; office_reviewed_at:
 /** Rectification quotes are always office-reviewed before they reach the owner. */
 export function rectificationSendBlocker(q: RectQuoteFacts, actorIsOffice: boolean): string | null {
   if (q.kind !== "rectification") return null;
-  if (!actorIsOffice) return "Only Home Insulation Victoria office staff can send a rectification quote.";
-  if (q.has_unpriced_items) return "Some rectification items still need office pricing.";
-  if (!q.office_reviewed_at) return "Rectification quote must be reviewed by the office before it is sent.";
-  if (q.status !== "draft") return "Only a draft rectification quote can be sent.";
+  if (!actorIsOffice) return "Only Home Insulation Victoria office staff can send electrical fixes quote.";
+  if (q.has_unpriced_items) return "Some electrical fixes items still need office pricing.";
+  if (!q.office_reviewed_at) return "Electrical fixes quote must be reviewed by the office before it is sent.";
+  if (q.status !== "draft") return "Only a draft electrical fixes quote can be sent.";
   return null;
 }
 export function rectificationVisitBlocker(f: { quoteAccepted: boolean; recActiveApproved: boolean }): string | null {
-  if (!f.quoteAccepted) return "Owner must approve the rectification quote before the visit is arranged.";
+  if (!f.quoteAccepted) return "Owner must approve the electrical fixes quote before the visit is arranged.";
   if (!f.recActiveApproved) return "The PIESA electrician is no longer approved/active — office must arrange another REC.";
   return null;
 }
@@ -323,15 +323,15 @@ export const NEEDS_TEXT: Record<NeedsCode, { why: string; next: string; tab: str
   rec_coverage_exhausted: { why: "No approved electrician coverage: nobody accepted the PIESA, or none cover this area.", next: "Find an approved REC for this area (or approve one in Coverage), then offer the job from the PIESA tab.", tab: "piesa", urgency: "today" },
   piesa_booking_overdue: { why: "48 hours since contact details were shared and no PIESA time has been confirmed.", next: "Call the owner and electrician, confirm a time on the PIESA tab, or release the electrician and re-offer.", tab: "piesa", urgency: "today" },
   delivery_failed: { why: "A message needed to move this job forward failed to deliver.", next: "Check the address/number on the Communications tab and send it again, or contact the person directly.", tab: "communications", urgency: "today" },
-  rectification_declined: { why: "The owner declined required electrical rectification, so installation cannot proceed.", next: "Talk to the owner about options; put the job on hold or cancel it with a reason.", tab: "quotes", urgency: "soon" },
-  rectification_pricing_review: { why: "Rectification pricing needs office review before the quote can go to the owner.", next: "Price each item on the Quotes tab, mark the rectification quote reviewed, then send it.", tab: "quotes", urgency: "today" },
+  rectification_declined: { why: "The owner declined required electrical fixes, so installation cannot proceed.", next: "Talk to the owner about options; put the job on hold or cancel it with a reason.", tab: "quotes", urgency: "soon" },
+  rectification_pricing_review: { why: "Electrical fixes pricing needs office review before the quote can go to the owner.", next: "Price each item on the Quotes tab, mark the electrical fixes quote reviewed, then send it.", tab: "quotes", urgency: "today" },
   installer_unavailable: { why: "The agreed installer declined or cannot proceed. No replacement is made automatically.", next: "Agree a replacement with the owner and issue an updated quote for approval if the company or terms change.", tab: "overview", urgency: "today" },
   ready_check_booking_overdue: { why: "48 hours since Ready Check contact details were shared and no Ready Check time has been confirmed.", next: "Call the owner and installer and confirm a time on the Overview tab.", tab: "overview", urgency: "today" },
   installation_booking_overdue: { why: "48 hours since installation contact details were shared and no installation time has been confirmed.", next: "Call the owner and installer and confirm a time on the Overview tab.", tab: "overview", urgency: "today" },
   piesa_timing_invalid: { why: "Installation may not commence within 30 days of the PIESA timing date.", next: "Check the PIESA tab; bring installation forward or arrange a new PIESA.", tab: "piesa", urgency: "urgent" },
   esc_or_distribution_timing: { why: "Installation is close but the PIESA copy or ESC pre-install notice is not done in time.", next: "Send the PIESA copy / ESC notice from the Compliance tab, or move the installation date.", tab: "compliance", urgency: "urgent" },
   compliance_correction: { why: "A compliance record needs correcting before the job can continue.", next: "Open the Evidence tab and fix or request the missing/incorrect item.", tab: "evidence", urgency: "soon" },
-  rectification_quote_unanswered: { why: "Rectification quote unanswered — 30-day clock at risk. The owner has not responded 5 days after it was sent.", next: "Call the owner about the rectification quote on the Quotes tab.", tab: "quotes", urgency: "today" },
+  rectification_quote_unanswered: { why: "Electrical fixes quote unanswered — 30-day clock at risk. The owner has not responded 5 days after it was sent.", next: "Call the owner about the electrical fixes quote on the Quotes tab.", tab: "quotes", urgency: "today" },
   registry_query: { why: "The ESC/VEEC Registry raised a query or rejected the lodgement.", next: "Answer the query or correct and resubmit on the VEEC tab.", tab: "veec", urgency: "soon" },
   office_overdue: { why: "A task owned by Home Insulation Victoria is overdue.", next: "Open the job and complete the overdue office step.", tab: "overview", urgency: "soon" },
   esc_submit_due: { why: "ESC pre-install notification window is open.", next: "Submit the notification in the Registry using the details on the Installation section, then tap Submitted with the date and reference.", tab: "compliance", urgency: "today" },
@@ -345,7 +345,7 @@ export const NEEDS_TEXT: Record<NeedsCode, { why: string; next: string; tab: str
   owner_no_show_repeat: { why: "The owner missed this visit a second time (late change or not home). The one free rebook is used.", next: "Call the owner, agree a time, then book it from the job's scheduling section.", tab: "overview", urgency: "today" },
   trade_no_show: { why: "The trade did not arrive: no \"I've arrived\" and no evidence 4 hours after the visit start. Counted against their reliability.", next: "Call the trade and the owner. If the trade was onsite, clear the no-show with a reason; otherwise rebook or reassign.", tab: "overview", urgency: "urgent" },
   owner_cancelled_visit: { why: "The owner cancelled a booked visit more than 24 hours ahead.", next: "Contact the owner to confirm whether they want to continue, then rebook or put the job on hold.", tab: "overview", urgency: "today" },
-  rectification_new_times: { why: "A booked rectification visit was cancelled. The electrician supplies rectification times, so the office arranges new ones.", next: "Ask the electrician for new times and agree one with the owner.", tab: "overview", urgency: "today" },
+  rectification_new_times: { why: "A booked electrical fixes visit was cancelled. The electrician supplies electrical fixes times, so the office arranges new ones.", next: "Ask the electrician for new times and agree one with the owner.", tab: "overview", urgency: "today" },
   choose_trades: { why: "This job is ready for an offer. “How job offers go out” is set to Office picks first, so nothing has gone out yet.", next: "Open the job and use “Choose trades for this job” to tick who gets the offer.", tab: "overview", urgency: "today" },
   offer_no_taker_24h: { why: "This job has been offered for the set time (24 hours by default) and nobody has taken one of the owner's times. Trades who still hold the offer can now suggest another time.", next: "Open the job and use “Choose trades for this job” to add more trades (those already offered keep theirs), or watch for suggested times.", tab: "overview", urgency: "today" },
   ready_check_no_taker: { why: "No installer could take the owner's Ready Check times, even after the owner gave more times.", next: "Call the owner to agree a time, then assign an approved installer from the People section.", tab: "overview", urgency: "today" },
@@ -368,8 +368,8 @@ export function electricalStatusLabel(i: { offerPending?: boolean; stage: string
     case "piesa_and_install_window_pending": return i.proposalPending ? "Awaiting owner confirmation" : "Accepted · Arrange visit";
     case "piesa_scheduled": return "Booked";
     case "piesa_complete": return "PIESA complete";
-    case "electrical_variation_pending": case "rectification_required": case "awaiting_owner_rectification_approval": return "Rectification required";
-    case "rectification_scheduling": return i.proposalPending ? "Awaiting owner confirmation" : "Rectification required · Arrange visit";
+    case "electrical_variation_pending": case "rectification_required": case "awaiting_owner_rectification_approval": return "Electrical fixes required";
+    case "rectification_scheduling": return i.proposalPending ? "Awaiting owner confirmation" : "Electrical fixes required · Arrange visit";
     case "rectification_booked": return "Booked";
     case "installation_scheduling": case "installation_booked": case "evidence_outstanding": return "Electrically cleared";
     default: return "Accepted";
@@ -422,7 +422,7 @@ export function buildNeedsHivic(i: NeedsInput): NeedsItem[] {
     if (s.state !== "needs_office") continue;
     if (r.visit_kind === "ready_check") add("ready_check_booking_overdue", r.job_id, r.released_at);
     else if (r.visit_kind === "installation") add("installation_booking_overdue", r.job_id, r.released_at);
-    else add("piesa_booking_overdue", r.job_id, r.released_at, r.visit_kind === "rectification" ? "(Rectification visit.)" : undefined);
+    else add("piesa_booking_overdue", r.job_id, r.released_at, r.visit_kind === "rectification" ? "(Electrical fixes visit.)" : undefined);
   }
   for (const c of i.failedComms) add("delivery_failed", c.job_id, c.created_at);
   for (const q of i.rectDeclined) add("rectification_declined", q.job_id, q.created_at);
@@ -442,8 +442,8 @@ export function buildNeedsHivic(i: NeedsInput): NeedsItem[] {
   for (const o of i.officeOverdue) add("office_overdue", o.job_id, o.since, o.title);
   for (const q of i.rectUnanswered ?? []) if (rectQuoteUnanswered({ kind: "rectification", status: "issued", sent_at: q.sent_at }, i.now)) add("rectification_quote_unanswered", q.job_id, q.sent_at);
   for (const r of i.readyCheckNoTaker ?? []) { const j = jobs.get(r.job_id); if (j?.stage === "ready_check_ready_to_schedule") add("ready_check_no_taker", r.job_id, r.created_at); }
-  for (const r of i.chooseTrades ?? []) add("choose_trades", r.job_id, r.since, r.kind === "piesa" ? "(Electrician safety check.)" : "(Installer Ready Check.)");
-  for (const r of i.offerNoTaker ?? []) add("offer_no_taker_24h", r.job_id, r.since, r.kind === "piesa" ? "(Electrician safety check offer.)" : "(Installer Ready Check offer.)");
+  for (const r of i.chooseTrades ?? []) add("choose_trades", r.job_id, r.since, r.kind === "piesa" ? "(Electrician Pre Insulation Electrical Safety Assessment (PIESA).)" : "(Installer Ready Check.)");
+  for (const r of i.offerNoTaker ?? []) add("offer_no_taker_24h", r.job_id, r.since, r.kind === "piesa" ? "(Electrician Pre Insulation Electrical Safety Assessment (PIESA) offer.)" : "(Installer Ready Check offer.)");
   for (const f of i.visitFlags ?? []) add(f.code, f.job_id, f.created_at, f.detail);
   for (const f of i.installFlags ?? []) { const j = jobs.get(f.job_id); if (j?.stage === "installation_scheduling") add(f.code, f.job_id, f.created_at, f.detail); }
   const rank: Record<NeedsUrgency, number> = { urgent: 0, today: 1, soon: 2 };

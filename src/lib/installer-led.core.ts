@@ -112,7 +112,7 @@ export function piisaCarryOver(missing: string[]): CarryOver {
 
 export type JourneyStep = "submit" | "eligibility" | "measure_up" | "electrician" | "piesa" | "quote" | "pre_install" | "install" | "completion" | "veecs";
 export const JOURNEY: { key: JourneyStep; label: string }[] = [
-  { key: "submit", label: "Job submitted" }, { key: "eligibility", label: "Eligibility" }, { key: "measure_up", label: "Measure-up" },
+  { key: "submit", label: "Job submitted" }, { key: "eligibility", label: "Eligibility" }, { key: "measure_up", label: "Ready Check" },
   { key: "electrician", label: "Electrician" }, { key: "piesa", label: "PIESA" }, { key: "quote", label: "Quote + e-sign" },
   { key: "pre_install", label: "Pre-install checks" }, { key: "install", label: "Install day" }, { key: "completion", label: "Completion sign-off" }, { key: "veecs", label: "VEECs" },
 ];

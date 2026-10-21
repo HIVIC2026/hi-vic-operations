@@ -8,11 +8,11 @@ export const OWNER_PLAN_INTRO =
 export const OWNER_PLAN_LEAD = "By accepting this payment plan, you agree that:";
 export const OWNER_PLAN_TERMS = [
   "this plan applies to the current confirmed quote version only;",
-  "the first instalment must be paid and verified before Home Insulation Victoria requests the electrical safety assessment;",
+  "the first instalment must be paid and verified before Home Insulation Victoria requests the Pre Insulation Electrical Safety Assessment (PIESA);",
   "the remaining instalments must be paid by the due dates shown in the portal;",
   "if an instalment is missed, failed or overdue, your job may be paused until the payment issue is resolved;",
-  "this payment plan does not change the requirement for electrical safety assessment, rectification if required, final checks or program eligibility;",
-  "any electrical rectification work is quoted separately unless expressly included in a later approved quote;",
+  "this payment plan does not change the requirement for Pre Insulation Electrical Safety Assessment (PIESA), electrical fixes if required, final checks or program eligibility;",
+  "any electrical fixes work is quoted separately unless expressly included in a later approved quote;",
   "if the quote is changed or superseded, this payment plan may need to be replaced.",
 ] as const;
 export const OWNER_PLAN_CHECKBOX =

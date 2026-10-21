@@ -124,6 +124,6 @@ export const sendChosenOffers = createServerFn({ method: "POST" }).middleware([r
     const r = data.kind === "ready_check"
       ? await (await import("./readycheck-booking.server")).startReadyCheckOffers(data.jobId, context.userId, fresh, { adding })
       : await (await import("./allocation.server")).startPiesaAllocation(data.jobId, context.userId, "piesa", { onlyBusiness: fresh, adding });
-    await logEvent(data.jobId, context.userId, "trades_chosen", `Office chose ${fresh.length} trade(s) for the ${data.kind === "ready_check" ? "Ready Check" : "safety check"}${adding ? " (added to the open offer)" : ""}`, { kind: data.kind, business_ids: fresh, added: adding, chosen_by: context.userId, chosen_at: new Date().toISOString() }, { internal: true });
+    await logEvent(data.jobId, context.userId, "trades_chosen", `Office chose ${fresh.length} trade(s) for the ${data.kind === "ready_check" ? "Ready Check" : "Pre Insulation Electrical Safety Assessment (PIESA)"}${adding ? " (added to the open offer)" : ""}`, { kind: data.kind, business_ids: fresh, added: adding, chosen_by: context.userId, chosen_at: new Date().toISOString() }, { internal: true });
     return { offered: r.offered };
   });

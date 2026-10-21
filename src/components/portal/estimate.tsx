@@ -16,7 +16,7 @@ import { removalFromScenario, removalNote } from "@/lib/estimate-removal.core";
 
 export const HEADLINE = { likely: "Your home has passed our initial eligibility checks.", onsite: "Your home looks likely to qualify." } as const;
 const ELIGIBILITY_COPY = {
-  likely: { badge: "LIKELY ELIGIBLE", description: "Based on your answers and our initial property checks, your home is on track to qualify for a VEU insulation discount. Your Home Insulation Ready Check confirms the measured area and site details for your project estimate." },
+  likely: { badge: "LIKELY ELIGIBLE", description: "Based on your answers and our initial property checks, your home is on track to qualify for a VEU insulation discount. Your Ready Check confirms the measured area and site details for your project estimate." },
   onsite: { badge: "LIKELY ELIGIBLE — ONSITE CONFIRMATION NEEDED", description: "Based on your answers and our initial checks, your property is a strong candidate for the VEU insulation discount. We just need to confirm the remaining items at your Ready Check." },
 } as const;
 function plainOnsiteDriver(driver: string) {
@@ -42,9 +42,9 @@ export const FREE_CHECK_CONFIRM_COPY = {
   checklistHeading: "What happens at your visit",
   checklist: ["Measure your ceiling area.", "Assess any existing insulation and confirm whether it can stay or needs to be removed.", "Confirm whether your home meets the rebate eligibility requirements.", "Prepare the job scope so we can confirm your quote."],
   installer: "Carried out by a pre-vetted Certified Insulation Installer (CII) from our panel.",
-  piesa: "The mandatory electrical safety assessment (PIESA) is a separate paid step, completed later by a licensed electrician, close to installation.",
+  piesa: "The mandatory Pre Insulation Electrical Safety Assessment (PIESA) is a separate paid step, completed later by a licensed electrician, close to installation.",
   reassurance: "No payment required. No obligation to proceed with installation.",
-  acceptance: "I understand this is a free installer visit to measure my ceiling and check eligibility details. It is not the electrical safety assessment (PIESA), and I have no obligation to proceed with installation.",
+  acceptance: "I understand this is a free installer visit to measure my ceiling and check eligibility details. It is not the Pre Insulation Electrical Safety Assessment (PIESA), and I have no obligation to proceed with installation.",
   cta: "Confirm my free Ready Check →",
   stale: "Your estimate changed. Please review it and confirm your free Ready Check again.",
   successHeading: "We’ve received your request",
@@ -191,22 +191,22 @@ function PriceProtection({ settings, fees }: { settings: RetailSettings | undefi
     `${CUSTOMER_QUOTE_LABELS.piesa}: ${dollars(fees.piesa)} inc GST`,
     `${CUSTOMER_QUOTE_LABELS.apManagement}: ${dollars(fees.ap)} inc GST`,
     ...(settings ? [`Access adjustments: fixed +${pct(settings.access_moderate_multiplier)} moderate / +${pct(settings.access_difficult_multiplier)} difficult on the installation component`] : []),
-    "Electrical rectification: separately itemised and approved before work",
+    "electrical fixes: separately itemised and approved before work",
   ];
   return <section aria-labelledby={id} className="border-y border-estimate-blue-soft py-7">
     <p className="text-xs font-semibold uppercase tracking-wider text-estimate-green">Price protection</p>
     <h3 id={id} className="mt-2 text-xl font-bold leading-snug text-estimate-navy sm:text-2xl">Transparent Home Insulation Victoria pricing — no installer mark-up surprises.</h3>
     <p className="mt-3 text-sm leading-relaxed">Home Insulation Victoria sets the customer pricing. Once the onsite facts are confirmed, your final quote is calculated from our set customer rate card. Our partner electricians and insulation installers do not decide what you pay.</p>
     <ul className="mt-5 grid gap-x-7 gap-y-3 text-sm sm:grid-cols-2">{rows.map((r) => <li key={r} className="flex items-start gap-2 leading-snug"><Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-estimate-green" />{r}</li>)}</ul>
-    <p className="mt-4 text-xs leading-relaxed">Your final total still depends on the measured area, whether removal is needed, access and any electrical rectification.</p>
+    <p className="mt-4 text-xs leading-relaxed">Your final total still depends on the measured area, whether removal is needed, access and any electrical fixes.</p>
   </section>;
 }
 
 function ManagedProcess() {
   const id = useId();
   const cards = [
-    { icon: ShieldCheck, title: "Licensed electrical safety assessment", copy: "Your PIESA is completed by a licensed electrician employed by a Registered Electrical Contractor (REC). They check the ceiling space for unsafe wiring, prohibited lighting such as halogen downlights, solar/battery cabling and other electrical hazards before insulation work proceeds.", note: "" },
-    { icon: BadgeCheck, title: "EEC Certified Insulation Installer", copy: "Your insulation upgrade is carried out by an EEC Certified Insulation Installer (CII) — the certification required for installers working under the VEU ceiling-insulation activity.", note: "CII certification covers the competency pathway for safe retrofit insulation work, including WHS, measurements and calculations, working safely at heights and bulk insulation installation." },
+    { icon: ShieldCheck, title: "Licensed Pre Insulation Electrical Safety Assessment (PIESA)", copy: "Your PIESA is completed by a licensed electrician employed by a Registered Electrical Contractor (REC). They check the ceiling space for unsafe wiring, prohibited lighting such as halogen downlights, solar/battery cabling and other electrical hazards before insulation work proceeds.", note: "" },
+    { icon: BadgeCheck, title: "Installer", copy: "Your insulation upgrade is carried out by an Installer (CII) — the certification required for installers working under the VEU ceiling-insulation activity.", note: "CII certification covers the competency pathway for safe retrofit insulation work, including WHS, measurements and calculations, working safely at heights and bulk insulation installation." },
     { icon: ClipboardCheck, title: "We manage it end-to-end", copy: "Eligibility, Ready Check, vetted trades, quoting, compliance, evidence, installation coordination and VEEC processing — managed through one Home Insulation Victoria process.", note: "" },
   ];
   return <section aria-labelledby={id}>

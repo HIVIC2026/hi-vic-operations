@@ -65,9 +65,9 @@ export function refundOutcome(f: { paidCents: number; safetyFeeCents: number; ch
 }
 export const REFUND_LABELS: Record<RefundOutcome, string> = {
   none: "No refund due",
-  refund_all: "Refund everything paid (safety check never happened)",
-  refund_except_safety_fee: "Refund everything except the safety check payment (check done, job can't go ahead)",
-  keep_safety_fee: "Keep the safety check payment (check done, job can't go ahead)",
+  refund_all: "Refund everything paid (Pre Insulation Electrical Safety Assessment (PIESA) never happened)",
+  refund_except_safety_fee: "Refund everything except the Pre Insulation Electrical Safety Assessment (PIESA) payment (check done, job can't go ahead)",
+  keep_safety_fee: "Keep the Pre Insulation Electrical Safety Assessment (PIESA) payment (check done, job can't go ahead)",
 };
 
 /** Retired 3-instalment plan (kept read-only for history). */
@@ -135,7 +135,7 @@ export function evaluatePaymentGate(i: PaymentGateInput): PaymentGateResult {
 }
 
 export const safetyCheckBlocker = (fee?: number | string | null) =>
-  `Safety check can't be booked — ${aud(feeCents(fee))} safety check payment not received.`;
+  `Pre Insulation Electrical Safety Assessment (PIESA) can't be booked — ${aud(feeCents(fee))} Pre Insulation Electrical Safety Assessment (PIESA) payment not received.`;
 
 // ---------- What the money actually is (display only; the gate logic above is unchanged) ----------
 
@@ -196,7 +196,7 @@ export function safetyCheckPayLabel(s: SafetyCheckPayState, staff: boolean): str
 export function safetyCheckPayNote(s: SafetyCheckPayState, staff: boolean): string | null {
   switch (s.kind) {
     case "paid": return null;
-    case "overridden": return "Payment block overridden by the office — no money has been received for the safety check payment.";
+    case "overridden": return "Payment block overridden by the office — no money has been received for the Pre Insulation Electrical Safety Assessment (PIESA) payment.";
     case "test_simulated": return staff ? "TEST simulated payment — no money received." : "TEST simulated payment — no real money has been received.";
     case "unpaid": return null;
     case "unknown": return "No payment information yet — an invoice is raised when the owner accepts the quote.";
@@ -228,5 +228,5 @@ export function piesaRequestBlockers(f: PiesaRequestFacts): string[] {
 
 /** Customer/trade wording for the payment requirement (no percentages that the gate does not use). */
 export const PAYMENT_OPTION_SUMMARY =
-  "The $349 safety check payment is needed before the electrician's safety check is booked. Then pay the balance in two halves (install booked, install day) or in full now.";
+  "The $349 Pre Insulation Electrical Safety Assessment (PIESA) payment is needed before the electrician's Pre Insulation Electrical Safety Assessment (PIESA) is booked. Then pay the balance in two halves (install booked, install day) or in full now.";
 export const PAYMENT_DECISION_STATUS = WORKFLOW_DECISIONS.payment.deposit.status;

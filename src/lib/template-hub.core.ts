@@ -36,7 +36,7 @@ export type TemplateEntry = {
 const comm = (key: string) => CUSTOMER_COMMUNICATION_CATALOG.find((c) => c[0] === key)!;
 const commEntry = (key: string, view: TemplateView, approval: string): TemplateEntry => {
   const c = comm(key);
-  return { id: `email:${key}`, category: "email", group: "Customer emails", title: c[1], purpose: c[2], audience: "Homeowner", trigger: `Stage ${c[3]}`, approval, reviewKey: key, view };
+  return { id: `email:${key}`, category: "email", group: "Customer emails", title: c[1], purpose: c[2], audience: "Owner", trigger: `Stage ${c[3]}`, approval, reviewKey: key, view };
 };
 
 // Jo Lowe's eight approved homeowner emails (P1-R3-COM-08, 15 Oct 2026). These are the SAME definitions
@@ -51,9 +51,9 @@ const JO_EMAIL: TemplateEntry[] = ([
   ["ineligible", "Ineligible result"],
   ["ready_check_invitation", "Ready Check invitation"],
 ] as const).map(([id, title]): TemplateEntry => ({
-  id: `email:jo:${id}`, category: "email", group: "Jo's approved homeowner emails (15 Oct 2026)", title,
-  purpose: "Jo Lowe's approved homeowner email. The preview is rendered by the SAME function every real send uses.",
-  audience: "Homeowner", trigger: "Initial-enquiry routing / Office decision", approval: "Approved by Jo Lowe, 15 Oct 2026",
+  id: `email:jo:${id}`, category: "email", group: "Jo's approved owner emails (15 Oct 2026)", title,
+  purpose: "Jo Lowe's approved owner email. The preview is rendered by the SAME function every real send uses.",
+  audience: "Owner", trigger: "Initial-enquiry routing / Office decision", approval: "Approved by Jo Lowe, 15 Oct 2026",
   view: { kind: "jo_sample", templateId: id },
 }));
 
@@ -103,7 +103,7 @@ const COMPLIANCE: TemplateEntry[] = [
     id: `register:${index}`, category: "compliance" as const, group: "Activity 48 form register", title: f.name, purpose: f.purpose, audience: f.signer, trigger: f.timing,
     approval: MITTI_FOR_REGISTER[f.name] ? "Official form — see linked Mitti entry" : "Not recorded", view: { kind: "register" as const, index, mitti: MITTI_FOR_REGISTER[f.name] ?? [] },
   })),
-  ...(["A", "B", "C", "D"] as const).map((g) => ({ id: `owner:${g}`, category: "compliance" as const, group: "Owner paperwork", title: `Owner paperwork — Gate ${g}`, purpose: "Documents the owner signs or ticks at this gate.", audience: "Homeowner (some items office)", trigger: `Gate ${g}`, approval: "See each document", view: { kind: "owner_paperwork" as const, gate: g } })),
+  ...(["A", "B", "C", "D"] as const).map((g) => ({ id: `owner:${g}`, category: "compliance" as const, group: "Owner paperwork", title: `Owner paperwork — Gate ${g}`, purpose: "Documents the owner signs or ticks at this gate.", audience: "Owner (some items office)", trigger: `Gate ${g}`, approval: "See each document", view: { kind: "owner_paperwork" as const, gate: g } })),
 ];
 
 export const TEMPLATE_ENTRIES: TemplateEntry[] = [...EMAIL, ...MITTI, ...COMPLIANCE];

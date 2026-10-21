@@ -18,7 +18,7 @@ export type PartnerTemplate = {
 export const INSTALLER_TEMPLATE: PartnerTemplate = {
   key: "installer_invitation",
   label: "Installer partnership invitation",
-  subject: "Hundreds of homeowner leads — let’s work together",
+  subject: "Hundreds of owner leads — let’s work together",
   registrationUrl: "https://estimate.homeinsulationvictoria.com.au/installer-onboarding",
   fileName: "installer-partnership-invitation.html",
   html: INSTALLER_INVITATION_HTML,
@@ -27,7 +27,7 @@ export const INSTALLER_TEMPLATE: PartnerTemplate = {
 export const REC_TEMPLATE: PartnerTemplate = {
   key: "rec_invitation",
   label: "REC partnership invitation",
-  subject: "Hundreds of homeowner enquiries—and we’re looking for great electricians",
+  subject: "Hundreds of owner enquiries—and we’re looking for great electricians",
   registrationUrl: "https://estimate.homeinsulationvictoria.com.au/electrician-onboarding",
   fileName: "rec-partnership-invitation.html",
   html: REC_INVITATION_HTML,

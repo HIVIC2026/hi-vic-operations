@@ -62,7 +62,7 @@ function PrivacyPage() {
           </Section>
 
           <Section heading="Why we use it">
-            To check your eligibility, give you an estimate and quote, arrange your free Ready Check, electrical safety check and installation, meet our obligations under the VEU program (including creating Victorian energy efficiency certificates), process payments, handle complaints, and contact you about your enquiry.
+            To check your eligibility, give you an estimate and quote, arrange your free Ready Check, Pre Insulation Electrical Safety Assessment (PIESA) and installation, meet our obligations under the VEU program (including creating Victorian energy efficiency certificates), process payments, handle complaints, and contact you about your enquiry.
           </Section>
 
           <Section heading="Who we share it with">

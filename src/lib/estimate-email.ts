@@ -35,7 +35,7 @@ export type EstimateEmail = { subject: string; previewText: string; html: string
 const BASE = "https://estimate.homeinsulationvictoria.com.au";
 /** The locked likely-email pink-box paragraph; the Save your spot version swaps it for Jo's exact wording (7 Oct). */
 const LIKELY_NEXT_STEP_INSTRUCTION = "Your installer measures the ceiling, assesses any existing insulation, confirms eligibility and prepares the job scope so we can confirm your quote.";
-export const SAVE_SPOT_INSTRUCTION = "We have been inundated with requests from homeowners all over Victoria. As one of only two Accredited Persons for this activity, and with limited capacity of suitably qualified installers, we need to take on approvals in batches. Save your spot to join the line and we will be in touch as soon as the next installer is available in your area.";
+export const SAVE_SPOT_INSTRUCTION = "We have been inundated with requests from owners all over Victoria. As one of only two Accredited Persons for this activity, and with limited capacity of suitably qualified installers, we need to take on approvals in batches. Save your spot to join the line and we will be in touch as soon as the next installer is available in your area.";
 /** The locked small line under the likely-email button; the Save your spot version swaps it for Jo's exact wording (7 Oct). */
 const LIKELY_SMALL_PRINT = "Confirm your request on the next page. An installer from our panel will then contact you to arrange a time.";
 export const SAVE_SPOT_SMALL_PRINT = "We will be in touch to book your free Ready Check as soon as we can.";
@@ -132,7 +132,7 @@ function validateQuoteInput(input: EstimateEmailInput) {
   const closeEnough = (a: number, b: number) => Math.abs(Math.round(a * 100) - Math.round(b * 100)) <= 1;
   if (hasBreakdown) {
     const fee = readyCheckFeeOf(input);
-    if (!closeEnough(payableNow, fee)) throw new Error("The amount payable now must be $0 because the Home Insulation Ready Check is free.");
+    if (!closeEnough(payableNow, fee)) throw new Error("The amount payable now must be $0 because the Ready Check is free.");
     const removal = input.saveSpotRemoval?.kind === "included" ? input.saveSpotRemoval.amount : 0;
     if (!closeEnough(installation + assessment + apFee + removal + fee, gross)) throw new Error("Quote line items must reconcile to the gross project total.");
     if (!closeEnough(gross - discount, customer)) throw new Error("Gross project total less VEU discount must equal the estimated customer price.");
@@ -235,7 +235,7 @@ function v2SavingsModule(input: V2SavingsInput) {
     { title: "Free Ready Check", description: "We measure your ceiling, assess whether any existing insulation can stay or needs removal, and confirm eligibility and the job scope.", amount: `<span style="color:${GREEN};font-weight:800;">FREE</span>`, plain: ": FREE" },
     { title: "R5.0 ceiling insulation — supply & install", description: "Fitted by a pre-vetted Certified Insulation Installer (CII) from our panel.", amount: input.hasBreakdown ? escape(money(input.installation)) : "", plain: input.hasBreakdown ? `: ${money(input.installation)}` : "" },
     ...(input.removal?.kind === "included" ? [{ title: "Removal of existing insulation", description: `${number(input.removal.areaM2)} m² included in this estimate; scope confirmed at your free Ready Check.`, amount: escape(money(input.removal.amount)), plain: `: ${money(input.removal.amount)} inc GST` }] : []),
-    { title: "Electrical safety assessment (PIESA)", description: "A mandatory check by a pre-vetted REC electrician, close to installation.", amount: input.hasBreakdown ? escape(money(input.assessment)) : "", plain: input.hasBreakdown ? `: ${money(input.assessment)}` : "" },
+    { title: "Pre Insulation Electrical Safety Assessment (PIESA)", description: "A mandatory check by a pre-vetted REC electrician, close to installation.", amount: input.hasBreakdown ? escape(money(input.assessment)) : "", plain: input.hasBreakdown ? `: ${money(input.assessment)}` : "" },
     { title: "Accredited Person (AP) management", description: "Our accreditation gives you access to the VEU rebate. We handle compliance, paperwork and your claim.", amount: input.hasBreakdown ? escape(money(input.apFee)) : "", plain: input.hasBreakdown ? `: ${money(input.apFee)}` : "" },
   ];
   const tick = `<span aria-hidden="true" style="white-space:nowrap;color:${GREEN};font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;line-height:1;">✓&nbsp;</span>`;
@@ -260,7 +260,7 @@ function totalRows(input: V2SavingsInput) {
 }
 
 function v2WhatCouldChange() {
-  const changes = ["Final measured ceiling size", "Existing insulation or removal", "Ceiling access", "Electrical rectification identified during PIESA"];
+  const changes = ["Final measured ceiling size", "Existing insulation or removal", "Ceiling access", "electrical fixes identified during PIESA"];
   const changeItems = changes.map((item) => `<p style="margin:0 0 6px;${F}color:${INK};font-size:13px;line-height:1.45;"><span style="color:${GREEN};font-weight:800;">•</span>&nbsp; ${escape(item)}</p>`).join("");
   const html = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${MIST}" style="width:100%;border-collapse:separate;background-color:${MIST};border-radius:14px;"><tr><td style="padding:17px 18px;${F}"><p style="margin:0 0 10px;${FH}color:${INK};font-size:17px;line-height:1.3;font-weight:800;">What could change this price?</p>${changeItems}<p style="margin:12px 0 0;padding-top:12px;border-top:1px solid ${LINE};${F}color:${INK};font-size:13px;line-height:1.5;font-weight:700;">${escape(CUSTOMER_WHAT_COULD_CHANGE.closing)}</p></td></tr></table>`;
   return { html, changes };

@@ -42,7 +42,7 @@ const E_LABEL: Record<string, string> = { current: "Current", expired: "Expired 
 type M = NonNullable<ReturnType<typeof useMeasurements>["data"]>["current"];
 
 export function MeasurementDetails({ m, admin = false }: { m: M; admin?: boolean }) {
-  if (!m) return <p className="text-sm text-muted-foreground">No measure-up recorded yet.</p>;
+  if (!m) return <p className="text-sm text-muted-foreground">No Ready Check recorded yet.</p>;
   const who = (m.completer as { full_name: string | null } | null)?.full_name;
   const sup = (m.supplementer as { full_name: string | null } | null)?.full_name;
   const rows: [string, unknown][] = [
@@ -102,26 +102,26 @@ export function RequirementCards({ jobId, isAdmin, job }: { jobId: string; isAdm
         <div><div className="text-xs font-semibold uppercase">Visit scope</div><div className="font-semibold">{s.label}</div>{s.nextAction && <div className="text-xs">{s.nextAction}</div>}</div>
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
-        <Section title="Ceiling / insulation measure-up" action={<Pill t={M_TONE[s.measurement.state] ?? "neutral"}>{M_LABEL[s.measurement.state]}</Pill>}>
+        <Section title="Ceiling / insulation Ready Check" action={<Pill t={M_TONE[s.measurement.state] ?? "neutral"}>{M_LABEL[s.measurement.state]}</Pill>}>
           <Ruler className="mb-2 h-4 w-4 text-muted-foreground" />
           <MeasurementDetails m={m} admin={isAdmin} />
           {isAdmin && rv?.withinTolerance != null && <p className={`mt-1 text-xs ${rv.withinTolerance ? "text-success" : "text-danger"}`}>Variance {rv.withinTolerance ? "within" : "outside"} the {rv.tolerancePct}% pilot tolerance</p>}
           {s.measurement.state !== "accepted" && s.measurement.missing.length > 0 && <p className="mt-2 text-xs text-danger">Missing: {s.measurement.missing.map((f) => MEASURE_FIELD_LABEL[f]).join(", ")}</p>}
           {isAdmin && (
             <div className="mt-3 space-y-2 border-t pt-3">
-              <div className="flex items-center gap-2 text-sm"><Label>Eligibility measure-up</Label><span className="font-semibold">Installer only</span></div>
+              <div className="flex items-center gap-2 text-sm"><Label>Eligibility Ready Check</Label><span className="font-semibold">Installer only</span></div>
               {m && (
                 <>
                   {m.status !== "complete" && !!rv?.blockers.length && <ul className="rounded bg-warning-soft p-2 text-xs text-warning">{rv.blockers.map((b) => <li key={b}>{b}</li>)}</ul>}
                   <Input placeholder="Review reason (audited)" value={reason} onChange={(e) => setReason(e.target.value)} />
                   <div className="flex flex-wrap gap-2">
-                    {m.status !== "complete" && <Button size="sm" disabled={reason.trim().length < 3 || !!rv?.blockers.length} onClick={async () => { await review({ jobId, action: "accept", reason }, "Measure-up accepted"); setReason(""); }}>Accept measure-up</Button>}
+                    {m.status !== "complete" && <Button size="sm" disabled={reason.trim().length < 3 || !!rv?.blockers.length} onClick={async () => { await review({ jobId, action: "accept", reason }, "Ready Check accepted"); setReason(""); }}>Accept Ready Check</Button>}
                     <Button size="sm" variant="outline" disabled={reason.trim().length < 3} onClick={async () => { await review({ jobId, action: "needs_review", reason }, "Marked needs review"); setReason(""); }}>Needs review</Button>
-                    <Button size="sm" variant="destructive" disabled={reason.trim().length < 3} onClick={async () => { await review({ jobId, action: "reject", reason }, "Measure-up rejected"); setReason(""); }}>Reject</Button>
+                    <Button size="sm" variant="destructive" disabled={reason.trim().length < 3} onClick={async () => { await review({ jobId, action: "reject", reason }, "Ready Check rejected"); setReason(""); }}>Reject</Button>
                   </div>
                 </>
               )}
-              {!!ms?.history.length && <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">{ms.history.length} earlier measure-up record(s)</summary>{ms.history.map((h) => <p key={h.id}>{fmtDate(h.created_at)} · {SOURCE[h.source_role]} · {h.status} · {h.measured_area_m2 ?? "—"} m² {h.review_reason && `· ${h.review_reason}`}</p>)}</details>}
+              {!!ms?.history.length && <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">{ms.history.length} earlier Ready Check record(s)</summary>{ms.history.map((h) => <p key={h.id}>{fmtDate(h.created_at)} · {SOURCE[h.source_role]} · {h.status} · {h.measured_area_m2 ?? "—"} m² {h.review_reason && `· ${h.review_reason}`}</p>)}</details>}
             </div>
           )}
         </Section>
@@ -132,7 +132,7 @@ export function RequirementCards({ jobId, isAdmin, job }: { jobId: string; isAdm
             <dt className="text-muted-foreground">Assessment date</dt><dd>{el?.a?.assessed_on ? fmtDate(el.a.assessed_on) : "—"}</dd>
             <dt className="text-muted-foreground">Outcome</dt><dd>{el?.a?.piesa_outcome ?? "—"}{el?.a?.status === "complete" ? " (recorded)" : el?.a ? " (draft)" : ""}</dd>
             <dt className="text-muted-foreground">30-day deadline</dt><dd>{job.piesa_date ? `${fmtDate(job.install_deadline)} (${s.electrical.state === "expired" ? "expired" : `${job.days_remaining} days`})` : "—"}</dd>
-            <dt className="text-muted-foreground">Rectification</dt><dd>{el?.rect ? `${el.rect} item(s) required` : "None open"}</dd>
+            <dt className="text-muted-foreground">Electrical fixes</dt><dd>{el?.rect ? `${el.rect} item(s) required` : "None open"}</dd>
           </dl>
         </Section>
       </div>
@@ -148,7 +148,7 @@ export function MeasurementReadOnly({ jobId, canFlag }: { jobId: string; canFlag
   const [reason, setReason] = useState("");
   const [fields, setFields] = useState<MeasureField[]>([]);
   return (
-    <Section title="Ceiling measure-up (accepted – read only)" action={<Pill t="good">Accepted</Pill>}>
+    <Section title="Ceiling Ready Check (accepted – read only)" action={<Pill t="good">Accepted</Pill>}>
       <MeasurementDetails m={ms?.current ?? null} />
       {canFlag && (!open ? (
         <Button size="field" variant="outline" className="mt-3 w-full" onClick={() => setOpen(true)}><AlertTriangle /> Measurement appears inconsistent / needs review</Button>
@@ -185,7 +185,7 @@ export function MeasurementForm({ jobId, editable, title, showComplete }: { jobI
   );
   return (
     <Section title={title}>
-      {m?.source_role && <p className="mb-2 text-xs text-muted-foreground">Original measure-up by {SOURCE[m.source_role]} – only missing or flagged fields can be completed here.</p>}
+      {m?.source_role && <p className="mb-2 text-xs text-muted-foreground">Original Ready Check by {SOURCE[m.source_role]} – only missing or flagged fields can be completed here.</p>}
       {provisional && <p className="mb-2 rounded bg-warning-soft p-2 text-sm text-warning">Measure the ceiling area yourself onsite – the installer's figure is kept separately for comparison.</p>}
       <div className="grid gap-3">
         <Num k="measured_area_m2" label="Measured ceiling area (m²)" />
@@ -197,7 +197,7 @@ export function MeasurementForm({ jobId, editable, title, showComplete }: { jobI
       </div>
       <div className="mt-3"><EvidencePanel jobId={jobId} role="measure" gates={["assessment"]} /></div>
       {showComplete && provisional && <div className="mt-3"><Label>How did you measure the ceiling area?</Label><div className="mt-1 grid grid-cols-4 gap-2">{(["laser", "tape", "floorplan", "other"] as const).map((k) => <Button key={k} type="button" size="field" variant={method === k ? "default" : "outline"} onClick={() => setMethod(k)}>{METHOD_LABEL[k]}</Button>)}</div></div>}
-      {showComplete && <Button size="field" className="mt-3 w-full" disabled={provisional && !method} onClick={() => done({ jobId, ...(method ? { method } : {}) }, "Measure-up complete")}><Check /> Complete measure-up</Button>}
+      {showComplete && <Button size="field" className="mt-3 w-full" disabled={provisional && !method} onClick={() => done({ jobId, ...(method ? { method } : {}) }, "Ready Check complete")}><Check /> Complete Ready Check</Button>}
     </Section>
   );
 }

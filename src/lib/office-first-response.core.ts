@@ -41,8 +41,8 @@ export function catchupBlocker(f: CatchupFacts): string | null {
   if (f.jobNumber === 'HV-2648' || f.jobNumber === 'HV-2566') return 'Explicitly excluded by Jo';
   const legacy = legacyExclusionReason(f.jobNumber);
   if (legacy) return legacy;
-  if (f.source !== 'base44' || f.channel !== 'hivic_sourced' || isTestRecipient(f.email)) return 'Not a real website homeowner enquiry';
-  if (!f.email || !/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(f.email)) return 'Invalid homeowner email';
+  if (f.source !== 'base44' || f.channel !== 'hivic_sourced' || isTestRecipient(f.email)) return 'Not a real website owner enquiry';
+  if (!f.email || !/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(f.email)) return 'Invalid owner email';
   if (f.deleted || f.archived || f.removed) return 'Deleted, archived or removed';
   if (f.stage === 'on_hold' || f.holdReason?.trim()) return 'On hold';
   if (f.bucket !== 'enquiry' || !f.needsFirstResponse || !['new_enquiry', 'eligibility_review', 'preliminary_estimate_ready'].includes(f.stage)) return 'Not an unanswered enquiry';

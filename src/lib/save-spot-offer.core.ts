@@ -79,7 +79,7 @@ export function saveSpotPriceLines(f: Pick<SaveSpotOfferFacts, "installation" | 
     { label: "Free Ready Check", amount: 0, kind: "item" },
     { label: "R5.0 ceiling insulation supply & install", amount: f.installation, kind: "item" },
     ...(f.removal.kind === "included" ? [{ label: `Existing insulation removal (${m2(f.removal.areaM2)} m²)`, amount: removal, kind: "item" as const }] : []),
-    { label: "Electrical safety assessment (PIESA)", amount: f.assessmentFee, kind: "item" },
+    { label: "Pre Insulation Electrical Safety Assessment (PIESA)", amount: f.assessmentFee, kind: "item" },
     { label: "Accredited Person (AP) management", amount: f.apFee, kind: "item" },
     { label: "Total before rebate", amount: f.gross, kind: "subtotal" },
     { label: "Less estimated VEU rebate", amount: f.discount, kind: "less" },
@@ -103,7 +103,7 @@ export function saveSpotExclusions(f: Pick<SaveSpotOfferFacts, "variant" | "remo
   return [
     removal,
     "Additional charges for difficult ceiling access",
-    "Electrical repairs or upgrades identified at the PIESA (the assessment fee covers the assessment, not rectification work)",
+    "Electrical repairs or upgrades identified at the PIESA (the assessment fee covers the assessment, not electrical fixes work)",
   ];
 }
 export const SAVE_SPOT_FINAL_PRICE = "Your final price and rebate depend on the measured eligible ceiling area and the confirmed job requirements. We will show you any additional work and cost and obtain your approval before proceeding.";

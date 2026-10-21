@@ -36,7 +36,7 @@ export const CUSTOMER_QUOTE_LABELS = {
   projectTotal: "Estimated project total",
   discount: "Estimated VEU / VEEC discount",
   finalCost: "YOUR ESTIMATED COST AFTER DISCOUNT",
-  payableNow: "Home Insulation Ready Check — free",
+  payableNow: "Ready Check — free",
 } as const;
 
 export const CUSTOMER_PIESA_NOTE = "Completed later by a licensed electrician, close to installation.";
@@ -51,20 +51,20 @@ export const CUSTOMER_QUOTE_ORDER = [
 ] as const;
 
 export const CUSTOMER_PAYMENT_COPY = {
-  credited: "Your Home Insulation Ready Check is free.",
+  credited: "Your Ready Check is free.",
   notPiesa: "It is not the PIESA.",
   purpose: "The Ready Check gives us the measured site information needed to prepare a more accurate project estimate before you commit to the full upgrade.",
 } as const;
 
 export const CUSTOMER_READY_CHECK = {
-  name: "Home Insulation Ready Check",
+  name: "Ready Check",
   short: "Ready Check",
   fee: 0,
   cta: "BOOK MY READY CHECK →",
   paragraphs: [
-    "Your Home Insulation Ready Check is free.",
+    "Your Ready Check is free.",
     "One of our insulation partners visits to measure the ceiling space and collect the eligibility evidence needed to prepare a more accurate project estimate.",
-    "The Ready Check is not the mandatory electrical safety assessment. Your PIESA is completed later by a licensed electrician, close to installation.",
+    "The Ready Check is not the mandatory Pre Insulation Electrical Safety Assessment (PIESA). Your PIESA is completed later by a licensed electrician, close to installation.",
     "If the Ready Check identifies something that wasn’t known beforehand — such as existing insulation that needs removal or difficult access — we’ll show you your measured project estimate before you decide whether to proceed.",
   ],
 } as const;
@@ -85,7 +85,7 @@ export const CUSTOMER_APPROVAL_REASSURANCE = "We will never proceed with additio
 
 export const CUSTOMER_WHAT_COULD_CHANGE: { heading: string; intro: string; items: readonly { lead: string; copy: string }[]; closing: string; gst: string } = {
   heading: "WHAT COULD CHANGE MY ESTIMATE?",
-  intro: "This estimate is based on the information currently available. The final scope and price may change after we confirm the measured ceiling size, existing insulation and any required removal, ceiling access conditions, and any electrical rectification identified through the mandatory Pre-Installation Electrical Safety Assessment (PIESA).",
+  intro: "This estimate is based on the information currently available. The final scope and price may change after we confirm the measured ceiling size, existing insulation and any required removal, ceiling access conditions, and any electrical fixes identified through the mandatory Pre-Installation Electrical Safety Assessment (PIESA).",
   items: [],
   closing: CUSTOMER_APPROVAL_REASSURANCE,
   gst: "All prices include GST.",
@@ -117,7 +117,7 @@ export const CUSTOMER_DISCOUNT_TREATMENT = {
 export const CUSTOMER_LIKELY_HERO = {
   heading: "YOU'RE LIKELY ELIGIBLE",
   intro: "Based on the information provided, your property appears likely to qualify for a VEU / VEEC discount on eligible ceiling insulation work.",
-  next: "Your preliminary estimate is below. The next step is to book your Home Insulation Ready Check so we can confirm the property details required to progress your quote.",
+  next: "Your preliminary estimate is below. The next step is to book your Ready Check so we can confirm the property details required to progress your quote.",
 } as const;
 
 export const CUSTOMER_INELIGIBLE_COPY = {
@@ -150,7 +150,7 @@ export const CUSTOMER_READY_CHECK_PAGE = {
     "Eligibility evidence and site photos are collected",
   ],
   notPiesa: "This is not the mandatory PIESA. Your PIESA is completed later by a licensed electrician, close to installation.",
-  acceptance: "I request the free Home Insulation Ready Check. I understand the installer will measure my ceiling and check eligibility, and it is not the PIESA.",
+  acceptance: "I request the free Ready Check. I understand the installer will measure my ceiling and check eligibility, and it is not the PIESA.",
 } as const;
 
 export const CUSTOMER_MEASURED_QUOTE = {
@@ -167,7 +167,7 @@ export const CUSTOMER_MEASURED_QUOTE = {
   allowanceNote: "Preliminary — confirmed by your licensed electrician at the PIESA.",
   stillChangeHeading: "WHAT COULD STILL CHANGE?",
   stillChange: [
-    "Your formal PIESA may confirm electrical rectification that is different from the preliminary electrical allowance.",
+    "Your formal PIESA may confirm electrical fixes that is different from the preliminary electrical allowance.",
     "If the confirmed PIESA amount is lower, we’ll reduce your project price by the difference.",
     "If it is higher, we’ll show you the variation for your approval before anything proceeds.",
   ],
@@ -179,7 +179,7 @@ export const CUSTOMER_PIESA_STAGE = {
   after: "Your PIESA is complete.",
   performedBy: "Your PIESA is completed by a licensed electrician, close to installation.",
   requiredHeading: "ELECTRICAL WORK REQUIRED BEFORE INSTALLATION",
-  noneHeading: "NO ELECTRICAL RECTIFICATION REQUIRED",
+  noneHeading: "NO ELECTRICAL ELECTRICAL FIXES REQUIRED",
   noneCopy: "Your PIESA is complete and your installation can proceed to scheduling.",
   compare: { preliminary: "Preliminary electrical allowance", confirmed: "Confirmed PIESA amount", difference: "Difference" },
   higher: "The confirmed electrical work is higher than your preliminary allowance. Please review and approve the variation before anything proceeds.",

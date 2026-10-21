@@ -27,7 +27,7 @@ export async function loadTodos(admin: Admin): Promise<TodoItem[]> {
       now: Date.now(),
       jobs: jobRows.map((j) => ({ id: j.id!, job_number: j.job_number, property: j.property_address, stage: j.stage as string, eligibility_review_required: j.eligibility_review_required, eligibility_outcome: j.eligibility_outcome })),
       invoices: ok(invoices, "invoices").map((v) => ({ ...v, deposit_amount: v.deposit_amount == null ? null : Number(v.deposit_amount), deposit_cleared: cleared.get(v.id)?.deposit_cleared ?? false, status: (cleared.get(v.id)?.effective_status ?? v.status) as string })),
-      rectOther: ok(rect, "rectification items"),
+      rectOther: ok(rect, "electrical fixes items"),
       measureReview: ok(meas, "measure-ups"),
       reassignments: ok(reas, "reassignment requests").map((r) => ({ ...r, role: String(r.role) })),
       partnerEnquiries: ok(penq, "partner enquiries").map((p) => ({ id: p.id, name: p.name, kind: p.enquiry_type, source: p.source, created_at: p.created_at })),
@@ -41,7 +41,7 @@ export async function loadTodos(admin: Admin): Promise<TodoItem[]> {
     // Onsite forms that trades can't open yet because the Mitti form isn't connected.
     const { data: ws, error: wsErr } = await admin.from("workflow_settings").select("mitti_ready_check_template_id, mitti_ready_check_priced_template_id, mitti_piesa_template_id, mitti_piisa_template_id").eq("id", 1).maybeSingle();
     if (wsErr) throw new Error(`Could not load form settings: ${wsErr.message}`);
-    const forms: [string, string | null | undefined][] = [["A1 Ready Check (installer's own customer)", ws?.mitti_ready_check_priced_template_id], ["A2 Ready Check (our lead)", ws?.mitti_ready_check_template_id], ["B PIESA electrical safety check", ws?.mitti_piesa_template_id], ["C PIISA installer safety check", ws?.mitti_piisa_template_id]];
+    const forms: [string, string | null | undefined][] = [["A1 Ready Check (installer's own customer)", ws?.mitti_ready_check_priced_template_id], ["A2 Ready Check (our lead)", ws?.mitti_ready_check_template_id], ["B Pre Insulation Electrical Safety Assessment (PIESA)", ws?.mitti_piesa_template_id], ["C PIISA installer Pre Insulation Electrical Safety Assessment (PIESA)", ws?.mitti_piisa_template_id]];
     for (const [name, id] of forms) if (!id) items.unshift({ key: `mitti-form:${name}`, category: "Compliance", jobId: null, jobNumber: null, property: null, title: `Onsite form not set up: ${name}`, action: "Connect the Mitti form in Compliance → Mitti forms. Trades see “Form being set up” until then.", tab: null, since: null, urgent: true });
     return items;
 }

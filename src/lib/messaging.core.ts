@@ -23,7 +23,7 @@ export const QUICK_ACTIONS: Record<Exclude<ThreadRole, "admin">, string[]> = {
     "I need to reschedule — can we find another time?",
   ],
   electrician: [
-    "Hi, I'm the licensed electrician for your electrical safety check. I've proposed some times in the portal — please pick one that suits.",
+    "Hi, I'm the licensed electrician for your Pre Insulation Electrical Safety Assessment (PIESA). I've proposed some times in the portal — please pick one that suits.",
     "I'm on my way.",
     "Running about 15 minutes late — sorry.",
     "I'm outside now.",

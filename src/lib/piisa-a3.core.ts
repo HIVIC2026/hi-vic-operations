@@ -558,15 +558,15 @@ export function a3StopWork(answers: OfficialAnswers, ctx: Pick<A3EvidenceCtx, "e
   const solar = a("p4.present");
   if (solar == null) out.push("Solar/battery/other supply: not answered");
   else if (solar === "Yes") {
-    need("p4.instructions", "Shutdown instructions", stopMsg("Please obtain safe shutdown, isolation and restart instructions for every alternative power supply and have the required electrician isolate the supplies, lock out, tag and reconfirm electrical safety before work starts."));
-    need("p4.isolator", "Ground-level isolator", stopMsg("Please arrange electrical review of the ground-level AC/DC isolator so it is accessible, working and safe to isolate, and reconfirm electrical safety before continuing."));
+    need("p4.instructions", "Shutdown instructions", stopMsg("Please obtain safe shutdown, isolation and restart instructions for every alternative power supply and have the required electrician isolate the supplies, lock out, tag and reconfirm Pre Insulation Electrical Safety Assessment (PIESA) before work starts."));
+    need("p4.isolator", "Ground-level isolator", stopMsg("Please arrange electrical review of the ground-level AC/DC isolator so it is accessible, working and safe to isolate, and reconfirm Pre Insulation Electrical Safety Assessment (PIESA) before continuing."));
   }
   need("p5.reviewed", "PIESA review", stopMsg("The lead installer must read the PIESA and confirm it is safe to start work."));
   const required = ctx.electricianRequiredAtStart || a("p4.instructions") === "No";
   const el = a("p5.electricianPresent");
   if (el == null) out.push("Electrician attendance: not answered");
   else if (el === "No") out.push(stopMsg("Get the required electrician onsite, then reconfirm it is safe to start."));
-  else if (el === "N/A" && required) out.push(stopMsg("Please arrange for the electrician required by the PIESA or shutdown instructions to attend and reconfirm electrical safety before work starts; N/A is not valid for this job."));
+  else if (el === "N/A" && required) out.push(stopMsg("Please arrange for the electrician required by the PIESA or shutdown instructions to attend and reconfirm Pre Insulation Electrical Safety Assessment (PIESA) before work starts; N/A is not valid for this job."));
   const rec = a("p5.recessed");
   if (rec == null) out.push("Recessed lights: not answered");
   else if (rec === "Yes") {

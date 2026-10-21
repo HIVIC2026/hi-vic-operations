@@ -67,7 +67,7 @@ function GuardedFollowup({ jobId, title, run, onDone, deliveryUncertain = false 
   const [locked, setLocked] = useState(false);
   const go = async (mode: "preview" | "prepare" | "send") => {
     if (busy || locked || deliveryUncertain || sent) return;
-    if (mode === "send" && !confirm(`Send the ${title} email to this homeowner now? It is checked again before sending.`)) return;
+    if (mode === "send" && !confirm(`Send the ${title} email to this owner now? It is checked again before sending.`)) return;
     setBusy(mode);
     setMessage(null);
     try {
@@ -453,7 +453,7 @@ export function EnquiriesWorkspace({
                 Quote approvals
               </Link>
               <Link to="/admin/ap-queue" className="font-semibold text-primary underline">
-                AP review
+                Final check
               </Link>
             </div>
             {officeReview && (
@@ -471,7 +471,7 @@ export function EnquiriesWorkspace({
           )}
           {view === "photos" && (
             <div className="rounded-md border border-warning/40 bg-warning/5 p-3 text-sm">
-              <strong>Homeowners who sent photos or videos.</strong> Open each one, look at the
+              <strong>Owners who sent photos or videos.</strong> Open each one, look at the
               pictures, then choose: no insulation or below R2 makes them ready to offer Save My Spot, R2 or above moves
               them to Ineligible, and unclear records need more pictures.
             </div>
@@ -537,7 +537,7 @@ export function EnquiriesWorkspace({
                       />
                     )}
                   </th>
-                  <th className="p-3">Homeowner</th>
+                  <th className="p-3">Owner</th>
                   <th className="p-3">Property</th>
                   <th className="p-3">Status</th>
                   <th className="p-3">Insulation · area</th>

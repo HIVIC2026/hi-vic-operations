@@ -36,7 +36,7 @@ function MyWork() {
       <div><h1 className="font-display text-[26px] font-bold leading-tight">{g.title}</h1><p className="text-sm text-sub">{g.sub}</p></div>
       {!installer && <div className="grid grid-cols-2 gap-2" data-work-tiles>
         {([
-          ["Offers", data.offers.length, installer ? "Free Ready Check" : "Safety check"],
+          ["Offers", data.offers.length, installer ? "Free Ready Check" : "Pre Insulation Electrical Safety Assessment (PIESA)"],
           ["Needs me", data.yourMove.length, "Your next actions"],
           ["Moving automatically", data.jobs.filter((j) => j.place === "moving").length, "No action needed now"],
           ["Coming up", data.coming.length, "Booked visits"],
@@ -51,7 +51,7 @@ function MyWork() {
       )}
       {first ? (
         <NowPanel attention eyebrow={`${data.offers.length} new job offer${data.offers.length === 1 ? "" : "s"}`} due={first.expiresAt ? goneIn(first.expiresAt) : undefined}
-          status={`${installer ? "Ready Check" : "Safety check"} in ${first.suburb ?? "Victoria"}`}
+          status={`${installer ? "Ready Check" : "Pre Insulation Electrical Safety Assessment (PIESA)"} in ${first.suburb ?? "Victoria"}`}
           action={<Link to="/field/offer/$offerId" params={{ offerId: first.id }} className={btnClass("primary", "w-full md:w-auto")}>View offer</Link>} />
       ) : data.yourMove[0] ? (
         <NowPanel eyebrow="Your next step" status={data.yourMove[0].title} next={data.yourMove[0].detail}
@@ -62,7 +62,7 @@ function MyWork() {
           <h2 className="mb-2 font-display text-base font-bold">More offers <span className="text-sm font-semibold text-sub">{data.offers.length - 1}</span></h2>
           <div className="space-y-2">{data.offers.slice(1).map((o) => (
             <Link key={o.id} to="/field/offer/$offerId" params={{ offerId: o.id }} className="flex min-h-[52px] items-center gap-3 rounded-[14px] border border-line bg-paper p-3 hover:border-action">
-              <span className="min-w-0 flex-1"><span className="block font-bold">{installer ? "Ready Check" : "Safety check"} in {o.suburb ?? "Victoria"}</span>{o.expiresAt && <span className="block text-sm text-sub">{goneIn(o.expiresAt)}</span>}</span><ChevronRight className="h-5 w-5" />
+              <span className="min-w-0 flex-1"><span className="block font-bold">{installer ? "Ready Check" : "Pre Insulation Electrical Safety Assessment (PIESA)"} in {o.suburb ?? "Victoria"}</span>{o.expiresAt && <span className="block text-sm text-sub">{goneIn(o.expiresAt)}</span>}</span><ChevronRight className="h-5 w-5" />
             </Link>))}</div>
         </section>
       )}

@@ -205,7 +205,7 @@ async function readyCheckBlockers(jobId: string, to: Stage): Promise<string[]> {
     const business = assignment?.businesses as { business_type: string; onboarding_status: string; is_active: boolean; capabilities: string[] | null } | null;
     const certifiedInstaller = !!assignment?.user_id && !!assignment.business_id && !!business?.is_active && business.onboarding_status === "approved"
       && (business.business_type === "eec_installer" || business.capabilities?.includes("installer"));
-    if (!certifiedInstaller) out.push("Assign an approved EEC Certified Insulation Installer before scheduling the Ready Check.");
+    if (!certifiedInstaller) out.push("Assign an approved installer before scheduling the Ready Check.");
     const { data: booking } = await admin.from("bookings").select("id, scheduled_start, contractor_id, assignment_id, business_id").eq("job_id", jobId).eq("kind", "ready_check").eq("status", "confirmed").order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (!booking?.scheduled_start || booking.assignment_id !== assignment?.id || booking.contractor_id !== assignment?.user_id || booking.business_id !== assignment?.business_id) out.push(READY_CHECK_BOOKING_RECORD_BLOCKER);
   }
@@ -216,7 +216,7 @@ async function readyCheckBlockers(jobId: string, to: Stage): Promise<string[]> {
     out.push(...(await installerIntakeState(jobId)).readiness.blockers);
   } else if (to === "measured_estimate_ready") {
     const { count } = await admin.from("ceiling_measurements").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("is_current", true).eq("status", "complete").eq("source_role", "installer");
-    if (!count) out.push("Free Ready Check eligibility measure-up not yet completed by the installer.");
+    if (!count) out.push("Free Ready Check eligibility Ready Check not yet completed by the installer.");
     const { verifiedEligible } = await import("./verified-eligibility.server");
     if (!(await verifiedEligible(jobId))) out.push("Verified eligibility not recorded as eligible by the office for the current Ready Check.");
   }
@@ -225,7 +225,7 @@ async function readyCheckBlockers(jobId: string, to: Stage): Promise<string[]> {
     const { data: r } = await admin.from("piesa_reconciliations").select("id, requires_customer_approval").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (r?.requires_customer_approval) {
       const { count } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "electrical_variation_approved").contains("details", { reconciliation_id: r.id });
-      if (!count) out.push("Electrical variation awaiting customer approval.");
+      if (!count) out.push("Electrical fixes awaiting customer approval.");
     }
   }
   return out;
@@ -249,10 +249,10 @@ export async function commercialBlocker(jobId: string): Promise<string | null> {
 /** Quoting needs an ACCEPTED current ceiling measurement with area > 0 (not "assessment complete"). */
 export async function measurementBlocker(jobId: string): Promise<string | null> {
   const { data: m } = await admin.from("ceiling_measurements").select("status, measured_area_m2").eq("job_id", jobId).eq("is_current", true).maybeSingle();
-  if (!m) return "Ceiling measure-up missing.";
-  if (m.status === "needs_review") return "Ceiling measure-up needs review / missing evidence.";
-  if (m.status !== "complete") return "Ceiling measure-up not yet completed.";
-  if (!(Number(m.measured_area_m2) > 0)) return "Accepted ceiling measure-up has no measured area.";
+  if (!m) return "Ceiling Ready Check missing.";
+  if (m.status === "needs_review") return "Ceiling Ready Check needs review / missing evidence.";
+  if (m.status !== "complete") return "Ceiling Ready Check not yet completed.";
+  if (!(Number(m.measured_area_m2) > 0)) return "Accepted ceiling Ready Check has no measured area.";
   return null;
 }
 
@@ -345,7 +345,7 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
     if (st === "variation_required") blockers.push("Assignment variation must be reconfirmed by the customer.");
     if (st !== "effective_complete") blockers.push(ASSIGNMENT_VEEC_BLOCKER);
     // Final AP approval must be a real signed-in admin person making this move — automation (null actor) never passes.
-    if (!actorId) blockers.push("Final Accredited Person approval must be given by a person in the AP review queue.");
+    if (!actorId) blockers.push("Final Accredited Person approval must be given by a person in the Final check queue.");
     else { const { data: isAdmin } = await admin.rpc("has_role", { _user_id: actorId, _role: "admin" }); if (!isAdmin) blockers.push("Only an Accredited Person (office admin) can give final approval."); }
     const { isIntakeJob } = await import("./installer-intake.server");
     if (await isIntakeJob(jobId)) {
@@ -395,7 +395,7 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
   }
   if (to === "ready_for_installer_quotes" || to === "awaiting_quote_acceptance") {
     if (!piesa?.piesa_date) blockers.push("No current PIESA record.");
-    else if (rect === 0 && piesa.piesa_outcome !== "pass") blockers.push("Current PIESA has not passed and no rectification scope exists.");
+    else if (rect === 0 && piesa.piesa_outcome !== "pass") blockers.push("Current PIESA has not passed and no electrical fixes scope exists.");
     if (to === "awaiting_quote_acceptance" && rect === 0 && piesa?.piesa_expired) blockers.push(`PIESA 30-day window expired on ${piesa.install_deadline}.`);
   }
   if (to === "awaiting_quote_acceptance") {
@@ -416,7 +416,7 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
     if (!g.cleared) blockers.push(g.blocker);
   }
   if (to === "installation_scheduling" || to === "installation_booked") {
-    if (rect > 0) blockers.push("Rectification works not yet completed.");
+    if (rect > 0) blockers.push("Electrical fixes works not yet completed.");
     if (!piesa?.piesa_date || piesa.piesa_outcome !== "pass") blockers.push("A passing PIESA / electrical sign-off is required before installation.");
   }
   if (to === "installation_booked" || to === "evidence_outstanding") {

@@ -15,7 +15,7 @@ export function effectiveReadyCheckFee(fee: unknown): number {
   return READY_CHECK_FEE;
 }
 export const READY_CHECK_COPY_VERSION = "ready-check-free-v2" as const;
-export const READY_CHECK_NAME = "Home Insulation Ready Check" as const;
+export const READY_CHECK_NAME = "Ready Check" as const;
 export const READY_CHECK_SHORT = "Ready Check" as const;
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -48,12 +48,12 @@ export function acceptanceIsCurrent(acceptedEstimateId: string, currentEstimateI
 
 /** Single post-acceptance target. Never PIESA, never an invoice/deposit. */
 export const READY_CHECK_PAID_STAGE = "ready_check_ready_to_schedule" as const;
-export const READY_CHECK_PAID_NEXT_ACTION = "Assign EEC Certified Insulation Installer and arrange Ready Check" as const;
+export const READY_CHECK_PAID_NEXT_ACTION = "Assign Installer and arrange Ready Check" as const;
 
 export const READY_CHECK_BOOKING_SUCCESS = {
   heading: "YOUR READY CHECK IS BOOKING NEXT",
-  received: "Your free Home Insulation Ready Check request has been received.",
-  assignment: "An EEC Certified Insulation Installer from our partner network will be assigned to your job and will contact you to arrange a suitable time for your onsite Ready Check.",
+  received: "Your free Ready Check request has been received.",
+  assignment: "An Installer from our partner network will be assigned to your job and will contact you to arrange a suitable time for your onsite Ready Check.",
   visit: "During the Ready Check they’ll measure your ceiling space and collect the site information we need to prepare your measured project estimate.",
   reassurance: "Home Insulation Victoria will keep the booking and job progress recorded in your project.",
 } as const;
@@ -184,7 +184,7 @@ export type AllowanceSnapshot = {
 };
 
 export const UNPRICEABLE_COPY = "Additional electrical work may be required — unable to estimate from the preliminary observations.";
-export const ALLOWANCE_COPY = "Based on the observable electrical items recorded during your Home Insulation Ready Check and Home Insulation Victoria’s agreed electrician rate card. Your mandatory PIESA is completed later by a licensed electrician and confirms the actual electrical safety requirements before installation.";
+export const ALLOWANCE_COPY = "Based on the observable electrical items recorded during your Ready Check and Home Insulation Victoria’s agreed electrician rate card. Your mandatory PIESA is completed later by a licensed electrician and confirms the actual Pre Insulation Electrical Safety Assessment (PIESA) requirements before installation.";
 
 function triggered(item: RateCardItem, obs: Observations): boolean {
   const v = obs[item.triggerKey];
@@ -254,7 +254,7 @@ export const MEASURED_QUOTE_LABELS = {
   apManagement: "Home Insulation Victoria — Accredited Person Management",
   projectTotal: "Estimated project total",
   discount: "Estimated VEU / VEEC discount",
-  readyCheckCredit: "Home Insulation Ready Check — free",
+  readyCheckCredit: "Ready Check — free",
   finalCost: "ESTIMATED COST AFTER DISCOUNT",
   alreadyPaid: "Ready Check cost",
   remaining: "Estimated remaining project balance",

@@ -26,11 +26,11 @@ export function enquiryNextStep(f: { status: string; mediaToReview: boolean; rev
   if (f.mediaToReview) return { party: 'office', label: `Office: review ${f.mediaCount} photo${f.mediaCount === 1 ? '' : 's'}/video${f.reviewOutcome === 'unclear' ? ' (new upload after the last review)' : ''}` };
   if (f.status === 'spot_saved') return { party: 'office', label: 'Continue from Active jobs' };
   if (f.status === 'ineligible') return { party: 'none', label: 'No action unless the owner replies' };
-  if (f.reviewOutcome === 'unclear') return f.morePhotosRequested === true ? { party: 'homeowner', label: 'Waiting for the homeowner to send more photos/video' } : { party: 'office', label: 'Office: request more photos/video' };
-  if (f.status === 'offered_spot') return { party: 'homeowner', label: 'Waiting for the homeowner to save their spot' };
+  if (f.reviewOutcome === 'unclear') return f.morePhotosRequested === true ? { party: 'homeowner', label: 'Waiting for the owner to send more photos/video' } : { party: 'office', label: 'Office: request more photos/video' };
+  if (f.status === 'offered_spot') return { party: 'homeowner', label: 'Waiting for the owner to save their spot' };
   if (f.reviewOutcome === 'below_r2') return { party: 'office', label: 'Office: send the existing-insulation Save your spot follow-up' };
   if (f.reviewOutcome === 'no_insulation') return { party: 'office', label: 'Office: send the no-insulation Save your spot offer' };
-  if (f.status === 'insulation_requested') return { party: 'homeowner', label: 'Waiting for the homeowner’s photos/video' };
+  if (f.status === 'insulation_requested') return { party: 'homeowner', label: 'Waiting for the owner’s photos/video' };
   return { party: 'office', label: f.fallback ?? 'Office: decide the next step' };
 }
 
@@ -43,7 +43,7 @@ export function showingRange(page: number, pageSize: number, rowsOnPage: number,
 
 /** Office no-insulation Save your spot offer: the photo review alone never decides eligibility. */
 export function noInsulationOfferBlocker(f: { source: string | null; stage: string | null; outcome: string | null; decisionSource: string | null; reviewRequired: boolean; latestReview: string | null }): string | null {
-  if (f.source !== 'base44') return 'Only website homeowner enquiries can be offered here.';
+  if (f.source !== 'base44') return 'Only website owner enquiries can be offered here.';
   if (!['new_enquiry', 'eligibility_review', 'preliminary_estimate_ready'].includes(f.stage ?? '')) return 'This enquiry is no longer awaiting an offer.';
   if (f.latestReview !== 'no_insulation') return 'The latest Office photo review is not “no insulation”.';
   if (f.outcome !== 'likely_eligible' || f.reviewRequired || !['admin', 'system'].includes(f.decisionSource ?? '')) return 'Record the Office eligibility decision (likely eligible) first — photos alone never decide eligibility.';

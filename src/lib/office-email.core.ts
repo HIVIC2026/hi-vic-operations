@@ -9,7 +9,7 @@ export type OfficeRecipient = "applicant" | "partner" | "homeowner";
 /** null = this email may go to the real address. Fails closed. */
 export function officeEmailBlocker(x: { origin: OfficeEmailOrigin; recipient: OfficeRecipient; to: string | null | undefined; message: string | null | undefined }): string | null {
   if (x.origin !== "office_manual") return "Automated emails stay behind the sending switches.";
-  if (x.recipient === "homeowner") return "Homeowner emails stay behind the sending switches.";
+  if (x.recipient === "homeowner") return "Owner emails stay behind the sending switches.";
   const to = normaliseEmail(x.to);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return "There's no valid email address on this record.";
   if (!(x.message ?? "").trim()) return "Type a message first.";

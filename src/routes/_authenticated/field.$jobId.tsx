@@ -117,7 +117,7 @@ function MittiOnly({ jobId, which }: { jobId: string; which: "ready_check" | "pi
   } });
   const invited = useMittiInvited();
   return (
-    <Section title={which === "piesa" ? "Safety check form" : "Ready Check form"}>
+    <Section title={which === "piesa" ? "Pre Insulation Electrical Safety Assessment (PIESA) form" : "Ready Check form"}>
       {data && invited ? <><p className="mb-3 text-sm text-sub">Fill it in on site, in order. Your answers come back here automatically.</p><Button asChild size="field" className="w-full"><a href={`https://app.au.mitti.com/inspections/${data}`} target="_blank" rel="noreferrer">Open form in Mitti</a></Button><div className="mt-3"><MittiCard jobId={jobId} isAdmin={false} /></div></>
         : <p className="text-sm font-medium" data-mitti-unavailable>{!invited ? "Your Mitti account isn't invited yet, so the Mitti form can't open. Home Insulation Victoria has to invite you." : "The Mitti form isn't linked to this job yet — Home Insulation Victoria links it."}{which === "ready_check" ? " You can still enter and save the Ready Check on this page." : ""}</p>}
     </Section>
@@ -140,7 +140,7 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
   const { data: rectCount } = useQuery({ queryKey: ["rect-items-count", jobId], queryFn: async () => (await supabase.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("status", "required")).count ?? 0, refetchInterval: 30_000 });
   const needsPlan = !!rectCount && f["no_rectification_confirmed"] !== true;
   const finish = () => complete(needsPlan ? { jobId, rectHours: Number(plan.hours), rectWindows: plan.picks } : { jobId }, "PIESA complete");
-  const planBlock = !locked && needsPlan ? <Section title="Rectification time and hours"><RectPlanFields value={plan} onChange={setPlan} /></Section> : null;
+  const planBlock = !locked && needsPlan ? <Section title="Electrical fixes time and hours"><RectPlanFields value={plan} onChange={setPlan} /></Section> : null;
   const put = async (k: string, v: string | number | boolean | null) => {
     setF((p) => ({ ...p, [k]: v }));
     if (locked) return;
@@ -156,14 +156,14 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
   const canEnter = manualPath && manualResultEntry(a);
   const showManual = manualPath && (assessing || locked);
   const { data: scope } = useJobScope(jobId);
-  const measureBlock = !scope || !assessing ? null : scope.measurement.state === "accepted" ? <MeasurementReadOnly jobId={jobId} canFlag /> : <Section title="Installer eligibility measure-up"><p className="text-sm text-sub">The installer does the measure-up, not you.</p></Section>;
+  const measureBlock = !scope || !assessing ? null : scope.measurement.state === "accepted" ? <MeasurementReadOnly jobId={jobId} canFlag /> : <Section title="Installer eligibility Ready Check"><p className="text-sm text-sub">The installer does the Ready Check, not you.</p></Section>;
 
   return (
     <>
       {["rectification_scheduling", "rectification_booked", "awaiting_deposit_payment"].includes(stage) && (
-        stage === "awaiting_deposit_payment" ? <Section title="Rectification booking"><p className="text-sm font-medium text-rose">Waiting for the owner's payment. Booking opens once paid.</p></Section> : <BookingPanel jobId={jobId} kind="rectification" canBook />
+        stage === "awaiting_deposit_payment" ? <Section title="Electrical fixes booking"><p className="text-sm font-medium text-rose">Waiting for the owner's payment. Booking opens once paid.</p></Section> : <BookingPanel jobId={jobId} kind="rectification" canBook />
       )}
-      {stage === "rectification_booked" && <PiesaForm jobId={jobId} kind="post_rectification" title="Rectification complete – record PIESA sign-off" />}
+      {stage === "rectification_booked" && <PiesaForm jobId={jobId} kind="post_rectification" title="Electrical fixes complete – record PIESA sign-off" />}
       {expired && <PiesaForm jobId={jobId} kind="reassessment" title="PIESA window expired – record reassessment" />}
       {scope && assessing && <div className="rounded-[13px] bg-mist px-4 py-2 text-sm font-semibold text-ink">Your visit: {scope.label}</div>}
       {a?.external_mitti_id && (assessing || locked) && (
@@ -186,7 +186,7 @@ function ElectricianFlow({ jobId, stage, expired }: { jobId: string; stage: stri
           {assessing && <OtherItems jobId={jobId} editable />}
           {planBlock}
           {assessing && <Button size="field" className="w-full" disabled={needsPlan && rectPlanProblems(plan).length > 0} onClick={finish}><Check /> Complete PIESA</Button>}
-          {locked && <Section title="Safety check"><p className="text-sm text-sub">Safety check complete.</p></Section>}
+          {locked && <Section title="Pre Insulation Electrical Safety Assessment (PIESA)"><p className="text-sm text-sub">Pre Insulation Electrical Safety Assessment (PIESA) complete.</p></Section>}
         </>
       )}
     </>
@@ -202,8 +202,8 @@ function OtherItems({ jobId, editable }: { jobId: string; editable: boolean }) {
   const [o, setO] = useState({ description: "", quantity: "1", price: "", explanation: "" });
   const [approved, setApproved] = useState({ code: "", quantity: "1" });
   return (
-    <Section title="4 · Rectification items">
-      {editable && approvedRates.length > 0 && <div className="mb-4 rounded-lg border p-3"><p className="mb-2 text-sm font-semibold">Add from your approved rate schedule</p><div className="grid gap-2 sm:grid-cols-[1fr_7rem_auto]"><select className="h-12 rounded-lg border bg-background px-3 text-sm" value={approved.code} onChange={(e) => setApproved((x) => ({ ...x, code: e.target.value }))}><option value="">Choose an item</option>{approvedRates.map((rate) => <option key={rate.code} value={rate.code}>{rate.description} · {rate.display_unit || rate.unit}</option>)}</select><Input className="h-12" type="number" min="0.01" step="0.01" aria-label="Quantity" value={approved.quantity} onChange={(e) => setApproved((x) => ({ ...x, quantity: e.target.value }))} /><Button disabled={!approved.code || !(Number(approved.quantity) > 0)} onClick={() => addApproved({ jobId, rateCode: approved.code, quantity: Number(approved.quantity) }, "Approved rectification item added")}>Add</Button></div></div>}
+    <Section title="4 · Electrical fixes items">
+      {editable && approvedRates.length > 0 && <div className="mb-4 rounded-lg border p-3"><p className="mb-2 text-sm font-semibold">Add from your approved rate schedule</p><div className="grid gap-2 sm:grid-cols-[1fr_7rem_auto]"><select className="h-12 rounded-lg border bg-background px-3 text-sm" value={approved.code} onChange={(e) => setApproved((x) => ({ ...x, code: e.target.value }))}><option value="">Choose an item</option>{approvedRates.map((rate) => <option key={rate.code} value={rate.code}>{rate.description} · {rate.display_unit || rate.unit}</option>)}</select><Input className="h-12" type="number" min="0.01" step="0.01" aria-label="Quantity" value={approved.quantity} onChange={(e) => setApproved((x) => ({ ...x, quantity: e.target.value }))} /><Button disabled={!approved.code || !(Number(approved.quantity) > 0)} onClick={() => addApproved({ jobId, rateCode: approved.code, quantity: Number(approved.quantity) }, "Approved electrical fixes item added")}>Add</Button></div></div>}
       <p className="mb-2 text-xs text-sub">Standard items are priced from your answers.</p>
       <ul className="mb-3 space-y-1 text-sm">
         {data?.map((i) => <li key={i.id} className="flex items-center justify-between gap-2"><span>{i.description} × {Number(i.quantity)}{i.is_other && ` @ ${aud(i.other_unit_price_inc_gst)}`}</span>{i.is_other && editable && <Button size="sm" variant="ghost" onClick={() => remove({ itemId: i.id })}>Remove</Button>}</li>)}
@@ -236,7 +236,7 @@ function PiesaForm({ jobId, kind, title }: { jobId: string; kind: "post_rectific
         <div className="mb-3 rounded-lg border p-3">
           <label className="flex items-start gap-2 text-sm font-medium">
             <input type="checkbox" className="mt-1" checked={sectionC} onChange={(e) => setSectionC(e.target.checked)} />
-            <span>I confirm Section C of the completed PIESA has been completed and signed for this rectification work.</span>
+            <span>I confirm Section C of the completed PIESA has been completed and signed for this electrical fixes work.</span>
           </label>
           <Label>Section C signed date</Label>
           <Input className="h-12" type="date" value={sectionCDate} max={melbourneToday()} onChange={(e) => setSectionCDate(e.target.value)} />
@@ -264,7 +264,7 @@ function InstallerFlow({ jobId, stage }: { jobId: string; stage: string }) {
   return (
     <>
       {measuring && <MittiOnly jobId={jobId} which="ready_check" />}
-      {!measuring && m && m.status !== "complete" && ["assessment_booking", "assessment_booked"].includes(stage) && <Section title="Your measure-up"><MeasurementDetails m={m} /><p className="mt-2 text-sm text-sub">Status: {m.status.replace("_", " ")} – Home Insulation Victoria will follow up.</p></Section>}
+      {!measuring && m && m.status !== "complete" && ["assessment_booking", "assessment_booked"].includes(stage) && <Section title="Your Ready Check"><MeasurementDetails m={m} /><p className="mt-2 text-sm text-sub">Status: {m.status.replace("_", " ")} – Home Insulation Victoria will follow up.</p></Section>}
       {a && (
         <Section title="Site summary">
           <dl className="grid grid-cols-2 gap-1 text-sm">

@@ -16,9 +16,9 @@ export const ACKNOWLEDGEMENTS = [
   { key: "personnel", text: "The REC will ensure every nominated electrician and staff member on Home Insulation Victoria jobs complies with the obligations that apply to them." },
   { key: "compliance", text: "I understand the REC and its personnel must comply with current VEU, Code of Conduct, PIESA, electrical-safety and Home Insulation Victoria requirements." },
   { key: "records", text: "I confirm the REC will provide truthful records and evidence and cooperate with Home Insulation Victoria, ESC and ESV compliance checks." },
-  { key: "no_bypass", text: "I understand that rectification, electrical upgrades, attendance and other work identified through or required for a Home Insulation Victoria Activity 48 job must be quoted, approved by the owner, scheduled and completed through the Home Insulation Victoria workflow and must not be taken off-platform or dealt with directly, except for the minimum work lawfully necessary to make an immediate danger safe." },
+  { key: "no_bypass", text: "I understand that electrical fixes, electrical upgrades, attendance and other work identified through or required for a Home Insulation Victoria Activity 48 job must be quoted, approved by the owner, scheduled and completed through the Home Insulation Victoria workflow and must not be taken off-platform or dealt with directly, except for the minimum work lawfully necessary to make an immediate danger safe." },
   { key: "customer_owner", text: "I understand the customer is Home Insulation Victoria's customer. I will not quote, invoice or accept payment from them separately for any work connected to a Home Insulation Victoria job, and I will not approach them for other work. Routine communication goes through the Home Insulation Victoria portal, subject only to the agreement's narrow immediate-safety and legally required exceptions." },
-  { key: "same_day", text: "I understand PIESA results and any rectification quote (or confirmation that none is required) must be submitted through the Home Insulation Victoria portal on the day of each assessment." },
+  { key: "same_day", text: "I understand PIESA results and any electrical fixes quote (or confirmation that none is required) must be submitted through the Home Insulation Victoria portal on the day of each assessment." },
   { key: "pricing", text: "I understand our approved rates are supplier rates, Home Insulation Victoria sets the customer price independently and may include its own margin, and Home Insulation Victoria does not have to disclose that margin to us. I will not share our rates with customers." },
   { key: "electronic_signature", text: "I agree to electronic execution and to the signed agreement, exact wording, version and audit record being stored by Home Insulation Victoria." },
 ] as const;
@@ -119,7 +119,7 @@ export const STEPS = [
   { key: "availability", title: "When you're available to work" },
   { key: "capacity", title: "Availability" }, // legacy draft anchor; no longer shown or required
   { key: "assessment_pricing", title: "PIESA pricing" },
-  { key: "rectification_pricing", title: "Rectification pricing" },
+  { key: "rectification_pricing", title: "Electrical fixes pricing" },
   { key: "bank", title: "Payment details" },
   { key: "review", title: "Review agreement" },
   { key: "sign", title: "Sign agreement" },
@@ -420,13 +420,13 @@ export function scheduleText(d: RecData): string {
   sparks.forEach((x, i) => lines.push(`${i + 1}. ${x.full_legal_name} — licence ${x.licence_number}`));
   lines.push("", "SCHEDULE 2 — SERVICES, COVERAGE AND AVAILABILITY");
   lines.push("Required electrical services (all three, as required for each job):",
-    "- Pre-installation electrical safety assessment (PIESA)",
-    "- Electrical rectification (completing required electrical work after approval)",
+    "- Pre-installation Pre Insulation Electrical Safety Assessment (PIESA)",
+    "- electrical fixes (completing required electrical work after approval)",
     "- Installation-day electrical attendance (when required for the job)");
   lines.push(`Service origin: ${d.service_origin ?? ""}; radius: ${d.travel_radius_km === 9999 ? "anywhere in Victoria" : `${d.travel_radius_km} km`}${d.excluded_areas ? `; excluded: ${d.excluded_areas}` : ""}`);
   lines.push(`Days: ${(d.typical_days ?? []).join(", ")}; lead time: ${d.normal_attendance_speed ?? ""}`);
   lines.push("", `SCHEDULE 3 — PROPOSED SUPPLIER RATES (${gst}; not binding until accepted by Home Insulation Victoria under clause 17)`);
-  lines.push(`Pre-insulation electrical safety assessment (PIESA): ${money(d.assessment_rate)} / visit`);
+  lines.push(`Pre-insulation Pre Insulation Electrical Safety Assessment (PIESA): ${money(d.assessment_rate)} / visit`);
   lines.push(`Installation-day attendance: ${money(d.installation_attendance_rate)} / visit`);
   for (const it of RECT_ITEMS) lines.push(`${it.label}: ${money(d.rectification_rates?.[it.key] ?? null)} / ${it.unit}`);
   for (const it of d.custom_rectification_rates ?? []) lines.push(`${it.description.trim()}: ${money(it.price)} / ${it.unit.trim()} (custom approved item ${customRateCode(it.id)})`);

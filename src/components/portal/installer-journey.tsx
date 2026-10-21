@@ -25,9 +25,9 @@ export function InstallerJourney({ jobId }: { jobId: string }) {
         })}
       </ol>
       {coverage.hardFail.length > 0 && <div className="mb-3 rounded-lg border border-danger/30 bg-danger-soft p-3 text-sm text-danger">{coverage.hardFail.map((h) => <div key={h} className="flex gap-1.5"><X className="mt-0.5 h-4 w-4 shrink-0" />{h}</div>)}</div>}
-      <h3 className="mb-1 text-sm font-semibold">Measure-up {coverage.status === "complete" ? "– everything supplied" : coverage.status === "partial" ? "– a few items still needed" : "– not supplied yet"}</h3>
+      <h3 className="mb-1 text-sm font-semibold">Ready Check {coverage.status === "complete" ? "– everything supplied" : coverage.status === "partial" ? "– a few items still needed" : "– not supplied yet"}</h3>
       {coverage.status === "complete" ? (
-        <p className="text-sm text-muted-foreground">Home Insulation Victoria will review your measure-up. If accepted, no extra visit is needed.</p>
+        <p className="text-sm text-muted-foreground">Home Insulation Victoria will review your Ready Check. If accepted, no extra visit is needed.</p>
       ) : (
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">{coverage.status === "none" ? "Nothing supplied yet — fill in the Ready Check form in Mitti during your visit." : "Some items are still missing. Here's where each one gets collected."}</p>

@@ -172,8 +172,8 @@ export async function startPiesaAllocation(jobId: string, actorId: string | null
     admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", kind).eq("status", "pending"),
   ]);
   const blockers = piesaOfferBlockers({ ...facts, hasActiveElectrician: !!elec, hasOpenOffers: !!open && !opts.adding });
-  if (blockers.length) throw new WorkflowError(`${kind === "piesa" ? "PIESA" : "Fix-up"} offers cannot start: ${blockers.join(" ")}`);
-  await (await import("./owner-gates.server")).assertGateA(jobId, kind === "piesa" ? "Safety check offers" : "Fix-up offers");
+  if (blockers.length) throw new WorkflowError(`${kind === "piesa" ? "PIESA" : "Electrical fixes"} offers cannot start: ${blockers.join(" ")}`);
+  await (await import("./owner-gates.server")).assertGateA(jobId, kind === "piesa" ? "Pre Insulation Electrical Safety Assessment (PIESA) offers" : "Electrical fixes offers");
   if (kind === "piesa") {
     // The job must be able to ENTER the PIESA stage before any offer goes out; otherwise offers are sent and the
     // stage move afterwards is refused (Gate B etc.), stranding live offers on a job electricians cannot book.
@@ -262,7 +262,7 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
   await (await import("./offer-guard.server")).assertOfferPairsAllowed(jobId, batch.map((b) => b.business_id));
   const { error } = await admin.from("partner_offers").insert(batch.map((b) => row(b.business_id, false)));
   if (error) throw new Error(error.message);
-  await logEvent(jobId, actorId, "rec_offers_made", `${kind === "piesa" ? "PIESA" : "Rectification"} offered to ${batch.length} approved electrician(s), batch ${batchNo}`, { kind, batch: batchNo, businesses: batch.map((b) => b.business_id), expires_at: expires }, { internal: true });
+  await logEvent(jobId, actorId, "rec_offers_made", `${kind === "piesa" ? "PIESA" : "Electrical fixes"} offered to ${batch.length} approved electrician(s), batch ${batchNo}`, { kind, batch: batchNo, businesses: batch.map((b) => b.business_id), expires_at: expires }, { internal: true });
   return { offered: batch.length, exhausted: false };
 }
 

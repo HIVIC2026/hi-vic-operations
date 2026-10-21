@@ -411,7 +411,7 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
       return <InsuranceStep d={d} up={up} token={token} setError={setError} preview={preview} onRevision={onRevision} />;
     case "services":
       return <>
-        <TickList items={["PIESA electrical safety assessments", "Approved electrical rectification", "Installation-day electrical attendance when required"]} />
+        <TickList items={["PIESA PIESAs", "Approved electrical fixes", "Installation-day electrical attendance when required"]} />
         <Check required checked={d.services_all_confirmed === true} error={showErrors && d.services_all_confirmed !== true ? "Confirm your REC can provide all three electrical services." : null} onChange={(v) => up({ services_all_confirmed: v })}>I confirm our REC can provide all three electrical services listed above, as required for each job.</Check>
         <div style={{ borderTop: "1px solid #E4E8F0", margin: "18px 0 16px" }} />
          <Field label="Victorian service starting location" required hint="Choose a verified Victorian address"><AddressInput id="service-origin" victoriaOnly value={d.service_origin ?? ""} resolved={d.service_origin_details} onChange={(v) => up({ service_origin: v })} onSelect={(v) => up({ service_origin_details: v })} onPendingChange={onAddressPending} /></Field>
@@ -436,9 +436,9 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
         <Field label="GST registered?" required><Choice options={[{ v: true, l: "Yes" }, { v: false, l: "No" }]} value={d.gst_registered ?? null} onChange={(v) => up({ gst_registered: v })} /></Field>
         <p style={{ color: MUTED, fontSize: 13, lineHeight: 1.5 }}>{d.gst_registered === false ? "Enter total supplier rates." : "Enter supplier rates including GST."} Home Insulation Victoria approves rates separately from customer prices.</p>
         <p style={{ background: "#FCE7F0", color: "#7B3553", borderRadius: 8, padding: "9px 11px", fontSize: 13, fontWeight: 700, lineHeight: 1.45 }}>Sharper rates can help win more work. Keep them sustainable—job volume isn’t guaranteed.</p>
-        <Field label={`Pre-Insulation Electrical Safety Assessment (PIESA) visit (${unit})`} required hint="Formal electrical safety assessment, required tests, evidence and PIESA submission."><Money value={d.assessment_rate} onChange={(v) => up({ assessment_rate: v })} unit="visit" /></Field>
+        <Field label={`Pre-Insulation Electrical Safety Assessment (PIESA) visit (${unit})`} required hint="Formal Pre Insulation Electrical Safety Assessment (PIESA), required tests, evidence and PIESA submission."><Money value={d.assessment_rate} onChange={(v) => up({ assessment_rate: v })} unit="visit" /></Field>
         {<Field label={`Installation-day attendance (${unit})`} required><Money value={d.installation_attendance_rate} onChange={(v) => up({ installation_attendance_rate: v })} unit="visit" /></Field>}
-        <p style={{ color: MUTED, fontSize: 13 }}>Your approved rates calculate rectification quotes; Home Insulation Victoria manages customer approval.</p>
+        <p style={{ color: MUTED, fontSize: 13 }}>Your approved rates calculate electrical fixes quotes; Home Insulation Victoria manages customer approval.</p>
         <Group title="Mandatory item rates" note={d.gst_registered === false ? "Enter total rates (not GST registered)." : "Enter rates including GST."}>
           {RECT_ITEMS.map((it, i) => <RateRow key={it.key} label={it.label} unit={it.unit} value={r[it.key]} last={i === RECT_ITEMS.length - 1} onChange={(v) => up({ rectification_rates: { ...r, [it.key]: v } })} />)}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: "10px 0", borderTop: "1px solid #EDF0F7" }}>
@@ -447,7 +447,7 @@ function StepBody({ step, d, up, token, setError, preview, onRevision, showError
           </div>
           {d.coes_fee_choice === "separate" && <div style={{ padding: "10px 0 2px" }}><Field label="CoES fee" required><Money value={d.coes_fee} onChange={(v) => up({ coes_fee: v })} /></Field></div>}
         </Group>
-        <Group title="Your other repeatable rectification items">
+        <Group title="Your other repeatable electrical fixes items">
           <p style={{ fontSize: 13, color: MUTED, margin: "0 0 10px" }}>Add work you regularly price. Each item remains a proposed supplier rate until the office approves it.</p>
           {(d.custom_rectification_rates ?? []).map((item, index) => <div key={item.id} style={{ border: "1px solid #D7DCE8", borderRadius: 12, padding: 12, marginBottom: 10, background: "#fff" }}>
             <Field label="Description" required><input style={input} value={item.description} onChange={(e) => up({ custom_rectification_rates: (d.custom_rectification_rates ?? []).map((x, i) => i === index ? { ...x, description: e.target.value } : x) })} /></Field>

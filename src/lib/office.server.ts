@@ -50,7 +50,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
     all("suggested times", (a, b) => scope(admin.from("appointment_proposals").select("job_id, kind, created_at").eq("status", "proposed")).range(a, b)),
     all("quotes", (a, b) => scope(admin.from("quotes").select("job_id, kind, status, release_state, release_hold_reason, sent_at, accepted_at, created_at").neq("status", "superseded")).order("created_at").range(a, b)),
     all("payments", (a, b) => scope(admin.from("invoice_status").select("job_id, deposit_cleared, effective_status")).range(a, b)),
-    all("safety checks", (a, b) => scope(admin.from("piesa_records").select("job_id, outcome, completed_date, section_c_signed_at").eq("is_current", true)).range(a, b)),
+    all("PIESAs", (a, b) => scope(admin.from("piesa_records").select("job_id, outcome, completed_date, section_c_signed_at").eq("is_current", true)).range(a, b)),
     all("Ready Checks", (a, b) => scope(admin.from("ready_checks").select("job_id, submitted_at")).range(a, b)),
     all("evidence", (a, b) => scope(admin.from("evidence_requirements").select("job_id, status, required")).eq("required", true).eq("status", "outstanding").range(a, b)),
     all("VEECs", (a, b) => scope(admin.from("veec_lodgements").select("job_id, status, submitted_date")).range(a, b)),

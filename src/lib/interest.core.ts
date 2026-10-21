@@ -21,7 +21,7 @@ export type InterestStatus = (typeof INTEREST_STATUSES)[number];
  */
 export const INTEREST_INCLUDED = [
   {
-    label: "Home Insulation Ready Check — free",
+    label: "Ready Check — free",
     detail: "$0. We confirm your ceiling size, access and what is needed before anyone is booked — no surprises, no second visits.",
   },
   {

@@ -13,7 +13,7 @@ import { ELECTRICIAN_RATE_SERVICES, officeSpread, type ElectricianRateService } 
 import { melbourneToday } from "@/lib/melbourne-time.core";
 
 const TITLE = "Electrician Rates – Home Insulation Victoria Portal";
-const DESC = "Office-only agreed electrician rates used for PIESA and rectification offers.";
+const DESC = "Office-only agreed electrician rates used for PIESA and electrical fixes offers.";
 export const Route = createFileRoute("/_authenticated/admin/electrician-rates")({
   head: () => ({ meta: [{ title: TITLE }, { name: "description", content: DESC }, { property: "og:title", content: TITLE }, { property: "og:description", content: DESC }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: RatesPage,

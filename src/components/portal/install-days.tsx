@@ -22,7 +22,7 @@ export function OwnerInstallDaysCard({ jobId, depositCleared }: { jobId: string;
   const [busy, setBusy] = useState(false);
   const refresh = () => qc.invalidateQueries({ queryKey: ["install-days", jobId] });
   if (!data) return null;
-  if (data.expired) return <p className="rounded-xl border border-danger/30 bg-danger-soft p-3 text-sm font-medium text-danger">New PIESA needed. The 30-day window to install after the electrical safety check has passed. We'll be in touch to arrange a new check.</p>;
+  if (data.expired) return <p className="rounded-xl border border-danger/30 bg-danger-soft p-3 text-sm font-medium text-danger">New PIESA needed. The 30-day window to install after the Pre Insulation Electrical Safety Assessment (PIESA) has passed. We'll be in touch to arrange a new check.</p>;
   if (data.booked || data.fallback) return depositCleared ? <BookingPanel jobId={jobId} kind="installation" canBook /> : null;
   if (data.openDays.length) return (
     <Section title="Your installation days">

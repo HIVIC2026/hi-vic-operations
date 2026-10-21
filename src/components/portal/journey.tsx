@@ -72,7 +72,7 @@ function KeyDeadlines({ job, jobId }: { job: DeadlineJob; jobId?: string | null 
       tone: h < 0 ? "bad" : h < 48 ? "warn" : "good",
     });
   }
-  if (job.stage === "assessment_booked") items.push({ label: "Rectification quote due on the day", detail: "Electrician submits priced rectification items — or confirms none — in the portal on assessment day.", tone: "warn" });
+  if (job.stage === "assessment_booked") items.push({ label: "Electrical fixes quote due on the day", detail: "Electrician submits priced electrical fixes items — or confirms none — in the portal on assessment day.", tone: "warn" });
   if (!items.length) return null;
   const toneCls = { good: "border-success/40 bg-success-soft", warn: "border-warning/50 bg-warning-soft", bad: "border-danger bg-danger-soft text-danger" };
   return (

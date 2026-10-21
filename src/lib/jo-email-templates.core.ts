@@ -179,7 +179,7 @@ function includesTable(withExistingAssessment: boolean, f: JoEstimateFigures): s
     "|---|---|",
     `| ${readyCheck} | Free |`,
     `| R5.0 ceiling insulation — supply and installation by a certified installer | ${money(f.installation)} |`,
-    `| Electrical safety assessment (PIESA) | ${money(f.piesaFee)} |`,
+    `| Pre Insulation Electrical Safety Assessment (PIESA) | ${money(f.piesaFee)} |`,
     `| Accredited Person management — compliance, paperwork and your VEU claim | ${money(f.apFee)} |`,
   ].join("\n");
 }
@@ -196,7 +196,7 @@ function renderEligibleNoInsulation(r: JoRecipient, f: JoEstimateFigures): strin
     `Hi ${r.firstName},`, "",
     "How much could you save on ceiling insulation?", "",
     "Good news—based on what you’ve told us, your home looks likely to qualify for a VEU ceiling insulation rebate.", "",
-    "A more comfortable home could be closer than you think. We’ll coordinate the installer, electrical safety check and rebate paperwork.", "",
+    "A more comfortable home could be closer than you think. We’ll coordinate the installer, Pre Insulation Electrical Safety Assessment (PIESA) and rebate paperwork.", "",
     "### Your preliminary quote", "",
     `**You could save ${money(f.veuRebate)}**`, "",
     `Your estimated cost after rebate: ${money(f.customerTotal)} including GST`,
@@ -207,12 +207,12 @@ function renderEligibleNoInsulation(r: JoRecipient, f: JoEstimateFigures): strin
     "Want to explore a different ceiling size? Open the calculator →", "",
     includesTable(false, f), "",
     "### Save your spot", "",
-    "We’ve been inundated with requests from homeowners across Victoria. With limited availability of suitably qualified installers, we’re opening Ready Check bookings in batches.", "",
+    "We’ve been inundated with requests from owners across Victoria. With limited availability of suitably qualified installers, we’re opening Ready Check bookings in batches.", "",
     "Save your spot to join the queue, and we’ll be in touch as soon as an installer is available in your area.", "",
     "[Save my spot →]", "",
     "We’ll contact you to arrange your free Ready Check. No payment is required to save your spot, and there’s no obligation to proceed with installation.", "",
     "### What could change this price?", "",
-    "This quote is based on the information you supplied and assumes there is no existing ceiling insulation. Final measurements, ceiling access and any electrical rectification may affect the price. Insulation removal and electrical rectification are excluded.", "",
+    "This quote is based on the information you supplied and assumes there is no existing ceiling insulation. Final measurements, ceiling access and any electrical fixes may affect the price. Insulation removal and electrical fixes are excluded.", "",
     "We’ll confirm eligibility and your final quote, including any additional costs, for your approval before you commit.", "",
     "Home Insulation Victoria", "", footer(r.enquiryReference),
   ].join("\n");
@@ -226,7 +226,7 @@ function renderBelowR2Reviewed(r: JoRecipient, f: JoEstimateFigures): string {
     `Hi ${r.firstName},`, "",
     "How much could you save on ceiling insulation?", "",
     "Thanks for sending through your photos or video. We’ve reviewed them and, based on what is visible, your existing insulation appears potentially suitable for the VEU upgrade. Your free Ready Check will confirm the existing insulation and final eligibility.", "",
-    "We’ll coordinate the installer, electrical safety check and rebate paperwork.", "",
+    "We’ll coordinate the installer, Pre Insulation Electrical Safety Assessment (PIESA) and rebate paperwork.", "",
     "### Your preliminary quote", "",
     `**You could save ${money(f.veuRebate)}**`, "",
     `Your estimated cost after rebate: ${money(f.customerTotal)} including GST`,
@@ -241,11 +241,11 @@ function renderBelowR2Reviewed(r: JoRecipient, f: JoEstimateFigures): string {
     // Removal allowance = informational only; NOT added to the quoted total above.
     "Please budget $15 per m² including GST for the areas that need removal only. Removal is not included in this preliminary quote. We’ll confirm the area and cost for your approval before any removal proceeds.", "",
     "### Save your spot", "",
-    "We’ve been inundated with requests from homeowners across Victoria and are opening Ready Check bookings in batches as suitably qualified installers become available.", "",
+    "We’ve been inundated with requests from owners across Victoria and are opening Ready Check bookings in batches as suitably qualified installers become available.", "",
     "[Save my spot →]", "",
     "We’ll be in touch to arrange your free Ready Check when an installer is available in your area. No payment required. No obligation to proceed with installation.", "",
     "### What could change this price?", "",
-    "Your Ready Check will confirm eligibility, ceiling measurements, existing insulation and access. Electrical rectification is also excluded and will be quoted separately if required. Any changes will be explained and quoted for your approval.", "",
+    "Your Ready Check will confirm eligibility, ceiling measurements, existing insulation and access. electrical fixes are also excluded and will be quoted separately if required. Any changes will be explained and quoted for your approval.", "",
     "Home Insulation Victoria", "", footer(r.enquiryReference),
   ].join("\n");
 }
@@ -275,7 +275,7 @@ function renderPotentiallyEligible(r: JoRecipient, f: JoEstimateFigures): string
     "Only take photos or video if you can do so safely, and don’t enter the roof space. If you’re unable to obtain them safely, reply and let us know.", "",
     "### What could change this price?", "",
     "If insulation is present, some may be able to stay and some may need removal. Allow $15 per m² including GST for the areas requiring removal only, assessed at your free Ready Check.", "",
-    "Removal and electrical rectification are excluded. Final eligibility, measurements, access and any additional costs will be confirmed for your approval before you commit.", "",
+    "Removal and electrical fixes are excluded. Final eligibility, measurements, access and any additional costs will be confirmed for your approval before you commit.", "",
     "Home Insulation Victoria", "", footer(r.enquiryReference),
   ].join("\n");
 }
@@ -328,7 +328,7 @@ function renderReadyCheckInvitation(r: JoRecipient, snap: SavedPricingSnapshot):
     "No payment required. No obligation to proceed with installation.", "",
     "### What could change this price?", "",
     "The final total will depend on the measured ceiling area and confirmed scope. If existing insulation is present, some may be able to stay. Where removal is required, allow $15 per m² including GST for the affected areas only.", "",
-    "Removal and electrical rectification are excluded unless expressly included in your saved quote. Any additional work will be explained and quoted for your approval before it proceeds.", "",
+    "Removal and electrical fixes are excluded unless expressly included in your saved quote. Any additional work will be explained and quoted for your approval before it proceeds.", "",
     "We look forward to helping you take the next step towards a more comfortable home.", "",
     "Home Insulation Victoria", "", footer(r.enquiryReference),
   ].join("\n");

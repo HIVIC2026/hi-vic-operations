@@ -94,7 +94,7 @@ function CampaignDesign({ saveAllowed, ownerQualified, reviewStatus, group, toke
   const videoBtn = <Button asChild className="h-14 w-full rounded-xl bg-estimate-green font-display text-lg font-bold text-estimate-white hover:bg-estimate-accent"><Link to="/estimate/$token/video" params={{ token }}>Send my insulation details →</Link></Button>;
   const removal = p.insulation === "none" ? "Doesn't include removing old insulation (you told us there isn't any)." : removalNote(p.removal ?? { kind: "unknown" });
   const row = (l: string, v: string, cls = "") => <div className={`flex justify-between gap-3 py-1.5 text-sm ${cls}`}><span>{l}</span><span>{v}</span></div>;
-  const gets: [string, string][] = [["Free Ready Check", "We measure your roof space and confirm the job."], ["R5.0 ceiling insulation", "Supplied and fitted by a certified installer."], ["Electrical safety check", "By a licensed electrician, as the rules require."], ["Rebate paperwork, done for you", "We handle the forms and the claim."]];
+  const gets: [string, string][] = [["Free Ready Check", "We measure your roof space and confirm the job."], ["R5.0 ceiling insulation", "Supplied and fitted by a certified installer."], ["Pre Insulation Electrical Safety Assessment (PIESA)", "By a licensed electrician, as the rules require."], ["Rebate paperwork, done for you", "We handle the forms and the claim."]];
   return <div className="mx-auto max-w-[560px] px-4 pt-5 text-estimate-navy">
     <header className="flex items-center justify-between gap-3">
       <img src={CUSTOMER_BRAND.logoUrl} alt="Home Insulation Victoria" className="h-10 w-auto" />
@@ -105,7 +105,7 @@ function CampaignDesign({ saveAllowed, ownerQualified, reviewStatus, group, toke
       <h1 className="mt-2 font-display text-[32px] font-extrabold leading-[1.15]">{onsite ? <>{name ? `${name}, take` : "Take"} <span className="text-estimate-logo-green">{rebate}</span> off your ceiling insulation</> : <>Great news{name ? `, ${name}` : ""}! You could take <span className="text-estimate-logo-green">{rebate}</span> off your ceiling insulation</>}</h1>
       <p className="mt-4 text-[15px] leading-relaxed">Your {suburb ? `${suburb} ` : ""}home {onsite ? "could be eligible" : "looks eligible"} for the Victorian Energy Upgrades rebate. That means you pay about <strong>{money(p.total)}</strong> instead of {money(p.gross)}, and enjoy lower power bills for years to come.</p>
       <p className="mt-3 text-sm font-extrabold">{onsite ? "Your enquiry is currently behind homes whose eligibility we can already confirm. Help us check your insulation so you could move up and save your spot." : "Hundreds of homes have enquired since 1 October. Spots go in order."}</p>
-      <div className="mt-5">{ownerQualified && <p className="mb-3 text-sm">Your homeowner declaration qualifies you for the preliminary queue. Final onsite checks and removal costs remain to be confirmed.</p>}{onsite ? videoBtn : saveBtn}</div>
+      <div className="mt-5">{ownerQualified && <p className="mb-3 text-sm">Your owner declaration qualifies you for the preliminary queue. Final onsite checks and removal costs remain to be confirmed.</p>}{onsite ? videoBtn : saveBtn}</div>
       {onsite ? <p className="mt-3 text-center text-sm">Answer either question Yes to qualify for the preliminary queue, or send photos or video for office review.</p> : <p className="mt-3 text-center text-sm">Free · no payment · no obligation</p>}
       {error && <p role="alert" className="mt-2 text-center text-sm text-danger">{error}</p>}
     </section>
@@ -113,7 +113,7 @@ function CampaignDesign({ saveAllowed, ownerQualified, reviewStatus, group, toke
       <h2 className="font-display text-[11px] font-extrabold uppercase tracking-[0.13em]">Your estimate</h2>
       <div className="mt-2">
         {row(`Installation (${p.areaM2} m² × ${money(p.ratePerM2)})`, money(p.installation))}
-        {row("Electrical safety check (PIESA)", money(p.assessmentFee))}
+        {row("Pre Insulation Electrical Safety Assessment (PIESA)", money(p.assessmentFee))}
         {row("Accredited Person fee", money(p.apFee))}
         {p.removal?.kind === "included" && row(`Removal of existing insulation (${p.removal.areaM2} m², inc GST)`, money(p.removal.amount))}
         {row("Normal price", money(p.gross), "border-t border-estimate-line font-bold")}

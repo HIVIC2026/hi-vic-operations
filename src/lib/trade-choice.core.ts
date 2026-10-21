@@ -2,7 +2,7 @@
 // to a single office-picked trade. Never assigns, books or moves a job.
 
 export type ChoiceKind = "ready_check" | "piesa" | "rectification";
-export const CHOICE_KIND_LABEL: Record<ChoiceKind, string> = { ready_check: "Ready Check", piesa: "PIESA safety check", rectification: "Electrical fixes" };
+export const CHOICE_KIND_LABEL: Record<ChoiceKind, string> = { ready_check: "Ready Check", piesa: "Pre Insulation Electrical Safety Assessment (PIESA)", rectification: "Electrical fixes" };
 export const OFFICE_CHOICE_FLAG = "office_choice";
 
 export type OfferLite = { kind: string; status: string; offered_at: string; business_name?: string | null; summary?: unknown };

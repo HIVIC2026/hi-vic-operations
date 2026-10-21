@@ -65,7 +65,7 @@ export async function loadOperationsPreview(admin: SupabaseClient<Database>, job
     byJobs('invoice errors', (c,a,b) => admin.from('invoices').select('job_id, last_sync_error').in('job_id',c).not('last_sync_error','is',null).order('id').range(a,b)),
     byJobs('uncertain SMS', (c,a,b) => admin.from('sms_messages').select('job_id, message_type, status, detail, created_at, updated_at').in('job_id',c).in('status',['sent_unknown','sending']).order('created_at').order('id').range(a,b)),
     byJobs('PIESA facts', (c,a,b) => admin.from('piesa_records').select('job_id, outcome, completed_date, section_c_signed_at').in('job_id',c).eq('is_current',true).order('id').range(a,b)),
-    byJobs('rectification quotes', (c,a,b) => admin.from('quotes').select('job_id, status, release_state, sent_at').in('job_id',c).eq('kind','rectification').in('status',['issued','accepted']).order('created_at').order('id').range(a,b)),
+    byJobs('electrical fixes quotes', (c,a,b) => admin.from('quotes').select('job_id, status, release_state, sent_at').in('job_id',c).eq('kind','rectification').in('status',['issued','accepted']).order('created_at').order('id').range(a,b)),
     byJobs('owner time windows', (c,a,b) => admin.from('ready_check_windows').select('job_id, status').in('job_id',c).eq('status','open').order('id').range(a,b)),
     byJobs('proposed appointments', (c,a,b) => admin.from('appointment_proposals').select('job_id, kind, created_at').in('job_id',c).eq('status','proposed').order('created_at').order('id').range(a,b)),
     (async () => {

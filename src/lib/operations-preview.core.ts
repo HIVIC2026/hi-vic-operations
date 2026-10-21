@@ -4,7 +4,7 @@ import { STAGE_ORDER } from "./workflow";
 import { LAUNCH_CAMPAIGN } from "./launch-campaign.core";
 
 export type OperationBucket = "Leads" | "Active jobs" | "Closed jobs" | "Needs classification";
-export const PARTIES = ["Office", "Homeowner", "Installer", "Electrician", "System", "Capacity"] as const;
+export const PARTIES = ["Office", "Owner", "Installer", "Electrician", "System", "Capacity"] as const;
 export type Party = typeof PARTIES[number];
 export type OperationTask = { party: Party; label: string; dueAt?: string | null; overdue?: boolean; blocked?: boolean };
 export type CommunicationFact = { purpose: string; status: string; at: string | null; error?: string | null; recordedAt?: string | null; actionKey?: string | null };
@@ -26,7 +26,7 @@ export type OperationRow = OperationInput & {
   communicationLabel: string; tasks: OperationTask[]; nextAction: string;
   issues: string[]; onHold: boolean; overdue: boolean; blocked: boolean;
 };
-export const PROCESS_ORDER = ["Eligibility & estimate", "Insulation review", "Offer & owner response", "Spot saved — waiting for availability", "Ineligible enquiry", "On hold", "Ready Check", "Quote & payment", "Electrical safety & fixes", "Installation", "Evidence & AP review", "VEEC lodgement", "Completed", "Cancelled", "Needs classification"];
+export const PROCESS_ORDER = ["Eligibility & estimate", "Insulation review", "Offer & owner response", "Spot saved — waiting for availability", "Ineligible enquiry", "On hold", "Ready Check", "Quote & payment", "Pre Insulation Electrical Safety Assessment (PIESA) & fixes", "Installation", "Evidence & Final check", "VEEC lodgement", "Completed", "Cancelled", "Needs classification"];
 const PRE_HANDOFF = new Set(["new_enquiry", "eligibility_review", "preliminary_estimate_ready", "ready_check_awaiting_acceptance", "ready_check_awaiting_payment", "ready_check_ready_to_schedule"]);
 const validTime = (at: string | null | undefined) => !!at && Number.isFinite(Date.parse(at));
 export function communicationLabel(c: CommunicationFact | null): string {
@@ -126,8 +126,8 @@ export function classifyOperation(input: OperationInput, now: number): Operation
     if (ineligible) { process = "Ineligible enquiry"; if (!ineligibleContact) add("System", pendingLabel("ineligible", "Ineligible email has no confirmed send")); }
     else if (input.mediaCount > 0 && !input.mediaReview) { process = "Insulation review"; add("Office", "Review received insulation photos/video"); }
     else if (savedSpot) { process = "Spot saved — waiting for availability"; add("Capacity", "Waiting for onboarded installer availability"); }
-    else if (input.insulation !== "none" && input.mediaReview !== "below_r2") { process = "Insulation review"; add(photoContact ? "Homeowner" : "System", photoContact ? "Provide insulation pictures or information" : pendingLabel("photos", "Insulation request has no confirmed send")); }
-    else { process = estimateContact ? "Offer & owner response" : "Eligibility & estimate"; add(estimateContact ? "Homeowner" : "System", estimateContact ? "Save a spot or respond to estimate" : pendingLabel("estimate", "Eligibility / estimate delivery pending")); }
+    else if (input.insulation !== "none" && input.mediaReview !== "below_r2") { process = "Insulation review"; add(photoContact ? "Owner" : "System", photoContact ? "Provide insulation pictures or information" : pendingLabel("photos", "Insulation request has no confirmed send")); }
+    else { process = estimateContact ? "Offer & owner response" : "Eligibility & estimate"; add(estimateContact ? "Owner" : "System", estimateContact ? "Save a spot or respond to estimate" : pendingLabel("estimate", "Eligibility / estimate delivery pending")); }
     if (!input.eligibility) issues.push("No recorded eligibility result");
     if (!input.insulation && !ineligible) issues.push("Existing insulation answer missing");
   } else {
@@ -135,12 +135,12 @@ export function classifyOperation(input: OperationInput, now: number): Operation
     const currentEvidence = input.evidence.filter(e => evidenceApplicability(e.gate, operationalFacts, now) === "current");
     const status = officeStatus({ ...operationalFacts, evidenceMissing: currentEvidence.filter(e => ["outstanding", "rejected"].includes(e.status)).length }, now);
     const stage = status?.stage;
-    process = stage === "quote" ? "Quote & payment" : stage === "safety" ? "Electrical safety & fixes" : stage === "install" ? "Installation" : stage === "signoff" ? (f.stage === "ready_for_veec" ? "VEEC lodgement" : "Evidence & AP review") : "Ready Check";
+    process = stage === "quote" ? "Quote & payment" : stage === "safety" ? "Pre Insulation Electrical Safety Assessment (PIESA) & fixes" : stage === "install" ? "Installation" : stage === "signoff" ? (f.stage === "ready_for_veec" ? "VEEC lodgement" : "Evidence & Final check") : "Ready Check";
     const who = status?.waitingOn;
-    const parties: Party[] = who === "Owner + Installer" ? ["Homeowner", "Installer"] : who === "Owner + Electrician" ? ["Homeowner", "Electrician"] : [who === "Us" || who === "Office / campaign" ? "Office" : who === "Owner" ? "Homeowner" : who === "Installer" ? "Installer" : who === "Electrician" ? "Electrician" : "System"];
+    const parties: Party[] = who === "Owner + Installer" ? ["Owner", "Installer"] : who === "Owner + Electrician" ? ["Owner", "Electrician"] : [who === "Us" || who === "Office / campaign" ? "Office" : who === "Owner" ? "Owner" : who === "Installer" ? "Installer" : who === "Electrician" ? "Electrician" : "System"];
     // Do not reuse legacy sent/overdue claims. Only evidence-backed deadlines survive here.
     const unconfirmedQuote = f.quote?.status === "issued" && !validTime(f.quote.sentAt);
-    const action = f.quote?.releaseState === "held" ? f.quote.holdReason ?? "Review held quote" : f.quote?.status === "accepted" && !f.paymentCleared ? "Owner payment pending" : unconfirmedQuote ? "Quote delivery unconfirmed" : PRE_HANDOFF.has(f.stage) && !f.rcOfferAt && !f.rcBookingAt && !f.rcSubmittedAt && !operationalQuote(f.quote) ? "Arrange operational Ready Check handoff" : status?.action ?? status?.label ?? "Review operational records";
+    const action = f.quote?.releaseState === "held" ? f.quote.holdReason ?? "Review held quote" : f.quote?.status === "accepted" && !f.paymentCleared ? "Owner payment pending" : unconfirmedQuote ? "Quote delivery unconfirmed" : PRE_HANDOFF.has(f.stage) && !f.rcOfferAt && !f.rcBookingAt && !f.rcSubmittedAt && !operationalQuote(f.quote) ? "Arrange Ready Check" : status?.action ?? status?.label ?? "Review operational records";
     // Explicit payment due date only; quote response has no stored expiry. Never borrow the PIESA clock.
     const taskDue = f.quote?.status === "accepted" && !f.paymentCleared ? input.paymentDueAt : null;
     for (const party of unconfirmedQuote ? ["System" as const] : parties) add(party, action.replace(/Quote sent automatically/i, "Quote delivery pending").replace(/Fix-up quote sent automatically/i, "Fix-up quote delivery pending").replace(/ \(30-day clock started\)/i, ""), taskDue, f.quote?.releaseState === "held");

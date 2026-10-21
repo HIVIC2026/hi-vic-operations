@@ -18,7 +18,7 @@ function Welcome() {
   const installer = data.kind === "installer";
   return (
     <TradeShell installer={installer} boss>
-      <section className="rounded-[18px] bg-estimate-green p-6 text-white"><p className="font-display text-[26px] font-bold leading-tight">You're approved</p><p className="mt-1 text-sm font-semibold">{data.business} is ready to take {installer ? "Ready Checks and installs" : "safety checks"} from Home Insulation Victoria.</p></section>
+      <section className="rounded-[18px] bg-estimate-green p-6 text-white"><p className="font-display text-[26px] font-bold leading-tight">You're approved</p><p className="mt-1 text-sm font-semibold">{data.business} is ready to take {installer ? "Ready Checks and installs" : "PIESAs"} from Home Insulation Victoria.</p></section>
       <section className={card}><p className="text-sm">Everything from your application — business details, rates, area, bank details, insurance, licences, team and agreement — is already loaded. You can see it any time under My business.</p></section>
       <Link to="/field" className={greenBtn}>Go to my work</Link>
     </TradeShell>

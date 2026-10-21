@@ -216,10 +216,10 @@ function BookPickers({ token }: { token: string }) {
   const tile = (on: boolean) => `min-h-12 rounded-2xl border px-2 text-sm font-bold ${on ? "border-estimate-green bg-estimate-mint" : "border-estimate-line bg-card"}`;
   const go = async (f: () => Promise<unknown>) => { setErr(""); setBusy(true); try { await f(); setPicks([]); setDays([]); await refetch(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
   return <>
-    {!any && <section className="rounded-[22px] bg-card p-5 text-sm shadow-sm">{data.piesa.windows.length ? <><p className="font-bold">Your safety check times are with our electricians.</p><ul className="mt-2 space-y-1">{data.piesa.windows.map((w: any) => <li key={w.starts_at}>{visitPill(w.starts_at)}</li>)}</ul></> : data.install.openDays.length ? <p className="font-bold">Your install days are with your installer.</p> : <p className="font-bold">Nothing to pick right now. We'll let you know.</p>}</section>}
+    {!any && <section className="rounded-[22px] bg-card p-5 text-sm shadow-sm">{data.piesa.windows.length ? <><p className="font-bold">Your Pre Insulation Electrical Safety Assessment (PIESA) times are with our electricians.</p><ul className="mt-2 space-y-1">{data.piesa.windows.map((w: any) => <li key={w.starts_at}>{visitPill(w.starts_at)}</li>)}</ul></> : data.install.openDays.length ? <p className="font-bold">Your install days are with your installer.</p> : <p className="font-bold">Nothing to pick right now. We'll let you know.</p>}</section>}
     {any && !session && <OwnerCodeGate token={token} onVerified={setSession} />}
     {any && session && data.piesa.canPick && <section className="rounded-[22px] bg-card p-5 shadow-sm">
-      <h3 className="font-display text-lg font-extrabold">Safety check times</h3>
+      <h3 className="font-display text-lg font-extrabold">Pre Insulation Electrical Safety Assessment (PIESA) times</h3>
       <p className="mt-1 text-sm">Pick 3 to 5 times across at least 3 days.</p>
       <div className="mt-3 space-y-3">{nextDays(8).map((d) => <div key={d}><p className="text-xs font-bold">{day(d + "T02:00:00Z")}</p><div className="mt-1 grid grid-cols-2 gap-2">{SLOTS.map(([k, l]) => { const on = picks.some((p) => p.date === d && p.slot === k); return <button key={k} className={tile(on)} onClick={() => setPicks(on ? picks.filter((p) => !(p.date === d && p.slot === k)) : picks.length < 5 ? [...picks, { date: d, slot: k }] : picks)}>{l}</button>; })}</div></div>)}</div>
       <button className={`${signBtn} mt-4`} disabled={busy || picks.length < 3} onClick={() => go(() => choosePiesa({ data: { token, session, picks } }))}>Send my {picks.length} times</button>
@@ -281,7 +281,7 @@ function CancelMyJob({ token }: { token: string }) {
   if (step === "idle") return <p className="pt-2 text-center"><button type="button" onClick={() => setStep("confirm")} className="text-xs text-estimate-navy/70 underline">Cancel my job</button></p>;
   return <section className="rounded-[22px] bg-card p-5 shadow-sm">
     <p className="font-display text-lg font-extrabold">Cancel your job?</p>
-    <p className="mt-1 text-sm">No charge. You can ask us questions or change your mind before your safety check is booked.</p>
+    <p className="mt-1 text-sm">No charge. You can ask us questions or change your mind before your Pre Insulation Electrical Safety Assessment (PIESA) is booked.</p>
     {err && <p role="alert" className="mt-2 text-sm text-danger">{err}</p>}
     <button type="button" disabled={step === "busy"} onClick={async () => { setStep("busy"); setErr(null); const r = await cancel({ data: { token } }); if (r.ok) { setStep("done"); qc.invalidateQueries(); } else { setErr(r.reason ?? "Something went wrong."); setStep("confirm"); } }} className="mt-4 flex h-12 w-full items-center justify-center rounded-full bg-estimate-navy font-bold text-estimate-canvas">{step === "busy" ? "Cancelling…" : "Yes, cancel my job"}</button>
     <button type="button" onClick={() => setStep("idle")} className="mt-2 flex h-12 w-full items-center justify-center rounded-full font-bold text-estimate-blue">Keep my job</button>
@@ -314,18 +314,18 @@ function QuoteScreen({ v, token }: { v: View; token: string }) {
         <h2 className="font-display text-xl font-extrabold">{ownerPriceTitle(v.agreed)}</h2>
         {agreedWithLabel(v.agreed) && <p className="mt-1 text-sm font-semibold" data-agreed-with>{agreedWithLabel(v.agreed)}</p>}
         <ul className="mt-3 divide-y divide-estimate-line text-sm">
-          <li className="flex justify-between py-2"><span>Home Insulation Ready Check</span><span className="font-bold text-estimate-green">FREE</span></li>
+          <li className="flex justify-between py-2"><span>Ready Check</span><span className="font-bold text-estimate-green">FREE</span></li>
           {q.lines.map((l: any, i: number) => <li key={i} className="flex justify-between gap-3 py-2"><span>{l.description}</span><span className="font-semibold">{aud(l.amount)}</span></li>)}
           {q.rebate > 0 && <li className="flex justify-between py-2 text-estimate-green"><span>Government rebate (VEU)</span><span className="font-bold">−{aud(q.rebate)}</span></li>}
           <li className="flex justify-between py-3 font-display text-lg font-extrabold"><span>You pay (inc GST)</span><span>{aud(q.total)}</span></li>
         </ul>
       </section>
       <FixesNote />
-      <section className="rounded-[22px] bg-estimate-mint p-5"><p className="font-display text-lg font-extrabold">You don't lift a finger</p><p className="mt-1 text-sm">We book the safety check, the install and do all the rebate paperwork for you.</p></section>
+      <section className="rounded-[22px] bg-estimate-mint p-5"><p className="font-display text-lg font-extrabold">You don't lift a finger</p><p className="mt-1 text-sm">We book the Pre Insulation Electrical Safety Assessment (PIESA), the install and do all the rebate paperwork for you.</p></section>
       <section className="rounded-[22px] bg-card p-5 shadow-sm">
         <h3 className="font-display text-lg font-extrabold">How you can pay</h3>
         <ul className="mt-2 space-y-1 text-sm">
-          {q.split && <li>{aud(q.split.deposit)} safety check payment first</li>}
+          {q.split && <li>{aud(q.split.deposit)} Pre Insulation Electrical Safety Assessment (PIESA) payment first</li>}
           {q.split && <li>Then {aud(q.split.firstHalf)} when your install is booked and {aud(q.split.secondHalf)} on install day</li>}
           <li>Or pay the full {aud(q.total)} now</li>
         </ul>
@@ -349,9 +349,9 @@ function BookScreen({ v, token }: { v: View; token: string }) {
     <Back token={token} />
     <Hero v={v} level={HOUSE_LEVEL.book_visits} size="sm" headline={ownerHeadline("booking_visits", v.numbers.rebate)} />
     <section className="rounded-[22px] bg-card p-5 shadow-sm">
-      <h2 className="font-display text-xl font-extrabold">Book your safety check and install</h2>
-      <p className="mt-1 text-sm">First the electrician does a quick safety check. Your install can be from {v.piesaInstallGapDays} days after that, and must be within 30 days.</p>
-      <p className="mt-2 text-sm">For example, a safety check on {day(today)} means an install between {day(earliestInstall(today, v.piesaInstallGapDays))} and {day(installDeadline(today))}.</p>
+      <h2 className="font-display text-xl font-extrabold">Book your Pre Insulation Electrical Safety Assessment (PIESA) and install</h2>
+      <p className="mt-1 text-sm">First the electrician does a quick Pre Insulation Electrical Safety Assessment (PIESA). Your install can be from {v.piesaInstallGapDays} days after that, and must be within 30 days.</p>
+      <p className="mt-2 text-sm">For example, a Pre Insulation Electrical Safety Assessment (PIESA) on {day(today)} means an install between {day(earliestInstall(today, v.piesaInstallGapDays))} and {day(installDeadline(today))}.</p>
       <p className="mt-2 text-sm">Pick 2-hour windows that suit you: {TWO_HOUR_WINDOWS.join(", ")}.</p>
     </section>
     <FixesNote />

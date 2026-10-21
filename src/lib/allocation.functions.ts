@@ -72,11 +72,11 @@ export const reviewRectificationQuote = createServerFn({ method: "POST" }).middl
     await requireAdmin(context.supabase);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { data: q } = await admin.from("quotes").select("id, job_id, kind, status").eq("id", data.quoteId).single();
-    if (!q || q.kind !== "rectification" || q.status !== "draft") throw new WorkflowError("Only a draft rectification quote can be reviewed.");
+    if (!q || q.kind !== "rectification" || q.status !== "draft") throw new WorkflowError("Only a draft electrical fixes quote can be reviewed.");
     const { count } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", q.job_id).eq("needs_office_pricing", true);
-    if (count) throw new WorkflowError("Some rectification items still need office pricing.");
+    if (count) throw new WorkflowError("Some electrical fixes items still need office pricing.");
     await admin.from("quotes").update({ office_reviewed_at: new Date().toISOString(), office_reviewed_by: context.userId }).eq("id", q.id);
-    await logEvent(q.job_id, context.userId, "rectification_quote_reviewed", "Office reviewed the rectification quote", { quote_id: q.id }, { internal: true });
+    await logEvent(q.job_id, context.userId, "rectification_quote_reviewed", "Office reviewed the electrical fixes quote", { quote_id: q.id }, { internal: true });
     return { ok: true };
   });
 
@@ -105,7 +105,7 @@ export const sendRectificationQuote = createServerFn({ method: "POST" }).middlew
     if (b) throw new WorkflowError(b);
     const { data: u } = await admin.from("quotes").update({ status: "issued", sent_at: new Date().toISOString() }).eq("id", q.id).eq("status", "draft").select("id").maybeSingle();
     if (!u) throw new WorkflowError("This quote is no longer a draft.");
-    await logEvent(q.job_id, context.userId, "rectification_quote_issued", "Office sent the reviewed rectification quote to the owner for approval", { quote_id: q.id });
+    await logEvent(q.job_id, context.userId, "rectification_quote_issued", "Office sent the reviewed electrical fixes quote to the owner for approval", { quote_id: q.id });
     return { ok: true };
   });
 

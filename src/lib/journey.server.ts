@@ -242,11 +242,11 @@ const s4: StepFn = async (ctx, r) => {
   const after = JSON.stringify(await tv.tradeOffer(offerId, ctx.installer.id));
   check(r, "after taking, installer sees the address", /Journey Test Street/.test(after));
   // Mitti Ready Check form: SIMULATED (no Mitti template/token in TEST). Same row the Mitti sync writes.
-  r.simulated = ["Mitti Ready Check form (measure-up written as the Mitti sync would)"];
+  r.simulated = ["Mitti Ready Check form (Ready Check written as the Mitti sync would)"];
   await admin.from("ceiling_measurements").update({ is_current: false }).eq("job_id", ctx.jobId!).eq("is_current", true);
   const { error: me } = await admin.from("ceiling_measurements").insert({ job_id: ctx.jobId!, status: "complete", is_current: true, source_role: "installer", created_by: ctx.installer.id, measured_area_m2: 120, removal_required: false, insulation_present: false, access_difficulty: "easy", measurement_method: "laser",
     completed_by: ctx.installer.id, completed_at: new Date().toISOString(), measured_on: melbourneDate(0), external_source: "journey_sim", external_id: `sim-${ctx.runId}`, raw_snapshot: { downlight_count: 6, downlight_type: "LED sealed" } } as never);
-  check(r, "measure-up recorded", !me, me?.message);
+  check(r, "Ready Check recorded", !me, me?.message);
   for (const c of ["before_ceiling_space", "access_manhole", "existing_insulation_r_value", "identity_front_of_property"]) await uploadEvidence(ctx, c, ctx.installer.id);
   const { recordPriorActivityCheck } = await import("./verified-eligibility.server");
   await recordPriorActivityCheck(ctx.jobId!, ctx.actorId, "none_known" as never, null);
@@ -321,7 +321,7 @@ const s5: StepFn = async (ctx, r) => {
   if (!iv!.xero_invoice_id) await act(r, "invoice pushed to the Xero Demo Company", () => x.pushInvoiceToXero(iv!.id, ctx.actorId) as Promise<unknown>);
   { const { data: linked } = await admin.from("invoices").select("xero_invoice_id, last_sync_error").eq("id", iv!.id).single();
     if (!linked?.xero_invoice_id) throw new Error(`Invoice not in the Xero Demo Company: ${linked?.last_sync_error ?? "unknown reason"}`); }
-  await act(r, "safety check payment recorded (TEST payment, Demo Company)", () => x.recordDemoTestPayment(iv!.id, 349, ctx.actorId));
+  await act(r, "Pre Insulation Electrical Safety Assessment (PIESA) payment recorded (TEST payment, Demo Company)", () => x.recordDemoTestPayment(iv!.id, 349, ctx.actorId));
   ctx.notes["invoice_id"] = iv!.id;
   ctx.screens.push({ step: "s5_owner_accept", persona: "owner_token", path: `/my-job/${ctx.token}`, mustNotSee: ["version —"] });
 };
@@ -333,14 +333,14 @@ const s6: StepFn = async (ctx, r) => {
   const picks: { date: string; slot: "10-12" }[] = [];
   const { piesaWindowBlockers } = await import("./piesa-windows.core");
   for (let d = 2; d < 25 && picks.length < 3; d++) { const p = { date: melbourneDate(d), slot: "10-12" as const }; if (!piesaWindowBlockers([...picks, p, p, p].slice(0, Math.max(3, picks.length + 1)) as never).some((b) => /business day/i.test(b))) picks.push(p); }
-  await act(r, "owner picks 3 safety check times", () => al.submitOwnerPiesaWindows(ctx.jobId!, ctx.actorId, picks as never));
+  await act(r, "owner picks 3 Pre Insulation Electrical Safety Assessment (PIESA) times", () => al.submitOwnerPiesaWindows(ctx.jobId!, ctx.actorId, picks as never));
   const { count: open } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("kind", "piesa").eq("status", "pending").eq("business_id", ctx.electrician.business_id);
-  if (!open) await act(r, "office offers the safety check to TEST Delta", () => al.startPiesaAllocation(ctx.jobId!, ctx.actorId, "piesa", { onlyBusiness: ctx.electrician.business_id, rateToConfirm: true }));
+  if (!open) await act(r, "office offers the Pre Insulation Electrical Safety Assessment (PIESA) to TEST Delta", () => al.startPiesaAllocation(ctx.jobId!, ctx.actorId, "piesa", { onlyBusiness: ctx.electrician.business_id, rateToConfirm: true }));
   const { data: offers } = await admin.from("partner_offers").select("id, business_id, status").eq("job_id", ctx.jobId!).eq("kind", "piesa");
   const { data: names } = await admin.from("businesses").select("name, onboarding_notes").in("id", (offers ?? []).map((o) => o.business_id));
-  check(r, "safety check offers went only to TEST partners", (names ?? []).length > 0 && (names ?? []).every((b) => (b.onboarding_notes ?? "").includes("[TEST PARTNER]")), (names ?? []).map((b) => b.name).join(", "));
+  check(r, "Pre Insulation Electrical Safety Assessment (PIESA) offers went only to TEST partners", (names ?? []).length > 0 && (names ?? []).every((b) => (b.onboarding_notes ?? "").includes("[TEST PARTNER]")), (names ?? []).map((b) => b.name).join(", "));
   const mine = (offers ?? []).find((o) => o.business_id === ctx.electrician.business_id && o.status === "pending");
-  check(r, "TEST Delta has an open safety check offer", !!mine);
+  check(r, "TEST Delta has an open Pre Insulation Electrical Safety Assessment (PIESA) offer", !!mine);
   const { data: prop } = await admin.from("appointment_proposals").select("id").eq("job_id", ctx.jobId!).eq("status", "proposed").order("starts_at").limit(1).maybeSingle();
   await act(r, "electrician accepts a time", () => al.respondToRecOffer(mine!.id, ctx.electrician.id, true, null, prop?.id ?? null));
   ctx.notes["piesa_offer_id"] = mine!.id;
@@ -359,8 +359,8 @@ const s6: StepFn = async (ctx, r) => {
   for (const c of ["switchboard_cables", "piesa_signoff"]) await uploadEvidence(ctx, c, ctx.electrician.id, "electrical");
   await admin.from("bookings").update({ status: "completed" }).eq("job_id", ctx.jobId!).eq("kind", "assessment").eq("status", "confirmed");
   const { transition } = await import("./workflow.server");
-  if ((await stageOf(ctx)) !== "piesa_complete") await act(r, "job moves to safety check complete", () => transition(ctx.jobId!, "piesa_complete", ctx.actorId, "TEST journey: PIESA passed"));
-  check(r, "stage is safety check complete", (await stageOf(ctx)) === "piesa_complete", await stageOf(ctx) ?? "");
+  if ((await stageOf(ctx)) !== "piesa_complete") await act(r, "job moves to Pre Insulation Electrical Safety Assessment (PIESA) complete", () => transition(ctx.jobId!, "piesa_complete", ctx.actorId, "TEST journey: PIESA passed"));
+  check(r, "stage is Pre Insulation Electrical Safety Assessment (PIESA) complete", (await stageOf(ctx)) === "piesa_complete", await stageOf(ctx) ?? "");
   ctx.screens.push({ step: "s6_electrician", persona: "electrician", path: `/field/day/${ctx.jobId}` });
 };
 
@@ -400,7 +400,7 @@ const s7: StepFn = async (ctx, r) => {
     const { logEvent } = await import("./workflow.server");
     await logEvent(ctx.jobId!, ctx.actorId, "mitti_piisa_audit_created", "TEST journey: simulated PIISA sent in Mitti", { audit_id: auditId });
     let refused = ""; try { await transition(ctx.jobId!, "ap_review", ctx.actorId, "TEST journey: before declaration"); } catch (e) { refused = e instanceof Error ? e.message : String(e); }
-    check(r, "AP review refused without the PIISA declaration", refused.includes(pd.MISSING_INSTALLER_DECLARATION), refused || "allowed");
+    check(r, "Final check refused without the PIISA declaration", refused.includes(pd.MISSING_INSTALLER_DECLARATION), refused || "allowed");
     const unsigned = await syncPiisaDeclaration(ctx.jobId!, ctx.actorId, async () => pd.simulatedPiisaAudit({ auditId, templateId: tpl, jobNumber: jn!.job_number, signed: false }), { testTemplateId: tpl });
     check(r, "PIISA without signed declaration shows Missing evidence", unsigned.status === "missing", unsigned.message);
     const signed = await syncPiisaDeclaration(ctx.jobId!, ctx.actorId, async () => pd.simulatedPiisaAudit({ auditId, templateId: tpl, jobNumber: jn!.job_number, signed: true }), { testTemplateId: tpl });
@@ -410,7 +410,7 @@ const s7: StepFn = async (ctx, r) => {
     const rec = await import("./job-records.server");
     for (const key of ["installer_safety_assessment", "completion_consumer_docs"] as const) await act(r, `office records ${key.replace(/_/g, " ")}`, () => rec.recordComplianceRecord({ jobId: ctx.jobId!, key, occurredAt: melbourneDate(0), reference: "TEST journey", notes: null, actorId: ctx.actorId }));
   }
-  await act(r, "evidence complete → AP review", () => transition(ctx.jobId!, "ap_review", ctx.actorId, "TEST journey: evidence uploaded"));
+  await act(r, "evidence complete → Final check", () => transition(ctx.jobId!, "ap_review", ctx.actorId, "TEST journey: evidence uploaded"));
   ctx.screens.push({ step: "s7_install", persona: "installer", path: `/field/day/${ctx.jobId}` });
 };
 

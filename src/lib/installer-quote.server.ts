@@ -9,7 +9,7 @@ import { installerQuoteReleaseBlockers, payerFromChoice } from "./installer-inta
 import { installerPriceRangeReason } from "./quote-release.core";
 
 export const INSTALLER_QUOTE_CODE = "INSTALLER_A1";
-export const OWN_REC_QUOTE_NOTE = "Your electrician's safety check (PIESA) is not included in this total — your electrician invoices you for it separately at the price you agreed with them.";
+export const OWN_REC_QUOTE_NOTE = "Your electrician's Pre Insulation Electrical Safety Assessment (PIESA) is not included in this total — your electrician invoices you for it separately at the price you agreed with them.";
 type SigLine = { code: string | null; line_total_inc_gst: number | string | null; description?: string | null; quantity?: number | string | null; unit?: string | null; unit_price_inc_gst?: number | string | null; explanation?: string | null; is_other?: boolean | null };
 /** Full scope fingerprint: equal amounts with changed inclusions/description/explanation are a DIFFERENT quote. */
 export const quoteLineSignature = (lines: SigLine[], discountNote?: string | null) =>

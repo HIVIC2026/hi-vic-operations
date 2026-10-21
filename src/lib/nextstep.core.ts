@@ -38,7 +38,7 @@ export function stageMismatches(f: ConsistencyFacts): string[] {
   if (past && f.eligibility_outcome === "does_not_appear_eligible") out.push("Job has moved on but Gate 1 says Does Not Appear Eligible.");
   if (past && f.eligibility_review_required) out.push("Job has moved on while Gate 1 is still REVIEW REQUIRED.");
   if (past && !f.eligibility_outcome) out.push("Job has moved on without a Gate 1 outcome.");
-  if (s === "awaiting_electrician" && !f.electricianAssigned) out.push("Job is at the old 'Awaiting Electrician' step – it should be at the Ready Check (or approved measure-up) first.");
+  if (s === "awaiting_electrician" && !f.electricianAssigned) out.push("Job is at the old 'Awaiting Electrician' step – it should be at the Ready Check (or approved Ready Check) first.");
   if (["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec"].includes(s) && !f.installQuoteAccepted) out.push("Job is past quote acceptance but has no accepted installation quote.");
   return out;
 }

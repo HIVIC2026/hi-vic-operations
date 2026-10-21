@@ -65,7 +65,7 @@ export function evidenceSourceLabel(source: string | null | undefined): string {
   if (value.includes("verified onsite") || value.includes("assessment")) return "Onsite assessment";
   if (value.includes("base44.property_research") || value.includes("base44.property research")) return "Website property research";
   if (value.includes("property intelligence") || value.includes("property_research")) return "Property research";
-  if (value.includes("base44") || value.includes("owner declaration") || value.includes("answers.")) return "Homeowner enquiry";
+  if (value.includes("base44") || value.includes("owner declaration") || value.includes("answers.")) return "Owner enquiry";
   if (value.startsWith("properties")) return value.includes("enrichment") ? "Property research" : "Property record";
   if (value.startsWith("jobs")) return "Job record";
   if (value.includes("rollout")) return "Program calendar";
@@ -89,10 +89,10 @@ export function filterVisibleJobs<T extends { stage?: S | null }, S extends stri
 /** Trade job page (Jo, 7 Oct): office blocker wording → one plain line per kind of wait. Labels only; never decides anything. */
 export function tradeBlockerLines(blockers: string[]): string[] {
   const line = (b: string): string => {
-    if (/measure-?up|measured|ceiling area|Ready Check/i.test(b)) return "Waiting for the office to check your measure-up";
+    if (/measure-?up|measured|ceiling area|Ready Check/i.test(b)) return "Waiting for the office to check your Ready Check";
     if (/eligib/i.test(b)) return "Waiting for the office to confirm the owner is eligible";
     if (/payment|deposit|invoice|paid/i.test(b)) return "Waiting for the owner's payment";
-    if (/PIESA|safety check|electric/i.test(b)) return "Waiting for the electrical safety check";
+    if (/PIESA|safety check|electric/i.test(b)) return "Waiting for the Pre Insulation Electrical Safety Assessment (PIESA)";
     if (/quote/i.test(b)) return "Waiting for the quote to be approved";
     if (/sign|accept|consent|paperwork|agreement|assignment/i.test(b)) return "Waiting for the owner's paperwork";
     if (/evidence|photo|video|document/i.test(b)) return "Photos or documents still needed";

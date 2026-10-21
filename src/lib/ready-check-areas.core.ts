@@ -106,7 +106,7 @@ export function areaTasks(areas: RcArea[], reqs: AreaReq[]): AreaTask[] {
   for (const a of areas) for (const r of reqs.filter((x) => x.area_key === a.key)) {
     if (areaRequirementCleared(r)) continue;
     out.push({ area: a.label, item: r.label, status: statusText(r.status), suppliedBy: SUPPLIER, reviewedBy: REVIEWER,
-      due: r.category === "before_ceiling_space" ? "before any removal or covering of this area" : "after the work, before office AP review" });
+      due: r.category === "before_ceiling_space" ? "before any removal or covering of this area" : "after the work, before office Final check" });
   }
   return out;
 }

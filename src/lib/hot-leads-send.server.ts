@@ -15,7 +15,7 @@ import { groupBInitialAction } from "./group-b-media.core";
 async function onsiteInitialBlocker(jobId: string, acknowledge: boolean): Promise<string | null> {
   const a = groupBInitialAction(await groupBMediaForJob(jobId));
   if ("held" in a) return a.held;
-  if (a.action !== (acknowledge ? "acknowledge" : "request")) return acknowledge ? "No received homeowner media — acknowledgement not sent" : "Existing enquiry photos/video received — office review, no repeat invitation";
+  if (a.action !== (acknowledge ? "acknowledge" : "request")) return acknowledge ? "No received owner media — acknowledgement not sent" : "Existing enquiry photos/video received — office review, no repeat invitation";
   return null;
 }
 import { logEvent } from "./workflow.server";
@@ -95,7 +95,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   const r = (outcome: HotSendResult["outcome"], detail: string): HotSendResult => ({ jobId, jobNumber: job.job_number, outcome, detail });
   const isTest = job.source === "qa_test";
   if (mode === "send" && !isTest && !followup && !morePhotos && !realOn) return r("blocked", "Sending is switched off.");
-  if (followup && !["base44", "qa_test"].includes(job.source)) return r("blocked", "Follow-up is only for website homeowner enquiries.");
+  if (followup && !["base44", "qa_test"].includes(job.source)) return r("blocked", "Follow-up is only for website owner enquiries.");
   if (followup && mode === "send" && !(await (await import("./comms.server")).customerCommsEnabled())) return r("blocked", "Customer emails are switched off — nothing sent.");
   if (morePhotos && mode === 'send' && !(await groupBGlobalsOn())) return r('blocked', GROUP_B_GLOBALS_OFF);
   if (["cancelled", "complete"].includes(job.stage)) return r("skipped", "Job is closed.");
@@ -204,7 +204,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     // Group B test copies must open a Group B TEST homeowner who has not answered yet. HV-1609 is a likely-eligible
     // TEST job with a saved spot, so its links skipped the four insulation choices and showed "Spot saved".
     try { const f = await (await import("./group-b-test-fixture.server")).createGroupBTestLink(JO_TEST_LINK_JOB); linkJobId = f.jobId; linkToken = f.token; }
-    catch { return r("failed", "TEST Group B homeowner unavailable for the test copy."); }
+    catch { return r("failed", "TEST Group B owner unavailable for the test copy."); }
   } else if (testCopy) {
     const { data: tj } = await admin.from("jobs").select("id, source").eq("job_number", JO_TEST_LINK_JOB).maybeSingle();
     const { data: tl } = tj?.source === "qa_test" ? await admin.from("customer_estimate_links").select("token").eq("job_id", tj.id).eq("purpose", "step3_estimate").eq("status", "active").maybeSingle() : { data: null };

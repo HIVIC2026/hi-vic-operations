@@ -75,7 +75,7 @@ function EmailPreview() {
     outcome,
     existingInsulationPresent: hasExistingInsulation,
     apCount: 2, // business-owner supplied current figure (1 Oct 2026), not registry-verified
-    ...(outcome === "onsite" ? { reasons: ["The existing insulation and eligible ceiling area need to be confirmed onsite.", "Roof access and electrical safety need to be checked."] } : {}),
+    ...(outcome === "onsite" ? { reasons: ["The existing insulation and eligible ceiling area need to be confirmed onsite.", "Roof access and Pre Insulation Electrical Safety Assessment (PIESA) need to be checked."] } : {}),
   }), unsubscribeUrl);
   const srcDoc = sample.html.replace(/(<a\b[^>]*?)\s+href="[^"]*"/g, "$1");
   const outcomeTestUrl = outcome === "ineligible" ? "https://homeinsulationvictoria.com.au/homeowner" : `${estimateUrl}#confirm`;
@@ -102,7 +102,7 @@ function EmailPreview() {
           {isQuote && <button type="button" aria-pressed={previewKind === "measured"} className={btn} style={pill(previewKind === "measured")} onClick={() => setPreviewKind("measured")}>Measured quote + PIESA (test)</button>}
        </div>
       {previewKind === "measured" && <div className="mb-4 flex flex-wrap gap-2" aria-label="PIESA state">
-        {([["before", "PIESA: before"], ["none", "PIESA: no rectification"], ["same", "PIESA: same"], ["lower", "PIESA: lower"], ["higher", "PIESA: higher"]] as const).map(([k, l]) => <button key={k} type="button" aria-pressed={piesaCase === k} className={btn} style={pill(piesaCase === k)} onClick={() => setPiesaCase(k)}>{l}</button>)}
+        {([["before", "PIESA: before"], ["none", "PIESA: no electrical fixes"], ["same", "PIESA: same"], ["lower", "PIESA: lower"], ["higher", "PIESA: higher"]] as const).map(([k, l]) => <button key={k} type="button" aria-pressed={piesaCase === k} className={btn} style={pill(piesaCase === k)} onClick={() => setPiesaCase(k)}>{l}</button>)}
       </div>}
       {previewKind === "email" && <><p className="mb-2 text-sm"><strong>Subject:</strong> {sample.subject}</p><p className="mb-6 text-sm"><strong>Preheader:</strong> {sample.previewText}</p></>}
        {previewKind === "email" && <div className="mb-4 flex flex-wrap items-center gap-3 text-xs font-bold">

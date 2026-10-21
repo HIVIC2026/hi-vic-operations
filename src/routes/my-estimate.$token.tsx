@@ -60,7 +60,7 @@ function PersonalEstimatePage() {
                 <tbody>
                   <tr><td>Ready Check</td><td className="text-right">Free</td></tr>
                   <tr><td>R5.0 ceiling insulation — supply and installation</td><td className="text-right">{money(d.installation)}</td></tr>
-                  <tr><td>Electrical safety assessment (PIESA)</td><td className="text-right">{money(d.piesaFee)}</td></tr>
+                  <tr><td>Pre Insulation Electrical Safety Assessment (PIESA)</td><td className="text-right">{money(d.piesaFee)}</td></tr>
                   <tr><td>Accredited Person management</td><td className="text-right">{money(d.apFee)}</td></tr>
                 </tbody>
               </table>

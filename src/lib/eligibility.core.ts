@@ -26,7 +26,7 @@ export const DECLARATION_ALLOWED: Partial<Record<RuleKey, boolean>> = { previous
 export const ONSITE_ALWAYS = [
   "Existing insulation type / R-value (none, or foil / uncompressed averaging < R2.0)",
   "All relevant-ceiling luminaires IC / IC-4",
-  "Electrical safety / PIESA",
+  "Pre Insulation Electrical Safety Assessment (PIESA) / PIESA",
   "Measured relevant ceiling area",
 ];
 

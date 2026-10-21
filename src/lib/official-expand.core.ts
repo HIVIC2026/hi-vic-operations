@@ -132,13 +132,13 @@ export function expandPiesa(short: ShortAnswers, ctx: ExpandContext): ExpandResu
     out["b1"] = B1_OPTIONS[1];
     const work = list(short["rectificationWork"]);
     if (work.length) out["b2"] = work;
-    else flagged.push("Rectification: the required work isn't ticked.");
+    else flagged.push("Electrical fixes: the required work isn't ticked.");
     if (work.includes(B2_OPTIONS[5])) {
       if (txt(short["rectificationOther"])) out["b2.other"] = txt(short["rectificationOther"]);
-      else flagged.push("Rectification: 'Other' is ticked but not described.");
+      else flagged.push("Electrical fixes: 'Other' is ticked but not described.");
     }
   } else if (outcome === RECTIFICATION_OUTCOMES[2]) out["b1"] = B1_OPTIONS[2];
-  else flagged.push("Rectification outcome: not answered.");
+  else flagged.push("Electrical fixes outcome: not answered.");
 
   // B3 declaration.
   if (ticked(short["b3.declaration"])) out["b3.declaration"] = true;
@@ -149,7 +149,7 @@ export function expandPiesa(short: ShortAnswers, ctx: ExpandContext): ExpandResu
     if (isYes(short["rectificationComplete"])) {
       for (let i = 1; i <= 7; i++) out[`c.tick${i}`] = true;
       out["c.completionDate"] = ctx.today;
-    } else flagged.push("Section C: rectification completion not confirmed — Section C stays incomplete.");
+    } else flagged.push("Section C: electrical fixes completion not confirmed — Section C stays incomplete.");
     if (txt(short["coesNumber"])) out["c.coes"] = txt(short["coesNumber"]);
     else flagged.push("Section C: Certificate of Electrical Safety number missing.");
     if (txt(short["certDate"])) out["c.certDate"] = txt(short["certDate"]);

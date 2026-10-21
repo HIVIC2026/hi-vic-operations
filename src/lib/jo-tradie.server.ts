@@ -84,7 +84,7 @@ export async function sendJoWelcome(actorId: string) {
     simpleEmail("Welcome aboard, Jo", [
       `${JO_BUSINESS} is approved to take safety-check jobs from Home Insulation Victoria.`,
       "Tap the button to set your password. Then a short checklist gets you ready for job alerts: check your details, rates and area, bank and job alerts.",
-      "Your work area: Fraser Rise VIC 3336, 50 km. Your safety check rate: $200.",
+      "Your work area: Fraser Rise VIC 3336, 50 km. Your Pre Insulation Electrical Safety Assessment (PIESA) rate: $200.",
     ], { label: "Set up my account", url: link }));
 }
 
@@ -117,7 +117,7 @@ export async function createJoTestJob(actorId: string) {
   const sent = await both({ jobId: job.id, jobSource: "qa_test", label: "offer", actorId },
     `HIV: New job in Fraser Rise, your rate $200. The first trade to accept gets the job. ${link}`,
     "New job in Fraser Rise — $200",
-    simpleEmail("New job in Fraser Rise", ["Safety check (PIESA) — your rate $200.", "About 120 m² of ceiling. The owner has offered three times. The first trade to accept gets the job."], { label: "See the job", url: link }));
+    simpleEmail("New job in Fraser Rise", ["Pre Insulation Electrical Safety Assessment (PIESA) — your rate $200.", "About 120 m² of ceiling. The owner has offered three times. The first trade to accept gets the job."], { label: "See the job", url: link }));
   return { jobId: job.id, jobNumber: job.job_number, offerId: offer.id, sent };
 }
 
@@ -160,27 +160,27 @@ export async function takeJoOffer(offerId: string, proposalId: string, userId: s
   if (row?.outcome !== "accepted") return { ok: false, tooSlow: true, outcome: row?.outcome ?? "not_found" };
   const { data: p } = await admin.from("appointment_proposals").select("starts_at, ends_at").eq("id", proposalId).single();
   await admin.from("bookings").insert({ job_id: o.job_id, kind: "assessment", scheduled_start: p!.starts_at, scheduled_end: p!.ends_at, status: "confirmed", booked_by: userId, contractor_id: userId, assignment_id: row.assignment_id, business_id: o.business_id, notes: "TEST booking (Jo as a fake tradie)" } as never);
-  await admin.from("jobs").update({ stage: "piesa_scheduled", next_action: "TEST: safety check booked" } as never).eq("id", o.job_id);
-  await logEvent(o.job_id, userId, "booking_confirmed", `TEST: safety check booked for ${when(p!.starts_at)}`, { proposal_id: proposalId }, { internal: true });
+  await admin.from("jobs").update({ stage: "piesa_scheduled", next_action: "TEST: Pre Insulation Electrical Safety Assessment (PIESA) booked" } as never).eq("id", o.job_id);
+  await logEvent(o.job_id, userId, "booking_confirmed", `TEST: Pre Insulation Electrical Safety Assessment (PIESA) booked for ${when(p!.starts_at)}`, { proposal_id: proposalId }, { internal: true });
   const link = `${TEST_APP_BASE}/field/day/${o.job_id}`;
   await both({ jobId: o.job_id, jobSource: "qa_test", label: "booked", actorId: userId },
-    `HIV: Locked in ✅ Safety check ${when(p!.starts_at)}, Fraser Rise. Details: ${link}`,
-    "Locked in — safety check booked",
-    simpleEmail("Job accepted — you're booked", [`Safety check (PIESA) on ${when(p!.starts_at)} in Fraser Rise.`, "The owner's name, address and phone are on the job page. Add it to your calendar from there."], { label: "Open the job", url: link }));
+    `HIV: Locked in ✅ Pre Insulation Electrical Safety Assessment (PIESA) ${when(p!.starts_at)}, Fraser Rise. Details: ${link}`,
+    "Locked in — Pre Insulation Electrical Safety Assessment (PIESA) booked",
+    simpleEmail("Job accepted — you're booked", [`Pre Insulation Electrical Safety Assessment (PIESA) on ${when(p!.starts_at)} in Fraser Rise.`, "The owner's name, address and phone are on the job page. Add it to your calendar from there."], { label: "Open the job", url: link }));
   return { ok: true, tooSlow: false };
 }
 
 export async function joReminder(jobId: string, actorId: string) {
   const { data: b } = await admin.from("bookings").select("scheduled_start, jobs!inner(source, properties(address_line, suburb))").eq("job_id", jobId).eq("kind", "assessment").eq("status", "confirmed").maybeSingle();
-  if (!b) throw new WorkflowError("No booked safety check on this TEST job yet.");
+  if (!b) throw new WorkflowError("No booked Pre Insulation Electrical Safety Assessment (PIESA) on this TEST job yet.");
   const j = b.jobs as { source: string; properties: { address_line: string; suburb: string | null } | null };
   if (j.source !== "qa_test") throw new WorkflowError("TEST jobs only.");
   const link = `${TEST_APP_BASE}/field/day/${jobId}`;
   const at = when(b.scheduled_start);
   return both({ jobId, jobSource: "qa_test", label: "reminder", actorId },
-    `HIV: Reminder — safety check tomorrow ${at}, ${j.properties?.address_line}, ${j.properties?.suburb}. Before you go: ${link}`,
-    "Reminder — safety check tomorrow",
-    simpleEmail("See you tomorrow", [`Safety check ${at} at ${j.properties?.address_line}, ${j.properties?.suburb}.`, "Open the day page before you leave: phone check, sharp-photo tips and location steps."], { label: "Open day page", url: link }));
+    `HIV: Reminder — Pre Insulation Electrical Safety Assessment (PIESA) tomorrow ${at}, ${j.properties?.address_line}, ${j.properties?.suburb}. Before you go: ${link}`,
+    "Reminder — Pre Insulation Electrical Safety Assessment (PIESA) tomorrow",
+    simpleEmail("See you tomorrow", [`Pre Insulation Electrical Safety Assessment (PIESA) ${at} at ${j.properties?.address_line}, ${j.properties?.suburb}.`, "Open the day page before you leave: phone check, sharp-photo tips and location steps."], { label: "Open day page", url: link }));
 }
 
 export async function simulateJoAllClear(jobId: string, actorId: string) {

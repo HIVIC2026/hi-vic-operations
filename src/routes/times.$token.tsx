@@ -10,9 +10,9 @@ export const Route = createFileRoute("/times/$token")({
   head: () => ({
     meta: [
       { title: "Choose your Ready Check times – Home Insulation Victoria" },
-      { name: "description", content: "Choose 3 to 5 times that suit you for your free Home Insulation Ready Check." },
+      { name: "description", content: "Choose 3 to 5 times that suit you for your free Ready Check." },
       { property: "og:title", content: "Choose your Ready Check times – Home Insulation Victoria" },
-      { property: "og:description", content: "Choose 3 to 5 times that suit you for your free Home Insulation Ready Check." },
+      { property: "og:description", content: "Choose 3 to 5 times that suit you for your free Ready Check." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },

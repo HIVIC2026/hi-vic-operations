@@ -36,9 +36,9 @@ export function rectificationQuoteDecision(input: {
   externalSendingEnabled: boolean;
 }): QuoteRelease {
   const reason = input.hasNonStandardItem
-    ? "Quote held: includes a non-standard fix-up item"
+    ? "Quote held: includes a non-standard electrical fixes item"
     : input.manuallyPriced
-      ? "Quote held: includes a manually priced fix-up item"
+      ? "Quote held: includes a manually priced electrical fixes item"
       : null;
   if (reason) return { state: "held", reason, status: "draft" };
   return input.externalSendingEnabled
