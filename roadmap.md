@@ -412,3 +412,4 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 
 - [x] Spot saved jobs show "Spot saved" stage label in office (Jo 21 Oct)
 - [x] Find enquiry Jo marked below R2 after photo review; explain where it went / offer save spot
+- [x] Photo review: send Save your spot email right after marking under R2 / no insulation
