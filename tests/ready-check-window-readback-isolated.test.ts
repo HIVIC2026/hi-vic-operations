@@ -34,6 +34,11 @@ mock.module('../src/lib/workflow.server', () => ({ WorkflowError: Error, getStag
 mock.module('../src/lib/installer-ready-check.server', () => ({ ownerTimesRequested: async () => false }));
 mock.module('../src/lib/visit-events.server', () => ({ timesReopenedSince: async () => false }));
 mock.module('../src/lib/offer-dispatch.server', () => ({ jobOfficePicks: async () => true }));
+let bookingAllowed = true;
+mock.module('../src/lib/ready-check-booking-access.server', () => ({
+  assertOwnerReadyCheckBooking: async () => { if (!bookingAllowed) throw new Error('Ready Check booking is not open.'); },
+  readyCheckBookingAccess: async () => ({ allowed: bookingAllowed }),
+}));
 globalThis.fetch = (async () => { providerCalls++; throw new Error('network forbidden'); }) as typeof fetch;
 const { submitReadyCheckWindows } = await import('../src/lib/readycheck-booking.server');
 const { acceptReadyCheck, readyCheckAcceptanceState } = await import('../src/lib/readycheck-payment.server');
@@ -59,6 +64,7 @@ test('failed actual window insertion rejects, persists nothing and cannot be a b
 });
 
 function resetRequest() {
+  bookingAllowed = true;
   windows = []; events = []; acceptance = null; acceptanceInserts = 0;
   failInsert = false; activeInstaller = false; failRead = false;
   return allowedPiesaDays(new Date()).slice(0, 3).map(date => ({ date, slot: '10-12' as const }));
@@ -158,6 +164,18 @@ test('no recorded acceptance still returns no receipt', async () => {
   resetRequest();
   expect(await readyCheckAcceptanceState(token)).toBeNull();
   expect(acceptanceInserts).toBe(0);
+});
+
+test('locked owner acceptance and exact retry reject before writes; receipt survives', async () => {
+  const picks = resetRequest(); bookingAllowed = false;
+  await expect(acceptReadyCheck(token, {}, picks)).rejects.toThrow('booking is not open');
+  await expect(submitReadyCheckWindows(jobId, picks)).rejects.toThrow('booking is not open');
+  expect(acceptanceInserts).toBe(0); expect(windows).toEqual([]); expect(events).toEqual([]);
+  bookingAllowed = true; await acceptReadyCheck(token, {}, picks); bookingAllowed = false;
+  const before = structuredClone({ windows, acceptance, events });
+  await expect(acceptReadyCheck(token, {}, picks)).rejects.toThrow('booking is not open');
+  expect((await readyCheckAcceptanceState(token))?.acceptanceId).toBe('accepted-once');
+  expect({ windows, acceptance, events }).toEqual(before); expect(providerCalls).toBe(0);
 });
 
 test('changed estimate still marks the recorded acceptance stale', async () => {
