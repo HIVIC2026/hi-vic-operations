@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { chooseReadyCheckWindowsFn, getReadyCheckWindowsFn } from "@/lib/estimate.functions";
+import { SPOT_HELD_MESSAGE } from '@/lib/ready-check-booking-access.core';
 import {
   PIESA_SLOTS, PIESA_WINDOW_MAX, PIESA_WINDOW_MIN, PIESA_WINDOW_MIN_DAYS, allowedPiesaDays, formatPiesaWindow, piesaWindowBlockers,
   type PiesaSlot, type PiesaWindowPick,
@@ -46,9 +47,10 @@ export function ReadyCheckTimesStatus({ token }: { token: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (!data) return null;
-  if (data.canPick && data.round >= 1) return (
+  if (!data.bookingAllowed) return <p role="status" className="mt-4 text-sm font-bold">{SPOT_HELD_MESSAGE}</p>;
+  if (data.canPick) return (
     <div className="mt-4 rounded-[20px] bg-estimate-white px-5 py-6">
-      <p className="mb-3 text-sm font-bold">None of our installers could make your earlier times. Please choose some new times.</p>
+      {data.round >= 1 && <p className="mb-3 text-sm font-bold">None of our installers could make your earlier times. Please choose some new times.</p>}
       <ReadyCheckTimesPicker value={picks} onChange={setPicks} disabled={busy} />
       {error && <p className="mt-2 text-sm font-bold text-danger" role="alert">{error}</p>}
       <button type="button" disabled={busy || piesaWindowBlockers(picks).length > 0} className="mt-3 min-h-12 w-full rounded-xl bg-estimate-green px-5 py-3 font-extrabold text-estimate-white disabled:opacity-50"

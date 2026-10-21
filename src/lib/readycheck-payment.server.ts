@@ -107,6 +107,7 @@ async function saveRequestedWindows(jobId: string, picks: WindowPick[]) {
 export async function acceptReadyCheck(token: unknown, meta: RequestMeta = {}, picks?: WindowPick[]) {
   const ctx = await secureContext(token);
   if (!ctx) throw new Error("Estimate unavailable");
+  await (await import('./ready-check-booking-access.server')).assertOwnerReadyCheckBooking(ctx.link.job_id);
   const existing = await loadAcceptance(ctx.link.job_id, ctx.estimate);
   if (existing && !existing.stale) {
     if (picks) await saveRequestedWindows(ctx.link.job_id, picks);

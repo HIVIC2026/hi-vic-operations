@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getPersonalEstimateFn } from "@/lib/personal-estimate.functions";
+import { SPOT_HELD_MESSAGE } from '@/lib/ready-check-booking-access.core';
 
 /**
  * P1-R3-COM-09 (DEP-1) — public, no-login, READ-ONLY saved personal estimate.
@@ -37,6 +38,7 @@ function PersonalEstimatePage() {
     ceilingAreaM2: number | null; insulation: string | null; areaEstimated: boolean;
     piesaFee?: number; apFee?: number; installation?: number;
     readyCheckBookingUrl: string;
+    bookingAllowed: boolean;
   };
   return (
     <main className="min-h-screen bg-estimate-canvas px-4 py-8 text-estimate-navy">
@@ -66,10 +68,10 @@ function PersonalEstimatePage() {
               </table>
             )}
             <p className="mt-4 text-sm">These are the figures you saved. We have retained this pricing; your Ready Check will confirm the measurements and work required.</p>
-            <a href={d.readyCheckBookingUrl} className="mt-4 inline-block rounded-xl bg-estimate-green px-5 py-3 font-extrabold text-estimate-white no-underline">
+            {d.bookingAllowed ? <><a href={d.readyCheckBookingUrl} className="mt-4 inline-block rounded-xl bg-estimate-green px-5 py-3 font-extrabold text-estimate-white no-underline">
               Book my Ready Check
             </a>
-            <p className="mt-2 text-xs text-estimate-navy/70">Opening the booking page will not book anything — you confirm your request on the next page. No payment required.</p>
+            <p className="mt-2 text-xs text-estimate-navy/70">Opening the booking page will not book anything — you confirm your request on the next page. No payment required.</p></> : <p role="status" className="mt-4 font-bold">{SPOT_HELD_MESSAGE}</p>}
           </>
         )}
       </div>

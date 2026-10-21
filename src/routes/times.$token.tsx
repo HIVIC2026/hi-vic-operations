@@ -5,6 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { getOwnerTimesPage, submitOwnerTimes } from "@/lib/installer-ready-check.functions";
 import { ReadyCheckTimesPicker } from "@/components/portal/ready-check-times";
 import { formatPiesaWindow, piesaWindowBlockers, type PiesaWindowPick } from "@/lib/piesa-windows.core";
+import { SPOT_HELD_MESSAGE } from '@/lib/ready-check-booking-access.core';
 
 export const Route = createFileRoute("/times/$token")({
   head: () => ({
@@ -39,7 +40,7 @@ function TimesPage() {
         {q.isLoading ? <p className="mt-3">Loading…</p> : !d ? <p className="mt-3">This link is no longer active. Please contact your installer.</p> : (
           <>
             <h1 className="mt-1 font-display text-2xl font-extrabold">Your free Ready Check with {d.installer}</h1>
-            {taken ? <p className="mt-3">Booked: <b>{formatPiesaWindow(taken.starts_at, taken.ends_at)}</b>. {d.installer} will see you then.</p>
+            {!d.bookingAllowed ? <p role="status" className="mt-3 font-bold">{SPOT_HELD_MESSAGE}</p> : taken ? <p className="mt-3">Booked: <b>{formatPiesaWindow(taken.starts_at, taken.ends_at)}</b>. {d.installer} will see you then.</p>
               : open.length ? <><p className="mt-3 font-bold">Your times</p><ul className="mt-1 space-y-1 text-sm">{open.map((w) => <li key={w.starts_at}>{formatPiesaWindow(w.starts_at, w.ends_at)}</li>)}</ul><p className="mt-2 text-sm">{d.installer} will confirm one of these times.</p></>
               : d.canPick ? <div className="mt-4">
                 <ReadyCheckTimesPicker value={picks} onChange={setPicks} disabled={busy} />

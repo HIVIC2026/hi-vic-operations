@@ -63,7 +63,13 @@ export async function resolvePublicEstimate(token: unknown, assessmentTestMode =
   const referral = await referralUrlForJob(l.job_id).catch(() => null);
   const { readyCheckAcceptanceState } = await import("./readycheck-payment.server");
   const assessment = await readyCheckAcceptanceState(token).catch(() => null);
-  return { ...publicPayload({ job_number: j?.job_number ?? null, address: formatPropertyAddress(p) || null }, cv, referral, assessment), assessmentTestMode };
+  const { readyCheckBookingAccess } = await import('./ready-check-booking-access.server');
+  const [booking, saved] = await Promise.all([
+    readyCheckBookingAccess(l.job_id),
+    admin.from('lead_campaign_responses').select('spot_saved_at, opted_out_at').eq('job_id', l.job_id).maybeSingle(),
+  ]);
+  return { ...publicPayload({ job_number: j?.job_number ?? null, address: formatPropertyAddress(p) || null }, cv, referral, assessment), assessmentTestMode,
+    bookingAllowed: booking.allowed, spotHeld: !!assessment || (!saved.error && !!saved.data?.spot_saved_at && !saved.data.opted_out_at) };
 }
 
 export async function estimateDeliveryReady(jobId: string) {

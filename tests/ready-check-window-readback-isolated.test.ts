@@ -10,7 +10,7 @@ const touchedTables: string[] = [];
 const jobId = 'isolated-qa-job';
 mock.module('@/integrations/supabase/client.server', () => ({ supabaseAdmin: { from: (table: string) => {
   touchedTables.push(table);
-  if (!['jobs', 'job_assignments', 'ready_check_windows', 'workflow_events', 'customer_estimate_links', 'indicative_estimates', 'ready_check_acceptances'].includes(table)) throw new Error(`unexpected persistence boundary: ${table}`);
+  if (!['workflow_settings', 'jobs', 'job_assignments', 'ready_check_windows', 'workflow_events', 'customer_estimate_links', 'indicative_estimates', 'ready_check_acceptances'].includes(table)) throw new Error(`unexpected persistence boundary: ${table}`);
   let payload: Row[] | null = null;
   const result = () => {
     if (table === 'ready_check_windows' && payload) {
@@ -21,7 +21,7 @@ mock.module('@/integrations/supabase/client.server', () => ({ supabaseAdmin: { f
       if (acceptance) return { data: null, error: { code: '23505', message: 'duplicate acceptance' } };
       acceptanceInserts++; acceptance = { ...payload[0], id: 'accepted-once', accepted_at: new Date().toISOString() };
     }
-    const data = table === 'ready_check_windows' ? windows : table === 'jobs' ? { stage: 'ready_check_awaiting_acceptance' }
+    const data = table === 'workflow_settings' ? { ready_check_booking_enabled: false } : table === 'ready_check_windows' ? windows : table === 'jobs' ? { stage: 'ready_check_awaiting_acceptance' }
       : table === 'ready_check_acceptances' ? acceptance
       : table === 'customer_estimate_links' ? { id: 'link', job_id: jobId, status: 'active', expires_at: '2099-01-01T00:00:00Z', current_estimate_id: 'estimate', view_count: 1 }
       : table === 'indicative_estimates' ? { id: 'estimate', job_id: jobId, status: 'current', input_signature: 'sig', settings_version: 1, applied_discount: 200, scenarios: [{ key: 'can_remain', by_access: { standard: { estimated_customer_total: 4300 } } }] } : [];
@@ -34,8 +34,13 @@ mock.module('../src/lib/workflow.server', () => ({ WorkflowError: Error, getStag
 mock.module('../src/lib/installer-ready-check.server', () => ({ ownerTimesRequested: async () => false }));
 mock.module('../src/lib/visit-events.server', () => ({ timesReopenedSince: async () => false }));
 mock.module('../src/lib/offer-dispatch.server', () => ({ jobOfficePicks: async () => true }));
+let bookingAllowed = true;
+mock.module('../src/lib/ready-check-booking-access.server', () => ({
+  assertOwnerReadyCheckBooking: async () => { if (!bookingAllowed) throw new Error('Ready Check booking is not open.'); },
+  readyCheckBookingAccess: async () => ({ allowed: bookingAllowed }),
+}));
 globalThis.fetch = (async () => { providerCalls++; throw new Error('network forbidden'); }) as typeof fetch;
-const { submitReadyCheckWindows } = await import('../src/lib/readycheck-booking.server');
+const { submitReadyCheckWindows, ownerReadyCheckWindowState, sweepReadyCheckOffers } = await import('../src/lib/readycheck-booking.server');
 const { acceptReadyCheck, readyCheckAcceptanceState } = await import('../src/lib/readycheck-payment.server');
 const now = new Date('2026-10-21T02:34:00Z');
 for (const count of [3, 4, 5]) test(`actual submit saves and reads back ${count} allowed windows; isolated only`, async () => {
@@ -59,6 +64,7 @@ test('failed actual window insertion rejects, persists nothing and cannot be a b
 });
 
 function resetRequest() {
+  bookingAllowed = true;
   windows = []; events = []; acceptance = null; acceptanceInserts = 0;
   failInsert = false; activeInstaller = false; failRead = false;
   return allowedPiesaDays(new Date()).slice(0, 3).map(date => ({ date, slot: '10-12' as const }));
@@ -158,6 +164,34 @@ test('no recorded acceptance still returns no receipt', async () => {
   resetRequest();
   expect(await readyCheckAcceptanceState(token)).toBeNull();
   expect(acceptanceInserts).toBe(0);
+});
+
+test('locked owner acceptance and exact retry reject before writes; receipt survives', async () => {
+  const picks = resetRequest(); bookingAllowed = false;
+  await expect(acceptReadyCheck(token, {}, picks)).rejects.toThrow('booking is not open');
+  await expect(submitReadyCheckWindows(jobId, picks)).rejects.toThrow('booking is not open');
+  expect(acceptanceInserts).toBe(0); expect(windows).toEqual([]); expect(events).toEqual([]);
+  bookingAllowed = true; await acceptReadyCheck(token, {}, picks); bookingAllowed = false;
+  const before = structuredClone({ windows, acceptance, events });
+  await expect(acceptReadyCheck(token, {}, picks)).rejects.toThrow('booking is not open');
+  expect((await readyCheckAcceptanceState(token))?.acceptanceId).toBe('accepted-once');
+  expect({ windows, acceptance, events }).toEqual(before); expect(providerCalls).toBe(0);
+});
+
+test('closed legacy times do not prompt again while locked; windows stay intact', async () => {
+  const picks = resetRequest(); await acceptReadyCheck(token, {}, picks);
+  windows = windows.map(row => ({ ...row, status: 'closed' })); bookingAllowed = false;
+  const before = structuredClone(windows);
+  const state = await ownerReadyCheckWindowState(jobId);
+  expect(state.canPick).toBe(false); expect(state.moreTimes).toBe(false); expect(state.bookingAllowed).toBe(false);
+  expect(windows).toEqual(before); expect(providerCalls).toBe(0);
+});
+
+test('OFF timer performs no offer/window writes or queued requests', async () => {
+  resetRequest(); touchedTables.length = 0;
+  expect(await sweepReadyCheckOffers()).toEqual({ expired: 0, started: 0 });
+  expect(touchedTables).toEqual(['workflow_settings']); expect(events).toEqual([]); expect(windows).toEqual([]);
+  expect(providerCalls).toBe(0);
 });
 
 test('changed estimate still marks the recorded acceptance stale', async () => {

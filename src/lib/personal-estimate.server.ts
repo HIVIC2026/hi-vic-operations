@@ -81,7 +81,9 @@ export async function resolvePersonalEstimate(token: unknown) {
     address = formatPropertyAddress((prop as import("./address").AddressParts | null) ?? null) || null;
   }
   // Public whitelist: the customer's own job reference + address + their saved pricing. No internal ids.
-  return { job: { job_number: job.job_number ?? null, address }, ...view };
+  const { readyCheckBookingAccess } = await import('./ready-check-booking-access.server');
+  const booking = await readyCheckBookingAccess(link.job_id);
+  return { job: { job_number: job.job_number ?? null, address }, ...view, bookingAllowed: booking.allowed };
 }
 
 /**
