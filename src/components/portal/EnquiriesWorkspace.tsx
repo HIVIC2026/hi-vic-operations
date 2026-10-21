@@ -69,9 +69,15 @@ function GuardedFollowup({ jobId, title, run, onDone, deliveryUncertain = false 
     setBusy(mode);
     setMessage(null);
     try {
-      const r = await run(mode);
+      let r = await run(mode);
+      if (mode === "preview" && r.needsEstimate && !r.preview) {
+        // One tap: update the reviewed estimate and secure link (no email), then preview again.
+        const p = await run("prepare");
+        if (p.outcome === "blocked" || p.outcome === "failed") r = p;
+        else r = await run("preview");
+      }
       if (mode === "preview") {
-        setNeedsEstimate(!!r.needsEstimate);
+        setNeedsEstimate(!!r.needsEstimate && !r.preview);
         setPreview(r.preview ?? null);
         setMessage(r.preview ? { text: "Preview only — not sent. Check it, then press Send.", tone: "info" } : { text: r.detail, tone: "error" });
       } else if (mode === "prepare") {
