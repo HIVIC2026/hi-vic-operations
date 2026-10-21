@@ -45,16 +45,16 @@ async function loadPlan(jobIds?: string[], automatic = false) {
       const send = sends.find((r) => r.job_id === enquiry.id && (r.purpose === "step3_estimate" ||
         (r.purpose === "existing_leads_launch_v1" && !String(r.idempotency_key).includes(":insulation_details:") && !/:b(:|$)/.test(r.idempotency_key ?? ""))));
       const jobLinks = links.filter((r) => r.job_id === enquiry.id && linkUsable(r));
-      const link = send ? jobLinks.find((r) => r.id === send.estimate_link_id) : jobLinks[0];
+      const link = jobLinks[0];
       const mails = communications.filter((r) => r.job_id === enquiry.id);
-      // Prefer the precise sent-offer communication; a missing body is a skip, never a generated URL.
+      // Sent records establish offer timing only; the homeowner's active estimate owns the URL.
       const mail = send?.communication_id ? mails.find((r) => r.id === send.communication_id) :
         send?.provider_message_id ? mails.find((r) => r.provider_message_id === send.provider_message_id && r.source_reference === send.idempotency_key) :
         mails.find((r) => ["sent", "delivered"].includes(r.delivery_status) && ["existing_leads_launch_v1", "step3_estimate", "jo_tradie:hot_leads_save_my_spot", "office_manual_email"].includes(r.source_event) && offeredLink(r.body, link?.token ?? null));
       rows.push({ ...enquiry, ...currentBlastPrice(estimate?.scenarios),
         offeredAt: send?.sent_at ?? mail?.sent_at ?? null,
-        link: offeredLink(mail?.body ?? null, link?.token ?? null),
-        linkProblem: !link ? "Offered link missing, expired or revoked" : "Existing offer URL not found in sent email",
+        link: link ? `https://estimate.homeinsulationvictoria.com.au/estimate/${link.token}/campaign` : null,
+        linkProblem: "Quote/savings link missing, expired or revoked",
         consent: consents.find((r) => r.job_id === enquiry.id)?.consent_status === "granted" });
     }
   }

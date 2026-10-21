@@ -27,10 +27,17 @@ test("actual dry-run handler reads provider-linked recorded offer without any wr
   expect(result.samples[0]?.body).toContain("$3,728"); expect(result.samples[0]?.body).toContain("$1,470");
   expect(writes).toBe(0); expect(sends).toBe(0);
 });
-test("unlinked recorded copy cannot count as a sent offered URL", async () => {
+test("own estimate link qualifies without a provider-linked email URL", async () => {
   tables.job_communications = [{ ...(tables.job_communications[0] as object), provider_message_id: "different-provider" }];
   const result = await runSaveSpotReminderBlast(true);
-  expect(result.recipientCount).toBe(0); expect(result.skipped[0]?.reason).toContain("URL");
+  expect(result.recipientCount).toBe(1);
+  expect(writes).toBe(0); expect(sends).toBe(0);
+});
+test("missing consent stays excluded even with an active own estimate link", async () => {
+  tables.owner_contact_consents = [];
+  const result = await runSaveSpotReminderBlast(true);
+  expect(result.recipientCount).toBe(0);
+  expect(result.skipped[0]?.reason).toBe("No current owner contact consent");
   expect(writes).toBe(0); expect(sends).toBe(0);
 });
 test("automatic OFF returns before audience scan and creates no SMS claim",async()=>{
