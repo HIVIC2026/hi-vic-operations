@@ -33,3 +33,12 @@ test("reviewed follow-up: owner size, wrong area or no-insulation estimate block
   expect(reviewedFollowupNoSizeBlocker({ ...fu, areaM2: 140 })).not.toBeNull();
   expect(reviewedFollowupNoSizeBlocker({ ...fu, insulation: "none" })).not.toBeNull();
 });
+
+test("Jo 21 Oct: Office-approved held send may use the labelled 150 m² estimate; owner size still blocks", () => {
+  const { noSizeEstimateBlocker } = require("../src/lib/no-size-estimate.core");
+  const base = { areaSource: "typical_default", areaM2: 150, ownerArea: null, followup: false, automaticInitial: false };
+  expect(noSizeEstimateBlocker({ ...base, insulation: "none", officeHeld: true })).toBeNull();
+  expect(noSizeEstimateBlocker({ ...base, insulation: "present", officeHeld: true, insulationEmail: true })).toBeNull();
+  expect(noSizeEstimateBlocker({ ...base, insulation: "none" })).not.toBeNull();
+  expect(noSizeEstimateBlocker({ ...base, insulation: "none", ownerArea: 120, officeHeld: true })).not.toBeNull();
+});
