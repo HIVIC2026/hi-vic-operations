@@ -11,7 +11,7 @@
 
 - `docs/HIV_WORKFLOW_SOURCE_OF_TRUTH.md` + `src/config/workflow-decisions.ts` override older prompts/comments/labels; run `bun scripts/scan-retired-terms.ts` before workflow work. Pending DB changes live in `docs/pending-migrations/` and are proven on PGlite (`tests/helpers/pglite-*.ts`) before any live run. Why: stop retired rules returning and keep untested SQL off the live database.
 # Project rules
-- One-off Save My Spot SMS reminders use only the admin-authenticated blast action and its read-only dry run; retain existing SMS logging and provider sender, with no automatic dispatch or settings changes. Why: the isolated authorization must not activate unrelated messages.
+- Save My Spot reminders share guarded phone/job claims across admin catch-up and managed callbacks; automatic sends require reminder-only activation metadata, and encrypted one-tap links use browser POST through canonical save. Why: preserve security, existing saved state and unrelated switches.
 - Incoming reset credentials bind Save to the verified user; old sessions never satisfy links. Office TEST handover uses exact QA preflight and a private download. Why: no cross-account access or public credential files.
 - Installer/REC contracts use canonical sections, signing versions and shared versioned Schedule 4 in review/signing; retain prior activatable versions and stored-text historic PDFs. Why: new terms bind exact signatures without rewriting history or revoking approvals.
 - Staff labels/disclosure targets use pure `src/lib/portal-presentation.core.ts`, never workflow or eligibility decisions. Why: presentation must not duplicate domain rules.
