@@ -32,6 +32,7 @@ async def main(manifest_path):
             for width, label in ((390, "phone"), (1280, "desktop")):
                 ctx = await browser.new_context(viewport={"width": width, "height": 844 if width == 390 else 1800})
                 page = await ctx.new_page()
+                page.set_default_timeout(10000)
                 errors = []
                 console_errors, failed_requests, http_errors, navigation_aborts = [], [], [], []
                 page.on("pageerror", lambda e: errors.append(str(e)[:200]))
@@ -84,8 +85,13 @@ async def main(manifest_path):
                     controls = await page.get_by_role('button').evaluate_all('(buttons) => buttons.filter(b => b.getClientRects().length).map(b => ({name: b.getAttribute("aria-label") || b.textContent.trim(), disabled: b.disabled, status: "NOT_RUN", reason: "inventoried only; no mutation/control execution implied"}))')
                     for control_name in s.get('safeButtons') or []:
                         await page.get_by_role('button', name=control_name, exact=True).click()
-                        await page.wait_for_load_state('networkidle')
+                        try:
+                            await page.wait_for_load_state('networkidle', timeout=3000)
+                        except Exception:
+                            pass
                         controls.append({'name': control_name, 'status': 'PASS', 'reason': 'explicit read-only disclosure clicked'})
+                    if errors or console_errors or failed_requests or http_errors:
+                        ok, detail = False, f'{detail}: errors after disclosure interaction'
                 except Exception as e:
                     ok, detail = False, f"{detail}: {str(e)[:200]}"
                 await page.screenshot(path=str(shots / name))
