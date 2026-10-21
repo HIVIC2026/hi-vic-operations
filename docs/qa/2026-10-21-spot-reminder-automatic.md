@@ -1,5 +1,12 @@
 # Save My Spot reminder update — 21 October 2026
 
+## Reminder offer-time correction — Jo 05:20 UTC (current result)
+Reminder catch-up and automatic selection now accept stored offer records or office_enquiry_index.latest_attempt_at for spot_offered=true, without exact sent-email URL matching. Existing sent/offer record timestamp takes precedence; attempt is the fallback. Current own estimate/link, all exclusions, 24h/activation boundaries, copy and prices remain unchanged.
+
+Actual protected TEST Office dry run at `/admin/save-spot-reminder-blast`, 1280x1800, 05:21 UTC: **246 recipients / 156 skipped**. No missing offered-URL/time skips remain; this change does not increase the latest 246 result because the own-link correction had already included those eligible records. Skips: 106 saved; 33 under 24h; 6 TEST; 2 no current contact consent; 3 cancelled; 5 duplicate phones; 1 current eligibility/estimate office review. The two existing withdrawal/consent blocks remain untouched. No writes, link redemption, sends, switch activation, migration or publication. Live reminder SMS count remains zero.
+
+Focused actual-handler tests **6 PASS** (including stored-attempt-only inclusion and under-24h exclusion); existing reminder/automatic/settings/sender/one-tap suites **43 PASS**. Latest preview build OK. Actual DOM count and skips retained in `/tmp/browser/reminder-links/`; private personal links not reproduced in reports.
+
 No real texts, publication, pricing/copy changes elsewhere, schema migration or unrelated switch changes.
 
 ## Implemented
