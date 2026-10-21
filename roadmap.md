@@ -1,4 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Customer SMS activation (Jo, 21 Oct 03:48 UTC)
+- [ ] Verify Australian connection, sender and region without sending; enable only future customer texts if ready. Never retry 116 blocked records or send draft reminders; no publication without notice.
 ## Bounded preview performance and QA (Jo, 21 Oct 01:36 UTC)
 - [x] Fix only /admin/list phone table containment; loaded eight-column/1519-row table verified at 390x844 and 1280x1800 with existing TEST Office session, page scrollWidth matches viewport and no page/request errors. /admin/job-queue is obsolete QA inventory, not current navigation.
 - [x] Correct membership attribution (prior assistant safeguard, not user prohibition); exact TEST preflight and 28 isolated checks pass. Prior field_worker mismatch fixed to canonical member; 18 live-CHECK-equivalent handler tests pass. HV-2987 and HV-2994 archived. Single customer save/refresh/duplicate + stored FREE 0/null pass; windows blocked by active installer. No bypass/migration.
