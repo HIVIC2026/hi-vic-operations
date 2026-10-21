@@ -1,7 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Final narrow Ready Check correction (Jo, 21 Oct 04:41 UTC)
-- [ ] Require unique normalized timestamp sets on both stored/requested windows; focused duplicate/format/retry regressions.
-- [ ] One fresh unassigned reserved-contact qa_test homeowner in verified Frankston 3199; normal FREE request, TEST Alpha acceptance and persisted booking readback, no providers; cancel/archive with audit retained.
+- [x] Require unique normalized timestamp sets on both stored/requested windows; 13 focused regressions PASS (duplicate picks, duplicate persisted keys, equivalent timestamps and booked exact retry), existing round/status gates preserved; preview build OK.
+- [x] HV-3000 fresh unassigned reserved-contact qa_test Frankston 3199: normal no-send owner code/Gate A/estimate view/FREE 0-null request; three exact windows; normal Alpha offer accepted, selected TAKEN window + matching confirmed booking + ready_check_scheduled read back. Existing Alpha Mitti-invitation OFF guard prevents provider creation (qa_test alone is not a universal Mitti guard). Normal owner cancellation + archive verified: zero live bookings/assignments/links/payments/invoices/messages/outbox; 19 audit rows retained. Practice checks passed first; no migrations/publication/settings/real records touched.
 - [x] Prior remaining UI QA completed above; reuse evidence without rerunning sweep.
 ## Automatic one-tap spot reminders (Jo, 21 Oct 04:28 UTC)
 - [x] Added encrypted expiring one-tap save-only links, browser POST through canonical save/result and audited reminder-only default-OFF switch. All unrelated switches unchanged.
