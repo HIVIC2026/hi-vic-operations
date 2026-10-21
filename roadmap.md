@@ -1,5 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Bounded preview performance and QA (Jo, 21 Oct 01:36 UTC)
+- [ ] Fix only /admin/list phone table containment; verify loaded table/controls at 390x844 and desktop with existing TEST Office session; classify /admin/job-queue reference as obsolete QA inventory if no current navigation exists.
 - [x] Finish narrow fixture preflight and final report: 28 focused safety/handler checks pass; no fixture created because prepareQaAccess would add an existing worker membership, explicitly excluded. Live SaveSpot/FREE/windows/booking remain NOT_RUN. Root cleanup attribution and latest 0 active / 437 archived TEST readback recorded.
 - [x] Archive authorized 131-ID eligible qa_test manifest through archiveQaJourney after practice checks; independently verified zero manifest-active assignments/links; active jobs 145→14, total 437 retained; HV2648/root cleanup untouched.
 - [x] Recheck 14 previously held genuine-contact exceptions: subsequently archived outside this agent's 131-action run; all 14 have zero active assignments/live links. Latest total 0 active / 437 archived TEST jobs. Root's 11 cancellations/8 recoverable deletions not duplicated.
