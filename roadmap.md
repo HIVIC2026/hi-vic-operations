@@ -1,6 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Exclusive Spot offered / pending photo pile (Jo, 21 Oct 09:14 UTC)
-- [ ] Prepare minimal shared RPC row/count correction, preserve customer-preview work and all records; practice regressions and read-only live overlap proof. No deployment, sends or live writes.
+- [x] Prepared unapplied 0216 RPC/rollback: shared pending-photo CTE excludes actual offers, saved/ineligible/removed/deleted/progressed facts; aggregate and all other queues unchanged. 17 focused checks PASS including practice DB, rollback, later media and matching pagination/counts. Read-only live snapshot 09:16:31 UTC: 105 old photos, 20 offered overlap; proposed 85 photos, 0 overlap/state leaks; 313 offered unchanged. Navigation already consumes RPC counts. Customer-preview work preserved; no sends/live writes/deployment. Review: docs/qa/2026-10-21-exclusive-photo-pile.md.
 ## Job customer preview correction (Jo, 21 Oct 09:03 UTC)
 - [x] Replaced retired inline preview with canonical approved outcome email from recorded eligibility/review and stored current figures. SELECT-only admin read, sandboxed inert links; 6 focused tests and 61 existing renderer/safety tests PASS. Actual signed-in Office enquiry preview loaded approved insulation-details email, no page errors/overflow; no sends/publication. Existing estimate panel refresh behaviour unchanged.
 ## Reminder switch failure screenshot (Jo, 21 Oct 05:49 UTC)
