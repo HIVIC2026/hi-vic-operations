@@ -1,8 +1,8 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Office-controlled owner Ready Check booking (Jo, 21 Oct 23:39 UTC)
-- [ ] Default-OFF setting and per-job Office-only offer; guard every owner acceptance/time mutation and suppress automatic more-times prompts while locked; preserve Save my spot and receipts.
-- [ ] HV-2524 held message without changing estimate/saved history; read-only list of other real requests/windows.
-- [ ] Practice-database guards and TEST-only UI/flow verification; report before publishing. No sends or unrelated switches.
+- [x] Default-OFF setting and authenticated per-job Office offer; acceptance/window server guards plus live insert/prompt triggers proven on PGlite first. Live setting false; no other switches changed. Save my spot and receipts retained, timer/new-times queues stop while locked.
+- [x] HV-2524 held message in preview based on existing acceptance; no estimate/saved/history/job writes. Read-only non-qa_test acceptance/windows/request-event audit: Kurt only, one $0 acceptance/five closed windows/no booking; no other real owners found.
+- [x] 81 focused tests PASS; harness build/typecheck OK; actual estimate/Office controls on sealed TEST data at desktop 1280×1800 and phone 390×844 PASS. No sends/publication. Report: docs/qa/2026-10-21-office-ready-check-booking.md. Published old UI/retry checks await publication; new database inserts/prompt protection live. Hosted live owner/Office-mutation checks NOT_RUN under test-data-only instruction.
 ## Saved Ready Check request receipt (Jo, 21 Oct 22:52 UTC)
 - [x] Confirmed the receipt read incorrectly depended on current usable windows; decoupled recorded acceptance from window lifecycle, preserving secure-link/stale-estimate checks and all submission/retry guards. No customer writes, sends, migrations or publication.
 - [x] 50 focused tests PASS (20 actual isolated persistence/window checks, 27 free/booking regressions, 3 confirmation-render checks); preview build OK. Actual acceptance read → actual ConfirmQuote, sealed browser receipt/reload and screenshot PASS, no picker/checkbox/duplicate submit. Hosted live-owner flow NOT_RUN; no live fixture or customer changes.
