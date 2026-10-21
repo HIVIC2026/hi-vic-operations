@@ -410,5 +410,5 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] 874 tests across 60 isolated files pass with local/mocked data and blocked unmocked network; preview build/typecheck OK and retired-term scan passes. Fixed uncertain-email warning and stale area-provenance regressions; updated historical fixtures without weakening guards. Live-provider, live-database and write-based journeys excluded.
 - [x] Read-only safety read at 23:33:10 UTC: 643 held, zero runnable, zero new email/communication records since 23:19:39 UTC, activation unset; no publishing or sending.
 
-- [ ] Spot saved jobs show "Spot saved" stage label in office (Jo 21 Oct)
-- [ ] Find enquiry Jo marked below R2 after photo review; explain where it went / offer save spot
+- [x] Spot saved jobs show "Spot saved" stage label in office (Jo 21 Oct)
+- [x] Find enquiry Jo marked below R2 after photo review; explain where it went / offer save spot
