@@ -42,6 +42,7 @@ async function hasActiveInstaller(jobId: string) {
 
 /** Owner chooses 3–5 Ready Check windows (round 1 with the request; round 2 only when asked for more times). */
 export async function submitReadyCheckWindows(jobId: string, picks: Pick[], now = new Date()) {
+  await (await import('./ready-check-booking-access.server')).assertOwnerReadyCheckBooking(jobId);
   const b = piesaWindowBlockers(picks, now);
   if (b.length) throw new WorkflowError(b.join(" "));
   const [{ data: job }, inst, w] = await Promise.all([admin.from("jobs").select("stage").eq("id", jobId).single(), hasActiveInstaller(jobId), readyCheckWindowRound(jobId)]);
@@ -71,6 +72,7 @@ export async function submitReadyCheckWindows(jobId: string, picks: Pick[], now 
 
 /** Owner view (no installer details). */
 export async function ownerReadyCheckWindowState(jobId: string) {
+  const access = await (await import('./ready-check-booking-access.server')).readyCheckBookingAccess(jobId);
   const [{ data: job }, inst, w, { count: asked }] = await Promise.all([
     admin.from("jobs").select("stage").eq("id", jobId).single(), hasActiveInstaller(jobId), readyCheckWindowRound(jobId),
     admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "ready_check_more_times_requested"),
@@ -78,8 +80,8 @@ export async function ownerReadyCheckWindowState(jobId: string) {
   const stageOk = !!job && (READY_CHECK_WINDOW_STAGES as readonly string[]).includes(job.stage);
   const reopened = await (await import("./visit-events.server")).timesReopenedSince(jobId, "ready_check", w.roundStart);
   const ownInstaller = inst && (await (await import("./installer-ready-check.server")).ownerTimesRequested(jobId));
-  const canPick = stageOk && (!inst || ownInstaller) && w.open.length === 0 && (w.round === 0 || (w.round === 1 && !!asked) || reopened);
-  return { canPick, moreTimes: w.round === 1 && !!asked, round: w.round, windows: w.all.map((r) => ({ starts_at: r.starts_at, ends_at: r.ends_at, status: r.status })) };
+  const canPick = access.allowed && stageOk && (!inst || ownInstaller) && w.open.length === 0 && (w.round === 0 || (w.round === 1 && !!asked) || reopened);
+  return { bookingAllowed: access.allowed, canPick, moreTimes: access.allowed && w.round === 1 && !!asked, round: w.round, windows: w.all.map((r) => ({ starts_at: r.starts_at, ends_at: r.ends_at, status: r.status })) };
 }
 
 /** Approved installer businesses judged for this Ready Check. Price is never loaded. */
@@ -159,6 +161,7 @@ export async function installerCandidatesFor(jobId: string) {
 
 /** Start (or continue) Ready Check offers. Refuses unless the job is waiting for a Ready Check booking with open owner times. */
 export async function startReadyCheckOffers(jobId: string, actorId: string | null, onlyBusiness?: string | string[], opts: { adding?: boolean } = {}) {
+  await (await import('./ready-check-booking-access.server')).assertOwnerReadyCheckBooking(jobId);
   const [{ data: job }, inst, w, { count: open }] = await Promise.all([
     admin.from("jobs").select("stage").eq("id", jobId).single(), hasActiveInstaller(jobId), readyCheckWindowRound(jobId),
     admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", "ready_check").eq("status", "pending"),
@@ -206,6 +209,7 @@ async function offerNextReadyCheckBatch(jobId: string, actorId: string | null, o
 
 /** No installer took the owner's times: round 1 → ask the owner once for more times (queued only); round 2 → needs attention. Idempotent. */
 async function readyCheckNoTaker(jobId: string, actorId: string | null, round: number) {
+  if (!(await (await import('./ready-check-booking-access.server')).readyCheckBookingAccess(jobId)).allowed) return;
   const step = readyCheckNoTakerStep(round);
   if (step === "none") return;
   const nowIso = new Date().toISOString();
@@ -232,6 +236,7 @@ async function readyCheckNoTaker(jobId: string, actorId: string | null, round: n
 }
 
 async function refill(jobId: string, actorId: string | null) {
+  if (!(await (await import('./ready-check-booking-access.server')).readyCheckBookingAccess(jobId)).allowed) return;
   const { data: job } = await admin.from("jobs").select("stage").eq("id", jobId).single();
   if (job?.stage !== "ready_check_ready_to_schedule") return;
   const [{ count: open }, inst] = await Promise.all([
@@ -293,6 +298,8 @@ export async function readyCheckOfferWindows(jobIds: string[]) {
 
 /** 15-minute timer: expire offers → next batch; close passed times → no-taker step; start offers for jobs waiting with owner times. */
 export async function sweepReadyCheckOffers(actorId: string | null = null) {
+  const { data: gate, error: gateError } = await admin.from('workflow_settings').select('ready_check_booking_enabled').eq('id', 1).maybeSingle();
+  if (gateError || gate?.ready_check_booking_enabled !== true) return { expired: 0, started: 0 };
   const nowIso = new Date().toISOString();
   const { data: expired } = await admin.from("partner_offers").update({ status: "expired" }).eq("kind", "ready_check").eq("status", "pending").lt("expires_at", nowIso).select("job_id");
   for (const o of expired ?? []) await logEvent(o.job_id, actorId, "partner_offer_expired", "An installer Ready Check offer expired without a response", { kind: "ready_check" }, { internal: true });

@@ -68,6 +68,7 @@ export async function bookOwnReadyCheck(jobId: string, userId: string, startIso:
 /** Button 2: send the owner the pick-your-times link (DRAFT wording, send switches + TEST allowlist). */
 export async function askOwnerForReadyCheckTimes(jobId: string, userId: string) {
   const j = await load(jobId, userId);
+  await (await import('./ready-check-booking-access.server')).assertOwnerReadyCheckBooking(jobId);
   await requireAction(jobId, "book");
   const { data: owner } = await admin.from("jobs").select("owner_id").eq("id", jobId).single();
   const token = newToken();

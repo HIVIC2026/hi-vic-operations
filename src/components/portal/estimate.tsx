@@ -149,7 +149,7 @@ export function QuoteCardReadyCheckClose({ href, onSelect, inert = false }: { hr
   </div>;
 }
 
-function PriceResult({ est, area, fees, settings, insulation, onReadyCheck }: { est: Est; area: number; fees: NonNullable<CustomerData["fees"]>; settings: RetailSettings | undefined; insulation: string | null | undefined; onReadyCheck?: () => void }) {
+function PriceResult({ est, area, fees, settings, insulation, onReadyCheck, readyCheckClose }: { est: Est; area: number; fees: NonNullable<CustomerData["fees"]>; settings: RetailSettings | undefined; insulation: string | null | undefined; onReadyCheck?: () => void; readyCheckClose?: React.ReactNode }) {
   const primary = est.scenarios.find((s) => s.key === "can_remain") ?? est.scenarios[0];
   if (!primary) return null;
   const standard = primary.by_access.standard;
@@ -161,7 +161,7 @@ function PriceResult({ est, area, fees, settings, insulation, onReadyCheck }: { 
     {(insulation === "present" || est.scenarios.some((s) => s.key === "full_removal")) && <p className="mt-4 text-sm font-bold leading-relaxed">{removalNote(removal)}</p>}
     {settings && <p className="mt-3 text-xs leading-relaxed text-estimate-navy/75">Estimated discount: {dollars(standard.applied_discount)} — confirmed after your assessment.</p>}
     {standard.copayment_capped && <p className="mt-3 text-sm">Discount reduced so the minimum $200 customer contribution applies.</p>}
-    <QuoteCardReadyCheckClose href="#confirm" {...(onReadyCheck ? { onSelect: onReadyCheck } : {})} />
+    {readyCheckClose ?? <QuoteCardReadyCheckClose href="#confirm" {...(onReadyCheck ? { onSelect: onReadyCheck } : {})} />}
   </section>;
 }
 
@@ -230,7 +230,7 @@ function RemovalNote({ est }: { est: Est }) {
 }
 
 /** Customer-facing estimate. Renders nothing when Gate 1 does not permit display. */
-export function CustomerEstimate({ data, publicPage = false, onReadyCheck }: { data: CustomerData; publicPage?: boolean; onReadyCheck?: () => void }) {
+export function CustomerEstimate({ data, publicPage = false, onReadyCheck, readyCheckClose }: { data: CustomerData; publicPage?: boolean; onReadyCheck?: () => void; readyCheckClose?: React.ReactNode }) {
   if (!data.visible || !data.mode) return null;
   const fees = data.fees;
   const Heading = publicPage ? "h1" : "h2";
@@ -245,7 +245,7 @@ export function CustomerEstimate({ data, publicPage = false, onReadyCheck }: { d
        </div>
       {data.rolloutHold && <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">Assessments for private homes open from 1 October 2026. This is a scheduling hold only, not an eligibility result.</p>}
       {!fees ? <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">Your estimate is being prepared.</p> : <>
-         {data.estimate ? <PriceResult est={data.estimate} area={data.estimate.area.m2} fees={fees} settings={data.calc?.settings} insulation={data.calc?.insulation} {...(onReadyCheck ? { onReadyCheck } : {})} /> : <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">{data.postcodeUnlisted ? "We can't calculate a VEU discount for this postcode yet because it isn't in the official VEU location list. We'll confirm your pricing directly." : "Your estimate is being prepared."}</p>}
+         {data.estimate ? <PriceResult est={data.estimate} area={data.estimate.area.m2} fees={fees} settings={data.calc?.settings} insulation={data.calc?.insulation} readyCheckClose={readyCheckClose} {...(onReadyCheck ? { onReadyCheck } : {})} /> : <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">{data.postcodeUnlisted ? "We can't calculate a VEU discount for this postcode yet because it isn't in the official VEU location list. We'll confirm your pricing directly." : "Your estimate is being prepared."}</p>}
          {data.estimate && <><RemovalNote est={data.estimate} /><HouseholdBenefits /><PriceProtection settings={data.calc?.settings} fees={fees} /><ManagedProcess /></>}
         {data.calc && <details className="group border-b border-estimate-blue/20 pb-5 text-sm"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-bold text-estimate-blue focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">How is the VEU discount estimated? <ChevronDown aria-hidden="true" className="size-5 shrink-0 transition-transform group-open:rotate-180" /></summary><p className="mt-4 leading-relaxed">We use the official Activity 48 postcode/climate calculation and a {dollars(data.calc.settings.indicative_veec_value)} consumer benchmark calibrated to the Victorian Government&apos;s published example. Final certificate values can change. This is not the live VEEC market price.</p>{data.calc.settings.veec_value_source_url?.startsWith("https://") && <a className="mt-2 inline-block font-bold text-estimate-blue underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" href={data.calc.settings.veec_value_source_url} target="_blank" rel="noopener noreferrer">View the published example <span aria-hidden="true">↗</span></a>}</details>}
       </>}

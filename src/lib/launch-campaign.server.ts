@@ -71,7 +71,7 @@ export async function campaignPage(token: unknown, testMode = false) {
   const base44 = (property?.enrichment?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } };
   const insulation = normaliseInsulation(declaredExtras(base44.raw?.answers ?? null).existing_insulation);
   const address = fullAddress(property?.address_line, property?.suburb, property?.postcode);
-  const { data: availability } = await admin.from("customer_delivery_settings").select("ready_check_available_postcodes").eq("id", 1).maybeSingle();
+  const booking = await (await import('./ready-check-booking-access.server')).readyCheckBookingAccess(c.job.id);
   // v8: the page carries the full approved design, so it gets the same snapshot numbers the email used.
   const [{ data: est }, { data: cfg }] = await Promise.all([
     admin.from("indicative_estimates").select("id, area_source, area_m2, insulation_declared, scenarios, snapshot").eq("job_id", c.job.id).eq("status", "current").maybeSingle(),
@@ -88,7 +88,7 @@ export async function campaignPage(token: unknown, testMode = false) {
   const pricing = p && p.areaM2 ? { gross: p.gross, discount: p.discount, total: p.total, areaM2: p.areaM2, areaAssumed: basis.ok && basis.areaEstimated, assessmentFee, apFee, ratePerM2: Number(fees?.r5_install_inc_gst_per_m2 ?? 30), installation: p.gross - assessmentFee - apFee - (removal.kind === "included" ? removal.amount : 0), removal, veecs: Math.round(p.discount / snapshotVeec), veecValue: snapshotVeec, address, insulation: p.insulation ?? est?.insulation_declared ?? null } : null;
   const { referralUrlForJob } = await import("./referral.server");
   const referralUrl = await referralUrlForJob(c.job.id);
-  return estimate ? JSON.stringify({ group: c.group, saveAllowed: campaignPermission(c, response?.desk_check_status), media: c.media, mediaReview: c.mediaReview, ownerQualified: c.ownerQualified, estimate, pricing, response: response ?? null, referralUrl, bookingAvailable: !!property?.postcode && (availability?.ready_check_available_postcodes ?? []).includes(property.postcode), owner: { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null }, home: { suburb: property?.suburb ?? null, short: [property?.address_line, property?.suburb].filter(Boolean).join(", ") || null }, initialValues: { address, areaM2: c.job.estimated_area_m2 == null ? null : Number(c.job.estimated_area_m2), insulation } }) : null;
+  return estimate ? JSON.stringify({ group: c.group, saveAllowed: campaignPermission(c, response?.desk_check_status), media: c.media, mediaReview: c.mediaReview, ownerQualified: c.ownerQualified, estimate, pricing, response: response ?? null, referralUrl, bookingAvailable: booking.allowed, owner: { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null }, home: { suburb: property?.suburb ?? null, short: [property?.address_line, property?.suburb].filter(Boolean).join(", ") || null }, initialValues: { address, areaM2: c.job.estimated_area_m2 == null ? null : Number(c.job.estimated_area_m2), insulation } }) : null;
 }
 
 export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; insulation: "none" | "present" | "unknown" | null } | null) {

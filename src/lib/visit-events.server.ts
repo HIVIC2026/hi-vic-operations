@@ -34,6 +34,7 @@ async function needsOffice(jobId: string, code: VisitNeedsCode, kind: VisitKind,
 
 /** Queue (never send) the "please pick new times" owner message. Delivery follows the sending switches. */
 async function queueOwnerNewTimes(jobId: string, b: Booking) {
+  if (b.kind === 'ready_check' && !(await (await import('./ready-check-booking-access.server')).readyCheckBookingAccess(jobId)).allowed) return;
   const { data: ev } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "visit_times_reopened").contains("details", { booking_id: b.id }).limit(1).maybeSingle();
   if (!ev) return;
   const { error } = await admin.rpc("enqueue_external_action", {
@@ -61,6 +62,7 @@ async function reopen(b: Booking, actorId: string | null, why: string, releaseTr
   const { data: job } = await admin.from("jobs").select("stage").eq("id", b.job_id).single();
   if (job?.stage === BOOKED_STAGE[b.kind]) await transition(b.job_id, plan.stage as never, actorId, `${VISIT_LABEL[b.kind]} booking cancelled: ${why}`, { booking_id: b.id });
   if (plan.office) { await needsOffice(b.job_id, "rectification_new_times", b.kind, b.id, "Electrical fixes visit cancelled — arrange new times with the electrician and owner"); return; }
+  if (b.kind === 'ready_check' && !(await (await import('./ready-check-booking-access.server')).readyCheckBookingAccess(b.job_id)).allowed) return;
   await logEvent(b.job_id, actorId, "visit_times_reopened", `${VISIT_LABEL[b.kind]}: owner asked to pick new times (prepared; delivery follows the sending switches)`, { booking_id: b.id, kind: b.kind, released_trade: release }, { internal: true });
   await admin.from("jobs").update({ next_action: `Waiting for the owner to pick new ${VISIT_LABEL[b.kind]} times` }).eq("id", b.job_id);
   await queueOwnerNewTimes(b.job_id, b);
