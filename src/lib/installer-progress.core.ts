@@ -143,7 +143,7 @@ function nextAction(f: ProgressFacts, done: Record<ProgressStepKey, boolean>): N
     if (f.quoteHeld.length) return { who: f.quoteHeld.some((b) => /installer|you|area|quote|fee|electrician/i.test(b)) ? "You" : HIV, text: `Owner quote on hold: ${f.quoteHeld[0]}` };
     return { who: HIV, text: "Prepare and send the owner quote." };
   }
-  if (!done.installation && f.rectificationOpen) return { who: f.electricianPayer === "own" ? "Electrician" : HIV, text: "Electrical electrical fixes required before installation can be booked." };
+  if (!done.installation && f.rectificationOpen) return { who: f.electricianPayer === "own" ? "Electrician" : HIV, text: "Electrical fixes required before installation can be booked." };
   if (!done.electrical) return f.electricianPayer === "own"
     ? { who: "Electrician", text: "Your electrician completes the Pre Insulation Electrical Safety Assessment (PIESA); the office verifies the report." }
     : f.electricianPayer === "undecided" ? { who: "You", text: "Choose who arranges the electrician (below)." }
