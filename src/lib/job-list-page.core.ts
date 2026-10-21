@@ -6,6 +6,15 @@
 export type JobMode = "active" | "closed";
 export type JobClosedView = "completed" | "cancelled" | "ineligible" | "test";
 
+/** Exact complement of archived rows without putting every archived TEST UUID in one URL. */
+export function jobArchiveFilter(rows: Array<{ id: string; source: string | null; qa_archived_at: string | null }>) {
+  const visibleTestIds = rows.filter(row => row.source === "qa_test" && !row.qa_archived_at).map(row => row.id);
+  return {
+    visible: ["source.is.null", "source.neq.qa_test", ...(visibleTestIds.length ? [`id.in.(${visibleTestIds.join(",")})`] : [])].join(","),
+    archivedOtherIds: rows.filter(row => row.source !== "qa_test" && row.qa_archived_at).map(row => row.id),
+  };
+}
+
 export const CLOSED_VIEWS: JobClosedView[] = ["completed", "cancelled", "ineligible", "test"];
 
 /** Whitelisted search columns. The office searches exactly what it can see on the card. */
