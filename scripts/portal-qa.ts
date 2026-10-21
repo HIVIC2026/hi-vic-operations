@@ -228,10 +228,12 @@ try {
     if (!fits(60_000)) notRun("screens", "authenticated screen visits", "overall budget exhausted");
     else {
       writeFileSync(`${OUT}/.manifest.json`, JSON.stringify({ outDir: OUT, base: BASE, storageKey, sessions, screens: runnable }), { mode: 0o600 });
-      const br = sh(["python3", "e2e/journey/shoot.py", `${OUT}/.manifest.json`], 300_000);
+      const br = sh(["python3", "e2e/journey/shoot.py", `${OUT}/.manifest.json`], READ_ONLY ? 450_000 : 300_000);
       writeFileSync(`${OUT}/.manifest.json`, "{}");
       if (br.status !== 0 || !existsSync(`${OUT}/.browser.json`)) add({ area: "screens", route_or_action: "browser harness", persona: "-", status: "failed", detail: (br.error ? `timeout/error: ${br.error.message} ` : "") + (br.stderr || "harness did not finish").slice(-400), steps: "python3 e2e/journey/shoot.py" });
-      const completed = existsSync(`${OUT}/.browser.json`) ? JSON.parse(readFileSync(`${OUT}/.browser.json`, 'utf8')) as { step: string; ok: boolean; detail: string; shots: string[] }[] : [];
+      let completed: { step: string; ok: boolean; detail: string; shots: string[] }[] = [];
+      try { if (existsSync(`${OUT}/.browser.json`)) completed = JSON.parse(readFileSync(`${OUT}/.browser.json`, 'utf8')); }
+      catch { add({ area: 'screens', route_or_action: 'partial browser results', persona: '-', status: 'failed', detail: 'browser results unreadable; no coverage inferred', steps: '' }); }
       for (const r of completed) {
         const s = runnable.find((x) => x.step === r.step)!;
         add({ area: "screens", route_or_action: `${s.path} (${r.detail.includes("390px") ? "phone" : "desktop"})`, persona: s.persona, status: r.ok ? "passed" : "failed", detail: r.detail, steps: `sign in as TEST ${s.persona}, open ${s.path}, check labels`, screenshots: r.shots });

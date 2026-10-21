@@ -96,9 +96,13 @@ async def main(manifest_path):
                     ok, detail = False, f"{detail}: {str(e)[:200]}"
                 await page.screenshot(path=str(shots / name))
                 results.append({"step": s["step"], "ok": ok, "detail": detail if not ok else f"{detail} render checks ok; controls listed separately", "shots": [str(shots / name)], 'viewport': {'width': width, 'height': 844 if width == 390 else 1800}, 'elapsed_ms': round((time.monotonic()-started)*1000), 'page_errors': errors, 'console_errors': console_errors, 'failed_requests': failed_requests, 'navigation_aborts': navigation_aborts, 'http_errors': http_errors, 'overflow': overflow, 'controls': controls})
-                (out / '.browser.json').write_text(json.dumps(results))
+                partial = out / '.browser.tmp.json'
+                partial.write_text(json.dumps(results))
+                partial.replace(out / '.browser.json')
                 await ctx.close()
         await browser.close()
-    (out / ".browser.json").write_text(json.dumps(results))
+    partial = out / '.browser.tmp.json'
+    partial.write_text(json.dumps(results))
+    partial.replace(out / '.browser.json')
 
 asyncio.run(main(sys.argv[1]))
