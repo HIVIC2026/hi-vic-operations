@@ -202,14 +202,14 @@ function EligibilityForm({ jobId }: { jobId: string }) {
         <dt className="text-muted-foreground">Current</dt><dd>{data.eligibility_review_required ? "Review required (no customer category yet)" : data.eligibility_outcome ? ELIGIBILITY_LABEL[data.eligibility_outcome] : "Not set"}</dd>
       </dl>
       {data.eligibility_reason && <p className="mb-3 rounded bg-muted p-2 text-sm">{data.eligibility_reason}</p>}
-      <form className="space-y-2" onSubmit={(e) => { e.preventDefault(); if (outcome) save({ jobId, outcome, reason, nextAction: next }, "Eligibility saved"); }}>
+      <form className="space-y-2" onSubmit={(e) => { e.preventDefault(); if (outcome) save({ jobId, outcome, reason, nextAction: next.trim() || undefined }, "Eligibility saved"); }}>
         <div className="grid gap-2 sm:grid-cols-3">
           {(Object.keys(ELIGIBILITY_LABEL) as EligibilityOutcome[]).map((o) => (
             <button type="button" key={o} onClick={() => setOutcome(o)} className={`rounded-lg border p-2 text-sm font-medium ${outcome === o ? "border-primary bg-secondary" : ""}`}>{ELIGIBILITY_LABEL[o]}</button>
           ))}
         </div>
         <Textarea placeholder="Reason (e.g. residential, built 1985, existing R-value to verify onsite)" value={reason} onChange={(e) => setReason(e.target.value)} required />
-        <Input placeholder="NEXT ACTION" value={next} onChange={(e) => setNext(e.target.value)} required />
+        <Input placeholder="Note (optional)" value={next} onChange={(e) => setNext(e.target.value)} />
         <Button type="submit" disabled={!outcome}>Save outcome</Button>
       </form>
     </Section>
