@@ -38,7 +38,7 @@ function Page() {
       <p className="mt-1 text-sm text-muted-foreground">Every document owners sign, by gate. DRAFT wording works on TEST jobs only; real jobs are blocked until it's approved.</p>
       {err && <p role="alert" className="mt-2 text-sm text-destructive">{err}</p>}
       <ResignSwitch />
-      <table className="mt-4 w-full text-sm">
+      <div className="mt-4 max-w-full overflow-x-auto"><table className="w-full text-sm">
         <thead><tr className="text-left text-muted-foreground"><th className="py-2">Gate</th><th>Document</th><th>Version</th><th>Status</th><th>Approved by</th><th /></tr></thead>
         <tbody>{docs.map((d) => (
           <tr key={d.key} className="border-t align-top">
@@ -62,7 +62,7 @@ function Page() {
               }}>Approve</Button>}
               {d.managedIn === "Templates" && <a href={templateEditHref(d.key)} className="block text-xs font-semibold text-primary underline">Edit wording</a>}</td>
           </tr>))}</tbody>
-      </table>
+      </table></div>
       {reason.dialog}
     </AppShell>
   );
