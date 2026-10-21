@@ -10,7 +10,7 @@ const touchedTables: string[] = [];
 const jobId = 'isolated-qa-job';
 mock.module('@/integrations/supabase/client.server', () => ({ supabaseAdmin: { from: (table: string) => {
   touchedTables.push(table);
-  if (!['jobs', 'job_assignments', 'ready_check_windows', 'workflow_events', 'customer_estimate_links', 'indicative_estimates', 'ready_check_acceptances'].includes(table)) throw new Error(`unexpected persistence boundary: ${table}`);
+  if (!['workflow_settings', 'jobs', 'job_assignments', 'ready_check_windows', 'workflow_events', 'customer_estimate_links', 'indicative_estimates', 'ready_check_acceptances'].includes(table)) throw new Error(`unexpected persistence boundary: ${table}`);
   let payload: Row[] | null = null;
   const result = () => {
     if (table === 'ready_check_windows' && payload) {
@@ -21,7 +21,7 @@ mock.module('@/integrations/supabase/client.server', () => ({ supabaseAdmin: { f
       if (acceptance) return { data: null, error: { code: '23505', message: 'duplicate acceptance' } };
       acceptanceInserts++; acceptance = { ...payload[0], id: 'accepted-once', accepted_at: new Date().toISOString() };
     }
-    const data = table === 'ready_check_windows' ? windows : table === 'jobs' ? { stage: 'ready_check_awaiting_acceptance' }
+    const data = table === 'workflow_settings' ? { ready_check_booking_enabled: false } : table === 'ready_check_windows' ? windows : table === 'jobs' ? { stage: 'ready_check_awaiting_acceptance' }
       : table === 'ready_check_acceptances' ? acceptance
       : table === 'customer_estimate_links' ? { id: 'link', job_id: jobId, status: 'active', expires_at: '2099-01-01T00:00:00Z', current_estimate_id: 'estimate', view_count: 1 }
       : table === 'indicative_estimates' ? { id: 'estimate', job_id: jobId, status: 'current', input_signature: 'sig', settings_version: 1, applied_discount: 200, scenarios: [{ key: 'can_remain', by_access: { standard: { estimated_customer_total: 4300 } } }] } : [];
@@ -185,6 +185,13 @@ test('closed legacy times do not prompt again while locked; windows stay intact'
   const state = await ownerReadyCheckWindowState(jobId);
   expect(state.canPick).toBe(false); expect(state.moreTimes).toBe(false); expect(state.bookingAllowed).toBe(false);
   expect(windows).toEqual(before); expect(providerCalls).toBe(0);
+});
+
+test('OFF timer performs no offer/window writes or queued requests', async () => {
+  resetRequest(); touchedTables.length = 0;
+  expect(await sweepReadyCheckOffers()).toEqual({ expired: 0, started: 0 });
+  expect(touchedTables).toEqual(['workflow_settings']); expect(events).toEqual([]); expect(windows).toEqual([]);
+  expect(providerCalls).toBe(0);
 });
 
 test('changed estimate still marks the recorded acceptance stale', async () => {

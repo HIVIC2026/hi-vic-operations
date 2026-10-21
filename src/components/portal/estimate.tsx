@@ -129,7 +129,7 @@ export function QuoteBreakdown({ rows, gross, discount, final, ids }: { rows: Re
 }
 
 /** Locked in-card close for every eligible/onsite quote: What could change → GST → divider → Ready Check CTA. */
-export function QuoteCardReadyCheckClose({ href, onSelect, inert = false }: { href?: string; onSelect?: () => void; inert?: boolean }) {
+export function QuoteCardReadyCheckClose({ href, onSelect, inert = false, action }: { href?: string; onSelect?: () => void; inert?: boolean; action?: React.ReactNode }) {
   return <div data-testid="quote-card-close">
     <div className="mt-6" data-testid="quote-what-could-change">
       <h4 className="text-lg font-extrabold text-estimate-blue">{CUSTOMER_WHAT_COULD_CHANGE.heading}</h4>
@@ -138,14 +138,14 @@ export function QuoteCardReadyCheckClose({ href, onSelect, inert = false }: { hr
       <p className="mt-5 text-sm font-extrabold leading-relaxed">{CUSTOMER_WHAT_COULD_CHANGE.closing}</p>
       <p className="mt-3 text-xs font-bold">{CUSTOMER_WHAT_COULD_CHANGE.gst}</p>
     </div>
-    <div className="mt-6 border-t border-estimate-blue-soft pt-6" data-testid="ready-check-cta">
+    {action ?? <div className="mt-6 border-t border-estimate-blue-soft pt-6" data-testid="ready-check-cta">
       <p className="text-xs font-extrabold uppercase tracking-wider text-estimate-green">{CUSTOMER_READY_CHECK_EMAIL_ACTION.eyebrow}</p>
       <h4 className="mt-2 text-xl font-extrabold leading-tight text-estimate-blue">{CUSTOMER_READY_CHECK_EMAIL_ACTION.heading}</h4>
       <p className="mt-3 text-sm leading-relaxed">{CUSTOMER_READY_CHECK_EMAIL_ACTION.sentence}</p>
       <p className="mt-2 text-sm font-bold">{CUSTOMER_READY_CHECK_EMAIL_ACTION.credit}</p>
       {onSelect && !inert ? <Button type="button" size="field" className="estimate-action-button mt-5 h-auto min-h-12 w-full px-4 py-3 font-extrabold" onClick={onSelect}>{CUSTOMER_READY_CHECK.cta}</Button> : href && !inert ? <a href={href} className="estimate-action-button mt-5 flex min-h-12 w-full items-center justify-center rounded-md px-4 py-3 text-center text-sm font-extrabold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{CUSTOMER_READY_CHECK.cta}</a> : <Button type="button" size="field" className="estimate-action-button mt-5 h-auto min-h-12 w-full px-4 py-3 font-extrabold disabled:opacity-100" disabled>{CUSTOMER_READY_CHECK.cta}</Button>}
       <p className="mt-3 text-center text-xs">{CUSTOMER_READY_CHECK_EMAIL_ACTION.helper}</p>
-    </div>
+    </div>}
   </div>;
 }
 
@@ -161,7 +161,7 @@ function PriceResult({ est, area, fees, settings, insulation, onReadyCheck, read
     {(insulation === "present" || est.scenarios.some((s) => s.key === "full_removal")) && <p className="mt-4 text-sm font-bold leading-relaxed">{removalNote(removal)}</p>}
     {settings && <p className="mt-3 text-xs leading-relaxed text-estimate-navy/75">Estimated discount: {dollars(standard.applied_discount)} — confirmed after your assessment.</p>}
     {standard.copayment_capped && <p className="mt-3 text-sm">Discount reduced so the minimum $200 customer contribution applies.</p>}
-    {readyCheckClose ?? <QuoteCardReadyCheckClose href="#confirm" {...(onReadyCheck ? { onSelect: onReadyCheck } : {})} />}
+    <QuoteCardReadyCheckClose href="#confirm" action={readyCheckClose} {...(onReadyCheck ? { onSelect: onReadyCheck } : {})} />
   </section>;
 }
 
