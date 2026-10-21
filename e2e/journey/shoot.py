@@ -52,11 +52,17 @@ async def main(manifest_path):
                 landed_path = None
                 try:
                     await page.goto(m["base"] + s["path"], wait_until="domcontentloaded", timeout=15000)
-                    try:
-                        await page.wait_for_load_state('networkidle', timeout=3000)
-                    except Exception:
-                        pass
-                    await page.wait_for_timeout(500)
+                    # A painted heading alone can precede loaded data. Require visible controls/content
+                    # and no pending status; this is browser page-ready, not backend timing.
+                    await page.wait_for_function('''() => {
+                        const body = document.body;
+                        if (!body || !body.innerText.trim()) return false;
+                        const busy = [...body.querySelectorAll('[role="status"]')].some(e => e.getClientRects().length && /loading|checking|please wait/i.test(e.textContent));
+                        return !busy && !!body.querySelector('h1,h2,main,input');
+                    }''', timeout=15000)
+                    if s.get('readinessSelector'):
+                        await page.locator(s['readinessSelector']).wait_for(state='visible', timeout=15000)
+                    page_ready_ms = round((time.monotonic()-started)*1000)
                     body = await page.inner_text("body")
                     if "/auth" in page.url and s["persona"] not in ("public", "owner_token"):
                         ok, detail = False, f"{detail}: bounced to sign-in"
@@ -85,8 +91,18 @@ async def main(manifest_path):
                     if overflow: ok, detail = False, f'{detail}: horizontal overflow'
                     if console_errors or failed_requests or http_errors: ok, detail = False, f'{detail}: console/network failures ({len(console_errors)}/{len(failed_requests)}/{len(http_errors)})'
                     controls = await page.get_by_role('button').evaluate_all('(buttons) => buttons.filter(b => b.getClientRects().length).map(b => ({name: b.getAttribute("aria-label") || b.textContent.trim(), disabled: b.disabled, status: "NOT_RUN", reason: "inventoried only; no mutation/control execution implied"}))')
+                    if s.get('safeTabs'):
+                        tabs = await page.get_by_role('tab').all_text_contents()
+                        for tab in tabs:
+                            try:
+                                await page.get_by_role('tab', name=tab, exact=True).click()
+                                await page.wait_for_function('() => !document.querySelector("[role=tabpanel][data-state=active] [aria-busy=true]")')
+                                controls.append({'name': tab, 'status': 'PASS', 'reason': 'read-only tab clicked'})
+                            except Exception:
+                                controls.append({'name': tab, 'status': 'FAIL', 'reason': 'tab interaction failed'})
                     for control_name in s.get('safeButtons') or []:
-                        await page.get_by_role('button', name=control_name, exact=True).click()
+                        target = page.get_by_role('button', name=re.compile('^' + re.escape(control_name) + '(?:\\s|$)'))
+                        await target.first.click()
                         try:
                             await page.wait_for_load_state('networkidle', timeout=3000)
                         except Exception:
@@ -97,7 +113,7 @@ async def main(manifest_path):
                 except Exception as e:
                     ok, detail = False, f"{detail}: {str(e)[:200]}"
                 await page.screenshot(path=str(shots / name))
-                results.append({"step": s["step"], "requested_path": s["path"], "landed_path": landed_path, "ok": ok, "detail": detail if not ok else f"{detail} render checks ok; controls listed separately", "shots": [str(shots / name)], 'viewport': {'width': width, 'height': 844 if width == 390 else 1800}, 'elapsed_ms': round((time.monotonic()-started)*1000), 'page_errors': errors, 'console_errors': console_errors, 'failed_requests': failed_requests, 'navigation_aborts': navigation_aborts, 'http_errors': http_errors, 'overflow': overflow, 'controls': controls})
+                results.append({"step": s["step"], "requested_path": s["path"], "landed_path": landed_path, "ok": ok, "detail": detail if not ok else f"{detail} render checks ok; controls listed separately", "shots": [str(shots / name)], 'viewport': {'width': width, 'height': 844 if width == 390 else 1800}, 'page_ready_ms': locals().get('page_ready_ms'), 'elapsed_ms': round((time.monotonic()-started)*1000), 'page_errors': errors, 'console_errors': console_errors, 'failed_requests': failed_requests, 'navigation_aborts': navigation_aborts, 'http_errors': http_errors, 'overflow': overflow, 'controls': controls})
                 partial = out / '.browser.tmp.json'
                 partial.write_text(json.dumps(results))
                 partial.replace(out / '.browser.json')
