@@ -53,3 +53,15 @@ test('every enquiry is in exactly one enquiry pile', async () => {
   const c = (await page('all')).counts;
   expect(c.new + c.photos + c.needs_attention + c.offered_spot + c.insulation_requested).toBe(c.all);
 });
+
+import { closedPile } from '../src/lib/job-list-page.core';
+test('Closed jobs: one pile each, Removed/test wins, deleted only on Deleted page, nothing pile-less', () => {
+  const base = { source: 'base44', office_removed: false, contact_rank: 1, stage: 'cancelled', deleted: false };
+  expect(closedPile({ ...base, office_removed: true })).toBe('test');           // HV-2648, HV-1039
+  expect(closedPile({ ...base, contact_rank: 2 })).toBe('test');
+  expect(closedPile({ ...base, office_removed: true, deleted: true })).toBe('deleted'); // HV-1059
+  expect(closedPile({ ...base, stage: 'ready_check_scheduled', deleted: true })).toBe('deleted'); // HV-2010
+  expect(closedPile({ ...base, stage: 'preliminary_estimate_ready' })).toBe('ineligible'); // HV-1161 hand-typed list
+  expect(closedPile({ ...base, stage: 'complete' })).toBe('completed');
+  expect(closedPile(base)).toBe('cancelled');
+});
