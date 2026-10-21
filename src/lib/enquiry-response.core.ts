@@ -23,7 +23,8 @@ export function parseResponseCounts(x: unknown): ResponseCounts | null {
 export type NextParty = 'office' | 'homeowner' | 'none';
 /** Who owes the next step. Received-but-unreviewed media is always Office's turn, whatever the lane says. */
 export function enquiryNextStep(f: { status: string; mediaToReview: boolean; reviewOutcome: string | null; morePhotosRequested?: boolean; mediaCount: number; fallback: string | null }): { party: NextParty; label: string } {
-  if (f.mediaToReview) return { party: 'office', label: `Office: review ${f.mediaCount} photo${f.mediaCount === 1 ? '' : 's'}/video${f.reviewOutcome === 'unclear' ? ' (new upload after the last review)' : ''}` };
+  // Jo 21 Oct: once anything is uploaded the approved wording is "Check photos" — never "Awaiting photos/videos".
+  if (f.mediaToReview) return { party: 'office', label: 'Check photos' };
   if (f.status === 'spot_saved') return { party: 'office', label: 'Continue from Active jobs' };
   if (f.status === 'ineligible') return { party: 'none', label: 'No action unless the owner replies' };
   if (f.reviewOutcome === 'unclear') return f.morePhotosRequested === true ? { party: 'homeowner', label: 'Waiting for the owner to send more photos/video' } : { party: 'office', label: 'Office: request more photos/video' };
@@ -48,4 +49,10 @@ export function noInsulationOfferBlocker(f: { source: string | null; stage: stri
   if (f.latestReview !== 'no_insulation') return 'The latest Office photo review is not “no insulation”.';
   if (f.outcome !== 'likely_eligible' || f.reviewRequired || !['admin', 'system'].includes(f.decisionSource ?? '')) return 'Record the Office eligibility decision (likely eligible) first — photos alone never decide eligibility.';
   return null;
+}
+
+/** One status tag per enquiry row: uploaded media awaiting review always reads "Photos to check". */
+export function enquiryRowTag(status: string, mediaToReview: boolean, labels: Record<string, string>): string {
+  if (mediaToReview && (status === 'insulation_requested' || status === 'needs_attention')) return 'Photos to check';
+  return labels[status] ?? status;
 }
