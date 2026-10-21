@@ -1,5 +1,5 @@
 {
-  "scope": "Preview-only correction; no product/data/auth/migration/publish changes",
+  "scope": "Preview QA plus separately authorized existing-action TEST archival; no publication/migration/sends/real-customer writes",
   "source_revision_before_report": "0f2afda94fd0a887ec827dcbb388e2c7c612bfe9",
   "raw_runs": {
     "2026-10-21T03-06-55": {
@@ -53873,7 +53873,9 @@
     "private TEST file/offer fixture not established",
     "safe reversible owner consent/token/business fixture unavailable; live SaveSpot/ReadyCheck NOT_RUN",
     "token phone happy paths unavailable",
-    "backup/PITR not verified; index application not authorised"
+    "backup/PITR not verified; index application not authorised",
+    "14 active qa_test genuine-contact exceptions retained",
+    "218 assignments on historically archived jobs outside active-only action scope"
   ],
   "tests": {
     "coverage": {
@@ -53924,5 +53926,2302 @@
     "fixture": "HV2111 hivic.test rejected; no guard bypass, Jo contact or wider prepareQaAccess account/membership preparation",
     "backup": "NOT_VERIFIED: Lovable browser sign-in blocked as suspicious activity; stopped",
     "indexes": "UNAPPLIED"
+  },
+  "authorized_test_cleanup": {
+    "instruction_time": "2026-10-21T03:17:00Z",
+    "target": "http://localhost:8080",
+    "action": "archiveQaJourney",
+    "actorId": "36b849de-1cde-425c-a05d-623f8985bbd6",
+    "started": "2026-10-21T03:20:19.926Z",
+    "before": {
+      "active_qa_test": 145,
+      "total_qa_test": 437
+    },
+    "after": {
+      "active_qa_test": 14,
+      "total_qa_test": 437
+    },
+    "actual_archived": 131,
+    "manifest": [
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "b44-1001",
+        "id": "00000000-0000-0000-0000-00000000a001",
+        "job_number": "HV-1001",
+        "source_system": "<nil>",
+        "synthetic_name": "false",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "b44-1002",
+        "id": "00000000-0000-0000-0000-00000000a002",
+        "job_number": "HV-1002",
+        "source_system": "<nil>",
+        "synthetic_name": "false",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "b44-1003",
+        "id": "00000000-0000-0000-0000-00000000a003",
+        "job_number": "HV-1003",
+        "source_system": "<nil>",
+        "synthetic_name": "false",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "b44-1004",
+        "id": "00000000-0000-0000-0000-00000000a004",
+        "job_number": "HV-1004",
+        "source_system": "<nil>",
+        "synthetic_name": "false",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "b44-1005",
+        "id": "00000000-0000-0000-0000-00000000a005",
+        "job_number": "HV-1005",
+        "source_system": "<nil>",
+        "synthetic_name": "false",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "b44-1006",
+        "id": "00000000-0000-0000-0000-00000000a006",
+        "job_number": "HV-1006",
+        "source_system": "<nil>",
+        "synthetic_name": "false",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "00000000-0000-0000-0000-00000000a007",
+        "job_number": "HV-1007",
+        "source_system": "<nil>",
+        "synthetic_name": "false",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "00000000-0000-0000-0000-00000000a008",
+        "job_number": "HV-1008",
+        "source_system": "<nil>",
+        "synthetic_name": "false",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "00000000-0000-0000-0000-00000000a009",
+        "job_number": "HV-1009",
+        "source_system": "<nil>",
+        "synthetic_name": "false",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "00000000-0000-0000-0000-00000000a010",
+        "job_number": "HV-1010",
+        "source_system": "<nil>",
+        "synthetic_name": "false",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "8bd489a4-dab7-4d32-83ef-7ac99eb2a84b",
+        "job_number": "HV-1011",
+        "source_system": "<nil>",
+        "synthetic_name": "false",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "2f886af5-ba91-4422-9059-d4a7c7e8d977",
+        "job_number": "HV-1012",
+        "source_system": "<nil>",
+        "synthetic_name": "false",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "70af43e0-cf60-40a9-bd68-2630ed61f221",
+        "job_number": "HV-1013",
+        "source_system": "<nil>",
+        "synthetic_name": "false",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "05db6f15-08f4-49fc-a6ca-ac60afd7b23f",
+        "job_number": "HV-1014",
+        "source_system": "<nil>",
+        "synthetic_name": "false",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "fccd5698-a423-4045-af10-72ab34d3da4a",
+        "job_number": "HV-1015",
+        "source_system": "<nil>",
+        "synthetic_name": "false",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "102f75c0-bc9a-4033-979c-55bd8691b24f",
+        "job_number": "HV-1016",
+        "source_system": "<nil>",
+        "synthetic_name": "false",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "73fb93ce-bf88-4520-a530-59863c8297c7",
+        "job_number": "HV-1017",
+        "source_system": "<nil>",
+        "synthetic_name": "false",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "HIV-QA-SIGNED-001",
+        "id": "bdfe757e-f61e-4db1-a3c7-13591f1a1899",
+        "job_number": "HV-1018",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "HIV-QA-09E76AEC",
+        "id": "68c8af67-1934-47c0-8ed6-8e1cc4064c7f",
+        "job_number": "HV-1019",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "HIV-QA-B44-90582108",
+        "id": "ab9e8dab-0c14-4b38-bee0-c4f53570cc1e",
+        "job_number": "HV-1020",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "HIV-44A63D2F",
+        "id": "a267c72e-55bc-471c-83cf-7c08498c943a",
+        "job_number": "HV-1064",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "HIV-B11BC7A7",
+        "id": "53735ea2-a977-486e-a065-a933526bbc24",
+        "job_number": "HV-1069",
+        "source_system": "<nil>",
+        "synthetic_name": "false",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "HIV-EC42F75C",
+        "id": "16363af2-f749-4f06-9927-42690651f6b6",
+        "job_number": "HV-1070",
+        "source_system": "<nil>",
+        "synthetic_name": "false",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "HIV-833A974D",
+        "id": "5d1c990d-0b69-461c-b78b-aab5b324c65f",
+        "job_number": "HV-1072",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "HIV-642F5743",
+        "id": "77014b46-c581-461c-85b1-580a89a1bc86",
+        "job_number": "HV-1073",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "1",
+        "email_class": "non-test-domain",
+        "external_enquiry_id": "HIV-6CC9A2E6",
+        "id": "d19bf696-8c84-4575-9fb4-da7bfe75368d",
+        "job_number": "HV-1128",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "qa-installer-test-001",
+        "id": "af167cea-1591-4172-a3a0-913f435a5e07",
+        "job_number": "HV-1351",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "77f26a96-e05f-440f-8954-7f6bbc1d822a",
+        "job_number": "HV-1414",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "b193f72a-ec7a-4b01-ab1c-b11653ca9172",
+        "job_number": "HV-1415",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "86bbf6fb-2de0-4dd6-b75d-d0e18b3561f5",
+        "job_number": "HV-1416",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "29afd73f-2fcb-44a4-b006-ecc11d1d4f8b",
+        "job_number": "HV-1417",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "bfa7561a-1ff3-4e16-89f1-6e2e3a91ba8b",
+        "job_number": "HV-1418",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "215fac5b-1d89-4f8c-b6ac-b13c2a6a6b0d",
+        "job_number": "HV-1419",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "76e364d3-1301-46e1-bf38-12093cbfd1b6",
+        "job_number": "HV-1420",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "74cb8b50-40d3-4efb-832a-39a803816aab",
+        "job_number": "HV-1421",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "6cee25ea-60d1-47dd-8a6c-a66b95b367cd",
+        "job_number": "HV-1574",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "af85109b-922f-4242-ac6c-95a5333a5fd5",
+        "job_number": "HV-1621",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "890fb41b-ca07-452d-b310-620e5ab9f0ac",
+        "job_number": "HV-1622",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "e040ac6b-edd8-4209-bb51-ec65fe6c66dd",
+        "job_number": "HV-1623",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "4facfbd0-19ea-4a04-8461-fbe689a3021c",
+        "job_number": "HV-1624",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "157b1c6f-a900-464e-8281-985db6df1412",
+        "job_number": "HV-1625",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "1ec7dfb2-ac61-47fa-8f34-19d8a587e3a8",
+        "job_number": "HV-1626",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "5722772e-82bf-434d-bad8-6ae01c798e5e",
+        "job_number": "HV-1627",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "40950022-b417-417d-a973-6fd7ce982406",
+        "job_number": "HV-1628",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "77067c93-bb7a-49e4-bf16-1a1121b1bd2c",
+        "job_number": "HV-1629",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "94722512-a975-459c-9702-40795189a047",
+        "job_number": "HV-1630",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "327772dd-e404-4705-a54e-0b483015d438",
+        "job_number": "HV-1631",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "bbd4246b-04c4-40df-a9d3-86d0a5f683b0",
+        "job_number": "HV-1632",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "8af4a69a-0223-40d0-a696-93e46cb8f7ae",
+        "job_number": "HV-1633",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "27ed4b3b-faf0-4de4-ad9c-82b6c6d2d911",
+        "job_number": "HV-1634",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "ba057fd6-4a47-42d0-a36a-998483f61469",
+        "job_number": "HV-1635",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "d4c84dc2-acc8-4ecf-9eaa-8e290abc8281",
+        "job_number": "HV-1636",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "b3f0e67c-4f8c-4ef6-9057-9c6f1e4c8c97",
+        "job_number": "HV-1637",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "70df9f3b-ada8-43ba-b1a2-17381934d536",
+        "job_number": "HV-1638",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "",
+        "bulk": "c257f45c-904c-49cc-ad3c-29ea7a61d1ca",
+        "id": "f38eb0ce-fea7-4d52-a34b-9b3c1aee9619",
+        "job_number": "HV-1684",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "",
+        "bulk": "126843f9-6564-4fcd-8875-748913913fb2",
+        "id": "28d71841-2bd4-4f13-a30c-f8044a6e6529",
+        "job_number": "HV-1685",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "",
+        "bulk": "76be6930-7ccd-4aac-92a2-0360100c4c28",
+        "id": "a19c94de-8018-410f-b56c-8459795b7c24",
+        "job_number": "HV-1686",
+        "source_system": "<nil>",
+        "synthetic_name": "false",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "missing",
+        "external_enquiry_id": "",
+        "bulk": "10cd94de-c52e-4aab-915c-d85a95186d9d",
+        "id": "704a9e89-9c3e-4b15-931d-38c16905caaa",
+        "job_number": "HV-1687",
+        "source_system": "<nil>",
+        "synthetic_name": "false",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "missing",
+        "external_enquiry_id": "",
+        "bulk": "a7dc5f5f-3413-49ea-b364-acde9c2b8478",
+        "id": "c5cf0b76-df17-4754-b008-e869de59010d",
+        "job_number": "HV-1695",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "missing",
+        "external_enquiry_id": "",
+        "bulk": "35ba7fb1-52d4-4d61-950b-014c9df71ae2",
+        "id": "ce0498e8-ba36-4c55-bf2b-1b1c541a80c8",
+        "job_number": "HV-1696",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "missing",
+        "external_enquiry_id": "",
+        "bulk": "d1ce73bc-77d6-4eb1-9b23-d22d6bba889e",
+        "id": "f507a800-2204-4e36-99d2-8f56db7db4b8",
+        "job_number": "HV-1697",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "missing",
+        "external_enquiry_id": "",
+        "bulk": "e804a3ab-5083-49f5-a872-747f82a32540",
+        "id": "1b539fa2-7255-4d53-85c7-41f4007dacc0",
+        "job_number": "HV-1698",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "missing",
+        "external_enquiry_id": "",
+        "bulk": "1479476d-2f8b-4319-b86a-627c8617e991",
+        "id": "5c2b1d35-97f8-4331-8a0a-b98101795ac8",
+        "job_number": "HV-1699",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "missing",
+        "external_enquiry_id": "",
+        "bulk": "1925f520-5f8e-4257-9ea3-3ab20bb57c13",
+        "id": "5d24864b-e440-4c6a-a5cf-2188295b2e98",
+        "job_number": "HV-1700",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "missing",
+        "external_enquiry_id": "",
+        "bulk": "824cbe75-c318-4796-a069-95593a84e264",
+        "id": "f2287d51-5910-4f3e-a849-179de2c8db9f",
+        "job_number": "HV-1701",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "missing",
+        "external_enquiry_id": "",
+        "bulk": "ccdca168-56b8-4300-8d50-ea6f22b142d9",
+        "id": "ef60bc75-5cc6-4217-8d60-7d9223e69c6f",
+        "job_number": "HV-1702",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "missing",
+        "external_enquiry_id": "",
+        "bulk": "73a8ff93-31e4-4467-bd3c-b59049564648",
+        "id": "ff8bc54b-3f53-406e-a73f-94b4da091ef4",
+        "job_number": "HV-1703",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "missing",
+        "external_enquiry_id": "",
+        "bulk": "4b8356de-7580-41e2-949b-5819b2a3119c",
+        "id": "1b7d8cb9-67bf-496f-a2f4-619c041e1065",
+        "job_number": "HV-1704",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "ae55c3bf-19e3-40f2-a9eb-f5c5ac9aa3b3",
+        "job_number": "HV-1710",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "38e209cb-e80d-4205-89aa-611872841bab",
+        "job_number": "HV-1711",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "56053c4a-bb99-4cd7-bd2d-7fbbea89f5b0",
+        "job_number": "HV-1712",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "0f85eb62-af7f-47ca-8622-69713a3a8780",
+        "job_number": "HV-1713",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "bab865a8-3441-4b22-80b0-cb0b3a5198dd",
+        "job_number": "HV-1714",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "c7308c53-990e-4820-ac0e-f2e10ac36119",
+        "job_number": "HV-1715",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "44987302-51ad-4d35-9514-e44a1fde3b15",
+        "job_number": "HV-1716",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "fffb60ec-8b22-41a0-9212-c5491d782918",
+        "job_number": "HV-1717",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "a228a876-7d17-455c-bd78-ad1520c01a0e",
+        "job_number": "HV-1720",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "a8963426-44c4-45e7-b5ff-a0a3cfd071cf",
+        "job_number": "HV-1725",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "fe8e6442-d20f-4978-9ea9-c048235c59da",
+        "job_number": "HV-1726",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "16b27cc7-31c8-4b76-a38f-1200e18210e4",
+        "job_number": "HV-1727",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "e1c52f98-0b44-4359-9fe8-3c9ac6b40d0e",
+        "job_number": "HV-1728",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "a8eab4fd-4303-4e31-9c7f-9e5650b85ff2",
+        "job_number": "HV-1729",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "59715d7c-aa9b-4f00-aa7f-e862067366f1",
+        "job_number": "HV-1784",
+        "source_system": "manual_import",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "769e2675-5695-48e6-ab04-d90857e05ac5",
+        "job_number": "HV-1785",
+        "source_system": "manual_import",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "044ab08d-588f-42dc-acc6-a448335c5cdb",
+        "job_number": "HV-1786",
+        "source_system": "manual_import",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "",
+        "bulk": "baa16bf8-f4e4-4981-948d-35eb9fbed6c8",
+        "id": "163cd916-5c27-4bb3-ab15-fa7b80721a0a",
+        "job_number": "HV-1787",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "37702034-04a1-433b-85a6-ceee8dfcfd24",
+        "job_number": "HV-1788",
+        "source_system": "manual_import",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "qa-journey-00f7216acd05",
+        "id": "129ac46f-bab3-4580-a2bd-04078011f92f",
+        "job_number": "HV-1804",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "true"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "qa-journey-19a7b6f56ff8",
+        "id": "fe56301e-a0f5-4c2b-9ccb-40e80b003274",
+        "job_number": "HV-1808",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "true"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "86e60eb0-fceb-4818-bada-5200dd332ff3",
+        "job_number": "HV-1826",
+        "source_system": "manual_import",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "",
+        "bulk": "c9db5395-da13-470f-9b86-35809162713d",
+        "id": "73822bd5-e285-4d0c-8788-509b56a2c96d",
+        "job_number": "HV-1827",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "",
+        "bulk": "ff278275-6833-4a8f-918b-3c0c582ffb66",
+        "id": "89c3c742-7e59-4877-a6ef-3ceca0ed68aa",
+        "job_number": "HV-1828",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "test-mitti-",
+        "phone": "1791390733135",
+        "id": "a4f25b5f-001d-458a-b6d2-be8dac4bb5f1",
+        "job_number": "HV-1846",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "",
+        "onsite": "82ef528d-c331-4064-baad-a662bc2922de",
+        "id": "038dc1f8-77d7-4c7e-88a2-f134b4f6fa13",
+        "job_number": "HV-1919",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "f79c3c32-06d9-4594-9801-c682a6e8730c",
+        "job_number": "HV-1938",
+        "source_system": "easymate",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "8e417af4-86da-43f0-87d8-8fd91664f55b",
+        "job_number": "HV-1957",
+        "source_system": "easymate",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "518271f4-90b5-4d16-8ccc-2d2a5a0a12c1",
+        "job_number": "HV-2111",
+        "source_system": "manual_import",
+        "synthetic_name": "false",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "4f95a2e1-d9f3-47ad-a5d4-7c4f7f2ed73f",
+        "job_number": "HV-2141",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "c75ebf4b-88a6-494f-888f-38be4f13298e",
+        "job_number": "HV-2142",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "ef11f1bb-a527-4788-93cf-ea55d7cca5c5",
+        "job_number": "HV-2143",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "d11c67f9-27a1-4ad6-a84b-19e9e2c0e206",
+        "job_number": "HV-2144",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "6bf63c0e-b8e3-41e5-9b6c-cb77d24819cd",
+        "job_number": "HV-2145",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "66b7a83d-6285-4244-b2b2-fd4d8faf4a12",
+        "job_number": "HV-2147",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "ae670a48-41e6-421d-8458-72b99a96bd4c",
+        "job_number": "HV-2155",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "4db1b66a-ab8e-4721-a55f-1f608135003c",
+        "job_number": "HV-2156",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "df6cea77-9c3e-4a6a-8b24-f2de48f6734a",
+        "job_number": "HV-2157",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "e8261481-3625-41ae-b633-0897d9ef358f",
+        "job_number": "HV-2158",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "f5e538bf-d041-439c-9ab5-cf6a44c2c94e",
+        "job_number": "HV-2211",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "bbb35a91-e85f-413f-98c5-b0778d7c687f",
+        "job_number": "HV-2212",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "5a177729-7d46-4160-8789-3f1f3eb64540",
+        "job_number": "HV-2213",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "d7bd3404-6df7-4342-9c5f-e15a0df37fc6",
+        "job_number": "HV-2215",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "336ff08f-ff22-4a0c-8e97-153df588ed14",
+        "job_number": "HV-2216",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "11d96da7-0dac-4de9-b59e-b1f6ba5a1414",
+        "job_number": "HV-2217",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "d5965be8-7368-4ecc-8c92-d638aad4f27a",
+        "job_number": "HV-2218",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "1c391b79-cebb-44ba-9e76-2a9c9c2a4b64",
+        "job_number": "HV-2219",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "qa-e2a217a4-e747-4ec1-b260-0f5889bcd50b",
+        "id": "48d07c91-ba74-407f-afec-a87a53e3137d",
+        "job_number": "HV-2572",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "true"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "qa-35ee86c5-c127-4e8d-92f4-195eac7a58ac",
+        "id": "42fcec2e-4f2d-4e84-b437-3a6c40e02965",
+        "job_number": "HV-2594",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "true"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "31684359-9857-4e11-9207-4375c80aa3d5",
+        "job_number": "HV-2782",
+        "source_system": "<nil>",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "38883ecd-6ae4-41a0-b691-5c1c34ad681e",
+        "job_number": "HV-2928",
+        "source_system": "manual_import",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "86100f7a-e906-4424-83a0-f2f2879c46b8",
+        "job_number": "HV-2929",
+        "source_system": "manual_import",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "bd6d2417-ac73-4270-b1fd-04c530688914",
+        "job_number": "HV-2932",
+        "source_system": "manual_import",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "b5804a5b-4c91-4435-815f-3643a1b8f8ea",
+        "job_number": "HV-2933",
+        "source_system": "manual_import",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "99488962-f968-4fef-b335-4faf4d43f59d",
+        "job_number": "HV-2946",
+        "source_system": "manual_import",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "2b1c956e-7136-4509-b0e7-7746bbf69e37",
+        "job_number": "HV-2950",
+        "source_system": "manual_import",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "83cd3b73-1c15-4c26-8c90-350418836814",
+        "job_number": "HV-2951",
+        "source_system": "manual_import",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "reserved",
+        "external_enquiry_id": "<nil>",
+        "id": "c2695a44-286f-4fa7-93ea-75aaacdc3723",
+        "job_number": "HV-2952",
+        "source_system": "manual_import",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "non-test-domain",
+        "external_enquiry_id": "<nil>",
+        "id": "af78a9f6-9205-4aa6-bc22-4dd489ce64e7",
+        "job_number": "HV-2970",
+        "source_system": "manual_import",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "non-test-domain",
+        "external_enquiry_id": "<nil>",
+        "id": "9414f536-ee7d-4e57-8235-0862731e4110",
+        "job_number": "HV-2975",
+        "source_system": "manual_import",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "non-test-domain",
+        "external_enquiry_id": "<nil>",
+        "id": "ac21b4f0-1af6-421d-b0f3-06ed37372bf2",
+        "job_number": "HV-2976",
+        "source_system": "manual_import",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "non-test-domain",
+        "external_enquiry_id": "<nil>",
+        "id": "a5c115cf-0ee1-4457-9530-c91010e36614",
+        "job_number": "HV-2977",
+        "source_system": "manual_import",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      },
+      {
+        "base44_documents": "0",
+        "email_class": "non-test-domain",
+        "external_enquiry_id": "<nil>",
+        "id": "d2155d41-e581-42a3-a622-866fc0984e37",
+        "job_number": "HV-2980",
+        "source_system": "manual_import",
+        "synthetic_name": "true",
+        "xero_contact": "false"
+      }
+    ],
+    "results": [
+      {
+        "id": "00000000-0000-0000-0000-00000000a001",
+        "job_number": "HV-1001",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:20.640Z"
+      },
+      {
+        "id": "00000000-0000-0000-0000-00000000a002",
+        "job_number": "HV-1002",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:20.914Z"
+      },
+      {
+        "id": "00000000-0000-0000-0000-00000000a003",
+        "job_number": "HV-1003",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:21.217Z"
+      },
+      {
+        "id": "00000000-0000-0000-0000-00000000a004",
+        "job_number": "HV-1004",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:21.479Z"
+      },
+      {
+        "id": "00000000-0000-0000-0000-00000000a005",
+        "job_number": "HV-1005",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:21.731Z"
+      },
+      {
+        "id": "00000000-0000-0000-0000-00000000a006",
+        "job_number": "HV-1006",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:21.953Z"
+      },
+      {
+        "id": "00000000-0000-0000-0000-00000000a007",
+        "job_number": "HV-1007",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:22.188Z"
+      },
+      {
+        "id": "00000000-0000-0000-0000-00000000a008",
+        "job_number": "HV-1008",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:22.429Z"
+      },
+      {
+        "id": "00000000-0000-0000-0000-00000000a009",
+        "job_number": "HV-1009",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:22.651Z"
+      },
+      {
+        "id": "00000000-0000-0000-0000-00000000a010",
+        "job_number": "HV-1010",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:22.877Z"
+      },
+      {
+        "id": "8bd489a4-dab7-4d32-83ef-7ac99eb2a84b",
+        "job_number": "HV-1011",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:23.102Z"
+      },
+      {
+        "id": "2f886af5-ba91-4422-9059-d4a7c7e8d977",
+        "job_number": "HV-1012",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:23.333Z"
+      },
+      {
+        "id": "70af43e0-cf60-40a9-bd68-2630ed61f221",
+        "job_number": "HV-1013",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:23.552Z"
+      },
+      {
+        "id": "05db6f15-08f4-49fc-a6ca-ac60afd7b23f",
+        "job_number": "HV-1014",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:23.770Z"
+      },
+      {
+        "id": "fccd5698-a423-4045-af10-72ab34d3da4a",
+        "job_number": "HV-1015",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:24.024Z"
+      },
+      {
+        "id": "102f75c0-bc9a-4033-979c-55bd8691b24f",
+        "job_number": "HV-1016",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:24.227Z"
+      },
+      {
+        "id": "73fb93ce-bf88-4520-a530-59863c8297c7",
+        "job_number": "HV-1017",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:24.476Z"
+      },
+      {
+        "id": "bdfe757e-f61e-4db1-a3c7-13591f1a1899",
+        "job_number": "HV-1018",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:24.682Z"
+      },
+      {
+        "id": "68c8af67-1934-47c0-8ed6-8e1cc4064c7f",
+        "job_number": "HV-1019",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:24.884Z"
+      },
+      {
+        "id": "ab9e8dab-0c14-4b38-bee0-c4f53570cc1e",
+        "job_number": "HV-1020",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:25.088Z"
+      },
+      {
+        "id": "a267c72e-55bc-471c-83cf-7c08498c943a",
+        "job_number": "HV-1064",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:25.314Z"
+      },
+      {
+        "id": "53735ea2-a977-486e-a065-a933526bbc24",
+        "job_number": "HV-1069",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:25.538Z"
+      },
+      {
+        "id": "16363af2-f749-4f06-9927-42690651f6b6",
+        "job_number": "HV-1070",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:25.747Z"
+      },
+      {
+        "id": "5d1c990d-0b69-461c-b78b-aab5b324c65f",
+        "job_number": "HV-1072",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:26.005Z"
+      },
+      {
+        "id": "77014b46-c581-461c-85b1-580a89a1bc86",
+        "job_number": "HV-1073",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:26.224Z"
+      },
+      {
+        "id": "d19bf696-8c84-4575-9fb4-da7bfe75368d",
+        "job_number": "HV-1128",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:26.491Z"
+      },
+      {
+        "id": "af167cea-1591-4172-a3a0-913f435a5e07",
+        "job_number": "HV-1351",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:26.731Z"
+      },
+      {
+        "id": "77f26a96-e05f-440f-8954-7f6bbc1d822a",
+        "job_number": "HV-1414",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:26.946Z"
+      },
+      {
+        "id": "b193f72a-ec7a-4b01-ab1c-b11653ca9172",
+        "job_number": "HV-1415",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:27.195Z"
+      },
+      {
+        "id": "86bbf6fb-2de0-4dd6-b75d-d0e18b3561f5",
+        "job_number": "HV-1416",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:27.434Z"
+      },
+      {
+        "id": "29afd73f-2fcb-44a4-b006-ecc11d1d4f8b",
+        "job_number": "HV-1417",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:27.793Z"
+      },
+      {
+        "id": "bfa7561a-1ff3-4e16-89f1-6e2e3a91ba8b",
+        "job_number": "HV-1418",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:27.998Z"
+      },
+      {
+        "id": "215fac5b-1d89-4f8c-b6ac-b13c2a6a6b0d",
+        "job_number": "HV-1419",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:28.216Z"
+      },
+      {
+        "id": "76e364d3-1301-46e1-bf38-12093cbfd1b6",
+        "job_number": "HV-1420",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:28.420Z"
+      },
+      {
+        "id": "74cb8b50-40d3-4efb-832a-39a803816aab",
+        "job_number": "HV-1421",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:28.625Z"
+      },
+      {
+        "id": "6cee25ea-60d1-47dd-8a6c-a66b95b367cd",
+        "job_number": "HV-1574",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:28.849Z"
+      },
+      {
+        "id": "af85109b-922f-4242-ac6c-95a5333a5fd5",
+        "job_number": "HV-1621",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:29.074Z"
+      },
+      {
+        "id": "890fb41b-ca07-452d-b310-620e5ab9f0ac",
+        "job_number": "HV-1622",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:29.285Z"
+      },
+      {
+        "id": "e040ac6b-edd8-4209-bb51-ec65fe6c66dd",
+        "job_number": "HV-1623",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:29.492Z"
+      },
+      {
+        "id": "4facfbd0-19ea-4a04-8461-fbe689a3021c",
+        "job_number": "HV-1624",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:29.711Z"
+      },
+      {
+        "id": "157b1c6f-a900-464e-8281-985db6df1412",
+        "job_number": "HV-1625",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:29.925Z"
+      },
+      {
+        "id": "1ec7dfb2-ac61-47fa-8f34-19d8a587e3a8",
+        "job_number": "HV-1626",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:30.143Z"
+      },
+      {
+        "id": "5722772e-82bf-434d-bad8-6ae01c798e5e",
+        "job_number": "HV-1627",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:30.370Z"
+      },
+      {
+        "id": "40950022-b417-417d-a973-6fd7ce982406",
+        "job_number": "HV-1628",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:30.582Z"
+      },
+      {
+        "id": "77067c93-bb7a-49e4-bf16-1a1121b1bd2c",
+        "job_number": "HV-1629",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:30.796Z"
+      },
+      {
+        "id": "94722512-a975-459c-9702-40795189a047",
+        "job_number": "HV-1630",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:31.006Z"
+      },
+      {
+        "id": "327772dd-e404-4705-a54e-0b483015d438",
+        "job_number": "HV-1631",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:31.231Z"
+      },
+      {
+        "id": "bbd4246b-04c4-40df-a9d3-86d0a5f683b0",
+        "job_number": "HV-1632",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:31.475Z"
+      },
+      {
+        "id": "8af4a69a-0223-40d0-a696-93e46cb8f7ae",
+        "job_number": "HV-1633",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:31.710Z"
+      },
+      {
+        "id": "27ed4b3b-faf0-4de4-ad9c-82b6c6d2d911",
+        "job_number": "HV-1634",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:31.924Z"
+      },
+      {
+        "id": "ba057fd6-4a47-42d0-a36a-998483f61469",
+        "job_number": "HV-1635",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:32.143Z"
+      },
+      {
+        "id": "d4c84dc2-acc8-4ecf-9eaa-8e290abc8281",
+        "job_number": "HV-1636",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:32.373Z"
+      },
+      {
+        "id": "b3f0e67c-4f8c-4ef6-9057-9c6f1e4c8c97",
+        "job_number": "HV-1637",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:32.573Z"
+      },
+      {
+        "id": "70df9f3b-ada8-43ba-b1a2-17381934d536",
+        "job_number": "HV-1638",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:32.782Z"
+      },
+      {
+        "id": "f38eb0ce-fea7-4d52-a34b-9b3c1aee9619",
+        "job_number": "HV-1684",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:32.989Z"
+      },
+      {
+        "id": "28d71841-2bd4-4f13-a30c-f8044a6e6529",
+        "job_number": "HV-1685",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:33.217Z"
+      },
+      {
+        "id": "a19c94de-8018-410f-b56c-8459795b7c24",
+        "job_number": "HV-1686",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:33.423Z"
+      },
+      {
+        "id": "704a9e89-9c3e-4b15-931d-38c16905caaa",
+        "job_number": "HV-1687",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:33.635Z"
+      },
+      {
+        "id": "c5cf0b76-df17-4754-b008-e869de59010d",
+        "job_number": "HV-1695",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:33.962Z"
+      },
+      {
+        "id": "ce0498e8-ba36-4c55-bf2b-1b1c541a80c8",
+        "job_number": "HV-1696",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:34.190Z"
+      },
+      {
+        "id": "f507a800-2204-4e36-99d2-8f56db7db4b8",
+        "job_number": "HV-1697",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:34.396Z"
+      },
+      {
+        "id": "1b539fa2-7255-4d53-85c7-41f4007dacc0",
+        "job_number": "HV-1698",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:34.607Z"
+      },
+      {
+        "id": "5c2b1d35-97f8-4331-8a0a-b98101795ac8",
+        "job_number": "HV-1699",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:34.826Z"
+      },
+      {
+        "id": "5d24864b-e440-4c6a-a5cf-2188295b2e98",
+        "job_number": "HV-1700",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:35.056Z"
+      },
+      {
+        "id": "f2287d51-5910-4f3e-a849-179de2c8db9f",
+        "job_number": "HV-1701",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:35.254Z"
+      },
+      {
+        "id": "ef60bc75-5cc6-4217-8d60-7d9223e69c6f",
+        "job_number": "HV-1702",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:35.467Z"
+      },
+      {
+        "id": "ff8bc54b-3f53-406e-a73f-94b4da091ef4",
+        "job_number": "HV-1703",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:35.688Z"
+      },
+      {
+        "id": "1b7d8cb9-67bf-496f-a2f4-619c041e1065",
+        "job_number": "HV-1704",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:35.908Z"
+      },
+      {
+        "id": "ae55c3bf-19e3-40f2-a9eb-f5c5ac9aa3b3",
+        "job_number": "HV-1710",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:36.112Z"
+      },
+      {
+        "id": "38e209cb-e80d-4205-89aa-611872841bab",
+        "job_number": "HV-1711",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:36.359Z"
+      },
+      {
+        "id": "56053c4a-bb99-4cd7-bd2d-7fbbea89f5b0",
+        "job_number": "HV-1712",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:36.582Z"
+      },
+      {
+        "id": "0f85eb62-af7f-47ca-8622-69713a3a8780",
+        "job_number": "HV-1713",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:36.794Z"
+      },
+      {
+        "id": "bab865a8-3441-4b22-80b0-cb0b3a5198dd",
+        "job_number": "HV-1714",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:36.993Z"
+      },
+      {
+        "id": "c7308c53-990e-4820-ac0e-f2e10ac36119",
+        "job_number": "HV-1715",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:37.207Z"
+      },
+      {
+        "id": "44987302-51ad-4d35-9514-e44a1fde3b15",
+        "job_number": "HV-1716",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:37.405Z"
+      },
+      {
+        "id": "fffb60ec-8b22-41a0-9212-c5491d782918",
+        "job_number": "HV-1717",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:37.642Z"
+      },
+      {
+        "id": "a228a876-7d17-455c-bd78-ad1520c01a0e",
+        "job_number": "HV-1720",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:37.852Z"
+      },
+      {
+        "id": "a8963426-44c4-45e7-b5ff-a0a3cfd071cf",
+        "job_number": "HV-1725",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:38.055Z"
+      },
+      {
+        "id": "fe8e6442-d20f-4978-9ea9-c048235c59da",
+        "job_number": "HV-1726",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:38.262Z"
+      },
+      {
+        "id": "16b27cc7-31c8-4b76-a38f-1200e18210e4",
+        "job_number": "HV-1727",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:38.460Z"
+      },
+      {
+        "id": "e1c52f98-0b44-4359-9fe8-3c9ac6b40d0e",
+        "job_number": "HV-1728",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:38.674Z"
+      },
+      {
+        "id": "a8eab4fd-4303-4e31-9c7f-9e5650b85ff2",
+        "job_number": "HV-1729",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:38.889Z"
+      },
+      {
+        "id": "59715d7c-aa9b-4f00-aa7f-e862067366f1",
+        "job_number": "HV-1784",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:39.095Z"
+      },
+      {
+        "id": "769e2675-5695-48e6-ab04-d90857e05ac5",
+        "job_number": "HV-1785",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:39.307Z"
+      },
+      {
+        "id": "044ab08d-588f-42dc-acc6-a448335c5cdb",
+        "job_number": "HV-1786",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:39.537Z"
+      },
+      {
+        "id": "163cd916-5c27-4bb3-ab15-fa7b80721a0a",
+        "job_number": "HV-1787",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:39.743Z"
+      },
+      {
+        "id": "37702034-04a1-433b-85a6-ceee8dfcfd24",
+        "job_number": "HV-1788",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:39.947Z"
+      },
+      {
+        "id": "129ac46f-bab3-4580-a2bd-04078011f92f",
+        "job_number": "HV-1804",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:40.175Z"
+      },
+      {
+        "id": "fe56301e-a0f5-4c2b-9ccb-40e80b003274",
+        "job_number": "HV-1808",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:40.404Z"
+      },
+      {
+        "id": "86e60eb0-fceb-4818-bada-5200dd332ff3",
+        "job_number": "HV-1826",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:40.627Z"
+      },
+      {
+        "id": "73822bd5-e285-4d0c-8788-509b56a2c96d",
+        "job_number": "HV-1827",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:40.856Z"
+      },
+      {
+        "id": "89c3c742-7e59-4877-a6ef-3ceca0ed68aa",
+        "job_number": "HV-1828",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:41.179Z"
+      },
+      {
+        "id": "a4f25b5f-001d-458a-b6d2-be8dac4bb5f1",
+        "job_number": "HV-1846",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:41.403Z"
+      },
+      {
+        "id": "038dc1f8-77d7-4c7e-88a2-f134b4f6fa13",
+        "job_number": "HV-1919",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:41.635Z"
+      },
+      {
+        "id": "f79c3c32-06d9-4594-9801-c682a6e8730c",
+        "job_number": "HV-1938",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:41.838Z"
+      },
+      {
+        "id": "8e417af4-86da-43f0-87d8-8fd91664f55b",
+        "job_number": "HV-1957",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:42.047Z"
+      },
+      {
+        "id": "518271f4-90b5-4d16-8ccc-2d2a5a0a12c1",
+        "job_number": "HV-2111",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:42.260Z"
+      },
+      {
+        "id": "4f95a2e1-d9f3-47ad-a5d4-7c4f7f2ed73f",
+        "job_number": "HV-2141",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:42.465Z"
+      },
+      {
+        "id": "c75ebf4b-88a6-494f-888f-38be4f13298e",
+        "job_number": "HV-2142",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:42.687Z"
+      },
+      {
+        "id": "ef11f1bb-a527-4788-93cf-ea55d7cca5c5",
+        "job_number": "HV-2143",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:42.894Z"
+      },
+      {
+        "id": "d11c67f9-27a1-4ad6-a84b-19e9e2c0e206",
+        "job_number": "HV-2144",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:43.104Z"
+      },
+      {
+        "id": "6bf63c0e-b8e3-41e5-9b6c-cb77d24819cd",
+        "job_number": "HV-2145",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:43.305Z"
+      },
+      {
+        "id": "66b7a83d-6285-4244-b2b2-fd4d8faf4a12",
+        "job_number": "HV-2147",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:43.515Z"
+      },
+      {
+        "id": "ae670a48-41e6-421d-8458-72b99a96bd4c",
+        "job_number": "HV-2155",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:43.710Z"
+      },
+      {
+        "id": "4db1b66a-ab8e-4721-a55f-1f608135003c",
+        "job_number": "HV-2156",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:43.922Z"
+      },
+      {
+        "id": "df6cea77-9c3e-4a6a-8b24-f2de48f6734a",
+        "job_number": "HV-2157",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:44.127Z"
+      },
+      {
+        "id": "e8261481-3625-41ae-b633-0897d9ef358f",
+        "job_number": "HV-2158",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:44.337Z"
+      },
+      {
+        "id": "f5e538bf-d041-439c-9ab5-cf6a44c2c94e",
+        "job_number": "HV-2211",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:44.543Z"
+      },
+      {
+        "id": "bbb35a91-e85f-413f-98c5-b0778d7c687f",
+        "job_number": "HV-2212",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:44.778Z"
+      },
+      {
+        "id": "5a177729-7d46-4160-8789-3f1f3eb64540",
+        "job_number": "HV-2213",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:45.000Z"
+      },
+      {
+        "id": "d7bd3404-6df7-4342-9c5f-e15a0df37fc6",
+        "job_number": "HV-2215",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:45.216Z"
+      },
+      {
+        "id": "336ff08f-ff22-4a0c-8e97-153df588ed14",
+        "job_number": "HV-2216",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:45.426Z"
+      },
+      {
+        "id": "11d96da7-0dac-4de9-b59e-b1f6ba5a1414",
+        "job_number": "HV-2217",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:45.642Z"
+      },
+      {
+        "id": "d5965be8-7368-4ecc-8c92-d638aad4f27a",
+        "job_number": "HV-2218",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:45.865Z"
+      },
+      {
+        "id": "1c391b79-cebb-44ba-9e76-2a9c9c2a4b64",
+        "job_number": "HV-2219",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:46.070Z"
+      },
+      {
+        "id": "48d07c91-ba74-407f-afec-a87a53e3137d",
+        "job_number": "HV-2572",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:46.300Z"
+      },
+      {
+        "id": "42fcec2e-4f2d-4e84-b437-3a6c40e02965",
+        "job_number": "HV-2594",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:46.526Z"
+      },
+      {
+        "id": "31684359-9857-4e11-9207-4375c80aa3d5",
+        "job_number": "HV-2782",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:46.743Z"
+      },
+      {
+        "id": "38883ecd-6ae4-41a0-b691-5c1c34ad681e",
+        "job_number": "HV-2928",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:46.965Z"
+      },
+      {
+        "id": "86100f7a-e906-4424-83a0-f2f2879c46b8",
+        "job_number": "HV-2929",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:47.185Z"
+      },
+      {
+        "id": "bd6d2417-ac73-4270-b1fd-04c530688914",
+        "job_number": "HV-2932",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:47.384Z"
+      },
+      {
+        "id": "b5804a5b-4c91-4435-815f-3643a1b8f8ea",
+        "job_number": "HV-2933",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:47.590Z"
+      },
+      {
+        "id": "99488962-f968-4fef-b335-4faf4d43f59d",
+        "job_number": "HV-2946",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:47.815Z"
+      },
+      {
+        "id": "2b1c956e-7136-4509-b0e7-7746bbf69e37",
+        "job_number": "HV-2950",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:48.025Z"
+      },
+      {
+        "id": "83cd3b73-1c15-4c26-8c90-350418836814",
+        "job_number": "HV-2951",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:48.237Z"
+      },
+      {
+        "id": "c2695a44-286f-4fa7-93ea-75aaacdc3723",
+        "job_number": "HV-2952",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:48.456Z"
+      },
+      {
+        "id": "af78a9f6-9205-4aa6-bc22-4dd489ce64e7",
+        "job_number": "HV-2970",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:48.657Z"
+      },
+      {
+        "id": "9414f536-ee7d-4e57-8235-0862731e4110",
+        "job_number": "HV-2975",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:48.870Z"
+      },
+      {
+        "id": "ac21b4f0-1af6-421d-b0f3-06ed37372bf2",
+        "job_number": "HV-2976",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:49.079Z"
+      },
+      {
+        "id": "a5c115cf-0ee1-4457-9530-c91010e36614",
+        "job_number": "HV-2977",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:49.324Z"
+      },
+      {
+        "id": "d2155d41-e581-42a3-a622-866fc0984e37",
+        "job_number": "HV-2980",
+        "status": "action_ok",
+        "at": "2026-10-21T03:20:49.541Z"
+      }
+    ],
+    "exceptions": [
+      {
+        "id": "9474291e-497b-42b7-9f8a-c2071af630c1",
+        "job_number": "HV-1027",
+        "reason": "source qa_test contradicted by genuine-recipient contact domain; left untouched",
+        "synthetic_name": "false",
+        "source_system": "<nil>",
+        "external_enquiry_id": "HIV-DB217874"
+      },
+      {
+        "id": "81feff3c-80f8-41d6-8cdd-3f9042caea9a",
+        "job_number": "HV-1057",
+        "reason": "source qa_test contradicted by genuine-recipient contact domain; left untouched",
+        "synthetic_name": "false",
+        "source_system": "<nil>",
+        "external_enquiry_id": "HIV-B6D9BCC9"
+      },
+      {
+        "id": "3f5b3c03-72bf-43d3-b90e-cca93d2ea2a6",
+        "job_number": "HV-1058",
+        "reason": "source qa_test contradicted by genuine-recipient contact domain; left untouched",
+        "synthetic_name": "false",
+        "source_system": "<nil>",
+        "external_enquiry_id": "HIV-D639C271"
+      },
+      {
+        "id": "856ec820-cadd-44f6-84f1-55fc9644d409",
+        "job_number": "HV-1071",
+        "reason": "source qa_test contradicted by genuine-recipient contact domain; left untouched",
+        "synthetic_name": "false",
+        "source_system": "<nil>",
+        "external_enquiry_id": "HIV-E43DDD2C"
+      },
+      {
+        "id": "b02f3f28-85b4-4e29-a63d-8e2a8d98b69a",
+        "job_number": "HV-1075",
+        "reason": "source qa_test contradicted by genuine-recipient contact domain; left untouched",
+        "synthetic_name": "false",
+        "source_system": "<nil>",
+        "external_enquiry_id": "HIV-BF220C65"
+      },
+      {
+        "id": "74b2e829-88ab-42c3-9283-347b7e999627",
+        "job_number": "HV-1079",
+        "reason": "source qa_test contradicted by genuine-recipient contact domain; left untouched",
+        "synthetic_name": "false",
+        "source_system": "<nil>",
+        "external_enquiry_id": "qa-5e0b1b28-273b-40af-a4e4-500ae20d688f"
+      },
+      {
+        "id": "85680b32-c500-4dbd-8921-4b110decc1d3",
+        "job_number": "HV-1607",
+        "reason": "source qa_test contradicted by genuine-recipient contact domain; left untouched",
+        "synthetic_name": "true",
+        "source_system": "<nil>",
+        "external_enquiry_id": "<nil>"
+      },
+      {
+        "id": "97d1948d-8a6a-472b-b00f-c9366bb5bf7d",
+        "job_number": "HV-1608",
+        "reason": "source qa_test contradicted by genuine-recipient contact domain; left untouched",
+        "synthetic_name": "true",
+        "source_system": "<nil>",
+        "external_enquiry_id": "<nil>"
+      },
+      {
+        "id": "21c6a64b-4c7d-4e4b-b034-c1a4818a135d",
+        "job_number": "HV-1609",
+        "reason": "source qa_test contradicted by genuine-recipient contact domain; left untouched",
+        "synthetic_name": "true",
+        "source_system": "<nil>",
+        "external_enquiry_id": "<nil>"
+      },
+      {
+        "id": "0f8b8e11-0779-4412-9808-cdf3e672da4a",
+        "job_number": "HV-1614",
+        "reason": "source qa_test contradicted by genuine-recipient contact domain; left untouched",
+        "synthetic_name": "true",
+        "source_system": "<nil>",
+        "external_enquiry_id": "<nil>"
+      },
+      {
+        "id": "f42add3d-ffc4-4760-a38d-ed7c253a7994",
+        "job_number": "HV-1615",
+        "reason": "source qa_test contradicted by genuine-recipient contact domain; left untouched",
+        "synthetic_name": "true",
+        "source_system": "<nil>",
+        "external_enquiry_id": "<nil>"
+      },
+      {
+        "id": "ab4ff892-abfa-4f1e-bdac-9dff3322ca34",
+        "job_number": "HV-1616",
+        "reason": "source qa_test contradicted by genuine-recipient contact domain; left untouched",
+        "synthetic_name": "true",
+        "source_system": "<nil>",
+        "external_enquiry_id": "<nil>"
+      },
+      {
+        "id": "9dcb67d1-abc0-4720-a300-920eb0af58aa",
+        "job_number": "HV-2221",
+        "reason": "source qa_test contradicted by genuine-recipient contact domain; left untouched",
+        "synthetic_name": "true",
+        "source_system": "<nil>",
+        "external_enquiry_id": "<nil>"
+      },
+      {
+        "id": "48dce5d6-5c25-4b3c-8dad-ba593b28d8c3",
+        "job_number": "HV-2345",
+        "reason": "source qa_test contradicted by genuine-recipient contact domain; left untouched",
+        "synthetic_name": "false",
+        "source_system": "manual_import",
+        "external_enquiry_id": "<nil>"
+      }
+    ],
+    "independent_db_readback": {
+      "archived_this_run": 131,
+      "correct_archive_state": 131,
+      "manifest_active_assignments": 0,
+      "manifest_live_worker_links": 0,
+      "remaining_manifest_active_jobs": 0,
+      "documents_before": 538,
+      "documents_after": 538,
+      "workflow_events_before": 11353,
+      "workflow_events_after": 11353,
+      "pending_test_outbox_before": 0,
+      "pending_test_outbox_after": 0,
+      "retained_test_invoices": 54,
+      "retained_test_communications": 331,
+      "financial_before_count": "unavailable; no baseline equality claim",
+      "ready_check_payments_after": 0,
+      "assessment_payments_after": 0
+    },
+    "practice_tests": {
+      "archive_handler": {
+        "pass": 2,
+        "fail": 0
+      },
+      "existing_handlers": {
+        "pass": 17,
+        "fail": 0
+      }
+    },
+    "excluded": [
+      "HV-2648 base44",
+      "root 11 ineligible records",
+      "root 8 legacy cancelled example.com records"
+    ],
+    "legacy_outside_manifest": {
+      "previously_archived_active_assignment_rows": 218,
+      "reason": "existing action requires active unarchived job; no guard bypass or wider assignment cleanup"
+    },
+    "preserved": [
+      "TEST accounts",
+      "job history",
+      "financial records",
+      "credentials",
+      "roles",
+      "memberships",
+      "qualification/approval",
+      "paused followups/global switches"
+    ],
+    "no_hard_delete": true
   }
 }
