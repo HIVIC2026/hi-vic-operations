@@ -116,7 +116,7 @@ async def main(manifest_path):
                             try:
                                 await page.get_by_role('navigation', name='Communications sections').get_by_role('link', name=link, exact=True).click()
                                 chosen = page.get_by_role('navigation', name='Communications sections').get_by_role('link', name=link, exact=True)
-                                await page.wait_for_function('''name => [...document.querySelectorAll('nav[aria-label="Communications sections"] a')].some(e => e.textContent.trim() === name && e.getAttribute('aria-current') === 'page')''', link, timeout=15000)
+                                await page.wait_for_function('''name => [...document.querySelectorAll('nav[aria-label="Communications sections"] a')].some(e => e.textContent.trim() === name && e.getAttribute('aria-current') === 'page')''', arg=link, timeout=15000)
                                 await healthy_panel(page.locator('main').first)
                                 controls.append({'name': link, 'status': 'PASS', 'reason': 'Section selected; loaded panel content, errors and overflow verified', 'requestedURL': s['path'], 'finalURL': urlparse(page.url).path + ('?' + urlparse(page.url).query if urlparse(page.url).query else '')})
                             except Exception:
@@ -126,7 +126,7 @@ async def main(manifest_path):
                         for tab in tabs:
                             try:
                                 await page.get_by_role('tab', name=tab, exact=True).click()
-                                await healthy_panel(page.get_by_role('tabpanel').filter(visible=True).first)
+                                await healthy_panel(page.locator('[role=tabpanel]:visible').first)
                                 controls.append({'name': tab, 'status': 'PASS', 'reason': 'Selected tab and loaded panel verified; overflow/errors rechecked'})
                             except Exception:
                                 controls.append({'name': tab, 'status': 'FAIL', 'reason': 'tab interaction failed'})
@@ -140,7 +140,7 @@ async def main(manifest_path):
                                 raise RuntimeError('No intended panel relationship; click alone is not evidence')
                             if await button.get_attribute('aria-expanded') != 'true':
                                 await button.click()
-                            await page.wait_for_function('''id => document.getElementById(id)?.getAttribute('aria-expanded') === 'true' ''', await button.get_attribute('id'), timeout=15000)
+                            await page.wait_for_function('''id => document.getElementById(id)?.getAttribute('aria-expanded') === 'true' ''', arg=await button.get_attribute('id'), timeout=15000)
                             await healthy_panel(page.locator('[id="' + panel_id + '"]'))
                             interaction_shot = shots / (name.replace('.png', '-' + re.sub('[^a-zA-Z0-9]+', '-', control_name) + '.png'))
                             await page.locator('[id="' + panel_id + '"]').screenshot(path=str(interaction_shot))
