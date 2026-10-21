@@ -1,4 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## One-off Save My Spot reminder blast (Jo, 21 Oct 04:08 UTC)
+- [ ] Add admin-only dry run and explicit real-send action with exact audience, existing offered link/current estimate, phone/job idempotency and narrow SMS switch exception; no sends/settings/publication.
+- [ ] Run focused tests and authenticated dry run; provide count/skips/five samples and invocation instructions.
 ## Narrow Ready Check request closure (Jo, 21 Oct 03:57 UTC)
 - [x] Surface existing window gate errors and retry missing windows against retained acceptance; verify current-round saved times before customer success, including refresh.
 - [x] HV-2996 fresh reserved-contact UNASSIGNED TEST owner: supported login/Gate A signing, Save My Spot/refresh/duplicate and FREE request/refresh desktop+phone PASS; DB proves one acceptance $0, no payment and three round-1 OPEN windows. Normal TEST Alpha offer blocked by unverified area coverage, appointment NOT_RUN. Archived only HV-2996; zero active assignments/links/provider sends/invoices/outbox. Two queued and one blocked communication records retained, not sent.
