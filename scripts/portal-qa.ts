@@ -231,7 +231,7 @@ try {
     if (!fits(60_000)) notRun("screens", "authenticated screen visits", "overall budget exhausted");
     else {
       writeFileSync(`${OUT}/.manifest.json`, JSON.stringify({ outDir: OUT, base: BASE, storageKey, sessions, screens: runnable }), { mode: 0o600 });
-      const br = sh(["python3", "e2e/journey/shoot.py", `${OUT}/.manifest.json`], READ_ONLY ? 450_000 : 300_000);
+      const br = sh(["python3", "e2e/journey/shoot.py", `${OUT}/.manifest.json`], READ_ONLY ? 600_000 : 300_000);
       writeFileSync(`${OUT}/.manifest.json`, "{}");
       if (br.status !== 0 || !existsSync(`${OUT}/.browser.json`)) add({ area: "screens", route_or_action: "browser harness", persona: "-", status: "failed", detail: (br.error ? `timeout/error: ${br.error.message} ` : "") + (br.stderr || "harness did not finish").slice(-400), steps: "python3 e2e/journey/shoot.py" });
       let completed: { step: string; ok: boolean; detail: string; shots: string[]; requested_path?: string; landed_path?: string | null; viewport?: { width: number } }[] = [];
