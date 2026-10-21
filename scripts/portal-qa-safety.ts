@@ -33,6 +33,8 @@ export type WindowProof = {
 };
 function timestampEpoch(value: string | null): number | null {
   if (!value || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value)) return null;
+  const date = value.slice(0, 10), calendar = new Date(`${date}T00:00:00Z`);
+  if (!Number.isFinite(calendar.getTime()) || calendar.toISOString().slice(0, 10) !== date) return null;
   const epoch = Date.parse(value);
   return Number.isFinite(epoch) ? epoch : null;
 }
@@ -62,9 +64,10 @@ export function readyCheckFreeProofBlocker(p: ReadyCheckFreeReadback): string | 
   if (p.acceptance.ready_check_amount_inc_gst !== 0 || p.paymentState.paymentId !== null) return 'stored FREE amount 0 and paymentId null required';
   return null;
 }
-export function readyCheckScheduledProofBlocker(p: { readsOk: boolean; expectedJobId: string; job: { id: string; stage: string } | null; selected: { job_id: string; starts_at: string; ends_at: string | null; status: string } | null; booking: { job_id: string; starts_at: string; ends_at: string | null; status: string; kind: string } | null }): string | null {
+export function readyCheckScheduledProofBlocker(p: { readsOk: boolean; expectedJobId: string; job: { id: string; stage: string } | null; selected: { job_id: string; starts_at: string; ends_at: string | null; status: string } | null; booking: { job_id: string; scheduled_start: string; scheduled_end: string | null; status: string; kind: string } | null }): string | null {
   if (!p.readsOk || !p.expectedJobId || p.job?.id !== p.expectedJobId || p.selected?.job_id !== p.expectedJobId || p.booking?.job_id !== p.expectedJobId) return 'actual same-job selected window, booking and scheduled job readback required';
   if (p.job.stage !== 'ready_check_scheduled' || p.selected.status !== 'taken' || p.booking.kind !== 'ready_check' || p.booking.status !== 'confirmed') return 'taken window and confirmed Ready Check scheduled state required';
-  const selected = windowEpochKey(p.selected), booking = windowEpochKey(p.booking);
-  return selected && selected === booking ? null : 'scheduled booking must match selected persisted window';
+  const selected = windowEpochKey(p.selected), bookingStart = timestampEpoch(p.booking.scheduled_start);
+  const endMatches = p.booking.scheduled_end === null || timestampEpoch(p.booking.scheduled_end) === timestampEpoch(p.selected.ends_at);
+  return selected && bookingStart !== null && bookingStart === timestampEpoch(p.selected.starts_at) && endMatches ? null : 'scheduled booking must match selected persisted window';
 }
