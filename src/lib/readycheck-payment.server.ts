@@ -73,13 +73,16 @@ async function requestedWindowsSaved(jobId: string, picks?: WindowPick[]) {
   if (current.length < 3 || current.length > 5 || current.some((row) =>
     !(row.status === "open" || row.status === "taken" || (booked && row.status === "closed")) || !Number.isFinite(Date.parse(row.starts_at))
     || !Number.isFinite(Date.parse(row.ends_at)))) return false;
+  const currentKeys = new Set(current.map((row) => `${Date.parse(row.starts_at)}:${Date.parse(row.ends_at)}`));
+  if (currentKeys.size !== current.length) return false;
   if (!picks) return true;
   const { windowBounds } = await import("./piesa-windows.core");
-  return current.length === picks.length && picks.every((pick) => {
+  const pickKeys = new Set(picks.map((pick) => {
     const bounds = windowBounds(pick.date, pick.slot);
-    return current.some((row) => Date.parse(row.starts_at) === Date.parse(bounds.starts_at)
-      && Date.parse(row.ends_at) === Date.parse(bounds.ends_at));
-  });
+    return `${Date.parse(bounds.starts_at)}:${Date.parse(bounds.ends_at)}`;
+  }));
+  return pickKeys.size === picks.length && currentKeys.size === pickKeys.size
+    && [...pickKeys].every((key) => currentKeys.has(key));
 }
 
 async function saveRequestedWindows(jobId: string, picks: WindowPick[]) {
