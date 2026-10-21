@@ -126,6 +126,8 @@ test('a specific post-review request hands off; generic email or stale request c
 });
 
 test('unapplied page-facts proposal returns exact classifier facts without changing any counts or IDs', async () => {
+  // Match observed live RPC privileges; CREATE OR REPLACE must preserve these, not widen them.
+  await db.exec('REVOKE EXECUTE ON FUNCTION public.office_enquiry_page(text,text,integer) FROM PUBLIC,anon,authenticated; GRANT EXECUTE ON FUNCTION public.office_enquiry_page(text,text,integer) TO service_role;');
   const views = ['all', 'new', 'photos', 'needs_attention', 'offered_spot', 'insulation_requested', 'spot_saved', 'ineligible', 'removed'];
   const before = await Promise.all(views.map(v => page(v)));
   const columns = 'id,enquiry_status,needs_first_response,review_outcome,media_to_review,media_count,response_state,latest_attempt_status,latest_attempt_at,more_photos_requested';
