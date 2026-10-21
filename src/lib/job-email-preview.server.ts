@@ -31,8 +31,8 @@ export async function jobEmailPreview(jobId: string) {
     deskCheckStatus: review === 'below_r2' || review === 'no_insulation' ? 'looks_eligible' : null,
     recipient: { firstName: who.firstName ?? 'there', propertyAddress: who.address ?? 'your property', enquiryReference: who.reference ?? j.job_number ?? '' },
     reason: safeReason(j.eligibility_reason),
-    previewArtSrc: j.eligibility_outcome === 'does_not_appear_eligible' ? null : '/api/public/email-art-preview/headline.png',
-    links: { saveMySpotUrl: `${base}/campaign`, uploadMediaUrl: `${base}/video`, reviewResultUrl: base, calculatorUrl: `${base}/calculator` },
+    // Use the renderer's bundled logo fallback, not token artwork or the sample Alex/$2,600 image.
+    links: { saveMySpotUrl: `${base}/campaign`, uploadMediaUrl: `${base}/video`, reviewResultUrl: '#preview-result', calculatorUrl: `${base}/calculator` },
     ...(standard && e && snapshot?.settings ? { figures: {
       veuRebate: Number(standard.applied_discount), customerTotal: Number(standard.estimated_customer_total), totalBeforeRebate: Number(standard.pre_discount_total), installation: Number(standard.installation),
       piesaFee: Number(snapshot.settings.piesa_assessment_inc_gst), apFee: Number(snapshot.settings.ap_management_inc_gst), ceilingAreaM2: Number(e.area_m2), areaEstimated: e.area_source === 'typical_default',
