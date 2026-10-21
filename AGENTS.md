@@ -31,5 +31,3 @@
 - Portal QA = `bun run portal-qa` only; gaps NOT_RUN, never PASS. Why: honest bounded checks.
 - The /admin board places jobs by the facts-based office classifier (`board-phase.core.ts` via `getBoardStages`), never the stored stage alone. Why: stored Ready Check stages without a real Ready Check must not appear in Ready Check.
 - QA scripts resolve server-function IDs from the target's served dev transform or served compiled client (`scripts/qa-serverfn-resolve.ts`); unresolved = diagnostic failure, never a permission result. Office bulk lookups by job id are batched. Why: guessed IDs gave 500s and one all-ids URL stalled Office reads for minutes.
-- Installer quote price basis/GST/removal+extras pricing is an append-only `installer_quote_commercial_declared` event read by `installerIntakeState`; its blockers live in readiness so every draft/release/approve/accept path enforces them. Why: one factual check, no migration, history preserved.
-- Ready Check areas = `areas.v1` observation + `area_key` evidence rows (pending 0214); works locked via `rcWorksBlockers` until each before photo is accepted. Why: one evidence model, server hold.
