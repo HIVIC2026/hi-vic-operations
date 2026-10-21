@@ -1,9 +1,11 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Bounded preview performance and QA (Jo, 21 Oct 01:36 UTC)
-- [ ] Measure cold/warm public and authenticated TEST Office preview reads; optimize verified code-only waterfalls.
-- [ ] Run focused regression tests and canonical bounded portal QA, excluding Deep and real personas.
-- [ ] Check desktop/390x844 canonical public/Office/installer routes and calculator results; TEST-only Save My Spot/Ready Check where safe.
-- [ ] Report timings, route checklist, evidence, unchanged wording/prices, and remaining blockers; no publish or schema changes.
+- [x] Measure cold/warm public and authenticated TEST Office preview reads; optimize verified code-only waterfalls.
+- [x] Run focused regression tests and canonical bounded portal QA, excluding Deep and real personas (43 PASS, 23 NOT_RUN).
+- [x] Check desktop/390x844 public/Office/Alpha installer routes, read-only history controls and dummy calculator result; no overflow or runtime errors observed.
+- [ ] Live TEST Save My Spot/Ready Check booking: blocked by sender/queue side effects and no vetted restorable owner-booking fixture; isolated rule tests passed, not live-flow proof.
+- [ ] Consistent Office <1s: enquiries remain ~1.4–1.6s backend, ~2.8s browser settled; schema changes require separate user approval.
+- [x] Report timings, route checklist, evidence, unchanged wording/prices, and remaining blockers; no publish or schema changes.
 ## Live portal health check (Jo, 21 Oct 01:04 UTC)
 - [x] Read-only speed/errors/flows/mobile/data check of published site; report only, no changes.
 ## Adam optional evidence link (Jo, 20 Oct 07:30 UTC)
