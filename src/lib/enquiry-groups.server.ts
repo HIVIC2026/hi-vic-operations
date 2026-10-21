@@ -151,7 +151,7 @@ export async function loadEnquiryGroups(visibleIds: string[]) {
         : r.bounced ? "Email bounced or was suppressed"
         : r.consent !== "granted" ? "Contact consent is missing or withdrawn"
         : !r.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(r.email) ? "Missing or invalid email"
-        : r.group === "insulation_check" ? "Insulation details email – waiting for Jo to approve its final look"
+        : r.group === "insulation_check" ? "Insulation details email not sent yet"
         : r.group === "likely_size" ? "Save my spot email not sent yet"
         : r.group === "likely_no_size" ? "Eligible, but owner gave no ceiling size"
         : r.otherReason === "not_eligible" ? "Ineligible email not sent yet"
