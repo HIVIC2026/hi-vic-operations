@@ -111,6 +111,6 @@ export async function loadNeedsHivic() {
     if (!data || data.length < 1000) break;
   }
   const open = new Set(jobRows.filter((j) => !closed.has(j.id)).map((j) => j.id));
-  const kept = items.filter((it) => { const id = (it as { job_id?: string | null }).job_id; return !id || open.has(id); });
+  const kept = items.filter((it) => !it.jobId || open.has(it.jobId));
   return { items: kept, checkedAt: now.toISOString() };
 }
