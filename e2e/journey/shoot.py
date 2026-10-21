@@ -140,7 +140,7 @@ async def main(manifest_path):
                                 controls.append({'name': tab, 'status': 'FAIL', 'reason': 'tab interaction failed'})
                                 ok = False
                     for control_name in s.get('safeButtons') or []:
-                        target = page.get_by_role('button', name=re.compile('^' + re.escape(control_name) + '(?:\\s|$)'))
+                        target = page.get_by_role('button', name=re.compile('^' + re.escape(control_name) + '(?:\\s|$)')).and_(page.locator('[aria-controls]'))
                         try:
                             button = target.first
                             panel_id = await button.get_attribute('aria-controls')
