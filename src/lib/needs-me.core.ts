@@ -112,7 +112,7 @@ export function buildNeedsMe(i: { now: number; jobs: NeedsJob[]; partners: Partn
   }
   const ready = waiting.get("waiting_list.ready_to_send") ?? 0, noEst = waiting.get("waiting_list.needs_estimate") ?? 0;
   if (ready) items.push({ key: "waiting:ready_to_send", jobId: null, jobNumber: null, suburb: null, what: `${ready} enquir${ready === 1 ? "y" : "ies"} not contacted yet — estimate ready to send`, why: "Each one needs the Save my spot email from you before anything else can happen.", rule: "a_waiting_on_us", dueAt: null, timeLeft: null, urgency: 58, action: "Open enquiry email groups", href: "/admin/enquiry-groups", snoozeCount: 0, count: ready });
-  if (noEst) items.push({ key: "waiting:needs_estimate", jobId: null, jobNumber: null, suburb: null, what: `${noEst} enquir${noEst === 1 ? "y" : "ies"} not contacted yet — no estimate yet`, why: "Each one needs an estimate checked and sent by you.", rule: "a_waiting_on_us", dueAt: null, timeLeft: null, urgency: 57, action: "Open Pipeline", href: "/admin/pipeline", snoozeCount: 0, count: noEst });
+  if (noEst) items.push({ key: "waiting:needs_estimate", jobId: null, jobNumber: null, suburb: null, what: `${noEst} enquir${noEst === 1 ? "y" : "ies"} not contacted yet — no estimate yet`, why: "Each one needs an estimate checked and sent by you.", rule: "a_waiting_on_us", dueAt: null, timeLeft: null, urgency: 57, action: "Open Enquiries", href: "/admin/hot-leads", snoozeCount: 0, count: noEst });
   items.sort((a, b) => b.urgency - a.urgency || (a.dueAt ?? "9").localeCompare(b.dueAt ?? "9"));
   return { items, onTrack };
 }

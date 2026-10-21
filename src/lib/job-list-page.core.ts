@@ -81,3 +81,10 @@ export function closedPile(j: { source: string | null; office_removed: boolean |
   if (j.stage === "cancelled") return "cancelled";
   return "ineligible";
 }
+
+/** Retired 21 Oct (Jo): hidden from filters, chips and labels; old job history still shows their names. */
+export const RETIRED_STAGES: ReadonlySet<string> = new Set([
+  "awaiting_electrician", "assessment_booking", "assessment_booked", "assessment_complete",
+  "ready_for_installer_quotes", "awaiting_quote_acceptance", "ready_check_awaiting_payment", "awaiting_deposit_payment",
+]);
+export const VISIBLE_JOB_STAGES = JOB_STAGES.filter(s => !RETIRED_STAGES.has(s));

@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { BriefcaseBusiness, Calculator, ListTodo, ClipboardCheck, ExternalLink, FileCheck2, FlaskConical, LayoutDashboard, LogOut, MailCheck, MapPinned, Menu, Sun, Users, X } from "lucide-react";
+import { BriefcaseBusiness, Calculator, ClipboardCheck, ExternalLink, FileCheck2, FlaskConical, LayoutDashboard, LogOut, MailCheck, MapPinned, Menu, Sun, Users, X } from "lucide-react";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAccess, useMe } from "@/hooks/use-me";
@@ -32,7 +32,6 @@ export function AppShell({ children, wide = false }: { children: React.ReactNode
           <Link to="/admin" search={{}} className={link} activeProps={active} activeOptions={{ exact: true, includeSearch: true }} onClick={() => setMobileOpen(false)}><LayoutDashboard className="h-4 w-4" /> Pipeline</Link>
           <Link to="/admin/today" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><Sun className="h-4 w-4" /> Today</Link>
           <Link to="/admin/ap-queue" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><ClipboardCheck className="h-4 w-4" /> AP approval queue</Link>
-          <Link to="/admin/needs-me" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><ListTodo className="h-4 w-4" /> Needs me</Link>
           <Link to="/admin" search={{ tab: "enquiries" }} className={link} activeProps={active} activeOptions={{ exact: true, includeSearch: true }} onClick={() => setMobileOpen(false)}><MailCheck className="h-4 w-4" /> Enquiries</Link>
           <Link to="/admin/enquiry-groups" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><MailCheck className="h-4 w-4" /> Enquiry email groups</Link>
            <Link to="/admin/launch-campaign" className={link} activeProps={active} onClick={() => setMobileOpen(false)}><MailCheck className="h-4 w-4" /> Save my spot follow-ups</Link>

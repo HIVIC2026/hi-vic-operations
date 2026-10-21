@@ -103,7 +103,7 @@ const COMPLIANCE: TemplateEntry[] = [
     id: `register:${index}`, category: "compliance" as const, group: "Activity 48 form register", title: f.name, purpose: f.purpose, audience: f.signer, trigger: f.timing,
     approval: MITTI_FOR_REGISTER[f.name] ? "Official form — see linked Mitti entry" : "Not recorded", view: { kind: "register" as const, index, mitti: MITTI_FOR_REGISTER[f.name] ?? [] },
   })),
-  ...(["A", "B", "C", "D"] as const).map((g) => ({ id: `owner:${g}`, category: "compliance" as const, group: "Owner paperwork", title: `Owner paperwork — Gate ${g}`, purpose: "Documents the owner signs or ticks at this gate.", audience: "Owner (some items office)", trigger: `Gate ${g}`, approval: "See each document", view: { kind: "owner_paperwork" as const, gate: g } })),
+  ...(["B", "C", "D"] as const).map((g) => ({ id: `owner:${g}`, category: "compliance" as const, group: "Owner paperwork", title: `Owner paperwork — Gate ${g}`, purpose: "Documents the owner signs or ticks at this gate.", audience: "Owner (some items office)", trigger: `Gate ${g}`, approval: "See each document", view: { kind: "owner_paperwork" as const, gate: g } })),
 ];
 
 export const TEMPLATE_ENTRIES: TemplateEntry[] = [...EMAIL, ...MITTI, ...COMPLIANCE];

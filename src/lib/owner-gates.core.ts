@@ -150,6 +150,9 @@ function docItem(f: GateFacts, k: GateDocKey): GateItem {
   return { key: k, label: d.title, done: !!s, draft: s ? s.draft : !approvedNow, note: d.signer === "office" ? "Office records" : undefined };
 }
 
+/** Retired 21 Oct (Jo): hidden everywhere; signed copies stay as history. */
+export const RETIRED_DOC_KEYS: ReadonlySet<string> = new Set(["contact_privacy", "trade_contact_share", "details_confirmation", "life_support_answer", "cooling_off_notice"]);
+
 export function evaluateOwnerGates(f: GateFacts): GateResult[] {
   // Jo 21 Oct: Gate A is no longer required before any visit (contact consent and life support come from the enquiry form,
   // ownership is in Gate B). Its tenancy and earlier-visit items moved to Gate B; stored Gate A signatures are kept as history.

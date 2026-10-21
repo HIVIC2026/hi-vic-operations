@@ -70,14 +70,6 @@ export const chooseReadyCheckWindowsFn = createServerFn({ method: "POST" }).midd
     return submitReadyCheckWindows(jobId, data.picks);
   });
 
-export const simulateReadyCheckPaymentFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
-  .inputValidator((d) => z.object({ token: z.string().max(200), outcome: z.enum(["success", "failure"]), idempotencyKey: z.string().min(8).max(120) }).parse(d))
-  .handler(async ({ data, context }) => {
-    if (!context.assessmentTestMode) throw new Error("Test payments are unavailable.");
-    const { simulateReadyCheckPayment } = await import("./readycheck-payment.server");
-    return JSON.parse(JSON.stringify(await simulateReadyCheckPayment(data.token, data.outcome, data.idempotencyKey)));
-  });
-
 export const getAdminEstimateLink = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {

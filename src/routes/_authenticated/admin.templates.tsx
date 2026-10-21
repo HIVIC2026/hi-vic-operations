@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/portal/AppShell";
 import { TemplatesHub } from "@/components/portal/template-hub";
-import { CustomerDraftReview } from "@/components/portal/CustomerDraftReview";
 import { PartnerTemplates } from "@/components/portal/PartnerTemplates";
 import {
   TEMPLATE_CATEGORIES,
@@ -49,7 +48,6 @@ function Page() {
       <TemplatesHub cat={category} {...(standing ? { standing } : {})} {...(t ? { t } : {})} />
       {category === "email" && (
         <>
-          <CustomerDraftReview />
           <PartnerTemplates />
         </>
       )}

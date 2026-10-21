@@ -16,7 +16,7 @@ describe("phase 3 presentation mapping", () => {
     expect(sectionFor("/admin/templates")).toBe("templates");
     expect(sectionFor("/admin/board")).toBe("more");
     expect(OFFICE_TOOLS.some((t) => t.to === "/admin/ap-queue")).toBe(true);
-    expect(OFFICE_TOOLS.some((t) => t.to === "/admin/needs-me")).toBe(true);
+    expect(OFFICE_TOOLS.some((t) => t.to === "/admin/needs-me")).toBe(false);
     expect(tabActive(OFFICE_HEADINGS[1] ?? { label: "missing", to: "/admin" }, "/admin/enquiries", { status: "all" })).toBe(false);
   });
   test("every classified row remains in exactly one canonical category", () => {

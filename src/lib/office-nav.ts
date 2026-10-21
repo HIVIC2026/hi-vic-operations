@@ -39,9 +39,6 @@ const ENQUIRY_PATHS = [
 const MORE_PATHS = [
   "/admin/board",
   "/admin/operations",
-  "/admin/operations-preview",
-  "/admin/pipeline",
-  "/admin/list",
   "/admin/ap-queue",
 ];
 
@@ -92,9 +89,6 @@ export const OFFICE_TOOLS: OfficeTab[] = [
   { label: "Final check", to: "/admin/ap-queue" },
   { label: "Ready Check invitations", to: "/admin/ready-check" },
   { label: "Registered interest", to: "/admin/interests" },
-  { label: "Late jobs by status", to: "/admin/list", search: { late: "true" } },
-  { label: "Needs me (legacy task list)", to: "/admin/needs-me" },
-  { label: "Legacy job board", to: "/admin/board" },
   { label: "Deleted jobs", to: "/admin/deleted" },
   { label: "Test centre & system health", to: "/admin/test-centre" },
 ];
