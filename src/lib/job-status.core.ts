@@ -14,6 +14,8 @@ export type StatusFacts = {
   bookings: StatusBooking[];
   quoteSentAt: string | null; quoteAcceptedAt: string | null;
   safetyPaidAt: string | null; ownerTimesChosenAt: string | null;
+  /** Latest stored request asking the owner to pick Ready Check times, and latest owner-picked window. */
+  rcTimesAskedAt?: string | null; rcTimesGivenAt?: string | null;
   rectQuoteSentAt: string | null;
   paidInFullAt: string | null; firstHalfPaidAt?: string | null; fixesPaidAt?: string | null;
   apApprovedAt: string | null;
@@ -71,7 +73,11 @@ export function jobStatusLine(f: StatusFacts): StatusLine {
   let out: StatusLine;
   switch (S) {
     case "ready_check_awaiting_acceptance": case "preliminary_estimate_ready": out = wait("Owner deciding on the free Ready Check", "Owner", f.stageSince); break;
-    case "ready_check_ready_to_schedule": out = wait("Owner choosing Ready Check times", "Owner", f.stageSince, "since"); break;
+    case "ready_check_ready_to_schedule": {
+      // Only "choosing times" when the owner was actually asked and has not picked times since (Jo, 21 Oct).
+      const asked = f.rcTimesAskedAt ?? null, given = f.rcTimesGivenAt ?? null;
+      out = asked && (!given || given < asked) ? wait("Owner choosing Ready Check times", "Owner", asked, "asked") : office("Ready Check being arranged", f.stageSince); break;
+    }
     case "ready_check_scheduled": { const b = latest(f.bookings, "ready_check", "confirmed"); out = b ? booked("Ready Check booked", b) : wait("Ready Check being booked", "Owner", f.stageSince, "since"); break; }
     case "ready_check_complete": out = office("Being checked by Home Insulation Victoria", f.stageSince); break;
     case "measured_estimate_ready": case "awaiting_quote_acceptance": out = wait("Quote awaiting owner approval", "Owner", f.quoteSentAt ?? f.stageSince); break;
