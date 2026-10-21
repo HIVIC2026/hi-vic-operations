@@ -1,5 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Bounded preview performance and QA (Jo, 21 Oct 01:36 UTC)
+- [ ] Complete newly authorized disposable reserved-contact TEST SaveSpot/ReadyCheck flow through existing helpers, verify stored FREE/open windows and zero provider/financial effects, archive only new fixture; remove two unrelated Partners head entries and update consolidated report/root cleanup attribution.
 - [x] Archive authorized 131-ID eligible qa_test manifest through archiveQaJourney after practice checks; independently verified zero manifest-active assignments/links; active jobs 145→14, total 437 retained; HV2648/root cleanup untouched.
 - [ ] Cleanup exceptions: 14 qa_test rows with genuine-contact conflicts left untouched; 218 active assignment rows on previously archived jobs cannot use active-only archive action. Requires separately reviewed authority/guarded operation, not bypass.
 - [x] Finish narrow timestamp/actual FREE/two-phase booking proof correction; live proof remains NOT_RUN pending a minimal vetted reversible owner fixture; backup NOT verified after suspicious-activity sign-in refusal.
