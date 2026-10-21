@@ -134,18 +134,21 @@ export async function saveCampaignSpot(token: unknown, calc?: { areaM2: number; 
   if (row?.opted_out_at) throw new Error("This enquiry has already been taken off the list.");
   if (!row?.spot_saved_at) throw new Error("We couldn't save your place. Please try again.");
   if (firstSave) await logEvent(c.job.id, null, "campaign_spot_saved", price ? `Owner saved a place for a free Ready Check at $${Math.floor(price.total)} (rebate $${Math.floor(price.discount)})` : "Owner saved a place for a free Ready Check", { campaign: LAUNCH_CAMPAIGN, area_assumed: !calc && basis.ok && basis.areaEstimated, ...snapshot }, { internal: true });
-  if (firstSave) await queueSpotSavedConfirmations(c.job.id, String(token));
   // Spot saved → only now does the job move on to the free Ready Check (Jo, 8 Oct).
   {
-    const { data: j } = await admin.from("jobs").select("stage").eq("id", c.job.id).maybeSingle();
+    const { data: j, error: je } = await admin.from("jobs").select("stage").eq("id", c.job.id).maybeSingle();
+    if (je) await logEvent(c.job.id, null, "campaign_spot_advance_blocked", `Spot saved but the job stage could not be read: ${je.message}`, {}, { internal: true }).catch(() => console.error("advance check failed", c.job.id, je.message));
     if (j && ["preliminary_estimate_ready", "new_enquiry", "eligibility_review"].includes(j.stage)) {
       const { transition } = await import("./workflow.server");
       // The spot itself is saved; a refused stage move must not fail the owner's request, but office must see it.
-      const flag = (to: string) => (e: unknown) => logEvent(c.job.id, null, "campaign_spot_advance_blocked", `Spot saved but the job could not move to ${to}: ${(e as Error)?.message ?? e}`, { to }, { internal: true }).catch(() => null);
+      const flag = (to: string) => (e: unknown) => logEvent(c.job.id, null, "campaign_spot_advance_blocked", `Spot saved but the job could not move to ${to}: ${(e as Error)?.message ?? e}`, { to }, { internal: true }).catch((le) => console.error("campaign_spot_advance_blocked not logged", c.job.id, to, (le as Error)?.message));
       if (j.stage !== "preliminary_estimate_ready") await transition(c.job.id, "preliminary_estimate_ready", null, "Owner saved their spot – preliminary queue qualification; final onsite verification required").catch(flag("preliminary_estimate_ready"));
       await transition(c.job.id, "ready_check_ready_to_schedule", null, "Owner saved their spot – free Ready Check next").catch(flag("ready_check_ready_to_schedule"));
     }
   }
+  // Queued only after the stage move: this step is slow, and a request cut off here used to leave the job
+  // saved but stuck at the estimate stage with nothing logged (HV-3022, 21 Oct).
+  if (firstSave) await queueSpotSavedConfirmations(c.job.id, String(token));
   return { ok: true as const };
 }
 
