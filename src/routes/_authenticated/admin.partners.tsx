@@ -361,7 +361,6 @@ function ApprovePartner({ applicationId }: { applicationId: string }) {
     </div>
   );
   const ready = !c.hardBlocked && (!c.needsOverride || override.trim().length >= 10);
-  const cii = c.items.filter((i) => i.kind === "cii");
   return (
     <div className="space-y-3 rounded-lg border-2 border-primary p-3" data-approve>
       <div className="text-base font-semibold">Approve this partner</div>
