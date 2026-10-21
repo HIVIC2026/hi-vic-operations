@@ -126,6 +126,10 @@ async def main(manifest_path):
                                 chosen = page.get_by_role('navigation', name='Communications sections').get_by_role('link', name=link, exact=True)
                                 await page.wait_for_function('''name => [...document.querySelectorAll('nav[aria-label="Communications sections"] a')].some(e => e.textContent.trim() === name && e.getAttribute('aria-current') === 'page')''', arg=link, timeout=15000)
                                 await healthy_panel(page.locator('main').first)
+                                if link == 'Overview':
+                                    await page.wait_for_function('''() => /The same [0-9,]+ open website enquiries/.test(document.querySelector('main')?.innerText || '')''', timeout=15000)
+                                if link in ['Sent & history', 'Failed / attention']:
+                                    await page.wait_for_function('''() => /[0-9,]+ matching/.test(document.querySelector('main')?.innerText || '')''', timeout=15000)
                                 controls.append({'name': link, 'status': 'PASS', 'reason': 'Section selected; loaded panel content, errors and overflow verified', 'requestedURL': s['path'], 'finalURL': urlparse(page.url).path + ('?' + urlparse(page.url).query if urlparse(page.url).query else '')})
                             except Exception:
                                 controls.append({'name': link, 'status': 'FAIL', 'reason': 'Communications section interaction failed'})

@@ -180,9 +180,9 @@ try {
         if (READ_ONLY && persona === 'installer') {
           const { createClient } = await import('@supabase/supabase-js');
           const scoped = createClient(process.env['SUPABASE_URL']!, process.env['SUPABASE_PUBLISHABLE_KEY']!, { auth: { persistSession: false, autoRefreshToken: false }, global: { headers: { Authorization: `Bearer ${session.access_token}` } } });
-          const { data: jobs, error: scopeError } = await scoped.from('jobs').select('id,source').limit(1000);
+          const { data: jobs, error: scopeError } = await scoped.from('jobs').select('id,source,qa_archived_at,deleted_at').limit(1000);
           if (scopeError || !jobs || jobs.length === 1000 || jobs.some(j => j.source !== 'qa_test')) throw new Error('TEST installer scope could not be verified or reaches non-TEST jobs');
-          installerJobIds = jobs.map(j => j.id);
+          installerJobIds = jobs.filter(j => !j.qa_archived_at && !j.deleted_at).map(j => j.id);
           add({ area: 'setup', route_or_action: 'installer reachable-job scope', persona, status: 'passed', detail: `${jobs.length} accessible jobs; all qa_test; zero non-test`, steps: 'user-scoped SELECT, no writes', environment: ENV_DB });
         }
         sessions[persona] = session;
@@ -245,7 +245,7 @@ try {
           { step: 'gap-installer-business', path: '/field/business', persona: 'installer', expectedPath: '/field/business', mustSee: ['My business', 'Approved partner', 'TEST'] },
           ...(!fixtureError && fixture?.source === 'qa_test' ? [{ step: 'gap-job-disclosures', path: `/admin/jobs/${fixtureId}`, persona: 'office', expectedPath: `/admin/jobs/${fixtureId}`, mustSee: ['HV-2111'], safeButtons: ['Contacts, source & exceptions', 'Enquiry', 'Ready Check', 'Quotes & payments', 'PIESA', 'Installation', 'AP review & VEECs', 'Correspondence & history'] }] : []),
         ].map(s => ({ ...s, verifyContent: true }));
-        if (REVIEW_RETRY) screens = screens.filter(s => ['gap-job-disclosures'].includes(s.step)).map(s => ({ ...s, safeButtons: ['Quotes & payments'], widths: [390, 1280] }));
+        if (REVIEW_RETRY) screens = screens.filter(s => ['gap-communications'].includes(s.step));
         if (REVIEW_RETRY && installerJobIds[0]) screens.push({ step: 'gap-installer-job', path: `/field/${installerJobIds[0]}`, persona: 'installer', expectedPath: `/field/${installerJobIds[0]}`, verifyContent: true, readinessSelector: 'main h1' }, { step: 'gap-installer-day', path: `/field/day/${installerJobIds[0]}`, persona: 'installer', expectedPath: `/field/day/${installerJobIds[0]}`, verifyContent: true, readinessSelector: 'main h1' });
       }
     }
