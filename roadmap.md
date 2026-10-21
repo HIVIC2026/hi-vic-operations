@@ -1,5 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Bounded preview performance and QA (Jo, 21 Oct 01:36 UTC)
+- [ ] Correct actual route/role/viewport coverage and loaded-panel interaction evidence; targeted canonical review-gaps run only, consolidate historical limitations and remaining fixtures.
 - [x] Apply narrow 30-second Job File freshness and once-opened document-state correction; actual React Query remount/invalidation and disclosure regressions 5 PASS/0 FAIL, no full QA rerun.
 - [x] Finish enquiry computation diagnosis/unapplied proposal and meaningful-page timings; expand all 87 route families with explicit fixture gaps. Customer-flow fixture remains separately blocked below.
 - [x] Add reserved-contact and persisted-window proof helpers/tests, provider-denial boundary test and landed-route reporting; historical 37 focused checks PASS. Existing approved Office/Alpha TEST sessions now available; restorable customer fixture is the remaining flow blocker.

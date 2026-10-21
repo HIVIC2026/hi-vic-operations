@@ -12,7 +12,7 @@ import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from "node
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { READ_ONLY_PATHS, uiRouteInventory, uncoveredReason } from './portal-qa-coverage';
+import { READ_ONLY_PATHS, uiRouteInventory, completedRouteCoverage } from './portal-qa-coverage';
 
 type Status = "passed" | "failed" | "blocked" | "not_run";
 type Result = { area: string; route_or_action: string; persona: string; status: Status; detail: string; steps: string; screenshots: string[]; environment: string };
@@ -21,6 +21,8 @@ const LABEL = arg("--label", "manual");
 const BASE = arg("--base", "http://localhost:8080");
 const OFFICE_ONLY = process.argv.includes("--office-only");
 const READ_ONLY = process.argv.includes("--read-only");
+const REVIEW_GAPS = process.argv.includes('--review-gaps');
+if (REVIEW_GAPS && !READ_ONLY) throw new Error('Review gaps requires read-only mode.');
 if (process.argv.includes('--allow-test-email') || process.argv.includes('--setup-fixtures')) throw new Error('Portal QA never permits recipient emails or fixture setup flags.');
 if (READ_ONLY && BASE !== 'http://localhost:8080') throw new Error('Read-only expanded performance QA targets localhost preview only.');
 const PERSONA_LIST = arg("--personas", "installer,rec,owner");
@@ -146,6 +148,16 @@ try {
     const { createClient } = await import("@supabase/supabase-js");
     const key = process.env["SUPABASE_PUBLISHABLE_KEY"]!;
     const sb = createClient(process.env["SUPABASE_URL"]!, key, { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: (i, init) => { const h = new Headers(init?.headers); if (key.startsWith("sb_") && h.get("Authorization") === `Bearer ${key}`) h.delete("Authorization"); h.set("apikey", key); return fetch(i, { ...init, headers: h }); } } });
+    if (REVIEW_GAPS) {
+      const file = email === PERSONAS.office?.email ? '/tmp/browser/performance/office-session.json' : '/tmp/browser/performance/installer-session.json';
+      if (!existsSync(file)) throw new Error('Existing approved TEST session unavailable; no new session issued');
+      const stored = JSON.parse(readFileSync(file, 'utf8'));
+      const session = stored.session;
+      if (!session?.access_token || !session.expires_at || session.expires_at <= Date.now() / 1000) throw new Error('Existing approved TEST session expired; no auth repair');
+      const verified = await sb.auth.getUser(session.access_token);
+      if (verified.error || verified.data.user?.email !== email || verified.data.user?.id !== session.user?.id) throw new Error('Existing TEST session identity failed read-only verification');
+      return session;
+    }
     const { data: link, error } = await admin.auth.admin.generateLink({ type: "magiclink", email });
     if (error || !link.properties?.hashed_token) throw new Error(error?.message ?? "no sign-in token");
     const v = await sb.auth.verifyOtp({ token_hash: link.properties.hashed_token, type: "magiclink" });
@@ -171,7 +183,7 @@ try {
           add({ area: 'setup', route_or_action: 'installer reachable-job scope', persona, status: 'passed', detail: `${jobs.length} accessible jobs; all qa_test; zero non-test`, steps: 'user-scoped SELECT, no writes', environment: ENV_DB });
         }
         sessions[persona] = session;
-        add({ area: "setup", route_or_action: `TEST sign-in ${persona}`, persona, status: "passed", detail: p.email, steps: "magic-link session for TEST account", environment: ENV_DB }); }
+        add({ area: "setup", route_or_action: `TEST sign-in ${persona}`, persona, status: "passed", detail: p.email, steps: REVIEW_GAPS ? 'existing approved TEST session reused and verified; no new login issued' : "magic-link session for TEST account", environment: ENV_DB }); }
       catch (e) { add({ area: "setup", route_or_action: `TEST sign-in ${persona}`, persona, status: "blocked", detail: (e as Error).message, steps: "magic-link session", environment: ENV_DB }); }
     }
     if (personaAllowed("owner") && !READ_ONLY) {
@@ -186,7 +198,7 @@ try {
 
     // ---- authenticated screens (read-only visits) ----
     const RETIRED = ["HI VIC", "undefined", "NaN", "[object", "50% deposit", "Lorem ipsum", "TODO"];
-    type Screen = { step: string; persona: string; path: string; expectedPath?: string; expectedSearch?: Record<string, string>; mustSee?: string[]; mustNotSeeExact?: string[]; mustNotSeeExactOutside?: { text: string; ignoreSelector: string }[]; noPrices?: boolean; safeButtons?: string[]; safeTabs?: boolean; readinessSelector?: string };
+    type Screen = { step: string; persona: string; path: string; expectedPath?: string; expectedSearch?: Record<string, string>; mustSee?: string[]; mustNotSeeExact?: string[]; mustNotSeeExactOutside?: { text: string; ignoreSelector: string }[]; noPrices?: boolean; safeButtons?: string[]; safeTabs?: boolean; readinessSelector?: string; verifyContent?: boolean; discoverTestJob?: boolean };
     let screens: Screen[] = [
       { step: "office-operations", persona: "office", path: "/admin/operations", expectedPath: "/admin/enquiries", mustSee: ["Enquiries", "Active", "Closed"] },
       { step: "office-enquiry-groups", persona: "office", path: "/admin/enquiry-groups" },
@@ -218,13 +230,22 @@ try {
       const { data: fixture, error: fixtureError } = await admin.from('jobs').select('id,source').eq('id', fixtureId).single();
       if (!fixtureError && fixture?.source === 'qa_test') screens.push({ step: 'office-test-history', path: `/admin/jobs/${fixtureId}`, persona: 'office', safeButtons: ['Enquiry', 'Ready Check', 'Quotes & payments', 'PIESA', 'Installation', 'AP review & VEECs', 'Correspondence & history'] });
       else notRun('screens', '/admin/jobs/$jobId', 'existing isolated TEST Office fixture unavailable');
+      if (REVIEW_GAPS) {
+        screens = [
+          { step: 'gap-communications', path: '/admin/communications', persona: 'office', expectedPath: '/admin/communications', mustSee: ['Communications', 'Recent send log'], safeTabs: true },
+          { step: 'gap-list', path: '/admin/list?test=true', persona: 'office', expectedPath: '/admin/list', readinessSelector: 'table', mustSee: ['Jobs'] },
+          { step: 'gap-ready-check', path: '/admin/ready-check', persona: 'office', expectedPath: '/admin/ready-check', mustSee: ['Ready Check invitations'] },
+          { step: 'gap-pricing', path: '/admin/pricing', persona: 'office', expectedPath: '/admin/pricing', mustSee: ['Prices & margins', 'Owner prices', 'Price history'] },
+          { step: 'gap-job-queue', path: '/admin/job-queue', persona: 'office', expectedPath: '/admin/job-queue', mustSee: ['Job queue'] },
+          { step: 'gap-installer-home', path: '/field', persona: 'installer', expectedPath: '/field', readinessSelector: '[data-upload-actions]', discoverTestJob: true },
+          { step: 'gap-installer-money', path: '/field/money', persona: 'installer', expectedPath: '/field/money', mustSee: ['Money'] },
+          { step: 'gap-installer-business', path: '/field/business', persona: 'installer', expectedPath: '/field/business', mustSee: ['My business', 'Approved partner', 'TEST'] },
+          ...(!fixtureError && fixture?.source === 'qa_test' ? [{ step: 'gap-job-disclosures', path: `/admin/jobs/${fixtureId}`, persona: 'office', expectedPath: `/admin/jobs/${fixtureId}`, mustSee: ['HV-2111'], safeButtons: ['Contacts, source & exceptions', 'Enquiry', 'Ready Check', 'Quotes & payments', 'PIESA', 'Installation', 'AP review & VEECs', 'Correspondence & history'] }] : []),
+        ].map(s => ({ ...s, verifyContent: true }));
+      }
     }
     const inventory = uiRouteInventory(readFileSync('src/routeTree.gen.ts', 'utf8'));
     writeFileSync(`${OUT}/route-inventory.json`, JSON.stringify(inventory, null, 2));
-    for (const route of inventory) {
-      const reason = uncoveredReason(route, new Set(screens.map(s => s.path)));
-      if (reason) for (const viewport of ['desktop', 'phone 390x844']) add({ area: 'route checklist', route_or_action: `${route.path} (${viewport})`, persona: route.persona, status: 'not_run', detail: reason, steps: 'source route inventory only; not a visited page' });
-    }
     const runnable = screens.filter((s) => s.persona === "public" || sessions[s.persona]);
     for (const s of screens.filter((x) => !runnable.includes(x))) add({ area: "screens", route_or_action: s.path, persona: s.persona, status: personaAllowed(s.persona) ? "blocked" : "not_run", detail: personaAllowed(s.persona) ? "no TEST session for this role" : "persona excluded by --personas", steps: "see setup rows" });
     const storageKey = `sb-${process.env["SUPABASE_PROJECT_ID"] ?? new URL(process.env["SUPABASE_URL"]!).hostname.split(".")[0]}-auth-token`;
@@ -234,14 +255,19 @@ try {
       const br = sh(["python3", "e2e/journey/shoot.py", `${OUT}/.manifest.json`], READ_ONLY ? 600_000 : 300_000);
       writeFileSync(`${OUT}/.manifest.json`, "{}");
       if (br.status !== 0 || !existsSync(`${OUT}/.browser.json`)) add({ area: "screens", route_or_action: "browser harness", persona: "-", status: "failed", detail: (br.error ? `timeout/error: ${br.error.message} ` : "") + (br.stderr || "harness did not finish").slice(-400), steps: "python3 e2e/journey/shoot.py" });
-      let completed: { step: string; ok: boolean; detail: string; shots: string[]; requested_path?: string; landed_path?: string | null; viewport?: { width: number } }[] = [];
+      let completed: { step: string; persona?: string; ok: boolean; content_verified?: boolean; detail: string; shots: string[]; requested_path?: string; landed_path?: string | null; viewport?: { width: number }; controls?: { name: string; status: string; reason: string }[] }[] = [];
       try { if (existsSync(`${OUT}/.browser.json`)) completed = JSON.parse(readFileSync(`${OUT}/.browser.json`, 'utf8')); }
       catch { add({ area: 'screens', route_or_action: 'partial browser results', persona: '-', status: 'failed', detail: 'browser results unreadable; no coverage inferred', steps: '' }); }
       for (const r of completed) {
         const s = runnable.find((x) => x.step === r.step);
         if (!s) { notRun('screens', r.step, 'unknown browser screen; no coverage inferred'); continue; }
         add({ area: "screens", route_or_action: `${s.path} (${r.detail.includes("390px") ? "phone" : "desktop"})`, persona: s.persona, status: r.ok ? "passed" : "failed", detail: r.detail, steps: `sign in as TEST ${s.persona}, open ${s.path}, check labels`, screenshots: r.shots });
+        for (const c of r.controls ?? []) if (c.status !== 'NOT_RUN') add({ area: 'read-only controls', route_or_action: `${s.path}: ${c.name} (${r.viewport?.width}px)`, persona: s.persona, status: c.status === 'PASS' ? 'passed' : 'failed', detail: c.reason, steps: 'click, intended panel/data readback, errors/overflow recheck', screenshots: r.shots });
       }
+      const actualCoverage = completedRouteCoverage(inventory, completed);
+      writeFileSync(`${OUT}/actual-route-coverage.json`, JSON.stringify(actualCoverage, null, 2));
+      writeFileSync(`${OUT}/control-runbook.json`, JSON.stringify(completed.map(r => ({ requestedURL: r.requested_path, finalURL: r.landed_path, role: r.persona, viewport: r.viewport, controls: r.controls })), null, 2));
+      for (const route of actualCoverage) if (route.status === 'NOT_RUN') add({ area: 'actual route checklist', route_or_action: `${route.path} (${route.viewport.width}px)`, persona: route.persona, status: 'not_run', detail: route.reason, steps: 'actual completed destination evidence only; planned routes do not count' });
       const destinations = completed.filter(r => r.ok && r.landed_path).map(r => ({ requested_path: r.requested_path, landed_path: r.landed_path, width: r.viewport?.width }));
       writeFileSync(`${OUT}/landed-route-coverage.json`, JSON.stringify({ requested_screens: completed.length, distinct_landed_paths: [...new Set(destinations.map(r => r.landed_path))], destinations, note: 'Redirect aliases are not distinct-page coverage. Older rows without landed_path establish no destination coverage.' }, null, 2));
       for (const route of inventory.filter(route => screens.some(s => s.path === route.path))) for (const width of [390, 1280]) {
@@ -281,7 +307,8 @@ try {
 
     // ---- isolated email rule tests ----
     const EMAIL_TESTS = ["tests/step3-email-parity.test.ts", "tests/save-spot.test.ts", "tests/save-spot-only-approved.test.ts", "tests/group-b-media.test.ts", "tests/group-b-declaration-routing.test.ts", "tests/existing-insulation-followup.test.ts", "tests/existing-insulation-send.test.ts", "tests/email-safety.test.ts", "tests/estimate-email.test.ts", "tests/portal-qa-safety.test.ts", "tests/test-send-reserved-boundary.test.ts", "tests/ready-check-window-readback-isolated.test.ts"];
-    if (!fits(60_000)) notRun("emails (isolated)", "email rule tests", "overall budget exhausted", ENV_ISOLATED);
+    if (REVIEW_GAPS) notRun('emails (isolated)', 'email rule tests', 'prior completed evidence reused; unaffected suites not rerun', ENV_ISOLATED);
+    else if (!fits(60_000)) notRun("emails (isolated)", "email rule tests", "overall budget exhausted", ENV_ISOLATED);
     else {
       const summary = isolatedEmailFiles(EMAIL_TESTS, {
         now: Date.now, leftMs: () => left() - 15_000, exists: existsSync,
@@ -307,8 +334,10 @@ try {
     }
 
     // ---- retired wording scan ----
-    const sc = sh(["bun", "scripts/scan-retired-terms.ts"], 60_000);
-    add({ area: "wording", route_or_action: "retired-term scan", persona: "-", status: sc.status === 0 ? "passed" : "failed", detail: sc.status === 0 ? "no customer-visible retired terms in source" : (sc.stdout + sc.stderr).slice(-400), steps: "bun scripts/scan-retired-terms.ts", environment: "local source files" });
+    if (!REVIEW_GAPS) {
+      const sc = sh(["bun", "scripts/scan-retired-terms.ts"], 60_000);
+      add({ area: "wording", route_or_action: "retired-term scan", persona: "-", status: sc.status === 0 ? "passed" : "failed", detail: sc.status === 0 ? "no customer-visible retired terms in source" : (sc.stdout + sc.stderr).slice(-400), steps: "bun scripts/scan-retired-terms.ts", environment: "local source files" });
+    }
 
     // ---- honest coverage gaps (never PASS) ----
     for (const [a, why] of [
