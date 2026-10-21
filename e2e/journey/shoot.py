@@ -117,7 +117,11 @@ async def main(manifest_path):
                     if overflow: ok, detail = False, f'{detail}: horizontal overflow'
                     if console_errors or failed_requests or http_errors: ok, detail = False, f'{detail}: console/network failures ({len(console_errors)}/{len(failed_requests)}/{len(http_errors)})'
                     content_verified = bool(ok and s.get('verifyContent') and (s.get('readinessSelector') or s.get('mustSee')))
-                    controls = await page.get_by_role('button').evaluate_all('(buttons) => buttons.filter(b => b.getClientRects().length).map(b => ({name: b.getAttribute("aria-label") || b.textContent.trim(), disabled: b.disabled, status: "NOT_RUN", reason: "inventoried only; no mutation/control execution implied"}))')
+                    controls = await page.get_by_role('button').evaluate_all('''buttons => buttons.filter(b => b.getClientRects().length).map(b => {
+                        const name = b.getAttribute('aria-label') || b.textContent.trim();
+                        const excluded = /send|retry|resume|save|approve|decline|delete|restore|invite|download.*login|connect|sync|pay|confirm|submit|upload|start|requeue|run automated/i.test(name);
+                        return {name, disabled: b.disabled, status: 'NOT_RUN', classification: excluded ? 'excluded potential mutation/outbound' : 'remaining unexecuted control requiring reviewed read-only proof', reason: excluded ? 'Excluded without invoking: may write, send or alter global/financial/account state; no permission/guard PASS inferred' : 'Remaining runbook item: review intended read-only state, click safely, then verify panel/data and errors/overflow; not blocked merely because inventoried'};
+                    })''')
                     if s.get('safeTabs'):
                         links = await page.locator('nav[aria-label="Communications sections"] a').all_text_contents()
                         for link in links:
