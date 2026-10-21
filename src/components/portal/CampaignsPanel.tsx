@@ -20,9 +20,7 @@ const LABEL: Record<string, string> = {
   not_needed: "No desk check",
 };
 const COUNT_LABEL: Record<string, string> = {
-  sent: "Sent",
-  opened: "Opened",
-  spotSaved: "Spots saved (total)",
+  opened: "Emails opened (both campaigns)",
   optedOut: "Opted out",
   videosUploaded: "Videos uploaded",
   looksEligible: "Looks eligible",
