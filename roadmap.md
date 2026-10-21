@@ -425,3 +425,6 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Office review labels: insulation email and estimated-size email shown as 'not sent yet' (templates already approved)
 - [x] Office review: send insulation email to 11 who only got capacity update; estimated-size emails for 6 + HV-1029; fresh link HV-1251
 - [ ] Auto-send ineligible email: already automatic for official ineligible results; waiting on Jo whether an under-5-years answer should override a "needs onsite" Gate 1 result (HV-2116, HV-2138)
+
+- [x] Speed (21 Oct): 0219 indexes (intake media + removed marker) proven on practice DB, applied, piles identical; job lists read side numbers in parallel.
+- [ ] Speed next: Quote approvals board slow read (~3 s); per-page duplicate review counts; stored pile field awaits Jo approval.
