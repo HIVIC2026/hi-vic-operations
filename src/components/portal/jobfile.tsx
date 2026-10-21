@@ -23,7 +23,7 @@ const fmtDT = (s: string | null) => (s ? new Date(s).toLocaleString("en-AU", { t
 
 export function useJobFile(jobId: string) {
   const fn = useServerFn(getJobFile);
-  return useQuery({ queryKey: ["jobfile", jobId], queryFn: () => fn({ data: { jobId } }) as Promise<JobFile>, refetchOnMount: query => query.state.isInvalidated });
+  return useQuery({ queryKey: ["jobfile", jobId], queryFn: () => fn({ data: { jobId } }) as Promise<JobFile>, staleTime: 30_000 });
 }
 
 const STATUS_TONE: Record<string, "good" | "info" | "warn" | "bad" | "neutral" | "brand"> = {
@@ -92,10 +92,10 @@ function DocRow({ jobId, d }: { jobId: string; d: DocItem }) {
 /** Documents for one Job File section, filed automatically. */
 export function SectionDocuments({ jobId, categories, title = "Documents in this section" }: { jobId: string; categories: DocCategory[]; title?: string }) {
   const { data } = useJobFile(jobId);
-  const [expanded, setExpanded] = useState(false);
+  const [hasOpened, setHasOpened] = useState(false);
   const docs = useMemo(() => { const all = (data?.documents ?? []) as DocItem[]; const set = new Map<string, DocItem>(); categories.forEach((c) => inCategory(all, c).forEach((d) => set.set(d.id, d))); return [...set.values()]; }, [data, categories]);
   if (!docs.length) return null;
-  return <details className="rounded-xl border p-3" onToggle={(e) => setExpanded(e.currentTarget.open)}><summary className="cursor-pointer text-sm font-medium">{title} ({docs.length})</summary>{expanded && <ul className="mt-2 divide-y">{docs.map((d) => <DocRow key={d.id} jobId={jobId} d={d} />)}</ul>}</details>;
+  return <details className="rounded-xl border p-3" onToggle={(e) => { if (e.currentTarget.open) setHasOpened(true); }}><summary className="cursor-pointer text-sm font-medium">{title} ({docs.length})</summary>{hasOpened && <ul className="mt-2 divide-y">{docs.map((d) => <DocRow key={d.id} jobId={jobId} d={d} />)}</ul>}</details>;
 }
 
 export function AllDocuments({ jobId }: { jobId: string }) {

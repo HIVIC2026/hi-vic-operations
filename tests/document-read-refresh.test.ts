@@ -1,7 +1,6 @@
 import { expect, mock, test } from 'bun:test';
 let invalidations = 0;
-let queryOptions: any;
-mock.module('@tanstack/react-query', () => ({ useQueryClient: () => ({ invalidateQueries: async () => { invalidations++; } }), useQuery: (options: unknown) => { queryOptions = options; return {}; } }));
+mock.module('@tanstack/react-query', () => ({ useQueryClient: () => ({ invalidateQueries: async () => { invalidations++; } }), useQuery: () => ({}) }));
 mock.module('@tanstack/react-start', () => ({ useServerFn: (fn: unknown) => fn }));
 mock.module('sonner', () => ({ toast: { success: () => {}, error: () => {} } }));
 mock.module('@/integrations/supabase/client', () => ({ supabase: {} }));
@@ -12,7 +11,6 @@ mock.module('../src/components/portal/panels', () => ({ Section: () => null }));
 mock.module('../src/components/portal/badges', () => ({ Pill: () => null }));
 mock.module('../src/components/portal/file-viewer', () => ({ openFileViewer: () => {} }));
 const { useAction } = await import('../src/hooks/use-me');
-const { useJobFile } = await import('../src/components/portal/jobfile');
 test('read-only document action does not refresh unrelated panels; ordinary writes still do', async () => {
   const fn = async () => ({ ok: true });
   expect(await useAction(fn, { refresh: false })({})).toEqual({ ok: true });
@@ -23,10 +21,4 @@ test('read-only document action does not refresh unrelated panels; ordinary writ
 test('failed reads do not invalidate and do not report success', async () => {
   expect(await useAction(async () => { throw new Error('TEST refusal'); }, { refresh: false })({})).toBeUndefined();
   expect(invalidations).toBe(1);
-});
-test('new history consumers reuse cache but writes invalidated while unmounted refetch', () => {
-  useJobFile('TEST job');
-  expect(queryOptions.queryKey).toEqual(['jobfile', 'TEST job']);
-  expect(queryOptions.refetchOnMount({ state: { isInvalidated: false } })).toBe(false);
-  expect(queryOptions.refetchOnMount({ state: { isInvalidated: true } })).toBe(true);
 });
