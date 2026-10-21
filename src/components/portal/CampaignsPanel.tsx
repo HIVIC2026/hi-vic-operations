@@ -88,7 +88,7 @@ export function CampaignsPanel() {
         <div className="rounded-md border bg-card p-4">
           <div className="text-xs font-bold uppercase tracking-wide text-sub">Insulation details requested (Group B)</div>
           <div className="mt-2 font-display text-2xl font-bold">
-            Insulation details requested: {data.counts.insulationDetailsSent.toLocaleString("en-AU")}
+            Insulation details requested: {data.counts.insulationDetails.toLocaleString("en-AU")}
           </div>
           <div className="mt-1 text-sm text-sub">“Tell us about your insulation” email — a separate email, not a spot offer</div>
         </div>
