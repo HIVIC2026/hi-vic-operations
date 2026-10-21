@@ -9,7 +9,7 @@ const daysAgo = (d: number) => new Date(now.getTime() - d * 86_400_000).toISOStr
 describe("trade job status line (Jo 7 Oct)", () => {
   test("owner payment: date, waiting, who; rose after 3 days", () => {
     const l = jobStatusLine(base({ stage: "measured_quote_accepted", quoteAcceptedAt: "2026-10-04T23:00:00Z" }));
-    expect(l.text).toBe("Awaiting owner's $349 safety check payment · sent Mon 5 Oct · waiting 3 days · Owner");
+    expect(l.text).toBe("Quote accepted – waiting for owner's payment · sent Mon 5 Oct · waiting 3 days · Owner");
     expect(l.tone).toBe("rose");
     expect(needsChasing(l)).toBe(true);
   });
@@ -28,9 +28,9 @@ describe("trade job status line (Jo 7 Oct)", () => {
     expect(jobTimeline(base({ staff: true })).map((x) => x.label).join(" ")).not.toMatch(/\$|50%/);
   });
   test("owner choosing times, and booked safety check names the business", () => {
-    expect(jobStatusLine(base({ stage: "piesa_and_install_window_pending", safetyPaidAt: daysAgo(1) })).text).toBe("Owner choosing safety check times · since Wed 7 Oct · waiting 1 day · Owner");
+    expect(jobStatusLine(base({ stage: "piesa_and_install_window_pending", safetyPaidAt: daysAgo(1) })).text).toBe("Owner choosing PIESA times · since Wed 7 Oct · waiting 1 day · Owner");
     const b = jobStatusLine(base({ stage: "piesa_scheduled", bookings: [{ kind: "assessment", status: "confirmed", start: "2026-10-12T21:00:00Z", end: "2026-10-12T23:00:00Z", business: "Example Electrical", mine: false }] }));
-    expect(b.text).toBe("Safety check booked · Tue 13 Oct, 8–10am · Example Electrical");
+    expect(b.text).toBe("PIESA booked · Tue 13 Oct, 8–10am · Example Electrical");
     expect(b.tone).toBe("ok");
   });
   test("install booked shows You for the viewer's own booking, and the balance line", () => {

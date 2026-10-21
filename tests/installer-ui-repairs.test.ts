@@ -50,7 +50,7 @@ describe("3) Your turn only for the signed-in trade's own action", () => {
   });
   test("electrician at PIESA: Your turn", () => {
     const t = tradeTurn({ trade: "electrician", stage: "piesa_scheduled", waitingOn: "Electrician" });
-    expect(t.yourTurn).toBe(true); expect(t.task.label).toBe("Do the safety check and fill in the form");
+    expect(t.yourTurn).toBe(true); expect(t.task.label).toBe("Do the PIESA and fill in the form");
   });
   test("electrician at installation booked waits for the installer", () => {
     expect(tradeTurn({ trade: "electrician", stage: "installation_booked", waitingOn: "Installer" }).yourTurn).toBe(false);

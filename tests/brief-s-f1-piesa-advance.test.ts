@@ -4,7 +4,7 @@
 // are fakes. No network, no providers, no Mitti. Run: bun test ./tests/
 import { describe, expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { DEFAULT_NEXT_ACTION } from "../src/lib/workflow";
+import { STORED_NEXT_ACTION as DEFAULT_NEXT_ACTION } from "../src/lib/workflow";
 import { PIESA_COMPLETE_NEXT_ACTION, PIESA_HOLD, piesaAdvanceDecision } from "../src/lib/piesa-advance.core";
 
 type Row = Record<string, any>;

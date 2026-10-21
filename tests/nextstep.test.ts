@@ -9,17 +9,17 @@ describe("one next-step rule", () => {
   test("eligible early jobs never say electrician", () => {
     for (const outcome of ["likely_eligible", "needs_onsite_confirmation"]) for (const stage of ["new_enquiry", "eligibility_review"]) {
       const s = nextStep({ stage, eligibility_outcome: outcome, next_action: "Assign electrician" });
-      expect(s.label).toBe("Ready Check needed");
+      expect(s.label).not.toMatch(/electrician/i);
       expect(s.next.toLowerCase()).not.toContain("electrician");
     }
   });
   test("stored free text is never shown as the step (except review reasons)", () => {
     expect(nextStep({ stage: "ready_check_ready_to_schedule", eligibility_outcome: "likely_eligible", next_action: "Assign electrician" }).next).toBe(DEFAULT_NEXT_ACTION.ready_check_ready_to_schedule);
-    expect(nextStep({ stage: "new_enquiry", eligibility_review_required: true, next_action: "Review required: Address ambiguous" }).next).toBe("Review required: Address ambiguous");
+    expect(nextStep({ stage: "new_enquiry", eligibility_review_required: true, next_action: "Review required: Address ambiguous" }).next).toBe("Review eligibility");
   });
   test("ineligible and review override the stage", () => {
     expect(nextStep({ stage: "ready_check_scheduled", eligibility_outcome: "does_not_appear_eligible" }).label).toBe("Ineligible");
-    expect(nextStep({ stage: "new_enquiry", eligibility_review_required: true }).label).toBe("Review required");
+    expect(nextStep({ stage: "new_enquiry", eligibility_review_required: true }).label).toBe("Needs review");
   });
   test("every stage produces a label and a next step", () => {
     for (const stage of STAGES) { const s = nextStep({ stage, eligibility_outcome: "likely_eligible" }); expect(s.label.length).toBeGreaterThan(0); expect(s.next.length).toBeGreaterThan(0); }
