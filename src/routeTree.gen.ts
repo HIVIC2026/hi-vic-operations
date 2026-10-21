@@ -64,6 +64,7 @@ import { Route as AuthenticatedAdminPricingRouteImport } from './routes/_authent
 import { Route as AuthenticatedAdminQuotesRouteImport } from './routes/_authenticated/admin.quotes'
 import { Route as AuthenticatedAdminReadyCheckRouteImport } from './routes/_authenticated/admin.ready-check'
 import { Route as AuthenticatedAdminSaveMySpotRulesRouteImport } from './routes/_authenticated/admin.save-my-spot-rules'
+import { Route as AuthenticatedAdminSaveSpotReminderBlastRouteImport } from './routes/_authenticated/admin.save-spot-reminder-blast'
 import { Route as AuthenticatedAdminTeamUpsRouteImport } from './routes/_authenticated/admin.team-ups'
 import { Route as AuthenticatedAdminTemplatesRouteImport } from './routes/_authenticated/admin.templates'
 import { Route as AuthenticatedAdminTestCentreRouteImport } from './routes/_authenticated/admin.test-centre'
@@ -416,6 +417,12 @@ const AuthenticatedAdminSaveMySpotRulesRoute =
   AuthenticatedAdminSaveMySpotRulesRouteImport.update({
     id: '/save-my-spot-rules',
     path: '/save-my-spot-rules',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminSaveSpotReminderBlastRoute =
+  AuthenticatedAdminSaveSpotReminderBlastRouteImport.update({
+    id: '/save-spot-reminder-blast',
+    path: '/save-spot-reminder-blast',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminTeamUpsRoute =
@@ -780,6 +787,7 @@ export interface FileRoutesByFullPath {
   '/admin/quotes': typeof AuthenticatedAdminQuotesRoute
   '/admin/ready-check': typeof AuthenticatedAdminReadyCheckRoute
   '/admin/save-my-spot-rules': typeof AuthenticatedAdminSaveMySpotRulesRoute
+  '/admin/save-spot-reminder-blast': typeof AuthenticatedAdminSaveSpotReminderBlastRoute
   '/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
   '/admin/templates': typeof AuthenticatedAdminTemplatesRoute
   '/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
@@ -887,6 +895,7 @@ export interface FileRoutesByTo {
   '/admin/quotes': typeof AuthenticatedAdminQuotesRoute
   '/admin/ready-check': typeof AuthenticatedAdminReadyCheckRoute
   '/admin/save-my-spot-rules': typeof AuthenticatedAdminSaveMySpotRulesRoute
+  '/admin/save-spot-reminder-blast': typeof AuthenticatedAdminSaveSpotReminderBlastRoute
   '/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
   '/admin/templates': typeof AuthenticatedAdminTemplatesRoute
   '/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
@@ -1000,6 +1009,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/quotes': typeof AuthenticatedAdminQuotesRoute
   '/_authenticated/admin/ready-check': typeof AuthenticatedAdminReadyCheckRoute
   '/_authenticated/admin/save-my-spot-rules': typeof AuthenticatedAdminSaveMySpotRulesRoute
+  '/_authenticated/admin/save-spot-reminder-blast': typeof AuthenticatedAdminSaveSpotReminderBlastRoute
   '/_authenticated/admin/team-ups': typeof AuthenticatedAdminTeamUpsRoute
   '/_authenticated/admin/templates': typeof AuthenticatedAdminTemplatesRoute
   '/_authenticated/admin/test-centre': typeof AuthenticatedAdminTestCentreRoute
@@ -1113,6 +1123,7 @@ export interface FileRouteTypes {
     | '/admin/quotes'
     | '/admin/ready-check'
     | '/admin/save-my-spot-rules'
+    | '/admin/save-spot-reminder-blast'
     | '/admin/team-ups'
     | '/admin/templates'
     | '/admin/test-centre'
@@ -1220,6 +1231,7 @@ export interface FileRouteTypes {
     | '/admin/quotes'
     | '/admin/ready-check'
     | '/admin/save-my-spot-rules'
+    | '/admin/save-spot-reminder-blast'
     | '/admin/team-ups'
     | '/admin/templates'
     | '/admin/test-centre'
@@ -1332,6 +1344,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/quotes'
     | '/_authenticated/admin/ready-check'
     | '/_authenticated/admin/save-my-spot-rules'
+    | '/_authenticated/admin/save-spot-reminder-blast'
     | '/_authenticated/admin/team-ups'
     | '/_authenticated/admin/templates'
     | '/_authenticated/admin/test-centre'
@@ -1822,6 +1835,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSaveMySpotRulesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/save-spot-reminder-blast': {
+      id: '/_authenticated/admin/save-spot-reminder-blast'
+      path: '/save-spot-reminder-blast'
+      fullPath: '/admin/save-spot-reminder-blast'
+      preLoaderRoute: typeof AuthenticatedAdminSaveSpotReminderBlastRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/team-ups': {
       id: '/_authenticated/admin/team-ups'
       path: '/team-ups'
@@ -2257,6 +2277,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminQuotesRoute: typeof AuthenticatedAdminQuotesRoute
   AuthenticatedAdminReadyCheckRoute: typeof AuthenticatedAdminReadyCheckRoute
   AuthenticatedAdminSaveMySpotRulesRoute: typeof AuthenticatedAdminSaveMySpotRulesRoute
+  AuthenticatedAdminSaveSpotReminderBlastRoute: typeof AuthenticatedAdminSaveSpotReminderBlastRoute
   AuthenticatedAdminTeamUpsRoute: typeof AuthenticatedAdminTeamUpsRoute
   AuthenticatedAdminTemplatesRoute: typeof AuthenticatedAdminTemplatesRoute
   AuthenticatedAdminTestCentreRoute: typeof AuthenticatedAdminTestCentreRoute
@@ -2301,6 +2322,8 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminReadyCheckRoute: AuthenticatedAdminReadyCheckRoute,
   AuthenticatedAdminSaveMySpotRulesRoute:
     AuthenticatedAdminSaveMySpotRulesRoute,
+  AuthenticatedAdminSaveSpotReminderBlastRoute:
+    AuthenticatedAdminSaveSpotReminderBlastRoute,
   AuthenticatedAdminTeamUpsRoute: AuthenticatedAdminTeamUpsRoute,
   AuthenticatedAdminTemplatesRoute: AuthenticatedAdminTemplatesRoute,
   AuthenticatedAdminTestCentreRoute: AuthenticatedAdminTestCentreRoute,
