@@ -46,7 +46,7 @@ void LAUNCH_COPY_APPROVED;
  *  mode "preview" renders without sending and without creating any link token (missing links become placeholders);
  *  "manual_copy" is the same render but issues the lead's missing unsubscribe/referral links for an Office hand-send (STEP 32);
  *  "test_to_jo" sends a real lead's email to Jo's inbox only, with TEST-job links. */
-export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string; /** TEST only: send the Step 3 likely-eligible email instead, same facts. */ variant?: "likely_estimate"; mode?: "send" | "preview" | "manual_copy" | "test_to_jo" | "test_preview"; automaticInsulation?: boolean; /** Explicit Office request only; binds the approved request to the review shown in preview. */ morePhotosReviewId?: string; /** Automatic Group B initial only: render the approved received-media acknowledgement variant. */ mediaAcknowledgement?: boolean; /** Set only by the post-Gate-1 router: the owner's own first reply. */ automaticInitial?: boolean; /** S20-R01: set only by the automatic Group B invitation for a NEW enquiry while the master switch is off; the new-enquiry gate is re-checked before the provider call. */ newEnquiryAutoReply?: boolean; /** Office manual copy only (Jo, 12 Oct): render the approved three-variant email. Never sends. */ officeVariant?: import("./save-spot-offer.core").SaveSpotVariant; /** Set ONLY by the post-intake worker for an ENQ_01 manual-backlog item (unforgeable Symbol). */ manualBacklog?: import("./manual-backlog.core").ManualBacklogTrust };
+export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string; /** TEST only: send the Step 3 likely-eligible email instead, same facts. */ variant?: "likely_estimate"; mode?: "send" | "preview" | "manual_copy" | "test_to_jo" | "test_preview"; automaticInsulation?: boolean; /** Explicit Office request only; binds the approved request to the review shown in preview. */ morePhotosReviewId?: string; /** Automatic Group B initial only: render the approved received-media acknowledgement variant. */ mediaAcknowledgement?: boolean; /** Set only by the post-Gate-1 router: the owner's own first reply. */ automaticInitial?: boolean; /** S20-R01: set only by the automatic Group B invitation for a NEW enquiry while the master switch is off; the new-enquiry gate is re-checked before the provider call. */ newEnquiryAutoReply?: boolean; /** Office manual copy only (Jo, 12 Oct): render the approved three-variant email. Never sends. */ officeVariant?: import("./save-spot-offer.core").SaveSpotVariant; /** Set ONLY by the post-intake worker for an ENQ_01 manual-backlog item (unforgeable Symbol). */ manualBacklog?: import("./manual-backlog.core").ManualBacklogTrust; /** Jo 21 Oct: Office-approved send of a held Office review enquiry (sendOfficeHeldEmail only). */ officeHeld?: boolean };
 /** Jo's own inbox for "send me a test of this lead". */
 export const JO_TEST_INBOX = "jolowexo@hotmail.com";
 /** TEST job whose links go into Jo's test copies, so pressing them never touches the real lead. */
@@ -142,7 +142,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     const { noSizeInitialAllowed } = await import("./no-size-estimate.core");
     const automaticInitial = noSizeInitialAllowed({ isTest, mode, manualBacklog: isManualBacklog(testOpts) });
     if (!automaticInitial && testOpts.automaticInitial === true) return r("skipped", NO_SIZE_REAL_SEND_HELD);
-    const b = noSizeEstimateBlocker({ areaSource: est?.area_source ?? null, areaM2: price.areaM2, ownerArea: job.estimated_area_unknown ? null : Number(job.estimated_area_m2) || null, insulation: price.insulation, followup, automaticInitial });
+    const b = noSizeEstimateBlocker({ areaSource: est?.area_source ?? null, areaM2: price.areaM2, ownerArea: job.estimated_area_unknown ? null : Number(job.estimated_area_m2) || null, insulation: price.insulation, followup, automaticInitial, officeHeld: testOpts.officeHeld === true && !!actorId, insulationEmail: testOpts.group === "onsite" });
     if (b) return r("skipped", b);
   }
   if (followup && (price.insulation !== "present" || !(await followupAllowed(link.token)))) return r("blocked", "A qualifying declaration or approved below-R2 review and current existing-insulation estimate are required.");
@@ -416,6 +416,18 @@ export async function maybeAutoSendSaveSpot(jobId: string): Promise<void> {
 }
 
 /** Group B real delivery requires BOTH global switches on (customer_comms_enabled + delivery enabled). Unreadable = off. */
+/** Jo 21 Oct: Office sends the right held email for one Office review enquiry. Every normal guard still runs. */
+export async function sendOfficeHeldEmail(jobId: string, actorId: string, insulationEmail: boolean): Promise<HotSendResult> {
+  if (!actorId) throw new Error("Office actor required");
+  if (insulationEmail) {
+    if (!(await groupBGlobalsOn())) return { jobId, jobNumber: null, outcome: "blocked", detail: GROUP_B_GLOBALS_OFF };
+    const initial = groupBInitialAction(await groupBMediaForJob(jobId));
+    if ("held" in initial) return { jobId, jobNumber: null, outcome: "blocked", detail: initial.held };
+    return sendOne(jobId, actorId, true, { group: "onsite", automaticInsulation: true, officeHeld: true, ...(initial.action === "acknowledge" ? { mediaAcknowledgement: true } : {}) });
+  }
+  return sendOne(jobId, actorId, await realSendingOn(), { officeHeld: true });
+}
+
 export async function groupBGlobalsOn(): Promise<boolean> {
   const [{ data: w, error: we }, { data: d, error: de }] = await Promise.all([
     admin.from("workflow_settings").select("customer_comms_enabled").limit(1).maybeSingle(),
