@@ -45,8 +45,8 @@ export const GATE_DOCS: GateDoc[] = [
   // PENDING: two cooling-off variants await Jo's answer. Stays DRAFT and blocks real jobs.
   { key: "cooling_off_notice", gate: "B", title: "Cooling-off", version: "pending-jo-variants", draftNote: "Pending — awaiting Jo's choice of variant", signer: "owner", tick: "I have read this",
     body: `${DRAFT}\n\nCooling-off wording pending Jo's choice between two variants.` },
-  // 7 Oct payment rule: DRAFT pending lawyer — blocks real jobs until Jo approves it in Settings.
-  { key: "payment_terms", gate: "B", title: "Payment", version: "draft-2026-10-07", draftNote: "Draft, awaiting lawyer", signer: "owner", tick: "I agree",
+  // Jo approved this PIESA-fee wording 21 Oct 2026 (replaces draft-2026-10-07; signed copies keep their stored text).
+  { key: "payment_terms", gate: "B", title: "Payment", version: "jo-2026-10-21", approvalNote: "Jo Lowe — approved 21 Oct 2026", signer: "owner", tick: "I agree",
     body: "{safety_fee_text}\n\n{payment_option_text}" },
   { key: "piesa_copy_receipt", gate: "C", title: "Your safety check copy", ...L, signer: "owner", tick: "I have received it",
     body: "I have received a copy of the signed electrical safety check (PIESA) for my home. [View my copy]" },
@@ -57,7 +57,7 @@ export const GATE_DOCS: GateDoc[] = [
 ];
 
 /** Approved payment option wording (options offered still depend on Jo's payment rule). */
-export const SAFETY_FEE_TEXT = "I'll pay the {fee} electrical safety check fee now. I understand it is non-refundable once the safety check has been done, even if the check finds the job can't go ahead.";
+export const SAFETY_FEE_TEXT = "I'll pay the {fee} Pre Insulation Electrical Safety Assessment (PIESA) fee now. I understand it's non-refundable once the PIESA is done, even if it finds the job can't go ahead.";
 export const PAYMENT_OPTION_TEXT = {
   two_instalments: "Pay the balance of {balance} in two instalments: {half} when my install is booked and {half2} on install day.",
   pay_in_full: "Pay the full {total} now.",
