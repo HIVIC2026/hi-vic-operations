@@ -32,11 +32,11 @@ export const GATE_DOCS: GateDoc[] = [
     body: "Who owns the home?\nI own it / I'm a tenant / I'm buying it / Other\nAnswer: {role}" },
   { key: "life_support_answer", gate: "A", title: "Life support", ...L, signer: "owner", tick: "That's right",
     body: "Does anyone at the property rely on life support equipment that needs electricity? Yes / No\nAnswer: {life_support}" },
-  { key: "tenancy_details", gate: "A", title: "Your landlord or agent", ...L, signer: "owner", tick: "That's right",
+  { key: "tenancy_details", gate: "B", title: "Your landlord or agent", ...L, signer: "owner", tick: "That's right",
     body: "Landlord or agent's name: {landlord_name}\nPhone: {landlord_phone}\nEmail: {landlord_email}\nWe'll ask your landlord to agree before any work is booked." },
-  { key: "landlord_consent", gate: "A", title: "Landlord consent", ...L, signer: "office", tick: "Landlord consent received",
+  { key: "landlord_consent", gate: "B", title: "Landlord consent", ...L, signer: "office", tick: "Landlord consent received",
     body: "I am the owner (or authorised agent) of {address}. I agree to ceiling insulation being installed under the Victorian Energy Upgrades program, arranged by Home Insulation Victoria, and to the electrical safety check and installation visits needed." },
-  { key: "visit_permission", gate: "A", title: "Earlier visit", ...L, signer: "owner", tick: "I confirm",
+  { key: "visit_permission", gate: "B", title: "Earlier visit", ...L, signer: "owner", tick: "I confirm",
     body: "I confirm {installer} visited my home on or around {visit_date} with my permission, and I'm happy for Home Insulation Victoria to use what they measured." },
   { key: "quote_acceptance", gate: "B", title: "The agreement", ...L, signer: "owner", tick: "I accept",
     body: "I accept this quote (version {quote_version}, {total} inc GST after the VEU discount) and the [Customer Agreement] with DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.\n\nI am the owner of the property, or I have the owner's authority to sign. I am 18 or older." },
@@ -151,18 +151,20 @@ function docItem(f: GateFacts, k: GateDocKey): GateItem {
 }
 
 export function evaluateOwnerGates(f: GateFacts): GateResult[] {
-  const A: GateItem[] = (["contact_privacy", "trade_contact_share", "details_confirmation", "life_support_answer"] as GateDocKey[]).map((k) => docItem(f, k));
-  if (f.tenant) A.push(docItem(f, "tenancy_details"), docItem(f, "landlord_consent"));
-  if (f.visitedByInstaller) A.push(docItem(f, "visit_permission"));
-  if (f.onsiteConsent) A.splice(0, A.length, { key: "onsite_consent", label: "On-site consent (owner ticked, or installer confirmed)", done: true, draft: false });
+  // Jo 21 Oct: Gate A is no longer required before any visit (contact consent and life support come from the enquiry form,
+  // ownership is in Gate B). Its tenancy and earlier-visit items moved to Gate B; stored Gate A signatures are kept as history.
+  const A: GateItem[] = [];
 
   const B: GateItem[] = [
     { key: "customer_agreement", label: "Customer agreement + consumer rights", done: f.agreementSigned, draft: !f.agreementWordingApproved },
-    docItem(f, "quote_acceptance"), docItem(f, "veec_assignment_consent"), docItem(f, "cooling_off_notice"), docItem(f, "payment_terms"),
+    docItem(f, "quote_acceptance"), docItem(f, "veec_assignment_consent"), docItem(f, "payment_terms"),
   ];
+  // Jo 6 Oct: no cooling-off period (all customers come through the website) — cooling_off_notice is not required.
+  if (f.tenant) B.push(docItem(f, "tenancy_details"), docItem(f, "landlord_consent"));
+  if (f.visitedByInstaller) B.push(docItem(f, "visit_permission"));
   const C: GateItem[] = [
     { key: "esc_consent", label: "ESC information-sharing consent (Reg 23A)", done: f.escConsentSigned, draft: false },
-    { key: "piesa_copy", label: "Safety check (PIESA) copy delivered", done: f.piesaCopyDelivered, draft: false },
+    { key: "piesa_copy", label: "PIESA copy delivered", done: f.piesaCopyDelivered, draft: false },
     docItem(f, "piesa_copy_receipt"),
   ];
   if (f.lifeSupport) C.push(docItem(f, "life_support_plan"));
@@ -181,14 +183,12 @@ export function evaluateOwnerGates(f: GateFacts): GateResult[] {
 }
 
 /** Which gates must be complete before entering a stage. */
-const VISIT = ["ready_check_scheduled", "assessment_booked", "piesa_scheduled", "rectification_booked", "installation_booked", "evidence_outstanding"];
 const ACCEPTED = ["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked", "piesa_and_install_window_pending", "piesa_scheduled", "evidence_outstanding"];
 export function gatesForStage(to: string): Gate[] {
   const g: Gate[] = [];
-  if (VISIT.includes(to) || ACCEPTED.includes(to)) g.push("A");
   if (ACCEPTED.includes(to)) g.push("B");
   if (to === "evidence_outstanding") g.push("C");
-  if (["ready_for_veec", "complete"].includes(to)) g.push("A", "B", "C", "D");
+  if (["ready_for_veec", "complete"].includes(to)) g.push("B", "C", "D");
   return g;
 }
 

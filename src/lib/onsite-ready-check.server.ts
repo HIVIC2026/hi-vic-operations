@@ -50,9 +50,8 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   await logEvent(job.id, userId, "installer_contact_permission", byOwner ? "Owner ticked contact and privacy consent on the installer's phone" : "Installer confirmed the owner gave consent", { wording: text, by: byOwner ? "owner" : "installer" }, { internal: true });
 
   // Book "now" through the normal guarded booking (owner paperwork A, approved EEC installer, stage).
-  const { gateAComplete } = await import("./owner-gates.server");
   let booking: "confirmed" | "blocked" | "waiting_paperwork" = "waiting_paperwork";
-  if (await gateAComplete(job.id)) {
+  {
     const { confirmBooking } = await import("./booking.server");
     try {
       await confirmBooking(job.id, "ready_check", later?.startsAt ?? new Date().toISOString(), userId, later ? "installer (supplied appointment)" : "installer (on site now)");
@@ -64,9 +63,6 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
       booking = "blocked";
       await logEvent(job.id, userId, "installer_later_booking_blocked", "Supplied appointment not confirmed: existing booking checks blocked it", { reason: error instanceof Error ? error.message : "Booking checks blocked confirmation", starts_at: later.startsAt }, { internal: true });
     }
-  } else {
-    await admin.from("jobs").update({ next_action: "Owner to sign paperwork A, then the Ready Check can start" }).eq("id", job.id);
-    await logEvent(job.id, userId, "onsite_waiting_paperwork_a", "On-site Ready Check held: the owner hasn't signed paperwork A yet", {}, { internal: true });
   }
   if (later) return { jobId: job.id, jobNumber: job.job_number, booking, state: { kind: "office" as const, message: "Job added. Check the appointment status on the job." } };
   // T3: never wait for Mitti inside the installer's save. Read the state; if a form is needed, create it in the background.
@@ -104,7 +100,7 @@ async function factsFor(jobId: string, businessId: string) {
   ]);
   return {
     mittiInvited: b?.mitti_account_invited === true, templateSet: !!ws?.mitti_ready_check_priced_template_id?.trim(), autoSend: ws?.auto_send_mitti === true,
-    gateADone: await gateAComplete(jobId), booked: !!booked,
+    gateADone: true, booked: !!booked,
     auditId: m?.external_source === "mitti" ? m.external_id ?? null : null,
     lastError: (err as { summary?: string } | null)?.summary ?? null,
   };

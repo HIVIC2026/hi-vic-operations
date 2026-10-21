@@ -165,13 +165,10 @@ export async function startReadyCheckOffers(jobId: string, actorId: string | nul
   ]);
   const b = readyCheckStartBlockers({ stage: job?.stage ?? "", hasInstaller: inst, openWindows: w.open.length, hasOpenOffers: !!open && !opts.adding });
   if (b.length) throw new WorkflowError(`Ready Check offers cannot start: ${b.join(" ")}`);
-  await (await import("./owner-gates.server")).assertGateA(jobId, "Ready Check offers");
   return offerNextReadyCheckBatch(jobId, actorId, onlyBusiness);
 }
 
 async function offerNextReadyCheckBatch(jobId: string, actorId: string | null, onlyBusiness?: string | string[]) {
-  // Gate A on EVERY offer path (start, office picks, 15-minute refill sweep): no trade sees the job before owner consent.
-  if (!(await (await import("./owner-gates.server")).gateAComplete(jobId))) return { offered: 0, exhausted: false };
   const { businessHours, batchSize } = await settings();
   const [{ candidates }, w, { data: prior }, { data: j }] = await Promise.all([
     installerCandidatesFor(jobId), readyCheckWindowRound(jobId),

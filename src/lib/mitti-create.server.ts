@@ -115,7 +115,7 @@ export async function readyCheckFormFacts(jobId: string) {
     job: j, installerUserId: asg?.user_id ?? null,
     mittiInvited: (b as { mitti_account_invited?: boolean } | null)?.mitti_account_invited === true,
     templateSet: !!template?.trim(), autoSend: ws?.auto_send_mitti === true,
-    gateADone: await gateAComplete(jobId), booked: !!booked,
+    gateADone: true, booked: !!booked,
     auditId: m?.external_source === "mitti" ? m.external_id ?? null : null,
     measurementComplete: m?.status === "complete",
   };
