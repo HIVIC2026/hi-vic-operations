@@ -4,7 +4,7 @@ import { stageMismatches } from "./nextstep.core";
 
 export type TodoItem = {
   key: string; // stable per underlying record + task
-  category: "Payments" | "Eligibility" | "Pricing" | "Measure-up" | "Scheduling" | "Compliance" | "Partners";
+  category: "Payments" | "Eligibility" | "Pricing" | "Ready Check" | "Scheduling" | "Compliance" | "Partners";
   jobId: string | null; jobNumber: string | null; property: string | null;
   title: string; action: string; tab: string | null; since: string | null; urgent: boolean;
 };
@@ -31,9 +31,9 @@ export type TodoInput = {
 export const OFFICE_STAGE_ACTIONS: Record<string, { category: TodoItem["category"]; title: string; action: string; tab: string }> = {
   eligibility_review: { category: "Eligibility", title: "Decide eligibility", action: "Open the Eligibility tab, check the numbered checklist and record the decision.", tab: "eligibility" },
   awaiting_electrician: { category: "Scheduling", title: "Assign an electrician", action: "Open the Overview tab and assign an approved electrician for the PIESA.", tab: "overview" },
-  ready_check_ready_to_schedule: { category: "Scheduling", title: "Arrange the free installer Ready Check", action: "Assign an installer for the free Ready Check – or, if the installer already supplied a full measure-up, review and approve it on the Assessment tab.", tab: "assessment" },
+  ready_check_ready_to_schedule: { category: "Scheduling", title: "Book Ready Check", action: "Assign an installer for the free Ready Check – or, if the installer already supplied a full measure-up, review and approve it on the Assessment tab.", tab: "assessment" },
   ready_for_installer_quotes: { category: "Pricing", title: "Prepare the quote", action: "Open the Quotes tab and generate the installation quote options.", tab: "quotes" },
-  ap_review: { category: "Compliance", title: "Complete AP review", action: "Open the Evidence and VEEC tabs, verify every item and pass AP review.", tab: "evidence" },
+  ap_review: { category: "Compliance", title: "Do final check", action: "Open the Evidence and VEEC tabs, verify every item and pass AP review.", tab: "evidence" },
   ready_for_veec: { category: "Compliance", title: "Lodge VEECs", action: "Lodge with the ESC, then record the quantity and submission reference on the VEEC tab.", tab: "veec" },
 };
 
@@ -76,7 +76,7 @@ export function buildTodos(i: TodoInput): TodoItem[] {
     if (s) push(j.id, { key: `stage:${j.stage}:${j.id}`, category: s.category, title: s.title, action: s.action, tab: s.tab, since: null, urgent: false });
   }
   for (const r of i.rectOther) push(r.job_id, { key: `rect:${r.id}`, category: "Pricing", title: "Price an 'Other' electrical item", action: `Enter description, quantity, price and explanation for "${r.description ?? "item"}" on the PIESA tab.`, tab: "piesa", since: r.created_at, urgent: false });
-  for (const m of i.measureReview) push(m.job_id, { key: `meas:${m.id}`, category: "Measure-up", title: "Review the measure-up", action: "Open the Assessment tab, check the measure-up and evidence, then accept or reject it.", tab: "assessment", since: m.created_at, urgent: false });
+  for (const m of i.measureReview) push(m.job_id, { key: `meas:${m.id}`, category: "Ready Check", title: "Review the Ready Check", action: "Open the Assessment tab, check the measure-up and evidence, then accept or reject it.", tab: "assessment", since: m.created_at, urgent: false });
   for (const r of i.reassignments) push(r.job_id, { key: `reassign:${r.id}`, category: "Scheduling", title: `Decide ${r.role} reassignment`, action: `Reason given: "${r.reason ?? "none"}". Approve or decline on the Overview tab.`, tab: "overview", since: r.created_at, urgent: older(r.created_at, 1, i.now) });
   for (const p of i.partnerEnquiries) {
     const signed = (p.source ?? "").startsWith("portal_");

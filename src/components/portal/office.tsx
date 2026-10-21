@@ -122,7 +122,7 @@ export function StageTracker({ current }: { current: string | null }) {
   );
 }
 
-const WAIT_LABEL: Record<string, string> = { Us: "Waiting on us", Owner: "Waiting on the owner", Installer: "Waiting on the installer", Electrician: "Waiting on the electrician", "Owner + Installer": "Waiting on the owner and installer", "Owner + Electrician": "Waiting on the owner and electrician", System: "Happening automatically", Nobody: "Nothing waiting" };
+const WAIT_LABEL: Record<string, string> = { Us: "Waiting on Home Insulation Victoria", Owner: "Waiting on the owner", Installer: "Waiting on the installer", Electrician: "Waiting on the electrician", "Owner + Installer": "Waiting on the owner and installer", "Owner + Electrician": "Waiting on the owner and electrician", System: "Happening automatically", Nobody: "Nothing waiting" };
 
 /** "Right now" card + tracker + money side panel for the office job page. */
 export function JobRightNow({ jobId, people }: { jobId: string; people: { owner: string | null; ownerPhone: string | null; ownerEmail: string | null; installer: string | null; electrician: string | null } }) {

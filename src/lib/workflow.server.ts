@@ -3,7 +3,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { DEFAULT_NEXT_ACTION, STAGE_LABEL, retiredStageBlocker, type JobRole, type Stage } from "./workflow";
+import { STORED_NEXT_ACTION, STAGE_LABEL, retiredStageBlocker, type JobRole, type Stage } from "./workflow";
 
 export class WorkflowError extends Error {}
 
@@ -495,7 +495,7 @@ export async function transition(
     _actor: actorId,
     _summary: summary,
     _details: details as Json,
-    _next: opts.nextAction ?? DEFAULT_NEXT_ACTION[to],
+    _next: opts.nextAction ?? STORED_NEXT_ACTION[to],
   } as never);
   // A concurrent stage change is a workflow outcome (re-evaluate), not a crash: callers that tolerate WorkflowError
   // (autoAdvanceJob, sweeps) must not abort or lose retries because two triggers raced.

@@ -1,5 +1,6 @@
 // Client-safe workflow vocabulary. Rules/guards live in workflow.server.ts.
 import type { Database } from "@/integrations/supabase/types";
+import { stageTag, stageNext, ELIGIBILITY_WORDS } from "./job-wording";
 
 export type Stage = Database["public"]["Enums"]["job_stage"];
 export type EligibilityOutcome = Database["public"]["Enums"]["eligibility_outcome"];
@@ -40,43 +41,13 @@ export const STAGE_ORDER: Stage[] = [
 ];
 export const EXCEPTION_STAGES: Stage[] = ["on_hold", "cancelled"];
 
-export const STAGE_LABEL: Record<Stage, string> = {
-  new_enquiry: "New Enquiry",
-  eligibility_review: "Eligibility Review",
-  preliminary_estimate_ready: "Preliminary Estimate Ready",
-  ready_check_awaiting_acceptance: "Ready Check – Awaiting Acceptance",
-  ready_check_awaiting_payment: "Ready Check – not booked yet",
-  ready_check_ready_to_schedule: "Ready Check – not booked yet",
-  ready_check_scheduled: "Ready Check booked",
-  ready_check_complete: "Ready Check Complete",
-  measured_estimate_ready: "Measured Estimate Ready",
-  measured_quote_accepted: "Measured Quote Accepted",
-  piesa_and_install_window_pending: "PIESA + Install Window Pending",
-  piesa_scheduled: "PIESA Scheduled",
-  piesa_complete: "PIESA Complete",
-  electrical_variation_pending: "Electrical Variation Pending",
-  awaiting_electrician: "Awaiting Electrician",
-  assessment_booking: "Assessment Booking",
-  assessment_booked: "Assessment Booked",
-  assessment_complete: "Assessment Complete",
-  rectification_required: "Rectification Required",
-  awaiting_owner_rectification_approval: "Awaiting Owner Rectification Approval",
-  awaiting_deposit_payment: "Awaiting Deposit Payment",
-  rectification_scheduling: "Rectification Scheduling",
-  rectification_booked: "Rectification Booked",
-  ready_for_installer_quotes: "Ready for Installer Quotes",
-  awaiting_quote_acceptance: "Awaiting Quote Acceptance",
-  installation_scheduling: "Installation Scheduling",
-  installation_booked: "Installation Booked",
-  evidence_outstanding: "Evidence Outstanding",
-  ap_review: "AP Review",
-  ready_for_veec: "Ready for VEEC",
-  complete: "Complete",
-  cancelled: "Cancelled",
-  on_hold: "On Hold",
-};
+// Thin wrappers: all stage words come from job-wording.ts (Jo-approved list, 21 Oct).
+const ALL_STAGES: Stage[] = [...STAGE_ORDER, ...EXCEPTION_STAGES];
+export const STAGE_LABEL = Object.fromEntries(ALL_STAGES.map((s) => [s, stageTag(s)])) as Record<Stage, string>;
+export const DEFAULT_NEXT_ACTION = Object.fromEntries(ALL_STAGES.map((s) => [s, stageNext(s)])) as Record<Stage, string>;
 
-export const DEFAULT_NEXT_ACTION: Record<Stage, string> = {
+/** Stored on jobs.next_action by transitions and read by waitingOn(); NOT display text (screens use job-wording.ts). Kept byte-identical so waitingOn() behaviour is unchanged. */
+export const STORED_NEXT_ACTION: Record<Stage, string> = {
   new_enquiry: "Review eligibility",
   eligibility_review: "Confirm eligibility outcome",
   preliminary_estimate_ready: "Owner to book Home Insulation Ready Check",
@@ -113,9 +84,9 @@ export const DEFAULT_NEXT_ACTION: Record<Stage, string> = {
 };
 
 export const ELIGIBILITY_LABEL: Record<EligibilityOutcome, string> = {
-  likely_eligible: "Likely Eligible",
-  needs_onsite_confirmation: "Needs Onsite Confirmation",
-  does_not_appear_eligible: "Does Not Appear Eligible",
+  likely_eligible: ELIGIBILITY_WORDS.likely_eligible,
+  needs_onsite_confirmation: ELIGIBILITY_WORDS.needs_onsite_confirmation,
+  does_not_appear_eligible: ELIGIBILITY_WORDS.does_not_appear_eligible,
 };
 
 export const EVIDENCE_STATUS_LABEL: Record<string, string> = {
@@ -160,16 +131,16 @@ export type Phase = "enquiries" | "ready_check" | "piesa_window" | "site_assessm
 export const PIPELINE_PHASES: { key: Phase; label: string; stages: Stage[] }[] = [
   { key: "enquiries", label: "Enquiries", stages: ["new_enquiry", "eligibility_review", "preliminary_estimate_ready"] },
   { key: "ready_check", label: "Ready Check", stages: ["ready_check_awaiting_acceptance", "ready_check_awaiting_payment", "ready_check_ready_to_schedule", "ready_check_scheduled", "ready_check_complete", "measured_estimate_ready", "measured_quote_accepted"] },
-  { key: "piesa_window", label: "PIESA + install window", stages: ["piesa_and_install_window_pending", "piesa_scheduled", "piesa_complete", "electrical_variation_pending"] },
-  { key: "site_assessment", label: "Site assessment", stages: ["awaiting_electrician", "assessment_booking", "assessment_booked"] },
-  { key: "quote_approval", label: "Quote & approval", stages: ["assessment_complete", "rectification_required", "awaiting_owner_rectification_approval", "ready_for_installer_quotes", "awaiting_quote_acceptance"] },
-  { key: "deposit", label: "Deposit", stages: ["awaiting_deposit_payment"] },
-  { key: "rectification", label: "Rectification", stages: ["rectification_scheduling", "rectification_booked"] },
-  { key: "installation", label: "Installation", stages: ["installation_scheduling", "installation_booked"] },
-  { key: "evidence_ap_veec", label: "Evidence / AP / VEEC", stages: ["evidence_outstanding", "ap_review", "ready_for_veec"] },
+  { key: "piesa_window", label: "PIESA and install dates", stages: ["piesa_and_install_window_pending", "piesa_scheduled", "piesa_complete", "electrical_variation_pending"] },
+  { key: "site_assessment", label: "PIESA (earlier jobs)", stages: ["awaiting_electrician", "assessment_booking", "assessment_booked"] },
+  { key: "quote_approval", label: "Quote", stages: ["assessment_complete", "rectification_required", "awaiting_owner_rectification_approval", "ready_for_installer_quotes", "awaiting_quote_acceptance"] },
+  { key: "deposit", label: "Payment", stages: ["awaiting_deposit_payment"] },
+  { key: "rectification", label: "Electrical fixes", stages: ["rectification_scheduling", "rectification_booked"] },
+  { key: "installation", label: "Install", stages: ["installation_scheduling", "installation_booked"] },
+  { key: "evidence_ap_veec", label: "Final check and VEECs", stages: ["evidence_outstanding", "ap_review", "ready_for_veec"] },
   { key: "complete", label: "Complete", stages: ["complete"] },
 ];
-export const EXCEPTION_PHASE = { key: "exceptions" as const, label: "On hold / Cancelled", stages: EXCEPTION_STAGES };
+export const EXCEPTION_PHASE = { key: "exceptions" as const, label: "On hold or cancelled", stages: EXCEPTION_STAGES };
 export function phaseForStage(stage: Stage | null | undefined): Phase {
   if (!stage) return "enquiries";
   return PIPELINE_PHASES.find((p) => p.stages.includes(stage))?.key ?? "exceptions";

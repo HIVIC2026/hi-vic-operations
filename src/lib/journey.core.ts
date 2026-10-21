@@ -1,6 +1,6 @@
 // Job journey: the ordered gates and steps every job passes through, derived ONLY from the stage
 // (plus the shared nextStep rule). No stored state, so it can never disagree with the pipeline.
-import { DEFAULT_NEXT_ACTION, STAGE_LABEL, waitingOn, type Stage, type WaitingOn } from "./workflow";
+import { DEFAULT_NEXT_ACTION, STORED_NEXT_ACTION, STAGE_LABEL, waitingOn, type Stage, type WaitingOn } from "./workflow";
 import { nextStep, type NextStepInput } from "./nextstep.core";
 
 export type GateKey = "enquiry" | "ready_check" | "quote" | "deposit" | "piesa" | "rectification" | "install" | "evidence" | "veec";
@@ -46,7 +46,7 @@ export function buildJourney(j: JourneyInput): Journey {
     const cur = order.indexOf(stage);
     const skippedGate = g.key === "rectification" && j.rectificationNeeded === false;
     const steps: JourneyStep[] = stages.map((s) => ({
-      stage: s, label: STAGE_LABEL[s], action: DEFAULT_NEXT_ACTION[s], actor: waitingOn(s, DEFAULT_NEXT_ACTION[s]), legacy: !g.steps.includes(s),
+      stage: s, label: STAGE_LABEL[s], action: DEFAULT_NEXT_ACTION[s], actor: waitingOn(s, STORED_NEXT_ACTION[s]), legacy: !g.steps.includes(s),
       status: skippedGate ? "skipped" : gi < 0 ? "upcoming" : i < gi ? "done" : i > gi ? "upcoming"
         : s === stage ? "current" : cur >= 0 && order.indexOf(s) < cur && g.steps.includes(s) && !(g.legacy ?? []).includes(stage) ? "done" : "upcoming",
     }));

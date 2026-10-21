@@ -9,6 +9,8 @@ export { safetyCheckPayLabel };
 export type Tone = "ok" | "amber" | "rose";
 export type Who = "Owner" | "You" | "Home Insulation Victoria" | string;
 export type StatusBooking = { kind: string; status: string; start: string | null; end: string | null; business: string | null; mine: boolean };
+import { stageWording } from "./job-wording";
+const SITUATION_TRADE = { rcAccept: "Waiting for owner to accept Ready Check" } as const;
 export type StatusFacts = {
   stage: string; stageSince: string | null; now: Date; staff: boolean;
   bookings: StatusBooking[];
@@ -59,8 +61,7 @@ function latest(b: StatusBooking[], kind: string, status?: string) {
 
 export function jobStatusLine(f: StatusFacts): StatusLine {
   const S = f.stage;
-  const amt = (s: string) => (f.staff ? "" : s);
-  const wait = (text: string, who: Who, since: string | null, sentLabel = "sent"): StatusLine => {
+    const wait = (text: string, who: Who, since: string | null, sentLabel = "sent"): StatusLine => {
     const d = days(since, f.now);
     return { text: [text, since ? `${sentLabel} ${fmtDay(since)}` : null, waitTxt(d), who].filter(Boolean).join(" · "), who, since, waitingDays: d, tone: toneFor(who, since, f.now, f.settings), money: null };
   };
@@ -72,26 +73,26 @@ export function jobStatusLine(f: StatusFacts): StatusLine {
   };
   let out: StatusLine;
   switch (S) {
-    case "ready_check_awaiting_acceptance": case "preliminary_estimate_ready": out = wait("Owner deciding on the free Ready Check", "Owner", f.stageSince); break;
+    case "ready_check_awaiting_acceptance": case "preliminary_estimate_ready": out = wait(SITUATION_TRADE.rcAccept, "Owner", f.stageSince); break;
     case "ready_check_ready_to_schedule": {
       // Only "choosing times" when the owner was actually asked and has not picked times since (Jo, 21 Oct).
       const asked = f.rcTimesAskedAt ?? null, given = f.rcTimesGivenAt ?? null;
-      out = asked && (!given || given < asked) ? wait("Owner choosing Ready Check times", "Owner", asked, "asked") : office("Ready Check being arranged", f.stageSince); break;
+      out = asked && (!given || given < asked) ? wait("Owner choosing Ready Check times", "Owner", asked, "asked") : office(stageWording("ready_check_ready_to_schedule").trade!, f.stageSince); break;
     }
-    case "ready_check_scheduled": { const b = latest(f.bookings, "ready_check", "confirmed"); out = b ? booked("Ready Check booked", b) : wait("Ready Check being booked", "Owner", f.stageSince, "since"); break; }
-    case "ready_check_complete": out = office("Being checked by Home Insulation Victoria", f.stageSince); break;
-    case "measured_estimate_ready": case "awaiting_quote_acceptance": out = wait("Quote awaiting owner approval", "Owner", f.quoteSentAt ?? f.stageSince); break;
-    case "measured_quote_accepted": case "awaiting_deposit_payment": out = wait(`Awaiting owner's ${amt("$349 ")}safety check payment`, "Owner", f.quoteAcceptedAt ?? f.stageSince); break;
+    case "ready_check_scheduled": { const b = latest(f.bookings, "ready_check", "confirmed"); out = b ? booked(stageWording("ready_check_scheduled").trade!, b) : wait(stageWording("ready_check_ready_to_schedule").trade!, "Owner", f.stageSince, "since"); break; }
+    case "ready_check_complete": out = office(stageWording("ready_check_complete").trade!, f.stageSince); break;
+    case "measured_estimate_ready": case "awaiting_quote_acceptance": out = wait(stageWording("measured_estimate_ready").trade!, "Owner", f.quoteSentAt ?? f.stageSince); break;
+    case "measured_quote_accepted": case "awaiting_deposit_payment": out = wait(stageWording("measured_quote_accepted").trade!, "Owner", f.quoteAcceptedAt ?? f.stageSince); break;
     case "piesa_and_install_window_pending": case "awaiting_electrician": case "assessment_booking":
-      out = f.ownerTimesChosenAt ? wait("Owner's times sent to the electrician", "Electrician", f.ownerTimesChosenAt) : wait("Owner choosing safety check times", "Owner", f.safetyPaidAt ?? f.stageSince, "since"); break;
-    case "piesa_scheduled": case "assessment_booked": { const b = latest(f.bookings, "assessment", "confirmed"); out = b ? booked("Safety check booked", b) : office("Safety check being booked", f.stageSince); break; }
-    case "piesa_complete": case "assessment_complete": out = office("Safety check done – next step being set up", f.stageSince); break;
-    case "rectification_required": case "awaiting_owner_rectification_approval": case "electrical_variation_pending": out = wait("Electrical fix quote awaiting owner approval", "Owner", f.rectQuoteSentAt ?? f.stageSince); break;
-    case "rectification_scheduling": out = wait("Fixes approved – electrician picking a time", "Electrician", f.stageSince, "since"); break;
-    case "rectification_booked": { const b = latest(f.bookings, "rectification", "confirmed"); out = b ? booked("Electrical fixes booked", b) : office("Electrical fixes being booked", f.stageSince); break; }
-    case "installation_scheduling": out = wait("Install day to be booked", "Installer", f.stageSince, "since"); break;
-    case "installation_booked": { const b = latest(f.bookings, "installation", "confirmed"); out = b ? booked("Install booked", b) : office("Install being booked", f.stageSince); break; }
-    case "evidence_outstanding": out = wait("Install photos and paperwork needed", "Installer", f.stageSince, "since"); break;
+      out = f.ownerTimesChosenAt ? wait("Owner's times sent to the electrician", "Electrician", f.ownerTimesChosenAt) : wait("Owner choosing PIESA times", "Owner", f.safetyPaidAt ?? f.stageSince, "since"); break;
+    case "piesa_scheduled": case "assessment_booked": { const b = latest(f.bookings, "assessment", "confirmed"); out = b ? booked(stageWording("piesa_scheduled").trade!, b) : office(stageWording("piesa_and_install_window_pending").trade!, f.stageSince); break; }
+    case "piesa_complete": case "assessment_complete": out = office(stageWording("piesa_complete").trade!, f.stageSince); break;
+    case "rectification_required": case "awaiting_owner_rectification_approval": case "electrical_variation_pending": out = wait(stageWording("awaiting_owner_rectification_approval").trade!, "Owner", f.rectQuoteSentAt ?? f.stageSince); break;
+    case "rectification_scheduling": out = wait(stageWording("rectification_scheduling").trade!, "Electrician", f.stageSince, "since"); break;
+    case "rectification_booked": { const b = latest(f.bookings, "rectification", "confirmed"); out = b ? booked(stageWording("rectification_booked").trade!, b) : office(stageWording("rectification_scheduling").trade!, f.stageSince); break; }
+    case "installation_scheduling": out = wait(stageWording("installation_scheduling").trade!, "Installer", f.stageSince, "since"); break;
+    case "installation_booked": { const b = latest(f.bookings, "installation", "confirmed"); out = b ? booked(stageWording("installation_booked").trade!, b) : office(stageWording("installation_scheduling").trade!, f.stageSince); break; }
+    case "evidence_outstanding": out = wait(stageWording("evidence_outstanding").trade!, "Installer", f.stageSince, "since"); break;
     case "ap_review": out = office("Being checked by Home Insulation Victoria", f.apApprovedAt ? null : f.stageSince); break;
     case "ready_for_veec": case "complete":
       out = f.payout?.kind === "paid" ? { text: `Paid to you ${fmtDay(f.payout.on)}`, who: null, since: null, waitingDays: null, tone: "ok", money: null }
@@ -123,7 +124,7 @@ export function jobTimeline(f: StatusFacts): TimelineStep[] {
     { key: "ready_check", label: "Ready Check", done: rc?.start ?? null, expected: conf("ready_check")?.start ?? null },
     { key: "quote", label: "Quote accepted", done: f.quoteAcceptedAt, expected: null },
     { key: "safety_paid", label: safetyCheckPayLabel(f.safetyPay, f.staff), done: f.safetyPay.kind === "paid" ? f.safetyPaidAt : null, expected: null },
-    { key: "safety_check", label: "Safety check", done: piesa?.start ?? null, expected: conf("assessment")?.start ?? null },
+    { key: "safety_check", label: "PIESA", done: piesa?.start ?? null, expected: conf("assessment")?.start ?? null },
     { key: "fixes", label: "Electrical fixes (if any)", done: rect?.start ?? null, expected: conf("rectification")?.start ?? null, skip: !!piesa && !fixesNeeded },
     { key: "fixes_paid", label: f.staff ? "Fixes paid" : "Fix costs paid", done: f.fixesPaidAt ?? null, expected: null, skip: !fixesNeeded && !f.fixesPaidAt },
     { key: "first_half", label: f.staff ? "First payment at install booking" : "50% at install booking", done: f.firstHalfPaidAt ?? null, expected: null },
