@@ -173,7 +173,6 @@ export async function startPiesaAllocation(jobId: string, actorId: string | null
   ]);
   const blockers = piesaOfferBlockers({ ...facts, hasActiveElectrician: !!elec, hasOpenOffers: !!open && !opts.adding });
   if (blockers.length) throw new WorkflowError(`${kind === "piesa" ? "PIESA" : "Electrical fixes"} offers cannot start: ${blockers.join(" ")}`);
-  await (await import("./owner-gates.server")).assertGateA(jobId, kind === "piesa" ? "Pre Insulation Electrical Safety Assessment (PIESA) offers" : "Electrical fixes offers");
   if (kind === "piesa") {
     // The job must be able to ENTER the PIESA stage before any offer goes out; otherwise offers are sent and the
     // stage move afterwards is refused (Gate B etc.), stranding live offers on a job electricians cannot book.
@@ -425,8 +424,7 @@ export async function visitContacts(jobId: string, userId: string, role: string)
   const { visitIsCurrent } = await import("./allocation.core");
   const live = (rel ?? []).filter((r) => (r.job_assignments as { active: boolean }).active && visitIsCurrent(r.visit_kind, job?.stage ?? ""));
   const owner = job?.owners as { user_id: string | null; full_name: string | null; phone: string | null; email: string | null } | null;
-  // Trades never see owner details until the owner has signed Gate A (incl. consent to share with trades).
-  if (role !== "owner" && !(await (await import("./owner-gates.server")).gateAComplete(jobId))) return { releases: [] };
+  // Jo 21 Oct: trades get owner contact details once they accept a visit (contact_releases records the sharing notice); no Gate A.
   if (role === "owner") {
     if (owner?.user_id !== userId) return { releases: [] };
     const trades = await Promise.all(live.map(async (r) => {

@@ -216,7 +216,7 @@ async function readyCheckBlockers(jobId: string, to: Stage): Promise<string[]> {
     out.push(...(await installerIntakeState(jobId)).readiness.blockers);
   } else if (to === "measured_estimate_ready") {
     const { count } = await admin.from("ceiling_measurements").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("is_current", true).eq("status", "complete").eq("source_role", "installer");
-    if (!count) out.push("Free Ready Check eligibility Ready Check not yet completed by the installer.");
+    if (!count) out.push("Ready Check not yet completed by the installer.");
     const { verifiedEligible } = await import("./verified-eligibility.server");
     if (!(await verifiedEligible(jobId))) out.push("Verified eligibility not recorded as eligible by the office for the current Ready Check.");
   }

@@ -179,7 +179,7 @@ export const CUSTOMER_PIESA_STAGE = {
   after: "Your PIESA is complete.",
   performedBy: "Your PIESA is completed by a licensed electrician, close to installation.",
   requiredHeading: "ELECTRICAL WORK REQUIRED BEFORE INSTALLATION",
-  noneHeading: "NO ELECTRICAL ELECTRICAL FIXES REQUIRED",
+  noneHeading: "NO ELECTRICAL FIXES REQUIRED",
   noneCopy: "Your PIESA is complete and your installation can proceed to scheduling.",
   compare: { preliminary: "Preliminary electrical allowance", confirmed: "Confirmed PIESA amount", difference: "Difference" },
   higher: "The confirmed electrical work is higher than your preliminary allowance. Please review and approve the variation before anything proceeds.",

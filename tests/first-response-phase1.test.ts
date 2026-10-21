@@ -83,7 +83,7 @@ test("sweep skips answered, closed/active, test, pre-activation, >14 days and ex
 test("received unreviewed media is Office's turn even when the lane is 'insulation requested'", () => {
   const n = enquiryNextStep({ status: "insulation_requested", mediaToReview: true, reviewOutcome: null, mediaCount: 1, fallback: null });
   expect(n.party).toBe("office");
-  expect(n.label).toContain("review 1 photo");
+  expect(n.label).toBe("Check photos");
 });
 test("an unclear review alone leaves Office responsible for the request", () => {
   const next = enquiryNextStep({ status: "insulation_requested", mediaToReview: false, reviewOutcome: "unclear", mediaCount: 2, fallback: null });

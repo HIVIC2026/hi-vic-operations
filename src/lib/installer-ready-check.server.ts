@@ -57,7 +57,6 @@ export async function bookOwnReadyCheck(jobId: string, userId: string, startIso:
   const b = ownBookingBlocker(startIso);
   if (b) throw new WorkflowError(b);
   await requireAction(jobId, "book");
-  await (await import("./owner-gates.server")).assertGateA(jobId, "The Ready Check booking");
   const { confirmBooking } = await import("./booking.server");
   await confirmBooking(jobId, "ready_check", new Date(startIso).toISOString(), userId, "installer (time agreed with the owner)");
   await admin.from("jobs").update({ next_action: READY_CHECK_BOOKED }).eq("id", jobId);
@@ -102,7 +101,6 @@ export async function askOwnerForReadyCheckTimes(jobId: string, userId: string) 
 export async function takeOwnerReadyCheckTime(jobId: string, userId: string, windowId: string) {
   await load(jobId, userId);
   await requireAction(jobId, "pick_owner_time");
-  await (await import("./owner-gates.server")).assertGateA(jobId, "The Ready Check booking"); // check before taking the time
   const nowIso = new Date().toISOString();
   const { data: w } = await admin.from("ready_check_windows").update({ status: "taken", taken_by: userId, taken_at: nowIso })
     .eq("id", windowId).eq("job_id", jobId).eq("status", "open").gt("starts_at", nowIso).select("starts_at").maybeSingle();

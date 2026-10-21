@@ -268,7 +268,7 @@ export const saveMeasurement = createServerFn({ method: "POST" }).middleware([re
     const { jobScope } = await import("./requirements.server");
     const { planMeasurementUpdate } = await import("./scope.core");
     const s = await jobScope(data.jobId);
-    if (role === "installer" && !s.installerTasks.includes("measure_up")) throw new WorkflowError("The eligibility Ready Check is already complete.");
+    if (role === "installer" && !s.installerTasks.includes("measure_up")) throw new WorkflowError("The Ready Check is already complete.");
     const source = role === "admin" ? "admin_import" : "installer";
     const { evidence_notes, ...vals } = data.patch;
     const plan = planMeasurementUpdate({ scope: s.scope, current: s.measurementRow as never, incoming: vals, source });
@@ -302,7 +302,7 @@ export const completeMeasurement = createServerFn({ method: "POST" }).middleware
     const { jobScope, advanceSiteRequirements } = await import("./requirements.server");
     const { missingMeasureFields, MEASURE_FIELD_LABEL } = await import("./scope.core");
     const s = await jobScope(data.jobId);
-    if (role === "installer" && !s.installerTasks.includes("measure_up")) throw new WorkflowError("The eligibility Ready Check is already complete.");
+    if (role === "installer" && !s.installerTasks.includes("measure_up")) throw new WorkflowError("The Ready Check is already complete.");
     const m = s.measurementRow;
     if (!m) throw new WorkflowError("Enter the Ready Check first.");
     if (m.status === "complete") throw new WorkflowError("Ready Check is already accepted.");
@@ -413,7 +413,7 @@ export const setMeasureUpResponsibility = createServerFn({ method: "POST" }).mid
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     await admin.from("jobs").update({ measure_up_responsibility: "installer" }).eq("id", data.jobId);
-    await logEvent(data.jobId, context.userId, "measure_up_responsibility_set", "Eligibility Ready Check assigned to installer");
+    await logEvent(data.jobId, context.userId, "measure_up_responsibility_set", "Ready Check assigned to installer");
     return { ok: true };
   });
 

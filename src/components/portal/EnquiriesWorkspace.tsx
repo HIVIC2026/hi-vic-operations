@@ -25,7 +25,7 @@ import {
   type MediaReviewOutcome,
 } from "@/lib/enquiry-groups.core";
 import { OFFICE_ENQUIRY_LABEL } from "@/lib/office-nav";
-import { RESPONSE_STATE_LABEL, showingRange } from "@/lib/enquiry-response.core";
+import { RESPONSE_STATE_LABEL, showingRange, enquiryRowTag } from "@/lib/enquiry-response.core";
 import { followupSendMessage, followupRequestError, uncertainAttempt } from '@/lib/followup-result.core';
 import { cn } from "@/lib/utils";
 
@@ -590,7 +590,7 @@ export function EnquiriesWorkspace({
                       </td>
                       <td className="p-3">{row.address ?? "—"}</td>
                       <td className="p-3 font-semibold">
-                        {VIEW_LABEL[row.status]}
+                        {enquiryRowTag(row.status, row.mediaToReview === true, VIEW_LABEL)}
                         <div className="text-xs font-normal text-muted-foreground">
                           {RESPONSE_STATE_LABEL[row.responseState]}
                           {row.latestAttemptStatus === "failed" && row.responseState === "none" ? ` · latest attempt failed ${when(row.latestAttemptAt)}` : ""}

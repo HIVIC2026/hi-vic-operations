@@ -49,7 +49,7 @@ function TodayPage() {
         {data && (() => { const b = data.brief; return (<>
           <section className="space-y-3">
             <h2 className="font-heading text-lg font-bold">What needs you</h2>
-            <p className="text-sm">Jobs waiting for final Final check: <span className="font-bold">{b.apQueue}</span></p>
+            <p className="text-sm">Jobs waiting for Final check: <span className="font-bold">{b.apQueue}</span></p>
             <div className="grid gap-3 md:grid-cols-3">
               <NeedGroup title="Urgent" items={b.needs.urgent} tone="text-danger" />
               <NeedGroup title="Today" items={b.needs.today} tone="text-foreground" />

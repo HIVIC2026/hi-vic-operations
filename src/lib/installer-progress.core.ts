@@ -158,7 +158,7 @@ function nextAction(f: ProgressFacts, done: Record<ProgressStepKey, boolean>): N
     if (b.start && Date.parse(b.start) > now) return { who: "You", text: `Install on ${when}.` };
     return { who: "You", text: "Complete the booked installation and record it." };
   }
-  if (!done.evidence) return evidenceNext(f.evidence) ?? { who: HIV, text: "Final Final check of the installation evidence." };
+  if (!done.evidence) return evidenceNext(f.evidence) ?? { who: HIV, text: "Final check of the installation evidence." };
   if (f.veecStatus === "rejected") return { who: HIV, text: "Resolve the regulator's rejection." };
   if (!done.veec) return { who: HIV, text: "Submit the VEEC claim." };
   if (f.veecStatus === "approved") return { who: null, text: "VEECs registered — nothing more to do." };
