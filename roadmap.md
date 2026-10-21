@@ -1,4 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Twilio configured-for-SMS question (Jo, 21 Oct 23:53 UTC)
+- [ ] Read-only check connected Twilio region, SMS-capable number and message endpoint; explain provider configuration versus portal sending block. No sends, retries, reconnects, switch changes or publication.
 ## Office-controlled owner Ready Check booking (Jo, 21 Oct 23:39 UTC)
 - [x] Default-OFF setting and authenticated per-job Office offer; acceptance/window server guards plus live insert/prompt triggers proven on PGlite first. Live setting false; no other switches changed. Save my spot and receipts retained, timer/new-times queues stop while locked.
 - [x] HV-2524 held message in preview based on existing acceptance; no estimate/saved/history/job writes. Read-only non-qa_test acceptance/windows/request-event audit: Kurt only, one $0 acceptance/five closed windows/no booking; no other real owners found.
