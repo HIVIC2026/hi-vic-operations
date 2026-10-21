@@ -40,6 +40,22 @@ test("missing consent stays excluded even with an active own estimate link", asy
   expect(result.skipped[0]?.reason).toBe("No current owner contact consent");
   expect(writes).toBe(0); expect(sends).toBe(0);
 });
+test("stored offer attempt qualifies without a sent email or matched URL", async () => {
+  tables.owner_contact_consents = [{ job_id: jobId, consent_status: "granted" }];
+  tables.customer_email_sends = [];
+  tables.job_communications = [];
+  tables.office_enquiry_index = [{ ...(tables.office_enquiry_index[0] as object), latest_attempt_at: new Date(Date.now() - 25 * 3600000).toISOString() }];
+  const result = await runSaveSpotReminderBlast(true);
+  expect(result.recipientCount).toBe(1);
+  expect(writes).toBe(0); expect(sends).toBe(0);
+});
+test("stored attempt still respects the 24-hour wait", async () => {
+  tables.office_enquiry_index = [{ ...(tables.office_enquiry_index[0] as object), latest_attempt_at: new Date(Date.now() - 23 * 3600000).toISOString() }];
+  const result = await runSaveSpotReminderBlast(true);
+  expect(result.recipientCount).toBe(0);
+  expect(result.skipped[0]?.reason).toBe("Spot offer is less than 24 hours old");
+  expect(writes).toBe(0); expect(sends).toBe(0);
+});
 test("automatic OFF returns before audience scan and creates no SMS claim",async()=>{
   const r=await runSaveSpotReminderBlast(false,true);
   expect(r.recipientCount).toBe(0);expect(r.results).toHaveLength(0);expect(writes).toBe(0);expect(sends).toBe(0);

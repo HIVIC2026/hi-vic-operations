@@ -1,4 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Reminder stored offer/attempt time (Jo, 21 Oct 05:20 UTC)
+- [ ] Accept stored attempt/offer time for spot_offered reminder audience; no email URL match. Keep all other gates, switch OFF; focused tests and actual dry run/counts, no sends/publication.
 ## Reminder recipient links (Jo, 21 Oct 05:14 UTC)
 - [x] Own active quote links replace email-body URL requirement; actual protected dry run 246 recipients/156 skipped. All 402 offered records already have working own links: no renewal/writes needed. Two no-consent exclusions retained, dedup/copy/24h unchanged; 42 focused tests pass including practice claims, build OK, zero reminder SMS. Report all skips/2 samples; no sends/publication.
 ## Two Office defects and ordinary TEST staff evidence (Jo, 21 Oct 04:59 UTC)
