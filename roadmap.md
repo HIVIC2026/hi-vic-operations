@@ -1,5 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Bounded preview performance and QA (Jo, 21 Oct 01:36 UTC)
+- [ ] After affected checks, archive explicit active qa_test manifest through archiveQaJourney; leave genuine-evidence exceptions, HV2648 and root's separate cleanup untouched; verify remaining counts and preserved records.
 - [x] Finish narrow timestamp/actual FREE/two-phase booking proof correction; live proof remains NOT_RUN pending a minimal vetted reversible owner fixture; backup NOT verified after suspicious-activity sign-in refusal.
 - [x] Correct actual route/role/viewport coverage and loaded-panel interaction evidence; targeted canonical runs and consolidated correction report preserve historical limitations without declaring full coverage.
 - [ ] Full route/control/owner-flow readiness remains blocked: missing private token/document/offer/ordinary-staff and reversible owner fixtures; missing /admin/job-queue source and phone /admin/list overflow reported, not fixed in QA-only scope.
