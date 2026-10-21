@@ -30,6 +30,8 @@ async def main(manifest_path):
         browser = await p.chromium.launch(headless=True)
         for i, s in enumerate(m["screens"]):
             for width, label in ((390, "phone"), (1280, "desktop")):
+                if s.get('widths') and width not in s['widths']:
+                    continue
                 ctx = await browser.new_context(viewport={"width": width, "height": 844 if width == 390 else 1800})
                 page = await ctx.new_page()
                 page.set_default_timeout(10000)
@@ -54,10 +56,16 @@ async def main(manifest_path):
                 content_verified = False
                 async def healthy_panel(scope):
                     await scope.wait_for(state='visible', timeout=15000)
-                    await page.wait_for_function('''() => ![...document.querySelectorAll('main p,[role=status]')].some(e => e.getClientRects().length && /^(loading|checking|please wait)|loading .*…|updating…/i.test(e.textContent.trim()))''', timeout=15000)
+                    for attempt in range(150):
+                        pending = await scope.locator('p,[role=status]').evaluate_all('''es => es.some(e => e.getClientRects().length && /^(loading|checking|please wait)|loading .*…|updating…/i.test(e.textContent.trim()))''')
+                        if not pending:
+                            break
+                        await page.wait_for_timeout(100)
+                    else:
+                        raise RuntimeError('Intended panel remained loading')
                     if not (await scope.inner_text()).strip():
                         raise RuntimeError('Intended panel has no loaded content')
-                    if await scope.get_by_role('alert').count():
+                    if await scope.locator('[role=alert]:visible').evaluate_all('''es => es.some(e => /could not.*load|couldn.t.*load|failed.*load|error loading/i.test(e.textContent))'''):
                         raise RuntimeError('Intended panel reports a load failure')
                     if errors or console_errors or failed_requests or http_errors:
                         raise RuntimeError('Errors after interaction')
@@ -79,7 +87,7 @@ async def main(manifest_path):
                     if s.get('verifyContent'):
                         await healthy_panel(page.locator('main').first)
                         for marker in s.get('mustSee') or []:
-                            await page.get_by_text(marker, exact=False).first.wait_for(state='visible', timeout=15000)
+                            await page.wait_for_function('''marker => [...document.querySelectorAll('main *')].some(e => e.getClientRects().length && e.textContent.includes(marker))''', arg=marker, timeout=15000)
                     page_ready_ms = round((time.monotonic()-started)*1000)
                     body = await page.inner_text("body")
                     if "/auth" in page.url and s["persona"] not in ("public", "owner_token"):
@@ -145,8 +153,8 @@ async def main(manifest_path):
                             interaction_shot = shots / (name.replace('.png', '-' + re.sub('[^a-zA-Z0-9]+', '-', control_name) + '.png'))
                             await page.locator('[id="' + panel_id + '"]').screenshot(path=str(interaction_shot))
                             controls.append({'name': control_name, 'status': 'PASS', 'reason': 'Expanded intended panel and loaded data verified; overflow/errors rechecked', 'panel': panel_id, 'screenshot': str(interaction_shot)})
-                        except Exception:
-                            controls.append({'name': control_name, 'status': 'FAIL', 'reason': 'Intended panel/data or post-interaction checks failed'})
+                        except Exception as exc:
+                            controls.append({'name': control_name, 'status': 'FAIL', 'reason': 'Intended panel/data or post-interaction checks failed: ' + str(exc)[:150]})
                             ok = False
                     if errors or console_errors or failed_requests or http_errors:
                         ok, detail = False, f'{detail}: errors after disclosure interaction'

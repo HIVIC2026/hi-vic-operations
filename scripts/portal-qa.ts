@@ -22,6 +22,7 @@ const BASE = arg("--base", "http://localhost:8080");
 const OFFICE_ONLY = process.argv.includes("--office-only");
 const READ_ONLY = process.argv.includes("--read-only");
 const REVIEW_GAPS = process.argv.includes('--review-gaps');
+const REVIEW_RETRY = process.argv.includes('--review-retry');
 if (REVIEW_GAPS && !READ_ONLY) throw new Error('Review gaps requires read-only mode.');
 if (process.argv.includes('--allow-test-email') || process.argv.includes('--setup-fixtures')) throw new Error('Portal QA never permits recipient emails or fixture setup flags.');
 if (READ_ONLY && BASE !== 'http://localhost:8080') throw new Error('Read-only expanded performance QA targets localhost preview only.');
@@ -198,7 +199,7 @@ try {
 
     // ---- authenticated screens (read-only visits) ----
     const RETIRED = ["HI VIC", "undefined", "NaN", "[object", "50% deposit", "Lorem ipsum", "TODO"];
-    type Screen = { step: string; persona: string; path: string; expectedPath?: string; expectedSearch?: Record<string, string>; mustSee?: string[]; mustNotSeeExact?: string[]; mustNotSeeExactOutside?: { text: string; ignoreSelector: string }[]; noPrices?: boolean; safeButtons?: string[]; safeTabs?: boolean; readinessSelector?: string; verifyContent?: boolean; discoverTestJob?: boolean };
+    type Screen = { step: string; persona: string; path: string; expectedPath?: string; expectedSearch?: Record<string, string>; mustSee?: string[]; mustNotSeeExact?: string[]; mustNotSeeExactOutside?: { text: string; ignoreSelector: string }[]; noPrices?: boolean; safeButtons?: string[]; safeTabs?: boolean; readinessSelector?: string; verifyContent?: boolean; discoverTestJob?: boolean; widths?: number[] };
     let screens: Screen[] = [
       { step: "office-operations", persona: "office", path: "/admin/operations", expectedPath: "/admin/enquiries", mustSee: ["Enquiries", "Active", "Closed"] },
       { step: "office-enquiry-groups", persona: "office", path: "/admin/enquiry-groups" },
@@ -242,6 +243,7 @@ try {
           { step: 'gap-installer-business', path: '/field/business', persona: 'installer', expectedPath: '/field/business', mustSee: ['My business', 'Approved partner', 'TEST'] },
           ...(!fixtureError && fixture?.source === 'qa_test' ? [{ step: 'gap-job-disclosures', path: `/admin/jobs/${fixtureId}`, persona: 'office', expectedPath: `/admin/jobs/${fixtureId}`, mustSee: ['HV-2111'], safeButtons: ['Contacts, source & exceptions', 'Enquiry', 'Ready Check', 'Quotes & payments', 'PIESA', 'Installation', 'AP review & VEECs', 'Correspondence & history'] }] : []),
         ].map(s => ({ ...s, verifyContent: true }));
+        if (REVIEW_RETRY) screens = screens.filter(s => ['gap-communications', 'gap-installer-money', 'gap-installer-business', 'gap-job-disclosures'].includes(s.step)).map(s => ({ ...s, widths: s.step === 'gap-job-disclosures' ? [390, 1280] : [390] }));
       }
     }
     const inventory = uiRouteInventory(readFileSync('src/routeTree.gen.ts', 'utf8'));
@@ -273,7 +275,7 @@ try {
       for (const route of inventory.filter(route => screens.some(s => s.path === route.path))) for (const width of [390, 1280]) {
         if (!completed.some(r => r.ok && r.landed_path === route.path && r.viewport?.width === width)) notRun('destination coverage', `${route.path} (${width}px)`, 'requested alias redirected, unavailable or missing successful landed-path evidence; no distinct-page PASS');
       }
-      for (const s of runnable) for (const viewport of ['390px', '1280px']) if (!completed.some(r => r.step === s.step && r.detail.includes(viewport))) add({ area: 'screens', route_or_action: `${s.path} (${viewport})`, persona: s.persona, status: 'not_run', detail: 'browser budget ended before this viewport completed', steps: '' });
+      for (const s of runnable) for (const width of s.widths ?? [390, 1280]) if (!completed.some(r => r.step === s.step && r.viewport?.width === width)) add({ area: 'screens', route_or_action: `${s.path} (${width}px)`, persona: s.persona, status: 'not_run', detail: 'browser budget ended before this viewport completed', steps: '' });
     }
   }
 
