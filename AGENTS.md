@@ -11,7 +11,7 @@
 
 - `docs/HIV_WORKFLOW_SOURCE_OF_TRUTH.md` + `src/config/workflow-decisions.ts` override older prompts/comments/labels; run `bun scripts/scan-retired-terms.ts` before workflow work. Pending DB changes live in `docs/pending-migrations/` and are proven on PGlite (`tests/helpers/pglite-*.ts`) before any live run. Why: stop retired rules returning and keep untested SQL off the live database.
 # Project rules
-- Office saved-spot headlines share the campaign office read and Query cache; operational subset tiles use distinct labels, never alternative saved headlines. Why: one tested total without changing workflow categories.
+- Office saved headlines share campaign cache; subset labels differ. Pending photo rows/counts share the enquiry RPC predicate excluding recorded offers. Why: consistent totals and no offered/photo overlap without changing facts.
 - Save My Spot reminders use own active estimate links, stored offer/attempt timestamps on spot_offered enquiries, shared phone/job claims and reminder-only activation; encrypted links POST through canonical save. Why: decouple email URL matching without weakening other guards.
 - Incoming reset credentials bind Save to the verified user; old sessions never satisfy links. Office TEST handover uses exact QA preflight and a private download. Why: no cross-account access or public credential files.
 - Installer/REC contracts use canonical sections, signing versions and shared versioned Schedule 4 in review/signing; retain prior activatable versions and stored-text historic PDFs. Why: new terms bind exact signatures without rewriting history or revoking approvals.
