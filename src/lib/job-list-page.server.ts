@@ -43,7 +43,7 @@ function scope<T extends ScopeChain<T>>(q: T, archived: ReturnType<typeof jobArc
     cur = cur.or('source.eq.qa_test,office_removed.eq.true,contact_rank.gt.1');
   } else if (mode === "closed") {
     // One pile per job (Jo 21 Oct): Removed/test wins; Ineligible is the catch-all for any other closure.
-    cur = cur.neq("source", "qa_test").eq("office_removed", false).or("contact_rank.is.null,contact_rank.lte.1");
+    cur = cur.or("source.is.null,source.neq.qa_test").eq("office_removed", false).or("contact_rank.is.null,contact_rank.lte.1");
     if (closedView === "completed") cur = cur.eq("stage", "complete");
     else if (closedView === "cancelled") cur = cur.eq("stage", "cancelled");
     else if (closedView === "ineligible") cur = cur.not("stage", "in", OPEN_STAGES);
