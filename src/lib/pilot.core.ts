@@ -458,7 +458,7 @@ export function bucketFor(stage: string): PartnerBucket {
 /** Electrician (REC) dashboard groups, in source-of-truth wording. Presentation only. */
 export const REC_BUCKETS = ["Accepted · Arrange visit", "Awaiting owner confirmation", "Booked", "PIESA complete", "Electrical fixes required", "Electrically cleared", "Other"] as const;
 export function recBucketFor(label: string): (typeof REC_BUCKETS)[number] {
-  if (label === "Rectification required · Arrange visit") return "Electrical fixes required";
+  if (label === "Electrical fixes required · Arrange visit") return "Electrical fixes required";
   return (REC_BUCKETS as readonly string[]).includes(label) ? (label as (typeof REC_BUCKETS)[number]) : "Other";
 }
 
