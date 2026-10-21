@@ -230,7 +230,7 @@ function RemovalNote({ est }: { est: Est }) {
 }
 
 /** Customer-facing estimate. Renders nothing when Gate 1 does not permit display. */
-export function CustomerEstimate({ data, publicPage = false, onReadyCheck, readyCheckClose }: { data: CustomerData; publicPage?: boolean; onReadyCheck?: () => void; readyCheckClose?: React.ReactNode }) {
+export function CustomerEstimate({ data, publicPage = false, onReadyCheck, readyCheckClose }: { data: CustomerData; publicPage?: boolean; onReadyCheck?: (() => void) | undefined; readyCheckClose?: React.ReactNode }) {
   if (!data.visible || !data.mode) return null;
   const fees = data.fees;
   const Heading = publicPage ? "h1" : "h2";
