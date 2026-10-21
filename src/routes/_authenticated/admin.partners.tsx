@@ -357,6 +357,7 @@ function ApprovePartner({ applicationId }: { applicationId: string }) {
       <p className="font-semibold text-success">Approved on {new Date(c.activatedAt!).toLocaleDateString("en-AU")}.</p>
       {msg && <p className="text-sm">{msg}</p>}
       <PartnerLogin applicationId={applicationId} defaultEmail={c.loginEmail} autoResult={autoLogin} />
+      {installers.length > 0 && <WorkerCertifications applicationId={applicationId} installers={installers} />}
     </div>
   );
   const ready = !c.hardBlocked && (!c.needsOverride || override.trim().length >= 10);
@@ -365,7 +366,7 @@ function ApprovePartner({ applicationId }: { applicationId: string }) {
     <div className="space-y-3 rounded-lg border-2 border-primary p-3" data-approve>
       <div className="text-base font-semibold">Approve this partner</div>
       {c.items.length === 0 ? <p className="text-sm text-success">Everything is ready.</p> : <div className="space-y-1 text-sm"><p className="font-medium">Still to do before approving:</p><ul className="list-disc space-y-1 pl-5">{c.items.map((i) => <li key={i.key}>{i.label}</li>)}</ul></div>}
-      {cii.length > 0 && installers.length > 0 && <WorkerCertifications applicationId={applicationId} installers={installers} />}
+      {installers.length > 0 && <WorkerCertifications applicationId={applicationId} installers={installers} />}
       {c.needsOverride && <label className="block text-sm font-medium">Office override reason (needed for the items above)<Textarea className="mt-1" rows={2} value={override} onChange={(e) => setOverride(e.target.value)} placeholder="Why it's OK to approve anyway (at least 10 characters)" /></label>}
       <RateOfferPanel applicationId={applicationId} showActivate={false} onActivate={async () => {}} />
       <ReviewDecision applicationId={applicationId} />
