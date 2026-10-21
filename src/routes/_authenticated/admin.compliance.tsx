@@ -51,8 +51,8 @@ function Compliance() {
           <div className="flex items-center justify-between"><b>{c.label}</b>{c.ready ? <Pill t="good"><CheckCircle2 className="mr-1 h-3 w-3" /> Ready</Pill> : <Pill t="warn"><Clock3 className="mr-1 h-3 w-3" /> Not ready</Pill>}</div>
           <p className="mt-1 text-xs text-muted-foreground">{c.message}</p>
         </div>))}</div>}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="space-y-4">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-2">
+        <div className="min-w-0 space-y-4 break-words">
           {templatesError && <p role="alert" className="rounded border border-danger p-3 text-sm text-danger">Template versions and approvals could not load. <Button size="sm" variant="outline" onClick={() => void refetchTemplates()}>Try again</Button></p>}
           {templatesPending && <p role="status" className="text-sm text-muted-foreground">Loading template versions…</p>}
           {KEYS.map(([k, label]) => (
@@ -63,16 +63,16 @@ function Compliance() {
               {k === "consumer_declaration" && <p className="mb-2 text-xs text-muted-foreground">Before approval, the AP checks the current official Activity 48 assignment source, required fields, final facts and signature order against this version.</p>}
               <ul className="space-y-2">{(!templatesError && !templatesPending ? data : []).filter((t) => t.template_key === k).map((t) => (
                 <li key={t.id} className="rounded border p-2 text-sm">
-                  <div className="flex items-center gap-2"><b>{t.version}</b>{t.approved && t.is_active ? <Pill t="good">Approved and active</Pill> : t.approved ? <Pill>Superseded</Pill> : <Pill t="warn">{t.is_active ? "Selected draft · not approved" : "Draft · not approved"}</Pill>}
+                  <div className="flex flex-wrap items-center gap-2"><b>{t.version}</b>{t.approved && t.is_active ? <Pill t="good">Approved and active</Pill> : t.approved ? <Pill>Superseded</Pill> : <Pill t="warn">{t.is_active ? "Selected draft · not approved" : "Draft · not approved"}</Pill>}
                     {!t.approved && <Button size="sm" className="ml-auto" onClick={() => approve({ id: t.id }, "Approved and activated")}>Approve & activate</Button>}</div>
                   {t.source_note && <div className="text-xs text-muted-foreground">{t.source_note}</div>}
-                  <details><summary className="cursor-pointer text-xs">Official wording</summary><pre className="whitespace-pre-wrap text-xs">{t.body}</pre></details>
+                  <details className="min-w-0"><summary className="cursor-pointer text-xs">Official wording</summary><pre className="whitespace-pre-wrap break-words text-xs">{t.body}</pre></details>
                   {parseFormFields(t.form_fields).length > 0 && <div className="mt-1 text-xs">Form fields: {parseFormFields(t.form_fields).map((f) => `${f.label}${f.required ? "*" : ""}`).join(", ")}</div>}
                 </li>))}</ul>
             </section>
           ))}
         </div>
-        <div className="space-y-4"><section className="space-y-3 rounded-xl border bg-card p-4">
+        <div className="min-w-0 space-y-4"><section className="space-y-3 rounded-xl border bg-card p-4">
            <h2 className="flex items-center gap-2 font-semibold"><FileSignature className="h-4 w-4 text-primary" />Add a version</h2>
           <select className="h-10 w-full rounded border bg-background px-2" value={key} onChange={(e) => setKey(e.target.value as typeof key)}>{KEYS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
           <Input placeholder="Version (e.g. ESC template date)" value={version} onChange={(e) => setVersion(e.target.value)} />

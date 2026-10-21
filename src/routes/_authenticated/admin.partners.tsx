@@ -76,7 +76,7 @@ function Partners() {
       {error && <div role="alert" className="mb-4 rounded-md border border-danger bg-danger-soft p-3 text-sm text-danger">Partner enquiries could not be loaded. Existing applications are safe. <Button size="sm" variant="outline" className="ml-2" onClick={() => void refetch()}>Try again</Button></div>}
       {isPending && <p role="status" className="mb-4 rounded-md border bg-card p-5 text-sm text-muted-foreground">Loading partner enquiries…</p>}
       {queue !== "unfinished" && !error && !isPending && <Tabs value={partnerType} onValueChange={(value) => setPartnerType(value as PartnerType)}>
-        <TabsList>
+        <TabsList className="h-auto max-w-full flex-wrap justify-start">
           {SHOWN_TYPES.map((t) => (
             <TabsTrigger key={t} value={t}>{PARTNER_TYPE_LABEL[t]} <Badge variant="secondary" className="ml-2">{of(t).length}</Badge>
               {of(t).some((r) => r.status === "new") && <Badge className="ml-1">{of(t).filter((r) => r.status === "new").length} new</Badge>}
