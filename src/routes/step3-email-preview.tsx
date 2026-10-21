@@ -98,7 +98,7 @@ function EmailPreview() {
        </div>
        <div className="mb-4 flex flex-wrap gap-2" aria-label="Preview screen">
          <button type="button" aria-pressed={previewKind === "email"} className={btn} style={pill(previewKind === "email")} onClick={() => setPreviewKind("email")}>Email</button>
-           {isQuote && <button type="button" aria-pressed={previewKind === "confirm"} className={btn} style={pill(previewKind === "confirm")} onClick={() => setPreviewKind("confirm")}>Free Insulation Measure-Up & Eligibility Check (test)</button>}
+           {isQuote && <button type="button" aria-pressed={previewKind === "confirm"} className={btn} style={pill(previewKind === "confirm")} onClick={() => setPreviewKind("confirm")}>Free Ready Check (test)</button>}
           {isQuote && <button type="button" aria-pressed={previewKind === "measured"} className={btn} style={pill(previewKind === "measured")} onClick={() => setPreviewKind("measured")}>Measured quote + PIESA (test)</button>}
        </div>
       {previewKind === "measured" && <div className="mb-4 flex flex-wrap gap-2" aria-label="PIESA state">
@@ -109,7 +109,7 @@ function EmailPreview() {
            {isQuote && <a href={PUBLIC_CALCULATOR_URL} target="_blank" rel="noreferrer" className="underline" style={{ color: "#3C51C4" }}>Test Open the calculator → (opens the public calculator)</a>}
          {outcome === "ineligible"
            ? <a href={outcomeTestUrl} target="_blank" rel="noreferrer" className="underline" style={{ color: "#3C51C4" }}>Test Review my result →</a>
-           : <button type="button" onClick={() => setPreviewKind("confirm")} className="underline" style={{ color: "#067A45" }}>Test Arrange my free measure-up & eligibility check →</button>}
+           : <button type="button" onClick={() => setPreviewKind("confirm")} className="underline" style={{ color: "#067A45" }}>Test Arrange my free Ready Check →</button>}
        </div>}
       <div className="mb-4 flex flex-wrap gap-2" aria-label="Preview width">
         <button type="button" aria-pressed={view === "fit"} className={btn} style={pill(view === "fit")} onClick={() => setView("fit")}>Fit</button>

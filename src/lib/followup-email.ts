@@ -7,7 +7,7 @@ export type FollowupEmailInput = { kind: ActiveFollowupKind; estimateUrl: string
 
 const REASSURE = "No payment required. No obligation to proceed with installation.";
 const HELPER = "Your secure estimate link is personal to your property.";
-const SERVICE = "Free Insulation Measure-Up & Eligibility Check";
+const SERVICE = "Free Ready Check";
 const DEMAND = "Demand is high. Installer availability is limited.";
 
 type Copy = { subject: string; preview: string; badge: string; heading: string; intro: string; listTitle: string; ticks: string[]; listNote?: string; actionTitle: string; actionBody: string; demand?: boolean; cta: string; hash?: string };

@@ -8,6 +8,7 @@ type Kind = "customer-visible" | "test-only" | "doc-only" | "internal-identifier
 type Hit = { file: string; line: number; term: string; kind: Kind; action: string };
 
 const TERMS: { term: string; re: RegExp; action: string; strict?: boolean }[] = [
+  { term: "Retired Ready Check service name", re: /measure[- ]up (?:&amp;|&|and) eligibility check/gi, action: "Use Ready Check", strict: true },
   {
     term: "HI VIC / HI VIC! / HIVIC",
     re: /\bHI ?VIC!?(?![a-z_])/g,

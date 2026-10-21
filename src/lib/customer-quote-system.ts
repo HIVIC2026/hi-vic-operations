@@ -150,7 +150,7 @@ export const CUSTOMER_READY_CHECK_PAGE = {
     "Eligibility evidence and site photos are collected",
   ],
   notPiesa: "This is not the mandatory PIESA. Your PIESA is completed later by a licensed electrician, close to installation.",
-  acceptance: "I request the free Home Insulation Ready Check. I understand it is an installer measure-up and eligibility check, and it is not the PIESA.",
+  acceptance: "I request the free Home Insulation Ready Check. I understand the installer will measure my ceiling and check eligibility, and it is not the PIESA.",
 } as const;
 
 export const CUSTOMER_MEASURED_QUOTE = {

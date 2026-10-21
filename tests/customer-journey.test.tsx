@@ -14,7 +14,7 @@ describe("customer journey stages", () => {
     const html = renderToStaticMarkup(<ConfirmQuote estimatedPrice={3716.24} onBack={noop} preview testMode />);
     const C = FREE_CHECK_CONFIRM_COPY;
     for (const c of [C.name, C.intro, C.free, C.checklistHeading, C.installer, C.piesa, C.reassurance, CUSTOMER_APPROVAL_REASSURANCE, ...C.checklist]) expect(html).toContain(c.replace(/&/g, "&amp;"));
-    expect(html).not.toMatch(/remaining|\$3,716|YOUR ESTIMATED COST AFTER DISCOUNT|WHAT COULD CHANGE|Ready Check/i);
+    expect(html).not.toMatch(/remaining|\$3,716|YOUR ESTIMATED COST AFTER DISCOUNT|WHAT COULD CHANGE/i);
     expect(html.split(C.cta.replace(/&/g, "&amp;")).length - 1).toBe(1);
     expect(html).toMatch(/<input type="checkbox"(?![^>]*checked)[^>]*>/);
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Confirm my free/);
