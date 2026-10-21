@@ -21,6 +21,7 @@ import { Route as PortalRouteImport } from './routes/portal'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as QaAccessRouteImport } from './routes/qa-access'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as SaveSpotRouteImport } from './routes/save-spot'
 import { Route as Step3EmailPreviewRouteImport } from './routes/step3-email-preview'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedFieldRouteImport } from './routes/_authenticated/field'
@@ -92,6 +93,7 @@ import { Route as ApiFilesSplatRouteImport } from './routes/api/files/$'
 import { Route as ApiPublicAddressSearchRouteImport } from './routes/api/public/address-search'
 import { Route as ApiPublicEnquiryRouteImport } from './routes/api/public/enquiry'
 import { Route as ApiPublicPartnerEnquiryRouteImport } from './routes/api/public/partner-enquiry'
+import { Route as ApiPublicSaveSpotRemindersRouteImport } from './routes/api/public/save-spot-reminders'
 import { Route as ApiPublicUnsubscribeRouteImport } from './routes/api/public/unsubscribe'
 import { Route as EstimateTokenCalculatorRouteImport } from './routes/estimate_.$token.calculator'
 import { Route as EstimateTokenCampaignRouteImport } from './routes/estimate_.$token.campaign'
@@ -178,6 +180,11 @@ const QaAccessRoute = QaAccessRouteImport.update({
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SaveSpotRoute = SaveSpotRouteImport.update({
+  id: '/save-spot',
+  path: '/save-spot',
   getParentRoute: () => rootRouteImport,
 } as any)
 const Step3EmailPreviewRoute = Step3EmailPreviewRouteImport.update({
@@ -572,6 +579,12 @@ const ApiPublicPartnerEnquiryRoute = ApiPublicPartnerEnquiryRouteImport.update({
   path: '/api/public/partner-enquiry',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicSaveSpotRemindersRoute =
+  ApiPublicSaveSpotRemindersRouteImport.update({
+    id: '/api/public/save-spot-reminders',
+    path: '/api/public/save-spot-reminders',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicUnsubscribeRoute = ApiPublicUnsubscribeRouteImport.update({
   id: '/api/public/unsubscribe',
   path: '/api/public/unsubscribe',
@@ -745,6 +758,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/qa-access': typeof QaAccessRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/save-spot': typeof SaveSpotRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/field': typeof AuthenticatedFieldRouteWithChildren
@@ -812,6 +826,7 @@ export interface FileRoutesByFullPath {
   '/api/public/address-search': typeof ApiPublicAddressSearchRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
+  '/api/public/save-spot-reminders': typeof ApiPublicSaveSpotRemindersRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
   '/estimate/$token/calculator': typeof EstimateTokenCalculatorRoute
   '/estimate/$token/campaign': typeof EstimateTokenCampaignRoute
@@ -857,6 +872,7 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/qa-access': typeof QaAccessRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/save-spot': typeof SaveSpotRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/home': typeof AuthenticatedHomeRoute
   '/eligibility/$token': typeof EligibilityTokenRoute
@@ -920,6 +936,7 @@ export interface FileRoutesByTo {
   '/api/public/address-search': typeof ApiPublicAddressSearchRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
+  '/api/public/save-spot-reminders': typeof ApiPublicSaveSpotRemindersRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
   '/estimate/$token/calculator': typeof EstimateTokenCalculatorRoute
   '/estimate/$token/campaign': typeof EstimateTokenCampaignRoute
@@ -967,6 +984,7 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/qa-access': typeof QaAccessRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/save-spot': typeof SaveSpotRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/field': typeof AuthenticatedFieldRouteWithChildren
@@ -1034,6 +1052,7 @@ export interface FileRoutesById {
   '/api/public/address-search': typeof ApiPublicAddressSearchRoute
   '/api/public/enquiry': typeof ApiPublicEnquiryRoute
   '/api/public/partner-enquiry': typeof ApiPublicPartnerEnquiryRoute
+  '/api/public/save-spot-reminders': typeof ApiPublicSaveSpotRemindersRoute
   '/api/public/unsubscribe': typeof ApiPublicUnsubscribeRoute
   '/estimate_/$token/calculator': typeof EstimateTokenCalculatorRoute
   '/estimate_/$token/campaign': typeof EstimateTokenCampaignRoute
@@ -1081,6 +1100,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/qa-access'
     | '/reset-password'
+    | '/save-spot'
     | '/step3-email-preview'
     | '/admin'
     | '/field'
@@ -1148,6 +1168,7 @@ export interface FileRouteTypes {
     | '/api/public/address-search'
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
+    | '/api/public/save-spot-reminders'
     | '/api/public/unsubscribe'
     | '/estimate/$token/calculator'
     | '/estimate/$token/campaign'
@@ -1193,6 +1214,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/qa-access'
     | '/reset-password'
+    | '/save-spot'
     | '/step3-email-preview'
     | '/home'
     | '/eligibility/$token'
@@ -1256,6 +1278,7 @@ export interface FileRouteTypes {
     | '/api/public/address-search'
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
+    | '/api/public/save-spot-reminders'
     | '/api/public/unsubscribe'
     | '/estimate/$token/calculator'
     | '/estimate/$token/campaign'
@@ -1302,6 +1325,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/qa-access'
     | '/reset-password'
+    | '/save-spot'
     | '/step3-email-preview'
     | '/_authenticated/admin'
     | '/_authenticated/field'
@@ -1369,6 +1393,7 @@ export interface FileRouteTypes {
     | '/api/public/address-search'
     | '/api/public/enquiry'
     | '/api/public/partner-enquiry'
+    | '/api/public/save-spot-reminders'
     | '/api/public/unsubscribe'
     | '/estimate_/$token/calculator'
     | '/estimate_/$token/campaign'
@@ -1416,6 +1441,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   QaAccessRoute: typeof QaAccessRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  SaveSpotRoute: typeof SaveSpotRoute
   Step3EmailPreviewRoute: typeof Step3EmailPreviewRoute
   EligibilityTokenRoute: typeof EligibilityTokenRoute
   EstimateTokenRoute: typeof EstimateTokenRoute
@@ -1429,6 +1455,7 @@ export interface RootRouteChildren {
   ApiPublicAddressSearchRoute: typeof ApiPublicAddressSearchRoute
   ApiPublicEnquiryRoute: typeof ApiPublicEnquiryRoute
   ApiPublicPartnerEnquiryRoute: typeof ApiPublicPartnerEnquiryRoute
+  ApiPublicSaveSpotRemindersRoute: typeof ApiPublicSaveSpotRemindersRoute
   ApiPublicUnsubscribeRoute: typeof ApiPublicUnsubscribeRoute
   EstimateTokenCalculatorRoute: typeof EstimateTokenCalculatorRoute
   EstimateTokenCampaignRoute: typeof EstimateTokenCampaignRoute
@@ -1532,6 +1559,13 @@ declare module '@tanstack/react-router' {
       path: '/reset-password'
       fullPath: '/reset-password'
       preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/save-spot': {
+      id: '/save-spot'
+      path: '/save-spot'
+      fullPath: '/save-spot'
+      preLoaderRoute: typeof SaveSpotRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/step3-email-preview': {
@@ -2031,6 +2065,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicPartnerEnquiryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/save-spot-reminders': {
+      id: '/api/public/save-spot-reminders'
+      path: '/api/public/save-spot-reminders'
+      fullPath: '/api/public/save-spot-reminders'
+      preLoaderRoute: typeof ApiPublicSaveSpotRemindersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/unsubscribe': {
       id: '/api/public/unsubscribe'
       path: '/api/public/unsubscribe'
@@ -2446,6 +2487,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   QaAccessRoute: QaAccessRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  SaveSpotRoute: SaveSpotRoute,
   Step3EmailPreviewRoute: Step3EmailPreviewRoute,
   EligibilityTokenRoute: EligibilityTokenRoute,
   EstimateTokenRoute: EstimateTokenRoute,
@@ -2459,6 +2501,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicAddressSearchRoute: ApiPublicAddressSearchRoute,
   ApiPublicEnquiryRoute: ApiPublicEnquiryRoute,
   ApiPublicPartnerEnquiryRoute: ApiPublicPartnerEnquiryRoute,
+  ApiPublicSaveSpotRemindersRoute: ApiPublicSaveSpotRemindersRoute,
   ApiPublicUnsubscribeRoute: ApiPublicUnsubscribeRoute,
   EstimateTokenCalculatorRoute: EstimateTokenCalculatorRoute,
   EstimateTokenCampaignRoute: EstimateTokenCampaignRoute,

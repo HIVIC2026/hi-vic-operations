@@ -61,8 +61,8 @@ async function logJob(input: RealSmsInput, to: string, status: string, detail: s
 }
 
 /** Send one real SMS. Every check runs first; blocked attempts are logged and never reach Twilio. */
-export async function sendRealSms(input: RealSmsInput, blast?: { claimId: string; adminSpotReminderBlast: true }): Promise<RealSmsResult> {
-  const blastAllowed = input.type === "save_spot_reminder" && blast?.adminSpotReminderBlast === true &&
+export async function sendRealSms(input: RealSmsInput, blast?: { claimId: string; adminSpotReminderBlast?: true; scheduledSpotReminder?: true }): Promise<RealSmsResult> {
+  const blastAllowed = input.type === "save_spot_reminder" && (blast?.adminSpotReminderBlast === true || blast?.scheduledSpotReminder === true) &&
     input.idempotencyKey === `save-spot-reminder-blast:v1:${input.jobId}`;
   if (blast && !blastAllowed) throw new Error("Invalid one-off SMS authorization");
   if (blastAllowed && blast) {
@@ -82,7 +82,7 @@ export async function sendRealSms(input: RealSmsInput, blast?: { claimId: string
   const blocked = smsBlocker({
     type: input.type, to: input.to, commsEnabled: await customerCommsEnabled(), typeSwitchOn: await typeSwitchOn(input.type),
     senderConfigured: !!from, optedOut: blastAllowed ? blastOptedOut : to ? await isOptedOut(to) : false, consent, isTestRecord: isTest,
-    adminSpotReminderBlast: blastAllowed,
+    adminSpotReminderBlast: blastAllowed && blast?.adminSpotReminderBlast === true,
   });
   // Claim the idempotency key first (unique). An existing claim means this message was already handled.
   const { data: row, error } = await db.from("sms_messages").insert({

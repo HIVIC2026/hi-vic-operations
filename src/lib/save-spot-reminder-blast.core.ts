@@ -8,6 +8,7 @@ export type BlastRow = {
   spot_saved: boolean | null; deleted_at: string | null; removed: boolean | null; stage: string | null;
   total: number | null; rebate: number | null; link: string | null; consent: boolean;
   linkProblem?: string | null;
+  offeredAt?: string | null;
 };
 export type BlastRecipient = { jobId: string; jobNumber: string | null; phone: string; firstName: string; body: string; idempotencyKey: string };
 export type BlastSkip = { jobId: string; jobNumber: string | null; reason: string };
@@ -37,7 +38,13 @@ export function currentBlastPrice(scenarios: unknown): { total: number | null; r
   return { total: number(standard?.estimated_customer_total), rebate: number(standard?.applied_discount) };
 }
 
-export function selectBlast(rows: BlastRow[], optedOutPhones: string[], handledJobs: string[], handledPhones: string[]) {
+export function reminderTimeBlocker(offeredAt: string | null | undefined, now: number, activatedAt?: string | null) {
+  const offer = Date.parse(offeredAt ?? "");
+  if (!Number.isFinite(offer)) return "Actual spot-offer send time missing";
+  if (activatedAt !== undefined && (!activatedAt || !Number.isFinite(Date.parse(activatedAt)) || offer < Date.parse(activatedAt))) return "Historical offer — catch-up review only";
+  return now - offer < 24 * 60 * 60 * 1000 ? "Spot offer is less than 24 hours old" : null;
+}
+export function selectBlast(rows: BlastRow[], optedOutPhones: string[], handledJobs: string[], handledPhones: string[], timing?: { now: number; activatedAt?: string | null }) {
   const optouts = new Set(optedOutPhones.map(phoneKey).filter(Boolean));
   const sentJobs = new Set(handledJobs), sentPhones = new Set(handledPhones.map(phoneKey).filter(Boolean));
   const recipients: BlastRecipient[] = [], skipped: BlastSkip[] = [], seen = new Set<string>();
@@ -57,7 +64,8 @@ export function selectBlast(rows: BlastRow[], optedOutPhones: string[], handledJ
     else if (seen.has(phone)) why = "Duplicate phone — using most recent enquiry";
     else {
       seen.add(phone);
-      if (!r.owner_name?.trim()) why = "Missing name";
+      if (timing && reminderTimeBlocker(r.offeredAt, timing.now, timing.activatedAt)) why = reminderTimeBlocker(r.offeredAt, timing.now, timing.activatedAt);
+      else if (!r.owner_name?.trim()) why = "Missing name";
       else if (r.total === null || !Number.isFinite(r.total) || r.total < 0) why = "Missing current customer total";
       else if (r.rebate === null || !Number.isFinite(r.rebate) || r.rebate < 0) why = "Missing current VEU rebate";
       else if (!r.link) why = r.linkProblem ?? "Missing existing offered link";

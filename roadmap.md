@@ -1,4 +1,8 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Automatic one-tap spot reminders (Jo, 21 Oct 04:28 UTC)
+- [x] Added encrypted expiring one-tap save-only links, browser POST through canonical save/result and audited reminder-only default-OFF switch. All unrelated switches unchanged.
+- [x] Added 24-hour actual-send selection and future-only automatic callback; hourly managed schedule registered, switch OFF. Practice tests cover switch/audit and replay/deduplication; no schema migration/live sends/publication.
+- [x] Authenticated catch-up dry run: 119 recipients, 283 skips, five exact samples, zero reminder SMS rows. Desktop/390px preview no errors/overflow. Isolated browser saved-result rendering and practice persistence verified; no live homeowner one-tap mutation performed. Publish + published-path check + Jo reminder activation required; catch-up separately confirmed only.
 ## Remaining read-only TEST page/control completion (Jo, 21 Oct 04:16 UTC)
 - [x] Reused existing Office/Alpha sessions via normal refresh; 41 added loaded role/viewport checks PASS, 3 FAIL (Needs me phone overflow; Closed jobs read failure both sizes), 16 safe control checks PASS. No new fixture, data/settings/provider changes or retained helper features.
 - [x] Updated consolidated reports with exact added evidence/redirects; prior 34 checks and root cleanup preserved. Staff/owner sessions and safe private files unavailable; VEEC excluded for automatic provider price fetch. Actual TEST search/sort/pagination NOT_RUN behind Closed jobs load failure.
