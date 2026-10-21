@@ -35,7 +35,7 @@ export function RoleChooser({ email }: { email: string }) {
       <h1 className="font-display text-xl font-bold">Where to?</h1>
       <p className="mt-1 text-sm text-muted-foreground">{email} has office and trade access.</p>
       <div className="mt-4 grid gap-2">
-        <a href="/admin/needs-me" className="flex h-12 items-center justify-center rounded-xl bg-primary font-semibold text-primary-foreground">Office – Needs me</a>
+        <a href="/admin/enquiries" className="flex h-12 items-center justify-center rounded-xl bg-primary font-semibold text-primary-foreground">Office</a>
         <a href="/field" className="flex h-12 items-center justify-center rounded-xl border font-semibold">Trade – My work</a>
       </div>
       <SignOut />

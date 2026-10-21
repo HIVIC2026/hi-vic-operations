@@ -2,7 +2,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
 import { CUSTOMER_PAYMENT_COPY, CUSTOMER_QUOTE_LABELS, CUSTOMER_READY_CHECK } from "./customer-quote-system";
-import { READY_CHECK_COPY_VERSION, READY_CHECK_FEE, READY_CHECK_PAID_NEXT_ACTION, READY_CHECK_PAID_STAGE, acceptanceIsCurrent, readyCheckRemaining, type ReadyCheckAcceptanceState, type TestPaymentOutcome } from "./readycheck.core";
+import { READY_CHECK_COPY_VERSION, READY_CHECK_FEE, READY_CHECK_PAID_NEXT_ACTION, READY_CHECK_PAID_STAGE, acceptanceIsCurrent, readyCheckRemaining, type ReadyCheckAcceptanceState } from "./readycheck.core";
 import { isWellFormedToken, linkUsable, LINK_PURPOSE } from "./estimatelink.core";
 
 type RequestMeta = { ip?: string | null; userAgent?: string | null };
@@ -142,11 +142,6 @@ export async function acceptReadyCheck(token: unknown, meta: RequestMeta = {}, p
   await advanceAfterReadyCheckAcceptance(ctx.link.job_id, created.acceptanceId);
   if (picks) await saveRequestedWindows(ctx.link.job_id, picks);
   return created;
-}
-
-/** Retained only to fail old preview callers safely. */
-export async function simulateReadyCheckPayment(_token: unknown, _outcome: TestPaymentOutcome, _idempotencyKey: string) {
-  throw new Error("The Ready Check is free. No payment is required.");
 }
 
 /** Advances ONCE to Ready Check scheduling. Never touches PIESA, quotes, Xero or deposits. */

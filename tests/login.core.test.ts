@@ -31,7 +31,7 @@ describe("messages never reveal accounts", () => {
 
 describe("where people land", () => {
   test("roles", () => {
-    expect(portalDestination({ roles: ["admin"], hasBusiness: false })).toBe("/admin/needs-me");
+    expect(portalDestination({ roles: ["admin"], hasBusiness: false })).toBe("/admin/enquiries");
     expect(portalDestination({ roles: ["admin", "installer"], hasBusiness: true })).toBe("choose");
     expect(portalDestination({ roles: ["owner"], hasBusiness: false })).toBe("/owner");
   });

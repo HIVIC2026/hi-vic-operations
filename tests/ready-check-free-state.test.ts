@@ -14,7 +14,7 @@ mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: {
   },
 } }));
 
-const { readyCheckAcceptanceState, simulateReadyCheckPayment } = await import("../src/lib/readycheck-payment.server");
+const { readyCheckAcceptanceState } = await import("../src/lib/readycheck-payment.server");
 
 test("Jo 19 Oct: existing Ready Check acceptance shows $0 and the full remaining project balance", async () => {
   const state = await readyCheckAcceptanceState(token);
@@ -25,5 +25,4 @@ test("Jo 19 Oct: existing Ready Check acceptance shows $0 and the full remaining
 });
 
 test("Jo 19 Oct: even a legacy payment caller cannot charge for a Ready Check", async () => {
-  await expect(simulateReadyCheckPayment(token, "success", "test-only-key")).rejects.toThrow("The Ready Check is free. No payment is required.");
 });

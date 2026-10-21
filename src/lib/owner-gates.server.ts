@@ -2,7 +2,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { SAFETY_CHECK_FEE_DEFAULT, balanceSplit } from "./payment-gate.core";
-import { GATE_DOCS, paymentChoices, type PaymentMoney, answerVars, evaluateOwnerGates, installerVisitFromSiteCheck, fillTemplate, gateDoc, ownerGateBlockers, ownerToSign, quoteAcceptanceReady, type GateDocKey, type GateFacts, type GateResult } from "./owner-gates.core";
+import { GATE_DOCS, RETIRED_DOC_KEYS, paymentChoices, type PaymentMoney, answerVars, evaluateOwnerGates, installerVisitFromSiteCheck, fillTemplate, gateDoc, ownerGateBlockers, ownerToSign, quoteAcceptanceReady, type GateDocKey, type GateFacts, type GateResult } from "./owner-gates.core";
 import { agreementSigned, assignmentStatus, logEvent, WorkflowError } from "./workflow.server";
 
 async function sha256(s: string) {
@@ -110,7 +110,7 @@ export async function ownerPaperworkToSign(jobId: string) {
   const { data: pv } = await admin.from("assignment_variations").select("id, reasons").eq("job_id", jobId).eq("status", "pending").order("raised_at", { ascending: false }).limit(1).maybeSingle();
   return {
     pendingVariation: pv ? { id: pv.id, reasons: (Array.isArray(pv.reasons) ? pv.reasons : []).map(String) } : null,
-    gates: gates.map((g) => ({ gate: g.gate, label: g.label, complete: g.complete, items: g.items })),
+    gates: gates.filter((g) => g.gate !== "A").map((g) => ({ gate: g.gate, label: g.label, complete: g.complete, items: g.items })),
     todo: todo.map((t) => { const d = gateDoc(t.key); return { gate: t.gate, key: t.key, title: d.title, tick: d.tick, version: d.version, draft: !facts.approved[t.key], text: t.key === "payment_terms" && money ? paymentChoices(money).safetyFee : fillTemplate(d.body, vars), paymentOptions: t.key === "payment_terms" && money ? paymentChoices(money).options : undefined }; }),
     isTest: facts.isTest,
   };
@@ -223,7 +223,7 @@ export async function paperworkCatalogue() {
     const s = templateDocState((tpl ?? []) as never, k);
     return { key: k, gate: TEMPLATE_GATE[k]!, title: TEMPLATE_TITLE[k]!, version: s.version, status: s.status, approvedBy: who(s.approvedBy), approvedAt: s.approvedAt, managedIn: "Templates", templateId: s.templateId, body: s.body };
   });
-  const own = GATE_DOCS.map((d) => {
+  const own = GATE_DOCS.filter((d) => !RETIRED_DOC_KEYS.has(d.key)).map((d) => {
     const a = (appr ?? []).find((x) => x.doc_key === d.key && x.doc_version === d.version);
     return { key: d.key, gate: d.gate, title: d.title, version: d.version, status: approved[d.key] ? "Approved" : (d.draftNote ?? "Draft"), approvedBy: approved[d.key] && d.approvalNote ? d.approvalNote : who(a?.approved_by ?? null), approvedAt: a?.approved_at ?? null, managedIn: "Here", templateId: null, body: d.body };
   });

@@ -179,10 +179,6 @@ function ReadyCheckPage() {
       </p>
     </header>
 
-    <div className="rounded-lg border border-warning/40 bg-warning/5 p-3 text-sm">
-      <strong>Live sending is switched off.</strong> Both communication switches are off, so a send attempt will be refused and reported here. A successful preview is not a successful send.
-    </div>
-
     {isLoading ? <p role="status" className="mt-4">Loading saved-spot jobs…</p>
       : isError ? <p role="alert" className="mt-4 text-sm text-destructive">Could not load the saved-spot jobs. {error instanceof Error ? error.message : "Try again."}</p>
       : rows.length === 0 ? <p className="mt-4 text-sm text-muted-foreground">No saved-spot jobs are eligible for a Ready Check invitation right now.</p>

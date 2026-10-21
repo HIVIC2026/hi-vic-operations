@@ -11,7 +11,7 @@ import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getJobListPage } from "@/lib/portal.functions";
-import { CLOSED_VIEWS, JOB_SORT_KEYS, JOB_SORT_LABEL, JOB_STAGES, type JobClosedView } from "@/lib/job-list-page.core";
+import { CLOSED_VIEWS, JOB_SORT_KEYS, JOB_SORT_LABEL, VISIBLE_JOB_STAGES, type JobClosedView } from "@/lib/job-list-page.core";
 import { useListControls } from "@/hooks/use-list-controls";
 import { ListPagination } from "@/components/portal/ListPagination";
 import { nextStep } from "@/lib/nextstep.core";
@@ -32,7 +32,7 @@ const COUNT_LABEL: Record<JobClosedView, string> = {
 /** Which URL parameter carries the page-local filter differs per mode, so the route states it. */
 export function jobsSearchSpec(mode: Mode): ListSearchSpec {
   return mode === "active"
-    ? { scopeKey: "stage", scopes: ["all", ...JOB_STAGES], defaultScope: "all" }
+    ? { scopeKey: "stage", scopes: ["all", ...VISIBLE_JOB_STAGES], defaultScope: "all" }
     : { scopeKey: "view", scopes: CLOSED_VIEWS, defaultScope: "completed" };
 }
 

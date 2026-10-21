@@ -52,7 +52,7 @@ export const FREE_CHECK_CONFIRM_COPY = {
   successNext: "They’ll measure your ceiling, assess any existing insulation, confirm eligibility and prepare the job scope so we can confirm your quote.",
 } as const;
 
-export function ConfirmQuote({ onBack, preview = false, testMode = preview, state = null, busy = false, error = null, onAccept, picker, canSubmit = true, after }: { estimatedPrice?: number; assessmentFee?: number; onBack: () => void; preview?: boolean; testMode?: boolean; state?: ReadyCheckAcceptanceState | null; busy?: boolean; error?: string | null; onAccept?: () => void; onTestPayment?: (outcome: "success" | "failure") => void; picker?: React.ReactNode; canSubmit?: boolean; after?: React.ReactNode }) {
+export function ConfirmQuote({ onBack, preview = false, testMode = preview, state = null, busy = false, error = null, onAccept, picker, canSubmit = true, after }: { estimatedPrice?: number; assessmentFee?: number; onBack: () => void; preview?: boolean; testMode?: boolean; state?: ReadyCheckAcceptanceState | null; busy?: boolean; error?: string | null; onAccept?: () => void; picker?: React.ReactNode; canSubmit?: boolean; after?: React.ReactNode }) {
   const accepted = state?.paymentStatus === "accepted";
   const [acknowledged, setAcknowledged] = useState(false);
   const C = FREE_CHECK_CONFIRM_COPY;
