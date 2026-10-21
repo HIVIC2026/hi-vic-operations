@@ -1,3 +1,5 @@
+import { sendKindFromKey } from "./save-spot-delivery.core";
+
 export const LAUNCH_CAMPAIGN = "existing_leads_launch_v1" as const;
 export const LAUNCH_BATCH_SIZE = 50;
 // Jo approved the Save my spot email + landing copy (8 Oct 2026): real enquiry links must work.
@@ -5,6 +7,21 @@ export const LAUNCH_COPY_APPROVED = true;
 
 export type LaunchGroup = "likely" | "onsite";
 export type DeskCheckOutcome = "looks_eligible" | "not_eligible" | "needs_onsite_check";
+
+/** Office campaign numbers (Jo, 21 Oct): the two existing-leads email versions must never be mixed into one "sent"
+ *  figure. "Spots offered" = confirmed Save my spot sends (initial + existing-insulation follow-up) to real homes;
+ *  "Insulation details requested" = confirmed Group B sends. Confirmed = the email service accepted the send ("sent")
+ *  or the outcome is unknown but it may have gone out ("delivered_unrecorded"). TEST (qa_test) copies never count. */
+export function campaignSendCounts(rows: { status: string; idempotency_key: string | null; source: string | null }[]) {
+  const confirmed = new Set(["sent", "delivered_unrecorded"]);
+  let spotsOffered = 0, insulationDetails = 0;
+  for (const row of rows) {
+    if (row.source === "qa_test" || !confirmed.has(row.status)) continue;
+    if (sendKindFromKey(row.idempotency_key) === "insulation_details") insulationDetails++;
+    else spotsOffered++;
+  }
+  return { spotsOffered, insulationDetails };
+}
 
 export function campaignSaveAllowed(group: LaunchGroup, deskStatus: string | null | undefined, ownerQualified = false) {
   if (group === "likely") return true;

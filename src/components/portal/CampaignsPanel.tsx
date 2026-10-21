@@ -20,9 +20,7 @@ const LABEL: Record<string, string> = {
   not_needed: "No desk check",
 };
 const COUNT_LABEL: Record<string, string> = {
-  sent: "Sent",
-  opened: "Opened",
-  spotSaved: "Spots saved (total)",
+  opened: "Emails opened (both campaigns)",
   optedOut: "Opted out",
   videosUploaded: "Videos uploaded",
   looksEligible: "Looks eligible",
@@ -74,18 +72,40 @@ export function CampaignsPanel() {
 
   return (
     <div className="space-y-6">
-      <section className="grid grid-cols-2 gap-2 md:grid-cols-4 lg:grid-cols-8">
-        {Object.entries(data.counts).map(([k, v]) => (
+      <section aria-label="Campaign numbers" className="grid gap-2 md:grid-cols-2">
+        <div className="rounded-md border bg-card p-4">
+          <div className="text-xs font-bold uppercase tracking-wide text-sub">Save my spot offer email</div>
+          <div className="mt-2 font-display text-2xl font-bold">
+            Spots offered: {data.counts.spotsOffered.toLocaleString("en-AU")}
+          </div>
+          <div className="mt-1 text-sm">
+            <b>Spots saved: {data.counts.spotSaved.toLocaleString("en-AU")}</b>
+            {data.counts.spotsOffered > 0 && (
+              <span> ({Math.round((data.counts.spotSaved / data.counts.spotsOffered) * 100)}% of spots offered)</span>
+            )}
+          </div>
+        </div>
+        <div className="rounded-md border bg-card p-4">
+          <div className="text-xs font-bold uppercase tracking-wide text-sub">Insulation details requested (Group B)</div>
+          <div className="mt-2 font-display text-2xl font-bold">
+            Insulation details requested: {data.counts.insulationDetails.toLocaleString("en-AU")}
+          </div>
+          <div className="mt-1 text-sm text-sub">“Tell us about your insulation” email — a separate email, not a spot offer</div>
+        </div>
+      </section>
+      <section className="grid grid-cols-2 gap-2 md:grid-cols-5">
+        {(["opened", "optedOut", "videosUploaded", "looksEligible", "notEligible", "needsOnsite"] as const).map((k) => (
           <div key={k} className="rounded-md border bg-card p-3">
-            <div className="font-display text-2xl font-bold">{v}</div>
+            <div className="font-display text-2xl font-bold">{data.counts[k]}</div>
             <div className="text-xs text-sub">{COUNT_LABEL[k] ?? k}</div>
           </div>
         ))}
       </section>
       <p className="text-xs text-sub">
-        “Spots saved (total)” counts every enquiry that has saved a spot, including any that have
-        since moved to an active job or been closed. The Enquiries “Spot saved” filter counts
-        enquiries still waiting for an installer.
+        Spots offered counts confirmed Save my spot emails sent to real homes (initial + follow-up versions together).
+        “Spots saved” counts every enquiry that has saved a spot, including any that have since moved to an active job
+        or been closed. Insulation details requested counts the separate Group B “tell us about your insulation” email
+        only. TEST copies and failed sends never count in either.
       </p>
       <div className="rounded-md border border-warning/40 bg-warning/5 p-4 text-sm">
         <strong>Campaign sending is off.</strong> Saved-spot follow-ups are sent by the existing

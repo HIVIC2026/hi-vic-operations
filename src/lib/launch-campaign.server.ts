@@ -4,7 +4,7 @@ import { declaredExtras } from "./enquiry.core";
 import { normaliseInsulation } from "./eligibility.core";
 import { effectiveInsulation } from './enquiry-groups.core';
 import { isWellFormedToken, LINK_PURPOSE, linkUsable } from "./estimatelink.core";
-import { LAUNCH_BATCH_SIZE, LAUNCH_CAMPAIGN, LAUNCH_COPY_APPROVED, campaignSaveAllowed, deskCheckReasonError, launchGroup, ownerCalculatorChangeNote, savedPriceFromCalculator, savedPriceFromEstimate, savedPriceLabel, type DeskCheckOutcome } from "./launch-campaign.core";
+import { LAUNCH_BATCH_SIZE, LAUNCH_CAMPAIGN, LAUNCH_COPY_APPROVED, campaignSaveAllowed, campaignSendCounts, deskCheckReasonError, launchGroup, ownerCalculatorChangeNote, savedPriceFromCalculator, savedPriceFromEstimate, savedPriceLabel, type DeskCheckOutcome } from "./launch-campaign.core";
 import { logEvent } from "./workflow.server";
 import { groupBMediaForJob } from "./group-b-media.server";
 import { whatIfEstimate } from "./estimate.core";
@@ -225,7 +225,7 @@ export async function recordInsulationDeclaration(token: unknown, declarationTyp
 export async function launchCampaignOffice() {
   const [{ data: rows, error }, { data: sends }, { data: events }] = await Promise.all([
     admin.from("lead_campaign_responses").select("id, job_id, spot_saved_at, opted_out_at, media_received_at, desk_check_status, desk_check_reason, queue_priority, queue_rank, saved_total, saved_veu_discount, saved_estimate_id, created_at, jobs!inner(job_number, source, owners(full_name), properties(address_line, suburb, postcode), indicative_estimates(id, status, area_m2, insulation_declared, scenarios))").neq("jobs.source", "qa_test").order("queue_rank", { ascending: false }).order("spot_saved_at", { ascending: true, nullsFirst: false }),
-    admin.from("customer_email_sends").select("status").eq("purpose", LAUNCH_CAMPAIGN),
+    admin.from("customer_email_sends").select("status, idempotency_key, jobs!inner(source)").eq("purpose", LAUNCH_CAMPAIGN),
     admin.from("customer_engagement_events").select("event_type").eq("source", "launch_campaign"),
   ]);
   if (error) throw new Error(error.message);
@@ -234,6 +234,7 @@ export async function launchCampaignOffice() {
     sendingLocked: !LAUNCH_COPY_APPROVED,
     batchSize: LAUNCH_BATCH_SIZE,
     counts: {
+      ...campaignSendCounts((sends ?? []).map((s) => ({ status: s.status, idempotency_key: s.idempotency_key, source: (s.jobs as { source: string | null } | null)?.source ?? null }))),
       sent: count(sends, "status", "sent") + count(sends, "status", "delivered_unrecorded"), opened: count(events, "event_type", "email_opened"),
       spotSaved: (rows ?? []).filter((r) => r.spot_saved_at && !r.opted_out_at).length, optedOut: (rows ?? []).filter((r) => r.opted_out_at).length,
       videosUploaded: (rows ?? []).filter((r) => r.media_received_at).length,
