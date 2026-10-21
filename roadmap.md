@@ -2,7 +2,7 @@
 ## Bounded preview performance and QA (Jo, 21 Oct 01:36 UTC)
 - [x] Finish enquiry computation diagnosis/unapplied proposal and meaningful-page timings; expand all 87 route families with explicit fixture gaps. Customer-flow fixture remains separately blocked below.
 - [x] Add reserved-contact and persisted-window proof helpers/tests, provider-denial boundary test and landed-route reporting; historical 37 focused checks PASS. Existing approved Office/Alpha TEST sessions now available; restorable customer fixture is the remaining flow blocker.
-- [x] Incorporate additional read-only document performance and expanded canonical route/control QA evidence: final 82 PASS, 0 FAIL, 114 NOT_RUN; booking gaps retained.
+- [x] Expanded final canonical route/control QA complete: 179 PASS, 0 FAIL, 83 NOT_RUN; 162 viewport renders/51 destinations, 36 clicked read-only controls; earlier 82/0/114 and historical 59/0/12 preserved separately.
 - [x] Measure cold/warm public and authenticated TEST Office preview reads; optimize verified code-only waterfalls.
 - [x] Run focused regression tests and canonical bounded portal QA, excluding Deep and real personas (43 PASS, 23 NOT_RUN).
 - [x] Check desktop/390x844 public/Office/Alpha installer routes, read-only history controls and dummy calculator result; no overflow or runtime errors observed.
