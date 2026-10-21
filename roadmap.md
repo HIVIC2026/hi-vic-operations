@@ -1,6 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Reminder recipient links (Jo, 21 Oct 05:14 UTC)
-- [ ] Use own quote/savings links instead of sent-email URLs; prepare only eligible missing/expired links after practice proof; preserve consent, deduplication and exact text. Dry run only, report count/all skips/2 samples; no sends/publication.
+- [x] Own active quote links replace email-body URL requirement; actual protected dry run 246 recipients/156 skipped. All 402 offered records already have working own links: no renewal/writes needed. Two no-consent exclusions retained, dedup/copy/24h unchanged; 42 focused tests pass including practice claims, build OK, zero reminder SMS. Report all skips/2 samples; no sends/publication.
 ## Two Office defects and ordinary TEST staff evidence (Jo, 21 Oct 04:59 UTC)
 - [x] Closed generated call isolated to Node UND_ERR_HEADERS_OVERFLOW: 444 archived UUID query fails; exact compact live-TEST complement returns same 49 matches/20 rows. Active scope unchanged; no fallback/retries/migration. Needs me wrapping/containment only; 32 focused tests pass, preview build OK.
 - [x] Three formerly failed rows now PASS at exact URLs, real loaded results and viewport widths, 0 console/page/HTTP/transport errors; module aborts separated. Actual ascending sort, page 2, exact-number search and legitimate zero-match evidence at both sizes. Reuse 41 page/16 control passes; original 44-row set now 44 PASS/0 remaining FAIL, no crawl.
