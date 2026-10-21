@@ -277,7 +277,7 @@ try {
     }
 
     // ---- isolated email rule tests ----
-    const EMAIL_TESTS = ["tests/step3-email-parity.test.ts", "tests/save-spot.test.ts", "tests/save-spot-only-approved.test.ts", "tests/group-b-media.test.ts", "tests/group-b-declaration-routing.test.ts", "tests/existing-insulation-followup.test.ts", "tests/existing-insulation-send.test.ts", "tests/email-safety.test.ts", "tests/estimate-email.test.ts"];
+    const EMAIL_TESTS = ["tests/step3-email-parity.test.ts", "tests/save-spot.test.ts", "tests/save-spot-only-approved.test.ts", "tests/group-b-media.test.ts", "tests/group-b-declaration-routing.test.ts", "tests/existing-insulation-followup.test.ts", "tests/existing-insulation-send.test.ts", "tests/email-safety.test.ts", "tests/estimate-email.test.ts", "tests/portal-qa-safety.test.ts", "tests/test-send-reserved-boundary.test.ts", "tests/ready-check-window-readback-isolated.test.ts"];
     if (!fits(60_000)) notRun("emails (isolated)", "email rule tests", "overall budget exhausted", ENV_ISOLATED);
     else {
       const summary = isolatedEmailFiles(EMAIL_TESTS, {
