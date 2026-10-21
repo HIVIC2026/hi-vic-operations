@@ -1,4 +1,8 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Automatic one-tap spot reminders (Jo, 21 Oct 04:28 UTC)
+- [ ] Add secure one-tap save-only links, shared guarded save/result and reminder-only default-OFF switch; retain all unrelated switches.
+- [ ] Add 24-hour actual-send selection, future-only automatic processing and catch-up dry run; prove rules/persistence on practice database, no live sends/publication.
+- [ ] Verify dry-run count/skips/five samples and explain publication/activation steps and timing.
 ## Remaining read-only TEST page/control completion (Jo, 21 Oct 04:16 UTC)
 - [x] Reused existing Office/Alpha sessions via normal refresh; 41 added loaded role/viewport checks PASS, 3 FAIL (Needs me phone overflow; Closed jobs read failure both sizes), 16 safe control checks PASS. No new fixture, data/settings/provider changes or retained helper features.
 - [x] Updated consolidated reports with exact added evidence/redirects; prior 34 checks and root cleanup preserved. Staff/owner sessions and safe private files unavailable; VEEC excluded for automatic provider price fetch. Actual TEST search/sort/pagination NOT_RUN behind Closed jobs load failure.
