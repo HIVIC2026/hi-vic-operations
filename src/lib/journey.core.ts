@@ -23,7 +23,7 @@ export const GATES: GateDef[] = [
   { key: "piesa", title: "Pre Insulation Electrical Safety Assessment (PIESA)", steps: ["piesa_and_install_window_pending", "piesa_scheduled", "piesa_complete"], legacy: ["awaiting_electrician", "assessment_booking", "assessment_booked", "assessment_complete"] },
   { key: "rectification", title: "Electrical fixes (only if needed)", steps: ["electrical_variation_pending", "rectification_required", "awaiting_owner_rectification_approval", "rectification_scheduling", "rectification_booked"] },
   { key: "install", title: "Installation", steps: ["installation_scheduling", "installation_booked"] },
-  { key: "evidence", title: "Evidence & AP review", steps: ["evidence_outstanding", "ap_review"] },
+  { key: "evidence", title: "Evidence & final check", steps: ["evidence_outstanding", "ap_review"] },
   { key: "veec", title: "VEEC", steps: ["ready_for_veec", "complete"] },
 ];
 
