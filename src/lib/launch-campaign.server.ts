@@ -4,7 +4,7 @@ import { declaredExtras } from "./enquiry.core";
 import { normaliseInsulation } from "./eligibility.core";
 import { effectiveInsulation } from './enquiry-groups.core';
 import { isWellFormedToken, LINK_PURPOSE, linkUsable } from "./estimatelink.core";
-import { LAUNCH_BATCH_SIZE, LAUNCH_CAMPAIGN, LAUNCH_COPY_APPROVED, campaignSaveAllowed, campaignSendCounts, deskCheckReasonError, launchGroup, ownerCalculatorChangeNote, savedPriceFromCalculator, savedPriceFromEstimate, savedPriceLabel, type DeskCheckOutcome } from "./launch-campaign.core";
+import { LAUNCH_BATCH_SIZE, LAUNCH_CAMPAIGN, LAUNCH_COPY_APPROVED, officeSpotSavedCount, campaignSaveAllowed, campaignSendCounts, deskCheckReasonError, launchGroup, ownerCalculatorChangeNote, savedPriceFromCalculator, savedPriceFromEstimate, savedPriceLabel, type DeskCheckOutcome } from "./launch-campaign.core";
 import { logEvent } from "./workflow.server";
 import { groupBMediaForJob } from "./group-b-media.server";
 import { whatIfEstimate } from "./estimate.core";
@@ -254,13 +254,20 @@ export async function launchCampaignOffice() {
 
 /** Shared read-only office headline, independent of campaign and operational lane. */
 export async function officeSpotsSaved() {
-  const { count, error } = await admin.from("lead_campaign_responses")
-    .select("id, jobs!inner(source, stage)", { count: "exact", head: true })
-    .not("spot_saved_at", "is", null).is("opted_out_at", null)
-    .or("source.is.null,source.neq.qa_test", { referencedTable: "jobs" })
-    .neq("jobs.stage", "cancelled");
-  if (error) throw new Error(error.message);
-  return count ?? 0;
+  let total = 0;
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await admin.from("lead_campaign_responses")
+      .select("id, spot_saved_at, opted_out_at, jobs!inner(source, stage)")
+      .not("spot_saved_at", "is", null).is("opted_out_at", null)
+      .or("source.is.null,source.neq.qa_test", { referencedTable: "jobs" })
+      .neq("jobs.stage", "cancelled").order("id").range(from, from + 999);
+    if (error) throw new Error(error.message);
+    total += officeSpotSavedCount((data ?? []).map((row) => ({
+      spot_saved_at: row.spot_saved_at, opted_out_at: row.opted_out_at,
+      source: row.jobs.source, stage: row.jobs.stage,
+    })));
+    if (!data || data.length < 1000) return total;
+  }
 }
 
 export async function recordDeskCheck(responseId: string, outcome: DeskCheckOutcome, reason: string, actorId: string) {

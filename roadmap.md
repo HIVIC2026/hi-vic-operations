@@ -1,4 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## One office Spots saved headline (Jo, 21 Oct 04:52 UTC)
+- [x] Shared read-only all-campaign saved total excludes opted-out, qa_test and cancelled; Today and Communications › Campaigns share the count/cache. Replaced competing subset headline with Waiting for installer; adjacent send label is Save my spot emails sent. No customer changes, sends, schema changes or publication.
+- [x] Live SELECT gives 117; TEST Office Today/Campaigns desktop and Campaigns 390px show 117 with no page errors/overflow; focused count tests pass and preview build OK.
 ## Final narrow Ready Check correction (Jo, 21 Oct 04:41 UTC)
 - [x] Require unique normalized timestamp sets on both stored/requested windows; 13 focused regressions PASS (duplicate picks, duplicate persisted keys, equivalent timestamps and booked exact retry), existing round/status gates preserved; preview build OK.
 - [x] HV-3000 fresh unassigned reserved-contact qa_test Frankston 3199: normal no-send owner code/Gate A/estimate view/FREE 0-null request; three exact windows; normal Alpha offer accepted, selected TAKEN window + matching confirmed booking + ready_check_scheduled read back. Existing Alpha Mitti-invitation OFF guard prevents provider creation (qa_test alone is not a universal Mitti guard). Normal owner cancellation + archive verified: zero live bookings/assignments/links/payments/invoices/messages/outbox; 19 audit rows retained. Practice checks passed first; no migrations/publication/settings/real records touched.
