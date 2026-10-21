@@ -191,3 +191,62 @@ Use complete baseline/current production artifacts built from the exact source r
 Reuse the existing calculator harness's safe controls: visible H1 plus visible street-address field and area/insulation controls, click `100 m²` then `None`, and require an actual visible `public-calculator-result` state response. Record navigation TTFB, navigation-to-main-content-visible and navigation-to-confirmed-form-response separately, exact landed URL/status and page errors. No enquiry submission or address-service/provider request; use the same local address-search stub/safety boundary for both versions if needed. Neither `networkidle` nor document response alone establishes readiness. Retain individual samples, do not mix first-server-request with warmed-server repeats, and keep local-runtime limitations explicit even if the measurements succeed.
 
 **Restrictions retained:** Office enquiries remain historically 1,392–1,536ms backend / 3,184–3,352ms desktop browser; Office <1s is not achieved or inferred from homepage numbers. Recoverable backup/PITR remains unverified. The two prepared database indexes and RPC remain unapplied; no SQL, database changes, customer changes, settings, emails/SMS/providers/invoices or publication occurred. Only this report and the roadmap were updated; no broad QA repeated. The remaining blocker is supported matched production build/artifact execution, not booking correction or additional product scope.
+
+## Targeted Office defects and ordinary staff closure — 21 Oct, 04:59 instruction
+
+**The three previously failed rows now PASS.** Preserve the original 41 PASS / 3 FAIL / 16 control PASS evidence as historical; replacing just those three failures makes that same 44-row set **44 PASS / 0 remaining FAIL**. No full crawl, booking replay or homepage timing replay. The extra permission/file observations below are separate, not inflated into that 44-row denominator.
+
+### Closed jobs: actual transport cause and narrow fix
+
+The failing generated call was `portal.functions.ts:getJobListPage` → `loadJobListPage`. HTTP 200 carried a serialized `Jobs could not be loaded: TypeError: fetch failed`; it was not successful data or an auth refusal. The reader appended 444 archived UUIDs as multiple `not.in` clauses in a single ~17.5KB query. Clause chunking never split the HTTP request.
+
+Matched read-only isolation in **Node 22.22.0 fetch**, with the same dependency, view, columns, scope, ordering and 20-row range, reproduced **`UND_ERR_HEADERS_OVERFLOW` / `Headers Overflow Error`** in the underlying fetch cause. The old query returned null count/error; the exact compact archive complement returned **49 matches / 20 rows / no error**. Bun's fetch accepted both and returned 49/20, so the cause is specifically Node response-header handling, not a database permission failure or inherently invalid SQL. The long query inflates response headers; the exact header bytes were not exposed by fetch, so no invented proxy-limit value is claimed.
+
+Closed queries now express all non-TEST sources (including null) OR the live TEST IDs, then retain exclusions for any archived non-TEST IDs. Counts, stages, search, stable ordering, pagination, errors and authorization remain the same. **Active scope retains its original early return unchanged.** No fake-empty fallback, hidden error, added retry or migration. Focused pure/archive + existing paging/PGlite suites: **32 PASS / 0 FAIL / 227 assertions**. Separately, existing QA guard/archive practice suites: **29 PASS / 0 FAIL**; no live fixture writes followed.
+
+Needs me only gains minimum-width containment, one shrinking grid track, text wrapping and wrapping action controls. All text/actions remain, no redesign or wording/price/permission changes. Affected route head metadata completed with og:type/twitter:card. Latest automatic preview signal: **build OK**.
+
+### Exact final page evidence
+
+Existing `admin@hivic.test`, sole TEST Office admin, local preview only. Fresh final contexts, real completed reads; screenshot evidence inspected.
+
+| Former failed row | Exact final URL | Actual displayed result | client / scroll width | Errors |
+|---|---|---|---|---|
+| Closed desktop 1280×1800 | `http://localhost:8080/admin/jobs/closed?view=test` | 1–20 of 49; tiles 0 completed / 44 cancelled / 7 ineligible / 49 removed-test | 1280 / 1280 | 0 console, page, transport failures or HTTP errors |
+| Closed phone 390×844 | same exact URL | Same loaded count/range/tiles, real cards | 390 / 390 | 0 console, page, transport failures or HTTP errors |
+| Needs me phone 390×844 | `http://localhost:8080/admin/needs-me?test=true` | 1055 loaded job items at snapshot; first actual card HV-1109, reason and both actions visible | 390 / 390 | 0 console, page, transport failures or HTTP errors |
+
+Cross-navigation module cancellations (`net::ERR_ABORTED`) are recorded separately: 3/3/33 in the final contexts. They are not counted as failed data requests. Needs me count can change with live read-only activity; the earlier screenshot showed 1057, final DOM had 1055. No job was edited by this task.
+
+### Actual search, sort and pagination (both sizes)
+
+The Removed/test view is **not exclusively qa_test**: it also contains office-removed and duplicate-contact records. Those records were read only, never edited.
+
+- Initial `/admin/jobs/closed?view=test`: 49 matches, first job numbers HV-1065 / HV-1060 / HV-1062.
+- Completed ascending job-number sort: `/admin/jobs/closed?sort=job_number&dir=asc&view=test`, range **1–20 of 49**, first HV-1023 / HV-1039 / HV-1043 / HV-1044. This is actual before/after order evidence. An early descending-sort capture still showed previous data, so it is not claimed as independent descending-sort proof.
+- Next page: `/admin/jobs/closed?page=2&sort=job_number&dir=asc&view=test`, **21–40 of 49 / Page 2 of 3**, first HV-1067 / HV-1068 / HV-1074 / HV-1090, different from page 1.
+- Exact existing-number search: `/admin/jobs/closed?q=HV-1023&sort=job_number&dir=asc&view=test`, **1–1 of 1**, only HV-1023. No customer input submission.
+- Legitimate no-match search: `/admin/jobs/closed?q=NO-SUCH-SYNTHETIC-QA-20261021&sort=job_number&dir=asc&view=test`, **No closed jobs to show**, zero rows. This is the actual successful reader, not an error fallback.
+
+All completed control results have 0 console/page/HTTP/data transport errors and width equal to viewport. Evidence: `/tmp/browser/office-defects/{office-results,three-final}.json` and corresponding screenshots; temporary selector-wait mistakes were corrected, never reported as product failures.
+
+### Actual canonical ordinary TEST Alpha staff session
+
+The old “no reusable token” limitation is superseded. Verified existing user `2f5755e4-17e1-4756-825e-371ea293f533`, `qa.worker.alpha@hivic-test.example`, sole installer role, active **member**, approved/verified worker, approved active marked Alpha business `62956b54-2e44-4c96-a156-33949b20fa82`. Zero active personal assignments, zero non-qa active business assignments. The existing canonical QA `sessionFor` generateLink/verifyOtp pattern issued a **no-email actual staff session**, not a boss session or worker capability pretending to be staff. No user/role/membership/approval/rate was created or changed. Test Centre's worker link is only job-scoped and does not replace ordinary-page authentication.
+
+Actual loaded pages at **both 1280×1800 and 390×844**, final URLs exactly:
+
+- `http://localhost:8080/field`: Hello TEST, 0 action-needed/in-progress/done, no bookings; legitimate empty personal scope confirmed by stored assignment read.
+- `http://localhost:8080/field/business`: TEST Alpha Insulation, no boss-action section, Taking new jobs switch disabled.
+- `http://localhost:8080/field/money`: actual “Money is only shown to the business owner.” refusal.
+- `http://localhost:8080/field/business/rates` and `/field/business/bank`: actual “Only the business owner can see this.” refusal; no rates/bank data returned. Generated read-only calls reproduced the same canonical refusals; no mutation invoked.
+
+All five families at both sizes have scroll width equal to viewport, 0 page/console errors. Module aborts on route departure were kept separate, not permission/network failures. Staff screenshots and `/tmp/browser/office-defects/staff-results.json` retain actual displayed evidence. No login gate occurred.
+
+### Private-file attempt: explicit remaining failure, not PASS
+
+Found existing archived **HV-1883**, `qa_test`, reserved owner `qa.journey.ac69f83c02e1@hivic-test.example`, null phone, with `final_zone_plan.jpg` (evidence row `6666d481-b30e-4969-8e61-0843246d6684`). No job was reopened or reassigned. TEST Office opened its existing normal All documents → Open control at `http://localhost:8080/admin/jobs/a207f83f-b50a-45b8-8c51-04f5290f0c98?section=history`. The private app-link dialog opened, but **the file request returned 404; image natural dimensions 0×0**. Desktop private-file read is **FAIL (existing indexed bytes unavailable)**, phone/file download **NOT_RUN after this bounded gate**. It is not public storage, not completed file permission/render proof, and not an ordinary-staff file-access PASS. Screenshot inspected, failure recorded in `/tmp/browser/office-defects/private-file-results.json`.
+
+No disposable fixture was needed for staff pages and none was created. Creating/preparing a new owner via the current TEST helper would add an owner user_role, explicitly forbidden by this instruction; no bypass/new feature was introduced merely to get a file PASS. Therefore no new assignment, appointment, file or fixture needs teardown. Existing archived history remains untouched. A new synthetic upload/private staff job flow remains **NOT_RUN**, pending a normal isolated setup that does not create roles or introduce progression/provider effects.
+
+**Unchanged exclusions:** VEEC/global spot-price refresh NOT_RUN (mount can refresh actual price); imports/real-job changes NOT_RUN; all email/SMS/provider sends, invoices, Mitti, Xero, global settings, migrations, publication and paused641 untouched. The prepared indexes/RPC remain unapplied without verified backup/PITR. Homepage matched production proof and Office-under-1s goals remain unverified; no claim based on these functional checks. Task stopped after this narrow correction/report.

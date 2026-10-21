@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { DispatchModeSwitch } from "@/components/portal/dispatch-mode";
 
 export const Route = createFileRoute("/_authenticated/admin/needs-me")({
-  head: () => ({ meta: [{ title: "Needs me – Home Insulation Victoria" }, { name: "description", content: "Every job that needs the office, most urgent first." }, { property: "og:title", content: "Needs me – Home Insulation Victoria" }, { property: "og:description", content: "Every job that needs the office, most urgent first." }] }),
+  head: () => ({ meta: [{ title: "Needs me – Home Insulation Victoria" }, { name: "description", content: "Every job that needs the office, most urgent first." }, { property: "og:title", content: "Needs me – Home Insulation Victoria" }, { property: "og:description", content: "Every job that needs the office, most urgent first." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   validateSearch: (s: Record<string, unknown>): { test?: boolean } => (s["test"] === true || s["test"] === "true" ? { test: true } : {}),
   component: NeedsMe,
 });
@@ -40,14 +40,14 @@ function Row({ it, includeTest }: { it: NeedsItem; includeTest: boolean }) {
   };
   const late = it.timeLeft?.endsWith("late");
   return (
-    <li className="rounded-[22px] border bg-card p-4 shadow-sm">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-        <div className="min-w-0 flex-1">
+    <li className="min-w-0 rounded-[22px] border bg-card p-4 shadow-sm">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 sm:flex sm:items-start">
+        <div className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">
           <p className="font-semibold">{it.what}</p>
           <p className="text-sm text-muted-foreground">{[it.jobNumber, it.suburb].filter(Boolean).join(" · ")}{it.timeLeft ? <> · <span className={cn("font-semibold", late ? "text-workspace-blush-strong-foreground text-danger" : "text-foreground")}>{it.timeLeft}</span></> : null}</p>
           <p className="mt-1 text-sm"><span className="mr-1 rounded-full bg-workspace-blush px-2 py-0.5 text-xs font-bold">{RULE_LABEL[it.rule]}</span>{it.why}</p>
         </div>
-        <div className="flex shrink-0 gap-2 [&>*]:flex-1 sm:[&>*]:flex-none">
+        <div className="flex min-w-0 flex-wrap gap-2 [&>*]:min-w-0 [&>*]:flex-1 [&>*]:whitespace-normal sm:shrink-0 sm:[&>*]:flex-none">
           {it.jobId && it.choiceKind && <Button size="sm" variant="outline" onClick={() => void widen()}>Send to all</Button>}
           {it.jobId ? <Button asChild size="sm"><Link to="/admin/jobs/$jobId" params={{ jobId: it.jobId }} {...(it.choiceKind ? { hash: "choose-trade" } : {})}>{it.action}</Link></Button> : it.href === "/admin/hot-leads" ? <Button asChild size="sm"><Link to="/admin/hot-leads">{it.action}</Link></Button> : it.href === "/admin/pipeline" ? <Button asChild size="sm"><Link to="/admin/pipeline">{it.action}</Link></Button> : it.href === "/admin/workers" ? <Button asChild size="sm"><Link to="/admin/workers">{it.action}</Link></Button> : it.href === "/admin/compliance" ? <Button asChild size="sm"><Link to="/admin/compliance">{it.action}</Link></Button> : it.href === "/admin/businesses" ? <Button asChild size="sm"><Link to="/admin/businesses">{it.action}</Link></Button> : <Button asChild size="sm"><Link to="/admin/partners" search={{ enquiry: undefined }}>{it.action}</Link></Button>}
           {it.jobId && <Button size="sm" variant="outline" onClick={() => void later()}>Later</Button>}
@@ -78,7 +78,7 @@ function NeedsMe() {
       {error ? <div role="alert" className="rounded-[22px] border border-danger/40 bg-danger-soft p-4 text-sm text-danger">Needs me couldn't load — this does NOT mean nothing needs you. {(error as Error).message} <button className="font-semibold underline" onClick={() => void refetch()}>Try again</button></div>
         : !data ? <p className="text-muted-foreground">Checking every job…</p>
         : <>
-          {data.items.length === 0 ? <p className="rounded-[22px] border bg-workspace-mint p-5 font-semibold">Nothing needs you right now.</p> : <ul className="grid gap-3">{data.items.map((it) => <Row key={it.key} it={it} includeTest={includeTest} />)}</ul>}
+          {data.items.length === 0 ? <p className="rounded-[22px] border bg-workspace-mint p-5 font-semibold">Nothing needs you right now.</p> : <ul className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">{data.items.map((it) => <Row key={it.key} it={it} includeTest={includeTest} />)}</ul>}
           <p className="mt-5 text-center text-sm text-muted-foreground">{data.onTrack} other job{data.onTrack === 1 ? " is" : "s are"} on track.</p>
         </>}
     </AppShell>

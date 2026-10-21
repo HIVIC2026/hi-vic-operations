@@ -4,13 +4,14 @@
 // all inside PostgREST. The total is an exact count over the same filtered set, so it never depends on
 // which page is open, and only the rows on the requested page are enriched and serialised.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { archivedQaJobIds, enrichPipeline, jobOverview } from "./job-pipeline.server";
+import { enrichPipeline, jobOverview } from "./job-pipeline.server";
 import { clampPage, toPage, toPageSize, totalPagesFor } from "./list-paging.core";
 import { countOf, notInChunks, searchFilter, toDirection, toEnum } from "./list-query.core";
 import {
   JOB_SEARCH_COLUMNS,
   JOB_SORT_KEYS,
   JOB_STAGES,
+  jobArchiveFilter,
   type JobClosedView,
   type JobListParams,
   type JobMode,
@@ -34,20 +35,21 @@ interface ScopeChain<T> {
  * The scope every count and every page shares. The stage chip and the search term are deliberately NOT
  * part of it: they narrow the page only, so the tile totals keep describing the view the office chose.
  */
-function scope<T extends ScopeChain<T>>(q: T, archived: string[], mode: JobMode, closedView: JobClosedView): T {
+function scope<T extends ScopeChain<T>>(q: T, archived: ReturnType<typeof jobArchiveFilter>, mode: JobMode, closedView: JobClosedView): T {
   let cur = q;
-  if (mode === 'active') return cur.eq('office_bucket', 'active');
-  cur = cur.eq('office_bucket', 'closed');
+  if (mode === "active") return cur.eq("office_bucket", "active");
+  cur = cur.eq("office_bucket", "closed");
   if (mode === "closed" && closedView === "test") {
     cur = cur.or('source.eq.qa_test,office_removed.eq.true,contact_rank.gt.1');
-  } else {
+  } else if (mode === "closed") {
     cur = cur.neq("source", "qa_test");
     if (closedView === "completed") cur = cur.eq("stage", "complete");
     else if (closedView === "cancelled") cur = cur.eq("stage", "cancelled");
     else if (closedView === "ineligible") cur = cur.not("stage", "in", OPEN_STAGES).eq("eligibility_outcome", "does_not_appear_eligible");
   }
-  // Archived TEST journeys stay hidden exactly as before; the id list is split so the URL stays legal.
-  for (const chunk of notInChunks(archived)) cur = cur.not("id", "in", chunk);
+  // Multiple not.in clauses still share ONE URL. Use the much smaller live TEST complement.
+  cur = cur.or(archived.visible);
+  for (const chunk of notInChunks(archived.archivedOtherIds)) cur = cur.not("id", "in", chunk);
   return cur;
 }
 
@@ -71,7 +73,15 @@ export async function loadJobListPage(params: JobListParams) {
   const stage = toEnum(params.stage, JOB_STAGES, null);
   const sortKey = toEnum(params.sort, JOB_SORT_KEYS, "last_activity_at") ?? "last_activity_at";
   const ascending = toDirection(params.direction) === "asc";
-  const archived = await archivedQaJobIds();
+  const archiveRows: Array<{ id: string; source: string | null; qa_archived_at: string | null }> = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await admin.from("jobs").select("id,source,qa_archived_at")
+      .or("source.eq.qa_test,qa_archived_at.not.is.null").order("id").range(from, from + 999);
+    if (error) throw new Error(`Archived TEST jobs could not be read: ${error.message}`);
+    archiveRows.push(...(data ?? []));
+    if (!data || data.length < 1000) break;
+  }
+  const archived = jobArchiveFilter(archiveRows);
   const scoped = (m: JobMode = mode, v: JobClosedView = closedView) => scope(jobOverview("exact", true), archived, m, v);
   const searchedScope = () => searched(scoped(), search);
 
