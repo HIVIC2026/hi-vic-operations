@@ -155,3 +155,39 @@ No UI sweep repeated; existing 41 PASS / 3 FAIL and 16 safe-control PASS evidenc
 **Previously missing confirmed appointment now PASS on one fresh HV-3000 qa_test fixture**, synthetic Frankston VIC 3199 within Alpha's already verified service postcodes, reserved-domain owner/no phone, initially unassigned. Normal no-send owner verification/Gate A/estimate view/FREE request stored one 0/null acceptance and three exact OPEN owner windows; normal guarded Office offer and Alpha acceptance stored accepted offer, TAKEN 23 Oct 8–10am window, matching confirmed Ready Check booking and ready_check_scheduled job. Actual Alpha /field coming-up appointment was inspected. Not inferred from HTTP result.
 
 Before confirmation, existing Alpha Mitti invitation=false was independently read; it blocks form scheduling before provider calls. qa_test alone is not claimed to suppress every Mitti path. No invitations/settings/gates were altered. Normal owner cancellation and existing archive action completed; independent final read proves zero live synthetic bookings/assignments/links, zero payments/attempts/invoices/messages/outbox/post-intake, 19 workflow audit rows retained. Only HV-3000 was changed; no archived/root/real-job cleanup repeated. Prior unrelated page/control failures and private/staff/VEEC NOT_RUN gaps remain. No sends/providers/migrations/publication/prices/customer-wording changes.
+
+## Requested matched production homepage proof — 21 Oct 04:57 UTC instruction
+
+**Item 2: NOT_RUN / cold-load target remains unverified.** This is the specifically requested homepage follow-up, not a new feature or broad QA pass. Read-only source/environment inspection only; no additional browser visits or dev timings were collected. No claim that the published website sped up.
+
+Baseline Git object `5f862f3437fa4a207905a0c8af7ad1f2ca348f92` is available. Current reviewed source at inspection is `1e08e714512a602b4b28748b6ad1d38b0b2748f9`, with an initially clean working tree. `package.json` and `bun.lock` are unchanged between snapshots; the route-file change for both `/` and `/calculator` removes `ssr: false`. This source difference is not a performance measurement.
+
+### Exact execution limitation
+
+- No existing local production output: `/dev-server/.output` and `/dev-server/dist` are absent; `.tanstack` and `.workspace` contain no production `index.mjs`, `server.mjs`, Nitro manifest or Worker configuration artifact.
+- This agent session's execution rules explicitly prohibit manually running project builds/typechecks because the managed harness owns them. That restriction also prevents running the requested project build on an isolated `/tmp` source copy. There is no exposed tool to request matched baseline/current production builds or export their complete production artifacts. No build was attempted, so neither a compiler failure nor compiler duration is claimed.
+- The installed Vite configuration selects Nitro's `cloudflare-module` production preset in this sandbox and ignores `NITRO_PRESET` / `SERVER_PRESET` overrides. No installed `wrangler`, `workerd` or `miniflare` executable/package was found. Nitro/Vite are installed, but their presence alone does not establish a supported runnable production output. No alternate Node/static/dev server was substituted or claimed equivalent to production.
+- No checkout, worktree creation, dependency installation, restart, deployment or publishing occurred. The working app was not overwritten. The blockers above were recorded rather than attempting an unauthorized build or comparing unlike runs.
+
+### Before / after evidence status
+
+Historical artifacts reused: `/tmp/browser/performance/public_check.py`, `baseline.json`, `after.json`, `public-addendum.json`, and `/tmp/browser/performance-final/calculator.py` / `calculator.json`.
+
+| Requested measurement | Baseline | Current | Status |
+|---|---|---|---|
+| Production `/`, first server request, visible main content and interactive form | Not measured | Not measured | NOT_RUN |
+| Production `/calculator`, first server request, visible main content and interactive form | Not measured | Not measured | NOT_RUN |
+| Production repeat visits, each fresh empty browser context | Not measured | Not measured | NOT_RUN |
+| Production cold compiler/build cost, separate from visit timing | Not measured | Not measured | NOT_RUN |
+| Historical dev `/`, desktop H1-visible sample | 17,251ms, cold Vite transforms | 275ms, warmed server | Unmatched; no speedup inference |
+| Historical dev `/calculator`, desktop first route sample | 1,412ms, after root had already been requested | 160ms, warmed server | Unmatched; not first server request |
+
+The historical public harness reused a browser context across route visits, waited for `DOMContentLoaded` then the first H1, and separately exercised other routes. Those samples therefore **do not** satisfy fresh empty contexts per visit, timed actual main-content readiness plus working form response, or matched production cold visits. Historical dummy calculator interactions remain valid as their separately recorded functional evidence, not newly timed readiness proof. No historical 17.251s-to-275ms percentage or production improvement is reported.
+
+### Required matched method once supported artifacts are available
+
+Use complete baseline/current production artifacts built from the exact source revisions with the same installed dependencies/environment, isolated output and identical supported serving runtime. Record build wall time separately; start each server without HTTP readiness warmups (use process/listener readiness), and record process startup separately from the first document request. For each version, measure each route as the first request on a newly started process; then two repeat visits with a **new empty browser context for every visit**, fixed 1280×1800 viewport and identical explicitly recorded network/CPU conditions. No restored sessions or cache/storage preload.
+
+Reuse the existing calculator harness's safe controls: visible H1 plus visible street-address field and area/insulation controls, click `100 m²` then `None`, and require an actual visible `public-calculator-result` state response. Record navigation TTFB, navigation-to-main-content-visible and navigation-to-confirmed-form-response separately, exact landed URL/status and page errors. No enquiry submission or address-service/provider request; use the same local address-search stub/safety boundary for both versions if needed. Neither `networkidle` nor document response alone establishes readiness. Retain individual samples, do not mix first-server-request with warmed-server repeats, and keep local-runtime limitations explicit even if the measurements succeed.
+
+**Restrictions retained:** Office enquiries remain historically 1,392–1,536ms backend / 3,184–3,352ms desktop browser; Office <1s is not achieved or inferred from homepage numbers. Recoverable backup/PITR remains unverified. The two prepared database indexes and RPC remain unapplied; no SQL, database changes, customer changes, settings, emails/SMS/providers/invoices or publication occurred. Only this report and the roadmap were updated; no broad QA repeated. The remaining blocker is supported matched production build/artifact execution, not booking correction or additional product scope.
