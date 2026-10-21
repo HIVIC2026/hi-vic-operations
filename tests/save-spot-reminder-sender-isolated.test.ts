@@ -1,6 +1,6 @@
 import { expect, mock, test } from "bun:test";
 import { BLAST_KEY, blastClaimId } from "../src/lib/save-spot-reminder-blast.core";
-let providerCalls = 0, claimed: Record<string, unknown> | null = null, optedOut = false;
+let providerCalls = 0, claimed: Record<string, unknown> | null = null, optedOut = false, reminderOn = false;
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: (table: string) => {
   let payload: Record<string, unknown> | null = null;
   const result = () => {
@@ -8,7 +8,7 @@ mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { f
       if (claimed) return { data: null, error: { code: "23505" } };
       claimed = payload; return { data: { id: payload.id }, error: null };
     }
-    return { data: table === "jobs" ? { source: "base44" } : table === "workflow_settings" ? { sms_message_switches: {} } : table === "sms_optouts" ? (optedOut ? [{ phone: "+61491234567" }] : []) : null, error: null };
+    return { data: table === "jobs" ? { source: "base44" } : table === "workflow_settings" ? { sms_message_switches: { save_spot_reminder:reminderOn } } : table === "sms_optouts" ? (optedOut ? [{ phone: "+61491234567" }] : []) : null, error: null };
   };
   const q = { select: () => q, eq: () => q, not: () => q, insert: (v: Record<string, unknown>) => { payload = v; return q; }, update: () => q, maybeSingle: async () => result(), then: (resolve: (v: unknown) => unknown) => Promise.resolve(result()).then(resolve) }; return q;
 } } }));
@@ -25,4 +25,12 @@ test("actual sender claims once, uses existing provider/logging while type switc
   expect((await sendRealSms(input, authority)).status).toBe("already"); expect(providerCalls).toBe(1);
   claimed = null; optedOut = true;
   expect((await sendRealSms(input, authority)).status).toBe("blocked"); expect(providerCalls).toBe(1);
+});
+test("actual scheduled sender cannot bypass OFF but sends once with only reminder ON",async()=>{
+  claimed=null;optedOut=false;const before=providerCalls;
+  const input={type:"save_spot_reminder" as const,idempotencyKey:BLAST_KEY+"scheduled-job",jobId:"scheduled-job",to:"0491234567",body:"Home Insulation Victoria: Hi Jane"};
+  const auth={claimId:await blastClaimId(input.to),scheduledSpotReminder:true as const};
+  expect((await sendRealSms(input,auth)).status).toBe("blocked");expect(providerCalls).toBe(before);
+  claimed=null;reminderOn=true;expect((await sendRealSms(input,auth)).status).toBe("sent");expect(providerCalls).toBe(before+1);
+  expect((await sendRealSms(input,auth)).status).toBe("already");expect(providerCalls).toBe(before+1);
 });
