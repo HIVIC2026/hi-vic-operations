@@ -149,7 +149,7 @@ export function Correspondence({ jobId }: { jobId: string }) {
               {c.subject && <div className="mt-1 font-medium">{c.subject}</div>}
               {c.direction === "outbound" && c.to && c.to.length > 0 && <div className="text-xs text-muted-foreground">To {c.to.join(", ")}</div>}
               <p className="mt-1 whitespace-pre-wrap">{c.body}</p>
-              {c.attachments && c.attachments.length > 0 && <div className="mt-1 text-xs text-muted-foreground">Attachments: {c.attachments.join(", ")}</div>}
+              <AttachmentList c={c} />
             </li>))}
           </ul>)}
       </Section>
