@@ -319,6 +319,7 @@ export async function processMessages(raw: GraphMessage[], mailbox: string, coun
   // Reserve the entire page before decisions, so a later reply on this page is visible to earlier declines.
   for (const m of msgs) {
     let route: Route | null = matchMessage(m, counterpartEmails(m, mailbox, OUR_DOMAINS), byNumber, byEmail, byThread);
+    if (!route) { counts.notHomeowner++; continue; }
     if (route.kind === "not_homeowner") { counts.notHomeowner++; continue; }
     // Our own outbound copy of an email the portal already recorded is not new history on that job.
     if (route.kind === "job" && m.direction === "outbound") {
