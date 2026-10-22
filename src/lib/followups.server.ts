@@ -402,7 +402,16 @@ export async function sendPreliminaryIneligibleEmail(jobId: string, actorId: str
     // S20-R01: an automatic reply to an OFFICE decision never includes the Office's free-text reason (an internal note,
     // not reviewed for the customer); the email uses its standard wording. System Gate 1 reasons are unchanged.
     const reason = opts.newEnquiryAutoReply === true && official.decisionSource !== "system" ? null : official.reason;
-    const mail = await renderPreliminaryIneligibleMail(jobId, reason, owner.reference);
+    let mail = await renderPreliminaryIneligibleMail(jobId, reason, owner.reference);
+    // Jo 22 Oct 2026: Office-edited ineligible wording — only the body swaps; consent, opt-out,
+    // suppression, once-per-home and logging are unchanged. The "Review my result" link is appended
+    // automatically using the same link rule as the approved render.
+    if (mail && opts.customText?.trim()) {
+      const { customReviewMail } = await import("./enquiry-review-custom.core");
+      const { data: link } = await admin.from("customer_estimate_links").select("token").eq("job_id", jobId).eq("purpose", LINK_PURPOSE).eq("status", "active").maybeSingle();
+      const reviewUrl = link?.token ? `${CUSTOMER_BASE}/estimate/${link.token}` : JO_RESULT_FALLBACK_URL;
+      mail = withUnsubscribe(customReviewMail({ subject: mail.subject, text: opts.customText, link: { label: "Review my result", url: reviewUrl } }), await unsubscribeUrlForJob(jobId));
+    }
     if (!mail) {
       // No approved T7 render is possible (usually no secure link yet). Fail closed, release the reservation so the
       // Office can retry once the link exists, and leave the reason visible for the queue.
