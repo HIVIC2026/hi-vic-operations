@@ -278,10 +278,17 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
       facts = { outcome, insulation, ceilingSizeKnown: areaBasis.ceilingSizeKnown, deskCheckStatus: morePhotos ? null : deskCheckStatus, ...(sendGroup === "onsite" && testOpts.mediaAcknowledgement === true ? { mediaAlreadyReceived: true } : {}) };
     }
     try {
+      // Jo 22 Oct: informational "up to" removal for existing insulation only, from the current removal rate.
+      let removalUpToAmount: number | null = null;
+      if (facts.insulation === "present") {
+        const { data: rs } = await admin.from("retail_estimator_settings").select("removal_inc_gst_per_m2").eq("is_current", true).maybeSingle();
+        const { removalUpTo } = await import("./estimate-removal-upto.core");
+        removalUpToAmount = removalUpTo({ insulation: "present", areaM2: areaBasis.areaM2, ratePerM2: rs?.removal_inc_gst_per_m2 });
+      }
       const rendered = jo.renderJoOutcomeEmail({
         ...facts,
         recipient: { firstName: firstName ?? "there", propertyAddress: fullAddress ?? "", enquiryReference: job.job_number ?? "" },
-        figures: { veuRebate: Number(price.discount), customerTotal: Number(price.total), totalBeforeRebate: Number(price.gross), installation: Number(installation), piesaFee: Number(assessmentFee), apFee: Number(apFee), ceilingAreaM2: areaBasis.areaM2, areaEstimated: areaBasis.areaEstimated },
+        figures: { veuRebate: Number(price.discount), customerTotal: Number(price.total), totalBeforeRebate: Number(price.gross), installation: Number(installation), piesaFee: Number(assessmentFee), apFee: Number(apFee), ceilingAreaM2: areaBasis.areaM2, areaEstimated: areaBasis.areaEstimated, removalUpTo: removalUpToAmount },
         links: { saveMySpotUrl: campaignUrl, uploadMediaUrl: `${base}/estimate/${linkToken}/video`, reviewResultUrl: `${base}/estimate/${linkToken}`, calculatorUrl: `${base}/estimate/${linkToken}/calculator` },
       });
       if (!rendered) return null;

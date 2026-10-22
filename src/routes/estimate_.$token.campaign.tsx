@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { getLaunchCampaignPage, saveMySpot, takeMeOffList } from "@/lib/launch-campaign.functions";
 import type { InsulationDeclared } from "@/lib/estimate.core";
 import { EXISTING_PRELIMINARY, removalNote, type EstimateRemoval } from "@/lib/estimate-removal.core";
+import { REMOVAL_UPTO_NOTE, removalUpToLine } from "@/lib/estimate-removal-upto.core";
 
 export const Route = createFileRoute("/estimate_/$token/campaign")({
   ssr: false,
@@ -83,7 +84,7 @@ function Result({ group, videoPriority, token, rebate, customer, suburb, home, r
   </section>;
 }
 
-type Pricing = { gross: number; discount: number; total: number; areaM2: number; assessmentFee: number; apFee: number; ratePerM2: number; installation: number; veecs: number; veecValue: number; address: string | null; insulation: InsulationDeclared | null; removal?: EstimateRemoval };
+type Pricing = { gross: number; discount: number; total: number; areaM2: number; assessmentFee: number; apFee: number; ratePerM2: number; installation: number; veecs: number; veecValue: number; address: string | null; insulation: InsulationDeclared | null; removal?: EstimateRemoval; removalUpTo?: number | null };
 const money = (n: number) => `$${Math.floor(Number(n)).toLocaleString("en-AU")}`;
 
 /** v8 (Jo, 6 Oct): Jo's approved Group A design lives here, where Outfit/Figtree load. The short email only links here. */
@@ -119,6 +120,7 @@ function CampaignDesign({ saveAllowed, ownerQualified, reviewStatus, group, toke
         {row("Normal price", money(p.gross), "border-t border-estimate-line font-bold")}
         {row(`Your rebate (${p.veecs} VEECs × ${money(p.veecValue)})`, `−${rebate}`, "font-extrabold text-estimate-logo-green")}
         <div className="flex items-end justify-between gap-3 border-t border-estimate-line pt-3"><span className="text-sm font-extrabold">You pay about</span><span className="font-display text-[34px] font-extrabold leading-none">{money(p.total)}</span></div>
+        {p.removalUpTo != null && <div data-removal-upto className="mt-4 rounded-2xl border border-estimate-line bg-estimate-blush p-4"><p className="text-[15px] font-extrabold leading-snug">{removalUpToLine(p.removalUpTo)}</p><p className="mt-1.5 text-[13.5px] leading-relaxed text-estimate-navy/80">{REMOVAL_UPTO_NOTE}</p></div>}
       </div>
       {p.insulation !== "none" && <><p className="mt-3 text-sm font-bold leading-relaxed">{removal}</p><p className="mt-3 text-sm leading-relaxed">{EXISTING_PRELIMINARY}</p></>}
       <p className="mt-3 text-xs leading-relaxed text-estimate-navy/75">Based on {p.address ? `${p.address} and ` : ""}a {p.areaM2} m² ceiling. {p.insulation === "none" ? removal : ""} <Link to="/estimate/$token/calculator" params={{ token }} className="font-bold text-estimate-blue">Try a different size →</Link></p>

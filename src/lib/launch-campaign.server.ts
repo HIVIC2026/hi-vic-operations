@@ -75,7 +75,7 @@ export async function campaignPage(token: unknown, testMode = false) {
   // v8: the page carries the full approved design, so it gets the same snapshot numbers the email used.
   const [{ data: est }, { data: cfg }] = await Promise.all([
     admin.from("indicative_estimates").select("id, area_source, area_m2, insulation_declared, scenarios, snapshot").eq("job_id", c.job.id).eq("status", "current").maybeSingle(),
-    admin.from("retail_estimator_settings").select("indicative_veec_value, piesa_assessment_inc_gst, ap_management_inc_gst, r5_install_inc_gst_per_m2").eq("is_current", true).maybeSingle(),
+    admin.from("retail_estimator_settings").select("indicative_veec_value, piesa_assessment_inc_gst, ap_management_inc_gst, r5_install_inc_gst_per_m2, removal_inc_gst_per_m2").eq("is_current", true).maybeSingle(),
   ]);
   const basis = joAreaBasis({ areaSource: est?.area_source, areaM2: est?.area_m2, ownerAreaM2: c.job.estimated_area_m2 });
   const p = basis.ok ? savedPriceFromEstimate(est ?? null) : null;
@@ -85,7 +85,9 @@ export async function campaignPage(token: unknown, testMode = false) {
   const fees = snapshot?.settings ?? cfg;
   const assessmentFee = Number(fees?.piesa_assessment_inc_gst ?? 349), apFee = Number(fees?.ap_management_inc_gst ?? 349);
   const snapshotVeec = Number(fees?.indicative_veec_value ?? veecValue);
-  const pricing = p && p.areaM2 ? { gross: p.gross, discount: p.discount, total: p.total, areaM2: p.areaM2, areaAssumed: basis.ok && basis.areaEstimated, assessmentFee, apFee, ratePerM2: Number(fees?.r5_install_inc_gst_per_m2 ?? 30), installation: p.gross - assessmentFee - apFee - (removal.kind === "included" ? removal.amount : 0), removal, veecs: Math.round(p.discount / snapshotVeec), veecValue: snapshotVeec, address, insulation: p.insulation ?? est?.insulation_declared ?? null } : null;
+  const pricingInsulation = p ? (p.insulation ?? est?.insulation_declared ?? null) : null;
+  const { removalUpTo } = await import("./estimate-removal-upto.core");
+  const pricing = p && p.areaM2 ? { gross: p.gross, discount: p.discount, total: p.total, areaM2: p.areaM2, areaAssumed: basis.ok && basis.areaEstimated, assessmentFee, apFee, ratePerM2: Number(fees?.r5_install_inc_gst_per_m2 ?? 30), installation: p.gross - assessmentFee - apFee - (removal.kind === "included" ? removal.amount : 0), removal, veecs: Math.round(p.discount / snapshotVeec), veecValue: snapshotVeec, address, insulation: pricingInsulation, removalUpTo: removalUpTo({ insulation: pricingInsulation, areaM2: p.areaM2, ratePerM2: cfg?.removal_inc_gst_per_m2, removalItemised: removal.kind === "included" }) } : null;
   const { referralUrlForJob } = await import("./referral.server");
   const referralUrl = await referralUrlForJob(c.job.id);
   return estimate ? JSON.stringify({ group: c.group, saveAllowed: campaignPermission(c, response?.desk_check_status), media: c.media, mediaReview: c.mediaReview, ownerQualified: c.ownerQualified, estimate, pricing, response: response ?? null, referralUrl, bookingAvailable: booking.allowed, owner: { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null }, home: { suburb: property?.suburb ?? null, short: [property?.address_line, property?.suburb].filter(Boolean).join(", ") || null }, initialValues: { address, areaM2: c.job.estimated_area_m2 == null ? null : Number(c.job.estimated_area_m2), insulation } }) : null;
