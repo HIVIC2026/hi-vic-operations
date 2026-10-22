@@ -17,7 +17,7 @@ import {
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Any = any;
 
-const PICKUP_WINDOW_DAYS = 30;
+const PICKUP_WINDOW_DAYS = 14;
 const READY_CHECK_STAGES = ["ready_check_ready_to_schedule", "ready_check_scheduled"];
 
 async function templateIds() {
@@ -81,6 +81,8 @@ export async function scanMittiReadyCheckPickups(actorId: string | null, call: M
     if (audit?.archived || audit?.audit_data?.date_completed) continue; // finished forms belong to normal sync
     const p = parsePickupAudit(audit);
     if (!p) continue;
+    // Blank drafts (nothing typed yet) are not actionable — the office links forms with real content.
+    if (!p.siteAddress?.trim() && !p.homeownerName?.trim()) continue;
     if (classifyPortalJobNumber(p.mittiRef) === "linked") continue; // already carries an HV number
     p.templateKind = templateKindFor(p.templateId, ids);
     const business = p.mittiOwnerUserId ? (await mittiBusinessMap(api)).get(p.mittiOwnerUserId) ?? null : null;
