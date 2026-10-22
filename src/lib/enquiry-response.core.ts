@@ -25,7 +25,7 @@ export type NextParty = 'office' | 'homeowner' | 'none';
 export function enquiryNextStep(f: { status: string; mediaToReview: boolean; reviewOutcome: string | null; morePhotosRequested?: boolean; mediaCount: number; fallback: string | null }): { party: NextParty; label: string } {
   // Jo 21 Oct: once anything is uploaded the approved wording is "Check photos" — never "Awaiting photos/videos".
   if (f.mediaToReview) return { party: 'office', label: 'Check photos' };
-  if (f.status === 'spot_saved') return { party: 'office', label: 'Continue from Active jobs' };
+  if (f.status === 'spot_saved') return { party: 'none', label: 'Saved — nothing more to do here' };
   if (f.status === 'ineligible') return { party: 'none', label: 'No action unless the owner replies' };
   if (f.reviewOutcome === 'unclear') return f.morePhotosRequested === true ? { party: 'homeowner', label: 'Waiting for the owner to send more photos/video' } : { party: 'office', label: 'Office: request more photos/video' };
   if (f.status === 'offered_spot') return { party: 'homeowner', label: 'Waiting for the owner to save their spot' };

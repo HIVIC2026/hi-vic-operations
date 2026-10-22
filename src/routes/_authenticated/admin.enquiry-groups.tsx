@@ -3,6 +3,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 const ALLOWED = [
   "all",
   "new",
+  "spot_saved",
   "offered_spot",
   "insulation_requested",
   "ineligible",
