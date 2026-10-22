@@ -129,6 +129,16 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['mitti'] = "failed"; // Mitti outages must not fail the whole tick
         }
         try {
+          // Stage 4: Mitti-first auto-pickup. OFF by default (workflow_settings.mitti_pickup_auto_enabled);
+          // when ON, clean forms create installer-sourced jobs and link themselves — nothing is sent.
+          const { sweepMittiPickupAuto } = await import("@/lib/mitti-pickup-auto.server");
+          const a = await sweepMittiPickupAuto();
+          (out as Record<string, unknown>)['mittiPickupAuto'] = { enabled: a.enabled, adopted: a.results.filter((x) => x.action === "created").length, review: a.results.filter((x) => x.action === "review" || x.action === "failed").length };
+        } catch (e) {
+          console.error("allocation tick: mitti auto-pickup failed", (e as Error).message);
+          (out as Record<string, unknown>)['mittiPickupAuto'] = "failed";
+        }
+        try {
           // T6 Outbox executor worker entry point (leased claiming, same executor as the external-actions cron hook).
           // Claim uses SKIP LOCKED + leases, so running both entry points cannot double-send. While staged migration
           // 0204 is not applied the executor reports unavailable instead of failing the tick (fail closed).
