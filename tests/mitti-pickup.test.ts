@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   classifyPortalJobNumber, parsePickupAudit, pickupAddressKey, pickupDuplicates,
-  portalJobNumberItem, propertyAddressKey, templateKindFor,
+  portalJobNumberItem, propertyAddressKey, templateKindFor, pickupTemplateMatches,
 } from "../src/lib/mitti-pickup.core";
 
 const audit = (overrides: Record<string, unknown> = {}) => ({
@@ -81,5 +81,18 @@ describe("mitti pickup core", () => {
   test("no duplicate flag when nothing matches", () => {
     const jobs = [{ id: "j3", job_number: "HV-8888", stage: "new_enquiry", owner: "Different Person", addressLine: "99 Nowhere Street", suburb: "Brighton" }];
     expect(pickupDuplicates(parsePickupAudit(audit())!, jobs)).toEqual([]);
+  });
+});
+
+describe("template ID formats (Jo 22 Oct)", () => {
+  const ids = { readyCheck: "dbaf67a2-c9c5-4120-8c69-0f4a43c5bd39", readyCheckPriced: "template_01ee0428be6d4435b34d8b738935f099" };
+  test("HIV form saved as dashed ID matches Mitti's template_ ID", () => {
+    expect(templateKindFor("template_dbaf67a2c9c541208c690f4a43c5bd39", ids)).toBe("hivic_form");
+    expect(pickupTemplateMatches("template_dbaf67a2c9c541208c690f4a43c5bd39", ids.readyCheck)).toBe(true);
+  });
+  test("installer form still matches; other forms do not", () => {
+    expect(templateKindFor("template_01ee0428be6d4435b34d8b738935f099", ids)).toBe("installer_form");
+    expect(templateKindFor("template_f6a2597479164eb181453eb335ce5125", ids)).toBe("unknown");
+    expect(pickupTemplateMatches("template_dbaf67a2c9c541208c690f4a43c5bd39", null)).toBe(false);
   });
 });

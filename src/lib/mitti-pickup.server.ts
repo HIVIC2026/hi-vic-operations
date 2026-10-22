@@ -109,7 +109,7 @@ export async function linkMittiReadyCheckToJob(actorId: string | null, input: { 
   if (audit?.archived) throw new WorkflowError("This Mitti form is archived and cannot be linked.");
   if (audit?.audit_data?.date_completed) throw new WorkflowError("This Mitti form is already completed in Mitti — office review is required before linking.");
   const parsed = parsePickupAudit(audit);
-  if (!parsed || !allowed.includes(parsed.templateId)) throw new WorkflowError("This Mitti form is not a Ready Check form. Nothing was changed.");
+  if (!parsed || !allowed.some((id) => pickupTemplateMatches(parsed.templateId, id))) throw new WorkflowError("This Mitti form is not a Ready Check form. Nothing was changed.");
 
   // Preflight the measurement record BEFORE touching Mitti, so any refusal leaves the form untouched.
   const scope = await jobScope(jobId);
