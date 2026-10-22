@@ -21,6 +21,10 @@ export type MittiPickupItem = {
   assessorName: string | null;
   mittiOwnerUserId: string | null;
   mittiOwnerName: string | null;
+  /** New A1 contact questions (Jo 23 Oct). Null when the label is absent — never invented. */
+  ownerPhone: string | null;
+  ownerEmail: string | null;
+  contactPermission: boolean | null;
 };
 
 export type PickupDuplicate = {
@@ -47,6 +51,7 @@ export function parsePickupAudit(audit: Any): MittiPickupItem | null {
   const entries = flatten(audit?.audit_data ? { header_items: audit.header_items, items: audit.items } : audit);
   const head = (label: string) => entries.find((e) => e.header && e.norm === norm(label))?.value ?? null;
   const authorship = audit?.audit_data?.authorship ?? {};
+  const contact = contactAnswersFromEntries(entries.map((e) => ({ label: e.label, value: e.value })));
   return {
     auditId,
     templateId: String(audit?.template_id ?? ""),
@@ -58,6 +63,9 @@ export function parsePickupAudit(audit: Any): MittiPickupItem | null {
     assessorName: head("Assessor"),
     mittiOwnerUserId: String(authorship.owner_id ?? "") || null,
     mittiOwnerName: String(authorship.owner ?? "") || null,
+    ownerPhone: contact.phone,
+    ownerEmail: contact.email,
+    contactPermission: contact.contactPermission,
   };
 }
 
