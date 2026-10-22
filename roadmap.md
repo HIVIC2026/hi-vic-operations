@@ -1,4 +1,14 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Ready Checks work properly with Mitti (Jo, 22 Oct 20:37 UTC) — PREVIEW ONLY, TEST data only, no sends/publish
+- [x] Stage 1: "Link to job" accepts HV number (was sending it as a job id), completed forms listed/linkable, all pre-quote stages allowed.
+- [ ] Stage 2: one shared lock for form creation (no duplicates); skip cancelled/deleted/archived jobs in sync; history only on change; Mitti failures recorded + Retry.
+- [ ] Stage 3: new A1 labels (phone, email, contact permission, life support, electrician choice/price/name/licence), absent-safe; job-page Mitti card shows Ready Check not PIESA.
+- [ ] Stage 4: auto pickup in 15-min poll: link to enquiry match (flagged) or create installer-led job; installer measure counts as Ready Check (setting check).
+- [ ] Stage 5: our leads: form with owner + date on booking, installer text + top card, reschedule updates, cancel archives.
+- [ ] Stage 6: completion checks + quote (installer formula / rate card), 15-min hold with "Stop this quote", owner email+text with consent/opt-out/8pm; hide held quotes.
+- [ ] Stage 7: incomplete-form installer text + 24h chase; install-day photo checklist + locked "Installation complete".
+- [ ] Stage 8: "Office needs to…" list items; installer app: remove portal draft form, "New Ready Check" opens Mitti; "Waiting – Ready Checks not open yet".
+- [ ] Stage 9: full test plan (audit E/F, formula both electrician options, missing labels, Mitti-first match, photo lock).
 ## Mitti-first Ready Check pickup (Jo, 22 Oct "do the mitti things") — editor + live TEST verified
 - [x] Ready Checks installers start straight in Mitti now surface to Office: "Ready Checks started in Mitti" panel on Active jobs (14-day window, archived/completed/blank drafts excluded, installer business matched from the Mitti user, non-blocking duplicate flags).
 - [x] Office link action writes the HV job number into the form's Portal Job Number field, attaches the existing guarded Mitti measurement link, then runs the existing guarded sync (partial answers sync; nothing completes automatically; nothing sent).
