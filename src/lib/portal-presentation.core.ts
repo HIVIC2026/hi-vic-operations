@@ -36,7 +36,7 @@ export function targetForAction(tab: AdminTab | "documents" | "history", label =
 type IntakeAnswers = {
   state?: string | null;
   declared?: { property_type?: string | null; over_five_years?: string | null; previous_upgrade?: string | null } | null;
-  declaredExtras?: { existing_insulation?: string | null; top_floor?: string | null } | null;
+  declaredExtras?: { existing_insulation?: string | null; top_floor?: string | null } & Partial<InsulationDetail> | null;
 };
 
 const answer = (value: string | null | undefined, labels?: Record<string, string>) => {
@@ -55,7 +55,11 @@ export function ownerAnswerForGate1(key: string, intake: IntakeAnswers | null | 
   }
   if (key === "ceiling_age") return answer(intake.declared?.over_five_years, { yes: "Owner says over five years", no: "Owner says not over five years" });
   if (key === "previous_activity") return "Not asked (question retired)";
-  if (key === "existing_insulation") return answer(intake.declaredExtras?.existing_insulation, { none: "Owner says none", present: "Owner says insulation is present" });
+  if (key === "existing_insulation") {
+    const detail = insulationDetailText(intake.declaredExtras);
+    const base = answer(intake.declaredExtras?.existing_insulation, { none: "Owner says none", present: "Owner says insulation is present" });
+    return detail ? `${base} — Owner says: ${detail}` : base;
+  }
   return "Not answered / unknown";
 }
 
