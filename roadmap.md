@@ -1,4 +1,8 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## "Open enquiries" label (Jo, 22 Oct 03:13 UTC)
+- [x] Renamed only the Enquiries tab/label "All enquiries" to "Open enquiries" (single VIEW_LABEL string); counts, list, URL (status=all), other labels, customer-facing pages and behaviour unchanged. No publication.
+- [x] Signed-in Office check at /admin/enquiries desktop 1280×1800: tab shows "1282 Open enquiries", click loads the same list (50 rows, newest HV-3049 first), 0 page errors; "All enquiries" no longer present.
+
 ## Automatic STOP closure (Jo, 22 Oct 01:39 UTC)
 - [x] Existing verified inbound STOP handler persists opt-out then closes phone-matched open enquiries from shared Office classifier using cancelled status and exact reason "Opted out (replied STOP)"; conditional stage check, internal audit, START never reopens. No schema changes, live writes, sends or publication.
 - [x] 6 actual isolated inbound-handler tests plus 19 SMS/sender regressions PASS; preview build OK. Tests cover duplicate STOP, multiple enquiries, other phones, TEST/deleted/saved/progressed exclusion and persistence failure. Live inbound activation NOT_RUN and awaits authorised publication; arbitrary direct database opt-out inserts are not watched (would require a database change).
