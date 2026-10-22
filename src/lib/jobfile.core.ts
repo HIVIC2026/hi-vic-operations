@@ -188,7 +188,10 @@ export function buildCorrespondence(messages: Row[], comms: Row[], senderRole: (
       from: s(c["sender_text"]) ?? s(c["sender_user_id"]), subject: s(c["subject"]), body: String(c["body"] ?? ""), status: String(c["delivery_status"]), source: "job_communication",
       internal: vis === "internal", audience: vis === "customer" ? ["owner"] : vis === "trade" ? ["electrician", "installer"] : [],
       provider: s(c["provider"]), to: Array.isArray(c["recipients"]) ? (c["recipients"] as unknown[]).map(String) : [],
-      attachments: Array.isArray(c["attachment_refs"]) ? (c["attachment_refs"] as { name?: unknown }[]).map((a) => String(a?.name ?? "attachment")) : [] });
+      attachments: Array.isArray(c["attachment_refs"]) ? (c["attachment_refs"] as { name?: unknown }[]).map((a) => String(a?.name ?? "attachment")) : [],
+      attachmentFiles: Array.isArray(c["attachment_refs"])
+        ? (c["attachment_refs"] as { name?: unknown; path?: unknown }[]).map((a) => ({ name: String(a?.name ?? "attachment"), path: typeof a?.path === "string" && a.path ? a.path : null }))
+        : [] });
   }
   return out.sort((a, b) => a.at.localeCompare(b.at));
 }
