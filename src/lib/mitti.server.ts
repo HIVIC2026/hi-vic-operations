@@ -339,6 +339,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
       const plan = planSync(auditNow, { storedAuditId: measureAudit, jobNumber: job.job_number, assessmentStatus: null, templateId: tid });
       if (!plan.locked) {
         const mp = await applyMeasure(jobId, actorId, measureAudit, "installer", splitPatch(plan.patch).measure, plan.snapshot);
+        await applyContactAnswers(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[]);
         const mIssues = plan.issues.filter((i) => !/PIESA|Switchboard/.test(i));
         issues = [...issues, ...mIssues, ...(mp.action === "skip" ? [mp.reason] : [])];
         completed = completed || plan.completed;
