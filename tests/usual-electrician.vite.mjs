@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import tailwind from '@tailwindcss/vite';
 const root = process.cwd();
 const server = await createServer({ root, configFile: false, plugins: [react(), tailwind()], resolve: { alias: [
-  { find: '@tanstack/react-start', replacement: root + '/tests/portal-browser-serverfn-stub.ts' },
+  { find: '@tanstack/react-start', replacement: root + '/tests/usual-electrician-browser-start.ts' },
   { find: '@/lib/trade-view.functions', replacement: root + '/tests/usual-electrician-browser-functions.ts' },
   { find: './business-pages', replacement: root + '/tests/usual-electrician-browser-fields.ts' },
   { find: '@', replacement: root + '/src' },
