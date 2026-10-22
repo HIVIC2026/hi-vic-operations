@@ -11,6 +11,7 @@ const money = (n: number) => `$${n.toFixed(2)}`;
 export function InstallerQuoteDraftPanel({ jobId }: { jobId: string }) {
   const load = useServerFn(getInstallerQuoteDraft);
   const send = useServerFn(sendInstallerQuote);
+  const stop = useServerFn(stopInstallerQuoteHold);
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["installer-quote-draft", jobId], queryFn: () => load({ data: { jobId } }) });
   const [busy, setBusy] = useState(false);
@@ -29,6 +30,20 @@ export function InstallerQuoteDraftPanel({ jobId }: { jobId: string }) {
       const r = await send({ data: { jobId, quoteId: quote.id } });
       await qc.invalidateQueries({ queryKey: ["installer-quote-draft", jobId] });
       toast.success(r.delivery === "ready_to_send" ? "Quote sent to the owner." : "Quote is now in the owner's portal. No email went out — messages are switched off or the owner hasn't agreed to contact.");
+    } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
+  };
+
+  /** Stage 6 (Jo 22 Oct): "Stop this quote" — the office's decision outranks the automatic send. */
+  const onStop = async () => {
+    if (!quote) return;
+    const reason = window.prompt("Why is this quote being stopped? (kept on the job)", "");
+    if (reason === null) return;
+    if (reason.trim().length < 3) { toast.error("Please say why — the reason is kept on the job."); return; }
+    setBusy(true);
+    try {
+      await stop({ data: { jobId, quoteId: quote.id, reason: reason.trim() } });
+      await qc.invalidateQueries({ queryKey: ["installer-quote-draft", jobId] });
+      toast.success("Stopped. The quote stays held for the office.");
     } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
   };
 
@@ -58,6 +73,16 @@ export function InstallerQuoteDraftPanel({ jobId }: { jobId: string }) {
             <div className="flex justify-between py-1.5"><dt>Estimated VEU / VEEC discount</dt><dd className="tabular-nums">−{money(Number(quote.veec_discount_inc_gst))}</dd></div>
             <div className="flex justify-between py-2 font-semibold"><dt>Estimated cost after discount</dt><dd className="tabular-nums">{money(Number(quote.customer_total_inc_gst))}</dd></div>
           </dl>
+          {d.holdUntil && !d.holdStopped && quote.status === "draft" && (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
+              <p className="font-medium">Auto-send held until {new Date(d.holdUntil).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit" })}.</p>
+              <p className="text-muted-foreground">The office can still stop it. After that it goes to the owner by email and text.</p>
+              <Button variant="outline" size="sm" className="mt-2" disabled={busy} onClick={onStop}>Stop this quote</Button>
+            </div>
+          )}
+          {d.holdStopped && quote.status === "draft" && (
+            <p className="text-sm font-medium text-destructive">Stopped by the office — this quote stays held until the office sends it.</p>
+          )}
           {quote.status === "draft" ? (
             <Button disabled={busy} onClick={onSend}>Send quote to owner</Button>
           ) : (
