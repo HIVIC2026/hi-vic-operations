@@ -454,7 +454,7 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     assert.equal(result.counts.stored, 1);
     const state = await h.state();
     assert.equal(state.all_inbound_next_link, null);
-    assert.ok(new Date(state.all_inbound_cursor).toISOString() >= "2026-10-19T05:00:00Z");
+    assert.ok(new Date(state.all_inbound_cursor).getTime() >= Date.parse("2026-10-19T05:00:00Z"));
   })],
   ["Office can set and stop an explicit historical catch-up start; no silent cutoff", practice(async h => {
     await h.server.setCatchupFrom("2025-01-01T00:00:00Z");
