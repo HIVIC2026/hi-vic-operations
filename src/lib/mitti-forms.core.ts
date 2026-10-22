@@ -156,7 +156,7 @@ export const FORMS: Record<FormKey, { title: string; role: "installer" | "electr
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const TYPE_ALIASES: Record<FieldType, string[]> = {
-  text: ["text", "textsingle"], phone: ["phone", "phone_number", "phonenumber"], number: ["number", "slider", "textsingle", "text"], choice: ["list", "question", "choice"],
+  text: ["text", "textsingle"], phone: ["phone", "phone_number", "phonenumber", "textsingle", "text"], number: ["number", "slider", "textsingle", "text"], choice: ["list", "question", "choice"],
   multichoice: ["list", "question", "choice", "multiselect", "checkbox"],
   yesno: ["question", "list", "yesno"], media: ["media", "attachment", "drawing"], signature: ["signature", "drawing"], datetime: ["datetime"],
   // Mitti has no date-only item; the portal keeps only the date part (see official-forms.core renderOfficialDocument).
