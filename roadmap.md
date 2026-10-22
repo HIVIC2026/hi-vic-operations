@@ -460,3 +460,9 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 
 - [x] Speed (21 Oct): 0219 indexes (intake media + removed marker) proven on practice DB, applied, piles identical; job lists read side numbers in parallel.
 - [ ] Speed next: Quote approvals board slow read (~3 s); per-page duplicate review counts; stored pile field awaits Jo approval.
+
+## 22 Oct (Jo)
+- [x] Mitti A1 "Homeowner name" box recognised
+- [ ] Office "Installer quotes to check" list on Active jobs
+- [ ] Live TEST rerun of installer Add a job → Mitti → sync → quote draft
+- [ ] Estimate page removal box to match the email look
