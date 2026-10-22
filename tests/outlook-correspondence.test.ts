@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
-  classifyIntent, closedReasonLabel, closureDecision, counterpartEmails, isPortalDuplicate, matchMessage, normaliseMessage,
+  attachmentStoragePath, classifyIntent, closedReasonLabel, closureDecision, counterpartEmails, isPortalDuplicate, matchMessage, normaliseMessage, planAttachments,
   type CandidateJob, type GraphMessage, type MailMessage,
 } from "../src/lib/outlook-correspondence.core";
 import { buildCorrespondence } from "../src/lib/jobfile.core";
@@ -31,7 +31,11 @@ describe("direction and persistence shape", () => {
   });
   test("stored rows appear on the job thread with direction, provider and attachments", () => {
     const c = buildCorrespondence([], [{ id: "c1", sent_at: null, received_at: "2026-10-05T01:00:00Z", created_at: "x", direction: "inbound", channel: "email", sender_text: "amy@test.example", subject: "Hi", body: "b", delivery_status: "received", visibility: "customer", provider: "outlook", recipients: [BOX], attachment_refs: [{ name: "roof.jpg" }] }], () => null);
-    expect(c[0]).toMatchObject({ direction: "inbound", provider: "outlook", attachments: ["roof.jpg"], audience: ["owner"] });
+    expect(c[0]).toMatchObject({ direction: "inbound", provider: "outlook", attachments: ["roof.jpg"], attachmentFiles: [{ name: "roof.jpg", path: null }], audience: ["owner"] });
+  });
+  test("stored files surface their private path for the job-file link signer", () => {
+    const c = buildCorrespondence([], [{ id: "c2", sent_at: null, received_at: "2026-10-05T01:00:00Z", created_at: "x", direction: "inbound", channel: "email", sender_text: "amy@test.example", subject: "Hi", body: "b", delivery_status: "received", visibility: "customer", provider: "outlook", recipients: [BOX], attachment_refs: [{ name: "roof.jpg", path: "correspondence/ja/m1/1-roof.jpg" }, { name: "big.zip", path: null, skipped: "over the 20 MB per-file limit" }] }], () => null);
+    expect(c[0]!.attachmentFiles).toEqual([{ name: "roof.jpg", path: "correspondence/ja/m1/1-roof.jpg" }, { name: "big.zip", path: null }]);
   });
 });
 
