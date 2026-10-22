@@ -52,6 +52,10 @@ export const markTradeSetup = createServerFn({ method: "POST" }).middleware([req
 export const getTradeBusinessFile = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .handler(async ({ context }) => plain(await (await import("./trade-view.server")).tradeBusinessFile(context.userId)));
 
+export const saveTradeUsualProduct = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ brand: z.enum(["Earthwool", "Bradford", "Pink Batts", "Other"]), brandOther: z.string().trim().max(100).nullable(), productName: z.string().trim().min(1).max(200), rValue: z.enum(["R5.0", "R6.0", "R7.0"]) }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSaveUsualProduct(context.userId, data));
+
 export const saveTradeUsualElectrician = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ name: z.string().trim().min(1).max(200), licence: z.string().trim().min(1).max(100), priceIncGst: z.number().finite().min(0).max(1_000_000) }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSaveUsualElectrician(context.userId, data));

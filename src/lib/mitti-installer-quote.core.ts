@@ -1,4 +1,5 @@
 import { buildInstallerQuoteDraft } from "./installer-led.core";
+import { productQuoteDescription } from "./usual-product.core";
 import { MITTI_INSTALLER_FEE_INC_GST, type MittiElectricianResolution } from "./usual-electrician.core";
 
 /** Jo 22 Oct: full installer amount + $349 AP fee + selected electrician − existing VEU rebate. */
@@ -17,4 +18,15 @@ export function mittiQuoteElectricalBlocker(lines: { code: string | null; line_t
   if (fees.length !== 1 || Number(fees[0]?.line_total_inc_gst) !== MITTI_INSTALLER_FEE_INC_GST) return "Ready Check quote must include the $349 Home Insulation Victoria fee";
   if (current.priceIncGst === 0 ? electrical.length !== 0 : electrical.length !== 1 || Number(electrical[0]?.line_total_inc_gst) !== current.priceIncGst) return "Ready Check quote electrician price does not match the recorded choice";
   return null;
+}
+/** Jo 23 Oct: product description on the installer line; incomplete/missing product holds the quote. */
+export function applyMittiProduct(
+  draft: { ready: boolean; blockers: string[]; lines: { code: string | null; description: string; explanation?: string | null }[] },
+  product: import("./usual-product.core").MittiProductResolution, areaM2: number | null,
+) {
+  if (!product.choice) return draft;
+  if (!product.ready || !product.product) { draft.blockers.push(...product.reasons); draft.ready = false; return draft; }
+  const line = draft.lines.find((l) => l.code === "INSTALLER_PRICE");
+  if (line) line.description = productQuoteDescription(product.product, areaM2);
+  return draft;
 }
