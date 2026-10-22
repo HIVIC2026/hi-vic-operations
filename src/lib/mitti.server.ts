@@ -352,7 +352,15 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
           try {
             const d = await draftInstallerQuoteFromReadyCheck(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], measureAudit);
             if (d && !d.ready) issues = [...issues, ...d.blockers.map((b) => `Owner quote: ${b}`)];
-            if (d?.ready) await applyCobrand(jobId);
+            // Stage 6 (Jo 22 Oct): a clean finished Ready Check may prepare the owner quote automatically —
+            // held for 15 minutes so the office can still stop it. Switch OFF by default; nothing sends here.
+            if (d?.ready) {
+              await applyCobrand(jobId);
+              const { maybeAutoQueueReadyCheckQuote } = await import("./ready-check-quote.server");
+              const a = await maybeAutoQueueReadyCheckQuote(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: unknown }[], true)
+                .catch((e) => ({ action: "review" as const, reasons: [e instanceof Error ? e.message : "error"] }));
+              if (a.action === "review" || a.action === "blocked") issues = [...issues, ...(a.reasons ?? []).map((r) => `Owner quote: ${r}`)];
+            }
           } catch (e) { issues = [...issues, `Owner quote could not be drafted: ${e instanceof Error ? e.message : "error"}`]; }
         }
         // History only on change (Jo 23 Oct): an unchanged re-sync (same answers, same modified time)

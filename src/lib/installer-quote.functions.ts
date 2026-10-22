@@ -12,17 +12,24 @@ export const getInstallerQuoteDraft = createServerFn({ method: "POST" }).middlew
     const { data: job, error: je } = await admin.from("jobs").select("channel").eq("id", data.jobId).single();
     if (je) throw new Error(je.message);
     if (job.channel !== "installer_sourced") return { applies: false as const };
-    const [{ data: q, error }, { data: held }] = await Promise.all([
+    const [{ data: q, error }, { data: held }, { data: holdEv }] = await Promise.all([
       admin.from("quotes").select("id, status, option_code, subtotal_inc_gst, veec_discount_inc_gst, customer_total_inc_gst, cobrand, created_at, quote_items(code, description, explanation, line_total_inc_gst, sort)")
         .eq("job_id", data.jobId).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       admin.from("workflow_events").select("details, created_at").eq("job_id", data.jobId).eq("event_type", "installer_quote_held").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      admin.from("workflow_events").select("event_type, details, created_at").eq("job_id", data.jobId).in("event_type", ["quote_hold_started", "quote_hold_stopped"]).order("created_at", { ascending: false }).limit(10),
     ]);
     if (error) throw new Error(error.message);
     const heldNewer = held && (!q || held.created_at > q.created_at);
+    // Stage 6 (Jo 22 Oct): the 15-minute office window on an automatically prepared quote.
+    const evs = (holdEv ?? []) as { event_type: string; details: { quote_id?: string; hold_until?: string } | null; created_at: string }[];
+    const started = evs.find((e) => e.event_type === "quote_hold_started" && e.details?.quote_id === q?.id);
+    const stopped = started ? evs.find((e) => e.event_type === "quote_hold_stopped" && e.created_at > started.created_at) : null;
     return {
       applies: true as const,
       quote: q ? { ...q, quote_items: [...(q.quote_items ?? [])].sort((a, b) => a.sort - b.sort) } : null,
       heldBlockers: heldNewer ? (((held.details as { blockers?: string[] } | null)?.blockers) ?? []) : [],
+      holdUntil: started?.details?.hold_until ?? null,
+      holdStopped: !!stopped,
     };
   });
 
@@ -53,6 +60,16 @@ export const sendInstallerQuote = createServerFn({ method: "POST" }).middleware(
     if (!upd) throw new WorkflowError("This quote has already been sent.");
     await logEvent(data.jobId, context.userId, "installer_quote_queued", "Office approved the co-branded owner quote — queued; it goes to the owner only when the launch switches allow", { quote_id: q.id, email_delivery: delivery });
     return { delivery, queued: true };
+  });
+
+// ---- Stage 6 (Jo 22 Oct 2026): the office stops an automatically prepared quote before its window ends. ----
+export const stopInstallerQuoteHold = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: z.string().uuid(), quoteId: z.string().uuid(), reason: z.string().trim().min(3).max(500) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { stopQuoteHold } = await import("./quote-hold.server");
+    await stopQuoteHold(data.jobId, context.userId, data.quoteId, data.reason);
+    return { stopped: true as const };
   });
 
 // ---- Approved installer intake (Jo, 8 Oct 2026): office review of the short intake. Admin only. ----
