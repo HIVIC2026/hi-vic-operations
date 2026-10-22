@@ -17,6 +17,7 @@ function reset() {
     user_roles: [{ user_id: OWNER, role: "installer" }, { user_id: STAFF, role: "installer" }],
     profiles: [{ id: OWNER, full_name: "Owner Test" }, { id: STAFF, full_name: "Staff Test" }],
     businesses: [{ id: BIZ, name: "TEST Biz", business_type: "eec_installer", accepting_new_jobs: true, coverage_radius_km: 50, base_suburb: "Fraser Rise" }],
+    admin_config_events: [],
     partner_agreements: [{ business_id: BIZ, version: 1, body: "TEST agreement", signer_name: "Owner Test", signed_at: "2026-10-01T00:00:00Z" }],
     business_bank_details: [{ business_id: BIZ, account_name: "TEST", bsb: "123456", account_number: "987654321" }],
     business_credentials: [], partner_workers: [], rate_cards: [], partner_change_requests: [], electrician_rates: [],
@@ -29,10 +30,14 @@ function q(table: string) {
   const pass = () => self;
   for (const k of ["select", "order", "limit", "is", "or", "neq", "not", "in", "gte", "lte"]) self[k] = pass;
   self.eq = (col: string, v: unknown) => { rows = rows.filter((r) => !(col in r) || r[col] === v); return self; };
+  self.contains = (col: string, v: Record<string, unknown>) => { rows = rows.filter((r) => Object.entries(v).every(([k, value]) => (r[col] as Record<string, unknown> | undefined)?.[k] === value)); return self; };
   self.maybeSingle = async () => ({ data: rows[0] ?? null, error: null });
   self.single = async () => ({ data: rows[0] ?? null, error: rows[0] ? null : { message: "none" } });
   self.then = (res: (v: unknown) => unknown) => res({ data: rows, error: null });
-  self.insert = () => ({ select: () => ({ single: async () => ({ data: { id: "x" }, error: null }) }), then: (r: (v: unknown) => unknown) => r({ error: null }) });
+  self.insert = (value: Record<string, unknown>) => {
+    tables[table] ??= []; tables[table].unshift({ ...value, id: String(tables[table].length + 1) });
+    return { select: () => ({ single: async () => ({ data: { id: "x" }, error: null }) }), then: (r: (v: unknown) => unknown) => r({ error: null }) };
+  };
   self.update = () => self;
   return self;
 }
@@ -46,6 +51,17 @@ const pilot = await import("../src/lib/pilot.server");
 beforeEach(reset);
 
 describe("trade business pages: staff refused, owner allowed", () => {
+  test("usual electrician saves once to own business, reloads and is editable with history", async () => {
+    const initial = { name: "TEST REC", licence: "TEST-LIC", priceIncGst: 275 };
+    await expect(tv.tradeSaveUsualElectrician(STAFF, initial)).rejects.toThrow(/business owner/);
+    expect(tables.admin_config_events?.length).toBe(0);
+    await tv.tradeSaveUsualElectrician(OWNER, initial);
+    expect((await tv.tradeBusinessFile(OWNER)).usualElectrician).toEqual(initial);
+    await tv.tradeSaveUsualElectrician(OWNER, { ...initial, priceIncGst: 300 });
+    expect((await tv.tradeBusinessFile(OWNER)).usualElectrician?.priceIncGst).toBe(300);
+    expect(tables.admin_config_events?.length).toBe(2);
+    expect(tables.admin_config_events?.every((e) => (e.details as { business_id: string }).business_id === BIZ)).toBe(true);
+  });
   test("business file (rates, insurance, agreement)", async () => {
     await expect(tv.tradeBusinessFile(STAFF)).rejects.toThrow(/business owner/);
     const f = await tv.tradeBusinessFile(OWNER);
