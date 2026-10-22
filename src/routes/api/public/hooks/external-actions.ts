@@ -10,7 +10,11 @@ export const Route = createFileRoute("/api/public/hooks/external-actions")({
         if (nonce) {
           const { data: ok } = await supabaseAdmin.rpc("consume_cron_nonce", { _nonce: nonce, _purpose: "external_actions" });
           if (!ok) return new Response("forbidden", { status: 403 });
-        } else if (!(await authenticateCronRequest(request))) return new Response("forbidden", { status: 403 });
+        } else {
+          // Security fix (Jo 22 Oct): authenticateCronRequest returns a Response on FAILURE and null on success.
+          const denied = await authenticateCronRequest(request);
+          if (denied) return denied;
+        }
         const { processExternalActionOutbox } = await import("@/lib/external-action-outbox.server");
         return Response.json(await processExternalActionOutbox(20));
       },
