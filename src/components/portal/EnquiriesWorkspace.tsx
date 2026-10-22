@@ -158,7 +158,7 @@ function NoInsulationFollowup({ jobId, onDone, deliveryUncertain }: { jobId: str
   return <GuardedFollowup jobId={jobId} deliveryUncertain={deliveryUncertain} title="Save your spot offer" onDone={onDone} run={(mode) => action({ data: { jobId, mode } })} />;
 }
 
-function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
+function MediaReview({ row, onDone, readOnly = false }: { row: Row; onDone: () => void; readOnly?: boolean }) {
   const loadMedia = useServerFn(getLeadMedia);
   const review = useServerFn(reviewLeadMediaFn);
   const decide = useServerFn(setEligibility);
@@ -232,7 +232,11 @@ function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
               <p className="text-sm text-muted-foreground">No files found.</p>
             )}
           </div>
-          {saved && (savedOutcome === "below_r2" || savedOutcome === "no_insulation") ? (
+          {readOnly ? (
+            <p role="status" className="text-xs text-muted-foreground">
+              Reviewed: {row.mediaOutcome ? MEDIA_OUTCOME_LABEL[row.mediaOutcome] : "review recorded"}. Photos and videos stay here for reference.
+            </p>
+          ) : saved && (savedOutcome === "below_r2" || savedOutcome === "no_insulation") ? (
             <div className="space-y-2">
               <p role="status" className="text-sm font-semibold text-primary">Review saved: {saved}. Now send the Save your spot email:</p>
               {savedOutcome === "below_r2"
