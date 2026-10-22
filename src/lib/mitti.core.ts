@@ -39,6 +39,12 @@ export function mittiApi(call: MittiCall) {
     setAuditOwner: (auditId: string, userId: string) =>
       call("PUT", `/inspections/v1/inspections/${encodeURIComponent(auditId)}/owner`, { owner_id: userId }),
     getAudit: (auditId: string) => call("GET", `/audits/${encodeURIComponent(auditId)}`) as Promise<Any>,
+    /** List recently modified audits (Mitti/SafetyCulture listing route); template-filtered by the caller. */
+    searchAudits: (modifiedAfterIso: string) =>
+      call("GET", `/audits/search?modified_after=${encodeURIComponent(modifiedAfterIso)}&limit=200`) as Promise<Any>,
+    /** Documented partial text update for header items (Portal Job Number write-back); omitted fields untouched. */
+    updateAuditHeader: (auditId: string, headerItems: { item_id: string; type: string; responses: { text: string } }[]) =>
+      call("PUT", `/audits/${encodeURIComponent(auditId)}`, { header_items: headerItems }) as Promise<Any>,
     /** Documented partial text update; omitted responses (including signatures) are untouched. */
     updateAuditText: (auditId: string, items: { item_id: string; type: string; responses: { text: string } }[]) => call("PUT", `/audits/${encodeURIComponent(auditId)}`, { items }),
     /** Mitti's own finished PDF report (with its photos): request, then poll until a download link is ready. */
