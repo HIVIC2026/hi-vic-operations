@@ -94,11 +94,14 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
   // Official PIESA stays blocked from live use until its mapping is approved and its source confirmed.
   if (!measureOnly) { const b = officialFormUseBlocker("piesa"); if (b) throw new WorkflowError(b); }
 
-  const [{ data: prop }, { data: owner }, { data: asgRow }, { data: booking }, { data: a }] = await Promise.all([
+  const [{ data: prop }, { data: owner }, { data: asgRow }, { data: booking }, { data: rcBooking }, { data: a }] = await Promise.all([
     admin.from("properties").select("address_line,suburb,state,postcode,occupancy,enrichment").eq("id", job.property_id).single(),
     admin.from("owners").select("full_name,email,phone").eq("id", job.owner_id).single(),
     admin.from("job_assignments").select("user_id, profiles:user_id(full_name,email)").eq("job_id", jobId).eq("role", role).eq("active", true).maybeSingle(),
     admin.from("bookings").select("scheduled_start,status").eq("job_id", jobId).eq("kind", "assessment").eq("status", "confirmed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
+    // Stage 5 (Jo 23 Oct): a Ready Check form carries the OWNER'S BOOKED Ready Check date — the PIESA
+    // booking is irrelevant here and must never leak onto a Ready Check form.
+    admin.from("bookings").select("scheduled_start,status").eq("job_id", jobId).eq("kind", "ready_check").eq("status", "confirmed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
     admin.from("assessments").select("id,status,external_mitti_id").eq("job_id", jobId).maybeSingle(),
   ]);
   if (!measureOnly && a?.status === "complete") throw new WorkflowError("Electrical assessment is already complete and locked.");
@@ -134,7 +137,7 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
       electricianEmail: prof?.email ?? null, templateId, assigneeRole: role,
       prefill: {
         jobNumber: job.job_number, address, ownerName: owner?.full_name ?? "", ownerEmail: owner?.email ?? null, ownerPhone: owner?.phone ?? null,
-        assessorName: prof?.full_name || prof?.email || "", assessmentAt: booking?.scheduled_start ?? null,
+        assessorName: prof?.full_name || prof?.email || "", assessmentAt: (measureOnly ? rcBooking?.scheduled_start : booking?.scheduled_start) ?? null,
         estimatedAreaM2: job.estimated_area_m2 != null ? Number(job.estimated_area_m2) : null,
         occupancy: prop?.occupancy ? prop.occupancy.replace("_", " ") : null, lifeSupport: job.life_support ? "Yes – life support recorded" : "None recorded by office",
         inspectionDate: measureOnly ? null : todayMelbourne(),
@@ -208,6 +211,28 @@ async function applyMeasure(jobId: string, actorId: string | null, auditId: stri
   return plan;
 }
 
+/** Stage 3 (Jo 23 Oct): new A1 contact/permission/electrician answers, absent-safe. Fills blank owner
+ *  contact fields, records the electrician choice only when the job has none, and logs the details for
+ *  the office. Never records marketing consent — permission is only ever a factual internal note. */
+async function applyContactAnswers(jobId: string, actorId: string | null, entries: { label: string; value: string | null }[]) {
+  const { contactAnswersFromEntries } = await import("./mitti.core");
+  const a = contactAnswersFromEntries(entries);
+  if (!a.phone && !a.email && a.contactPermission == null && !a.electricianChoice && !a.electricianPriceIncGst && !a.electricianName && !a.electricianLicence) return;
+  const { data: job } = await admin.from("jobs").select("owner_id, electrician_choice").eq("id", jobId).maybeSingle();
+  if (!job) return;
+  const patch: { phone?: string; email?: string } = {};
+  if (a.phone || a.email) {
+    const { data: o } = await admin.from("owners").select("phone,email").eq("id", job.owner_id).maybeSingle();
+    if (o) {
+      if (a.phone && !String(o.phone ?? "").trim()) patch.phone = a.phone;
+      if (a.email && !String(o.email ?? "").trim()) patch.email = a.email;
+    }
+  }
+  if (Object.keys(patch).length) await admin.from("owners").update(patch).eq("id", job.owner_id);
+  if (a.electricianChoice && !job.electrician_choice) await admin.from("jobs").update({ electrician_choice: a.electricianChoice === "own" ? "installer_own" : "hivic_organise" }).eq("id", jobId);
+  await logEvent(jobId, actorId, "mitti_contact_answers", `Ready Check form answers recorded (owner contact permission: ${a.contactPermission == null ? "not on form" : a.contactPermission ? "yes" : "no"})`, { has_phone: !!a.phone, has_email: !!a.email, permission: a.contactPermission, electrician_choice: a.electricianChoice, electrician_price_inc_gst: a.electricianPriceIncGst, electrician_name: a.electricianName, electrician_licence: a.electricianLicence }, { internal: true });
+}
+
 /** Save Mitti's finished PDF report to the job's private files, once per completed audit version. Never throws. */
 async function saveMittiReport(jobId: string, actorId: string | null, auditId: string, modifiedAt: string | null, label: string, call: MittiCall) {
   const key = `${auditId}:${modifiedAt ?? "completed"}`;
@@ -242,7 +267,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
   const { data: job } = await admin.from("jobs").select("job_number,business_unit,channel").eq("id", jobId).single();
   if (!job) throw new WorkflowError("Job not found.");
   if (job.business_unit !== "hivic") throw new WorkflowError("Mitti automation is only available for Home Insulation Victoria jobs.");
-  const { data: a } = await admin.from("assessments").select("id,status,external_mitti_id,mitti_template_id").eq("job_id", jobId).maybeSingle();
+  const { data: a } = await admin.from("assessments").select("id,status,external_mitti_id,mitti_template_id,mitti_completed,mitti_modified_at,mitti_sync_status").eq("job_id", jobId).maybeSingle();
   const s = await jobScope(jobId);
   const m = s.measurementRow;
   const measureAudit = m?.external_source === "mitti" && m.external_id && m.external_id !== a?.external_mitti_id && m.status !== "complete" ? m.external_id : null;
@@ -295,49 +320,64 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
           }
         }
         if (plan.completed) await saveMittiReport(jobId, actorId, a.external_mitti_id, plan.modifiedAt ?? null, "PIESA", call);
-        await logEvent(jobId, actorId, "mitti_synced", plan.completed ? "Mitti assessment synced (completed in Mitti)" : "Mitti partial data synced (audit not yet completed)",
-          { audit_id: a.external_mitti_id, electrical_fields: Object.keys(electrical), measurement: "not_imported_from_piesa", measurement_fields: [], issues, other_items: plan.others.length });
+        // History only on change (Jo 23 Oct): an unchanged re-sync (same answers, same modified time,
+        // same status) adds no new event row.
+        const changed = plan.syncStatus !== a.mitti_sync_status || plan.completed !== (a.mitti_completed ?? false) || (plan.modifiedAt ?? null) !== (a.mitti_modified_at ?? null);
+        if (changed) await logEvent(jobId, actorId, "mitti_synced", plan.completed ? "Mitti assessment synced (completed in Mitti)" : "Mitti partial data synced (audit not yet completed)",
+          { audit_id: a.external_mitti_id, electrical_fields: Object.keys(electrical), measurement: "not_imported_from_piesa", measurement_fields: [], issues, other_items: plan.others.length, modified_at: plan.modifiedAt ?? null });
       }
     }
   }
 
   if (measureAudit) {
-    const ids = await templateIds();
-    const auditNow = await api.getAudit(measureAudit);
-    // Jo 22 Oct 2026: a Ready Check done in Mitti may use either configured template (installer A1 or HIV A2);
-    // pick the one the form actually uses (normalised id comparison). The channel variant stays the fallback.
-    const auditTemplate = String((auditNow as Any)?.template_id ?? "");
-    const tid = [ids.readyCheck, ids.readyCheckPriced].filter(Boolean).find((t) => sameMittiTemplateId(t, auditTemplate))
-      ?? (readyCheckVariant(job.channel) === "ready_check_priced" ? ids.readyCheckPriced : ids.readyCheck);
-    if (!tid) throw new WorkflowError(MEASUREUP_TEMPLATE_MISSING);
-    let plan;
     try {
-      plan = planSync(auditNow, { storedAuditId: measureAudit, jobNumber: job.job_number, assessmentStatus: null, templateId: tid });
-    } catch (e) { throw wrap(e); }
-    if (!plan.locked) {
-      const mp = await applyMeasure(jobId, actorId, measureAudit, "installer", splitPatch(plan.patch).measure, plan.snapshot);
-      const mIssues = plan.issues.filter((i) => !/PIESA|Switchboard/.test(i));
-      issues = [...issues, ...mIssues, ...(mp.action === "skip" ? [mp.reason] : [])];
-      completed = completed || plan.completed;
-      if (plan.completed) await saveMittiReport(jobId, actorId, measureAudit, plan.modifiedAt ?? null, "Ready Check", call);
-      // Installer-brought jobs: draft (never send) the co-branded owner quote from the installer's ticked price.
-      if (plan.completed && readyCheckVariant(job.channel) === "ready_check_priced") {
-        try {
-          const d = await draftInstallerQuoteFromReadyCheck(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], measureAudit);
-          if (d && !d.ready) issues = [...issues, ...d.blockers.map((b) => `Owner quote: ${b}`)];
-          if (d?.ready) await applyCobrand(jobId);
-        } catch (e) { issues = [...issues, `Owner quote could not be drafted: ${e instanceof Error ? e.message : "error"}`]; }
+      const ids = await templateIds();
+      const auditNow = await api.getAudit(measureAudit);
+      // Jo 22 Oct 2026: a Ready Check done in Mitti may use either configured template (installer A1 or HIV A2);
+      // pick the one the form actually uses (normalised id comparison). The channel variant stays the fallback.
+      const auditTemplate = String((auditNow as Any)?.template_id ?? "");
+      const tid = [ids.readyCheck, ids.readyCheckPriced].filter(Boolean).find((t) => sameMittiTemplateId(t, auditTemplate))
+        ?? (readyCheckVariant(job.channel) === "ready_check_priced" ? ids.readyCheckPriced : ids.readyCheck);
+      if (!tid) throw new WorkflowError(MEASUREUP_TEMPLATE_MISSING);
+      const plan = planSync(auditNow, { storedAuditId: measureAudit, jobNumber: job.job_number, assessmentStatus: null, templateId: tid });
+      if (!plan.locked) {
+        const mp = await applyMeasure(jobId, actorId, measureAudit, "installer", splitPatch(plan.patch).measure, plan.snapshot);
+        await applyContactAnswers(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[]);
+        const mIssues = plan.issues.filter((i) => !/PIESA|Switchboard/.test(i));
+        issues = [...issues, ...mIssues, ...(mp.action === "skip" ? [mp.reason] : [])];
+        completed = completed || plan.completed;
+        if (plan.completed) await saveMittiReport(jobId, actorId, measureAudit, plan.modifiedAt ?? null, "Ready Check", call);
+        // Installer-brought jobs: draft (never send) the co-branded owner quote from the installer's ticked price.
+        if (plan.completed && readyCheckVariant(job.channel) === "ready_check_priced") {
+          try {
+            const d = await draftInstallerQuoteFromReadyCheck(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], measureAudit);
+            if (d && !d.ready) issues = [...issues, ...d.blockers.map((b) => `Owner quote: ${b}`)];
+            if (d?.ready) await applyCobrand(jobId);
+          } catch (e) { issues = [...issues, `Owner quote could not be drafted: ${e instanceof Error ? e.message : "error"}`]; }
+        }
+        // History only on change (Jo 23 Oct): an unchanged re-sync (same answers, same modified time)
+        // adds no new event row.
+        const { data: lastEv } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_measureup_synced").order("created_at", { ascending: false }).limit(1).maybeSingle();
+        const lastMod = (lastEv?.details as { modified_at?: string | null } | null)?.modified_at ?? null;
+        const changed = mp.action !== "skip" || (plan.completed && (plan.modifiedAt ?? null) !== lastMod);
+        if (changed) await logEvent(jobId, actorId, "mitti_measureup_synced", plan.completed ? "Mitti Ready Check synced (completed in Mitti)" : "Mitti Ready Check partial data synced", { audit_id: measureAudit, measurement: mp.action, issues: mIssues, modified_at: plan.modifiedAt ?? null });
       }
-      await logEvent(jobId, actorId, "mitti_measureup_synced", plan.completed ? "Mitti Ready Check synced (completed in Mitti)" : "Mitti Ready Check partial data synced", { audit_id: measureAudit, measurement: mp.action, issues: mIssues });
+    } catch (e) {
+      // Recorded so the office can retry (never auto-retried in a loop); the rest of the sync still lands.
+      const msg = e instanceof Error ? e.message : "Mitti error";
+      await logEvent(jobId, actorId, "mitti_measureup_sync_failed", `Ready Check sync failed: ${msg}`, { audit_id: measureAudit, needs_office: true }, { internal: true }).catch(() => undefined);
+      issues = [...issues, `Ready Check sync failed: ${msg}`];
     }
   }
   return { locked, completed, issues };
 }
 
 export async function syncPendingMitti(actorId: string | null, call: MittiCall = realMittiCall) {
+  // Jo 23 Oct: cancelled/held/completed/archived jobs are never synced — their forms stay in Mitti untouched.
+  const NOT_NEEDED = "(cancelled,on_hold,complete,ready_for_veec)";
   const [{ data: as }, { data: ms }] = await Promise.all([
-    admin.from("assessments").select("job_id,jobs!inner(business_unit)").not("external_mitti_id", "is", null).neq("status", "complete").eq("jobs.business_unit", "hivic").is("jobs.deleted_at", null),
-    admin.from("ceiling_measurements").select("job_id,jobs!inner(business_unit)").eq("external_source", "mitti").eq("is_current", true).neq("status", "complete").eq("jobs.business_unit", "hivic").is("jobs.deleted_at", null),
+    admin.from("assessments").select("job_id,jobs!inner(business_unit)").not("external_mitti_id", "is", null).neq("status", "complete").eq("jobs.business_unit", "hivic").is("jobs.deleted_at", null).is("jobs.qa_archived_at", null).not("jobs.stage", "in", NOT_NEEDED),
+    admin.from("ceiling_measurements").select("job_id,jobs!inner(business_unit)").eq("external_source", "mitti").eq("is_current", true).neq("status", "complete").eq("jobs.business_unit", "hivic").is("jobs.deleted_at", null).is("jobs.qa_archived_at", null).not("jobs.stage", "in", NOT_NEEDED),
   ]);
   const ids = [...new Set([...(as ?? []), ...(ms ?? [])].map((r) => r.job_id))];
   const results: { jobId: string; ok: boolean; message: string }[] = [];

@@ -114,6 +114,44 @@ export async function sweepDailyMittiTexts(now = new Date()) {
   return out;
 }
 
+/** Stage 5 (Jo 23 Oct): one-off text to the booked installer when a Ready Check is confirmed — the booked
+ *  time and the form link, so they open the right form. Same switch, TEST-only sending and send-once-per-
+ *  booking rule as the morning text; never retries. Wording is new copy awaiting Jo's sign-off before the
+ *  switch goes on. */
+export async function sweepReadyCheckBookedTexts(now = new Date()) {
+  const s = await dailyTextSettings();
+  if (!s.enabled) return { skipped: "switch_off" };
+  if (s.missing.length) return { skipped: "form_ids_missing" };
+  const since = new Date(now.getTime() - 36 * 3_600_000).toISOString();
+  const { data: bks } = await db.from("bookings")
+    .select("id, job_id, scheduled_start, business_id, assignment_id, jobs!inner(source, properties(address_line, suburb))")
+    .eq("kind", "ready_check").eq("status", "confirmed").gte("scheduled_start", since).order("scheduled_start");
+  const date = melbourneDate(now);
+  const out = { sent: 0, skipped: 0 };
+  for (const b of bks ?? []) {
+    const job = b.jobs as { source: string | null; properties: { address_line: string | null; suburb: string | null } | null };
+    let biz: string | null = b.business_id;
+    if (!biz && b.assignment_id) {
+      const { data: a } = await db.from("job_assignments").select("business_id").eq("id", b.assignment_id).maybeSingle();
+      biz = a?.business_id ?? null;
+    }
+    if (!biz) { out.skipped++; continue; }
+    const { data: bz } = await db.from("businesses").select("id, name, is_active, approved_at, mitti_account_invited, signer_mobile, phone, onboarding_notes").eq("id", biz).maybeSingle();
+    const g: Group = { trade: { businessId: biz, name: bz?.name ?? "Trade", approved: !!bz?.approved_at && bz?.is_active !== false, linked: true, mittiInvited: bz?.mitti_account_invited === true,
+      phone: normaliseAuMobile(bz?.signer_mobile ?? "") ?? normaliseAuMobile(bz?.phone ?? ""), isTest: isTestPartner(bz ?? {}) }, jobs: [], qaOnly: job.source === "qa_test" };
+    if (skipReason(g.trade)) { out.skipped++; continue; }
+    const { data: f } = await db.from("ready_checks").select("external_mitti_id").eq("job_id", b.job_id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    const when = new Date(b.scheduled_start).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+    const street = job.properties?.address_line?.split(",")[0] ?? null;
+    const where = [street, job.properties?.suburb].filter(Boolean).join(", ") || "see your portal";
+    const body = `Ready Check booked: ${when} — ${where}.${f?.external_mitti_id ? ` Open the form: ${MITTI}${f.external_mitti_id}` : " The form link will appear in your portal."}`;
+    g.jobs.push({ jobId: b.job_id, bookingId: b.id, start: b.scheduled_start, end: null, street, suburb: job.properties?.suburb ?? null, status: "confirmed", link: f?.external_mitti_id ? `${MITTI}${f.external_mitti_id}` : null });
+    if ((await sendOnce(g, date, "update", `rc-booked:${b.id}`, body, g.jobs.map(snap))) !== "already") out.sent++;
+  }
+  await refreshDelivery(date);
+  return out;
+}
+
 /** Update sent → delivered/failed from Twilio for today's real texts. */
 async function refreshDelivery(date: string) {
   const { data } = await db.from("trade_text_log").select("id, provider_sid").eq("melbourne_date", date).eq("status", "sent").not("provider_sid", "is", null);

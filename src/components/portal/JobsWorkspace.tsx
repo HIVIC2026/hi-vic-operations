@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getJobListPage } from "@/lib/portal.functions";
 import { getInstallerQuotesToCheck } from "@/lib/installer-quote-review.functions";
-import { getMittiPickups, linkMittiPickup } from "@/lib/mitti-pickup.functions";
+import { getMittiPickups, linkMittiPickup, getMittiSyncProblems, retryMittiSyncFn } from "@/lib/mitti-pickup.functions";
 import { pickupLabel } from "@/lib/mitti-pickup.core";
 import { CLOSED_VIEWS, JOB_SORT_KEYS, JOB_SORT_LABEL, VISIBLE_JOB_STAGES, type JobClosedView } from "@/lib/job-list-page.core";
 import { useListControls } from "@/hooks/use-list-controls";
@@ -99,7 +99,46 @@ function MittiPickupsToLink() {
   );
 }
 
-/** Installer jobs whose owner quote needs the office: drafted and waiting, or held for missing details. */
+/** Jobs whose Mitti sync last failed — one Retry per job; the same guarded sync runs again. */
+function MittiSyncProblems() {
+  const fetchRows = useServerFn(getMittiSyncProblems);
+  const retry = useServerFn(retryMittiSyncFn);
+  const { data, refetch } = useQuery({ queryKey: ["mitti-sync-problems"], queryFn: () => fetchRows(), staleTime: 60_000 });
+  const [busy, setBusy] = useState<string | null>(null);
+  const [done, setDone] = useState<Record<string, string>>({});
+  const rows = data?.rows ?? [];
+  if (!rows.length) return null;
+  const act = async (jobId: string) => {
+    setBusy(jobId);
+    try {
+      const out = await retry({ data: { jobId } });
+      setDone((d) => ({ ...d, [jobId]: out.issues.length ? `Retried ${out.jobNumber}. Sync notes: ${out.issues.join(" · ")}` : `Retried ${out.jobNumber}. Synced.` }));
+      await refetch();
+    } catch (e) { setDone((d) => ({ ...d, [jobId]: e instanceof Error ? e.message : "Retry failed." })); }
+    finally { setBusy(null); }
+  };
+  return (
+    <section aria-label="Mitti sync problems" className="rounded-md border-2 border-destructive/50 bg-card p-4">
+      <h2 className="font-display text-lg font-bold">Mitti sync problems <span className="ml-1 rounded-full bg-destructive px-2 py-0.5 text-sm text-destructive-foreground">{rows.length}</span></h2>
+      <p className="mt-1 text-sm text-sub">The last Mitti sync for these jobs failed. Retry runs the same sync again — it never completes anything or sends anything.</p>
+      <ul className="mt-2 divide-y">
+        {rows.map((r) => (
+          <li key={r.jobId} className="flex flex-wrap items-center justify-between gap-2 py-2">
+            <div className="min-w-0">
+              <p className="font-semibold">{r.jobNumber} · {r.owner ?? "Owner"}{r.address ? ` · ${r.address}` : ""}</p>
+              <p className="text-sm text-danger">{r.message}</p>
+              {done[r.jobId] && <p role="status" className="text-sm text-sub">{done[r.jobId]}</p>}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" className="h-10" disabled={busy === r.jobId} onClick={() => act(r.jobId)}>{busy === r.jobId ? "Retrying…" : "Retry"}</Button>
+              <Button asChild size="sm" className="h-10"><Link to="/admin/jobs/$jobId" params={{ jobId: r.jobId }}>Open job</Link></Button>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
 function InstallerQuotesToCheck() {
   const fetchRows = useServerFn(getInstallerQuotesToCheck);
   const { data } = useQuery({ queryKey: ["installer-quotes-to-check"], queryFn: () => fetchRows(), staleTime: 60_000 });
@@ -246,6 +285,7 @@ export function JobsWorkspace({
       )}
 
       {mode === "active" && <MittiPickupsToLink />}
+      {mode === "active" && <MittiSyncProblems />}
       {mode === "active" && <InstallerQuotesToCheck />}
 
       <div className="flex flex-wrap items-center gap-2 rounded-md border bg-card p-3">

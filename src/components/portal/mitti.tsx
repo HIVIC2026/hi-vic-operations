@@ -13,11 +13,12 @@ export function useMittiState(jobId: string) {
   return useQuery({
     queryKey: ["mitti", jobId],
     queryFn: async () => {
-      const [{ data: a }, { data: ev }] = await Promise.all([
+      const [{ data: a }, { data: ev }, { data: m }] = await Promise.all([
         supabase.from("assessments").select("*").eq("job_id", jobId).maybeSingle(),
         supabase.from("evidence_requirements").select("label,status,category,gate,required").eq("job_id", jobId).eq("required", true),
+        supabase.from("ceiling_measurements").select("external_source,external_id,status,measured_area_m2,verified_area_m2,removal_required").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
       ]);
-      return { a, ev: ev ?? [] };
+      return { a, ev: ev ?? [], m };
     },
   });
 }
@@ -44,6 +45,30 @@ export function MittiCard({ jobId, isAdmin }: { jobId: string; isAdmin: boolean 
   const evMissing = data.ev.filter((e) => ((e.gate === "assessment" && a?.mitti_scope !== "ELECTRICAL_ONLY") || (a?.piesa_outcome === "pass" && e.category === "piesa_signoff")) && !["uploaded", "verified"].includes(e.status));
   const piesaMissing = evMissing.find((e) => e.category === "piesa_signoff");
   const run = async (f: () => Promise<unknown>) => { setBusy(true); try { await f(); } finally { setBusy(false); } };
+  // Ready Check-only job (installer's own measure-up counts as the Ready Check): the form lives on the
+  // measurement row, so show the Ready Check card — never PIESA framing.
+  const mAudit = !a?.external_mitti_id && data.m?.external_source === "mitti" ? String(data.m.external_id ?? "") : null;
+  if (mAudit) {
+    const mUrl = `https://app.au.mitti.com/inspections/${mAudit}`;
+    const mDone = data.m?.status === "complete";
+    return (
+      <Section title="Ready Check (Mitti)" action={<Pill t={mDone ? "good" : "warn"}>{mDone ? "Complete" : "In progress in Mitti"}</Pill>}>
+        <dl className="grid grid-cols-2 gap-1 text-sm">
+          <dt className="text-muted-foreground">Form ID</dt><dd className="break-all">{mAudit}</dd>
+          <dt className="text-muted-foreground">Measured area</dt><dd>{data.m?.verified_area_m2 ?? data.m?.measured_area_m2 ?? "—"}{data.m?.verified_area_m2 ?? data.m?.measured_area_m2 ? " m²" : ""}</dd>
+          <dt className="text-muted-foreground">Removal</dt><dd>{data.m?.removal_required == null ? "—" : data.m.removal_required ? "Required" : "Not required"}</dd>
+        </dl>
+        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+          <a href={mUrl} target="_blank" rel="noreferrer" className="font-medium text-primary underline">Open this form in Mitti</a>
+          <Button size="sm" variant="outline" onClick={async () => { await navigator.clipboard.writeText(mUrl); (await import("sonner")).toast.success("Mitti link copied – send it to the installer"); }}>Copy link for installer</Button>
+        </div>
+        <p className="mt-2 text-sm text-muted-foreground">The Ready Check is done in Mitti. Sync brings the answers onto this job — nothing is sent to the owner from here.</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button size={isAdmin ? "sm" : "field"} variant="outline" className={isAdmin ? "" : "w-full"} disabled={busy} onClick={() => run(() => sync({ jobId }, "Synced from Mitti"))}><RefreshCw /> {isAdmin ? "Sync from Mitti" : "Refresh from Mitti"}</Button>
+        </div>
+      </Section>
+    );
+  }
   const mittiUrl = a?.external_mitti_id ? `https://app.au.mitti.com/inspections/${a.external_mitti_id}` : null;
   return (
     <Section title={a?.mitti_scope === "MEASURE_UP_ONLY" ? "Mitti installer measurements" : "Mitti electrical assessment · PIESA"} action={<Pill t={tone as never}>{label}</Pill>}>

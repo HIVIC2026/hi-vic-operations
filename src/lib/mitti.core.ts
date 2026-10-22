@@ -43,10 +43,10 @@ export function mittiApi(call: MittiCall) {
     searchAudits: (modifiedAfterIso: string) =>
       call("GET", `/audits/search?modified_after=${encodeURIComponent(modifiedAfterIso)}&limit=200`) as Promise<Any>,
     /** Documented partial text update for header items (Portal Job Number write-back); omitted fields untouched. */
-    updateAuditHeader: (auditId: string, headerItems: { item_id: string; type: string; responses: { text: string } }[]) =>
+    updateAuditHeader: (auditId: string, headerItems: { item_id: string; type: string; responses: { text?: string; datetime?: string } }[]) =>
       call("PUT", `/audits/${encodeURIComponent(auditId)}`, { header_items: headerItems }) as Promise<Any>,
     /** Documented partial text update; omitted responses (including signatures) are untouched. */
-    updateAuditText: (auditId: string, items: { item_id: string; type: string; responses: { text: string } }[]) => call("PUT", `/audits/${encodeURIComponent(auditId)}`, { items }),
+    updateAuditText: (auditId: string, items: { item_id: string; type: string; responses: { text?: string; datetime?: string } }[]) => call("PUT", `/audits/${encodeURIComponent(auditId)}`, { items }),
     /** Mitti's own finished PDF report (with its photos): request, then poll until a download link is ready. */
     requestReport: (auditId: string) => call("POST", `/audits/${encodeURIComponent(auditId)}/report`, { format: "PDF" }) as Promise<Any>,
     getReport: (auditId: string, messageId: string) => call("GET", `/audits/${encodeURIComponent(auditId)}/report/${encodeURIComponent(messageId)}`) as Promise<Any>,
@@ -509,6 +509,33 @@ export function parseAudit(audit: Any) {
     jobNumber: val(entries, ["Portal Job Number", "Job Reference ID"]),
     modifiedAt: audit?.modified_at ?? audit?.audit_data?.date_modified ?? null,
     snapshot: entries.filter((e) => e.label).map((e) => ({ id: e.id, label: e.label, section: e.section, value: e.value })),
+  };
+}
+
+/** New A1 answers (Jo 23 Oct): contact details, contact permission and the electrician choice.
+ *  Absent-safe: a label that isn't on the form returns null — nothing is invented. */
+export type MittiContactAnswers = {
+  phone: string | null; email: string | null; contactPermission: boolean | null;
+  electricianChoice: "hivic" | "own" | null; electricianPriceIncGst: string | null; electricianName: string | null; electricianLicence: string | null;
+};
+export function contactAnswersFromEntries(entries: { label: string; value: string | null }[]): MittiContactAnswers {
+  const find = (labels: string[]): string | null => {
+    for (const l of labels) {
+      const hit = entries.find((e) => (e.label ?? "").trim().toLowerCase() === l.toLowerCase());
+      if (hit?.value != null && String(hit.value).trim() !== "") return String(hit.value).trim();
+    }
+    return null;
+  };
+  const raw = find(["Who is doing the electrical safety check?"]);
+  const electricianChoice = raw == null ? null : /own electrician/i.test(raw) ? ("own" as const) : /home insulation victoria/i.test(raw) ? ("hivic" as const) : null;
+  return {
+    phone: find(["Homeowner phone", "Owner phone"]),
+    email: find(["Homeowner email", "Owner email"]),
+    contactPermission: yesNo(find(["Homeowner agrees to be contacted by Home Insulation Victoria"])),
+    electricianChoice,
+    electricianPriceIncGst: find(["Electrician price (inc GST)"]),
+    electricianName: find(["Electrician name"]),
+    electricianLicence: find(["Electrician licence number"]),
   };
 }
 

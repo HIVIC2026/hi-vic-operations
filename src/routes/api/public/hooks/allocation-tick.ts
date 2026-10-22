@@ -94,6 +94,9 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           // Daily Mitti links text: switch OFF by default; sends nothing unless ON and form IDs are set.
           const { sweepDailyMittiTexts } = await import("@/lib/daily-mitti-text.server");
           (out as Record<string, unknown>)['dailyMittiText'] = await sweepDailyMittiTexts();
+          // Stage 5: one-off "Ready Check booked" text to the installer (same switch, TEST-only, send-once).
+          const { sweepReadyCheckBookedTexts } = await import("@/lib/daily-mitti-text.server");
+          (out as Record<string, unknown>)['readyCheckBookedText'] = await sweepReadyCheckBookedTexts();
         } catch (e) {
           console.error("allocation tick: daily mitti text failed", (e as Error).message);
           out['ok'] = false;
@@ -127,6 +130,16 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         } catch (e) {
           console.error("allocation tick: mitti sync failed", (e as Error).message);
           (out as Record<string, unknown>)['mitti'] = "failed"; // Mitti outages must not fail the whole tick
+        }
+        try {
+          // Stage 4: Mitti-first auto-pickup. OFF by default (workflow_settings.mitti_pickup_auto_enabled);
+          // when ON, clean forms create installer-sourced jobs and link themselves — nothing is sent.
+          const { sweepMittiPickupAuto } = await import("@/lib/mitti-pickup-auto.server");
+          const a = await sweepMittiPickupAuto();
+          (out as Record<string, unknown>)['mittiPickupAuto'] = { enabled: a.enabled, adopted: a.results.filter((x) => x.action === "created").length, review: a.results.filter((x) => x.action === "review" || x.action === "failed").length };
+        } catch (e) {
+          console.error("allocation tick: mitti auto-pickup failed", (e as Error).message);
+          (out as Record<string, unknown>)['mittiPickupAuto'] = "failed";
         }
         try {
           // T6 Outbox executor worker entry point (leased claiming, same executor as the external-actions cron hook).

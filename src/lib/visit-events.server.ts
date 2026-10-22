@@ -76,6 +76,8 @@ async function ownerMiss(b: Booking, event: "owner_late_change" | "owner_no_show
   if (ownerMissOutcome(count ?? 0) === "rebook") { await reopen(b, actorId, event === "owner_no_show" ? "owner not home (one free rebook)" : "owner changed within 24 hours (one free rebook)", b.kind === "installation" ? false : undefined); return { outcome: "rebook" as const }; }
   await admin.from("bookings").update({ status: "cancelled" }).eq("id", b.id).eq("status", "confirmed");
   await needsOffice(b.job_id, "owner_no_show_repeat", b.kind, b.id, `Owner missed the ${VISIT_LABEL[b.kind]} a second time`);
+  // Stage 5 (Jo 23 Oct): second missed Ready Check releases the Mitti form (rebooking creates a fresh one).
+  if (b.kind === "ready_check") await (await import("./mitti-pickup.server")).releaseReadyCheckFormOnCancel(b.job_id, actorId, "owner missed the visit twice").catch(() => undefined);
   return { outcome: "needs_office" as const };
 }
 
@@ -95,6 +97,8 @@ export async function ownerChangeVisit(jobId: string, kind: VisitKind, action: "
     await regenerateEscNotification(jobId, actorId as string).catch(() => undefined);
   }
   await needsOffice(jobId, "owner_cancelled_visit", b.kind, b.id, `Owner cancelled the ${VISIT_LABEL[b.kind]}${reason ? ` (${reason})` : ""}`);
+  // Stage 5 (Jo 23 Oct): a cancelled Ready Check releases the Mitti form so a rebooking creates a fresh one.
+  if (b.kind === "ready_check") await (await import("./mitti-pickup.server")).releaseReadyCheckFormOnCancel(jobId, actorId, "owner cancelled the visit").catch(() => undefined);
   return { late: false, outcome: "cancelled" as const };
 }
 
@@ -186,9 +190,15 @@ export async function visitChangeState(jobId: string, now = new Date()) {
   const b = await currentBooking(jobId);
   if (!b) return null;
   const { count: arrived } = await admin.from("visit_events").select("id", { count: "exact", head: true }).eq("booking_id", b.id).eq("event", "trade_arrived");
+  // Stage 5 (Jo 23 Oct): the booked installer's top card links straight to the job's Mitti Ready Check form.
+  let formUrl: string | null = null;
+  if (b.kind === "ready_check") {
+    const { data: f } = await admin.from("ready_checks").select("external_mitti_id").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (f?.external_mitti_id) { const { mittiFormUrl } = await import("./onsite-ready-check.core"); formUrl = mittiFormUrl(f.external_mitti_id); }
+  }
   return {
     kind: b.kind, label: VISIT_LABEL[b.kind], starts_at: b.scheduled_start, ownerCanChange: ownerChangeAllowed(b.scheduled_start, now),
-    started: Date.parse(b.scheduled_start) <= now.getTime(), arrived: !!arrived, canArrive: canMarkArrived(b.scheduled_start, now), canMarkNotHome: canMarkOwnerNotHome(b.scheduled_start, now),
+    started: Date.parse(b.scheduled_start) <= now.getTime(), arrived: !!arrived, canArrive: canMarkArrived(b.scheduled_start, now), canMarkNotHome: canMarkOwnerNotHome(b.scheduled_start, now), formUrl,
   };
 }
 

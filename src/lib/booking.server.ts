@@ -100,6 +100,11 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
     const mv = kind === "assessment" ? holds.moveHoldForPiesa : holds.moveHoldForRectification;
     await mv(jobId, start, actorId).catch((e) => console.error("install hold move skipped", (e as Error).message));
   }
+  // Stage 5 (Jo 23 Oct): a rescheduled (or re-confirmed) Ready Check updates the booked date on the job's
+  // existing Mitti form. A no-op when no form exists yet — the form is created with the booked date.
+  if (kind === "ready_check") {
+    await (await import("./mitti-pickup.server")).updateMittiFormDate(jobId, start, actorId).catch((e) => console.error("mitti form date update skipped", (e as Error).message));
+  }
   await autoAdvanceJob(jobId, actorId, "booking confirmed");
   return { ok: true };
 }

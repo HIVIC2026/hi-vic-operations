@@ -6,7 +6,7 @@
 // then the EXISTING guarded sync brings the answers in.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
-import { mittiApi, parseAudit, validateStoredMittiAudit, type MittiCall } from "./mitti.core";
+import { mittiApi, norm, parseAudit, validateStoredMittiAudit, type MittiCall } from "./mitti.core";
 import { realMittiCall, syncMittiAssessment } from "./mitti.server";
 import { jobScope } from "./requirements.server";
 import {
@@ -172,3 +172,118 @@ export async function linkMittiReadyCheckToJob(actorId: string | null, input: { 
 }
 
 export type { ReadyCheckPickup };
+
+// ---------- Stage 5 (Jo 23 Oct): reschedule updates the form; cancel releases it ----------
+
+/** The form's booked-date item, wherever it lives (header or body), for the in-place date write-back. */
+function dateItemOf(audit: unknown): { itemId: string; type: string; header: boolean } | null {
+  const list = (header: boolean) => ((audit as { header_items?: unknown[]; items?: unknown[] } | null)?.[header ? "header_items" : "items"] ?? []) as { item_id?: string; label?: string; type?: string }[];
+  for (const header of [true, false]) {
+    const it = list(header).find((i) => i.item_id && ["Assessment date/time", "Assessment date time", "Booked assessment date", "Date of inspection"].some((l) => norm(l) === norm(i.label)));
+    if (it) return { itemId: String(it.item_id), type: String(it.type || "datetime"), header };
+  }
+  return null;
+}
+
+/** Reschedule write-back: the booked date on the job's Mitti form follows the new booking. Never creates or
+ *  sends anything; a form without a date field is left untouched and reported. */
+export async function updateMittiFormDate(jobId: string, start: string, actorId: string | null, call: MittiCall = realMittiCall): Promise<{ updated: boolean; reason?: string }> {
+  const scope = await jobScope(jobId);
+  const m = scope.measurementRow;
+  const auditId = m?.external_source === "mitti" && m.status !== "complete" ? m.external_id : null;
+  if (!auditId) return { updated: false, reason: "no open Mitti form for this job" };
+  const api = mittiApi(call);
+  const audit = await api.getAudit(auditId);
+  if (audit?.archived) return { updated: false, reason: "form is archived in Mitti" };
+  const item = dateItemOf(audit);
+  if (!item) return { updated: false, reason: "form has no booked-date field" };
+  const payload = [{ item_id: item.itemId, type: item.type, responses: { datetime: start } }];
+  if (item.header) { try { await api.updateAuditHeader(auditId, payload); } catch { await api.updateAuditText(auditId, payload); } }
+  else await api.updateAuditText(auditId, payload);
+  await logEvent(jobId, actorId, "mitti_form_date_updated", "Mitti form's booked date updated to match the new Ready Check booking", { audit_id: auditId, scheduled_start: start }, { internal: true });
+  return { updated: true };
+}
+
+/** Cancel releases the form: the job stops pointing at it so a rebooking creates a fresh form with the new
+ *  date. Mitti's documented API has no archive call, so the form itself is left in Mitti and the office is
+ *  told it may be archived there (Jo 23 Oct). Never touches a completed form. */
+export async function releaseReadyCheckFormOnCancel(jobId: string, actorId: string | null, reason: string): Promise<{ released: boolean }> {
+  const scope = await jobScope(jobId);
+  const m = scope.measurementRow;
+  if (!m || m.external_source !== "mitti" || !m.external_id || m.status === "complete") return { released: false };
+  const auditId = m.external_id;
+  await admin.from("ceiling_measurements").update({ external_source: null, external_id: null }).eq("id", m.id);
+  await logEvent(jobId, actorId, "mitti_form_released", `Ready Check booking cancelled (${reason}) — the job no longer points at Mitti form ${auditId}; a new booking will create a fresh form. Mitti has no archive API, so the old form can be archived in Mitti if wanted.`, { audit_id: auditId, reason, needs_office: false }, { internal: true });
+  return { released: true };
+}
+
+// ---------- Stage 2: recorded Mitti failures + office retry ----------
+
+export type MittiSyncProblem = { jobId: string; jobNumber: string; owner: string | null; address: string | null; message: string; since: string | null };
+
+/** Office list: jobs whose Mitti sync last failed (assessment error recorded on the row, or a Ready Check
+ *  sync failure event with no later successful sync for the same audit). Read-only. */
+export async function listMittiSyncProblems(): Promise<{ rows: MittiSyncProblem[] }> {
+  const [{ data: aerr }, { data: fails }, { data: okays }] = await Promise.all([
+    admin.from("assessments").select("job_id, mitti_last_error, mitti_synced_at, jobs!inner(job_number, business_unit, stage, deleted_at, owners(full_name), properties(address_line, suburb))")
+      .not("mitti_last_error", "is", null).neq("status", "complete").eq("jobs.business_unit", "hivic").is("jobs.deleted_at", null).limit(100),
+    admin.from("workflow_events").select("job_id, summary, created_at, details").eq("event_type", "mitti_measureup_sync_failed").order("created_at", { ascending: false }).limit(200),
+    admin.from("workflow_events").select("job_id, created_at, details").eq("event_type", "mitti_measureup_synced").order("created_at", { ascending: false }).limit(500),
+  ]);
+  const jobInfo = async (ids: string[]) => {
+    if (!ids.length) return new Map<string, { job_number: string; owner: string | null; address: string | null; skip: boolean }>();
+    const { data } = await admin.from("jobs").select("id, job_number, stage, deleted_at, qa_archived_at, owners(full_name), properties(address_line, suburb)").in("id", ids);
+    return new Map<string, { job_number: string; owner: string | null; address: string | null; skip: boolean }>((data ?? []).map((j) => [j.id, {
+      job_number: j.job_number,
+      owner: (j.owners as { full_name: string | null } | null)?.full_name ?? null,
+      address: [(j.properties as { address_line: string | null } | null)?.address_line, (j.properties as { suburb: string | null } | null)?.suburb].filter(Boolean).join(", ") || null,
+      skip: !!j.deleted_at || !!j.qa_archived_at || ["cancelled", "on_hold", "complete", "ready_for_veec"].includes(String(j.stage)),
+    }]));
+  };
+
+  const rows: MittiSyncProblem[] = [];
+  const seen = new Set<string>();
+  const info = await jobInfo([...new Set([...(aerr ?? []).map((r) => r.job_id as string), ...(fails ?? []).map((r) => r.job_id as string)])]);
+  for (const r of aerr ?? []) {
+    const j = info.get(r.job_id as string);
+    if (!j || j.skip) continue;
+    seen.add(r.job_id as string);
+    rows.push({ jobId: r.job_id as string, jobNumber: j.job_number, owner: j.owner, address: j.address, message: String(r.mitti_last_error), since: null });
+  }
+  // Measurement failures: only when no successful sync for the same audit came after.
+  const latestFail = new Map<string, { audit: string; summary: string; created_at: string }>();
+  for (const e of fails ?? []) {
+    const key = e.job_id as string;
+    if (latestFail.has(key)) continue;
+    latestFail.set(key, { audit: String((e.details as { audit_id?: string } | null)?.audit_id ?? ""), summary: String(e.summary ?? ""), created_at: String(e.created_at) });
+  }
+  const latestOk = new Map<string, { audit: string; created_at: string }>();
+  for (const e of okays ?? []) {
+    const key = e.job_id as string;
+    if (latestOk.has(key)) continue;
+    latestOk.set(key, { audit: String((e.details as { audit_id?: string } | null)?.audit_id ?? ""), created_at: String(e.created_at) });
+  }
+  for (const [jobId, f] of latestFail) {
+    if (seen.has(jobId)) continue;
+    const j = info.get(jobId);
+    if (!j || j.skip) continue;
+    const ok = latestOk.get(jobId);
+    if (ok && ok.audit === f.audit && ok.created_at > f.created_at) continue; // fixed since
+    rows.push({ jobId, jobNumber: j.job_number, owner: j.owner, address: j.address, message: f.summary, since: f.created_at });
+  }
+  return { rows };
+}
+
+/** Office action: retry the stored Mitti sync for one job after a recorded failure. Same guarded sync —
+ *  never completes a requirement, moves a stage or sends anything. */
+export async function retryMittiSync(actorId: string | null, input: { jobId: string }, call: MittiCall = realMittiCall) {
+  const jobId = String(input.jobId ?? "").trim();
+  if (!UUID_RE.test(jobId)) throw new WorkflowError("Choose the job to retry.");
+  const { data: job } = await admin.from("jobs").select("id, job_number, business_unit, deleted_at").eq("id", jobId).maybeSingle();
+  if (!job || job.deleted_at) throw new WorkflowError("Job not found.");
+  if (job.business_unit !== "hivic") throw new WorkflowError("Mitti sync is only available for Home Insulation Victoria jobs.");
+  await admin.from("assessments").update({ mitti_last_error: null }).eq("job_id", jobId).neq("status", "complete");
+  const sync = await syncMittiAssessment(jobId, actorId, call);
+  await logEvent(jobId, actorId, "mitti_sync_retried", `Office retried the Mitti sync for ${job.job_number}`, { issues: sync.issues }, { internal: true });
+  return { ok: true as const, jobNumber: job.job_number, issues: sync.issues };
+}
