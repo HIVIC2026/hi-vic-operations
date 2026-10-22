@@ -187,7 +187,7 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
   })],
   ["unsafe provider next links block before page side effects and are never fetched", practice(async h => {
     await configured(h);
-    h.control.fetch = async url => url.includes("/me?") || url.includes("$select=id,body") ? readOnlyResponses(url)
+    h.control.fetch = async url => url.includes("/attachments") ? jsonResponse({ value: [] }) : url.includes("/me?") || url.includes("$select=id,body") ? readOnlyResponses(url)
       : jsonResponse({ value: [graphMessage("unsafe-page", "Please cancel my enquiry.")], "@odata.nextLink": "https://evil.example/steal" });
     const result = await h.server.runOutlookSync({ maxPages: 1 });
     assert.equal(result.ok, false); assert.equal(await total(h, "outlook_message_work"), 0);
@@ -212,7 +212,7 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
   })],
   ["a complete fresh Inbox window retains explicit-decline closure and records its fixed cutoff", practice(async h => {
     await configured(h);
-    h.control.fetch = async url => url.includes("/me?") || url.includes("$select=id,body") ? readOnlyResponses(url)
+    h.control.fetch = async url => url.includes("/attachments") ? jsonResponse({ value: [] }) : url.includes("/me?") || url.includes("$select=id,body") ? readOnlyResponses(url)
       : jsonResponse({ value: url.includes("receivedDateTime") ? [graphMessage("complete-window-decline", "Please cancel my enquiry.")] : [] });
     const result = await h.server.runOutlookSync({ maxPages: 2 });
     assert.equal(result.ok, true, result.blocker); assert.equal(result.counts.closed, 1);
@@ -244,7 +244,7 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
   })],
   ["Inbox completion and newer correspondence are considered before a closure-capable Sent Items record", practice(async h => {
     await configured(h);
-    h.control.fetch = async url => url.includes("/me?") || url.includes("$select=id,body") ? readOnlyResponses(url)
+    h.control.fetch = async url => url.includes("/attachments") ? jsonResponse({ value: [] }) : url.includes("/me?") || url.includes("$select=id,body") ? readOnlyResponses(url)
       : jsonResponse({ value: url.includes("receivedDateTime")
         ? [graphMessage("new-inbox-reply", "Please continue.", { receivedDateTime: "2026-10-20T09:00:00Z" })]
         : [graphMessage("older-sent-folder-record", "Please cancel my enquiry.")] });
@@ -254,7 +254,7 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
   })],
   ["failed cursor/status writes do not report success or repeat completed closure/audit", practice(async h => {
     await configured(h);
-    h.control.fetch = async url => url.includes("/me?") || url.includes("$select=id,body") ? readOnlyResponses(url)
+    h.control.fetch = async url => url.includes("/attachments") ? jsonResponse({ value: [] }) : url.includes("/me?") || url.includes("$select=id,body") ? readOnlyResponses(url)
       : jsonResponse({ value: url.includes("receivedDateTime") ? [graphMessage("cursor-failure", "Please cancel my enquiry.")] : [] });
     h.control.fault = op => op.table === "outlook_sync_state" && op.mode === "update" ? { data: null, error: { message: "injected state write failure" } } : null;
     const first = await h.server.runOutlookSync({ maxPages: 1 });
