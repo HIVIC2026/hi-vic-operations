@@ -1,5 +1,5 @@
 // TEMP live test (Jo-approved): Mitti-first Ready Check pickup/link, TEST data only. Delete after run.
-import { admin, supabaseAdmin } from "../src/integrations/supabase/client.server";
+import { supabaseAdmin as admin } from "../src/integrations/supabase/client.server";
 import { realMittiCall } from "../src/lib/mitti.server";
 import { mittiApi } from "../src/lib/mitti.core";
 import { startOnsiteReadyCheckFor } from "../src/lib/onsite-ready-check.server";
