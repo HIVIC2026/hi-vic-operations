@@ -487,7 +487,7 @@ function quoteCardHtml(content: string[], includes: string[] | null): string {
     rest.push(l);
   }
   const removalBox = removalLine
-    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BLUSH}" style="width:100%;margin:0 0 12px;border-collapse:separate;background-color:${BLUSH};border:1px solid ${LINE};border-radius:14px;"><tr><td style="padding:14px 16px;${F}"><p style="margin:0;${F}color:${INK};font-size:15px;line-height:1.4;font-weight:800;">${escape(removalLine)}</p>${removalNoteSeen ? `<p style="margin:6px 0 0;${F}color:${INK};font-size:13.5px;line-height:1.5;">${escape(REMOVAL_UPTO_NOTE)}</p>` : ""}</td></tr></table>`
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BLUSH}" style="width:100%;margin:0 0 12px;border-collapse:separate;background-color:${BLUSH};border:1px solid ${LINE};border-radius:14px;"><tr><td style="padding:12px 16px;${F}"><p style="margin:0;${F}color:${INK};font-size:14px;line-height:1.4;font-weight:600;">${escape(removalLine)}</p>${removalNoteSeen ? `<p style="margin:6px 0 0;${F}color:${INK};font-size:13px;line-height:1.5;">${escape(REMOVAL_UPTO_NOTE)}</p>` : ""}</td></tr></table>`
     : "";
   const price = cost
     ? `<div style="text-align:center;padding:18px 0 12px;"><p style="margin:0;${CAPS}">${escape(costLabel)}</p><p class="lx-cost" style="margin:5px 0 0;${FH}color:${BRAND_BLUE};font-size:46px;line-height:50px;mso-line-height-rule:exactly;font-weight:800;">${escape(cost)}</p><p style="margin:4px 0 0;${F}color:${INK};font-size:12px;line-height:1.4;font-weight:700;">incl. GST${before ? ` · before rebate ${escape(before)}` : ""}</p></div>${removalBox}`
