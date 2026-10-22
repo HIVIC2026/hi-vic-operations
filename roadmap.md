@@ -1,5 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Ready Checks work properly with Mitti (Jo, 22 Oct 20:37 UTC) — PREVIEW ONLY, TEST data only, no sends/publish
+- [ ] Jo 22 Oct 22:16 update (Stages 3/6/7/9): editable usual electrician profile, three Mitti choices + conditional details/phone field; installer-led formula + $349 fee + selected electrician price − rebate; compliance snapshot; missing profile holds + office item + guarded installer text; all three options/missing-profile tests. No publish or real sends.
 - [x] Stage 1: "Link to job" accepts HV number (was sending it as a job id), completed forms listed/linkable, all pre-quote stages allowed.
 - [x] Stage 2: one shared lock for form creation (no duplicates); skip cancelled/deleted/archived jobs in sync; history only on change; Mitti failures recorded + Retry.
 - [x] Stage 3: new A1 labels (phone, email, contact permission, life assistant no — life support, electrician choice/price/name/licence), absent-safe; job-page Mitti card shows Ready Check not PIESA.
