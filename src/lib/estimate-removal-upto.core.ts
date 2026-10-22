@@ -1,6 +1,6 @@
 /** Jo 22 Oct 2026: informational "up to" removal amount for owners who said they HAVE existing insulation.
  *  Shown separately; never added to the price, total or rebate. Identical wording everywhere. */
-export const REMOVAL_UPTO_NOTE = "Often only part of the ceiling needs it, and some may be fine to stay. Your installer confirms at your free Ready Check.";
+export const REMOVAL_UPTO_NOTE = "This is extra and NOT included in the price above. Often only part of the ceiling needs it, and some may be fine to stay. Your installer confirms at your free Ready Check.";
 /** Jo 22 Oct: the line also states the per-m² rate (rate = amount ÷ area, so it always follows settings). */
 export function removalUpToLine(amount: number, areaM2?: number | null): string {
   const base = `Removal of old insulation, if needed: up to $${Math.round(amount).toLocaleString("en-AU")}`;
