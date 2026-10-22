@@ -355,6 +355,6 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     assert.equal((await row(h, "jobs")).stage, "new_enquiry");
     assert.equal(await total(h, "job_communications"), 1); assert.equal(await total(h, "workflow_events"), 0);
     assert.equal((await h.state()).catchup_from, null);
-    assert.ok((await h.state()).catchup_inbound_cursor);
+    assert.equal((await h.state()).catchup_inbound_cursor, null);
   })],
 ];
