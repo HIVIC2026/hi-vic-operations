@@ -217,7 +217,7 @@ async function applyContactAnswers(jobId: string, actorId: string | null, entrie
   if (!a.phone && !a.email && a.contactPermission == null && !a.electricianChoice && !a.electricianPriceIncGst && !a.electricianName && !a.electricianLicence) return;
   const { data: job } = await admin.from("jobs").select("owner_id, electrician_choice").eq("id", jobId).maybeSingle();
   if (!job) return;
-  const patch: Record<string, string> = {};
+  const patch: { phone?: string; email?: string } = {};
   if (a.phone || a.email) {
     const { data: o } = await admin.from("owners").select("phone,email").eq("id", job.owner_id).maybeSingle();
     if (o) {

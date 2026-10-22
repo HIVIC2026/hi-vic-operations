@@ -519,16 +519,23 @@ export type MittiContactAnswers = {
   electricianChoice: "hivic" | "own" | null; electricianPriceIncGst: string | null; electricianName: string | null; electricianLicence: string | null;
 };
 export function contactAnswersFromEntries(entries: { label: string; value: string | null }[]): MittiContactAnswers {
-  const raw = val(entries, ["Who is doing the electrical safety check?"]);
+  const find = (labels: string[]): string | null => {
+    for (const l of labels) {
+      const hit = entries.find((e) => (e.label ?? "").trim().toLowerCase() === l.toLowerCase());
+      if (hit?.value != null && String(hit.value).trim() !== "") return String(hit.value).trim();
+    }
+    return null;
+  };
+  const raw = find(["Who is doing the electrical safety check?"]);
   const electricianChoice = raw == null ? null : /own electrician/i.test(raw) ? ("own" as const) : /home insulation victoria/i.test(raw) ? ("hivic" as const) : null;
   return {
-    phone: val(entries, ["Homeowner phone", "Owner phone"]),
-    email: val(entries, ["Homeowner email", "Owner email"]),
-    contactPermission: yesNo(val(entries, ["Homeowner agrees to be contacted by Home Insulation Victoria"])),
+    phone: find(["Homeowner phone", "Owner phone"]),
+    email: find(["Homeowner email", "Owner email"]),
+    contactPermission: yesNo(find(["Homeowner agrees to be contacted by Home Insulation Victoria"])),
     electricianChoice,
-    electricianPriceIncGst: val(entries, ["Electrician price (inc GST)"]),
-    electricianName: val(entries, ["Electrician name"]),
-    electricianLicence: val(entries, ["Electrician licence number"]),
+    electricianPriceIncGst: find(["Electrician price (inc GST)"]),
+    electricianName: find(["Electrician name"]),
+    electricianLicence: find(["Electrician licence number"]),
   };
 }
 
