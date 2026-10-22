@@ -326,7 +326,7 @@ export async function processMessages(raw: GraphMessage[], mailbox: string, coun
       const remaining: string[] = [];
       for (const jid of routeJobIds(route)) if (!(await portalDuplicate(m, jid))) remaining.push(jid);
       if (!remaining.length) { counts.portalDuplicate++; continue; }
-      route = { kind: "job", jobIds: remaining, how: route.how };
+      route = { ...route, jobIds: remaining };
     }
     const { data: existing, error: ee } = await syncAdmin.from("outlook_message_work").select("*")
       .eq("provider_message_id", m.providerMessageId).maybeSingle();

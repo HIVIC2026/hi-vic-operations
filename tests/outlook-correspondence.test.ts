@@ -74,7 +74,7 @@ describe("safe matching", () => {
     expect(matchMessage(m, ["family@test.example"], new Map(), new Map(), new Map([["t1", ["ja", "jb"]]]))).toEqual({ kind: "job", jobIds: ["ja", "jb"], how: "thread" });
   });
   test("unknown sender with no job number and no known thread is not homeowner mail", () => {
-    expect(matchMessage(msg({ from: from("news@vendor.example") }), ["news@vendor.example"], new Map(), new Map(), new Map([["t1", ["ja"]]]))).kind).toBe("not_homeowner");
+    expect(matchMessage(msg({ from: from("news@vendor.example") }), ["news@vendor.example"], new Map(), new Map(), new Map([["t1", ["ja"]]])).kind).toBe("not_homeowner");
   });
 });
 
