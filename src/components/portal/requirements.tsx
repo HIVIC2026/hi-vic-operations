@@ -109,13 +109,19 @@ export function RequirementCards({ jobId, isAdmin, job }: { jobId: string; isAdm
           <Ruler className="mb-2 h-4 w-4 text-muted-foreground" />
           <MeasurementDetails m={m} admin={isAdmin} />
           {isAdmin && rv?.withinTolerance != null && <p className={`mt-1 text-xs ${rv.withinTolerance ? "text-success" : "text-danger"}`}>Variance {rv.withinTolerance ? "within" : "outside"} the {rv.tolerancePct}% pilot tolerance</p>}
-          {s.measurement.state !== "accepted" && s.measurement.missing.length > 0 && <p className="mt-2 text-xs text-danger">Missing: {s.measurement.missing.map((f) => MEASURE_FIELD_LABEL[f]).join(", ")}</p>}
+          {(() => {
+            // Installer-supplied area counts as the installer's measure, so it is not listed as missing.
+            const hasSupplied = m?.provenance === "installer_supplied_provisional" && m.supplied_area_m2 != null;
+            const missing = s.measurement.missing.filter((f) => !(hasSupplied && f === "measured_area_m2"));
+            return s.measurement.state !== "accepted" && missing.length > 0 && <p className="mt-2 text-xs text-danger">Missing: {missing.map((f) => MEASURE_FIELD_LABEL[f]).join(", ")}</p>;
+          })()}
           {isAdmin && (
             <div className="mt-3 space-y-2 border-t pt-3">
               <div className="flex items-center gap-2 text-sm"><Label>Ready Check</Label><span className="font-semibold">Installer only</span></div>
               {m && (
                 <>
-                  {m.status !== "complete" && !!rv?.blockers.length && <ul className="rounded bg-warning-soft p-2 text-xs text-warning">{rv.blockers.map((b) => <li key={b}>{b}</li>)}</ul>}
+                  {/* Installer-supplied jobs: the installer's own measure counts as the Ready Check (Jo, 22 Oct), so the AP-standard box is not shown. */}
+                  {m.status !== "complete" && m.provenance !== "installer_supplied_provisional" && !!rv?.blockers.length && <ul className="rounded bg-warning-soft p-2 text-xs text-warning">{rv.blockers.map((b) => <li key={b}>{b}</li>)}</ul>}
                   <Input placeholder="Review reason (audited)" value={reason} onChange={(e) => setReason(e.target.value)} />
                   <div className="flex flex-wrap gap-2">
                     {m.status !== "complete" && <Button size="sm" disabled={reason.trim().length < 3 || !!rv?.blockers.length} onClick={async () => { await review({ jobId, action: "accept", reason }, "Ready Check accepted"); setReason(""); }}>Accept Ready Check</Button>}
