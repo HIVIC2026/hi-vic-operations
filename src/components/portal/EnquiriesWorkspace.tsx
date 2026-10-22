@@ -18,11 +18,7 @@ import {
   removeLeadsFn,
   reviewLeadMediaFn,
 } from "@/lib/enquiry-groups.functions";
-import {
-  getJobInboundEmailsFn,
-  preliminarySaveSpotOfferFn,
-  recordEmailPreliminaryReviewFn,
-} from "@/lib/email-preliminary-offer.functions";
+import { qualifiesOutcome } from "@/lib/enquiry-review-custom.core";
 import {
   MEDIA_OUTCOME_LABEL,
   STATUS_ORDER,
@@ -60,7 +56,7 @@ const INSULATION_LABEL: Record<string, string> = {
   unknown: "Not sure",
 };
 
-type SendResult = { outcome: string; detail: string; preview?: { subject: string; html: string }; needsEstimate?: boolean };
+type SendResult = { outcome: string; detail: string; preview?: { subject: string; html: string; plainText?: string }; needsEstimate?: boolean };
 
 /** Preview → (optional estimate update) → Send. Send is enabled only after the server's own preview validation passed. */
 function GuardedFollowup({ jobId, title, run, onDone, deliveryUncertain = false }: { jobId: string; title: string; run: (mode: "preview" | "prepare" | "send") => Promise<SendResult>; onDone: () => void; deliveryUncertain?: boolean }) {
@@ -153,11 +149,6 @@ function ExistingInsulationFollowup({ jobId, onDone, deliveryUncertain }: { jobI
   return <GuardedFollowup jobId={jobId} deliveryUncertain={deliveryUncertain} title="Save your spot" onDone={onDone} run={(mode) => action({ data: { jobId, mode } })} />;
 }
 
-function IneligibleFollowup({ jobId, onDone }: { jobId: string; onDone: () => void }) {
-  const action = useServerFn(reviewedIneligibleEmailFn);
-  return <GuardedFollowup jobId={jobId} title="ineligible email" onDone={onDone} run={(mode) => action({ data: { jobId, mode } })} />;
-}
-
 function NoInsulationFollowup({ jobId, onDone, deliveryUncertain }: { jobId: string; onDone: () => void; deliveryUncertain: boolean }) {
   const action = useServerFn(noInsulationSaveSpotFn);
   return <GuardedFollowup jobId={jobId} deliveryUncertain={deliveryUncertain} title="Save your spot offer" onDone={onDone} run={(mode) => action({ data: { jobId, mode } })} />;
@@ -167,6 +158,7 @@ function MediaReview({ row, onDone, optionsOnly = false }: { row: Row; onDone: (
   const loadMedia = useServerFn(getLeadMedia);
   const review = useServerFn(reviewLeadMediaFn);
   const decide = useServerFn(setEligibility);
+  const ineligibleEmail = useServerFn(reviewedIneligibleEmailFn);
   const query = useQuery({
     queryKey: ["lead-media", row.id],
     queryFn: () => loadMedia({ data: { jobId: row.id } }),
@@ -176,21 +168,19 @@ function MediaReview({ row, onDone, optionsOnly = false }: { row: Row; onDone: (
   const isLoading = optionsOnly ? false : query.isLoading;
   const error = optionsOnly ? null : query.error;
   const [busy, setBusy] = useState<MediaReviewOutcome | null>(null);
-  const [reason, setReason] = useState("");
   const [saved, setSaved] = useState<string | null>(null);
   const [savedOutcome, setSavedOutcome] = useState<MediaReviewOutcome | null>(null);
-  const [overOpen, setOverOpen] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const act = async (outcome: MediaReviewOutcome) => {
     setBusy(outcome);
     setFailed(null);
     try {
-      await review({ data: { jobId: row.id, outcome, reason } });
-      // R2 or above: record the Office ineligible decision with the reason so the approved ineligible email can be sent.
-      if (outcome === "over_r2") await decide({ data: { jobId: row.id, outcome: "does_not_appear_eligible", reason: reason.trim(), nextAction: "Send ineligible response" } });
+      await review({ data: { jobId: row.id, outcome } });
+      // R2 or above: record the Office ineligible decision (default reason; the editable email comes next) so the approved ineligible email can be sent.
+      if (outcome === "over_r2") await decide({ data: { jobId: row.id, outcome: "does_not_appear_eligible", reason: "R2 or above – reviewed by office", nextAction: "Send ineligible response" } });
       setSaved(MEDIA_OUTCOME_LABEL[outcome]);
       setSavedOutcome(outcome);
-      // Keep the row open so the Save your spot email can be sent right here; refresh after that.
+      // Keep the row open so the follow-up email can be sent right here; refresh after that.
       if (outcome === "unclear") onDone();
     } catch (e) {
       setFailed(e instanceof Error ? e.message : "The review could not be saved.");
