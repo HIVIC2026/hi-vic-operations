@@ -325,7 +325,43 @@ const answerText = (v: unknown): string | null => {
 /** Owner-declared existing insulation / top-floor answers from the Base44 answer snapshot (declared, never verified). */
 export function declaredExtras(answers: Record<string, unknown> | null | undefined) {
   const pick = (keys: string[]) => { for (const k of keys) { const t = answerText(answers?.[k]); if (t) return t; } return null; };
-  return { existing_insulation: pick(EXISTING_INSULATION_KEYS), top_floor: pick(TOP_FLOOR_KEYS) };
+  return { existing_insulation: pick(EXISTING_INSULATION_KEYS), top_floor: pick(TOP_FLOOR_KEYS), ...declaredInsulationDetail(answers) };
+}
+
+export type InsulationDetail = {
+  insulation_type: "batts" | "loose_fill" | "foil" | "unknown" | null;
+  insulation_thickness: "thin" | "hand" | "thicker" | "unknown" | null;
+  insulation_coverage: "whole" | "partial" | "unknown" | null;
+};
+/** Base44 follow-up answers for owners who said insulation is present (declared, never verified). Anything outside
+ *  the known values is treated as not answered. */
+export function declaredInsulationDetail(answers: Record<string, unknown> | null | undefined): InsulationDetail {
+  const one = <T extends string>(k: string, allowed: readonly T[]): T | null => {
+    const v = answerText(answers?.[k])?.toLowerCase().replace(/[\s-]+/g, "_") ?? null;
+    return v && (allowed as readonly string[]).includes(v) ? (v as T) : null;
+  };
+  return {
+    insulation_type: one("insulation_type", ["batts", "loose_fill", "foil", "unknown"] as const),
+    insulation_thickness: one("insulation_thickness", ["thin", "hand", "thicker", "unknown"] as const),
+    insulation_coverage: one("insulation_coverage", ["whole", "partial", "unknown"] as const),
+  };
+}
+
+const DETAIL_WORDS: Record<string, string> = { batts: "batts", loose_fill: "loose fill", foil: "foil", thin: "thin", hand: "about a hand thick", thicker: "thicker than a hand", whole: "whole ceiling", partial: "patchy" };
+/** "loose fill, thin, patchy" — null when the owner gave none of the three answers. */
+export function insulationDetailText(d: Partial<InsulationDetail> | null | undefined): string | null {
+  if (!d) return null;
+  const parts = [d.insulation_type, d.insulation_thickness, d.insulation_coverage].map((v) => (v ? (v === "unknown" ? "not sure" : DETAIL_WORDS[v] ?? v) : null));
+  return parts.every((p) => p == null) ? null : parts.map((p) => p ?? "not answered").join(", ");
+}
+
+/** Jo 22 Oct: declared-present routing from the three answers. null = keep current behaviour. */
+export function insulationDetailRoute(d: Partial<InsulationDetail> | null | undefined): "likely_save_spot" | "more_photos" | null {
+  const t = d?.insulation_thickness ?? null, c = d?.insulation_coverage ?? null;
+  if (!t || !c || t === "unknown" || c === "unknown" || !d?.insulation_type || d.insulation_type === "unknown") return null;
+  if (t === "thin" || c === "partial") return "likely_save_spot";
+  if (t === "hand" || t === "thicker") return "more_photos";
+  return null;
 }
 
 // Tidy customer-typed text at intake: proper capitals for names and addresses, collapsed spaces.
