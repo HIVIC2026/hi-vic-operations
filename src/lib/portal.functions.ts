@@ -1430,7 +1430,7 @@ export const getIntakeSummary = createServerFn({ method: "POST" }).middleware([r
       reference: job?.external_enquiry_id ?? null, source: job?.source ?? null, state: prop?.state ?? null, occupancy: prop?.occupancy ?? null,
       lifeSupport: job?.life_support_status ?? null, area: job?.estimated_area_unknown ? null : job?.estimated_area_m2 ?? null,
       consent: consents?.[0] ?? null, declared: b44?.declared ?? null,
-      declaredExtras: (await import("./enquiry.core")).declaredExtras(b44?.raw?.answers ?? null),
+      declaredExtras: { ...(await import("./enquiry.core")).declaredExtras(b44?.raw?.answers ?? null), ...(await import("./enquiry.core")).declaredInsulationDetail(b44?.raw?.answers ?? null) },
       // Preliminary website screening only – never the authoritative Step-2 category.
       screening: (() => { const prelim = job?.eligibility_decision_source !== "system" && job?.eligibility_decision_source !== "admin"; const raw = b44?.raw?.screening ?? null; return { outcome: prelim ? job?.eligibility_outcome ?? null : (typeof raw?.status === "string" ? raw.status : null), reasons: prelim ? job?.eligibility_reason ?? null : null, raw }; })(),
       media: links, lastMediaFailure: fails?.[0] ?? null,
@@ -1439,7 +1439,7 @@ export const getIntakeSummary = createServerFn({ method: "POST" }).middleware([r
       reference: string | null; source: string | null; state: string | null; occupancy: string | null; lifeSupport: string | null; area: number | null;
       consent: { consent_status: string; consent_version: string | null; consented_at: string | null; age_confirmed: boolean | null; assistance: string | null; contact_preference: string | null; created_at: string } | null;
       declared: { property_type: string | null; over_five_years: string | null; previous_upgrade: string | null } | null;
-      declaredExtras: { existing_insulation: string | null; top_floor: string | null };
+      declaredExtras: { existing_insulation: string | null; top_floor: string | null } & import("./enquiry.core").InsulationDetail;
       screening: { outcome: string | null; reasons: string | null; raw: Json };
       media: { id: string; name: string; mime: string | null; size: number | null; url: string | null }[];
       lastMediaFailure: { created_at: string; summary: string } | null;

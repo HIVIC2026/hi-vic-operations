@@ -695,6 +695,7 @@ export function EnquiriesWorkspace({
                             ? (INSULATION_LABEL[row.declaredInsulation] ?? row.declaredInsulation)
                             : "Not provided"}
                         </div>
+                        {row.insulationDetail && <div className="text-muted-foreground">Owner says: {row.insulationDetail}</div>}
                         <div className="text-muted-foreground">
                           {row.area.m2 != null ? `${row.area.m2} m²` : "Area unknown"}
                         </div>
