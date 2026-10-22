@@ -157,6 +157,21 @@ export function Correspondence({ jobId }: { jobId: string }) {
   );
 }
 
+/** Stored attachments open through short-lived private links; older records show names only. */
+function AttachmentList({ c }: { c: Correspondence }) {
+  const files = c.attachmentFiles?.length
+    ? c.attachmentFiles
+    : (c.attachments ?? []).map((name) => ({ name, path: null as string | null, url: null as string | null }));
+  if (!files.length) return null;
+  return (
+    <div className="mt-1 text-xs text-muted-foreground">
+      Attachments: {files.map((f, i) => (
+        <span key={i}>{i > 0 ? ", " : ""}{f.url ? <a className="underline" href={f.url} target="_blank" rel="noreferrer">{f.name}</a> : f.name}</span>
+      ))}
+    </div>
+  );
+}
+
 function LogCommunication({ jobId }: { jobId: string }) {
   const save = useAction(logCommunication);
   const [f, setF] = useState({ channel: "phone" as "phone" | "email" | "sms" | "note" | "whatsapp" | "other", direction: "outbound" as "inbound" | "outbound" | "internal", party: "", subject: "", body: "", visibility: "internal" as "customer" | "trade" | "internal" });
