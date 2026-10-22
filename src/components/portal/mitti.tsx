@@ -13,11 +13,12 @@ export function useMittiState(jobId: string) {
   return useQuery({
     queryKey: ["mitti", jobId],
     queryFn: async () => {
-      const [{ data: a }, { data: ev }] = await Promise.all([
+      const [{ data: a }, { data: ev }, { data: m }] = await Promise.all([
         supabase.from("assessments").select("*").eq("job_id", jobId).maybeSingle(),
         supabase.from("evidence_requirements").select("label,status,category,gate,required").eq("job_id", jobId).eq("required", true),
+        supabase.from("ceiling_measurements").select("external_source,external_id,status,measured_area_m2,verified_area_m2,removal_required").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
       ]);
-      return { a, ev: ev ?? [] };
+      return { a, ev: ev ?? [], m };
     },
   });
 }
