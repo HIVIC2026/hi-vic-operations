@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useAction } from "@/hooks/use-me";
 import { exportJobPackFn, getJobFile, getJobFileHeader, logCommunication, openJobDocument } from "@/lib/jobfile.functions";
-import { DOC_CATEGORIES, inCategory, searchItems, type DocCategory, type DocItem, type TimelineFilter } from "@/lib/jobfile.core";
+import { DOC_CATEGORIES, inCategory, searchItems, type Correspondence, type DocCategory, type DocItem, type TimelineFilter } from "@/lib/jobfile.core";
 import { fmtDate } from "@/lib/workflow";
 import { openFileViewer } from "@/components/portal/file-viewer";
 
@@ -149,10 +149,25 @@ export function Correspondence({ jobId }: { jobId: string }) {
               {c.subject && <div className="mt-1 font-medium">{c.subject}</div>}
               {c.direction === "outbound" && c.to && c.to.length > 0 && <div className="text-xs text-muted-foreground">To {c.to.join(", ")}</div>}
               <p className="mt-1 whitespace-pre-wrap">{c.body}</p>
-              {c.attachments && c.attachments.length > 0 && <div className="mt-1 text-xs text-muted-foreground">Attachments: {c.attachments.join(", ")}</div>}
+              <AttachmentList c={c} />
             </li>))}
           </ul>)}
       </Section>
+    </div>
+  );
+}
+
+/** Stored attachments open through short-lived private links; older records show names only. */
+function AttachmentList({ c }: { c: Correspondence }) {
+  const files = c.attachmentFiles?.length
+    ? c.attachmentFiles
+    : (c.attachments ?? []).map((name) => ({ name, path: null as string | null, url: null as string | null }));
+  if (!files.length) return null;
+  return (
+    <div className="mt-1 text-xs text-muted-foreground">
+      Attachments: {files.map((f, i) => (
+        <span key={i}>{i > 0 ? ", " : ""}{f.url ? <a className="underline" href={f.url} target="_blank" rel="noreferrer">{f.name}</a> : f.name}</span>
+      ))}
     </div>
   );
 }

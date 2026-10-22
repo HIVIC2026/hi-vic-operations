@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { outlookHarness, graphMessage, jsonResponse, migration, rollback, TEST_ACTOR, TEST_JOB, TEST_MAILBOX } from "./outlook-recovery-harness.ts";
+import { outlookHarness, graphMessage, jsonResponse, bytesResponse, migration, rollback, TEST_ACTOR, TEST_JOB, TEST_MAILBOX } from "./outlook-recovery-harness.ts";
 
 type Harness = Awaited<ReturnType<typeof outlookHarness>>;
 // Isolated processing fault cases receive the worker's proven-window boundary explicitly.
@@ -16,6 +16,8 @@ const configured = async (h: Harness) => { await h.db.query(`UPDATE outlook_sync
 const readOnlyResponses = (url: string) => url.includes("/me?")
   ? jsonResponse({ id: "delegate-id", mail: "delegate@example.test", displayName: "Test delegate" })
   : jsonResponse({ value: [] });
+// The message-list $select also mentions both date fields, so direction is matched on the $filter field, not URL text.
+const filterField = (url: string) => new URL(url).searchParams.get("$filter")?.split(" ")[0] ?? "";
 const practice = (fn: (h: Harness) => Promise<void>) => async () => {
   const h = await outlookHarness();
   try { await fn(h); } finally { await h.db.close(); }
@@ -128,7 +130,7 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     const first = h.counts(); await h.server.processMessages([graphMessage("audit-retry", "Please cancel my enquiry.")], TEST_MAILBOX, first, COMPLETE_WINDOW);
     assert.equal(first.errors, 1); await expectPending(h); assert.equal(await total(h, "workflow_events"), 0);
     await h.db.exec(`DROP TRIGGER fail_audit ON workflow_events`);
-    await h.db.exec(`UPDATE outlook_sync_state SET inbox_cursor='2026-10-20T08:30:00Z'`);
+    await h.db.exec(`UPDATE outlook_sync_state SET all_inbound_cursor='2026-10-20T08:30:00Z'`);
     h.control.fetch = async url => readOnlyResponses(url);
     const retry = await h.server.runOutlookSync({ maxPages: 1 });
     assert.equal(retry.ok, true, retry.blocker); assert.equal(retry.counts.closed, 1);
@@ -171,36 +173,38 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     await configured(h);
     h.control.fetch = async url => {
       if (url.includes("/me?") || url.includes("$select=id,body")) return readOnlyResponses(url);
-      if (url.includes("/sentitems/")) return jsonResponse({ value: [] });
+      if (url.includes("/attachments")) return jsonResponse({ value: [] });
+      if (filterField(url) === "sentDateTime") return jsonResponse({ value: [] });
       if (url.includes("$skiptoken=next")) return jsonResponse({ value: [graphMessage("equal-c")] });
-      return jsonResponse({ value: [graphMessage("equal-a"), graphMessage("equal-b")], "@odata.nextLink": "https://graph.microsoft.com/v1.0/users/shared%40example.test/mailFolders/inbox/messages?$skiptoken=next" });
+      return jsonResponse({ value: [graphMessage("equal-a"), graphMessage("equal-b")], "@odata.nextLink": "https://graph.microsoft.com/v1.0/users/shared%40example.test/messages?$skiptoken=next" });
     };
     const first = await h.server.runOutlookSync({ maxPages: 1, pageSize: 2 });
     assert.equal(first.ok, true, first.blocker); assert.equal(first.counts.stored, 2);
-    assert.match((await h.state()).inbox_next_link, /skiptoken=next/);
+    assert.match((await h.state()).all_inbound_next_link, /skiptoken=next/);
     const second = await h.server.runOutlookSync({ maxPages: 1, pageSize: 2 });
     assert.equal(second.ok, true, second.blocker); assert.equal(second.counts.stored, 1);
-    assert.equal(await total(h, "job_communications"), 3); assert.equal((await h.state()).inbox_next_link, null);
+    assert.equal(await total(h, "job_communications"), 3); assert.equal((await h.state()).all_inbound_next_link, null);
     assert.ok(h.requests.some(r => r.url.includes("$skiptoken=next")));
     assert.ok(h.requests.every(r => !r.url.includes("/me/mailFolders/") && !r.url.includes("/me/messages/")));
   })],
   ["unsafe provider next links block before page side effects and are never fetched", practice(async h => {
     await configured(h);
-    h.control.fetch = async url => url.includes("/me?") || url.includes("$select=id,body") ? readOnlyResponses(url)
+    h.control.fetch = async url => url.includes("/attachments") ? jsonResponse({ value: [] }) : url.includes("/me?") || url.includes("$select=id,body") ? readOnlyResponses(url)
       : jsonResponse({ value: [graphMessage("unsafe-page", "Please cancel my enquiry.")], "@odata.nextLink": "https://evil.example/steal" });
     const result = await h.server.runOutlookSync({ maxPages: 1 });
     assert.equal(result.ok, false); assert.equal(await total(h, "outlook_message_work"), 0);
-    assert.equal((await h.state()).inbox_cursor, null);
+    assert.equal((await h.state()).all_inbound_cursor, null);
     assert.ok(h.requests.every(r => new URL(r.url).origin === "https://connector-gateway.lovable.dev"));
   })],
   ["an early-page decline followed by a future-page inbound reply creates review without closure", practice(async h => {
     await configured(h);
     h.control.fetch = async url => {
       if (url.includes("/me?") || url.includes("$select=id,body")) return readOnlyResponses(url);
-      if (url.includes("/sentitems/")) return jsonResponse({ value: [] });
+      if (url.includes("/attachments")) return jsonResponse({ value: [] });
+      if (filterField(url) === "sentDateTime") return jsonResponse({ value: [] });
       if (url.includes("$skiptoken=later")) return jsonResponse({ value: [graphMessage("future-page-reply", "Actually, please continue.", { receivedDateTime: "2026-10-20T09:00:00Z" })] });
       return jsonResponse({ value: [graphMessage("early-page-decline", "Please cancel my enquiry.")],
-        "@odata.nextLink": "https://graph.microsoft.com/v1.0/users/shared%40example.test/mailFolders/inbox/messages?$skiptoken=later" });
+        "@odata.nextLink": "https://graph.microsoft.com/v1.0/users/shared%40example.test/messages?$skiptoken=later" });
     };
     const result = await h.server.runOutlookSync({ maxPages: 2, pageSize: 1 });
     assert.equal(result.ok, true, result.blocker); assert.equal(result.counts.closed, 0); assert.equal(result.counts.flagged, 1);
@@ -210,30 +214,31 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
   })],
   ["a complete fresh Inbox window retains explicit-decline closure and records its fixed cutoff", practice(async h => {
     await configured(h);
-    h.control.fetch = async url => url.includes("/me?") || url.includes("$select=id,body") ? readOnlyResponses(url)
-      : jsonResponse({ value: url.includes("/inbox/") ? [graphMessage("complete-window-decline", "Please cancel my enquiry.")] : [] });
+    h.control.fetch = async url => url.includes("/attachments") ? jsonResponse({ value: [] }) : url.includes("/me?") || url.includes("$select=id,body") ? readOnlyResponses(url)
+      : jsonResponse({ value: filterField(url) === "receivedDateTime" ? [graphMessage("complete-window-decline", "Please cancel my enquiry.")] : [] });
     const result = await h.server.runOutlookSync({ maxPages: 2 });
     assert.equal(result.ok, true, result.blocker); assert.equal(result.counts.closed, 1);
     const event = await row(h, "workflow_events");
     assert.ok(event.details.inbox_complete_through);
-    const pages = h.requests.filter(r => !r.url.includes("$select=id,body") && r.url.includes("/mailFolders/"));
+    const pages = h.requests.filter(r => new URL(r.url).searchParams.get("$filter")?.includes(" le "));
     assert.equal(pages.length, 2);
     for (const page of pages) assert.ok(new URL(page.url).searchParams.get("$filter")!.endsWith(` le ${event.details.inbox_complete_through}`));
-    assert.ok(pages[0]!.url.includes("/inbox/")); assert.ok(pages[1]!.url.includes("/sentitems/"));
+    assert.ok(pages[0]!.url.includes("receivedDateTime")); assert.ok(pages[1]!.url.includes("sentDateTime"));
   })],
   ["an older continuation cannot prove current completeness; subsequent fresh scans preserve its review", practice(async h => {
     await configured(h);
-    await h.db.exec(`UPDATE outlook_sync_state SET inbox_next_link='https://graph.microsoft.com/v1.0/users/shared%40example.test/mailFolders/inbox/messages?$skiptoken=older-cutoff'`);
+    await h.db.exec(`UPDATE outlook_sync_state SET all_inbound_next_link='https://graph.microsoft.com/v1.0/users/shared%40example.test/messages?$skiptoken=older-cutoff'`);
     h.control.fetch = async url => {
       if (url.includes("/me?") || url.includes("$select=id,body")) return readOnlyResponses(url);
-      if (url.includes("/sentitems/")) return jsonResponse({ value: [] });
+      if (url.includes("/attachments")) return jsonResponse({ value: [] });
+      if (filterField(url) === "sentDateTime") return jsonResponse({ value: [] });
       return jsonResponse({ value: url.includes("older-cutoff")
         ? [graphMessage("old-window-decline", "Please cancel my enquiry.")]
         : [graphMessage("new-window-reply", "Please continue after all.", { receivedDateTime: "2026-10-20T09:00:00Z" })] });
     };
     const older = await h.server.runOutlookSync({ maxPages: 1 });
     assert.equal(older.ok, true, older.blocker); assert.equal(older.counts.closed, 0); assert.equal(older.counts.flagged, 1);
-    assert.equal((await h.state()).inbox_next_link, null);
+    assert.equal((await h.state()).all_inbound_next_link, null);
     const fresh = await h.server.runOutlookSync({ maxPages: 1 });
     assert.equal(fresh.ok, true, fresh.blocker); assert.equal(fresh.counts.closed, 0);
     assert.equal((await row(h, "jobs")).stage, "new_enquiry");
@@ -241,8 +246,8 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
   })],
   ["Inbox completion and newer correspondence are considered before a closure-capable Sent Items record", practice(async h => {
     await configured(h);
-    h.control.fetch = async url => url.includes("/me?") || url.includes("$select=id,body") ? readOnlyResponses(url)
-      : jsonResponse({ value: url.includes("/inbox/")
+    h.control.fetch = async url => url.includes("/attachments") ? jsonResponse({ value: [] }) : url.includes("/me?") || url.includes("$select=id,body") ? readOnlyResponses(url)
+      : jsonResponse({ value: filterField(url) === "receivedDateTime"
         ? [graphMessage("new-inbox-reply", "Please continue.", { receivedDateTime: "2026-10-20T09:00:00Z" })]
         : [graphMessage("older-sent-folder-record", "Please cancel my enquiry.")] });
     const result = await h.server.runOutlookSync({ maxPages: 1 });
@@ -251,12 +256,12 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
   })],
   ["failed cursor/status writes do not report success or repeat completed closure/audit", practice(async h => {
     await configured(h);
-    h.control.fetch = async url => url.includes("/me?") || url.includes("$select=id,body") ? readOnlyResponses(url)
-      : jsonResponse({ value: url.includes("/inbox/") ? [graphMessage("cursor-failure", "Please cancel my enquiry.")] : [] });
+    h.control.fetch = async url => url.includes("/attachments") ? jsonResponse({ value: [] }) : url.includes("/me?") || url.includes("$select=id,body") ? readOnlyResponses(url)
+      : jsonResponse({ value: filterField(url) === "receivedDateTime" ? [graphMessage("cursor-failure", "Please cancel my enquiry.")] : [] });
     h.control.fault = op => op.table === "outlook_sync_state" && op.mode === "update" ? { data: null, error: { message: "injected state write failure" } } : null;
     const first = await h.server.runOutlookSync({ maxPages: 1 });
     assert.equal(first.ok, false); assert.match(first.blocker, /state was not saved/);
-    assert.equal((await h.state()).inbox_cursor, null); assert.equal(await total(h, "workflow_events"), 1);
+    assert.equal((await h.state()).all_inbound_cursor, null); assert.equal(await total(h, "workflow_events"), 1);
     h.control.fault = null;
     const retry = await h.server.runOutlookSync({ maxPages: 1 });
     assert.equal(retry.ok, true, retry.blocker); assert.equal(retry.counts.closed, 0);
@@ -266,6 +271,7 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     const message = { providerMessageId: "sql-guard", direction: "inbound", from: "owner@example.test", to: [TEST_MAILBOX], cc: [], body: "Please cancel my enquiry.", at: "2026-10-20T08:00:00Z", hasAttachments: false };
     const route = { kind: "job", jobId: TEST_JOB, how: "job_number" };
     await h.db.query(`SELECT begin_outlook_message($1,$2,$3)`, [TEST_MAILBOX, JSON.stringify(message), JSON.stringify(route)]);
+    await h.db.exec(`UPDATE outlook_message_work SET attachments_complete=true`);
     await h.db.exec(`UPDATE jobs SET stage='installation_booked'`);
     await assert.rejects(h.db.query(`SELECT finish_outlook_message('sql-guard',$1)`, [JSON.stringify({ action: "close", expectedStage: "new_enquiry", reason: "Customer not proceeding" })]), /Job changed/);
     assert.equal(await total(h, "job_communications"), 0);
@@ -277,5 +283,78 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     const grants = (await h.db.query<{ allowed: boolean }>(`SELECT has_function_privilege('authenticated','public.finish_outlook_message(text,jsonb)','EXECUTE') AS allowed`)).rows[0]!;
     assert.equal(grants.allowed, false);
     assert.equal((await h.db.query<{ allowed: boolean }>(`SELECT has_table_privilege('anon','outlook_message_work','SELECT') AS allowed`)).rows[0]!.allowed, false);
+  })],
+  ["an inline-image-only email still stores its attached file privately", practice(async h => {
+    const message = graphMessage("inline-only", "Please see the photo.", { hasAttachments: false });
+    h.control.fetch = async url => {
+      if (url.includes("/attachments/inline-1/$value")) return bytesResponse(new Uint8Array([1, 2, 3, 4]), "image/jpeg");
+      if (url.includes("/attachments")) return jsonResponse({ value: [{ id: "inline-1", name: "photo.jpg", contentType: "image/jpeg", size: 4, isInline: true }] });
+      return jsonResponse({ value: [] });
+    };
+    const result = h.counts(); await h.server.processMessages([message], TEST_MAILBOX, result, COMPLETE_WINDOW);
+    assert.equal(result.errors, 0); assert.equal(result.stored, 1); assert.equal(result.files, 1);
+    const refs = (await row(h, "job_communications")).attachment_refs;
+    assert.equal(refs.length, 1);
+    assert.equal(refs[0].path, `correspondence/${TEST_JOB}/inline-only/1-photo.jpg`);
+    assert.equal(refs[0].skipped, null);
+    assert.equal(h.files.get(refs[0].path).length, 4);
+  })],
+  ["mail moved between folders is re-listed but never re-stored", practice(async h => {
+    await configured(h);
+    h.control.fetch = async url => {
+      if (url.includes("/attachments")) return jsonResponse({ value: [] });
+      if (url.includes("/me?") || url.includes("$select=id,body")) return readOnlyResponses(url);
+      if (filterField(url) === "receivedDateTime") return jsonResponse({ value: [graphMessage("moved-mail")] });
+      return jsonResponse({ value: [] });
+    };
+    const first = await h.server.runOutlookSync({ maxPages: 1 });
+    assert.equal(first.ok, true, first.blocker); assert.equal(first.counts.stored, 1);
+    // The same immutable message re-appears in the folder-agnostic stream (e.g. after an Archive move).
+    const second = await h.server.runOutlookSync({ maxPages: 1 });
+    assert.equal(second.ok, true, second.blocker); assert.equal(second.counts.duplicate, 1); assert.equal(second.counts.stored, 0);
+    assert.equal(await total(h, "job_communications"), 1);
+    const messagePages = h.requests.filter(r => r.url.includes("/messages?$select="));
+    assert.ok(messagePages.length >= 2);
+    assert.ok(messagePages.every(r => !r.url.includes("/mailFolders/")));
+  })],
+  ["one message concerning two properties links to both jobs and never duplicates", practice(async h => {
+    await h.db.exec(`INSERT INTO jobs(id,job_number,owner_id,property_id) VALUES('55555555-5555-4555-8555-555555555555','HV-1002','33333333-3333-4333-8333-333333333333','44444444-4444-4444-8444-444444444444')`);
+    const message = graphMessage("two-jobs", "Both homes please", { subject: "HV-1001 and HV-1002" });
+    const result = h.counts(); await h.server.processMessages([message], TEST_MAILBOX, result, COMPLETE_WINDOW);
+    assert.equal(result.errors, 0); assert.equal(result.stored, 1); assert.equal(result.closed, 0); assert.equal(result.flagged, 0);
+    assert.equal(await total(h, "job_communications"), 2);
+    assert.equal(await total(h, "outlook_message_work"), 1);
+    assert.equal(await total(h, "workflow_events"), 0);
+    const replay = h.counts(); await h.server.processMessages([message], TEST_MAILBOX, replay, COMPLETE_WINDOW);
+    assert.equal(replay.duplicate, 1); assert.equal(await total(h, "job_communications"), 2);
+    await assert.rejects(h.db.exec(rollback()), /preserve its queue/);
+  })],
+  ["a family reply in a known thread links to the job; an unknown sender is only counted", practice(async h => {
+    await h.db.query(`INSERT INTO job_communications(job_id,direction,channel,provider,provider_message_id,provider_thread_id,body) VALUES($1,'outbound','email','outlook','orig-msg','thread-1','original')`, [TEST_JOB]);
+    const reply = graphMessage("family-reply", "Grandma here — all good thanks", { conversationId: "thread-1", subject: "Re: insulation", from: { emailAddress: { address: "family@example.test" } } });
+    const stranger = graphMessage("stranger", "Buy now", { subject: "Deal", from: { emailAddress: { address: "news@vendor.example" } } });
+    const result = h.counts(); await h.server.processMessages([reply, stranger], TEST_MAILBOX, result, COMPLETE_WINDOW);
+    assert.equal(result.errors, 0); assert.equal(result.stored, 1); assert.equal(result.notHomeowner, 1);
+    const stored = await h.db.query<{ job_id: string; source_event: string }>(`SELECT job_id, source_event FROM job_communications WHERE provider_message_id='family-reply'`);
+    assert.equal(stored.rows.length, 1); assert.equal(stored.rows[0]!.job_id, TEST_JOB);
+    assert.equal(stored.rows[0]!.source_event, "outlook_sync:thread");
+    assert.equal((await h.db.query(`SELECT 1 FROM outlook_message_work WHERE provider_message_id='stranger'`)).rows.length, 0);
+  })],
+  ["historical catch-up stores old mail without changing any job and clears itself", practice(async h => {
+    await configured(h);
+    await h.db.exec(`UPDATE outlook_sync_state SET catchup_from='2026-10-01T00:00:00Z', backfill_from='2026-10-10T00:00:00Z'`);
+    h.control.fetch = async url => {
+      if (url.includes("/attachments")) return jsonResponse({ value: [] });
+      if (url.includes("/me?") || url.includes("$select=id,body")) return readOnlyResponses(url);
+      if (filterField(url) === "receivedDateTime") return jsonResponse({ value: [graphMessage("old-decline", "Please cancel my enquiry.", { receivedDateTime: "2026-10-05T08:00:00Z" })] });
+      return jsonResponse({ value: [] });
+    };
+    const result = await h.server.runOutlookSync({ maxPages: 2 });
+    assert.equal(result.ok, true, result.blocker);
+    assert.equal(result.counts.stored, 1); assert.equal(result.counts.closed, 0); assert.equal(result.counts.flagged, 0);
+    assert.equal((await row(h, "jobs")).stage, "new_enquiry");
+    assert.equal(await total(h, "job_communications"), 1); assert.equal(await total(h, "workflow_events"), 0);
+    assert.equal((await h.state()).catchup_from, null);
+    assert.equal((await h.state()).catchup_inbound_cursor, null);
   })],
 ];

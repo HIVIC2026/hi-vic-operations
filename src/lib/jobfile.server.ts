@@ -38,6 +38,22 @@ export async function loadSources(jobId: string): Promise<JobSources & { events:
   return { documents, evidenceFiles: ev.map((f) => ({ ...f, requirement: byReq.get(f["requirement_id"]) ?? null })), piesaRecords, piesaDeliveries, measurements, quotes, invoices, assignments, authorities, escNotifications, veec, propertyFacts, declarations, events, messages, comms, bookings, proposals };
 }
 
+/** Signs a short-lived private link for each stored correspondence attachment the role can already see. */
+async function withAttachmentLinks<T extends { id: string; attachmentFiles?: { name: string; path: string | null; url?: string | null }[] }>(rows: T[]): Promise<T[]> {
+  const out: T[] = [];
+  for (const c of rows) {
+    if (!c.attachmentFiles?.length) { out.push(c); continue; }
+    const files = [] as { name: string; path: string | null; url: string | null }[];
+    for (const f of c.attachmentFiles) {
+      if (!f.path) { files.push({ name: f.name, path: null, url: null }); continue; }
+      const { data } = await signFile(BUCKET, f.path, 7 * 86400);
+      files.push({ name: f.name, path: f.path, url: data?.signedUrl ?? null });
+    }
+    out.push({ ...c, attachmentFiles: files });
+  }
+  return out;
+}
+
 export async function buildJobFile(jobId: string, role: Role) {
   const [src, { data: job }] = await Promise.all([
     loadSources(jobId),
@@ -69,7 +85,7 @@ export async function buildJobFile(jobId: string, role: Role) {
   return {
     role,
     documents: visibleTo(docs, role).map((d) => ({ ...d, actor: label(d.actor), verifiedBy: d.verifiedBy ? label(d.verifiedBy) : null, ...(role === "admin" ? {} : { storagePath: d.storagePath ? "private" : null }) })),
-    correspondence: visibleTo(correspondence, role).map((c) => ({ ...c, from: c.source === "portal_message" ? label(c.from) : c.from })),
+    correspondence: await withAttachmentLinks(visibleTo(correspondence, role).map((c) => ({ ...c, from: c.source === "portal_message" ? label(c.from) : c.from }))),
     timeline: visibleTo(timeline, role).map((t) => ({ ...t, actorRole: t.actorRole ?? roleOf(t.actor), actor: label(t.actor), detail: role === "admin" ? (JSON.parse(JSON.stringify(t.detail ?? null)) as Record<string, string | number | boolean | null> | null) : null })),
     retention: role === "admin" ? retention : null,
   };

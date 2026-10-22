@@ -42,7 +42,9 @@ Before and during any apply, the operator must:
 | **0149** — `0149_security_owner_quote_rls.sql` | **Quote RLS security correction.** Closes the exposure where owners can read issued+queued quotes through direct queries; preserves installer/electrician/admin/history access. **Apply first (security-first).** | `0149_security_owner_quote_rls.rollback.sql` (restores the previous, less-restrictive 0126 visibility policy and the 0133 autolink). |
 | **0202** — `0202_signed_webhook_nonces.sql` | **Webhook nonce replay protection.** Adds the `signed_webhook_nonces` table with `UNIQUE(source, purpose, nonce)` so replayed timestamped webhooks are rejected. **Apply after 0149.** | `0202_signed_webhook_nonces.rollback.sql` (drops the table; webhook degrades to signature+timestamp fail-open). |
 
-Apply order: **0149 → 0202** (security-first; otherwise independent).
+| **0221** — `0221_outlook_history.sql` | **Outlook email history.** Folder-agnostic inbound/outbound cursors plus a record-only historical catch-up pass; per-job message uniqueness (replaces global uniqueness) so one email can link to several properties; attachment metadata always pending so inline images are fetched. **Apply after 0149 → 0202; requires Outlook sync paused first.** | `0221_outlook_history.rollback.sql` (refuses if multi-job history or recovery work exists; restores the 0212 RPCs and the global unique index). |
+
+Apply order: **0149 → 0202 → 0221** (security-first; 0221 last, with Outlook sync paused).
 
 ## Other staged files (not part of this plan)
 

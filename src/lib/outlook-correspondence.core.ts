@@ -9,6 +9,49 @@ export type GraphMessage = {
   receivedDateTime?: string | null; sentDateTime?: string | null; hasAttachments?: boolean | null; isDraft?: boolean | null;
 };
 export type AttachmentRef = { id: string; name: string; contentType: string | null; size: number | null; isInline: boolean };
+/** An attachment as preserved for the job: the original metadata plus where the actual file was stored. */
+export type StoredAttachmentRef = AttachmentRef & { path: string | null; storedAt: string | null; skipped: string | null };
+
+export const ATTACHMENT_MAX_FILE_BYTES = 20 * 1024 * 1024;
+export const ATTACHMENT_MAX_MESSAGE_BYTES = 40 * 1024 * 1024;
+
+/** Safe storage filename: keep the extension, strip anything path-like or exotic, bound the length. */
+export function safeAttachmentName(name: string): string {
+  const clean = name.replace(/[^\w.\-]+/g, "_").replace(/^\.+/, "").slice(-120);
+  return clean || "attachment";
+}
+
+/** Deterministic private path, unique per message and attachment position; messageId is sanitised for storage. */
+export function attachmentStoragePath(prefix: string, messageId: string, index: number, name: string): string {
+  const safePrefix = prefix.replace(/[^\w.\-]+/g, "_") || "unmatched";
+  const safeMessage = messageId.replace(/[^\w.\-]+/g, "_").slice(-80);
+  return `correspondence/${safePrefix}/${safeMessage}/${index + 1}-${safeAttachmentName(name)}`;
+}
+
+/** Which attachments to store and which to skip, with a visible reason. Unknown sizes count as zero against the budget. */
+export function planAttachments(
+  refs: AttachmentRef[],
+  maxFileBytes = ATTACHMENT_MAX_FILE_BYTES,
+  maxMessageBytes = ATTACHMENT_MAX_MESSAGE_BYTES,
+): { store: AttachmentRef[]; skipped: { ref: AttachmentRef; reason: string }[] } {
+  const store: AttachmentRef[] = [];
+  const skipped: { ref: AttachmentRef; reason: string }[] = [];
+  let total = 0;
+  for (const ref of refs) {
+    const size = typeof ref.size === "number" && ref.size >= 0 ? ref.size : null;
+    if (size !== null && size > maxFileBytes) {
+      skipped.push({ ref, reason: `over the ${Math.round(maxFileBytes / 1048576)} MB per-file limit` });
+      continue;
+    }
+    if (size !== null && total + size > maxMessageBytes) {
+      skipped.push({ ref, reason: "over the per-message attachment budget" });
+      continue;
+    }
+    total += size ?? 0;
+    store.push(ref);
+  }
+  return { store, skipped };
+}
 export type MailMessage = {
   providerMessageId: string; threadId: string | null; internetMessageId: string | null; direction: "inbound" | "outbound";
   from: string | null; fromName: string | null; to: string[]; cc: string[]; subject: string | null; body: string; at: string;
@@ -58,7 +101,7 @@ export function extractJobNumbers(text: string): string[] {
 
 export type CandidateJob = { id: string; jobNumber: string; ownerEmail: string | null; addressLine: string | null; postcode: string | null };
 export type MatchResult =
-  | { kind: "job"; jobId: string; how: "job_number" | "email_and_address" | "only_job_for_email" }
+  | { kind: "job"; jobIds: string[]; how: "job_number" | "job_numbers" | "thread" | "email_and_address" | "email_and_addresses" | "only_job_for_email" }
   | { kind: "unmatched"; reason: string; candidateJobIds: string[] }
   | { kind: "not_homeowner" };
 
@@ -67,22 +110,27 @@ const normAddr = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, " ")
   .replace(/\s+/g, " ").trim();
 
 /**
- * Safe matching. 1) exactly one quoted job number that exists wins; 2) counterpart email + address written in the
- * message; 3) the counterpart email belongs to exactly one current job. Anything ambiguous goes to Office review.
- * Mail from/to no known homeowner and quoting no job number is not homeowner correspondence and is skipped.
+ * Safe matching, in order: 1) one or more quoted job numbers that exist; 2) the message continues a thread already
+ * stored on a job (a family member or property manager replying on a known conversation); 3) counterpart email +
+ * address written in the message; 4) the counterpart email belongs to exactly one current job. A message naming
+ * several existing jobs is linked to all of them; anything ambiguous goes to Office review; mail from/to no known
+ * homeowner with no job number and no known thread is not homeowner correspondence and is skipped.
  */
-export function matchMessage(m: MailMessage, emails: string[], byNumber: Map<string, CandidateJob>, byEmail: Map<string, CandidateJob[]>): MatchResult {
+export function matchMessage(m: MailMessage, emails: string[], byNumber: Map<string, CandidateJob>, byEmail: Map<string, CandidateJob[]>, byThread: Map<string, string[]> = new Map()): MatchResult {
   const text = `${m.subject ?? ""}\n${m.body}`;
   const refs = extractJobNumbers(text).map((n) => byNumber.get(n)).filter((j): j is CandidateJob => !!j);
   const refIds = [...new Set(refs.map((j) => j.id))];
-  if (refIds.length === 1) return { kind: "job", jobId: refIds[0]!, how: "job_number" };
+  if (refIds.length === 1) return { kind: "job", jobIds: refIds, how: "job_number" };
+  if (refIds.length > 1) return { kind: "job", jobIds: refIds, how: "job_numbers" };
+  const threaded = m.threadId ? byThread.get(m.threadId) : undefined;
+  if (threaded && threaded.length > 0) return { kind: "job", jobIds: [...new Set(threaded)], how: "thread" };
   const pool = [...new Map(emails.flatMap((e) => byEmail.get(e) ?? []).map((j) => [j.id, j])).values()];
-  if (refIds.length > 1) return { kind: "unmatched", reason: `Mentions ${refIds.length} different job numbers`, candidateJobIds: refIds };
   if (pool.length === 0) return { kind: "not_homeowner" };
-  if (pool.length === 1) return { kind: "job", jobId: pool[0]!.id, how: "only_job_for_email" };
+  if (pool.length === 1) return { kind: "job", jobIds: [pool[0]!.id], how: "only_job_for_email" };
   const hay = ` ${normAddr(text)} `;
   const byAddr = pool.filter((j) => j.addressLine && normAddr(j.addressLine).length >= 5 && hay.includes(` ${normAddr(j.addressLine)} `));
-  if (byAddr.length === 1) return { kind: "job", jobId: byAddr[0]!.id, how: "email_and_address" };
+  if (byAddr.length === 1) return { kind: "job", jobIds: [byAddr[0]!.id], how: "email_and_address" };
+  if (byAddr.length > 1) return { kind: "job", jobIds: byAddr.map((j) => j.id), how: "email_and_addresses" };
   return { kind: "unmatched", reason: `This email address belongs to ${pool.length} jobs and the message does not say which property`, candidateJobIds: pool.map((j) => j.id) };
 }
 
