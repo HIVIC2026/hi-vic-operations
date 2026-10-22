@@ -10,7 +10,7 @@ export type GraphMessage = {
 };
 export type AttachmentRef = { id: string; name: string; contentType: string | null; size: number | null; isInline: boolean };
 /** An attachment as preserved for the job: the original metadata plus where the actual file was stored. */
-export type StoredAttachmentRef = AttachmentRef & { path: string | null; storedAt: string | null; skipped: string | null };
+export type StoredAttachmentRef = AttachmentRef & { path: string | null; storedAt: string | null; skipped: string | null; contentHash?: string | null };
 
 export const ATTACHMENT_MAX_FILE_BYTES = 20 * 1024 * 1024;
 export const ATTACHMENT_MAX_MESSAGE_BYTES = 40 * 1024 * 1024;
@@ -21,11 +21,22 @@ export function safeAttachmentName(name: string): string {
   return clean || "attachment";
 }
 
-/** Deterministic private path, unique per message and attachment position; messageId is sanitised for storage. */
-export function attachmentStoragePath(prefix: string, messageId: string, index: number, name: string): string {
+/** Stable short identity for one attachment (mailbox + full message id + full attachment id). Sanitising
+ *  and truncating provider ids can make different attachments look alike; this key is computed from the
+ *  full identity, so their storage paths can never collide. */
+export function attachmentIdentityKey(mailbox: string, messageId: string, attachmentId: string): string {
+  const s = `${mailbox.toLowerCase()}|${messageId}|${attachmentId}`;
+  let h = 0xcbf29ce484222325n;
+  for (let i = 0; i < s.length; i++) { h ^= BigInt(s.charCodeAt(i)); h = (h * 0x100000001b3n) & 0xffffffffffffffffn; }
+  return h.toString(16).padStart(16, "0");
+}
+
+/** Deterministic private path, unique per attachment identity; the identity key (not the provider id)
+ *  makes the path collision-proof. */
+export function attachmentStoragePath(prefix: string, identityKey: string, index: number, name: string): string {
   const safePrefix = prefix.replace(/[^\w.\-]+/g, "_") || "unmatched";
-  const safeMessage = messageId.replace(/[^\w.\-]+/g, "_").slice(-80);
-  return `correspondence/${safePrefix}/${safeMessage}/${index + 1}-${safeAttachmentName(name)}`;
+  const key = identityKey.replace(/[^\w.\-]+/g, "_").slice(0, 32) || "0";
+  return `correspondence/${safePrefix}/${key}/${index + 1}-${safeAttachmentName(name)}`;
 }
 
 /** Which attachments to store and which to skip, with a visible reason. Unknown sizes count as zero against the budget. */
@@ -101,7 +112,7 @@ export function extractJobNumbers(text: string): string[] {
 
 export type CandidateJob = { id: string; jobNumber: string; ownerEmail: string | null; addressLine: string | null; postcode: string | null };
 export type MatchResult =
-  | { kind: "job"; jobIds: string[]; how: "job_number" | "job_numbers" | "thread" | "email_and_address" | "email_and_addresses" | "only_job_for_email" }
+  | { kind: "job"; jobIds: string[]; how: "job_number" | "job_numbers" | "thread" | "email_and_address" | "email_and_addresses" | "only_job_for_email"; visibility?: "customer" | "internal" }
   | { kind: "unmatched"; reason: string; candidateJobIds: string[] }
   | { kind: "not_homeowner" };
 
@@ -110,38 +121,64 @@ const normAddr = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, " ")
   .replace(/\s+/g, " ").trim();
 
 /**
- * Safe matching, in order: 1) one or more quoted job numbers that exist; 2) the message continues a thread already
- * stored on a job (a family member or property manager replying on a known conversation); 3) counterpart email +
- * address written in the message; 4) the counterpart email belongs to exactly one current job. A message naming
- * several existing jobs is linked to all of them; anything ambiguous goes to Office review; mail from/to no known
- * homeowner with no job number and no known thread is not homeowner correspondence and is skipped.
+ * Safe matching, in order: 1) job numbers named in the subject or the current (non-quoted) message text that
+ * exist; 2) the message continues a thread already stored on a job (a family member or property manager
+ * replying on a known conversation); 3) counterpart email + address written in the message; 4) the counterpart
+ * email belongs to exactly one current job. A message naming several jobs is linked to all of them only when
+ * the sender is a confirmed participant of every one. Quoted-only, conflicting or multi-job uncertainty goes
+ * to Office review. Mail from an unrecognised sender is preserved for Office review (which can assign it to a
+ * job or dismiss it) — it is never guessed onto a job and never discarded.
  */
-export function matchMessage(m: MailMessage, emails: string[], byNumber: Map<string, CandidateJob>, byEmail: Map<string, CandidateJob[]>, byThread: Map<string, string[]> = new Map()): MatchResult {
+export function matchMessage(m: MailMessage, emails: string[], byNumber: Map<string, CandidateJob>, byEmail: Map<string, CandidateJob[]>, byThread: Map<string, CandidateJob[]> = new Map()): MatchResult {
   const text = `${m.subject ?? ""}\n${m.body}`;
-  const refs = extractJobNumbers(text).map((n) => byNumber.get(n)).filter((j): j is CandidateJob => !!j);
-  const refIds = [...new Set(refs.map((j) => j.id))];
-  if (refIds.length === 1) return { kind: "job", jobIds: refIds, how: "job_number" };
-  if (refIds.length > 1) return { kind: "job", jobIds: refIds, how: "job_numbers" };
+  const counterpart = new Set(emails);
+  const corroborates = (j: CandidateJob) => !!j.ownerEmail && counterpart.has(j.ownerEmail);
+  const asJob = (jobs: CandidateJob[], how: "job_number" | "job_numbers" | "thread" | "email_and_address" | "email_and_addresses" | "only_job_for_email"): MatchResult =>
+    ({ kind: "job", jobIds: jobs.map((j) => j.id), how, visibility: jobs.every(corroborates) ? "customer" : "internal" });
+  // A job number inside quoted earlier history is only trusted when the sender is a confirmed participant
+  // of that job; the quoted text itself may belong to anyone in the chain.
+  const currentRefs = [...new Set([...extractJobNumbers(m.subject ?? ""), ...extractJobNumbers(latestReplyText(m.body))])];
+  const refJobs = [...new Map(currentRefs.map((n) => byNumber.get(n)).filter((j): j is CandidateJob => !!j).map((j) => [j.id, j])).values()];
+  if (refJobs.length === 1) return asJob(refJobs, "job_number");
+  if (refJobs.length > 1) {
+    if (refJobs.every(corroborates)) return asJob(refJobs, "job_numbers");
+    return { kind: "unmatched", reason: `The message names ${refJobs.length} jobs and the sender is not a confirmed participant of all of them`, candidateJobIds: refJobs.map((j) => j.id) };
+  }
+  const quotedOnly = [...new Map(extractJobNumbers(m.body).map((n) => byNumber.get(n)).filter((j): j is CandidateJob => !!j && corroborates(j)).map((j) => [j.id, j])).values()];
+  if (quotedOnly.length === 1) return asJob(quotedOnly, "job_number");
   const threaded = m.threadId ? byThread.get(m.threadId) : undefined;
-  if (threaded && threaded.length > 0) return { kind: "job", jobIds: [...new Set(threaded)], how: "thread" };
+  if (threaded && threaded.length > 0) {
+    if (threaded.length === 1) return asJob(threaded, "thread");
+    const confirmed = threaded.filter(corroborates);
+    if (confirmed.length === 1) return asJob(confirmed, "thread");
+    return { kind: "unmatched", reason: `This thread is stored on ${threaded.length} jobs and the sender is not a confirmed participant of exactly one`, candidateJobIds: threaded.map((j) => j.id) };
+  }
   const pool = [...new Map(emails.flatMap((e) => byEmail.get(e) ?? []).map((j) => [j.id, j])).values()];
-  if (pool.length === 0) return { kind: "not_homeowner" };
-  if (pool.length === 1) return { kind: "job", jobIds: [pool[0]!.id], how: "only_job_for_email" };
+  if (pool.length === 0) return { kind: "unmatched", reason: "Sender not recognised — review and assign or dismiss", candidateJobIds: [] };
+  if (pool.length === 1) return asJob(pool, "only_job_for_email");
   const hay = ` ${normAddr(text)} `;
   const byAddr = pool.filter((j) => j.addressLine && normAddr(j.addressLine).length >= 5 && hay.includes(` ${normAddr(j.addressLine)} `));
-  if (byAddr.length === 1) return { kind: "job", jobIds: [byAddr[0]!.id], how: "email_and_address" };
-  if (byAddr.length > 1) return { kind: "job", jobIds: byAddr.map((j) => j.id), how: "email_and_addresses" };
+  if (byAddr.length === 1) return asJob(byAddr, "email_and_address");
+  if (byAddr.length > 1) return asJob(byAddr, "email_and_addresses");
   return { kind: "unmatched", reason: `This email address belongs to ${pool.length} jobs and the message does not say which property`, candidateJobIds: pool.map((j) => j.id) };
 }
 
-/** An outbound Outlook copy of an email the portal already recorded (same job, subject, recipient, within 15 min). */
-export type ExistingComm = { provider: string; subject: string | null; recipients: string[]; at: string | null; direction: string };
+/** An outbound Outlook copy of an email the portal already recorded: same job, exact same recipient set,
+ *  same subject AND same body, within 15 minutes. Anything less certain (e.g. a distinct reply that shares
+ *  a subject line and recipient) is kept as its own record rather than dropped. */
+export type ExistingComm = { provider: string; subject: string | null; recipients: string[]; at: string | null; direction: string; body: string | null };
+const normSubject = (s: string | null) => (s ?? "").trim().toLowerCase();
+const normBody = (s: string | null) => (s ?? "").replace(/\s+/g, " ").trim();
+const normRecipients = (list: string[]) => [...new Set(list.map((r) => String(r).toLowerCase()))].sort().join(",");
 export function isPortalDuplicate(m: MailMessage, existing: ExistingComm[]): boolean {
   if (m.direction !== "outbound") return false;
-  const subj = (m.subject ?? "").trim().toLowerCase();
+  const subj = normSubject(m.subject);
+  if (!subj) return false;
+  const body = normBody(m.body);
+  const recipients = normRecipients([...m.to, ...m.cc]);
   const t = Date.parse(m.at);
-  return existing.some((c) => c.provider !== "outlook" && c.direction === "outbound" && (c.subject ?? "").trim().toLowerCase() === subj && subj.length > 0
-    && c.recipients.some((r) => [...m.to, ...m.cc].includes(String(r).toLowerCase()))
+  return existing.some((c) => c.provider !== "outlook" && c.direction === "outbound" && normSubject(c.subject) === subj
+    && normBody(c.body) === body && normRecipients(c.recipients) === recipients
     && !!c.at && Math.abs(Date.parse(c.at) - t) <= 15 * 60_000);
 }
 
