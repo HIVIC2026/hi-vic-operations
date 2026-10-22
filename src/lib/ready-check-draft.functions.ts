@@ -19,6 +19,8 @@ export const getReadyCheckDraft = createServerFn({ method: "POST" }).middleware(
 export const saveReadyCheckDraft = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid(), values: z.record(z.string().max(80), z.string().max(2000)) }).parse(d))
   .handler(async ({ data, context }) => {
+    void data; void context;
+    throw new Error("Ready Checks are now done only in the Mitti form. Please open the job's Mitti Ready Check.");
     const { data: ok, error } = await context.supabase.rpc("can_access_job", { _job: data.jobId });
     if (error || !ok) throw new Error("Not your job.");
     const { assignedInstallerBusiness } = await import("./piisa-a3.server");
@@ -34,6 +36,8 @@ export const saveReadyCheckDraft = createServerFn({ method: "POST" }).middleware
 export const submitReadyCheckDraft = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    void data; void context;
+    throw new Error("Ready Checks are now done only in the Mitti form. Please open the job's Mitti Ready Check.");
     const { data: ok, error } = await context.supabase.rpc("can_access_job", { _job: data.jobId });
     if (error || !ok) throw new Error("Not your job.");
     const { assignedInstallerBusiness } = await import("./piisa-a3.server");
@@ -66,6 +70,8 @@ const area = z.object({
 export const saveReadyCheckAreas = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid(), areas: z.array(area).max(20) }).parse(d))
   .handler(async ({ data, context }) => {
+    void data; void context;
+    throw new Error("Ready Checks are now done only in the Mitti form. Please open the job's Mitti Ready Check.");
     const { data: ok, error } = await context.supabase.rpc("can_access_job", { _job: data.jobId });
     if (error || !ok) throw new Error("Not your job.");
     const { assignedInstallerBusiness } = await import("./piisa-a3.server");
