@@ -158,14 +158,18 @@ function NoInsulationFollowup({ jobId, onDone, deliveryUncertain }: { jobId: str
   return <GuardedFollowup jobId={jobId} deliveryUncertain={deliveryUncertain} title="Save your spot offer" onDone={onDone} run={(mode) => action({ data: { jobId, mode } })} />;
 }
 
-function MediaReview({ row, onDone }: { row: Row; onDone: () => void }) {
+function MediaReview({ row, onDone, optionsOnly = false }: { row: Row; onDone: () => void; optionsOnly?: boolean }) {
   const loadMedia = useServerFn(getLeadMedia);
   const review = useServerFn(reviewLeadMediaFn);
   const decide = useServerFn(setEligibility);
-  const { data, isLoading, error } = useQuery({
+  const query = useQuery({
     queryKey: ["lead-media", row.id],
     queryFn: () => loadMedia({ data: { jobId: row.id } }),
+    enabled: !optionsOnly,
   });
+  const data = optionsOnly ? undefined : query.data;
+  const isLoading = optionsOnly ? false : query.isLoading;
+  const error = optionsOnly ? null : query.error;
   const [busy, setBusy] = useState<MediaReviewOutcome | null>(null);
   const [reason, setReason] = useState("");
   const [saved, setSaved] = useState<string | null>(null);
@@ -652,8 +656,8 @@ export function EnquiriesWorkspace({
                             {row.mediaOutcome === "below_r2" && !["spot_saved", "ineligible", "offered_spot"].includes(row.status) && (
                               <ExistingInsulationFollowup jobId={row.id} deliveryUncertain={uncertainAttempt(row.latestAttemptStatus)} onDone={() => void refetch()} />
                             )}
-                            {row.mediaOutcome === "unclear" && row.nextParty === "office" && (
-                              <MorePhotosFollowup row={row} onDone={() => void refetch()} />
+                            {row.mediaOutcome === "unclear" && openId !== row.id && (
+                              <MediaReview row={row} onDone={() => refetch()} optionsOnly />
                             )}
                           </div>
                         ) : view === "removed" ? (
