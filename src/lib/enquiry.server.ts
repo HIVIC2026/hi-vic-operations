@@ -22,10 +22,10 @@ export const enquirySchema = z.object({
   suburb: z.string().trim().max(100).optional().nullable(),
   postcode: z.string().trim().max(10).optional().nullable(),
   occupancy: z.enum(["owner_occupied", "rental"]).optional().nullable(),
-  // LOCKED intake invariant: every homeowner/referral enquiry carries a numeric ceiling area estimate.
-  estimated_area_m2: z.number({ required_error: "estimated_area_m2 is required" }).finite().positive().max(5000),
-  // Backwards compatibility only: `true` is rejected — there is no "I don't know" path.
-  area_unknown: z.literal(false).optional(),
+  // Signed Base44 intake still requires a numeric ceiling area. Authenticated manual (portal) intake
+  // may record an unknown size as null + area_unknown true; the per-source rule lives in intakeJobFacts.
+  estimated_area_m2: z.number({ required_error: "estimated_area_m2 is required" }).finite().positive().max(5000).nullable(),
+  area_unknown: z.boolean().optional(),
   life_support: z.boolean().optional(),
   // Base44 preliminary eligibility (website result only; admin still confirms)
   eligibility_outcome: z.enum(["likely_eligible", "needs_onsite_confirmation", "does_not_appear_eligible"]).optional().nullable(),
@@ -79,8 +79,26 @@ export type JobOrigin = { channel: "hivic_sourced" } | { channel: "installer_sou
 
 /** Step 1 intake → durable enqueue. Initial Property Intelligence + first official Gate 1 run in the post-intake processor. */
 /** Installer Add job may register a job BEFORE any measure-up (area null). Every other origin still needs an area. */
+/** Pure intake fact guards (Jo, 22 Oct 2026): only authenticated manual (portal) intake may record an
+ *  unknown ceiling size (null + area_unknown) or an unknown life-support status. Signed Base44 intake
+ *  keeps its locked numeric-area invariant, and no origin ever fabricates a fact or its provenance. */
+export function intakeJobFacts(input: { estimated_area_m2: number | null | undefined; area_unknown?: boolean | undefined; life_support?: boolean | undefined; life_support_status?: string | null | undefined }, source: string, origin: JobOrigin) {
+  const manualUnknownArea = source === "portal" && input.area_unknown === true;
+  if (input.estimated_area_m2 == null && origin.channel !== "installer_sourced" && !manualUnknownArea) throw new Error("estimated_area_m2 is required");
+  if (source !== "portal" && input.area_unknown === true) throw new Error("Only manual portal intake may record an unknown ceiling area.");
+  // jobs.life_support is the legacy boolean projection; the explicit truth carrier is life_support_status.
+  // An unknown answer is stored as status 'unknown' (never invented as a verified 'no'), matching the
+  // signed Base44 handling. Manual intake never sets a boolean true/false it was not told.
+  return {
+    estimated_area_m2: input.estimated_area_m2 ?? null,
+    estimated_area_unknown: manualUnknownArea,
+    life_support: input.life_support ?? false,
+    life_support_status: input.life_support_status ?? (input.life_support === true ? "yes" : null),
+  };
+}
+
 export async function upsertEnquiry(input: Omit<EnquiryInput, "estimated_area_m2"> & { estimated_area_m2: number | null }, source: string, actorId: string | null, origin: JobOrigin = { channel: "hivic_sourced" }) {
-  if (input.estimated_area_m2 == null && origin.channel !== "installer_sourced") throw new Error("estimated_area_m2 is required");
+  const facts = intakeJobFacts(input, source, origin);
   const email = input.email.toLowerCase();
   const fullName = properName(input.full_name);
   let { data: owner } = await admin.from("owners").select("id").ilike("email", exactLike(email)).maybeSingle();
@@ -112,12 +130,7 @@ export async function upsertEnquiry(input: Omit<EnquiryInput, "estimated_area_m2
   }
 
   const propFields = { owner_id: owner!.id, address_line: properAddress(input.address_line), suburb: input.suburb ? properAddress(input.suburb) : null, postcode: input.postcode ?? null, occupancy: input.occupancy ?? null, ...(normaliseState(input.state) ? { state: normaliseState(input.state)! } : {}) };
-  const jobFields = {
-    estimated_area_m2: input.estimated_area_m2,
-    estimated_area_unknown: false, // LOCKED: the signed schema requires a positive supplied area; missing size never arrives here
-    life_support: input.life_support ?? false,
-    life_support_status: input.life_support_status ?? (input.life_support === true ? "yes" : null),
-  };
+  const jobFields = facts;
   // Preliminary eligibility / life-support status are accepted only from the signed Base44 webhook.
   const plan = source === "base44" ? planBase44Job(input, existingJob ? { stage: existingJob.stage } : null) : null;
 
