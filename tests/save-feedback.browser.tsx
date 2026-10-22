@@ -2,7 +2,6 @@
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MyIntakeDetailsCard, type IntakeJobFacts } from "../src/components/trade/intake-details-editor";
-import { ReadyCheckDraft } from "../src/components/trade/ReadyCheckDraft";
 import { InstallerProgressCard } from "../src/components/trade/intake-progress";
 import { rcProgress, toObservations, type RcDraftValues } from "../src/lib/ready-check-draft.core";
 import "../src/styles.css";
@@ -27,4 +26,4 @@ g.__refetchDetails = () => qc.setQueryData(["my-intake-job", "job-fix"], { ...fa
 g.__retryReady = () => qc.invalidateQueries({ queryKey: ["rc-draft", "job-fix"] });
 g.__retryProgress = () => qc.invalidateQueries({ queryKey: ["intake-progress", "job-fix"] });
 const root = document.getElementById("root");
-if (root) createRoot(root).render(<QueryClientProvider client={qc}><main className="portal-theme min-h-screen space-y-5 bg-canvas px-4 pb-28 pt-4 text-ink"><InstallerProgressCard jobId="job-fix" /><MyIntakeDetailsCard jobId="job-fix" /><ReadyCheckDraft jobId="job-fix" evidence={false} /><nav aria-label="Trade menu" className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-paper pb-[env(safe-area-inset-bottom)] md:hidden"><div className="flex min-h-14 items-center justify-center">My work · Add a job · Money · My business</div></nav></main></QueryClientProvider>);
+if (root) createRoot(root).render(<QueryClientProvider client={qc}><main className="portal-theme min-h-screen space-y-5 bg-canvas px-4 pb-28 pt-4 text-ink"><InstallerProgressCard jobId="job-fix" /><MyIntakeDetailsCard jobId="job-fix" /><nav aria-label="Trade menu" className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-paper pb-[env(safe-area-inset-bottom)] md:hidden"><div className="flex min-h-14 items-center justify-center">My work · Add a job · Money · My business</div></nav></main></QueryClientProvider>);
