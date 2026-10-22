@@ -366,7 +366,7 @@ export async function sendDecisionIneligibleEmail(jobId: string, ctx: import("./
 }
 
 /** Legacy export name retained. Sends only a confirmed official ineligible result; never schedules follow-ups or resends. */
-export async function sendPreliminaryIneligibleEmail(jobId: string, actorId: string | null = null, adapterIn?: DeliveryAdapter | null, opts: { newEnquiryAutoReply?: boolean; manualBacklog?: import("./manual-backlog.core").ManualBacklogTrust } = {}) {
+export async function sendPreliminaryIneligibleEmail(jobId: string, actorId: string | null = null, adapterIn?: DeliveryAdapter | null, opts: { newEnquiryAutoReply?: boolean; manualBacklog?: import("./manual-backlog.core").ManualBacklogTrust; /** Jo 22 Oct 2026: Office-edited ineligible wording; body-only swap, review-result link appended automatically. */ customText?: string } = {}) {
   const official = await officialOutcomeForDelivery(jobId);
   if (official.kind !== "ineligible") return { sent: false as const, reason: official.kind === "hold" ? official.reason : "official_not_ineligible" };
   const adapter = adapterIn === undefined ? await configuredDeliveryAdapter() : adapterIn;

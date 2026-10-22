@@ -319,7 +319,17 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     if (mode === "send" && sendId) await admin.from("customer_email_sends").update({ status: "failed", provider: "not_sent", error: held }).eq("id", sendId);
     return r("blocked", held);
   }
-  const mail = joMail;
+  let mail = joMail;
+  // Jo 22 Oct 2026: the Office may edit the more-photos wording and add anything they want. Only the body
+  // swaps — reservation, consent, opt-out, one-request rules, TEST routing and logging are unchanged, and
+  // the owner's upload link is appended automatically. Never applies to Save my spot sends.
+  if (morePhotos && testOpts.customText?.trim()) {
+    const { customReviewMail } = await import("./enquiry-review-custom.core");
+    mail = withUnsubscribe(
+      customReviewMail({ subject: mail.subject, text: testOpts.customText, link: { label: "Upload photos/video", url: `${base}/estimate/${linkToken}/video` } }),
+      unsubscribeUrl,
+    );
+  }
   if (mode === "preview" || mode === "manual_copy") return { ...r("sent", "Preview only — not sent"), preview: { to, subject: mail.subject, html: mail.html, plainText: mail.plainText, linksReady } };
   if (mode === "test_preview") return { ...r("sent", "TEST copy rendered only — not sent"), preview: { to: JO_TEST_INBOX, subject: `[TEST of ${job.job_number}] ${mail.subject}`, html: mail.html, plainText: mail.plainText, linksReady }, linkJobId, linkToken, sendGroup };
   if (mode === "test_to_jo") {
