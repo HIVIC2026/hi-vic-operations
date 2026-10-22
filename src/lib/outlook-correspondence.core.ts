@@ -110,22 +110,27 @@ const normAddr = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, " ")
   .replace(/\s+/g, " ").trim();
 
 /**
- * Safe matching. 1) exactly one quoted job number that exists wins; 2) counterpart email + address written in the
- * message; 3) the counterpart email belongs to exactly one current job. Anything ambiguous goes to Office review.
- * Mail from/to no known homeowner and quoting no job number is not homeowner correspondence and is skipped.
+ * Safe matching, in order: 1) one or more quoted job numbers that exist; 2) the message continues a thread already
+ * stored on a job (a family member or property manager replying on a known conversation); 3) counterpart email +
+ * address written in the message; 4) the counterpart email belongs to exactly one current job. A message naming
+ * several existing jobs is linked to all of them; anything ambiguous goes to Office review; mail from/to no known
+ * homeowner with no job number and no known thread is not homeowner correspondence and is skipped.
  */
-export function matchMessage(m: MailMessage, emails: string[], byNumber: Map<string, CandidateJob>, byEmail: Map<string, CandidateJob[]>): MatchResult {
+export function matchMessage(m: MailMessage, emails: string[], byNumber: Map<string, CandidateJob>, byEmail: Map<string, CandidateJob[]>, byThread: Map<string, string[]> = new Map()): MatchResult {
   const text = `${m.subject ?? ""}\n${m.body}`;
   const refs = extractJobNumbers(text).map((n) => byNumber.get(n)).filter((j): j is CandidateJob => !!j);
   const refIds = [...new Set(refs.map((j) => j.id))];
-  if (refIds.length === 1) return { kind: "job", jobId: refIds[0]!, how: "job_number" };
+  if (refIds.length === 1) return { kind: "job", jobIds: refIds, how: "job_number" };
+  if (refIds.length > 1) return { kind: "job", jobIds: refIds, how: "job_numbers" };
+  const threaded = m.threadId ? byThread.get(m.threadId) : undefined;
+  if (threaded && threaded.length > 0) return { kind: "job", jobIds: [...new Set(threaded)], how: "thread" };
   const pool = [...new Map(emails.flatMap((e) => byEmail.get(e) ?? []).map((j) => [j.id, j])).values()];
-  if (refIds.length > 1) return { kind: "unmatched", reason: `Mentions ${refIds.length} different job numbers`, candidateJobIds: refIds };
   if (pool.length === 0) return { kind: "not_homeowner" };
-  if (pool.length === 1) return { kind: "job", jobId: pool[0]!.id, how: "only_job_for_email" };
+  if (pool.length === 1) return { kind: "job", jobIds: [pool[0]!.id], how: "only_job_for_email" };
   const hay = ` ${normAddr(text)} `;
   const byAddr = pool.filter((j) => j.addressLine && normAddr(j.addressLine).length >= 5 && hay.includes(` ${normAddr(j.addressLine)} `));
-  if (byAddr.length === 1) return { kind: "job", jobId: byAddr[0]!.id, how: "email_and_address" };
+  if (byAddr.length === 1) return { kind: "job", jobIds: [byAddr[0]!.id], how: "email_and_address" };
+  if (byAddr.length > 1) return { kind: "job", jobIds: byAddr.map((j) => j.id), how: "email_and_addresses" };
   return { kind: "unmatched", reason: `This email address belongs to ${pool.length} jobs and the message does not say which property`, candidateJobIds: pool.map((j) => j.id) };
 }
 
