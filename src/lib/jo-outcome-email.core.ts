@@ -76,6 +76,8 @@ export type JoOutcomeFacts = {
   ceilingSizeKnown: boolean;
   /** Null/absent = NOT reviewed, which is what keeps templates 3/4 shut. */
   deskCheckStatus?: JoDeskCheck | null;
+  /** Jo 22 Oct 2026: owner's website answers said existing insulation is thin or patchy (declared, not reviewed). */
+  declaredThinPatchy?: boolean;
 };
 
 export const JO_OUTCOME_TEMPLATE_LABEL: Record<Exclude<JoTemplateId, "ready_check_invitation">, string> = {
@@ -110,6 +112,7 @@ export function joRoutingInputFor(facts: JoOutcomeFacts): JoRoutingInput {
     outcome,
     insulation: facts.insulation === "none" || facts.insulation === "present" ? facts.insulation : "unknown",
     ceilingSizeKnown: facts.ceilingSizeKnown === true,
+    declaredThinPatchy: facts.declaredThinPatchy === true,
     // Explicitly absent when not a real "looks_eligible" verdict: unreviewed is never treated as reviewed.
     ...(facts.deskCheckStatus === "looks_eligible" ? { deskCheckStatus: "looks_eligible" as const } : {}),
   };
@@ -550,7 +553,7 @@ export function renderJoOutcomeEmail(input: JoOutcomeEmailInput): JoWiredEmail |
   }
 
   if (!input.figures) throw new Error("Templates 1–6 require the job's estimate figures; none were supplied.");
-  const rendered = renderJoEstimateEmail(id, input.recipient, input.figures);
+  const rendered = renderJoEstimateEmail(id, input.recipient, input.figures, { declaredThinPatchy: input.declaredThinPatchy === true });
   const received = input.mediaAlreadyReceived === true;
   if (received && !['potentially_eligible_unknown_size_unknown', 'potentially_eligible_unknown_size_known'].includes(id)) throw new Error('Received-media acknowledgement requires an unreviewed insulation estimate.');
   const copy = received ? rendered.body
