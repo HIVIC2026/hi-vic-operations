@@ -82,11 +82,13 @@ async function loadPlan(jobIds?: string[], automatic = false) {
   return { ...plan, recipients };
 }
 
-/** Dry run has no writes, estimate refresh, link issue, provider call or SMS claim. */
-export async function runSaveSpotReminderBlast(dryRun: boolean, automatic = false) {
+/** Dry run has no writes, estimate refresh, link issue, provider call or SMS claim.
+ *  `jobIds` (optional, Jo 22 Oct one-off retry only): restrict the plan to exactly these enquiries —
+ *  every existing guard still applies; the hourly route and admin screen never pass it. */
+export async function runSaveSpotReminderBlast(dryRun: boolean, automatic = false, jobIds?: string[]) {
   const settings = await reminderSettings();
   if (automatic && (!settings.enabled || !settings.activatedAt)) return { dryRun, recipientCount: 0, skipped: [], samples: [], sendBlockers: ["24-hour reminders are off"], results: [], hasMore: false };
-  const plan = await loadPlan(undefined,automatic);
+  const plan = await loadPlan(jobIds, automatic);
   const sendBlockers: string[] = [];
   if (!(await customerCommsEnabled())) sendBlockers.push("Customer communications master switch is off (unchanged)");
   if (!sendingNumber() || !au1Configured()) sendBlockers.push("Australian SMS sender/connection is not configured");
