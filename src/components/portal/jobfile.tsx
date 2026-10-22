@@ -157,16 +157,18 @@ export function Correspondence({ jobId }: { jobId: string }) {
   );
 }
 
-/** Stored attachments open through short-lived private links; older records show names only. */
+/** Stored attachments open through short-lived private links; older records show names only, and a file
+ *  that could not be preserved shows its reason instead of pretending to be complete. */
 function AttachmentList({ c }: { c: Correspondence }) {
-  const files = c.attachmentFiles?.length
+  const files: { name: string; path: string | null; url?: string | null; skipped?: string | null }[] = c.attachmentFiles?.length
     ? c.attachmentFiles
     : (c.attachments ?? []).map((name) => ({ name, path: null as string | null, url: null as string | null }));
   if (!files.length) return null;
   return (
     <div className="mt-1 text-xs text-muted-foreground">
       Attachments: {files.map((f, i) => (
-        <span key={i}>{i > 0 ? ", " : ""}{f.url ? <a className="underline" href={f.url} target="_blank" rel="noreferrer">{f.name}</a> : f.name}</span>
+        <span key={i}>{i > 0 ? ", " : ""}{f.url ? <a className="underline" href={f.url} target="_blank" rel="noreferrer">{f.name}</a> : f.name}
+          {f.skipped ? <span className="text-danger"> (not saved: {f.skipped})</span> : null}</span>
       ))}
     </div>
   );

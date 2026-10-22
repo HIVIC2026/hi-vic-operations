@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { outlookHarness, graphMessage, jsonResponse, bytesResponse, migration, rollback, TEST_ACTOR, TEST_JOB, TEST_MAILBOX } from "./outlook-recovery-harness.ts";
+import { attachmentIdentityKey } from "../../src/lib/outlook-correspondence.core";
 
 type Harness = Awaited<ReturnType<typeof outlookHarness>>;
 // Isolated processing fault cases receive the worker's proven-window boundary explicitly.
@@ -295,7 +296,7 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     assert.equal(result.errors, 0); assert.equal(result.stored, 1); assert.equal(result.files, 1);
     const refs = (await row(h, "job_communications")).attachment_refs;
     assert.equal(refs.length, 1);
-    assert.equal(refs[0].path, `correspondence/${TEST_JOB}/inline-only/1-photo.jpg`);
+    assert.equal(refs[0].path, `correspondence/${TEST_JOB}/${attachmentIdentityKey(TEST_MAILBOX, "inline-only", "inline-1")}/1-photo.jpg`);
     assert.equal(refs[0].skipped, null);
     assert.equal(h.files.get(refs[0].path).length, 4);
   })],
@@ -329,16 +330,139 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     assert.equal(replay.duplicate, 1); assert.equal(await total(h, "job_communications"), 2);
     await assert.rejects(h.db.exec(rollback()), /preserve its queue/);
   })],
-  ["a family reply in a known thread links to the job; an unknown sender is only counted", practice(async h => {
+  ["a family reply in a known thread links to the job (staff-visible); an unknown sender is preserved in Office review", practice(async h => {
     await h.db.query(`INSERT INTO job_communications(job_id,direction,channel,provider,provider_message_id,provider_thread_id,body) VALUES($1,'outbound','email','outlook','orig-msg','thread-1','original')`, [TEST_JOB]);
     const reply = graphMessage("family-reply", "Grandma here — all good thanks", { conversationId: "thread-1", subject: "Re: insulation", from: { emailAddress: { address: "family@example.test" } } });
     const stranger = graphMessage("stranger", "Buy now", { subject: "Deal", from: { emailAddress: { address: "news@vendor.example" } } });
     const result = h.counts(); await h.server.processMessages([reply, stranger], TEST_MAILBOX, result, COMPLETE_WINDOW);
-    assert.equal(result.errors, 0); assert.equal(result.stored, 1); assert.equal(result.notHomeowner, 1);
-    const stored = await h.db.query<{ job_id: string; source_event: string }>(`SELECT job_id, source_event FROM job_communications WHERE provider_message_id='family-reply'`);
+    assert.equal(result.errors, 0); assert.equal(result.stored, 1); assert.equal(result.unmatched, 1); assert.equal(result.notHomeowner, 0);
+    const stored = await h.db.query<{ job_id: string; source_event: string; visibility: string }>(`SELECT job_id, source_event, visibility FROM job_communications WHERE provider_message_id='family-reply'`);
     assert.equal(stored.rows.length, 1); assert.equal(stored.rows[0]!.job_id, TEST_JOB);
     assert.equal(stored.rows[0]!.source_event, "outlook_sync:thread");
-    assert.equal((await h.db.query(`SELECT 1 FROM outlook_message_work WHERE provider_message_id='stranger'`)).rows.length, 0);
+    // The family address is not the confirmed owner, so this mail is staff-visible, never on the owner view.
+    assert.equal(stored.rows[0]!.visibility, "internal");
+    const review = await h.db.query<{ reason: string }>(`SELECT reason FROM correspondence_reviews WHERE provider_message_id='stranger'`);
+    assert.equal(review.rows.length, 1);
+    assert.match(review.rows[0]!.reason, /review and assign or dismiss/);
+  })],
+  ["a family reply in the same batch as its first matched thread message is retained", practice(async h => {
+    const first = graphMessage("first-thread-msg", "Hi, about our insulation", { conversationId: "new-thread", subject: "Insulation" });
+    const reply = graphMessage("same-batch-reply", "Grandma again — sounds good", { conversationId: "new-thread", subject: "Re: Insulation", from: { emailAddress: { address: "family@example.test" } } });
+    const result = h.counts(); await h.server.processMessages([first, reply], TEST_MAILBOX, result, COMPLETE_WINDOW);
+    assert.equal(result.errors, 0); assert.equal(result.stored, 2); assert.equal(result.unmatched, 0);
+    const rows = await h.db.query<{ job_id: string }>(`SELECT job_id FROM job_communications WHERE provider_message_id='same-batch-reply'`);
+    assert.equal(rows.rows.length, 1); assert.equal(rows.rows[0]!.job_id, TEST_JOB);
+  })],
+  ["a mutable old id aliasing a stored internetMessageId is a duplicate; distinct emails are never merged", practice(async h => {
+    await h.db.query(`INSERT INTO job_communications(job_id,direction,channel,provider,provider_message_id,provider_thread_id,body,source_reference) VALUES($1,'inbound','email','outlook','old-mutable-id','thread-9','original body','<immutable@example>')`, [TEST_JOB]);
+    const renamed = graphMessage("new-mutable-id", "original body", { internetMessageId: "<immutable@example>" });
+    const distinct = graphMessage("other-id", "different body", { internetMessageId: "<other@example>" });
+    const result = h.counts(); await h.server.processMessages([renamed, distinct], TEST_MAILBOX, result, COMPLETE_WINDOW);
+    assert.equal(result.errors, 0); assert.equal(result.duplicate, 1); assert.equal(result.stored, 1);
+    const rows = await h.db.query<{ provider_message_id: string }>(`SELECT provider_message_id FROM job_communications WHERE job_id=$1 ORDER BY provider_message_id`, [TEST_JOB]);
+    assert.deepEqual(rows.rows.map(r => r.provider_message_id), ["old-mutable-id", "other-id"]);
+  })],
+  ["historical catch-up work is record-only on the work row and stays record-only on retry", practice(async h => {
+    const message = graphMessage("hist-decline", "Please cancel my enquiry.", { receivedDateTime: "2026-10-05T08:00:00Z" });
+    h.control.fetch = async () => jsonResponse({ value: [] });
+    // Fail the first completion once so the message stays pending, as after a crash mid-processing.
+    let failOnce = true;
+    h.control.fault = op => {
+      if (failOnce && op.table === "outlook_message_work" && op.mode === "update") { failOnce = false; return { data: null, error: { message: "injected finish failure" } }; }
+      return null;
+    };
+    const first = h.counts(); await h.server.processMessages([message], TEST_MAILBOX, first, { inboxCompleteThrough: null, history: true, backfillFrom: "2026-10-10T00:00:00Z" });
+    assert.equal(first.errors, 1);
+    const work = await row(h, "outlook_message_work");
+    assert.equal(work.status, "pending"); assert.equal(work.record_only, true);
+    // A later retry that no longer carries the history window must still honour the persisted flag.
+    h.control.fault = null;
+    const retry = h.counts(); await h.server.processMessages([message], TEST_MAILBOX, retry, COMPLETE_WINDOW);
+    assert.equal(retry.errors, 0); assert.equal(retry.closed, 0);
+    assert.equal((await row(h, "jobs")).stage, "new_enquiry");
+    assert.equal(await total(h, "workflow_events"), 0);
+    assert.equal(await total(h, "job_communications"), 1);
+  })],
+  ["SQL refuses stage decisions on record-only historical work", practice(async h => {
+    const message = { providerMessageId: "hist-sql", direction: "inbound", from: "owner@example.test", to: [TEST_MAILBOX], cc: [], body: "Please cancel my enquiry.", at: "2026-10-05T08:00:00Z", hasAttachments: false };
+    const route = { kind: "job", jobIds: [TEST_JOB], how: "job_number" };
+    await h.db.query(`SELECT begin_outlook_message($1,$2,$3,$4)`, [TEST_MAILBOX, JSON.stringify(message), JSON.stringify(route), true]);
+    await h.db.exec(`UPDATE outlook_message_work SET attachments_complete=true`);
+    await assert.rejects(h.db.query(`SELECT finish_outlook_message('hist-sql',$1)`, [JSON.stringify({ action: "close", expectedStage: "new_enquiry", reason: "Customer not proceeding", inboxCompleteThrough: "2026-10-20T10:00:00Z" })]), /record-only/);
+    await assert.rejects(h.db.query(`SELECT finish_outlook_message('hist-sql',$1)`, [JSON.stringify({ action: "flag", kind: "possible_not_proceeding", reason: "check" })]), /record-only/);
+    await h.db.query(`SELECT finish_outlook_message('hist-sql',$1)`, [JSON.stringify({ action: "none" })]);
+    assert.equal((await row(h, "jobs")).stage, "new_enquiry");
+    assert.equal(await total(h, "job_communications"), 1);
+  })],
+  ["attachment ids that look alike keep distinct paths; a mismatched existing object is a visible error until corrected", practice(async h => {
+    const message = graphMessage("collide-msg", "Two photos", { hasAttachments: true });
+    h.control.fetch = async url => {
+      if (url.includes("/attachments/one/$value")) return bytesResponse(new Uint8Array([1, 1, 1]), "image/jpeg");
+      if (url.includes("/attachments/two/$value")) return bytesResponse(new Uint8Array([2, 2, 2]), "image/jpeg");
+      if (url.includes("/attachments")) return jsonResponse({ value: [
+        { id: "one", name: "p.jpg", contentType: "image/jpeg", size: 3, isInline: false },
+        { id: "two", name: "p.jpg", contentType: "image/jpeg", size: 3, isInline: false },
+      ] });
+      return jsonResponse({ value: [] });
+    };
+    const pathOne = `correspondence/${TEST_JOB}/${attachmentIdentityKey(TEST_MAILBOX, "collide-msg", "one")}/1-p.jpg`;
+    const pathTwo = `correspondence/${TEST_JOB}/${attachmentIdentityKey(TEST_MAILBOX, "collide-msg", "two")}/2-p.jpg`;
+    assert.notEqual(pathOne, pathTwo);
+    // A different file already sitting at the first deterministic path must fail the byte check.
+    h.files.set(pathOne, new Uint8Array([9, 9, 9]));
+    const first = h.counts(); await h.server.processMessages([message], TEST_MAILBOX, first, COMPLETE_WINDOW);
+    assert.equal(first.errors, 1);
+    assert.equal((await row(h, "outlook_message_work")).status, "pending");
+    assert.match((await row(h, "outlook_message_work")).last_error, /not overwritten/);
+    // Correcting the stored object lets the retry finish with both verified files at distinct paths.
+    h.files.set(pathOne, new Uint8Array([1, 1, 1]));
+    const retry = h.counts(); await h.server.processMessages([message], TEST_MAILBOX, retry, COMPLETE_WINDOW);
+    assert.equal(retry.errors, 0); assert.equal(retry.files, 2);
+    const refs = (await row(h, "job_communications")).attachment_refs;
+    assert.deepEqual(refs.map((r: any) => r.path), [pathOne, pathTwo]);
+    assert.equal(h.files.get(pathTwo).length, 3);
+  })],
+  ["metadata-only legacy mail is repaired idempotently without workflow changes", practice(async h => {
+    await h.db.query(`INSERT INTO job_communications(job_id,direction,channel,provider,provider_message_id,body,attachment_refs,source_reference) VALUES($1,'inbound','email','outlook','legacy-att','see photo','[{"id":"a1","name":"photo.jpg","contentType":"image/jpeg","size":4,"isInline":false,"path":null,"storedAt":null,"skipped":null}]','<legacy@imm>')`, [TEST_JOB]);
+    const message = graphMessage("legacy-att", "see photo", { hasAttachments: true });
+    h.control.fetch = async url => {
+      if (url.includes("/attachments/a1/$value")) return bytesResponse(new Uint8Array([7, 7, 7, 7]), "image/jpeg");
+      if (url.includes("/attachments")) return jsonResponse({ value: [{ id: "a1", name: "photo.jpg", contentType: "image/jpeg", size: 4, isInline: false }] });
+      return jsonResponse({ value: [] });
+    };
+    const result = h.counts(); await h.server.processMessages([message], TEST_MAILBOX, result, COMPLETE_WINDOW);
+    assert.equal(result.errors, 0); assert.equal(result.duplicate, 1); assert.equal(result.files, 1);
+    const refs = (await row(h, "job_communications")).attachment_refs;
+    assert.ok(refs[0].path); assert.equal(h.files.get(refs[0].path).length, 4);
+    assert.equal((await row(h, "jobs")).stage, "new_enquiry");
+    // Replay: the repair is idempotent — verified bytes are reused, no duplicate correspondence row.
+    const replay = h.counts(); await h.server.processMessages([message], TEST_MAILBOX, replay, COMPLETE_WINDOW);
+    assert.equal(replay.errors, 0); assert.equal(await total(h, "job_communications"), 1);
+  })],
+  ["an expired saved continuation is recovered by idempotent replay from the saved cursor", practice(async h => {
+    await configured(h);
+    await h.db.exec(`UPDATE outlook_sync_state SET all_inbound_next_link='https://graph.microsoft.com/v1.0/users/shared%40example.test/messages?$skiptoken=expired', all_inbound_cursor='2026-10-19T00:00:00Z'`);
+    h.control.fetch = async url => {
+      if (url.includes("/me?") || url.includes("$select=id,body")) return readOnlyResponses(url);
+      if (url.includes("/attachments")) return jsonResponse({ value: [] });
+      if (url.includes("skiptoken=expired")) return jsonResponse({ error: "expired" }, 400);
+      if (filterField(url) === "sentDateTime") return jsonResponse({ value: [] });
+      return jsonResponse({ value: [graphMessage("recovered-msg", "Hello", { receivedDateTime: "2026-10-19T05:00:00Z" })] });
+    };
+    const result = await h.server.runOutlookSync({ maxPages: 2 });
+    assert.equal(result.ok, true, result.blocker);
+    assert.equal(result.counts.stored, 1);
+    const state = await h.state();
+    assert.equal(state.all_inbound_next_link, null);
+    assert.ok(new Date(state.all_inbound_cursor).getTime() >= Date.parse("2026-10-19T05:00:00Z"));
+  })],
+  ["Office can set and stop an explicit historical catch-up start; no silent cutoff", practice(async h => {
+    await h.server.setCatchupFrom("2025-01-01T00:00:00Z");
+    assert.ok(new Date((await h.state()).catchup_from).toISOString().startsWith("2025-01-01"));
+    await assert.rejects(h.server.setCatchupFrom("2027-01-01T00:00:00Z"), /future/);
+    await assert.rejects(h.server.setCatchupFrom("not-a-date"), /valid catch-up start date/);
+    await h.server.setCatchupFrom(null);
+    assert.equal((await h.state()).catchup_from, null);
   })],
   ["historical catch-up stores old mail without changing any job and clears itself", practice(async h => {
     await configured(h);

@@ -11,10 +11,12 @@ BEGIN
 END $$;
 
 DROP INDEX IF EXISTS public.job_communications_job_provider_msg;
+DROP INDEX IF EXISTS public.job_communications_provider_msg_other;
 CREATE UNIQUE INDEX IF NOT EXISTS job_communications_provider_msg
   ON public.job_communications (provider, provider_message_id) WHERE provider_message_id IS NOT NULL;
 
 -- Restore the 0212 function bodies.
+DROP FUNCTION IF EXISTS public.begin_outlook_message(text,jsonb,jsonb,boolean);
 CREATE OR REPLACE FUNCTION public.begin_outlook_message(_mailbox text, _message jsonb, _route jsonb)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $$
 DECLARE w public.outlook_message_work%ROWTYPE; mid text:=_message->>'providerMessageId';
@@ -135,3 +137,6 @@ ALTER TABLE public.outlook_sync_state
   DROP COLUMN catchup_inbound_next_link,
   DROP COLUMN catchup_outbound_cursor,
   DROP COLUMN catchup_outbound_next_link;
+
+ALTER TABLE public.outlook_message_work
+  DROP COLUMN record_only;

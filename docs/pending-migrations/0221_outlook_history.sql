@@ -24,15 +24,28 @@ COMMENT ON COLUMN public.outlook_sync_state.sent_next_link IS 'DEPRECATED: repla
 COMMENT ON COLUMN public.outlook_sync_state.catchup_from IS 'Office-set start of the historical catch-up; cleared automatically once both catch-up streams are exhausted';
 
 -- 2) One original message may be linked to every confirmed relevant job; it is still stored only once
---    per job. Replaces the global per-message unique index.
+--    per job. Only the Outlook provider moves to per-job uniqueness — every other provider keeps the
+--    original global per-message uniqueness, so no other channel can ever duplicate a message.
 DROP INDEX IF EXISTS public.job_communications_provider_msg;
+CREATE UNIQUE INDEX IF NOT EXISTS job_communications_provider_msg_other
+  ON public.job_communications (provider, provider_message_id)
+  WHERE provider_message_id IS NOT NULL AND provider <> 'outlook';
 CREATE UNIQUE INDEX IF NOT EXISTS job_communications_job_provider_msg
   ON public.job_communications (job_id, provider, provider_message_id) WHERE provider_message_id IS NOT NULL;
 
+-- 2b) Record-only marker for historical import work. Work reserved during a historical catch-up is
+--     record-only: it is stored for the job history but must never close or flag a job, even if the
+--     sync restarts and retries it later (the marker persists on the work row).
+ALTER TABLE public.outlook_message_work
+  ADD COLUMN IF NOT EXISTS record_only boolean NOT NULL DEFAULT false;
+COMMENT ON COLUMN public.outlook_message_work.record_only IS 'True when reserved by a historical catch-up: stored for history only, no stage/review decisions allowed';
+
 -- 3) begin_outlook_message: the route may carry several confirmed job ids (a legacy single jobId is
---    still accepted for rows reserved by the previous release). Attachment metadata is now always
---    fetched, so an email whose only attachment is an inline image is never missed.
-CREATE OR REPLACE FUNCTION public.begin_outlook_message(_mailbox text, _message jsonb, _route jsonb)
+--    still accepted for rows reserved by the previous release), and the caller declares record_only
+--    for historical catch-up work. Attachment metadata is now always fetched, so an email whose only
+--    attachment is an inline image is never missed.
+DROP FUNCTION IF EXISTS public.begin_outlook_message(text,jsonb,jsonb);
+CREATE OR REPLACE FUNCTION public.begin_outlook_message(_mailbox text, _message jsonb, _route jsonb, _record_only boolean DEFAULT false)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $$
 DECLARE w public.outlook_message_work%ROWTYPE; mid text:=_message->>'providerMessageId'; jid uuid;
 BEGIN
@@ -58,13 +71,13 @@ BEGIN
     OR EXISTS (SELECT 1 FROM public.correspondence_reviews WHERE provider='outlook' AND provider_message_id=mid) THEN
     RETURN jsonb_build_object('state','legacy');
   END IF;
-  INSERT INTO public.outlook_message_work(provider_message_id,mailbox,message,route,job_id,message_at,attachments_complete)
-    VALUES(mid,lower(_mailbox),_message,_route,jid,(_message->>'at')::timestamptz,false)
+  INSERT INTO public.outlook_message_work(provider_message_id,mailbox,message,route,job_id,message_at,attachments_complete,record_only)
+    VALUES(mid,lower(_mailbox),_message,_route,jid,(_message->>'at')::timestamptz,false,coalesce(_record_only,false))
     RETURNING * INTO w;
   RETURN jsonb_build_object('state','pending','work',to_jsonb(w));
 END $$;
-REVOKE ALL ON FUNCTION public.begin_outlook_message(text,jsonb,jsonb) FROM PUBLIC,anon,authenticated;
-GRANT EXECUTE ON FUNCTION public.begin_outlook_message(text,jsonb,jsonb) TO service_role;
+REVOKE ALL ON FUNCTION public.begin_outlook_message(text,jsonb,jsonb,boolean) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.begin_outlook_message(text,jsonb,jsonb,boolean) TO service_role;
 
 -- 4) finish_outlook_message: stores the one original message on every confirmed job (dedupe per job),
 --    keeps unmatched mail in the Office review queue, and applies close/flag decisions only to a
@@ -82,6 +95,11 @@ BEGIN
   IF NOT w.attachments_complete THEN RAISE EXCEPTION 'Outlook attachment metadata is still pending'; END IF;
   m:=w.message; r:=w.route; mid_at:=(m->>'at')::timestamptz;
   IF action NOT IN ('none','flag','close') THEN RAISE EXCEPTION 'Invalid Outlook decision'; END IF;
+  -- Historical catch-up work is record-only, enforced here too so a retry or a buggy caller can never
+  -- close or flag a job from imported old mail.
+  IF w.record_only AND action IN ('flag','close') THEN
+    RAISE EXCEPTION 'Historical import is record-only; stage decisions are not allowed';
+  END IF;
   -- A manual import/assignment that won the race is already history; never re-close it.
   IF EXISTS (SELECT 1 FROM public.job_communications WHERE provider='outlook' AND provider_message_id=_message_id)
     OR EXISTS (SELECT 1 FROM public.correspondence_reviews WHERE provider='outlook' AND provider_message_id=_message_id) THEN
@@ -136,7 +154,7 @@ BEGIN
         coalesce(m->'to','[]'::jsonb)||coalesce(m->'cc','[]'::jsonb),m->>'subject',coalesce(nullif(m->>'body',''),'(no text)'),
         'outlook',_message_id,m->>'threadId',CASE WHEN m->>'direction'='outbound' THEN mid_at END,
         CASE WHEN m->>'direction'='inbound' THEN mid_at END,
-        CASE WHEN m->>'direction'='inbound' THEN 'received' ELSE 'sent' END,'customer',w.attachment_refs,
+        CASE WHEN m->>'direction'='inbound' THEN 'received' ELSE 'sent' END,coalesce(r->>'visibility','customer'),w.attachment_refs,
         'outlook_sync:'||(r->>'how'),m->>'internetMessageId',NULL)
       ON CONFLICT (job_id, provider, provider_message_id) WHERE provider_message_id IS NOT NULL DO NOTHING
       RETURNING id INTO comm;
