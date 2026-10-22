@@ -68,10 +68,13 @@ describe("pickupAutoDecision", () => {
   test("everything present and matched creates the job", () => {
     expect(pickupAutoDecision(clean)).toEqual({ action: "create_job", reasons: [] });
   });
-  test("our own HIVIC form always goes to review", () => {
+  test("our own HIVIC form started by a matched installer = their lead, flagged; unmatched → review", () => {
     const d = pickupAutoDecision({ ...clean, templateKind: "hivic_form" });
-    expect(d.action).toBe("office_review");
-    expect(d.reasons.join(" ")).toContain("own form");
+    expect(d.action).toBe("create_job");
+    expect(d.officeFlag).toContain("installer's own lead");
+    const u = pickupAutoDecision({ ...clean, templateKind: "hivic_form", businessMatched: false });
+    expect(u.action).toBe("office_review");
+    expect(u.reasons.join(" ")).toContain("own form");
   });
   test("unmatched business goes to review", () => {
     const d = pickupAutoDecision({ ...clean, businessMatched: false });
