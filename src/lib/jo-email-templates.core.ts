@@ -240,10 +240,12 @@ function renderBelowR2Reviewed(r: JoRecipient, f: JoEstimateFigures): string {
     assumedNote, "",
     "Want to explore a different ceiling size? Open the calculator →", "",
     includesTable(true, f), "",
+    // Jo 22 Oct: when the "up to" removal box shows, the old removal section is dropped so nothing repeats.
+    ...(f.removalUpTo != null && f.removalUpTo > 0 ? [] : [
     "### Will your existing insulation need to be removed?", "",
     "Some existing insulation may be able to stay, while other areas may need removal. We’ll assess this at your free Ready Check.", "",
     // Removal allowance = informational only; NOT added to the quoted total above.
-    "Please budget $15 per m² including GST for the areas that need removal only. Removal is not included in this preliminary quote. We’ll confirm the area and cost for your approval before any removal proceeds.", "",
+    "Please budget $15 per m² including GST for the areas that need removal only. Removal is not included in this preliminary quote. We’ll confirm the area and cost for your approval before any removal proceeds.", ""]),
     "### Save your spot", "",
     "We’ve been inundated with requests from owners across Victoria and are opening Ready Check bookings in batches as suitably qualified installers become available.", "",
     "[Save my spot →]", "",
