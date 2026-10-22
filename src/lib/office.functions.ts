@@ -168,14 +168,14 @@ export const getPartnersOverview = createServerFn({ method: "GET" }).middleware(
     await requireAdmin(context.supabase);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const [biz, asg, offers, rates, apps] = await Promise.all([
-      admin.from("businesses").select("id, name, business_type, onboarding_status, is_active").neq("business_type", "property_manager").neq("onboarding_status", "suspended"),
+      admin.from("businesses").select("id, name, business_type, onboarding_status, is_active, onboarding_notes").neq("business_type", "property_manager").neq("onboarding_status", "suspended"),
       admin.from("job_assignments").select("business_id, job_id, assigned_at, first_response_at, active, jobs!inner(stage, source)").eq("active", true),
       admin.from("partner_offers").select("business_id, offered_at, responded_at, status"),
       admin.from("electrician_rates").select("business_id, status"),
       admin.from("partner_enquiries").select("id", { count: "exact", head: true }).in("status", ["new", "submitted"]),
     ]);
     for (const r of [biz, asg, offers, rates]) if (r.error) throw new Error(`Could not load partners: ${r.error.message}`);
-    const cards = (biz.data ?? []).filter((b) => !/^TEST/i.test(b.name)).map((b) => {
+    const cards = (biz.data ?? []).filter((b) => !/^TEST/i.test(b.name) && !(b.onboarding_notes ?? "").includes("[TEST PARTNER]")).map((b) => {
       const mine = (asg.data ?? []).filter((a) => a.business_id === b.id && (a.jobs as { source?: string }).source !== "qa_test");
       const liveJobs = mine.filter((a) => !["complete", "cancelled"].includes(String((a.jobs as { stage?: string }).stage))).length;
       const replies = [...mine.filter((a) => a.first_response_at).map((a) => new Date(a.first_response_at!).getTime() - new Date(a.assigned_at).getTime()), ...(offers.data ?? []).filter((o) => o.business_id === b.id && o.responded_at).map((o) => new Date(o.responded_at!).getTime() - new Date(o.offered_at).getTime())];
