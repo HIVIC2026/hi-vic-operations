@@ -13,6 +13,7 @@
  */
 
 import { REMOVAL_BUDGET_EMAIL_NOTE } from "./estimate-removal.core";
+import { REMOVAL_UPTO_NOTE, removalUpToLine } from "./estimate-removal-upto.core";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -61,6 +62,8 @@ export type JoEstimateFigures = {
   apFee: number;             // inc GST
   ceilingAreaM2: number;     // 150 when assumed
   areaEstimated: boolean;    // true => "estimated, not measured"; false => "based on the size you provided"
+  /** Jo 22 Oct: informational "up to" removal (existing insulation only); never part of any total. */
+  removalUpTo?: number | null;
 };
 
 export type JoRecipient = {
@@ -231,6 +234,7 @@ function renderBelowR2Reviewed(r: JoRecipient, f: JoEstimateFigures): string {
     `**You could save ${money(f.veuRebate)}**`, "",
     `Your estimated cost after rebate: ${money(f.customerTotal)} including GST`,
     `Before rebate: ${money(f.totalBeforeRebate)} including GST`, "",
+    ...(f.removalUpTo != null && f.removalUpTo > 0 ? [removalUpToLine(f.removalUpTo), REMOVAL_UPTO_NOTE, ""] : []),
     `Property: ${r.propertyAddress}`,
     ceilingLine(f), "",
     assumedNote, "",

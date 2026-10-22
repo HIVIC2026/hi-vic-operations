@@ -67,7 +67,7 @@ async function loadPlan(jobIds?: string[], automatic = false) {
     const token = url.pathname.split("/")[2] ?? "";
     const c = await campaignLink(token);
     const { data: review, error: reviewError } = await db.from("lead_campaign_responses").select("desk_check_status").eq("job_id", r.jobId).maybeSingle();
-    const { data: estimate, error: estimateError } = await db.from("indicative_estimates").select("area_source,area_m2").eq("job_id",r.jobId).eq("status","current").maybeSingle();
+    const { data: estimate, error: estimateError } = await db.from("indicative_estimates").select("area_source,area_m2,insulation_declared").eq("job_id",r.jobId).eq("status","current").maybeSingle();
     if (!c || reviewError || estimateError || !campaignPermission(c,review?.desk_check_status) || !joAreaBasis({ areaSource: estimate?.area_source, areaM2: estimate?.area_m2, ownerAreaM2: c.job.estimated_area_m2 }).ok) {
       plan.skipped.push({ jobId: r.jobId, jobNumber: r.jobNumber, reason: "Current Save My Spot eligibility/estimate requires office review" }); continue;
     }
@@ -77,7 +77,7 @@ async function loadPlan(jobIds?: string[], automatic = false) {
     const credential = await createOneTapCredential(token,expiry,process.env["SAVE_SPOT_LINK_SECRET"] ?? "");
     const link = `https://estimate.homeinsulationvictoria.com.au/save-spot#c=${credential}`;
     const { blastMessage } = await import("./save-spot-reminder-blast.core");
-    recipients.push({ ...r, body: blastMessage(r.firstName,original?.total ?? 0,original?.rebate ?? 0,link) });
+    recipients.push({ ...r, body: blastMessage(r.firstName,original?.total ?? 0,original?.rebate ?? 0,link,estimate?.insulation_declared === "present") });
   }
   return { ...plan, recipients };
 }
