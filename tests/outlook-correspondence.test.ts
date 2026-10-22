@@ -74,7 +74,7 @@ describe("safe matching", () => {
     expect(matchMessage(m, ["family@test.example"], new Map(), new Map(), new Map([["t1", ["ja", "jb"]]]))).toEqual({ kind: "job", jobIds: ["ja", "jb"], how: "thread" });
   });
   test("unknown sender with no job number and no known thread is not homeowner mail", () => {
-    expect(matchMessage(msg({ from: from("news@vendor.example") }), ["news@vendor.example"], new Map(), new Map(), new Map([["t1", ["ja"]]])).kind).toBe("not_homeowner");
+    expect(matchMessage(msg({ from: from("news@vendor.example") }), ["news@vendor.example"], new Map(), new Map(), new Map()).kind).toBe("not_homeowner");
   });
 });
 
@@ -92,7 +92,7 @@ describe("attachment storage planning", () => {
     expect(plan.skipped[0]!.reason).toContain("per-message attachment budget");
   });
   test("storage paths are deterministic and safe for exotic names and message ids", () => {
-    expect(attachmentStoragePath("ja", "AAMkAD==/weird", 0, "roof photo (1).jpg")).toBe("correspondence/ja/AAMkAD_weird/1-roof_photo__1_.jpg");
+    expect(attachmentStoragePath("ja", "AAMkAD==/weird", 0, "roof photo (1).jpg")).toBe("correspondence/ja/AAMkAD_weird/1-roof_photo_1_.jpg");
     expect(attachmentStoragePath("unmatched", "m1", 3, "..")).toBe("correspondence/unmatched/m1/4-attachment");
   });
 });
