@@ -9,6 +9,49 @@ export type GraphMessage = {
   receivedDateTime?: string | null; sentDateTime?: string | null; hasAttachments?: boolean | null; isDraft?: boolean | null;
 };
 export type AttachmentRef = { id: string; name: string; contentType: string | null; size: number | null; isInline: boolean };
+/** An attachment as preserved for the job: the original metadata plus where the actual file was stored. */
+export type StoredAttachmentRef = AttachmentRef & { path: string | null; storedAt: string | null; skipped: string | null };
+
+export const ATTACHMENT_MAX_FILE_BYTES = 20 * 1024 * 1024;
+export const ATTACHMENT_MAX_MESSAGE_BYTES = 40 * 1024 * 1024;
+
+/** Safe storage filename: keep the extension, strip anything path-like or exotic, bound the length. */
+export function safeAttachmentName(name: string): string {
+  const clean = name.replace(/[^\w.\-]+/g, "_").replace(/^\.+/, "").slice(-120);
+  return clean || "attachment";
+}
+
+/** Deterministic private path, unique per message and attachment position; messageId is sanitised for storage. */
+export function attachmentStoragePath(prefix: string, messageId: string, index: number, name: string): string {
+  const safePrefix = prefix.replace(/[^\w.\-]+/g, "_") || "unmatched";
+  const safeMessage = messageId.replace(/[^\w.\-]+/g, "_").slice(-80);
+  return `correspondence/${safePrefix}/${safeMessage}/${index + 1}-${safeAttachmentName(name)}`;
+}
+
+/** Which attachments to store and which to skip, with a visible reason. Unknown sizes count as zero against the budget. */
+export function planAttachments(
+  refs: AttachmentRef[],
+  maxFileBytes = ATTACHMENT_MAX_FILE_BYTES,
+  maxMessageBytes = ATTACHMENT_MAX_MESSAGE_BYTES,
+): { store: AttachmentRef[]; skipped: { ref: AttachmentRef; reason: string }[] } {
+  const store: AttachmentRef[] = [];
+  const skipped: { ref: AttachmentRef; reason: string }[] = [];
+  let total = 0;
+  for (const ref of refs) {
+    const size = typeof ref.size === "number" && ref.size >= 0 ? ref.size : null;
+    if (size !== null && size > maxFileBytes) {
+      skipped.push({ ref, reason: `over the ${Math.round(maxFileBytes / 1048576)} MB per-file limit` });
+      continue;
+    }
+    if (size !== null && total + size > maxMessageBytes) {
+      skipped.push({ ref, reason: "over the per-message attachment budget" });
+      continue;
+    }
+    total += size ?? 0;
+    store.push(ref);
+  }
+  return { store, skipped };
+}
 export type MailMessage = {
   providerMessageId: string; threadId: string | null; internetMessageId: string | null; direction: "inbound" | "outbound";
   from: string | null; fromName: string | null; to: string[]; cc: string[]; subject: string | null; body: string; at: string;
