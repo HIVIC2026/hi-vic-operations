@@ -27,7 +27,7 @@ describe("HIV fixed owner price quotes", () => {
   });
   test("missing or too-high agreed rates stop quoting", () => {
     expect(() => priceHivQuote({ ...base, installerR5ExPerM2: null })).toThrow("no agreed R5.0 rate");
-    expect(() => priceHivQuote({ ...base, installerR5ExPerM2: 28 })).toThrow("above the owner price");
+    expect(priceHivQuote({ ...base, installerR5ExPerM2: 28 }).holdReasons).toEqual(["This installer's agreed R5.0 rate is above the owner price – office review needed."]);
     expect(() => priceHivQuote({ ...base, removalM2: 10, installerRemovalExPerM2: null })).toThrow("removal rate");
   });
   test("builder refuses installer-supplied jobs; 12% margin no longer used for new quotes; no lead fee note", () => {
@@ -40,3 +40,24 @@ describe("HIV fixed owner price quotes", () => {
   });
 });
 const r = (n: number) => Math.round(n * 100) / 100;
+
+describe("owner price by R-value (Jo 22 Oct 2026)", () => {
+  const p = { brand: "Earthwool" as const, brandOther: null, productName: "Ceiling Batts" };
+  test("R5.0 stays $30/m²", () => { expect(priceHivQuote({ ...base, rValue: "R5.0" }).lines[0]!.unit_price_inc_gst).toBe(30); });
+  test("R6.0 uses $32/m² and the installer's R6 rate", () => {
+    const q = priceHivQuote({ ...base, rValue: "R6.0", installerRExPerM2: 20, product: { ...p, rValue: "R6.0" } });
+    expect(q.lines[0]).toMatchObject({ code: "R6_BATTS", unit_price_inc_gst: 32, line_total_inc_gst: 4800, description: "Supply and install of Earthwool Ceiling Batts R6.0 ceiling insulation" });
+    expect(q.holdReasons).toEqual([]);
+    expect(q.installerMarkup.markupInc).toBe(r(150 * (32 - 22)));
+  });
+  test("R7.0 uses $33/m²", () => { expect(priceHivQuote({ ...base, rValue: "R7.0", installerRExPerM2: 20 }).lines[0]!.unit_price_inc_gst).toBe(33); });
+  test("removal, access loading and fees unchanged at R7.0", () => {
+    const q = priceHivQuote({ ...base, rValue: "R7.0", installerRExPerM2: 20, removalM2: 40, accessMultiplier: 1.25 });
+    expect(q.lines.map((l) => [l.code, l.unit_price_inc_gst])).toEqual([["R7_BATTS", 41.25], ["REMOVAL", 15], ["PIESA", 349], ["AP_FEE", 349]]);
+  });
+  test("Hic-style R6 $35 / R7 $40 inc GST above owner $32 / $33 → held for office review", () => {
+    expect(priceHivQuote({ ...base, rValue: "R6.0", installerRExPerM2: 35 / 1.1 }).holdReasons).toEqual(["This installer's agreed R6.0 rate is above the owner price – office review needed."]);
+    expect(priceHivQuote({ ...base, rValue: "R7.0", installerRExPerM2: 40 / 1.1 }).holdReasons).toEqual(["This installer's agreed R7.0 rate is above the owner price – office review needed."]);
+  });
+  test("no agreed R6 rate stops quoting", () => { expect(() => priceHivQuote({ ...base, rValue: "R6.0", installerRExPerM2: null })).toThrow("no agreed R6.0 rate"); });
+});

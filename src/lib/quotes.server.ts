@@ -104,14 +104,15 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
     admin.from("workflow_settings").select("auto_send_quote, customer_comms_enabled, quote_estimate_variance_tolerance_pct").eq("id", 1).maybeSingle(),
     admin.from("indicative_estimates").select("scenarios").eq("job_id", jobId).eq("status", "current").order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
-  const release = confirmedQuoteDecision({
+  const baseRelease = confirmedQuoteDecision({
     estimateTotal: currentEstimateTotal(estimate?.scenarios, qi.removalM2 > 0),
     quoteTotal: customerTotal,
     tolerancePct: Number(workflow?.quote_estimate_variance_tolerance_pct ?? 15),
     hasUnratedExtras: rectLines.some((line) => line.is_other),
     externalSendingEnabled: workflow?.auto_send_quote === true && workflow?.customer_comms_enabled === true,
   });
-  if (calc.holdReasons.length) Object.assign(release, { state: "held", status: "draft", reason: calc.holdReasons.join(" ") });
+  // Jo 22 Oct 2026: installer's agreed rate above the owner rate for the chosen R-value → held for office review.
+  const release: typeof baseRelease = calc.holdReasons.length ? { state: "held", status: "draft", reason: calc.holdReasons.join(" ") } : baseRelease;
   const releasedAt = release.status === "issued" ? new Date().toISOString() : null;
   const availableToOwner = release.state !== "held";
   const discountNote = discountNotes(rules).join(" ") || null;
