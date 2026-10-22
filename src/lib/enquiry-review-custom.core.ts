@@ -3,7 +3,7 @@
 // and the unsubscribe footer always rides along. Pure rendering only — every send still runs the full
 // existing guard stack (switch, consent, opt-out, one-offer, TEST routing, logging).
 
-export type CustomMail = { subject: string; html: string; plainText: string; ctas: string[] };
+export type CustomMail = { subject: string; html: string; plainText: string; previewText: string; ctas: string[] };
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -24,5 +24,5 @@ export function customReviewMail(opts: { subject: string; text: string; link: { 
     ? `<p style="margin:18px 0"><a href="${esc(opts.link.url)}" style="background:#07864B;color:#ffffff;padding:12px 20px;border-radius:6px;text-decoration:none;font-weight:600">${esc(opts.link.label)}</a></p>`
     : "";
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;color:#22376B;max-width:560px">${htmlParas}${htmlLink}</div>`;
-  return { subject: opts.subject, html, plainText: plain, ctas: [] };
+  return { subject: opts.subject, html, plainText: plain, previewText: plain.slice(0, 120), ctas: [] };
 }

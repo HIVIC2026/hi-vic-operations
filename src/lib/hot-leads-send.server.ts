@@ -77,7 +77,7 @@ export async function sendMorePhotosRequest(jobId: string, actorId: string | nul
   if (!preview && !expectedReviewId) return { jobId, jobNumber: null, outcome: 'blocked', detail: 'Preview this photo request before sending.' };
   const review = await morePhotosRequestReview(jobId, expectedReviewId);
   if (review.blocker || !review.reviewId) return { jobId, jobNumber: null, outcome: 'blocked', detail: review.blocker ?? 'An Office review is required.' };
-  return { ...await sendOne(jobId, actorId, false, { mode: preview ? 'preview' : 'send', morePhotosReviewId: review.reviewId, customText }), reviewId: review.reviewId };
+  return { ...await sendOne(jobId, actorId, false, { mode: preview ? 'preview' : 'send', morePhotosReviewId: review.reviewId, ...(customText ? { customText } : {}) }), reviewId: review.reviewId };
 }
 
 async function followupAllowed(token: string) {

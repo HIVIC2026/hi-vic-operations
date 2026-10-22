@@ -116,6 +116,6 @@ export const reviewedIneligibleEmailFn = createServerFn({ method: "POST" }).midd
       const p = await f.prepareIneligibleEmailForOffice(data.jobId);
       return p.ok ? { outcome: "preview", detail: "Preview only", preview: { subject: p.subject, html: p.html, plainText: p.plainText } } : { outcome: "blocked", detail: p.reason };
     }
-    const r = await f.sendPreliminaryIneligibleEmail(data.jobId, context.userId ?? null, undefined, { customText: data.customText });
+    const r = await f.sendPreliminaryIneligibleEmail(data.jobId, context.userId ?? null, undefined, { ...(data.customText ? { customText: data.customText } : {}) });
     return r.sent ? { outcome: "sent", detail: "Sent" } : { outcome: r.reason === "delivered_unrecorded" ? "uncertain" : "blocked", detail: r.reason };
   });

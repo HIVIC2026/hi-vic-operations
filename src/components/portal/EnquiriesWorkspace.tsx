@@ -735,7 +735,7 @@ export function EnquiriesWorkspace({
                                 title="more photos request"
                                 load={async () => {
                                   const r = await morePhotosRequest({ data: { jobId: row.id, mode: "preview" } });
-                                  return r.outcome !== "blocked" && r.preview ? { ok: true as const, subject: r.preview.subject, plainText: r.preview.plainText ?? "", reviewId: r.reviewId } : { ok: false as const, detail: r.detail };
+                                  return r.outcome !== "blocked" && r.preview ? { ok: true as const, subject: r.preview.subject, plainText: r.preview.plainText ?? "", ...(r.reviewId ? { reviewId: r.reviewId } : {}) } : { ok: false as const, detail: r.detail };
                                 }}
                                 send={(text, unedited, reviewId) => morePhotosRequest({ data: { jobId: row.id, mode: "send", reviewId, ...(unedited ? {} : { customText: text }) } })}
                                 onDone={() => void refetch()}
