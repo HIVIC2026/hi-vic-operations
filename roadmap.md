@@ -1,4 +1,10 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Mitti-first Ready Check pickup (Jo, 22 Oct "do the mitti things") — editor + live TEST verified
+- [x] Ready Checks installers start straight in Mitti now surface to Office: "Ready Checks started in Mitti" panel on Active jobs (14-day window, archived/completed/blank drafts excluded, installer business matched from the Mitti user, non-blocking duplicate flags).
+- [x] Office link action writes the HV job number into the form's Portal Job Number field, attaches the existing guarded Mitti measurement link, then runs the existing guarded sync (partial answers sync; nothing completes automatically; nothing sent).
+- [x] Live TEST verified both directions: Mitti-first form (created directly in Mitti) linked to TEST job HV-3080 (PJN write-back + measurement row + partial sync issues listed), and portal-first form creation still works (HV-3079/HV-3080 background form). Refusals stay safe: preflight runs before any Mitti write, so a refusal never leaves the form half-linked. Both TEST audits archived; TEST jobs HV-3079/HV-3080 soft-deleted "Jo's live Mitti pickup test 22 Oct".
+- [x] Known race (seconds after "Add a job for later"): if Office links while the portal's own background form creation is still in flight, Mitti can end up with two forms claiming the job. Realistic office use links minutes later, where the guard refuses safely. Noted for follow-up if Jo wants a hard guard.
+- [x] Pure rules tests (tests/mitti-pickup.test.ts, 8 pass), scan verified live (1101/1158 listed under Reinsulate, no duplicates flagged), build OK, panel + guarded error verified in preview as Office.
 ## Email-based preliminary Save My Spot (Jo, 22 Oct 07:58 UTC) — EDITOR ONLY
 - [ ] Preserve committed email-history change (314005870fdd674578c3840a02d676d6e61bdd97) and the reminder-route fix.
 - [ ] Manual intake: unknown ceiling area null + unknown flag, life-support unknown, no accidental media request, no fabricated facts/provenance.
