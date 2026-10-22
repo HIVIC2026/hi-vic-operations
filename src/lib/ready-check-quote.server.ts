@@ -11,7 +11,7 @@ import { armQuoteHold } from "./quote-hold.server";
 const NEEDS_OFFICE = "ready_check_needs_office";
 
 /** One item per distinct reason set: the same failure never floods the office list on every sync. */
-async function recordNeedsOffice(jobId: string, actorId: string | null, quoteId: string | null, reasons: string[]) {
+export async function recordNeedsOffice(jobId: string, actorId: string | null, quoteId: string | null, reasons: string[]) {
   const { data: last } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", NEEDS_OFFICE)
     .order("created_at", { ascending: false }).limit(1).maybeSingle();
   const prior = ((last?.details as { reasons?: string[] } | null)?.reasons ?? []).join(" | ");
@@ -43,9 +43,10 @@ export async function maybeAutoQueueReadyCheckQuote(jobId: string, actorId: stri
     .order("created_at", { ascending: false }).limit(1).maybeSingle();
 
   const { quotedPriceFromEntries } = await import("./installer-led.core");
+  const { data: electrical } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_electrician_recorded").order("created_at", { ascending: false }).limit(1).maybeSingle();
   const facts = readyCheckFactsFromEntries(entries, {
     formComplete,
-    electricianDecided: job.electrician_choice === "installer_own" || job.electrician_choice === "hivic_organise",
+    electricianDecided: (electrical?.details as { ready?: boolean } | null)?.ready === true || job.electrician_choice === "installer_own" || job.electrician_choice === "hivic_organise",
     priceKnown: quotedPriceFromEntries(entries as never, null).ok,
   });
   const checks = readyCheckCompletionChecks(facts);
