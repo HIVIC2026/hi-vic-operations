@@ -58,7 +58,7 @@ export async function tradeHome(userId: string) {
   const jobIds = [...new Set((asg ?? []).map((a) => a.job_id))];
   const none = ["00000000-0000-0000-0000-000000000000"];
   const [{ data: jobs }, { data: books }, { data: missing }] = await Promise.all([
-    admin.from("jobs").select("id, job_number, stage, source, channel, qa_archived_at, deleted_at, installer_quoted, installer_site_check, installer_site_check_date, installer_quoted_price_inc_gst, installer_price_includes, owners(full_name), properties(address_line, suburb, postcode)").in("id", jobIds.length ? jobIds : none),
+    admin.from("jobs").select("id, job_number, stage, source, channel, qa_archived_at, deleted_at, installer_quoted, installer_site_check, installer_site_check_date, installer_quoted_price_inc_gst, installer_price_includes, next_action, owners(full_name), properties(address_line, suburb, postcode)").in("id", jobIds.length ? jobIds : none),
     admin.from("bookings").select("job_id, kind, status, scheduled_start, scheduled_end").in("job_id", jobIds.length ? jobIds : none).in("status", ["confirmed", "completed"]).order("scheduled_start"),
     admin.from("evidence_requirements").select("job_id").in("job_id", jobIds.length ? jobIds : none).eq("required", true).in("status", ["outstanding", "rejected"]),
   ]);
@@ -94,7 +94,7 @@ export async function tradeHome(userId: string) {
   // Installer-sourced jobs: his own site-check answer and price (labels only; never HIV owner prices or margins).
   const { statusFactsFor, statusView } = await import("./job-status.server");
   const sf = await statusFactsFor(c, live.map((j) => j.id));
-  const allJobs = live.map((j) => ({ jobId: j.id, jobNumber: j.job_number, channel: j.channel, place: placeOf.get(j.id)!, status: STATUS[j.stage] ?? "In progress", line: sf.get(j.id) ? statusView(c, sf.get(j.id)!) : null, ...label(j),
+  const allJobs = live.map((j) => ({ jobId: j.id, jobNumber: j.job_number, channel: j.channel, place: placeOf.get(j.id)!, status: (j as { next_action?: string | null }).next_action?.startsWith("Needs finishing") ? (j as { next_action: string }).next_action : STATUS[j.stage] ?? "In progress", line: sf.get(j.id) ? statusView(c, sf.get(j.id)!) : null, ...label(j),
     facts: j.installer_site_check || j.installer_quoted_price_inc_gst != null || (j as { channel?: string }).channel === "installer_sourced" ? { quoted: j.installer_quoted as "yes" | "no" | null, site_check: j.installer_site_check as "yes" | "no" | null, site_check_date: j.installer_site_check_date, quoted_price_inc_gst: j.installer_quoted_price_inc_gst == null ? null : Number(j.installer_quoted_price_inc_gst), price_includes: j.installer_price_includes } : null }));
   // Done tab: only actual final stages. Active-assignment jobs keep their link; ended assignments get a read-only summary
   // (job number, suburb, terminal reason) — no owner, address, contact or price, and no reopened access.

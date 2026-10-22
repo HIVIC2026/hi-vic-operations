@@ -155,7 +155,9 @@ export function pickupAddressParts(address: string | null): { addressLine: strin
   return { addressLine: parts[0]!, suburb: parts.length > 2 ? parts[1]! : null, postcode };
 }
 
-export type PickupAutoDecision = { action: "create_job" | "office_review"; reasons: string[] };
+/** Jo 22 Oct 22:57: forms missing ONLY owner contact details (phone/email/permission) still become the installer's job,
+ *  marked "Needs finishing" with exactly what is missing. Any other problem still goes to office review. */
+export type PickupAutoDecision = { action: "create_job" | "office_review"; reasons: string[] } | { action: "create_job_needs_finishing"; reasons: []; missing: string[] };
 
 /** Jo's Mitti-first rules (23 Oct): a clean installer-form Ready Check with a matched business and full
  *  owner details is adopted automatically. Anything off goes to office review — never blocks, never guesses.
@@ -175,9 +177,14 @@ export function pickupAutoDecision(input: {
   if (!input.businessMatched) reasons.push("Mitti user not matched to an installer business");
   if (!input.homeownerName?.trim()) reasons.push("Owner name missing on the form");
   if (!input.siteAddress?.trim()) reasons.push("Address missing on the form");
-  if (!input.ownerPhone?.trim()) reasons.push("Owner phone missing on the form");
-  if (!input.ownerEmail?.trim()) reasons.push("Owner email missing on the form");
-  if (input.contactPermission !== true) reasons.push(input.contactPermission === false ? "Owner did not tick contact permission" : "Owner contact permission not answered");
   if (input.duplicates.length) reasons.push(`Same owner or address already in the portal: ${input.duplicates.map((d) => d.jobNumber).join(", ")}`);
-  return reasons.length ? { action: "office_review", reasons } : { action: "create_job", reasons: [] };
+  if (reasons.length) return { action: "office_review", reasons };
+  const missing: string[] = [];
+  if (!input.ownerPhone?.trim()) missing.push("owner phone");
+  if (!input.ownerEmail?.trim()) missing.push("owner email");
+  if (input.contactPermission !== true) missing.push(input.contactPermission === false ? "owner contact permission (owner said No)" : "owner contact permission");
+  return missing.length ? { action: "create_job_needs_finishing", reasons: [], missing } : { action: "create_job", reasons: [] };
 }
+
+/** Installer-app next step for a picked-up form missing owner details. */
+export const needsFinishingText = (missing: string[]) => `Needs finishing: add ${missing.join(", ")} on the Mitti form`;

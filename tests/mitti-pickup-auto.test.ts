@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parsePickupAudit, pickupAddressParts, pickupAutoDecision } from "../src/lib/mitti-pickup.core";
+import { parsePickupAudit, pickupAddressParts, pickupAutoDecision, needsFinishingText } from "../src/lib/mitti-pickup.core";
 import { contactAnswersFromEntries } from "../src/lib/mitti.core";
 
 // Stage 3/4 rules (Jo 23 Oct): new A1 answers are read absent-safely, and a Mitti-first Ready Check is
@@ -78,11 +78,17 @@ describe("pickupAutoDecision", () => {
     expect(d.action).toBe("office_review");
     expect(d.reasons).toContain("Mitti user not matched to an installer business");
   });
-  test("missing phone, email or permission go to review with the exact reason", () => {
-    expect(pickupAutoDecision({ ...clean, ownerPhone: null }).reasons).toContain("Owner phone missing on the form");
-    expect(pickupAutoDecision({ ...clean, ownerEmail: null }).reasons).toContain("Owner email missing on the form");
-    expect(pickupAutoDecision({ ...clean, contactPermission: null }).reasons).toContain("Owner contact permission not answered");
-    expect(pickupAutoDecision({ ...clean, contactPermission: false }).reasons).toContain("Owner did not tick contact permission");
+  test("missing phone, email or permission still create the job as Needs finishing (Jo 22 Oct)", () => {
+    expect(pickupAutoDecision({ ...clean, ownerPhone: null })).toEqual({ action: "create_job_needs_finishing", reasons: [], missing: ["owner phone"] });
+    expect(pickupAutoDecision({ ...clean, ownerEmail: null })).toEqual({ action: "create_job_needs_finishing", reasons: [], missing: ["owner email"] });
+    expect(pickupAutoDecision({ ...clean, contactPermission: null })).toEqual({ action: "create_job_needs_finishing", reasons: [], missing: ["owner contact permission"] });
+    const old = pickupAutoDecision({ ...clean, ownerPhone: null, ownerEmail: null, contactPermission: null });
+    expect(old.action).toBe("create_job_needs_finishing");
+    expect(needsFinishingText((old as { missing: string[] }).missing)).toBe("Needs finishing: add owner phone, owner email, owner contact permission on the Mitti form");
+  });
+  test("other problems still go to office review even when contact details are missing", () => {
+    expect(pickupAutoDecision({ ...clean, ownerPhone: null, businessMatched: false }).action).toBe("office_review");
+    expect(pickupAutoDecision({ ...clean, ownerEmail: null, homeownerName: null }).action).toBe("office_review");
   });
   test("duplicates are flagged, never auto-adopted", () => {
     const d = pickupAutoDecision({ ...clean, duplicates: [{ jobNumber: "HV-1101" }] });

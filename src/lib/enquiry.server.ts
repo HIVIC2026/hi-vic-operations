@@ -97,11 +97,13 @@ export function intakeJobFacts(input: { estimated_area_m2: number | null | undef
   };
 }
 
-export async function upsertEnquiry(input: Omit<EnquiryInput, "estimated_area_m2"> & { estimated_area_m2: number | null }, source: string, actorId: string | null, origin: JobOrigin = { channel: "hivic_sourced" }) {
+export async function upsertEnquiry(input: Omit<EnquiryInput, "estimated_area_m2" | "email"> & { estimated_area_m2: number | null; email: string | null }, source: string, actorId: string | null, origin: JobOrigin = { channel: "hivic_sourced" }) {
   const facts = intakeJobFacts(input, source, origin);
-  const email = input.email.toLowerCase();
+  // Email may be null only for Mitti pick-ups marked "Needs finishing" (Jo 22 Oct): a fresh owner row, never matched.
+  if (input.email == null && source !== "installer_mitti") throw new Error("Owner email is required.");
+  const email = input.email?.toLowerCase() ?? null;
   const fullName = properName(input.full_name);
-  let { data: owner } = await admin.from("owners").select("id").ilike("email", exactLike(email)).maybeSingle();
+  let { data: owner } = email ? await admin.from("owners").select("id").ilike("email", exactLike(email)).maybeSingle() : { data: null };
   if (owner) {
     await admin.from("owners").update({ full_name: fullName, phone: input.phone ?? null }).eq("id", owner.id);
   } else {
@@ -109,7 +111,7 @@ export async function upsertEnquiry(input: Omit<EnquiryInput, "estimated_area_m2
     if (error) throw new Error(error.message);
     owner = data;
     // link to an existing portal account if one exists
-    const { data: prof } = await admin.from("profiles").select("id").ilike("email", exactLike(email)).maybeSingle();
+    const { data: prof } = email ? await admin.from("profiles").select("id").ilike("email", exactLike(email)).maybeSingle() : { data: null };
     if (prof) {
       await admin.from("owners").update({ user_id: prof.id }).eq("id", owner.id);
       await admin.from("user_roles").upsert({ user_id: prof.id, role: "owner" }, { onConflict: "user_id,role" });
@@ -125,7 +127,7 @@ export async function upsertEnquiry(input: Omit<EnquiryInput, "estimated_area_m2
   let repeatOf: string | null = null;
   let repeatArea: number | null = null;
   if (!existingJob && (source === "base44" || source === "qa_test")) {
-    const repeat = await findOpenRepeatJob(source, email, input.phone ?? null, properAddress(input.address_line), input.suburb ? properAddress(input.suburb) : null, input.postcode ?? null);
+    const repeat = await findOpenRepeatJob(source, email ?? "", input.phone ?? null, properAddress(input.address_line), input.suburb ? properAddress(input.suburb) : null, input.postcode ?? null);
     if (repeat) { existingJob = repeat; repeatOf = input.external_enquiry_id ?? "unknown"; repeatArea = repeat.area; }
   }
 

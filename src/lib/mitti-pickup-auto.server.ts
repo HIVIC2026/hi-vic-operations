@@ -4,6 +4,7 @@
 // assigns the installer business, links the form (writes the HV number back) and runs the existing
 // guarded sync. Anything off goes to office review — recorded once, never blocking.
 //
+// Forms missing only owner phone/email/permission are still created, marked "Needs finishing" (Jo 22 Oct).
 // OFF by default: workflow_settings.mitti_pickup_auto_enabled (pending migration; not applied live).
 // Nothing is sent to anyone, no stage is completed, and a dry run reports what would happen.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
@@ -11,7 +12,7 @@ import { logEvent } from "./workflow.server";
 import type { MittiCall } from "./mitti.core";
 import { realMittiCall } from "./mitti.server";
 import { scanMittiReadyCheckPickups, linkMittiReadyCheckToJob } from "./mitti-pickup.server";
-import { pickupAutoDecision, pickupAddressParts } from "./mitti-pickup.core";
+import { pickupAutoDecision, pickupAddressParts, needsFinishingText } from "./mitti-pickup.core";
 
 export type PickupAutoResult = { auditId: string; action: "created" | "review" | "would_create" | "would_review" | "failed"; jobNumber?: string; reasons?: string[]; error?: string };
 
@@ -52,7 +53,7 @@ export async function sweepMittiPickupAuto(opts: { dryRun?: boolean; call?: Mitt
       continue;
     }
     if (opts.dryRun) {
-      results.push({ auditId: r.auditId, action: "would_create" });
+      results.push({ auditId: r.auditId, action: "would_create", ...(decision.action === "create_job_needs_finishing" ? { reasons: [needsFinishingText(decision.missing)] } : {}) });
       continue;
     }
     try {
@@ -65,14 +66,19 @@ export async function sweepMittiPickupAuto(opts: { dryRun?: boolean; call?: Mitt
       const parts = pickupAddressParts(r.siteAddress);
       const { upsertEnquiry } = await import("./enquiry.server");
       const created = await upsertEnquiry({
-        full_name: r.homeownerName!.trim(), email: r.ownerEmail!.trim(), phone: r.ownerPhone!.trim(),
+        full_name: r.homeownerName!.trim(), email: r.ownerEmail?.trim() || null, phone: r.ownerPhone?.trim() || null,
         address_line: parts?.addressLine ?? r.siteAddress!.trim(), suburb: parts?.suburb ?? null, postcode: parts?.postcode ?? null,
         estimated_area_m2: null, area_unknown: true,
       }, "installer_mitti", null, { channel: "installer_sourced", businessId: r.business!.id, userId: member });
       const { error: ae } = await admin.from("job_assignments").insert({ job_id: created.job_id, user_id: member, role: "installer", business_id: r.business!.id, assigned_by: null, first_response_at: new Date().toISOString() });
       if (ae) await logEvent(created.job_id, null, "mitti_pickup_assign_failed", `Installer assignment failed after auto-pickup: ${ae.message}`, { audit_id: r.auditId }, { internal: true });
+      if (decision.action === "create_job_needs_finishing") {
+        const next = needsFinishingText(decision.missing);
+        await admin.from("jobs").update({ next_action: next }).eq("id", created.job_id);
+        await logEvent(created.job_id, null, "mitti_pickup_needs_finishing", next, { audit_id: r.auditId, missing: decision.missing }, { internal: true });
+      }
       // Factual record only — the owner's tick is a fact about contact, never a marketing consent record.
-      await logEvent(created.job_id, null, "mitti_contact_permission", `Owner ticked contact permission on the Mitti Ready Check form (audit ${r.auditId})`, { audit_id: r.auditId, permission: true, source: "mitti_form" }, { internal: true });
+      if (r.contactPermission === true) await logEvent(created.job_id, null, "mitti_contact_permission", `Owner ticked contact permission on the Mitti Ready Check form (audit ${r.auditId})`, { audit_id: r.auditId, permission: true, source: "mitti_form" }, { internal: true });
       const link = await linkMittiReadyCheckToJob(null, { auditId: r.auditId, jobId: created.job_id }, call);
       await logEvent(created.job_id, null, "mitti_pickup_auto_created", `Ready Check started in Mitti adopted automatically — job created for ${r.business!.name} and form linked (${created.job_number})`, { audit_id: r.auditId, business_id: r.business!.id, business: r.business!.name, issues: link.issues }, { internal: true });
       results.push({ auditId: r.auditId, action: "created", jobNumber: created.job_number });
