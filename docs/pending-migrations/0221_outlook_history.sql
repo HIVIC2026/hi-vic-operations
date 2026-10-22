@@ -24,10 +24,21 @@ COMMENT ON COLUMN public.outlook_sync_state.sent_next_link IS 'DEPRECATED: repla
 COMMENT ON COLUMN public.outlook_sync_state.catchup_from IS 'Office-set start of the historical catch-up; cleared automatically once both catch-up streams are exhausted';
 
 -- 2) One original message may be linked to every confirmed relevant job; it is still stored only once
---    per job. Replaces the global per-message unique index.
+--    per job. Only the Outlook provider moves to per-job uniqueness — every other provider keeps the
+--    original global per-message uniqueness, so no other channel can ever duplicate a message.
 DROP INDEX IF EXISTS public.job_communications_provider_msg;
+CREATE UNIQUE INDEX IF NOT EXISTS job_communications_provider_msg_other
+  ON public.job_communications (provider, provider_message_id)
+  WHERE provider_message_id IS NOT NULL AND provider <> 'outlook';
 CREATE UNIQUE INDEX IF NOT EXISTS job_communications_job_provider_msg
   ON public.job_communications (job_id, provider, provider_message_id) WHERE provider_message_id IS NOT NULL;
+
+-- 2b) Record-only marker for historical import work. Work reserved during a historical catch-up is
+--     record-only: it is stored for the job history but must never close or flag a job, even if the
+--     sync restarts and retries it later (the marker persists on the work row).
+ALTER TABLE public.outlook_message_work
+  ADD COLUMN IF NOT EXISTS record_only boolean NOT NULL DEFAULT false;
+COMMENT ON COLUMN public.outlook_message_work.record_only IS 'True when reserved by a historical catch-up: stored for history only, no stage/review decisions allowed';
 
 -- 3) begin_outlook_message: the route may carry several confirmed job ids (a legacy single jobId is
 --    still accepted for rows reserved by the previous release). Attachment metadata is now always
