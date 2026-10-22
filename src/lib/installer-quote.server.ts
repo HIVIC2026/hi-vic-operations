@@ -90,6 +90,11 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   const holdReason = [rangeReason, ...installerQuoteReleaseBlockers({ consentStatus: "granted", feeAwarenessRecorded: !!feeConfirmation, feeAwarenessPayer: ((feeConfirmation?.details as { payer?: "hivic" | "own" } | null)?.payer ?? null), electricianPayer: payer }), "Waiting for office review before sending"].filter(Boolean).join(" · ");
   void workflow?.auto_send_quote;
   // Dedup only on identical figures AND identical lines (a payer change can keep totals but change scope/lines).
+  // Identity is part of scope even if the selected electrician has the same price.
+  if (mittiElectrician?.name) {
+    const electricalLine = draft.lines.find((l) => l.code === "PIESA");
+    if (electricalLine) electricalLine.explanation = `Electrician: ${mittiElectrician.name}; licence: ${mittiElectrician.licence} (declared)`;
+  }
   const sig = quoteLineSignature(draft.lines, draft.discountNote);
   let same: { id: string } | undefined;
   for (const q of open ?? []) {

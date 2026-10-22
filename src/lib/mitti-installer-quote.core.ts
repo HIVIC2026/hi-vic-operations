@@ -11,7 +11,7 @@ export function buildMittiInstallerQuote(input: Omit<Parameters<typeof buildInst
 
 /** A snapshot-specific guard; never relaxes legacy payer checks or trusts a nomination as approval. */
 export function mittiQuoteElectricalBlocker(lines: { code: string | null; line_total_inc_gst: number | string | null }[], saved: MittiElectricianResolution, current: MittiElectricianResolution | null) {
-  if (!current?.ready || JSON.stringify(saved) !== JSON.stringify(current)) return "Ready Check electrician details changed or are incomplete — prepare a new quote";
+  if (!current?.ready || ["choice", "priceIncGst", "name", "licence", "source"].some((key) => saved[key as keyof MittiElectricianResolution] !== current[key as keyof MittiElectricianResolution])) return "Ready Check electrician details changed or are incomplete — prepare a new quote";
   const electrical = lines.filter((l) => l.code === "PIESA");
   const fees = lines.filter((l) => l.code === "AP_FEE");
   if (fees.length !== 1 || Number(fees[0]?.line_total_inc_gst) !== MITTI_INSTALLER_FEE_INC_GST) return "Ready Check quote must include the $349 Home Insulation Victoria fee";

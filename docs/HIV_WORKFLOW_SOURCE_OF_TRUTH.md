@@ -57,6 +57,7 @@ PIESA only after: Ready Check complete, verified eligible, current confirmed quo
 Route-aware. Home Insulation Victoria lead: our confirmed-quote payment rule. Installer-supplied customer: do not assume the same gate; no lead fee; no margin on installer price; we receive the approved AP fee and VEEC spread. No approved payment rule for the route → PIESA blocked with a payment-rule exception.
 
 ## Commercial wording
+Jo 22 Oct 2026, Mitti installer-led Ready Check only: full installer price inc GST + $349 Home Insulation Victoria fee + electrician price − the existing VEU rebate (minimum contribution unchanged). Electrical choice: Home Insulation Victoria electrician ($349), My usual electrician (saved business-profile price), A different electrician (form price). Missing usual profile holds the quote with "Installer has no usual electrician saved". Store declared name/licence on the job, without granting verification or assignment. This supersedes own-electrician direct-billing exclusion for this new pathway only; accepted quotes and legacy intake billing remain unchanged. Preview-only, no automatic activation.
 Home Insulation Victoria lead: a lead fee only if separately approved in the current live installer agreement; old fee notes (e.g. $220) are not live rules unless confirmed there. Installer-supplied customer: no lead fee, no margin, approved AP fee and VEEC spread only. Never one fee model for all jobs.
 
 ## Direct-contact coordination

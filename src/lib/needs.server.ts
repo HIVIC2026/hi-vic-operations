@@ -112,5 +112,16 @@ export async function loadNeedsHivic() {
   }
   const open = new Set(jobRows.filter((j) => !closed.has(j.id)).map((j) => j.id));
   const kept = items.filter((it) => !it.jobId || open.has(it.jobId));
+  const { data: electricianEvents, error: ee } = await admin.from("workflow_events").select("job_id, details, created_at").eq("event_type", "mitti_electrician_recorded").order("created_at", { ascending: false });
+  if (ee) throw new Error("Could not load Ready Check electrician holds.");
+  const latestElectrical = new Set<string>();
+  const { needsItem } = await import("./allocation.core");
+  for (const e of electricianEvents ?? []) {
+    if (!e.job_id || latestElectrical.has(e.job_id)) continue;
+    latestElectrical.add(e.job_id);
+    if (!open.has(e.job_id) || (e.details as { needsProfile?: boolean } | null)?.needsProfile !== true) continue;
+    const j = jobRows.find((r) => r.id === e.job_id);
+    kept.push(needsItem("installer_usual_electrician_missing", e.job_id, j?.job_number ?? null, e.created_at, undefined, j));
+  }
   return { items: kept, checkedAt: now.toISOString() };
 }

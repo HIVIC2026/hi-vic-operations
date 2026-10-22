@@ -63,12 +63,12 @@ export type Entry = { id: string; label: string; norm: string; type: string; val
 function responseValue(it: Any): string | null {
   const r = it?.responses ?? {};
   if (Array.isArray(r.selected) && r.selected.length) return r.selected.map((s: Any) => s?.label ?? s).join(", ");
-  for (const k of ["text", "value", "datetime", "date", "number"]) if (r[k] != null && String(r[k]).trim() !== "") return String(r[k]).trim();
+  for (const k of ["text", "value", "datetime", "date", "number", "phone", "phone_number"]) if (r[k] != null && String(r[k]).trim() !== "") return String(r[k]).trim();
   if (typeof it?.value === "string" || typeof it?.value === "number") return String(it.value);
   return null;
 }
 
-const TYPE_KEYS = ["textsingle", "textmulti", "question", "list", "checkbox", "media", "signature", "datetime", "number", "drawing", "site", "switch"] as const;
+const TYPE_KEYS = ["textsingle", "textmulti", "question", "list", "checkbox", "media", "signature", "datetime", "number", "phone", "phone_number", "phonenumber", "drawing", "site", "switch"] as const;
 /** Mitti items often carry their type as a type-named key (e.g. `question`) rather than a `type` field. */
 export function mittiItemType(it: Any): string {
   const direct = String(it?.type ?? "").trim();
@@ -528,7 +528,7 @@ export function contactAnswersFromEntries(entries: { label: string; value: strin
   };
   const raw = find(["Who is doing the electrical safety check?"]);
   const choice = norm(raw);
-  const electricianChoice = choice === norm("My usual electrician") ? "usual" as const : choice === norm("A different electrician") ? "different" as const : choice === norm("Home Insulation Victoria electrician") ? "hivic" as const : /own electrician/i.test(raw ?? "") ? "own" as const : null;
+  const electricianChoice = choice === norm("My usual electrician") ? "usual" as const : choice === norm("A different electrician") ? "different" as const : choice === norm("Home Insulation Victoria electrician") || choice === norm("Home Insulation Victoria organises one") ? "hivic" as const : /own electrician/i.test(raw ?? "") ? "own" as const : null;
   return {
     phone: find(["Homeowner phone", "Owner phone"]),
     email: find(["Homeowner email", "Owner email"]),
