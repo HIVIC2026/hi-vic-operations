@@ -17,9 +17,9 @@ export function electricianOption(value: string | null | undefined): MittiElectr
 export function usualElectrician(value: unknown): UsualElectrician | null {
   if (!value || typeof value !== "object") return null;
   const v = value as Record<string, unknown>;
-  const name = typeof v.name === "string" ? v.name.trim() : "";
-  const licence = typeof v.licence === "string" ? v.licence.trim() : "";
-  const priceIncGst = typeof v.priceIncGst === "number" ? v.priceIncGst : num(typeof v.priceIncGst === "string" ? v.priceIncGst : null);
+  const name = typeof v['name'] === "string" ? v['name'].trim() : "";
+  const licence = typeof v['licence'] === "string" ? v['licence'].trim() : "";
+  const priceIncGst = typeof v['priceIncGst'] === "number" ? v['priceIncGst'] : num(typeof v['priceIncGst'] === "string" ? v['priceIncGst'] : null);
   if (!name || !licence || priceIncGst == null || !Number.isFinite(priceIncGst) || priceIncGst < 0 || priceIncGst > 1_000_000) return null;
   return { name, licence, priceIncGst: Math.round(priceIncGst * 100) / 100 };
 }

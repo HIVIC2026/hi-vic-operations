@@ -25,6 +25,8 @@ export async function mittiElectricianForJob(jobId: string, actorId: string | nu
   const { data: previous, error: pe } = await admin.from("workflow_events").select("details").eq("job_id", jobId)
     .eq("event_type", "mitti_electrician_recorded").order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (pe) throw new Error("Could not check the job's electrician history.");
-  if (JSON.stringify(previous?.details) !== JSON.stringify(details)) await logEvent(jobId, actorId, "mitti_electrician_recorded", resolved.ready ? "Ready Check electrician details recorded for compliance (declared, not verified)" : resolved.reasons.join(" · "), details, { internal: true });
+  const keys = Object.keys(details).sort();
+  const signature = (value: unknown) => JSON.stringify(keys.map((k) => [k, (value as Record<string, unknown> | null)?.[k] ?? null]));
+  if (signature(previous?.details) !== signature(details)) await logEvent(jobId, actorId, "mitti_electrician_recorded", resolved.ready ? "Ready Check electrician details recorded for compliance (declared, not verified)" : resolved.reasons.join(" · "), details, { internal: true });
   return resolved;
 }
