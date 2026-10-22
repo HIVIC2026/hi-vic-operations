@@ -61,12 +61,39 @@ describe("safe matching", () => {
     expect(r.kind).toBe("unmatched");
     if (r.kind === "unmatched") expect(r.candidateJobIds.sort()).toEqual(["ja", "jb"]);
   });
-  test("two different job numbers → unmatched", () => {
+  test("two different job numbers → linked to both jobs, never guessed down to one", () => {
     const m = msg({ from: from("amy@test.example"), subject: "HV-1001 and HV-1002" });
-    expect(matchMessage(m, ["amy@test.example"], byNumber, new Map()).kind).toBe("unmatched");
+    expect(matchMessage(m, ["amy@test.example"], byNumber, new Map())).toEqual({ kind: "job", jobIds: ["ja", "jb"], how: "job_numbers" });
   });
-  test("unknown sender with no job number is not homeowner mail", () => {
-    expect(matchMessage(msg({ from: from("news@vendor.example") }), ["news@vendor.example"], new Map(), new Map()).kind).toBe("not_homeowner");
+  test("a reply in a thread already stored on a job links even from a family address", () => {
+    const m = msg({ from: from("family@test.example"), subject: "Re: insulation" });
+    expect(matchMessage(m, ["family@test.example"], new Map(), new Map(), new Map([["t1", ["ja"]]]))).toEqual({ kind: "job", jobIds: ["ja"], how: "thread" });
+  });
+  test("a thread stored on two jobs links the reply to both", () => {
+    const m = msg({ from: from("family@test.example") });
+    expect(matchMessage(m, ["family@test.example"], new Map(), new Map(), new Map([["t1", ["ja", "jb"]]]))).toEqual({ kind: "job", jobIds: ["ja", "jb"], how: "thread" });
+  });
+  test("unknown sender with no job number and no known thread is not homeowner mail", () => {
+    expect(matchMessage(msg({ from: from("news@vendor.example") }), ["news@vendor.example"], new Map(), new Map(), new Map([["t1", ["ja"]]]))).kind).toBe("not_homeowner");
+  });
+});
+
+describe("attachment storage planning", () => {
+  const ref = (id: string, size: number | null) => ({ id, name: `${id}.bin`, contentType: "application/octet-stream", size, isInline: false });
+  test("files under the limits are stored; oversized ones are skipped with a visible reason", () => {
+    const plan = planAttachments([ref("a", 100), ref("b", 30 * 1024 * 1024), ref("c", null)], 20 * 1024 * 1024, 40 * 1024 * 1024);
+    expect(plan.store.map((r) => r.id)).toEqual(["a", "c"]);
+    expect(plan.skipped.map((s) => s.ref.id)).toEqual(["b"]);
+    expect(plan.skipped[0]!.reason).toContain("per-file limit");
+  });
+  test("the per-message budget skips later files rather than silently dropping them", () => {
+    const plan = planAttachments([ref("a", 25 * 1024 * 1024), ref("b", 25 * 1024 * 1024)], 30 * 1024 * 1024, 40 * 1024 * 1024);
+    expect(plan.store.map((r) => r.id)).toEqual(["a"]);
+    expect(plan.skipped[0]!.reason).toContain("per-message attachment budget");
+  });
+  test("storage paths are deterministic and safe for exotic names and message ids", () => {
+    expect(attachmentStoragePath("ja", "AAMkAD==/weird", 0, "roof photo (1).jpg")).toBe("correspondence/ja/AAMkAD_weird/1-roof_photo__1_.jpg");
+    expect(attachmentStoragePath("unmatched", "m1", 3, "..")).toBe("correspondence/unmatched/m1/4-attachment");
   });
 });
 
