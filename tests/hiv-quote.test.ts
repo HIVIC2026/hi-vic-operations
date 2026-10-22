@@ -42,11 +42,11 @@ describe("HIV fixed owner price quotes", () => {
 const r = (n: number) => Math.round(n * 100) / 100;
 
 describe("owner price by R-value (Jo 22 Oct 2026)", () => {
-  const p = { option: "Test product R6", name: "Earthwool" };
+  const p = { option: "Bradford Gold R6" };
   test("R5.0 stays $30/m²", () => { expect(priceHivQuote({ ...base, rValue: "R5.0" }).lines[0]!.unit_price_inc_gst).toBe(30); });
   test("R6.0 uses $32/m² and the installer's R6 rate", () => {
     const q = priceHivQuote({ ...base, rValue: "R6.0", installerRExPerM2: 20, product: { ...p, rValue: "R6.0" as const } });
-    expect(q.lines[0]).toMatchObject({ code: "R6_BATTS", unit_price_inc_gst: 32, line_total_inc_gst: 4800, description: "Supply and install of Earthwool R6.0 ceiling insulation" });
+    expect(q.lines[0]).toMatchObject({ code: "R6_BATTS", unit_price_inc_gst: 32, line_total_inc_gst: 4800, description: "Supply and install of Bradford Gold R6 ceiling insulation" });
     expect(q.holdReasons).toEqual([]);
     expect(q.installerMarkup.markupInc).toBe(r(150 * (32 - 22)));
   });
