@@ -94,11 +94,14 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
   // Official PIESA stays blocked from live use until its mapping is approved and its source confirmed.
   if (!measureOnly) { const b = officialFormUseBlocker("piesa"); if (b) throw new WorkflowError(b); }
 
-  const [{ data: prop }, { data: owner }, { data: asgRow }, { data: booking }, { data: a }] = await Promise.all([
+  const [{ data: prop }, { data: owner }, { data: asgRow }, { data: booking }, { data: rcBooking }, { data: a }] = await Promise.all([
     admin.from("properties").select("address_line,suburb,state,postcode,occupancy,enrichment").eq("id", job.property_id).single(),
     admin.from("owners").select("full_name,email,phone").eq("id", job.owner_id).single(),
     admin.from("job_assignments").select("user_id, profiles:user_id(full_name,email)").eq("job_id", jobId).eq("role", role).eq("active", true).maybeSingle(),
     admin.from("bookings").select("scheduled_start,status").eq("job_id", jobId).eq("kind", "assessment").eq("status", "confirmed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
+    // Stage 5 (Jo 23 Oct): a Ready Check form carries the OWNER'S BOOKED Ready Check date — the PIESA
+    // booking is irrelevant here and must never leak onto a Ready Check form.
+    admin.from("bookings").select("scheduled_start,status").eq("job_id", jobId).eq("kind", "ready_check").eq("status", "confirmed").order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
     admin.from("assessments").select("id,status,external_mitti_id").eq("job_id", jobId).maybeSingle(),
   ]);
   if (!measureOnly && a?.status === "complete") throw new WorkflowError("Electrical assessment is already complete and locked.");
@@ -134,7 +137,7 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
       electricianEmail: prof?.email ?? null, templateId, assigneeRole: role,
       prefill: {
         jobNumber: job.job_number, address, ownerName: owner?.full_name ?? "", ownerEmail: owner?.email ?? null, ownerPhone: owner?.phone ?? null,
-        assessorName: prof?.full_name || prof?.email || "", assessmentAt: booking?.scheduled_start ?? null,
+        assessorName: prof?.full_name || prof?.email || "", assessmentAt: (measureOnly ? rcBooking?.scheduled_start : booking?.scheduled_start) ?? null,
         estimatedAreaM2: job.estimated_area_m2 != null ? Number(job.estimated_area_m2) : null,
         occupancy: prop?.occupancy ? prop.occupancy.replace("_", " ") : null, lifeSupport: job.life_support ? "Yes – life support recorded" : "None recorded by office",
         inspectionDate: measureOnly ? null : todayMelbourne(),
