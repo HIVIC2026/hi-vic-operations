@@ -99,6 +99,7 @@ export function JobIdentity({ jobId, job, onOpen }: { jobId: string; job: JobRow
   if (job.payment_status && !job.deposit_cleared && ["deposit_due", "invoice_created", "overdue"].includes(job.payment_status)) warnings.push({ t: "bad", text: "Approved payment option not yet verified" });
   return (
     <header className="mb-3 border-b border-line py-3">
+      {job.channel === "installer_sourced" && <p className="mb-2 inline-block rounded-md bg-secondary px-2.5 py-1 text-sm font-bold text-secondary-foreground">Installer's own job — {job.originating_business_name ?? "installer not recorded"}</p>}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-muted-foreground">
         <span className="text-primary">{job.job_number}</span>
         {job.source === "qa_test" && <span className="rounded bg-muted px-1.5 py-0.5 font-bold uppercase">Test job</span>}

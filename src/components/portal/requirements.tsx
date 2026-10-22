@@ -48,11 +48,14 @@ export function MeasurementDetails({ m, admin = false }: { m: M; admin?: boolean
   const rows: [string, unknown][] = [
     ["Source", `${SOURCE[m.source_role] ?? m.source_role}${who ? ` · ${who}` : ""}`],
     ["Completed", m.completed_at ? fmtDate(m.completed_at) : "—"],
-    ["Measured area", m.measured_area_m2 != null ? `${Number(m.measured_area_m2)} m²` : null],
+    m.measured_area_m2 == null && m.supplied_area_m2 != null && m.provenance === "installer_supplied_provisional"
+      ? ["Installer's measure", `${Number(m.supplied_area_m2)} m²`]
+      : ["Measured area", m.measured_area_m2 != null ? `${Number(m.measured_area_m2)} m²` : null],
     ["Removal", m.removal_required ? `${m.removal_m2 ?? "?"} m²` : m.removal_required],
     ["Existing insulation", m.insulation_present], ["Existing R-value", m.existing_r_value],
     ["Access", m.access_difficulty],
-    ["Reference", m.external_id ? `${m.external_source ?? "external"} ${m.external_id}` : null],
+    // Internal reference codes (e.g. installer import IDs) are not shown on the office screen; Mitti IDs stay visible.
+    ["Reference", m.external_id && m.external_source === "mitti" ? `mitti ${m.external_id}` : null],
   ];
   const provisional = m.provenance === "installer_supplied_provisional";
   if (provisional) rows.unshift(["Status", m.verified_at ? "Installer-supplied – verified onsite" : "Installer-supplied – provisional (onsite measurement required)"]);
@@ -61,7 +64,7 @@ export function MeasurementDetails({ m, admin = false }: { m: M; admin?: boolean
   if (m.measured_by_name || m.measured_on) rows.push(["Measured by", [m.measured_by_name, m.measured_by_role, m.measured_on && fmtDate(m.measured_on)].filter(Boolean).join(" · ")]);
   if (m.gross_area_m2 != null || m.excluded_area_m2 != null) rows.push(["Gross / excluded", `${m.gross_area_m2 ?? "—"} m² / ${m.excluded_area_m2 ?? "—"} m²`]);
   if (admin && provisional) {
-    rows.push(["Installer-supplied area", m.supplied_area_m2 != null ? `${Number(m.supplied_area_m2)} m²` : null]);
+    if (m.measured_area_m2 != null) rows.push(["Installer's measure", m.supplied_area_m2 != null ? `${Number(m.supplied_area_m2)} m²` : null]);
     if (m.supplied_removal_m2 != null) rows.push(["Installer-supplied removal", `${Number(m.supplied_removal_m2)} m²`]);
     if (m.verified_at) {
       rows.push(["Onsite verified area", `${Number(m.verified_area_m2)} m² (${METHOD_LABEL[m.verified_method as MeasureMethod] ?? m.verified_method}, ${m.verified_role})`]);
@@ -106,13 +109,19 @@ export function RequirementCards({ jobId, isAdmin, job }: { jobId: string; isAdm
           <Ruler className="mb-2 h-4 w-4 text-muted-foreground" />
           <MeasurementDetails m={m} admin={isAdmin} />
           {isAdmin && rv?.withinTolerance != null && <p className={`mt-1 text-xs ${rv.withinTolerance ? "text-success" : "text-danger"}`}>Variance {rv.withinTolerance ? "within" : "outside"} the {rv.tolerancePct}% pilot tolerance</p>}
-          {s.measurement.state !== "accepted" && s.measurement.missing.length > 0 && <p className="mt-2 text-xs text-danger">Missing: {s.measurement.missing.map((f) => MEASURE_FIELD_LABEL[f]).join(", ")}</p>}
+          {(() => {
+            // Installer-supplied area counts as the installer's measure, so it is not listed as missing.
+            const hasSupplied = m?.provenance === "installer_supplied_provisional" && m.supplied_area_m2 != null;
+            const missing = s.measurement.missing.filter((f) => !(hasSupplied && f === "measured_area_m2"));
+            return s.measurement.state !== "accepted" && missing.length > 0 && <p className="mt-2 text-xs text-danger">Missing: {missing.map((f) => MEASURE_FIELD_LABEL[f]).join(", ")}</p>;
+          })()}
           {isAdmin && (
             <div className="mt-3 space-y-2 border-t pt-3">
               <div className="flex items-center gap-2 text-sm"><Label>Ready Check</Label><span className="font-semibold">Installer only</span></div>
               {m && (
                 <>
-                  {m.status !== "complete" && !!rv?.blockers.length && <ul className="rounded bg-warning-soft p-2 text-xs text-warning">{rv.blockers.map((b) => <li key={b}>{b}</li>)}</ul>}
+                  {/* Installer-supplied jobs: the installer's own measure counts as the Ready Check (Jo, 22 Oct), so the AP-standard box is not shown. */}
+                  {m.status !== "complete" && m.provenance !== "installer_supplied_provisional" && !!rv?.blockers.length && <ul className="rounded bg-warning-soft p-2 text-xs text-warning">{rv.blockers.map((b) => <li key={b}>{b}</li>)}</ul>}
                   <Input placeholder="Review reason (audited)" value={reason} onChange={(e) => setReason(e.target.value)} />
                   <div className="flex flex-wrap gap-2">
                     {m.status !== "complete" && <Button size="sm" disabled={reason.trim().length < 3 || !!rv?.blockers.length} onClick={async () => { await review({ jobId, action: "accept", reason }, "Ready Check accepted"); setReason(""); }}>Accept Ready Check</Button>}
