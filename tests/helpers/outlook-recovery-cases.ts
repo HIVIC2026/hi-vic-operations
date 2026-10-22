@@ -16,6 +16,8 @@ const configured = async (h: Harness) => { await h.db.query(`UPDATE outlook_sync
 const readOnlyResponses = (url: string) => url.includes("/me?")
   ? jsonResponse({ id: "delegate-id", mail: "delegate@example.test", displayName: "Test delegate" })
   : jsonResponse({ value: [] });
+// The message-list $select also mentions both date fields, so direction is matched on the $filter field, not URL text.
+const filterField = (url: string) => new URL(url).searchParams.get("$filter")?.split(" ")[0] ?? "";
 const practice = (fn: (h: Harness) => Promise<void>) => async () => {
   const h = await outlookHarness();
   try { await fn(h); } finally { await h.db.close(); }
