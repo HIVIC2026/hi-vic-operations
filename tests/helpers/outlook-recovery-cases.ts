@@ -190,17 +190,17 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
       : jsonResponse({ value: [graphMessage("unsafe-page", "Please cancel my enquiry.")], "@odata.nextLink": "https://evil.example/steal" });
     const result = await h.server.runOutlookSync({ maxPages: 1 });
     assert.equal(result.ok, false); assert.equal(await total(h, "outlook_message_work"), 0);
-    assert.equal((await h.state()).inbox_cursor, null);
+    assert.equal((await h.state()).all_inbound_cursor, null);
     assert.ok(h.requests.every(r => new URL(r.url).origin === "https://connector-gateway.lovable.dev"));
   })],
   ["an early-page decline followed by a future-page inbound reply creates review without closure", practice(async h => {
     await configured(h);
     h.control.fetch = async url => {
       if (url.includes("/me?") || url.includes("$select=id,body")) return readOnlyResponses(url);
-      if (url.includes("/sentitems/")) return jsonResponse({ value: [] });
+      if (url.includes("sentDateTime")) return jsonResponse({ value: [] });
       if (url.includes("$skiptoken=later")) return jsonResponse({ value: [graphMessage("future-page-reply", "Actually, please continue.", { receivedDateTime: "2026-10-20T09:00:00Z" })] });
       return jsonResponse({ value: [graphMessage("early-page-decline", "Please cancel my enquiry.")],
-        "@odata.nextLink": "https://graph.microsoft.com/v1.0/users/shared%40example.test/mailFolders/inbox/messages?$skiptoken=later" });
+        "@odata.nextLink": "https://graph.microsoft.com/v1.0/users/shared%40example.test/messages?$skiptoken=later" });
     };
     const result = await h.server.runOutlookSync({ maxPages: 2, pageSize: 1 });
     assert.equal(result.ok, true, result.blocker); assert.equal(result.counts.closed, 0); assert.equal(result.counts.flagged, 1);
@@ -211,15 +211,15 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
   ["a complete fresh Inbox window retains explicit-decline closure and records its fixed cutoff", practice(async h => {
     await configured(h);
     h.control.fetch = async url => url.includes("/me?") || url.includes("$select=id,body") ? readOnlyResponses(url)
-      : jsonResponse({ value: url.includes("/inbox/") ? [graphMessage("complete-window-decline", "Please cancel my enquiry.")] : [] });
+      : jsonResponse({ value: url.includes("receivedDateTime") ? [graphMessage("complete-window-decline", "Please cancel my enquiry.")] : [] });
     const result = await h.server.runOutlookSync({ maxPages: 2 });
     assert.equal(result.ok, true, result.blocker); assert.equal(result.counts.closed, 1);
     const event = await row(h, "workflow_events");
     assert.ok(event.details.inbox_complete_through);
-    const pages = h.requests.filter(r => !r.url.includes("$select=id,body") && r.url.includes("/mailFolders/"));
+    const pages = h.requests.filter(r => new URL(r.url).searchParams.get("$filter")?.includes(" le "));
     assert.equal(pages.length, 2);
     for (const page of pages) assert.ok(new URL(page.url).searchParams.get("$filter")!.endsWith(` le ${event.details.inbox_complete_through}`));
-    assert.ok(pages[0]!.url.includes("/inbox/")); assert.ok(pages[1]!.url.includes("/sentitems/"));
+    assert.ok(pages[0]!.url.includes("receivedDateTime")); assert.ok(pages[1]!.url.includes("sentDateTime"));
   })],
   ["an older continuation cannot prove current completeness; subsequent fresh scans preserve its review", practice(async h => {
     await configured(h);
