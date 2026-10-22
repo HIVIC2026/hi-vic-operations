@@ -1,3 +1,4 @@
+import { sameMittiTemplateId } from "./mitti-identity.core";
 // Jo 22 Oct 2026: Ready Checks started straight in Mitti (no portal job yet) must be visible to the
 // office and linkable to a job — installer's own measure counts as the Ready Check. Pure rules only:
 // parsing/classification lives here so tests can run without Mitti or the database.
@@ -78,9 +79,15 @@ export function classifyPortalJobNumber(raw: string | null | undefined): "none" 
   return JOB_NUMBER_RE.test(v) ? "linked" : "installer_ref";
 }
 
+/** Same Mitti template whatever the ID format (dashed UUID vs "template_…"); exact match kept for other IDs. */
+export function pickupTemplateMatches(templateId: string, configured: string | null): boolean {
+  if (!configured || !templateId) return false;
+  return templateId === configured || sameMittiTemplateId(templateId, configured);
+}
+
 export function templateKindFor(templateId: string, ids: { readyCheck: string | null; readyCheckPriced: string | null }): PickupTemplateKind {
-  if (ids.readyCheckPriced && templateId === ids.readyCheckPriced) return "installer_form";
-  if (ids.readyCheck && templateId === ids.readyCheck) return "hivic_form";
+  if (ids.readyCheckPriced && pickupTemplateMatches(templateId, ids.readyCheckPriced)) return "installer_form";
+  if (ids.readyCheck && pickupTemplateMatches(templateId, ids.readyCheck)) return "hivic_form";
   return "unknown";
 }
 

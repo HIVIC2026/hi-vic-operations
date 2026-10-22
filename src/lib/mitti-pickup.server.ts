@@ -11,7 +11,7 @@ import { realMittiCall, syncMittiAssessment } from "./mitti.server";
 import { jobScope } from "./requirements.server";
 import {
   classifyPortalJobNumber, parsePickupAudit, pickupAddressKey, pickupDuplicates, portalJobNumberItem,
-  propertyAddressKey, templateKindFor, type ReadyCheckPickup,
+  propertyAddressKey, templateKindFor, pickupTemplateMatches, type ReadyCheckPickup,
 } from "./mitti-pickup.core";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -58,7 +58,7 @@ export async function scanMittiReadyCheckPickups(actorId: string | null, call: M
   const res = (await api.searchAudits(after)) as { audits?: { audit_id?: string; template_id?: string }[] };
   const candidates = (res?.audits ?? []).filter((a) => {
     const t = String(a.template_id ?? "");
-    return t && (t === ids.readyCheck || t === ids.readyCheckPriced);
+    return pickupTemplateMatches(t, ids.readyCheck) || pickupTemplateMatches(t, ids.readyCheckPriced);
   });
   if (!candidates.length) return { rows: [] };
 
@@ -109,7 +109,7 @@ export async function linkMittiReadyCheckToJob(actorId: string | null, input: { 
   if (audit?.archived) throw new WorkflowError("This Mitti form is archived and cannot be linked.");
   if (audit?.audit_data?.date_completed) throw new WorkflowError("This Mitti form is already completed in Mitti — office review is required before linking.");
   const parsed = parsePickupAudit(audit);
-  if (!parsed || !allowed.includes(parsed.templateId)) throw new WorkflowError("This Mitti form is not a Ready Check form. Nothing was changed.");
+  if (!parsed || !allowed.some((id) => pickupTemplateMatches(parsed.templateId, id))) throw new WorkflowError("This Mitti form is not a Ready Check form. Nothing was changed.");
 
   // Preflight the measurement record BEFORE touching Mitti, so any refusal leaves the form untouched.
   const scope = await jobScope(jobId);
