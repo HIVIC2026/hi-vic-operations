@@ -391,10 +391,30 @@ export async function processMessages(raw: GraphMessage[], mailbox: string, coun
   if (!msgs.length) return;
   if (msgs.some(m => !m.providerMessageId || !Number.isFinite(Date.parse(m.at)) || Date.parse(m.at) <= 0))
     throw new Error("Outlook returned a message without a usable identity or timestamp.");
-  const { byNumber, byEmail, byThread } = await loadCandidates(msgs, mailbox);
+  const { byNumber, byEmail, byThread, byId } = await loadCandidates(msgs, mailbox);
   const work: Work[] = [];
+  const recordOnly = !!window.history;
   // Reserve the entire page before decisions, so a later reply on this page is visible to earlier declines.
   for (const m of msgs) {
+    // A mutable old id whose immutable internetMessageId matches an already-stored message is the same
+    // original under a changed id; its files are repaired idempotently. Distinct emails keep distinct
+    // internetMessageIds and are never merged.
+    if (m.internetMessageId) {
+      const { data: aliases, error: ae } = await syncAdmin.from("job_communications").select("job_id")
+        .eq("provider", "outlook").eq("source_reference", m.internetMessageId).neq("provider_message_id", m.providerMessageId).limit(20);
+      if (ae) throw new Error(`Outlook identity history unavailable: ${ae.message}`);
+      const aliasIds = [...new Set((aliases ?? []).map((a) => String(a.job_id)))];
+      if (aliasIds.length) {
+        counts.duplicate++;
+        if (m.hasAttachments) {
+          try {
+            const r = await repairAttachments({ provider_message_id: m.providerMessageId, mailbox, message: m, route: { kind: "job", jobIds: aliasIds, how: "thread" }, attachments_complete: true, attachment_refs: [], status: "complete", record_only: true });
+            if (r) counts.files += r.stored;
+          } catch { counts.filesSkipped++; } // visible in the counts; retried naturally on the next sync
+        }
+        continue;
+      }
+    }
     let route: Route = matchMessage(m, counterpartEmails(m, mailbox, OUR_DOMAINS), byNumber, byEmail, byThread);
     if (route.kind === "not_homeowner") { counts.notHomeowner++; continue; }
     // Our own outbound copy of an email the portal already recorded is not new history on that job.
@@ -412,9 +432,25 @@ export async function processMessages(raw: GraphMessage[], mailbox: string, coun
       if (existing.status === "pending") work.push(existing as Work); else counts.duplicate++;
       continue;
     }
-    const { data, error } = await syncAdmin.rpc("begin_outlook_message", { _mailbox: mailbox, _message: m, _route: route });
+    const { data, error } = await syncAdmin.rpc("begin_outlook_message", { _mailbox: mailbox, _message: m, _route: route, _record_only: recordOnly });
     if (error || !data) throw new Error(`Outlook message could not be reserved: ${error?.message ?? "result missing"}`);
-    if (data.state === "pending") work.push(data.work as Work); else counts.duplicate++;
+    if (data.state === "pending") {
+      work.push(data.work as Work);
+      // A family reply later in the same batch must find the thread its first message just created.
+      if (m.threadId && route.kind === "job") {
+        const cands = routeJobIds(route).map((id) => byId.get(id)).filter((c): c is CandidateJob => !!c);
+        byThread.set(m.threadId, [...new Map([...(byThread.get(m.threadId) ?? []), ...cands].map((c) => [c.id, c])).values()]);
+      }
+    } else {
+      counts.duplicate++;
+      // Mail stored by the metadata-only era: repair its missing files idempotently, no workflow changes.
+      if (route.kind === "job" && m.hasAttachments) {
+        try {
+          const r = await repairAttachments({ provider_message_id: m.providerMessageId, mailbox, message: m, route, attachments_complete: true, attachment_refs: [], status: "complete", record_only: true });
+          if (r) counts.files += r.stored;
+        } catch { counts.filesSkipped++; }
+      }
+    }
   }
   for (const item of work.sort((a, b) => Date.parse(a.message.at) - Date.parse(b.message.at))) await finishWork(item, counts, window);
 }
@@ -460,22 +496,31 @@ export async function runOutlookSync(opts: { maxPages?: number; pageSize?: numbe
       since: string, window: ClosureWindow, completeWhenFresh: string | null) => {
       if (!Number.isFinite(Date.parse(since))) throw new Error("Outlook has an invalid saved timestamp; Office must review the cursor.");
       const savedNext = state![nextKey] as string | null;
-      let url: string | null = savedNext ? outlookGatewayUrl(savedNext)
-        : `${outlookMailboxPath(mailbox)}/messages?$select=${SELECT}&$filter=${field} ge ${new Date(since).toISOString()} and ${field} le ${now}&$orderby=${field} asc&$top=${pageSize}`;
+      const freshUrl = `${outlookMailboxPath(mailbox)}/messages?$select=${SELECT}&$filter=${field} ge ${new Date(since).toISOString()} and ${field} le ${now}&$orderby=${field} asc&$top=${pageSize}`;
+      let url: string | null = savedNext ? outlookGatewayUrl(savedNext) : freshUrl;
+      let usingSavedNext = !!savedNext;
+      let recovered = false;
       let last = since;
       const visited = new Set<string>();
       for (let page = 0; url && page < maxPages; page++) {
         const canonical = outlookGatewayUrl(url);
         if (visited.has(canonical)) throw new Error("Outlook repeated a continuation; the cursor was not advanced.");
         visited.add(canonical);
-        const response: { value: GraphMessage[]; "@odata.nextLink"?: string } = await graph(canonical);
+        let response: { value: GraphMessage[]; "@odata.nextLink"?: string };
+        try { response = await graph(canonical); }
+        catch (e) {
+          // An expired or invalid saved continuation is recovered by replaying that stream from its saved
+          // timestamp — already-imported messages dedupe by provider id, so nothing is skipped or repeated.
+          if (usingSavedNext && !recovered) { recovered = true; usingSavedNext = false; url = freshUrl; continue; }
+          throw e;
+        }
         if (!Array.isArray(response.value)) throw new Error("Outlook returned an invalid message page.");
         // Validate continuation before committing effects from the page.
         const next = response["@odata.nextLink"] ? outlookGatewayUrl(response["@odata.nextLink"]) : null;
         // A saved continuation belongs to an older cutoff. Even its final page cannot prove that
         // newer replies are absent. Such declines get Office review, never an automatic closure.
         // Inbound is processed first, so outbound and pending retries receive the same proven window.
-        const win: ClosureWindow = completeWhenFresh && !savedNext && !next ? { ...window, inboxCompleteThrough: completeWhenFresh } : window;
+        const win: ClosureWindow = completeWhenFresh && !usingSavedNext && !next ? { ...window, inboxCompleteThrough: completeWhenFresh } : window;
         counts.fetched += response.value.length;
         await processMessages(response.value, mailbox, counts, win);
         if (counts.errors) throw new Error(`${counts.errors} message(s) remain unfinished; the cursor was not advanced.`);
@@ -510,7 +555,7 @@ export async function runOutlookSync(opts: { maxPages?: number; pageSize?: numbe
         cursors["catchup_inbound_cursor"] = null; cursors["catchup_inbound_next_link"] = null;
         cursors["catchup_outbound_cursor"] = null; cursors["catchup_outbound_next_link"] = null;
       }
-      await resumePending(mailbox, counts, { inboxCompleteThrough: null });
+      await resumePending(mailbox, counts, historyWindow);
     } else {
       let inboxCompleteThrough: string | null = null;
       const inboundRemaining = await pull("receivedDateTime", "all_inbound_cursor", "all_inbound_next_link",
