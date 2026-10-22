@@ -305,33 +305,42 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
   }
 
   if (measureAudit) {
-    const ids = await templateIds();
-    const auditNow = await api.getAudit(measureAudit);
-    // Jo 22 Oct 2026: a Ready Check done in Mitti may use either configured template (installer A1 or HIV A2);
-    // pick the one the form actually uses (normalised id comparison). The channel variant stays the fallback.
-    const auditTemplate = String((auditNow as Any)?.template_id ?? "");
-    const tid = [ids.readyCheck, ids.readyCheckPriced].filter(Boolean).find((t) => sameMittiTemplateId(t, auditTemplate))
-      ?? (readyCheckVariant(job.channel) === "ready_check_priced" ? ids.readyCheckPriced : ids.readyCheck);
-    if (!tid) throw new WorkflowError(MEASUREUP_TEMPLATE_MISSING);
-    let plan;
     try {
-      plan = planSync(auditNow, { storedAuditId: measureAudit, jobNumber: job.job_number, assessmentStatus: null, templateId: tid });
-    } catch (e) { throw wrap(e); }
-    if (!plan.locked) {
-      const mp = await applyMeasure(jobId, actorId, measureAudit, "installer", splitPatch(plan.patch).measure, plan.snapshot);
-      const mIssues = plan.issues.filter((i) => !/PIESA|Switchboard/.test(i));
-      issues = [...issues, ...mIssues, ...(mp.action === "skip" ? [mp.reason] : [])];
-      completed = completed || plan.completed;
-      if (plan.completed) await saveMittiReport(jobId, actorId, measureAudit, plan.modifiedAt ?? null, "Ready Check", call);
-      // Installer-brought jobs: draft (never send) the co-branded owner quote from the installer's ticked price.
-      if (plan.completed && readyCheckVariant(job.channel) === "ready_check_priced") {
-        try {
-          const d = await draftInstallerQuoteFromReadyCheck(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], measureAudit);
-          if (d && !d.ready) issues = [...issues, ...d.blockers.map((b) => `Owner quote: ${b}`)];
-          if (d?.ready) await applyCobrand(jobId);
-        } catch (e) { issues = [...issues, `Owner quote could not be drafted: ${e instanceof Error ? e.message : "error"}`]; }
+      const ids = await templateIds();
+      const auditNow = await api.getAudit(measureAudit);
+      // Jo 22 Oct 2026: a Ready Check done in Mitti may use either configured template (installer A1 or HIV A2);
+      // pick the one the form actually uses (normalised id comparison). The channel variant stays the fallback.
+      const auditTemplate = String((auditNow as Any)?.template_id ?? "");
+      const tid = [ids.readyCheck, ids.readyCheckPriced].filter(Boolean).find((t) => sameMittiTemplateId(t, auditTemplate))
+        ?? (readyCheckVariant(job.channel) === "ready_check_priced" ? ids.readyCheckPriced : ids.readyCheck);
+      if (!tid) throw new WorkflowError(MEASUREUP_TEMPLATE_MISSING);
+      const plan = planSync(auditNow, { storedAuditId: measureAudit, jobNumber: job.job_number, assessmentStatus: null, templateId: tid });
+      if (!plan.locked) {
+        const mp = await applyMeasure(jobId, actorId, measureAudit, "installer", splitPatch(plan.patch).measure, plan.snapshot);
+        const mIssues = plan.issues.filter((i) => !/PIESA|Switchboard/.test(i));
+        issues = [...issues, ...mIssues, ...(mp.action === "skip" ? [mp.reason] : [])];
+        completed = completed || plan.completed;
+        if (plan.completed) await saveMittiReport(jobId, actorId, measureAudit, plan.modifiedAt ?? null, "Ready Check", call);
+        // Installer-brought jobs: draft (never send) the co-branded owner quote from the installer's ticked price.
+        if (plan.completed && readyCheckVariant(job.channel) === "ready_check_priced") {
+          try {
+            const d = await draftInstallerQuoteFromReadyCheck(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], measureAudit);
+            if (d && !d.ready) issues = [...issues, ...d.blockers.map((b) => `Owner quote: ${b}`)];
+            if (d?.ready) await applyCobrand(jobId);
+          } catch (e) { issues = [...issues, `Owner quote could not be drafted: ${e instanceof Error ? e.message : "error"}`]; }
+        }
+        // History only on change (Jo 23 Oct): an unchanged re-sync (same answers, same modified time)
+        // adds no new event row.
+        const { data: lastEv } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_measureup_synced").order("created_at", { ascending: false }).limit(1).maybeSingle();
+        const lastMod = (lastEv?.details as { modified_at?: string | null } | null)?.modified_at ?? null;
+        const changed = mp.action !== "skip" || (plan.completed && (plan.modifiedAt ?? null) !== lastMod);
+        if (changed) await logEvent(jobId, actorId, "mitti_measureup_synced", plan.completed ? "Mitti Ready Check synced (completed in Mitti)" : "Mitti Ready Check partial data synced", { audit_id: measureAudit, measurement: mp.action, issues: mIssues, modified_at: plan.modifiedAt ?? null });
       }
-      await logEvent(jobId, actorId, "mitti_measureup_synced", plan.completed ? "Mitti Ready Check synced (completed in Mitti)" : "Mitti Ready Check partial data synced", { audit_id: measureAudit, measurement: mp.action, issues: mIssues });
+    } catch (e) {
+      // Recorded so the office can retry (never auto-retried in a loop); the rest of the sync still lands.
+      const msg = e instanceof Error ? e.message : "Mitti error";
+      await logEvent(jobId, actorId, "mitti_measureup_sync_failed", `Ready Check sync failed: ${msg}`, { audit_id: measureAudit, needs_office: true }, { internal: true }).catch(() => undefined);
+      issues = [...issues, `Ready Check sync failed: ${msg}`];
     }
   }
   return { locked, completed, issues };
