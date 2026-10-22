@@ -53,7 +53,7 @@ export async function sweepPartnerExpiry(actorId: string | null) {
     const { business, credentials } = await loadBusiness(r.id);
     const blocker = partnerWorkBlocker(business as BusinessLike, credentials);
     if (blocker?.startsWith("Expired")) {
-      await admin.from("businesses").update({ onboarding_status: "expired", onboarding_notes: blocker, updated_at: new Date().toISOString() }).eq("id", r.id);
+      await admin.from("businesses").update({ onboarding_status: "expired", onboarding_notes: (business as { onboarding_notes?: string | null }).onboarding_notes?.includes("[TEST PARTNER]") ? `[TEST PARTNER] ${blocker}` : blocker, updated_at: new Date().toISOString() }).eq("id", r.id);
       expired++;
     }
   }
