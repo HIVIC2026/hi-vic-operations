@@ -171,7 +171,8 @@ export function searchItems<T>(items: T[], q: string, fields: (i: T) => (string 
 }
 
 // ---------- Correspondence ----------
-export type Correspondence = { id: string; at: string; direction: "inbound" | "outbound" | "internal"; channel: string; from: string | null; subject: string | null; body: string; status: string; source: "portal_message" | "job_communication"; audience: Audience[]; internal: boolean; provider?: string | null; to?: string[]; attachments?: string[] };
+export type CorrespondenceAttachment = { name: string; path: string | null; url?: string | null };
+export type Correspondence = { id: string; at: string; direction: "inbound" | "outbound" | "internal"; channel: string; from: string | null; subject: string | null; body: string; status: string; source: "portal_message" | "job_communication"; audience: Audience[]; internal: boolean; provider?: string | null; to?: string[]; attachments?: string[]; attachmentFiles?: CorrespondenceAttachment[] };
 
 export function buildCorrespondence(messages: Row[], comms: Row[], senderRole: (userId: string | null) => Role | null): Correspondence[] {
   const out: Correspondence[] = [];
