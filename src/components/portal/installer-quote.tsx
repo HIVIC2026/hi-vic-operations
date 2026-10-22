@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { clearSiteConditionsHold, getInstallerIntake, getInstallerQuoteDraft, officeIntakeAction, sendInstallerQuote } from "@/lib/installer-quote.functions";
+import { clearSiteConditionsHold, getInstallerIntake, getInstallerQuoteDraft, officeIntakeAction, sendInstallerQuote, stopInstallerQuoteHold } from "@/lib/installer-quote.functions";
 import { Button } from "@/components/ui/button";
 
 const money = (n: number) => `$${n.toFixed(2)}`;

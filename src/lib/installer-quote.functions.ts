@@ -62,6 +62,16 @@ export const sendInstallerQuote = createServerFn({ method: "POST" }).middleware(
     return { delivery, queued: true };
   });
 
+// ---- Stage 6 (Jo 22 Oct 2026): the office stops an automatically prepared quote before its window ends. ----
+export const stopInstallerQuoteHold = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: z.string().uuid(), quoteId: z.string().uuid(), reason: z.string().trim().min(3).max(500) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { stopQuoteHold } = await import("./quote-hold.server");
+    await stopQuoteHold(data.jobId, context.userId, data.quoteId, data.reason);
+    return { stopped: true as const };
+  });
+
 // ---- Approved installer intake (Jo, 8 Oct 2026): office review of the short intake. Admin only. ----
 export const getInstallerIntake = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
