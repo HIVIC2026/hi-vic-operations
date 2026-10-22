@@ -8,7 +8,7 @@ export const getInstallerQuotesToCheck = createServerFn({ method: "POST" }).midd
     await requireAdmin(context.supabase);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { data: jobs, error } = await admin.from("jobs").select("id, job_number, stage, owners(full_name), properties(address_line, suburb)")
-      .eq("channel", "installer_sourced").is("deleted_at", null).not("stage", "in", "(cancelled,complete)").neq("source", "qa_test").limit(500);
+      .eq("channel", "installer_sourced").is("deleted_at", null).not("stage", "in", "(cancelled,complete)").or("source.is.null,source.neq.qa_test").is("qa_archived_at", null).or("office_removed.is.null,office_removed.eq.false").limit(500);
     if (error) throw new Error("Could not read installer jobs.");
     const ids = (jobs ?? []).map((j) => j.id);
     if (!ids.length) return { rows: [] };
