@@ -46,7 +46,7 @@ void LAUNCH_COPY_APPROVED;
  *  mode "preview" renders without sending and without creating any link token (missing links become placeholders);
  *  "manual_copy" is the same render but issues the lead's missing unsubscribe/referral links for an Office hand-send (STEP 32);
  *  "test_to_jo" sends a real lead's email to Jo's inbox only, with TEST-job links. */
-export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string; /** TEST only: send the Step 3 likely-eligible email instead, same facts. */ variant?: "likely_estimate"; mode?: "send" | "preview" | "manual_copy" | "test_to_jo" | "test_preview"; automaticInsulation?: boolean; /** Explicit Office request only; binds the approved request to the review shown in preview. */ morePhotosReviewId?: string; /** Automatic Group B initial only: render the approved received-media acknowledgement variant. */ mediaAcknowledgement?: boolean; /** Set only by the post-Gate-1 router: the owner's own first reply. */ automaticInitial?: boolean; /** S20-R01: set only by the automatic Group B invitation for a NEW enquiry while the master switch is off; the new-enquiry gate is re-checked before the provider call. */ newEnquiryAutoReply?: boolean; /** Office manual copy only (Jo, 12 Oct): render the approved three-variant email. Never sends. */ officeVariant?: import("./save-spot-offer.core").SaveSpotVariant; /** Set ONLY by the post-intake worker for an ENQ_01 manual-backlog item (unforgeable Symbol). */ manualBacklog?: import("./manual-backlog.core").ManualBacklogTrust; /** Jo 21 Oct: Office-approved send of a held Office review enquiry (sendOfficeHeldEmail only). */ officeHeld?: boolean };
+export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string; /** TEST only: send the Step 3 likely-eligible email instead, same facts. */ variant?: "likely_estimate"; mode?: "send" | "preview" | "manual_copy" | "test_to_jo" | "test_preview"; automaticInsulation?: boolean; /** Explicit Office request only; binds the approved request to the review shown in preview. */ morePhotosReviewId?: string; /** Jo 22 Oct 2026: Office-edited more-photos wording; body-only swap, upload link appended automatically. */ customText?: string; /** Automatic Group B initial only: render the approved received-media acknowledgement variant. */ mediaAcknowledgement?: boolean; /** Set only by the post-Gate-1 router: the owner's own first reply. */ automaticInitial?: boolean; /** S20-R01: set only by the automatic Group B invitation for a NEW enquiry while the master switch is off; the new-enquiry gate is re-checked before the provider call. */ newEnquiryAutoReply?: boolean; /** Office manual copy only (Jo, 12 Oct): render the approved three-variant email. Never sends. */ officeVariant?: import("./save-spot-offer.core").SaveSpotVariant; /** Set ONLY by the post-intake worker for an ENQ_01 manual-backlog item (unforgeable Symbol). */ manualBacklog?: import("./manual-backlog.core").ManualBacklogTrust; /** Jo 21 Oct: Office-approved send of a held Office review enquiry (sendOfficeHeldEmail only). */ officeHeld?: boolean };
 /** Jo's own inbox for "send me a test of this lead". */
 export const JO_TEST_INBOX = "jolowexo@hotmail.com";
 /** TEST job whose links go into Jo's test copies, so pressing them never touches the real lead. */
@@ -70,12 +70,14 @@ export async function sendExistingInsulationSaveSpot(jobId: string, actorId: str
   return sendOne(jobId, actorId, false, { mode: preview ? "preview" : "send" }, true);
 }
 
-/** Explicit Office-only request. Reuses approved T5/T6 and the normal sender guard stack. */
-export async function sendMorePhotosRequest(jobId: string, actorId: string | null, preview: boolean, expectedReviewId?: string): Promise<HotSendResult & { reviewId?: string }> {
+/** Explicit Office-only request. Reuses approved T5/T6 and the normal sender guard stack. Jo 22 Oct 2026:
+ *  `customText` (Office-edited wording) replaces only the body — guards, reservation, TEST routing and
+ *  logging are unchanged, and the owner's upload link is appended automatically. */
+export async function sendMorePhotosRequest(jobId: string, actorId: string | null, preview: boolean, expectedReviewId?: string, customText?: string): Promise<HotSendResult & { reviewId?: string }> {
   if (!preview && !expectedReviewId) return { jobId, jobNumber: null, outcome: 'blocked', detail: 'Preview this photo request before sending.' };
   const review = await morePhotosRequestReview(jobId, expectedReviewId);
   if (review.blocker || !review.reviewId) return { jobId, jobNumber: null, outcome: 'blocked', detail: review.blocker ?? 'An Office review is required.' };
-  return { ...await sendOne(jobId, actorId, false, { mode: preview ? 'preview' : 'send', morePhotosReviewId: review.reviewId }), reviewId: review.reviewId };
+  return { ...await sendOne(jobId, actorId, false, { mode: preview ? 'preview' : 'send', morePhotosReviewId: review.reviewId, customText }), reviewId: review.reviewId };
 }
 
 async function followupAllowed(token: string) {
