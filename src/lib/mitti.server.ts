@@ -208,6 +208,28 @@ async function applyMeasure(jobId: string, actorId: string | null, auditId: stri
   return plan;
 }
 
+/** Stage 3 (Jo 23 Oct): new A1 contact/permission/electrician answers, absent-safe. Fills blank owner
+ *  contact fields, records the electrician choice only when the job has none, and logs the details for
+ *  the office. Never records marketing consent — permission is only ever a factual internal note. */
+async function applyContactAnswers(jobId: string, actorId: string | null, entries: { label: string; value: string | null }[]) {
+  const { contactAnswersFromEntries } = await import("./mitti.core");
+  const a = contactAnswersFromEntries(entries);
+  if (!a.phone && !a.email && a.contactPermission == null && !a.electricianChoice && !a.electricianPriceIncGst && !a.electricianName && !a.electricianLicence) return;
+  const { data: job } = await admin.from("jobs").select("owner_id, electrician_choice").eq("id", jobId).maybeSingle();
+  if (!job) return;
+  const patch: Record<string, string> = {};
+  if (a.phone || a.email) {
+    const { data: o } = await admin.from("owners").select("phone,email").eq("id", job.owner_id).maybeSingle();
+    if (o) {
+      if (a.phone && !String(o.phone ?? "").trim()) patch.phone = a.phone;
+      if (a.email && !String(o.email ?? "").trim()) patch.email = a.email;
+    }
+  }
+  if (Object.keys(patch).length) await admin.from("owners").update(patch).eq("id", job.owner_id);
+  if (a.electricianChoice && !job.electrician_choice) await admin.from("jobs").update({ electrician_choice: a.electricianChoice === "own" ? "installer_own" : "hivic_organise" }).eq("id", jobId);
+  await logEvent(jobId, actorId, "mitti_contact_answers", `Ready Check form answers recorded (owner contact permission: ${a.contactPermission == null ? "not on form" : a.contactPermission ? "yes" : "no"})`, { has_phone: !!a.phone, has_email: !!a.email, permission: a.contactPermission, electrician_choice: a.electricianChoice, electrician_price_inc_gst: a.electricianPriceIncGst, electrician_name: a.electricianName, electrician_licence: a.electricianLicence }, { internal: true });
+}
+
 /** Save Mitti's finished PDF report to the job's private files, once per completed audit version. Never throws. */
 async function saveMittiReport(jobId: string, actorId: string | null, auditId: string, modifiedAt: string | null, label: string, call: MittiCall) {
   const key = `${auditId}:${modifiedAt ?? "completed"}`;

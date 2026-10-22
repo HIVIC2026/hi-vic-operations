@@ -512,6 +512,26 @@ export function parseAudit(audit: Any) {
   };
 }
 
+/** New A1 answers (Jo 23 Oct): contact details, contact permission and the electrician choice.
+ *  Absent-safe: a label that isn't on the form returns null — nothing is invented. */
+export type MittiContactAnswers = {
+  phone: string | null; email: string | null; contactPermission: boolean | null;
+  electricianChoice: "hivic" | "own" | null; electricianPriceIncGst: string | null; electricianName: string | null; electricianLicence: string | null;
+};
+export function contactAnswersFromEntries(entries: { label: string; value: string | null }[]): MittiContactAnswers {
+  const raw = val(entries, ["Who is doing the electrical safety check?"]);
+  const electricianChoice = raw == null ? null : /own electrician/i.test(raw) ? ("own" as const) : /home insulation victoria/i.test(raw) ? ("hivic" as const) : null;
+  return {
+    phone: val(entries, ["Homeowner phone", "Owner phone"]),
+    email: val(entries, ["Homeowner email", "Owner email"]),
+    contactPermission: yesNo(val(entries, ["Homeowner agrees to be contacted by Home Insulation Victoria"])),
+    electricianChoice,
+    electricianPriceIncGst: val(entries, ["Electrician price (inc GST)"]),
+    electricianName: val(entries, ["Electrician name"]),
+    electricianLicence: val(entries, ["Electrician licence number"]),
+  };
+}
+
 /** Verify the stored audit's exact identity, template and job before any reuse write or sync. */
 export function validateStoredMittiAudit(audit: Any, ctx: { storedAuditId: string; jobNumber: string; templateId?: string }) {
   const p = parseAudit(audit);
