@@ -85,16 +85,24 @@ export function templateKindFor(templateId: string, ids: { readyCheck: string | 
 }
 
 /** Address key for non-blocking duplicate flags: street + suburb from Mitti's "street, suburb, state, postcode". */
+const STREET_SUFFIXES: [RegExp, string][] = [[/\bstreet\b/g, "street"], [/\bst\b/g, "street"], [/\brd\b/g, "road"], [/\broad\b/g, "road"], [/\bcrt?\b/g, "court"], [/\bcourt\b/g, "court"], [/\bdr\b/g, "drive"], [/\bdrive\b/g, "drive"], [/\bhwy\b/g, "highway"], [/\bhighway\b/g, "highway"], [/\bav(e|\.)?\b/g, "avenue"], [/\bavenue\b/g, "avenue"]];
+
+function streetKey(s: string): string {
+  let k = norm(s);
+  for (const [re, full] of STREET_SUFFIXES) if (re.test(k)) { k = k.replace(re, full).replace(/\s+/g, " ").trim(); break; }
+  return k;
+}
+
 export function pickupAddressKey(address: string | null | undefined): string | null {
   const parts = String(address ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  const street = parts[0] ? norm(parts[0]) : "";
+  const street = parts[0] ? streetKey(parts[0]) : "";
   const suburb = parts.length > 2 && parts[1] ? norm(parts[1]) : "";
   if (!street) return null;
   return suburb ? `${street}|${suburb}` : street;
 }
 
 export function propertyAddressKey(addressLine: string | null | undefined, suburb: string | null | undefined): string | null {
-  const street = addressLine ? norm(addressLine) : "";
+  const street = addressLine ? streetKey(addressLine) : "";
   if (!street) return null;
   const sub = suburb ? norm(suburb) : "";
   return sub ? `${street}|${sub}` : street;
