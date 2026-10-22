@@ -466,3 +466,4 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Office "Installer quotes to check" list on Active jobs
 - [x] Live TEST rerun (form created, partial sync, quote draft; completing in Mitti needs a person) of installer Add a job → Mitti → sync → quote draft
 - [x] Estimate page removal box to match the email look
+- [x] Removal box: state $15 per m² only for areas needing removal (Jo 22 Oct)

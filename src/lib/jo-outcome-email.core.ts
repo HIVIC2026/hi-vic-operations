@@ -452,7 +452,7 @@ const QUOTE_REBATE = /^\*\*(You could save|Potential VEU rebate):? (.+)\*\*$/;
 const QUOTE_COST = /^(Your estimated cost after rebate|Estimated cost if eligible|Your estimated cost): (\$[\d,]+) including GST$/;
 const QUOTE_BEFORE = /^Before rebate: (\$[\d,]+) including GST$/;
 const QUOTE_FACT = /^(Property|Ceiling size): (.+)$/;
-const QUOTE_REMOVAL = /^Removal of old insulation, if needed: up to \$[\d,]+$/;
+const QUOTE_REMOVAL = /^Removal of old insulation, if needed: up to \$[\d,]+( \(\$[\d.]+ per m² inc GST, only for the areas that need removal\))?$/;
 
 /** Jo's "Your preliminary quote" + "What this includes" in the approved rebate box / price / ticked list layout. */
 function quoteCardHtml(content: string[], includes: string[] | null): string {

@@ -95,7 +95,6 @@ function CampaignDesign({ saveAllowed, ownerQualified, reviewStatus, group, toke
   const videoBtn = <Button asChild className="h-14 w-full rounded-xl bg-estimate-green font-display text-lg font-bold text-estimate-white hover:bg-estimate-accent"><Link to="/estimate/$token/video" params={{ token }}>Send my insulation details →</Link></Button>;
   const removal = p.insulation === "none" ? "Doesn't include removing old insulation (you told us there isn't any)." : removalNote(p.removal ?? { kind: "unknown" });
   const row = (l: string, v: string, cls = "") => <div className={`flex justify-between gap-3 py-1.5 text-sm ${cls}`}><span>{l}</span><span>{v}</span></div>;
-  const gets: [string, string][] = [["Free Ready Check", "We measure your roof space and confirm the job."], ["R5.0 ceiling insulation", "Supplied and fitted by a certified installer."], ["Pre Insulation Electrical Safety Assessment (PIESA)", "By a licensed electrician, as the rules require."], ["Rebate paperwork, done for you", "We handle the forms and the claim."]];
   return <div className="mx-auto max-w-[560px] px-4 pt-5 text-estimate-navy">
     <header className="flex items-center justify-between gap-3">
       <img src={CUSTOMER_BRAND.logoUrl} alt="Home Insulation Victoria" className="h-10 w-auto" />
@@ -110,22 +109,37 @@ function CampaignDesign({ saveAllowed, ownerQualified, reviewStatus, group, toke
       {onsite ? <p className="mt-3 text-center text-sm">Answer either question Yes to qualify for the preliminary queue, or send photos or video for office review.</p> : <p className="mt-3 text-center text-sm">Free · no payment · no obligation</p>}
       {error && <p role="alert" className="mt-2 text-center text-sm text-danger">{error}</p>}
     </section>
+    {/* Jo 22 Oct: same look as the approved Save my spot email — rebate box, big price, removal box, facts, ticked list. */}
     <section data-campaign-estimate className="mt-7 rounded-[22px] bg-estimate-mist p-5">
-      <h2 className="font-display text-[11px] font-extrabold uppercase tracking-[0.13em]">Your estimate</h2>
-      <div className="mt-2">
-        {row(`Installation (${p.areaM2} m² × ${money(p.ratePerM2)})`, money(p.installation))}
-        {row("Pre Insulation Electrical Safety Assessment (PIESA)", money(p.assessmentFee))}
-        {row("Accredited Person fee", money(p.apFee))}
-        {p.removal?.kind === "included" && row(`Removal of existing insulation (${p.removal.areaM2} m², inc GST)`, money(p.removal.amount))}
-        {row("Normal price", money(p.gross), "border-t border-estimate-line font-bold")}
-        {row(`Your rebate (${p.veecs} VEECs × ${money(p.veecValue)})`, `−${rebate}`, "font-extrabold text-estimate-logo-green")}
-        <div className="flex items-end justify-between gap-3 border-t border-estimate-line pt-3"><span className="text-sm font-extrabold">You pay about</span><span className="font-display text-[34px] font-extrabold leading-none">{money(p.total)}</span></div>
-        {p.removalUpTo != null && <div data-removal-upto className="mt-4 rounded-2xl border border-estimate-line bg-estimate-blush p-4"><p className="text-[15px] font-extrabold leading-snug">{removalUpToLine(p.removalUpTo)}</p><p className="mt-1.5 text-[13.5px] leading-relaxed text-estimate-navy/80">{REMOVAL_UPTO_NOTE}</p></div>}
+      <div className="rounded-[18px] border-2 border-estimate-green bg-estimate-mint px-3 py-[18px] text-center">
+        <p className="text-[10px] font-extrabold uppercase tracking-[0.13em]">Your estimated VEU rebate</p>
+        <p className="mt-1 font-display text-[38px] font-extrabold leading-[42px] text-estimate-green">You could save {rebate}</p>
       </div>
-      {p.insulation !== "none" && <><p className="mt-3 text-sm font-bold leading-relaxed">{removal}</p><p className="mt-3 text-sm leading-relaxed">{EXISTING_PRELIMINARY}</p></>}
-      <p className="mt-3 text-xs leading-relaxed text-estimate-navy/75">Based on {p.address ? `${p.address} and ` : ""}a {p.areaM2} m² ceiling. {p.insulation === "none" ? removal : ""} <Link to="/estimate/$token/calculator" params={{ token }} className="font-bold text-estimate-blue">Try a different size →</Link></p>
-      <h2 className="mt-5 font-display text-[11px] font-extrabold uppercase tracking-[0.13em]">What you get</h2>
-      <ul className="mt-2 space-y-2">{gets.map(([t, d]) => <li key={t} className="text-[13.5px] leading-snug"><span className="font-extrabold text-estimate-logo-green">✓</span>&nbsp; <strong>{t}</strong><br /><span className="text-estimate-navy/75">{d}</span></li>)}</ul>
+      <div className="pb-3 pt-[18px] text-center">
+        <p className="text-[10px] font-extrabold uppercase tracking-[0.13em]">Your estimated cost after rebate</p>
+        <p className="mt-1 font-display text-[46px] font-extrabold leading-[50px] text-estimate-blue">{money(p.total)}</p>
+        <p className="mt-1 text-xs font-bold">incl. GST · before rebate {money(p.gross)}</p>
+      </div>
+      {p.removalUpTo != null && <div data-removal-upto className="mb-3 rounded-[14px] border border-estimate-line bg-estimate-blush px-4 py-3.5"><p className="text-[15px] font-extrabold leading-snug">{removalUpToLine(p.removalUpTo, p.areaM2)}</p><p className="mt-1.5 text-[13.5px] leading-relaxed">{REMOVAL_UPTO_NOTE}</p></div>}
+      <div className="border-t border-estimate-line">
+        {p.address && row("Property", p.address, "py-1 text-[13px] [&>span:last-child]:font-extrabold [&>span:last-child]:text-right")}
+        {row("Ceiling", `${p.areaM2} m²`, "py-1 text-[13px] [&>span:last-child]:font-extrabold")}
+      </div>
+      {p.insulation !== "none" && <>{p.removalUpTo == null && <p className="mt-3 text-sm font-bold leading-relaxed">{removal}</p>}<p className="mt-3 text-sm leading-relaxed">{EXISTING_PRELIMINARY}</p></>}
+      <p className="mt-3 text-sm leading-relaxed">{p.insulation === "none" ? removal : ""} <Link to="/estimate/$token/calculator" params={{ token }} className="font-bold text-estimate-blue">Want to explore a different ceiling size? Open the calculator →</Link></p>
+      <div className="mt-3.5 rounded-[14px] bg-estimate-white px-4 py-[15px]">
+        <p className="mb-1.5 font-display text-sm font-extrabold">What this includes</p>
+        {[
+          ["Free Ready Check", "We measure your roof space and confirm the job.", "FREE"],
+          [`R5.0 ceiling insulation (${p.areaM2} m² × ${money(p.ratePerM2)})`, "Supplied and fitted by a certified installer.", money(p.installation)],
+          ["Pre Insulation Electrical Safety Assessment (PIESA)", "By a licensed electrician, as the rules require.", money(p.assessmentFee)],
+          ["Accredited Person fee", "Rebate paperwork, done for you.", money(p.apFee)],
+          ...(p.removal?.kind === "included" ? [[`Removal of existing insulation (${p.removal.areaM2} m²)`, "Inc GST.", money(p.removal.amount)]] : []),
+        ].map(([t, d, a], i) => <div key={t} className={`py-2 ${i ? "border-t border-estimate-line" : ""}`}>
+          <div className="flex justify-between gap-3 text-sm"><span><span className="font-bold text-estimate-green">✓&nbsp;</span><strong>{t}</strong></span><span className={`whitespace-nowrap font-bold ${a === "FREE" ? "font-extrabold text-estimate-green" : ""}`}>{a}</span></div>
+          <p className="text-[12.5px] leading-snug">{d}</p>
+        </div>)}
+      </div>
     </section>
     <section className="mt-5 rounded-[22px] bg-estimate-blush p-5">
       <h2 className="font-display text-[23px] font-extrabold leading-tight">{onsite ? "Want to jump the queue?" : "Hold your place in line"}</h2>
