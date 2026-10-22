@@ -5,7 +5,7 @@ import { TRUSTED_ESTIMATE_TIERS, computeEstimate, type AreaCandidate } from "./e
 import { selectCurrentEstimate, type AreaTier } from "./intelligence.core";
 import { SUPPRESSING_EVENTS } from "./emailsafety.server";
 import { normaliseInsulation } from "./eligibility.core";
-import { declaredExtras, insulationDetailText } from "./enquiry.core";
+import { declaredExtras, declaredInsulationDetail, insulationDetailText } from "./enquiry.core";
 import { currentRetailSettings } from "./estimate.server";
 import { renderJoOutcomeEmail } from "./jo-outcome-email.core";
 import { withUnsubscribe } from "./emailsafety.core";
@@ -123,7 +123,7 @@ export async function loadEnquiryGroups(visibleIds: string[]) {
     return {
       ...c, ...(c.group === "insulation_check" && groupBMedia.excluded ? { nextAction: groupBMedia.received ? "Review existing photos/video" : "Check original media sync", reason: groupBInvitationBlocker(groupBMedia) ?? c.reason } : {}), id: j.id, kind: "job", jobNumber: j.job_number, reference: j.external_enquiry_id, name: owner?.full_name ?? null, email: owner?.email ?? null, phone: owner?.phone ?? null,
       address: formatPropertyAddress(p) || null, postcode: p?.postcode ?? null, propKey: propertyKey(p?.address_line, p?.postcode), createdAt: j.created_at, stage: j.stage,
-      areaLabel: AREA_LABEL[c.area.source], declaredInsulation, insulationDetail: insulationDetailText(declaredExtras(b44.raw?.answers ?? null)), hardFailures: audit?.hard_failures ?? [],
+      areaLabel: AREA_LABEL[c.area.source], declaredInsulation, insulationDetail: insulationDetailText(declaredInsulationDetail(b44.raw?.answers ?? null)), hardFailures: audit?.hard_failures ?? [],
       lastEmail: last ? { purpose: last.purpose, status: last.status, at: last.sent_at ?? last.created_at, error: last.error } : null,
       emailOutcomeUnknown: unknown ? { sendId: unknown.id, at: unknown.created_at, kind: sendKindFromKey(unknown.idempotency_key), detail: unknown.error } : null,
       consent: cBy.get(j.id)?.slice(-1)[0]?.consent_status ?? null, optedOut: optSet.has(j.id), bounced: bounceSet.has(j.id), source: j.source,

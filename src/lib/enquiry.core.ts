@@ -325,7 +325,7 @@ const answerText = (v: unknown): string | null => {
 /** Owner-declared existing insulation / top-floor answers from the Base44 answer snapshot (declared, never verified). */
 export function declaredExtras(answers: Record<string, unknown> | null | undefined) {
   const pick = (keys: string[]) => { for (const k of keys) { const t = answerText(answers?.[k]); if (t) return t; } return null; };
-  return { existing_insulation: pick(EXISTING_INSULATION_KEYS), top_floor: pick(TOP_FLOOR_KEYS), ...declaredInsulationDetail(answers) };
+  return { existing_insulation: pick(EXISTING_INSULATION_KEYS), top_floor: pick(TOP_FLOOR_KEYS) };
 }
 
 export type InsulationDetail = {

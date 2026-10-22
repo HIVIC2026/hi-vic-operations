@@ -1430,7 +1430,7 @@ export const getIntakeSummary = createServerFn({ method: "POST" }).middleware([r
       reference: job?.external_enquiry_id ?? null, source: job?.source ?? null, state: prop?.state ?? null, occupancy: prop?.occupancy ?? null,
       lifeSupport: job?.life_support_status ?? null, area: job?.estimated_area_unknown ? null : job?.estimated_area_m2 ?? null,
       consent: consents?.[0] ?? null, declared: b44?.declared ?? null,
-      declaredExtras: (await import("./enquiry.core")).declaredExtras(b44?.raw?.answers ?? null),
+      declaredExtras: { ...(await import("./enquiry.core")).declaredExtras(b44?.raw?.answers ?? null), ...(await import("./enquiry.core")).declaredInsulationDetail(b44?.raw?.answers ?? null) },
       // Preliminary website screening only – never the authoritative Step-2 category.
       screening: (() => { const prelim = job?.eligibility_decision_source !== "system" && job?.eligibility_decision_source !== "admin"; const raw = b44?.raw?.screening ?? null; return { outcome: prelim ? job?.eligibility_outcome ?? null : (typeof raw?.status === "string" ? raw.status : null), reasons: prelim ? job?.eligibility_reason ?? null : null, raw }; })(),
       media: links, lastMediaFailure: fails?.[0] ?? null,

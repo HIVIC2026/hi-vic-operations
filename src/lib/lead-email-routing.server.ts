@@ -1,5 +1,5 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { declaredExtras, insulationDetailRoute } from "./enquiry.core";
+import { declaredExtras, declaredInsulationDetail, insulationDetailRoute } from "./enquiry.core";
 import { normaliseInsulation } from "./eligibility.core";
 import { groupBMediaForJob } from "./group-b-media.server";
 import { groupBInitialAction } from "./group-b-media.core";
@@ -26,7 +26,7 @@ export async function selectLeadEmailRoute(jobId: string) {
     intakeWorkActive: !!work, declaredInsulation: effectiveInsulation(normaliseInsulation(extras.existing_insulation), latestOutcome),
     ownerEnteredArea: !job.estimated_area_unknown && Number(job.estimated_area_m2) > 0,
     // A recorded Office photo review always outranks the owner's own description.
-    insulationDetailRoute: latestOutcome ? null : insulationDetailRoute(extras),
+    insulationDetailRoute: latestOutcome ? null : insulationDetailRoute(declaredInsulationDetail(base44.raw?.answers ?? null)),
   });
 }
 

@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { declaredExtras, insulationDetailRoute, insulationDetailText } from "../src/lib/enquiry.core";
+import { declaredInsulationDetail, insulationDetailRoute, insulationDetailText } from "../src/lib/enquiry.core";
 import { automaticLeadEmail, DECLARED_THIN_SAVE_SPOT_HELD } from "../src/lib/enquiry-groups.core";
 import { enquirySchema } from "../src/lib/enquiry.server";
 import { ownerAnswerForGate1 } from "../src/lib/portal-presentation.core";
 
 const base = { source: "base44", channel: "hivic_sourced", decisionSource: "system", reviewRequired: false, outcome: "needs_onsite_confirmation", intakeWorkActive: false, declaredInsulation: "present" as const, ownerEnteredArea: true };
-const route = (a: Record<string, unknown>) => automaticLeadEmail({ ...base, insulationDetailRoute: insulationDetailRoute(declaredExtras({ insulation: "present", ...a })) });
+const route = (a: Record<string, unknown>) => automaticLeadEmail({ ...base, insulationDetailRoute: insulationDetailRoute(declaredInsulationDetail(a)) });
 
 describe("Jo 22 Oct insulation answers routing", () => {
   test("thin → no 'tell us about your insulation' email (held for Save My Spot)", () => {
@@ -42,11 +42,11 @@ describe("intake and display", () => {
     expect(r.success).toBe(true);
   });
   test("office sees 'Owner says: loose fill, thin, patchy'", () => {
-    const d = declaredExtras({ insulation: "present", insulation_type: "loose_fill", insulation_thickness: "thin", insulation_coverage: "partial" });
+    const d = { existing_insulation: "present", ...declaredInsulationDetail({ insulation_type: "loose_fill", insulation_thickness: "thin", insulation_coverage: "partial" }) };
     expect(insulationDetailText(d)).toBe("loose fill, thin, patchy");
     expect(ownerAnswerForGate1("existing_insulation", { declaredExtras: d })).toBe("Owner says insulation is present — Owner says: loose fill, thin, patchy");
   });
   test("unexpected values are ignored", () => {
-    expect(declaredExtras({ insulation_thickness: "huge" }).insulation_thickness).toBeNull();
+    expect(declaredInsulationDetail({ insulation_thickness: "huge" }).insulation_thickness).toBeNull();
   });
 });
