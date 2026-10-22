@@ -285,6 +285,7 @@ export function JobsWorkspace({
       )}
 
       {mode === "active" && <MittiPickupsToLink />}
+      {mode === "active" && <MittiSyncProblems />}
       {mode === "active" && <InstallerQuotesToCheck />}
 
       <div className="flex flex-wrap items-center gap-2 rounded-md border bg-card p-3">
