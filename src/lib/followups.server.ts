@@ -402,7 +402,7 @@ export async function sendPreliminaryIneligibleEmail(jobId: string, actorId: str
     // S20-R01: an automatic reply to an OFFICE decision never includes the Office's free-text reason (an internal note,
     // not reviewed for the customer); the email uses its standard wording. System Gate 1 reasons are unchanged.
     const reason = opts.newEnquiryAutoReply === true && official.decisionSource !== "system" ? null : official.reason;
-    let mail = await renderPreliminaryIneligibleMail(jobId, reason, owner.reference);
+    let mail: { subject: string; html: string; plainText: string } | null = await renderPreliminaryIneligibleMail(jobId, reason, owner.reference);
     // Jo 22 Oct 2026: Office-edited ineligible wording — only the body swaps; consent, opt-out,
     // suppression, once-per-home and logging are unchanged. The "Review my result" link is appended
     // automatically using the same link rule as the approved render.

@@ -319,7 +319,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     if (mode === "send" && sendId) await admin.from("customer_email_sends").update({ status: "failed", provider: "not_sent", error: held }).eq("id", sendId);
     return r("blocked", held);
   }
-  let mail = joMail;
+  let mail: { subject: string; html: string; plainText: string } = joMail;
   // Jo 22 Oct 2026: the Office may edit the more-photos wording and add anything they want. Only the body
   // swaps — reservation, consent, opt-out, one-request rules, TEST routing and logging are unchanged, and
   // the owner's upload link is appended automatically. Never applies to Save my spot sends.
