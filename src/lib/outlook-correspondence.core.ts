@@ -101,7 +101,7 @@ export function extractJobNumbers(text: string): string[] {
 
 export type CandidateJob = { id: string; jobNumber: string; ownerEmail: string | null; addressLine: string | null; postcode: string | null };
 export type MatchResult =
-  | { kind: "job"; jobId: string; how: "job_number" | "email_and_address" | "only_job_for_email" }
+  | { kind: "job"; jobIds: string[]; how: "job_number" | "job_numbers" | "thread" | "email_and_address" | "email_and_addresses" | "only_job_for_email" }
   | { kind: "unmatched"; reason: string; candidateJobIds: string[] }
   | { kind: "not_homeowner" };
 
