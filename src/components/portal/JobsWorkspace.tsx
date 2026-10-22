@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getJobListPage } from "@/lib/portal.functions";
 import { getInstallerQuotesToCheck } from "@/lib/installer-quote-review.functions";
+import { getMittiPickups, linkMittiPickup } from "@/lib/mitti-pickup.functions";
+import { pickupLabel } from "@/lib/mitti-pickup.core";
 import { CLOSED_VIEWS, JOB_SORT_KEYS, JOB_SORT_LABEL, VISIBLE_JOB_STAGES, type JobClosedView } from "@/lib/job-list-page.core";
 import { useListControls } from "@/hooks/use-list-controls";
 import { ListPagination } from "@/components/portal/ListPagination";
@@ -29,6 +31,73 @@ const COUNT_LABEL: Record<JobClosedView, string> = {
   ineligible: "Ineligible",
   test: "Removed / test",
 };
+
+/** Ready Checks an installer started straight in Mitti (no portal job yet) — office links each one. */
+function MittiPickupsToLink() {
+  const fetchRows = useServerFn(getMittiPickups);
+  const link = useServerFn(linkMittiPickup);
+  const { data, isPending, isError, error, refetch } = useQuery({ queryKey: ["mitti-pickups"], queryFn: () => fetchRows(), staleTime: 60_000, retry: 1 });
+  const [busy, setBusy] = useState<string | null>(null);
+  const [jobNumber, setJobNumber] = useState<Record<string, string>>({});
+  const [result, setResult] = useState<Record<string, { ok: string } | { err: string }>>({});
+  const act = async (auditId: string) => {
+    setBusy(auditId); setResult((r) => ({ ...r, [auditId]: { err: "" } as { err: string } }));
+    try {
+      const out = await link({ data: { auditId, jobId: (jobNumber[auditId] ?? "").trim() } });
+      setResult((r) => ({ ...r, [auditId]: { ok: `Linked to ${out.jobNumber}. ${out.issues.length ? `Sync notes: ${out.issues.join(" · ")}` : "Answers synced."}` } }));
+      await refetch();
+    } catch (e) { setResult((r) => ({ ...r, [auditId]: { err: e instanceof Error ? e.message : "Linking failed." } })); }
+    finally { setBusy(null); }
+  };
+  if (isError) return (
+    <section aria-label="Ready Checks started in Mitti" className="rounded-md border-2 border-warning/40 bg-card p-4">
+      <h2 className="font-display text-lg font-bold">Ready Checks started in Mitti</h2>
+      <p role="alert" className="mt-2 text-sm">Mitti could not be checked. <Button variant="link" onClick={() => refetch()}>Try again</Button> <span className="text-xs">{(error as Error)?.message}</span></p>
+    </section>
+  );
+  const rows = data?.rows ?? [];
+  if (isPending || !rows.length) return null;
+  return (
+    <section aria-label="Ready Checks started in Mitti" className="rounded-md border-2 border-warning/50 bg-card p-4">
+      <h2 className="font-display text-lg font-bold">Ready Checks started in Mitti <span className="ml-1 rounded-full bg-warning px-2 py-0.5 text-sm text-warning-foreground">{rows.length}</span></h2>
+      <p className="mt-1 text-sm text-sub">Started in Mitti without a portal job. Enter the job number to link the form — its answers then sync onto the job. Nothing is sent to anyone.</p>
+      <ul className="mt-2 divide-y">
+        {rows.map((r) => {
+          const res = result[r.auditId];
+          return (
+            <li key={r.auditId} className="py-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-semibold">{pickupLabel(r)}</p>
+                  <p className="text-sm text-sub">
+                    {r.business ? `${r.business.name} · ` : "Mitti user not matched · "}
+                    {r.templateKind === "hivic_form" ? "Home Insulation Victoria form" : "Installer form"} · checked {r.modifiedAt ? r.modifiedAt.slice(0, 10) : "—"}
+                    {r.assessorName ? ` · assessor ${r.assessorName}` : ""}
+                  </p>
+                  {r.duplicates.length > 0 && (
+                    <p className="text-sm font-semibold text-warning">Possible duplicate — {r.duplicates.map((d) => `${d.jobNumber} (${d.owner ?? "unknown owner"})`).join(", ")}. Check before linking; linking never blocks.</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    aria-label={`Job number for Mitti form ${r.mittiRef ?? r.auditId}`}
+                    placeholder="HV number"
+                    value={jobNumber[r.auditId] ?? ""}
+                    onChange={(e) => setJobNumber((m) => ({ ...m, [r.auditId]: e.target.value }))}
+                    className="h-10 w-32"
+                  />
+                  <Button size="sm" className="h-10" disabled={busy === r.auditId} onClick={() => act(r.auditId)}>{busy === r.auditId ? "Linking…" : "Link to job"}</Button>
+                </div>
+              </div>
+              {res && "ok" in res && <p role="status" className="text-sm text-success">{res.ok}</p>}
+              {res && "err" in res && res.err && <p role="alert" className="text-sm text-danger">{res.err}</p>}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
 
 /** Installer jobs whose owner quote needs the office: drafted and waiting, or held for missing details. */
 function InstallerQuotesToCheck() {
@@ -176,6 +245,7 @@ export function JobsWorkspace({
         </div>
       )}
 
+      {mode === "active" && <MittiPickupsToLink />}
       {mode === "active" && <InstallerQuotesToCheck />}
 
       <div className="flex flex-wrap items-center gap-2 rounded-md border bg-card p-3">
