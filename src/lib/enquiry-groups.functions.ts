@@ -87,19 +87,23 @@ export const noInsulationSaveSpotFn = createServerFn({ method: "POST" }).middlew
     return noInsulationOffer(data.jobId, context.userId, data.mode);
   });
 
-/** Preview and explicit Office submit only; saving an unclear review never calls this sender. */
+/** Preview and explicit Office submit only; saving an unclear review never calls this sender. Jo 22 Oct 2026:
+ *  the office may send edited wording (customText) — the server still runs every guard and appends the
+ *  owner's upload link automatically. */
 export const morePhotosRequestFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), mode: z.enum(["preview", "send"]), reviewId: z.string().uuid().optional() }).parse(d))
+  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), mode: z.enum(["preview", "send"]), reviewId: z.string().uuid().optional(), customText: z.string().trim().max(4000).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const { sendMorePhotosRequest } = await import("./hot-leads-send.server");
-    return sendMorePhotosRequest(data.jobId, context.userId, data.mode === "preview", data.reviewId);
+    return sendMorePhotosRequest(data.jobId, context.userId, data.mode === "preview", data.reviewId, data.customText);
   });
 
 
-/** Explicit one-owner ineligible email after a recorded "R2 or above" photo review and Office ineligible decision. */
+/** Explicit one-owner ineligible email after a recorded "R2 or above" photo review and Office ineligible decision.
+ *  Jo 22 Oct 2026: the office may send edited wording (customText) — every guard still runs and the
+ *  "Review my result" link is appended automatically. */
 export const reviewedIneligibleEmailFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), mode: z.enum(["preview", "prepare", "send"]).default("preview") }).parse(d))
+  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), mode: z.enum(["preview", "prepare", "send"]).default("preview"), customText: z.string().trim().max(4000).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
@@ -110,8 +114,8 @@ export const reviewedIneligibleEmailFn = createServerFn({ method: "POST" }).midd
       const { customerCommsEnabled } = await import("./comms.server");
       if (!(await customerCommsEnabled())) return { outcome: "blocked", detail: "Customer emails are switched off." };
       const p = await f.prepareIneligibleEmailForOffice(data.jobId);
-      return p.ok ? { outcome: "preview", detail: "Preview only", preview: { subject: p.subject, html: p.html } } : { outcome: "blocked", detail: p.reason };
+      return p.ok ? { outcome: "preview", detail: "Preview only", preview: { subject: p.subject, html: p.html, plainText: p.plainText } } : { outcome: "blocked", detail: p.reason };
     }
-    const r = await f.sendPreliminaryIneligibleEmail(data.jobId, context.userId ?? null);
+    const r = await f.sendPreliminaryIneligibleEmail(data.jobId, context.userId ?? null, undefined, { customText: data.customText });
     return r.sent ? { outcome: "sent", detail: "Sent" } : { outcome: r.reason === "delivered_unrecorded" ? "uncertain" : "blocked", detail: r.reason };
   });
