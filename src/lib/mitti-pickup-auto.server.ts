@@ -22,8 +22,9 @@ async function recordReview(auditId: string, businessName: string | null, reason
   await admin.from("workflow_events").insert({
     job_id: null, actor_id: null, event_type: "mitti_pickup_needs_review",
     summary: `Ready Check started in Mitti needs office review (${businessName ?? "installer not matched"}): ${reasons.join("; ")}`,
-    details: { audit_id: auditId, business: businessName, reasons, needs_office: true } as never, internal: true,
-  });
+    details: { audit_id: auditId, business: businessName, reasons, needs_office: true },
+    internal: true,
+  } as never);
 }
 
 /** First active member of a business, for the job's originating installer attribution. */
