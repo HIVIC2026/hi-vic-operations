@@ -123,5 +123,21 @@ export async function loadNeedsHivic() {
     const j = jobRows.find((r) => r.id === e.job_id);
     kept.push(needsItem("installer_usual_electrician_missing", e.job_id, j?.job_number ?? null, e.created_at, undefined, j));
   }
+  // Stage 8 (Jo 22 Oct): Mitti "Office needs to…" items from recorded events (latest per job; cleared by later events).
+  {
+    const { mittiOfficeItems } = await import("./ready-check-chase.core");
+    const types = ["mitti_measureup_sync_failed", "mitti_measureup_synced", "mitti_sync_retried", "ready_check_needs_office", "installer_quote_held", "installer_quote_queued",
+      "quote_hold_approved", "quote_requeued_after_review", "quote_hold_stopped", "quote_declined", "mitti_access_needed", "mitti_access_override", "mitti_audit_linked", "mitti_synced",
+      "ready_check_incomplete", "ready_check_incomplete_cleared", "mitti_pickup_needs_review", "mitti_pickup_auto_created"];
+    const since = new Date(now.getTime() - 60 * 86_400_000).toISOString();
+    const { data: mev, error: me } = await admin.from("workflow_events").select("job_id, event_type, created_at, details, summary").in("event_type", types).gte("created_at", since).order("created_at").limit(5000);
+    if (me) throw new Error("Could not load Mitti office items.");
+    for (const it of mittiOfficeItems((mev ?? []) as never, now)) {
+      if (it.jobId && !open.has(it.jobId)) continue;
+      const j = it.jobId ? jobRows.find((r) => r.id === it.jobId) : undefined;
+      const n = needsItem(it.code, it.jobId, j?.job_number ?? null, it.since, it.detail ?? undefined, j);
+      kept.push({ ...n, key: it.key });
+    }
+  }
   return { items: kept, checkedAt: now.toISOString() };
 }
