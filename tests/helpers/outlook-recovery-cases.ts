@@ -282,4 +282,77 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     assert.equal(grants.allowed, false);
     assert.equal((await h.db.query<{ allowed: boolean }>(`SELECT has_table_privilege('anon','outlook_message_work','SELECT') AS allowed`)).rows[0]!.allowed, false);
   })],
+  ["an inline-image-only email still stores its attached file privately", practice(async h => {
+    const message = graphMessage("inline-only", "Please see the photo.", { hasAttachments: false });
+    h.control.fetch = async url => {
+      if (url.includes("/attachments/inline-1/$value")) return bytesResponse(new Uint8Array([1, 2, 3, 4]), "image/jpeg");
+      if (url.includes("/attachments")) return jsonResponse({ value: [{ id: "inline-1", name: "photo.jpg", contentType: "image/jpeg", size: 4, isInline: true }] });
+      return jsonResponse({ value: [] });
+    };
+    const result = h.counts(); await h.server.processMessages([message], TEST_MAILBOX, result, COMPLETE_WINDOW);
+    assert.equal(result.errors, 0); assert.equal(result.stored, 1); assert.equal(result.files, 1);
+    const refs = (await row(h, "job_communications")).attachment_refs;
+    assert.equal(refs.length, 1);
+    assert.equal(refs[0].path, `correspondence/${TEST_JOB}/inline-only/1-photo.jpg`);
+    assert.equal(refs[0].skipped, null);
+    assert.equal(h.files.get(refs[0].path).length, 4);
+  })],
+  ["mail moved between folders is re-listed but never re-stored", practice(async h => {
+    await configured(h);
+    h.control.fetch = async url => {
+      if (url.includes("/attachments")) return jsonResponse({ value: [] });
+      if (url.includes("/me?") || url.includes("$select=id,body")) return readOnlyResponses(url);
+      if (url.includes("receivedDateTime")) return jsonResponse({ value: [graphMessage("moved-mail")] });
+      return jsonResponse({ value: [] });
+    };
+    const first = await h.server.runOutlookSync({ maxPages: 1 });
+    assert.equal(first.ok, true, first.blocker); assert.equal(first.counts.stored, 1);
+    // The same immutable message re-appears in the folder-agnostic stream (e.g. after an Archive move).
+    const second = await h.server.runOutlookSync({ maxPages: 1 });
+    assert.equal(second.ok, true, second.blocker); assert.equal(second.counts.duplicate, 1); assert.equal(second.counts.stored, 0);
+    assert.equal(await total(h, "job_communications"), 1);
+    const messagePages = h.requests.filter(r => r.url.includes("/messages?$select="));
+    assert.ok(messagePages.length >= 2);
+    assert.ok(messagePages.every(r => !r.url.includes("/mailFolders/")));
+  })],
+  ["one message concerning two properties links to both jobs and never duplicates", practice(async h => {
+    await h.db.exec(`INSERT INTO jobs(id,job_number,owner_id,property_id) VALUES('55555555-5555-4555-8555-555555555555','HV-1002','33333333-3333-4333-8333-333333333333','44444444-4444-4444-8444-444444444444')`);
+    const message = graphMessage("two-jobs", "Both homes please", { subject: "HV-1001 and HV-1002" });
+    const result = h.counts(); await h.server.processMessages([message], TEST_MAILBOX, result, COMPLETE_WINDOW);
+    assert.equal(result.errors, 0); assert.equal(result.stored, 1); assert.equal(result.closed, 0); assert.equal(result.flagged, 0);
+    assert.equal(await total(h, "job_communications"), 2);
+    assert.equal(await total(h, "outlook_message_work"), 1);
+    assert.equal(await total(h, "workflow_events"), 0);
+    const replay = h.counts(); await h.server.processMessages([message], TEST_MAILBOX, replay, COMPLETE_WINDOW);
+    assert.equal(replay.duplicate, 1); assert.equal(await total(h, "job_communications"), 2);
+    await assert.rejects(h.db.exec(rollback()), /preserve its queue/);
+  })],
+  ["a family reply in a known thread links to the job; an unknown sender is only counted", practice(async h => {
+    await h.db.query(`INSERT INTO job_communications(job_id,direction,channel,provider,provider_message_id,provider_thread_id,body) VALUES($1,'outbound','email','outlook','orig-msg','thread-1','original')`, [TEST_JOB]);
+    const reply = graphMessage("family-reply", "Grandma here — all good thanks", { conversationId: "thread-1", subject: "Re: insulation", from: { emailAddress: { address: "family@example.test" } } });
+    const stranger = graphMessage("stranger", "Buy now", { subject: "Deal", from: { emailAddress: { address: "news@vendor.example" } } });
+    const result = h.counts(); await h.server.processMessages([reply, stranger], TEST_MAILBOX, result, COMPLETE_WINDOW);
+    assert.equal(result.errors, 0); assert.equal(result.stored, 1); assert.equal(result.notHomeowner, 1);
+    const stored = await h.db.query<{ job_id: string; source_event: string }>(`SELECT job_id, source_event FROM job_communications WHERE provider_message_id='family-reply'`);
+    assert.equal(stored.rows.length, 1); assert.equal(stored.rows[0]!.job_id, TEST_JOB);
+    assert.equal(stored.rows[0]!.source_event, "outlook_sync:thread");
+    assert.equal((await h.db.query(`SELECT 1 FROM outlook_message_work WHERE provider_message_id='stranger'`)).rows.length, 0);
+  })],
+  ["historical catch-up stores old mail without changing any job and clears itself", practice(async h => {
+    await configured(h);
+    await h.db.exec(`UPDATE outlook_sync_state SET catchup_from='2026-10-01T00:00:00Z', backfill_from='2026-10-10T00:00:00Z'`);
+    h.control.fetch = async url => {
+      if (url.includes("/attachments")) return jsonResponse({ value: [] });
+      if (url.includes("/me?") || url.includes("$select=id,body")) return readOnlyResponses(url);
+      if (url.includes("receivedDateTime ge 2026-10-01")) return jsonResponse({ value: [graphMessage("old-decline", "Please cancel my enquiry.", { receivedDateTime: "2026-10-05T08:00:00Z" })] });
+      return jsonResponse({ value: [] });
+    };
+    const result = await h.server.runOutlookSync({ maxPages: 2 });
+    assert.equal(result.ok, true, result.blocker);
+    assert.equal(result.counts.stored, 1); assert.equal(result.counts.closed, 0); assert.equal(result.counts.flagged, 0);
+    assert.equal((await row(h, "jobs")).stage, "new_enquiry");
+    assert.equal(await total(h, "job_communications"), 1); assert.equal(await total(h, "workflow_events"), 0);
+    assert.equal((await h.state()).catchup_from, null);
+    assert.ok((await h.state()).catchup_inbound_cursor);
+  })],
 ];
