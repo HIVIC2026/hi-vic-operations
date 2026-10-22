@@ -39,3 +39,46 @@ No check happens. HV-3066 reused the same owner record as website lead HV-2303 (
 7. When an installer adds a job, check for the same owner email, phone or address on an open website lead. If found, warn the office and keep only one of the jobs in a pile.
 
 Fixes 1–3 are wording and display rules on the office screen. Fixes 4–7 change how the portal behaves, and Jo needs to approve them first.
+
+Add-on: what an installer's quote needs, and partial Mitti forms
+
+1. What's needed to quote (checked against the actual rules)
+Needed to draft the quote:
+- Ceiling area.
+- Existing insulation is none or below R2 ("unknown" stops it, and R2 or more fails it).
+- Installer's price, and what it includes.
+- The property postcode, so the rebate can be worked out.
+- The office's own owner/property eligibility tick. This one is missing from Jo's list.
+- Either the installer was onsite (the attendance answer) or the area was measured onsite.
+
+Needed before the quote can be sent:
+- Owner contact permission.
+- Who does the electrical, decided. "Undecided" stops it.
+- Owner fee-awareness recorded for that electrician choice. Also missing from Jo's list.
+- Commercial setup done for the installer.
+
+Not strictly needed to quote:
+- Removal yes/no is not required. If removal is unknown it just isn't priced.
+- Owner name, mobile and email are already required when the job is added, so they aren't separate quote checks.
+
+2. Partial Mitti forms
+Confirmed: the quote is only drafted when the Mitti form is marked completed, or "Ready for office review" is Yes.
+Partial forms already sync their answers (area, insulation and so on) into the job. Only the quote drafting waits.
+To change it: draft the quote whenever the needed-to-quote answers above are present, even if the form isn't finished. The quote would still be held for office review, and nothing would be sent automatically.
+
+3. What can wait until install day
+- Can wait, as long as it's captured before work starts: access details, downlight and exhaust details, extra photos of the roof space, and the final measured area if it's checked again.
+- Must NOT wait:
+  - Photos of the original ceiling condition before any removal or new insulation goes in.
+  - The installer's VEU pre-installation safety assessment, signed before work.
+  - The owner's ESC consent, at least 24 hours before work.
+  - The PIESA or electrical safety check, before install.
+- The pre-start check runs at 12pm the day before install and already locks the install form until these are done.
+- Not checked yet: whether the install-day form asks only for what's still missing. The rule against asking twice exists, but I haven't confirmed the install-day form follows it for partial Mitti answers.
+
+4. What would need building, smallest first
+1. Show "Ready to quote" on installer jobs once the needed-to-quote answers are in, with the same wording everywhere.
+2. Draft the held quote from a partial form that has those answers.
+3. When an installer adds a job, flag (never block) the same owner email, phone or address on an existing lead or job, so the office can delete one.
+4. List the missing Ready Check answers as "collect on install day" and show them on the install-day form only.
+5. Mitti-first: make the Mitti job when the job is added, including when "Mitti access" is ticked later, and add an office "Link existing Mitti job" action.
