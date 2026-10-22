@@ -89,7 +89,7 @@ async function followupAllowed(token: string) {
 async function sendOne(jobId: string, actorId: string | null, realOn: boolean, testOpts: TestSendOptions, followup = false): Promise<HotSendResult> {
   const mode = testOpts.mode ?? "send";
   const morePhotos = !!testOpts.morePhotosReviewId;
-  const { data: job, error: jobError } = await admin.from("jobs").select("id, job_number, source, stage, created_at, eligibility_outcome, estimated_area_m2, estimated_area_unknown, owners(full_name, email), properties(address_line, suburb, postcode)").eq("id", jobId).maybeSingle();
+  const { data: job, error: jobError } = await admin.from("jobs").select("id, job_number, source, stage, created_at, eligibility_outcome, estimated_area_m2, estimated_area_unknown, owners(full_name, email), properties(address_line, suburb, postcode, enrichment)").eq("id", jobId).maybeSingle();
   if (jobError) return { jobId, jobNumber: null, outcome: "blocked", detail: "Could not read the job. Try again; nothing sent." };
   if (!job) return { jobId, jobNumber: null, outcome: "failed", detail: "Job not found" };
   const r = (outcome: HotSendResult["outcome"], detail: string): HotSendResult => ({ jobId, jobNumber: job.job_number, outcome, detail });
@@ -154,7 +154,18 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     const { hasCurrentOwnerContactConsent } = await import("./comms.server");
     if (!(await hasCurrentOwnerContactConsent(jobId))) return r("skipped", "No current contact consent.");
   }
-  const group = launchGroup(job.eligibility_outcome, price.insulation) ?? "likely";
+  // Jo 22 Oct 2026: owner-declared thin/patchy existing insulation (no Office photo review) uses the approved
+  // Save my spot email and counts as the Group A ("likely") send. A recorded Office review always wins; any
+  // unreadable review record fails closed to the existing behaviour.
+  let declaredThinPatchy = false;
+  if (!office && price.insulation === "present") {
+    const { declaredInsulationDetail, insulationDetailRoute } = await import("./enquiry.core");
+    const { data: reviewRows, error: reviewError } = await admin.from("customer_engagement_events").select("metadata").eq("job_id", jobId).eq("event_type", "intake_media_reviewed").order("occurred_at", { ascending: false }).limit(1);
+    const reviewOutcome = reviewError ? "error" : ((reviewRows?.[0]?.metadata as { outcome?: string } | null | undefined)?.outcome ?? null);
+    const answers = ((job.properties as { enrichment?: Record<string, unknown> } | null)?.enrichment?.["base44"] as { raw?: { answers?: Record<string, unknown> } } | undefined)?.raw?.answers ?? null;
+    declaredThinPatchy = !reviewError && !reviewOutcome && insulationDetailRoute(declaredInsulationDetail(answers)) === "likely_save_spot";
+  }
+  const group = declaredThinPatchy ? "likely" : launchGroup(job.eligibility_outcome, price.insulation) ?? "likely";
   if (group !== "likely" && !isTest && !testOpts.automaticInsulation && !followup && !morePhotos) return r("blocked", "Only the approved Group A email can be sent from this list.");
 
   // Once per home, ever: the idempotency key is the job, not the batch.
@@ -275,7 +286,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
       // This sender never sends the ineligible result (T7 belongs to the ineligible sender).
       if (outcome === "does_not_appear_eligible" || outcome === null) return null;
       const insulation = price.insulation === "none" || price.insulation === "present" ? price.insulation : "unknown";
-      facts = { outcome, insulation, ceilingSizeKnown: areaBasis.ceilingSizeKnown, deskCheckStatus: morePhotos ? null : deskCheckStatus, ...(sendGroup === "onsite" && testOpts.mediaAcknowledgement === true ? { mediaAlreadyReceived: true } : {}) };
+      facts = { outcome, insulation, ceilingSizeKnown: areaBasis.ceilingSizeKnown, deskCheckStatus: morePhotos ? null : deskCheckStatus, ...(declaredThinPatchy ? { declaredThinPatchy: true } : {}), ...(sendGroup === "onsite" && testOpts.mediaAcknowledgement === true ? { mediaAlreadyReceived: true } : {}) };
     }
     try {
       // Jo 22 Oct: informational "up to" removal for existing insulation only, from the current removal rate.
