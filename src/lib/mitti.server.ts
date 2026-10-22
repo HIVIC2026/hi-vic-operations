@@ -242,7 +242,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
   const { data: job } = await admin.from("jobs").select("job_number,business_unit,channel").eq("id", jobId).single();
   if (!job) throw new WorkflowError("Job not found.");
   if (job.business_unit !== "hivic") throw new WorkflowError("Mitti automation is only available for Home Insulation Victoria jobs.");
-  const { data: a } = await admin.from("assessments").select("id,status,external_mitti_id,mitti_template_id").eq("job_id", jobId).maybeSingle();
+  const { data: a } = await admin.from("assessments").select("id,status,external_mitti_id,mitti_template_id,mitti_completed,mitti_modified_at,mitti_sync_status").eq("job_id", jobId).maybeSingle();
   const s = await jobScope(jobId);
   const m = s.measurementRow;
   const measureAudit = m?.external_source === "mitti" && m.external_id && m.external_id !== a?.external_mitti_id && m.status !== "complete" ? m.external_id : null;
@@ -295,8 +295,11 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
           }
         }
         if (plan.completed) await saveMittiReport(jobId, actorId, a.external_mitti_id, plan.modifiedAt ?? null, "PIESA", call);
-        await logEvent(jobId, actorId, "mitti_synced", plan.completed ? "Mitti assessment synced (completed in Mitti)" : "Mitti partial data synced (audit not yet completed)",
-          { audit_id: a.external_mitti_id, electrical_fields: Object.keys(electrical), measurement: "not_imported_from_piesa", measurement_fields: [], issues, other_items: plan.others.length });
+        // History only on change (Jo 23 Oct): an unchanged re-sync (same answers, same modified time,
+        // same status) adds no new event row.
+        const changed = plan.syncStatus !== a.mitti_sync_status || plan.completed !== (a.mitti_completed ?? false) || (plan.modifiedAt ?? null) !== (a.mitti_modified_at ?? null);
+        if (changed) await logEvent(jobId, actorId, "mitti_synced", plan.completed ? "Mitti assessment synced (completed in Mitti)" : "Mitti partial data synced (audit not yet completed)",
+          { audit_id: a.external_mitti_id, electrical_fields: Object.keys(electrical), measurement: "not_imported_from_piesa", measurement_fields: [], issues, other_items: plan.others.length, modified_at: plan.modifiedAt ?? null });
       }
     }
   }
