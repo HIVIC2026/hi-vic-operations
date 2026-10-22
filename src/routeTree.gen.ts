@@ -23,7 +23,6 @@ import { Route as QaAccessRouteImport } from './routes/qa-access'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SaveSpotRouteImport } from './routes/save-spot'
 import { Route as Step3EmailPreviewRouteImport } from './routes/step3-email-preview'
-import { Route as ZzRemovalPreviewRouteImport } from './routes/zz-removal-preview'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedFieldRouteImport } from './routes/_authenticated/field'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
@@ -192,11 +191,6 @@ const SaveSpotRoute = SaveSpotRouteImport.update({
 const Step3EmailPreviewRoute = Step3EmailPreviewRouteImport.update({
   id: '/step3-email-preview',
   path: '/step3-email-preview',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ZzRemovalPreviewRoute = ZzRemovalPreviewRouteImport.update({
-  id: '/zz-removal-preview',
-  path: '/zz-removal-preview',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
@@ -773,7 +767,6 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/save-spot': typeof SaveSpotRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
-  '/zz-removal-preview': typeof ZzRemovalPreviewRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/field': typeof AuthenticatedFieldRouteWithChildren
   '/home': typeof AuthenticatedHomeRoute
@@ -889,7 +882,6 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/save-spot': typeof SaveSpotRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
-  '/zz-removal-preview': typeof ZzRemovalPreviewRoute
   '/home': typeof AuthenticatedHomeRoute
   '/eligibility/$token': typeof EligibilityTokenRoute
   '/estimate/$token': typeof EstimateTokenRoute
@@ -1003,7 +995,6 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/save-spot': typeof SaveSpotRoute
   '/step3-email-preview': typeof Step3EmailPreviewRoute
-  '/zz-removal-preview': typeof ZzRemovalPreviewRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/field': typeof AuthenticatedFieldRouteWithChildren
   '/_authenticated/home': typeof AuthenticatedHomeRoute
@@ -1121,7 +1112,6 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/save-spot'
     | '/step3-email-preview'
-    | '/zz-removal-preview'
     | '/admin'
     | '/field'
     | '/home'
@@ -1237,7 +1227,6 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/save-spot'
     | '/step3-email-preview'
-    | '/zz-removal-preview'
     | '/home'
     | '/eligibility/$token'
     | '/estimate/$token'
@@ -1350,7 +1339,6 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/save-spot'
     | '/step3-email-preview'
-    | '/zz-removal-preview'
     | '/_authenticated/admin'
     | '/_authenticated/field'
     | '/_authenticated/home'
@@ -1468,7 +1456,6 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   SaveSpotRoute: typeof SaveSpotRoute
   Step3EmailPreviewRoute: typeof Step3EmailPreviewRoute
-  ZzRemovalPreviewRoute: typeof ZzRemovalPreviewRoute
   EligibilityTokenRoute: typeof EligibilityTokenRoute
   EstimateTokenRoute: typeof EstimateTokenRoute
   JoinTokenRoute: typeof JoinTokenRoute
@@ -1600,13 +1587,6 @@ declare module '@tanstack/react-router' {
       path: '/step3-email-preview'
       fullPath: '/step3-email-preview'
       preLoaderRoute: typeof Step3EmailPreviewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/zz-removal-preview': {
-      id: '/zz-removal-preview'
-      path: '/zz-removal-preview'
-      fullPath: '/zz-removal-preview'
-      preLoaderRoute: typeof ZzRemovalPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin': {
@@ -2530,7 +2510,6 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   SaveSpotRoute: SaveSpotRoute,
   Step3EmailPreviewRoute: Step3EmailPreviewRoute,
-  ZzRemovalPreviewRoute: ZzRemovalPreviewRoute,
   EligibilityTokenRoute: EligibilityTokenRoute,
   EstimateTokenRoute: EstimateTokenRoute,
   JoinTokenRoute: JoinTokenRoute,
