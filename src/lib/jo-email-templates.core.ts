@@ -50,6 +50,12 @@ export type JoRoutingInput = {
   readyCheckInvitation?: boolean;
   /** true when a readable saved-pricing snapshot exists (required for template 8; fail closed otherwise) */
   savedSnapshotAvailable?: boolean;
+  /**
+   * Jo 22 Oct 2026: the owner's website answers said their existing insulation is thin or only patchy
+   * (declared, never photo-reviewed). Uses the eligible Save my spot email (templates 1/2) with the
+   * approved thin/patchy wording. Absent/false keeps every existing rule untouched.
+   */
+  declaredThinPatchy?: boolean;
 };
 
 /** Money/line-item inputs. For templates 1–6 these are live calculated values; for template 8 they are the saved snapshot. */
@@ -118,6 +124,15 @@ export function selectJoTemplate(input: JoRoutingInput): JoTemplateId | null {
 
   // Eligible, no existing insulation (templates 1/2).
   if (eligible && input.insulation === "none") {
+    return input.ceilingSizeKnown
+      ? "eligible_no_insulation_size_known"
+      : "eligible_no_insulation_size_unknown";
+  }
+
+  // Jo 22 Oct 2026: declared thin/patchy existing insulation (no photo review) uses the eligible Save my
+  // spot email (templates 1/2) with the approved thin/patchy wording. Only ever set from the owner's
+  // website follow-up answers; a recorded Office review takes precedence and never reaches this branch.
+  if (eligible && input.insulation === "present" && input.declaredThinPatchy) {
     return input.ceilingSizeKnown
       ? "eligible_no_insulation_size_known"
       : "eligible_no_insulation_size_unknown";
