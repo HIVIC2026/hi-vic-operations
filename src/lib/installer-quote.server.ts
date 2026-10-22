@@ -89,6 +89,7 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
     applyMittiProduct(draft, mittiProduct, m2);
   }
   if (!draft.ready) {
+    if (mittiProduct && !mittiProduct.ready) await (await import("./ready-check-quote.server")).recordNeedsOffice(jobId, actorId, null, mittiProduct.reasons);
     if (mittiElectrician?.needsProfile) {
       await (await import("./ready-check-quote.server")).recordNeedsOffice(jobId, actorId, null, mittiElectrician.reasons);
       await (await import("./usual-electrician-reminder.server")).maybeRemindUsualElectrician(jobId, auditId);

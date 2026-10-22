@@ -112,7 +112,10 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
     externalSendingEnabled: workflow?.auto_send_quote === true && workflow?.customer_comms_enabled === true,
   });
   // Jo 22 Oct 2026: installer's agreed rate above the owner rate for the chosen R-value → held for office review.
-  const release: typeof baseRelease = calc.holdReasons.length ? { state: "held", status: "draft", reason: calc.holdReasons.join(" ") } : baseRelease;
+  // Jo 22 Oct 23:45: no confirmed approved product from the form → held, office confirms the product.
+  const { PRODUCT_NEEDS_OFFICE } = await import("./insulation-product.core");
+  const holds = [...calc.holdReasons, ...(chosen.product ? [] : [PRODUCT_NEEDS_OFFICE])];
+  const release: typeof baseRelease = holds.length ? { state: "held", status: "draft", reason: holds.join(" ") } : baseRelease;
   const releasedAt = release.status === "issued" ? new Date().toISOString() : null;
   const availableToOwner = release.state !== "held";
   const discountNote = discountNotes(rules).join(" ") || null;
@@ -141,6 +144,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
   await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued"]).neq("id", q.id);
   const summary = release.state === "held" ? (release.reason ?? "Quote held for office review") : release.state === "queued" ? "Installation quote ready to send — queued behind the launch switches" : "Installation quote automatically released to the owner";
   await logEvent(jobId, actorId, release.state === "held" ? "installation_quote_held" : release.state === "queued" ? "installation_quote_queued" : "installation_quote_released", summary, { quote_ids: [q.id], rate_card: card.name, pricing_rule: HIV_PRICING_RULE, release_state: release.state }, { internal: release.state !== "released" });
+  if (!chosen.product) await (await import("./ready-check-quote.server")).recordNeedsOffice(jobId, actorId, q.id, [PRODUCT_NEEDS_OFFICE]);
   return [q.id];
 }
 

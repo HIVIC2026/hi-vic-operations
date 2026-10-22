@@ -1,45 +1,33 @@
-// Jo 22 Oct 23:42: one required single-choice Mitti question "Insulation product" (A1 "Your quote to the homeowner",
-// A2 "Ready Check Outcome") with ONLY the approved products. No brand/product-name/R-value questions, no profile product.
-// Absent question (older forms) changes nothing. Recorded on the job as declared, not verified.
+// Jo 22 Oct 23:45: one required single-select Mitti question "Insulation product" on A1 and A2 with 6 approved
+// options. No brand/product-name/R-value questions, no profile product. Recorded on the job as declared, not verified.
 
 export const PRODUCT_R_VALUES = ["R5.0", "R6.0", "R7.0"] as const;
 export type ProductRValue = (typeof PRODUCT_R_VALUES)[number];
-export type InsulationProduct = { option: string; name: string; rValue: ProductRValue };
+export type InsulationProduct = { option: string; rValue: ProductRValue };
 
-/** Exact option labels on both published forms (read from Mitti 22 Oct 23:43 UTC). */
-export const APPROVED_PRODUCTS: readonly InsulationProduct[] = [
-  { option: "Bradford Gold R5", name: "Bradford Gold", rValue: "R5.0" },
-  { option: "Fletchers Pink Batts R5", name: "Fletchers Pink Batts", rValue: "R5.0" },
-];
-export const PRODUCT_NOT_APPROVED = "Insulation product on the form is not one of the approved products — office to check";
+/** The 6 exact tap options on both forms (Jo 22 Oct 23:45). R-value is taken from the label. */
+export const APPROVED_PRODUCTS: readonly InsulationProduct[] = (["Bradford Gold", "Fletchers Pink Batts"] as const).flatMap((name) =>
+  ([["R5", "R5.0"], ["R6", "R6.0"], ["R7", "R7.0"]] as const).map(([r, rValue]) => ({ option: `${name} ${r}`, rValue })));
+/** Shown as-is in the office list. */
+export const PRODUCT_NEEDS_OFFICE = "Office needs to: confirm insulation product";
 
 const n = (v: unknown) => (typeof v === "string" ? v.trim().toLowerCase().replace(/\s+/g, " ") : "");
-/** "R5", "R 5.0", "5" all read as R5.0. */
-export function rValueOption(v: unknown): ProductRValue | null {
-  const m = n(v).replace(/^r\s*/, "").match(/^(\d)(?:\.0)?$/);
-  return m ? (PRODUCT_R_VALUES.find((x) => x === `R${m[1]}.0`) ?? null) : null;
-}
 
-/** Exact approved option → product; anything else → null. Also re-reads a stored record. */
+/** Exact approved option (case/spacing-insensitive) → product; anything else → null. Also re-reads a stored record. */
 export function insulationProduct(value: unknown): InsulationProduct | null {
   const opt = typeof value === "string" ? value : value && typeof value === "object" ? (value as { option?: unknown }).option : null;
   return APPROVED_PRODUCTS.find((p) => n(p.option) === n(opt)) ?? null;
 }
 
-export const productLabel = (p: Pick<InsulationProduct, "name">) => p.name;
-
-export type MittiProductResolution = {
-  /** false = question absent/unanswered (older form): no product handling at all. */
-  asked: boolean; ready: boolean; product: InsulationProduct | null; source: "mitti_form" | null; reasons: string[];
-};
+export type MittiProductResolution = { ready: boolean; product: InsulationProduct | null; source: "mitti_form"; reasons: string[] };
+/** Missing answer or not one of the 6 labels → not ready (quote held, office confirms). */
 export function resolveMittiProduct(answer: string | null | undefined): MittiProductResolution {
-  if (!answer?.trim()) return { asked: false, ready: true, product: null, source: null, reasons: [] };
   const p = insulationProduct(answer);
-  return { asked: true, ready: !!p, product: p, source: "mitti_form", reasons: p ? [] : [PRODUCT_NOT_APPROVED] };
+  return { ready: !!p, product: p, source: "mitti_form", reasons: p ? [] : [PRODUCT_NEEDS_OFFICE] };
 }
 
-/** Owner quote line: "Supply and install of [product] [R-value] ceiling insulation – [area] m²". */
-export function productQuoteDescription(p: Pick<InsulationProduct, "name" | "rValue">, areaM2: number | null): string {
+/** Owner quote line: "Supply and install of [full label] ceiling insulation – [area] m²", e.g. "Bradford Gold R6". */
+export function productQuoteDescription(p: Pick<InsulationProduct, "option">, areaM2: number | null): string {
   const area = areaM2 != null && areaM2 > 0 ? ` – ${Math.round(areaM2 * 100) / 100} m²` : "";
-  return `Supply and install of ${p.name} ${p.rValue} ceiling insulation${area}`;
+  return `Supply and install of ${p.option} ceiling insulation${area}`;
 }
