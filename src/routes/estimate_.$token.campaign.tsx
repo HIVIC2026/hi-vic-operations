@@ -88,14 +88,13 @@ type Pricing = { gross: number; discount: number; total: number; areaM2: number;
 const money = (n: number) => `$${Math.floor(Number(n)).toLocaleString("en-AU")}`;
 
 /** v8 (Jo, 6 Oct): Jo's approved Group A design lives here, where Outfit/Figtree load. The short email only links here. */
-function CampaignDesign({ saveAllowed, ownerQualified, reviewStatus, group, token, name, suburb, p, busy, error, onSave, onOptOut }: { saveAllowed: boolean; ownerQualified: boolean; reviewStatus: string | null; group: "likely" | "onsite"; token: string; name: string | null; suburb: string | null; p: Pricing; busy: "save" | "optout" | null; error: string | null; onSave: () => void; onOptOut: () => void }) {
+export function CampaignDesign({ saveAllowed, ownerQualified, reviewStatus, group, token, name, suburb, p, busy, error, onSave, onOptOut }: { saveAllowed: boolean; ownerQualified: boolean; reviewStatus: string | null; group: "likely" | "onsite"; token: string; name: string | null; suburb: string | null; p: Pricing; busy: "save" | "optout" | null; error: string | null; onSave: () => void; onOptOut: () => void }) {
   const onsite = group === "onsite" && !saveAllowed;
   const rebate = money(p.discount);
   const saveBtn = <Button type="button" disabled={!!busy} onClick={onSave} className="h-14 w-full rounded-xl bg-estimate-green font-display text-lg font-bold text-estimate-white hover:bg-estimate-accent">{busy === "save" ? "Saving…" : "Save my spot →"}</Button>;
   const videoBtn = <Button asChild className="h-14 w-full rounded-xl bg-estimate-green font-display text-lg font-bold text-estimate-white hover:bg-estimate-accent"><Link to="/estimate/$token/video" params={{ token }}>Send my insulation details →</Link></Button>;
   const removal = p.insulation === "none" ? "Doesn't include removing old insulation (you told us there isn't any)." : removalNote(p.removal ?? { kind: "unknown" });
   const row = (l: string, v: string, cls = "") => <div className={`flex justify-between gap-3 py-1.5 text-sm ${cls}`}><span>{l}</span><span>{v}</span></div>;
-  const gets: [string, string][] = [["Free Ready Check", "We measure your roof space and confirm the job."], ["R5.0 ceiling insulation", "Supplied and fitted by a certified installer."], ["Pre Insulation Electrical Safety Assessment (PIESA)", "By a licensed electrician, as the rules require."], ["Rebate paperwork, done for you", "We handle the forms and the claim."]];
   return <div className="mx-auto max-w-[560px] px-4 pt-5 text-estimate-navy">
     <header className="flex items-center justify-between gap-3">
       <img src={CUSTOMER_BRAND.logoUrl} alt="Home Insulation Victoria" className="h-10 w-auto" />
