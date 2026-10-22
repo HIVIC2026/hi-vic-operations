@@ -18,7 +18,10 @@ import {
 type Any = any;
 
 const PICKUP_WINDOW_DAYS = 14;
-const READY_CHECK_STAGES = ["ready_check_ready_to_schedule", "ready_check_scheduled"];
+// Jo 22 Oct 2026: "preliminary_estimate_ready" (Office wording: estimate sent) is allowed too — the Mitti-first
+// flow has installers doing the Ready Check on jobs whose preliminary estimate already went out, and the visit
+// has happened. Every other guard (template match, one-form rule, write-back validation, guarded sync) is unchanged.
+const READY_CHECK_STAGES = ["ready_check_ready_to_schedule", "ready_check_scheduled", "preliminary_estimate_ready"];
 
 async function templateIds() {
   const { data } = await admin.from("workflow_settings").select("mitti_ready_check_template_id,mitti_ready_check_priced_template_id").eq("id", 1).maybeSingle();
