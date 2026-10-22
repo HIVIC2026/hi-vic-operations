@@ -739,6 +739,9 @@ export function EnquiriesWorkspace({
                             {row.mediaOutcome === "below_r2" && !["spot_saved", "ineligible", "offered_spot"].includes(row.status) && (
                               <ExistingInsulationFollowup jobId={row.id} deliveryUncertain={uncertainAttempt(row.latestAttemptStatus)} onDone={() => void refetch()} />
                             )}
+                            {row.mediaOutcome === "unclear" && row.nextParty === "office" && (
+                              <MorePhotosFollowup row={row} onDone={() => void refetch()} />
+                            )}
                             {row.mediaOutcome === "unclear" && openId !== row.id && (
                               <MediaReview row={row} onDone={() => refetch()} optionsOnly />
                             )}
