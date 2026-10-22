@@ -15,12 +15,12 @@ export async function productForHivQuote(jobId: string): Promise<{ product: Insu
 /** Null = the product questions aren't on this (older) form. Records only real changes. */
 export async function mittiProductForJob(jobId: string, actorId: string | null, entries: { label: string; value: string | null }[], auditId: string): Promise<MittiProductResolution | null> {
   const a = contactAnswersFromEntries(entries);
-  const resolved = resolveMittiProduct({ brand: a.productBrand, productName: a.productName, rValue: a.productRValue });
+  const resolved = resolveMittiProduct(a.productOption);
   if (!resolved.asked) return null;
   const details = { audit_id: auditId, ...resolved, declared_not_verified: true };
   const { data: prev, error: pe } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_product_recorded").order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (pe) throw new Error("Could not check the job's product history.");
   if (JSON.stringify(prev?.details ?? null) !== JSON.stringify(details))
-    await logEvent(jobId, actorId, "mitti_product_recorded", resolved.product ? `Insulation product recorded for compliance (declared, not verified): brand ${resolved.product.brand}${resolved.product.productName ? `, product ${resolved.product.productName}` : ""}, ${resolved.product.rValue} (${productLabel(resolved.product)})` : resolved.reasons.join(" · "), details, { internal: true });
+    await logEvent(jobId, actorId, "mitti_product_recorded", resolved.product ? `Insulation product recorded for compliance (declared, not verified): ${productLabel(resolved.product)} ${resolved.product.rValue} (form answer "${resolved.product.option}")` : resolved.reasons.join(" · "), details, { internal: true });
   return resolved;
 }
