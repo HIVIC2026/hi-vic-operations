@@ -271,10 +271,14 @@ export function isNewEnquiry(row: { lastEmail?: unknown; sentPurposes?: string[]
 export type AutomaticLeadEmail = "offer_spot" | "request_insulation" | "ineligible" | "none";
 
 /** Selects the single automatic email path. Gate 1 remains the source of the eligibility result. */
+export const DECLARED_THIN_SAVE_SPOT_HELD = "Owner says thin or patchy insulation — likely eligible. Save My Spot held: no approved email wording yet for declared (unreviewed) existing insulation; nothing sent.";
+
 export function automaticLeadEmail(x: {
   source: string | null; channel: string | null; decisionSource: string | null; reviewRequired: boolean;
   outcome: string | null; intakeWorkActive: boolean; declaredInsulation: "none" | "present" | "unknown" | null;
   ownerEnteredArea: boolean;
+  /** Jo 22 Oct: route from the owner's type/thickness/coverage answers (insulationDetailRoute); null = current behaviour. */
+  insulationDetailRoute?: "likely_save_spot" | "more_photos" | null;
 }): { email: AutomaticLeadEmail; blocker: string | null; assumedArea?: true } {
   if (x.source === "qa_test") return { email: "none", blocker: "TEST enquiry" };
   if (x.source !== "base44" || x.channel !== "hivic_sourced") return { email: "none", blocker: "Not a website owner enquiry" };
@@ -286,7 +290,11 @@ export function automaticLeadEmail(x: {
     // No owner size: same initial response, priced on the clearly labelled typical 150 m² assumption (owner answer stays unknown).
     return { email: "offer_spot", blocker: null, ...(x.ownerEnteredArea ? {} : { assumedArea: true }) };
   }
-  if ((x.outcome === "likely_eligible" || x.outcome === "needs_onsite_confirmation") && (x.declaredInsulation === "present" || x.declaredInsulation === "unknown")) return { email: "request_insulation", blocker: null };
+  const openOutcome = x.outcome === "likely_eligible" || x.outcome === "needs_onsite_confirmation";
+  // Thin or patchy (declared present): never the "tell us about your insulation" email.
+  if (openOutcome && x.declaredInsulation === "present" && x.insulationDetailRoute === "likely_save_spot") return { email: "none", blocker: DECLARED_THIN_SAVE_SPOT_HELD };
+  // Hand-thick or thicker, whole ceiling: the existing photo request (approved T5/T6 upload email) — same as today.
+  if (openOutcome && (x.declaredInsulation === "present" || x.declaredInsulation === "unknown")) return { email: "request_insulation", blocker: null };
   return { email: "none", blocker: "Eligibility or insulation details need office review" };
 }
 
