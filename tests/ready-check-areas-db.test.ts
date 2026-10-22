@@ -189,7 +189,7 @@ describe("RPC guard", () => {
     await newJob(ATT);
     rpc.member = false;
     const ctx = { userId: USER, supabase: { rpc: async (fn: string) => ({ data: fn === "is_business_member" ? rpc.member : true, error: null }) } };
-    await expect((F.saveReadyCheckAreas as never as (a: unknown) => Promise<unknown>)({ data: { jobId: JOB, areas: [{ key: "main", label: "Main", areaM2: 80, existing: null, rValue: null, removal: null, removalM2: null, product: null, scope: null }] }, context: ctx })).rejects.toThrow(/Only the job's installer business/);
+    await expect((F.saveReadyCheckAreas as never as (a: unknown) => Promise<unknown>)({ data: { jobId: JOB, areas: [{ key: "main", label: "Main", areaM2: 80, existing: null, rValue: null, removal: null, removalM2: null, product: null, scope: null }] }, context: ctx })).rejects.toThrow(/done only in the Mitti form/); // Jo 22 Oct: portal Ready Check form retired
     expect((await q("select * from ready_checks where job_id=$1", [JOB])).length).toBe(0);
     expect((await q("select * from evidence_requirements where job_id=$1", [JOB])).length).toBe(0);
   });
