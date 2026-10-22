@@ -96,3 +96,19 @@ describe("pickupAutoDecision", () => {
     expect(d.reasons.join(" ")).toContain("HV-1101");
   });
 });
+
+describe("installer-started A2 form (Jo 22 Oct 23:30)", () => {
+  const { pickupAutoDecision: d, INSTALLER_STARTED_A2_FLAG } = require("../src/lib/mitti-pickup.core");
+  const base = { businessMatched: true, homeownerName: "Mike", siteAddress: "13 The Quadrangle, Glen Waverley 3150", ownerPhone: null, ownerEmail: null, contactPermission: null, duplicates: [] };
+  test("A2 started by Reinsulate becomes their installer-led job, flagged for office", () => {
+    const r = d({ ...base, templateKind: "hivic_form" });
+    expect(r.action).toBe("create_job_needs_finishing");
+    expect(r.officeFlag).toBe(INSTALLER_STARTED_A2_FLAG);
+  });
+  test("A2 with no matched installer still goes to office review", () => {
+    expect(d({ ...base, templateKind: "hivic_form", businessMatched: false }).action).toBe("office_review");
+  });
+  test("installer A1 form has no extra flag", () => {
+    expect(d({ ...base, templateKind: "installer_form" }).officeFlag).toBeUndefined();
+  });
+});
