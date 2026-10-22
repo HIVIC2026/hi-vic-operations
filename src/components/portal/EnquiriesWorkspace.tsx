@@ -376,7 +376,7 @@ const VIEW_LABEL: Record<EnquiryView | EnquiryStatus, string> = {
 };
 
 export function EnquiriesWorkspace({
-  view,
+  view: viewProp,
   q,
   onView,
   onQ,
@@ -390,7 +390,7 @@ export function EnquiriesWorkspace({
 }) {
   const load = useServerFn(getEnquiryGroups);
   // Old bookmarks may still carry ?status=spot_saved — saved spots live only in Active jobs now, so fall back.
-  const activeView: EnquiryView = VIEW_ORDER.includes(view) ? view : "needs_attention";
+  const view: EnquiryView = VIEW_ORDER.includes(viewProp) ? viewProp : "needs_attention";
   const [searchDraft, setSearchDraft] = useState(q ?? '');
   useEffect(() => { setSearchDraft(q ?? ''); }, [q]);
   useEffect(() => {
