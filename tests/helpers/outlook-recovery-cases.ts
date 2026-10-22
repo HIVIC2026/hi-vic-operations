@@ -365,8 +365,12 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
   ["historical catch-up work is record-only on the work row and stays record-only on retry", practice(async h => {
     const message = graphMessage("hist-decline", "Please cancel my enquiry.", { receivedDateTime: "2026-10-05T08:00:00Z" });
     h.control.fetch = async () => jsonResponse({ value: [] });
-    // Fail the first completion so the message stays pending, as after a crash mid-processing.
-    h.control.fault = op => op.mode === "rpc" && op.table === "finish_outlook_message" ? { data: null, error: { message: "injected finish failure" } } : null;
+    // Fail the first completion once so the message stays pending, as after a crash mid-processing.
+    let failOnce = true;
+    h.control.fault = op => {
+      if (failOnce && op.table === "outlook_message_work" && op.mode === "update") { failOnce = false; return { data: null, error: { message: "injected finish failure" } }; }
+      return null;
+    };
     const first = h.counts(); await h.server.processMessages([message], TEST_MAILBOX, first, { inboxCompleteThrough: null, history: true, backfillFrom: "2026-10-10T00:00:00Z" });
     assert.equal(first.errors, 1);
     const work = await row(h, "outlook_message_work");
