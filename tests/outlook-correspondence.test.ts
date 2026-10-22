@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
-  attachmentStoragePath, classifyIntent, closedReasonLabel, closureDecision, counterpartEmails, isPortalDuplicate, matchMessage, normaliseMessage, planAttachments,
+  attachmentIdentityKey, attachmentStoragePath, classifyIntent, closedReasonLabel, closureDecision, counterpartEmails, isPortalDuplicate, matchMessage, normaliseMessage, planAttachments,
   type CandidateJob, type GraphMessage, type MailMessage,
 } from "../src/lib/outlook-correspondence.core";
 import { buildCorrespondence } from "../src/lib/jobfile.core";
@@ -33,9 +33,12 @@ describe("direction and persistence shape", () => {
     const c = buildCorrespondence([], [{ id: "c1", sent_at: null, received_at: "2026-10-05T01:00:00Z", created_at: "x", direction: "inbound", channel: "email", sender_text: "amy@test.example", subject: "Hi", body: "b", delivery_status: "received", visibility: "customer", provider: "outlook", recipients: [BOX], attachment_refs: [{ name: "roof.jpg" }] }], () => null);
     expect(c[0]).toMatchObject({ direction: "inbound", provider: "outlook", attachments: ["roof.jpg"], attachmentFiles: [{ name: "roof.jpg", path: null }], audience: ["owner"] });
   });
-  test("stored files surface their private path for the job-file link signer", () => {
+  test("stored files surface their private path and any skip reason for the job-file link signer", () => {
     const c = buildCorrespondence([], [{ id: "c2", sent_at: null, received_at: "2026-10-05T01:00:00Z", created_at: "x", direction: "inbound", channel: "email", sender_text: "amy@test.example", subject: "Hi", body: "b", delivery_status: "received", visibility: "customer", provider: "outlook", recipients: [BOX], attachment_refs: [{ name: "roof.jpg", path: "correspondence/ja/m1/1-roof.jpg" }, { name: "big.zip", path: null, skipped: "over the 20 MB per-file limit" }] }], () => null);
-    expect(c[0]!.attachmentFiles).toEqual([{ name: "roof.jpg", path: "correspondence/ja/m1/1-roof.jpg" }, { name: "big.zip", path: null }]);
+    expect(c[0]!.attachmentFiles).toEqual([
+      { name: "roof.jpg", path: "correspondence/ja/m1/1-roof.jpg", skipped: null },
+      { name: "big.zip", path: null, skipped: "over the 20 MB per-file limit" },
+    ]);
   });
 });
 
@@ -45,7 +48,7 @@ describe("safe matching", () => {
   const byNumber = new Map([["HV-1001", a], ["HV-1002", b]]);
   test("job number wins", () => {
     const m = msg({ from: from("amy@test.example"), subject: "Question about HV-1002" });
-    expect(matchMessage(m, ["amy@test.example"], byNumber, new Map([["amy@test.example", [a, b]]]))).toEqual({ kind: "job", jobIds: ["jb"], how: "job_number" });
+    expect(matchMessage(m, ["amy@test.example"], byNumber, new Map([["amy@test.example", [a, b]]]))).toEqual({ kind: "job", jobIds: ["jb"], how: "job_number", visibility: "customer" });
   });
   test("email with exactly one current job", () => {
     const m = msg({ from: from("amy@test.example") });
@@ -61,20 +64,37 @@ describe("safe matching", () => {
     expect(r.kind).toBe("unmatched");
     if (r.kind === "unmatched") expect(r.candidateJobIds.sort()).toEqual(["ja", "jb"]);
   });
-  test("two different job numbers → linked to both jobs, never guessed down to one", () => {
+  test("two different job numbers link to both jobs only when the sender owns both", () => {
     const m = msg({ from: from("amy@test.example"), subject: "HV-1001 and HV-1002" });
-    expect(matchMessage(m, ["amy@test.example"], byNumber, new Map())).toEqual({ kind: "job", jobIds: ["ja", "jb"], how: "job_numbers" });
+    expect(matchMessage(m, ["amy@test.example"], byNumber, new Map())).toEqual({ kind: "job", jobIds: ["ja", "jb"], how: "job_numbers", visibility: "customer" });
   });
-  test("a reply in a thread already stored on a job links even from a family address", () => {
+  test("two job numbers from an unconfirmed sender go to Office review, never fanned out", () => {
+    const m = msg({ from: from("family@test.example"), subject: "HV-1001 and HV-1002" });
+    const r = matchMessage(m, ["family@test.example"], byNumber, new Map());
+    expect(r.kind).toBe("unmatched");
+    if (r.kind === "unmatched") expect(r.candidateJobIds.sort()).toEqual(["ja", "jb"]);
+  });
+  test("a job number quoted from earlier history needs the sender to be a confirmed participant", () => {
+    const quoted = "Thanks!\n\nOn Mon, 5 Oct 2026, Home Insulation Victoria wrote:\n> About HV-1002: we will proceed";
+    const stranger = msg({ from: from("family@test.example"), subject: "Re: quote", body: { contentType: "text", content: quoted } });
+    expect(matchMessage(stranger, ["family@test.example"], byNumber, new Map()).kind).toBe("unmatched");
+    const owner = msg({ from: from("amy@test.example"), subject: "Re: quote", body: { contentType: "text", content: quoted } });
+    expect(matchMessage(owner, ["amy@test.example"], byNumber, new Map())).toEqual({ kind: "job", jobIds: ["jb"], how: "job_number", visibility: "customer" });
+  });
+  test("a reply in a thread already stored on a job links even from a family address (staff-visible)", () => {
     const m = msg({ from: from("family@test.example"), subject: "Re: insulation" });
-    expect(matchMessage(m, ["family@test.example"], new Map(), new Map(), new Map([["t1", ["ja"]]]))).toEqual({ kind: "job", jobIds: ["ja"], how: "thread" });
+    expect(matchMessage(m, ["family@test.example"], new Map(), new Map(), new Map([["t1", [a]]]))).toEqual({ kind: "job", jobIds: ["ja"], how: "thread", visibility: "internal" });
   });
-  test("a thread stored on two jobs links the reply to both", () => {
-    const m = msg({ from: from("family@test.example") });
-    expect(matchMessage(m, ["family@test.example"], new Map(), new Map(), new Map([["t1", ["ja", "jb"]]]))).toEqual({ kind: "job", jobIds: ["ja", "jb"], how: "thread" });
+  test("a thread stored on two jobs links only a confirmed participant to one job; others go to review", () => {
+    const family = msg({ from: from("family@test.example") });
+    expect(matchMessage(family, ["family@test.example"], new Map(), new Map(), new Map([["t1", [a, b]]])).kind).toBe("unmatched");
+    const owner = msg({ from: from("amy@test.example") });
+    expect(matchMessage(owner, ["amy@test.example"], new Map(), new Map([["amy@test.example", [a, b]]]), new Map([["t1", [a]]]))).toEqual({ kind: "job", jobIds: ["ja"], how: "thread", visibility: "customer" });
   });
-  test("unknown sender with no job number and no known thread is not homeowner mail", () => {
-    expect(matchMessage(msg({ from: from("news@vendor.example") }), ["news@vendor.example"], new Map(), new Map(), new Map()).kind).toBe("not_homeowner");
+  test("unknown sender with no job number and no known thread is preserved for Office review, never discarded", () => {
+    const r = matchMessage(msg({ from: from("news@vendor.example") }), ["news@vendor.example"], new Map(), new Map(), new Map());
+    expect(r.kind).toBe("unmatched");
+    if (r.kind === "unmatched") { expect(r.candidateJobIds).toEqual([]); expect(r.reason).toContain("review and assign or dismiss"); }
   });
 });
 
@@ -92,21 +112,38 @@ describe("attachment storage planning", () => {
     expect(plan.skipped[0]!.reason).toContain("per-message attachment budget");
   });
   test("storage paths are deterministic and safe for exotic names and message ids", () => {
-    expect(attachmentStoragePath("ja", "AAMkAD==/weird", 0, "roof photo (1).jpg")).toBe("correspondence/ja/AAMkAD_weird/1-roof_photo_1_.jpg");
-    expect(attachmentStoragePath("unmatched", "m1", 3, "..")).toBe("correspondence/unmatched/m1/4-attachment");
+    const key = attachmentIdentityKey("shared@example.test", "AAMkAD==/weird", "att-1");
+    expect(key).toMatch(/^[0-9a-f]{16}$/);
+    expect(attachmentStoragePath("ja", key, 0, "roof photo (1).jpg")).toBe(`correspondence/ja/${key}/1-roof_photo_1_.jpg`);
+    expect(attachmentStoragePath("ja", key, 0, "roof photo (1).jpg")).toBe(attachmentStoragePath("ja", key, 0, "roof photo (1).jpg"));
+    expect(attachmentStoragePath("unmatched", attachmentIdentityKey("shared@example.test", "m1", "att-2"), 3, "..")).toBe(`correspondence/unmatched/${attachmentIdentityKey("shared@example.test", "m1", "att-2")}/4-attachment`);
+  });
+  test("attachment ids that sanitise to the same text still get distinct paths (full identity is hashed)", () => {
+    const one = attachmentIdentityKey("shared@example.test", "message-A", "id/with/slashes==");
+    const two = attachmentIdentityKey("shared@example.test", "message-A", "id_with_slashes__");
+    expect(one).not.toBe(two);
+    expect(attachmentStoragePath("ja", one, 0, "photo.jpg")).not.toBe(attachmentStoragePath("ja", two, 0, "photo.jpg"));
   });
 });
 
 describe("dedupe", () => {
-  test("outbound Outlook copy of a portal-recorded email is skipped", () => {
-    const m = msg({ from: from(BOX), toRecipients: [from("amy@test.example")], subject: "Save your spot", sentDateTime: "2026-10-05T01:05:00Z" });
-    expect(isPortalDuplicate(m, [{ provider: "base44", direction: "outbound", subject: "Save your spot", recipients: ["amy@test.example"], at: "2026-10-05T01:00:00Z" }])).toBe(true);
-    expect(isPortalDuplicate(m, [{ provider: "base44", direction: "outbound", subject: "Save your spot", recipients: ["amy@test.example"], at: "2026-10-04T01:00:00Z" }])).toBe(false);
-    expect(isPortalDuplicate(m, [{ provider: "outlook", direction: "outbound", subject: "Save your spot", recipients: ["amy@test.example"], at: "2026-10-05T01:00:00Z" }])).toBe(false);
+  test("outbound Outlook copy of a portal-recorded email is skipped only on exact recipient set, subject AND body", () => {
+    const m = msg({ from: from(BOX), toRecipients: [from("amy@test.example")], subject: "Save your spot", body: { contentType: "text", content: "Hi Amy, save your spot" }, sentDateTime: "2026-10-05T01:05:00Z" });
+    const portal = { provider: "base44", direction: "outbound", subject: "Save your spot", recipients: ["amy@test.example"], at: "2026-10-05T01:00:00Z", body: "Hi Amy, save your spot" };
+    expect(isPortalDuplicate(m, [portal])).toBe(true);
+    expect(isPortalDuplicate(m, [{ ...portal, at: "2026-10-04T01:00:00Z" }])).toBe(false);
+    expect(isPortalDuplicate(m, [{ ...portal, provider: "outlook" }])).toBe(false);
+    // A distinct reply sharing the subject line and recipient within the window is kept, never dropped.
+    expect(isPortalDuplicate(m, [{ ...portal, body: "Hi Amy, a different reply entirely" }])).toBe(false);
+    expect(isPortalDuplicate(m, [{ ...portal, recipients: ["amy@test.example", "extra@test.example"] }])).toBe(false);
   });
-  test("each Outlook message id is a single row (database unique index, proven on practice database)", async () => {
+  test("the pending migration keeps non-Outlook global uniqueness and Outlook per-job uniqueness", async () => {
     const { readFileSync } = await import("node:fs");
-    expect(readFileSync("docs/pending-migrations/0207_outlook_correspondence.sql", "utf8")).toContain("(provider, provider_message_id) WHERE provider_message_id IS NOT NULL");
+    const sql = readFileSync("docs/pending-migrations/0221_outlook_history.sql", "utf8");
+    expect(sql).toContain("(provider, provider_message_id)\n  WHERE provider_message_id IS NOT NULL AND provider <> 'outlook'");
+    expect(sql).toContain("(job_id, provider, provider_message_id) WHERE provider_message_id IS NOT NULL");
+    expect(sql).toContain("record_only boolean NOT NULL DEFAULT false");
+    expect(sql).toContain("Historical import is record-only; stage decisions are not allowed");
   });
 });
 
