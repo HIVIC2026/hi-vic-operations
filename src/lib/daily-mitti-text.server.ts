@@ -144,7 +144,8 @@ export async function sweepReadyCheckBookedTexts(now = new Date()) {
     const when = new Date(b.scheduled_start).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
     const street = job.properties?.address_line?.split(",")[0] ?? null;
     const where = [street, job.properties?.suburb].filter(Boolean).join(", ") || "see your portal";
-    const body = `Ready Check booked: ${when} — ${where}.${f?.external_mitti_id ? ` Open the form: ${MITTI}${f.external_mitti_id}` : " The form link will appear in your portal."}`;
+    // Jo-approved wording (23 Oct): "Ready Check booked: [day, time], [address]. Open the form: [link]".
+    const body = `Ready Check booked: ${when}, ${where}.${f?.external_mitti_id ? ` Open the form: ${MITTI}${f.external_mitti_id}` : " The form link will appear in your portal."}`;
     g.jobs.push({ jobId: b.job_id, bookingId: b.id, start: b.scheduled_start, end: null, street, suburb: job.properties?.suburb ?? null, status: "confirmed", link: f?.external_mitti_id ? `${MITTI}${f.external_mitti_id}` : null });
     if ((await sendOnce(g, date, "update", `rc-booked:${b.id}`, body, g.jobs.map(snap))) !== "already") out.sent++;
   }
