@@ -40,6 +40,7 @@ import {
   type EstimateEmail,
 } from "./estimate-email";
 import { emailArtUrl } from "./email-art.core";
+import { REMOVAL_UPTO_NOTE } from "./estimate-removal-upto.core";
 import { CUSTOMER_BRAND } from "./customer-quote-system";
 import { LOGO_PNG } from "./email-hero-assets";
 import { REMOVE_ENQUIRY_HTML_SLOT, REMOVE_ENQUIRY_TEXT_SLOT } from "./emailsafety.core";
