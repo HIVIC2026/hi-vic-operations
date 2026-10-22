@@ -1,4 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## "Office review doesn't work" (Jo/Dad, 22 Oct 04:45 UTC)
+- [x] Preview Office review loads (50 rows, phone+desktop, 0 errors); all 61 unclear rows are early-stage so the review options save normally. Cause for Dad: photo button + review options fix is preview-only; live site still hides photos/options on reviewed rows.
+- [ ] Live fix needs Jo to press Publish (not published without her say-so).
 ## "Open enquiries" label (Jo, 22 Oct 03:13 UTC)
 - [x] Renamed only the Enquiries tab/label "All enquiries" to "Open enquiries" (single VIEW_LABEL string); counts, list, URL (status=all), other labels, customer-facing pages and behaviour unchanged. No publication.
 - [x] Signed-in Office check at /admin/enquiries desktop 1280×1800: tab shows "1282 Open enquiries", click loads the same list (50 rows, newest HV-3049 first), 0 page errors; "All enquiries" no longer present.
