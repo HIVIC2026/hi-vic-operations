@@ -271,8 +271,6 @@ export function isNewEnquiry(row: { lastEmail?: unknown; sentPurposes?: string[]
 export type AutomaticLeadEmail = "offer_spot" | "request_insulation" | "ineligible" | "none";
 
 /** Selects the single automatic email path. Gate 1 remains the source of the eligibility result. */
-export const DECLARED_THIN_SAVE_SPOT_HELD = "Owner says thin or patchy insulation — likely eligible. Save My Spot held: no approved email wording yet for declared (unreviewed) existing insulation; nothing sent.";
-
 export function automaticLeadEmail(x: {
   source: string | null; channel: string | null; decisionSource: string | null; reviewRequired: boolean;
   outcome: string | null; intakeWorkActive: boolean; declaredInsulation: "none" | "present" | "unknown" | null;
@@ -291,8 +289,11 @@ export function automaticLeadEmail(x: {
     return { email: "offer_spot", blocker: null, ...(x.ownerEnteredArea ? {} : { assumedArea: true }) };
   }
   const openOutcome = x.outcome === "likely_eligible" || x.outcome === "needs_onsite_confirmation";
-  // Thin or patchy (declared present): never the "tell us about your insulation" email.
-  if (openOutcome && x.declaredInsulation === "present" && x.insulationDetailRoute === "likely_save_spot") return { email: "none", blocker: DECLARED_THIN_SAVE_SPOT_HELD };
+  // Thin or patchy (declared present): the Save my spot offer with Jo's approved thin/patchy wording (22 Oct 2026),
+  // never the "tell us about your insulation" email. No owner size keeps the existing typical-size hold in the sender.
+  if (openOutcome && x.declaredInsulation === "present" && x.insulationDetailRoute === "likely_save_spot") {
+    return { email: "offer_spot", blocker: null, ...(x.ownerEnteredArea ? {} : { assumedArea: true }) };
+  }
   // Hand-thick or thicker, whole ceiling: the existing photo request (approved T5/T6 upload email) — same as today.
   if (openOutcome && (x.declaredInsulation === "present" || x.declaredInsulation === "unknown")) return { email: "request_insulation", blocker: null };
   return { email: "none", blocker: "Eligibility or insulation details need office review" };

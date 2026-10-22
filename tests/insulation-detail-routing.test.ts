@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { declaredInsulationDetail, insulationDetailRoute, insulationDetailText } from "../src/lib/enquiry.core";
-import { automaticLeadEmail, DECLARED_THIN_SAVE_SPOT_HELD } from "../src/lib/enquiry-groups.core";
+import { automaticLeadEmail } from "../src/lib/enquiry-groups.core";
 import { enquirySchema } from "../src/lib/enquiry.server";
 import { ownerAnswerForGate1 } from "../src/lib/portal-presentation.core";
 
@@ -8,11 +8,15 @@ const base = { source: "base44", channel: "hivic_sourced", decisionSource: "syst
 const route = (a: Record<string, unknown>) => automaticLeadEmail({ ...base, insulationDetailRoute: insulationDetailRoute(declaredInsulationDetail(a)) });
 
 describe("Jo 22 Oct insulation answers routing", () => {
-  test("thin → no 'tell us about your insulation' email (held for Save My Spot)", () => {
-    expect(route({ insulation_type: "loose_fill", insulation_thickness: "thin", insulation_coverage: "whole" })).toEqual({ email: "none", blocker: DECLARED_THIN_SAVE_SPOT_HELD });
+  test("thin → Save my spot offer, never the 'tell us about your insulation' email", () => {
+    expect(route({ insulation_type: "loose_fill", insulation_thickness: "thin", insulation_coverage: "whole" })).toEqual({ email: "offer_spot", blocker: null });
   });
-  test("partial coverage → held for Save My Spot even when hand thick", () => {
-    expect(route({ insulation_type: "batts", insulation_thickness: "hand", insulation_coverage: "partial" }).email).toBe("none");
+  test("partial coverage → Save my spot offer even when hand thick", () => {
+    expect(route({ insulation_type: "batts", insulation_thickness: "hand", insulation_coverage: "partial" }).email).toBe("offer_spot");
+  });
+  test("thin/patchy with no owner size keeps the typical-size hold flag", () => {
+    const r = automaticLeadEmail({ ...base, ownerEnteredArea: false, insulationDetailRoute: insulationDetailRoute({ insulation_type: "foil", insulation_thickness: "thin", insulation_coverage: "whole" }) });
+    expect(r).toEqual({ email: "offer_spot", blocker: null, assumedArea: true });
   });
   test("hand thick, whole ceiling → existing photo request", () => {
     expect(route({ insulation_type: "loose_fill", insulation_thickness: "hand", insulation_coverage: "whole" }).email).toBe("request_insulation");
