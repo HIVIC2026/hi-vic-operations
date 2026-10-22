@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { isRecoverableTransportError } from "@/lib/page-recovery.core";
+import { isStaleChunkError } from "../router";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
 
 function NotFoundComponent() {
@@ -28,7 +29,7 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: unknown; reset: () => void }) {
   console.error(error);
   const router = useRouter();
-  const transport = isRecoverableTransportError(error);
+  const transport = isRecoverableTransportError(error) || isStaleChunkError(error);
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
