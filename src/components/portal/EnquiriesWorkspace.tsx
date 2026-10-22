@@ -34,7 +34,7 @@ import { RESPONSE_STATE_LABEL, showingRange, enquiryRowTag } from "@/lib/enquiry
 import { followupSendMessage, followupRequestError, uncertainAttempt } from '@/lib/followup-result.core';
 import { cn } from "@/lib/utils";
 
-export type EnquiryView = EnquiryStatus | "all" | "new" | "photos" | "removed";
+export type EnquiryView = Exclude<EnquiryStatus, "spot_saved"> | "all" | "new" | "photos" | "removed";
 
 type Data = Awaited<ReturnType<typeof getEnquiryGroups>>;
 type Row = Data["rows"][number];
@@ -364,8 +364,10 @@ function EmailPreliminaryOffer({ row, onDone }: { row: Row; onDone: () => void }
   );
 }
 
-const VIEW_ORDER: EnquiryView[] = ["needs_attention", "all", "new", ...STATUS_ORDER.filter(key => key !== "needs_attention")];
-const VIEW_LABEL: Record<EnquiryView, string> = {
+// Jo 22 Oct: people who saved a spot belong only in Active jobs — no Spot saved tab or list on Enquiries.
+// (Spot-saved jobs are already excluded from every other pile: the index buckets them as "active".)
+const VIEW_ORDER: EnquiryView[] = ["needs_attention", "all", "new", ...STATUS_ORDER.filter(key => key !== "needs_attention" && key !== "spot_saved")];
+const VIEW_LABEL: Record<EnquiryView | EnquiryStatus, string> = {
   all: "Open enquiries",
   new: "New · no reply recorded",
   ...OFFICE_ENQUIRY_LABEL,

@@ -5,7 +5,6 @@ import { EnquiriesWorkspace, type EnquiryView } from "@/components/portal/Enquir
 const VIEWS: EnquiryView[] = [
   "all",
   "new",
-  "spot_saved",
   "offered_spot",
   "insulation_requested",
   "ineligible",
