@@ -2,7 +2,7 @@ import { sameMittiTemplateId } from "./mitti-identity.core";
 // Jo 22 Oct 2026: Ready Checks started straight in Mitti (no portal job yet) must be visible to the
 // office and linkable to a job — installer's own measure counts as the Ready Check. Pure rules only:
 // parsing/classification lives here so tests can run without Mitti or the database.
-import { flatten, norm } from "./mitti.core";
+import { flatten, norm, contactAnswersFromEntries } from "./mitti.core";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Any = any;
@@ -144,4 +144,40 @@ export function pickupDuplicates(
 export function pickupLabel(item: MittiPickupItem): string {
   const ref = item.mittiRef?.trim() ? item.mittiRef.trim() : "no reference";
   return `Mitti ${ref} · ${item.siteAddress ?? "address not entered"} · ${item.homeownerName ?? "owner name missing"}`;
+}
+
+/** Split Mitti's "street, suburb, state postcode" site address. Never guesses missing parts. */
+export function pickupAddressParts(address: string | null): { addressLine: string; suburb: string | null; postcode: string | null } | null {
+  const parts = String(address ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  if (!parts.length) return null;
+  const last = parts[parts.length - 1]!;
+  const postcode = /(\d{4})\s*$/.test(last) ? last.match(/(\d{4})\s*$/)![1]! : null;
+  return { addressLine: parts[0]!, suburb: parts.length > 2 ? parts[1]! : null, postcode };
+}
+
+export type PickupAutoDecision = { action: "create_job" | "office_review"; reasons: string[] };
+
+/** Jo's Mitti-first rules (23 Oct): a clean installer-form Ready Check with a matched business and full
+ *  owner details is adopted automatically. Anything off goes to office review — never blocks, never guesses.
+ *  Our own (HIVIC) form, duplicates/leads and missing permission always go to review, never auto-create. */
+export function pickupAutoDecision(input: {
+  templateKind: PickupTemplateKind;
+  businessMatched: boolean;
+  homeownerName: string | null;
+  siteAddress: string | null;
+  ownerPhone: string | null;
+  ownerEmail: string | null;
+  contactPermission: boolean | null;
+  duplicates: { jobNumber: string }[];
+}): PickupAutoDecision {
+  const reasons: string[] = [];
+  if (input.templateKind !== "installer_form") reasons.push(input.templateKind === "hivic_form" ? "Home Insulation Victoria's own form — office decides which job it belongs to" : "Unrecognised Ready Check form");
+  if (!input.businessMatched) reasons.push("Mitti user not matched to an installer business");
+  if (!input.homeownerName?.trim()) reasons.push("Owner name missing on the form");
+  if (!input.siteAddress?.trim()) reasons.push("Address missing on the form");
+  if (!input.ownerPhone?.trim()) reasons.push("Owner phone missing on the form");
+  if (!input.ownerEmail?.trim()) reasons.push("Owner email missing on the form");
+  if (input.contactPermission !== true) reasons.push(input.contactPermission === false ? "Owner did not tick contact permission" : "Owner contact permission not answered");
+  if (input.duplicates.length) reasons.push(`Same owner or address already in the portal: ${input.duplicates.map((d) => d.jobNumber).join(", ")}`);
+  return reasons.length ? { action: "office_review", reasons } : { action: "create_job", reasons: [] };
 }
