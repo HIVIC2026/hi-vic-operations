@@ -43,10 +43,10 @@ export function mittiApi(call: MittiCall) {
     searchAudits: (modifiedAfterIso: string) =>
       call("GET", `/audits/search?modified_after=${encodeURIComponent(modifiedAfterIso)}&limit=200`) as Promise<Any>,
     /** Documented partial text update for header items (Portal Job Number write-back); omitted fields untouched. */
-    updateAuditHeader: (auditId: string, headerItems: { item_id: string; type: string; responses: { text: string } }[]) =>
+    updateAuditHeader: (auditId: string, headerItems: { item_id: string; type: string; responses: { text?: string; datetime?: string } }[]) =>
       call("PUT", `/audits/${encodeURIComponent(auditId)}`, { header_items: headerItems }) as Promise<Any>,
     /** Documented partial text update; omitted responses (including signatures) are untouched. */
-    updateAuditText: (auditId: string, items: { item_id: string; type: string; responses: { text: string } }[]) => call("PUT", `/audits/${encodeURIComponent(auditId)}`, { items }),
+    updateAuditText: (auditId: string, items: { item_id: string; type: string; responses: { text?: string; datetime?: string } }[]) => call("PUT", `/audits/${encodeURIComponent(auditId)}`, { items }),
     /** Mitti's own finished PDF report (with its photos): request, then poll until a download link is ready. */
     requestReport: (auditId: string) => call("POST", `/audits/${encodeURIComponent(auditId)}/report`, { format: "PDF" }) as Promise<Any>,
     getReport: (auditId: string, messageId: string) => call("GET", `/audits/${encodeURIComponent(auditId)}/report/${encodeURIComponent(messageId)}`) as Promise<Any>,
