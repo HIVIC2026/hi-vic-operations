@@ -7,14 +7,15 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { checkedOutlookHealth, normaliseMailbox, outlookGatewayUrl, outlookMailboxPath, uncheckedOutlookHealth, type OutlookHealth } from "./outlook-connection.core";
 import {
-  attachmentStoragePath, classifyIntent, closureDecision, counterpartEmails, extractJobNumbers, isPortalDuplicate, matchMessage, normaliseMessage,
+  attachmentIdentityKey, attachmentStoragePath, ATTACHMENT_MAX_FILE_BYTES, ATTACHMENT_MAX_MESSAGE_BYTES,
+  classifyIntent, closureDecision, counterpartEmails, extractJobNumbers, isPortalDuplicate, matchMessage, normaliseMessage,
   planAttachments, type AttachmentRef, type CandidateJob, type GraphMessage, type MailMessage, type MatchResult, type StoredAttachmentRef,
 } from "./outlook-correspondence.core";
 
 // New migration types are local until the database-generated types are refreshed on integration.
 const syncAdmin = admin as SupabaseClient;
 type Route = MatchResult;
-type Work = { provider_message_id: string; mailbox: string; message: MailMessage; route: Route; attachments_complete: boolean; attachment_refs: StoredAttachmentRef[]; status: "pending" | "complete" };
+type Work = { provider_message_id: string; mailbox: string; message: MailMessage; route: Route; attachments_complete: boolean; attachment_refs: StoredAttachmentRef[]; status: "pending" | "complete"; record_only: boolean };
 type SyncState = {
   id: number; expected_mailbox: string | null; mailbox: string | null; backfill_from: string;
   inbox_cursor: string | null; sent_cursor: string | null; inbox_next_link: string | null; sent_next_link: string | null;
@@ -141,27 +142,81 @@ async function attachmentsFor(id: string, mailbox: string): Promise<AttachmentRe
   return refs;
 }
 
-/** Downloads and privately stores each attachment (retry-safe: an existing object is kept, never duplicated). */
-async function storeAttachments(work: Work, refs: AttachmentRef[]): Promise<{ refs: StoredAttachmentRef[]; stored: number; skipped: number }> {
-  const prefix = work.route.kind === "job" ? (routeJobIds(work.route)[0] ?? "unmatched") : "unmatched";
+/** SHA-256 hex of raw bytes: proves a re-used storage object really is the same file. */
+async function sha256Hex(bytes: Uint8Array): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", bytes as unknown as ArrayBuffer);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Downloads and privately stores each attachment. Size limits apply to the actual downloaded bytes
+ *  (a file whose size the provider did not report is still checked), an existing object is only reused
+ *  after its bytes are verified against the mailbox copy, and every skipped file keeps a visible reason
+ *  — a file that was not stored is never presented as preserved. */
+async function storeAttachments(work: Work, refs: AttachmentRef[], jobIds: string[]): Promise<{ refs: StoredAttachmentRef[]; stored: number; skipped: number }> {
+  const prefix = jobIds[0] ?? "unmatched";
   const plan = planAttachments(refs);
   const skippedIds = new Set(plan.skipped.map((s) => s.ref.id));
   const reasonById = new Map(plan.skipped.map((s) => [s.ref.id, s.reason]));
   const stored: StoredAttachmentRef[] = [];
   let storedCount = 0;
+  let actualTotal = 0;
   for (const [i, ref] of refs.entries()) {
-    if (skippedIds.has(ref.id)) { stored.push({ ...ref, path: null, storedAt: null, skipped: reasonById.get(ref.id) ?? "skipped" }); continue; }
-    const bytes = await attachmentBytes(work.mailbox, work.provider_message_id, ref.id);
-    const path = attachmentStoragePath(prefix, work.provider_message_id, i, ref.name);
+    if (skippedIds.has(ref.id)) { stored.push({ ...ref, path: null, storedAt: null, skipped: reasonById.get(ref.id) ?? "skipped", contentHash: null }); continue; }
+    const bytes = new Uint8Array(await attachmentBytes(work.mailbox, work.provider_message_id, ref.id));
+    if (bytes.byteLength > ATTACHMENT_MAX_FILE_BYTES) { stored.push({ ...ref, path: null, storedAt: null, skipped: `over the ${Math.round(ATTACHMENT_MAX_FILE_BYTES / 1048576)} MB per-file limit`, contentHash: null }); continue; }
+    if (actualTotal + bytes.byteLength > ATTACHMENT_MAX_MESSAGE_BYTES) { stored.push({ ...ref, path: null, storedAt: null, skipped: "over the per-message attachment budget", contentHash: null }); continue; }
+    const path = attachmentStoragePath(prefix, attachmentIdentityKey(work.mailbox, work.provider_message_id, ref.id), i, ref.name);
+    const contentHash = await sha256Hex(bytes);
     const { error } = await (admin.storage.from(BUCKET) as unknown as {
       upload: (p: string, body: Uint8Array, o: { contentType: string; upsert: boolean }) => Promise<{ error: { message: string } | null }>;
-    }).upload(path, new Uint8Array(bytes), { contentType: ref.contentType ?? "application/octet-stream", upsert: false });
-    // A retry after a crash re-uploads the same bytes to the same deterministic path; that is the same file.
-    if (error && !/exist/i.test(error.message)) throw new Error(`Outlook attachment was not stored: ${error.message}`);
-    stored.push({ ...ref, path, storedAt: new Date().toISOString(), skipped: null });
+    }).upload(path, bytes, { contentType: ref.contentType ?? "application/octet-stream", upsert: false });
+    if (error) {
+      if (!/exist/i.test(error.message)) throw new Error(`Outlook attachment was not stored: ${error.message}`);
+      // A retry may re-upload the same bytes to the same deterministic path; only reuse the object when
+      // its stored bytes match the mailbox copy — never assume an "already exists" error means the same file.
+      const { data: have, error: de } = await (admin.storage.from(BUCKET) as unknown as {
+        download: (p: string) => Promise<{ data: Blob | null; error: { message: string } | null }>;
+      }).download(path);
+      if (de || !have) throw new Error(`Stored Outlook attachment could not be re-checked: ${de?.message ?? "object missing"}`);
+      const existing = new Uint8Array(await have.arrayBuffer());
+      if (existing.byteLength !== bytes.byteLength || (await sha256Hex(existing)) !== contentHash)
+        throw new Error("A different file already exists at the Outlook attachment path; it was not overwritten.");
+    }
+    actualTotal += bytes.byteLength;
+    stored.push({ ...ref, path, storedAt: new Date().toISOString(), skipped: null, contentHash });
     storedCount++;
   }
-  return { refs: stored, stored: storedCount, skipped: plan.skipped.length };
+  return { refs: stored, stored: storedCount, skipped: stored.filter((s) => s.skipped).length };
+}
+
+/** Idempotent byte/inline repair for mail stored by the metadata-only era (or completed work whose files
+ *  were never downloaded). No workflow changes: already-verified files are reused, missing ones are
+ *  fetched and stored, and each job row keeps its existing stored paths. */
+async function repairAttachments(work: Work): Promise<{ stored: number } | null> {
+  const jobIds = routeJobIds(work.route);
+  if (!jobIds.length) return null;
+  const refs = await attachmentsFor(work.provider_message_id, work.mailbox);
+  if (!refs.length) return null;
+  const storedRefs = await storeAttachments(work, refs, jobIds);
+  for (const jobId of jobIds) {
+    const { data: rows, error } = await syncAdmin.from("job_communications").select("id, attachment_refs")
+      .eq("provider", "outlook").eq("provider_message_id", work.provider_message_id).eq("job_id", jobId);
+    if (error) throw new Error(`Correspondence attachments unavailable: ${error.message}`);
+    for (const row of rows ?? []) {
+      const current = (row.attachment_refs as StoredAttachmentRef[] | null) ?? [];
+      const byId = new Map(storedRefs.refs.map((r) => [r.id, r]));
+      const merged = (current.length ? current : storedRefs.refs).map((r) => (r.path ? r : byId.get(r.id) ?? r));
+      const { error: ue } = await syncAdmin.from("job_communications")
+        .update({ attachment_refs: merged, updated_at: new Date().toISOString() }).eq("id", row.id);
+      if (ue) throw new Error(`Correspondence attachment repair was not saved: ${ue.message}`);
+    }
+  }
+  if (!work.attachments_complete) {
+    const { error } = await syncAdmin.from("outlook_message_work")
+      .update({ attachment_refs: storedRefs.refs }).eq("provider_message_id", work.provider_message_id);
+    if (error) throw new Error(`Attachment metadata was not saved: ${error.message}`);
+  }
+  return { stored: storedRefs.stored };
 }
 
 async function loadCandidates(msgs: MailMessage[], mailbox: string) {
@@ -173,7 +228,7 @@ async function loadCandidates(msgs: MailMessage[], mailbox: string) {
     const o = j["owners"] as { email: string | null } | null, p = j["properties"] as { address_line: string | null; postcode: string | null } | null;
     return { id: String(j["id"]), jobNumber: String(j["job_number"]), ownerEmail: o?.email?.toLowerCase() ?? null, addressLine: p?.address_line ?? null, postcode: p?.postcode ?? null };
   };
-  const byNumber = new Map<string, CandidateJob>(), byEmail = new Map<string, CandidateJob[]>(), byThread = new Map<string, string[]>();
+  const byNumber = new Map<string, CandidateJob>(), byEmail = new Map<string, CandidateJob[]>(), byThread = new Map<string, CandidateJob[]>();
   for (let i = 0; i < numbers.length; i += 100) {
     const { data, error } = await admin.from("jobs").select(sel).in("job_number", numbers.slice(i, i + 100)).is("deleted_at", null).neq("source", "qa_test");
     if (error) throw new Error(error.message);
@@ -193,27 +248,41 @@ async function loadCandidates(msgs: MailMessage[], mailbox: string) {
       byEmail.set(c.ownerEmail, [...(byEmail.get(c.ownerEmail) ?? []), c]);
     }
   }
-  // Threads already stored on jobs: a reply in a known conversation links even from a family/manager address.
+  // Threads already stored on jobs: a reply in a known conversation links even from a family/manager
+  // address. Candidate details are kept so a multi-job thread can be corroborated against the sender.
+  const threadRows: { thread: string; jobId: string }[] = [];
   for (let i = 0; i < threads.length; i += 100) {
     const { data, error } = await admin.from("job_communications").select("job_id, provider_thread_id")
       .eq("provider", "outlook").in("provider_thread_id", threads.slice(i, i + 100));
     if (error) throw new Error(error.message);
     for (const c of data ?? []) {
       const t = c.provider_thread_id as string | null;
-      if (!t) continue;
-      byThread.set(t, [...new Set([...(byThread.get(t) ?? []), String(c.job_id)])]);
+      if (t) threadRows.push({ thread: t, jobId: String(c.job_id) });
     }
+  }
+  const threadJobIds = [...new Set(threadRows.map((r) => r.jobId))];
+  const threadCands = new Map<string, CandidateJob>();
+  for (let i = 0; i < threadJobIds.length; i += 100) {
+    const { data, error } = await admin.from("jobs").select(sel).in("id", threadJobIds.slice(i, i + 100)).is("deleted_at", null).neq("source", "qa_test");
+    if (error) throw new Error(error.message);
+    for (const j of data ?? []) { const c = toCand(j as never); threadCands.set(c.id, c); }
+  }
+  for (const { thread, jobId } of threadRows) {
+    const c = threadCands.get(jobId);
+    if (c) byThread.set(thread, [...new Map([...(byThread.get(thread) ?? []), c].map((x) => [x.id, x])).values()]);
   }
   return { byNumber, byEmail, byThread };
 }
 
-/** Stores one matched message on its job. Returns the new communication id, or null when it was already stored. */
-export async function storeOnJob(jobId: string, m: MailMessage, how: string): Promise<string | null> {
+/** Stores one matched message on its job. Returns the new communication id, or null when it was already
+ *  stored (per-job uniqueness makes a repeated assignment idempotent). Visibility is "customer" only when
+ *  the counterpart is a confirmed participant of that job; family/property-manager mail is staff-visible. */
+export async function storeOnJob(jobId: string, m: MailMessage, how: string, visibility: "customer" | "internal" = "customer"): Promise<string | null> {
   const { data, error } = await admin.from("job_communications").insert({
     job_id: jobId, direction: m.direction, channel: "email", sender_text: m.fromName ? `${m.fromName} <${m.from}>` : m.from, recipients: [...m.to, ...m.cc],
     subject: m.subject, body: m.body || "(no text)", provider: "outlook", provider_message_id: m.providerMessageId, provider_thread_id: m.threadId,
     sent_at: m.direction === "outbound" ? m.at : null, received_at: m.direction === "inbound" ? m.at : null,
-    delivery_status: m.direction === "inbound" ? "received" : "sent", visibility: "customer", attachment_refs: m.attachments,
+    delivery_status: m.direction === "inbound" ? "received" : "sent", visibility, attachment_refs: m.attachments,
     source_event: `outlook_sync:${how}`, source_reference: m.internetMessageId, created_by: null,
   }).select("id").single();
   if (error) { if (error.code === "23505") return null; throw new Error(error.message); }
@@ -224,8 +293,10 @@ export async function storeOnJob(jobId: string, m: MailMessage, how: string): Pr
 async function decisionFor(work: Work, window: ClosureWindow): Promise<Record<string, unknown>> {
   const m = work.message;
   const jobIds = routeJobIds(work.route);
-  // Workflow decisions only ever apply to a single confirmed job and to live mail, never to historical catch-up.
+  // Workflow decisions only ever apply to a single confirmed job and to live mail. Record-only work
+  // (historical catch-up, persisted on the work row so restarts keep it) is never allowed to close or flag.
   if (work.route.kind !== "job" || jobIds.length !== 1 || m.direction !== "inbound") return { action: "none" };
+  if (work.record_only) return { action: "none" };
   if (window.history && window.backfillFrom && Date.parse(m.at) < Date.parse(window.backfillFrom)) return { action: "none" };
   const jobId = jobIds[0]!;
   const intent = classifyIntent(m.body);
