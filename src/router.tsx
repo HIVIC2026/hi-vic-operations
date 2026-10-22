@@ -8,8 +8,11 @@ import { routeTree } from "./routeTree.gen";
 const STALE_KEY = "hiv-stale-reload-at";
 const HARD_KEY = "hiv-stale-hard-at";
 
+// Includes the lazy-route symptom when an old page file resolves to nothing after a new version
+// goes live (Safari: "undefined is not an object (evaluating 'e[t??`default`]')";
+// Chrome: "Cannot read properties of undefined (reading 'default')").
 export const isStaleChunkError = (e: unknown) =>
-  /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module/i.test(
+  /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|undefined is not an object \(evaluating '[^']*default|Cannot read properties of undefined \(reading 'default'\)/i.test(
     String((e as Error)?.message ?? e),
   );
 
