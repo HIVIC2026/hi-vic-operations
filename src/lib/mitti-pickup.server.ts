@@ -187,14 +187,14 @@ export async function listMittiSyncProblems(): Promise<{ rows: MittiSyncProblem[
     admin.from("workflow_events").select("job_id, created_at, details").eq("event_type", "mitti_measureup_synced").order("created_at", { ascending: false }).limit(500),
   ]);
   const jobInfo = async (ids: string[]) => {
-    if (!ids.length) return new Map<string, { job_number: string; owner: string | null; address: string | null }>();
+    if (!ids.length) return new Map<string, { job_number: string; owner: string | null; address: string | null; skip: boolean }>();
     const { data } = await admin.from("jobs").select("id, job_number, stage, deleted_at, qa_archived_at, owners(full_name), properties(address_line, suburb)").in("id", ids);
-    return new Map((data ?? []).map((j) => [j.id, {
+    return new Map<string, { job_number: string; owner: string | null; address: string | null; skip: boolean }>((data ?? []).map((j) => [j.id, {
       job_number: j.job_number,
       owner: (j.owners as { full_name: string | null } | null)?.full_name ?? null,
       address: [(j.properties as { address_line: string | null } | null)?.address_line, (j.properties as { suburb: string | null } | null)?.suburb].filter(Boolean).join(", ") || null,
       skip: !!j.deleted_at || !!j.qa_archived_at || ["cancelled", "on_hold", "complete", "ready_for_veec"].includes(String(j.stage)),
-    }] as [string, { job_number: string; owner: string | null; address: string | null; skip: boolean }]));
+    }]));
   };
 
   const rows: MittiSyncProblem[] = [];

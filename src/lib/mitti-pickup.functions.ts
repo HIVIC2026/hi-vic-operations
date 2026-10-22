@@ -3,7 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin } from "./workflow.server";
 import { realMittiCall } from "./mitti.server";
-import { scanMittiReadyCheckPickups, linkMittiReadyCheckToJob } from "./mitti-pickup.server";
+import { scanMittiReadyCheckPickups, linkMittiReadyCheckToJob, listMittiSyncProblems, retryMittiSync } from "./mitti-pickup.server";
 
 export const getMittiPickups = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
