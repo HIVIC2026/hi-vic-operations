@@ -38,8 +38,10 @@ describe("Jo 22 Oct insulation answers routing", () => {
 
 describe("intake and display", () => {
   test("intake accepts the three new answers inside base44_answers", () => {
-    const r = enquirySchema.safeParse({ full_name: "A", email: "a@b.com", base44_answers: { insulation: "present", insulation_type: "loose_fill", insulation_thickness: "thin", insulation_coverage: "partial" } });
+    const shape = enquirySchema.shape.base44_answers;
+    const r = shape.safeParse({ insulation: "present", insulation_type: "loose_fill", insulation_thickness: "thin", insulation_coverage: "partial" });
     expect(r.success).toBe(true);
+    expect(r.data).toEqual({ insulation: "present", insulation_type: "loose_fill", insulation_thickness: "thin", insulation_coverage: "partial" });
   });
   test("office sees 'Owner says: loose fill, thin, patchy'", () => {
     const d = { existing_insulation: "present", ...declaredInsulationDetail({ insulation_type: "loose_fill", insulation_thickness: "thin", insulation_coverage: "partial" }) };
