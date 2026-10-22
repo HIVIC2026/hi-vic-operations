@@ -24,7 +24,7 @@ export type HivQuoteInput = {
   installerR5ExPerM2: number | null; // agreed rate card (stored ex GST)
   installerRemovalExPerM2: number | null;
   installerTravelEx: number | null; // installer cost with no owner line (reduces our markup)
-  /** Chosen R-value (installer's form or usual product). Absent = R5.0, as before. */
+  /** Chosen R-value (from the installer's Mitti form). Absent = R5.0, as before. */
   rValue?: ProductRValue;
   /** Agreed installer rate (ex GST) for rValue; required when rValue is R6.0/R7.0. */
   installerRExPerM2?: number | null;
