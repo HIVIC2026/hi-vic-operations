@@ -17,7 +17,7 @@ const client = { from(table: string) {
       if (failClose) return { data: null, error: { message: "isolated failure" } };
       for (const row of selected) { Object.assign(row, payload); row.office_bucket = "closed"; }
     }
-    return { data: selected.slice(start, end + 1), error: null };
+    return { data: selected.slice(start, end + 1).map(r => ({ ...r })), error: null };
   };
   const q: any = {
     select: () => q, eq: (k: string, v: any) => { filters.push(r => r[k] === v); return q; },
