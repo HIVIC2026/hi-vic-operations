@@ -34,3 +34,4 @@
 - Owner paperwork Gate A has no required items (Jo 21 Oct); tenancy/landlord and earlier-visit moved to Gate B, cooling-off not required; old Gate A signatures stay as history. Why: no paperwork before visits; trades get contact on acceptance via contact_releases.
 
 - SMS uses the explicitly selected linked messaging connection through the existing gateway sender, with no connection fallback or automatic retry. Why: changing routing must not duplicate texts or alter delivery guards.
+- Office "Installer quotes to check" (Active jobs) reads installer-sourced draft/held quotes via `installer-quote-review.functions.ts`, read-only; never sends. Why: one clear signal that a quote is ready without changing quote guards.
