@@ -516,7 +516,7 @@ export function parseAudit(audit: Any) {
  *  Absent-safe: a label that isn't on the form returns null — nothing is invented. */
 export type MittiContactAnswers = {
   phone: string | null; email: string | null; contactPermission: boolean | null;
-  electricianChoice: "hivic" | "own" | null; electricianPriceIncGst: string | null; electricianName: string | null; electricianLicence: string | null;
+  electricianChoice: "hivic" | "usual" | "different" | "own" | null; electricianPriceIncGst: string | null; electricianName: string | null; electricianLicence: string | null;
 };
 export function contactAnswersFromEntries(entries: { label: string; value: string | null }[]): MittiContactAnswers {
   const find = (labels: string[]): string | null => {
@@ -527,7 +527,8 @@ export function contactAnswersFromEntries(entries: { label: string; value: strin
     return null;
   };
   const raw = find(["Who is doing the electrical safety check?"]);
-  const electricianChoice = raw == null ? null : /own electrician/i.test(raw) ? ("own" as const) : /home insulation victoria/i.test(raw) ? ("hivic" as const) : null;
+  const choice = norm(raw);
+  const electricianChoice = choice === norm("My usual electrician") ? "usual" as const : choice === norm("A different electrician") ? "different" as const : choice === norm("Home Insulation Victoria electrician") ? "hivic" as const : /own electrician/i.test(raw ?? "") ? "own" as const : null;
   return {
     phone: find(["Homeowner phone", "Owner phone"]),
     email: find(["Homeowner email", "Owner email"]),
