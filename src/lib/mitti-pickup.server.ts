@@ -21,7 +21,14 @@ const PICKUP_WINDOW_DAYS = 14;
 // Jo 22 Oct 2026: "preliminary_estimate_ready" (Office wording: estimate sent) is allowed too — the Mitti-first
 // flow has installers doing the Ready Check on jobs whose preliminary estimate already went out, and the visit
 // has happened. Every other guard (template match, one-form rule, write-back validation, guarded sync) is unchanged.
-const READY_CHECK_STAGES = ["ready_check_ready_to_schedule", "ready_check_scheduled", "preliminary_estimate_ready"];
+// Jo 23 Oct 2026: every pre-quote stage where a Ready Check can sensibly be happening (enquiry, estimate,
+// awaiting acceptance/payment, scheduling) plus a completed Ready Check awaiting the form. Closed/quoted/
+// install stages stay refused.
+export const READY_CHECK_STAGES = [
+  "new_enquiry", "eligibility_review", "preliminary_estimate_ready", "ready_check_awaiting_acceptance",
+  "ready_check_awaiting_payment", "ready_check_ready_to_schedule", "ready_check_scheduled", "ready_check_complete",
+];
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 async function templateIds() {
   const { data } = await admin.from("workflow_settings").select("mitti_ready_check_template_id,mitti_ready_check_priced_template_id").eq("id", 1).maybeSingle();
@@ -81,7 +88,7 @@ export async function scanMittiReadyCheckPickups(actorId: string | null, call: M
     if (!auditId) continue;
     let audit: Any;
     try { audit = await api.getAudit(auditId); } catch { continue; } // one unreadable form must not hide the rest
-    if (audit?.archived || audit?.audit_data?.date_completed) continue; // finished forms belong to normal sync
+    if (audit?.archived) continue; // completed-but-unlinked forms still need linking, so they stay listed
     const p = parsePickupAudit(audit);
     if (!p) continue;
     // Blank drafts (nothing typed yet) are not actionable — the office links forms with real content.
@@ -98,9 +105,15 @@ export async function scanMittiReadyCheckPickups(actorId: string | null, call: M
 /** Office action: link one Mitti Ready Check audit to a portal job, then run the existing guarded sync. */
 export async function linkMittiReadyCheckToJob(actorId: string | null, input: { auditId: string; jobId: string }, call: MittiCall = realMittiCall) {
   const auditId = String(input.auditId ?? "").trim();
-  const jobId = String(input.jobId ?? "").trim();
-  if (!auditId || !jobId) throw new WorkflowError("Choose the Mitti form and the job to link it to.");
-  const { data: job } = await admin.from("jobs").select("id,job_number,business_unit,stage,channel,deleted_at").eq("id", jobId).maybeSingle();
+  const jobRef = String(input.jobId ?? "").trim();
+  if (!auditId || !jobRef) throw new WorkflowError("Choose the Mitti form and the job to link it to.");
+  // The Office box takes the HV number; older callers pass the job id. Accept both.
+  const sel = "id,job_number,business_unit,stage,channel,deleted_at";
+  const { data: job } = UUID_RE.test(jobRef)
+    ? await admin.from("jobs").select(sel).eq("id", jobRef).maybeSingle()
+    : await admin.from("jobs").select(sel).ilike("job_number", jobRef.toUpperCase().replace(/^(\d)/, "HV-$1")).maybeSingle();
+  if (!job) throw new WorkflowError(`No job found for "${jobRef}".`);
+  const jobId = job.id;
   if (!job || job.deleted_at) throw new WorkflowError("Job not found.");
   if (job.business_unit !== "hivic") throw new WorkflowError("Mitti linking is only available for Home Insulation Victoria jobs.");
   if (!READY_CHECK_STAGES.includes(job.stage)) throw new WorkflowError(`This job is at "${job.stage}". Only jobs waiting for or attending the Ready Check can take a Mitti form.`);
@@ -110,7 +123,6 @@ export async function linkMittiReadyCheckToJob(actorId: string | null, input: { 
   const api = mittiApi(call);
   const audit = await api.getAudit(auditId);
   if (audit?.archived) throw new WorkflowError("This Mitti form is archived and cannot be linked.");
-  if (audit?.audit_data?.date_completed) throw new WorkflowError("This Mitti form is already completed in Mitti — office review is required before linking.");
   const parsed = parsePickupAudit(audit);
   if (!parsed || !allowed.some((id) => pickupTemplateMatches(parsed.templateId, id))) throw new WorkflowError("This Mitti form is not a Ready Check form. Nothing was changed.");
 
