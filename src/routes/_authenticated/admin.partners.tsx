@@ -195,6 +195,12 @@ function SignedRecAgreement({ id }: { id: string }) {
           <div className="break-all text-xs text-muted-foreground">SHA-256 {r.agreement_sha256} · IP {r.signed_ip ?? "—"}</div>
           {r.certificateUrl && <button type="button" className="text-primary underline" onClick={() => openFileViewer(r.certificateUrl, "Certificate of Currency")}>Open Certificate of Currency</button>}
           {r.activation && <p className="rounded bg-success-soft p-2 font-semibold text-success">Activated as an approved partner business on {new Date(r.activation.activated_at).toLocaleDateString("en-AU")}.</p>}
+          <div className="rounded-md border bg-muted/40 p-3" data-signature-block>
+            <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Electronic signature</div>
+            <div className="mt-1">Signed by <b>{r.signer_name}</b>{r.signer_position ? `, ${r.signer_position}` : ""} ({r.signer_email})</div>
+            <div>Signed {r.signed_at ? new Date(r.signed_at).toLocaleString("en-AU") : "—"} · from IP {r.signed_ip ?? "—"}</div>
+            <div className="text-xs text-muted-foreground">Typed-name electronic signature · document fingerprint SHA-256 {r.agreement_sha256}</div>
+          </div>
           <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap rounded bg-muted p-3 text-xs">{r.agreement_text}</pre>
         </div>
       ))}
