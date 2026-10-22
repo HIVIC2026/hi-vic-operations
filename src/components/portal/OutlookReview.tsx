@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAction } from "@/hooks/use-me";
-import { checkOutlookConnectionHealth, confirmOutlookSyncMailbox, getOutlookCorrespondenceOverview, resolveCorrespondenceReview, runOutlookSyncNow } from "@/lib/outlook-correspondence.functions";
+import { checkOutlookConnectionHealth, confirmOutlookSyncMailbox, getOutlookCorrespondenceOverview, resolveCorrespondenceReview, runOutlookSyncNow, setOutlookCatchup } from "@/lib/outlook-correspondence.functions";
 import { normaliseMailbox, type OutlookHealth } from "@/lib/outlook-connection.core";
 
 const fmt = (v: string | null | undefined) => (v ? new Date(v).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "—");
@@ -27,12 +27,14 @@ export function OutlookReview() {
   const check = useServerFn(checkOutlookConnectionHealth);
   const confirm = useServerFn(confirmOutlookSyncMailbox);
   const runNow = useServerFn(runOutlookSyncNow);
+  const setCatchup = useServerFn(setOutlookCatchup);
   const [checked, setChecked] = useState<OutlookHealth | null>(null);
   const [mailboxInput, setMailboxInput] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"check" | "confirm" | "sync" | null>(null);
+  const [catchupDate, setCatchupDate] = useState("");
+  const [busy, setBusy] = useState<"check" | "confirm" | "sync" | "catchup" | null>(null);
   const [actionProblem, setActionProblem] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const perform = async (action: "check" | "confirm" | "sync", task: () => Promise<void>) => {
+  const perform = async (action: "check" | "confirm" | "sync" | "catchup", task: () => Promise<void>) => {
     setBusy(action); setActionProblem(null); setNotice(null);
     try { await task(); }
     catch (e) { setActionProblem(e instanceof Error ? e.message : "The Outlook action failed."); }
@@ -88,6 +90,27 @@ export function OutlookReview() {
         {data.pending > 0 && <p className="mt-1 text-danger">{data.pending} message(s) still await completed processing. Pending work is retained for retry.</p>}
         <p className="mt-1 text-sub">Copies owner emails (in and out) from {fmt(s?.backfill_from)} onto each job, every 10 minutes. It never sends anything.
           {Object.keys(counts).length > 0 && <> Last pass: {counts["stored"] ?? 0} saved, {counts["unmatched"] ?? 0} to match, {counts["closed"] ?? 0} closed, {counts["flagged"] ?? 0} to check.</>}</p>
+        <div className="mt-3 border-t pt-3">
+          <p className="font-medium">Historical catch-up</p>
+          <p className="text-sub">Copies older mailbox history onto jobs. It is record-only: imported old mail is never allowed to close or change a job. {s.catchup_from
+            ? <>Running from <b>{fmt(s.catchup_from)}</b> — inbound progress {fmt(s.catchup_inbound_cursor)}{s.has_catchup_inbound_continuation ? " (continuing)" : ""}, outbound progress {fmt(s.catchup_outbound_cursor)}{s.has_catchup_outbound_continuation ? " (continuing)" : ""}. Completion clears it automatically.</>
+            : "No catch-up set — only mail from the normal start date is imported."}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <Input aria-label="Catch-up start date" type="date" className="h-9 w-40" value={catchupDate} onChange={(e) => setCatchupDate(e.target.value)} />
+            <Button size="sm" variant="outline" disabled={!!busy || !catchupDate}
+              onClick={() => void perform("catchup", async () => {
+                await setCatchup({ data: { from: new Date(`${catchupDate}T00:00:00Z`).toISOString() } });
+                await queryClient.invalidateQueries({ queryKey: ["outlook-correspondence"] });
+                setNotice("Historical catch-up start saved. The next sync run will pick it up (record-only).");
+              })}>{busy === "catchup" ? "Saving…" : "Start historical catch-up"}</Button>
+            {s.catchup_from && <Button size="sm" variant="ghost" disabled={!!busy}
+              onClick={() => void perform("catchup", async () => {
+                await setCatchup({ data: { from: null } });
+                await queryClient.invalidateQueries({ queryKey: ["outlook-correspondence"] });
+                setNotice("Historical catch-up stopped and cleared.");
+              })}>Stop catch-up</Button>}
+          </div>
+        </div>
       </section>
 
       <ReviewList title={`Unmatched correspondence (${unmatched.length})`} empty="No emails waiting to be matched." items={unmatched} resolve={resolve} />
