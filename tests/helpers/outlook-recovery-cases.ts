@@ -364,16 +364,20 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
   })],
   ["historical catch-up work is record-only on the work row and stays record-only on retry", practice(async h => {
     const message = graphMessage("hist-decline", "Please cancel my enquiry.", { receivedDateTime: "2026-10-05T08:00:00Z" });
-    h.control.fetch = async url => jsonResponse({ value: [] });
+    h.control.fetch = async () => jsonResponse({ value: [] });
+    // Fail the first completion so the message stays pending, as after a crash mid-processing.
+    h.control.fault = op => op.mode === "rpc" && op.table === "finish_outlook_message" ? { data: null, error: { message: "injected finish failure" } } : null;
     const first = h.counts(); await h.server.processMessages([message], TEST_MAILBOX, first, { inboxCompleteThrough: null, history: true, backfillFrom: "2026-10-10T00:00:00Z" });
-    assert.equal(first.errors, 0); assert.equal(first.stored, 1); assert.equal(first.closed, 0);
-    assert.equal((await row(h, "outlook_message_work")).record_only, true);
+    assert.equal(first.errors, 1);
+    const work = await row(h, "outlook_message_work");
+    assert.equal(work.status, "pending"); assert.equal(work.record_only, true);
     // A later retry that no longer carries the history window must still honour the persisted flag.
-    await h.db.exec(`UPDATE outlook_message_work SET status='pending'`);
+    h.control.fault = null;
     const retry = h.counts(); await h.server.processMessages([message], TEST_MAILBOX, retry, COMPLETE_WINDOW);
-    assert.equal(retry.closed, 0);
+    assert.equal(retry.errors, 0); assert.equal(retry.closed, 0);
     assert.equal((await row(h, "jobs")).stage, "new_enquiry");
     assert.equal(await total(h, "workflow_events"), 0);
+    assert.equal(await total(h, "job_communications"), 1);
   })],
   ["SQL refuses stage decisions on record-only historical work", practice(async h => {
     const message = { providerMessageId: "hist-sql", direction: "inbound", from: "owner@example.test", to: [TEST_MAILBOX], cc: [], body: "Please cancel my enquiry.", at: "2026-10-05T08:00:00Z", hasAttachments: false };
@@ -386,7 +390,7 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     assert.equal((await row(h, "jobs")).stage, "new_enquiry");
     assert.equal(await total(h, "job_communications"), 1);
   })],
-  ["attachment ids that look alike keep distinct verified bytes; a mismatched existing object is a visible error", practice(async h => {
+  ["attachment ids that look alike keep distinct paths; a mismatched existing object is a visible error until corrected", practice(async h => {
     const message = graphMessage("collide-msg", "Two photos", { hasAttachments: true });
     h.control.fetch = async url => {
       if (url.includes("/attachments/one/$value")) return bytesResponse(new Uint8Array([1, 1, 1]), "image/jpeg");
@@ -397,21 +401,22 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
       ] });
       return jsonResponse({ value: [] });
     };
-    const result = h.counts(); await h.server.processMessages([message], TEST_MAILBOX, result, COMPLETE_WINDOW);
-    assert.equal(result.errors, 0); assert.equal(result.files, 2);
-    const refs = (await row(h, "job_communications")).attachment_refs;
-    assert.notEqual(refs[0].path, refs[1].path);
-    assert.notEqual(refs[0].contentHash, refs[1].contentHash);
-    assert.equal(h.files.get(refs[0].path).length, 3);
-    assert.equal(h.files.get(refs[1].path).length, 3);
-    // A different file already sitting at the deterministic path must fail the byte check, stay pending.
-    h.files.set(refs[0].path, new Uint8Array([9, 9, 9]));
-    await h.db.exec(`UPDATE outlook_message_work SET status='pending', attachments_complete=false`);
-    await h.db.exec(`DELETE FROM job_communications`);
-    const retry = h.counts(); await h.server.processMessages([message], TEST_MAILBOX, retry, COMPLETE_WINDOW);
-    assert.equal(retry.errors, 1);
+    const pathOne = `correspondence/${TEST_JOB}/${attachmentIdentityKey(TEST_MAILBOX, "collide-msg", "one")}/1-p.jpg`;
+    const pathTwo = `correspondence/${TEST_JOB}/${attachmentIdentityKey(TEST_MAILBOX, "collide-msg", "two")}/2-p.jpg`;
+    assert.notEqual(pathOne, pathTwo);
+    // A different file already sitting at the first deterministic path must fail the byte check.
+    h.files.set(pathOne, new Uint8Array([9, 9, 9]));
+    const first = h.counts(); await h.server.processMessages([message], TEST_MAILBOX, first, COMPLETE_WINDOW);
+    assert.equal(first.errors, 1);
     assert.equal((await row(h, "outlook_message_work")).status, "pending");
     assert.match((await row(h, "outlook_message_work")).last_error, /not overwritten/);
+    // Correcting the stored object lets the retry finish with both verified files at distinct paths.
+    h.files.set(pathOne, new Uint8Array([1, 1, 1]));
+    const retry = h.counts(); await h.server.processMessages([message], TEST_MAILBOX, retry, COMPLETE_WINDOW);
+    assert.equal(retry.errors, 0); assert.equal(retry.files, 2);
+    const refs = (await row(h, "job_communications")).attachment_refs;
+    assert.deepEqual(refs.map((r: any) => r.path), [pathOne, pathTwo]);
+    assert.equal(h.files.get(pathTwo).length, 3);
   })],
   ["metadata-only legacy mail is repaired idempotently without workflow changes", practice(async h => {
     await h.db.query(`INSERT INTO job_communications(job_id,direction,channel,provider,provider_message_id,body,attachment_refs,source_reference) VALUES($1,'inbound','email','outlook','legacy-att','see photo','[{"id":"a1","name":"photo.jpg","contentType":"image/jpeg","size":4,"isInline":false,"path":null,"storedAt":null,"skipped":null}]','<legacy@imm>')`, [TEST_JOB]);
@@ -445,11 +450,11 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     assert.equal(result.counts.stored, 1);
     const state = await h.state();
     assert.equal(state.all_inbound_next_link, null);
-    assert.ok(String(state.all_inbound_cursor) >= "2026-10-19T05:00:00Z");
+    assert.ok(new Date(state.all_inbound_cursor).toISOString() >= "2026-10-19T05:00:00Z");
   })],
   ["Office can set and stop an explicit historical catch-up start; no silent cutoff", practice(async h => {
     await h.server.setCatchupFrom("2025-01-01T00:00:00Z");
-    assert.ok(String((await h.state()).catchup_from).startsWith("2025-01-01"));
+    assert.ok(new Date((await h.state()).catchup_from).toISOString().startsWith("2025-01-01"));
     await assert.rejects(h.server.setCatchupFrom("2027-01-01T00:00:00Z"), /future/);
     await assert.rejects(h.server.setCatchupFrom("not-a-date"), /valid catch-up start date/);
     await h.server.setCatchupFrom(null);
