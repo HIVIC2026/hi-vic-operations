@@ -174,7 +174,7 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     h.control.fetch = async url => {
       if (url.includes("/me?") || url.includes("$select=id,body")) return readOnlyResponses(url);
       if (url.includes("/attachments")) return jsonResponse({ value: [] });
-      if (url.includes("sentDateTime")) return jsonResponse({ value: [] });
+      if (filterField(url) === "sentDateTime") return jsonResponse({ value: [] });
       if (url.includes("$skiptoken=next")) return jsonResponse({ value: [graphMessage("equal-c")] });
       return jsonResponse({ value: [graphMessage("equal-a"), graphMessage("equal-b")], "@odata.nextLink": "https://graph.microsoft.com/v1.0/users/shared%40example.test/messages?$skiptoken=next" });
     };
@@ -201,7 +201,7 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     h.control.fetch = async url => {
       if (url.includes("/me?") || url.includes("$select=id,body")) return readOnlyResponses(url);
       if (url.includes("/attachments")) return jsonResponse({ value: [] });
-      if (url.includes("sentDateTime")) return jsonResponse({ value: [] });
+      if (filterField(url) === "sentDateTime") return jsonResponse({ value: [] });
       if (url.includes("$skiptoken=later")) return jsonResponse({ value: [graphMessage("future-page-reply", "Actually, please continue.", { receivedDateTime: "2026-10-20T09:00:00Z" })] });
       return jsonResponse({ value: [graphMessage("early-page-decline", "Please cancel my enquiry.")],
         "@odata.nextLink": "https://graph.microsoft.com/v1.0/users/shared%40example.test/messages?$skiptoken=later" });
@@ -215,7 +215,7 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
   ["a complete fresh Inbox window retains explicit-decline closure and records its fixed cutoff", practice(async h => {
     await configured(h);
     h.control.fetch = async url => url.includes("/attachments") ? jsonResponse({ value: [] }) : url.includes("/me?") || url.includes("$select=id,body") ? readOnlyResponses(url)
-      : jsonResponse({ value: url.includes("receivedDateTime") ? [graphMessage("complete-window-decline", "Please cancel my enquiry.")] : [] });
+      : jsonResponse({ value: filterField(url) === "receivedDateTime" ? [graphMessage("complete-window-decline", "Please cancel my enquiry.")] : [] });
     const result = await h.server.runOutlookSync({ maxPages: 2 });
     assert.equal(result.ok, true, result.blocker); assert.equal(result.counts.closed, 1);
     const event = await row(h, "workflow_events");
@@ -231,7 +231,7 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     h.control.fetch = async url => {
       if (url.includes("/me?") || url.includes("$select=id,body")) return readOnlyResponses(url);
       if (url.includes("/attachments")) return jsonResponse({ value: [] });
-      if (url.includes("sentDateTime")) return jsonResponse({ value: [] });
+      if (filterField(url) === "sentDateTime") return jsonResponse({ value: [] });
       return jsonResponse({ value: url.includes("older-cutoff")
         ? [graphMessage("old-window-decline", "Please cancel my enquiry.")]
         : [graphMessage("new-window-reply", "Please continue after all.", { receivedDateTime: "2026-10-20T09:00:00Z" })] });
@@ -247,7 +247,7 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
   ["Inbox completion and newer correspondence are considered before a closure-capable Sent Items record", practice(async h => {
     await configured(h);
     h.control.fetch = async url => url.includes("/attachments") ? jsonResponse({ value: [] }) : url.includes("/me?") || url.includes("$select=id,body") ? readOnlyResponses(url)
-      : jsonResponse({ value: url.includes("receivedDateTime")
+      : jsonResponse({ value: filterField(url) === "receivedDateTime"
         ? [graphMessage("new-inbox-reply", "Please continue.", { receivedDateTime: "2026-10-20T09:00:00Z" })]
         : [graphMessage("older-sent-folder-record", "Please cancel my enquiry.")] });
     const result = await h.server.runOutlookSync({ maxPages: 1 });
@@ -257,7 +257,7 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
   ["failed cursor/status writes do not report success or repeat completed closure/audit", practice(async h => {
     await configured(h);
     h.control.fetch = async url => url.includes("/attachments") ? jsonResponse({ value: [] }) : url.includes("/me?") || url.includes("$select=id,body") ? readOnlyResponses(url)
-      : jsonResponse({ value: url.includes("receivedDateTime") ? [graphMessage("cursor-failure", "Please cancel my enquiry.")] : [] });
+      : jsonResponse({ value: filterField(url) === "receivedDateTime" ? [graphMessage("cursor-failure", "Please cancel my enquiry.")] : [] });
     h.control.fault = op => op.table === "outlook_sync_state" && op.mode === "update" ? { data: null, error: { message: "injected state write failure" } } : null;
     const first = await h.server.runOutlookSync({ maxPages: 1 });
     assert.equal(first.ok, false); assert.match(first.blocker, /state was not saved/);
@@ -304,7 +304,7 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     h.control.fetch = async url => {
       if (url.includes("/attachments")) return jsonResponse({ value: [] });
       if (url.includes("/me?") || url.includes("$select=id,body")) return readOnlyResponses(url);
-      if (url.includes("receivedDateTime")) return jsonResponse({ value: [graphMessage("moved-mail")] });
+      if (filterField(url) === "receivedDateTime") return jsonResponse({ value: [graphMessage("moved-mail")] });
       return jsonResponse({ value: [] });
     };
     const first = await h.server.runOutlookSync({ maxPages: 1 });
@@ -346,7 +346,7 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     h.control.fetch = async url => {
       if (url.includes("/attachments")) return jsonResponse({ value: [] });
       if (url.includes("/me?") || url.includes("$select=id,body")) return readOnlyResponses(url);
-      if (url.includes("receivedDateTime ge 2026-10-01")) return jsonResponse({ value: [graphMessage("old-decline", "Please cancel my enquiry.", { receivedDateTime: "2026-10-05T08:00:00Z" })] });
+      if (filterField(url) === "receivedDateTime") return jsonResponse({ value: [graphMessage("old-decline", "Please cancel my enquiry.", { receivedDateTime: "2026-10-05T08:00:00Z" })] });
       return jsonResponse({ value: [] });
     };
     const result = await h.server.runOutlookSync({ maxPages: 2 });
