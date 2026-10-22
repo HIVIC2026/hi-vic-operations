@@ -21,3 +21,20 @@ export const linkMittiPickup = createServerFn({ method: "POST" }).middleware([re
     await requireAdmin(context.supabase);
     return await linkMittiReadyCheckToJob(context.userId ?? null, data, realMittiCall);
   });
+
+export const getMittiSyncProblems = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireAdmin(context.supabase);
+    return await listMittiSyncProblems();
+  });
+
+export const retryMittiSyncFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => {
+    const v = d as { jobId?: unknown };
+    if (typeof v?.jobId !== "string") throw new Error("Choose the job to retry.");
+    return { jobId: v.jobId };
+  })
+  .handler(async ({ context, data }) => {
+    await requireAdmin(context.supabase);
+    return await retryMittiSync(context.userId ?? null, data, realMittiCall);
+  });
