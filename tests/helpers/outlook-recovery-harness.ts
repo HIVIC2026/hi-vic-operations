@@ -164,3 +164,5 @@ export const graphMessage = (id: string, body = "Hello", extras: Record<string, 
   receivedDateTime: "2026-10-20T08:00:00Z", sentDateTime: "2026-10-20T08:00:00Z", hasAttachments: false, ...extras,
 });
 export const jsonResponse = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
+export const bytesResponse = (bytes: Uint8Array, contentType = "application/octet-stream") =>
+  new Response(bytes as unknown as BodyInit, { status: 200, headers: { "Content-Type": contentType } });
