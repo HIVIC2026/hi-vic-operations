@@ -396,6 +396,7 @@ export function EnquiriesWorkspace({
   const setPage = onPage;
   const [openId, setOpenId] = useState<string | null>(null);
   const remove = useServerFn(removeLeadsFn);
+  const morePhotosRequest = useServerFn(morePhotosRequestFn);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [removing, setRemoving] = useState(false);
   const [removeMsg, setRemoveMsg] = useState<string | null>(null);
@@ -750,11 +751,6 @@ export function EnquiriesWorkspace({
                           (row.attentionReason ?? row.reason)
                         ) : (
                           <span className={row.nextParty === "office" ? "font-semibold" : undefined}>{row.nextAction}</span>
-                        )}
-                        {view !== "removed" && !["spot_saved", "ineligible", "offered_spot"].includes(row.status) && (
-                          <div className="mt-2">
-                            <EmailPreliminaryOffer row={row} onDone={() => void refetch()} />
-                          </div>
                         )}
                       </td>
                     </tr>
