@@ -17,6 +17,7 @@ export const PRACTICE: Record<StatusKey, JobFacts> = {
   "enquiry.video_in": base("ready_check_ready_to_schedule", { campaign: { spotSavedAt: ago(1), optedOutAt: null, videoRequested: true, mediaReceivedAt: ago(0.2), deskCheckStatus: null, createdAt: ago(2) } }),
   "enquiry.spot_saved": base("ready_check_ready_to_schedule", { campaign: { spotSavedAt: ago(0.5), optedOutAt: null, videoRequested: false, mediaReceivedAt: null, deskCheckStatus: null, createdAt: ago(2) } }),
   "enquiry.spot_saved_video": base("ready_check_ready_to_schedule", { campaign: { spotSavedAt: ago(0.5), optedOutAt: null, videoRequested: true, mediaReceivedAt: ago(0.4), deskCheckStatus: "pending", createdAt: ago(2), queuePriority: "video" } }),
+  "enquiry.spot_saved_waiting": base("ready_check_ready_to_schedule", { readyCheckBookingOpen: false, campaign: { spotSavedAt: ago(0.5), optedOutAt: null, videoRequested: false, mediaReceivedAt: null, deskCheckStatus: null, createdAt: ago(2) } }),
   "ready_check.pick_times": base("ready_check_ready_to_schedule", { rcAccepted: true, ownerContactedAt: ago(1) }),
   "ready_check.offered": base("ready_check_ready_to_schedule", { rcWindowsOpen: 3, rcOfferAt: ago(0.05) }),
   "ready_check.booked": base("ready_check_scheduled", { rcBookingAt: ahead(2) }),
