@@ -1,15 +1,21 @@
 // Pure rules for the ONE real SMS sender (Jo, 7 Oct). No network, no database.
 import { normaliseAuMobile } from "./test-send.core";
+import { smsQuietReason } from "./quote-hold.core";
 
-/** Every message type that may use the real sender. `wordingApproved=false` means it can never send yet. */
+/**
+ * Every message type that may use the real sender. `wordingApproved=false` means it can never send yet.
+ * `quietHours=true` means no text between 8pm and 7am Melbourne (Jo 22 Oct 2026); sign-in codes are exempt
+ * so an owner can always get in to their job.
+ */
 export const SMS_MESSAGE_TYPES = {
-  save_spot_reminder: { audience: "owner", label: "One-off Save My Spot reminder", wordingApproved: true },
-  spot_saved: { audience: "owner", label: "Spot saved confirmation", wordingApproved: true },
-  owner_code: { audience: "owner", label: "Owner 6-digit sign-in / signing code", wordingApproved: true },
-  ready_check_booking: { audience: "owner", label: "Ready Check booking confirmation", wordingApproved: false },
-  job_offer: { audience: "partner", label: "New job offer to a trade", wordingApproved: false },
-  daily_mitti: { audience: "partner", label: "Daily Mitti links (6:30am)", wordingApproved: true },
-  daily_mitti_update: { audience: "partner", label: "Daily Mitti links update (job added/moved/cancelled)", wordingApproved: true },
+  save_spot_reminder: { audience: "owner", label: "One-off Save My Spot reminder", wordingApproved: true, quietHours: true },
+  spot_saved: { audience: "owner", label: "Spot saved confirmation", wordingApproved: true, quietHours: true },
+  owner_code: { audience: "owner", label: "Owner 6-digit sign-in / signing code", wordingApproved: true, quietHours: false },
+  ready_check_booking: { audience: "owner", label: "Ready Check booking confirmation", wordingApproved: false, quietHours: true },
+  quote_ready: { audience: "owner", label: "Installation quote ready for the owner", wordingApproved: false, quietHours: true },
+  job_offer: { audience: "partner", label: "New job offer to a trade", wordingApproved: false, quietHours: false },
+  daily_mitti: { audience: "partner", label: "Daily Mitti links (6:30am)", wordingApproved: true, quietHours: false },
+  daily_mitti_update: { audience: "partner", label: "Daily Mitti links update (job added/moved/cancelled)", wordingApproved: true, quietHours: false },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 
