@@ -173,6 +173,50 @@ export async function linkMittiReadyCheckToJob(actorId: string | null, input: { 
 
 export type { ReadyCheckPickup };
 
+// ---------- Stage 5 (Jo 23 Oct): reschedule updates the form; cancel releases it ----------
+
+/** The form's booked-date item, wherever it lives (header or body), for the in-place date write-back. */
+function dateItemOf(audit: unknown): { itemId: string; type: string; header: boolean } | null {
+  const list = (header: boolean) => ((audit as { header_items?: unknown[]; items?: unknown[] } | null)?.[header ? "header_items" : "items"] ?? []) as { item_id?: string; label?: string; type?: string }[];
+  for (const header of [true, false]) {
+    const it = list(header).find((i) => i.item_id && ["Assessment date/time", "Assessment date time", "Booked assessment date", "Date of inspection"].some((l) => norm(l) === norm(i.label)));
+    if (it) return { itemId: String(it.item_id), type: String(it.type || "datetime"), header };
+  }
+  return null;
+}
+
+/** Reschedule write-back: the booked date on the job's Mitti form follows the new booking. Never creates or
+ *  sends anything; a form without a date field is left untouched and reported. */
+export async function updateMittiFormDate(jobId: string, start: string, actorId: string | null, call: MittiCall = realMittiCall): Promise<{ updated: boolean; reason?: string }> {
+  const scope = await jobScope(jobId);
+  const m = scope.measurementRow;
+  const auditId = m?.external_source === "mitti" && m.status !== "complete" ? m.external_id : null;
+  if (!auditId) return { updated: false, reason: "no open Mitti form for this job" };
+  const api = mittiApi(call);
+  const audit = await api.getAudit(auditId);
+  if (audit?.archived) return { updated: false, reason: "form is archived in Mitti" };
+  const item = dateItemOf(audit);
+  if (!item) return { updated: false, reason: "form has no booked-date field" };
+  const payload = [{ item_id: item.itemId, type: item.type, responses: { datetime: start } }];
+  if (item.header) { try { await api.updateAuditHeader(auditId, payload); } catch { await api.updateAuditText(auditId, payload); } }
+  else await api.updateAuditText(auditId, payload);
+  await logEvent(jobId, actorId, "mitti_form_date_updated", "Mitti form's booked date updated to match the new Ready Check booking", { audit_id: auditId, scheduled_start: start }, { internal: true });
+  return { updated: true };
+}
+
+/** Cancel releases the form: the job stops pointing at it so a rebooking creates a fresh form with the new
+ *  date. Mitti's documented API has no archive call, so the form itself is left in Mitti and the office is
+ *  told it may be archived there (Jo 23 Oct). Never touches a completed form. */
+export async function releaseReadyCheckFormOnCancel(jobId: string, actorId: string | null, reason: string): Promise<{ released: boolean }> {
+  const scope = await jobScope(jobId);
+  const m = scope.measurementRow;
+  if (!m || m.external_source !== "mitti" || !m.external_id || m.status === "complete") return { released: false };
+  const auditId = m.external_id;
+  await admin.from("ceiling_measurements").update({ external_source: null, external_id: null }).eq("id", m.id);
+  await logEvent(jobId, actorId, "mitti_form_released", `Ready Check booking cancelled (${reason}) — the job no longer points at Mitti form ${auditId}; a new booking will create a fresh form. Mitti has no archive API, so the old form can be archived in Mitti if wanted.`, { audit_id: auditId, reason, needs_office: false }, { internal: true });
+  return { released: true };
+}
+
 // ---------- Stage 2: recorded Mitti failures + office retry ----------
 
 export type MittiSyncProblem = { jobId: string; jobNumber: string; owner: string | null; address: string | null; message: string; since: string | null };
