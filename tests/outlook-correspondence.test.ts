@@ -45,15 +45,15 @@ describe("safe matching", () => {
   const byNumber = new Map([["HV-1001", a], ["HV-1002", b]]);
   test("job number wins", () => {
     const m = msg({ from: from("amy@test.example"), subject: "Question about HV-1002" });
-    expect(matchMessage(m, ["amy@test.example"], byNumber, new Map([["amy@test.example", [a, b]]]))).toEqual({ kind: "job", jobId: "jb", how: "job_number" });
+    expect(matchMessage(m, ["amy@test.example"], byNumber, new Map([["amy@test.example", [a, b]]]))).toEqual({ kind: "job", jobIds: ["jb"], how: "job_number" });
   });
   test("email with exactly one current job", () => {
     const m = msg({ from: from("amy@test.example") });
-    expect(matchMessage(m, ["amy@test.example"], new Map(), new Map([["amy@test.example", [a]]]))).toMatchObject({ kind: "job", jobId: "ja", how: "only_job_for_email" });
+    expect(matchMessage(m, ["amy@test.example"], new Map(), new Map([["amy@test.example", [a]]]))).toMatchObject({ kind: "job", jobIds: ["ja"], how: "only_job_for_email" });
   });
   test("two jobs + address in message picks the property", () => {
     const m = msg({ from: from("amy@test.example"), body: { contentType: "text", content: "About 111 Testcase St please" } });
-    expect(matchMessage(m, ["amy@test.example"], new Map(), new Map([["amy@test.example", [a, b]]]))).toMatchObject({ kind: "job", jobId: "ja", how: "email_and_address" });
+    expect(matchMessage(m, ["amy@test.example"], new Map(), new Map([["amy@test.example", [a, b]]]))).toMatchObject({ kind: "job", jobIds: ["ja"], how: "email_and_address" });
   });
   test("two jobs and no property → unmatched for Office, never guessed", () => {
     const m = msg({ from: from("amy@test.example") });
