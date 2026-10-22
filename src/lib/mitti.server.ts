@@ -265,9 +265,11 @@ async function saveMittiReport(jobId: string, actorId: string | null, auditId: s
 
 /** Sync the STORED audit(s) only. Never completes a requirement. */
 export async function syncMittiAssessment(jobId: string, actorId: string | null, call: MittiCall = realMittiCall) {
-  const { data: job } = await admin.from("jobs").select("job_number,business_unit,channel").eq("id", jobId).single();
+  const { data: job } = await admin.from("jobs").select("job_number,business_unit,channel,stage,deleted_at,qa_archived_at").eq("id", jobId).single();
   if (!job) throw new WorkflowError("Job not found.");
   if (job.business_unit !== "hivic") throw new WorkflowError("Mitti automation is only available for Home Insulation Victoria jobs.");
+  // Cancelled / deleted / QA-archived: no sync, no events, no quote draft or hold.
+  if ((await import("./mitti.core")).isClosedOrArchivedJob(job)) return { locked: false, completed: false, issues: [] as string[] };
   const { data: a } = await admin.from("assessments").select("id,status,external_mitti_id,mitti_template_id,mitti_completed,mitti_modified_at,mitti_sync_status").eq("job_id", jobId).maybeSingle();
   const s = await jobScope(jobId);
   const m = s.measurementRow;
