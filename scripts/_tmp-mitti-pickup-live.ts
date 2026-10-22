@@ -70,6 +70,26 @@ async function main() {
     say(`VERIFY: measurement=${JSON.stringify(m)} stage=${job?.stage} next_action=${job?.next_action}`);
     return;
   }
+  if (step === "flow") {
+    const prof = await reinsulate();
+    const startsAt = "2026-10-23T09:00:00+11:00";
+    const created = await startOnsiteReadyCheckFor(prof.id, prof.business_id, {
+      full_name: "TEST Jo Reinsulate check", address_line: "1 Test Street", suburb: "Mulgrave", postcode: "3170",
+      phone: "0400000000", email: "test@homeinsulationvictoria.com.au", contact_permission: true, consent_by: "installer",
+    }, { mode: "hivic" } as Any, realMittiCall, { startsAt });
+    say(`Job created: ${created.jobNumber} (${created.jobId}) booking=${created.booking}`);
+    try {
+      const res = await linkMittiReadyCheckToJob(prof.id, { auditId: argA, jobId: created.jobId }) as Any;
+      say(`LINKED: job=${res.jobNumber} syncIssues=${JSON.stringify(res.issues)}`);
+    } catch (e) { say(`LINK FAILED: ${e instanceof Error ? e.message : e}`); }
+    const { data: m } = await admin.from("ceiling_measurements").select("status,external_source,external_id,estimated_area").eq("job_id", created.jobId).eq("is_current", true).maybeSingle();
+    const { data: job } = await admin.from("jobs").select("stage,next_action").eq("id", created.jobId).maybeSingle();
+    const audit3 = (await mittiApi(realMittiCall).getAudit(argA)) as Any;
+    const pjn = (audit3.header_items as Any[]).find((i: Any) => String(i.label ?? "").toLowerCase() === "portal job number")?.responses?.text;
+    say(`VERIFY: mittiPJN=${pjn} measurement=${JSON.stringify(m)} stage=${job?.stage} next_action=${job?.next_action}`);
+    say(`JOBID ${created.jobId}`);
+    return;
+  }
   if (step === "cleanup") {
     const prof = await reinsulate();
     const now = new Date().toISOString();
