@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useAction } from "@/hooks/use-me";
 import { exportJobPackFn, getJobFile, getJobFileHeader, logCommunication, openJobDocument } from "@/lib/jobfile.functions";
-import { DOC_CATEGORIES, inCategory, searchItems, type DocCategory, type DocItem, type TimelineFilter } from "@/lib/jobfile.core";
+import { DOC_CATEGORIES, inCategory, searchItems, type Correspondence, type DocCategory, type DocItem, type TimelineFilter } from "@/lib/jobfile.core";
 import { fmtDate } from "@/lib/workflow";
 import { openFileViewer } from "@/components/portal/file-viewer";
 
