@@ -171,6 +171,7 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     await configured(h);
     h.control.fetch = async url => {
       if (url.includes("/me?") || url.includes("$select=id,body")) return readOnlyResponses(url);
+      if (url.includes("/attachments")) return jsonResponse({ value: [] });
       if (url.includes("sentDateTime")) return jsonResponse({ value: [] });
       if (url.includes("$skiptoken=next")) return jsonResponse({ value: [graphMessage("equal-c")] });
       return jsonResponse({ value: [graphMessage("equal-a"), graphMessage("equal-b")], "@odata.nextLink": "https://graph.microsoft.com/v1.0/users/shared%40example.test/messages?$skiptoken=next" });
@@ -197,6 +198,7 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     await configured(h);
     h.control.fetch = async url => {
       if (url.includes("/me?") || url.includes("$select=id,body")) return readOnlyResponses(url);
+      if (url.includes("/attachments")) return jsonResponse({ value: [] });
       if (url.includes("sentDateTime")) return jsonResponse({ value: [] });
       if (url.includes("$skiptoken=later")) return jsonResponse({ value: [graphMessage("future-page-reply", "Actually, please continue.", { receivedDateTime: "2026-10-20T09:00:00Z" })] });
       return jsonResponse({ value: [graphMessage("early-page-decline", "Please cancel my enquiry.")],
@@ -226,6 +228,7 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     await h.db.exec(`UPDATE outlook_sync_state SET all_inbound_next_link='https://graph.microsoft.com/v1.0/users/shared%40example.test/messages?$skiptoken=older-cutoff'`);
     h.control.fetch = async url => {
       if (url.includes("/me?") || url.includes("$select=id,body")) return readOnlyResponses(url);
+      if (url.includes("/attachments")) return jsonResponse({ value: [] });
       if (url.includes("sentDateTime")) return jsonResponse({ value: [] });
       return jsonResponse({ value: url.includes("older-cutoff")
         ? [graphMessage("old-window-decline", "Please cancel my enquiry.")]
