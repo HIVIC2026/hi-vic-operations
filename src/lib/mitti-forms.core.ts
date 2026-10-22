@@ -3,7 +3,7 @@
 // AND the validator that must pass before a template ID can be used. Labels are Home Insulation Victoria checklist
 // wording for the Ready Check; PIESA and PIISA follow the official DEECA forms (uploaded 30 Sep 2026).
 export type FormKey = "ready_check" | "ready_check_priced" | "piesa" | "piisa";
-export type FieldType = "text" | "number" | "choice" | "multichoice" | "yesno" | "media" | "signature" | "datetime" | "date" | "tick" | "statement";
+export type FieldType = "text" | "phone" | "number" | "choice" | "multichoice" | "yesno" | "media" | "signature" | "datetime" | "date" | "tick" | "statement";
 export type FormField = {
   label: string; type: FieldType; required: boolean; choices?: string[];
   when?: string; // human-readable condition; required only when it applies
@@ -84,6 +84,7 @@ const READY_CHECK_FIELDS: FormField[] = [
       { label: "Portal Job Number", type: "text", required: true, prefill: true, source: "portal" },
       { label: "Site address", type: "text", required: true, prefill: true, source: "portal" },
       { label: "Owner name", type: "text", required: true, prefill: true, aliases: ["Homeowner name"], source: "portal" },
+      { label: "Homeowner phone", type: "phone", required: true, prefill: true, aliases: ["Owner phone"], source: "portal – owner contact" },
       { label: "Property type", type: "choice", required: true, prefill: true, choices: ["House", "Townhouse", "Unit or apartment"], types: ["text"], source: "portal – prefilled from enquiry; portal derives building class (House/Townhouse = Class 1, Unit = Class 2 sole-occupancy unit)" },
       { label: "Office life support result", type: "text", required: true, prefill: true, aliases: ["Life support equipment at property?"], source: "portal – office screening result; display only, never re-asked" },
       { label: "Are these details correct?", type: "choice", required: true, choices: ["Yes", "No"], aliases: ["Are the property details provided above correct?"], source: "portal – installer confirms prefilled details" },
@@ -140,7 +141,12 @@ export const FORMS: Record<FormKey, { title: string; role: "installer" | "electr
   ready_check_priced: {
     title: `${READY_CHECK_TITLE} – with quoted price`,
     role: "installer",
-    fields: [...READY_CHECK_FIELDS, ...PRICING_FIELDS],
+    fields: [...READY_CHECK_FIELDS, ...PRICING_FIELDS,
+      { label: "Who is doing the electrical safety check?", type: "choice", required: true, choices: ["Home Insulation Victoria electrician", "My usual electrician", "A different electrician"], source: "portal – Jo 22 Oct" },
+      { label: "Electrician name", type: "text", required: true, when: "Who is doing the electrical safety check? = A different electrician", source: "portal – compliance" },
+      { label: "Electrician licence number", type: "text", required: true, when: "Who is doing the electrical safety check? = A different electrician", source: "portal – compliance" },
+      { label: "Electrician price (inc GST)", type: "number", required: true, when: "Who is doing the electrical safety check? = A different electrician", source: "portal – electrical price inc GST" },
+    ],
   },
   // Short onsite forms (approved 3 Oct 2026): clear full-sentence questions. The portal expands the answers
   // into every official Word-form item (official-expand.core.ts) and fills the official document itself.
@@ -150,7 +156,7 @@ export const FORMS: Record<FormKey, { title: string; role: "installer" | "electr
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const TYPE_ALIASES: Record<FieldType, string[]> = {
-  text: ["text", "textsingle"], number: ["number", "slider", "textsingle", "text"], choice: ["list", "question", "choice"],
+  text: ["text", "textsingle"], phone: ["phone", "phone_number", "phonenumber"], number: ["number", "slider", "textsingle", "text"], choice: ["list", "question", "choice"],
   multichoice: ["list", "question", "choice", "multiselect", "checkbox"],
   yesno: ["question", "list", "yesno"], media: ["media", "attachment", "drawing"], signature: ["signature", "drawing"], datetime: ["datetime"],
   // Mitti has no date-only item; the portal keeps only the date part (see official-forms.core renderOfficialDocument).
@@ -268,7 +274,7 @@ export function definitionReadable(def: unknown): boolean {
 }
 
 const MITTI_TYPE: Record<FieldType, string> = {
-  text: "Text answer", number: "Number answer", choice: "Multiple choice (single answer)", multichoice: "Multiple choice (choose ALL that apply)", yesno: "Question (response set)",
+  text: "Text answer", phone: "Phone number answer", number: "Number answer", choice: "Multiple choice (single answer)", multichoice: "Multiple choice (choose ALL that apply)", yesno: "Question (response set)",
   media: "Media (photo/video, camera allowed)", signature: "Signature", datetime: "Date & time",
   date: "Date & time (the portal keeps the date only)", tick: "Checkbox (single tick)", statement: "Instruction (text only, copy verbatim)",
 };
