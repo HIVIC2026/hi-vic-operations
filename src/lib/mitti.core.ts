@@ -634,3 +634,8 @@ export function missingKnownFields(skipped: string[]): string[] {
 
 /** A3 template id + mapping now live in piisa-a3.core.ts (observed native aliases, occurrence-aware). */
 export const PIISA_A3_TEMPLATE_ID = "template_f6a2597479164eb181453eb335ce5125";
+
+/** HV-1351 fix: a cancelled, soft-deleted or QA-archived job is never synced, never gets events and never gets a
+ *  quote drafted/held. Same columns the scheduled-sync list already excludes (stage, deleted_at, qa_archived_at). */
+export const isClosedOrArchivedJob = (j: { stage?: string | null; deleted_at?: string | null; qa_archived_at?: string | null } | null | undefined) =>
+  !!j && (j.stage === "cancelled" || !!j.deleted_at || !!j.qa_archived_at);
