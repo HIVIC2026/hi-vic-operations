@@ -392,7 +392,6 @@ export async function tradeSetupMark(userId: string, key: SetupKey, done: boolea
 export async function tradeBusinessFile(userId: string) {
   const c = await bossOrThrow(userId);
   const usual = c.kind === "installer" ? await (await import("./usual-electrician.server")).readUsualElectrician(c.biz.id) : null;
-  const usualProd = c.kind === "installer" ? await (await import("./usual-product.server")).readUsualProduct(c.biz.id) : null;
   const r = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
   const [{ data: b }, { data: creds }, { data: agr }, { data: cards }, { data: erates }, { data: open }] = await Promise.all([
     admin.from("businesses").select("id, name, legal_name, trading_name, abn, phone, email, address, base_suburb, coverage_radius_km, covers_all_victoria, typical_days, lead_time, public_liability_cover_amount, onboarding_status").eq("id", c.biz.id).single(),
@@ -410,7 +409,7 @@ export async function tradeBusinessFile(userId: string) {
     ...((erates ?? []) as { service_type: string; rate_inc_gst: number }[]).map((e) => ({ label: e.service_type === "piesa" ? "Pre Insulation Electrical Safety Assessment (PIESA)" : e.service_type.replace(/_/g, " "), unit: "each", inc_gst: Number(e.rate_inc_gst) })),
   ];
   return {
-    businessId: b.id, kind: c.kind, boss: c.boss, usualElectrician: usual?.electrician ?? null, usualProduct: usualProd?.product ?? null,
+    businessId: b.id, kind: c.kind, boss: c.boss, usualElectrician: usual?.electrician ?? null,
     details: { name: b.trading_name ?? b.name, legal: b.legal_name, abn: b.abn, phone: b.phone, email: b.email, address: b.address,
       area: b.covers_all_victoria ? "Anywhere in Victoria" : `Up to ${b.coverage_radius_km ?? "?"} km from ${b.base_suburb ?? "your base"}`,
       days: (b.typical_days ?? []).join(", ") || null, leadTime: b.lead_time, liabilityCover: b.public_liability_cover_amount },
@@ -441,19 +440,6 @@ export async function tradeSaveUsualElectrician(userId: string, value: unknown) 
     summary: "Installer saved usual electrician", details: { business_id: c.biz.id, electrician } });
   if (error) throw new WorkflowError("Could not save your usual electrician.");
   return { electrician };
-}
-
-/** Jo 23 Oct: installer's usual insulation product (brand, product name, R-value); append-only history. */
-export async function tradeSaveUsualProduct(userId: string, value: unknown) {
-  const c = await bossOrThrow(userId);
-  if (c.kind !== "installer") throw new WorkflowError("Only installer businesses can save a usual product.");
-  const { usualProductForProfile, USUAL_PRODUCT_EVENT } = await import("./usual-product.core");
-  const product = usualProductForProfile(value);
-  if (!product) throw new WorkflowError("Choose a brand (and type it if Other), enter the product name and choose R5.0, R6.0 or R7.0.");
-  const { error } = await admin.from("admin_config_events").insert({ actor_id: userId, event_type: USUAL_PRODUCT_EVENT,
-    summary: "Installer saved usual product", details: { business_id: c.biz.id, product } });
-  if (error) throw new WorkflowError("Could not save your usual product.");
-  return { product };
 }
 
 function toB64(u: Uint8Array): string {

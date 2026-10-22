@@ -4,7 +4,7 @@
 // separate $349 lines. Installer-supplied jobs never use this (no installer markup there).
 export const HIV_PRICING_RULE = "hiv_fixed_owner_price_v1";
 const r2 = (n: number) => Math.round(n * 100) / 100;
-import { productQuoteDescription, type ProductRValue, type UsualProduct } from "./usual-product.core";
+import { productQuoteDescription, type ProductRValue, type InsulationProduct } from "./insulation-product.core";
 
 /** Jo 22 Oct 2026: owner R6.0/R7.0 prices inc GST per m². R5.0 stays the office-set owner price ($30). */
 export const OWNER_HIGHER_R_INC_PER_M2: Record<Exclude<ProductRValue, "R5.0">, number> = { "R6.0": 32, "R7.0": 33 };
@@ -24,11 +24,11 @@ export type HivQuoteInput = {
   installerR5ExPerM2: number | null; // agreed rate card (stored ex GST)
   installerRemovalExPerM2: number | null;
   installerTravelEx: number | null; // installer cost with no owner line (reduces our markup)
-  /** Chosen R-value (installer's form or usual product). Absent = R5.0, as before. */
+  /** Chosen R-value (from the installer's Mitti form). Absent = R5.0, as before. */
   rValue?: ProductRValue;
   /** Agreed installer rate (ex GST) for rValue; required when rValue is R6.0/R7.0. */
   installerRExPerM2?: number | null;
-  product?: UsualProduct | null;
+  product?: InsulationProduct | null;
 };
 
 export type HivLine = { code: string; description: string; quantity: number; unit: string; unit_price_inc_gst: number; line_total_inc_gst: number; is_other: false; explanation: null; sort: number };
