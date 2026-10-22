@@ -48,11 +48,14 @@ export function MeasurementDetails({ m, admin = false }: { m: M; admin?: boolean
   const rows: [string, unknown][] = [
     ["Source", `${SOURCE[m.source_role] ?? m.source_role}${who ? ` · ${who}` : ""}`],
     ["Completed", m.completed_at ? fmtDate(m.completed_at) : "—"],
-    ["Measured area", m.measured_area_m2 != null ? `${Number(m.measured_area_m2)} m²` : null],
+    m.measured_area_m2 == null && m.supplied_area_m2 != null && m.provenance === "installer_supplied_provisional"
+      ? ["Installer's measure", `${Number(m.supplied_area_m2)} m²`]
+      : ["Measured area", m.measured_area_m2 != null ? `${Number(m.measured_area_m2)} m²` : null],
     ["Removal", m.removal_required ? `${m.removal_m2 ?? "?"} m²` : m.removal_required],
     ["Existing insulation", m.insulation_present], ["Existing R-value", m.existing_r_value],
     ["Access", m.access_difficulty],
-    ["Reference", m.external_id ? `${m.external_source ?? "external"} ${m.external_id}` : null],
+    // Internal reference codes (e.g. installer import IDs) are not shown on the office screen; Mitti IDs stay visible.
+    ["Reference", m.external_id && m.external_source === "mitti" ? `mitti ${m.external_id}` : null],
   ];
   const provisional = m.provenance === "installer_supplied_provisional";
   if (provisional) rows.unshift(["Status", m.verified_at ? "Installer-supplied – verified onsite" : "Installer-supplied – provisional (onsite measurement required)"]);
@@ -61,7 +64,7 @@ export function MeasurementDetails({ m, admin = false }: { m: M; admin?: boolean
   if (m.measured_by_name || m.measured_on) rows.push(["Measured by", [m.measured_by_name, m.measured_by_role, m.measured_on && fmtDate(m.measured_on)].filter(Boolean).join(" · ")]);
   if (m.gross_area_m2 != null || m.excluded_area_m2 != null) rows.push(["Gross / excluded", `${m.gross_area_m2 ?? "—"} m² / ${m.excluded_area_m2 ?? "—"} m²`]);
   if (admin && provisional) {
-    rows.push(["Installer-supplied area", m.supplied_area_m2 != null ? `${Number(m.supplied_area_m2)} m²` : null]);
+    if (m.measured_area_m2 != null) rows.push(["Installer's measure", m.supplied_area_m2 != null ? `${Number(m.supplied_area_m2)} m²` : null]);
     if (m.supplied_removal_m2 != null) rows.push(["Installer-supplied removal", `${Number(m.supplied_removal_m2)} m²`]);
     if (m.verified_at) {
       rows.push(["Onsite verified area", `${Number(m.verified_area_m2)} m² (${METHOD_LABEL[m.verified_method as MeasureMethod] ?? m.verified_method}, ${m.verified_role})`]);
