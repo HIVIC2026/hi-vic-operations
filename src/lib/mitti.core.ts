@@ -521,7 +521,7 @@ export function parseAudit(audit: Any) {
 export type MittiContactAnswers = {
   phone: string | null; email: string | null; contactPermission: boolean | null;
   electricianChoice: "hivic" | "usual" | "different" | "own" | null; electricianPriceIncGst: string | null; electricianName: string | null; electricianLicence: string | null;
-  productBrand: string | null; productName: string | null; productRValue: string | null;
+  productOption: string | null;
 };
 export function contactAnswersFromEntries(entries: { label: string; value: string | null }[]): MittiContactAnswers {
   const find = (labels: string[]): string | null => {
@@ -543,7 +543,7 @@ export function contactAnswersFromEntries(entries: { label: string; value: strin
     electricianName: find(["Electrician name"]),
     electricianLicence: find(["Electrician licence number"]),
     // Jo 23 Oct product questions (A1 + A2); absent on older forms → null.
-    productBrand: find(["Brand"]), productName: find(["Product name"]), productRValue: find(["R-value"]),
+    productOption: find(["Insulation product"]),
   };
 }
 
