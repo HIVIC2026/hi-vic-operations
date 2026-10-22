@@ -101,6 +101,8 @@ export async function cancelOwnerJob(token: unknown): Promise<{ ok: boolean; rea
   // Nothing changed (the stage moved between the read and the update): report it, touch nothing else.
   if (!moved?.length) return { ok: false, reason: "Your job has just changed. Refresh the page and try again." };
   if (bk?.length) await admin.from("bookings").update({ status: "cancelled" }).in("id", bk.map((b) => b.id));
+  // Stage 5 (Jo 23 Oct): cancelling the job releases its Mitti Ready Check form too.
+  if (bk?.some((b) => b.kind === "ready_check")) await (await import("./mitti-pickup.server")).releaseReadyCheckFormOnCancel(l.job_id, null, "owner cancelled the job").catch(() => undefined);
   const { logEvent } = await import("./workflow.server");
   await logEvent(l.job_id, null, "owner_cancelled_job", "Owner cancelled their job from My job (before the Pre Insulation Electrical Safety Assessment (PIESA) was booked). No charge.", { bookings_cancelled: bk?.length ?? 0, trades_to_notify: true }, { from: j.stage as never, to: "cancelled" });
   return { ok: true };

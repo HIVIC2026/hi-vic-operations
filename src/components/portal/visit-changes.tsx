@@ -85,6 +85,8 @@ export function TradeVisitCard({ jobId }: { jobId: string }) {
       {data.arrived ? <p className="text-sm text-sub">Arrival recorded.</p> : data.canArrive
         ? <button type="button" className={greenBtn} disabled={busy} onClick={() => run("arrived", "Arrival recorded")}>I've arrived</button>
         : <p className="text-sm text-sub">Tap "I've arrived" when you get there (from 2 hours before). If there's no arrival or evidence 4 hours after the start, it's recorded as a no-show.</p>}
+      {/* Stage 5 (Jo 23 Oct): booked Ready Check links straight to this job's Mitti form. */}
+      {data.formUrl && <a href={data.formUrl} target="_blank" rel="noreferrer" className={`${greenBtn} block text-center`}>Open Ready Check form</a>}
       {mode ? (
         <div className="space-y-2 border-t border-line pt-3">
           <input className={inputCls} aria-label={mode === "cancel" ? "Reason for cancelling" : "Note"} placeholder={mode === "cancel" ? "Reason for cancelling (required)" : "Note"} value={reason} onChange={(e) => setReason(e.target.value)} />

@@ -6,7 +6,7 @@
 // then the EXISTING guarded sync brings the answers in.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
-import { mittiApi, parseAudit, validateStoredMittiAudit, type MittiCall } from "./mitti.core";
+import { mittiApi, norm, parseAudit, validateStoredMittiAudit, type MittiCall } from "./mitti.core";
 import { realMittiCall, syncMittiAssessment } from "./mitti.server";
 import { jobScope } from "./requirements.server";
 import {
