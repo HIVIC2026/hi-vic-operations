@@ -109,6 +109,18 @@ export async function linkMittiReadyCheckToJob(actorId: string | null, input: { 
   const parsed = parsePickupAudit(audit);
   if (!parsed || !allowed.includes(parsed.templateId)) throw new WorkflowError("This Mitti form is not a Ready Check form. Nothing was changed.");
 
+  // Preflight the measurement record BEFORE touching Mitti, so any refusal leaves the form untouched.
+  const scope = await jobScope(jobId);
+  const m = scope.measurementRow;
+  const action = !m
+    ? { kind: "insert" as const }
+    : m.external_source === "mitti" && m.external_id === auditId
+      ? { kind: "already" as const }
+      : m.status !== "complete" && !m.external_id
+        ? { kind: "adopt" as const, id: m.id }
+        : null;
+  if (!action) throw new WorkflowError(`This job already has its own Ready Check form or measurement record (${m!.external_source ?? "portal"}, status ${m!.status}). Nothing was changed.`);
+
   // Portal Job Number write-back: overwriting an installer's own Mitti reference is the point of linking.
   const pitem = portalJobNumberItem(audit);
   if (!pitem) throw new WorkflowError("This Ready Check form has no Portal Job Number field to write into.");
@@ -123,17 +135,16 @@ export async function linkMittiReadyCheckToJob(actorId: string | null, input: { 
   const reread = await api.getAudit(auditId);
   validateStoredMittiAudit(reread, { storedAuditId: auditId, jobNumber: job.job_number, templateId: parsed.templateId });
 
-  // Measurement link: same shape createAssignMittiAudit stores. Never replaces another source's record.
-  const scope = await jobScope(jobId);
-  const m = scope.measurementRow;
-  if (!m) {
+  // Apply the preflighted measurement action (re-read first: the job's own form may have appeared meanwhile).
+  const { data: mNow } = await admin.from("ceiling_measurements").select("id,external_source,external_id,status").eq("job_id", jobId).eq("is_current", true).maybeSingle();
+  if (action.kind === "insert" && !mNow) {
     await admin.from("ceiling_measurements").insert({ job_id: jobId, status: "draft", is_current: true, source_role: "installer", created_by: actorId, external_source: "mitti", external_id: auditId });
-  } else if (m.external_source === "mitti" && m.external_id === auditId) {
+  } else if (action.kind === "insert" && mNow && mNow.external_source === "mitti" && mNow.external_id === auditId) {
     // already this audit
-  } else if (m.status !== "complete" && !m.external_id) {
-    await admin.from("ceiling_measurements").update({ external_source: "mitti", external_id: auditId }).eq("id", m.id);
+  } else if (action.kind === "adopt" && mNow?.id === action.id) {
+    await admin.from("ceiling_measurements").update({ external_source: "mitti", external_id: auditId }).eq("id", mNow.id);
   } else {
-    throw new WorkflowError(`This job already has a measurement record (${m.external_source ?? "portal"}, status ${m.status}). Office review is required before replacing it; the Mitti form was still linked.`);
+    throw new WorkflowError(`This job's own Ready Check form or measurement record appeared while linking (${mNow?.external_source ?? "portal"}). The Mitti form now carries ${job.job_number} but the portal kept its own record — office review is required.`);
   }
 
   await logEvent(jobId, actorId, "mitti_audit_linked", `Mitti Ready Check form linked to ${job.job_number}`, { audit_id: auditId, template_id: parsed.templateId, mitti_ref: parsed.mittiRef });
