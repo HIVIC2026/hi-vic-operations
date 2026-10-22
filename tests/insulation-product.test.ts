@@ -1,61 +1,44 @@
-// Jo 23 Oct: insulation product on the Ready Check / owner quote.
 import { describe, expect, test } from "bun:test";
+import { readFileSync, existsSync } from "node:fs";
 import { contactAnswersFromEntries } from "../src/lib/mitti.core";
-import { resolveMittiProduct, productQuoteDescription, usualProductForProfile, MISSING_USUAL_PRODUCT, DIFFERENT_PRODUCT_INCOMPLETE } from "../src/lib/usual-product.core";
+import { resolveMittiProduct, productQuoteDescription, PRODUCT_INCOMPLETE } from "../src/lib/insulation-product.core";
 import { applyMittiProduct } from "../src/lib/mitti-installer-quote.core";
+import { priceHivQuote } from "../src/lib/hiv-quote.core";
 
-const profile = { brand: "Earthwool" as const, brandOther: null, productName: "Ceiling Batts", rValue: "R6.0" as const };
-const draft = () => ({ ready: true, blockers: [] as string[], lines: [{ code: "INSTALLER_PRICE", description: "Insulation works by your installer — includes: x", explanation: "x" }, { code: "AP_FEE", description: "fee" }] });
+const read = (e: { label: string; value: string | null }[]) => { const a = contactAnswersFromEntries(e); return resolveMittiProduct({ brand: a.productBrand, productName: a.productName, rValue: a.productRValue }); };
+const draft = () => ({ ready: true, blockers: [] as string[], lines: [{ code: "INSTALLER_PRICE", description: "Installer price", explanation: null }] });
 
-describe("reading the Mitti product answers", () => {
-  test("absent on older forms → nothing", () => {
-    const a = contactAnswersFromEntries([{ label: "Homeowner name", value: "Test" }]);
-    expect([a.productChoice, a.productBrand, a.productName, a.productRValue]).toEqual([null, null, null, null]);
+describe("insulation product asked on every Mitti form (Jo 22 Oct 23:32)", () => {
+  test("older form without the questions: nothing changes", () => {
+    const r = read([{ label: "Homeowner name", value: "X" }]);
+    expect(r.asked).toBe(false);
+    expect(applyMittiProduct(draft(), r, 150).lines[0]!.description).toBe("Installer price");
   });
-  test("a different product by exact labels", () => {
-    const a = contactAnswersFromEntries([{ label: "Insulation product", value: "A different product" }, { label: "Brand", value: "Bradford" }, { label: "Product name", value: "Gold Batts" }, { label: "R-value", value: "R7.0" }]);
-    expect(a).toMatchObject({ productChoice: "different", productBrand: "Bradford", productName: "Gold Batts", productRValue: "R7.0" });
-    expect(contactAnswersFromEntries([{ label: "Insulation product", value: "My usual product" }]).productChoice).toBe("usual");
+  test("named brand: line uses the brand and R-value", () => {
+    const r = read([{ label: "Brand", value: "Earthwool" }, { label: "R-value", value: "R6.0" }]);
+    expect(applyMittiProduct(draft(), r, 137.61).lines[0]!.description).toBe("Supply and install of Earthwool R6.0 ceiling insulation – 137.61 m²");
   });
-});
-
-describe("quote line and holds", () => {
-  test("usual product from the profile → exact quote wording", () => {
-    const r = resolveMittiProduct({ choice: "usual", usual: profile, different: { brand: null, productName: null, rValue: null } });
-    const d = applyMittiProduct(draft(), r, 137.61);
-    expect(d.ready).toBe(true);
-    expect(d.lines[0]!.description).toBe("Supply and install of Earthwool Ceiling Batts R6.0 ceiling insulation – 137.61 m²");
-    expect(r.source).toBe("installer_profile");
+  test("Brand = Other: line uses the product name", () => {
+    const r = read([{ label: "Brand", value: "Other" }, { label: "Product name", value: "Knauf Earthwool Ultra" }, { label: "R-value", value: "R7" }]);
+    expect(r.product).toEqual({ brand: "Other", productName: "Knauf Earthwool Ultra", rValue: "R7.0" });
+    expect(productQuoteDescription(r.product!, 150)).toBe("Supply and install of Knauf Earthwool Ultra R7.0 ceiling insulation – 150 m²");
   });
-  test("different product from the form", () => {
-    const r = resolveMittiProduct({ choice: "different", usual: null, different: { brand: "Pink Batts", productName: "Ultra", rValue: "R5.0" } });
-    expect(applyMittiProduct(draft(), r, 150).lines[0]!.description).toBe("Supply and install of Pink Batts Ultra R5.0 ceiling insulation – 150 m²");
-    expect(r.source).toBe("mitti_form");
+  test("Other without product name, or missing R-value, holds the quote", () => {
+    for (const e of [[{ label: "Brand", value: "Other" }, { label: "R-value", value: "R5.0" }], [{ label: "Brand", value: "Bradford" }]]) {
+      const d = applyMittiProduct(draft(), read(e), 150);
+      expect(d.ready).toBe(false); expect(d.blockers).toContain(PRODUCT_INCOMPLETE);
+    }
   });
-  test("usual chosen but no saved product → quote held, office item needed", () => {
-    const r = resolveMittiProduct({ choice: "usual", usual: null, different: { brand: null, productName: null, rValue: null } });
-    const d = applyMittiProduct(draft(), r, 150);
-    expect(d.ready).toBe(false);
-    expect(d.blockers).toContain(MISSING_USUAL_PRODUCT);
-    expect(r.needsProfile).toBe(true);
+  test("product name is ignored unless Brand = Other", () => {
+    expect(read([{ label: "Brand", value: "Bradford" }, { label: "Product name", value: "Gold" }, { label: "R-value", value: "R5.0" }]).product).toEqual({ brand: "Bradford", productName: null, rValue: "R5.0" });
   });
-  test("different product with a gap → held", () => {
-    const r = resolveMittiProduct({ choice: "different", usual: null, different: { brand: "Bradford", productName: null, rValue: "R6.0" } });
-    expect(applyMittiProduct(draft(), r, 150).blockers).toContain(DIFFERENT_PRODUCT_INCOMPLETE);
-    expect(r.needsProfile).toBe(false);
+  test("our-lead quote uses $32 for R6.0 from the form, line shows brand and R-value", () => {
+    const q = priceHivQuote({ areaM2: 100, removalM2: 0, accessMultiplier: 1, ownerR5IncPerM2: 30, ownerRemovalIncPerM2: 15, piesaIncGst: 349, apFeeIncGst: 349, gstRate: 0.1, installerR5ExPerM2: 11.5, installerRemovalExPerM2: 4, installerTravelEx: null, rValue: "R6.0", installerRExPerM2: 20, product: { brand: "Pink Batts", productName: null, rValue: "R6.0" } });
+    expect(q.lines[0]).toMatchObject({ code: "R6_BATTS", unit_price_inc_gst: 32, description: "Supply and install of Pink Batts R6.0 ceiling insulation" });
   });
-  test("older form (no question) leaves the quote unchanged", () => {
-    const r = resolveMittiProduct({ choice: null, usual: null, different: { brand: null, productName: null, rValue: null } });
-    const d = applyMittiProduct(draft(), r, 150);
-    expect(d.ready).toBe(true);
-    expect(d.lines[0]!.description).toBe("Insulation works by your installer — includes: x");
-  });
-  test("Other brand uses the typed brand; profile requires it", () => {
-    expect(usualProductForProfile({ brand: "Other", brandOther: null, productName: "X", rValue: "R5.0" })).toBeNull();
-    const p = usualProductForProfile({ brand: "Other", brandOther: "Knauf", productName: "X", rValue: "R5" })!;
-    expect(productQuoteDescription(p, 100)).toBe("Supply and install of Knauf X R5.0 ceiling insulation – 100 m²");
-  });
-  test("R-value outside R5.0/R6.0/R7.0 is refused", () => {
-    expect(usualProductForProfile({ brand: "Bradford", brandOther: null, productName: "X", rValue: "R4.0" })).toBeNull();
+  test("no installer-profile product anywhere", () => {
+    expect(existsSync("src/components/trade/usual-product.tsx")).toBe(false);
+    expect(readFileSync("src/routes/_authenticated/field.business_.details.tsx", "utf8")).not.toContain("UsualProduct");
+    expect(readFileSync("src/lib/trade-view.server.ts", "utf8")).not.toContain("UsualProduct");
   });
 });
