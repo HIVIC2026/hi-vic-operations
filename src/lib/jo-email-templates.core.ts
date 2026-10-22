@@ -234,7 +234,7 @@ function renderBelowR2Reviewed(r: JoRecipient, f: JoEstimateFigures): string {
     `**You could save ${money(f.veuRebate)}**`, "",
     `Your estimated cost after rebate: ${money(f.customerTotal)} including GST`,
     `Before rebate: ${money(f.totalBeforeRebate)} including GST`, "",
-    ...(f.removalUpTo != null && f.removalUpTo > 0 ? [removalUpToLine(f.removalUpTo), REMOVAL_UPTO_NOTE, ""] : []),
+    ...(f.removalUpTo != null && f.removalUpTo > 0 ? [removalUpToLine(f.removalUpTo, f.ceilingAreaM2), REMOVAL_UPTO_NOTE, ""] : []),
     `Property: ${r.propertyAddress}`,
     ceilingLine(f), "",
     assumedNote, "",
