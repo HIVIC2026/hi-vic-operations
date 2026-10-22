@@ -17,7 +17,7 @@ const form = (answers: Record<string, string | null> = {}) => {
 describe("contactAnswersFromEntries", () => {
   test("absent labels return null — nothing is invented", () => {
     const a = contactAnswersFromEntries([{ label: "Site address", value: "x" }]);
-    expect(a).toEqual({ phone: null, email: null, contactPermission: null, electricianChoice: null, electricianPriceIncGst: null, electricianName: null, electricianLicence: null });
+    expect(a).toEqual({ phone: null, email: null, contactPermission: null, electricianChoice: null, electricianPriceIncGst: null, electricianName: null, electricianLicence: null, productChoice: null, productBrand: null, productName: null, productRValue: null });
   });
   test("reads phone, email, permission and the electrician choice", () => {
     const a = contactAnswersFromEntries([

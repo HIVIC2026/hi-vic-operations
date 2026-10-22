@@ -13,6 +13,7 @@ export const SMS_MESSAGE_TYPES = {
   owner_code: { audience: "owner", label: "Owner 6-digit sign-in / signing code", wordingApproved: true, quietHours: false },
   ready_check_booking: { audience: "owner", label: "Ready Check booking confirmation", wordingApproved: false, quietHours: true },
   quote_ready: { audience: "owner", label: "Installation quote ready for the owner", wordingApproved: false, quietHours: true },
+  usual_product_missing: { audience: "partner", label: "Add usual insulation product", wordingApproved: false, quietHours: true },
   usual_electrician_missing: { audience: "partner", label: "Add usual electrician details", wordingApproved: false, quietHours: true },
   ready_check_incomplete: { audience: "partner", label: "Ready Check form missing answers/photos", wordingApproved: true /* Jo 22 Oct 22:57 */, quietHours: true },
   job_offer: { audience: "partner", label: "New job offer to a trade", wordingApproved: false, quietHours: false },
