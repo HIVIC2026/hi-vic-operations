@@ -1,6 +1,6 @@
 // Business-scoped usual product + job-owned compliance record of the product used (declared, not verified).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { USUAL_PRODUCT_EVENT, usualProduct, resolveMittiProduct, type MittiProductResolution } from "./usual-product.core";
+import { USUAL_PRODUCT_EVENT, usualProduct, resolveMittiProduct, type MittiProductResolution, type UsualProduct } from "./usual-product.core";
 import { contactAnswersFromEntries } from "./mitti.core";
 import { logEvent } from "./workflow.server";
 
@@ -12,14 +12,31 @@ export async function readUsualProduct(businessId: string) {
   return { product: usualProduct((data?.details as { product?: unknown } | null)?.product), revision: data?.id ?? null };
 }
 
-/** Null = not an installer-sourced job, or the product question isn't on this (older) form. */
+export async function assignedInstallerBusiness(jobId: string): Promise<string | null> {
+  const { data } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
+  return (data?.business_id as string | null) ?? null;
+}
+
+/** Product for an owner rate-card quote on our leads: the latest recorded form product, else the assigned installer's usual product. */
+export async function productForHivQuote(jobId: string, businessId: string): Promise<{ product: UsualProduct | null; source: "mitti_form" | "installer_profile" | null }> {
+  const { data: ev } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_product_recorded").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const d = ev?.details as { ready?: boolean; product?: unknown; source?: "mitti_form" | "installer_profile" } | null;
+  const recorded = d?.ready ? usualProduct(d.product) : null;
+  if (recorded) return { product: recorded, source: d?.source ?? "mitti_form" };
+  const saved = await readUsualProduct(businessId);
+  return { product: saved.product, source: saved.product ? "installer_profile" : null };
+}
+
+/** Null = the product question isn't on this (older) form. */ the product question isn't on this (older) form. */
 export async function mittiProductForJob(jobId: string, actorId: string | null, entries: { label: string; value: string | null }[], auditId: string): Promise<MittiProductResolution | null> {
   const a = contactAnswersFromEntries(entries);
   if (!a.productChoice) return null;
   const { data: job, error } = await admin.from("jobs").select("channel, originating_installer_business_id").eq("id", jobId).maybeSingle();
   if (error) throw new Error("Could not check the installer for this job.");
-  if (job?.channel !== "installer_sourced") return null;
-  const saved = a.productChoice === "usual" && job.originating_installer_business_id ? await readUsualProduct(job.originating_installer_business_id) : null;
+  if (!job) return null;
+  // Installer-brought jobs: the originating installer. Our leads (Jo 22 Oct): the assigned installer.
+  const businessId = job.channel === "installer_sourced" ? job.originating_installer_business_id : await assignedInstallerBusiness(jobId);
+  const saved = a.productChoice === "usual" && businessId ? await readUsualProduct(businessId) : null;
   const resolved = resolveMittiProduct({ choice: a.productChoice, usual: saved?.product ?? null, different: { brand: a.productBrand, productName: a.productName, rValue: a.productRValue } });
   const details = { audit_id: auditId, ...resolved, profile_revision: saved?.revision ?? null, declared_not_verified: true };
   const { data: prev, error: pe } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_product_recorded").order("created_at", { ascending: false }).limit(1).maybeSingle();
