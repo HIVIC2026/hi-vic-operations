@@ -69,3 +69,14 @@ describe("published A1/A2 Ready Check templates", () => {
     expect(a).toMatchObject({ phone: "0400000000", contactPermission: true, electricianChoice: "different", electricianName: "Test Sparky", electricianPriceIncGst: "299" });
   });
 });
+
+describe("Jo 22 Oct: A2 HIV form left as is — portal pre-fill still works", () => {
+  it("A2 keeps the 5-year, property-details and typed life-support questions and the portal fills them", () => {
+    const rows = (() => { const p = buildPrefill(A2, ctx); return [...p.header_items, ...p.items]; })();
+    const by = (l: string) => rows.find((r) => String(r.label).trim() === l);
+    expect(by("Was the ceiling or roof built or replaced in the last 5 years?")).toBeTruthy();
+    expect(by("Life support equipment at property?")?.responses?.text).toBe("None recorded by office");
+    expect(buildPrefill(A2, ctx).missing).toEqual([]);
+    expect(labels(A2)).toContain("Are the property details provided above correct?");
+  });
+});

@@ -103,3 +103,12 @@ describe("Stage 8: saved spot while Ready Check booking is OFF", () => {
     expect(officeStatus({ ...(base as object), readyCheckBookingOpen: true } as never, now.getTime())!.label).toBe("Spot saved");
   });
 });
+
+import { SMS_MESSAGE_TYPES as __T } from "../src/lib/sms.core";
+import { readyCheckIncompleteText as __txt } from "../src/lib/ready-check-chase.core";
+describe("Jo 22 Oct approvals", () => {
+  test("installer 'form incomplete' text is approved with Jo's exact wording", () => {
+    expect((__T as Record<string, { wordingApproved: boolean }>)["ready_check_incomplete"]!.wordingApproved).toBe(true);
+    expect(__txt("HV-1234", "2A Chatfield St, Kingsville", ["a photo showing the insulation depth"])).toBe("Ready Check HV-1234 (2A Chatfield St, Kingsville) is missing: a photo showing the insulation depth. Please update it in Mitti. – Home Insulation Victoria");
+  });
+});
