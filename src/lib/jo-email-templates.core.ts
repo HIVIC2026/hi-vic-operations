@@ -403,12 +403,13 @@ export function renderJoEstimateEmail(
   id: Exclude<JoTemplateId, "ineligible" | "ready_check_invitation">,
   recipient: JoRecipient,
   figures: JoEstimateFigures,
+  opts: { declaredThinPatchy?: boolean } = {},
 ): JoRenderResult {
   let body: string;
   switch (id) {
     case "eligible_no_insulation_size_unknown":
     case "eligible_no_insulation_size_known":
-      body = renderEligibleNoInsulation(recipient, figures);
+      body = renderEligibleNoInsulation(recipient, figures, opts.declaredThinPatchy === true);
       break;
     case "eligible_below_r2_reviewed_size_unknown":
     case "eligible_below_r2_reviewed_size_known":
