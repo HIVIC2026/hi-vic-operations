@@ -577,3 +577,17 @@ export async function runOutlookSync(opts: { maxPages?: number; pageSize?: numbe
     return { ok: false, blocker: problem, counts };
   }
 }
+
+/** Office-set historical catch-up start (null stops it). Explicit only — there is never a silent cutoff.
+ *  All catch-up work is record-only; completion clears the cursors automatically in the normal run.
+ *  Setting this does not start anything by itself: the next scheduled/manual run picks it up. */
+export async function setCatchupFrom(from: string | null): Promise<void> {
+  const state = await readOutlookSyncState();
+  if (from !== null && !Number.isFinite(Date.parse(from))) throw new Error("A valid catch-up start date is required.");
+  if (from !== null && Date.parse(from) > Date.now()) throw new Error("The catch-up start date cannot be in the future.");
+  await saveSyncState(state, {
+    catchup_from: from,
+    catchup_inbound_cursor: null, catchup_inbound_next_link: null,
+    catchup_outbound_cursor: null, catchup_outbound_next_link: null,
+  });
+}

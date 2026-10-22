@@ -26,7 +26,9 @@ export const getOutlookCorrespondenceOverview = createServerFn({ method: "GET" }
       connection: uncheckedOutlookHealth(outlookConfigured(), st.expected_mailbox ?? null), pending,
       // Provider continuation tokens are server-only and never returned to this screen.
       state: { backfill_from: st.backfill_from, mailbox: st.mailbox, expected_mailbox: st.expected_mailbox,
-        last_run_at: st.last_run_at, last_ok_at: st.last_ok_at, last_error: st.last_error, last_counts: st.last_counts },
+        last_run_at: st.last_run_at, last_ok_at: st.last_ok_at, last_error: st.last_error, last_counts: st.last_counts,
+        catchup_from: st.catchup_from, catchup_inbound_cursor: st.catchup_inbound_cursor, catchup_outbound_cursor: st.catchup_outbound_cursor,
+        has_catchup_inbound_continuation: !!st.catchup_inbound_next_link, has_catchup_outbound_continuation: !!st.catchup_outbound_next_link },
       reviews: (reviews ?? []).map((r) => ({
         id: r.id, kind: r.kind as "unmatched" | "possible_not_proceeding" | "not_proceeding_progressed", reason: r.reason, suggestedReason: r.suggested_reason,
         direction: r.direction, from: r.from_address, recipients: (r.recipients as string[]) ?? [], subject: r.subject, body: r.body.slice(0, 2000), at: r.message_at,
@@ -69,23 +71,31 @@ export const resolveCorrespondenceReview = createServerFn({ method: "POST" })
     const { requireAdmin, logEvent, WorkflowError } = await import("./workflow.server");
     await requireAdmin(context.supabase);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
-    const { data: r } = await admin.from("correspondence_reviews").select("*").eq("id", data.reviewId).eq("status", "open").maybeSingle();
+    // Assign may run more than once: Office can later confirm the same email belongs to a second job.
+    // Each assignment is idempotent per job (per-job uniqueness) and audited; dismiss/close still
+    // require an open review.
+    const { data: r } = await admin.from("correspondence_reviews").select("*").eq("id", data.reviewId).maybeSingle();
     if (!r) throw new WorkflowError("This review item is already resolved.");
+    if (data.action !== "assign" && r.status !== "open") throw new WorkflowError("This review item is already resolved.");
     const done = (status: string, extra: Record<string, unknown> = {}) => admin.from("correspondence_reviews")
       .update({ status, resolved_by: context.userId, resolved_at: new Date().toISOString(), ...extra }).eq("id", r.id).eq("status", "open");
     if (data.action === "dismiss") { await done("dismissed", { resolution_note: data.reason ?? null }); return { ok: true }; }
     if (data.action === "assign") {
       if (r.kind !== "unmatched") throw new WorkflowError("Only unmatched emails can be assigned.");
-      const { data: job } = await admin.from("jobs").select("id").eq("job_number", (data.jobNumber ?? "").toUpperCase()).is("deleted_at", null).maybeSingle();
+      const { data: job } = await admin.from("jobs").select("id, owners(email)").eq("job_number", (data.jobNumber ?? "").toUpperCase()).is("deleted_at", null).maybeSingle();
       if (!job) throw new WorkflowError("No job with that number.");
       const { storeOnJob } = await import("./outlook-sync.server");
+      // Owner-linked mail stays customer-visible on that job; anything else is staff-visible so another
+      // owner's mail or files are never exposed through a different job's customer view.
+      const ownerEmail = ((job as { owners?: { email?: string | null } | null }).owners?.email ?? "").toLowerCase();
+      const visibility = ownerEmail && (r.from_address ?? "").toLowerCase() === ownerEmail ? "customer" : "internal";
       const commId = await storeOnJob(job.id, {
         providerMessageId: r.provider_message_id, threadId: r.provider_thread_id, internetMessageId: null, direction: r.direction as "inbound" | "outbound",
         from: r.from_address, fromName: null, to: (r.recipients as string[]) ?? [], cc: [], subject: r.subject, body: r.body, at: r.message_at ?? r.created_at,
         hasAttachments: false, attachments: (r.attachment_refs as never) ?? [],
-      }, "office_assigned");
-      await done("assigned", { job_id: job.id, communication_id: commId });
-      await logEvent(job.id, context.userId, "correspondence_assigned", `Outlook email assigned to this job by Office`, { review_id: r.id });
+      }, "office_assigned", visibility);
+      await done("assigned", { job_id: job.id, communication_id: commId ?? r.communication_id });
+      await logEvent(job.id, context.userId, "correspondence_assigned", `Outlook email assigned to this job by Office`, { review_id: r.id, already_linked: commId === null });
       return { ok: true };
     }
     // close_job: an Office decision, so it may close any open stage; reason required and audited.
@@ -106,4 +116,16 @@ export const runOutlookSyncNow = createServerFn({ method: "POST" })
     const { runOutlookSync } = await import("./outlook-sync.server");
     const r = await runOutlookSync({ maxPages: 4 });
     return { ok: r.ok, blocker: r.blocker ?? null, counts: r.counts };
+  });
+
+/** Office sets (or stops) the historical catch-up start. Record-only; never starts a run by itself. */
+export const setOutlookCatchup = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ from: z.string().datetime().nullable() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { requireAdmin } = await import("./workflow.server");
+    await requireAdmin(context.supabase);
+    const { setCatchupFrom } = await import("./outlook-sync.server");
+    await setCatchupFrom(data.from);
+    return { ok: true };
   });
