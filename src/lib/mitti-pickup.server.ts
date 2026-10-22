@@ -18,7 +18,10 @@ import {
 type Any = any;
 
 const PICKUP_WINDOW_DAYS = 14;
-const READY_CHECK_STAGES = ["ready_check_ready_to_schedule", "ready_check_scheduled"];
+// Jo 22 Oct 2026: "preliminary_estimate_ready" (Office wording: estimate sent) is allowed too — the Mitti-first
+// flow has installers doing the Ready Check on jobs whose preliminary estimate already went out, and the visit
+// has happened. Every other guard (template match, one-form rule, write-back validation, guarded sync) is unchanged.
+const READY_CHECK_STAGES = ["ready_check_ready_to_schedule", "ready_check_scheduled", "preliminary_estimate_ready"];
 
 async function templateIds() {
   const { data } = await admin.from("workflow_settings").select("mitti_ready_check_template_id,mitti_ready_check_priced_template_id").eq("id", 1).maybeSingle();
@@ -143,6 +146,8 @@ export async function linkMittiReadyCheckToJob(actorId: string | null, input: { 
     await admin.from("ceiling_measurements").insert({ job_id: jobId, status: "draft", is_current: true, source_role: "installer", created_by: actorId, external_source: "mitti", external_id: auditId });
   } else if (action.kind === "insert" && mNow && mNow.external_source === "mitti" && mNow.external_id === auditId) {
     // already this audit
+  } else if (action.kind === "already" && mNow?.external_source === "mitti" && mNow.external_id === auditId) {
+    // retry of an interrupted link: the measurement already points at this audit — nothing to change
   } else if (action.kind === "adopt" && mNow?.id === action.id) {
     await admin.from("ceiling_measurements").update({ external_source: "mitti", external_id: auditId }).eq("id", mNow.id);
   } else {
