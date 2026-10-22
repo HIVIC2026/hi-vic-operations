@@ -240,8 +240,18 @@ function MediaReview({ row, onDone, optionsOnly = false }: { row: Row; onDone: (
             </div>
           ) : saved && savedOutcome === "over_r2" ? (
             <div className="space-y-2">
-              <p role="status" className="text-sm font-semibold text-primary">Marked ineligible: {reason.trim()}. Now send the ineligible email:</p>
-              <IneligibleFollowup jobId={row.id} onDone={onDone} />
+              <p role="status" className="text-sm font-semibold text-primary">Marked ineligible — the enquiry is closed. Nothing has been sent yet:</p>
+              <EditableReviewEmail
+                title="ineligible email"
+                load={async () => {
+                  const r = await ineligibleEmail({ data: { jobId: row.id, mode: "preview" } });
+                  return r.outcome === "preview" && r.preview ? { ok: true as const, subject: r.preview.subject, plainText: r.preview.plainText ?? "" } : { ok: false as const, detail: r.detail };
+                }}
+                send={(text, unedited) => ineligibleEmail({ data: { jobId: row.id, mode: "send", ...(unedited ? {} : { customText: text }) } })}
+                onDone={onDone}
+                closeLabel="Close without email"
+                onClose={onDone}
+              />
             </div>
           ) : saved ? (
             <p role="status" className="text-sm font-semibold text-primary">
@@ -249,18 +259,15 @@ function MediaReview({ row, onDone, optionsOnly = false }: { row: Row; onDone: (
             </p>
           ) : (
             <div className="space-y-2">
+              {/* Jo 22 Oct 2026: three buttons replace the previous seven. Qualifies records the existing
+                  below-R2 / no-insulation outcome (reports unchanged) then confirms with the email preview;
+                  Not eligible records R2-or-above and closes the enquiry, then offers the editable ineligible
+                  email; Need more photos opens the editable request with the owner's upload link kept. */}
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" disabled={busy !== null} onClick={() => act("below_r2")}>Under R2 – send Save your spot</Button>
-                <Button size="sm" disabled={busy !== null} onClick={() => act("no_insulation")}>No insulation – send Save your spot</Button>
-                <Button size="sm" variant="destructive" disabled={busy !== null} onClick={() => setOverOpen(true)}>R2 or above – ineligible</Button>
-                <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => act("unclear")}>{MEDIA_OUTCOME_LABEL.unclear}</Button>
+                <Button size="sm" className="bg-action text-action-foreground hover:bg-action/90" disabled={busy !== null} onClick={() => act(qualifiesOutcome(row.declaredInsulation))}>🟢 Qualifies – send Save my spot</Button>
+                <Button size="sm" variant="destructive" disabled={busy !== null} onClick={() => act("over_r2")}>🔴 Not eligible</Button>
+                <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => act("unclear")}>⚪ Need more photos</Button>
               </div>
-              {overOpen && (
-                <div className="flex flex-wrap gap-2">
-                  <Input aria-label="Ineligible reason" placeholder="Why it's ineligible (e.g. R3.5 batts visible)" value={reason} onChange={e => setReason(e.target.value)} className="min-w-0 flex-1" />
-                  <Button size="sm" variant="destructive" disabled={busy !== null || !reason.trim()} onClick={() => act("over_r2")}>Confirm ineligible</Button>
-                </div>
-              )}
             </div>
           )}
           {failed && <p role="alert" className="text-sm text-destructive">{failed}</p>}
