@@ -364,6 +364,11 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
             }
           } catch (e) { issues = [...issues, `Owner quote could not be drafted: ${e instanceof Error ? e.message : "error"}`]; }
         }
+        // Stage 7 (Jo 22 Oct): incomplete form → record what the installer must add (dormant text; office chase after 24h).
+        await (await import("./ready-check-chase.server")).recordReadyCheckProgress({
+          jobId, actorId, auditId: measureAudit, entries: (plan.snapshot ?? []) as { label: string; value: unknown }[],
+          completed: plan.completed, modifiedAt: plan.modifiedAt ?? null, priced: readyCheckVariant(job.channel) === "ready_check_priced",
+        }).catch(() => undefined);
         // History only on change (Jo 23 Oct): an unchanged re-sync (same answers, same modified time)
         // adds no new event row.
         const { data: lastEv } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_measureup_synced").order("created_at", { ascending: false }).limit(1).maybeSingle();
