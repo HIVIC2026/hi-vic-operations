@@ -389,6 +389,8 @@ export function EnquiriesWorkspace({
   onQ: (next: string) => void;
 }) {
   const load = useServerFn(getEnquiryGroups);
+  // Old bookmarks may still carry ?status=spot_saved — saved spots live only in Active jobs now, so fall back.
+  const activeView: EnquiryView = VIEW_ORDER.includes(view) ? view : "needs_attention";
   const [searchDraft, setSearchDraft] = useState(q ?? '');
   useEffect(() => { setSearchDraft(q ?? ''); }, [q]);
   useEffect(() => {
