@@ -27,7 +27,7 @@ export async function productForHivQuote(jobId: string, businessId: string): Pro
   return { product: saved.product, source: saved.product ? "installer_profile" : null };
 }
 
-/** Null = the product question isn't on this (older) form. */ the product question isn't on this (older) form. */
+/** Null = the product question is not on this (older) form. */
 export async function mittiProductForJob(jobId: string, actorId: string | null, entries: { label: string; value: string | null }[], auditId: string): Promise<MittiProductResolution | null> {
   const a = contactAnswersFromEntries(entries);
   if (!a.productChoice) return null;
