@@ -230,7 +230,7 @@ async function applyContactAnswers(jobId: string, actorId: string | null, entrie
   }
   if (Object.keys(patch).length) await admin.from("owners").update(patch).eq("id", job.owner_id);
   // New choices have a separate compliance/billing snapshot; never auto-assign or verify a nominated electrician.
-  if (a.electricianChoice && !job.electrician_choice) await admin.from("jobs").update({ electrician_choice: a.electricianChoice === "own" ? "installer_own" : "hivic_organise" }).eq("id", jobId);
+  if ((a.electricianChoice === "own" || a.electricianChoice === "hivic") && !job.electrician_choice) await admin.from("jobs").update({ electrician_choice: a.electricianChoice === "own" ? "installer_own" : "hivic_organise" }).eq("id", jobId);
   await logEvent(jobId, actorId, "mitti_contact_answers", `Ready Check form answers recorded (owner contact permission: ${a.contactPermission == null ? "not on form" : a.contactPermission ? "yes" : "no"})`, { has_phone: !!a.phone, has_email: !!a.email, permission: a.contactPermission, electrician_choice: a.electricianChoice, electrician_price_inc_gst: a.electricianPriceIncGst, electrician_name: a.electricianName, electrician_licence: a.electricianLicence }, { internal: true });
 }
 

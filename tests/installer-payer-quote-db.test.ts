@@ -116,6 +116,8 @@ describe("Jo 22 Oct Mitti three-option quote persistence on practice Postgres", 
     await draftInstallerQuoteFromReadyCheck(JOB, U, entries("My usual electrician"), "audit_test");
     expect((await current()).length).toBe(1);
     expect((await db.query("select id from workflow_events where event_type='mitti_electrician_recorded'", [])).rows.length).toBe(1);
+    await db.query("insert into admin_config_events(event_type,details) values ('installer_usual_electrician_saved',$1)", [JSON.stringify({business_id: BIZ, electrician: {name: "TEST Profile REC", licence: "TEST-PROFILE-LIC", priceIncGst: 300}})]);
+    expect(await quoteBillingBlocker(q.id)).toContain("profile changed");
   });
   test("different form $450.50 used, saved identity and quote snapshot", async () => {
     await draftInstallerQuoteFromReadyCheck(JOB, U, entries("A different electrician"), "audit_test");

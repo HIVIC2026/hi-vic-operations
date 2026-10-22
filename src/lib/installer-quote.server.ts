@@ -19,7 +19,7 @@ export const quoteLineSignature = (lines: SigLine[], discountNote?: string | nul
 export async function quoteBillingBlocker(quoteId: string): Promise<string | null> {
   const { data: q } = await admin.from("quotes").select("option_code, status, job_id").eq("id", quoteId).maybeSingle();
   if (!q || q.option_code !== INSTALLER_QUOTE_CODE || q.status === "accepted") return null;
-  const { data: j } = await admin.from("jobs").select("channel, electrician_choice").eq("id", q.job_id).maybeSingle();
+  const { data: j } = await admin.from("jobs").select("channel, electrician_choice, originating_installer_business_id").eq("id", q.job_id).maybeSingle();
   if (j?.channel !== "installer_sourced") return null;
   const { data: snapshot, error: se } = await admin.from("workflow_events").select("details").eq("job_id", q.job_id).eq("event_type", "mitti_quote_electrician_snapshot").contains("details", { quote_id: quoteId }).limit(1).maybeSingle();
   if (se) return "Quote electrician history could not be checked";
@@ -27,6 +27,12 @@ export async function quoteBillingBlocker(quoteId: string): Promise<string | nul
     const saved = (snapshot.details as unknown as { electrician: import("./usual-electrician.core").MittiElectricianResolution }).electrician;
     const { data: last, error: le } = await admin.from("workflow_events").select("details").eq("job_id", q.job_id).eq("event_type", "mitti_electrician_recorded").order("created_at", { ascending: false }).limit(1).maybeSingle();
     const current = le ? null : last?.details as unknown as import("./usual-electrician.core").MittiElectricianResolution | null;
+    if (saved?.choice === "usual") {
+      if (!j.originating_installer_business_id) return "Installer has no usual electrician saved";
+      const profile = await (await import("./usual-electrician.server")).readUsualElectrician(j.originating_installer_business_id).catch(() => null);
+      const usual = profile?.electrician;
+      if (!usual || usual.name !== saved.name || usual.licence !== saved.licence || usual.priceIncGst !== saved.priceIncGst) return "Usual electrician profile changed or is missing — sync the Ready Check and prepare a new quote";
+    }
     const { data: lines, error: ie } = await admin.from("quote_items").select("code, line_total_inc_gst").eq("quote_id", quoteId);
     if (ie) return "Quote electrical lines could not be checked";
     return (await import("./mitti-installer-quote.core")).mittiQuoteElectricalBlocker(lines ?? [], saved, current);
@@ -102,7 +108,14 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
     const { data: items } = await admin.from("quote_items").select("code, line_total_inc_gst, description, quantity, unit, unit_price_inc_gst, explanation, is_other").eq("quote_id", q.id);
     if (quoteLineSignature(items ?? [], (q as { discount_note?: string | null }).discount_note) === sig) { same = q; break; }
   }
-  if (same) return draft; // dedup: same figures never create a second quote or audit row
+  if (same) {
+    if (mittiElectrician) {
+      const { data: snapshot, error: se } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "mitti_quote_electrician_snapshot").contains("details", { quote_id: same.id }).limit(1).maybeSingle();
+      if (se) throw new Error("Could not check the quote electrician snapshot.");
+      if (!snapshot) await logEvent(jobId, actorId, "mitti_quote_electrician_snapshot", "Ready Check quote electrician price and identity snapshot retained", { quote_id: same.id, electrician: mittiElectrician }, { internal: true });
+    }
+    return draft;
+  }
   await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "installation").eq("status", "draft");
   const { data: q, error } = await admin.from("quotes").insert({
     job_id: jobId, kind: "installation", option_label: intakePrice ? "Installer's quote (from intake)" : "Installer's quote (from Ready Check)", option_code: INSTALLER_QUOTE_CODE, status: "draft", sent_at: null,
