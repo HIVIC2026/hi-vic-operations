@@ -513,6 +513,7 @@ export function parseAudit(audit: Any) {
 }
 
 /** Verify the stored audit's exact identity, template and job before any reuse write or sync. */
+export function validateStoredMittiAudit(audit: Any, ctx: { storedAuditId: string; jobNumber: string; templateId?: string }) {
   const p = parseAudit(audit);
   if (!p.auditId || p.auditId !== ctx.storedAuditId) throw new MittiError("Mitti returned a different audit or no verifiable audit ID for this job.");
   if (!sameMittiTemplateId(p.templateId, ctx.templateId ?? MITTI_TEMPLATE_ID)) throw new MittiError("This Mitti audit does not use the expected Home Insulation Victoria assessment template.");
