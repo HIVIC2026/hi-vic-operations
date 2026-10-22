@@ -45,7 +45,7 @@ export async function quoteHolds(lookbackDays = 2): Promise<Map<string, { holdUn
     if (!id) continue;
     const cur = out.get(id) ?? { holdUntil: null, stopped: false };
     if (e.event_type === HOLD_STOPPED) cur.stopped = true;
-    else cur.holdUntil = e.details?.holdUntil ?? e.details?.hold_until ?? null;
+    else cur.holdUntil = e.details?.hold_until ?? null;
     out.set(id, cur);
   }
   return out;
