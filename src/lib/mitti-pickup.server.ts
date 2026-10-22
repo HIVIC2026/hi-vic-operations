@@ -146,6 +146,8 @@ export async function linkMittiReadyCheckToJob(actorId: string | null, input: { 
     await admin.from("ceiling_measurements").insert({ job_id: jobId, status: "draft", is_current: true, source_role: "installer", created_by: actorId, external_source: "mitti", external_id: auditId });
   } else if (action.kind === "insert" && mNow && mNow.external_source === "mitti" && mNow.external_id === auditId) {
     // already this audit
+  } else if (action.kind === "already" && mNow?.external_source === "mitti" && mNow.external_id === auditId) {
+    // retry of an interrupted link: the measurement already points at this audit — nothing to change
   } else if (action.kind === "adopt" && mNow?.id === action.id) {
     await admin.from("ceiling_measurements").update({ external_source: "mitti", external_id: auditId }).eq("id", mNow.id);
   } else {
