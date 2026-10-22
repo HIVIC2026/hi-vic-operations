@@ -1,6 +1,6 @@
 // Jo 23 Oct: A1/A2 Ready Check templates edited and published in Mitti. These are the real published
 // definitions (read-only GET) plus the pre-edit backups, so prefill/sync are proven against both versions.
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import { buildPrefill, contactAnswersFromEntries, flatten, type PrefillCtx } from "../src/lib/mitti.core";
 
