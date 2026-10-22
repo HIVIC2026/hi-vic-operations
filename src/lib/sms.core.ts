@@ -34,6 +34,8 @@ export type SmsGateInput = {
   isTestRecord: boolean;
   /** Set only by the explicit admin blast; never enables other SMS types. */
   adminSpotReminderBlast?: boolean;
+  /** Instant used for the quiet-hours rule; defaults to now. */
+  nowIso?: string;
 };
 
 /** First reason a real text must NOT go, or null. Fails closed on anything unknown. */
@@ -42,6 +44,7 @@ export function smsBlocker(x: SmsGateInput): string | null {
   if (!t) return "Unknown message type";
   if (x.isTestRecord) return "TEST record – use the test sender";
   if (!t.wordingApproved) return "Wording not approved yet";
+  if (t.quietHours) { const q = smsQuietReason(x.nowIso ?? new Date().toISOString()); if (q) return q; }
   if (!x.commsEnabled) return "Customer communications are switched off";
   if (!x.typeSwitchOn && !(x.type === "save_spot_reminder" && x.adminSpotReminderBlast === true)) return `"${t.label}" texts are switched off`;
   if (!x.senderConfigured) return "No Australian sending number set up";
