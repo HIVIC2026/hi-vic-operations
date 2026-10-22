@@ -634,29 +634,34 @@ export function EnquiriesWorkspace({
                         <div className="text-muted-foreground">{when(row.createdAt)}</div>
                       </td>
                       <td className="p-3">
-                        {view === "photos" || row.mediaToReview ? (
+                        {view === "photos" || row.mediaToReview || row.mediaOutcome != null ? (
                           <div className="space-y-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setOpenId(openId === row.id ? null : row.id)}
-                            >
-                              {openId === row.id
-                                ? "Hide photos"
-                                : `View ${row.mediaCount} photo${row.mediaCount === 1 ? "" : "s"}/video`}
-                            </Button>
+                            {row.mediaCount > 0 && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setOpenId(openId === row.id ? null : row.id)}
+                              >
+                                {openId === row.id
+                                  ? "Hide photos"
+                                  : `View ${row.mediaCount} photo${row.mediaCount === 1 ? "" : "s"}/video`}
+                              </Button>
+                            )}
                             {openId === row.id && (
-                              <MediaReview row={row} onDone={() => refetch()} />
+                              <MediaReview row={row} onDone={() => refetch()} readOnly={!row.mediaToReview} />
+                            )}
+                            {row.mediaOutcome === "no_insulation" && !["spot_saved", "ineligible", "offered_spot"].includes(row.status) && (
+                              <NoInsulationFollowup jobId={row.id} deliveryUncertain={uncertainAttempt(row.latestAttemptStatus)} onDone={() => void refetch()} />
+                            )}
+                            {row.mediaOutcome === "below_r2" && !["spot_saved", "ineligible", "offered_spot"].includes(row.status) && (
+                              <ExistingInsulationFollowup jobId={row.id} deliveryUncertain={uncertainAttempt(row.latestAttemptStatus)} onDone={() => void refetch()} />
+                            )}
+                            {row.mediaOutcome === "unclear" && row.nextParty === "office" && (
+                              <MorePhotosFollowup row={row} onDone={() => void refetch()} />
                             )}
                           </div>
                         ) : view === "removed" ? (
                           "Removed by office"
-                        ) : row.mediaOutcome === "no_insulation" && !["spot_saved", "ineligible", "offered_spot"].includes(row.status) ? (
-                          <NoInsulationFollowup jobId={row.id} deliveryUncertain={uncertainAttempt(row.latestAttemptStatus)} onDone={() => void refetch()} />
-                        ) : row.mediaOutcome === "below_r2" && !["spot_saved", "ineligible", "offered_spot"].includes(row.status) ? (
-                          <ExistingInsulationFollowup jobId={row.id} deliveryUncertain={uncertainAttempt(row.latestAttemptStatus)} onDone={() => void refetch()} />
-                        ) : row.mediaOutcome === 'unclear' && row.nextParty === 'office' ? (
-                          <MorePhotosFollowup row={row} onDone={() => void refetch()} />
                         ) : row.status === "needs_attention" && !row.mediaOutcome ? (
                           (row.attentionReason ?? row.reason)
                         ) : (
