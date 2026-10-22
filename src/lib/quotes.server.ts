@@ -71,7 +71,9 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
     .map((l) => ({ code: l.code, description: `electrical fixes: ${l.description}`, quantity: Number(l.quantity), unit: l.unit, unit_price_inc_gst: Number(l.unit_price_inc_gst), line_total_inc_gst: Number(l.line_total_inc_gst), is_other: l.is_other, explanation: l.explanation }));
   const rectTotal = r2(rectLines.reduce((a, l) => a + l.line_total_inc_gst, 0));
   const gstMul = 1 + Number(settings.gst_rate);
-  const { priceHivQuote, HIV_PRICING_RULE } = await import("./hiv-quote.core");
+  const { priceHivQuote, HIV_PRICING_RULE, R_VALUE_CODE } = await import("./hiv-quote.core");
+  const chosen = await (await import("./usual-product.server")).productForHivQuote(jobId, inst.business_id);
+  const rValue = chosen.product?.rValue ?? "R5.0";
   let calc: ReturnType<typeof priceHivQuote>;
   try {
     calc = priceHivQuote({
@@ -83,6 +85,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
       apFeeIncGst: jobRow.ap_fee_override_inc_gst != null ? Number(jobRow.ap_fee_override_inc_gst) : Number(rs.ap_management_inc_gst),
       gstRate: Number(settings.gst_rate),
       installerR5ExPerM2: rate("R5_BATTS"), installerRemovalExPerM2: rate("BATTS_REMOVAL", "REMOVAL", "LOOSE_FILL_REMOVAL"), installerTravelEx: rate("TRAVEL"),
+      rValue, installerRExPerM2: rate(R_VALUE_CODE[rValue]), product: chosen.product,
     });
   } catch (e) { throw new WorkflowError(e instanceof Error ? e.message : "Could not price this quote."); }
 
@@ -101,19 +104,21 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
     admin.from("workflow_settings").select("auto_send_quote, customer_comms_enabled, quote_estimate_variance_tolerance_pct").eq("id", 1).maybeSingle(),
     admin.from("indicative_estimates").select("scenarios").eq("job_id", jobId).eq("status", "current").order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
-  const release = confirmedQuoteDecision({
+  const baseRelease = confirmedQuoteDecision({
     estimateTotal: currentEstimateTotal(estimate?.scenarios, qi.removalM2 > 0),
     quoteTotal: customerTotal,
     tolerancePct: Number(workflow?.quote_estimate_variance_tolerance_pct ?? 15),
     hasUnratedExtras: rectLines.some((line) => line.is_other),
     externalSendingEnabled: workflow?.auto_send_quote === true && workflow?.customer_comms_enabled === true,
   });
+  // Jo 22 Oct 2026: installer's agreed rate above the owner rate for the chosen R-value → held for office review.
+  const release: typeof baseRelease = calc.holdReasons.length ? { state: "held", status: "draft", reason: calc.holdReasons.join(" ") } : baseRelease;
   const releasedAt = release.status === "issued" ? new Date().toISOString() : null;
   const availableToOwner = release.state !== "held";
   const discountNote = discountNotes(rules).join(" ") || null;
-  const label = rectLines.length ? "R5.0 ceiling insulation + electrical fixes" : "R5.0 ceiling insulation";
+  const label = rectLines.length ? `${rValue} ceiling insulation + electrical fixes` : `${rValue} ceiling insulation`;
   const { data: q, error } = await admin.from("quotes").insert({
-    job_id: jobId, kind: "installation", option_label: label, option_code: "R5_BATTS", status: availableToOwner ? "issued" : "draft", sent_at: releasedAt,
+    job_id: jobId, kind: "installation", option_label: label, option_code: R_VALUE_CODE[rValue], status: availableToOwner ? "issued" : "draft", sent_at: releasedAt,
     release_state: release.state, release_hold_reason: release.reason,
     rate_card_id: card.id, pricing_settings_id: settings.id, subtotal_inc_gst: subtotal,
     gst_amount: r2(subtotal - subtotal / gstMul), veec_discount_inc_gst: veec, discount_note: discountNote,
@@ -127,7 +132,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
   ]);
   const { error: internalsError } = itemsError ? { error: null } : await admin.from("quote_internals").insert({
     quote_id: q.id, cost_ex_gst: calc.installerCostEx, ap_margin_ex_gst: calc.installerMarkup.markupEx, ap_fee_ex_gst: r2((jobRow.ap_fee_override_inc_gst != null ? Number(jobRow.ap_fee_override_inc_gst) : Number(rs.ap_management_inc_gst)) / gstMul), // job AP fee override wins
-    calc_snapshot: { pricing_rule: HIV_PRICING_RULE, installer_markup: calc.installerMarkup, measurement_id: qi.measurementId, area_m2: qi.areaM2, removal_m2: qi.removalM2, rate_card_version: card.version, pricing_version: settings.version, access: qi.access, discount_notes: discountNotes(rules), discount_cap_applied: rules.cappedAtMax, discount_reduced_for_minimum: rules.reducedForMin },
+    calc_snapshot: { pricing_rule: HIV_PRICING_RULE, installer_markup: calc.installerMarkup, measurement_id: qi.measurementId, area_m2: qi.areaM2, removal_m2: qi.removalM2, rate_card_version: card.version, pricing_version: settings.version, access: qi.access, r_value: rValue, product: chosen.product, product_source: chosen.source, product_declared_not_verified: true, discount_notes: discountNotes(rules), discount_cap_applied: rules.cappedAtMax, discount_reduced_for_minimum: rules.reducedForMin },
   });
   if (itemsError || internalsError) {
     await admin.from("quotes").update({ status: "superseded" }).eq("id", q.id); // withdraw the incomplete new quote; the previous one stays current
