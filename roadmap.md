@@ -486,3 +486,5 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Live TEST rerun (form created, partial sync, quote draft; completing in Mitti needs a person) of installer Add a job → Mitti → sync → quote draft
 - [x] Estimate page removal box to match the email look
 - [x] Removal box: state $15 per m² only for areas needing removal (Jo 22 Oct)
+- [x] Jo 23 Oct: verify published A1/A2 Ready Check templates; prefill no longer requires Assessor; A1 life support Yes/No mapped; tests vs new + old template versions (`tests/mitti-ready-check-published-templates.test.ts`)
+- [ ] A2 still has the 5-year question, "Are the property details correct?", text life-support and no phone/email/consent — awaiting Jo (Mitti edit is Jo's)

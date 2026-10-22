@@ -186,7 +186,9 @@ const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; 
   { key: "ownerName", aliases: ["Owner name", "Homeowner name", "Owner full name", "Client name", "Property owner name"], mandatory: true },
   { key: "ownerEmail", aliases: ["Owner email", "Homeowner email"] },
   { key: "ownerPhone", aliases: ["Owner phone", "Owner mobile", "Homeowner mobile", "Homeowner phone"] },
-  { key: "assessorName", aliases: ["Assigned Electrician", "Assessor", "Assigned Electrician / Assessor", "Full Name (initial assessment)", "Lead installer name"], mandatory: true },
+  // Not mandatory on the TEMPLATE: Jo removed "Assessor" from the A1/A2 Ready Check forms (23 Oct). The assigned
+  // person is still required as data (createOrReuseAudit blank check); older forms with the field still get it.
+  { key: "assessorName", aliases: ["Assigned Electrician", "Assessor", "Assigned Electrician / Assessor", "Full Name (initial assessment)", "Lead installer name"] },
   { key: "assessmentAt", aliases: ["Assessment date/time", "Assessment date time", "Booked assessment date"], datetime: true },
   { key: "estimatedAreaM2", aliases: ["Office estimated ceiling area", "Estimated ceiling area"] },
   { key: "occupancy", aliases: ["Occupancy"] },
@@ -234,7 +236,9 @@ export function buildPrefill(template: Any, ctx: PrefillCtx) {
     if (!r.entry) { if (r.ambiguous) ambiguous.push(f.aliases[0]!); else if (f.mandatory) missing.push(f.aliases[0]!); continue; }
     const e = r.entry;
     if (empty) continue;
-    const vStr = String(v);
+    let vStr = String(v);
+    // A1 now asks "Life support equipment at property?" as Yes/No: map the office result onto that option.
+    if (f.key === "lifeSupport" && /choice|question|switch|list/i.test(e.type)) vStr = /^yes/i.test(vStr) ? "Yes" : /^(none|no)\b/i.test(vStr) ? "No" : vStr;
     const choiceLike = /choice|question|switch|list/i.test(e.type);
     let type = e.type, responses: Any;
     if (f.datetime) responses = { datetime: vStr };
