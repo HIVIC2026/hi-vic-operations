@@ -94,12 +94,12 @@ describe("Stage 8: saved spot while Ready Check booking is OFF", () => {
   const base = { id: "j", stage: "preliminary_estimate_ready", createdAt: h(100), lastActivityAt: h(1), enteredStageAt: h(50), holdRevisitAt: null, cancelledReason: null,
     campaign: { spotSavedAt: h(10), optedOutAt: null, videoRequested: false, mediaReceivedAt: null, deskCheckStatus: null, createdAt: h(60), queuePriority: null }, ownerContactedAt: h(20) } as never;
   test("booking OFF: waiting, no office action", () => {
-    const s = officeStatus({ ...(base as object), readyCheckBookingOpen: false } as never, {} as never, now);
-    expect(s.label).toBe("Waiting – Ready Checks not open yet");
-    expect(s.waitingOn).toBe("Nobody");
-    expect(s.action).toBeNull();
+    const s = officeStatus({ ...(base as object), readyCheckBookingOpen: false } as never, now.getTime());
+    expect(s!.label).toBe("Waiting – Ready Checks not open yet");
+    expect(s!.waitingOn).toBe("Nobody");
+    expect(s!.action).toBeNull();
   });
   test("booking ON: unchanged Spot saved office action", () => {
-    expect(officeStatus({ ...(base as object), readyCheckBookingOpen: true } as never, {} as never, now).label).toBe("Spot saved");
+    expect(officeStatus({ ...(base as object), readyCheckBookingOpen: true } as never, now.getTime())!.label).toBe("Spot saved");
   });
 });
