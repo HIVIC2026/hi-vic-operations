@@ -266,6 +266,7 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     const message = { providerMessageId: "sql-guard", direction: "inbound", from: "owner@example.test", to: [TEST_MAILBOX], cc: [], body: "Please cancel my enquiry.", at: "2026-10-20T08:00:00Z", hasAttachments: false };
     const route = { kind: "job", jobId: TEST_JOB, how: "job_number" };
     await h.db.query(`SELECT begin_outlook_message($1,$2,$3)`, [TEST_MAILBOX, JSON.stringify(message), JSON.stringify(route)]);
+    await h.db.exec(`UPDATE outlook_message_work SET attachments_complete=true`);
     await h.db.exec(`UPDATE jobs SET stage='installation_booked'`);
     await assert.rejects(h.db.query(`SELECT finish_outlook_message('sql-guard',$1)`, [JSON.stringify({ action: "close", expectedStage: "new_enquiry", reason: "Customer not proceeding" })]), /Job changed/);
     assert.equal(await total(h, "job_communications"), 0);
