@@ -52,6 +52,8 @@ export type EnquiryGroupRow = EnquiryClass & {
   removed?: boolean;
   id: string; kind: "job" | "calculator"; jobNumber: string | null; reference: string | null; name: string | null; email: string | null; phone: string | null; address: string | null; postcode: string | null;
   createdAt: string; stage: string | null; areaLabel: string; declaredInsulation: "none" | "present" | "unknown" | null; hardFailures: string[];
+  /** "loose fill, thin, patchy" from the owner's website answers; null when not given. */
+  insulationDetail?: string | null;
   lastEmail: { purpose: string; status: string; at: string | null; error: string | null } | null;
   emailOutcomeUnknown: { sendId: string; at: string | null; kind: SendKind; detail: string | null } | null;
   consent: string | null; optedOut: boolean; bounced: boolean; source: string | null; isPrimaryForContact: boolean; sentPurposes: string[];

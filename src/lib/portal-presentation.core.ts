@@ -1,4 +1,5 @@
 import type { AdminTab } from "./waiting.core";
+import { insulationDetailText, type InsulationDetail } from "./enquiry.core";
 
 export type PortalTarget =
   | "people"

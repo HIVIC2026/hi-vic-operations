@@ -1439,7 +1439,7 @@ export const getIntakeSummary = createServerFn({ method: "POST" }).middleware([r
       reference: string | null; source: string | null; state: string | null; occupancy: string | null; lifeSupport: string | null; area: number | null;
       consent: { consent_status: string; consent_version: string | null; consented_at: string | null; age_confirmed: boolean | null; assistance: string | null; contact_preference: string | null; created_at: string } | null;
       declared: { property_type: string | null; over_five_years: string | null; previous_upgrade: string | null } | null;
-      declaredExtras: { existing_insulation: string | null; top_floor: string | null };
+      declaredExtras: { existing_insulation: string | null; top_floor: string | null } & import("./enquiry.core").InsulationDetail;
       screening: { outcome: string | null; reasons: string | null; raw: Json };
       media: { id: string; name: string; mime: string | null; size: number | null; url: string | null }[];
       lastMediaFailure: { created_at: string; summary: string } | null;
