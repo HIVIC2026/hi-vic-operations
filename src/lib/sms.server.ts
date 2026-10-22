@@ -147,7 +147,12 @@ export async function recordInboundReply(from: string, body: string, sid?: strin
   }
   if (!phone || !k) return k;
   const now = new Date().toISOString();
-  if (k === "stop") await db.from("sms_optouts").upsert({ phone, opted_out_at: now, opted_in_at: null, source: "stop_reply", last_message: body.slice(0, 160) });
+  if (k === "stop") {
+    const { error } = await db.from("sms_optouts").upsert({ phone, opted_out_at: now, opted_in_at: null, source: "stop_reply", last_message: body.slice(0, 160) });
+    if (error) throw new Error("Could not record SMS opt-out");
+    const { closeStoppedEnquiries } = await import("./sms-stop.server");
+    await closeStoppedEnquiries(db, phone, sid ?? null, now);
+  }
   else await db.from("sms_optouts").update({ opted_in_at: now, last_message: body.slice(0, 160) }).eq("phone", phone);
   return k;
 }
