@@ -11,7 +11,7 @@ import { logEvent } from "../src/lib/workflow.server";
 import { supabaseAdmin as admin } from "../src/integrations/supabase/client.server";
 
 const JOB = "24e58ac0-63b6-43ec-87c2-35cbdeace1a0"; // HV-1538
-const AUDIT = "920";
+const AUDIT = "audit_cf86e4540bdf45019a38cc16b907be2e";
 const ACTOR = "36b849de-1cde-425c-a05d-623f8985bbd6"; // Jo (admin) — approved action
 const NEXT = "Waiting on Deep: finish form (price), owner mobile/email/permission";
 
