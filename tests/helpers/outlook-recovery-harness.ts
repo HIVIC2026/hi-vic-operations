@@ -112,8 +112,25 @@ export async function outlookHarness() {
       } catch (error: any) { return { data: null, error: { message: error.message, code: error.code } }; }
     }
   }
+  // Private attachment storage mock: deterministic paths, real bytes, no overwrite of an existing object.
+  const files = new Map<string, Uint8Array>();
+  const storage = {
+    from: (bucket: string) => ({
+      async upload(path: string, body: unknown) {
+        if (files.has(path)) return { data: null, error: { message: `The resource already exists (${bucket})` } };
+        const bytes = body instanceof Uint8Array ? body : new Uint8Array(body as ArrayBuffer);
+        files.set(path, bytes);
+        return { data: { path }, error: null };
+      },
+      async download(path: string) {
+        const bytes = files.get(path);
+        return bytes ? { data: new Blob([bytes as unknown as BlobPart]), error: null } : { data: null, error: { message: "Object not found" } };
+      },
+    }),
+  };
   const admin = {
     from: (table: string) => new Query(table),
+    storage,
     async rpc(name: string, args: Record<string, unknown>): Promise<Result> {
       operations.push({ table: name, mode: "rpc", head: false, fields: "*", filters: [] });
       const values = Object.values(args).map(v => typeof v === "object" ? JSON.stringify(v) : v);
@@ -136,9 +153,9 @@ export async function outlookHarness() {
   };
   const server = load("outlook-sync.server");
   const connection = load("outlook-connection.core");
-  const counts = () => ({ fetched: 0, stored: 0, duplicate: 0, portalDuplicate: 0, notHomeowner: 0, unmatched: 0, closed: 0, flagged: 0, errors: 0 });
+  const counts = () => ({ fetched: 0, stored: 0, duplicate: 0, portalDuplicate: 0, notHomeowner: 0, unmatched: 0, closed: 0, flagged: 0, files: 0, filesSkipped: 0, errors: 0 });
   const state = async () => (await db.query(`SELECT * FROM outlook_sync_state WHERE id=1`)).rows[0] as any;
-  return { db, server, connection, counts, state, control, operations, requests };
+  return { db, server, connection, counts, state, control, operations, requests, files };
 }
 
 export const graphMessage = (id: string, body = "Hello", extras: Record<string, unknown> = {}) => ({
