@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { outlookHarness, graphMessage, jsonResponse, migration, rollback, TEST_ACTOR, TEST_JOB, TEST_MAILBOX } from "./outlook-recovery-harness.ts";
+import { outlookHarness, graphMessage, jsonResponse, bytesResponse, migration, rollback, TEST_ACTOR, TEST_JOB, TEST_MAILBOX } from "./outlook-recovery-harness.ts";
 
 type Harness = Awaited<ReturnType<typeof outlookHarness>>;
 // Isolated processing fault cases receive the worker's proven-window boundary explicitly.
@@ -128,7 +128,7 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     const first = h.counts(); await h.server.processMessages([graphMessage("audit-retry", "Please cancel my enquiry.")], TEST_MAILBOX, first, COMPLETE_WINDOW);
     assert.equal(first.errors, 1); await expectPending(h); assert.equal(await total(h, "workflow_events"), 0);
     await h.db.exec(`DROP TRIGGER fail_audit ON workflow_events`);
-    await h.db.exec(`UPDATE outlook_sync_state SET inbox_cursor='2026-10-20T08:30:00Z'`);
+    await h.db.exec(`UPDATE outlook_sync_state SET all_inbound_cursor='2026-10-20T08:30:00Z'`);
     h.control.fetch = async url => readOnlyResponses(url);
     const retry = await h.server.runOutlookSync({ maxPages: 1 });
     assert.equal(retry.ok, true, retry.blocker); assert.equal(retry.counts.closed, 1);
@@ -171,16 +171,16 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     await configured(h);
     h.control.fetch = async url => {
       if (url.includes("/me?") || url.includes("$select=id,body")) return readOnlyResponses(url);
-      if (url.includes("/sentitems/")) return jsonResponse({ value: [] });
+      if (url.includes("sentDateTime")) return jsonResponse({ value: [] });
       if (url.includes("$skiptoken=next")) return jsonResponse({ value: [graphMessage("equal-c")] });
-      return jsonResponse({ value: [graphMessage("equal-a"), graphMessage("equal-b")], "@odata.nextLink": "https://graph.microsoft.com/v1.0/users/shared%40example.test/mailFolders/inbox/messages?$skiptoken=next" });
+      return jsonResponse({ value: [graphMessage("equal-a"), graphMessage("equal-b")], "@odata.nextLink": "https://graph.microsoft.com/v1.0/users/shared%40example.test/messages?$skiptoken=next" });
     };
     const first = await h.server.runOutlookSync({ maxPages: 1, pageSize: 2 });
     assert.equal(first.ok, true, first.blocker); assert.equal(first.counts.stored, 2);
-    assert.match((await h.state()).inbox_next_link, /skiptoken=next/);
+    assert.match((await h.state()).all_inbound_next_link, /skiptoken=next/);
     const second = await h.server.runOutlookSync({ maxPages: 1, pageSize: 2 });
     assert.equal(second.ok, true, second.blocker); assert.equal(second.counts.stored, 1);
-    assert.equal(await total(h, "job_communications"), 3); assert.equal((await h.state()).inbox_next_link, null);
+    assert.equal(await total(h, "job_communications"), 3); assert.equal((await h.state()).all_inbound_next_link, null);
     assert.ok(h.requests.some(r => r.url.includes("$skiptoken=next")));
     assert.ok(h.requests.every(r => !r.url.includes("/me/mailFolders/") && !r.url.includes("/me/messages/")));
   })],
