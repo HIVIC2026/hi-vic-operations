@@ -1,4 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Authorised reminder catch-up (Jo, 22 Oct 00:00 UTC)
+- [ ] Run existing authenticated Office dry-run/send for eligible offered-but-unsaved owners using repaired connection; retain exclusions, one phone/job claims and 24h minimum. No automatic activation, other switches or publication. Report accepted versus failed/delivery status.
 ## Twilio repair (Jo, 21 Oct 23:56 UTC)
 - [x] Explicitly selected already-linked US1 SMS connection in existing sender; sender number, delivery guards, switches and no-retry rules unchanged. Actual server helper read-only Messages GET HTTP200, one row; 15 focused tests PASS, harness build OK. No real sends, customer writes or publication. Preview repair complete; published sender still needs authorised publication. Outbound delivery NOT_RUN (no-send check).
 ## Twilio configured-for-SMS question (Jo, 21 Oct 23:53 UTC)
