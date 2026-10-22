@@ -228,11 +228,11 @@ async function loadCandidates(msgs: MailMessage[], mailbox: string) {
     const o = j["owners"] as { email: string | null } | null, p = j["properties"] as { address_line: string | null; postcode: string | null } | null;
     return { id: String(j["id"]), jobNumber: String(j["job_number"]), ownerEmail: o?.email?.toLowerCase() ?? null, addressLine: p?.address_line ?? null, postcode: p?.postcode ?? null };
   };
-  const byNumber = new Map<string, CandidateJob>(), byEmail = new Map<string, CandidateJob[]>(), byThread = new Map<string, CandidateJob[]>();
+  const byNumber = new Map<string, CandidateJob>(), byEmail = new Map<string, CandidateJob[]>(), byThread = new Map<string, CandidateJob[]>(), byId = new Map<string, CandidateJob>();
   for (let i = 0; i < numbers.length; i += 100) {
     const { data, error } = await admin.from("jobs").select(sel).in("job_number", numbers.slice(i, i + 100)).is("deleted_at", null).neq("source", "qa_test");
     if (error) throw new Error(error.message);
-    for (const j of data ?? []) { const c = toCand(j as never); byNumber.set(c.jobNumber, c); }
+    for (const j of data ?? []) { const c = toCand(j as never); byNumber.set(c.jobNumber, c); byId.set(c.id, c); }
   }
   for (let i = 0; i < emails.length; i += 50) {
     const chunk = emails.slice(i, i + 50);
@@ -246,6 +246,7 @@ async function loadCandidates(msgs: MailMessage[], mailbox: string) {
       const c = toCand(j as never);
       if (!c.ownerEmail) continue;
       byEmail.set(c.ownerEmail, [...(byEmail.get(c.ownerEmail) ?? []), c]);
+      byId.set(c.id, c);
     }
   }
   // Threads already stored on jobs: a reply in a known conversation links even from a family/manager
@@ -265,13 +266,13 @@ async function loadCandidates(msgs: MailMessage[], mailbox: string) {
   for (let i = 0; i < threadJobIds.length; i += 100) {
     const { data, error } = await admin.from("jobs").select(sel).in("id", threadJobIds.slice(i, i + 100)).is("deleted_at", null).neq("source", "qa_test");
     if (error) throw new Error(error.message);
-    for (const j of data ?? []) { const c = toCand(j as never); threadCands.set(c.id, c); }
+    for (const j of data ?? []) { const c = toCand(j as never); threadCands.set(c.id, c); byId.set(c.id, c); }
   }
   for (const { thread, jobId } of threadRows) {
     const c = threadCands.get(jobId);
     if (c) byThread.set(thread, [...new Map([...(byThread.get(thread) ?? []), c].map((x) => [x.id, x])).values()]);
   }
-  return { byNumber, byEmail, byThread };
+  return { byNumber, byEmail, byThread, byId };
 }
 
 /** Stores one matched message on its job. Returns the new communication id, or null when it was already
@@ -325,7 +326,7 @@ async function finishWork(work: Work, counts: SyncCounts, window: ClosureWindow)
   try {
     if (!work.attachments_complete) {
       const refs = await attachmentsFor(work.provider_message_id, work.mailbox);
-      const storedRefs = await storeAttachments(work, refs);
+      const storedRefs = await storeAttachments(work, refs, routeJobIds(work.route));
       const { data, error } = await syncAdmin.from("outlook_message_work")
         .update({ attachments_complete: true, attachment_refs: storedRefs.refs, last_error: null })
         .eq("provider_message_id", work.provider_message_id).eq("status", "pending")
@@ -341,6 +342,11 @@ async function finishWork(work: Work, counts: SyncCounts, window: ClosureWindow)
         counts.files += storedRefs.stored;
         counts.filesSkipped += storedRefs.skipped;
       }
+    } else if (work.message.hasAttachments && (work.attachment_refs ?? []).some((r) => r.path === null && r.skipped === null)) {
+      // Work completed by the metadata-only era: its files were never downloaded. Repair them
+      // idempotently (verified existing objects are reused). No workflow changes.
+      const repaired = await repairAttachments(work);
+      if (repaired) counts.files += repaired.stored;
     }
     const decision = await decisionFor(work, window);
     const { data, error } = await syncAdmin.rpc("finish_outlook_message", { _message_id: work.provider_message_id, _decision: decision });
@@ -370,11 +376,11 @@ async function portalDuplicate(m: MailMessage, jobId: string): Promise<boolean> 
   // Scope + paginate history; a provider/API row cap must not hide a prior portal delivery.
   for (let from = 0; ; from += 200) {
     const { data, error } = await syncAdmin.from("job_communications")
-      .select("id,provider,subject,recipients,sent_at,direction").eq("job_id", jobId).eq("direction", "outbound")
+      .select("id,provider,subject,recipients,sent_at,direction,body").eq("job_id", jobId).eq("direction", "outbound")
       .neq("provider", "outlook").gte("sent_at", new Date(centre - 15 * 60_000).toISOString())
       .lte("sent_at", new Date(centre + 15 * 60_000).toISOString()).order("id").range(from, from + 199);
     if (error || !data) throw new Error(`Outbound correspondence unavailable: ${error?.message ?? "rows missing"}`);
-    if (isPortalDuplicate(m, data.map((c) => ({ provider: c.provider, subject: c.subject, recipients: c.recipients ?? [], at: c.sent_at, direction: c.direction })))) return true;
+    if (isPortalDuplicate(m, data.map((c) => ({ provider: c.provider, subject: c.subject, recipients: c.recipients ?? [], at: c.sent_at, direction: c.direction, body: c.body })))) return true;
     if (data.length < 200) return false;
   }
 }
