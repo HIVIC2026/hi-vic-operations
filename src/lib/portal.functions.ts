@@ -1007,6 +1007,14 @@ export const completeInstallation = createServerFn({ method: "POST" }).middlewar
     const { confirmedInstallBooking } = await import("./workflow.server");
     const { booking: unlockBooking, blocker } = await confirmedInstallBooking(data.jobId);
     if (blocker || !unlockBooking) throw new WorkflowError(blocker ?? "No confirmed installation booking.");
+    // Stage 7 (Jo 22 Oct): install-day photos carried from the Ready Check lock completion until they're in. Fails closed.
+    {
+      const { data: reqs, error: re } = await admin.from("evidence_requirements").select("category, label, gate, required, status").eq("job_id", data.jobId).eq("gate", "installation");
+      if (re) throw new WorkflowError("The install-day photo checklist could not be checked — please try again.");
+      const { installDayPhotoBlocker } = await import("./ready-check-chase.core");
+      const photo = installDayPhotoBlocker((reqs ?? []) as never);
+      if (photo) throw new WorkflowError(photo);
+    }
     await transition(data.jobId, "evidence_outstanding", context.userId, "Installation marked complete by installer");
     await admin.from("jobs").update({ installation_completed_at: new Date().toISOString() }).eq("id", data.jobId);
     await admin.from("bookings").update({ status: "completed" }).eq("job_id", data.jobId).eq("kind", "installation").eq("status", "confirmed");

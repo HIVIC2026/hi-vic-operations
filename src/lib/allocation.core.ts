@@ -315,11 +315,19 @@ export type NeedsCode =
   | "piesa_timing_invalid" | "esc_or_distribution_timing" | "compliance_correction" | "registry_query" | "office_overdue" | "rectification_quote_unanswered"
   | "rec_no_longer_approved" | "install_ten_days_left" | "install_days_declined"
   | "esc_submit_due" | "esc_submit_urgent" | "esc_update_registry" | "esc_withdraw_resubmit" | "prestart_failed" | "cert_rerecord_needed" | "ready_check_no_taker" | "offer_no_taker_24h" | "choose_trades"
-  | "owner_no_show_repeat" | "trade_no_show" | "owner_cancelled_visit" | "rectification_new_times" | "installer_usual_electrician_missing";
+  | "owner_no_show_repeat" | "trade_no_show" | "owner_cancelled_visit" | "rectification_new_times" | "installer_usual_electrician_missing"
+  | "mitti_fix_form" | "mitti_review_pickup" | "ready_check_held" | "quote_held_review" | "quote_not_delivered" | "mitti_setup_installer" | "ready_check_chase_installer";
 export type NeedsUrgency = "urgent" | "today" | "soon";
 export type NeedsItem = { key: string; code: NeedsCode; jobId: string | null; jobNumber: string | null; why: string; next: string; tab: string; since: string | null; urgency: NeedsUrgency; stage: string | null; suburb: string | null };
 
 export const NEEDS_TEXT: Record<NeedsCode, { why: string; next: string; tab: string; urgency: NeedsUrgency }> = {
+  mitti_fix_form: { why: "Fix Mitti form: the Ready Check could not sync.", next: "Office needs to: read the reason, fix it (or ask the installer to), then press Retry on the job's Mitti card.", tab: "overview", urgency: "today" },
+  mitti_review_pickup: { why: "Link/Review a form started in Mitti.", next: "Office needs to: open \"Ready Checks started in Mitti\" on Active jobs and link it to the right job (or create one).", tab: "overview", urgency: "today" },
+  ready_check_held: { why: "Check held Ready Check: the owner quote can't be prepared yet.", next: "Office needs to: sort out each reason listed, then sync the Ready Check again.", tab: "quotes", urgency: "today" },
+  quote_held_review: { why: "Review held quote.", next: "Office needs to: check the held owner quote on the Quotes tab and release it or stop it with a reason.", tab: "quotes", urgency: "today" },
+  quote_not_delivered: { why: "Quote not delivered: the owner was not emailed.", next: "Office needs to: contact the owner about their quote (it is on their job page).", tab: "communications", urgency: "today" },
+  mitti_setup_installer: { why: "Set up installer in Mitti: the installer isn't in our Mitti account.", next: "Office needs to: invite the installer to Mitti with their portal email, then retry the form.", tab: "overview", urgency: "today" },
+  ready_check_chase_installer: { why: "Chase installer: the Ready Check is still missing answers or photos after 24 hours.", next: "Office needs to: call the installer and ask them to finish the Mitti form.", tab: "overview", urgency: "today" },
   installer_usual_electrician_missing: { why: "Installer has no usual electrician saved", next: "Office needs to: ask the installer to add their usual electrician in My business, then sync the Ready Check again.", tab: "quotes", urgency: "today" },
   rec_coverage_exhausted: { why: "No approved electrician coverage: nobody accepted the PIESA, or none cover this area.", next: "Find an approved REC for this area (or approve one in Coverage), then offer the job from the PIESA tab.", tab: "piesa", urgency: "today" },
   piesa_booking_overdue: { why: "48 hours since contact details were shared and no PIESA time has been confirmed.", next: "Call the owner and electrician, confirm a time on the PIESA tab, or release the electrician and re-offer.", tab: "piesa", urgency: "today" },
