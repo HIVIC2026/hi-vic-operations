@@ -94,6 +94,9 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           // Daily Mitti links text: switch OFF by default; sends nothing unless ON and form IDs are set.
           const { sweepDailyMittiTexts } = await import("@/lib/daily-mitti-text.server");
           (out as Record<string, unknown>)['dailyMittiText'] = await sweepDailyMittiTexts();
+          // Stage 5: one-off "Ready Check booked" text to the installer (same switch, TEST-only, send-once).
+          const { sweepReadyCheckBookedTexts } = await import("@/lib/daily-mitti-text.server");
+          (out as Record<string, unknown>)['readyCheckBookedText'] = await sweepReadyCheckBookedTexts();
         } catch (e) {
           console.error("allocation tick: daily mitti text failed", (e as Error).message);
           out['ok'] = false;
