@@ -11,6 +11,7 @@
 
 - `docs/HIV_WORKFLOW_SOURCE_OF_TRUTH.md` + `src/config/workflow-decisions.ts` override older prompts/comments/labels; run `bun scripts/scan-retired-terms.ts` before workflow work. Pending DB changes live in `docs/pending-migrations/` and are proven on PGlite (`tests/helpers/pglite-*.ts`) before any live run. Why: stop retired rules returning and keep untested SQL off the live database.
 # Project rules
+- Usual electrician settings use business-scoped append-only config events; Mitti-only electrician/commercial facts use job audit snapshots and quote-specific electrical guards. Why: editable nominations and the new formula need history without altering legacy payer rules or approved partner rates.
 - Office saved headlines share campaign cache. Office review count/paging shares one SELECT-only photos/exception predicate excluding offers; Removed is hidden, history retained; 0216 preserved. Why: exact totals, no duplicated piles or customer changes.
 - Save My Spot reminders use own active estimate links, stored offer/attempt timestamps on spot_offered enquiries, shared phone/job claims and reminder-only activation; encrypted links POST through canonical save. Why: decouple email URL matching without weakening other guards.
 - Incoming reset credentials bind Save to the verified user; old sessions never satisfy links. Office TEST handover uses exact QA preflight and a private download. Why: no cross-account access or public credential files.

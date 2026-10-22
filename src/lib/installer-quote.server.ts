@@ -19,8 +19,24 @@ export const quoteLineSignature = (lines: SigLine[], discountNote?: string | nul
 export async function quoteBillingBlocker(quoteId: string): Promise<string | null> {
   const { data: q } = await admin.from("quotes").select("option_code, status, job_id").eq("id", quoteId).maybeSingle();
   if (!q || q.option_code !== INSTALLER_QUOTE_CODE || q.status === "accepted") return null;
-  const { data: j } = await admin.from("jobs").select("channel, electrician_choice").eq("id", q.job_id).maybeSingle();
+  const { data: j } = await admin.from("jobs").select("channel, electrician_choice, originating_installer_business_id").eq("id", q.job_id).maybeSingle();
   if (j?.channel !== "installer_sourced") return null;
+  const { data: snapshot, error: se } = await admin.from("workflow_events").select("details").eq("job_id", q.job_id).eq("event_type", "mitti_quote_electrician_snapshot").contains("details", { quote_id: quoteId }).limit(1).maybeSingle();
+  if (se) return "Quote electrician history could not be checked";
+  if (snapshot) {
+    const saved = (snapshot.details as unknown as { electrician: import("./usual-electrician.core").MittiElectricianResolution }).electrician;
+    const { data: last, error: le } = await admin.from("workflow_events").select("details").eq("job_id", q.job_id).eq("event_type", "mitti_electrician_recorded").order("created_at", { ascending: false }).limit(1).maybeSingle();
+    const current = le ? null : last?.details as unknown as import("./usual-electrician.core").MittiElectricianResolution | null;
+    if (saved?.choice === "usual") {
+      if (!j.originating_installer_business_id) return "Installer has no usual electrician saved";
+      const profile = await (await import("./usual-electrician.server")).readUsualElectrician(j.originating_installer_business_id).catch(() => null);
+      const usual = profile?.electrician;
+      if (!usual || usual.name !== saved.name || usual.licence !== saved.licence || usual.priceIncGst !== saved.priceIncGst) return "Usual electrician profile changed or is missing — sync the Ready Check and prepare a new quote";
+    }
+    const { data: lines, error: ie } = await admin.from("quote_items").select("code, line_total_inc_gst").eq("quote_id", quoteId);
+    if (ie) return "Quote electrical lines could not be checked";
+    return (await import("./mitti-installer-quote.core")).mittiQuoteElectricalBlocker(lines ?? [], saved, current);
+  }
   const { data: items } = await admin.from("quote_items").select("code").eq("quote_id", quoteId);
   const { electricalLineBlocker } = await import("./installer-intake.core");
   return electricalLineBlocker((items ?? []).map((i) => i.code), payerFromChoice(j.electrician_choice));
@@ -38,6 +54,8 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   if ((open ?? []).some((q) => q.status === "issued")) return null;
   if ((open ?? []).some((q) => q.status === "accepted") && !(await reconfirmationOpen(jobId))) return null;
 
+  const mittiElectrician = !intakePrice ? await (await import("./usual-electrician.server")).mittiElectricianForJob(jobId, actorId, entries, auditId) : null;
+
   const { data: m } = await admin.from("ceiling_measurements").select("measured_area_m2, verified_area_m2, removal_required").eq("job_id", jobId).eq("is_current", true).maybeSingle();
   const m2 = (m ? Number(m.verified_area_m2 ?? m.measured_area_m2) || null : null) ?? intakePrice?.areaM2 ?? null; // intake: provisional installer scope
   const postcode = String((job.properties as { postcode: string | null } | null)?.postcode ?? "").trim();
@@ -48,7 +66,7 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   ]);
   const wholeVeec = loc && m2 && rs ? wholeVeecDiscount(m2, loc as unknown as LocationVariables, Number(rs.indicative_veec_value)) : null;
   const apFee = job.ap_fee_override_inc_gst != null ? Number(job.ap_fee_override_inc_gst) : rs ? Number(rs.ap_management_inc_gst) : null;
-  const draft = buildInstallerQuoteDraft({
+  const draftInput = {
     price: intakePrice ? { ok: true, issues: [], price: { included: [intakePrice.exclusions ? `${intakePrice.includes} (excludes: ${intakePrice.exclusions})` : intakePrice.includes], otherDescription: "", totalIncGst: Math.round(intakePrice.totalIncGst * 100) / 100, agreedWithOwner: false } } : quotedPriceFromEntries(entries, m?.removal_required ?? null), measuredM2: m2, wholeVeec,
     // CURRENT recorded payer (Jo, 9 Oct 2026): own electrician = no HIV PIESA line; HIV = standard; undecided = held.
     separateLines: intakePrice?.separateLines ?? [],
@@ -57,12 +75,17 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
       metropolitan: loc ? (loc as unknown as LocationVariables).metropolitan_or_regional === "Metropolitan" : null,
       minCopay: rs ? Number(rs.minimum_customer_copayment_inc_gst) : 200,
     },
-  });
+  };
+  const draft = mittiElectrician ? (await import("./mitti-installer-quote.core")).buildMittiInstallerQuote(draftInput, mittiElectrician) : buildInstallerQuoteDraft(draftInput);
   const payer = payerFromChoice(job.electrician_choice);
-  if (payer === "undecided") draft.blockers.unshift("Electrician not decided yet — the owner's electrician cost must be known before the quote");
-  if (payer === "undecided") draft.ready = false;
-  if (isDirectBilledElectrician(job.electrician_choice)) draft.discountNote = [OWN_REC_QUOTE_NOTE, draft.discountNote].filter(Boolean).join(" ");
+  if (!mittiElectrician && payer === "undecided") draft.blockers.unshift("Electrician not decided yet — the owner's electrician cost must be known before the quote");
+  if (!mittiElectrician && payer === "undecided") draft.ready = false;
+  if (!mittiElectrician && isDirectBilledElectrician(job.electrician_choice)) draft.discountNote = [OWN_REC_QUOTE_NOTE, draft.discountNote].filter(Boolean).join(" ");
   if (!draft.ready) {
+    if (mittiElectrician?.needsProfile) {
+      await (await import("./ready-check-quote.server")).recordNeedsOffice(jobId, actorId, null, mittiElectrician.reasons);
+      await (await import("./usual-electrician-reminder.server")).maybeRemindUsualElectrician(jobId, auditId);
+    }
     await logEvent(jobId, actorId, "installer_quote_held", "Owner quote not drafted — needs office review", { audit_id: auditId, blockers: draft.blockers });
     return draft;
   }
@@ -73,6 +96,11 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   const holdReason = [rangeReason, ...installerQuoteReleaseBlockers({ consentStatus: "granted", feeAwarenessRecorded: !!feeConfirmation, feeAwarenessPayer: ((feeConfirmation?.details as { payer?: "hivic" | "own" } | null)?.payer ?? null), electricianPayer: payer }), "Waiting for office review before sending"].filter(Boolean).join(" · ");
   void workflow?.auto_send_quote;
   // Dedup only on identical figures AND identical lines (a payer change can keep totals but change scope/lines).
+  // Identity is part of scope even if the selected electrician has the same price.
+  if (mittiElectrician?.name) {
+    const electricalLine = draft.lines.find((l) => l.code === "PIESA");
+    if (electricalLine) electricalLine.explanation = `Electrician: ${mittiElectrician.name}; licence: ${mittiElectrician.licence} (declared)`;
+  }
   const sig = quoteLineSignature(draft.lines, draft.discountNote);
   let same: { id: string } | undefined;
   for (const q of open ?? []) {
@@ -80,7 +108,14 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
     const { data: items } = await admin.from("quote_items").select("code, line_total_inc_gst, description, quantity, unit, unit_price_inc_gst, explanation, is_other").eq("quote_id", q.id);
     if (quoteLineSignature(items ?? [], (q as { discount_note?: string | null }).discount_note) === sig) { same = q; break; }
   }
-  if (same) return draft; // dedup: same figures never create a second quote or audit row
+  if (same) {
+    if (mittiElectrician) {
+      const { data: snapshot, error: se } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "mitti_quote_electrician_snapshot").contains("details", { quote_id: same.id }).limit(1).maybeSingle();
+      if (se) throw new Error("Could not check the quote electrician snapshot.");
+      if (!snapshot) await logEvent(jobId, actorId, "mitti_quote_electrician_snapshot", "Ready Check quote electrician price and identity snapshot retained", { quote_id: same.id, electrician: mittiElectrician }, { internal: true });
+    }
+    return draft;
+  }
   await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "installation").eq("status", "draft");
   const { data: q, error } = await admin.from("quotes").insert({
     job_id: jobId, kind: "installation", option_label: intakePrice ? "Installer's quote (from intake)" : "Installer's quote (from Ready Check)", option_code: INSTALLER_QUOTE_CODE, status: "draft", sent_at: null,
@@ -92,5 +127,6 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   const { error: ie } = await admin.from("quote_items").insert(draft.lines.map((l) => ({ ...l, quote_id: q.id })));
   if (ie) throw new Error(ie.message);
   await logEvent(jobId, actorId, "installer_quote_drafted", `Installer-supplied owner quote drafted — held: ${holdReason}`, { audit_id: auditId, quote_id: q.id, total: draft.subtotal, discount: draft.discount, release_state: "held" }, { internal: true });
+  if (mittiElectrician) await logEvent(jobId, actorId, "mitti_quote_electrician_snapshot", "Ready Check quote electrician price and identity snapshot retained", { quote_id: q.id, electrician: mittiElectrician }, { internal: true });
   return draft;
 }

@@ -20,12 +20,12 @@ export const READY_CHECK_TEMPLATE_INTRO = [
 export const READY_CHECK_TEMPLATE_PRICING = [
   "YOUR PRICE TO THE OWNER",
   "Enter your own price. Home Insulation Victoria does not mark this figure up: the owner's",
-  "invoice is your price plus our Accredited Person management fee and the $349 mandatory",
-  "Pre Insulation Electrical Safety Assessment (PIESA), less the VEU discount.",
+  "invoice is your full price plus our $349 Accredited Person fee and the chosen electrician's",
+  "price (Home Insulation Victoria electrician: $349; usual electrician: saved price; different electrician: form price), less the VEU discount.",
 ].join("\n");
 
 const HINTS: Record<FormField["type"], string> = {
-  text: "write", number: "number", choice: "circle one", multichoice: "tick all that apply", yesno: "Yes / No",
+  text: "write", phone: "phone number", number: "number", choice: "circle one", multichoice: "tick all that apply", yesno: "Yes / No",
   media: "photo or video", signature: "sign here", datetime: "date and time", date: "date", tick: "tick", statement: "",
 };
 

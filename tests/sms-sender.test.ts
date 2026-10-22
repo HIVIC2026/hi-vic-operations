@@ -3,7 +3,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
 import { mapTwilioStatus, smsBlocker, stopKeyword, toAuE164, brandSmsBody, SMS_BRAND_PREFIX } from "../src/lib/sms.core";
 
-const ok = { type: "spot_saved", to: "0477 511 901", commsEnabled: true, typeSwitchOn: true, senderConfigured: true, optedOut: false, consent: true, isTestRecord: false };
+const ok = { type: "spot_saved", to: "0477 511 901", commsEnabled: true, typeSwitchOn: true, senderConfigured: true, optedOut: false, consent: true, isTestRecord: false, nowIso: "2026-10-22T00:00:00Z" };
 
 describe("real SMS gate", () => {
   test("all checks pass → may send", () => expect(smsBlocker(ok)).toBeNull());
@@ -15,6 +15,7 @@ describe("real SMS gate", () => {
   test("non-AU mobile", () => expect(smsBlocker({ ...ok, to: "+1 415 555 0100" })).toContain("Australian mobile"));
   test("TEST records stay on the test sender", () => expect(smsBlocker({ ...ok, isTestRecord: true })).toContain("TEST"));
   test("unapproved wording never sends", () => expect(smsBlocker({ ...ok, type: "job_offer" })).toContain("Wording"));
+  test("usual-electrician reminder remains blocked without approved wording", () => expect(smsBlocker({ ...ok, type: "usual_electrician_missing" })).toContain("Wording"));
   test("unknown type fails closed", () => expect(smsBlocker({ ...ok, type: "nope" })).toContain("Unknown"));
   test("AU formatting", () => {
     expect(toAuE164("0477 511 901")).toBe("+61477511901");

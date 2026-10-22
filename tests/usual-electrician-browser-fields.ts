@@ -1,0 +1,2 @@
+export const field = "h-12 w-full rounded-lg border border-field-line bg-paper px-3 text-base text-ink";
+export const greenBtn = "flex h-12 w-full items-center justify-center rounded-lg bg-action px-4 text-sm font-bold text-action-foreground";

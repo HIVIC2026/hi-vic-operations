@@ -315,11 +315,12 @@ export type NeedsCode =
   | "piesa_timing_invalid" | "esc_or_distribution_timing" | "compliance_correction" | "registry_query" | "office_overdue" | "rectification_quote_unanswered"
   | "rec_no_longer_approved" | "install_ten_days_left" | "install_days_declined"
   | "esc_submit_due" | "esc_submit_urgent" | "esc_update_registry" | "esc_withdraw_resubmit" | "prestart_failed" | "cert_rerecord_needed" | "ready_check_no_taker" | "offer_no_taker_24h" | "choose_trades"
-  | "owner_no_show_repeat" | "trade_no_show" | "owner_cancelled_visit" | "rectification_new_times";
+  | "owner_no_show_repeat" | "trade_no_show" | "owner_cancelled_visit" | "rectification_new_times" | "installer_usual_electrician_missing";
 export type NeedsUrgency = "urgent" | "today" | "soon";
 export type NeedsItem = { key: string; code: NeedsCode; jobId: string | null; jobNumber: string | null; why: string; next: string; tab: string; since: string | null; urgency: NeedsUrgency; stage: string | null; suburb: string | null };
 
 export const NEEDS_TEXT: Record<NeedsCode, { why: string; next: string; tab: string; urgency: NeedsUrgency }> = {
+  installer_usual_electrician_missing: { why: "Installer has no usual electrician saved", next: "Office needs to: ask the installer to add their usual electrician in My business, then sync the Ready Check again.", tab: "quotes", urgency: "today" },
   rec_coverage_exhausted: { why: "No approved electrician coverage: nobody accepted the PIESA, or none cover this area.", next: "Find an approved REC for this area (or approve one in Coverage), then offer the job from the PIESA tab.", tab: "piesa", urgency: "today" },
   piesa_booking_overdue: { why: "48 hours since contact details were shared and no PIESA time has been confirmed.", next: "Call the owner and electrician, confirm a time on the PIESA tab, or release the electrician and re-offer.", tab: "piesa", urgency: "today" },
   delivery_failed: { why: "A message needed to move this job forward failed to deliver.", next: "Check the address/number on the Communications tab and send it again, or contact the person directly.", tab: "communications", urgency: "today" },

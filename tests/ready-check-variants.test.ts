@@ -4,6 +4,8 @@ import { buildInstallerQuoteDraft, ownerPriceFromQuoted, quotedPriceFromEntries 
 import { parseAudit } from "../src/lib/mitti.core";
 
 const EXTRAS_MISSING = ["Missing: Are any extras needed beyond the standard install and removal?", "Missing: Describe each extra and why it is needed", "Missing: Photos of each extra"];
+const ELECTRICIAN_FIELDS = ["Who is doing the electrical safety check?", "Electrician name", "Electrician licence number", "Electrician price (inc GST)"];
+const ELECTRICIAN_MISSING = ELECTRICIAN_FIELDS.map((label) => `Missing: ${label}`);
 describe("Ready Check variants", () => {
   test("installer-sourced jobs get the priced form; our leads get evidence-only", () => {
     expect(readyCheckVariant("installer_sourced")).toBe("ready_check_priced");
@@ -15,7 +17,7 @@ describe("Ready Check variants", () => {
     const base = FORMS.ready_check.fields.map((f) => f.label);
     const priced = FORMS.ready_check_priced.fields.map((f) => f.label);
     expect(priced.slice(0, base.length)).toEqual(base);
-    expect(priced.slice(base.length)).toEqual(PRICING_FIELDS.map((f) => f.label));
+    expect(priced.slice(base.length)).toEqual([...PRICING_FIELDS.map((f) => f.label), ...ELECTRICIAN_FIELDS]);
     // Evidence-only form must never ask for a customer price (our leads are quoted at our set price).
     expect(base.some((l) => l.toLowerCase().includes("price"))).toBe(false);
   });
@@ -106,7 +108,7 @@ describe("the real Mitti templates", () => {
   test("the real installer A1 template passes ready_check_priced", () => {
     const r = validateTemplate("ready_check_priced", A1);
     // Jo 8 Oct 2026 made the extras section required; this fixture was downloaded before it existed, so the ONLY gaps are the extras questions.
-    expect(r.issues).toEqual(EXTRAS_MISSING);
+    expect(r.issues).toEqual(["Missing: Homeowner phone", ...EXTRAS_MISSING, ...ELECTRICIAN_MISSING]);
   });
   test("the evidence-only form without pricing still fails the priced validator", () => {
     const r = validateTemplate("ready_check_priced", A1.filter((i) => !/quote|included/i.test(i.label)));
@@ -157,13 +159,13 @@ describe("the real own-leads A2 template (HIVIC sourced, downloaded 2026-10-02)"
     ["I confirm the information, measurements, photos and quote provided in this Ready Check are accurate to the best of my knowledge.", "signature"],
   ].map(([label, type]) => ({ label, type }));
   test("the real own-leads template passes the ready_check validator despite help-text lines", () => {
-    expect(validateTemplate("ready_check", A2).issues).toEqual(EXTRAS_MISSING); // help-text lines cause no issues; only the 8 Oct extras section is absent
+    expect(validateTemplate("ready_check", A2).issues).toEqual(["Missing: Homeowner phone", ...EXTRAS_MISSING]); // historical fixture predates the phone field
   });
   test("own-leads form has no pricing section and fails the priced validator with exactly the pricing issues", () => {
     const r = validateTemplate("ready_check_priced", A2);
     expect(r.ok).toBe(false);
     expect(r.issues).toEqual([
-      ...EXTRAS_MISSING, "Missing: What's included in your quote?", "Missing: What else is included?", "Missing: Total quoted price (inc GST)",
+      "Missing: Homeowner phone", ...EXTRAS_MISSING, "Missing: What's included in your quote?", "Missing: What else is included?", "Missing: Total quoted price (inc GST)", ...ELECTRICIAN_MISSING,
     ]);
   });
   test("A2 wording parses: per-area hazards flag, failed outcome and installer reasons", () => {

@@ -56,6 +56,7 @@ export const WORKFLOW_DECISIONS = {
       ownerPrice: "fixed_owner_prices_markup_is_owner_price_minus_installer_agreed_rate_inc_gst",
     },
     installer_supplied: {
+      mittiReadyCheck: { hivFeeIncGst: 349, hivElectricianIncGst: 349, choices: ["Home Insulation Victoria electrician", "My usual electrician", "A different electrician"], priceBasis: "full_installer_plus_hiv_fee_plus_electrician_minus_veu", missingUsual: "hold_quote" },
       paymentRule: "not_assumed",
       leadFee: "none",
       marginOnInstallerPrice: "none",
