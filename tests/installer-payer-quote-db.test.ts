@@ -27,7 +27,10 @@ CREATE TABLE electrician_nominations (id uuid primary key default gen_random_uui
 CREATE TABLE partner_relationships (installer_business_id uuid, electrician_business_id uuid, active boolean);
 CREATE TABLE businesses (id uuid, name text, trading_name text, email text, phone text);
 CREATE TABLE invoices (id uuid primary key default gen_random_uuid(), quote_id uuid);
-CREATE TABLE profiles (id uuid, full_name text, email text);`);
+CREATE TABLE profiles (id uuid, full_name text, email text);
+ALTER TABLE jobs ADD COLUMN source text DEFAULT 'qa_test';
+ALTER TABLE jobs ADD COLUMN job_number text DEFAULT 'HV-TEST';
+CREATE TABLE admin_config_events (id uuid primary key default gen_random_uuid(), actor_id uuid, event_type text, summary text, details jsonb, created_at timestamptz default clock_timestamp());`);
 
 // Thin adapter over the shared shim: embedded properties(postcode), array inserts and non-head exact counts.
 const shim = postgrestShim(db);
@@ -53,6 +56,7 @@ mock.module("../src/lib/workflow.server", () => ({
   logEvent: async (job: string, actor: string | null, type: string, summary: string, details?: unknown) => { await db.query("insert into workflow_events (job_id, actor_id, event_type, summary, details) values ($1,$2,$3,$4,$5)", [job, actor, type, summary, JSON.stringify(details ?? {})]); },
 }));
 const { installerUpdateIntake, draftQuoteFromIntake, installerIntakeState, recordOfficeFeeAwareness } = await import("../src/lib/installer-intake.server");
+const { draftInstallerQuoteFromReadyCheck, quoteBillingBlocker } = await import("../src/lib/installer-quote.server");
 
 const JOB = "00000000-0000-0000-0000-00000000e101", BIZ = "00000000-0000-0000-0000-00000000b101", EL = "00000000-0000-0000-0000-00000000b201", U = "00000000-0000-0000-0000-00000000c101";
 const base = { areaM2: 142, insulation: "none" as const, quoteStatus: "have_quote" as const, quoteIncGst: 3450, includes: "R5.0 batts supply and install", proposedR: 5, files: [] };
@@ -62,6 +66,7 @@ const current = async () => (await quotes()).filter((q) => q.status === "draft")
 const evs = async () => (await db.query<{ event_type: string }>("select event_type from workflow_events where job_id=$1 order by created_at", [JOB])).rows.map((r) => r.event_type);
 
 async function seed(choice: string | null) {
+  await db.exec("delete from admin_config_events");
   await db.exec("delete from jobs; delete from workflow_events; delete from ceiling_measurements; delete from job_imports; delete from quotes; delete from quote_items; delete from owner_contact_consents; delete from job_assignments; delete from business_members; delete from electrician_nominations; delete from partner_relationships; delete from businesses; delete from invoices; delete from veu_location_variables; delete from retail_estimator_settings; delete from workflow_settings;");
   await db.query("insert into jobs (id, channel, originating_installer_business_id, installer_site_check, installer_quoted, installer_quoted_price_inc_gst, installer_price_includes, electrician_choice, properties) values ($1,'installer_sourced',$2,'yes','yes',3450,'R5.0 batts supply and install',$3,'{\"postcode\":\"3000\"}')", [JOB, BIZ, choice]);
   await db.query("insert into ceiling_measurements (job_id, is_current, provenance, supplied_area_m2) values ($1,true,'installer_supplied_provisional',142)", [JOB]);
@@ -80,6 +85,53 @@ async function seed(choice: string | null) {
   await db.query("insert into partner_relationships values ($1,$2,true)", [BIZ, EL]);
   await db.query("insert into businesses values ($1,'Sample Electrical',null,null,null)", [EL]);
 }
+
+describe("Jo 22 Oct Mitti three-option quote persistence on practice Postgres", () => {
+  beforeEach(async () => { await seed("hivic_organise"); await db.query("update ceiling_measurements set measured_area_m2=142 where job_id=$1", [JOB]); });
+  const entries = (choice: string) => [
+    { label: "What's included in your quote?", value: "R5.0 supply and install" },
+    { label: "Total quoted price (inc GST)", value: "3450" },
+    { label: "Who is doing the electrical safety check?", value: choice },
+    { label: "Electrician name", value: "TEST Form REC" },
+    { label: "Electrician licence number", value: "TEST-FORM-LIC" },
+    { label: "Electrician price (inc GST)", value: "$450.50" },
+  ];
+  test("Home Insulation Victoria electrician: saved electrical349 and AP349, held unsent", async () => {
+    await draftInstallerQuoteFromReadyCheck(JOB, U, entries("Home Insulation Victoria electrician"), "audit_test");
+    const q = (await current())[0]; expect(q).toBeDefined(); if (!q) return;
+    expect(await items(q.id)).toEqual(["INSTALLER_PRICE:3450", "PIESA:349", "AP_FEE:349"]);
+    expect(Number(q.subtotal_inc_gst)).toBe(4148);
+    expect(await quoteBillingBlocker(q.id)).toBeNull();
+    const state = (await db.query<{release_state: string; sent_at: unknown}>("select release_state,sent_at from quotes where id=$1", [q.id])).rows[0];
+    expect(state).toEqual({release_state: "held", sent_at: null});
+  });
+  test("usual profile $275 used, compliance name/licence saved, repeat does not duplicate", async () => {
+    await db.query("insert into admin_config_events(event_type,details) values ('installer_usual_electrician_saved',$1)", [JSON.stringify({business_id: BIZ, electrician: {name: "TEST Profile REC", licence: "TEST-PROFILE-LIC", priceIncGst: 275}})]);
+    await draftInstallerQuoteFromReadyCheck(JOB, U, entries("My usual electrician"), "audit_test");
+    const q = (await current())[0]; expect(q).toBeDefined(); if (!q) return;
+    expect(await items(q.id)).toEqual(["INSTALLER_PRICE:3450", "PIESA:275", "AP_FEE:349"]);
+    expect(Number(q.subtotal_inc_gst)).toBe(4074); expect(await quoteBillingBlocker(q.id)).toBeNull();
+    const facts = (await db.query<{details: {name: string; licence: string; source: string}}>("select details from workflow_events where event_type='mitti_electrician_recorded'", [])).rows[0]?.details;
+    expect(facts).toMatchObject({name: "TEST Profile REC", licence: "TEST-PROFILE-LIC", source: "installer_profile"});
+    await draftInstallerQuoteFromReadyCheck(JOB, U, entries("My usual electrician"), "audit_test");
+    expect((await current()).length).toBe(1);
+    expect((await db.query("select id from workflow_events where event_type='mitti_electrician_recorded'", [])).rows.length).toBe(1);
+  });
+  test("different form $450.50 used, saved identity and quote snapshot", async () => {
+    await draftInstallerQuoteFromReadyCheck(JOB, U, entries("A different electrician"), "audit_test");
+    const q = (await current())[0]; expect(q).toBeDefined(); if (!q) return;
+    expect(await items(q.id)).toEqual(["INSTALLER_PRICE:3450", "PIESA:450.5", "AP_FEE:349"]);
+    expect(Number(q.subtotal_inc_gst)).toBe(4249.5); expect(await quoteBillingBlocker(q.id)).toBeNull();
+    const facts = (await db.query<{details: {name: string; licence: string}}>("select details from workflow_events where event_type='mitti_electrician_recorded'", [])).rows[0]?.details;
+    expect(facts).toMatchObject({name: "TEST Form REC", licence: "TEST-FORM-LIC"});
+  });
+  test("missing usual profile: no quote, exact Office reason, reminder OFF, no duplicate office item", async () => {
+    for (let i=0; i<2; i++) await draftInstallerQuoteFromReadyCheck(JOB, U, entries("My usual electrician"), "audit_test");
+    expect(await current()).toEqual([]);
+    const rows = (await db.query<{details: {reasons: string[]}}>("select details from workflow_events where event_type='ready_check_needs_office'", [])).rows;
+    expect(rows.length).toBe(1); expect(rows[0]?.details.reasons).toEqual(["Installer has no usual electrician saved"]);
+  });
+});
 
 describe("server-drafted owner quote follows the CURRENT electrician payer", () => {
   beforeEach(() => seed(null));
