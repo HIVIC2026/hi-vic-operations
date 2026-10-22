@@ -283,7 +283,7 @@ function MorePhotosFollowup({ row, onDone }: { row: Row; onDone: () => void }) {
 
 const VIEW_ORDER: EnquiryView[] = ["needs_attention", "all", "new", ...STATUS_ORDER.filter(key => key !== "needs_attention")];
 const VIEW_LABEL: Record<EnquiryView, string> = {
-  all: "All enquiries",
+  all: "Open enquiries",
   new: "New · no reply recorded",
   ...OFFICE_ENQUIRY_LABEL,
   photos: "Photos/videos to check",
