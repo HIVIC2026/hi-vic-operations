@@ -65,10 +65,10 @@ export type MittiOfficeItem = { code: MittiOfficeCode; jobId: string | null; sin
 /** Which event raises which item, and which later events on the same job clear it. */
 const RULES: { code: MittiOfficeCode; raise: (e: Ev) => boolean; clear: string[]; detail?: (e: Ev) => string | null }[] = [
   { code: "mitti_fix_form", raise: (e) => e.event_type === "mitti_measureup_sync_failed", clear: ["mitti_measureup_synced", "mitti_sync_retried"], detail: (e) => e.summary ?? null },
-  { code: "ready_check_held", raise: (e) => e.event_type === "ready_check_needs_office" && !/^Quote released/i.test(e.summary ?? ""), clear: ["installer_quote_queued", "quote_released"], detail: (e) => ((e.details?.["reasons"] as string[] | undefined) ?? []).join("; ") || e.summary || null },
-  { code: "quote_not_delivered", raise: (e) => e.event_type === "ready_check_needs_office" && /^Quote released/i.test(e.summary ?? ""), clear: ["quote_ready_notified"], detail: (e) => e.summary ?? null },
-  { code: "quote_held_review", raise: (e) => e.event_type === "installer_quote_held", clear: ["installer_quote_queued", "quote_released", "quote_stopped"], detail: (e) => e.summary ?? null },
-  { code: "mitti_setup_installer", raise: (e) => e.event_type === "mitti_access_needed", clear: ["mitti_access_confirmed", "mitti_audit_linked", "mitti_measureup_synced"], detail: (e) => e.summary ?? null },
+  { code: "ready_check_held", raise: (e) => e.event_type === "ready_check_needs_office" && !/^Quote released/i.test(e.summary ?? ""), clear: ["installer_quote_queued", "quote_hold_approved", "quote_requeued_after_review", "quote_hold_stopped"], detail: (e) => ((e.details?.["reasons"] as string[] | undefined) ?? []).join("; ") || e.summary || null },
+  { code: "quote_not_delivered", raise: (e) => e.event_type === "ready_check_needs_office" && /^Quote released/i.test(e.summary ?? ""), clear: ["quote_declined", "quote_hold_stopped"], detail: (e) => e.summary ?? null },
+  { code: "quote_held_review", raise: (e) => e.event_type === "installer_quote_held", clear: ["installer_quote_queued", "quote_hold_approved", "quote_requeued_after_review", "quote_hold_stopped"], detail: (e) => e.summary ?? null },
+  { code: "mitti_setup_installer", raise: (e) => e.event_type === "mitti_access_needed", clear: ["mitti_membership_checked", "mitti_access_override"], detail: (e) => e.summary ?? null },
 ];
 
 export function mittiOfficeItems(events: Ev[], now: Date): MittiOfficeItem[] {
@@ -86,7 +86,7 @@ export function mittiOfficeItems(events: Ev[], now: Date): MittiOfficeItem[] {
   const inc = new Map<string, Ev>();
   for (const e of sorted) if (e.job_id && e.event_type === "ready_check_incomplete") inc.set(e.job_id, e);
   for (const [jobId, e] of inc) {
-    const cleared = sorted.some((x) => x.job_id === jobId && x.created_at > e.created_at && ["ready_check_complete_clean", "installer_quote_queued", "ready_check_needs_office"].includes(x.event_type));
+    const cleared = sorted.some((x) => x.job_id === jobId && x.created_at > e.created_at && ["ready_check_incomplete_cleared", "installer_quote_queued", "ready_check_needs_office"].includes(x.event_type));
     if (!cleared && now.getTime() - new Date(e.created_at).getTime() >= CHASE_AFTER_MS)
       out.push({ code: "ready_check_chase_installer", jobId, since: e.created_at, detail: ((e.details?.["missing"] as string[] | undefined) ?? []).join("; ") || null, key: `ready_check_chase_installer:${jobId}` });
   }
