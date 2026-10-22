@@ -1,6 +1,46 @@
 // Stage 6 (Jo 22 Oct 2026): the automatic checks a finished Ready Check must pass before the portal
 // prepares the owner quote. Pure: no database, no network. Every failure is an "Office needs to…" reason
 // that goes on the job for the office — the portal never guesses its way past one.
+import { contactAnswersFromEntries } from "./mitti.core";
+
+/** A Mitti answer is "given" when it carries anything at all — a blank, "null" or <nil> never counts. */
+const answered = (v: unknown): boolean => {
+  if (v == null) return false;
+  const s = String(v).trim();
+  if (!s || s === "null" || s === "<nil>") return false;
+  if (Array.isArray(v)) return v.length > 0;
+  return true;
+};
+const find = (entries: { label: string; value: unknown }[], labels: string[]) =>
+  entries.find((e) => labels.some((l) => String(e.label ?? "").trim().toLowerCase() === l.toLowerCase()))?.value ?? null;
+
+/**
+ * Ready Check facts straight off the form snapshot. Absent-safe: a question the form never asked is
+ * "not established", never a made-up answer. The form cannot prove an R-value, so insulation is only ever
+ * true (none / installer confirmed below R2) or null (must be established) — "R2 or above" comes from the office.
+ */
+export function readyCheckFactsFromEntries(
+  entries: { label: string; value: unknown }[],
+  opts: { formComplete: boolean; electricianDecided: boolean; priceKnown: boolean },
+): ReadyCheckFacts {
+  const present = find(entries, ["Is there existing insulation?", "Is there existing insulation in this ceiling area?"]);
+  const depthPhoto = answered(find(entries, ["Photo with tape measure showing depth", "Upload a photo clearly showing the measured insulation depth"]));
+  const belowR2Tick = answered(find(entries, ["No photo? I confirm the existing insulation is below R2.0 and the home is eligible for the rebate"]));
+  const overviewPhoto = answered(find(entries, ["Photo of the empty ceiling space", "Upload an overview photo of this ceiling area"]));
+  const insulationYes = /^y/i.test(String(present ?? ""));
+  const insulationNo = /^n/i.test(String(present ?? ""));
+  return {
+    formComplete: opts.formComplete,
+    belowR2: insulationNo ? true : belowR2Tick ? true : insulationYes ? null : null,
+    lifeSupportReviewed: !/^y/i.test(String(find(entries, ["Life support equipment at property?", "Office life support result"]) ?? "")),
+    depthPhoto: depthPhoto || belowR2Tick || insulationNo,
+    overviewPhoto: overviewPhoto || insulationYes,
+    contactPermission: contactAnswersFromEntries(entries as { label: string; value: string | null }[]).contactPermission,
+    electricianDecided: opts.electricianDecided,
+    priceKnown: opts.priceKnown,
+  };
+}
+
 export type ReadyCheckFacts = {
   /** Every required answer on the Mitti form is present (Mitti reports the form finished). */
   formComplete: boolean;
