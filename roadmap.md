@@ -1,4 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Automatic STOP closure (Jo, 22 Oct 01:39 UTC)
+- [x] Existing verified inbound STOP handler persists opt-out then closes phone-matched open enquiries from shared Office classifier using cancelled status and exact reason "Opted out (replied STOP)"; conditional stage check, internal audit, START never reopens. No schema changes, live writes, sends or publication.
+- [x] 6 actual isolated inbound-handler tests plus 19 SMS/sender regressions PASS; preview build OK. Tests cover duplicate STOP, multiple enquiries, other phones, TEST/deleted/saved/progressed exclusion and persistence failure. Live inbound activation NOT_RUN and awaits authorised publication; arbitrary direct database opt-out inserts are not watched (would require a database change).
 ## Authorised reminder catch-up (Jo, 22 Oct 00:00 UTC)
 - [x] Completed existing authenticated Office send via repaired connection. Initial browser wait timed out; persisted claims excluded handled phones on continuation. Final read: 238 provider-accepted, 238 unique phones/jobs, 227 delivered/11 awaiting delivery at first completion read; no failures. Fresh Office dry run zero eligible, 458 skipped, no alerts. Rolling plan picked up newly eligible owners (initial 236). No automatic activation, switch changes or publication; old 40 failed claims untouched.
 ## Twilio repair (Jo, 21 Oct 23:56 UTC)
