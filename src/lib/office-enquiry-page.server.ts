@@ -8,7 +8,7 @@ type Page = { ids: string[]; total: number; page: number; pageSize: number; tota
 export async function loadOfficeEnquiryPage(view: EnquiryPageView, search: string, page: number) {
   const indexRead = (filter: string, head = false) => {
     let query = admin.from('office_enquiry_index').select('id', { count: 'exact', head })
-      .eq('source', 'base44').eq('channel', 'hivic_sourced').or(filter);
+      .in('source', ['base44', 'portal']).eq('channel', 'hivic_sourced').or(filter);
     const searchFilter = officeReviewSearch(search);
     if (searchFilter) query = query.or(searchFilter);
     return query;

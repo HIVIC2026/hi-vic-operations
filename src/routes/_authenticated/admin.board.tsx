@@ -335,7 +335,7 @@ function Pipeline() {
 
 function NewEnquiry() {
   const [open, setOpen] = useState(false);
-  const [f, setF] = useState({ full_name: "", email: "", phone: "", address_line: "", suburb: "", postcode: "", occupancy: "owner_occupied" as "owner_occupied" | "rental", area: "", unknown: false, life: false });
+  const [f, setF] = useState({ full_name: "", email: "", phone: "", address_line: "", suburb: "", postcode: "", occupancy: "owner_occupied" as "owner_occupied" | "rental", area: "", unknown: false, life: "unknown" as "yes" | "no" | "unknown" });
   const create = useAction(createEnquiry);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
   return (
@@ -345,7 +345,7 @@ function NewEnquiry() {
         <DialogHeader><DialogTitle>New enquiry (phone / manual)</DialogTitle></DialogHeader>
         <form className="grid gap-3 sm:grid-cols-2" onSubmit={async (e) => {
           e.preventDefault();
-          await create({ full_name: f.full_name, email: f.email, phone: f.phone || null, address_line: f.address_line, suburb: f.suburb || null, postcode: f.postcode || null, occupancy: f.occupancy, estimated_area_m2: f.unknown || !f.area ? null : Number(f.area), area_unknown: f.unknown || !f.area, life_support: f.life }, "Enquiry created");
+          await create({ full_name: f.full_name, email: f.email, phone: f.phone || null, address_line: f.address_line, suburb: f.suburb || null, postcode: f.postcode || null, occupancy: f.occupancy, estimated_area_m2: f.unknown || !f.area ? null : Number(f.area), area_unknown: f.unknown || !f.area, life_support: f.life === "yes" ? true : f.life === "no" ? false : null, life_support_status: f.life }, "Enquiry created");
           setOpen(false);
         }}>
           <div><Label>Name</Label><Input value={f.full_name} onChange={set("full_name")} required /></div>
@@ -361,7 +361,10 @@ function NewEnquiry() {
           <div><Label>Est. ceiling area m²</Label><Input type="number" value={f.area} onChange={set("area")} disabled={f.unknown} /></div>
           <div className="flex flex-col justify-end gap-2 text-sm">
             <label className="flex items-center gap-2"><Checkbox checked={f.unknown} onCheckedChange={(v) => setF({ ...f, unknown: !!v })} /> I don't know the area</label>
-            <label className="flex items-center gap-2"><Checkbox checked={f.life} onCheckedChange={(v) => setF({ ...f, life: !!v })} /> Life support at property</label>
+            <div><Label>Life support at property</Label>
+              <select className="h-9 w-full rounded-md border bg-background px-2 text-sm" value={f.life} onChange={(e) => setF({ ...f, life: e.target.value as "yes" | "no" | "unknown" })}>
+                <option value="unknown">Unknown</option><option value="yes">Yes</option><option value="no">No</option>
+              </select></div>
           </div>
           <Button type="submit" className="sm:col-span-2">Create job</Button>
         </form>

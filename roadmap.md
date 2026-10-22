@@ -1,4 +1,13 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Email-based preliminary Save My Spot (Jo, 22 Oct 07:58 UTC) — EDITOR ONLY
+- [ ] Preserve committed email-history change (314005870fdd674578c3840a02d676d6e61bdd97) and the reminder-route fix.
+- [ ] Manual intake: unknown ceiling area null + unknown flag, life-support unknown, no accidental media request, no fabricated facts/provenance.
+- [ ] Per-job Office action "Offer Save my spot from owner email": append-only preliminary review linked to genuine inbound communication, reason + reviewer/time, not a photo review.
+- [ ] Preview then individual send via existing guarded delivery; no send from review alone; never set spot_saved_at; only provider acceptance shows Spot offered.
+- [ ] No-estimate invitation using existing secure links; owner GET inert, POST saves once; no made-up area or "$0 rebate" anywhere.
+- [ ] Auditable individual email-reply permission bound to inbound enquiry; never fabricate marketing consent.
+- [ ] Immutable job history: exact sent content, recipient, source review, provider ID; one pile preserved.
+- [ ] Pending migration only (PGlite-tested, not applied); synthetic Anna/Victor-style tests; scans + focused QA; production unchanged.
 ## "Office review doesn't work" (Jo/Dad, 22 Oct 04:45 UTC)
 - [x] Preview Office review loads (50 rows, phone+desktop, 0 errors); all 61 unclear rows are early-stage so the review options save normally. Cause for Dad: photo button + review options fix is preview-only; live site still hides photos/options on reviewed rows.
 - [ ] Live fix needs Jo to press Publish (not published without her say-so).

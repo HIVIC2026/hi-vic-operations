@@ -34,6 +34,7 @@ import { Route as JoinTokenRouteImport } from './routes/join.$token'
 import { Route as MyEstimateTokenRouteImport } from './routes/my-estimate.$token'
 import { Route as MyJobTokenRouteImport } from './routes/my-job.$token'
 import { Route as RateOfferTokenRouteImport } from './routes/rate-offer.$token'
+import { Route as SaveSpotPreliminaryTokenRouteImport } from './routes/save-spot-preliminary.$token'
 import { Route as TimesTokenRouteImport } from './routes/times.$token'
 import { Route as WTokenRouteImport } from './routes/w.$token'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
@@ -247,6 +248,12 @@ const RateOfferTokenRoute = RateOfferTokenRouteImport.update({
   path: '/rate-offer/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SaveSpotPreliminaryTokenRoute =
+  SaveSpotPreliminaryTokenRouteImport.update({
+    id: '/save-spot-preliminary/$token',
+    path: '/save-spot-preliminary/$token',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const TimesTokenRoute = TimesTokenRouteImport.update({
   id: '/times/$token',
   path: '/times/$token',
@@ -771,6 +778,7 @@ export interface FileRoutesByFullPath {
   '/my-estimate/$token': typeof MyEstimateTokenRoute
   '/my-job/$token': typeof MyJobTokenRoute
   '/rate-offer/$token': typeof RateOfferTokenRoute
+  '/save-spot-preliminary/$token': typeof SaveSpotPreliminaryTokenRoute
   '/times/$token': typeof TimesTokenRoute
   '/w/$token': typeof WTokenRoute
   '/admin/ap-queue': typeof AuthenticatedAdminApQueueRoute
@@ -881,6 +889,7 @@ export interface FileRoutesByTo {
   '/my-estimate/$token': typeof MyEstimateTokenRoute
   '/my-job/$token': typeof MyJobTokenRoute
   '/rate-offer/$token': typeof RateOfferTokenRoute
+  '/save-spot-preliminary/$token': typeof SaveSpotPreliminaryTokenRoute
   '/times/$token': typeof TimesTokenRoute
   '/w/$token': typeof WTokenRoute
   '/admin/ap-queue': typeof AuthenticatedAdminApQueueRoute
@@ -997,6 +1006,7 @@ export interface FileRoutesById {
   '/my-estimate/$token': typeof MyEstimateTokenRoute
   '/my-job/$token': typeof MyJobTokenRoute
   '/rate-offer/$token': typeof RateOfferTokenRoute
+  '/save-spot-preliminary/$token': typeof SaveSpotPreliminaryTokenRoute
   '/times/$token': typeof TimesTokenRoute
   '/w/$token': typeof WTokenRoute
   '/_authenticated/admin/ap-queue': typeof AuthenticatedAdminApQueueRoute
@@ -1113,6 +1123,7 @@ export interface FileRouteTypes {
     | '/my-estimate/$token'
     | '/my-job/$token'
     | '/rate-offer/$token'
+    | '/save-spot-preliminary/$token'
     | '/times/$token'
     | '/w/$token'
     | '/admin/ap-queue'
@@ -1223,6 +1234,7 @@ export interface FileRouteTypes {
     | '/my-estimate/$token'
     | '/my-job/$token'
     | '/rate-offer/$token'
+    | '/save-spot-preliminary/$token'
     | '/times/$token'
     | '/w/$token'
     | '/admin/ap-queue'
@@ -1338,6 +1350,7 @@ export interface FileRouteTypes {
     | '/my-estimate/$token'
     | '/my-job/$token'
     | '/rate-offer/$token'
+    | '/save-spot-preliminary/$token'
     | '/times/$token'
     | '/w/$token'
     | '/_authenticated/admin/ap-queue'
@@ -1449,6 +1462,7 @@ export interface RootRouteChildren {
   MyEstimateTokenRoute: typeof MyEstimateTokenRoute
   MyJobTokenRoute: typeof MyJobTokenRoute
   RateOfferTokenRoute: typeof RateOfferTokenRoute
+  SaveSpotPreliminaryTokenRoute: typeof SaveSpotPreliminaryTokenRoute
   TimesTokenRoute: typeof TimesTokenRoute
   WTokenRoute: typeof WTokenRoute
   ApiFilesSplatRoute: typeof ApiFilesSplatRoute
@@ -1650,6 +1664,13 @@ declare module '@tanstack/react-router' {
       path: '/rate-offer/$token'
       fullPath: '/rate-offer/$token'
       preLoaderRoute: typeof RateOfferTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/save-spot-preliminary/$token': {
+      id: '/save-spot-preliminary/$token'
+      path: '/save-spot-preliminary/$token'
+      fullPath: '/save-spot-preliminary/$token'
+      preLoaderRoute: typeof SaveSpotPreliminaryTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/times/$token': {
@@ -2495,6 +2516,7 @@ const rootRouteChildren: RootRouteChildren = {
   MyEstimateTokenRoute: MyEstimateTokenRoute,
   MyJobTokenRoute: MyJobTokenRoute,
   RateOfferTokenRoute: RateOfferTokenRoute,
+  SaveSpotPreliminaryTokenRoute: SaveSpotPreliminaryTokenRoute,
   TimesTokenRoute: TimesTokenRoute,
   WTokenRoute: WTokenRoute,
   ApiFilesSplatRoute: ApiFilesSplatRoute,
