@@ -11,6 +11,7 @@ import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getJobListPage } from "@/lib/portal.functions";
+import { getInstallerQuotesToCheck } from "@/lib/installer-quote-review.functions";
 import { CLOSED_VIEWS, JOB_SORT_KEYS, JOB_SORT_LABEL, VISIBLE_JOB_STAGES, type JobClosedView } from "@/lib/job-list-page.core";
 import { useListControls } from "@/hooks/use-list-controls";
 import { ListPagination } from "@/components/portal/ListPagination";
@@ -28,6 +29,30 @@ const COUNT_LABEL: Record<JobClosedView, string> = {
   ineligible: "Ineligible",
   test: "Removed / test",
 };
+
+/** Installer jobs whose owner quote needs the office: drafted and waiting, or held for missing details. */
+function InstallerQuotesToCheck() {
+  const fetchRows = useServerFn(getInstallerQuotesToCheck);
+  const { data } = useQuery({ queryKey: ["installer-quotes-to-check"], queryFn: () => fetchRows(), staleTime: 60_000 });
+  const rows = data?.rows ?? [];
+  if (!rows.length) return null;
+  return (
+    <section aria-label="Installer quotes to check" className="rounded-md border-2 border-primary bg-card p-4">
+      <h2 className="font-display text-lg font-bold">Installer quotes to check <span className="ml-1 rounded-full bg-primary px-2 py-0.5 text-sm text-primary-foreground">{rows.length}</span></h2>
+      <ul className="mt-2 divide-y">
+        {rows.map((r) => (
+          <li key={r.jobId} className="flex flex-wrap items-center justify-between gap-2 py-2">
+            <div className="min-w-0">
+              <p className="font-semibold">{r.jobNumber} · {r.owner ?? "Owner"}{r.address ? ` · ${r.address}` : ""}</p>
+              <p className={cn("text-sm", r.kind === "ready" ? "text-success" : "text-warning")}>{r.note}</p>
+            </div>
+            <Button asChild size="sm" className="h-10"><Link to="/admin/jobs/$jobId" params={{ jobId: r.jobId }}>Open job</Link></Button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
 
 /** Which URL parameter carries the page-local filter differs per mode, so the route states it. */
 export function jobsSearchSpec(mode: Mode): ListSearchSpec {
@@ -150,6 +175,8 @@ export function JobsWorkspace({
           </div>
         </div>
       )}
+
+      {mode === "active" && <InstallerQuotesToCheck />}
 
       <div className="flex flex-wrap items-center gap-2 rounded-md border bg-card p-3">
         <Input

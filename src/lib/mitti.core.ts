@@ -177,9 +177,9 @@ export type PrefillCtx = {
 const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; datetime?: boolean }[] = [
   { key: "jobNumber", aliases: ["Portal Job Number", "Job Reference ID"], mandatory: true },
   { key: "address", aliases: ["Property Address", "Site address", "Site Address", "Address including postcode"], mandatory: true },
-  { key: "ownerName", aliases: ["Owner name", "Owner name", "Owner full name", "Client name", "Property owner name"], mandatory: true },
-  { key: "ownerEmail", aliases: ["Owner email"] },
-  { key: "ownerPhone", aliases: ["Owner phone", "Owner mobile"] },
+  { key: "ownerName", aliases: ["Owner name", "Homeowner name", "Owner full name", "Client name", "Property owner name"], mandatory: true },
+  { key: "ownerEmail", aliases: ["Owner email", "Homeowner email"] },
+  { key: "ownerPhone", aliases: ["Owner phone", "Owner mobile", "Homeowner mobile", "Homeowner phone"] },
   { key: "assessorName", aliases: ["Assigned Electrician", "Assessor", "Assigned Electrician / Assessor", "Full Name (initial assessment)", "Lead installer name"], mandatory: true },
   { key: "assessmentAt", aliases: ["Assessment date/time", "Assessment date time", "Booked assessment date"], datetime: true },
   { key: "estimatedAreaM2", aliases: ["Office estimated ceiling area", "Estimated ceiling area"] },
