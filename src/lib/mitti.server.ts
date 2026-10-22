@@ -352,7 +352,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         if (plan.completed) await saveMittiReport(jobId, actorId, measureAudit, plan.modifiedAt ?? null, "Ready Check", call);
         // Our leads (Jo 22 Oct): record the installer's chosen product/R-value so the rate-card quote uses it.
         if (plan.completed && job.channel !== "installer_sourced") {
-          try { await (await import("./usual-product.server")).mittiProductForJob(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], measureAudit); }
+          try { await (await import("./insulation-product.server")).mittiProductForJob(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], measureAudit); }
           catch (e) { issues = [...issues, `Insulation product not recorded: ${e instanceof Error ? e.message : "error"}`]; }
         }
         // Installer-brought jobs: draft (never send) the co-branded owner quote from the installer's ticked price.

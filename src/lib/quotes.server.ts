@@ -72,7 +72,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
   const rectTotal = r2(rectLines.reduce((a, l) => a + l.line_total_inc_gst, 0));
   const gstMul = 1 + Number(settings.gst_rate);
   const { priceHivQuote, HIV_PRICING_RULE, R_VALUE_CODE } = await import("./hiv-quote.core");
-  const chosen = await (await import("./usual-product.server")).productForHivQuote(jobId, inst.business_id);
+  const chosen = await (await import("./insulation-product.server")).productForHivQuote(jobId);
   const rValue = chosen.product?.rValue ?? "R5.0";
   let calc: ReturnType<typeof priceHivQuote>;
   try {

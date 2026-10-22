@@ -56,7 +56,7 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   if ((open ?? []).some((q) => q.status === "accepted") && !(await reconfirmationOpen(jobId))) return null;
 
   const mittiElectrician = !intakePrice ? await (await import("./usual-electrician.server")).mittiElectricianForJob(jobId, actorId, entries, auditId) : null;
-  const mittiProduct = !intakePrice ? await (await import("./usual-product.server")).mittiProductForJob(jobId, actorId, entries, auditId) : null;
+  const mittiProduct = !intakePrice ? await (await import("./insulation-product.server")).mittiProductForJob(jobId, actorId, entries, auditId) : null;
 
   const { data: m } = await admin.from("ceiling_measurements").select("measured_area_m2, verified_area_m2, removal_required").eq("job_id", jobId).eq("is_current", true).maybeSingle();
   const m2 = (m ? Number(m.verified_area_m2 ?? m.measured_area_m2) || null : null) ?? intakePrice?.areaM2 ?? null; // intake: provisional installer scope
@@ -83,16 +83,12 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   if (!mittiElectrician && payer === "undecided") draft.blockers.unshift("Electrician not decided yet — the owner's electrician cost must be known before the quote");
   if (!mittiElectrician && payer === "undecided") draft.ready = false;
   if (!mittiElectrician && isDirectBilledElectrician(job.electrician_choice)) draft.discountNote = [OWN_REC_QUOTE_NOTE, draft.discountNote].filter(Boolean).join(" ");
-  // Jo 23 Oct: insulation product on the owner quote; missing usual product holds the quote.
+  // Jo 23 Oct: insulation product on the owner quote; incomplete product holds the quote.
   if (mittiProduct) {
     const { applyMittiProduct } = await import("./mitti-installer-quote.core");
     applyMittiProduct(draft, mittiProduct, m2);
   }
   if (!draft.ready) {
-    if (mittiProduct?.needsProfile) {
-      await (await import("./ready-check-quote.server")).recordNeedsOffice(jobId, actorId, null, mittiProduct.reasons);
-      await (await import("./usual-product.server")).maybeRemindUsualProduct(jobId, auditId);
-    }
     if (mittiElectrician?.needsProfile) {
       await (await import("./ready-check-quote.server")).recordNeedsOffice(jobId, actorId, null, mittiElectrician.reasons);
       await (await import("./usual-electrician-reminder.server")).maybeRemindUsualElectrician(jobId, auditId);
