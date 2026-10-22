@@ -1,4 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Automatic STOP closure (Jo, 22 Oct 01:39 UTC)
+- [ ] Extend existing inbound STOP recording to close matching open homeowner enquiries, with exact reason and retained history; no schema changes, sends or publication.
+- [ ] Run isolated handler/regression tests and check preview compilation; live inbound activation awaits authorised publication.
 ## Authorised reminder catch-up (Jo, 22 Oct 00:00 UTC)
 - [x] Completed existing authenticated Office send via repaired connection. Initial browser wait timed out; persisted claims excluded handled phones on continuation. Final read: 238 provider-accepted, 238 unique phones/jobs, 227 delivered/11 awaiting delivery at first completion read; no failures. Fresh Office dry run zero eligible, 458 skipped, no alerts. Rolling plan picked up newly eligible owners (initial 236). No automatic activation, switch changes or publication; old 40 failed claims untouched.
 ## Twilio repair (Jo, 21 Oct 23:56 UTC)
