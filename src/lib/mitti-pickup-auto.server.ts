@@ -53,7 +53,7 @@ export async function sweepMittiPickupAuto(opts: { dryRun?: boolean; call?: Mitt
       continue;
     }
     if (opts.dryRun) {
-      results.push({ auditId: r.auditId, action: "would_create", ...(decision.action === "create_job_needs_finishing" ? { reasons: [needsFinishingText(decision.missing)] } : {}) });
+      results.push({ auditId: r.auditId, action: "would_create", reasons: [...(decision.action === "create_job_needs_finishing" ? [needsFinishingText(decision.missing)] : []), ...(decision.officeFlag ? [decision.officeFlag] : [])] });
       continue;
     }
     try {
@@ -76,6 +76,10 @@ export async function sweepMittiPickupAuto(opts: { dryRun?: boolean; call?: Mitt
         const next = needsFinishingText(decision.missing);
         await admin.from("jobs").update({ next_action: next }).eq("id", created.job_id);
         await logEvent(created.job_id, null, "mitti_pickup_needs_finishing", next, { audit_id: r.auditId, missing: decision.missing }, { internal: true });
+      }
+      if (decision.officeFlag) {
+        await logEvent(created.job_id, null, "mitti_pickup_installer_started_a2", decision.officeFlag, { audit_id: r.auditId, business_id: r.business!.id, needs_office: true }, { internal: true });
+        await recordReview(r.auditId, r.business!.name, [decision.officeFlag, `Job ${created.job_number} created as ${r.business!.name}'s installer-led job`]);
       }
       // Factual record only — the owner's tick is a fact about contact, never a marketing consent record.
       if (r.contactPermission === true) await logEvent(created.job_id, null, "mitti_contact_permission", `Owner ticked contact permission on the Mitti Ready Check form (audit ${r.auditId})`, { audit_id: r.auditId, permission: true, source: "mitti_form" }, { internal: true });
