@@ -66,3 +66,8 @@ export function reminderDue(x: { readyAt: string; now: number; state: ApprovalSt
 export function readApprovalEvents(rows: { created_at: string; actor_id?: string | null; details: unknown }[]): ApprovalEvent[] {
   return rows.map((r) => { const d = (r.details ?? {}) as Record<string, unknown>; return { at: r.created_at, quoteId: String(d.quote_id ?? ""), quoteFp: String(d.quote_fp ?? ""), formFp: String(d.form_fp ?? ""), by: r.actor_id ?? null }; });
 }
+
+/** Office list: drafts the installer hasn't approved go to a separate "Waiting on installer" section. */
+export function splitQuotesToCheck<T extends { quoteId: string | null; waitingOnInstaller?: boolean }>(rows: T[]): { ready: T[]; waiting: T[] } {
+  return { ready: rows.filter((r) => !(r.quoteId && r.waitingOnInstaller)), waiting: rows.filter((r) => !!(r.quoteId && r.waitingOnInstaller)) };
+}
