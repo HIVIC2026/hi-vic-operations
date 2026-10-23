@@ -75,6 +75,8 @@ mock.module("../src/lib/mitti.server", () => ({
     return { auditId: `audit_${jobId}`, reused: false, scope: "MEASURE_UP_ONLY" };
   },
 }));
+const holds: string[] = [];
+mock.module("../src/lib/mitti-pickup.server", () => ({ holdAtMittiReadyCheck: async (jobId: string) => { holds.push(jobId); return true; } }));
 const { sweepReadyCheckForms } = await import("../src/lib/mitti-autoform.server");
 
 describe("sweepReadyCheckForms", () => {
@@ -97,6 +99,7 @@ describe("sweepReadyCheckForms", () => {
     expect(calls.every((c) => c.opts.readyCheck === true)).toBe(true);
     expect(calls.find((c) => c.jobId === j(5))!.opts.assignee!.email).toBe("jo@actpropertyinspections.com.au");
     expect(calls.find((c) => c.jobId === j(1))!.opts.assignee).toBeUndefined();
+    expect(holds.sort()).toEqual([j(1), j(5)].sort()); // made forms wait on the installer; the failed one is untouched
     const { rows } = await db.query<{ n: number; needs: boolean }>("select count(*)::int n, bool_and((details->>'needs_office')::boolean) needs from workflow_events where event_type = 'mitti_autoform_failed' and job_id = $1", [j(2)]);
     expect(rows[0]).toEqual({ n: 1, needs: true });
   });
@@ -111,7 +114,7 @@ describe("sweepReadyCheckForms", () => {
     expect(later.wouldCreate).toEqual(["HV-3137"]);
   });
 
-  test("wired into the 15-minute tick, never sends to owners or changes stage", () => {
+  test("wired into the 15-minute tick, never sends to owners; stage only via the shared Mitti hold", () => {
     const tick = readFileSync("src/routes/api/public/hooks/allocation-tick.ts", "utf8");
     expect(tick).toContain("sweepReadyCheckForms()");
     expect(tick.indexOf("sweepReadyCheckForms()")).toBeLessThan(tick.indexOf("syncPendingMitti(null)")); // before the slower Mitti work
@@ -119,6 +122,7 @@ describe("sweepReadyCheckForms", () => {
     expect(AUTOFORM_MAX_PER_TICK).toBe(5); // inside the tick's 55s limit
     const src = readFileSync("src/lib/mitti-autoform.server.ts", "utf8");
     expect(src).not.toMatch(/sendRealSms|sendMessage|transition\(|\.update\(/);
+    expect(src).toContain("holdAtMittiReadyCheck(j.id, null)"); // installer jobs wait on the installer once the form exists
   });
 });
 

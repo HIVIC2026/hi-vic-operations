@@ -62,6 +62,9 @@ export async function sweepReadyCheckForms(opts: { call?: MittiCall; now?: Date;
     const { MittiClaimHeld, MittiOutcomeUncertain } = await import("./mitti-create.server");
     try {
       await createAssignMittiAudit(j.id, null, opts.call ?? realMittiCall, { readyCheck: true, ...(assignee ? { assignee } : {}) });
+      // Jo 24 Oct (HV-3151/HV-3164): Add a job runs the website checks, which leave "waiting for the owner to save
+      // their spot". With its form made, the job waits on the installer instead, like a picked-up Mitti form.
+      try { await (await import("./mitti-pickup.server")).holdAtMittiReadyCheck(j.id, null); } catch { /* the 15-minute pickup re-applies the hold */ }
       results.push({ jobId: j.id, jobNumber: j.job_number, outcome: "created" });
     } catch (e) {
       if (e instanceof MittiClaimHeld) { results.push({ jobId: j.id, jobNumber: j.job_number, outcome: "held" }); continue; }
