@@ -27,7 +27,7 @@ for (const p of WANT) {
     const parts = pickupAddressParts(r.siteAddress);
     const { upsertEnquiry } = await import("../src/lib/enquiry.server");
     const c = await upsertEnquiry({ full_name: (r.homeownerName?.trim() || "Homeowner (name to confirm)"), email: r.ownerEmail?.trim() || null, phone: r.ownerPhone?.trim() || null,
-      address_line: parts?.addressLine ?? r.siteAddress!.trim(), suburb: parts?.suburb ?? null, postcode: parts?.postcode ?? null, estimated_area_m2: null, area_unknown: true } as any,
+      address_line: parts?.addressLine ?? r.siteAddress!.trim(), suburb: parts?.suburb ?? null, postcode: parts?.postcode ?? null, estimated_area_m2: null } as any,
       "installer_mitti", ACTOR, { channel: "installer_sourced", businessId: BIZ, userId: m!.id });
     jobId = c.job_id; jobNo = c.job_number;
     await admin.from("job_assignments").insert({ job_id: jobId, user_id: m!.id, role: "installer", business_id: BIZ, assigned_by: ACTOR, first_response_at: new Date().toISOString() });
