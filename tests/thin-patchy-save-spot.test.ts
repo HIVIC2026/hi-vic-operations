@@ -33,7 +33,7 @@ describe("Jo 22 Oct thin/patchy Save my spot wording", () => {
     expect(e!.plainText).not.toContain("reviewed them");
     expect(e!.plainText).not.toContain("photos or video");
     // The "up to" removal allowance is shown separately and never added to the price.
-    expect(e!.plainText).toContain("Removal of old insulation, if needed: up to $1,650");
+    expect(e!.plainText).toContain("Removal of old insulation, only if needed: $0 – $1,650");
     expect(e!.plainText).toContain(REMOVAL_UPTO_NOTE);
     expect(e!.plainText).toContain("$2,948");
   });

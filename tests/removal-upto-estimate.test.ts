@@ -22,8 +22,8 @@ describe("removal 'up to' amount (Jo 22 Oct)", () => {
     expect(a.html).toContain("$3,948");
     expect(a.html.replace(/<table[^>]*FDF2F6[^]*?<\/table>/, "")).not.toContain("up to $1,800");
     const none = renderJoOutcomeEmail({ outcome: "likely_eligible", insulation: "none", ceilingSizeKnown: true, deskCheckStatus: null, recipient, links, figures: fig } as never)!;
-    expect(none.html).not.toContain("if needed: up to");
-    expect(plain.html).not.toContain("if needed: up to");
+    expect(none.html).not.toContain("only if needed");
+    expect(plain.html).not.toContain("only if needed");
     expect(REMOVAL_UPTO_NOTE).toBe("This is extra and NOT included in the price above. Often only part of the ceiling needs it, and some may be fine to stay. Your installer confirms at your free Ready Check.");
   });
   test("reminder SMS adds '(plus removal if needed)' only for existing insulation", () => {
