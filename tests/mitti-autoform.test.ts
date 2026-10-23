@@ -114,3 +114,8 @@ describe("sweepReadyCheckForms", () => {
     expect(src).not.toMatch(/sendRealSms|sendMessage|transition\(|\.update\(/);
   });
 });
+
+test("installers aren't offered a blank 'New Ready Check' form anywhere (blank forms aren't linked to a job)", () => {
+  for (const f of ["src/routes/_authenticated/field.index.tsx", "src/routes/_authenticated/partner.import.tsx", "src/routes/_authenticated/field.$jobId.tsx"]) expect(readFileSync(f, "utf8")).not.toContain("<NewReadyCheckButton");
+  expect(readFileSync("src/components/trade/new-ready-check.tsx", "utf8")).toContain("please don't start a new form in Mitti");
+});

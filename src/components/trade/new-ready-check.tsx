@@ -23,13 +23,14 @@ export function NewReadyCheckButton() {
   );
 }
 
-/** Replaces the retired portal Ready Check draft on installer-brought jobs. */
+/** Jo 23 Oct: installer jobs start in the portal and the portal makes the job's own Mitti form (mitti-autoform), so
+ *  no blank-form button here — a blank form isn't linked to the job. Shown until the form is linked. */
+export const FORM_ON_ITS_WAY = "Your Ready Check form for this job is being set up in Mitti, with the job number, address and owner details filled in. It will appear here shortly, with a button to open it — please don't start a new form in Mitti. If it isn't here within an hour, the office will sort it out.";
 export function ReadyCheckInMitti() {
   return (
     <section className="rounded-[18px] border border-line bg-paper p-[19px] shadow-card" data-ready-check-in-mitti>
       <h2 className="font-display text-lg font-bold">Ready Check form</h2>
-      <p className="mt-1 text-sm text-sub">The Ready Check is filled in on Mitti only. Your answers come back here automatically.</p>
-      <div className="mt-3"><NewReadyCheckButton /></div>
+      <p className="mt-1 text-sm text-sub">{FORM_ON_ITS_WAY}</p>
     </section>
   );
 }
