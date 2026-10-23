@@ -13,7 +13,7 @@ describe("Quotes to check layout rules", () => {
     expect(waitingStatus([WAITING_ON_INSTALLER])).toBe("Waiting for installer to approve");
   });
   it("Mitti form link opens the audit", () => {
-    expect(mittiAuditUrl("audit_x")).toBe("https://app.mitti.com/inspection/audit_x");
+    expect(mittiAuditUrl("audit_x")).toBe("https://app.au.safetyculture.com/inspection/audit_x");
     expect(mittiAuditUrl(null)).toBeNull();
   });
 });
