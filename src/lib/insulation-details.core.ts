@@ -6,7 +6,8 @@ export const INSULATION_DETAIL_QUESTIONS = [
   { key: "house_built_period", label: "When was your home built?", options: BUILD_DECADE_OPTIONS },
 ] as const;
 export type InsulationTapAnswers = { insulation_type: "loose_fill"|"batts"|"unknown"; insulation_thickness: "thin"|"hand"|"thicker"|"unknown"; house_built_period: BuildDecade };
-export function insulationDraftSaveAllowed(preview:boolean,source:string|null|undefined){return preview&&source==='qa_test';}
+/** Preview saves only TEST enquiries; the published site saves real website owners (Jo 24 Oct "Fix the saving"). */
+export function insulationDraftSaveAllowed(preview:boolean,source:string|null|undefined){return preview?source==='qa_test':source==='base44'||source==='qa_test';}
 /** Jo 23 Oct 08:14 UTC: EVERYONE who answers (or uploads photos/video) gets Save my spot automatically —
  *  nobody is parked or sent to an office list first. The answers only choose the WORDING and the Spots saved
  *  RANK. Thin/patchy wording only for loose fill or "less than a finger"; everyone else gets the standard
