@@ -51,23 +51,8 @@ export function PhotoRankButtons({ jobId, onDone }: { jobId: string; onDone: () 
 
 export function SpotPhotoCheck({ jobId, owner, count, onDone }: { jobId: string; owner: string | null; count: number; onDone: () => void }) {
   const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
   const load = useServerFn(getLeadMedia);
-  const review = useServerFn(reviewLeadMediaFn);
   const media = useQuery({ queryKey: ["lead-media", jobId], queryFn: () => load({ data: { jobId } }), enabled: open });
-  const pick = async (outcome: (typeof SPOT_PHOTO_CHOICES)[number]["outcome"]) => {
-    setBusy(true);
-    try {
-      await review({ data: { jobId, outcome } });
-      toast.success("Photos checked — rank updated. No email sent.");
-      setOpen(false);
-      onDone();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not save the check.");
-    } finally {
-      setBusy(false);
-    }
-  };
   return (
     <>
       <Button type="button" size="sm" variant="outline" className="h-8 shrink-0" onClick={() => setOpen(true)}>📷 Check photos ({count})</Button>
