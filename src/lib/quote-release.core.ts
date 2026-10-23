@@ -25,9 +25,7 @@ export function confirmedQuoteDecision(input: {
     ? "Quote held: includes an extra not on the agreed rate card"
     : estimateVarianceReason(input.estimateTotal, input.quoteTotal, input.tolerancePct);
   if (reason) return { state: "held", reason, status: "draft" };
-  return input.externalSendingEnabled
-    ? { state: "released", reason: null, status: "issued" }
-    : { state: "queued", reason: null, status: "draft" };
+  return { state: "held", reason: "Waiting for office review before sending", status: "draft" };
 }
 
 export function rectificationQuoteDecision(input: {
@@ -41,9 +39,7 @@ export function rectificationQuoteDecision(input: {
       ? "Quote held: includes a manually priced electrical fixes item"
       : null;
   if (reason) return { state: "held", reason, status: "draft" };
-  return input.externalSendingEnabled
-    ? { state: "released", reason: null, status: "issued" }
-    : { state: "queued", reason: null, status: "draft" };
+  return { state: "held", reason: "Waiting for office review before sending", status: "draft" };
 }
 
 export function installerPriceRangeReason(pricePerM2: number | null, min: number | null, max: number | null): string | null {

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { clearSiteConditionsHold, getInstallerIntake, getInstallerQuoteDraft, officeIntakeAction, sendInstallerQuote, stopInstallerQuoteHold } from "@/lib/installer-quote.functions";
+import { clearSiteConditionsHold, getInstallerIntake, getInstallerQuoteDraft, officeIntakeAction, sendInstallerQuote } from "@/lib/installer-quote.functions";
 import { Button } from "@/components/ui/button";
 
 const money = (n: number) => `$${n.toFixed(2)}`;
@@ -11,7 +11,6 @@ const money = (n: number) => `$${n.toFixed(2)}`;
 export function InstallerQuoteDraftPanel({ jobId }: { jobId: string }) {
   const load = useServerFn(getInstallerQuoteDraft);
   const send = useServerFn(sendInstallerQuote);
-  const stop = useServerFn(stopInstallerQuoteHold);
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["installer-quote-draft", jobId], queryFn: () => load({ data: { jobId } }) });
   const [busy, setBusy] = useState(false);
@@ -29,35 +28,22 @@ export function InstallerQuoteDraftPanel({ jobId }: { jobId: string }) {
     try {
       const r = await send({ data: { jobId, quoteId: quote.id } });
       await qc.invalidateQueries({ queryKey: ["installer-quote-draft", jobId] });
-      toast.success(r.delivery === "ready_to_send" ? "Quote sent to the owner." : "Quote is now in the owner's portal. No email went out — messages are switched off or the owner hasn't agreed to contact.");
-    } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
-  };
-
-  /** Stage 6 (Jo 22 Oct): "Stop this quote" — the office's decision outranks the automatic send. */
-  const onStop = async () => {
-    if (!quote) return;
-    const reason = window.prompt("Why is this quote being stopped? (kept on the job)", "");
-    if (reason === null) return;
-    if (reason.trim().length < 3) { toast.error("Please say why — the reason is kept on the job."); return; }
-    setBusy(true);
-    try {
-      await stop({ data: { jobId, quoteId: quote.id, reason: reason.trim() } });
-      await qc.invalidateQueries({ queryKey: ["installer-quote-draft", jobId] });
-      toast.success("Stopped. The quote stays held for the office.");
+      await qc.invalidateQueries({ queryKey: ["installer-quotes-to-check"] });
+      toast.success(`Quote released. Email: ${r.notification.email}. Text: ${r.notification.sms}.`);
     } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
   };
 
   return (
-    <section className="rounded-xl border bg-card p-4 space-y-3">
+    <section className="space-y-3">
       <div>
         <h3 className="font-semibold">Owner quote from the installer's Ready Check</h3>
         <p className="text-xs text-muted-foreground">
-          {partner ? `${partner} with ` : "Installer branding with "}Home Insulation Victoria as the Accredited Person. All prices inc GST. No lead fee, no margin.
+          {partner ? `${partner} with ` : ""}Home Insulation Victoria as the Accredited Person. All prices inc GST.{d.channel === "installer_sourced" ? " No lead fee, no margin." : ""}
         </p>
       </div>
       {d.heldBlockers.length > 0 && (
         <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
-          <p className="font-medium text-destructive">Not drafted — needs office review:</p>
+          <p className="font-medium text-destructive">{quote ? "Held — fix before sending:" : "Not drafted — needs office review:"}</p>
           <ul className="list-disc pl-5 text-destructive">{d.heldBlockers.map((b) => <li key={b}>{b}</li>)}</ul>
         </div>
       )}
@@ -67,24 +53,15 @@ export function InstallerQuoteDraftPanel({ jobId }: { jobId: string }) {
         <>
           <dl className="divide-y text-sm">
             {quote.quote_items.map((i) => (
-              <div key={i.sort} className="flex justify-between gap-4 py-1.5"><dt>{i.description}</dt><dd className="tabular-nums shrink-0">{money(Number(i.line_total_inc_gst))}</dd></div>
+              <div key={i.sort} className="flex justify-between gap-4 py-1.5"><dt className="min-w-0 break-words">{i.description}<span className="block text-xs text-muted-foreground">{Number(i.quantity)} {i.unit} × {money(Number(i.unit_price_inc_gst))}{i.explanation ? ` · ${i.explanation}` : ""}</span></dt><dd className="tabular-nums shrink-0">{money(Number(i.line_total_inc_gst))}</dd></div>
             ))}
             <div className="flex justify-between py-1.5"><dt>Estimated project total</dt><dd className="tabular-nums">{money(Number(quote.subtotal_inc_gst))}</dd></div>
             <div className="flex justify-between py-1.5"><dt>Estimated VEU / VEEC discount</dt><dd className="tabular-nums">−{money(Number(quote.veec_discount_inc_gst))}</dd></div>
             <div className="flex justify-between py-2 font-semibold"><dt>Estimated cost after discount</dt><dd className="tabular-nums">{money(Number(quote.customer_total_inc_gst))}</dd></div>
           </dl>
-          {d.holdUntil && !d.holdStopped && quote.status === "draft" && (
-            <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
-              <p className="font-medium">Auto-send held until {new Date(d.holdUntil).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit" })}.</p>
-              <p className="text-muted-foreground">The office can still stop it. After that it goes to the owner by email and text.</p>
-              <Button variant="outline" size="sm" className="mt-2" disabled={busy} onClick={onStop}>Stop this quote</Button>
-            </div>
-          )}
-          {d.holdStopped && quote.status === "draft" && (
-            <p className="text-sm font-medium text-destructive">Stopped by the office — this quote stays held until the office sends it.</p>
-          )}
-          {quote.status === "draft" ? (
-            <Button disabled={busy} onClick={onSend}>Send quote to owner</Button>
+          {quote.discount_note && <p className="text-sm text-muted-foreground">{quote.discount_note}</p>}
+          {d.reviewable ? (
+            <Button disabled={busy || d.heldBlockers.length > 0} onClick={onSend}>{busy ? "Sending…" : "Send quote"}</Button>
           ) : (
             <p className="text-sm font-medium">{quote.status === "accepted" ? "Accepted by the owner." : "Sent to the owner."}</p>
           )}

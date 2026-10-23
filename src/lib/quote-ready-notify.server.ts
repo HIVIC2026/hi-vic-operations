@@ -16,8 +16,11 @@ export type QuoteNotifyResult = { sms: string; email: string };
 
 export async function notifyOwnerQuoteReady(jobId: string, quoteId: string, kind: string): Promise<QuoteNotifyResult> {
   if (kind !== "installation") return { sms: "skipped", email: "skipped" };
-  const { data: job } = await admin.from("jobs").select("owner_id, job_number").eq("id", jobId).maybeSingle();
+  const { assertCustomerDeliveryAllowed } = await import("./comms.server");
+  await assertCustomerDeliveryAllowed(jobId, "Office quote notification");
+  const { data: job } = await admin.from("jobs").select("owner_id, job_number, source, stage, deleted_at, qa_archived_at").eq("id", jobId).maybeSingle();
   if (!job) return { sms: "skipped", email: "skipped" };
+  if ((await import("./mitti.core")).isClosedOrArchivedJob(job)) return { sms: "skipped", email: "skipped" };
   const { data: owner } = await admin.from("owners").select("phone, email").eq("id", job.owner_id).maybeSingle();
 
   const { sendRealSms } = await import("./sms.server");
@@ -30,9 +33,27 @@ export async function notifyOwnerQuoteReady(jobId: string, quoteId: string, kind
     .eq("template_key", QUOTE_EMAIL_TEMPLATE_KEY).eq("status", "approved").order("version", { ascending: false }).limit(1).maybeSingle();
   let email = "no approved wording — not sent";
   if (tpl && owner?.email) {
-    const { resendSend } = await import("./hot-leads-send.server");
-    const d = await resendSend(owner.email, tpl.subject, tpl.body_markdown, tpl.body_markdown, `quote-ready-email:v1:${quoteId}`, null).catch(() => null);
-    email = d && d.outcome !== "rejected" && d.outcome !== "not_attempted" ? "sent" : `failed: ${d?.detail ?? "send error"}`;
+    const [{ data: opt, error: oe }, { data: response, error: re }, { count: suppressed, error: se }] = await Promise.all([
+      admin.from("customer_email_optouts").select("opted_out_at").eq("job_id", jobId).maybeSingle(),
+      admin.from("lead_campaign_responses").select("opted_out_at").eq("job_id", jobId).maybeSingle(),
+      admin.from("customer_engagement_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).in("event_type", (await import("./emailsafety.core")).SUPPRESSING_EVENTS),
+    ]);
+    const boundary = (await import("./comms-test-recipient.core")).testRecipientBoundary(owner.email, job.source);
+    if (oe || re || se || suppressed == null || opt?.opted_out_at || response?.opted_out_at || suppressed > 0 || boundary.status === "blocked") email = "blocked — not sent";
+    else {
+      const key = `quote-ready-email:v1:${quoteId}`;
+      const { data: reserved, error } = await admin.from("customer_email_sends").insert({ job_id: jobId, purpose: "quote_ready", idempotency_key: key }).select("id").single();
+      if (error || !reserved) email = "already attempted — not resent";
+      else {
+        const { unsubscribeUrlForJob } = await import("./emailsafety.server");
+        const unsubscribe = await unsubscribeUrlForJob(jobId);
+        const { resendSend } = await import("./hot-leads-send.server");
+        const d = await resendSend(owner.email, tpl.subject, tpl.body_markdown, tpl.body_markdown, key, unsubscribe).catch(() => null);
+        const status = !d || d.outcome === "uncertain" ? "delivered_unrecorded" : d.outcome === "rejected" || d.outcome === "not_attempted" ? "failed" : "sent";
+        await admin.from("customer_email_sends").update({ status, provider: "resend", sent_at: status === "sent" ? new Date().toISOString() : null, error: d?.detail ?? "Delivery result unknown", provider_message_id: d && "id" in d ? d.id ?? null : null }).eq("id", reserved.id);
+        email = status === "sent" ? "sent" : status === "delivered_unrecorded" ? "delivery uncertain — not retried" : `failed: ${d?.detail ?? "send error"}`;
+      }
+    }
   }
   if (!tpl) {
     await logEvent(jobId, null, "ready_check_needs_office", "Quote released to the owner — no approved quote email wording on file, so no email was sent",

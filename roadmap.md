@@ -1,4 +1,8 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Office-only quote sending (Jo, 23 Oct 03:30 UTC)
+- [x] Removed automatic quote release and Ready Check timer; A1 keeps installer drafting, A2 completed sync now prepares owner-rate drafts without accepting measurements. Manual Office Send quote rechecks holds/contact guards and calls existing email/SMS notifier; placeholders/approval and sending locks unchanged.
+- [x] Shared Quotes to check at Office Home/Enquiries/Today/Active jobs, full draft opening, required row fields and disabled held-quote Send quote; no office notifications. Paginated job reads and bounded ID batches avoid oversized requests.
+- [x] 28 focused checks PASS; signed-in read-only Office list loads (currently zero), desktop/390px no overflow; sealed TEST row opens full draft with disabled Send quote. Actual provider delivery and hosted mutation deliberately NOT_RUN: no live writes/sends/settings/publication. Quote SMS wording remains unapproved and email needs an approved template, as before.
 ## Preliminary saved-estimate confirmation (Jo, 23 Oct 03:25 UTC)
 - [x] Use normal estimate creation/snapshot and Version 1 confirmation on preliminary saves; removed price-free saved variant, retained invitation wording/guard and email-only sending safeguards.
 - [x] 36 focused checks PASS, including actual isolated save → snapshot → canonical email, removal, exclusions, repeated saves and missing-estimate safety; no live writes/settings/sends/publication. Existing spot-saved-messages queued-source assertion still fails (unrelated unchanged launch-campaign file); hosted save intentionally NOT_RUN under no-live-writes instruction.

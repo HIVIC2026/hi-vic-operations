@@ -1,12 +1,6 @@
-// Stage 6 (Jo 22 Oct 2026): when a Ready Check finishes cleanly, prepare the owner quote, then hold it for
-// 15 minutes so the office can still stop it. OFF by default: workflow_settings.mitti_auto_quote_enabled
-// (pending migration — the code fails closed while the column is missing, exactly like the auto-pickup switch).
-// Nothing here sends anything: the only release path stays releaseQueuedQuotes(), which re-checks the launch
-// switches, consent, intake readiness and electrical billing on every run.
+// Ready Check drafts stay private for Office review. No automatic approval, timer or delivery.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
-import { readyCheckFactsFromEntries, readyCheckCompletionChecks } from "./ready-check-complete.core";
-import { armQuoteHold } from "./quote-hold.server";
 
 const NEEDS_OFFICE = "ready_check_needs_office";
 
@@ -20,58 +14,39 @@ export async function recordNeedsOffice(jobId: string, actorId: string | null, q
     { quote_id: quoteId, reasons, needs_office: true }, { internal: true });
 }
 
-/** Auto-send is OFF until Jo switches it on; an absent column or unreadable settings means OFF. */
-async function autoQuoteEnabled(): Promise<boolean> {
-  const { data } = await admin.from("workflow_settings").select("mitti_auto_quote_enabled").eq("id", 1).maybeSingle();
-  return (data as { mitti_auto_quote_enabled?: boolean } | null)?.mitti_auto_quote_enabled === true;
-}
-
 export type AutoQuoteResult = { action: "off" | "review" | "held" | "blocked"; reasons?: string[] };
 
 /**
  * Called by the Mitti sync right after a completed Ready Check has drafted the installer's owner quote.
  * Checks the form's own answers (below R2, photos, life support, contact permission, price, electrician),
- * then the same send guards the office button runs, then arms the 15-minute window.
+ * Legacy compatibility only: automatic queueing has been retired.
  */
 export async function maybeAutoQueueReadyCheckQuote(jobId: string, actorId: string | null, entries: { label: string; value: unknown }[], formComplete: boolean): Promise<AutoQuoteResult> {
-  if (!(await autoQuoteEnabled())) return { action: "off" };
-  const { data: job } = await admin.from("jobs").select("channel, electrician_choice, owner_id").eq("id", jobId).maybeSingle();
-  if (!job || job.channel !== "installer_sourced") return { action: "off" };
+  // Retained for legacy callers only. Jo 23 Oct: no timer, no automatic queue/approval or sending.
+  void jobId; void actorId; void entries; void formComplete;
+  return { action: "off" };
+}
 
-  const { data: quote } = await admin.from("quotes").select("id, status, release_state, option_code")
-    .eq("job_id", jobId).eq("kind", "installation").eq("option_code", "INSTALLER_A1").in("status", ["draft", "issued"])
-    .order("created_at", { ascending: false }).limit(1).maybeSingle();
-
-  const { quotedPriceFromEntries } = await import("./installer-led.core");
-  const { data: electrical } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_electrician_recorded").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  const facts = readyCheckFactsFromEntries(entries, {
-    formComplete,
-    electricianDecided: (electrical?.details as { ready?: boolean } | null)?.ready === true || job.electrician_choice === "installer_own" || job.electrician_choice === "hivic_organise",
-    priceKnown: quotedPriceFromEntries(entries as never, null).ok,
-  });
-  const checks = readyCheckCompletionChecks(facts);
-  if (!checks.ready) {
-    await recordNeedsOffice(jobId, actorId, quote?.id ?? null, checks.reasons);
-    return { action: "review", reasons: checks.reasons };
+/** A2 uses the existing owner-price builder for a draft only; no measurement acceptance or send. */
+export async function draftHivReadyCheckQuote(jobId: string, actorId: string | null, auditId: string, modifiedAt: string | null, entries: { label: string; value: unknown }[]) {
+  const [{ data: job, error: je }, { data: quotes, error: qe }, { data: last, error: le }] = await Promise.all([
+    admin.from("jobs").select("channel, life_support_status, properties(enrichment)").eq("id", jobId).maybeSingle(),
+    admin.from("quotes").select("id, status").eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]),
+    admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_a2_quote_drafted").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  if (je || qe || le) throw new Error("Ready Check quote history could not be checked.");
+  if (!job || job.channel === "installer_sourced" || quotes?.some(q => q.status !== "draft")) return;
+  const ra = await import("./ready-check-answers.core");
+  const prop = job.properties as { enrichment?: { base44?: { declared?: { over_five_years?: string } } } } | null;
+  const stops = [...ra.readyCheckStopReasons(entries, { ownerAnsweredOnWebsite: true }), ...ra.websiteStopReasons({ lifeSupportStatus: job.life_support_status, overFiveYears: prop?.enrichment?.base44?.declared?.over_five_years ?? null })];
+  if (stops.length) { await recordNeedsOffice(jobId, actorId, null, stops); return; }
+  const prior = last?.details as { audit_id?: string; modified_at?: string | null } | null;
+  if (quotes?.length && prior?.audit_id === auditId && prior.modified_at === modifiedAt) return;
+  try {
+    const ids = await (await import("./quotes.server")).generateInstallerQuotes(jobId, actorId, { mittiDraft: true });
+    await logEvent(jobId, actorId, "mitti_a2_quote_drafted", "Ready Check owner quote drafted for office review", { audit_id: auditId, modified_at: modifiedAt, quote_ids: ids }, { internal: true });
+  } catch (e) {
+    await recordNeedsOffice(jobId, actorId, null, [e instanceof Error ? e.message : "Quote could not be drafted"]);
+    throw e;
   }
-  if (!quote || quote.status !== "draft" || quote.release_state !== "held") return { action: "review", reasons: ["No held installer quote to release"] };
-
-  // The same guards the office "Send" button runs — the automatic path is never weaker than the manual one.
-  const { intakeSendBlockers } = await import("./installer-intake.server");
-  const blockers = await intakeSendBlockers(jobId).catch(() => ["Intake readiness could not be checked"]);
-  const bb = await (await import("./installer-quote.server")).quoteBillingBlocker(quote.id).catch(() => "Electrical billing could not be checked");
-  if (bb) blockers.push(bb);
-  if (blockers.length) {
-    await recordNeedsOffice(jobId, actorId, quote.id, blockers);
-    return { action: "blocked", reasons: blockers };
-  }
-
-  const now = new Date().toISOString();
-  const { data: armed } = await admin.from("quotes").update({ status: "issued", release_state: "queued", release_hold_reason: null, office_reviewed_at: now, office_reviewed_by: null })
-    .eq("id", quote.id).eq("status", "draft").eq("release_state", "held").select("id").maybeSingle();
-  if (!armed) return { action: "review", reasons: ["The quote changed during preparation — office review required"] };
-  await armQuoteHold(jobId, actorId, quote.id, now);
-  await logEvent(jobId, actorId, "installer_quote_queued", "Owner quote prepared automatically — held 15 minutes so the office can stop it",
-    { quote_id: quote.id, auto: true }, { internal: true });
-  return { action: "held" };
 }

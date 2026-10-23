@@ -368,21 +368,17 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         if (plan.completed && job.channel !== "installer_sourced") {
           try { await (await import("./insulation-product.server")).mittiProductForJob(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], measureAudit); }
           catch (e) { issues = [...issues, `Insulation product not recorded: ${e instanceof Error ? e.message : "error"}`]; }
+          try {
+            const { draftHivReadyCheckQuote } = await import("./ready-check-quote.server");
+            await draftHivReadyCheckQuote(jobId, actorId, measureAudit, plan.modifiedAt ?? null, (plan.snapshot ?? []) as { label: string; value: unknown }[]);
+          } catch (e) { issues = [...issues, `Owner quote could not be drafted: ${e instanceof Error ? e.message : "error"}`]; }
         }
         // Installer-brought jobs: draft (never send) the co-branded owner quote from the installer's ticked price.
         if (plan.completed && readyCheckVariant(job.channel) === "ready_check_priced") {
           try {
             const d = await draftInstallerQuoteFromReadyCheck(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], measureAudit);
             if (d && !d.ready) issues = [...issues, ...d.blockers.map((b) => `Owner quote: ${b}`)];
-            // Stage 6 (Jo 22 Oct): a clean finished Ready Check may prepare the owner quote automatically —
-            // held for 15 minutes so the office can still stop it. Switch OFF by default; nothing sends here.
-            if (d?.ready) {
-              await applyCobrand(jobId);
-              const { maybeAutoQueueReadyCheckQuote } = await import("./ready-check-quote.server");
-              const a = await maybeAutoQueueReadyCheckQuote(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: unknown }[], true)
-                .catch((e) => ({ action: "review" as const, reasons: [e instanceof Error ? e.message : "error"] }));
-              if (a.action === "review" || a.action === "blocked") issues = [...issues, ...(a.reasons ?? []).map((r) => `Owner quote: ${r}`)];
-            }
+            if (d?.ready) await applyCobrand(jobId); // draft only; Office must press Send quote
           } catch (e) { issues = [...issues, `Owner quote could not be drafted: ${e instanceof Error ? e.message : "error"}`]; }
         }
         // Stage 7 (Jo 22 Oct): incomplete form → record what the installer must add (dormant text; office chase after 24h).
