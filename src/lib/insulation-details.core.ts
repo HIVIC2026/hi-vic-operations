@@ -5,13 +5,14 @@ export const INSULATION_DETAIL_QUESTIONS = [
 ] as const;
 export type InsulationTapAnswers = { insulation_type: "loose_fill"|"batts"|"unknown"; insulation_thickness: "thin"|"hand"|"thicker"|"unknown"; house_built_period: "1990_or_earlier"|"1991_1999"|"2000_2009"|"2010_or_later"|"unknown" };
 export function insulationDraftSaveAllowed(preview:boolean,source:string|null|undefined){return preview&&source==='qa_test';}
-export function insulationTapRoute(a: Pick<InsulationTapAnswers,"insulation_type"|"insulation_thickness"> & Partial<Pick<InsulationTapAnswers,"house_built_period">>, hasPhotos = false): "thin_patchy"|"needs_onsite_assessment"|"photo_review" {
-  // Jo-approved declared-age proxy: Victoria introduced mandatory minimum insulation standards
-  // for new houses in 1991 (Sustainability Victoria 2016 report). Jo's 07:36 replacement:
-  // 1990 or earlier overrides type, thickness AND uploaded photos; later/unknown retains photo review.
-  if (a.house_built_period === "1990_or_earlier") return "thin_patchy";
-  if (hasPhotos) return "photo_review";
-  return a.insulation_type === "loose_fill" || a.insulation_thickness === "thin" ? "thin_patchy" : "needs_onsite_assessment";
+/** Jo 23 Oct 08:14 UTC: EVERYONE who answers (or uploads photos/video) gets Save my spot automatically —
+ *  nobody is parked or sent to an office list first. The answers only choose the WORDING and the Spots saved
+ *  RANK. Thin/patchy wording only for loose fill or "less than a finger"; everyone else gets the standard
+ *  existing-insulation Save my spot wording (with the removal line). House age (1990 or earlier — Victoria's
+ *  1991 minimum standards, Sustainability Victoria 2016) now only affects rank. */
+export type InsulationTapRoute = "thin_patchy" | "existing_save_spot";
+export function insulationTapRoute(a: Pick<InsulationTapAnswers,"insulation_type"|"insulation_thickness"> & Partial<Pick<InsulationTapAnswers,"house_built_period">>, _hasPhotos = false): InsulationTapRoute {
+  return a.insulation_type === "loose_fill" || a.insulation_thickness === "thin" ? "thin_patchy" : "existing_save_spot";
 }
 /** Original website handoff stays immutable; newer declared answers are a separate provenance overlay. */
 export function ownerInsulationAnswers(enrichment: Record<string,unknown>|null|undefined): Record<string,unknown> {
