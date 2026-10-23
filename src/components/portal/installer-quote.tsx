@@ -4,6 +4,9 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { clearSiteConditionsHold, getInstallerIntake, getInstallerQuoteDraft, officeIntakeAction, sendInstallerQuote } from "@/lib/installer-quote.functions";
 import { Button } from "@/components/ui/button";
+import { adjustQuote } from "@/lib/portal.functions";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 const money = (n: number) => `$${n.toFixed(2)}`;
 
@@ -11,9 +14,13 @@ const money = (n: number) => `$${n.toFixed(2)}`;
 export function InstallerQuoteDraftPanel({ jobId }: { jobId: string }) {
   const load = useServerFn(getInstallerQuoteDraft);
   const send = useServerFn(sendInstallerQuote);
+  const adjust = useServerFn(adjustQuote);
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["installer-quote-draft", jobId], queryFn: () => load({ data: { jobId } }) });
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [reason, setReason] = useState("");
+  const [rebate, setRebate] = useState("");
   if (q.isLoading) return <p className="text-sm text-muted-foreground">Loading installer quote…</p>;
   if (q.error) return <p className="text-sm text-destructive">{(q.error as Error).message}</p>;
   const d = q.data;
@@ -61,7 +68,14 @@ export function InstallerQuoteDraftPanel({ jobId }: { jobId: string }) {
           </dl>
           {quote.discount_note && <p className="text-sm text-muted-foreground">{quote.discount_note}</p>}
           {d.reviewable ? (
-            <Button disabled={busy || d.heldBlockers.length > 0} onClick={onSend}>{busy ? "Sending…" : "Send quote"}</Button>
+            <div className="space-y-3">
+              <div className="flex gap-2"><Button disabled={busy || editing || d.heldBlockers.length > 0} onClick={onSend}>{busy ? "Sending…" : "Send quote"}</Button><Button variant="outline" disabled={busy} onClick={() => { setEditing(!editing); setRebate(String(quote.veec_discount_inc_gst)); }}>Adjust</Button></div>
+              {editing && <form className="space-y-3" onSubmit={async e => { e.preventDefault(); setBusy(true); try { await adjust({ data: { quoteId: quote.id, reason: reason.trim(), items: [], veecDiscount: Number(rebate) } }); await Promise.all([qc.invalidateQueries({ queryKey: ["installer-quote-draft", jobId] }), qc.invalidateQueries({ queryKey: ["installer-quotes-to-check"] })]); setEditing(false); setReason(""); toast.success("Quote adjusted — installer must check it again."); } catch(e) { toast.error(e instanceof Error ? e.message : "Could not adjust quote"); } finally { setBusy(false); } }}>
+                <label className="block space-y-1 text-sm">VEU rebate inc GST<Input type="number" min="0" step="0.01" value={rebate} onChange={e => setRebate(e.target.value)} /></label>
+                <label className="block space-y-1 text-sm">Reason<Textarea value={reason} onChange={e => setReason(e.target.value)} /></label>
+                <Button type="submit" disabled={busy || reason.trim().length < 5 || !rebate.trim() || !Number.isFinite(Number(rebate)) || Number(rebate) < 0}>Save adjustment</Button>
+              </form>}
+            </div>
           ) : (
             <p className="text-sm font-medium">{quote.status === "accepted" ? "Accepted by the owner." : "Sent to the owner."}</p>
           )}

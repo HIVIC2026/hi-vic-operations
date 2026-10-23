@@ -39,6 +39,7 @@ import { useAction } from "@/hooks/use-me";
 import { InstallerFinalDeclaration } from "@/components/portal/assignment";
 import { JobStatusCard } from "@/components/trade/job-status";
 import { CheckQuoteCard } from "@/components/trade/CheckQuoteCard";
+import { MittiMissingInfo } from "@/components/trade/MittiMissingInfo";
 import { SourceBadge } from "@/components/portal/badges";
 import { InstallerProgressCard } from "@/components/trade/intake-progress";
 import { ReadyCheckInMitti } from "@/components/trade/new-ready-check";
@@ -98,7 +99,7 @@ function FieldJob() {
         {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} expired={!!job.piesa_expired} />}
         {role === "installer" && !linkedMitti && <InstallerProgressCard jobId={jobId} />}
         {role === "installer" && job.channel === "installer_sourced" && !linkedMitti && <MyIntakeDetailsCard jobId={jobId} />}
-        {role === "installer" && (linkedMitti ? <Section title="Ready Check form"><Button asChild size="field" className="w-full"><a href={`https://app.au.mitti.com/inspections/${mitti.auditId}`} target="_blank" rel="noreferrer">Open Ready Check in Mitti</a></Button></Section> : job.channel === "installer_sourced" ? <ReadyCheckInMitti /> : null)}
+        {role === "installer" && (linkedMitti ? <Section title="Ready Check form"><MittiMissingInfo missing={mitti.missing} stops={mitti.stops} auditId={mitti.auditId} /></Section> : job.channel === "installer_sourced" ? <ReadyCheckInMitti /> : null)}
         {role === "installer" && ["piesa_and_install_window_pending"].includes(job.stage!) && !job.electrician_name && <ElectricianChoicePanel jobId={jobId} />}
         {role === "installer" && <InstallerFlow jobId={jobId} stage={job.stage ?? ""} linkedMitti={linkedMitti} />}
         {role === "installer" && ["assessment_complete", "rectification_required", "awaiting_owner_rectification_approval", "ready_for_installer_quotes", "awaiting_quote_acceptance"].includes(job.stage!) && <PartnerProposalForm jobId={jobId} />}
