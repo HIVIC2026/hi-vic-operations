@@ -264,7 +264,7 @@ export async function launchCampaignOffice() {
       const cur = savedPriceFromEstimate((job?.indicative_estimates ?? []).find((e) => e.status === "current") ?? null);
       const price = savedPriceLabel({ total: r.saved_total == null ? null : Number(r.saved_total), discount: r.saved_veu_discount == null ? null : Number(r.saved_veu_discount), savedAt: r.spot_saved_at, estimateId: r.saved_estimate_id }, cur);
       return { id: r.id, jobId: r.job_id, jobNumber: job?.job_number ?? null, owner: job?.owners?.full_name ?? null, property: fullAddress(job?.properties?.address_line, job?.properties?.suburb, job?.properties?.postcode), spotSavedAt: r.spot_saved_at, optedOutAt: r.opted_out_at, mediaReceivedAt: r.media_received_at, queuePriority: r.queue_priority, savedPrice: price?.text ?? null, priceChanged: price?.changeNote ?? null, deskCheckStatus: r.desk_check_status, deskCheckReason: r.desk_check_reason, ...spotRankRow(rank, r, job) };
-    }).sort((a, b) => (a.rank && b.rank ? compareSpots({ rank: a.rank, spotSavedAt: a.spotSavedAt }, { rank: b.rank, spotSavedAt: b.spotSavedAt }) : 0)),
+    }).sort((a, b) => compareSpots({ rank: a.rank, spotSavedAt: a.spotSavedAt }, { rank: b.rank, spotSavedAt: b.spotSavedAt })),
   };
 }
 
@@ -295,7 +295,7 @@ function spotRankRow(d: RankData, r: { job_id: string; spot_saved_at: string | n
   const outs = d.reviews.get(r.job_id) ?? [];
   const latest = (outs.at(-1) ?? null) as SpotRankFacts["reviewOutcome"];
   const mediaCount = d.media.get(r.job_id) ?? 0;
-  const rank = leadRank({ reviewOutcome: latest, hadUnclearReview: outs.includes("unclear"), deskLooksEligible: r.desk_check_status === "looks_eligible", declared, mediaCount, tap: tap?.answers ?? null, buildDecade: buildDecadeFromAnswers(answers), declaredThinPatchy: insulationDetailRouteRank(declaredInsulationDetailRank(answers)) === "likely_save_spot" });
+  const rank = leadRank({ reviewOutcome: latest, hadUnclearReview: latest === "unclear", deskLooksEligible: r.desk_check_status === "looks_eligible", declared, mediaCount, tap: tap?.answers ?? null, buildDecade: buildDecadeFromAnswers(answers), declaredThinPatchy: insulationDetailRouteRank(declaredInsulationDetailRank(answers)) === "likely_save_spot" });
   const area = (job?.indicative_estimates ?? []).find((x) => x.status === "current")?.area_m2 ?? null;
   return {
     rank, rankLabel: SPOT_RANK_LABEL[rank] ?? null, mediaCount,

@@ -204,7 +204,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   const key = morePhotos ? morePhotosRequestKey(jobId, testOpts.morePhotosReviewId!) : `${LAUNCH_CAMPAIGN}:${questions ? "insulation_questions" : followup ? "existing_insulation_save_spot" : sendGroup === "onsite" ? "insulation_details" : "save_my_spot"}:${jobId}${isTest && testOpts.subjectPrefix ? `:preview-test:${testOpts.variant ?? "savespot"}:${Date.now()}` : ""}`;
   const { data: ex, error: existingSendError } = await admin.from("customer_email_sends").select("id, status").eq("idempotency_key", key).maybeSingle();
   if (existingSendError) return r("blocked", "Could not check previous delivery. Nothing sent; try again.");
-  if ((followup || morePhotos) && mode === "send" && ex) return r("skipped", "A follow-up attempt already exists. Check its delivery record before any further action.");
+  if ((followup || morePhotos) && mode === "send" && ex && !reservationAllowed(ex)) return r("skipped", "A follow-up attempt already exists. Check its delivery record before any further action.");
   if (mode === "send" && ex && !reservationAllowed(ex)) return r("skipped", "Already sent to this home.");
   if (mode === "send") {
     // STEP 17: Office already sent this email by hand (recorded "Sent manually") – the portal never sends it again.
@@ -281,6 +281,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   // labelled 150 m² assumption only. Any other basis (research area, mismatch) fails closed.
   const { joAreaBasis } = await import("./jo-area-basis.core");
   const areaBasis = joAreaBasis({ areaSource: est?.area_source ?? null, areaM2: price.areaM2, ownerAreaM2: job.estimated_area_unknown ? null : Number(job.estimated_area_m2) || null });
+  let renderError: string | null = null;
   const joMail = await (async () => {
     if (!figuresOk || !areaBasis.ok) return null;
     const jo = await import("./jo-outcome-email.core");
@@ -335,10 +336,14 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
       if (sendGroup === "onsite" && !office && !followup && !upload) return null;
       const m = withUnsubscribe(rendered, unsubscribeUrl);
       return isTest && testOpts.subjectPrefix ? { ...m, subject: `${testOpts.subjectPrefix} ${m.subject}` } : m;
-    } catch { return null; }
+    } catch (error) {
+      renderError = error instanceof Error ? error.message : String(error);
+      console.error("Jo email preparation failed", { jobId, error: renderError });
+      return null;
+    }
   })();
   if (!joMail) {
-    const held = areaBasis.ok ? "No approved Jo template applies to this enquiry — held for manual review; nothing sent." : areaBasis.reason;
+    const held = renderError ? `Could not prepare the approved email: ${renderError.slice(0, 200)} — nothing sent.` : areaBasis.ok ? "No approved Jo template applies to this enquiry — held for manual review; nothing sent." : areaBasis.reason;
     // A reservation made above is released as a clean pre-delivery failure (never left "sending").
     if (mode === "send" && sendId) await admin.from("customer_email_sends").update({ status: "failed", provider: "not_sent", error: held }).eq("id", sendId);
     return r("blocked", held);

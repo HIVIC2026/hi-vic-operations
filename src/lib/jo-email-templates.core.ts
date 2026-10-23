@@ -283,7 +283,7 @@ function renderBelowR2Reviewed(r: JoRecipient, f: JoEstimateFigures): string {
     "[Save my spot →]", "",
     "We’ll be in touch to arrange your free Ready Check when an installer is available in your area. No payment required. No obligation to proceed with installation.", "",
     "### What could change this price?", "",
-    "Your Ready Check will confirm eligibility, ceiling measurements, existing insulation and access. electrical fixes are also excluded and will be quoted separately if required. Any changes will be explained and quoted for your approval.", "",
+    "Your Ready Check will confirm eligibility, ceiling measurements, existing insulation and access. Electrical fixes are also excluded and will be quoted separately if required. Any changes will be explained and quoted for your approval.", "",
     "Home Insulation Victoria", "", footer(r.enquiryReference),
   ].join("\n");
 }

@@ -40,10 +40,13 @@ export function leadRank(input: Partial<SpotRankFacts>): number {
   const f = { ...NO_FACTS, ...input };
   const t = f.tap ?? null;
   if (f.reviewOutcome === "no_insulation") return 1;
-  if (f.reviewOutcome === "below_r2" && f.mediaCount > 0 && !f.hadUnclearReview) return 2;
-  if (f.reviewOutcome === "below_r2" || f.deskLooksEligible) return 3;
+  // Audit 23 Oct: the LATEST review decides; an earlier "unclear" never demotes a later Under R2.
+  if (f.reviewOutcome === "below_r2" && f.mediaCount > 0) return 2;
+  if (f.reviewOutcome === "below_r2") return 3;
   if (f.reviewOutcome === "over_r2") return 6;
   if (f.reviewOutcome === "unclear") return 7;
+  // Desk approval (no photo outcome) = Under R2, owner's word.
+  if (f.deskLooksEligible) return 3;
   if (f.declared === "none") return 4;
   if (t?.house_built_period === "1990_or_earlier" || f.buildDecade === "1990_or_earlier" || tapSaysThinOrLooseFill(t) || f.declaredThinPatchy) return 5;
   if (t?.insulation_thickness === "hand" || t?.insulation_thickness === "thicker") return 6;
@@ -54,8 +57,10 @@ export function leadRank(input: Partial<SpotRankFacts>): number {
 export const spotSavedRank = leadRank;
 
 /** Rank first, then longest waiting (oldest saved first). */
-export function compareSpots(a: { rank: number; spotSavedAt: string | null }, b: { rank: number; spotSavedAt: string | null }): number {
-  return a.rank - b.rank || (a.spotSavedAt ?? "9").localeCompare(b.spotSavedAt ?? "9");
+const rankOrLast = (r: number | null | undefined) => (typeof r === "number" && r >= 1 && r <= 8 ? r : Infinity);
+export function compareSpots(a: { rank?: number | null; spotSavedAt: string | null }, b: { rank?: number | null; spotSavedAt: string | null }): number {
+  const ra = rankOrLast(a.rank), rb = rankOrLast(b.rank);
+  return (ra === rb ? 0 : ra < rb ? -1 : 1) || (a.spotSavedAt ?? "9").localeCompare(b.spotSavedAt ?? "9");
 }
 
 /** One line: owner · suburb · built · m² · 📷 n · waiting X days */
