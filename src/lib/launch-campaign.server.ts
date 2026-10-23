@@ -290,7 +290,7 @@ function spotRankRow(d: RankData, r: { job_id: string; spot_saved_at: string | n
   const outs = d.reviews.get(r.job_id) ?? [];
   const latest = (outs.at(-1) ?? null) as SpotRankFacts["reviewOutcome"];
   const mediaCount = d.media.get(r.job_id) ?? 0;
-  const rank = spotSavedRank({ reviewOutcome: latest, hadUnclearReview: outs.includes("unclear"), deskLooksEligible: r.desk_check_status === "looks_eligible", declared, mediaCount, tapRoute: tap?.route ?? null, declaredThinPatchy: insulationDetailRouteRank(declaredInsulationDetailRank(answers)) === "likely_save_spot" });
+  const rank = spotSavedRank({ reviewOutcome: latest, hadUnclearReview: outs.includes("unclear"), deskLooksEligible: r.desk_check_status === "looks_eligible", declared, mediaCount, tap: tap?.answers ?? null, declaredThinPatchy: insulationDetailRouteRank(declaredInsulationDetailRank(answers)) === "likely_save_spot" });
   const area = (job?.indicative_estimates ?? []).find((x) => x.status === "current")?.area_m2 ?? null;
   return {
     rank, rankLabel: SPOT_RANK_LABEL[rank] ?? null,

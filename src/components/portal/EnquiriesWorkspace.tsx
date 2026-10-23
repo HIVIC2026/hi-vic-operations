@@ -30,7 +30,6 @@ import { RESPONSE_STATE_LABEL, showingRange, enquiryRowTag } from "@/lib/enquiry
 import { followupSendMessage, followupRequestError, uncertainAttempt } from '@/lib/followup-result.core';
 import { cn } from "@/lib/utils";
 import { QuotesToCheck } from "./QuotesToCheck";
-import { OnsiteAssessmentGroup } from "./OnsiteAssessmentGroup";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 export type EnquiryView = EnquiryStatus | "all" | "new" | "photos" | "removed";
@@ -455,7 +454,6 @@ export function EnquiriesWorkspace({
       </header>
 
       <QuotesToCheck />
-      <OnsiteAssessmentGroup />
       {isLoading ? (
         <p role="status" className="rounded-md border bg-card p-6 text-sm">
           Loading enquiries…
