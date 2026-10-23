@@ -21,11 +21,6 @@ export type AutoQuoteResult = { action: "off" | "review" | "held" | "blocked"; r
  * Checks the form's own answers (below R2, photos, life support, contact permission, price, electrician),
  * Legacy compatibility only: automatic queueing has been retired.
  */
-export async function maybeAutoQueueReadyCheckQuote(jobId: string, actorId: string | null, entries: { label: string; value: unknown }[], formComplete: boolean): Promise<AutoQuoteResult> {
-  // Retained for legacy callers only. Jo 23 Oct: no timer, no automatic queue/approval or sending.
-  void jobId; void actorId; void entries; void formComplete;
-  return { action: "off" };
-}
 
 /** A2 uses the existing owner-price builder for a draft only; no measurement acceptance or send. */
 export async function draftHivReadyCheckQuote(jobId: string, actorId: string | null, auditId: string, modifiedAt: string | null, entries: { label: string; value: unknown }[]) {

@@ -461,18 +461,6 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   return r("sent", isTest ? "Sent to Jo's test inbox" : "Sent");
 }
 
-/** Automatic send after an official Gate 1 decision + Step 3 prep (Jo, 8 Oct 2026): real jobs only —
- *  sendOne re-checks likely-eligible + no insulation + size entered, consent, opt-out and once-per-home.
- *  TEST (qa_test) jobs never auto-email. Best-effort: never throws, never blocks intake. */
-export async function maybeAutoSendSaveSpot(jobId: string): Promise<void> {
-  try {
-    const { data: job } = await admin.from("jobs").select("source").eq("id", jobId).maybeSingle();
-    if (!job || job.source === "qa_test") return;
-    await sendSaveMySpot([jobId], null);
-  } catch (e) {
-    console.warn("auto save-my-spot send failed (ignored)", (e as Error).message.slice(0, 200));
-  }
-}
 
 /** Group B real delivery requires BOTH global switches on (customer_comms_enabled + delivery enabled). Unreadable = off. */
 /** Jo 21 Oct: Office sends the right held email for one Office review enquiry. Every normal guard still runs. */
