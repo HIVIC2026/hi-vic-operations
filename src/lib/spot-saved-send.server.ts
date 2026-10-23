@@ -40,8 +40,7 @@ async function buildPreliminaryMessages(jobId: string, token: string | null) {
   if (!job) return null;
   const owner = job.owners as { full_name: string | null; phone: string | null; email: string | null } | null;
   const { renderPreliminarySpotSavedEmail } = await import("./preliminary-save-spot.core");
-  const { declaredRemovalKind } = await import("./preliminary-removal.server");
-  const email = renderPreliminarySpotSavedEmail({ firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null, myJobUrl: token ? `${OWNER_BASE}/my-job/${token}` : null, removal: await declaredRemovalKind(jobId) }) as { subject: string; text: string; html?: string };
+  const email = renderPreliminarySpotSavedEmail({ firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null, myJobUrl: token ? `${OWNER_BASE}/my-job/${token}` : null }) as { subject: string; text: string; html?: string };
   const { unsubscribeUrlForJob } = await import("./emailsafety.server");
   return { job, owner, sms: "", email, optOutUrl: await unsubscribeUrlForJob(jobId), rebate: 0 };
 }
