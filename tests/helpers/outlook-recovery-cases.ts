@@ -25,6 +25,34 @@ const practice = (fn: (h: Harness) => Promise<void>) => async () => {
 };
 
 export const outlookRecoveryCases: [string, () => Promise<void>][] = [
+  ["Outlook replies and owner emails copy once in both directions with no job decisions", practice(async h => {
+    h.control.fetch = async () => jsonResponse({ value: [] });
+    const messages = [graphMessage("owner-decline", "Please cancel my enquiry."), graphMessage("office-reply", "I will check your photos tomorrow.", {
+      from: { emailAddress: { address: TEST_MAILBOX } }, toRecipients: [{ emailAddress: { address: "owner@example.test" } }],
+    })];
+    const result = h.counts(); await h.server.processMessages(messages, TEST_MAILBOX, result, COMPLETE_WINDOW);
+    assert.equal(result.stored, 2); assert.equal(result.closed, 0); assert.equal(result.flagged, 0);
+    assert.equal((await row(h, "jobs")).stage, "new_enquiry");
+    assert.equal(await total(h, "workflow_events"), 0); assert.equal(await total(h, "correspondence_reviews"), 0);
+    const directions = (await h.db.query(`SELECT direction FROM job_communications ORDER BY direction`)).rows.map(r => r.direction);
+    assert.deepEqual(directions, ["inbound", "outbound"]);
+    assert.equal((await h.db.query(`SELECT count(*)::int n FROM outlook_message_work WHERE record_only=true`)).rows[0]?.n, 2);
+    const replay = h.counts(); await h.server.processMessages(messages, TEST_MAILBOX, replay, COMPLETE_WINDOW);
+    assert.equal(replay.duplicate, 2); assert.equal(await total(h, "job_communications"), 2);
+  })],
+  ["automated portal mail, junk and unmatched messages create no copied records or portal reviews", practice(async h => {
+    const messages = [
+      graphMessage("auto", "Your spot is saved", { from:{emailAddress:{address:TEST_MAILBOX}},toRecipients:[{emailAddress:{address:"owner@example.test"}}] }),
+      graphMessage("ooo", "I am out of office", {subject:"Automatic reply: HV-1001"}),
+      graphMessage("bounce", "Delivery failed", {subject:"Undeliverable: HV-1001"}),
+      graphMessage("newsletter", "Buy now. Click to unsubscribe"),
+      graphMessage("unknown", "Can you help?", {subject:"Question",from:{emailAddress:{address:"unknown@example.test"}}}),
+    ];
+    const result=h.counts(); await h.server.processMessages(messages,TEST_MAILBOX,result,COMPLETE_WINDOW);
+    assert.equal(result.stored,0); assert.equal(await total(h,"outlook_message_work"),0);
+    assert.equal(await total(h,"correspondence_reviews"),0); assert.equal(await total(h,"job_communications"),0);
+    assert.equal(h.requests.length,0);
+  })],
   ["before-use rollback preserves legacy correspondence; rollback refuses a populated recovery queue", practice(async h => {
     await h.db.query(`INSERT INTO job_communications(job_id,direction,channel,body) VALUES($1,'inbound','email','preserve this historical row')`, [TEST_JOB]);
     await h.db.exec(rollback());
