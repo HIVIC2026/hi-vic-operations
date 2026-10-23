@@ -39,7 +39,31 @@ export type ReadyCheckPickup = MittiPickupItem & {
   /** Installer business matched from the Mitti form owner's portal email; null when unknown. */
   business: { id: string; name: string; userId?: string } | null;
   duplicates: PickupDuplicate[];
+  /** The job whose HV number the installer typed in the form's Portal Job Number, when that job exists. */
+  typedJob?: TypedPickupJob | null;
 };
+
+/** Facts about the job named by a typed HV number (Portal Job Number) on a form the portal did not make. */
+export type TypedPickupJob = {
+  jobId: string; jobNumber: string; stage: string; channel: string | null; deleted: boolean;
+  /** Installer business that brought the job in (jobs.originating_installer_business_id). */ businessId: string | null;
+  /** The job's current measurement is already tied to a different Mitti form. */ hasOtherMittiForm: boolean;
+};
+
+export type TypedJobDecision = { action: "link"; jobId: string; jobNumber: string } | { action: "office_review"; reasons: string[] };
+
+/** Jo 24 Oct (HV-3164): an installer who knows the job's HV number may start the Ready Check in Mitti himself and type
+ *  it in. That form is linked to the job automatically only when the job is his own business's installer job,
+ *  still before the Ready Check is done, and has no other Mitti form. Anything else goes to the office, never guesses. */
+export function typedJobDecision(typed: string, job: TypedPickupJob | null, formBusinessId: string | null, readyCheckStages: readonly string[]): TypedJobDecision {
+  const review = (r: string): TypedJobDecision => ({ action: "office_review", reasons: [r] });
+  if (!job || job.deleted) return review(`Form says ${typed} but there is no such job`);
+  if (!formBusinessId) return review(`Form says ${job.jobNumber} but the Mitti user is not matched to an installer business`);
+  if (job.channel !== "installer_sourced" || job.businessId !== formBusinessId) return review(`Form says ${job.jobNumber}, which is not this installer's job`);
+  if (!readyCheckStages.includes(job.stage)) return review(`Form says ${job.jobNumber}, which is past the Ready Check (${job.stage})`);
+  if (job.hasOtherMittiForm) return review(`Form says ${job.jobNumber}, which already has its own Mitti Ready Check form`);
+  return { action: "link", jobId: job.jobId, jobNumber: job.jobNumber };
+}
 
 const JOB_NUMBER_RE = /^HV-\d{1,6}$/i;
 const PJN_LABELS = ["portal job number", "job reference id"];

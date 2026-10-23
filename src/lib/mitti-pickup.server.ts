@@ -7,11 +7,12 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
 import { mittiApi, norm, parseAudit, validateStoredMittiAudit, type MittiCall } from "./mitti.core";
-import { realMittiCall, syncMittiAssessment } from "./mitti.server";
+import { pointMeasurementAtMitti, realMittiCall, syncMittiAssessment } from "./mitti.server";
+import { provisionalGivesWayToMitti } from "./measurement.core";
 import { jobScope } from "./requirements.server";
 import {
   classifyPortalJobNumber, parsePickupAudit, pickupAddressKey, pickupDuplicates, portalJobNumberItem,
-  propertyAddressKey, templateKindFor, pickupTemplateMatches, type ReadyCheckPickup,
+  propertyAddressKey, templateKindFor, pickupTemplateMatches, type ReadyCheckPickup, type TypedPickupJob,
 } from "./mitti-pickup.core";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -80,7 +81,7 @@ export async function scanMittiReadyCheckPickups(actorId: string | null, call: M
   });
   if (!candidates.length) return { rows: [] };
 
-  // Jo 23 Oct: a form already linked to any portal job (A1 has no Portal Job Number to carry the HV number) is skipped.
+  // A form already linked to a portal job is skipped (the portal's own forms are linked when made).
   const candIds = candidates.map((c) => String(c.audit_id ?? "")).filter(Boolean);
   const { data: linkedRows } = await admin.from("ceiling_measurements").select("external_id").eq("external_source", "mitti").in("external_id", candIds);
   const linked = new Set((linkedRows ?? []).map((r) => String(r.external_id)));
@@ -107,14 +108,30 @@ export async function scanMittiReadyCheckPickups(actorId: string | null, call: M
     if (!p) continue;
     // Blank drafts (nothing typed yet) are not actionable — the office links forms with real content.
     if (!p.siteAddress?.trim() && !p.homeownerName?.trim()) continue;
-    if (classifyPortalJobNumber(p.mittiRef) === "linked") continue; // already carries an HV number
     p.templateKind = templateKindFor(p.templateId, ids);
     if (!bizMap) bizMap = await mittiBusinessMap(api);
     const business = p.mittiOwnerUserId ? bizMap.get(p.mittiOwnerUserId) ?? null : null;
+    // Jo 24 Oct (HV-3164): a form the portal did not make that carries a typed HV number is matched to that job.
+    if (classifyPortalJobNumber(p.mittiRef) === "linked") {
+      rows.push({ ...p, business, duplicates: [], typedJob: await typedPickupJob(String(p.mittiRef)) });
+      continue;
+    }
     rows.push({ ...p, business, duplicates: pickupDuplicates(p, dupJobs) });
   }
   rows.sort((a, b) => String(b.modifiedAt ?? "").localeCompare(String(a.modifiedAt ?? "")));
   return { rows };
+}
+
+/** Facts about the job named by a typed Portal Job Number (read-only). */
+async function typedPickupJob(typed: string): Promise<TypedPickupJob | null> {
+  const { data: j } = await admin.from("jobs").select("id,job_number,stage,channel,deleted_at,originating_installer_business_id")
+    .ilike("job_number", typed.trim().toUpperCase()).eq("business_unit", "hivic").maybeSingle();
+  if (!j) return null;
+  const { data: m } = await admin.from("ceiling_measurements").select("external_source,external_id").eq("job_id", j.id).eq("is_current", true).maybeSingle();
+  return {
+    jobId: j.id, jobNumber: j.job_number, stage: j.stage, channel: j.channel, deleted: !!j.deleted_at,
+    businessId: j.originating_installer_business_id ?? null, hasOtherMittiForm: m?.external_source === "mitti" && !!m.external_id,
+  };
 }
 
 /** Office action: link one Mitti Ready Check audit to a portal job, then run the existing guarded sync. */
@@ -148,9 +165,11 @@ export async function linkMittiReadyCheckToJob(actorId: string | null, input: { 
     ? { kind: "insert" as const }
     : m.external_source === "mitti" && m.external_id === auditId
       ? { kind: "already" as const }
-      : m.status !== "complete" && !m.external_id
-        ? { kind: "adopt" as const, id: m.id }
-        : null;
+      : provisionalGivesWayToMitti(m)
+        ? { kind: "supersede" as const, id: m.id }
+        : m.status !== "complete" && !m.external_id
+          ? { kind: "adopt" as const, id: m.id }
+          : null;
   if (!action) throw new WorkflowError(`This job already has its own Ready Check form or measurement record (${m!.external_source ?? "portal"}, status ${m!.status}). Nothing was changed.`);
 
   // Portal Job Number write-back: overwriting an installer's own Mitti reference is the point of linking.
@@ -168,13 +187,15 @@ export async function linkMittiReadyCheckToJob(actorId: string | null, input: { 
   validateStoredMittiAudit(reread, { storedAuditId: auditId, jobNumber: job.job_number, templateId: parsed.templateId });
 
   // Apply the preflighted measurement action (re-read first: the job's own form may have appeared meanwhile).
-  const { data: mNow } = await admin.from("ceiling_measurements").select("id,external_source,external_id,status").eq("job_id", jobId).eq("is_current", true).maybeSingle();
+  const { data: mNow } = await admin.from("ceiling_measurements").select("id,external_source,external_id,status,provenance,accepted_by").eq("job_id", jobId).eq("is_current", true).maybeSingle();
   if (action.kind === "insert" && !mNow) {
     await admin.from("ceiling_measurements").insert({ job_id: jobId, status: "draft", is_current: true, source_role: "installer", created_by: actorId, external_source: "mitti", external_id: auditId });
   } else if (action.kind === "insert" && mNow && mNow.external_source === "mitti" && mNow.external_id === auditId) {
     // already this audit
   } else if (action.kind === "already" && mNow?.external_source === "mitti" && mNow.external_id === auditId) {
     // retry of an interrupted link: the measurement already points at this audit — nothing to change
+  } else if (action.kind === "supersede" && mNow?.id === action.id && provisionalGivesWayToMitti(mNow)) {
+    await pointMeasurementAtMitti(jobId, mNow, auditId, actorId);
   } else if (action.kind === "adopt" && mNow?.id === action.id) {
     await admin.from("ceiling_measurements").update({ external_source: "mitti", external_id: auditId }).eq("id", mNow.id);
   } else {

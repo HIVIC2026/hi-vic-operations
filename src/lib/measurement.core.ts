@@ -72,3 +72,10 @@ export function verifierBlocker(i: { verifierRole: string; verifierBusinessId: s
     return "During the pilot the ceiling area must be verified by an independent onsite trade, not the business that supplied the figure.";
   return null;
 }
+
+/** Jo 24 Oct: an installer's Add-job/bulk size (provisional, not yet tied to a Mitti form, never accepted) gives way
+ *  to the job's Mitti Ready Check. The provisional row stays as history (is_current=false, supplied figures untouched)
+ *  and the form gets a fresh record, so the Mitti answers are never read as the installer-supplied pilot figure. */
+export function provisionalGivesWayToMitti(m: { provenance?: string | null; status?: string | null; external_source?: string | null; accepted_by?: string | null } | null | undefined): boolean {
+  return !!m && m.provenance === "installer_supplied_provisional" && m.status !== "complete" && m.external_source !== "mitti" && !m.accepted_by;
+}

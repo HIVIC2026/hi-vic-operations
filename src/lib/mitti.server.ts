@@ -9,6 +9,7 @@ import { canonicalMittiTemplateId, mittiTemplateIdentity, sameMittiTemplateId } 
 const MITTI_BASE_URL = "https://api.mitti.com"; // network boundary lives only here
 import { planMeasurementUpdate, type MeasurementLike } from "./scope.core";
 import { jobScope } from "./requirements.server";
+import { provisionalGivesWayToMitti } from "./measurement.core";
 import { readyCheckVariant } from "./mitti-forms.core";
 import { officialFormUseBlocker, evaluatePiesa } from "./official-forms.core";
 import { shortAnswersFromEntries } from "./official-short.core";
@@ -155,8 +156,7 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
       else if (outcome === "created") {
         // Mitti made the form but a later step (share / owner) failed: store it so every retry REUSES it.
         if (measureOnly) {
-          if (m && m.status !== "complete") await admin.from("ceiling_measurements").update({ external_source: "mitti", external_id: seen.createdId }).eq("id", m.id);
-          else await admin.from("ceiling_measurements").insert({ job_id: jobId, status: "draft", is_current: true, source_role: "installer", created_by: actorId, external_source: "mitti", external_id: seen.createdId });
+          await pointMeasurementAtMitti(jobId, m, seen.createdId!, actorId);
         } else if (a) await admin.from("assessments").update({ external_mitti_id: seen.createdId, mitti_template_id: templateId }).eq("id", a.id);
         else { await admin.from("assessments").insert({ job_id: jobId, assessor_id: asg.user_id, external_mitti_id: seen.createdId, mitti_template_id: templateId, mitti_last_error: msg, mitti_sync_status: "error", mitti_scope: scope.scope }); throw wrap(e); }
       } else {
@@ -177,8 +177,7 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
   const now = new Date().toISOString();
   if (measureOnly) {
     if (!r.reused) {
-      if (m && m.status !== "complete") await admin.from("ceiling_measurements").update({ external_source: "mitti", external_id: r.auditId }).eq("id", m.id);
-      else await admin.from("ceiling_measurements").insert({ job_id: jobId, status: "draft", is_current: true, source_role: "installer", created_by: actorId, external_source: "mitti", external_id: r.auditId });
+      await pointMeasurementAtMitti(jobId, m, r.auditId, actorId);
     }
   } else {
     const fields = {
@@ -193,6 +192,21 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
     r.reused ? `Mitti ${measureOnly ? "measure-up" : "assessment"} re-shared with ${r.assigneeEmail}` : `Mitti ${measureOnly ? "measure-up" : "assessment"} created and assigned to ${r.assigneeEmail} (${scope.label})`,
     { audit_id: r.auditId, template_id: templateId, prefill_count: r.prefillCount, scope: scope.scope });
   return { auditId: r.auditId, reused: r.reused, scope: scope.scope };
+}
+
+type MeasurementPointer = { id: string; status: string | null; provenance?: string | null; external_source?: string | null; accepted_by?: string | null } | null | undefined;
+/** Point the job's current measurement at a Mitti Ready Check form. An open record is adopted; an installer's
+ *  provisional Add-job/bulk size is kept as history and replaced by a fresh record (Jo 24 Oct). */
+export async function pointMeasurementAtMitti(jobId: string, m: MeasurementPointer, auditId: string, actorId: string | null) {
+  const fresh = { job_id: jobId, status: "draft" as const, is_current: true, source_role: "installer" as const, created_by: actorId, external_source: "mitti", external_id: auditId };
+  if (m && provisionalGivesWayToMitti(m)) {
+    const { error: ue } = await admin.from("ceiling_measurements").update({ is_current: false }).eq("id", m.id).eq("is_current", true);
+    if (ue) throw new WorkflowError(`The installer's provisional size could not be moved to history: ${ue.message}`);
+    const { error: ie } = await admin.from("ceiling_measurements").insert(fresh);
+    if (ie) throw new WorkflowError(`The Mitti Ready Check record could not be saved: ${ie.message}`);
+    await logEvent(jobId, actorId, "mitti_provisional_superseded", "Installer's provisional size kept as history; the Mitti Ready Check form now supplies the measurements", { audit_id: auditId, provisional_measurement_id: m.id }, { internal: true });
+  } else if (m && m.status !== "complete") await admin.from("ceiling_measurements").update({ external_source: "mitti", external_id: auditId }).eq("id", m.id);
+  else await admin.from("ceiling_measurements").insert(fresh);
 }
 
 /** Apply measure-up values from Mitti through the central plan (never overwrites an accepted measurement). */

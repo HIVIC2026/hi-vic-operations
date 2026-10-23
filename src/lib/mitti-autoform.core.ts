@@ -9,11 +9,14 @@ export const AUTOFORM_WINDOW_DAYS = 30;
 export const AUTOFORM_RETRY_AFTER_HOURS = 24;
 /** The tick has a 55s HTTP limit and runs other Mitti work too; a few forms per tick keeps it well inside. */
 export const AUTOFORM_MAX_PER_TICK = 5;
+/** Visited jobs (provisional size) wait this long for the installer's own Mitti form to be picked up first. */
+export const PROVISIONAL_GRACE_HOURS = 2;
 export const AUTOFORM_FAILED_EVENT = "mitti_autoform_failed";
 
 export type AutoFormFacts = {
   channel: string | null; stage: string; createdAt: string; deleted: boolean; archived: boolean;
   /** A current measurement row exists (any source). */ hasCurrentMeasurement: boolean;
+  /** That row is only the installer's provisional Add-job/bulk size, which gives way to the Mitti form. */ provisionalOnly?: boolean;
   installerUserId: string | null; mittiInvited: boolean; templateSet: boolean; autoSendMitti: boolean;
   /** When the last automatic attempt failed, if any. */ lastFailureAt: string | null;
 };
@@ -27,8 +30,10 @@ export function autoFormDecision(f: AutoFormFacts, now: Date, enabled = AUTOFORM
   if (f.deleted || f.archived) return skip("removed");
   if (!(PRE_READY_CHECK_STAGES as readonly string[]).includes(f.stage)) return skip("past the Ready Check");
   if (now.getTime() - Date.parse(f.createdAt) > AUTOFORM_WINDOW_DAYS * 86_400_000) return skip("older than 30 days");
-  // Any existing measurement (bulk provisional, portal, Mitti) is left alone: the office decides those by hand.
-  if (f.hasCurrentMeasurement) return skip("already has a Ready Check record");
+  // Portal or Mitti measurements are left alone. Jo 24 Oct: an installer's provisional size ("I've visited" on Add a
+  // job) gives way to the form, after a grace period in which a form he started himself is picked up instead.
+  if (f.hasCurrentMeasurement && !f.provisionalOnly) return skip("already has a Ready Check record");
+  if (f.hasCurrentMeasurement && now.getTime() - Date.parse(f.createdAt) < PROVISIONAL_GRACE_HOURS * 3_600_000) return skip("waiting in case the installer started his own form");
   if (!f.autoSendMitti) return skip("automatic Mitti forms are switched off");
   if (!f.templateSet) return skip("Ready Check form not set up");
   if (!f.mittiInvited) return skip("installer not set up in Mitti");

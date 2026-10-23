@@ -6,14 +6,17 @@
 // address already exists is linked to that job and flagged — never blocked, never duplicated. Unmatched
 // authors go to office review. Empty forms (no address, no owner) wait until they have one.
 //
+// A form the installer started himself with the job's HV number typed in (Jo 24 Oct, HV-3164) is linked to that job
+// when it is his own business's installer job before the Ready Check and has no other form; otherwise office review.
+//
 // Forms missing owner phone/email/permission are still created and keep "Needs finishing…" until complete.
 // Switch: workflow_settings.mitti_pickup_auto_enabled. Nothing is sent to anyone, no stage is completed.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import type { MittiCall } from "./mitti.core";
 import { realMittiCall } from "./mitti.server";
-import { scanMittiReadyCheckPickups, linkMittiReadyCheckToJob, type PickupScanOpts } from "./mitti-pickup.server";
-import { pickupAutoDecision, pickupAddressParts, needsFinishingText, pickupFormLabel } from "./mitti-pickup.core";
+import { READY_CHECK_STAGES, scanMittiReadyCheckPickups, linkMittiReadyCheckToJob, type PickupScanOpts } from "./mitti-pickup.server";
+import { pickupAutoDecision, pickupAddressParts, needsFinishingText, pickupFormLabel, typedJobDecision } from "./mitti-pickup.core";
 
 export type PickupAutoResult = { auditId: string; action: "created" | "linked" | "review" | "would_create" | "would_link" | "would_review" | "failed"; jobNumber?: string; reasons?: string[]; error?: string };
 
@@ -82,6 +85,25 @@ export async function sweepMittiPickupAuto(opts: { dryRun?: boolean; call?: Mitt
   const results: PickupAutoResult[] = [];
   for (const r of rows) {
     const form = pickupFormLabel(r.templateKind);
+    if (r.typedJob !== undefined) {
+      const t = typedJobDecision(String(r.mittiRef), r.typedJob, r.business?.id ?? null, READY_CHECK_STAGES);
+      if (t.action === "office_review") {
+        if (!opts.dryRun) await recordReview(r.auditId, r.business?.name ?? null, t.reasons).catch(() => undefined);
+        results.push({ auditId: r.auditId, action: opts.dryRun ? "would_review" : "review", reasons: t.reasons });
+        continue;
+      }
+      if (opts.dryRun) { results.push({ auditId: r.auditId, action: "would_link", jobNumber: t.jobNumber }); continue; }
+      try {
+        const link = await linkMittiReadyCheckToJob(null, { auditId: r.auditId, jobId: t.jobId }, call);
+        await logEvent(t.jobId, null, "mitti_pickup_typed_linked", `Ready Check the installer started in Mitti with ${t.jobNumber} typed in (${form} form, ${r.business!.name}) linked automatically`, { audit_id: r.auditId, form, business_id: r.business!.id, issues: link.issues }, { internal: true });
+        results.push({ auditId: r.auditId, action: "linked", jobNumber: t.jobNumber });
+      } catch (e) {
+        const why = `Form says ${t.jobNumber} but could not link: ${e instanceof Error ? e.message : "error"}`;
+        await recordReview(r.auditId, r.business?.name ?? null, [why]).catch(() => undefined);
+        results.push({ auditId: r.auditId, action: "review", reasons: [why] });
+      }
+      continue;
+    }
     const decision = pickupAutoDecision({
       templateKind: r.templateKind, businessMatched: !!r.business,
       homeownerName: r.homeownerName, siteAddress: r.siteAddress,

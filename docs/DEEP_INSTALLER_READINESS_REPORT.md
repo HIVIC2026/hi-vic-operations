@@ -75,13 +75,13 @@ This creates the job, and the automatic Mitti form follows within about 15 minut
 6. **Deep never told** when the owner accepts. ❌ To build: an email or text to the installer.
 7. **"Quoted? answer needed" dead end** on Mitti jobs, including after acceptance. ✅ *Fixed on branch.*
 8. **"New Ready Check" buttons** make blank, unlinked forms. ✅ *Fixed on branch:* removed. The job page now says "your form is on its way, please don't start a new one".
-9. **"I've visited" in Add a job → no Mitti form is ever made,** because the provisional measurement blocks it. ❌ Needs a small decision: let the automatic form take over that record (recommended).
+9. **"I've visited" in Add a job → no Mitti form is ever made,** because the provisional measurement blocks it. ✅ *Fixed on branch (24 Oct):* the provisional size is kept as history and the Mitti form takes over. A form Deep started himself is linked first; the portal only makes a new form after 2 hours if he hasn't.
 
 **Should fix:**
 - ✅ *On branch:* accepted quote still reads "to accept the quote"; "Needs finishing…" never clearing.
 - ❌ "Ask the owner for times" button errors, with owner-facing wording. Hide it for Mitti jobs.
 - ❌ Add a job's last screen says "add your measurements and quote on this job". It should say "in your Mitti form".
-- ❌ Picked-up Mitti forms with a typed HV number are skipped by the pickup.
+- ✅ *On branch (24 Oct, HV-3164):* Mitti forms Deep starts himself with the HV number typed in were skipped. They now link to that job automatically when it is his own job, before the Ready Check, with no other form. Anything else goes to office review.
 - ❌ Mitti pickup can still push jobs back to "scheduled", re-adopt cancelled forms, and overwrite owner details (found yesterday).
 
 ---

@@ -123,6 +123,17 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           out['ok'] = false;
         }
         try {
+          // Runs BEFORE the automatic forms (Jo 24 Oct): a form the installer started himself is linked first, so a
+          // job never gets a second, blank form. Stage 4: Mitti-first auto-pickup. OFF by default (workflow_settings.mitti_pickup_auto_enabled);
+          // when ON, clean forms create installer-sourced jobs and link themselves — nothing is sent.
+          const { sweepMittiPickupAuto } = await import("@/lib/mitti-pickup-auto.server");
+          const a = await sweepMittiPickupAuto();
+          (out as Record<string, unknown>)['mittiPickupAuto'] = { enabled: a.enabled, adopted: a.results.filter((x) => x.action === "created").length, review: a.results.filter((x) => x.action === "review" || x.action === "failed").length };
+        } catch (e) {
+          console.error("allocation tick: mitti auto-pickup failed", (e as Error).message);
+          (out as Record<string, unknown>)['mittiPickupAuto'] = "failed";
+        }
+        try {
           // Jo 23 Oct: installer jobs get their Mitti Ready Check form automatically (same guarded create path as
           // the office button). Never sends to owners or changes stage.
           const { sweepReadyCheckForms } = await import("@/lib/mitti-autoform.server");
@@ -140,16 +151,6 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         } catch (e) {
           console.error("allocation tick: mitti sync failed", (e as Error).message);
           (out as Record<string, unknown>)['mitti'] = "failed"; // Mitti outages must not fail the whole tick
-        }
-        try {
-          // Stage 4: Mitti-first auto-pickup. OFF by default (workflow_settings.mitti_pickup_auto_enabled);
-          // when ON, clean forms create installer-sourced jobs and link themselves — nothing is sent.
-          const { sweepMittiPickupAuto } = await import("@/lib/mitti-pickup-auto.server");
-          const a = await sweepMittiPickupAuto();
-          (out as Record<string, unknown>)['mittiPickupAuto'] = { enabled: a.enabled, adopted: a.results.filter((x) => x.action === "created").length, review: a.results.filter((x) => x.action === "review" || x.action === "failed").length };
-        } catch (e) {
-          console.error("allocation tick: mitti auto-pickup failed", (e as Error).message);
-          (out as Record<string, unknown>)['mittiPickupAuto'] = "failed";
         }
         try {
           // Jo 23 Oct: one 48h quote-check reminder EMAIL per quote version to the installer. Switched OFF (code constant).

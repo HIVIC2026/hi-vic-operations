@@ -24,7 +24,7 @@ export async function sweepReadyCheckForms(opts: { call?: MittiCall; now?: Date;
   const ids = jobs.map((j) => j.id);
   const [ws, measurements, assignments, failures] = await Promise.all([
     admin.from("workflow_settings").select("auto_send_mitti, mitti_ready_check_priced_template_id").eq("id", 1).maybeSingle(),
-    admin.from("ceiling_measurements").select("job_id").in("job_id", ids).eq("is_current", true),
+    admin.from("ceiling_measurements").select("job_id, provenance, status, external_source, accepted_by").in("job_id", ids).eq("is_current", true),
     admin.from("job_assignments").select("job_id, user_id, business_id").in("job_id", ids).eq("role", "installer").eq("active", true),
     admin.from("workflow_events").select("job_id, created_at").in("job_id", ids).eq("event_type", AUTOFORM_FAILED_EVENT).order("created_at", { ascending: false }),
   ]);
@@ -33,6 +33,8 @@ export async function sweepReadyCheckForms(opts: { call?: MittiCall; now?: Date;
   const { data: businesses, error: be } = bizIds.length ? await admin.from("businesses").select("id, mitti_account_invited, onboarding_notes").in("id", bizIds) : { data: [], error: null };
   if (be) throw new Error("Ready Check form sweep could not read installers.");
   const measured = new Set((measurements.data ?? []).map((m) => m.job_id));
+  const { provisionalGivesWayToMitti } = await import("./measurement.core");
+  const provisional = new Set((measurements.data ?? []).filter((m) => provisionalGivesWayToMitti(m)).map((m) => m.job_id));
   const { isTestPartner } = await import("./test-send.core");
 
   const results: AutoFormResult[] = [];
@@ -43,7 +45,7 @@ export async function sweepReadyCheckForms(opts: { call?: MittiCall; now?: Date;
     const biz = businesses?.find((b) => b.id === (asg?.business_id ?? j.originating_installer_business_id)) ?? null;
     const d = autoFormDecision({
       channel: j.channel, stage: j.stage, createdAt: j.created_at, deleted: !!j.deleted_at, archived: !!j.qa_archived_at,
-      hasCurrentMeasurement: measured.has(j.id), installerUserId: asg?.user_id ?? null,
+      hasCurrentMeasurement: measured.has(j.id), provisionalOnly: provisional.has(j.id), installerUserId: asg?.user_id ?? null,
       mittiInvited: biz?.mitti_account_invited === true, templateSet: !!ws.data?.mitti_ready_check_priced_template_id?.trim(),
       autoSendMitti: ws.data?.auto_send_mitti === true,
       lastFailureAt: failures.data?.find((f) => f.job_id === j.id)?.created_at ?? null,
