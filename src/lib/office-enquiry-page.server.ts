@@ -38,13 +38,18 @@ export async function loadOfficeEnquiryPage(view: EnquiryPageView, search: strin
     });
     result = { ...result, ids, total, totalPages, page: currentPage, pageSize: 50 };
   }
-  const [details, { data: facts, error: factsError }] = await Promise.all([
+  const [details, { data: facts, error: factsError }, { data: badEmail }] = await Promise.all([
     result.ids.length ? loadEnquiryGroups(result.ids) : Promise.resolve({ rows: [] }),
     result.ids.length
     ? admin.from('office_enquiry_index').select('id,enquiry_status,needs_first_response,review_outcome,media_to_review,media_count,response_state,latest_attempt_status,latest_attempt_at,more_photos_requested').in('id', result.ids)
     : Promise.resolve({ data: [], error: null }),
+    // Jo 23 Oct: website enquiries kept despite a mistyped email get an "Email looked wrong" label.
+    result.ids.length
+    ? admin.from('workflow_events').select('job_id').eq('event_type', 'website_email_invalid').in('job_id', result.ids)
+    : Promise.resolve({ data: [] as { job_id: string | null }[] }),
   ]);
   if (factsError) throw new Error('Could not verify enquiry page facts.');
+  const emailFlagged = new Set((badEmail ?? []).map(e => e.job_id));
   const factById = new Map((facts ?? []).map(row => [row.id, row]));
   const byId = new Map(details.rows.map(row => [row.id, row]));
   return {
@@ -62,6 +67,7 @@ export async function loadOfficeEnquiryPage(view: EnquiryPageView, search: strin
         responseState: (fact.response_state ?? 'none') as ResponseState,
         latestAttemptStatus: fact.latest_attempt_status ?? null, latestAttemptAt: fact.latest_attempt_at ?? null,
         mediaToReview: fact.media_to_review === true, nextParty: next.party, nextAction: next.label,
+        emailLooksWrong: emailFlagged.has(id) && !(row.email ?? '').trim(),
       }];
     }),
   };

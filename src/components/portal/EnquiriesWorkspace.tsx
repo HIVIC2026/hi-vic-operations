@@ -22,6 +22,7 @@ import { OFFICE_ENQUIRY_LABEL } from "@/lib/office-nav";
 import { RESPONSE_STATE_LABEL, showingRange, enquiryRowTag } from "@/lib/enquiry-response.core";
 import { cn } from "@/lib/utils";
 import { QuotesToCheck } from "./QuotesToCheck";
+import { Pill } from "./kit";
 
 export type EnquiryView = EnquiryStatus | "all" | "new" | "photos" | "removed";
 
@@ -421,6 +422,9 @@ export function EnquiriesWorkspace({
                           {row.jobNumber} · {row.email ?? "No email"}
                           {row.phone ? ` · ${row.phone}` : ""}
                         </div>
+                        {row.emailLooksWrong && (
+                          <Pill tone="rose" className="mt-1">Email looked wrong</Pill>
+                        )}
                       </td>
                       <td className="col-span-2 p-1 md:p-3">{row.address ?? "—"}</td>
                       <td className="col-span-2 p-1 font-semibold md:p-3">

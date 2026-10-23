@@ -120,6 +120,16 @@ export async function sendRealSms(input: RealSmsInput, blast?: { claimId: string
   return r;
 }
 
+/** Jo 23 Oct (fix): a text left on "sending" for over 15 minutes means the run stopped before saving Twilio's answer.
+ *  Mark it "sent_unknown" (may have sent; never re-sent) so it doesn't sit as "sending" forever. Never sends. */
+export async function settleStuckSending(): Promise<number> {
+  const cutoff = new Date(Date.now() - 15 * 60_000).toISOString();
+  const { data, error } = await db.from("sms_messages").update({ status: "sent_unknown", detail: "Run stopped before Twilio's answer was saved – may have sent, not retried", updated_at: new Date().toISOString() })
+    .eq("status", "sending").is("provider_sid", null).lt("created_at", cutoff).select("id");
+  if (error) { console.error("settle stuck SMS failed", error.message); return 0; }
+  return (data ?? []).length;
+}
+
 /** Twilio delivery callback → sms_messages status. */
 export async function recordSmsStatus(sid: string, status: string, errorCode: string | null) {
   const { mapTwilioStatus } = await import("./sms.core");

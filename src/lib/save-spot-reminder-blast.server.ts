@@ -95,6 +95,7 @@ export async function runSaveSpotReminderBlast(dryRun: boolean, automatic = fals
   const result = { dryRun, recipientCount: plan.recipients.length, skipped: plan.skipped, samples: plan.recipients.slice(0, 5), sendBlockers };
   if (dryRun) return { ...result, results: [], hasMore: false };
   if (sendBlockers.length) throw new Error(sendBlockers.join("; "));
+  await (await import("./sms.server")).settleStuckSending();
   const results: Array<{ jobId: string; jobNumber: string | null; status: string; detail: string }> = [];
   // Bounded calls: the admin screen explicitly requests subsequent batches. No background worker/cron.
   for (const recipient of plan.recipients.slice(0, 10)) {

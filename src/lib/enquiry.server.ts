@@ -73,6 +73,16 @@ export const enquirySchema = z.object({
 });
 export type EnquiryInput = z.infer<typeof enquirySchema>;
 
+/** Jo 23 Oct 2026: a website enquiry whose ONLY problem is a mistyped email is kept (not lost) when it has a phone number.
+ *  Returns the typed email text when that is the case, otherwise null (normal rejection stands). */
+export function mistypedEmailOnly(json: unknown, error: z.ZodError): string | null {
+  if (!error.issues.length || !error.issues.every((i) => i.path.length === 1 && i.path[0] === "email")) return null;
+  const o = (json && typeof json === "object" ? json : {}) as { email?: unknown; phone?: unknown };
+  if (typeof o.phone !== "string" || !o.phone.trim()) return null;
+  return typeof o.email === "string" ? o.email.trim().slice(0, 255) : "";
+}
+export const enquiryWithoutEmailSchema = enquirySchema.extend({ email: z.unknown().transform(() => null) });
+
 /** Create/update owner, property and job from an enquiry. Idempotent on external_enquiry_id. */
 export type JobOrigin = { channel: "hivic_sourced" } | { channel: "installer_sourced"; businessId: string; userId: string };
 
@@ -97,10 +107,20 @@ export function intakeJobFacts(input: { estimated_area_m2: number | null | undef
   };
 }
 
-export async function upsertEnquiry(input: Omit<EnquiryInput, "estimated_area_m2" | "email"> & { estimated_area_m2: number | null; email: string | null }, source: string, actorId: string | null, origin: JobOrigin = { channel: "hivic_sourced" }) {
+export async function upsertEnquiry(input: Omit<EnquiryInput, "estimated_area_m2" | "email"> & { estimated_area_m2: number | null; email: string | null }, source: string, actorId: string | null, origin: JobOrigin = { channel: "hivic_sourced" }, opts: { mistypedEmail?: string | undefined } = {}) {
   const facts = intakeJobFacts(input, source, origin);
   // Email may be null only for Mitti pick-ups marked "Needs finishing" (Jo 22 Oct): a fresh owner row, never matched.
-  if (input.email == null && source !== "installer_mitti" && !(source === "qa_test" && origin.channel === "installer_sourced")) throw new Error("Owner email is required.");
+  // Also for a website enquiry whose email was mistyped (Jo 23 Oct): kept so the lead isn't lost; office fixes the email.
+  const mistyped = source === "base44" && opts.mistypedEmail != null;
+  if (input.email == null && !mistyped && source !== "installer_mitti" && !(source === "qa_test" && origin.channel === "installer_sourced")) throw new Error("Owner email is required.");
+  const result = await upsertEnquiryInner(input, source, actorId, origin, facts);
+  if (mistyped) await logEvent(result.job_id, actorId, MISTYPED_EMAIL_EVENT, `Website email looked wrong ("${opts.mistypedEmail}") — enquiry kept without an email. Check the owner's email.`, { typed_email: opts.mistypedEmail, needs_office: true }, { internal: true });
+  return result;
+}
+
+export const MISTYPED_EMAIL_EVENT = "website_email_invalid";
+
+async function upsertEnquiryInner(input: Omit<EnquiryInput, "estimated_area_m2" | "email"> & { estimated_area_m2: number | null; email: string | null }, source: string, actorId: string | null, origin: JobOrigin, facts: ReturnType<typeof intakeJobFacts>) {
   const email = input.email?.toLowerCase() ?? null;
   const preserveEntered = origin.channel === "installer_sourced";
   const enteredText = (await import("./mitti-quote-release.core")).installerEnteredText;
