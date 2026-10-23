@@ -52,6 +52,8 @@ export async function keepNeedsFinishing(): Promise<number> {
   let fixed = 0;
   for (const j of jobs ?? []) {
     if (j.deleted_at || !READY_CHECK_STAGES.includes(j.stage)) continue;
+    // Jo 23 Oct: anything that moved an installer-led Mitti job back to an owner-waiting stage is undone here.
+    await (await import("./mitti-pickup.server")).holdAtMittiReadyCheck(j.id, null);
     const o = j.owners as { phone: string | null; email: string | null } | null;
     const missing = [!o?.phone?.trim() && "owner phone", !o?.email?.trim() && "owner email", !permitted.has(j.id) && "owner contact permission"].filter(Boolean) as string[];
     // Jo 23 Oct: once the sync has recorded the full basics check, that list (area, product, price, contact) wins.
