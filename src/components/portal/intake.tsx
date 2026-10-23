@@ -44,6 +44,7 @@ export function IntakeSummary({ jobId }: { jobId: string }) {
         <p className="mb-2 text-xs text-muted-foreground">Last error: {data.postIntake.last_error} · next try {when(data.postIntake.available_at)}</p>
       )}
       {data.postIntake?.status === "complete" && <p className="mb-2 text-xs text-muted-foreground">Initial eligibility checks complete {when(data.postIntake.completed_at)}</p>}
+      {data.buildDecade && <p className="mb-2 text-sm"><span className="font-semibold">Home built:</span> {data.buildDecade} (owner declared on website)</p>}
       {data.insulationTap && <div className="mb-4 text-sm"><p className="font-semibold">Owner-declared insulation details</p><p>{yn(data.insulationTap.answers.insulation_type)} · {yn(data.insulationTap.answers.insulation_thickness)}</p><p>House built: {yn(data.insulationTap.answers.house_built_period)} (owner declared)</p></div>}
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1 text-sm">

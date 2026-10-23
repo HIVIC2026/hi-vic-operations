@@ -1442,6 +1442,7 @@ export const getIntakeSummary = createServerFn({ method: "POST" }).middleware([r
       consent: consents?.[0] ?? null, declared: b44?.declared ?? null,
       declaredExtras: { ...(await import("./enquiry.core")).declaredExtras(b44?.raw?.answers ?? null), ...(await import("./enquiry.core")).declaredInsulationDetail((await import("./insulation-details.core")).ownerInsulationAnswers(prop?.enrichment)) },
       insulationTap: (await import("./insulation-details.core")).savedInsulationTap(prop?.enrichment),
+      buildDecade: (await import("./build-decade.core")).buildDecadeLabel((await import("./build-decade.core")).buildDecadeFromAnswers(b44?.raw?.answers ?? null)),
       // Preliminary website screening only – never the authoritative Step-2 category.
       screening: (() => { const prelim = job?.eligibility_decision_source !== "system" && job?.eligibility_decision_source !== "admin"; const raw = b44?.raw?.screening ?? null; return { outcome: prelim ? job?.eligibility_outcome ?? null : (typeof raw?.status === "string" ? raw.status : null), reasons: prelim ? job?.eligibility_reason ?? null : null, raw }; })(),
       media: links, lastMediaFailure: fails?.[0] ?? null,
@@ -1452,6 +1453,7 @@ export const getIntakeSummary = createServerFn({ method: "POST" }).middleware([r
       declared: { property_type: string | null; over_five_years: string | null; previous_upgrade: string | null } | null;
       declaredExtras: { existing_insulation: string | null; top_floor: string | null } & import("./enquiry.core").InsulationDetail;
       insulationTap: {answers:import("./insulation-details.core").InsulationTapAnswers;route:string}|null;
+      buildDecade: string | null;
       screening: { outcome: string | null; reasons: string | null; raw: Json };
       media: { id: string; name: string; mime: string | null; size: number | null; url: string | null }[];
       lastMediaFailure: { created_at: string; summary: string } | null;
