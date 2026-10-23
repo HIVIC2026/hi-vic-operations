@@ -39,7 +39,7 @@ const fig = { veuRebate: 1258, customerTotal: 2341, totalBeforeRebate: 3599, ins
 const r = { firstName: "Sam", propertyAddress: "1 St", enquiryReference: "HV-1" } as never;
 test("standard existing wording has removal line and never says thin", () => {
   const t = renderJoEstimateEmail("eligible_no_insulation_size_known" as never, r, fig, { declaredExisting: true }).body;
-  expect(t).toContain(EXISTING_SAVE_SPOT_LINE); expect(t).not.toContain(THIN_PATCHY_SAVE_SPOT_LINE); expect(t).toContain("up to $2,250");
+  expect(t).toContain(EXISTING_SAVE_SPOT_LINE); expect(t).not.toContain(THIN_PATCHY_SAVE_SPOT_LINE); expect(t).toContain("$0 – $2,250");
 });
 test("thin wording only for thin/loose fill", () => {
   const t = renderJoEstimateEmail("eligible_no_insulation_size_known" as never, r, fig, { declaredThinPatchy: true }).body;

@@ -1,3 +1,4 @@
+import { tapSaysThinOrLooseFill } from "./spot-saved-rank.core";
 export const INSULATION_DETAIL_QUESTIONS = [
   { key: "insulation_type", label: "What type is it?", options: [{value:"loose_fill",label:"Loose fill (fluffy or crumbly)"},{value:"batts",label:"Batts (blanket strips)"},{value:"unknown",label:"Not sure"}] },
   { key: "insulation_thickness", label: "About how thick is it?", options: [{value:"thin",label:"Less than a finger's length"},{value:"hand",label:"About a hand's width"},{value:"thicker",label:"Thicker"},{value:"unknown",label:"Can't tell"}] },
@@ -12,7 +13,7 @@ export function insulationDraftSaveAllowed(preview:boolean,source:string|null|un
  *  1991 minimum standards, Sustainability Victoria 2016) now only affects rank. */
 export type InsulationTapRoute = "thin_patchy" | "existing_save_spot";
 export function insulationTapRoute(a: Pick<InsulationTapAnswers,"insulation_type"|"insulation_thickness"> & Partial<Pick<InsulationTapAnswers,"house_built_period">>, _hasPhotos = false): InsulationTapRoute {
-  return a.insulation_type === "loose_fill" || a.insulation_thickness === "thin" ? "thin_patchy" : "existing_save_spot";
+  return tapSaysThinOrLooseFill(a) ? "thin_patchy" : "existing_save_spot";
 }
 /** Original website handoff stays immutable; newer declared answers are a separate provenance overlay. */
 export function ownerInsulationAnswers(enrichment: Record<string,unknown>|null|undefined): Record<string,unknown> {
