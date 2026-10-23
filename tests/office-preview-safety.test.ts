@@ -16,8 +16,10 @@ test('confirmed first response excludes New; unrelated sent purpose does not',()
  expect(isNewEnquiry({sentPurposes:['office_notification']})).toBe(true);
 });
 test('R2 or above requires a confirmed reason',()=>{
- expect(()=>mediaReviewPlan('over_r2')).toThrow();
- expect(mediaReviewPlan('over_r2','R2 confirmed')).toMatchObject({reason:'R2 confirmed',nextAction:'Send ineligible response'});
+ expect(()=>mediaReviewPlan('over_r2',undefined,true)).toThrow();
+ expect(mediaReviewPlan('over_r2','R2 confirmed',true)).toMatchObject({reason:'R2 confirmed',close:true,manualOnly:true});
+ expect(mediaReviewPlan('over_r2')).toMatchObject({close:false,rankOnly:true,manualOnly:true});
+ expect(()=>mediaReviewPlan('below_r2','x',true)).toThrow();
 });
 test('practice review outcomes persist only manual audit next actions, never communications',async()=>{
  const db=new PGlite();
