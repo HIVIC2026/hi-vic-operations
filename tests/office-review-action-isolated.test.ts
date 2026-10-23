@@ -5,7 +5,7 @@ const {reviewLeadMedia}=await import('../src/lib/enquiry-groups.server');
 for(const outcome of ['no_insulation','below_r2','over_r2','unclear'] as const)test(`real review action ${outcome} writes only audit, no queue/send/job update`,async()=>{
  tables.length=0;const before=events.length;
  await reviewLeadMedia('TEST',outcome,'TEST_ACTOR',outcome==='over_r2'?'Confirmed R2 or above':undefined);
- expect(events).toHaveLength(before+1);expect(tables).toEqual(['jobs','customer_engagement_events']);
+ expect(events).toHaveLength(before+1);expect(tables).toEqual(['jobs','lead_campaign_responses','customer_engagement_events']);
  expect(events.at(-1)?.metadata).toMatchObject({outcome,manualOnly:true});
 });
 test('real R2+ action without reason rejects before any persistence',async()=>{
