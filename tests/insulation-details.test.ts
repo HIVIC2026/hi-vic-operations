@@ -1,7 +1,7 @@
 import {afterAll,beforeAll,expect,test} from 'bun:test';
 import {PGlite} from '@electric-sql/pglite';
 import {readFileSync} from 'node:fs';
-import {insulationTapRoute,ownerInsulationAnswers,type InsulationTapAnswers} from '../src/lib/insulation-details.core';
+import {insulationDraftSaveAllowed,insulationTapRoute,ownerInsulationAnswers,type InsulationTapAnswers} from '../src/lib/insulation-details.core';
 const db=new PGlite();const job='00000000-0000-4000-8000-000000000001', prop='00000000-0000-4000-8000-000000000002',link='00000000-0000-4000-8000-000000000003';const token='T'.repeat(43);
 const read=(n:string)=>readFileSync(new URL('../docs/pending-migrations/'+n,import.meta.url),'utf8');
 beforeAll(async()=>{
@@ -26,6 +26,12 @@ beforeAll(async()=>{
 });
 afterAll(()=>db.close());
 const save=(a:InsulationTapAnswers)=>db.query('SELECT save_owner_insulation_details($1,$2) result',[token,JSON.stringify(a)]);
+test('preview draft cannot save real owners or activate on a published host',()=>{
+ expect(insulationDraftSaveAllowed(true,'qa_test')).toBe(true);
+ expect(insulationDraftSaveAllowed(true,'base44')).toBe(false);
+ expect(insulationDraftSaveAllowed(false,'qa_test')).toBe(false);
+ expect(insulationDraftSaveAllowed(false,'base44')).toBe(false);
+});
 test('loose fill wins over every thickness; thin wins over every type',()=>{
  for(const thickness of ['thin','hand','thicker','unknown'] as const)expect(insulationTapRoute({insulation_type:'loose_fill',insulation_thickness:thickness})).toBe('thin_patchy');
  for(const type of ['batts','loose_fill','unknown'] as const)expect(insulationTapRoute({insulation_type:type,insulation_thickness:'thin'})).toBe('thin_patchy');

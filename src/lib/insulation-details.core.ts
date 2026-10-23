@@ -4,6 +4,7 @@ export const INSULATION_DETAIL_QUESTIONS = [
   { key: "house_built_period", label: "When was the house built?", options: [{value:"before_1980",label:"Before 1980"},{value:"1980s",label:"1980s"},{value:"1990s",label:"1990s"},{value:"2000s",label:"2000s"},{value:"2010_or_later",label:"2010 or later"},{value:"unknown",label:"Not sure"}] },
 ] as const;
 export type InsulationTapAnswers = { insulation_type: "loose_fill"|"batts"|"unknown"; insulation_thickness: "thin"|"hand"|"thicker"|"unknown"; house_built_period: "before_1980"|"1980s"|"1990s"|"2000s"|"2010_or_later"|"unknown" };
+export function insulationDraftSaveAllowed(preview:boolean,source:string|null|undefined){return preview&&source==='qa_test';}
 export function insulationTapRoute(a: Pick<InsulationTapAnswers,"insulation_type"|"insulation_thickness">): "thin_patchy"|"needs_onsite_assessment" {
   return a.insulation_type === "loose_fill" || a.insulation_thickness === "thin" ? "thin_patchy" : "needs_onsite_assessment";
 }

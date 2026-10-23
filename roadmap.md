@@ -1,8 +1,8 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Insulation details tap questions (Jo 23 Oct 07:13 UTC)
-- [ ] Update only insulation-details email/button and secure mobile page; preserve upload flow.
-- [ ] Persist owner-declared canonical answers with history; loose fill/thin guarded follow-up, otherwise onsite-only/no office queue; house age informational. Prove persistence/queue SQL on PGlite, no live migration/sends/publish.
-- [ ] Phone preview and focused tests; show exact draft wording and any activation blocker.
+- [x] Draft insulation-details email/button and secure mobile page; preserve upload flow; 390px isolated phone questions/no overflow verified, email rendered locally with fictional TEST figures.
+- [x] Owner-declared answer overlay/history and onsite-only list exclusion staged; PGlite persistence/idempotency/queue/photo-return/age proof passes. No live migration/sends/publish; submission explicitly TEST-preview-only.
+- [ ] Activate hosted persistence and guarded automatic thin/patchy follow-up only after approval: pending practice-proven migration deliberately unapplied; no hosted save or send claimed. Existing declaration regression fixture has two pre-existing missing-query-method failures.
 ## Outlook-first replacement (Jo 23 Oct 07:06 UTC)
 - [x] Remove portal email/unmatched queues; matched record-only two-way copying, clean job history/media, automated/junk/unmatched excluded and redirect fix preserved. 68 tests pass including PGlite two-direction/idempotency/no-decisions/no-unmatched cases; authenticated phone Enquiries/job screenshots verified. No live sync, sends, database changes or publish.
 ## Owner email cleanup (Jo 23 Oct 06:51 UTC)
