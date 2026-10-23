@@ -298,14 +298,14 @@ export async function loadLeadMedia(jobId: string) {
 
 /** Records the office photo/video review (Jo, 8 Oct): below_r2 → Save my spot offer; over_r2 → ineligible; unclear → more pictures.
  *  Writes one permanent engagement event; the latest event decides the lead's group. Never changes the Gate 1 audit. */
-export async function reviewLeadMedia(jobId: string, outcome: MediaReviewOutcome, by: string | null, reason?: string) {
+export async function reviewLeadMedia(jobId: string, outcome: MediaReviewOutcome, by: string | null, reason?: string, close = false) {
   if (!MEDIA_OUTCOMES.includes(outcome)) throw new Error("Unknown review outcome.");
   const { mediaReviewPlan } = await import('./office-media-review.core');
-  const plan = mediaReviewPlan(outcome, reason);
+  const plan = mediaReviewPlan(outcome, reason, close);
   const job = must(await admin.from("jobs").select("id, job_number, stage, eligibility_outcome, eligibility_decision_source").eq("id", jobId).maybeSingle(), "Job");
   if (!job) throw new Error("Job not found.");
   if (!['new_enquiry', 'eligibility_review', 'preliminary_estimate_ready', 'on_hold'].includes(job.stage)) throw new Error('Only pre-progression enquiries can be reviewed here.');
-  if (outcome !== 'over_r2' && job.eligibility_outcome === 'does_not_appear_eligible' && job.eligibility_decision_source === 'admin') throw new Error('An existing Office ineligible decision requires separate Office review.');
+  if (!close && outcome !== 'over_r2' && job.eligibility_outcome === 'does_not_appear_eligible' && job.eligibility_decision_source === 'admin') throw new Error('An existing Office ineligible decision requires separate Office review.');
   // Jo 23 Oct 08:27 UTC: a saved spot's photo check only moves its Spots saved rank — never an email or
   // eligibility change (they already have their spot). manualOnly makes the automatic email route stand down.
   const saved = must(await admin.from("lead_campaign_responses").select("spot_saved_at").eq("job_id", jobId).maybeSingle(), "Spot");
@@ -316,7 +316,14 @@ export async function reviewLeadMedia(jobId: string, outcome: MediaReviewOutcome
     metadata: { ...plan, by, ...(spotSaved ? { manualOnly: true, spotSavedRankOnly: true } : {}) }, dedupe_key: `intake_media_reviewed:${jobId}:${now.getTime()}`,
   });
   if (ins.error) throw new Error(`Review could not be saved: ${ins.error.message}`);
-  return { ok: true as const, outcome, spotSaved };
+  if (close) {
+    const { logEvent } = await import("./workflow.server");
+    const why = `Not eligible (photo review): ${plan.reason}`;
+    const up = await admin.from("jobs").update({ stage: "cancelled", prior_stage: job.stage, cancelled_reason: why }).eq("id", jobId).neq("stage", "cancelled");
+    if (up.error) throw new Error(`Could not close the enquiry: ${up.error.message}`);
+    await logEvent(jobId, by, "stage_changed", `Closed: ${why}`, { reason: plan.reason }, { from: job.stage as never, to: "cancelled", internal: true });
+  }
+  return { ok: true as const, outcome, spotSaved, closed: close };
 }
 
 /** Office removes fake/junk leads (Jo, 8 Oct): job is cancelled, permanently noted, and shown only under "Removed". */

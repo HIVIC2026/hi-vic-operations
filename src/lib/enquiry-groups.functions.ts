@@ -50,11 +50,11 @@ export const getLeadMedia = createServerFn({ method: "POST" }).middleware([requi
   });
 
 export const reviewLeadMediaFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), outcome: z.enum(["no_insulation", "below_r2", "over_r2", "unclear"]), reason: z.string().max(500).optional() }).parse(d))
+  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), outcome: z.enum(["no_insulation", "below_r2", "over_r2", "unclear"]), reason: z.string().max(500).optional(), close: z.boolean().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const { reviewLeadMedia } = await import("./enquiry-groups.server");
-    return reviewLeadMedia(data.jobId, data.outcome, context.userId ?? null, data.reason);
+    return reviewLeadMedia(data.jobId, data.outcome, context.userId ?? null, data.reason, data.close === true);
   });
 
 export const removeLeadsFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
