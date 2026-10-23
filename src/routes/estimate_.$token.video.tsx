@@ -11,7 +11,7 @@ import { submitInsulationTapAnswers } from "@/lib/insulation-details.functions";
 import { INSULATION_DETAIL_QUESTIONS, type InsulationTapAnswers } from "@/lib/insulation-details.core";
 import { Button } from "@/components/ui/button";
 import { getLaunchCampaignPage, saveMySpot, takeMeOffList } from "@/lib/launch-campaign.functions";
-import { removalUpToLine } from "@/lib/estimate-removal-upto.core";
+import { REMOVAL_UPTO_NOTE, priceRangeLine, removalUpToLine } from "@/lib/estimate-removal-upto.core";
 import { NOT_INTERESTED_REASONS, NOT_INTERESTED_THANKS, type NotInterestedReason } from "@/lib/not-interested.core";
 
 // Public no-login optional homeowner video. The token is the only credential; nothing is fetched during SSR.
@@ -158,7 +158,7 @@ function QuoteBox({ p, name }: { p: QuotePricing; name: string | null }) {
         <p className="mt-1 font-display text-[46px] font-extrabold leading-[50px] text-estimate-blue">{$(p.total)}</p>
         <p className="text-sm">Before rebate: {$(p.gross)} including GST · {Math.round(p.areaM2)} m²</p>
       </div>
-      {p.removalUpTo != null && p.removalUpTo > 0 && <p className="rounded-xl bg-card p-3 text-sm">{removalUpToLine(p.removalUpTo, p.areaM2)}</p>}
+      {p.removalUpTo != null && p.removalUpTo > 0 && <p className="rounded-xl bg-card p-3 text-sm">{removalUpToLine(p.removalUpTo, p.areaM2)}<br /><span className="mt-1 block text-[13px]">{REMOVAL_UPTO_NOTE}</span><strong className="mt-2 block text-[15px]">{priceRangeLine(p.total, p.removalUpTo)}</strong></p>}
       <p className="mt-3 text-center text-sm font-extrabold">No payment · no obligation</p>
     </section>
   </div>;

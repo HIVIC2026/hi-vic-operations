@@ -1,5 +1,6 @@
 import { SPOT_RANK_LABEL, compareSpots, spotSavedRank, spotSummary, type SpotRankFacts } from "./spot-saved-rank.core";
 import { houseAgeLabel } from "./onsite-assessment.core";
+import { buildDecadeFromAnswers, buildDecadeLabel } from "./build-decade.core";
 import { savedInsulationTap } from "./insulation-details.core";
 import { normaliseInsulation as normaliseInsulationRank } from "./eligibility.core";
 import { declaredExtras as declaredExtrasRank, declaredInsulationDetail as declaredInsulationDetailRank, insulationDetailRoute as insulationDetailRouteRank } from "./enquiry.core";
@@ -292,11 +293,11 @@ function spotRankRow(d: RankData, r: { job_id: string; spot_saved_at: string | n
   const outs = d.reviews.get(r.job_id) ?? [];
   const latest = (outs.at(-1) ?? null) as SpotRankFacts["reviewOutcome"];
   const mediaCount = d.media.get(r.job_id) ?? 0;
-  const rank = spotSavedRank({ reviewOutcome: latest, hadUnclearReview: outs.includes("unclear"), deskLooksEligible: r.desk_check_status === "looks_eligible", declared, mediaCount, tap: tap?.answers ?? null, declaredThinPatchy: insulationDetailRouteRank(declaredInsulationDetailRank(answers)) === "likely_save_spot" });
+  const rank = spotSavedRank({ reviewOutcome: latest, hadUnclearReview: outs.includes("unclear"), deskLooksEligible: r.desk_check_status === "looks_eligible", declared, mediaCount, tap: tap?.answers ?? null, buildDecade: buildDecadeFromAnswers(answers), declaredThinPatchy: insulationDetailRouteRank(declaredInsulationDetailRank(answers)) === "likely_save_spot" });
   const area = (job?.indicative_estimates ?? []).find((x) => x.status === "current")?.area_m2 ?? null;
   return {
     rank, rankLabel: SPOT_RANK_LABEL[rank] ?? null, mediaCount,
-    summary: spotSummary({ owner: job?.owners?.full_name ?? null, suburb: job?.properties?.suburb || suburbFromAddress(job?.properties?.address_line) , houseAge: tap ? houseAgeLabel(tap.answers) : null, mediaCount, areaM2: area == null ? null : Number(area), spotSavedAt: r.spot_saved_at }),
+    summary: spotSummary({ owner: job?.owners?.full_name ?? null, suburb: job?.properties?.suburb || suburbFromAddress(job?.properties?.address_line) , houseAge: tap ? houseAgeLabel(tap.answers) : buildDecadeLabel(buildDecadeFromAnswers(answers)), mediaCount, areaM2: area == null ? null : Number(area), spotSavedAt: r.spot_saved_at }),
   };
 }
 

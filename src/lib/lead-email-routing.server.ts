@@ -4,7 +4,8 @@ import { declaredExtras, declaredInsulationDetail, insulationDetailRoute } from 
 import { normaliseInsulation } from "./eligibility.core";
 import { groupBMediaForJob } from "./group-b-media.server";
 import { groupBInitialAction } from "./group-b-media.core";
-import { automaticLeadEmail, effectiveInsulation, ineligibleReplyBlocker } from "./enquiry-groups.core";
+import { ALL_NEW_ENQUIRIES_OFFER_APPROVED, automaticLeadEmail, effectiveInsulation, ineligibleReplyBlocker, newEnquiryRedFlag } from "./enquiry-groups.core";
+import { buildDecadeFromAnswers } from "./build-decade.core";
 
 export type LeadEmailRouteResult = { route: "offer_spot" | "request_insulation" | "ineligible" | "none"; sent: boolean; reason: string };
 
@@ -12,7 +13,7 @@ export type LeadEmailRouteResult = { route: "offer_spot" | "request_insulation" 
  *  Shared by the automatic router below and the Office manual-email preparation (STEP 17). */
 export async function selectLeadEmailRoute(jobId: string) {
   const [{ data: job }, { data: work }, { data: review }] = await Promise.all([
-    admin.from("jobs").select("source, channel, eligibility_outcome, eligibility_decision_source, eligibility_review_required, estimated_area_m2, estimated_area_unknown, properties(enrichment)").eq("id", jobId).maybeSingle(),
+    admin.from("jobs").select("life_support_status, source, channel, eligibility_outcome, eligibility_decision_source, eligibility_review_required, estimated_area_m2, estimated_area_unknown, properties(enrichment, state)").eq("id", jobId).maybeSingle(),
     admin.from("post_intake_work").select("id").eq("job_id", jobId).in("status", ["queued", "processing", "retry"]).limit(1).maybeSingle(),
     admin.from("customer_engagement_events").select("metadata").eq("job_id", jobId).eq("event_type", "intake_media_reviewed").order("occurred_at", { ascending: false }).limit(1),
   ]);
@@ -32,6 +33,8 @@ export async function selectLeadEmailRoute(jobId: string) {
     // A recorded Office photo review always outranks the owner's own description.
     insulationDetailRoute: latestOutcome ? null : tap?.route==="thin_patchy"?"likely_save_spot":insulationDetailRoute(declaredInsulationDetail(answers)),
     officeReviewed: !!latestOutcome,
+    offerAllApproved: ALL_NEW_ENQUIRIES_OFFER_APPROVED,
+    redFlag: newEnquiryRedFlag({ lifeSupport: job.life_support_status ?? null, buildDecade: buildDecadeFromAnswers(base44.raw?.answers ?? null), overFiveYears: ((base44 as { declared?: { over_five_years?: string | null } }).declared?.over_five_years) ?? null, state: (property as { state?: string | null } | null)?.state ?? null, propertyType: ((base44 as { declared?: { property_type?: string | null } }).declared?.property_type) ?? null }),
   });
 }
 

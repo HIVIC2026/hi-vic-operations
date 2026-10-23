@@ -7,6 +7,8 @@ export type SpotRankFacts = {
   deskLooksEligible: boolean;
   declared: "none" | "present" | "unknown" | null;
   mediaCount: number;
+  /** Jo 23 Oct 6:13pm: website "When was your home built?" answer. */
+  buildDecade?: string | null;
   tap?: { insulation_type?: string; insulation_thickness?: string; house_built_period?: string } | null;
   /** Website answer said thin/patchy/partial. */
   declaredThinPatchy: boolean;
@@ -32,7 +34,7 @@ export function spotSavedRank(f: SpotRankFacts): number {
   if (f.reviewOutcome === "over_r2") return 6;
   if (f.reviewOutcome === "unclear") return 7;
   if (f.declared === "none") return 4;
-  if (t?.house_built_period === "1990_or_earlier" || t?.insulation_type === "loose_fill" || t?.insulation_thickness === "thin" || f.declaredThinPatchy) return 5;
+  if (t?.house_built_period === "1990_or_earlier" || f.buildDecade === "1990_or_earlier" || t?.insulation_type === "loose_fill" || t?.insulation_thickness === "thin" || f.declaredThinPatchy) return 5;
   if (t?.insulation_thickness === "hand" || t?.insulation_thickness === "thicker") return 6;
   if (t || f.declared === "unknown") return 7;
   return 8;

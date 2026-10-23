@@ -1,0 +1,23 @@
+import { describe, expect, it } from "vitest";
+import { automaticLeadEmail, newEnquiryRedFlag, ALL_NEW_ENQUIRIES_OFFER_APPROVED } from "../src/lib/enquiry-groups.core";
+import { buildDecadeFromAnswers } from "../src/lib/build-decade.core";
+import { priceRangeLine, removalUpTo, removalUpToLine } from "../src/lib/estimate-removal-upto.core";
+import { spotSavedRank } from "../src/lib/spot-saved-rank.core";
+const base = { source: "base44", channel: "hivic_sourced", decisionSource: "system", reviewRequired: false, intakeWorkActive: false, ownerEnteredArea: true, outcome: "needs_onsite_confirmation", offerAllApproved: true } as const;
+const ok = { lifeSupport: "no", buildDecade: "2000_2009", overFiveYears: "yes", state: "VIC", propertyType: "House" };
+describe("Jo 23 Oct 6:13pm: offer every new enquiry", () => {
+  it("switch is off until Jo says go", () => expect(ALL_NEW_ENQUIRIES_OFFER_APPROVED).toBe(false));
+  it("don't know gets Save my spot with removal", () => expect(automaticLeadEmail({ ...base, declaredInsulation: "unknown" })).toMatchObject({ email: "offer_spot", existingInsulation: true }));
+  it("no insulation needing onsite check gets Save my spot without removal", () => { const r = automaticLeadEmail({ ...base, declaredInsulation: "none" }); expect(r.email).toBe("offer_spot"); expect(r.existingInsulation).toBeUndefined(); });
+  it("red flag blocks", () => expect(automaticLeadEmail({ ...base, declaredInsulation: "present", redFlag: "Life support declared — office first" }).email).toBe("none"));
+  it("life support yes is a red flag", () => expect(newEnquiryRedFlag({ ...ok, lifeSupport: "yes" })).not.toBeNull());
+  it("built in the last 5 years is a red flag", () => expect(newEnquiryRedFlag({ ...ok, buildDecade: "last_5_years" })).not.toBeNull());
+  it("outside Victoria is a red flag", () => expect(newEnquiryRedFlag({ ...ok, state: "NSW" })).not.toBeNull());
+  it("unit is a red flag", () => expect(newEnquiryRedFlag({ ...ok, propertyType: "Apartment" })).not.toBeNull());
+  it("ordinary house has no red flag", () => expect(newEnquiryRedFlag(ok)).toBeNull());
+  it("reads build_decade", () => expect(buildDecadeFromAnswers({ build_decade: "1990_or_earlier" })).toBe("1990_or_earlier"));
+  it("removal $15 x m2 for don't know", () => expect(removalUpTo({ insulation: "unknown", areaM2: 150, ratePerM2: 15 })).toBe(2250));
+  it("removal range wording", () => expect(removalUpToLine(2250)).toBe("Removal of old insulation, only if needed: $0 – $2,250"));
+  it("price range", () => expect(priceRangeLine(2341, 2250)).toBe("Your price: $2,341 – $4,591"));
+  it("built 1990 or earlier ranks 5", () => expect(spotSavedRank({ declared: "present", mediaCount: 0, buildDecade: "1990_or_earlier" } as never)).toBe(5));
+});

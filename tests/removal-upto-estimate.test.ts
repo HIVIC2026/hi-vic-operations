@@ -12,7 +12,7 @@ describe("removal 'up to' amount (Jo 22 Oct)", () => {
   test("area × current removal rate, only when insulation is present", () => {
     expect(removalUpTo({ insulation: "present", areaM2: 120, ratePerM2: 15 })).toBe(1800);
     expect(removalUpTo({ insulation: "none", areaM2: 120, ratePerM2: 15 })).toBeNull();
-    expect(removalUpTo({ insulation: "unknown", areaM2: 120, ratePerM2: 15 })).toBeNull();
+    expect(removalUpTo({ insulation: "unknown", areaM2: 120, ratePerM2: 15 })).toBe(1800); // Jo 23 Oct 6:13pm: don't know also shows removal
     expect(removalUpTo({ insulation: "present", areaM2: 120, ratePerM2: 15, removalItemised: true })).toBeNull();
   });
   test("email shows the line for existing insulation without changing the price; 'none' email unchanged", () => {
@@ -22,9 +22,9 @@ describe("removal 'up to' amount (Jo 22 Oct)", () => {
     expect(a.html).toContain("$3,948");
     expect(a.html.replace(/<table[^>]*FDF2F6[^]*?<\/table>/, "")).not.toContain("up to $1,800");
     const none = renderJoOutcomeEmail({ outcome: "likely_eligible", insulation: "none", ceilingSizeKnown: true, deskCheckStatus: null, recipient, links, figures: fig } as never)!;
-    expect(none.html).not.toContain("if needed: up to");
-    expect(plain.html).not.toContain("if needed: up to");
-    expect(REMOVAL_UPTO_NOTE).toBe("This is extra and NOT included in the price above. Often only part of the ceiling needs it, and some may be fine to stay. Your installer confirms at your free Ready Check.");
+    expect(none.html).not.toContain("only if needed");
+    expect(plain.html).not.toContain("only if needed");
+    expect(REMOVAL_UPTO_NOTE).toBe("We charge $15 per m² (inc GST) for any area that needs removing. It may not need to come out at all — your free Ready Check confirms this, and you'll see the final price before you agree to anything.");
   });
   test("reminder SMS adds '(plus removal if needed)' only for existing insulation", () => {
     expect(blastMessage("Jo", 3948, 1050, "L", true)).toContain("just $3,948 (plus removal if needed), with $1,050 off thanks to the rebate.");
