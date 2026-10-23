@@ -182,6 +182,7 @@ export async function linkMittiReadyCheckToJob(actorId: string | null, input: { 
   }
 
   await logEvent(jobId, actorId, "mitti_audit_linked", `Mitti Ready Check form linked to ${job.job_number}`, { audit_id: auditId, template_id: parsed.templateId, mitti_ref: parsed.mittiRef });
+  await holdAtMittiReadyCheck(jobId, actorId);
   const sync = await syncMittiAssessment(jobId, actorId, call);
   return { linked: true as const, jobNumber: job.job_number, issues: sync.issues };
 }
@@ -301,4 +302,18 @@ export async function retryMittiSync(actorId: string | null, input: { jobId: str
   const sync = await syncMittiAssessment(jobId, actorId, call);
   await logEvent(jobId, actorId, "mitti_sync_retried", `Office retried the Mitti sync for ${job.job_number}`, { issues: sync.issues }, { internal: true });
   return { ok: true as const, jobNumber: job.job_number, issues: sync.issues };
+}
+
+/** Installer-led job with a Mitti Ready Check: sits at "ready_check_scheduled" (waiting on the installer), never the
+ *  owner "No reply" pile. Moves only from early stages; writes stage + an audit event; sends nothing. */
+export async function holdAtMittiReadyCheck(jobId: string, actorId: string | null): Promise<boolean> {
+  const { mittiReadyCheckStage } = await import("./mitti-pickup.core");
+  const { data: j } = await admin.from("jobs").select("stage, channel, deleted_at").eq("id", jobId).maybeSingle();
+  if (!j || j.deleted_at) return false;
+  const to = mittiReadyCheckStage({ stage: String(j.stage), channel: j.channel ?? null });
+  if (!to) return false;
+  const { data, error } = await admin.from("jobs").update({ stage: to, prior_stage: j.stage } as never).eq("id", jobId).eq("stage", j.stage).select("id");
+  if (error || !data?.length) return false;
+  await logEvent(jobId, actorId, "stage_changed", "Installer-led Mitti Ready Check — waiting on the installer to finish the form", { source: "mitti_pickup", reason: "installer_mitti_ready_check" }, { from: j.stage as never, to: to as never, internal: true });
+  return true;
 }
