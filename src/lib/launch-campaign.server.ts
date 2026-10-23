@@ -47,6 +47,7 @@ export async function campaignLink(token: unknown) {
   if (response?.opted_out_at || optout?.opted_out_at || optError) return null;
   let criteriaPassed = false;
   let ownerQualified = false;
+  let answeredQuestions = false;
   if (group === "onsite") {
     if (!["new_enquiry", "eligibility_review", "preliminary_estimate_ready", "ready_check_ready_to_schedule"].includes(job.stage)) return null;
     const { data: work, error: workError } = await admin.from("post_intake_work").select("job_id").eq("job_id", job.id).in("status", ["queued", "processing", "retry"]);
@@ -54,15 +55,17 @@ export async function campaignLink(token: unknown) {
     const { data: events, error: eventsError } = await admin.from("workflow_events").select("event_type, details").eq("job_id", job.id).in("event_type", ["owner_insulation_loose_fill_only_declared", "owner_insulation_below_r2_declared", "owner_insulation_present_auto_offer"]);
     if (eventsError) throw new Error("We couldn't check your declaration. Please try again.");
     ownerQualified = criteriaPassed && qualifyingDeclaration(events ?? []);
+    // Owner answered the 3 insulation questions (Jo 23 Oct: photo uploaders save their spot too; photos only move rank).
+    answeredQuestions = criteriaPassed && qualifyingDeclaration((events ?? []).filter((e) => e.event_type === "owner_insulation_present_auto_offer"));
   }
   const media = group === "onsite" ? await groupBMediaForJob(job.id) : null;
-  return { link, job, group, ownerQualified, criteriaPassed, media, mediaReview };
+  return { link, job, group, ownerQualified, answeredQuestions, criteriaPassed, media, mediaReview };
 }
 
 export function campaignPermission(c: NonNullable<Awaited<ReturnType<typeof campaignLink>>>, deskStatus: string | null | undefined) {
   if (["not_eligible", "needs_onsite_check"].includes(deskStatus ?? "") || c.mediaReview === "over_r2" || c.mediaReview === "unclear") return false;
   if (c.mediaReview === "below_r2" && c.criteriaPassed) return true;
-  if (c.media?.excluded) return deskStatus === "looks_eligible" && c.criteriaPassed;
+  if (c.media?.excluded) return (deskStatus === "looks_eligible" || !!c.answeredQuestions) && c.criteriaPassed;
   return campaignSaveAllowed(c.group, deskStatus, c.ownerQualified);
 }
 

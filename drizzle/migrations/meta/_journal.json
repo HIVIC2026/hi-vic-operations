@@ -1177,6 +1177,13 @@
       "when": 1792732294930,
       "tag": "0167_outlook_per_job_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 168,
+      "version": "7",
+      "when": 1792793154373,
+      "tag": "0168_owner_insulation_details_save",
+      "breakpoints": true
     }
   ]
 }

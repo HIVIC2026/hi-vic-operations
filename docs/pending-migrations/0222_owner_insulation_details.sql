@@ -1,4 +1,4 @@
--- PREVIEW ONLY. Practice proof required; do not apply live without Jo's approval.
+-- Function part APPLIED live 24 Oct 2026 (Jo: "Fix the saving"), proven on PGlite first. The view below is NOT applied.
 CREATE OR REPLACE FUNCTION public.save_owner_insulation_details(p_token text,p_answers jsonb) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
 DECLARE j public.jobs%ROWTYPE; l public.customer_estimate_links%ROWTYPE; route text; old jsonb;
 BEGIN
