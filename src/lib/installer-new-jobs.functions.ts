@@ -4,9 +4,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin } from "./workflow.server";
-import { A2_CORRECTION_EVENT, FLAG_EVENTS, FORM_CREATED_EVENTS, FORM_PROBLEM_EVENTS, FORM_STARTED_EVENTS, HELD_EVENTS, classifyNewInstallerJob, sortNewInstallerJobs, type NewJobFacts } from "./installer-new-jobs.core";
+import { A2_CORRECTION_EVENT, FLAG_EVENTS, FORM_CREATED_EVENTS, FORM_PROBLEM_EVENTS, FORM_STARTED_EVENTS, HELD_EVENTS, QUOTE_SENT_EVENTS, classifyNewInstallerJob, sortNewInstallerJobs, type NewJobFacts } from "./installer-new-jobs.core";
 
-const EVENT_TYPES = [A2_CORRECTION_EVENT, ...FLAG_EVENTS, ...FORM_CREATED_EVENTS, ...FORM_PROBLEM_EVENTS, ...FORM_STARTED_EVENTS, ...HELD_EVENTS];
+const EVENT_TYPES = [A2_CORRECTION_EVENT, ...FLAG_EVENTS, ...FORM_CREATED_EVENTS, ...FORM_PROBLEM_EVENTS, ...FORM_STARTED_EVENTS, ...HELD_EVENTS, ...QUOTE_SENT_EVENTS];
 
 export const getNewInstallerJobs = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ showTestJobs: z.boolean().optional() }).optional().parse(d))
