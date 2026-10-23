@@ -223,36 +223,9 @@ export async function generateRectificationQuote(jobId: string, actorId: string)
   return q.id;
 }
 
-/** Release queued quotes only when both quote automation and the master customer-comms switch are on. */
+/** Legacy scheduled hook retained inert: Office alone may send quotes. */
 export async function releaseQueuedQuotes() {
-  // Jo 23 Oct: scheduled ticks never release or notify for quotes, including older queued rows.
-  if (!(await import("./office-quote-review.core")).automaticQuoteSendingAllowed()) return { released: 0 };
-  const { data: workflow } = await admin.from("workflow_settings").select("auto_send_quote, customer_comms_enabled").eq("id", 1).maybeSingle();
-  if (workflow?.auto_send_quote !== true || workflow?.customer_comms_enabled !== true) return { released: 0 };
-  const { data: queued } = await admin.from("quotes").select("id, job_id, kind").eq("status", "issued").eq("release_state", "queued").limit(200);
-  let released = 0;
-  const { intakeSendBlockers } = await import("./installer-intake.server");
-  // Stage 6 (Jo 22 Oct): an auto-prepared quote waits out its 15-minute office window first, and a stopped
-  // quote never goes. The hold list is read once for the whole batch; unreadable = nothing is released.
-  const { quoteHolds } = await import("./quote-hold.server");
-  const { quoteHoldDecision } = await import("./quote-hold.core");
-  const holds = await quoteHolds().catch(() => null);
-  if (!holds) return { released: 0 };
-  for (const quote of queued ?? []) {
-    const now = new Date().toISOString();
-    const h = holds.get(quote.id);
-    if (h && quoteHoldDecision({ nowIso: now, autoSendAtIso: h.holdUntil, stoppedAtIso: h.stopped ? "stopped" : null }) !== "release") continue;
-    const ib = await intakeSendBlockers(quote.job_id).catch(() => ["Intake readiness could not be checked"]);
-    { const bb = await (await import("./installer-quote.server")).quoteBillingBlocker(quote.id).catch(() => "Electrical billing could not be checked"); if (bb) ib.push(bb); }
-    if (ib.length) { await admin.from("quotes").update({ release_state: "held", release_hold_reason: ib.join(" · ") }).eq("id", quote.id).eq("release_state", "queued"); continue; }
-    const { data: updated } = await admin.from("quotes").update({ sent_at: now, release_state: "released" }).eq("id", quote.id).eq("status", "issued").eq("release_state", "queued").select("id").maybeSingle();
-    if (!updated) continue;
-    await logEvent(quote.job_id, null, `${quote.kind}_quote_released`, `${quote.kind === "rectification" ? "Electrical fixes" : "Installation"} quote automatically released to the owner`, { quote_id: quote.id }, { internal: false });
-    const { notifyOwnerQuoteReady } = await import("./quote-ready-notify.server");
-    await notifyOwnerQuoteReady(quote.job_id, quote.id, quote.kind).catch(() => undefined);
-    released++;
-  }
-  return { released };
+  return { released: 0 };
 }
 
 /** Recover only a provably unsent installer quote previously queued by the Office.

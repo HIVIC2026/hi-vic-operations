@@ -1,8 +1,4 @@
-// Stage 6 (Jo 22 Oct 2026): when a Ready Check finishes cleanly, prepare the owner quote, then hold it for
-// 15 minutes so the office can still stop it. OFF by default: workflow_settings.mitti_auto_quote_enabled
-// (pending migration — the code fails closed while the column is missing, exactly like the auto-pickup switch).
-// Nothing here sends anything: the only release path stays releaseQueuedQuotes(), which re-checks the launch
-// switches, consent, intake readiness and electrical billing on every run.
+// Ready Check drafts stay private for Office review. No automatic approval, timer or delivery.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 
@@ -23,7 +19,7 @@ export type AutoQuoteResult = { action: "off" | "review" | "held" | "blocked"; r
 /**
  * Called by the Mitti sync right after a completed Ready Check has drafted the installer's owner quote.
  * Checks the form's own answers (below R2, photos, life support, contact permission, price, electrician),
- * then the same send guards the office button runs, then arms the 15-minute window.
+ * Legacy compatibility only: automatic queueing has been retired.
  */
 export async function maybeAutoQueueReadyCheckQuote(jobId: string, actorId: string | null, entries: { label: string; value: unknown }[], formComplete: boolean): Promise<AutoQuoteResult> {
   // Retained for legacy callers only. Jo 23 Oct: no timer, no automatic queue/approval or sending.

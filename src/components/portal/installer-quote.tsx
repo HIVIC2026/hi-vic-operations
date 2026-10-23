@@ -60,7 +60,7 @@ export function InstallerQuoteDraftPanel({ jobId }: { jobId: string }) {
             <div className="flex justify-between py-2 font-semibold"><dt>Estimated cost after discount</dt><dd className="tabular-nums">{money(Number(quote.customer_total_inc_gst))}</dd></div>
           </dl>
           {quote.discount_note && <p className="text-sm text-muted-foreground">{quote.discount_note}</p>}
-          {quote.status === "draft" ? (
+          {d.reviewable ? (
             <Button disabled={busy || d.heldBlockers.length > 0} onClick={onSend}>{busy ? "Sending…" : "Send quote"}</Button>
           ) : (
             <p className="text-sm font-medium">{quote.status === "accepted" ? "Accepted by the owner." : "Sent to the owner."}</p>

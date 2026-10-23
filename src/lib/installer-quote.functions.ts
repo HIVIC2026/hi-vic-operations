@@ -12,19 +12,21 @@ export const getInstallerQuoteDraft = createServerFn({ method: "POST" }).middlew
     const { data: job, error: je } = await admin.from("jobs").select("channel").eq("id", data.jobId).single();
     if (je) throw new Error(je.message);
     const [{ data: q, error }, { data: held, error: he }] = await Promise.all([
-      admin.from("quotes").select("id, status, option_code, release_state, release_hold_reason, discount_note, subtotal_inc_gst, veec_discount_inc_gst, customer_total_inc_gst, cobrand, created_at, quote_items(code, description, explanation, quantity, unit, unit_price_inc_gst, line_total_inc_gst, sort)")
+      admin.from("quotes").select("id, status, sent_at, option_code, release_state, release_hold_reason, discount_note, subtotal_inc_gst, veec_discount_inc_gst, customer_total_inc_gst, cobrand, created_at, quote_items(code, description, explanation, quantity, unit, unit_price_inc_gst, line_total_inc_gst, sort)")
         .eq("job_id", data.jobId).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       admin.from("workflow_events").select("details, created_at").eq("job_id", data.jobId).in("event_type", ["installer_quote_held", "ready_check_needs_office"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     ]);
     if (error) throw new Error(error.message);
     if (he) throw new Error("Quote holds could not be checked.");
     const heldNewer = held && (!q || held.created_at > q.created_at);
-    const blockers = q?.status === "draft" ? await (await import("./office-quote-review.server")).officeQuoteBlockers(data.jobId, q) : [];
+    const reviewable = q ? (await import("./office-quote-review.core")).quoteNeedsOfficeReview(q) : false;
+    const blockers = q && reviewable ? await (await import("./office-quote-review.server")).officeQuoteBlockers(data.jobId, q) : [];
     return {
       applies: true as const,
       quote: q ? { ...q, quote_items: [...(q.quote_items ?? [])].sort((a, b) => a.sort - b.sort) } : null,
       heldBlockers: [...new Set([...blockers, ...(heldNewer ? (((held.details as { blockers?: string[]; reasons?: string[] } | null)?.blockers) ?? (held.details as { reasons?: string[] } | null)?.reasons ?? []) : [])])],
       channel: job.channel,
+      reviewable,
     };
   });
 
