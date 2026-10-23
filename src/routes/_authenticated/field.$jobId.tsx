@@ -26,7 +26,7 @@ import { MittiCard, MittiSyncedFields } from "@/components/portal/mitti";
 import { mittiFormId } from "@/lib/mitti-form-link.core";
 import { ElectricianManualResult, manualResultEntry } from "@/components/portal/electrician-manual-result";
 import { useServerFn } from "@tanstack/react-start";
-import { getMyMittiInvited } from "@/lib/trade-view.functions";
+import { getMyMittiInvited, getMittiJobPresentation } from "@/lib/trade-view.functions";
 import { getMyIntakeProgress } from "@/lib/installer-quote.functions";
 
 /** Partners never see Mitti until the office ticks "Mitti account invited". */
@@ -61,6 +61,9 @@ function FieldJob() {
   const { data: role } = useQuery({ queryKey: ["myrole", jobId], queryFn: async () => (await supabase.rpc("my_job_role", { _job: jobId })).data });
   const loadProgress = useServerFn(getMyIntakeProgress);
   const { data: intake } = useQuery({ queryKey: ["intake-progress", jobId], queryFn: () => loadProgress({ data: { jobId } }), enabled: role === "installer", retry: false });
+  const loadMitti = useServerFn(getMittiJobPresentation);
+  const { data: mitti } = useQuery({ queryKey: ["mitti-job-presentation", jobId], queryFn: () => loadMitti({ data: { jobId } }), enabled: role === "installer" });
+  const linkedMitti = mitti?.applies === true;
   if (!job && isError) return <TradeShell installer={role !== "electrician"}><p className="rounded-[18px] border bg-paper p-6 text-sm text-sub">{/TEST accounts/.test(String((error as Error)?.message)) ? "This TEST sign-in can only open active TEST jobs." : "This job isn't available to you. If it's a new offer, accept it from My work first."}</p><Link to="/field" className="mt-3 inline-block font-bold text-hiv-blue underline">Back to My work</Link></TradeShell>;
   if (!job) return <TradeShell installer={role !== "electrician"}><p className="text-sub">Loading…</p></TradeShell>;
   const step = nextStep(job);
@@ -77,7 +80,7 @@ function FieldJob() {
         {job.owner_name && <p className="text-sm text-sub">{job.owner_name}</p>}
         <div className="mt-1"><SourceBadge channel={job.channel} business={job.originating_business_name} /></div>
       </div>
-      <NowPanel attention={yourTurn} eyebrow={turn.eyebrow} status={task.label}
+      <NowPanel attention={linkedMitti ? mitti.next.startsWith("You:") : yourTurn} eyebrow={linkedMitti ? "Next step" : turn.eyebrow} status={linkedMitti ? mitti.next : task.label}
         due={job.install_deadline && job.days_remaining != null ? `${job.days_remaining} days left` : undefined}
         next={job.install_deadline ? `Install must start by ${new Date(job.install_deadline).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}` : undefined}
         pairs={job.life_support ? [{ label: "Note", value: <span className="inline-flex items-center gap-1 text-rose"><HeartPulse className="h-3 w-3" /> Life support at this property</span> }] : []}
@@ -86,18 +89,18 @@ function FieldJob() {
           {job.owner_phone && <a href={`sms:${job.owner_phone}`} className={btnClass("secondary")}>Text</a>}
           {maps && job.owner_name && <a href={maps} target="_blank" rel="noreferrer" className={btnClass("secondary")}>Directions</a>}
         </div>} />
-      {role === "installer" && <CheckQuoteCard jobId={jobId} />}
-      {(role === "electrician" || intake?.applies === false) && <JobStatusCard jobId={jobId} />}
-      {role === "installer" && intake?.applies === false && <PartnerInstallerFactsCard jobId={jobId} />}
-      {role === "installer" && <JobElectricianCard jobId={jobId} />}
+      {role === "installer" && <CheckQuoteCard jobId={jobId} hideStatus={linkedMitti} />}
+      {(role === "electrician" || (intake?.applies === false && !linkedMitti)) && <JobStatusCard jobId={jobId} />}
+      {role === "installer" && intake?.applies === false && !linkedMitti && <PartnerInstallerFactsCard jobId={jobId} />}
+      {role === "installer" && (linkedMitti ? <section className="rounded-[18px] border border-line bg-paper p-4"><p className="text-xs text-sub">Electrician</p><p className="text-sm font-semibold">{mitti.electrician}</p></section> : <JobElectricianCard jobId={jobId} />)}
       <div><BlockersPanel jobId={jobId} quietWhenClear partner /></div>
       <div className="space-y-4">
         {role === "electrician" && <ElectricianFlow jobId={jobId} stage={job.stage!} expired={!!job.piesa_expired} />}
-        {role === "installer" && <InstallerProgressCard jobId={jobId} />}
-        {role === "installer" && job.channel === "installer_sourced" && <MyIntakeDetailsCard jobId={jobId} />}
-        {role === "installer" && job.channel === "installer_sourced" && <ReadyCheckInMitti />}
+        {role === "installer" && !linkedMitti && <InstallerProgressCard jobId={jobId} />}
+        {role === "installer" && job.channel === "installer_sourced" && !linkedMitti && <MyIntakeDetailsCard jobId={jobId} />}
+        {role === "installer" && (linkedMitti ? <Section title="Ready Check form"><Button asChild size="field" className="w-full"><a href={`https://app.au.mitti.com/inspections/${mitti.auditId}`} target="_blank" rel="noreferrer">Open Ready Check in Mitti</a></Button></Section> : job.channel === "installer_sourced" ? <ReadyCheckInMitti /> : null)}
         {role === "installer" && ["piesa_and_install_window_pending"].includes(job.stage!) && !job.electrician_name && <ElectricianChoicePanel jobId={jobId} />}
-        {role === "installer" && <InstallerFlow jobId={jobId} stage={job.stage!} />}
+        {role === "installer" && <InstallerFlow jobId={jobId} stage={job.stage ?? ""} linkedMitti={linkedMitti} />}
         {role === "installer" && ["assessment_complete", "rectification_required", "awaiting_owner_rectification_approval", "ready_for_installer_quotes", "awaiting_quote_acceptance"].includes(job.stage!) && <PartnerProposalForm jobId={jobId} />}
         {(role === "electrician" || role === "installer") && ["ready_check_scheduled", "piesa_scheduled", "rectification_booked", "installation_booked"].includes(job.stage!) && <TradeVisitCard jobId={jobId} />}
         <VisitContactsCard jobId={jobId} />
@@ -254,7 +257,7 @@ function PiesaForm({ jobId, kind, title }: { jobId: string; kind: "post_rectific
 }
 
 // ---------- Installer ----------
-function InstallerFlow({ jobId, stage }: { jobId: string; stage: string }) {
+function InstallerFlow({ jobId, stage, linkedMitti = false }: { jobId: string; stage: string; linkedMitti?: boolean }) {
   const done = useAction(completeInstallation);
   const submit = useAction(submitForApReview);
   const { data: ms } = useMeasurements(jobId);
@@ -265,7 +268,7 @@ function InstallerFlow({ jobId, stage }: { jobId: string; stage: string }) {
   const measuring = ["ready_check_scheduled", "assessment_booking", "assessment_booked"].includes(stage) && !!scope?.installerTasks.includes("measure_up");
   return (
     <>
-      {measuring && <MittiOnly jobId={jobId} which="ready_check" />}
+      {measuring && !linkedMitti && <MittiOnly jobId={jobId} which="ready_check" />}
       {!measuring && m && m.status !== "complete" && ["assessment_booking", "assessment_booked"].includes(stage) && <Section title="Your Ready Check"><MeasurementDetails m={m} /><p className="mt-2 text-sm text-sub">Status: {m.status.replace("_", " ")} – Home Insulation Victoria will follow up.</p></Section>}
       {a && (
         <Section title="Site summary">

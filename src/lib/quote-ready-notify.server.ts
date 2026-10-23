@@ -23,6 +23,19 @@ export async function notifyOwnerQuoteReady(jobId: string, quoteId: string, kind
   if ((await import("./mitti.core")).isClosedOrArchivedJob(job)) return { sms: "skipped", email: "skipped" };
   const { data: owner } = await admin.from("owners").select("phone, email").eq("id", job.owner_id).maybeSingle();
 
+  if (job.source === "qa_test") {
+    const { data: assigned, error: ae } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
+    const { data: partner, error: pe } = assigned?.business_id ? await admin.from("businesses").select("onboarding_notes").eq("id", assigned.business_id).maybeSingle() : { data: null, error: null };
+    if (ae || pe) throw new Error("TEST partner could not be checked.");
+    const { isTestPartner } = await import("./test-send.core");
+    const { sendTestEmail, sendTestSms } = await import("./test-send.server");
+    const ctx = { jobId, jobSource: job.source, partnerIsTest: isTestPartner(partner), label: `quote_ready:${quoteId}`, actorId: null };
+    const text = `[TEST] ${quoteReadySmsBody(String(job.job_number ?? ""))}`;
+    const email = await sendTestEmail(ctx, owner?.email ?? "", `[TEST] Quote ready — ${job.job_number}`, `<p>${text}</p>`, text);
+    const sms = await sendTestSms(ctx, owner?.phone ?? "", text);
+    return { email: `${email.status}: ${email.detail}`, sms: `${sms.status}: ${sms.detail}` };
+  }
+
   const { sendRealSms } = await import("./sms.server");
   const s = await sendRealSms({
     type: "quote_ready", idempotencyKey: `quote-ready:v1:${quoteId}`, to: owner?.phone ?? null, jobId,

@@ -17,13 +17,13 @@ export async function loadQuoteApproval(jobId: string): Promise<QuoteApproval> {
   const [{ data: job }, { data: qs, error }, { data: m }, { data: ev }] = await Promise.all([
     admin.from("jobs").select("channel").eq("id", jobId).maybeSingle(),
     admin.from("quotes").select(QUOTE_COLS).eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]).order("created_at", { ascending: false }).limit(1),
-    admin.from("ceiling_measurements").select("raw_snapshot").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
+    admin.from("ceiling_measurements").select("raw_snapshot,external_source,external_id").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
     admin.from("workflow_events").select("created_at, actor_id, details").eq("job_id", jobId).eq("event_type", "installer_quote_approved").order("created_at", { ascending: false }),
   ]);
   if (error) throw new WorkflowError("Quote could not be read.");
   const q = qs?.[0] ?? null;
   const channel = job?.channel ?? null;
-  if (!q || q.option_code !== INSTALLER_QUOTE_APPROVAL_CODE) return { applies: false, quote: null, state: "needs_check", sent: false, quoteFp: "", formFp: "", channel, readyAt: null, approvedAt: null };
+  if (!q || (q.option_code !== INSTALLER_QUOTE_APPROVAL_CODE && !(m?.external_source === "mitti" && m.external_id))) return { applies: false, quote: null, state: "needs_check", sent: false, quoteFp: "", formFp: "", channel, readyAt: null, approvedAt: null };
   const lines = [...(q.quote_items ?? [])].sort((a, b) => a.sort - b.sort);
   const quoteFp = quoteFingerprint(q, lines), formFp = formFingerprint(m?.raw_snapshot);
   const approvals = readApprovalEvents(ev ?? []);
@@ -39,7 +39,6 @@ export async function loadQuoteApproval(jobId: string): Promise<QuoteApproval> {
 
 /** Office Send is blocked until the installer approves the current version. */
 export async function installerApprovalBlocker(jobId: string, quote: { id: string; option_code?: string | null }): Promise<string | null> {
-  if (quote.option_code !== INSTALLER_QUOTE_APPROVAL_CODE) return null;
   const a = await loadQuoteApproval(jobId);
   if (!a.applies || a.quote?.id !== quote.id) return null;
   return a.state === "approved" ? null : WAITING_ON_INSTALLER;

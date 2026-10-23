@@ -69,7 +69,7 @@ export function jobStatusLine(f: StatusFacts): StatusLine {
   const office = (text: string, since: string | null): StatusLine => ({ text: `${text}${since ? ` · since ${fmtDay(since)}` : ""}`, who: "Home Insulation Victoria", since, waitingDays: days(since, f.now), tone: toneFor("Home Insulation Victoria", since, f.now, f.settings), money: null });
   const balance = (): string | null => {
     if (f.staff || f.paidInFullAt || !f.safetyPaidAt) return null;
-    return latest(f.bookings, "installation", "confirmed") || f.firstHalfPaidAt ? "Final 50% due on install day" : "Balance: first 50% due when install is booked";
+    return "Owner payment — office checks the agreed payment option";
   };
   let out: StatusLine;
   switch (S) {
@@ -127,9 +127,9 @@ export function jobTimeline(f: StatusFacts): TimelineStep[] {
     { key: "safety_check", label: "PIESA", done: piesa?.start ?? null, expected: conf("assessment")?.start ?? null },
     { key: "fixes", label: "Electrical fixes (if any)", done: rect?.start ?? null, expected: conf("rectification")?.start ?? null, skip: !!piesa && !fixesNeeded },
     { key: "fixes_paid", label: f.staff ? "Fixes paid" : "Fix costs paid", done: f.fixesPaidAt ?? null, expected: null, skip: !fixesNeeded && !f.fixesPaidAt },
-    { key: "first_half", label: f.staff ? "First payment at install booking" : "50% at install booking", done: f.firstHalfPaidAt ?? null, expected: null },
+    { key: "first_half", label: "Agreed owner payment", done: f.firstHalfPaidAt ?? null, expected: null },
     { key: "install", label: "Install", done: inst?.start ?? null, expected: instBooked?.start ?? null },
-    { key: "final_half", label: f.staff ? "Final payment" : "Final 50%", done: f.paidInFullAt, expected: instBooked?.start ?? null },
+    { key: "final_half", label: "Paid in full", done: f.paidInFullAt, expected: null },
     { key: "checked", label: "Checked by Home Insulation Victoria", done: f.apApprovedAt, expected: null },
     { key: "paid", label: "Paid to you", done: p?.kind === "paid" ? p.on : null, expected: p?.kind === "coming" ? p.on : null },
   ];

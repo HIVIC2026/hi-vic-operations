@@ -7,6 +7,7 @@ import { WAITING_ON_INSTALLER, mittiAuditUrl, waitingStatus } from "@/lib/instal
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { InstallerQuoteDraftPanel } from "./installer-quote";
+import { Switch } from "@/components/ui/switch";
 
 const money = (n: number | null) => (n == null ? "—" : n.toLocaleString("en-AU", { style: "currency", currency: "AUD" }));
 
@@ -18,7 +19,8 @@ function MittiButton({ id, jobNumber }: { id: string | null | undefined; jobNumb
 
 export function QuotesToCheck() {
   const load = useServerFn(getInstallerQuotesToCheck);
-  const q = useQuery({ queryKey: ["installer-quotes-to-check"], queryFn: () => load(), staleTime: 60_000 });
+  const [showTestJobs, setShowTestJobs] = useState(false);
+  const q = useQuery({ queryKey: ["installer-quotes-to-check", showTestJobs], queryFn: () => load({ data: { showTestJobs } }), staleTime: 60_000 });
   type Row = NonNullable<typeof q.data>["rows"][number];
   const [selected, setSelected] = useState<Row | null>(null);
   const [popup, setPopup] = useState<{ title: string; items: string[] } | null>(null);
@@ -27,6 +29,7 @@ export function QuotesToCheck() {
   const line = (r: Row) => [r.jobNumber, r.owner ?? "Owner", r.suburb ?? "Suburb missing", r.installer ?? "Installer"].join(" · ");
   return <section aria-label="Quotes to check" className="space-y-3 border-y py-4">
     <h2 className="font-display text-lg font-bold">Quotes to check</h2>
+    <label className="flex min-h-12 items-center gap-2 text-sm"><Switch checked={showTestJobs} onCheckedChange={setShowTestJobs} />Show practice jobs</label>
     {q.isPending ? <p role="status" className="text-sm text-muted-foreground">Loading quotes…</p> : q.error ? <p role="alert" className="text-sm text-destructive">{q.error.message} <Button variant="outline" size="sm" onClick={() => void q.refetch()}>Retry</Button></p> : <>
       <div data-ready-for-you>
         <h3 className="text-sm font-semibold">Ready for you ({ready.length})</h3>

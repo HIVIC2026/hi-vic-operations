@@ -15,6 +15,12 @@ export async function officeQuoteBlockers(jobId: string, quote: { id: string; cr
   const e = events?.[0];
   const d = e?.details as { reasons?: string[]; blockers?: string[] } | null;
   const reasons = quoteReviewReasons(quote.release_hold_reason, e ? { at: e.created_at, reasons: d?.reasons ?? d?.blockers ?? [] } : null, quote.created_at);
+  const { data: mitti, error: me } = await admin.from("ceiling_measurements").select("external_source,external_id").eq("job_id", jobId).eq("is_current", true).maybeSingle();
+  if (me) throw new WorkflowError("Ready Check could not be checked.");
+  if (mitti?.external_source === "mitti" && mitti.external_id) {
+    // Old drafts retain their history, but these two superseded Add job disclosures are not Mitti holds.
+    for (let i = reasons.length - 1; i >= 0; i--) if (/^Owner fee awareness|^Electrician not decided yet/.test(reasons[i] ?? "")) reasons.splice(i, 1);
+  }
   if ((await import("./mitti.core")).isClosedOrArchivedJob(job)) reasons.push("Job is closed or archived");
   if (job.channel !== "installer_sourced") {
     const { data: m, error } = await admin.from("ceiling_measurements").select("id, status, measured_area_m2, removal_required, removal_m2, access_difficulty").eq("job_id", jobId).eq("is_current", true).maybeSingle();

@@ -117,17 +117,20 @@ export async function sweepMittiPickupAuto(opts: { dryRun?: boolean; call?: Mitt
         continue;
       }
       const parts = pickupAddressParts(r.siteAddress);
+      const { data: partner, error: partnerError } = await admin.from("businesses").select("onboarding_notes").eq("id", r.business!.id).single();
+      if (partnerError || !partner) throw new Error("Installer business could not be checked.");
+      const source = (await import("./mitti-quote-release.core")).pickupJobSource(partner);
       const { upsertEnquiry } = await import("./enquiry.server");
       // Ceiling size is unknown at pickup: installer-sourced jobs take a null estimate (no area_unknown flag, which is manual-portal-only).
       const created = await upsertEnquiry({
         full_name: r.homeownerName?.trim() || "Homeowner (name to confirm)", email: r.ownerEmail?.trim() || null, phone: r.ownerPhone?.trim() || null,
         address_line: parts?.addressLine ?? (r.siteAddress?.trim() || "Address to confirm"), suburb: parts?.suburb ?? null, postcode: parts?.postcode ?? null,
         estimated_area_m2: null,
-      } as never, "installer_mitti", null, { channel: "installer_sourced", businessId: r.business!.id, userId: member });
+      } as never, source, null, { channel: "installer_sourced", businessId: r.business!.id, userId: member });
       const { error: ae } = await admin.from("job_assignments").insert({ job_id: created.job_id, user_id: member, role: "installer", business_id: r.business!.id, assigned_by: null, first_response_at: new Date().toISOString() });
       if (ae) await logEvent(created.job_id, null, "mitti_pickup_assign_failed", `Installer assignment failed after auto-pickup: ${ae.message}`, { audit_id: r.auditId }, { internal: true });
       // Finish the initial checks now so their stage default cannot overwrite "Needs finishing…" afterwards.
-      try { const { processPostIntakeWork } = await import("./postintake.server"); await processPostIntakeWork({ jobId: created.job_id }); } catch { /* scheduled worker retries */ }
+      if (source !== "qa_test") try { const { processPostIntakeWork } = await import("./postintake.server"); await processPostIntakeWork({ jobId: created.job_id }); } catch { /* scheduled worker retries */ }
       if (decision.officeFlag) {
         await logEvent(created.job_id, null, "mitti_pickup_installer_started_a2", decision.officeFlag, { audit_id: r.auditId, form, business_id: r.business!.id, needs_office: true }, { internal: true });
         await recordReview(r.auditId, r.business!.name, [decision.officeFlag, `Job ${created.job_number} created as ${r.business!.name}'s installer-led job`]);

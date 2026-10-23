@@ -37,8 +37,8 @@ describe("trade job status line (Jo 7 Oct)", () => {
     const f = base({ stage: "installation_booked", safetyPaidAt: daysAgo(4), bookings: [{ kind: "installation", status: "confirmed", start: "2026-10-15T21:00:00Z", end: null, business: "Reinsulate", mine: true }] });
     const l = jobStatusLine(f);
     expect(l.text).toBe("Install booked · Fri 16 Oct, 8am · You");
-    expect(l.money).toBe("Final 50% due on install day");
-    expect(jobStatusLine(base({ stage: "installation_scheduling", safetyPaidAt: daysAgo(1) })).money).toBe("Balance: first 50% due when install is booked");
+    expect(l.money).toBe("Owner payment — office checks the agreed payment option");
+    expect(jobStatusLine(base({ stage: "installation_scheduling", safetyPaidAt: daysAgo(1) })).money).toBe("Owner payment — office checks the agreed payment option");
     expect(forViewer(jobStatusLine(base({ stage: "installation_scheduling", stageSince: daysAgo(1) })), "installer").who).toBe("You");
   });
   test("fix quote, office check, payment coming", () => {

@@ -1,14 +1,19 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin } from "./workflow.server";
+import { z } from "zod";
 
 /** Office signal: installer jobs whose owner quote is drafted and waiting, or held because something is missing. Read-only. */
 export const getInstallerQuotesToCheck = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator((d) => z.object({ showTestJobs: z.boolean().optional() }).optional().parse(d))
+  .handler(async ({ context, data }) => {
     await requireAdmin(context.supabase);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
-    const readPage = (from: number) => admin.from("jobs").select("id, job_number, stage, originating_installer_business_id, owners(full_name), properties(address_line, suburb)")
-      .is("deleted_at", null).not("stage", "in", "(cancelled,complete)").or("source.is.null,source.neq.qa_test").is("qa_archived_at", null).order("id").range(from, from + 499);
+    const readPage = (from: number) => {
+      const q = admin.from("jobs").select("id, job_number, stage, originating_installer_business_id, owners(full_name), properties(address_line, suburb)")
+        .is("deleted_at", null).not("stage", "in", "(cancelled,complete)").is("qa_archived_at", null).order("id").range(from, from + 499);
+      return data?.showTestJobs ? q.eq("source", "qa_test") : q.or("source.is.null,source.neq.qa_test");
+    };
     const first = await readPage(0);
     if (first.error) throw new Error("Could not read installer jobs.");
     const jobs = [...(first.data ?? [])];
