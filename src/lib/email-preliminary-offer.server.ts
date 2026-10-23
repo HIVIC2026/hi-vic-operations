@@ -328,7 +328,7 @@ async function queuePreliminarySpotSavedConfirmation(jobId: string) {
   } as never);
   if (job.source === "qa_test" && owner?.email) {
     const { sendTestEmail } = await import("./test-send.server");
-    const t = await sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: true, label: "preliminary_spot_saved_confirmation", actorId: null } as never, owner.email, email.subject, email.html, email.text).catch((e) => ({ status: "failed", detail: (e as Error).message }));
+    const t = await sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: true, label: "preliminary_spot_saved_confirmation", actorId: null } as never, owner.email, email.subject, email.html ?? "", email.text).catch((e) => ({ status: "failed", detail: (e as Error).message }));
     await logEvent(jobId, null, "spot_saved_test_email", `Spot saved confirmation (TEST) ${t.status}: ${t.detail}`, {}, { internal: true }).catch(() => null);
   }
   await logEvent(jobId, null, "spot_saved_confirmation_queued", "Spot saved email queued (sending is off)", { email: !!owner?.email, preliminary_email: true }, { internal: true });
