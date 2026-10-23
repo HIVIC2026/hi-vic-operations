@@ -72,10 +72,10 @@ mock.module("../src/lib/mitti.server", () => ({
 const { sweepReadyCheckForms } = await import("../src/lib/mitti-autoform.server");
 
 describe("sweepReadyCheckForms", () => {
-  test("paused (A1 being republished): creates nothing", async () => {
-    expect(AUTOFORM_ENABLED).toBe(false);
-    expect(autoFormDecision(ok, now)).toEqual({ action: "skip", reason: "automatic Ready Check forms are paused" });
-    const r = await sweepReadyCheckForms({ now });
+  test("switched on; when paused it creates nothing", async () => {
+    expect(AUTOFORM_ENABLED).toBe(true);
+    expect(autoFormDecision(ok, now, false)).toEqual({ action: "skip", reason: "automatic Ready Check forms are paused" });
+    const r = await sweepReadyCheckForms({ now, enabled: false });
     expect([r.results, r.wouldCreate, calls.length]).toEqual([[], [], 0]);
   });
 

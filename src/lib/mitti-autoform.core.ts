@@ -2,9 +2,9 @@
 // click). Pure decision only; creation reuses createAssignMittiAudit and its atomic per-job claim.
 import { PRE_READY_CHECK_STAGES } from "./installer-new-jobs.core";
 
-/** Jo 23 Oct: PAUSED while the A1 template is republished with optional photos, so no form is made from the old
- *  version (a Mitti form keeps the template version it was created from). Turn back on once Jo confirms. */
-export const AUTOFORM_ENABLED = false;
+/** Jo 23 Oct: ON once A1/A2 were republished (photos optional on A1, one plain-text Site address in the title).
+ *  Set false to pause while a template is being changed — a Mitti form keeps the version it was created from. */
+export const AUTOFORM_ENABLED = true;
 export const AUTOFORM_WINDOW_DAYS = 30;
 export const AUTOFORM_RETRY_AFTER_HOURS = 24;
 /** The tick has a 55s HTTP limit and runs other Mitti work too; a few forms per tick keeps it well inside. */
