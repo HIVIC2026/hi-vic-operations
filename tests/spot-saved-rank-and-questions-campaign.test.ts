@@ -43,3 +43,4 @@ test('email shows price, removal up-to line and the one questions button',()=>{
  expect(m.html).toContain('$2,349');
  expect(m.html).not.toContain('Save my spot →');
 });
+ expect(m.subject).toBe('Sam, you could save $1,200 on ceiling insulation');
