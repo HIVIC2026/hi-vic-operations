@@ -115,7 +115,7 @@ function VideoPage() {
           <section className="mt-6 space-y-3 rounded-2xl border bg-card p-6" role="status"><h1 className="font-display text-3xl font-bold">Thank you</h1><p>{NOT_INTERESTED_THANKS}</p></section>
         ) : (
           <div className="mt-6 space-y-5">
-            <QuoteBox p={quote.data?.pricing ?? null} name={quote.data?.owner.firstName ?? null} />
+            <QuoteBox p={(quote.data as { pricing?: QuotePricing } | undefined)?.pricing ?? null} name={(quote.data as { owner?: { firstName: string | null } } | undefined)?.owner?.firstName ?? null} />
             {/* Jo 23 Oct 08:36 UTC final design: quote, 3 required questions, optional photos, SAVE MY SPOT. */}
             <h2 className="font-display text-2xl font-bold">To get your free Ready Check, we need you to answer 3 quick questions:</h2>
             {INSULATION_DETAIL_QUESTIONS.map(q=><fieldset key={q.key} className="space-y-2"><legend className="mb-2 font-semibold">{q.label}</legend>{q.options.map(o=><Button key={o.value} className="h-auto min-h-12 w-full justify-start whitespace-normal text-left" role="radio" aria-checked={answers[q.key]===o.value} variant={answers[q.key]===o.value?"default":"outline"} disabled={declaring||declared} onClick={()=>setAnswers(a=>({...a,[q.key]:o.value}))}>{o.label}</Button>)}</fieldset>)}
