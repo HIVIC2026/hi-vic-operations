@@ -9,6 +9,7 @@ import { Section } from "./panels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { mittiFormUrl } from "@/lib/mitti-link.core";
+import { MittiFormLink } from "@/components/portal/MittiFormLink";
 
 export function useMittiState(jobId: string) {
   return useQuery({
@@ -60,7 +61,7 @@ export function MittiCard({ jobId, isAdmin }: { jobId: string; isAdmin: boolean 
           <dt className="text-muted-foreground">Removal</dt><dd>{data.m?.removal_required == null ? "—" : data.m.removal_required ? "Required" : "Not required"}</dd>
         </dl>
         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
-          <a href={mUrl} target="_blank" rel="noreferrer" className="font-medium text-primary underline">Open this form in Mitti</a>
+          <MittiFormLink auditId={mAudit} className="font-medium text-primary underline">Open this form in Mitti</MittiFormLink>
           <Button size="sm" variant="outline" onClick={async () => { await navigator.clipboard.writeText(mUrl); (await import("sonner")).toast.success("Mitti link copied – send it to the installer"); }}>Copy link for installer</Button>
         </div>
         <p className="mt-2 text-sm text-muted-foreground">The Ready Check is done in Mitti. Sync brings the answers onto this job — nothing is sent to the owner from here.</p>
@@ -81,7 +82,7 @@ export function MittiCard({ jobId, isAdmin }: { jobId: string; isAdmin: boolean 
       </dl>
       {mittiUrl && (
         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
-          <a href={mittiUrl} target="_blank" rel="noreferrer" className="font-medium text-primary underline">Open this form in Mitti</a>
+          <MittiFormLink auditId={a!.external_mitti_id!} className="font-medium text-primary underline">Open this form in Mitti</MittiFormLink>
           <Button size="sm" variant="outline" onClick={async () => { await navigator.clipboard.writeText(mittiUrl); (await import("sonner")).toast.success("Mitti link copied – send it to the installer"); }}>Copy link for installer</Button>
         </div>
       )}

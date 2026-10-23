@@ -50,7 +50,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { melbourneToday } from "@/lib/melbourne-time.core";
-import { mittiFormUrl } from "@/lib/mitti-link.core";
+import { MittiFormLink } from "@/components/portal/MittiFormLink";
 
 export const Route = createFileRoute("/_authenticated/field/$jobId")({
   head: () => ({ meta: [{ title: "Job – Home Insulation Victoria Field" }, { name: "description", content: "Onsite job workflow." }, { property: "og:title", content: "Job – Home Insulation Victoria Field" }, { property: "og:description", content: "Onsite job workflow." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -125,7 +125,7 @@ function MittiOnly({ jobId, which }: { jobId: string; which: "ready_check" | "pi
   const invited = useMittiInvited();
   return (
     <Section title={which === "piesa" ? "Pre Insulation Electrical Safety Assessment (PIESA) form" : "Ready Check form"}>
-      {data && invited ? <><p className="mb-3 text-sm text-sub">Fill it in on site, in order. Your answers come back here automatically.</p><Button asChild size="field" className="w-full"><a href={mittiFormUrl(data)} target="_blank" rel="noreferrer">Open form in Mitti</a></Button><div className="mt-3"><MittiCard jobId={jobId} isAdmin={false} /></div></>
+      {data && invited ? <><p className="mb-3 text-sm text-sub">Fill it in on site, in order. Your answers come back here automatically.</p><Button asChild size="field" className="w-full"><MittiFormLink auditId={data}>Open form in Mitti</MittiFormLink></Button><div className="mt-3"><MittiCard jobId={jobId} isAdmin={false} /></div></>
         : <p className="text-sm font-medium" data-mitti-unavailable>{!invited ? "Your Mitti account isn't invited yet, so the Mitti form can't open. Home Insulation Victoria has to invite you." : "The Mitti form isn't linked to this job yet — Home Insulation Victoria links it."}</p>}
     </Section>
   );

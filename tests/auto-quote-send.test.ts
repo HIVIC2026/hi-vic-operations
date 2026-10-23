@@ -94,3 +94,15 @@ test("wired into the Mitti sync for installer forms only; sends only through the
   expect(src).not.toMatch(/resendSend|sendRealSms|sendTestEmail|notifyOwnerQuoteReady/);
   expect(src).toContain('releaseQuoteToOwner(jobId, draft.id, null, "auto")');
 });
+
+// Jo 24 Oct: Deep's total INCLUDES the access fee — never added twice; only the price check takes it out.
+test("access fee is inside the installer total: shown on the line, removed only for the per-m² check", async () => {
+  const { applyMittiAccessFeeIncluded } = await import("../src/lib/mitti-installer-quote.core");
+  const d = { lines: [{ code: "INSTALLER_PRICE", description: "R5.0 batts – 120 m²" }] };
+  applyMittiAccessFeeIncluded(d, true, 300);
+  expect(d.lines[0]!.description).toBe("R5.0 batts – 120 m² · Includes difficult access ($300)");
+  expect(installerPriceRangeHold(3900 - 300, 120, null)).toBeNull(); // $3,900 incl. $300 access → $3,600 = top of range
+  const src = readFileSync("src/lib/installer-quote.server.ts", "utf8");
+  expect(src).toContain("installerPrice - (accessFee.amountIncGst ?? 0)");
+  expect(src).not.toContain("ACCESS_FEE");
+});

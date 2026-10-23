@@ -74,14 +74,14 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
     admin.from("workflow_settings").select("auto_send_quote, customer_comms_enabled, installer_quote_min_inc_gst_per_m2, installer_quote_max_inc_gst_per_m2").eq("id", 1).maybeSingle(),
   ]);
   const wholeVeec = loc && m2 && rs ? wholeVeecDiscount(m2, loc as unknown as LocationVariables, Number(rs.indicative_veec_value)) : null;
-  // Jo 24 Oct: the A1 difficult access fee is its own line on the owner's quote (not inside the installer's total).
+  // Jo 24 Oct: the installer's total INCLUDES any difficult access fee (never added twice); the fee is shown on the
+  // installer line and taken out only for the per-m² price check.
   const accessFee = !intakePrice ? answers.difficultAccessFee(entries) : { amountIncGst: null, reason: null };
-  const accessLines = accessFee.amountIncGst ? [{ code: "ACCESS_FEE", description: "Difficult ceiling access", amountIncGst: accessFee.amountIncGst }] : [];
   const apFee = job.ap_fee_override_inc_gst != null ? Number(job.ap_fee_override_inc_gst) : rs ? Number(rs.ap_management_inc_gst) : null;
   const draftInput = {
     price: intakePrice ? { ok: true, issues: [], price: { included: [intakePrice.exclusions ? `${intakePrice.includes} (excludes: ${intakePrice.exclusions})` : intakePrice.includes], otherDescription: "", totalIncGst: Math.round(intakePrice.totalIncGst * 100) / 100, agreedWithOwner: false } } : quotedPriceFromEntries(entries, m?.removal_required ?? null), measuredM2: m2, wholeVeec,
     // CURRENT recorded payer (Jo, 9 Oct 2026): own electrician = no HIV PIESA line; HIV = standard; undecided = held.
-    separateLines: intakePrice?.separateLines ?? accessLines,
+    separateLines: intakePrice?.separateLines ?? [],
     piesaIncGst: piesaChargeIncGst(job.electrician_choice ?? null, rs ? Number(rs.piesa_assessment_inc_gst) : null), apFeeIncGst: apFee,
     caps: {
       metropolitan: loc ? (loc as unknown as LocationVariables).metropolitan_or_regional === "Metropolitan" : null,
@@ -101,7 +101,7 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   if (!intakePrice) {
     const { applyMittiRemoval } = await import("./mitti-installer-quote.core");
     applyMittiRemoval(draft, answers.removalTotalM2(entries));
-    (await import("./mitti-installer-quote.core")).applyMittiAccessFeeIncluded(draft, answers.a1DifficultAccessIncluded(entries));
+    (await import("./mitti-installer-quote.core")).applyMittiAccessFeeIncluded(draft, answers.a1DifficultAccessIncluded(entries) || !!accessFee.amountIncGst, accessFee.amountIncGst);
   }
   if (!draft.ready) {
     if (mittiProduct && !mittiProduct.ready) await (await import("./ready-check-quote.server")).recordNeedsOffice(jobId, actorId, null, mittiProduct.reasons);
@@ -116,7 +116,7 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   // Jo 24 Oct: Ready Check quotes are checked against $15–$30/m² insulation + $5–$15/m² removal and the $500 access limit.
   const autoRules = await import("./auto-quote-send.core");
   const rangeReason = !intakePrice
-    ? [autoRules.installerPriceRangeHold(installerPrice, m2, answers.removalTotalM2(entries)), autoRules.accessFeeHold(accessFee)].filter(Boolean).join(" · ") || null
+    ? [autoRules.installerPriceRangeHold(installerPrice != null ? installerPrice - (accessFee.amountIncGst ?? 0) : null, m2, answers.removalTotalM2(entries)), autoRules.accessFeeHold(accessFee)].filter(Boolean).join(" · ") || null
     : installerPriceRangeReason(installerPrice != null && m2 ? installerPrice / m2 : null, workflow?.installer_quote_min_inc_gst_per_m2 == null ? null : Number(workflow.installer_quote_min_inc_gst_per_m2), workflow?.installer_quote_max_inc_gst_per_m2 == null ? null : Number(workflow.installer_quote_max_inc_gst_per_m2));
   // Honest status: the automatic step only ever creates a DRAFT held for office review. Nothing is issued,
   // marked sent or released here; the office sends via sendInstallerQuote, which checks consent/fees/switches.

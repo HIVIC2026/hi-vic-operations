@@ -1,6 +1,6 @@
 // Jo 24 Oct 2026: the installer does NOT approve the quote. When the installer marks the Mitti Ready Check
-// Complete and every check passes, the owner's quote (installer price + difficult access fee + PIESA + $349 AP fee
-// − VEU rebate) goes to the owner automatically. Anything that fails a check is held for the office with the reason.
+// Complete and every check passes, the owner's quote (installer total, which includes any difficult access fee, + PIESA + $349
+// AP fee − VEU rebate) goes to the owner automatically. Anything that fails a check is held for the office with the reason.
 // A form edited after a quote was sent is flagged for the office; the sent quote is never changed. Pure rules only.
 
 /** Switch: ON only after Jo approves the owner quote email and the full TEST run passes. */
@@ -14,7 +14,8 @@ export const ACCESS_FEE_MAX = 500;
 
 const money = (n: number) => `$${n.toLocaleString("en-AU", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
-/** The installer gives one total for insulation + removal, so it is checked against the combined normal range. */
+/** The installer gives one total for insulation + removal (+ access fee, which the caller takes out first), checked
+ *  against the combined normal range. */
 export function installerPriceRangeHold(totalIncGst: number | null, areaM2: number | null, removalM2: number | null): string | null {
   if (!(totalIncGst && totalIncGst > 0) || !(areaM2 && areaM2 > 0)) return "Quote held: installer price or ceiling area missing, so the price can't be checked";
   const r = removalM2 && removalM2 > 0 ? removalM2 : 0;

@@ -12,3 +12,19 @@ test("no screen or message builds its own Mitti form link any more", () => {
   const offenders = walk("src").filter((p) => /\.(ts|tsx)$/.test(p) && !p.endsWith("mitti-link.core.ts") && /mitti\.com\/inspections\//.test(readFileSync(p, "utf8")));
   expect(offenders).toEqual([]);
 });
+
+import { deepLinkFromResponse } from "../src/lib/mitti-link.core";
+test("Mitti's deep link is read whatever field it comes back in; nothing else is trusted", () => {
+  expect(deepLinkFromResponse({ deep_link: "https://link.mitti.com/abc" })).toBe("https://link.mitti.com/abc");
+  expect(deepLinkFromResponse({ url: "https://x.mitti.com/i/1" })).toBe("https://x.mitti.com/i/1");
+  expect(deepLinkFromResponse({ data: { link: "https://x.mitti.com/i/2" } })).toBe("https://x.mitti.com/i/2");
+  expect(deepLinkFromResponse({ url: "javascript:alert(1)" })).toBeNull();
+  expect(deepLinkFromResponse(null)).toBeNull();
+});
+test("every portal 'Mitti form' button asks for the deep link (checked against job access) instead of a fixed address", () => {
+  for (const f of ["src/components/trade/MittiMissingInfo.tsx", "src/components/portal/QuotesToCheck.tsx", "src/components/portal/NewFromInstallers.tsx", "src/components/portal/InstallerJobSummary.tsx", "src/components/portal/mitti.tsx", "src/routes/_authenticated/field.$jobId.tsx", "src/routes/_authenticated/field.day.$jobId.tsx"])
+    expect(readFileSync(f, "utf8")).toContain("<MittiFormLink auditId=");
+  const fn = readFileSync("src/lib/mitti-link.functions.ts", "utf8");
+  expect(fn).toContain('rpc("can_access_job"');
+  expect(fn).toContain(".deepLink(data.auditId)");
+});

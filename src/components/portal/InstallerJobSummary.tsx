@@ -5,6 +5,7 @@ import { ExternalLink } from "lucide-react";
 import { getInstallerJobSummary } from "@/lib/installer-job-summary.functions";
 import { mittiAuditUrl } from "@/lib/installer-quote-approval.core";
 import { Button } from "@/components/ui/button";
+import { MittiFormLink } from "@/components/portal/MittiFormLink";
 
 const WAITING: Record<string, string> = { installer: "Waiting on the installer", office: "Needs you", owner: "Waiting on the owner", nobody: "Nothing to do yet" };
 
@@ -26,7 +27,7 @@ export function InstallerJobSummary({ jobId }: { jobId: string }) {
       <p className="mt-1 text-base font-semibold">{s.upTo}</p>
       <dl className="mt-2 divide-y">
         {row("Owner permission", s.consent === "granted" ? "✅ Given" : "⚠️ Not recorded")}
-        {row("Ready Check form", <span className="flex flex-wrap items-center gap-2">{s.form.status}{url && <Button asChild size="sm" variant="outline"><a href={url} target="_blank" rel="noreferrer">Open in Mitti<ExternalLink className="h-3 w-3" /></a></Button>}</span>)}
+        {row("Ready Check form", <span className="flex flex-wrap items-center gap-2">{s.form.status}{url && <Button asChild size="sm" variant="outline"><MittiFormLink auditId={s.form.auditId!}>Open in Mitti<ExternalLink className="h-3 w-3" /></MittiFormLink></Button>}</span>)}
         {row("Quote", s.quote.status)}
         {row("What you need to do", s.officeActions.length ? <ul className="list-disc space-y-1 pl-5">{s.officeActions.map((a) => <li key={a}>{a}</li>)}</ul> : "Nothing right now")}
       </dl>

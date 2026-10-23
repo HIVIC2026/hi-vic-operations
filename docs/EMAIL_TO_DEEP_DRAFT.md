@@ -21,23 +21,23 @@ Then add their mobile and email, and tick that they're happy for us to contact t
 
 **2. Your Ready Check form appears in Mitti**
 
-Within about 15 minutes, the job's Ready Check form appears in your Mitti list, already filled in with the job number (HV-…), address and owner. The easiest way to open it is from the job in the portal: tap **Mitti form** and it opens that exact form.
+Within about 15 minutes, the job's Ready Check form appears in your Mitti list, already filled in with the address and owner. The easiest way to open it is from the job in the portal: tap **Mitti form** and it opens that exact form in the Mitti app.
 
-Please **don't start new Ready Checks in Mitti yourself**. Always use the one we make for the job, so it links up automatically. If you ever have to start one yourself, type the job's HV number into **Portal Job Number** so we can match it.
+Please **don't start new Ready Checks in Mitti yourself**. Always use the one we make for the job, so it links up automatically. (If one does get started by accident, we match it to the job from the owner's name and address.)
 
 **3. Fill it in**
 
 Fill in the form on site. If you've already visited and don't have everything, fill in what you have; the job page in the portal shows exactly what's still missing. Photos you didn't get can be taken on install day, before you start work.
 
 For your price:
-- **Total quoted price (inc GST):** your price for the insulation and any removal.
-- **Difficult access fee:** if there is one, answer **Yes** and put the amount in its own box. **Don't include it in your total.** It's shown on the quote as a separate line.
+- **Total quoted price (inc GST):** your full price for the job, including any removal and any difficult access fee.
+- **Difficult access fee:** if there is one, also answer **Yes** and type the amount in its box, so we can show it on the owner's quote. It's already in your total, so it isn't added again.
 
 **4. Only press Complete when it's 100% ready**
 
 **When you press Complete in Mitti, the owner's quote is created and sent to the owner automatically.** So please don't press Complete until everything is finished and correct.
 
-The quote the owner receives is: **your price + difficult access fee (if any) + the electrical safety check (PIESA) + our $349 fee − the government VEU rebate.** They get it by email with a secure link to view and accept it.
+The quote the owner receives is: **your total price + the electrical safety check (PIESA) + our $349 fee − the government VEU rebate.** They get it by email with a secure link to view and accept it.
 
 If anything doesn't look right (details missing, or a price outside our normal range), we hold the quote and check it with you first. Nothing odd goes to the owner. If you change the form after the quote has gone out, we'll check the change before anything else happens.
 

@@ -8,13 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { InstallerQuoteDraftPanel } from "./installer-quote";
 import { Switch } from "@/components/ui/switch";
+import { MittiFormLink } from "@/components/portal/MittiFormLink";
 
 const money = (n: number | null) => (n == null ? "—" : n.toLocaleString("en-AU", { style: "currency", currency: "AUD" }));
 
 function MittiButton({ id, jobNumber }: { id: string | null | undefined; jobNumber: string }) {
   const url = mittiAuditUrl(id);
   if (!url) return <Button variant="outline" size="sm" disabled>Mitti form</Button>;
-  return <Button asChild variant="outline" size="sm"><a href={url} target="_blank" rel="noreferrer">Mitti form<ExternalLink className="h-3 w-3" /><span className="sr-only"> {jobNumber}</span></a></Button>;
+  return <Button asChild variant="outline" size="sm"><MittiFormLink auditId={id!}>Mitti form<ExternalLink className="h-3 w-3" /><span className="sr-only"> {jobNumber}</span></MittiFormLink></Button>;
 }
 
 export function QuotesToCheck() {

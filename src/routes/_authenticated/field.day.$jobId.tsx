@@ -9,7 +9,7 @@ import { PiisaCrewPicker } from "@/components/trade/PiisaCrewPicker";
 import { onsiteFormStatus } from "@/lib/onsite-ready-check.functions";
 import { confirmHivicReadyCheckPricingFn, getTradeDayView, tradeCouldntGetInFn } from "@/lib/trade-view.functions";
 import { COULDNT_GET_IN, couldntGetInMessage, dayTile } from "@/lib/trade-view.core";
-import { mittiFormUrl } from "@/lib/mitti-link.core";
+import { MittiFormLink } from "@/components/portal/MittiFormLink";
 
 export const Route = createFileRoute("/_authenticated/field/day/$jobId")({
   head: () => ({ meta: [{ title: "Today's job – Home Insulation Victoria" }, { name: "description", content: "Before you start, then open the onsite form." }, { property: "og:title", content: "Today's job – Home Insulation Victoria" }, { property: "og:description", content: "Before you start, then open the onsite form." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
@@ -66,7 +66,7 @@ function DayPage() {
                 <p className="text-xs font-bold uppercase tracking-wide opacity-80">{data.kind === "safety_check" ? "Pre Insulation Electrical Safety Assessment (PIESA)" : data.kind === "ready_check" ? "Ready Check" : "Install"} · Mitti</p>
                 <h2 className="mt-1 font-display text-xl font-bold">Over to your onsite form</h2>
                 <p className="mt-1 text-sm opacity-90">Complete it onsite, in order. Your answers and required evidence come back to this job, and this page updates itself.</p>
-                <a className={`${greenBtn} mt-4`} href={mittiFormUrl(data.mittiId)} target="_blank" rel="noreferrer">Open form in Mitti<ArrowUpRight className="h-4 w-4" /></a>
+                <MittiFormLink auditId={data.mittiId} className={`${greenBtn} mt-4`}>Open form in Mitti<ArrowUpRight className="h-4 w-4" /></MittiFormLink>
               </section>
               <aside className={card}>
                 <h3 className="font-display text-base font-bold">What comes back here</h3>
