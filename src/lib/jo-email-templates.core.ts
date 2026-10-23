@@ -290,7 +290,7 @@ function renderBelowR2Reviewed(r: JoRecipient, f: JoEstimateFigures): string {
 
 /** Jo 23 Oct 2026 (DRAFT, awaiting Jo's final wording): "Tell us about your insulation" campaign variant of T5/T6 —
  *  same price box plus the "up to" removal line, one button to the three tap questions. */
-export const INSULATION_QUESTIONS_CTA_LABEL = "Answer 3 quick questions to get your spot";
+export const INSULATION_QUESTIONS_CTA_LABEL = "Answer 3 quick questions to save your spot";
 function renderPotentiallyEligible(r: JoRecipient, f: JoEstimateFigures, questions = false): string {
   const removalBox = questions && f.removalUpTo != null && f.removalUpTo > 0;
   const assumedNote = f.areaEstimated
