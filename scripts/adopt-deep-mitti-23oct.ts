@@ -4,7 +4,7 @@ import { scanMittiReadyCheckPickups, linkMittiReadyCheckToJob } from "../src/lib
 import { pickupAddressParts, needsFinishingText } from "../src/lib/mitti-pickup.core";
 import { logEvent } from "../src/lib/workflow.server";
 import { supabaseAdmin as admin } from "../src/integrations/supabase/client.server";
-const BIZ = "fa05a642-77da-4d09-9c3d-b2d5ef8e448a";
+const BIZ = "a8304d2d-339b-4cbf-bcf1-fb09ce7935b0"; const DEEP = "fa05a642-77da-4d09-9c3d-b2d5ef8e448a";
 const ACTOR = "36b849de-1cde-425c-a05d-623f8985bbd6";
 const WANT = ["audit_7016af7e", "audit_40813bd2", "audit_bd4e5d5f", "audit_8c375adc", "audit_ee4c3f06"];
 const run = process.argv.includes("--run");
@@ -23,7 +23,7 @@ for (const p of WANT) {
     jobId = dup[0].jobId ?? dup[0].job_id; jobNo = dup[0].jobNumber ?? dup[0].job_number;
     await logEvent(jobId, ACTOR, "mitti_pickup_clash", `Mitti Ready Check ${r.auditId} by ${biz!.name} matches this existing job — linked, not duplicated; office to check`, { audit_id: r.auditId, needs_office: true, duplicates: dup }, { internal: true });
   } else {
-    const { data: m } = await admin.from("profiles").select("id").eq("business_id", BIZ).limit(1).single();
+    const m = { id: DEEP };
     const parts = pickupAddressParts(r.siteAddress);
     const { upsertEnquiry } = await import("../src/lib/enquiry.server");
     const c = await upsertEnquiry({ full_name: (r.homeownerName?.trim() || "Homeowner (name to confirm)"), email: r.ownerEmail?.trim() || null, phone: r.ownerPhone?.trim() || null,
