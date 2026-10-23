@@ -52,6 +52,8 @@ export async function keepNeedsFinishingFor(jobId: string, stage: string, missin
   if (!READY_CHECK_STAGES.includes(stage as never)) return false;
   const next = needsFinishingFromMissing(missing);
   if (!next) return false;
-  const { data } = await admin.from("jobs").update({ next_action: next }).eq("id", jobId).neq("next_action", next).select("id");
-  return !!data?.length;
+  const { data: cur } = await admin.from("jobs").select("next_action").eq("id", jobId).maybeSingle();
+  if (cur?.next_action === next) return false;
+  await admin.from("jobs").update({ next_action: next }).eq("id", jobId);
+  return true;
 }
