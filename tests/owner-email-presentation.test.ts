@@ -11,7 +11,8 @@ test('real owner reply to Spot saved remains visible; our automation never does'
   expect(isHumanOwnerEmail({provider:'outlook',direction:'inbound',from:'info@homeinsulationvictoria.com.au',body:'Spot saved'})).toBe(false);
 });
 test('auto replies, bounces and marketing are excluded', () => {
-  for(const c of [{subject:'Automatic reply: Hello'}, {subject:'Undeliverable: quote'}, {body:'Buy now. Unsubscribe'}, {from:'no-reply@example.com'}]) expect(isHumanOwnerEmail({provider:'outlook',direction:'inbound',from:'sam@example.com',body:'Hello',...c})).toBe(false);
+  for(const c of [{subject:'Automatic reply: Hello'}, {subject:'Undeliverable: quote'}, {body:'Buy now. Click to unsubscribe'}, {from:'no-reply@example.com'}]) expect(isHumanOwnerEmail({provider:'outlook',direction:'inbound',from:'sam@example.com',body:'Hello',...c})).toBe(false);
+  expect(isHumanOwnerEmail({provider:'outlook',direction:'inbound',from:'sam@example.com',body:'Please unsubscribe me.'})).toBe(true);
 });
 test('two jobs for the same owner produce one latest owner row', () => {
   const r=latestPerOwner([{ownerId:'a',jobId:'HV-1',at:'2026-10-22'}, {ownerId:'a',jobId:'HV-2',at:'2026-10-23'}, {ownerId:'b',jobId:'HV-3',at:'2026-10-21'}]);

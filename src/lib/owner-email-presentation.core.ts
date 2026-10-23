@@ -20,13 +20,14 @@ export function cleanOwnerEmail(value: string | null | undefined): string {
 export type EmailDisplayFacts = { direction?: string | null; provider?: string | null; channel?: string | null; from?: string | null; subject?: string | null; body?: string | null; internal?: boolean };
 /** A reply ABOUT an automated subject is still an owner message; never exclude it by subject alone. */
 export function isHumanOwnerEmail(c: EmailDisplayFacts): boolean {
+  if (c.internal) return false;
   if (c.channel && c.channel !== "email") return false;
   if (c.provider !== "outlook" && c.provider !== "manual") return false;
   const from = c.from ?? "";
   if (c.direction === "inbound" && /(?:@homeinsulationvictoria\.com\.au|mailer-daemon|postmaster|no[-_]?reply|notifications?@|newsletter)/i.test(from)) return false;
   if (/^(?:automatic reply:|auto(?:matic)?[- ]?response:|out of office\b|undeliverable:|delivery (?:status|failure)|mail delivery (?:failed|subsystem))/i.test(c.subject ?? "")) return false;
   const body = cleanOwnerEmail(c.body);
-  if (/\b(?:unsubscribe|manage (?:your )?(?:email )?preferences|view (?:this email )?in (?:your )?browser)\b/i.test(body)) return false;
+  if (/\b(?:click (?:here )?to unsubscribe|manage (?:your )?(?:email )?preferences|view (?:this email )?in (?:your )?browser|unsubscribe from (?:this|our) (?:list|newsletter|emails))\b/i.test(body)) return false;
   if (/^(?:I am (?:currently )?(?:out of (?:the )?office|away)|Thank you for (?:your email|contacting).*(?:automatic|out of office)|This is an automated|Your message (?:could not|was not) be delivered)/i.test(body)) return false;
   return c.direction === "inbound" || c.direction === "outbound";
 }

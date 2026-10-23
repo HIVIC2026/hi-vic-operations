@@ -190,7 +190,7 @@ export function buildCorrespondence(messages: Row[], comms: Row[], senderRole: (
       provider: s(c["provider"]), to: Array.isArray(c["recipients"]) ? (c["recipients"] as unknown[]).map(String) : [],
       attachments: Array.isArray(c["attachment_refs"]) ? (c["attachment_refs"] as { name?: unknown }[]).map((a) => String(a?.name ?? "attachment")) : [],
       attachmentFiles: Array.isArray(c["attachment_refs"])
-        ? (c["attachment_refs"] as { name?: unknown; path?: unknown; skipped?: unknown; contentType?: string; isInline?: boolean }[]).map((a) => ({ name: String(a?.name ?? "attachment"), path: typeof a?.path === "string" && a.path ? a.path : null, skipped: typeof a?.skipped === "string" && a.skipped ? a.skipped : null, contentType: a.contentType ?? null, isInline:a.isInline === true }))
+        ? (c["attachment_refs"] as { name?: unknown; path?: unknown; skipped?: unknown; contentType?: string; isInline?: boolean }[]).map((a) => ({ name: String(a?.name ?? "attachment"), path: typeof a?.path === "string" && a.path ? a.path : null, skipped: typeof a?.skipped === "string" && a.skipped ? a.skipped : null, ...(a.contentType ? {contentType:a.contentType} : {}), ...(a.isInline !== undefined ? {isInline:a.isInline} : {}) }))
         : [] });
   }
   return out.sort((a, b) => a.at.localeCompare(b.at));

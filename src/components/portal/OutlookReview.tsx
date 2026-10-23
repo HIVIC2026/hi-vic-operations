@@ -154,21 +154,15 @@ function ReviewItem({ r, resolve }: { r: Review; resolve: Parameters<typeof Revi
         <span className="rounded bg-workspace-sun px-1.5 py-0.5 font-semibold text-foreground">{KIND_LABEL[r.kind]}</span>
         <span>{r.direction === "inbound" ? `From ${r.from ?? "unknown"}` : `To ${r.recipients.join(", ")}`}</span>
         <span>{fmt(r.at)}</span>
-        {r.jobNumber && <Link to="/admin/jobs/$jobId" params={{ jobId: r.jobId! }} className="font-semibold text-primary underline">{r.jobNumber}</Link>}
+        {r.jobNumber && r.jobId && <Link to="/admin/jobs/$jobId" params={{ jobId: r.jobId }} className="font-semibold text-primary underline">{r.jobNumber}</Link>}
       </div>
       <p className="mt-1 text-xs">{r.reason}</p>
       {r.subject && <div className="mt-1 font-medium">{r.subject}</div>}
       <p className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap text-sub">{r.body}</p>
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        {r.kind === "unmatched" ? (<>
-          {r.candidates.length > 0 && <span className="text-xs">Possible: {r.candidates.map((c) => c.jobNumber).join(", ")}</span>}
-          <Input aria-label="Job number" className="h-9 w-32" placeholder="HV-1234" value={num} onChange={(e) => setNum(e.target.value)} />
-          <Button size="sm" onClick={() => void resolve({ reviewId: r.id, action: "assign", jobNumber: num }, "Email added to the job")}>Add to job</Button>
-        </>) : (<>
-          <Input aria-label="Closure reason" className="h-9 w-80" value={reason} onChange={(e) => setReason(e.target.value)} />
+          <Input aria-label="Closure reason" className="h-9 w-full" value={reason} onChange={(e) => setReason(e.target.value)} />
           <Button size="sm" variant="destructive" onClick={() => { if (window.confirm(`Close ${r.jobNumber ?? "this job"} with reason “${reason}”? Nothing is deleted.`)) void resolve({ reviewId: r.id, action: "close_job", reason }, "Job closed"); }}>Close job</Button>
-        </>)}
-        <Button size="sm" variant="ghost" onClick={() => void resolve({ reviewId: r.id, action: "dismiss" }, "Dismissed")}>{r.kind === "unmatched" ? "Not a customer email" : "Keep open — dismiss"}</Button>
+        <Button size="sm" variant="ghost" onClick={() => void resolve({ reviewId: r.id, action: "dismiss" }, "Dismissed")}>Keep open — dismiss</Button>
       </div>
     </li>
   );
