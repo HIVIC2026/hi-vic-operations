@@ -106,7 +106,13 @@ export async function listJobInboundEmails(jobId: string) {
  * creates links/tokens and never reserves a delivery. Send requires the recorded review, re-checks
  * every guard, reserves once (idempotency key), and records the exact sent content in job history.
  */
+/** Jo 23 Oct 2026: retired everywhere. */
+export const PRELIMINARY_INVITATION_RETIRED = true;
+
 export async function preliminarySaveSpotOffer(jobId: string, actorId: string, mode: "preview" | "send", shownReviewId?: string): Promise<PreliminarySendResult> {
+  // Jo 23 Oct 2026: the preliminary invitation is retired — never previewed or sent from anywhere.
+  // No-photo owners use the normal "Qualifies – send Save my spot email" review instead.
+  if (PRELIMINARY_INVITATION_RETIRED) return { jobId, jobNumber: null, outcome: "blocked", detail: "The preliminary Save my spot invitation is retired. Use “Qualifies – send Save my spot email”. Nothing sent." };
   const { data: job, error: jobError } = await admin.from("jobs").select(PRELIMINARY_JOB_SELECT).eq("id", jobId).maybeSingle();
   if (jobError) return { jobId, jobNumber: null, outcome: "blocked", detail: "Could not read the job. Try again; nothing sent." };
   if (!job) return { jobId, jobNumber: null, outcome: "failed", detail: "Job not found" };
