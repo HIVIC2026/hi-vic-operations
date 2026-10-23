@@ -33,10 +33,10 @@ test("nobody is parked: every answer goes to Save my spot", () => {
 const fig = { veuRebate: 1258, customerTotal: 2341, totalBeforeRebate: 3599, installation: 2901, piesaFee: 349, apFee: 349, ceilingAreaM2: 150, areaEstimated: false, removalUpTo: 2250 } as never;
 const r = { firstName: "Sam", propertyAddress: "1 St", enquiryReference: "HV-1" } as never;
 test("standard existing wording has removal line and never says thin", () => {
-  const t = renderJoEstimateEmail("eligible_no_insulation_size_known" as never, r, fig, { declaredExisting: true }).plainText ?? "";
+  const t = renderJoEstimateEmail("eligible_no_insulation_size_known" as never, r, fig, { declaredExisting: true }).body;
   expect(t).toContain(EXISTING_SAVE_SPOT_LINE); expect(t).not.toContain(THIN_PATCHY_SAVE_SPOT_LINE); expect(t).toContain("up to $2,250");
 });
 test("thin wording only for thin/loose fill", () => {
-  const t = renderJoEstimateEmail("eligible_no_insulation_size_known" as never, r, fig, { declaredThinPatchy: true }).plainText ?? "";
+  const t = renderJoEstimateEmail("eligible_no_insulation_size_known" as never, r, fig, { declaredThinPatchy: true }).body;
   expect(t).toContain(THIN_PATCHY_SAVE_SPOT_LINE); expect(t).not.toContain(EXISTING_SAVE_SPOT_LINE);
 });
