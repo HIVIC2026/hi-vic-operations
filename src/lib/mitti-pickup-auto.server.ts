@@ -133,6 +133,9 @@ export async function sweepMittiPickupAuto(opts: { dryRun?: boolean; call?: Mitt
       // Factual record only — the owner's tick is a fact about contact, never a marketing consent record.
       if (r.contactPermission === true) await logEvent(created.job_id, null, "mitti_contact_permission", `Owner ticked contact permission on the Mitti Ready Check form (audit ${r.auditId})`, { audit_id: r.auditId, permission: true, source: "mitti_form" }, { internal: true });
       const link = await linkMittiReadyCheckToJob(null, { auditId: r.auditId, jobId: created.job_id }, call);
+      // Safety net: if post-intake finished after the link, the job still lands at ready_check_scheduled.
+      const { holdAtMittiReadyCheck } = await import("./mitti-pickup.server");
+      await holdAtMittiReadyCheck(created.job_id, null);
       if (decision.action === "create_job_needs_finishing") {
         const next = needsFinishingText(decision.missing);
         await admin.from("jobs").update({ next_action: next }).eq("id", created.job_id);

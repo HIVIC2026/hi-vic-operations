@@ -201,3 +201,11 @@ export function pickupAutoDecision(input: {
 
 /** Installer-app next step for a picked-up form missing owner details. */
 export const needsFinishingText = (missing: string[]) => `Needs finishing: add ${missing.join(", ")} on the Mitti form`;
+
+/** Jo 23 Oct 2026: an installer-led job with a linked Mitti Ready Check waits on the installer, not the owner.
+ *  Early (pre-Ready-Check) stages move to "ready_check_scheduled"; later stages are never moved back. */
+export const MITTI_HOLD_FROM_STAGES = ["new_enquiry", "eligibility_review", "preliminary_estimate_ready", "ready_check_awaiting_acceptance", "ready_check_awaiting_payment", "ready_check_ready_to_schedule"] as const;
+export function mittiReadyCheckStage(job: { stage: string; channel: string | null }): "ready_check_scheduled" | null {
+  if (job.channel !== "installer_sourced") return null;
+  return (MITTI_HOLD_FROM_STAGES as readonly string[]).includes(job.stage) ? "ready_check_scheduled" : null;
+}
