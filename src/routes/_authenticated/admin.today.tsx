@@ -7,6 +7,7 @@ import { getTodayBrief } from "@/lib/daily-brief.functions";
 import { getLaunchCampaignOffice } from "@/lib/launch-campaign.functions";
 import type { BriefNeed } from "@/lib/daily-brief.core";
 import { QuotesToCheck } from "@/components/portal/QuotesToCheck";
+import { NewFromInstallers } from "@/components/portal/NewFromInstallers";
 
 const T = "Today – Home Insulation Victoria Portal";
 const D = "Daily brief for the Accredited Person: what needs you, what is at risk this week and yesterday's numbers.";
@@ -38,6 +39,7 @@ function TodayPage() {
   return (
     <AppShell>
       <div className="space-y-6">
+        <NewFromInstallers />
         <QuotesToCheck />
         <div>
           <h1 className="font-heading text-2xl font-bold">Today</h1>

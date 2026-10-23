@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getJobListPage } from "@/lib/portal.functions";
 import { QuotesToCheck } from "./QuotesToCheck";
+import { NewFromInstallers } from "./NewFromInstallers";
 import { getMittiPickups, linkMittiPickup, getMittiSyncProblems, retryMittiSyncFn } from "@/lib/mitti-pickup.functions";
 import { pickupLabel } from "@/lib/mitti-pickup.core";
 import { CLOSED_VIEWS, JOB_SORT_KEYS, JOB_SORT_LABEL, VISIBLE_JOB_STAGES, type JobClosedView } from "@/lib/job-list-page.core";
@@ -265,6 +266,7 @@ export function JobsWorkspace({
         </div>
       )}
 
+      {mode === "active" && <NewFromInstallers />}
       {mode === "active" && <MittiPickupsToLink />}
       {mode === "active" && <MittiSyncProblems />}
       {mode === "active" && <InstallerQuotesToCheck />}
