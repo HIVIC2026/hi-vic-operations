@@ -74,6 +74,10 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
   const { priceHivQuote, HIV_PRICING_RULE, R_VALUE_CODE } = await import("./hiv-quote.core");
   const chosen = await (await import("./insulation-product.server")).productForHivQuote(jobId);
   const rValue = chosen.product?.rValue ?? "R5.0";
+  // Jo 23 Oct: A2 difficult access fee (Difficult + Yes) is added to the owner total; missing amount holds the quote.
+  const rawSnap = (m as { raw_snapshot?: unknown } | null)?.raw_snapshot;
+  const snapEntries = (Array.isArray(rawSnap) ? rawSnap : Array.isArray((rawSnap as { entries?: unknown })?.entries) ? (rawSnap as { entries: unknown[] }).entries : []) as { label: string; value: string | null }[];
+  const accessFee = (await import("./ready-check-answers.core")).difficultAccessFee(snapEntries);
   let calc: ReturnType<typeof priceHivQuote>;
   try {
     calc = priceHivQuote({
@@ -86,6 +90,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
       gstRate: Number(settings.gst_rate),
       installerR5ExPerM2: rate("R5_BATTS"), installerRemovalExPerM2: rate("BATTS_REMOVAL", "REMOVAL", "LOOSE_FILL_REMOVAL"), installerTravelEx: rate("TRAVEL"),
       rValue, installerRExPerM2: rate(R_VALUE_CODE[rValue]), product: chosen.product,
+      difficultAccessFeeIncGst: accessFee.amountIncGst,
     });
   } catch (e) { throw new WorkflowError(e instanceof Error ? e.message : "Could not price this quote."); }
 
@@ -114,7 +119,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
   // Jo 22 Oct 2026: installer's agreed rate above the owner rate for the chosen R-value → held for office review.
   // Jo 22 Oct 23:45: no confirmed approved product from the form → held, office confirms the product.
   const { PRODUCT_NEEDS_OFFICE } = await import("./insulation-product.core");
-  const holds = [...calc.holdReasons, ...(chosen.product ? [] : [PRODUCT_NEEDS_OFFICE])];
+  const holds = [...calc.holdReasons, ...(chosen.product ? [] : [PRODUCT_NEEDS_OFFICE]), ...(accessFee.reason ? [accessFee.reason] : [])];
   const release: typeof baseRelease = holds.length ? { state: "held", status: "draft", reason: holds.join(" ") } : baseRelease;
   const releasedAt = release.status === "issued" ? new Date().toISOString() : null;
   const availableToOwner = release.state !== "held";

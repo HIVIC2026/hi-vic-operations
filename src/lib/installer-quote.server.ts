@@ -79,7 +79,7 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   const draftInput = {
     price: intakePrice ? { ok: true, issues: [], price: { included: [intakePrice.exclusions ? `${intakePrice.includes} (excludes: ${intakePrice.exclusions})` : intakePrice.includes], otherDescription: "", totalIncGst: Math.round(intakePrice.totalIncGst * 100) / 100, agreedWithOwner: false } } : quotedPriceFromEntries(entries, m?.removal_required ?? null), measuredM2: m2, wholeVeec,
     // CURRENT recorded payer (Jo, 9 Oct 2026): own electrician = no HIV PIESA line; HIV = standard; undecided = held.
-    separateLines: intakePrice?.separateLines ?? (accessFee.amountIncGst ? [{ code: "DIFFICULT_ACCESS", description: "Difficult access fee", amountIncGst: accessFee.amountIncGst }] : []),
+    separateLines: intakePrice?.separateLines ?? [], // A1: difficult access fee is INSIDE the installer total (Jo 23 Oct) — shown, never added
     piesaIncGst: piesaChargeIncGst(job.electrician_choice ?? null, rs ? Number(rs.piesa_assessment_inc_gst) : null), apFeeIncGst: apFee,
     caps: {
       metropolitan: loc ? (loc as unknown as LocationVariables).metropolitan_or_regional === "Metropolitan" : null,
@@ -99,6 +99,7 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   if (!intakePrice) {
     const { applyMittiRemoval } = await import("./mitti-installer-quote.core");
     applyMittiRemoval(draft, answers.removalTotalM2(entries));
+    (await import("./mitti-installer-quote.core")).applyMittiAccessFeeIncluded(draft, accessFee.amountIncGst);
     if (accessFee.reason) { draft.blockers.push(accessFee.reason); draft.ready = false; }
   }
   if (!draft.ready) {

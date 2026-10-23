@@ -37,3 +37,11 @@ export function applyMittiRemoval(draft: { lines: { code: string | null; descrip
   if (line) line.description = `${line.description} · Removal of existing insulation – ${removalM2} m²`;
   return draft;
 }
+
+/** Jo 23 Oct (A1): the difficult access fee is already inside the installer's total — shown on the line, never added. */
+export function applyMittiAccessFeeIncluded(draft: { lines: { code: string | null; description: string }[] }, feeIncGst: number | null) {
+  if (!(feeIncGst && feeIncGst > 0)) return draft;
+  const line = draft.lines.find((l) => l.code === "INSTALLER_PRICE");
+  if (line) line.description = `${line.description} · includes difficult access fee $${feeIncGst.toFixed(2)}`;
+  return draft;
+}

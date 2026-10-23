@@ -5,8 +5,9 @@ import { websiteStopReasons, readyCheckStopReasons, removalTotalM2, difficultAcc
 import { readyCheckCompletionChecks, readyCheckFactsFromEntries } from "../src/lib/ready-check-complete.core";
 import { installDayPhotoNeeds, installDayPhotoBlocker } from "../src/lib/ready-check-chase.core";
 import { validateQuotedPrice } from "../src/lib/mitti-forms.core";
-import { applyMittiRemoval } from "../src/lib/mitti-installer-quote.core";
+import { applyMittiRemoval, applyMittiAccessFeeIncluded } from "../src/lib/mitti-installer-quote.core";
 import { buildInstallerQuoteDraft } from "../src/lib/installer-led.core";
+import { priceHivQuote } from "../src/lib/hiv-quote.core";
 
 const sel = (...labels: string[]) => ({ selected: labels.map((label) => ({ label })) });
 const e = (label: string, value: string | null) => ({ label, value });
@@ -49,13 +50,22 @@ describe("6 difficult access fee", () => {
     expect(difficultAccessFee(acc("Difficult", "No", "250")).amountIncGst).toBeNull();
   });
   test("Yes with no amount → office reason", () => expect(difficultAccessFee(acc("Difficult", "Yes", null)).reason).toMatch(/difficult access fee/));
-  test("own quote line 'Difficult access fee'", () => {
+  test("A1: shown as included in the installer total, never added on top", () => {
     const price = validateQuotedPrice({ included: ["Ceiling insulation - supply & install", "Difficult access charge"], totalIncGst: 3000, removalRequired: false });
     expect(price.ok).toBe(true);
-    const d = buildInstallerQuoteDraft({ price, measuredM2: 100, wholeVeec: { veecs: 10, raw: 500 }, piesaIncGst: 349, apFeeIncGst: 349, caps: { metropolitan: true, minCopay: 200 }, separateLines: [{ code: "DIFFICULT_ACCESS", description: "Difficult access fee", amountIncGst: 250 }] });
-    const line = d.lines.find((l) => l.code === "DIFFICULT_ACCESS");
-    expect(line).toMatchObject({ description: "Difficult access fee", line_total_inc_gst: 250 });
-    expect(d.subtotal).toBe(3000 + 250 + 349 + 349);
+    const d = buildInstallerQuoteDraft({ price, measuredM2: 100, wholeVeec: { veecs: 10, raw: 500 }, piesaIncGst: 349, apFeeIncGst: 349, caps: { metropolitan: true, minCopay: 200 } });
+    applyMittiAccessFeeIncluded(d, 250);
+    expect(d.lines.find((l) => l.code === "INSTALLER_PRICE")!.description).toContain("includes difficult access fee $250.00");
+    expect(d.lines.some((l) => l.code === "DIFFICULT_ACCESS")).toBe(false);
+    expect(d.subtotal).toBe(3000 + 349 + 349);
+  });
+  test("A2: added to the owner's rate-card total as its own line", () => {
+    const base = { areaM2: 100, removalM2: 0, accessMultiplier: 1.25, ownerR5IncPerM2: 30, ownerRemovalIncPerM2: 15, piesaIncGst: 349, apFeeIncGst: 349, gstRate: 0.1, installerR5ExPerM2: 20, installerRemovalExPerM2: null, installerTravelEx: null };
+    const without = priceHivQuote(base), withFee = priceHivQuote({ ...base, difficultAccessFeeIncGst: 250 });
+    const sum = (q: typeof without) => q.lines.reduce((a, l) => a + l.line_total_inc_gst, 0);
+    expect(withFee.lines.find((l) => l.code === "DIFFICULT_ACCESS")).toMatchObject({ description: "Difficult access fee", line_total_inc_gst: 250 });
+    expect(sum(withFee) - sum(without)).toBe(250);
+    expect(withFee.installerMarkup.markupInc).toBe(without.installerMarkup.markupInc);
   });
 });
 
