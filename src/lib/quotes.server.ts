@@ -43,7 +43,7 @@ type Line = { code: string | null; description: string; quantity: number; unit: 
 // REMOVED (security review 6 Oct): legacy priceInstallerOption and its flat per-m² VEEC credit
 // (pricing_settings.veec_credit_per_m2_inc_gst). Every discount uses wholeVeecDiscount + applyDiscountRules.
 
-export async function generateInstallerQuotes(jobId: string, actorId: string) {
+export async function generateInstallerQuotes(jobId: string, actorId: string | null, options: { mittiDraft?: boolean } = {}) {
   // Installer-supplied jobs (installer's own customer and price) never use this builder: no installer markup there.
   const { data: jobRow } = await admin.from("jobs").select("channel, installer_led, ap_fee_override_inc_gst, property_id").eq("id", jobId).single();
   if (!jobRow) throw new WorkflowError("Job not found.");
@@ -51,7 +51,13 @@ export async function generateInstallerQuotes(jobId: string, actorId: string) {
   // Two-requirement model: quote inputs come ONLY from the accepted/current ceiling measurement.
   const { data: m } = await admin.from("ceiling_measurements").select("*").eq("job_id", jobId).eq("is_current", true).maybeSingle();
   let qi: ReturnType<typeof quoteInputsFromMeasurement>;
-  try { qi = quoteInputsFromMeasurement(m as MeasurementLike | null); } catch (e) { throw new WorkflowError(e instanceof Error ? e.message : "Ready Check missing."); }
+  try {
+    if (options.mittiDraft && m && Number(m.measured_area_m2) > 0) {
+      // Draft pricing only; the Send boundary still requires the accepted measurement.
+      qi = { areaM2: Number(m.measured_area_m2), removalM2: m.removal_required ? Number(m.removal_m2 ?? 0) : 0,
+        access: (m.access_difficulty ?? "easy") as "easy" | "moderate" | "difficult", measurementId: m.id };
+    } else qi = quoteInputsFromMeasurement(m as MeasurementLike | null);
+  } catch (e) { throw new WorkflowError(e instanceof Error ? e.message : "Ready Check missing."); }
   const { data: inst } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
   if (!inst?.business_id) throw new WorkflowError("Assign the installer before quoting – the quote uses that installer's agreed rates.");
   const settings = await activePricing();
@@ -219,6 +225,8 @@ export async function generateRectificationQuote(jobId: string, actorId: string)
 
 /** Release queued quotes only when both quote automation and the master customer-comms switch are on. */
 export async function releaseQueuedQuotes() {
+  // Jo 23 Oct: scheduled ticks never release or notify for quotes, including older queued rows.
+  if (!(await import("./office-quote-review.core")).automaticQuoteSendingAllowed()) return { released: 0 };
   const { data: workflow } = await admin.from("workflow_settings").select("auto_send_quote, customer_comms_enabled").eq("id", 1).maybeSingle();
   if (workflow?.auto_send_quote !== true || workflow?.customer_comms_enabled !== true) return { released: 0 };
   const { data: queued } = await admin.from("quotes").select("id, job_id, kind").eq("status", "issued").eq("release_state", "queued").limit(200);

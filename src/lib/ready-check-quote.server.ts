@@ -30,3 +30,27 @@ export async function maybeAutoQueueReadyCheckQuote(jobId: string, actorId: stri
   void jobId; void actorId; void entries; void formComplete;
   return { action: "off" };
 }
+
+/** A2 uses the existing owner-price builder for a draft only; no measurement acceptance or send. */
+export async function draftHivReadyCheckQuote(jobId: string, actorId: string | null, auditId: string, modifiedAt: string | null, entries: { label: string; value: unknown }[]) {
+  const [{ data: job, error: je }, { data: quotes, error: qe }, { data: last, error: le }] = await Promise.all([
+    admin.from("jobs").select("channel, life_support_status, properties(enrichment)").eq("id", jobId).maybeSingle(),
+    admin.from("quotes").select("id, status").eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]),
+    admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_a2_quote_drafted").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  if (je || qe || le) throw new Error("Ready Check quote history could not be checked.");
+  if (!job || job.channel === "installer_sourced" || quotes?.some(q => q.status !== "draft")) return;
+  const ra = await import("./ready-check-answers.core");
+  const prop = job.properties as { enrichment?: { base44?: { declared?: { over_five_years?: string } } } } | null;
+  const stops = [...ra.readyCheckStopReasons(entries, { ownerAnsweredOnWebsite: true }), ...ra.websiteStopReasons({ lifeSupportStatus: job.life_support_status, overFiveYears: prop?.enrichment?.base44?.declared?.over_five_years ?? null })];
+  if (stops.length) { await recordNeedsOffice(jobId, actorId, null, stops); return; }
+  const prior = last?.details as { audit_id?: string; modified_at?: string | null } | null;
+  if (quotes?.length && prior?.audit_id === auditId && prior.modified_at === modifiedAt) return;
+  try {
+    const ids = await (await import("./quotes.server")).generateInstallerQuotes(jobId, actorId, { mittiDraft: true });
+    await logEvent(jobId, actorId, "mitti_a2_quote_drafted", "Ready Check owner quote drafted for office review", { audit_id: auditId, modified_at: modifiedAt, quote_ids: ids }, { internal: true });
+  } catch (e) {
+    await recordNeedsOffice(jobId, actorId, null, [e instanceof Error ? e.message : "Quote could not be drafted"]);
+    throw e;
+  }
+}
