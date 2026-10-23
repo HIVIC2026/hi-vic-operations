@@ -5,8 +5,11 @@ export const INSULATION_DETAIL_QUESTIONS = [
 ] as const;
 export type InsulationTapAnswers = { insulation_type: "loose_fill"|"batts"|"unknown"; insulation_thickness: "thin"|"hand"|"thicker"|"unknown"; house_built_period: "before_1980"|"1980s"|"1990s"|"2000s"|"2010_or_later"|"unknown" };
 export function insulationDraftSaveAllowed(preview:boolean,source:string|null|undefined){return preview&&source==='qa_test';}
-export function insulationTapRoute(a: Pick<InsulationTapAnswers,"insulation_type"|"insulation_thickness">): "thin_patchy"|"needs_onsite_assessment" {
-  return a.insulation_type === "loose_fill" || a.insulation_thickness === "thin" ? "thin_patchy" : "needs_onsite_assessment";
+export function insulationTapRoute(a: Pick<InsulationTapAnswers,"insulation_type"|"insulation_thickness"> & Partial<Pick<InsulationTapAnswers,"house_built_period">>): "thin_patchy"|"needs_onsite_assessment" {
+  // Jo-approved declared-age proxy: Victoria introduced mandatory minimum insulation standards
+  // for new houses in 1991 (Sustainability Victoria 2016 report). Photos still require Office review.
+  const olderHouse = a.house_built_period === "before_1980" || a.house_built_period === "1980s";
+  return olderHouse || a.insulation_type === "loose_fill" || a.insulation_thickness === "thin" ? "thin_patchy" : "needs_onsite_assessment";
 }
 /** Original website handoff stays immutable; newer declared answers are a separate provenance overlay. */
 export function ownerInsulationAnswers(enrichment: Record<string,unknown>|null|undefined): Record<string,unknown> {
