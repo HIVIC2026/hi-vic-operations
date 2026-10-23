@@ -63,7 +63,11 @@ export type Entry = { id: string; label: string; norm: string; type: string; val
 function responseValue(it: Any): string | null {
   const r = it?.responses ?? {};
   if (Array.isArray(r.selected) && r.selected.length) return r.selected.map((s: Any) => s?.label ?? s).join(", ");
-  for (const k of ["text", "value", "datetime", "date", "number", "phone", "phone_number"]) if (r[k] != null && String(r[k]).trim() !== "") return String(r[k]).trim();
+  // Text and Number question types (Jo 23 Oct: number questions may switch type) both read here.
+  for (const k of ["text", "value", "number", "numeric", "datetime", "date", "phone", "phone_number"]) if (r[k] != null && typeof r[k] !== "object" && String(r[k]).trim() !== "") return String(r[k]).trim();
+  // Photos: a media question with at least one upload counts as answered.
+  const media = Array.isArray(it?.media) ? it.media : Array.isArray(r.media) ? r.media : null;
+  if (media && media.length) return `${media.length} photo${media.length === 1 ? "" : "s"}`;
   if (typeof it?.value === "string" || typeof it?.value === "number") return String(it.value);
   return null;
 }
