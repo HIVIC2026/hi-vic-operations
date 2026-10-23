@@ -8,9 +8,8 @@ import { NowPanel, Pill, btnClass } from "@/components/portal/kit";
 import { useState } from "react";
 import { StatusLineView } from "@/components/trade/job-status";
 import { getTradeHome } from "@/lib/trade-view.functions";
-import { dayTile, goneIn, tradeGreeting } from "@/lib/trade-view.core";
+import { dayTile, goneIn, jobCardLine, needsFinishingTask, tradeGreeting } from "@/lib/trade-view.core";
 import { SourceBadge } from "@/components/portal/badges";
-import { jobCardLine, needsFinishingTask } from "@/lib/trade-view.core";
 import { INSTALLER_TABS, type InstallerTab } from "@/lib/installer-progress.core";
 
 export const Route = createFileRoute("/_authenticated/field/")({
