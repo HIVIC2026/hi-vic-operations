@@ -45,7 +45,7 @@ export async function listOwnerEmailsToReview() {
   }
   rows.sort((a, b) => String(b.at).localeCompare(String(a.at)));
   const { count, error: ue } = await admin.from("correspondence_reviews").select("id", { count: "exact", head: true })
-    .eq("provider", "outlook").eq("kind", "unmatched").eq("direction", "inbound").is("resolved_at", null);
+    .eq("provider", "outlook").eq("kind", "unmatched").eq("direction", "inbound").eq("status", "open");
   if (ue) throw new Error(`Unmatched emails unavailable: ${ue.message}`);
   return { rows, unmatched: count ?? 0 };
 }

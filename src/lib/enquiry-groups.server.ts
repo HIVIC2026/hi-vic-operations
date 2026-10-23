@@ -288,6 +288,9 @@ export async function loadLeadMedia(jobId: string) {
     const signed = await signFile("job-files", d.storage_path, 3600);
     if (signed.data) files.push({ id: d.id, mimeType: d.mime_type, url: signed.data.signedUrl, at: d.created_at });
   }
+  // Jo 23 Oct: photos/videos the owner emailed to info@ count as the owner's photos/video too.
+  const { ownerEmailMediaFiles } = await import("./owner-email-review.server");
+  files.push(...(await ownerEmailMediaFiles(jobId)));
   const { groupBMediaForJob } = await import("./group-b-media.server");
   const media = await groupBMediaForJob(jobId);
   return { files, pendingSync: media.pendingSync, uncertain: media.uncertain };
