@@ -28,7 +28,10 @@ export async function buildSpotSavedMessages(jobId: string, token: string) {
     myJobUrl: `${OWNER_BASE}/my-job/${token}`, optOutUrl, referralUrl: await referralUrlForJob(jobId),
     estimate: r?.saved_gross_total ? { gross: Number(r.saved_gross_total), customer: Number(r.saved_total), areaM2: Number(r.saved_area_m2), address: bits.short ? `${bits.short} VIC${prop?.postcode ? ` ${prop.postcode}` : ""}` : null, calculatorUrl: `${OWNER_BASE}/estimate/${token}/calculator` } : null,
   };
-  const email = renderSpotSavedEmail(input) as { subject: string; text: string; html?: string };
+  // Jo 23 Oct: removal fact from the owner's saved estimate, same as the Save my spot email.
+  const { data: est } = await admin.from("indicative_estimates").select("scenarios").eq("job_id", jobId).eq("status", "current").maybeSingle();
+  const { removalFromScenario } = await import("./estimate-removal.core");
+  const email = renderSpotSavedEmail({ ...input, removal: removalFromScenario(Array.isArray(est?.scenarios) ? est.scenarios[0] : null) }) as { subject: string; text: string; html?: string };
   return { job, owner, sms: renderSpotSavedSms(input), email, optOutUrl, rebate: input.rebate };
 }
 
@@ -37,7 +40,8 @@ async function buildPreliminaryMessages(jobId: string, token: string | null) {
   if (!job) return null;
   const owner = job.owners as { full_name: string | null; phone: string | null; email: string | null } | null;
   const { renderPreliminarySpotSavedEmail } = await import("./preliminary-save-spot.core");
-  const email = renderPreliminarySpotSavedEmail({ firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null, myJobUrl: token ? `${OWNER_BASE}/my-job/${token}` : null }) as { subject: string; text: string; html?: string };
+  const { declaredRemovalKind } = await import("./preliminary-removal.server");
+  const email = renderPreliminarySpotSavedEmail({ firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null, myJobUrl: token ? `${OWNER_BASE}/my-job/${token}` : null, removal: await declaredRemovalKind(jobId) }) as { subject: string; text: string; html?: string };
   const { unsubscribeUrlForJob } = await import("./emailsafety.server");
   return { job, owner, sms: "", email, optOutUrl: await unsubscribeUrlForJob(jobId), rebate: 0 };
 }
