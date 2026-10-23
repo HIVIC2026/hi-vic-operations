@@ -35,7 +35,7 @@ export function QuotesToCheck() {
         <h3 className="text-sm font-semibold">Ready for you ({ready.length})</h3>
         {!ready.length ? <p className="py-2 text-sm text-muted-foreground">Nothing ready yet.</p> : <ul className="divide-y">
           {ready.map(row => <li key={row.jobId} className="flex flex-wrap items-center gap-2 py-2">
-            <span className="min-w-0 flex-1 truncate text-sm font-medium">{line(row)}</span>
+            <span className="min-w-0 basis-full break-words text-sm font-medium sm:flex-1 sm:basis-auto">{line(row)}</span>
             {row.reasons.length > 0 && <button type="button" className="rounded bg-destructive px-1.5 py-0.5 text-xs font-semibold text-destructive-foreground" onClick={() => setPopup({ title: `${row.jobNumber} · Held`, items: row.reasons })}>Held</button>}
             <span className="text-sm font-semibold tabular-nums">{money(row.total)}</span>
             <Button size="sm" onClick={() => setSelected(row)}>Check &amp; send<span className="sr-only"> {row.jobNumber}</span></Button>
@@ -50,7 +50,7 @@ export function QuotesToCheck() {
         {open && <ul className="divide-y">{waiting.map(row => {
           const missing = row.reasons.filter(r => r !== WAITING_ON_INSTALLER);
           return <li key={row.jobId} className="flex flex-wrap items-center gap-2 py-2 text-sm">
-            <span className="min-w-0 flex-1 truncate">{line(row)}</span>
+            <span className="min-w-0 basis-full break-words sm:flex-1 sm:basis-auto">{line(row)}</span>
             <span className="text-xs text-muted-foreground">{waitingStatus(row.reasons)}</span>
             <Button variant="ghost" size="sm" disabled={!missing.length} onClick={() => setPopup({ title: `${row.jobNumber} · What's missing`, items: missing })}>What's missing</Button>
             <MittiButton id={row.mittiAuditId} jobNumber={row.jobNumber} />

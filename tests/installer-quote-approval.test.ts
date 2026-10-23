@@ -44,6 +44,7 @@ describe("Jo 23 Oct: installer approves the owner quote", () => {
     expect(adjusted).not.toBe(qfp);
     expect(approvalState({ quoteId: "q1", quoteFp: adjusted, formFp: ffp, approvals: approved, adjustedAfterApproval: true })).toBe("office_changed");
     expect(approvalCardLine("office_changed", false)).toBe("You: office changed the quote — please check");
+    expect(approvalState({ quoteId: "q1", quoteFp: qfp, formFp: ffp, approvals: approved, adjustedAfterApproval: true })).toBe("office_changed");
   });
   it("7. one reminder per version after 48h, switched off by default", () => {
     expect(INSTALLER_QUOTE_REMINDER_ENABLED).toBe(false);

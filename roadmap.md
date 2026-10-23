@@ -1,4 +1,8 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Jo's 13-item phone quote checklist (23 Oct 06:33 UTC)
+- [x] Fix installer missing-info control, Office Adjust/reapproval, TEST notification total/link and phone quote wrapping; phone walkthrough verified Adjust → reapproval → explicit TEST send → owner quote and 25-cent form-change invalidation.
+- [x] Run checklist in 390×844 TEST Reinsulate/Office/owner screens; screenshots and pass/fail report in docs/e2e-2026-10-23. Complete end-to-end PASS withheld: native TEST Mitti login/form choice edits unavailable; actual inbox/SMS receipt not observable. No publish or real-recipient sends.
+- [ ] Native Mitti TEST form creation depends on confirmed TEST Mitti membership/session; report FAIL if unavailable, never substitute Deep or invite without approval.
 ## Approved installer E2E repairs (Jo, 23 Oct 06:12 UTC)
 - [x] Repair Mitti quote fee/electrician holds; keep non-Mitti guards unchanged. Current owner consent remains required.
 - [x] Repair installer home/job actions, casing, and TEST pickup/Office visibility; Deep linked/invited, TEST membership unconfirmed; no invitations.

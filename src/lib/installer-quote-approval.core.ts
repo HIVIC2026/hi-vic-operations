@@ -32,6 +32,7 @@ export function formFingerprint(snapshot: unknown): string {
 export function approvalState(x: { quoteId: string; quoteFp: string; formFp: string; approvals: ApprovalEvent[]; adjustedAfterApproval?: boolean }): ApprovalState {
   const latest = x.approvals.filter((a) => a.quoteId === x.quoteId).sort((a, b) => b.at.localeCompare(a.at))[0];
   if (!latest) return "needs_check";
+  if (x.adjustedAfterApproval) return "office_changed";
   if (latest.quoteFp !== x.quoteFp) return x.adjustedAfterApproval ? "office_changed" : "form_changed";
   if (latest.formFp !== x.formFp) return "form_changed";
   return "approved";

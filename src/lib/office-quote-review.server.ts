@@ -39,6 +39,11 @@ export async function sendOfficeReviewedQuote(jobId: string, quoteId: string, ac
   if (blockers.length) throw new WorkflowError(blockers.join(" • "));
   const { assertCustomerDeliveryAllowed } = await import("./comms.server");
   await assertCustomerDeliveryAllowed(jobId, "Office Send quote");
+  const { data: source } = await admin.from("jobs").select("source").eq("id", jobId).single();
+  if (source?.source === "qa_test") {
+    const { data: link, error: le } = await admin.from("customer_estimate_links").select("status,expires_at").eq("job_id", jobId).eq("purpose", "step3_estimate").eq("status", "active").maybeSingle();
+    if (le || !(await import("./estimatelink.core")).linkUsable(link)) throw new WorkflowError("TEST owner quote link must be prepared before Send.");
+  }
   if (quote.option_code === "INSTALLER_A1") await (await import("./pilot.server")).applyCobrand(jobId);
   const now = new Date().toISOString();
   const { data: claimed, error: ce } = await admin.from("quotes").update({ status: "issued", release_state: "released", release_hold_reason: null, sent_at: now, office_reviewed_at: now, office_reviewed_by: actorId })
