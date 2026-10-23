@@ -304,7 +304,7 @@ function renderPotentiallyEligible(r: JoRecipient, f: JoEstimateFigures, questio
   return [
     `Hi ${r.firstName},`, "",
     // Jo 23 Oct 08:40 UTC: the campaign leads with THEIR rebate, same headline as Save my spot.
-    questions ? questionsHeadline(r.firstName, f.veuRebate) : "Your home could qualify—there’s just a little more to check.", "",
+    questions ? questionsHeadline(r.firstName, f.veuRebate).replace(`${r.firstName}, you`, "You") : "Your home could qualify—there’s just a little more to check.", "",
     "Based on what you’ve told us, your home could qualify for a VEU ceiling insulation rebate. Before we can move your enquiry into the eligible queue, we need to check whether there is any existing insulation and what’s installed.", "",
     "In the meantime, here’s your preliminary quote to help you decide whether you’d like to take the next step.", "",
     "### Your preliminary quote", "",
