@@ -4,6 +4,7 @@ const db=new PGlite();
 await db.exec('create table reviews(metadata jsonb);create table customer_email_sends(id int);create table job_communications(id int);create table post_intake_work(id int);');
 mock.module('@/integrations/supabase/client.server',()=>({supabaseAdmin:{from:(t:string)=>{
  if(t==='jobs')return{select:()=>({eq:()=>({maybeSingle:async()=>({data:{id:'TEST',stage:'new_enquiry',eligibility_outcome:'needs_onsite_confirmation',eligibility_decision_source:'system'},error:null})})})};
+ if(t==='lead_campaign_responses')return{select:()=>({eq:()=>({maybeSingle:async()=>({data:null,error:null})})})};
  if(t==='customer_engagement_events')return{insert:async(e:{metadata:unknown})=>{await db.query('insert into reviews values($1)',[JSON.stringify(e.metadata)]);return{error:null}}};
  throw new Error(`Forbidden review persistence ${t}`);
 }}}));

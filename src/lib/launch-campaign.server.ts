@@ -282,7 +282,7 @@ async function spotRankFacts(jobIds: string[]): Promise<RankData> {
 }
 
 function spotRankRow(d: RankData, r: { job_id: string; spot_saved_at: string | null; opted_out_at: string | null; desk_check_status: string | null }, job: { owners: { full_name: string | null } | null; properties: { address_line?: string | null; suburb: string | null; enrichment?: Record<string, unknown> | null } | null; indicative_estimates?: { status: string; area_m2: number | null }[] | null } | null) {
-  if (!r.spot_saved_at || r.opted_out_at) return { rank: null as number | null, rankLabel: null as string | null, summary: null as string | null };
+  if (!r.spot_saved_at || r.opted_out_at) return { rank: null as number | null, rankLabel: null as string | null, mediaCount: 0, summary: null as string | null };
   const e = job?.properties?.enrichment ?? null;
   const answers = ((e?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } }).raw?.answers ?? null;
   const declared = normaliseInsulationRank(declaredExtrasRank(answers).existing_insulation);
@@ -293,7 +293,7 @@ function spotRankRow(d: RankData, r: { job_id: string; spot_saved_at: string | n
   const rank = spotSavedRank({ reviewOutcome: latest, hadUnclearReview: outs.includes("unclear"), deskLooksEligible: r.desk_check_status === "looks_eligible", declared, mediaCount, tap: tap?.answers ?? null, declaredThinPatchy: insulationDetailRouteRank(declaredInsulationDetailRank(answers)) === "likely_save_spot" });
   const area = (job?.indicative_estimates ?? []).find((x) => x.status === "current")?.area_m2 ?? null;
   return {
-    rank, rankLabel: SPOT_RANK_LABEL[rank] ?? null,
+    rank, rankLabel: SPOT_RANK_LABEL[rank] ?? null, mediaCount,
     summary: spotSummary({ owner: job?.owners?.full_name ?? null, suburb: job?.properties?.suburb || suburbFromAddress(job?.properties?.address_line) , houseAge: tap ? houseAgeLabel(tap.answers) : null, mediaCount, areaM2: area == null ? null : Number(area), spotSavedAt: r.spot_saved_at }),
   };
 }

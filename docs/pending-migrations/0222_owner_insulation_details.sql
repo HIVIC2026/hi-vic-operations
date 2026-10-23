@@ -10,8 +10,7 @@ BEGIN
  IF NOT EXISTS(SELECT 1 FROM owner_contact_consents WHERE job_id=j.id AND consent_status='granted' AND created_at=(SELECT max(created_at) FROM owner_contact_consents WHERE job_id=j.id)) OR EXISTS(SELECT 1 FROM customer_email_optouts WHERE job_id=j.id AND opted_out_at IS NOT NULL) THEN RAISE EXCEPTION 'Consent unavailable'; END IF;
  IF EXISTS(SELECT 1 FROM lead_campaign_responses WHERE job_id=j.id AND (opted_out_at IS NOT NULL OR spot_saved_at IS NOT NULL OR desk_checked_at IS NOT NULL)) THEN RAISE EXCEPTION 'Existing response cannot change'; END IF;
  SELECT enrichment->'owner_insulation_details' INTO old FROM properties WHERE id=j.property_id FOR UPDATE;
- -- Jo 23 Oct 08:23 UTC: the office always checks photos first, so owners with photos stay in photo review.
- IF EXISTS(SELECT 1 FROM documents WHERE job_id=j.id AND kind='intake_media') OR EXISTS(SELECT 1 FROM evidence_files WHERE job_id=j.id AND storage_path LIKE j.id::text||'/intake/%') OR EXISTS(SELECT 1 FROM customer_engagement_events WHERE job_id=j.id AND event_type='intake_media_reviewed') THEN RAISE EXCEPTION 'Photos require existing review'; END IF;
+ -- Jo 23 Oct 08:27 UTC: owners with photos may answer too; they get Save my spot and the office checks photos later.
  -- House age (1990 or earlier — Victoria's 1991
  -- minimum standards, Sustainability Victoria 2016) only affects the Spots saved rank.
  route=CASE WHEN p_answers->>'insulation_type'='loose_fill' OR p_answers->>'insulation_thickness'='thin' THEN 'thin_patchy' ELSE 'existing_save_spot' END; -- Jo 23 Oct 08:14 UTC: everyone answering gets Save my spot; answers only choose wording/rank

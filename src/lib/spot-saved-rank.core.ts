@@ -1,6 +1,6 @@
 // Jo 23 Oct 2026 08:23 UTC: Spots saved — one list, 8 ranks, most likely eligible first, then longest waiting.
-// The office always checks photos as they arrive, so there is no "photos not checked" rank; a later photo
-// review changes the facts and therefore the rank automatically.
+// Jo 08:27 UTC: photo owners also get Save my spot straight away; until the office checks the photos they
+// rank by their tap answers (or Missing info) with a 📷 badge; the photo check then moves them.
 export type SpotRankFacts = {
   reviewOutcome: "no_insulation" | "below_r2" | "over_r2" | "unclear" | null;
   hadUnclearReview: boolean;
@@ -28,6 +28,9 @@ export function spotSavedRank(f: SpotRankFacts): number {
   if (f.reviewOutcome === "no_insulation") return 1;
   if (f.reviewOutcome === "below_r2" && f.mediaCount > 0 && !f.hadUnclearReview) return 2;
   if (f.reviewOutcome === "below_r2" || f.deskLooksEligible) return 3;
+  // Jo 08:27 UTC: an office photo check of a saved spot moves it automatically.
+  if (f.reviewOutcome === "over_r2") return 6;
+  if (f.reviewOutcome === "unclear") return 7;
   if (f.declared === "none") return 4;
   if (t?.house_built_period === "1990_or_earlier" || t?.insulation_type === "loose_fill" || t?.insulation_thickness === "thin" || f.declaredThinPatchy) return 5;
   if (t?.insulation_thickness === "hand" || t?.insulation_thickness === "thicker") return 6;
@@ -51,3 +54,11 @@ export function spotSummary(x: { owner: string | null; suburb: string | null; ho
     days == null ? null : `waiting ${days} day${days === 1 ? "" : "s"}`,
   ].filter(Boolean).join(" · ");
 }
+
+/** Jo 08:27 UTC: photo-check choices on a Spots saved row and the rank each one gives. */
+export const SPOT_PHOTO_CHOICES = [
+  { outcome: "no_insulation", label: "No insulation", rank: 1 },
+  { outcome: "below_r2", label: "Under R2", rank: 2 },
+  { outcome: "over_r2", label: "Thicker / over R2", rank: 6 },
+  { outcome: "unclear", label: "Can't tell", rank: 7 },
+] as const;

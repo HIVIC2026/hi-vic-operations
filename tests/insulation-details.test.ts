@@ -65,9 +65,10 @@ test('practice: non-thin answers qualify for the standard Save my spot, no parki
  expect((await db.query('SELECT next_action FROM jobs')).rows[0]?.next_action).not.toBe('Needs onsite assessment');
  expect((await db.query('SELECT count(*)::int n FROM customer_email_sends')).rows[0]?.n).toBe(0);
 });
-test('practice: owners with photos stay in office photo review (Jo 08:23) — answering is refused, media kept, nothing sent',async()=>{
+test('practice: owners with photos can also answer (Jo 08:27); media kept, database sends nothing',async()=>{
  await db.query("INSERT INTO documents(job_id,kind,storage_path) VALUES($1,'intake_media','private/photo.jpg')",[job]);
- await expect(save({insulation_type:'batts',insulation_thickness:'thin',house_built_period:'1990_or_earlier'})).rejects.toThrow('Photos require existing review');
+ const result=await save({insulation_type:'batts',insulation_thickness:'thin',house_built_period:'2010_or_later'});
+ expect(result.rows[0]?.result).toMatchObject({route:'thin_patchy'});
  expect((await db.query('SELECT count(*)::int n FROM documents')).rows[0]?.n).toBe(1);
  expect((await db.query('SELECT count(*)::int n FROM customer_email_sends')).rows[0]?.n).toBe(0);
 });
