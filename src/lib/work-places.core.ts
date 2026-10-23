@@ -6,6 +6,8 @@ export type WorkJobInput = {
   jobId: string; stage: string; trade: "installer" | "electrician";
   /** Installer-sourced job: the installer's own answers (null = still needed). */
   installerSourced: boolean; quoted: "yes" | "no" | null; siteCheck: "yes" | "no" | null;
+  /** A Mitti Ready Check form is linked: the form carries the price and visit, so Quoted?/Site check? aren't asked. */
+  mittiForm?: boolean;
   missingPhotos: number; pendingOffer: boolean;
   /** This trade's own confirmed visits that haven't finished yet. */
   upcoming: { kind: string; scheduled_start: string }[];
@@ -14,8 +16,9 @@ export type WorkPlacement = { place: WorkPlace; title: string };
 
 export function placeWorkJob(j: WorkJobInput): WorkPlacement {
   if (j.pendingOffer) return { place: "offers", title: "New job offer" };
-  if (j.trade === "installer" && j.installerSourced && j.quoted === null) return { place: "needs_me", title: "Quoted? answer needed" };
-  if (j.trade === "installer" && j.installerSourced && j.siteCheck === null) return { place: "needs_me", title: "Site check? answer needed" };
+  const askAnswers = j.trade === "installer" && j.installerSourced && !j.mittiForm;
+  if (askAnswers && j.quoted === null) return { place: "needs_me", title: "Quoted? answer needed" };
+  if (askAnswers && j.siteCheck === null) return { place: "needs_me", title: "Site check? answer needed" };
   if (j.stage === "evidence_outstanding") {
     if (j.trade === "installer" && j.missingPhotos > 0) return { place: "needs_me", title: `${j.missingPhotos} photo${j.missingPhotos === 1 ? "" : "s"} missing` };
     if (j.trade === "installer") return { place: "moving", title: "Office is checking the install photos" };

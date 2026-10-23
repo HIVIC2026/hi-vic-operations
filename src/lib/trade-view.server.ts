@@ -62,6 +62,8 @@ export async function tradeHome(userId: string) {
     admin.from("bookings").select("job_id, kind, status, scheduled_start, scheduled_end").in("job_id", jobIds.length ? jobIds : none).in("status", ["confirmed", "completed"]).order("scheduled_start"),
     admin.from("evidence_requirements").select("job_id").in("job_id", jobIds.length ? jobIds : none).eq("required", true).in("status", ["outstanding", "rejected"]),
   ]);
+  const { data: forms } = await admin.from("ceiling_measurements").select("job_id").in("job_id", jobIds.length ? jobIds : none).eq("is_current", true).eq("external_source", "mitti").not("external_id", "is", null);
+  const withForm = new Set((forms ?? []).map((f) => f.job_id));
   const mine = c.kind === "installer" ? ["ready_check", "installation"] : ["assessment", "rectification"];
   const live = (jobs ?? []).filter((j) => !j.qa_archived_at && !j.deleted_at && !["cancelled"].includes(j.stage) && (!c.isTest || j.source === "qa_test"));
   const byId = new Map(live.map((j) => [j.id, j]));
@@ -76,7 +78,7 @@ export async function tradeHome(userId: string) {
   for (const j of live) {
     const l = label(j);
     const up = upcomingOf(j.id);
-    const p = placeWorkJob({ jobId: j.id, stage: j.stage, trade: c.kind, installerSourced: (j as { channel?: string }).channel === "installer_sourced", quoted: ((a) => a === "have_quote" ? "yes" : a === "not_quoted" ? "no" : (j.installer_quoted as "yes" | "no" | null))(answers.get(j.id)), siteCheck: j.installer_site_check as "yes" | "no" | null, missingPhotos: miss.get(j.id) ?? 0, pendingOffer: offerJobs.has(j.id), upcoming: up });
+    const p = placeWorkJob({ jobId: j.id, stage: j.stage, trade: c.kind, installerSourced: (j as { channel?: string }).channel === "installer_sourced", quoted: ((a) => a === "have_quote" ? "yes" : a === "not_quoted" ? "no" : (j.installer_quoted as "yes" | "no" | null))(answers.get(j.id)), siteCheck: j.installer_site_check as "yes" | "no" | null, mittiForm: withForm.has(j.id), missingPhotos: miss.get(j.id) ?? 0, pendingOffer: offerJobs.has(j.id), upcoming: up });
     placeOf.set(j.id, p.place);
     if (p.place === "needs_me") yourMove.push({ jobId: j.id, title: p.title, detail: `${l.owner ?? "Owner"}, ${l.suburb ?? ""}` });
     if (p.place === "coming_up") { const b = up[0]!; coming.push({ jobId: b.job_id, kind: b.kind, what: VISIT[b.kind] ?? "Visit", start: b.scheduled_start, end: b.scheduled_end, ...l }); }

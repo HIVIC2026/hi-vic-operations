@@ -49,7 +49,8 @@ export function canApprove(blockers: string[]): boolean {
 }
 
 /** One line for the installer's job card. */
-export function approvalCardLine(state: ApprovalState, sent: boolean): string {
+export function approvalCardLine(state: ApprovalState, sent: boolean, accepted = false): string {
+  if (accepted) return "Waiting on owner: quote accepted – waiting for owner's payment";
   if (sent) return "Waiting on owner: to accept the quote";
   if (state === "office_changed") return "You: office changed the quote — please check";
   if (state === "approved") return "Waiting on office: checking your quote";

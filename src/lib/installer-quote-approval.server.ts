@@ -9,7 +9,7 @@ import {
 const QUOTE_COLS = "id, job_id, status, sent_at, release_state, release_hold_reason, option_code, created_at, subtotal_inc_gst, veec_discount_inc_gst, customer_total_inc_gst, quote_items(code, description, explanation, quantity, unit, unit_price_inc_gst, line_total_inc_gst, sort)";
 
 export type QuoteApproval = {
-  applies: boolean; quote: any | null; state: ApprovalState; sent: boolean; quoteFp: string; formFp: string; channel: string | null; readyAt: string | null; approvedAt: string | null;
+  applies: boolean; quote: any | null; state: ApprovalState; sent: boolean; accepted?: boolean; quoteFp: string; formFp: string; channel: string | null; readyAt: string | null; approvedAt: string | null;
 };
 
 /** Latest unsent or just-sent installer quote and its approval state. */
@@ -35,7 +35,7 @@ export async function loadQuoteApproval(jobId: string): Promise<QuoteApproval> {
     adjustedAfter = !!adj?.length;
   }
   const state = approvalState({ quoteId: q.id, quoteFp, formFp, approvals, adjustedAfterApproval: adjustedAfter });
-  return { applies: true, quote: { ...q, quote_items: lines }, state, sent: !!q.sent_at, quoteFp, formFp, channel, readyAt: q.created_at, approvedAt: state === "approved" ? latest?.at ?? null : null };
+  return { applies: true, quote: { ...q, quote_items: lines }, state, sent: !!q.sent_at, accepted: q.status === "accepted", quoteFp, formFp, channel, readyAt: q.created_at, approvedAt: state === "approved" ? latest?.at ?? null : null };
 }
 
 /** Office Send is blocked until the installer approves the current version. */

@@ -47,13 +47,14 @@ export async function checkReadyCheckBasics(jobId: string, actorId: string | nul
 }
 
 /** Writes next_action only; never moves stages. Ready Check stages only. */
+export const READY_CHECK_BASICS_DONE = "Ready Check basics in — quote being prepared";
 export async function keepNeedsFinishingFor(jobId: string, stage: string, missing: string[]) {
   const { READY_CHECK_STAGES } = await import("./mitti-pickup.server");
   if (!READY_CHECK_STAGES.includes(stage as never)) return false;
-  const next = needsFinishingFromMissing(missing);
-  if (!next) return false;
   const { data: cur } = await admin.from("jobs").select("next_action").eq("id", jobId).maybeSingle();
-  if (cur?.next_action === next) return false;
+  // Jo 23 Oct: once every basic is in, a stale "Needs finishing…" is replaced (it otherwise stayed on the installer's card).
+  const next = needsFinishingFromMissing(missing) ?? (cur?.next_action?.startsWith("Needs finishing") ? READY_CHECK_BASICS_DONE : null);
+  if (!next || cur?.next_action === next) return false;
   await admin.from("jobs").update({ next_action: next }).eq("id", jobId);
   return true;
 }

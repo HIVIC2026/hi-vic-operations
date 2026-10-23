@@ -59,3 +59,8 @@ describe("Jo 23 Oct: installer approves the owner quote", () => {
     expect(automaticQuoteSendingAllowed()).toBe(false);
   });
 });
+
+it("Jo 23 Oct: an accepted quote never still reads 'to accept the quote'", () => {
+  expect(approvalCardLine("approved", true)).toBe("Waiting on owner: to accept the quote");
+  expect(approvalCardLine("approved", true, true)).toBe("Waiting on owner: quote accepted – waiting for owner's payment");
+});

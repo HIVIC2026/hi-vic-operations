@@ -59,7 +59,8 @@ export async function keepNeedsFinishing(): Promise<number> {
     // Jo 23 Oct: once the sync has recorded the full basics check, that list (area, product, price, contact) wins.
     const { data: b } = await admin.from("workflow_events").select("details").eq("job_id", j.id).eq("event_type", "ready_check_basics").order("created_at", { ascending: false }).limit(1).maybeSingle();
     const basicsMissing = (b?.details as { missing?: string[] } | null)?.missing;
-    const next = basicsMissing ? (await import("./ready-check-basics.core")).needsFinishingFromMissing(basicsMissing) : missing.length ? needsFinishingText(missing) : null;
+    const done = basicsMissing && !basicsMissing.length && j.next_action?.startsWith("Needs finishing") ? (await import("./ready-check-basics.server")).READY_CHECK_BASICS_DONE : null;
+    const next = basicsMissing ? (await import("./ready-check-basics.core")).needsFinishingFromMissing(basicsMissing) ?? done : missing.length ? needsFinishingText(missing) : null;
     if (!next || j.next_action === next) continue;
     await admin.from("jobs").update({ next_action: next }).eq("id", j.id);
     fixed++;
