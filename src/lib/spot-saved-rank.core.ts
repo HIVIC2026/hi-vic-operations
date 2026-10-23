@@ -17,7 +17,7 @@ export type SpotRankFacts = {
 export const SPOT_RANK_LABEL: Record<number, string> = {
   1: "✅ No insulation (photos checked)",
   2: "✅ Under R2 (photos checked)",
-  3: "🟡 Under R2 (approved, no clear photos)",
+  3: "🟡 Under R2 (their word only)",
   4: "🟡 No insulation (their word only)",
   5: "🟡 Older home or thin insulation",
   6: "⚪ Thicker insulation",
