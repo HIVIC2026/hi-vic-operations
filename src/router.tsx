@@ -51,7 +51,9 @@ function reloadForNewVersion(): boolean {
   const now = Date.now();
   if (now - lastReload(STALE_KEY) >= 30_000) {
     stamp(STALE_KEY);
-    window.location.reload();
+    const url = new URL(window.location.href);
+    url.searchParams.set("_v", String(now));
+    window.location.replace(url.toString());
     return true;
   }
   // A plain reload already failed moments ago: try one hard navigation that bypasses
@@ -71,6 +73,10 @@ if (typeof window !== "undefined") {
   window.addEventListener("vite:preloadError", (ev) => {
     if (reloadForNewVersion()) ev.preventDefault();
   });
+  // The document's early recovery owns these events, including failures before React starts.
+  // Register a fallback only when the document has no early handler; two owners race reloads.
+  const earlyRecovery = (window as Window & { hivEarlyRecoveryInstalled?: boolean }).hivEarlyRecoveryInstalled === true;
+  if (!earlyRecovery) {
   window.addEventListener("unhandledrejection", (ev) => {
     if (isStaleChunkError(ev.reason)) reloadForNewVersion();
   });
@@ -82,6 +88,7 @@ if (typeof window !== "undefined") {
     },
     true,
   );
+  }
 }
 
 export const getRouter = () => {
