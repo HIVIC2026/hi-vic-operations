@@ -5,10 +5,10 @@
 import { campaignButton, escape } from "./estimate-email";
 import { aud } from "./workflow";
 
-/** v3 (shorter, sells the benefit) is waiting for Jo's OK (v2 was approved, then she asked for it shorter, 24 Oct).
- *  No phone; 14 days; replies to info@homeinsulationvictoria.com.au. */
-export const OWNER_QUOTE_EMAIL_APPROVED = false as boolean;
-export const OWNER_QUOTE_EMAIL_VERSION = "v3-draft-2026-10-24";
+/** v3 (shorter, sells the benefit) approved by Jo on 24 Oct 2026. No phone; 14 days; replies to
+ *  info@homeinsulationvictoria.com.au. Every delivery guard still applies, incl. customer_comms_enabled. */
+export const OWNER_QUOTE_EMAIL_APPROVED = true as boolean;
+export const OWNER_QUOTE_EMAIL_VERSION = "v3-approved-2026-10-24";
 
 export type OwnerQuoteLine = { description: string; lineTotalIncGst: number };
 export type OwnerQuoteEmailInput = {

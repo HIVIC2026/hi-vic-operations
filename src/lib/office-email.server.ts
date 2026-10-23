@@ -6,10 +6,14 @@ import type { SendResult } from "./test-send.server";
 import { RESEND_FETCH_TIMEOUT_MS, timeoutSignal } from "./network-timeout.core";
 
 const FROM = "Home Insulation Victoria <jobs@homeinsulationvictoria.com.au>";
+export const PARTNER_EMAILS_PAUSED = "Emails are paused while the templates are reviewed (master switch off). Nothing was sent.";
 export type OfficeEmailRecord = { applicationId?: string | null; enquiryId?: string | null; businessId?: string | null };
 
 export async function sendOfficeEmail(p: { actorId: string; recipient: OfficeRecipient; to: string; contactName: string | null; subject: string; message: string; label: string; record: OfficeEmailRecord; html?: string; text?: string }): Promise<SendResult> {
-  const blocked = officeEmailBlocker({ origin: "office_manual", recipient: p.recipient, to: p.to, message: p.message });
+  // Jo 24 Oct: partner, applicant and electrician emails pause with the master switch until every template is reviewed.
+  const { customerCommsEnabled } = await import("./comms.server");
+  const paused = (await customerCommsEnabled()) ? null : PARTNER_EMAILS_PAUSED;
+  const blocked = paused ?? officeEmailBlocker({ origin: "office_manual", recipient: p.recipient, to: p.to, message: p.message });
   const to = p.to.trim().toLowerCase();
   let mail = p.html && p.text ? { html: p.html, text: p.text } : null;
   const c = officeEmailCopy({ contactName: p.contactName, subject: p.subject, message: p.message });

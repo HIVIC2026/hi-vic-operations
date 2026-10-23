@@ -104,9 +104,9 @@ test("refuses a bad total or non-https link", () => {
   expect(() => renderOwnerQuoteEmail({ ...base, quoteUrl: "/my-job/tok" })).toThrow();
 });
 
-test("v3 (shorter) waits for Jo's OK; no balance-payment line", () => {
-  expect(OWNER_QUOTE_EMAIL_APPROVED).toBe(false);
-  expect(OWNER_QUOTE_EMAIL_VERSION).toBe("v3-draft-2026-10-24");
+test("Jo approved v3 (shorter) on 24 Oct; no balance-payment line", () => {
+  expect(OWNER_QUOTE_EMAIL_APPROVED).toBe(true);
+  expect(OWNER_QUOTE_EMAIL_VERSION).toBe("v3-approved-2026-10-24");
   expect(renderOwnerQuoteEmail(base).text).not.toMatch(/balance|two halves/i);
 });
 
