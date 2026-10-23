@@ -37,42 +37,56 @@ test('loose fill wins over every thickness; thin wins over every type',()=>{
  for(const type of ['batts','loose_fill','unknown'] as const)expect(insulationTapRoute({insulation_type:type,insulation_thickness:'thin'})).toBe('thin_patchy');
 });
 test('hand, thicker and cannot tell without loose fill need onsite only',()=>{for(const t of ['hand','thicker','unknown'] as const)expect(insulationTapRoute({insulation_type:'batts',insulation_thickness:t})).toBe('needs_onsite_assessment');});
-test('Before 1980 and 1980s override hand, thicker and cannot tell for batts or unknown type',()=>{
- for(const age of ['before_1980','1980s'] as const)for(const type of ['batts','unknown'] as const)for(const thickness of ['hand','thicker','unknown'] as const)
-  expect(insulationTapRoute({insulation_type:type,insulation_thickness:thickness,house_built_period:age})).toBe('thin_patchy');
+test('1990 or earlier overrides every type and thickness even with uploaded photos',()=>{
+ for(const photos of [false,true])for(const type of ['loose_fill','batts','unknown'] as const)for(const thickness of ['thin','hand','thicker','unknown'] as const)
+  expect(insulationTapRoute({insulation_type:type,insulation_thickness:thickness,house_built_period:'1990_or_earlier'},photos)).toBe('thin_patchy');
 });
-test('1990s or later and Not sure retain type/thickness routing',()=>{
- for(const age of ['1990s','2000s','2010_or_later','unknown'] as const){
+test('1991 onwards and Not sure retain type/thickness routing',()=>{
+ for(const age of ['1991_1999','2000_2009','2010_or_later','unknown'] as const){
   for(const thickness of ['hand','thicker','unknown'] as const)expect(insulationTapRoute({insulation_type:'batts',insulation_thickness:thickness,house_built_period:age})).toBe('needs_onsite_assessment');
   expect(insulationTapRoute({insulation_type:'batts',insulation_thickness:'thin',house_built_period:age})).toBe('thin_patchy');
   expect(insulationTapRoute({insulation_type:'loose_fill',insulation_thickness:'thicker',house_built_period:age})).toBe('thin_patchy');
  }
 });
+test('1991 onwards and Not sure retain photo review regardless of type/thickness',()=>{
+ for(const age of ['1991_1999','2000_2009','2010_or_later','unknown'] as const)for(const type of ['loose_fill','batts','unknown'] as const)for(const thickness of ['thin','hand','thicker','unknown'] as const)
+  expect(insulationTapRoute({insulation_type:type,insulation_thickness:thickness,house_built_period:age},true)).toBe('photo_review');
+});
 test('practice persisted answers retain original website facts and repeat is idempotent',async()=>{
- const a:InsulationTapAnswers={insulation_type:'loose_fill',insulation_thickness:'thicker',house_built_period:'1980s'};await save(a);await save(a);
+ const a:InsulationTapAnswers={insulation_type:'loose_fill',insulation_thickness:'thicker',house_built_period:'1990_or_earlier'};await save(a);await save(a);
  const enrichment=(await db.query<{enrichment:Record<string,unknown>}>('SELECT enrichment FROM properties')).rows[0]?.enrichment;expect(ownerInsulationAnswers(enrichment)).toMatchObject({...a,unrelated:'keep',existing_insulation:'present'});
  expect((await db.query<{n:number}>("SELECT count(*)::int n FROM workflow_events WHERE event_type='owner_insulation_details_answered'")).rows[0]?.n).toBe(1);
  expect((await db.query('SELECT eligibility_outcome FROM jobs')).rows[0]?.eligibility_outcome).toBe('needs_onsite_confirmation');
  expect((await db.query('SELECT desk_checked_at FROM lead_campaign_responses')).rows[0]?.desk_checked_at).toBeNull();
 });
-test('practice persistence matches the pre-1990 override for all non-thin thicknesses',async()=>{
- for(const age of ['before_1980','1980s'] as const)for(const thickness of ['hand','thicker','unknown'] as const){
-  const result=await save({insulation_type:'batts',insulation_thickness:thickness,house_built_period:age});
+test('practice persistence matches the through-1990 override for all non-thin thicknesses',async()=>{
+ for(const thickness of ['hand','thicker','unknown'] as const){
+  const result=await save({insulation_type:'batts',insulation_thickness:thickness,house_built_period:'1990_or_earlier'});
   expect(result.rows[0]?.result).toMatchObject({route:'thin_patchy'});
  }
  expect((await db.query('SELECT eligibility_outcome FROM jobs')).rows[0]?.eligibility_outcome).toBe('needs_onsite_confirmation');
  expect((await db.query('SELECT count(*)::int n FROM customer_email_sends')).rows[0]?.n).toBe(0);
 });
-test('onsite-only answers disappear from every Office pile, new photos restore review even for older houses',async()=>{
+test('onsite-only answers disappear from every Office pile; later or unknown ages with photos retain review',async()=>{
  await save({insulation_type:'batts',insulation_thickness:'hand',house_built_period:'unknown'});
  for(const view of ['all','new','photos','needs_attention','insulation_requested','offered_spot','spot_saved','ineligible','removed']){const r=await db.query<{r:{total:number}}>('SELECT office_enquiry_page($1,\'\',1) r',[view]);expect(r.rows[0]?.r.total).toBe(0);}
  expect((await db.query('SELECT next_action FROM jobs')).rows[0]?.next_action).toBe('Needs onsite assessment');expect((await db.query('SELECT count(*)::int n FROM customer_email_sends')).rows[0]?.n).toBe(0);
  await db.query("INSERT INTO documents(job_id,kind,storage_path) VALUES($1,'intake_media','private/photo.jpg')",[job]);expect((await db.query<{r:{total:number}}>("SELECT office_enquiry_page('photos','',1) r")).rows[0]?.r.total).toBe(1);
- await expect(save({insulation_type:'batts',insulation_thickness:'thin',house_built_period:'2000s'})).rejects.toThrow('Photos require existing review');
- for(const age of ['before_1980','1980s'] as const)await expect(save({insulation_type:'batts',insulation_thickness:'thicker',house_built_period:age})).rejects.toThrow('Photos require existing review');
+ for(const age of ['1991_1999','2000_2009','2010_or_later','unknown'] as const)await expect(save({insulation_type:'batts',insulation_thickness:'thin',house_built_period:age})).rejects.toThrow('Photos require existing review');
+ expect((await db.query('SELECT count(*)::int n FROM customer_email_sends')).rows[0]?.n).toBe(0);
+});
+test('practice 1990-or-earlier answers bypass uploaded photos without deleting media or sending',async()=>{
+ await db.query('INSERT INTO evidence_files(job_id,storage_path) VALUES($1,$2)',[job,job+'/intake/video.mp4']);
+ for(const type of ['loose_fill','batts','unknown'] as const)for(const thickness of ['thin','hand','thicker','unknown'] as const){
+  const result=await save({insulation_type:type,insulation_thickness:thickness,house_built_period:'1990_or_earlier'});
+  expect(result.rows[0]?.result).toMatchObject({route:'thin_patchy'});
+ }
+ expect((await db.query("SELECT enrichment->'owner_insulation_details'->>'route' route FROM properties")).rows[0]?.route).toBe('thin_patchy');
+ expect((await db.query('SELECT count(*)::int n FROM documents')).rows[0]?.n).toBe(1);
+ expect((await db.query('SELECT count(*)::int n FROM evidence_files')).rows[0]?.n).toBe(1);
  expect((await db.query('SELECT count(*)::int n FROM customer_email_sends')).rows[0]?.n).toBe(0);
 });
 test('RPC denies public/client execution and expired links',async()=>{
  expect((await db.query("SELECT has_function_privilege('anon','save_owner_insulation_details(text,jsonb)','EXECUTE') allowed")).rows[0]?.allowed).toBe(false);
- await db.exec("UPDATE customer_estimate_links SET expires_at=now()-interval '1 day'");await expect(save({insulation_type:'batts',insulation_thickness:'thin',house_built_period:'2000s'})).rejects.toThrow('Link unavailable');
+ await db.exec("UPDATE customer_estimate_links SET expires_at=now()-interval '1 day'");await expect(save({insulation_type:'batts',insulation_thickness:'thin',house_built_period:'2000_2009'})).rejects.toThrow('Link unavailable');
 });

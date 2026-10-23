@@ -88,10 +88,11 @@ function VideoPage() {
             <p className="text-sm text-muted-foreground">Do not enter the roof space. If you cannot check safely, contact us.</p>
             {!uploading && <Button asChild variant="link"><Link to="/estimate/$token/campaign" params={{ token }}>Return to my savings</Link></Button>}
           </section>
-        ) : data.originalMedia?.excluded ? (
+        ) : data.originalMedia?.excluded && mode !== "questions" && !declared && !data.detailsRoute ? (
           <section className="mt-6 p-6" role="status">
             <h1 className="font-display text-3xl font-bold">{data.originalMedia.received ? "We've received your insulation photos/video" : "We're checking your enquiry uploads"}</h1>
             <p className="mt-3">{data.mediaReview === "below_r2" ? "Your evidence has been reviewed. Return to your savings to see your next step." : data.mediaReview === "over_r2" ? "Our office has assessed your existing insulation as not eligible. Please contact us with any questions." : data.mediaReview === "unclear" ? "Your evidence has been reviewed. Our office will help with the next check." : data.originalMedia.received ? "Your existing evidence is with our office for review. You do not need to upload it again." : "You do not need to answer these questions or upload again while we check your original enquiry."}</p>
+            {data.originalMedia.received && !data.mediaReview && <Button className="mt-3 h-12 w-full" variant="outline" onClick={() => setMode("questions")}>Answer three quick questions</Button>}
             <Button asChild variant="link" className="mt-3"><Link to="/estimate/$token/campaign" params={{ token }}>Return to my savings</Link></Button>
           </section>
         ) : (data.detailsRoute === "needs_onsite_assessment" || savedRoute === "needs_onsite_assessment") ? <section className="mt-6 space-y-3"><h1 className="font-display text-3xl font-bold">Answers received</h1><p>Your insulation needs an onsite assessment. We’re not offering a spot yet.</p></section> : declared || data.detailsRoute === 'thin_patchy' ? <section className="mt-6 space-y-3" role="status"><h1 className="font-display text-3xl font-bold">Answers received</h1><p>Thank you — your answers are saved. Final eligibility is confirmed at your free Ready Check.</p></section> : data.resume === "spot_saved" || data.resume === "declared" ? (
