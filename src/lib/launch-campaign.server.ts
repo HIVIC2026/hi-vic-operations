@@ -1,7 +1,7 @@
 import { SPOT_RANK_LABEL, compareSpots, leadRank, spotSummary, type SpotRankFacts } from "./spot-saved-rank.core";
 import { houseAgeLabel } from "./onsite-assessment.core";
 import { buildDecadeFromAnswers, buildDecadeLabel } from "./build-decade.core";
-import { savedInsulationTap } from "./insulation-details.core";
+import { savedInsulationTap, ownerInsulationAnswers, insulationTapRoute } from "./insulation-details.core";
 import { normaliseInsulation as normaliseInsulationRank } from "./eligibility.core";
 import { declaredExtras as declaredExtrasRank, declaredInsulationDetail as declaredInsulationDetailRank, insulationDetailRoute as insulationDetailRouteRank } from "./enquiry.core";
 import { fullAddress } from "./address";
@@ -27,6 +27,8 @@ export async function campaignLink(token: unknown) {
   // Until Jo approves the final copy and explicitly starts the campaign, only isolated qa_test jobs can use it.
   if (!LAUNCH_COPY_APPROVED && job.source !== "qa_test") return null;
   const property = job.properties as { enrichment: Record<string, unknown> | null } | null;
+  const tap = savedInsulationTap(property?.enrichment);
+  if (tap && insulationTapRoute(tap.answers) === "ineligible" || ownerInsulationAnswers(property?.enrichment)["build_decade"] === "last_5_years") return null;
   const base44 = (property?.enrichment?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } };
   const { data: mediaReviews, error: mediaReviewError } = await admin.from("customer_engagement_events").select("metadata").eq("job_id", job.id).eq("event_type", "intake_media_reviewed").eq('source', 'office').order("occurred_at", { ascending: false }).order('id', { ascending: false }).limit(1);
   if (mediaReviewError) throw new Error("We couldn't check your evidence review. Please try again.");

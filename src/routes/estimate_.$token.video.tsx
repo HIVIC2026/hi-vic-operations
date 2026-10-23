@@ -57,7 +57,7 @@ function VideoPage() {
     if (declaring || !answers.insulation_type || !answers.insulation_thickness || !answers.house_built_period) return;
     setDeclaring(true); setDeclarationError(null);
     // Jo 23 Oct 08:36 UTC: SAVE MY SPOT saves answers and the spot together; the normal Spot saved confirmation follows.
-    try { const result=await declare({ data: { token, answers: answers as InsulationTapAnswers } }); await saveSpot({ data: { token } }); setSavedRoute(result.route);setDeclared(true); }
+    try { const result=await declare({ data: { token, answers: answers as InsulationTapAnswers } }); if(result.route !== "ineligible") await saveSpot({ data: { token } }); setSavedRoute(result.route);setDeclared(true); }
     catch (e) { setDeclarationError(e instanceof Error ? e.message : "Please try again."); }
     finally { setDeclaring(false); }
   };
@@ -105,7 +105,7 @@ function VideoPage() {
             <p className="mt-3">{data.mediaReview === "below_r2" ? "Your evidence has been reviewed. Return to your savings to see your next step." : data.mediaReview === "over_r2" ? "Our office has assessed your existing insulation as not eligible. Please contact us with any questions." : data.mediaReview === "unclear" ? "Your evidence has been reviewed. Our office will help with the next check." : data.originalMedia.received ? "Your existing evidence is with our office for review. You do not need to upload it again." : "You do not need to answer these questions or upload again while we check your original enquiry."}</p>
             <Button asChild variant="link" className="mt-3"><Link to="/estimate/$token/campaign" params={{ token }}>Return to my savings</Link></Button>
           </section>
-        ) : declared || !!savedRoute || data.detailsRoute === 'thin_patchy' || data.detailsRoute === 'existing_save_spot' ? <section className="mt-6 space-y-3" role="status"><h1 className="font-display text-3xl font-bold">Your spot is saved</h1><p>Thank you — your no-obligation place in the queue is saved. We've emailed your confirmation. Final eligibility is confirmed at your free Ready Check.</p></section> : data.resume === "spot_saved" || data.resume === "declared" ? (
+        ) : savedRoute === "ineligible" || data.detailsRoute === "ineligible" ? <section className="mt-6 space-y-3" role="status"><h1 className="font-display text-3xl font-bold">Your home is not eligible</h1><p>Homes built in the last 5 years do not qualify under the five-year rule. Your answers are recorded, but no spot has been saved.</p></section> : declared || !!savedRoute || data.detailsRoute === 'thin_patchy' || data.detailsRoute === 'existing_save_spot' ? <section className="mt-6 space-y-3" role="status"><h1 className="font-display text-3xl font-bold">Your spot is saved</h1><p>Thank you — your no-obligation place in the queue is saved. We've emailed your confirmation. Final eligibility is confirmed at your free Ready Check.</p></section> : data.resume === "spot_saved" || data.resume === "declared" ? (
           <section className="mt-6 p-6" role="status">
             <h1 className="font-display text-3xl font-bold">{data.resume === "spot_saved" ? "Your spot is saved" : "Answer received"}</h1>
             <p className="mt-3">{data.resume === "spot_saved" ? "You don't need to answer these questions again." : "Your Yes is recorded as a owner declaration, not verified insulation. You can now save your spot."}</p>
