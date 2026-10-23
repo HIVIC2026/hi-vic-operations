@@ -61,9 +61,9 @@ async function mittiBusinessMap(api: ReturnType<typeof mittiApi>) {
 
 export type PickupScanOpts = {
   /** Restrict to these audit ids (TEST runs). */
-  onlyAuditIds?: string[];
+  onlyAuditIds?: string[] | undefined;
   /** TEST harness only: Mitti user id → business/user, used instead of the email match. */
-  businessOverride?: Map<string, { id: string; name: string; userId: string }>;
+  businessOverride?: Map<string, { id: string; name: string; userId: string }> | undefined;
 };
 
 /** Office scan: recent Ready Check audits in Mitti that are not linked to a portal job. Read-only. */
