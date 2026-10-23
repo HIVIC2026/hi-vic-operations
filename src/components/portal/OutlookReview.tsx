@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { useAction } from "@/hooks/use-me";
 import { checkOutlookConnectionHealth, confirmOutlookSyncMailbox, getOutlookCorrespondenceOverview, resolveCorrespondenceReview, runOutlookSyncNow, setOutlookCatchup } from "@/lib/outlook-correspondence.functions";
 import { normaliseMailbox, type OutlookHealth } from "@/lib/outlook-connection.core";
+import { cleanOwnerEmail, emailPreview, isHumanOwnerEmail } from "@/lib/owner-email-presentation.core";
 
 const fmt = (v: string | null | undefined) => (v ? new Date(v).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "—");
 const CONNECTION_LABEL = {
@@ -47,7 +48,7 @@ export function OutlookReview() {
   const mailbox = mailboxInput ?? s.expected_mailbox ?? "";
   const target = normaliseMailbox(mailbox);
   const counts = (s?.last_counts ?? {}) as Record<string, number>;
-  const unmatched = data.reviews.filter((r) => r.kind === "unmatched");
+  const unmatched = data.reviews.filter((r) => r.kind === "unmatched" && r.direction === "inbound" && isHumanOwnerEmail({...r,provider:"outlook",channel:"email"}));
   const intent = data.reviews.filter((r) => r.kind !== "unmatched");
   return (
     <div className="space-y-5">
@@ -113,17 +114,24 @@ export function OutlookReview() {
         </div>
       </section>
 
-      <ReviewList title={`Unmatched correspondence (${unmatched.length})`} empty="No emails waiting to be matched." items={unmatched} resolve={resolve} />
+      <details className="border-b py-3"><summary className="cursor-pointer font-display font-semibold">Unmatched emails ({unmatched.length})</summary><ReviewList title="" empty="No emails waiting to be matched." items={unmatched} resolve={resolve} /></details>
       <ReviewList title={`Not proceeding? (${intent.length})`} empty="Nothing to check." items={intent} resolve={resolve} />
     </div>
   );
 }
 
 type Review = Awaited<ReturnType<typeof getOutlookCorrespondenceOverview>>["reviews"][number];
+export function UnmatchedOwnerEmails() {
+  const load = useServerFn(getOutlookCorrespondenceOverview);
+  const q = useQuery({queryKey:["outlook-correspondence"],queryFn:() => load(),staleTime:60_000});
+  const resolve = useAction(resolveCorrespondenceReview);
+  const items = q.data?.reviews.filter(r => r.kind === "unmatched" && r.direction === "inbound" && isHumanOwnerEmail({...r,provider:"outlook",channel:"email"})) ?? [];
+  return <details className="border-t pt-3"><summary className="cursor-pointer text-sm font-semibold">Unmatched emails ({items.length})</summary>{q.error ? <p role="alert">Could not load unmatched emails.</p> : <ReviewList title="" empty="No emails waiting to be matched." items={items} resolve={resolve} />}</details>;
+}
 function ReviewList({ title, empty, items, resolve }: { title: string; empty: string; items: Review[]; resolve: ReturnType<typeof useAction<{ reviewId: string; action: "assign" | "dismiss" | "close_job"; jobNumber?: string; reason?: string }, { ok: boolean }>> }) {
   return (
     <section>
-      <h2 className="mb-2 font-display text-lg font-bold">{title}</h2>
+      {title && <h2 className="mb-2 font-display text-lg font-bold">{title}</h2>}
       {items.length === 0 ? <p className="text-sm text-sub">{empty}</p> : (
         <ul className="space-y-2">{items.map((r) => <ReviewItem key={r.id} r={r} resolve={resolve} />)}</ul>
       )}
@@ -134,27 +142,27 @@ function ReviewList({ title, empty, items, resolve }: { title: string; empty: st
 function ReviewItem({ r, resolve }: { r: Review; resolve: Parameters<typeof ReviewList>[0]["resolve"] }) {
   const [num, setNum] = useState(r.candidates[0]?.jobNumber ?? "");
   const [reason, setReason] = useState(r.suggestedReason ?? "Customer not proceeding");
+  const [linking, setLinking] = useState(false);
+  if (r.kind === "unmatched") return <li className="min-w-0 border-b py-3 text-sm">
+    <p className="break-words font-semibold">{r.from ?? "Unknown sender"}</p><p className="truncate">{r.subject ?? "(no subject)"}</p><p className="truncate text-muted-foreground">{emailPreview(r.body)}</p>
+    <div className="mt-2 flex flex-wrap gap-2"><Button size="sm" variant="outline" className="h-12" onClick={() => setLinking(!linking)}>Link to job</Button><Button size="sm" variant="ghost" className="h-12" onClick={() => void resolve({reviewId:r.id,action:"dismiss"},"Marked not a customer")}>Not a customer</Button></div>
+    {linking && <div className="mt-2 flex gap-2"><Input aria-label="Job number" className="h-12 min-w-0 flex-1" placeholder="HV-1234" value={num} onChange={e => setNum(e.target.value)} /><Button className="h-12" disabled={!num.trim()} onClick={() => void resolve({reviewId:r.id,action:"assign",jobNumber:num},"Email linked to job")}>Link</Button></div>}
+  </li>;
   return (
     <li className="rounded-md border bg-card p-3 text-sm">
       <div className="flex flex-wrap items-center gap-2 text-xs text-sub">
         <span className="rounded bg-workspace-sun px-1.5 py-0.5 font-semibold text-foreground">{KIND_LABEL[r.kind]}</span>
         <span>{r.direction === "inbound" ? `From ${r.from ?? "unknown"}` : `To ${r.recipients.join(", ")}`}</span>
         <span>{fmt(r.at)}</span>
-        {r.jobNumber && <Link to="/admin/jobs/$jobId" params={{ jobId: r.jobId! }} className="font-semibold text-primary underline">{r.jobNumber}</Link>}
+        {r.jobNumber && r.jobId && <Link to="/admin/jobs/$jobId" params={{ jobId: r.jobId }} className="font-semibold text-primary underline">{r.jobNumber}</Link>}
       </div>
       <p className="mt-1 text-xs">{r.reason}</p>
       {r.subject && <div className="mt-1 font-medium">{r.subject}</div>}
-      <p className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap text-sub">{r.body}</p>
+      <p className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap text-sub">{cleanOwnerEmail(r.body)}</p>
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        {r.kind === "unmatched" ? (<>
-          {r.candidates.length > 0 && <span className="text-xs">Possible: {r.candidates.map((c) => c.jobNumber).join(", ")}</span>}
-          <Input aria-label="Job number" className="h-9 w-32" placeholder="HV-1234" value={num} onChange={(e) => setNum(e.target.value)} />
-          <Button size="sm" onClick={() => void resolve({ reviewId: r.id, action: "assign", jobNumber: num }, "Email added to the job")}>Add to job</Button>
-        </>) : (<>
-          <Input aria-label="Closure reason" className="h-9 w-80" value={reason} onChange={(e) => setReason(e.target.value)} />
+          <Input aria-label="Closure reason" className="h-9 w-full" value={reason} onChange={(e) => setReason(e.target.value)} />
           <Button size="sm" variant="destructive" onClick={() => { if (window.confirm(`Close ${r.jobNumber ?? "this job"} with reason “${reason}”? Nothing is deleted.`)) void resolve({ reviewId: r.id, action: "close_job", reason }, "Job closed"); }}>Close job</Button>
-        </>)}
-        <Button size="sm" variant="ghost" onClick={() => void resolve({ reviewId: r.id, action: "dismiss" }, "Dismissed")}>{r.kind === "unmatched" ? "Not a customer email" : "Keep open — dismiss"}</Button>
+        <Button size="sm" variant="ghost" onClick={() => void resolve({ reviewId: r.id, action: "dismiss" }, "Dismissed")}>Keep open — dismiss</Button>
       </div>
     </li>
   );
