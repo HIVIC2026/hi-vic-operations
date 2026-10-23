@@ -1,4 +1,5 @@
 import { melbourneToday } from "./melbourne-time.core";
+import { onsiteOnlyOfficeJobIds } from "./insulation-details-office.server";
 // Gathers facts for the office rulebook in bulk (paged, admin client) and applies the pure rules.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
@@ -31,13 +32,14 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
     if (opts.onlyIds) q = q.in("id", opts.onlyIds);
     return q;
   };
-  const [jobs, settingsRes] = await Promise.all([
+  const [jobs, settingsRes, onsiteOnly] = await Promise.all([
     all("jobs", (a, b) => jobQ().order("created_at").range(a, b)),
     admin.from("workflow_settings").select("office_time_limits").eq("id", 1).maybeSingle(),
+    opts.onlyIds ? Promise.resolve(new Set<string>()) : onsiteOnlyOfficeJobIds(admin),
   ]);
   if (settingsRes.error) throw new Error(`Could not load time limits: ${settingsRes.error.message}`);
   const lim = limits((settingsRes.data?.office_time_limits ?? {}) as Record<string, unknown>);
-  const live = jobs.filter((j) => (opts.includeTest ? true : j["source"] !== "qa_test") && !j["qa_archived_at"] && !j["deleted_at"]);
+  const live = jobs.filter((j) => !onsiteOnly.has(String(j['id'])) && (opts.includeTest ? true : j["source"] !== "qa_test") && !j["qa_archived_at"] && !j["deleted_at"]);
   const ids = live.map((j) => String(j["id"]));
   const want = (r: Row) => !opts.onlyIds || opts.onlyIds.includes(String(r["job_id"]));
   const [stageEv, camp, links, wins, offers, books, props, quotes, inv, piesa, rcs, ev, veec, payoutEv, deadlines, invErr, esc, outbox, comms, emails, snoozes, apps, creds, reassigs] = await Promise.all([

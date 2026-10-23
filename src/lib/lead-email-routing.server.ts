@@ -1,3 +1,4 @@
+import { ownerInsulationAnswers,savedInsulationTap } from "./insulation-details.core";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { declaredExtras, declaredInsulationDetail, insulationDetailRoute } from "./enquiry.core";
 import { normaliseInsulation } from "./eligibility.core";
@@ -19,14 +20,17 @@ export async function selectLeadEmailRoute(jobId: string) {
   const latestOutcome = (review?.[0]?.metadata as { outcome?: string } | null | undefined)?.outcome ?? null;
   const property = job.properties as { enrichment: Record<string, unknown> | null } | null;
   const base44 = (property?.enrichment?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } };
-  const extras = declaredExtras(base44.raw?.answers ?? null);
+  const tap=savedInsulationTap(property?.enrichment);
+  if (!latestOutcome && tap?.route==="needs_onsite_assessment") return {email:"none" as const,blocker:"Needs onsite assessment"};
+  const answers=ownerInsulationAnswers(property?.enrichment);
+  const extras = declaredExtras(answers);
   return automaticLeadEmail({
     source: job.source, channel: job.channel, decisionSource: job.eligibility_decision_source,
     reviewRequired: !!job.eligibility_review_required, outcome: job.eligibility_outcome,
     intakeWorkActive: !!work, declaredInsulation: effectiveInsulation(normaliseInsulation(extras.existing_insulation), latestOutcome),
     ownerEnteredArea: !job.estimated_area_unknown && Number(job.estimated_area_m2) > 0,
     // A recorded Office photo review always outranks the owner's own description.
-    insulationDetailRoute: latestOutcome ? null : insulationDetailRoute(declaredInsulationDetail(base44.raw?.answers ?? null)),
+    insulationDetailRoute: latestOutcome ? null : tap?.route==="thin_patchy"?"likely_save_spot":insulationDetailRoute(declaredInsulationDetail(answers)),
     officeReviewed: !!latestOutcome,
   });
 }

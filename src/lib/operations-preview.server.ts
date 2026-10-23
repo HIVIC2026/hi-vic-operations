@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { onsiteOnlyOfficeJobIds } from './insulation-details-office.server';
 import type { Database } from '@/integrations/supabase/types';
 import { declaredExtras } from './enquiry.core';
 import { normaliseInsulation } from './eligibility.core';
@@ -28,13 +29,14 @@ export async function loadOperationsPreview(admin: SupabaseClient<Database>, job
   // jobs read first so related-fact batches below fetch one job only. All scoping
   // (business unit, TEST/source exclusions, deleted) is unchanged, so a filtered-out
   // job yields no rows and callers stay fail-closed.
-  const jobs = await all('jobs', (a, b) => {
+  const onsiteOnly = jobId ? new Set<string>() : await onsiteOnlyOfficeJobIds(admin);
+  const jobs = (await all('jobs', (a, b) => {
     let q = admin.from('jobs')
       .select('id, job_number, stage, source, business_unit, channel, offer_dispatch_override, commercial_model, originating_installer_business_id, created_at, last_activity_at, hold_reason, hold_revisit_at, cancelled_reason, installation_completed_at, eligibility_outcome, eligibility_reason, eligibility_decision_source, eligibility_review_required, eligibility_decision_rules, owners(full_name), properties(address_line, suburb, state, postcode, enrichment)')
       .eq('business_unit', 'hivic').is('deleted_at', null).or('source.is.null,source.neq.qa_test');
     if (jobId) q = q.eq('id', jobId);
     return q.order('id').range(a, b);
-  });
+  })).filter(j=>!onsiteOnly.has(String(j['id'])));
   const ids = jobs.map(j => String(j['id']));
   async function byJobs(label: string, q: (ids: string[], a: number, b: number) => Result) {
     const rows: Row[] = [];

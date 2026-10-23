@@ -1380,11 +1380,13 @@ export const getAdminPipeline = createServerFn({ method: "POST" }).middleware([r
   await requireAdmin(context.supabase);
   const { archivedQaJobIds, enrichPipeline, jobOverview } = await import("./job-pipeline.server");
   const archivedQaIds = new Set(await archivedQaJobIds());
+  const { onsiteOnlyOfficeJobIds } = await import('./insulation-details-office.server');
+  const onsiteOnly = await onsiteOnlyOfficeJobIds((await import('@/integrations/supabase/client.server')).supabaseAdmin);
   // `id` is the stable tie-breaker: without it, rows sharing a last_activity_at can swap places
   // between requests and the same record can appear on two pages at once.
   const { data, error } = await jobOverview().order("last_activity_at", { ascending: false }).order("id");
   if (error) throw new Error(`Pipeline could not be loaded: ${error.message}`);
-  return enrichPipeline((data ?? []).filter((j) => j.id != null && !archivedQaIds.has(j.id)));
+  return enrichPipeline((data ?? []).filter((j) => j.id != null && !archivedQaIds.has(j.id) && !onsiteOnly.has(j.id)));
 });
 
 /**
@@ -1438,7 +1440,8 @@ export const getIntakeSummary = createServerFn({ method: "POST" }).middleware([r
       reference: job?.external_enquiry_id ?? null, source: job?.source ?? null, state: prop?.state ?? null, occupancy: prop?.occupancy ?? null,
       lifeSupport: job?.life_support_status ?? null, area: job?.estimated_area_unknown ? null : job?.estimated_area_m2 ?? null,
       consent: consents?.[0] ?? null, declared: b44?.declared ?? null,
-      declaredExtras: { ...(await import("./enquiry.core")).declaredExtras(b44?.raw?.answers ?? null), ...(await import("./enquiry.core")).declaredInsulationDetail(b44?.raw?.answers ?? null) },
+      declaredExtras: { ...(await import("./enquiry.core")).declaredExtras(b44?.raw?.answers ?? null), ...(await import("./enquiry.core")).declaredInsulationDetail((await import("./insulation-details.core")).ownerInsulationAnswers(prop?.enrichment)) },
+      insulationTap: (await import("./insulation-details.core")).savedInsulationTap(prop?.enrichment),
       // Preliminary website screening only – never the authoritative Step-2 category.
       screening: (() => { const prelim = job?.eligibility_decision_source !== "system" && job?.eligibility_decision_source !== "admin"; const raw = b44?.raw?.screening ?? null; return { outcome: prelim ? job?.eligibility_outcome ?? null : (typeof raw?.status === "string" ? raw.status : null), reasons: prelim ? job?.eligibility_reason ?? null : null, raw }; })(),
       media: links, lastMediaFailure: fails?.[0] ?? null,
@@ -1448,6 +1451,7 @@ export const getIntakeSummary = createServerFn({ method: "POST" }).middleware([r
       consent: { consent_status: string; consent_version: string | null; consented_at: string | null; age_confirmed: boolean | null; assistance: string | null; contact_preference: string | null; created_at: string } | null;
       declared: { property_type: string | null; over_five_years: string | null; previous_upgrade: string | null } | null;
       declaredExtras: { existing_insulation: string | null; top_floor: string | null } & import("./enquiry.core").InsulationDetail;
+      insulationTap: {answers:import("./insulation-details.core").InsulationTapAnswers;route:string}|null;
       screening: { outcome: string | null; reasons: string | null; raw: Json };
       media: { id: string; name: string; mime: string | null; size: number | null; url: string | null }[];
       lastMediaFailure: { created_at: string; summary: string } | null;
