@@ -146,3 +146,9 @@ See the bottom of this file.
 ---
 
 ## Appendix: overnight form check
+
+Checked 24 Oct 00:09 Melbourne (portal records):
+- **HV-3136 – HV-3150: all 15 Mitti A1 forms created automatically**, each linked to its job and assigned to Deep (info@reinsulate.com.au), from the new A1 version (Portal Job Number + Site address prefilled). Exactly one creation attempt per job; no failures or uncertain outcomes; no duplicates.
+- **HV-3116 – HV-3119:** moved to the new A1 version by Lovable's AI at 11:24pm; old forms archived; nothing skipped.
+- The background scheduler timed out between ~11:22pm and ~11:46pm (while Lovable's AI was running on the development copy) and then recovered by itself. No work was lost.
+- Still to confirm by eye: how the titles look in Deep's Mitti list, and the "Mitti form" button link format (it opens Mitti's home, not the form — needs a real form web address from a browser).
