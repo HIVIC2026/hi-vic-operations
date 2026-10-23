@@ -726,6 +726,10 @@ export function EnquiriesWorkspace({
                             {openId === row.id && (
                               <MediaReview row={row} onDone={() => refetch()} />
                             )}
+                            {/* Jo 23 Oct 2026: no photos/video → the same three review buttons, no photo loading. */}
+                            {row.mediaCount === 0 && row.mediaOutcome == null && (
+                              <MediaReview row={row} onDone={() => refetch()} optionsOnly />
+                            )}
                             {row.mediaOutcome === "no_insulation" && !["spot_saved", "ineligible", "offered_spot"].includes(row.status) && (
                               <NoInsulationFollowup jobId={row.id} deliveryUncertain={uncertainAttempt(row.latestAttemptStatus)} onDone={() => void refetch()} />
                             )}
@@ -751,6 +755,11 @@ export function EnquiriesWorkspace({
                           "Removed by office"
                         ) : row.status === "needs_attention" && !row.mediaOutcome ? (
                           (row.attentionReason ?? row.reason)
+                        ) : row.mediaCount === 0 && row.mediaOutcome == null && row.nextParty === "office" && !["spot_saved", "ineligible", "offered_spot"].includes(row.status) ? (
+                          <div className="space-y-2">
+                            <span className="font-semibold">{row.nextAction}</span>
+                            <MediaReview row={row} onDone={() => refetch()} optionsOnly />
+                          </div>
                         ) : (
                           <span className={row.nextParty === "office" ? "font-semibold" : undefined}>{row.nextAction}</span>
                         )}
