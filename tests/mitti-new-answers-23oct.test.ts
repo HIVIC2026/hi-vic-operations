@@ -108,8 +108,8 @@ describe("8 A2 prefill tap choices; A1 without Portal Job Number", () => {
     expect(buildPrefill(a1, base).missing).toEqual([]);
   });
   test("A1 audit without Portal Job Number validates by stored form ID; A2 mismatch still blocks", () => {
-    expect(() => validateStoredMittiAudit({ audit_id: "a1", template_id: "t", items: [] }, { storedAuditId: "a1", jobNumber: "HV-1", templateId: "t" })).not.toThrow();
-    expect(() => validateStoredMittiAudit({ audit_id: "a2", template_id: "t", header_items: [{ item_id: "h", label: "Portal Job Number", responses: { text: "HV-9" } }], items: [] }, { storedAuditId: "a2", jobNumber: "HV-1", templateId: "t" })).toThrow();
+    expect(() => validateStoredMittiAudit({ audit_id: "a1", template_id: "template_01ee0428be6d4435b34d8b738935f099", items: [] }, { storedAuditId: "a1", jobNumber: "HV-1", templateId: "template_01ee0428be6d4435b34d8b738935f099" })).not.toThrow();
+    expect(() => validateStoredMittiAudit({ audit_id: "a2", template_id: "template_01ee0428be6d4435b34d8b738935f099", header_items: [{ item_id: "h", label: "Portal Job Number", responses: { text: "HV-9" } }], items: [] }, { storedAuditId: "a2", jobNumber: "HV-1", templateId: "template_01ee0428be6d4435b34d8b738935f099" })).toThrow();
   });
 });
 
