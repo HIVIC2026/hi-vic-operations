@@ -14,7 +14,7 @@ export type OnsiteMemberInput = {
 export function onsiteAssessmentMember(x: OnsiteMemberInput): boolean {
   if (x.mediaCount > 0 || x.spotOffered) return false;
   if (x.tap && x.tap.insulation_type) {
-    return insulationTapRoute({ insulation_type: x.tap.insulation_type, insulation_thickness: x.tap.insulation_thickness ?? "unknown", house_built_period: x.tap.house_built_period }) === "needs_onsite_assessment";
+    return insulationTapRoute({ insulation_type: x.tap.insulation_type, insulation_thickness: x.tap.insulation_thickness ?? "unknown", ...(x.tap.house_built_period ? { house_built_period: x.tap.house_built_period } : {}) }) === "needs_onsite_assessment";
   }
   return x.declaredInsulation === "unknown";
 }
