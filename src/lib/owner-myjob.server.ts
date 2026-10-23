@@ -13,18 +13,22 @@ export async function resolveOwnerJob(token: unknown) {
   const { data: l } = await admin.from("customer_estimate_links").select("job_id, status, expires_at").eq("token", token as string).eq("purpose", LINK_PURPOSE).maybeSingle();
   if (!l || !linkUsable(l)) return null;
   const jobId = l.job_id;
-  const [{ data: j }, { data: quotes }, { data: bookings }, { data: invoices }, { data: est }, { data: rc }, { data: ws }] = await Promise.all([
+  // At most six reads per wave: the published runtime has six outbound slots.
+  const [{ data: j }, { data: quotes }, { data: bookings }, { data: invoices }, { data: est }, { data: ws }] = await Promise.all([
     admin.from("jobs").select("job_number, stage, channel, external_refs, owners(full_name), properties(address_line, suburb, state, postcode)").eq("id", jobId).single(),
     admin.from("quotes").select("id, kind, status, release_state, option_label, customer_total_inc_gst, veec_discount_inc_gst, subtotal_inc_gst, sent_at, accepted_at, version, quote_items(description, quantity, line_total_inc_gst, sort)").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted"]).order("created_at", { ascending: false }),
     admin.from("bookings").select("kind, status, scheduled_start, contractor_id, business_id").eq("job_id", jobId).in("status", ["confirmed", "completed"]).order("scheduled_start"),
     admin.from("invoices").select("total_paid, amount_paid").eq("job_id", jobId),
     admin.from("indicative_estimates").select("applied_discount").eq("job_id", jobId).is("superseded_at", null).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    admin.from("ready_check_acceptances").select("accepted_at").eq("job_id", jobId).limit(1).maybeSingle(),
-    admin.from("workflow_settings").select("office_time_limits, piesa_install_window_days").eq("id", 1).maybeSingle(),
+    admin.from("workflow_settings").select("office_time_limits, piesa_install_window_days, safety_check_payment_inc_gst").eq("id", 1).maybeSingle(),
   ]);
   if (!j) return null;
-  const { data: spot } = await admin.from("lead_campaign_responses").select("spot_saved_at, opted_out_at, media_received_at, video_requested, saved_veu_discount, saved_total").eq("job_id", jobId).maybeSingle();
-  const { data: consent } = await admin.from("owner_esc_consents").select("status, scheduled_start").eq("job_id", jobId).eq("status", "awaiting_owner").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const [{ data: rc }, { data: spot }, { data: consent }, { data: cancellableBookings }] = await Promise.all([
+    admin.from("ready_check_acceptances").select("accepted_at").eq("job_id", jobId).limit(1).maybeSingle(),
+    admin.from("lead_campaign_responses").select("spot_saved_at, opted_out_at, media_received_at, video_requested, saved_veu_discount, saved_total").eq("job_id", jobId).maybeSingle(),
+    admin.from("owner_esc_consents").select("status, scheduled_start").eq("job_id", jobId).eq("status", "awaiting_owner").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("bookings").select("kind").eq("job_id", jobId).in("status", ["proposed", "confirmed"]),
+  ]);
   const stage = j.stage as string;
   // Held/queued quotes are office-only until released (source of truth: nothing goes to the owner while queued).
   const { ownerVisibleQuotes } = await import("./owner-quote-visibility.core");
@@ -45,7 +49,7 @@ export async function resolveOwnerJob(token: unknown) {
   const paid = (invoices ?? []).reduce((s, i) => s + n(i.total_paid ?? i.amount_paid), 0);
   const quoteOpen = quote?.status === "issued" && (stage === "awaiting_quote_acceptance" || stage === "measured_estimate_ready") ? { expiresAt: quote.sent_at ? new Date(new Date(quote.sent_at).getTime() + 14 * 86400_000).toISOString() : null } : null;
   const bookingOpen = ["measured_quote_accepted", "piesa_and_install_window_pending", "installation_scheduling"].includes(stage);
-  const action = ownerAction({ stage, readyCheckRequested: !!rc?.accepted_at, visit: upcoming ? { kind: upcoming.kind, startsAt: upcoming.scheduled_start! } : null, quoteOpen, bookingOpen });
+  const action = ownerAction({ stage, readyCheckRequested: !!rc?.accepted_at, visit: upcoming?.scheduled_start ? { kind: upcoming.kind, startsAt: upcoming.scheduled_start } : null, quoteOpen, bookingOpen });
   const hero = ownerHero(stage, rebate);
   const done = (bookings ?? []).filter((b) => b.status === "completed");
   const doneAt = (kind: string) => done.find((b) => b.kind === kind)?.scheduled_start ?? null;
@@ -70,7 +74,7 @@ export async function resolveOwnerJob(token: unknown) {
     address: formatPropertyAddress(j.properties as never) || null, stage, hero, action, trade: upcoming ? trade : null,
     visit: upcoming ? { kind: upcoming.kind, startsAt: upcoming.scheduled_start } : null, progress,
     numbers: { rebate, cost: total, paid }, agreed,
-    quote: quote ? { id: quote.id, status: quote.status, label: quote.option_label, total, rebate: n(quote.veec_discount_inc_gst), version: quote.version, lines: [...(quote.quote_items ?? [])].sort((a, b) => a.sort - b.sort).map((i) => ({ description: i.description, amount: n(i.line_total_inc_gst) })), split: total != null ? splitForOption(total, (await admin.from("workflow_settings").select("safety_check_payment_inc_gst").eq("id", 1).maybeSingle()).data?.safety_check_payment_inc_gst ?? null) : null } : null,
+    quote: quote ? { id: quote.id, status: quote.status, label: quote.option_label, total, rebate: n(quote.veec_discount_inc_gst), version: quote.version, lines: [...(quote.quote_items ?? [])].sort((a, b) => a.sort - b.sort).map((i) => ({ description: i.description, amount: n(i.line_total_inc_gst) })), split: total != null ? splitForOption(total, ws?.safety_check_payment_inc_gst ?? null) : null } : null,
     consent: consent ? { scheduledStart: consent.scheduled_start } : null,
     spotSaved: isSpotSavedStage(stage, spot ?? null, !!upcoming || (bookings ?? []).some((b) => b.kind === "ready_check")) ? {
       rebate: spot?.saved_veu_discount != null ? n(spot.saved_veu_discount) : rebate,
@@ -80,7 +84,7 @@ export async function resolveOwnerJob(token: unknown) {
       optOutUrl: await (await import("./emailsafety.server")).unsubscribeUrlForJob(jobId),
     } : null,
     piesaInstallGapDays: n(limits["piesa_install_gap_days"] ?? DEFAULT_PIESA_INSTALL_GAP_DAYS),
-    canCancel: ownerCanCancel(stage, ((await admin.from("bookings").select("kind").eq("job_id", jobId).in("status", ["proposed", "confirmed"])).data ?? []).map((b) => b.kind)),
+    canCancel: ownerCanCancel(stage, (cancellableBookings ?? []).map((b) => b.kind)),
   };
 }
 
