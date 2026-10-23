@@ -14,8 +14,8 @@ export const saveMySpot = createServerFn({ method: "POST" }).middleware([withReq
   .handler(async ({ data }) => (await import("./launch-campaign.server")).saveCampaignSpot(data.token, data.calc ?? null));
 
 export const takeMeOffList = createServerFn({ method: "POST" }).middleware([withRequestMeta])
-  .inputValidator((d) => z.object({ token }).parse(d))
-  .handler(async ({ data }) => (await import("./launch-campaign.server")).optOutCampaign(data.token));
+  .inputValidator((d) => z.object({ token, reason: z.enum(["already_insulated", "price_too_high", "selling_moving", "changed_mind", "other"]).optional(), note: z.string().trim().max(500).optional() }).parse(d))
+  .handler(async ({ data }) => (await import("./launch-campaign.server")).optOutCampaign(data.token, data.reason, data.note));
 
 export const submitInsulationDeclaration = createServerFn({ method: "POST" }).middleware([withRequestMeta])
   .inputValidator((d) => z.object({ token, confirmed: z.literal(true), declaration: z.enum(["loose_fill_only", "below_r2"]).optional() }).parse(d))
