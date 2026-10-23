@@ -40,7 +40,7 @@ export const Route = createFileRoute("/my-job/$token")({
 });
 
 type View = NonNullable<Awaited<ReturnType<typeof getOwnerMyJob>>> & Record<string, any>;
-const aud = (v: number | null | undefined) => `$${Math.floor(Math.max(0, Number(v ?? 0))).toLocaleString("en-AU")}`;
+const aud = (v: number | null | undefined) => Math.max(0, Number(v ?? 0)).toLocaleString("en-AU", { style: "currency", currency: "AUD" });
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short", timeZone: "Australia/Melbourne" });
 
 function MyJobPage() {
@@ -315,7 +315,7 @@ function QuoteScreen({ v, token }: { v: View; token: string }) {
         {agreedWithLabel(v.agreed) && <p className="mt-1 text-sm font-semibold" data-agreed-with>{agreedWithLabel(v.agreed)}</p>}
         <ul className="mt-3 divide-y divide-estimate-line text-sm">
           <li className="flex justify-between py-2"><span>Ready Check</span><span className="font-bold text-estimate-green">FREE</span></li>
-          {q.lines.map((l: any, i: number) => <li key={i} className="flex justify-between gap-3 py-2"><span>{l.description}</span><span className="font-semibold">{aud(l.amount)}</span></li>)}
+          {q.lines.map((l: any, i: number) => <li key={i} className="flex justify-between gap-3 py-2"><span className="min-w-0 break-words">{l.description}</span><span className="shrink-0 font-semibold tabular-nums">{aud(l.amount)}</span></li>)}
           {q.rebate > 0 && <li className="flex justify-between py-2 text-estimate-green"><span>Government rebate (VEU)</span><span className="font-bold">−{aud(q.rebate)}</span></li>}
           <li className="flex justify-between py-3 font-display text-lg font-extrabold"><span>You pay (inc GST)</span><span>{aud(q.total)}</span></li>
         </ul>

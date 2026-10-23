@@ -36,7 +36,7 @@ export async function notifyOwnerQuoteReady(jobId: string, quoteId: string, kind
     const { linkUsable } = await import("./estimatelink.core");
     if (qe || le || !quote || !link || !linkUsable(link)) throw new Error("TEST quote total or owner link is unavailable.");
     const { CUSTOMER_BASE } = await import("./engagement.core");
-    const payload = (await import("./quote-ready-test.core")).testQuoteNotification(String(job.job_number ?? ""), Number(quote.customer_total_inc_gst), `${CUSTOMER_BASE}/my-job/${link.token}?view=quote`);
+    const payload = (await import("./quote-ready-test.core")).testQuoteNotification(String(job.job_number ?? ""), Number(quote.customer_total_inc_gst), `${CUSTOMER_BASE}/my-job/${link.token}?screen=quote`);
     const ctx = { jobId, jobSource: job.source, partnerIsTest: isTestPartner(partner), label: `quote_ready:${quoteId}`, actorId: null };
     const email = await sendTestEmail(ctx, owner?.email ?? "", payload.subject, payload.html, payload.text);
     const sms = await sendTestSms(ctx, owner?.phone ?? "", payload.text);
