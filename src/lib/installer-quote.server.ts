@@ -55,6 +55,14 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   if ((open ?? []).some((q) => q.status === "issued")) return null;
   if ((open ?? []).some((q) => q.status === "accepted") && !(await reconfirmationOpen(jobId))) return null;
 
+  // Jo 23 Oct hard stops (contact No, R2+, life support, built in last 5 years): no quote at all.
+  const answers = await import("./ready-check-answers.core");
+  const stops = !intakePrice ? answers.readyCheckStopReasons(entries) : [];
+  if (stops.length) {
+    await (await import("./ready-check-quote.server")).recordNeedsOffice(jobId, actorId, null, stops);
+    return { ready: false, blockers: stops, lines: [], subtotal: 0, discount: 0, afterDiscount: 0, discountNote: null };
+  }
+  const accessFee = !intakePrice ? answers.difficultAccessFee(entries) : { amountIncGst: null, reason: null };
   const mittiElectrician = !intakePrice ? await (await import("./usual-electrician.server")).mittiElectricianForJob(jobId, actorId, entries, auditId) : null;
   const mittiProduct = !intakePrice ? await (await import("./insulation-product.server")).mittiProductForJob(jobId, actorId, entries, auditId) : null;
 
@@ -71,7 +79,7 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   const draftInput = {
     price: intakePrice ? { ok: true, issues: [], price: { included: [intakePrice.exclusions ? `${intakePrice.includes} (excludes: ${intakePrice.exclusions})` : intakePrice.includes], otherDescription: "", totalIncGst: Math.round(intakePrice.totalIncGst * 100) / 100, agreedWithOwner: false } } : quotedPriceFromEntries(entries, m?.removal_required ?? null), measuredM2: m2, wholeVeec,
     // CURRENT recorded payer (Jo, 9 Oct 2026): own electrician = no HIV PIESA line; HIV = standard; undecided = held.
-    separateLines: intakePrice?.separateLines ?? [],
+    separateLines: intakePrice?.separateLines ?? (accessFee.amountIncGst ? [{ code: "DIFFICULT_ACCESS", description: "Difficult access fee", amountIncGst: accessFee.amountIncGst }] : []),
     piesaIncGst: piesaChargeIncGst(job.electrician_choice ?? null, rs ? Number(rs.piesa_assessment_inc_gst) : null), apFeeIncGst: apFee,
     caps: {
       metropolitan: loc ? (loc as unknown as LocationVariables).metropolitan_or_regional === "Metropolitan" : null,
@@ -88,7 +96,13 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
     const { applyMittiProduct } = await import("./mitti-installer-quote.core");
     applyMittiProduct(draft, mittiProduct, m2);
   }
+  if (!intakePrice) {
+    const { applyMittiRemoval } = await import("./mitti-installer-quote.core");
+    applyMittiRemoval(draft, answers.removalTotalM2(entries));
+    if (accessFee.reason) { draft.blockers.push(accessFee.reason); draft.ready = false; }
+  }
   if (!draft.ready) {
+    if (accessFee.reason) await (await import("./ready-check-quote.server")).recordNeedsOffice(jobId, actorId, null, [accessFee.reason]);
     if (mittiProduct && !mittiProduct.ready) await (await import("./ready-check-quote.server")).recordNeedsOffice(jobId, actorId, null, mittiProduct.reasons);
     if (mittiElectrician?.needsProfile) {
       await (await import("./ready-check-quote.server")).recordNeedsOffice(jobId, actorId, null, mittiElectrician.reasons);

@@ -67,7 +67,12 @@ export const PRICE_ITEMS = ["R5.0 supply and install", "Removal of existing insu
 /** Retired by Jo (5 Oct) but still accepted so answers from the not-yet-updated live Mitti template keep parsing. */
 export const LEGACY_PRICE_ITEMS = ["Tile lift", "Metal sheet access"] as const;
 /** The installer's form may word an inclusion slightly differently; both mean the same line. */
-const PRICE_ALIASES: Record<string, string> = { "r5.0 ceiling insulation - supply & install": "R5.0 supply and install" };
+const PRICE_ALIASES: Record<string, string> = {
+  "r5.0 ceiling insulation - supply & install": "R5.0 supply and install",
+  // Jo 23 Oct A1 labels: first option renamed, new difficult-access option.
+  "ceiling insulation - supply & install": "R5.0 supply and install",
+  "difficult access charge": "Difficult access",
+};
 export const PRICING_FIELDS: FormField[] = [
   { label: "What's included in your quote?", type: "multichoice", required: true, choices: ["R5.0 ceiling insulation - supply & install", "Removal of existing insulation", "Difficult access", "Other"], source: "portal – 'R5.0 ceiling insulation - supply & install' must be ticked; Removal ticked only when an area says Remove" },
   { label: "What else is included?", type: "text", required: true, when: "Other is ticked", source: "portal – required only when Other is ticked" },

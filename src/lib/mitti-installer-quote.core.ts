@@ -29,3 +29,11 @@ export function applyMittiProduct(
   if (line) line.description = productQuoteDescription(product.product, areaM2);
   return draft;
 }
+
+/** Jo 23 Oct: the removal total (sum of every area's removal m²) shows on the installer line; never priced twice. */
+export function applyMittiRemoval(draft: { lines: { code: string | null; description: string }[] }, removalM2: number | null) {
+  if (!(removalM2 && removalM2 > 0)) return draft;
+  const line = draft.lines.find((l) => l.code === "INSTALLER_PRICE");
+  if (line) line.description = `${line.description} · Removal of existing insulation – ${removalM2} m²`;
+  return draft;
+}
