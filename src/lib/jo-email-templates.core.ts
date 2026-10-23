@@ -290,7 +290,7 @@ function renderBelowR2Reviewed(r: JoRecipient, f: JoEstimateFigures): string {
 
 /** Jo 23 Oct 2026 (DRAFT, awaiting Jo's final wording): "Tell us about your insulation" campaign variant of T5/T6 —
  *  same price box plus the "up to" removal line, one button to the three tap questions. */
-export const INSULATION_QUESTIONS_CTA_LABEL = "Answer 3 quick questions to get your spot";
+export const INSULATION_QUESTIONS_CTA_LABEL = "Answer 3 quick questions to save your spot";
 function renderPotentiallyEligible(r: JoRecipient, f: JoEstimateFigures, questions = false): string {
   const removalBox = questions && f.removalUpTo != null && f.removalUpTo > 0;
   const assumedNote = f.areaEstimated
@@ -313,7 +313,7 @@ function renderPotentiallyEligible(r: JoRecipient, f: JoEstimateFigures, questio
     includesTable(true, f), "",
     ...(questions ? [
     "### Get your spot in about a minute", "",
-    "Demand is high, and we’re offering spots to homes that look likely to qualify first. Answer three quick tap questions about your existing insulation — no typing — or send photos or a short video if you prefer.", "",
+    "Demand is high, and we’re offering spots to homes that look likely to qualify first. Answer three quick tap questions about your existing insulation — no typing. Got photos or a short video? You can add them too.", "",
     "[Tell us about your insulation]", "",
     "Only take photos or video if you can do so safely, and don’t enter the roof space.", "",
     "### What could change this price?", "",
@@ -322,7 +322,7 @@ function renderPotentiallyEligible(r: JoRecipient, f: JoEstimateFigures, questio
     ] : [
     "### Help us move your enquiry forward", "",
     "Demand is high, and we’re progressing homes with preliminary eligibility confirmed first.", "",
-    "Tell us about your existing insulation: upload photos or a short video, or answer three quick tap questions. No typing needed.", "",
+    "Tell us about your existing insulation: answer three quick tap questions — no typing. Got photos or a short video? You can add them too.", "",
     "[Tell us about your insulation]", "",
     "Only take photos or video if you can do so safely, and don’t enter the roof space. If you’re unable to obtain them safely, reply and let us know.", "",
     "### What could change this price?", "",

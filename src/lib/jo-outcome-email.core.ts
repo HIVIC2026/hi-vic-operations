@@ -565,7 +565,7 @@ export function renderJoOutcomeEmail(input: JoOutcomeEmailInput): JoWiredEmail |
   const received = input.mediaAlreadyReceived === true;
   if (received && !['potentially_eligible_unknown_size_unknown', 'potentially_eligible_unknown_size_known'].includes(id)) throw new Error('Received-media acknowledgement requires an unreviewed insulation estimate.');
   const copy = received ? rendered.body
-    .replace('Tell us about your existing insulation: upload photos or a short video, or answer three quick tap questions. No typing needed.', 'Thank you for sending your photos or video. We already have your media — you do not need to upload it again. Our Office will review it and contact you about the next step. Final eligibility will be confirmed at your free Ready Check. If you want or need to add more evidence, you can optionally add multiple photos and/or videos using the link below.') : rendered.body;
+    .replace('Tell us about your existing insulation: answer three quick tap questions — no typing. Got photos or a short video? You can add them too.', 'Thank you for sending your photos or video. We already have your media — you do not need to upload it again. Our Office will review it and contact you about the next step. Final eligibility will be confirmed at your free Ready Check. If you want or need to add more evidence, you can optionally add multiple photos and/or videos using the link below.') : rendered.body;
   const ctas = rendered.ctas;
   const linkedBody = bindLinks(copy, input.links, ctas);
   const missing = missingCta(ctas, linkedBody);
