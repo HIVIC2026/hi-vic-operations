@@ -8,7 +8,7 @@ export function ownerHeadline(step: OwnerHeadlineStep, rebate: number): string {
   switch (step) {
     case "spot_saved": return `Spot saved. Your ${r} rebate is waiting.`;
     case "ready_check_booked": return "Booked in! Next stop: your exact price";
-    case "quote_ready": return `Your price is in, and ${r} of it is on the government`;
+    case "quote_ready": return Number.isFinite(rebate) && rebate > 0 ? `You could save ${r} on ceiling insulation` : "Your ceiling insulation quote";
     case "booking_visits": return "Two quick visits. Lower bills for years.";
     case "install_booked": return "Your rebate's locked in. Your installer's booked.";
     case "all_done": return `${r} saved. Bills down. Job done.`;

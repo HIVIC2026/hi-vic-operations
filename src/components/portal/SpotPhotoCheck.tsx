@@ -44,7 +44,6 @@ export function PhotoRankButtons({ jobId, onDone }: { jobId: string; onDone: () 
           <div className="flex gap-2"><Button type="button" size="sm" variant="destructive" disabled={busy || !reason.trim()} onClick={() => void close()}>Close enquiry</Button><Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => setClosing(false)}>Cancel</Button></div>
         </div>
       )}
-      <p className="text-xs text-muted-foreground">Rank buttons move this job in Spots saved only. Nothing is sent to the owner.</p>
     </div>
   );
 }

@@ -47,7 +47,7 @@ function MyJobPage() {
   const { token } = Route.useParams();
   const { screen = "home" } = Route.useSearch();
   const load = useServerFn(getOwnerMyJob);
-  const { data, isLoading } = useQuery({ queryKey: ["my-job", token], queryFn: () => load({ data: { token } }) as Promise<View | null>, retry: false, refetchOnWindowFocus: false });
+  const { data, isLoading } = useQuery({ queryKey: ["my-job", token], queryFn: () => load({ data: { token } }) as Promise<View | null>, staleTime: 30_000, retry: false, refetchOnWindowFocus: false });
   return (
     <div className="estimate-brand min-h-screen bg-estimate-canvas pb-10 text-estimate-navy">
       <header className="mx-auto flex max-w-[480px] items-center justify-between px-5 py-4">
@@ -55,7 +55,7 @@ function MyJobPage() {
         {data?.jobNumber && <span className="rounded-full bg-estimate-blush px-3 py-1 text-xs font-bold">{data.spotSaved ? `Job ${data.jobNumber}` : data.jobNumber}</span>}
       </header>
       <main className="mx-auto max-w-[480px] space-y-4 px-4">
-        {isLoading ? <div className="h-48 animate-pulse rounded-[26px] bg-estimate-mist" />
+        {isLoading ? <p role="status" className="py-10 text-center text-sm">Opening your job…</p>
           : !data ? <Unavailable />
           : screen === "quote" ? <QuoteScreen v={data} token={token} />
           : screen === "book" ? <BookScreen v={data} token={token} />
@@ -306,10 +306,21 @@ function SpotScreen({ v, token }: { v: View; token: string }) {
 
 function QuoteScreen({ v, token }: { v: View; token: string }) {
   const q = v.quote;
+  const rebate = q?.rebate ?? v.numbers.rebate;
   return <>
     <Back token={token} />
-    <Hero v={v} level={HOUSE_LEVEL.quote} size="sm" headline={quoteKicker(q?.rebate ?? v.numbers.rebate)} />
-    {!q ? <section className="rounded-[22px] bg-card p-5 shadow-sm"><p className="font-bold">Your exact price is being worked out.</p><p className="mt-1 text-sm">We'll let you know as soon as it's ready.</p></section> : <>
+    <section data-testid="owner-quote-heading" className="border-b border-estimate-line pb-6">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+        <div className="min-w-0">
+          {v.firstName && <p className="text-sm font-semibold">Hi {v.firstName}</p>}
+          <h1 className="mt-2 font-display text-3xl font-extrabold leading-tight">{rebate > 0 ? <>You could save <span className="text-estimate-green">{aud(rebate)}</span> on ceiling insulation</> : "Your ceiling insulation quote"}</h1>
+        </div>
+        <OwnerHouse level={HOUSE_LEVEL.quote} size="sm" />
+      </div>
+      {v.address && <p className="mt-3 text-sm text-estimate-navy/80">{v.address}</p>}
+      {!q && <div role="status" className="mt-6"><p className="font-semibold">Your exact price is being worked out.</p><p className="mt-1 text-sm">We'll let you know as soon as it's ready.</p></div>}
+    </section>
+    {q && <>
       <section className="rounded-[22px] bg-card p-5 shadow-sm">
         <h2 className="font-display text-xl font-extrabold">{ownerPriceTitle(v.agreed)}</h2>
         {agreedWithLabel(v.agreed) && <p className="mt-1 text-sm font-semibold" data-agreed-with>{agreedWithLabel(v.agreed)}</p>}
