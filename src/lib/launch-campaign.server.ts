@@ -295,46 +295,31 @@ const OWNER_BASE = "https://estimate.homeinsulationvictoria.com.au";
 export async function queueSpotSavedConfirmations(jobId: string, token: string) {
   const { data: done } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "spot_saved_confirmation_queued").limit(1).maybeSingle();
   if (done) return { queued: false as const };
-  const [{ data: job }, { data: r }] = await Promise.all([
-    admin.from("jobs").select("source, owners(full_name, phone, email), properties(address_line, suburb, postcode)").eq("id", jobId).maybeSingle(),
-    admin.from("lead_campaign_responses").select("saved_veu_discount, saved_gross_total, saved_total, saved_area_m2").eq("job_id", jobId).maybeSingle(),
-  ]);
-  if (!job) return { queued: false as const };
-  const { renderSpotSavedEmail, renderSpotSavedSms, addressBits } = await import("./spot-saved-messages.core");
-  const { testSendBlocker } = await import("./test-send.core");
-  const { unsubscribeUrlForJob } = await import("./emailsafety.server");
-  const { referralUrlForJob } = await import("./referral.server");
-  const owner = job.owners as { full_name: string | null; phone: string | null; email: string | null } | null;
-  const prop = job.properties as { address_line: string | null; suburb: string | null } | null;
-  const bits = addressBits(prop?.address_line ?? null, prop?.suburb ?? null);
-  const input = { firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null, rebate: Number(r?.saved_veu_discount ?? 0), suburb: bits.suburb, shortAddress: bits.short, myJobUrl: `${OWNER_BASE}/my-job/${token}`, optOutUrl: await unsubscribeUrlForJob(jobId), referralUrl: await referralUrlForJob(jobId), estimate: r?.saved_gross_total ? { gross: Number(r.saved_gross_total), customer: Number(r.saved_total), areaM2: Number(r.saved_area_m2), address: bits.short ? `${bits.short} VIC${(prop as { postcode?: string | null } | null)?.postcode ? ` ${(prop as { postcode?: string | null }).postcode}` : ""}` : null, calculatorUrl: `${OWNER_BASE}/estimate/${token}/calculator` } : null };
-  const sms = renderSpotSavedSms(input);
-  const email = renderSpotSavedEmail(input);
-  const now = new Date().toISOString();
-  const rows = [
-    { channel: "sms", to: owner?.phone ?? null, subject: null, body: sms },
-    { channel: "email", to: owner?.email ?? null, subject: email.subject, body: email.text },
-  ] as const;
-  for (const m of rows) {
-    const allow = testSendBlocker({ channel: m.channel, to: m.to, jobSource: job.source, partnerIsTest: false });
+  const { buildSpotSavedMessages, sendSpotSavedConfirmation } = await import("./spot-saved-send.server");
+  const msgs = await buildSpotSavedMessages(jobId, token);
+  if (!msgs) return { queued: false as const };
+  const { job, owner, sms, email } = msgs;
+  // Record the attempt FIRST so a second tap/device can never send twice (per-owner keys also block duplicates).
+  await logEvent(jobId, null, "spot_saved_confirmation_queued", "Spot saved text and email prepared", { sms: !!owner?.phone, email: !!owner?.email }, { internal: true });
+  // TEST homes only: deliver the confirmation email to Jo's allowlisted inbox via the test sender.
+  if (job.source === "qa_test") {
+    if (owner?.email) {
+      const { sendTestEmail } = await import("./test-send.server");
+      const html = email.html ?? `<pre>${email.text.replace(/[<&]/g, (c) => (c === "<" ? "&lt;" : "&amp;"))}</pre>`;
+      const t = await sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: true, label: "spot_saved_confirmation", actorId: null } as never, owner.email, email.subject, html, email.text).catch((e) => ({ status: "failed", detail: (e as Error).message }));
+      await logEvent(jobId, null, "spot_saved_test_email", `Spot saved confirmation (TEST) ${t.status}: ${t.detail}`, {}, { internal: true }).catch(() => null);
+    }
+    return { queued: true as const };
+  }
+  // Real homes (Jo 23 Oct): the approved email + text really go, through the live email service and Twilio,
+  // only while their own two switches are on; every consent/opt-out/STOP/test guard is re-checked inside.
+  const r = await sendSpotSavedConfirmation(jobId, { token }).catch((e) => ({ email: { status: "failed", detail: (e as Error).message }, sms: { status: "failed", detail: (e as Error).message } }));
+  for (const [ch, res, to, subject, body] of [["email", r.email, owner?.email ?? null, email.subject, email.text], ["sms", r.sms, owner?.phone ?? null, null, sms]] as const) {
+    if (res.status !== "skipped") continue; // sent/blocked/failed already recorded by the sender
     await admin.from("job_communications").insert({
-      job_id: jobId, direction: "outbound", channel: m.channel, recipients: m.to ? [m.to] : [], subject: m.subject, body: m.body, provider: "queued",
-      sent_at: null, delivery_status: "queued", visibility: "customer", source_event: `spot_saved:${m.channel}`,
-      source_reference: allow ? `Queued (sending off). Allowlist: ${allow}` : "Queued (sending off). On TEST allowlist", created_at: now,
+      job_id: jobId, direction: "outbound", channel: ch, recipients: to ? [to] : [], subject, body, provider: "not_sent",
+      sent_at: null, delivery_status: "blocked_prelaunch", visibility: "customer", source_event: `spot_saved:${ch}`, source_reference: `Not sent: ${res.detail}`.slice(0, 200),
     } as never);
   }
-  // TEST homes only: deliver the confirmation email to Jo's allowlisted inbox via the test sender.
-  if (job.source === "qa_test" && owner?.email) {
-    const { sendTestEmail } = await import("./test-send.server");
-    const html = (email as { html?: string }).html ?? `<pre>${email.text.replace(/[<&]/g, (c) => (c === "<" ? "&lt;" : "&amp;"))}</pre>`;
-    const t = await sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: true, label: "spot_saved_confirmation", actorId: null } as never, owner.email, email.subject, html, email.text).catch((e) => ({ status: "failed", detail: (e as Error).message }));
-    await logEvent(jobId, null, "spot_saved_test_email", `Spot saved confirmation (TEST) ${t.status}: ${t.detail}`, {}, { internal: true }).catch(() => null);
-  }
-  // Real homes: the ONE real sender. Stays blocked (and logged) until every switch, consent and the AU number are in place.
-  if (job.source !== "qa_test" && owner?.phone) {
-    const { sendRealSms } = await import("./sms.server");
-    await sendRealSms({ type: "spot_saved", idempotencyKey: `spot-saved:${jobId}`, to: owner.phone, body: sms, jobId }).catch(() => null);
-  }
-  await logEvent(jobId, null, "spot_saved_confirmation_queued", "Spot saved text and email queued (sending is off)", { sms: !!owner?.phone, email: !!owner?.email }, { internal: true });
   return { queued: true as const };
 }

@@ -1,6 +1,7 @@
 # Project Memory
 
 ## Current references
+- [Spot saved confirmation live](mem://features/spot-saved-confirmation-live.md) — Jo 23 Oct: approved email + text once per owner; only spot_saved/spot_saved_email switches on
 - [Add job confirmations](mem://features/add-job-confirmations) — Jo 8 Oct: measurement method, less-than-R2 tick, quote breakdown and approval notice; check only pending implementation decision
 - [Implementation status](../../../docs/STATUS.md) — the only current Built / Partly built / Not built register.
 - [Workflow source of truth](../../../docs/HIV_WORKFLOW_SOURCE_OF_TRUTH.md) — the only current workflow specification.

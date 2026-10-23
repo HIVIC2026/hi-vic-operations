@@ -301,6 +301,13 @@ async function queuePreliminarySpotSavedConfirmation(jobId: string) {
   const usable = estLink && (!estLink.expires_at || new Date(estLink.expires_at).getTime() > Date.now()) ? (estLink.token as string) : null;
   const email = renderPreliminarySpotSavedEmail({ firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null, myJobUrl: usable ? `${CUSTOMER_BASE}/my-job/${usable}` : null });
   const now = new Date().toISOString();
+  // Real homes (Jo 23 Oct): the approved rebate-free email really goes while the Spot saved email switch is on.
+  if (job.source !== "qa_test") {
+    await logEvent(jobId, null, "spot_saved_confirmation_queued", "Spot saved email prepared", { email: !!owner?.email, preliminary_email: true }, { internal: true });
+    const r = await (await import("./spot-saved-send.server")).sendSpotSavedConfirmation(jobId, { token: usable ?? undefined }).catch((e) => ({ email: { status: "failed", detail: (e as Error).message } }));
+    if (r.email.status === "skipped") await admin.from("job_communications").insert({ job_id: jobId, direction: "outbound", channel: "email", recipients: owner?.email ? [owner.email] : [], subject: email.subject, body: email.text, provider: "not_sent", sent_at: null, delivery_status: "blocked_prelaunch", visibility: "customer", source_event: "spot_saved:email", source_reference: `Not sent: ${r.email.detail}`.slice(0, 200), created_at: now } as never);
+    return;
+  }
   const { testSendBlocker } = await import("./test-send.core");
   const allow = testSendBlocker({ channel: "email", to: owner?.email ?? null, jobSource: job.source, partnerIsTest: false });
   await admin.from("job_communications").insert({
