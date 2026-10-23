@@ -10,6 +10,8 @@ const QUOTE_COLS = "id, job_id, status, sent_at, release_state, release_hold_rea
 
 export type QuoteApproval = {
   applies: boolean; quote: any | null; state: ApprovalState; sent: boolean; accepted?: boolean; quoteFp: string; formFp: string; channel: string | null; readyAt: string | null; approvedAt: string | null;
+  /** Jo 24 Oct: installer jobs have no installer approval step; held = the automatic send on Complete was held. */
+  installerJob?: boolean; held?: boolean;
 };
 
 /** Latest unsent or just-sent installer quote and its approval state. */
@@ -34,8 +36,15 @@ export async function loadQuoteApproval(jobId: string): Promise<QuoteApproval> {
     if (ae) throw new WorkflowError("Quote adjustment history could not be checked.");
     adjustedAfter = !!adj?.length;
   }
-  const state = approvalState({ quoteId: q.id, quoteFp, formFp, approvals, adjustedAfterApproval: adjustedAfter });
-  return { applies: true, quote: { ...q, quote_items: lines }, state, sent: !!q.sent_at, accepted: q.status === "accepted", quoteFp, formFp, channel, readyAt: q.created_at, approvedAt: state === "approved" ? latest?.at ?? null : null };
+  const installerJob = channel === "installer_sourced";
+  const state = installerJob ? "approved" : approvalState({ quoteId: q.id, quoteFp, formFp, approvals, adjustedAfterApproval: adjustedAfter });
+  let held = false;
+  if (installerJob && !q.sent_at) {
+    const { count, error: he } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "quote_auto_send_held").contains("details", { quote_id: q.id });
+    if (he) throw new WorkflowError("Quote hold could not be checked.");
+    held = !!count;
+  }
+  return { applies: true, quote: { ...q, quote_items: lines }, state, sent: !!q.sent_at, accepted: q.status === "accepted", quoteFp, formFp, channel, readyAt: q.created_at, approvedAt: state === "approved" && !installerJob ? latest?.at ?? null : null, installerJob, held };
 }
 
 /** Office Send is blocked until the installer approves the current version. */

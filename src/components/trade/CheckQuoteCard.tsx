@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 
 const aud = (n: number) => n.toLocaleString("en-AU", { style: "currency", currency: "AUD" });
 
-/** Jo 23 Oct: installer checks the whole owner quote, then approves it for the office. Never sends to the owner. */
+/** Jo 23 Oct: installer sees the whole owner quote. Our leads: the installer confirms the measurements for the office.
+ *  Jo 24 Oct: installer jobs have no approval — pressing Complete in Mitti sends it when every check passes. */
 export function CheckQuoteCard({ jobId, hideStatus = false }: { jobId: string; hideStatus?: boolean }) {
   const load = useServerFn(getMyQuoteToCheck);
   const approve = useServerFn(approveMyQuote);
@@ -21,7 +22,7 @@ export function CheckQuoteCard({ jobId, hideStatus = false }: { jobId: string; h
   return (
     <section data-check-quote className="rounded-[14px] border border-line bg-paper p-4">
       {!hideStatus && <p className="text-sm font-semibold text-estimate-navy">{d.line}</p>}
-      <Button className={btnClass("primary", "h-12 w-full")} onClick={() => setOpen((o) => !o)} aria-expanded={open}>Check quote</Button>
+      <Button className={btnClass("primary", "h-12 w-full")} onClick={() => setOpen((o) => !o)} aria-expanded={open}>{d.installerJob ? "See the owner's quote" : "Check quote"}</Button>
       {open && <div className="mt-3 space-y-2">
         <p className="text-xs text-sub">This is exactly what the owner will see. All prices include GST.</p>
         <ul className="divide-y divide-line">{d.lines.map((l, i) => (
@@ -31,9 +32,10 @@ export function CheckQuoteCard({ jobId, hideStatus = false }: { jobId: string; h
         <p className="flex justify-between text-sm"><span>VEU rebate</span><span className="tabular-nums">−{aud(d.rebate)}</span></p>
         <p className="flex justify-between font-bold"><span>Owner pays</span><span className="tabular-nums">{aud(d.total)}</span></p>
         {d.blockers.length > 0 && <ul data-quote-blockers className="space-y-1 text-sm font-semibold text-destructive">{d.blockers.map((b) => <li key={b}>{b}</li>)}</ul>}
-        {!d.sent && d.state !== "approved" && <Button className={btnClass("primary", "h-12 w-full")} disabled={!d.canApprove || busy}
+        {!d.sent && !d.installerJob && d.state !== "approved" && <Button className={btnClass("primary", "h-12 w-full")} disabled={!d.canApprove || busy}
           onClick={async () => { setBusy(true); setErr(null); try { await approve({ data: { jobId, quoteId: d.quoteId } }); await Promise.all([qc.invalidateQueries({ queryKey: ["my-quote-to-check", jobId] }), qc.invalidateQueries({ queryKey: ["mitti-job-presentation", jobId] }), qc.invalidateQueries({ queryKey: ["trade-home"] })]); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); } }}>{d.buttonLabel}</Button>}
-        {d.state === "approved" && !d.sent && <p className="text-sm text-sub">You approved this quote. The office will check it and send it to the owner.</p>}
+        {d.installerJob && !d.sent && <p className="text-sm text-sub">When your Ready Check is finished, press Complete in Mitti. If everything checks out, this quote goes straight to the owner; if not, the office checks it first.</p>}
+        {!d.installerJob && d.state === "approved" && !d.sent && <p className="text-sm text-sub">You approved this quote. The office will check it and send it to the owner.</p>}
         {err && <p role="alert" className="text-sm text-destructive">{err}</p>}
       </div>}
     </section>

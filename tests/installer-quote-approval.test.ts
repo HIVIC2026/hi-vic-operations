@@ -55,12 +55,19 @@ describe("Jo 23 Oct: installer approves the owner quote", () => {
     expect(reminderDue({ ...base, remindedFps: [qfp], now: Date.parse("2026-10-23T00:00:00Z"), enabled: true })).toBe(false);
     expect(reminderDue({ ...base, state: "approved", now: Date.parse("2026-10-23T00:00:00Z"), enabled: true })).toBe(false);
   });
-  it("8. quotes never go to owners automatically", () => {
+  it("8. quotes never go to owners automatically from the draft step (A1 auto-send on Complete is switched off)", () => {
     expect(automaticQuoteSendingAllowed()).toBe(false);
+    expect(automaticQuoteSendingAllowed("A1")).toBe(false);
   });
 });
 
 it("Jo 23 Oct: an accepted quote never still reads 'to accept the quote'", () => {
   expect(approvalCardLine("approved", true)).toBe("Waiting on owner: to accept the quote");
   expect(approvalCardLine("approved", true, true)).toBe("Waiting on owner: quote accepted – waiting for owner's payment");
+});
+
+it("Jo 24 Oct: installer jobs have no approval step — the card says press Complete, or office checking when held", () => {
+  expect(approvalCardLine("approved", false, false, { held: false })).toBe("You: when the Ready Check is finished, press Complete in Mitti — the quote then goes to the owner");
+  expect(approvalCardLine("approved", false, false, { held: true })).toBe("Waiting on office: checking your quote");
+  expect(approvalCardLine("approved", true, false, { held: false })).toBe("Waiting on owner: to accept the quote");
 });

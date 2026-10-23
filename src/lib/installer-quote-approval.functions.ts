@@ -24,8 +24,9 @@ export const getMyQuoteToCheck = createServerFn({ method: "POST" }).middleware([
       lines: (q.quote_items as { description: string; explanation: string | null; quantity: number; unit: string | null; line_total_inc_gst: number }[]).map((l) => ({ description: l.description, explanation: l.explanation, quantity: Number(l.quantity), unit: l.unit, total: Number(l.line_total_inc_gst) })),
       subtotal: Number(q.subtotal_inc_gst), rebate: Number(q.veec_discount_inc_gst), total: Number(q.customer_total_inc_gst),
       blockers, state: a.state, sent: a.sent, approvedAt: a.approvedAt,
-      buttonLabel: core.approveButtonLabel(a.channel), canApprove: !a.sent && a.state !== "approved" && core.canApprove(blockers),
-      line: core.approvalCardLine(a.state, a.sent),
+      buttonLabel: core.approveButtonLabel(a.channel), canApprove: !a.installerJob && !a.sent && a.state !== "approved" && core.canApprove(blockers),
+      line: core.approvalCardLine(a.state, a.sent, a.accepted === true, a.installerJob ? { held: a.held === true } : undefined),
+      installerJob: a.installerJob === true,
     };
   });
 

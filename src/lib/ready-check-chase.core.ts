@@ -70,7 +70,7 @@ export function installDayPhotoBlocker(reqs: Req[]): string | null {
 // ---------- Stage 8: "Office needs to…" Mitti items ----------
 export type MittiOfficeCode =
   | "mitti_fix_form" | "mitti_review_pickup" | "ready_check_held" | "quote_held_review"
-  | "quote_not_delivered" | "mitti_setup_installer" | "ready_check_chase_installer";
+  | "quote_not_delivered" | "mitti_setup_installer" | "ready_check_chase_installer" | "quote_auto_send_held";
 export type Ev = { job_id: string | null; event_type: string; created_at: string; details?: Record<string, unknown> | null; summary?: string | null };
 export type MittiOfficeItem = { code: MittiOfficeCode; jobId: string | null; since: string; detail: string | null; key: string };
 
@@ -80,6 +80,8 @@ const RULES: { code: MittiOfficeCode; raise: (e: Ev) => boolean; clear: string[]
   { code: "ready_check_held", raise: (e) => e.event_type === "ready_check_needs_office" && !/^Quote released/i.test(e.summary ?? ""), clear: ["installer_quote_queued", "quote_hold_approved", "quote_requeued_after_review", "quote_hold_stopped"], detail: (e) => ((e.details?.["reasons"] as string[] | undefined) ?? []).join("; ") || e.summary || null },
   { code: "quote_not_delivered", raise: (e) => e.event_type === "ready_check_needs_office" && /^Quote released/i.test(e.summary ?? ""), clear: ["quote_declined", "quote_hold_stopped"], detail: (e) => e.summary ?? null },
   { code: "quote_held_review", raise: (e) => e.event_type === "installer_quote_held", clear: ["installer_quote_queued", "quote_hold_approved", "quote_requeued_after_review", "quote_hold_stopped"], detail: (e) => e.summary ?? null },
+  // Jo 24 Oct: automatic send on Complete held a quote (or the form changed after sending); cleared once a quote goes out.
+  { code: "quote_auto_send_held", raise: (e) => e.event_type === "quote_auto_send_held", clear: ["quote_sent_automatically", "quote_sent_by_office", "quote_hold_stopped"], detail: (e) => ((e.details?.["reasons"] as string[] | undefined) ?? []).join("; ") || e.summary || null },
   { code: "mitti_setup_installer", raise: (e) => e.event_type === "mitti_access_needed", clear: ["mitti_access_override", "mitti_audit_linked", "mitti_synced", "mitti_measureup_synced"], detail: (e) => e.summary ?? null },
 ];
 

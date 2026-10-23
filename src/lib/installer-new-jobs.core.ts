@@ -15,7 +15,7 @@ export const PRE_READY_CHECK_STAGES = [
 export const FORM_STARTED_EVENTS = ["ready_check_basics", "mitti_measureup_synced", "mitti_synced"] as const;
 /** Office-flagged Mitti events that were previously written to the timeline only. */
 export const FLAG_EVENTS = ["mitti_pickup_clash", "mitti_pickup_installer_started_a2"] as const;
-export const HELD_EVENTS = ["installer_quote_held", "ready_check_needs_office"] as const;
+export const HELD_EVENTS = ["installer_quote_held", "ready_check_needs_office", "quote_auto_send_held"] as const;
 /** Office correction that withdraws an earlier A2 note ("recorded in error"). */
 export const A2_CORRECTION_EVENT = "mitti_pickup_note_correction";
 /** Form creation problems (automatic sweep, earlier flows); cleared by a later created form. */

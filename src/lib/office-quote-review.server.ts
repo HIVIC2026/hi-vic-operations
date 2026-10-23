@@ -27,12 +27,20 @@ export async function officeQuoteBlockers(jobId: string, quote: { id: string; cr
     if (error) throw new WorkflowError("Ready Check could not be checked.");
     try { (await import("./scope.core")).quoteInputsFromMeasurement(m); } catch (e) { reasons.push(e instanceof Error ? e.message : "Ready Check needs review"); }
   }
-  const approval = await (await import("./installer-quote-approval.server")).installerApprovalBlocker(jobId, quote);
+  // Jo 24 Oct: on installer jobs the installer no longer approves the quote (Complete in Mitti + these checks are the
+  // gate). Our own leads keep the installer's "Measurements are final" step.
+  const approval = job.channel === "installer_sourced" ? null : await (await import("./installer-quote-approval.server")).installerApprovalBlocker(jobId, quote);
   return [...new Set([...reasons, ...intake, ...(billing ? [billing] : []), ...(approval ? [approval] : [])])];
 }
 
-/** The only new delivery trigger is an authenticated Office button, never the scheduled tick. */
+/** Office "Send quote" (an authenticated button). */
 export async function sendOfficeReviewedQuote(jobId: string, quoteId: string, actorId: string) {
+  return releaseQuoteToOwner(jobId, quoteId, actorId, "office");
+}
+
+/** One guarded release for both triggers: the Office button and (Jo 24 Oct) the installer marking the Mitti
+ *  Ready Check Complete with every check passing (auto-quote-send.server.ts). */
+export async function releaseQuoteToOwner(jobId: string, quoteId: string, actorId: string | null, how: "office" | "auto") {
   const { data: quote, error } = await admin.from("quotes").select("id, job_id, kind, status, sent_at, release_state, release_hold_reason, created_at, option_code").eq("id", quoteId).eq("job_id", jobId).maybeSingle();
   if (error || !quote || !quoteNeedsOfficeReview(quote)) throw new WorkflowError("This quote is no longer available to send.");
   const blockers = await officeQuoteBlockers(jobId, quote);
@@ -46,11 +54,12 @@ export async function sendOfficeReviewedQuote(jobId: string, quoteId: string, ac
   }
   if (quote.option_code === "INSTALLER_A1") await (await import("./pilot.server")).applyCobrand(jobId);
   const now = new Date().toISOString();
-  const { data: claimed, error: ce } = await admin.from("quotes").update({ status: "issued", release_state: "released", release_hold_reason: null, sent_at: now, office_reviewed_at: now, office_reviewed_by: actorId })
+  const { data: claimed, error: ce } = await admin.from("quotes").update({ status: "issued", release_state: "released", release_hold_reason: null, sent_at: now, ...(how === "office" ? { office_reviewed_at: now, office_reviewed_by: actorId } : {}) })
     .eq("id", quoteId).eq("job_id", jobId).eq("status", quote.status).eq("release_state", quote.release_state ?? "held").is("sent_at", null).select("id").maybeSingle();
   if (ce) throw new WorkflowError(ce.message);
   if (!claimed) throw new WorkflowError("The quote changed or was already sent. Reload it.");
-  await logEvent(jobId, actorId, "quote_sent_by_office", "Office checked the draft and pressed Send quote", { quote_id: quoteId }, { internal: true });
+  if (how === "office") await logEvent(jobId, actorId, "quote_sent_by_office", "Office checked the draft and pressed Send quote", { quote_id: quoteId }, { internal: true });
+  else await logEvent(jobId, null, "quote_sent_automatically", "Installer marked the Ready Check Complete and every check passed — quote sent to the owner automatically", { quote_id: quoteId }, { internal: true });
   const notification = await (await import("./quote-ready-notify.server")).notifyOwnerQuoteReady(jobId, quoteId, quote.kind);
   return { delivery: "ready_to_send" as const, notification };
 }

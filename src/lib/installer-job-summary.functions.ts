@@ -46,7 +46,7 @@ export const getInstallerJobSummary = createServerFn({ method: "POST" }).middlew
       mittiAuditId: auditId, formProblem: problem?.summary?.trim() ?? null,
       basics: b ? { missing: b.missing ?? [], stops: b.stops ?? [], completed: b.completed === true } : null,
       heldReasons: held ? ((heldDetails["blockers"] as string[] | undefined) ?? (heldDetails["reasons"] as string[] | undefined) ?? ["Reason not recorded"]) : null,
-      quote: ap?.applies ? { total: ap.quote?.customer_total_inc_gst == null ? null : Number(ap.quote.customer_total_inc_gst), sent: ap.sent, accepted: ap.accepted === true, installerApproved: ap.state === "approved" } : null,
+      quote: ap?.applies ? { total: ap.quote?.customer_total_inc_gst == null ? null : Number(ap.quote.customer_total_inc_gst), sent: ap.sent, accepted: ap.accepted === true, installerApproved: ap.state === "approved", ...(ap.installerJob ? { autoSendHeld: ap.held === true } : {}) } : null,
       warnings,
     });
     return { applies: true as const, installer: biz?.name ?? null, consent: consent.data?.consent_status ?? null, ...summary };

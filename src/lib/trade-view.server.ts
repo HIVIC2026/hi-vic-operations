@@ -107,7 +107,7 @@ export async function tradeHome(userId: string) {
     const { data: a1 } = await admin.from("quotes").select("job_id").in("job_id", live.map((j) => j.id).length ? live.map((j) => j.id) : none).eq("kind", "installation").in("status", ["draft", "issued"]);
     const { loadQuoteApproval } = await import("./installer-quote-approval.server");
     const { approvalCardLine } = await import("./installer-quote-approval.core");
-    for (const id of [...new Set((a1 ?? []).map((q) => q.job_id))]) { const ap = await loadQuoteApproval(id).catch(() => null); if (ap?.applies) quoteLine.set(id, approvalCardLine(ap.state, ap.sent)); }
+    for (const id of [...new Set((a1 ?? []).map((q) => q.job_id))]) { const ap = await loadQuoteApproval(id).catch(() => null); if (ap?.applies) quoteLine.set(id, approvalCardLine(ap.state, ap.sent, ap.accepted === true, ap.installerJob ? { held: ap.held === true } : undefined)); }
   }
   const jobsTabbed0 = allJobs.map((j) => ({ ...j, quoteLine: quoteLine.get(j.jobId) ?? null }));
   const jobsTabbed1 = jobsTabbed0.map((j) => ({ ...j, stage: byId.get(j.jobId)!.stage, tab: installerTab(j.place, byId.get(j.jobId)!.stage, (j as { channel?: string | null }).channel === "installer_sourced" && /^Needs finishing/.test(String(byId.get(j.jobId)!.next_action ?? ""))) }));

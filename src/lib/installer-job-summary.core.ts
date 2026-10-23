@@ -9,7 +9,7 @@ export type InstallerSummaryFacts = {
   /** Latest ready_check_basics: missing basics and hard stops; null = form not synced yet. */
   basics: { missing: string[]; stops: string[]; completed: boolean } | null;
   heldReasons: string[] | null;
-  quote: null | { total: number | null; sent: boolean; accepted: boolean; installerApproved: boolean };
+  quote: null | { total: number | null; sent: boolean; accepted: boolean; installerApproved: boolean; autoSendHeld?: boolean };
   /** Extra office warnings (duplicate, ineligible…) from the New from installers rules. */ warnings: string[];
 };
 
@@ -43,6 +43,14 @@ export function installerJobSummary(f: InstallerSummaryFacts): InstallerSummary 
   } else if (f.quote?.sent) {
     quote = { status: `Sent to the owner${money(f.quote.total)}`, total: f.quote.total };
     upTo = "Waiting for the owner to accept the quote"; waitingOn = "owner";
+  } else if (f.quote && f.quote.autoSendHeld) {
+    // Jo 24 Oct: the installer pressed Complete but a check held the automatic send.
+    quote = { status: `Held for you to check${money(f.quote.total)}`, total: f.quote.total };
+    upTo = "Quote held — check the reasons on Quotes to check, then send it"; waitingOn = "office";
+    officeActions.push(`Check and send the quote${money(f.quote.total)} (Quotes to check)`);
+  } else if (f.quote && f.quote.installerApproved && f.quote.autoSendHeld === false) {
+    quote = { status: `Drafted${money(f.quote.total)} — goes to the owner automatically when ${who} marks the Ready Check Complete`, total: f.quote.total };
+    upTo = `Waiting for ${who} to finish the Ready Check and press Complete in Mitti`; waitingOn = "installer";
   } else if (f.quote && f.quote.installerApproved) {
     quote = { status: `Ready for you to check and send${money(f.quote.total)}`, total: f.quote.total };
     upTo = "Quote ready — check it and send it to the owner"; waitingOn = "office";

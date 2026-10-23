@@ -420,8 +420,17 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
           try {
             const d = await draftInstallerQuoteFromReadyCheck(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], measureAudit);
             if (d && !d.ready) issues = [...issues, ...d.blockers.map((b) => `Owner quote: ${b}`)];
-            if (d?.ready) await applyCobrand(jobId); // draft only; Office must press Send quote
+            if (d?.ready) await applyCobrand(jobId);
           } catch (e) { issues = [...issues, `Owner quote could not be drafted: ${e instanceof Error ? e.message : "error"}`]; }
+        }
+        // Jo 24 Oct: installer marks the form Complete → the quote goes to the owner when every check passes,
+        // otherwise it is held for the office with the reasons. A form changed after sending is flagged.
+        if (readyCheckVariant(job.channel) === "ready_check_priced") {
+          try {
+            const { maybeAutoSendInstallerQuote } = await import("./auto-quote-send.server");
+            const r = await maybeAutoSendInstallerQuote(jobId, { formCompleted: plan.completed, formModifiedAt: plan.modifiedAt ?? null });
+            if (r.sent) issues = [...issues, "Owner quote sent automatically"];
+          } catch (e) { issues = [...issues, `Automatic quote send failed: ${e instanceof Error ? e.message : "error"}`]; }
         }
         // Stage 7 (Jo 22 Oct): incomplete form → record what the installer must add (dormant text; office chase after 24h).
         await (await import("./ready-check-chase.server")).recordReadyCheckProgress({

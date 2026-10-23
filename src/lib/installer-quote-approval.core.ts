@@ -49,10 +49,15 @@ export function canApprove(blockers: string[]): boolean {
   return blockers.filter((b) => b !== WAITING_ON_INSTALLER).length === 0;
 }
 
+/** Jo 24 Oct: installer jobs — no approval; Complete in Mitti sends the quote unless a check holds it for the office. */
+export const PRESS_COMPLETE_LINE = "You: when the Ready Check is finished, press Complete in Mitti — the quote then goes to the owner";
+export const QUOTE_HELD_LINE = "Waiting on office: checking your quote";
+
 /** One line for the installer's job card. */
-export function approvalCardLine(state: ApprovalState, sent: boolean, accepted = false): string {
+export function approvalCardLine(state: ApprovalState, sent: boolean, accepted = false, installerJob?: { held: boolean }): string {
   if (accepted) return "Waiting on owner: quote accepted – waiting for owner's payment";
   if (sent) return "Waiting on owner: to accept the quote";
+  if (installerJob) return installerJob.held ? QUOTE_HELD_LINE : PRESS_COMPLETE_LINE;
   if (state === "office_changed") return "You: office changed the quote — please check";
   if (state === "approved") return "Waiting on office: checking your quote";
   return "You: check the quote";
