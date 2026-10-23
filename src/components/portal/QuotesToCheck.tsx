@@ -23,6 +23,14 @@ export function QuotesToCheck() {
         {row.notes.length > 0 && <ul className="mt-1 text-sm text-muted-foreground">{row.notes.map(n => <li key={n}>{n}</li>)}</ul>}
       </li>)}
     </ul>}
+    {(q.data?.waiting?.length ?? 0) > 0 && <div data-waiting-on-installer className="opacity-60">
+      <h3 className="pt-2 text-sm font-semibold text-muted-foreground">Waiting on installer ({q.data!.waiting.length})</h3>
+      <ul className="divide-y">{q.data!.waiting.map(row => <li key={row.jobId} className="flex flex-wrap items-center justify-between gap-3 py-2 text-sm">
+        <span className="min-w-0 flex-1">{row.jobNumber} · {row.owner ?? "Owner"} · {row.installer ?? "Installer"}</span>
+        <span className="tabular-nums">{row.total == null ? "—" : row.total.toLocaleString("en-AU", { style: "currency", currency: "AUD" })}</span>
+        <Button variant="ghost" size="sm" onClick={() => setSelected(row)}>View<span className="sr-only"> {row.jobNumber}</span></Button>
+      </li>)}</ul>
+    </div>}
     <Dialog open={!!selected} onOpenChange={open => { if (!open) setSelected(null); }}>
       <DialogContent className="max-h-[85vh] w-[calc(100%-2rem)] max-w-3xl overflow-y-auto rounded-lg">
         <DialogHeader><DialogTitle>{selected?.jobNumber} · Draft quote</DialogTitle><DialogDescription>{selected?.owner} · {selected?.address} · {selected?.installer}</DialogDescription></DialogHeader>

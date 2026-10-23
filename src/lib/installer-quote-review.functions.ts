@@ -19,7 +19,7 @@ export const getInstallerQuotesToCheck = createServerFn({ method: "POST" }).midd
       if (!page.data || page.data.length < 500) break;
     }
     const ids = (jobs ?? []).map((j) => j.id);
-    if (!ids.length) return { rows: [] };
+    if (!ids.length) return { rows: [], waiting: [] };
     const batches = [];
     for (let from = 0; from < ids.length; from += 50) batches.push(ids.slice(from, from + 50));
     const parts = [];
@@ -58,14 +58,21 @@ export const getInstallerQuotesToCheck = createServerFn({ method: "POST" }).midd
       else if (h) rows.push({ ...base, quoteId: null, total: null, reasons, notes, kind: "missing" as const, at: h.created_at, note: reasons.join(" · ") || "details missing" });
     }
     const { officeQuoteBlockers } = await import("./office-quote-review.server");
+    const { WAITING_ON_INSTALLER } = await import("./installer-quote-approval.core");
     // Bound parallel readiness reads; each row and its opened draft use the same guards.
     for (let from = 0; from < rows.length; from += 10) await Promise.all(rows.slice(from, from + 10).map(async row => {
       const draft = (quotes ?? []).find(q => q.id === row.quoteId);
       if (!draft) return;
-      row.reasons = await officeQuoteBlockers(row.jobId, { ...draft, id: draft.id });
+      const all = await officeQuoteBlockers(row.jobId, { ...draft, id: draft.id });
+      (row as { waitingOnInstaller?: boolean }).waitingOnInstaller = all.includes(WAITING_ON_INSTALLER);
+      row.reasons = all.filter((r) => r !== WAITING_ON_INSTALLER);
       row.kind = row.reasons.length ? "missing" : "ready";
       row.note = row.reasons.join(" · ") || "Quote drafted — check it and send it to the owner";
     }));
     rows.sort((a, b) => (a.kind === b.kind ? b.at.localeCompare(a.at) : a.kind === "ready" ? -1 : 1));
-    return { rows };
+    // Jo 23 Oct: only installer-approved quotes are on the office list; the rest wait greyed under "Waiting on installer".
+    const typed = rows as (typeof rows[number] & { waitingOnInstaller?: boolean })[];
+    const { splitQuotesToCheck } = await import("./installer-quote-approval.core");
+    const split = splitQuotesToCheck(typed);
+    return { rows: split.ready, waiting: split.waiting };
   });

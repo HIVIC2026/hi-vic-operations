@@ -21,7 +21,8 @@ export async function officeQuoteBlockers(jobId: string, quote: { id: string; cr
     if (error) throw new WorkflowError("Ready Check could not be checked.");
     try { (await import("./scope.core")).quoteInputsFromMeasurement(m); } catch (e) { reasons.push(e instanceof Error ? e.message : "Ready Check needs review"); }
   }
-  return [...new Set([...reasons, ...intake, ...(billing ? [billing] : [])])];
+  const approval = await (await import("./installer-quote-approval.server")).installerApprovalBlocker(jobId, quote);
+  return [...new Set([...reasons, ...intake, ...(billing ? [billing] : []), ...(approval ? [approval] : [])])];
 }
 
 /** The only new delivery trigger is an authenticated Office button, never the scheduled tick. */

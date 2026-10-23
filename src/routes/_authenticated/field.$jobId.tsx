@@ -38,6 +38,7 @@ import { MeasurementDetails, MeasurementReadOnly, useJobScope, useMeasurements }
 import { useAction } from "@/hooks/use-me";
 import { InstallerFinalDeclaration } from "@/components/portal/assignment";
 import { JobStatusCard } from "@/components/trade/job-status";
+import { CheckQuoteCard } from "@/components/trade/CheckQuoteCard";
 import { SourceBadge } from "@/components/portal/badges";
 import { InstallerProgressCard } from "@/components/trade/intake-progress";
 import { ReadyCheckInMitti } from "@/components/trade/new-ready-check";
@@ -85,6 +86,7 @@ function FieldJob() {
           {job.owner_phone && <a href={`sms:${job.owner_phone}`} className={btnClass("secondary")}>Text</a>}
           {maps && job.owner_name && <a href={maps} target="_blank" rel="noreferrer" className={btnClass("secondary")}>Directions</a>}
         </div>} />
+      {role === "installer" && <CheckQuoteCard jobId={jobId} />}
       {(role === "electrician" || intake?.applies === false) && <JobStatusCard jobId={jobId} />}
       {role === "installer" && intake?.applies === false && <PartnerInstallerFactsCard jobId={jobId} />}
       {role === "installer" && <JobElectricianCard jobId={jobId} />}

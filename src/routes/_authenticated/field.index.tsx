@@ -102,12 +102,13 @@ function MyWork() {
   );
 }
 
-type HomeJob = { jobId: string; jobNumber: string | number | null; owner: string | null; address: string; tab: InstallerTab; status: string; channel: string | null; place?: "offers" | "needs_me" | "coming_up" | "moving"; line: { text: string; who: string | null } | null };
+type HomeJob = { jobId: string; jobNumber: string | number | null; owner: string | null; address: string; tab: InstallerTab; status: string; channel: string | null; place?: "offers" | "needs_me" | "coming_up" | "moving"; line: { text: string; who: string | null } | null; quoteLine?: string | null };
 export function InstallerJobs({ jobs, done, moves, offers, initialTab = "action" }: { jobs: HomeJob[]; done: { jobId: string; jobNumber: string | number | null; suburb: string | null; reason: string; open: boolean }[]; moves: { jobId: string; title: string }[]; offers: number; initialTab?: InstallerTab }) {
   const [tab, setTab] = useState<InstallerTab>(initialTab);
   const count = (k: InstallerTab) => (k === "done" ? done.length : jobs.filter((j) => j.tab === k).length);
   const shown = jobs.filter((j) => j.tab === tab);
   const nextOf = (j: HomeJob) => {
+    if (j.quoteLine) return { who: null, text: j.quoteLine };
     const finishing = needsFinishingTask(j.status);
     if (finishing) return { who: null, text: finishing };
     const m = moves.find((x) => x.jobId === j.jobId);
