@@ -111,6 +111,12 @@ export async function finishCapture(token: unknown, x: { path: string; fileName:
   // Retry office review even for an already recorded stored file.
   const { markCampaignMediaReceived } = await import("./launch-campaign.server");
   await markCampaignMediaReceived(jobId, r.link.id);
-  // Jo 23 Oct 08:23 UTC: the office ALWAYS checks photos first (existing 3-button review); "Qualifies" sends Save my spot.
+  // Jo 23 Oct 08:27 UTC: photo/video uploads get Save my spot straight away; the office checks the photos later
+  // from the Spots saved row. OFF until Jo approves wording and says go; every usual check and once-per-home key apply.
+  const { INSULATION_QUESTIONS_SEND_APPROVED } = await import("./insulation-questions-campaign.core");
+  if (INSULATION_QUESTIONS_SEND_APPROVED) {
+    const { sendAnsweredOwnerSaveSpot } = await import("./insulation-questions-campaign.server");
+    await sendAnsweredOwnerSaveSpot(jobId).catch(() => null);
+  }
   return { recorded: true, duplicate };
 }

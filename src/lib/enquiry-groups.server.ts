@@ -306,13 +306,17 @@ export async function reviewLeadMedia(jobId: string, outcome: MediaReviewOutcome
   if (!job) throw new Error("Job not found.");
   if (!['new_enquiry', 'eligibility_review', 'preliminary_estimate_ready', 'on_hold'].includes(job.stage)) throw new Error('Only pre-progression enquiries can be reviewed here.');
   if (outcome !== 'over_r2' && job.eligibility_outcome === 'does_not_appear_eligible' && job.eligibility_decision_source === 'admin') throw new Error('An existing Office ineligible decision requires separate Office review.');
+  // Jo 23 Oct 08:27 UTC: a saved spot's photo check only moves its Spots saved rank — never an email or
+  // eligibility change (they already have their spot). manualOnly makes the automatic email route stand down.
+  const saved = must(await admin.from("lead_campaign_responses").select("spot_saved_at").eq("job_id", jobId).maybeSingle(), "Spot");
+  const spotSaved = !!saved?.spot_saved_at;
   const now = new Date();
   const ins = await admin.from("customer_engagement_events").insert({
     job_id: jobId, event_type: "intake_media_reviewed", occurred_at: now.toISOString(), source: "office",
-    metadata: { ...plan, by }, dedupe_key: `intake_media_reviewed:${jobId}:${now.getTime()}`,
+    metadata: { ...plan, by, ...(spotSaved ? { manualOnly: true, spotSavedRankOnly: true } : {}) }, dedupe_key: `intake_media_reviewed:${jobId}:${now.getTime()}`,
   });
   if (ins.error) throw new Error(`Review could not be saved: ${ins.error.message}`);
-  return { ok: true as const, outcome };
+  return { ok: true as const, outcome, spotSaved };
 }
 
 /** Office removes fake/junk leads (Jo, 8 Oct): job is cancelled, permanently noted, and shown only under "Removed". */
