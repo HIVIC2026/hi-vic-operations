@@ -9,6 +9,8 @@ import { CUSTOMER_BRAND } from "./customer-quote-system";
 import { campaignButton, escape, preheader, PRIVACY_URL, TEST_BANNER_SLOT } from "./estimate-email";
 import { UNSUBSCRIBE_LINK_SLOT, withUnsubscribe } from "./emailsafety.core";
 import { SPOT_SAVED_BODY, SPOT_SAVED_HEADING } from "./save-spot-offer.core";
+import { REMOVAL_BUDGET_EMAIL_NOTE } from "./estimate-removal.core";
+import { SPOT_SAVED_NOT_INCLUDED } from "./spot-saved-messages.core";
 
 export const PRELIMINARY_SAVE_SPOT_SUBJECT = (firstName: string | null) => `${firstName?.trim() ? firstName.trim() : "There"}, save your spot`;
 
@@ -43,14 +45,16 @@ export function renderPreliminarySaveSpotEmail(i: PreliminarySaveSpotInput) {
 }
 
 /** Rebate-free saved confirmation for this path. Approved wording only; never a "$0 rebate is waiting" line. */
-export function renderPreliminarySpotSavedEmail(i: { firstName: string | null; myJobUrl: string | null }) {
+export function renderPreliminarySpotSavedEmail(i: { firstName: string | null; myJobUrl: string | null; removal?: "excluded" | "included" | "unknown" | null }) {
   const name = i.firstName?.trim() || null;
   const subject = "Your spot is saved";
   const greeting = name ? `Hi ${name},` : "Hi there,";
   const link = i.myJobUrl ? [``, `See my job: ${i.myJobUrl}`] : [];
-  const text = [greeting, "", SPOT_SAVED_HEADING + ".", SPOT_SAVED_BODY, ...link, "", PRELIMINARY_BRAND].join("\n");
+  // Jo 23 Oct: removal budget note when the job's removal fact is unknown/included; electrical-fix exclusion for everyone.
+  const extra = [...(i.removal === "unknown" || i.removal === "included" ? [REMOVAL_BUDGET_EMAIL_NOTE] : []), SPOT_SAVED_NOT_INCLUDED];
+  const text = [greeting, "", SPOT_SAVED_HEADING + ".", SPOT_SAVED_BODY, ...extra.flatMap((t) => ["", t]), ...link, "", PRELIMINARY_BRAND].join("\n");
   const linkHtml = i.myJobUrl ? `<p><a href="${escape(i.myJobUrl)}">See my job</a></p>` : "";
-  const html = `<div style="font-family:'Figtree','Segoe UI',Helvetica,Arial,sans-serif;color:${CUSTOMER_BRAND.colors.navy};font-size:15px;line-height:1.6;"><p>${escape(greeting)}</p><h1 style="font-size:24px;">${escape(SPOT_SAVED_HEADING)}</h1><p>${escape(SPOT_SAVED_BODY)}</p>${linkHtml}<p>${escape(PRELIMINARY_BRAND)}</p></div>`;
+  const html = `<div style="font-family:'Figtree','Segoe UI',Helvetica,Arial,sans-serif;color:${CUSTOMER_BRAND.colors.navy};font-size:15px;line-height:1.6;"><p>${escape(greeting)}</p><h1 style="font-size:24px;">${escape(SPOT_SAVED_HEADING)}</h1><p>${escape(SPOT_SAVED_BODY)}</p>${extra.map((t) => `<p>${escape(t)}</p>`).join("")}${linkHtml}<p>${escape(PRELIMINARY_BRAND)}</p></div>`;
   return { subject, html, text };
 }
 
