@@ -19,7 +19,7 @@ describe("Stage 7: incomplete Ready Check form", () => {
   test("completed form missing photos and price: installer told exactly what", () => {
     const d = incompleteDecision({ completed: true, modifiedAt: h(0), visitAt: null, now, facts: { ...clean, depthPhoto: false, overviewPhoto: false, priceKnown: false } });
     expect(d.notify).toBe(true);
-    expect(d.missing).toEqual(["your total quoted price (inc GST)", "a photo showing the insulation depth", "an overview photo of the ceiling space"]);
+    expect(d.missing).toEqual(["your total quoted price (inc GST)"]); // photos optional (Jo 23 Oct): taken on install day
   });
   test("unfinished form while still being filled in: no text", () => {
     expect(incompleteDecision({ completed: false, modifiedAt: h(1), visitAt: h(2), now, facts: { ...clean, formComplete: false } }).notify).toBe(false);
