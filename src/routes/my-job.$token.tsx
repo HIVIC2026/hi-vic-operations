@@ -126,7 +126,6 @@ function Home({ v, token }: { v: View; token: string }) {
     <OwnerPaperwork token={token} />
     {v.consent && <ConsentCard token={token} startsAt={v.consent.scheduledStart} />}
     <Numbers v={v} />
-    <BottomList />
     {v.canCancel && <CancelMyJob token={token} />}
   </>;
 }
@@ -267,11 +266,6 @@ function Numbers({ v }: { v: View }) {
   );
 }
 
-function BottomList() {
-  const row = (Icon: typeof FileText, label: string) => <li className="flex h-12 items-center justify-between px-4 text-sm font-semibold"><span className="flex items-center gap-2"><Icon className="h-4 w-4" />{label}</span><ChevronRight className="h-4 w-4" /></li>;
-  return <ul className="divide-y divide-estimate-line overflow-hidden rounded-[22px] bg-card shadow-sm">{row(FileText, "Documents")}{row(MessageSquare, "Got a question? Message us")}{row(AlertCircle, "Something wrong? Tell us")}</ul>;
-}
-
 function CancelMyJob({ token }: { token: string }) {
   const cancel = useServerFn(cancelMyJob);
   const qc = useQueryClient();
@@ -375,7 +369,6 @@ function DoneScreen({ v, token }: { v: View; token: string }) {
     {v.stage !== "complete" && <Back token={token} />}
     <Hero v={v} level={HOUSE_LEVEL.all_done} headline={ownerHeadline("all_done", v.numbers.rebate)} />
     <Numbers v={v} />
-    <BottomList />
   </>;
 }
 

@@ -9,12 +9,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { fmtDateTime } from "@/lib/workflow";
-import { addEscConfig, approveEscConfig, getInstallReadiness, recordEscSubmissionFn, recordPiesaDelivery, regenerateEscNotificationFn, submitEscNotification } from "@/lib/portal.functions";
+import { addEscConfig, approveEscConfig, getInstallReadiness, recordEscSubmissionFn, recordPiesaDelivery, regenerateEscNotificationFn } from "@/lib/portal.functions";
 
 export function EscInstallPanel({ jobId }: { jobId: string }) {
   const readiness = useServerFn(getInstallReadiness);
   const regen = useAction(regenerateEscNotificationFn);
-  const submit = useAction(submitEscNotification);
   const record = useAction(recordEscSubmissionFn);
   const deliver = useAction(recordPiesaDelivery);
   const { data: r } = useQuery({ queryKey: ["ready", jobId], queryFn: () => readiness({ data: { jobId } }) });
@@ -38,7 +37,6 @@ export function EscInstallPanel({ jobId }: { jobId: string }) {
               <Button size="sm" variant="outline" className="mt-1" onClick={() => navigator.clipboard.writeText(JSON.stringify(cur.payload_json, null, 2))}>Copy payload</Button></details>
             {cur.status === "ready" && (
               <div className="mt-2 space-y-2">
-                <Button size="sm" onClick={() => submit({ notificationId: cur.id }, "Submitted")}>Submit via ESC adapter</Button>
                 <div className="grid gap-2 sm:grid-cols-3"><Input placeholder="ESC submission reference" value={ref} onChange={(e) => setRef(e.target.value)} /><Input type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} />
                   <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={confirm} onChange={(e) => setConfirm(e.target.checked)} /> I confirm this was actually submitted to ESC</label></div>
                 <Button size="sm" variant="outline" disabled={!confirm || ref.trim().length < 3 || !at} onClick={async () => { await record({ notificationId: cur.id, reference: ref, sentAt: new Date(at).toISOString(), method: "manual_portal", confirmed: true }, "Submission recorded"); setRef(""); setAt(""); setConfirm(false); }}>Record manual submission</Button>

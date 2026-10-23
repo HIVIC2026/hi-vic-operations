@@ -96,7 +96,7 @@ function JobDetail() {
   return (
     <AppShell wide>
       <div className="mx-auto max-w-5xl">
-      <Link to="/admin/enquiries" className="mb-2 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Enquiries</Link>
+      <button type="button" onClick={() => window.history.length > 1 ? window.history.back() : void (window.location.href = installerJob ? "/admin/jobs/active" : "/admin/enquiries")} className="mb-2 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back</button>
       <JobIdentity jobId={jobId} job={job} onOpen={openTarget} />
       {job.stage === "cancelled" && <div role="status" className="mb-3 rounded-md border border-danger/40 bg-danger-soft p-3 text-sm font-semibold text-danger">{closedReasonLabel("cancelled", (job as { cancelled_reason?: string | null }).cancelled_reason)}</div>}
       {installerJob && <InstallerJobSummary jobId={jobId} />}
@@ -147,7 +147,7 @@ function JobDetail() {
           <ChooseTradePanel jobId={jobId} /><RequirementCards jobId={jobId} isAdmin job={job} /><AppointmentPanel jobId={jobId} /><BookingPanel jobId={jobId} kind="assessment" canBook={false} isAdmin /><AdminBookingOverride jobId={jobId} /><MittiCard jobId={jobId} isAdmin /><AssessmentView jobId={jobId} part="assessment" /><SectionDocuments jobId={jobId} categories={["Ready Check"]} />
         </RecordDisclosure>
         <RecordDisclosure {...g("quote")} title="Quotes & payments" summary="Exact quotes, payment mirror, signing and source-specific invoice controls">
-          <div id="target-quotes" data-portal-focus="target" tabIndex={-1} className="scroll-mt-4 outline-none"><AdminQuotes jobId={jobId} /></div><InstallerIntakeReviewPanel jobId={jobId} /><InstallerQuoteDraftPanel jobId={jobId} /><InstallerLedInvoicePanel jobId={jobId} /><div id="panel-deposit-request" className="scroll-mt-4"><PaymentsPanel jobId={jobId} isAdmin /></div><OfficeInstalmentPlanCard jobId={jobId} /><SectionDocuments jobId={jobId} categories={["Quotes", "Payments"]} />
+          <div id="target-quotes" data-portal-focus="target" tabIndex={-1} className="scroll-mt-4 outline-none"><AdminQuotes jobId={jobId} installerJob={installerJob} /></div><InstallerIntakeReviewPanel jobId={jobId} /><InstallerQuoteDraftPanel jobId={jobId} /><InstallerLedInvoicePanel jobId={jobId} /><div id="panel-deposit-request" className="scroll-mt-4"><PaymentsPanel jobId={jobId} isAdmin /></div><OfficeInstalmentPlanCard jobId={jobId} /><SectionDocuments jobId={jobId} categories={["Quotes", "Payments"]} />
           <SubHeading>Electronic signing</SubHeading>
           <div id="target-electronic-signing" tabIndex={-1} className="scroll-mt-4 outline-none"><AdminAssignmentPanel jobId={jobId} /></div><SectionDocuments jobId={jobId} categories={["Customer / Consent"]} />
         </RecordDisclosure>
@@ -384,7 +384,8 @@ function AssessmentView({ jobId, part }: { jobId: string; part: "assessment" | "
   );
 }
 
-function AdminQuotes({ jobId }: { jobId: string }) {
+/** Installer jobs: no HIV rate-card generation and no HIV margin table (installer price, no margin — the HIV quote rule refuses them). */
+function AdminQuotes({ jobId, installerJob = false }: { jobId: string; installerJob?: boolean }) {
   const gen = useAction(generateInstallerQuotes);
   const regen = useAction(regenerateRectificationQuote);
   const adjust = useAction(adjustQuote);
@@ -399,11 +400,11 @@ function AdminQuotes({ jobId }: { jobId: string }) {
   return (
     <>
       <div className="flex flex-wrap gap-2">
-        <Button onClick={() => gen({ jobId }, "Installer quotes generated")}>Generate installer quotes</Button>
+        {!installerJob && <Button onClick={() => gen({ jobId }, "Installer quotes generated")}>Generate installer quotes</Button>}
         <Button variant="outline" onClick={() => regen({ jobId }, "Electrical fixes quote regenerated")}>Regenerate electrical fixes quote</Button>
       </div>
       <QuotesPanel jobId={jobId} canRespond={false} />
-      <Section title="Internal pricing (admin only)">
+      {!installerJob && <Section title="Internal pricing (admin only)">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="text-left text-muted-foreground"><tr><th className="p-2">Quote</th><th className="p-2">Status</th><th className="p-2">Cost ex GST</th><th className="p-2">AP margin</th><th className="p-2">AP fee</th><th className="p-2">Customer inc GST</th><th className="p-2" /></tr></thead>
@@ -437,7 +438,7 @@ function AdminQuotes({ jobId }: { jobId: string }) {
             </tbody>
           </table>
         </div>
-      </Section>
+      </Section>}
     </>
   );
 }

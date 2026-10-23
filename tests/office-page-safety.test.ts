@@ -10,3 +10,14 @@ test("the global owner Ready Check booking switch is on Settings, not on job pag
   expect(perJob).not.toContain("<Switch");
   expect(read("src/routes/_authenticated/admin.save-my-spot-rules.tsx")).toContain("<OwnerReadyCheckBookingSetting />");
 });
+
+test("installer jobs never show HIV rate-card generation or the HIV margin table", () => {
+  const page = read("src/routes/_authenticated/admin.jobs.$jobId.tsx");
+  expect(page).toContain("<AdminQuotes jobId={jobId} installerJob={installerJob} />");
+  expect(page).toContain('{!installerJob && <Button onClick={() => gen({ jobId }, "Installer quotes generated")}>');
+  expect(page).toContain('{!installerJob && <Section title="Internal pricing (admin only)">');
+});
+test("no dead buttons: ESC adapter submit (no adapter exists) and owner rows that went nowhere are gone", () => {
+  expect(read("src/components/portal/intelligence.tsx")).not.toContain("Submit via ESC adapter");
+  expect(read("src/routes/my-job.$token.tsx")).not.toContain("function BottomList");
+});
