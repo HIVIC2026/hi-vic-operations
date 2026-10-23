@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { getLaunchCampaignPage, saveMySpot, takeMeOffList } from "@/lib/launch-campaign.functions";
 import type { InsulationDeclared } from "@/lib/estimate.core";
 import { EXISTING_PRELIMINARY, removalNote, type EstimateRemoval } from "@/lib/estimate-removal.core";
-import { REMOVAL_UPTO_NOTE, removalUpToLine } from "@/lib/estimate-removal-upto.core";
+import { REMOVAL_UPTO_NOTE, priceRangeLine, removalUpToLine } from "@/lib/estimate-removal-upto.core";
 
 export const Route = createFileRoute("/estimate_/$token/campaign")({
   ssr: false,
@@ -120,7 +120,7 @@ function CampaignDesign({ saveAllowed, ownerQualified, reviewStatus, group, toke
         <p className="mt-1 font-display text-[46px] font-extrabold leading-[50px] text-estimate-blue">{money(p.total)}</p>
         <p className="mt-1 text-xs font-bold">incl. GST · before rebate {money(p.gross)}</p>
       </div>
-      {p.removalUpTo != null && <div data-removal-upto className="mb-3 rounded-[14px] border border-estimate-line bg-estimate-blush px-4 py-3"><p className="text-[14px] font-semibold leading-snug">{removalUpToLine(p.removalUpTo, p.areaM2)}</p><p className="mt-1.5 text-[13px] leading-relaxed">{REMOVAL_UPTO_NOTE}</p></div>}
+      {p.removalUpTo != null && <div data-removal-upto className="mb-3 rounded-[14px] border border-estimate-line bg-estimate-blush px-4 py-3"><p className="text-[14px] font-semibold leading-snug">{removalUpToLine(p.removalUpTo, p.areaM2)}</p><p className="mt-1.5 text-[13px] leading-relaxed">{REMOVAL_UPTO_NOTE}</p><p className="mt-2 text-[15px] font-extrabold">{priceRangeLine(p.total, p.removalUpTo)}</p></div>}
       <div className="border-t border-estimate-line">
         {p.address && row("Property", p.address, "py-1 text-[13px] [&>span:last-child]:font-extrabold [&>span:last-child]:text-right")}
         {row("Ceiling", `${p.areaM2} m²`, "py-1 text-[13px] [&>span:last-child]:font-extrabold")}

@@ -461,7 +461,8 @@ const QUOTE_REBATE = /^\*\*(You could save|Potential VEU rebate):? (.+)\*\*$/;
 const QUOTE_COST = /^(Your estimated cost after rebate|Estimated cost if eligible|Your estimated cost): (\$[\d,]+) including GST$/;
 const QUOTE_BEFORE = /^Before rebate: (\$[\d,]+) including GST$/;
 const QUOTE_FACT = /^(Property|Ceiling size): (.+)$/;
-const QUOTE_REMOVAL = /^Removal of old insulation, if needed: up to \$[\d,]+( \(\$[\d.]+ per m² inc GST, only for the areas that need removal\))?$/;
+const QUOTE_REMOVAL = /^Removal of old insulation, only if needed: \$0 – \$[\d,]+$/;
+const QUOTE_RANGE = /^Your price: \$[\d,]+ – \$[\d,]+$/;
 
 /** Jo's "Your preliminary quote" + "What this includes" in the approved rebate box / price / ticked list layout. */
 function quoteCardHtml(content: string[], includes: string[] | null): string {
@@ -473,6 +474,7 @@ function quoteCardHtml(content: string[], includes: string[] | null): string {
   let costLabel = "";
   let removalLine: string | null = null;
   let removalNoteSeen = false;
+  let rangeLine: string | null = null;
   for (const l of content) {
     const r = QUOTE_REBATE.exec(l);
     if (r) {
@@ -487,6 +489,7 @@ function quoteCardHtml(content: string[], includes: string[] | null): string {
     if (b) { before = b[1]!; continue; }
     if (QUOTE_REMOVAL.test(l)) { removalLine = l; continue; }
     if (l === REMOVAL_UPTO_NOTE) { removalNoteSeen = true; continue; }
+    if (QUOTE_RANGE.test(l)) { rangeLine = l; continue; }
     const f = QUOTE_FACT.exec(l);
     if (f) {
       const label = f[1] === "Ceiling size" ? "Ceiling" : f[1]!;
@@ -496,7 +499,7 @@ function quoteCardHtml(content: string[], includes: string[] | null): string {
     rest.push(l);
   }
   const removalBox = removalLine
-    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BLUSH}" style="width:100%;margin:0 0 12px;border-collapse:separate;background-color:${BLUSH};border:1px solid ${LINE};border-radius:14px;"><tr><td style="padding:12px 16px;${F}"><p style="margin:0;${F}color:${INK};font-size:14px;line-height:1.4;font-weight:600;">${escape(removalLine)}</p>${removalNoteSeen ? `<p style="margin:6px 0 0;${F}color:${INK};font-size:13px;line-height:1.5;">${escape(REMOVAL_UPTO_NOTE)}</p>` : ""}</td></tr></table>`
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BLUSH}" style="width:100%;margin:0 0 12px;border-collapse:separate;background-color:${BLUSH};border:1px solid ${LINE};border-radius:14px;"><tr><td style="padding:12px 16px;${F}"><p style="margin:0;${F}color:${INK};font-size:14px;line-height:1.4;font-weight:600;">${escape(removalLine)}</p>${removalNoteSeen ? `<p style="margin:6px 0 0;${F}color:${INK};font-size:13px;line-height:1.5;">${escape(REMOVAL_UPTO_NOTE)}</p>` : ""}${rangeLine ? `<p style="margin:8px 0 0;${F}color:${INK};font-size:15px;line-height:1.4;font-weight:800;">${escape(rangeLine)}</p>` : ""}</td></tr></table>`
     : "";
   const price = cost
     ? `<div style="text-align:center;padding:18px 0 12px;"><p style="margin:0;${CAPS}">${escape(costLabel)}</p><p class="lx-cost" style="margin:5px 0 0;${FH}color:${BRAND_BLUE};font-size:46px;line-height:50px;mso-line-height-rule:exactly;font-weight:800;">${escape(cost)}</p><p style="margin:4px 0 0;${F}color:${INK};font-size:12px;line-height:1.4;font-weight:700;">incl. GST${before ? ` · before rebate ${escape(before)}` : ""}</p></div>${removalBox}`

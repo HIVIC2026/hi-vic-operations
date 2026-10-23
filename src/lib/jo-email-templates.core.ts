@@ -13,7 +13,7 @@
  */
 
 import { REMOVAL_BUDGET_EMAIL_NOTE } from "./estimate-removal.core";
-import { REMOVAL_UPTO_NOTE, removalUpToLine } from "./estimate-removal-upto.core";
+import { REMOVAL_UPTO_NOTE, priceRangeLine, removalUpToLine } from "./estimate-removal-upto.core";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -232,7 +232,7 @@ function renderEligibleNoInsulation(r: JoRecipient, f: JoEstimateFigures, thinPa
     `**You could save ${money(f.veuRebate)}**`, "",
     `Your estimated cost after rebate: ${money(f.customerTotal)} including GST`,
     `Before rebate: ${money(f.totalBeforeRebate)} including GST`, "",
-    ...(removalBox ? [removalUpToLine(f.removalUpTo!, f.ceilingAreaM2), REMOVAL_UPTO_NOTE, ""] : []),
+    ...(removalBox ? [removalUpToLine(f.removalUpTo!, f.ceilingAreaM2), REMOVAL_UPTO_NOTE, priceRangeLine(f.customerTotal, f.removalUpTo!), ""] : []),
     `Property: ${r.propertyAddress}`,
     ceilingLine(f), "",
     assumedNote, "",
@@ -266,7 +266,7 @@ function renderBelowR2Reviewed(r: JoRecipient, f: JoEstimateFigures): string {
     `**You could save ${money(f.veuRebate)}**`, "",
     `Your estimated cost after rebate: ${money(f.customerTotal)} including GST`,
     `Before rebate: ${money(f.totalBeforeRebate)} including GST`, "",
-    ...(f.removalUpTo != null && f.removalUpTo > 0 ? [removalUpToLine(f.removalUpTo, f.ceilingAreaM2), REMOVAL_UPTO_NOTE, ""] : []),
+    ...(f.removalUpTo != null && f.removalUpTo > 0 ? [removalUpToLine(f.removalUpTo, f.ceilingAreaM2), REMOVAL_UPTO_NOTE, priceRangeLine(f.customerTotal, f.removalUpTo), ""] : []),
     `Property: ${r.propertyAddress}`,
     ceilingLine(f), "",
     assumedNote, "",
@@ -311,7 +311,7 @@ function renderPotentiallyEligible(r: JoRecipient, f: JoEstimateFigures, questio
     `**Potential VEU rebate: ${money(f.veuRebate)}**`, "",
     `Estimated cost if eligible: ${money(f.customerTotal)} including GST`,
     `Before rebate: ${money(f.totalBeforeRebate)} including GST`, "",
-    ...(removalBox ? [removalUpToLine(f.removalUpTo!, f.ceilingAreaM2), REMOVAL_UPTO_NOTE, ""] : []),
+    ...(removalBox ? [removalUpToLine(f.removalUpTo!, f.ceilingAreaM2), REMOVAL_UPTO_NOTE, priceRangeLine(f.customerTotal, f.removalUpTo!), ""] : []),
     `Property: ${r.propertyAddress}`,
     ceilingLine(f), "",
     assumedNote, "",
