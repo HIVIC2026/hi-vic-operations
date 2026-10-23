@@ -50,7 +50,7 @@ export async function notifyOwnerQuoteReady(jobId: string, quoteId: string, kind
         const { resendSend } = await import("./hot-leads-send.server");
         const d = await resendSend(owner.email, tpl.subject, tpl.body_markdown, tpl.body_markdown, key, unsubscribe).catch(() => null);
         const status = !d || d.outcome === "uncertain" ? "delivered_unrecorded" : d.outcome === "rejected" || d.outcome === "not_attempted" ? "failed" : "sent";
-        await admin.from("customer_email_sends").update({ status, provider: "resend", sent_at: status === "sent" ? new Date().toISOString() : null, error: d?.detail ?? "Delivery result unknown", provider_message_id: d?.id ?? null }).eq("id", reserved.id);
+        await admin.from("customer_email_sends").update({ status, provider: "resend", sent_at: status === "sent" ? new Date().toISOString() : null, error: d?.detail ?? "Delivery result unknown", provider_message_id: d && "id" in d ? d.id ?? null : null }).eq("id", reserved.id);
         email = status === "sent" ? "sent" : status === "delivered_unrecorded" ? "delivery uncertain — not retried" : `failed: ${d?.detail ?? "send error"}`;
       }
     }
