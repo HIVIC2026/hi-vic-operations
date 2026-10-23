@@ -39,7 +39,7 @@ test('loose fill wins over every thickness; thin wins over every type',()=>{
 // Jo 23 Oct 08:14 UTC: everyone who answers gets Save my spot; nobody is parked onsite or sent to photo review.
 test('hand, thicker and cannot tell get the standard existing-insulation Save my spot',()=>{for(const t of ['hand','thicker','unknown'] as const)expect(insulationTapRoute({insulation_type:'batts',insulation_thickness:t})).toBe('existing_save_spot');});
 test('house age never changes the wording (rank only)',()=>{
- for(const age of ['1990_or_earlier','1991_1999','2000_2009','2010_or_later','unknown'] as const){
+ for(const age of ['1990_or_earlier','1991_1999','2000_2009','2010_2020','unknown'] as const){
   for(const thickness of ['hand','thicker','unknown'] as const)expect(insulationTapRoute({insulation_type:'batts',insulation_thickness:thickness,house_built_period:age})).toBe('existing_save_spot');
   expect(insulationTapRoute({insulation_type:'batts',insulation_thickness:'thin',house_built_period:age})).toBe('thin_patchy');
   expect(insulationTapRoute({insulation_type:'loose_fill',insulation_thickness:'thicker',house_built_period:age})).toBe('thin_patchy');
@@ -67,9 +67,18 @@ test('practice: non-thin answers qualify for the standard Save my spot, no parki
 });
 test('practice: owners with photos can also answer (Jo 08:27); media kept, database sends nothing',async()=>{
  await db.query("INSERT INTO documents(job_id,kind,storage_path) VALUES($1,'intake_media','private/photo.jpg')",[job]);
- const result=await save({insulation_type:'batts',insulation_thickness:'thin',house_built_period:'2010_or_later'});
+ const result=await save({insulation_type:'batts',insulation_thickness:'thin',house_built_period:'2010_2020'});
  expect(result.rows[0]?.result).toMatchObject({route:'thin_patchy'});
  expect((await db.query('SELECT count(*)::int n FROM documents')).rows[0]?.n).toBe(1);
+ expect((await db.query('SELECT count(*)::int n FROM customer_email_sends')).rows[0]?.n).toBe(0);
+});
+test('practice: last-five-years overrides loose fill and thin, records ineligibility and never offers or saves a spot',async()=>{
+ const before=(await db.query<{n:number}>("SELECT count(*)::int n FROM workflow_events WHERE event_type='owner_insulation_present_auto_offer'")).rows[0]?.n;
+ const result=await save({insulation_type:'loose_fill',insulation_thickness:'thin',house_built_period:'last_5_years'});
+ expect(result.rows[0]?.result).toMatchObject({route:'ineligible'});
+ expect((await db.query('SELECT eligibility_outcome FROM jobs')).rows[0]?.eligibility_outcome).toBe('does_not_appear_eligible');
+ expect((await db.query('SELECT spot_saved_at FROM lead_campaign_responses')).rows[0]?.spot_saved_at).toBeNull();
+ expect((await db.query<{n:number}>("SELECT count(*)::int n FROM workflow_events WHERE event_type='owner_insulation_present_auto_offer'")).rows[0]?.n).toBe(before);
  expect((await db.query('SELECT count(*)::int n FROM customer_email_sends')).rows[0]?.n).toBe(0);
 });
 test('RPC denies public/client execution and expired links',async()=>{
