@@ -281,7 +281,7 @@ async function spotRankFacts(jobIds: string[]): Promise<RankData> {
   return { media, reviews };
 }
 
-function spotRankRow(d: RankData, r: { job_id: string; spot_saved_at: string | null; opted_out_at: string | null; desk_check_status: string | null }, job: { owners: { full_name: string | null } | null; properties: { suburb: string | null; enrichment?: Record<string, unknown> | null } | null; indicative_estimates?: { status: string; area_m2: number | null }[] | null } | null) {
+function spotRankRow(d: RankData, r: { job_id: string; spot_saved_at: string | null; opted_out_at: string | null; desk_check_status: string | null }, job: { owners: { full_name: string | null } | null; properties: { address_line?: string | null; suburb: string | null; enrichment?: Record<string, unknown> | null } | null; indicative_estimates?: { status: string; area_m2: number | null }[] | null } | null) {
   if (!r.spot_saved_at || r.opted_out_at) return { rank: null as number | null, rankLabel: null as string | null, summary: null as string | null };
   const e = job?.properties?.enrichment ?? null;
   const answers = ((e?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } }).raw?.answers ?? null;
@@ -294,7 +294,7 @@ function spotRankRow(d: RankData, r: { job_id: string; spot_saved_at: string | n
   const area = (job?.indicative_estimates ?? []).find((x) => x.status === "current")?.area_m2 ?? null;
   return {
     rank, rankLabel: SPOT_RANK_LABEL[rank] ?? null,
-    summary: spotSummary({ owner: job?.owners?.full_name ?? null, suburb: job?.properties?.suburb ?? null, houseAge: tap ? houseAgeLabel(tap.answers) : null, said: tap ? onsiteInsulationLine(tap.answers) : insulationDetailTextRank(declaredInsulationDetailRank(answers)) || null, declared, mediaCount, areaM2: area == null ? null : Number(area), spotSavedAt: r.spot_saved_at }),
+    summary: spotSummary({ owner: job?.owners?.full_name ?? null, suburb: job?.properties?.suburb || suburbFromAddress(job?.properties?.address_line) , houseAge: tap ? houseAgeLabel(tap.answers) : null, said: tap ? onsiteInsulationLine(tap.answers) : insulationDetailTextRank(declaredInsulationDetailRank(answers)) || null, declared, mediaCount, areaM2: area == null ? null : Number(area), spotSavedAt: r.spot_saved_at }),
   };
 }
 
@@ -363,4 +363,12 @@ export async function queueSpotSavedConfirmations(jobId: string, token: string) 
     } as never);
   }
   return { queued: true as const };
+}
+
+/** Website addresses often arrive as one line ("12 Wattle St, Preston VIC 3072"). */
+export function suburbFromAddress(a: string | null | undefined): string | null {
+  const parts = (a ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+  if (parts.length < 2) return null;
+  const last = parts.at(-1)!.replace(/\b(VIC|Victoria|Australia)\b/gi, "").replace(/\b\d{4}\b/g, "").trim();
+  return last || parts.at(-2)!.replace(/\b(VIC|Victoria|Australia)\b/gi, "").replace(/\b\d{4}\b/g, "").trim() || null;
 }
