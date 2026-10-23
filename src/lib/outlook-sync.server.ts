@@ -5,10 +5,11 @@
 // "not proceeding" email. Historical catch-up is record-only before backfill_from.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isHumanOwnerEmail } from "./owner-email-presentation.core";
 import { checkedOutlookHealth, normaliseMailbox, outlookGatewayUrl, outlookMailboxPath, uncheckedOutlookHealth, OUTLOOK_REQUEST_REDIRECT, type OutlookHealth } from "./outlook-connection.core";
 import {
   attachmentIdentityKey, attachmentStoragePath, ATTACHMENT_MAX_FILE_BYTES, ATTACHMENT_MAX_MESSAGE_BYTES,
-  classifyIntent, closureDecision, counterpartEmails, extractJobNumbers, isPortalDuplicate, matchMessage, normaliseMessage,
+  counterpartEmails, extractJobNumbers, isPortalDuplicate, matchMessage, normaliseMessage,
   planAttachments, type AttachmentRef, type CandidateJob, type GraphMessage, type MailMessage, type MatchResult, type StoredAttachmentRef,
 } from "./outlook-correspondence.core";
 
@@ -304,39 +305,8 @@ export async function storeOnJob(jobId: string, m: MailMessage, how: string, vis
   return data.id;
 }
 
-/** Determine a new message's decision from current facts. Missing/error counts must never become zero. */
-async function decisionFor(work: Work, window: ClosureWindow): Promise<Record<string, unknown>> {
-  const m = work.message;
-  const jobIds = routeJobIds(work.route);
-  // Workflow decisions only ever apply to a single confirmed job and to live mail. Record-only work
-  // (historical catch-up, persisted on the work row so restarts keep it) is never allowed to close or flag.
-  if (work.route.kind !== "job" || jobIds.length !== 1 || m.direction !== "inbound") return { action: "none" };
-  if (work.record_only) return { action: "none" };
-  if (window.history && window.backfillFrom && Date.parse(m.at) < Date.parse(window.backfillFrom)) return { action: "none" };
-  const jobId = jobIds[0]!;
-  const intent = classifyIntent(m.body);
-  if (intent.kind === "none") return { action: "none" };
-  const { data: job, error: je } = await syncAdmin.from("jobs").select("stage").eq("id", jobId).single();
-  if (je || !job) throw new Error(`Job state unavailable for Outlook decision: ${je?.message ?? "job missing"}`);
-  const [history, pending] = await Promise.all([
-    syncAdmin.from("job_communications").select("id", { count: "exact", head: true })
-      .eq("job_id", jobId).eq("direction", "inbound").gt("received_at", m.at),
-    syncAdmin.from("outlook_message_work").select("provider_message_id", { count: "exact", head: true })
-      .eq("job_id", jobId).eq("message->>direction", "inbound").gt("message_at", m.at),
-  ]);
-  for (const result of [history, pending]) if (result.error || result.count == null)
-    throw new Error(`Later correspondence unavailable: ${result.error?.message ?? "exact count missing"}`);
-  let d = closureDecision(job.stage, intent, { laterInbound: history.count! + pending.count! > 0 });
-  if (d.action === "close" && (!window.inboxCompleteThrough
-    || !Number.isFinite(Date.parse(window.inboxCompleteThrough)) || Date.parse(m.at) > Date.parse(window.inboxCompleteThrough))) {
-    d = { action: "flag", kind: "possible_not_proceeding",
-      reason: `${d.reason} — later Inbox correspondence has not been fully checked through this sync window; Office to decide` };
-  }
-  return { ...d, expectedStage: job.stage, phrase: intent.phrase, inboxCompleteThrough: window.inboxCompleteThrough,
-    ...(d.action === "flag" && intent.kind === "not_proceeding" ? { suggestedReason: d.reason } : {}) };
-}
-
 async function finishWork(work: Work, counts: SyncCounts, window: ClosureWindow): Promise<void> {
+  if (work.route.kind !== "job" || !isHumanOwnerEmail({...work.message,provider:"outlook",channel:"email"})) return;
   try {
     if (!work.attachments_complete) {
       const refs = await attachmentsFor(work.provider_message_id, work.mailbox);
@@ -362,7 +332,7 @@ async function finishWork(work: Work, counts: SyncCounts, window: ClosureWindow)
       const repaired = await repairAttachments(work);
       if (repaired) counts.files += repaired.stored;
     }
-    const decision = await decisionFor(work, window);
+    const decision = { action: "none" };
     const { data, error } = await syncAdmin.rpc("finish_outlook_message", { _message_id: work.provider_message_id, _decision: decision });
     if (error || !data) throw new Error(`Outlook message processing is unfinished: ${error?.message ?? "result missing"}`);
     const result = data as WorkResult;
@@ -401,13 +371,13 @@ async function portalDuplicate(m: MailMessage, jobId: string): Promise<boolean> 
 
 export async function processMessages(raw: GraphMessage[], mailbox: string, counts: SyncCounts,
   window: ClosureWindow = { inboxCompleteThrough: null }) {
-  const msgs = raw.map((g) => normaliseMessage(g, mailbox, OUR_DOMAINS)).filter((m): m is MailMessage => !!m);
+  const msgs = raw.map((g) => normaliseMessage(g, mailbox, OUR_DOMAINS)).filter((m): m is MailMessage => !!m && isHumanOwnerEmail({...m,provider:"outlook",channel:"email"}));
   if (!msgs.length) return;
   if (msgs.some(m => !m.providerMessageId || !Number.isFinite(Date.parse(m.at)) || Date.parse(m.at) <= 0))
     throw new Error("Outlook returned a message without a usable identity or timestamp.");
   const { byNumber, byEmail, byThread, byId } = await loadCandidates(msgs, mailbox);
   const work: Work[] = [];
-  const recordOnly = !!window.history;
+  const recordOnly = true;
   // Reserve the entire page before decisions, so a later reply on this page is visible to earlier declines.
   for (const m of msgs) {
     // A mutable old id whose immutable internetMessageId matches an already-stored message is the same
@@ -430,7 +400,7 @@ export async function processMessages(raw: GraphMessage[], mailbox: string, coun
       }
     }
     let route: Route = matchMessage(m, counterpartEmails(m, mailbox, OUR_DOMAINS), byNumber, byEmail, byThread);
-    if (route.kind === "not_homeowner") { counts.notHomeowner++; continue; }
+    if (route.kind !== "job") { counts.notHomeowner++; continue; }
     // Our own outbound copy of an email the portal already recorded is not new history on that job.
     if (route.kind === "job" && m.direction === "outbound") {
       const remaining: string[] = [];

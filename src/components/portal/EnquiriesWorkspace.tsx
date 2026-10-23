@@ -17,8 +17,6 @@ import {
   morePhotosRequestFn,
   removeLeadsFn,
   reviewLeadMediaFn,
-  getOwnerEmailsToReview,
-  markOwnerEmailReviewedFn,
 } from "@/lib/enquiry-groups.functions";
 import { qualifiesOutcome } from "@/lib/enquiry-review-custom.core";
 import {
@@ -32,10 +30,7 @@ import { RESPONSE_STATE_LABEL, showingRange, enquiryRowTag } from "@/lib/enquiry
 import { followupSendMessage, followupRequestError, uncertainAttempt } from '@/lib/followup-result.core';
 import { cn } from "@/lib/utils";
 import { QuotesToCheck } from "./QuotesToCheck";
-import { OwnerEmailConversation } from "./OwnerEmailConversation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { emailAge } from "@/lib/owner-email-presentation.core";
-import { UnmatchedOwnerEmails } from "./OutlookReview";
 
 export type EnquiryView = EnquiryStatus | "all" | "new" | "photos" | "removed";
 
@@ -371,38 +366,6 @@ const VIEW_LABEL: Record<EnquiryView | EnquiryStatus, string> = {
   removed: "Removed",
 };
 
-/** Jo 23 Oct 2026: owner emails to info@ that still need a review or reply, with the three review buttons. */
-function OwnerEmailsToReview() {
-  const load = useServerFn(getOwnerEmailsToReview);
-  const markDone = useServerFn(markOwnerEmailReviewedFn);
-  const q = useQuery({ queryKey: ["owner-emails-to-review"], queryFn: () => load(), staleTime: 60_000 });
-  const [openId, setOpenId] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  const rows = q.data?.rows ?? [];
-  return (
-    <section aria-label="Owner emails to review" className="space-y-3 border-b pb-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-display text-lg font-bold">Owner emails to review ({rows.length})</h2>
-      </div>
-      {q.isPending ? <p role="status" className="text-sm text-muted-foreground">Loading owner emails…</p>
-        : q.error ? <p role="alert" className="text-sm text-destructive">{q.error.message}</p>
-        : !rows.length ? <p className="text-sm text-muted-foreground">No owner emails waiting.</p>
-        : <ul className="divide-y">{rows.map((r) => (
-          <li key={r.ownerId} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3">
-            <div className="min-w-0"><p className="break-words text-sm font-semibold">{r.owner ?? "Owner"} · {r.jobNumber} · {r.suburb ?? ""}</p><p className="mt-1 text-xs text-muted-foreground">{emailAge(r.at)}{r.mediaCount > 0 && <span className="ml-2 rounded bg-muted px-1.5 py-0.5" aria-label={`${r.mediaCount} photos`}>📷 {r.mediaCount}</span>}</p><p className="mt-1 truncate text-sm text-muted-foreground">{r.body || "Photos attached"}</p></div>
-            <Button size="sm" variant="outline" className="h-12" onClick={() => setOpenId(r.jobId)}>Open</Button>
-          </li>
-        ))}</ul>}
-      {rows.map(r => openId === r.jobId && <Dialog key={r.jobId} open onOpenChange={open => {if(!open)setOpenId(null);}}><DialogContent className="max-h-[90dvh] max-w-lg overflow-y-auto"><DialogHeader><DialogTitle>{r.owner ?? "Owner"} · {r.jobNumber}</DialogTitle><DialogDescription>{r.suburb}</DialogDescription></DialogHeader>
-        <OwnerEmailConversation jobIds={r.jobIds} />
-        <div className="space-y-3 border-t pt-3">{r.canReview && <MediaReview row={{id:r.jobId,name:r.owner} as unknown as Row} optionsOnly onDone={() => void q.refetch()} />}
-        <Button variant="outline" className="h-12 w-full" disabled={busy === r.jobId} onClick={async () => {setBusy(r.jobId);try {for(const jobId of r.reviewJobIds) await markDone({data:{jobId}});setOpenId(null);await q.refetch();} finally {setBusy(null);}}}>Done – no reply needed</Button></div>
-      </DialogContent></Dialog>)}
-      <UnmatchedOwnerEmails />
-    </section>
-  );
-}
-
 export function EnquiriesWorkspace({
   view: viewProp,
   q,
@@ -491,7 +454,6 @@ export function EnquiriesWorkspace({
       </header>
 
       <QuotesToCheck />
-      <OwnerEmailsToReview />
       {isLoading ? (
         <p role="status" className="rounded-md border bg-card p-6 text-sm">
           Loading enquiries…

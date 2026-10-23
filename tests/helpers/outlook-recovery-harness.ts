@@ -145,7 +145,7 @@ export async function outlookHarness() {
     const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
     const module = { exports: {} }; modules.set(name, module.exports);
     const require = (path: string) => path === "@/integrations/supabase/client.server" ? { supabaseAdmin: admin }
-      : path.startsWith("./outlook-") ? load(path.slice(2)) : (() => { throw new Error(`Unexpected dependency ${path}`); })();
+      : (path.startsWith("./outlook-") || path === "./owner-email-presentation.core") ? load(path.slice(2)) : (() => { throw new Error(`Unexpected dependency ${path}`); })();
     new Function("require", "module", "exports", "process", "fetch", output)(require, module, module.exports,
       { env: { LOVABLE_API_KEY: "fixture-gateway-key", MICROSOFT_OUTLOOK_API_KEY: "fixture-connection-key" } },
       async (url: string, options: RequestInit) => { requests.push({ url, options }); return control.fetch(url, options); });
