@@ -19,7 +19,7 @@ export const getInstallerQuotesToCheck = createServerFn({ method: "POST" }).midd
       if (!page.data || page.data.length < 500) break;
     }
     const ids = (jobs ?? []).map((j) => j.id);
-    if (!ids.length) return { rows: [] };
+    if (!ids.length) return { rows: [], waiting: [] };
     const batches = [];
     for (let from = 0; from < ids.length; from += 50) batches.push(ids.slice(from, from + 50));
     const parts = [];
