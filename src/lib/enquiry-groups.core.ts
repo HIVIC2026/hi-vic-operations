@@ -271,6 +271,17 @@ export function isNewEnquiry(row: { lastEmail?: unknown; sentPurposes?: string[]
 export type AutomaticLeadEmail = "offer_spot" | "request_insulation" | "ineligible" | "none";
 
 /** Selects the single automatic email path. Gate 1 remains the source of the eligibility result. */
+/** OFF until Jo approves the wording and says go (23 Oct 6:13pm change). */
+export const ALL_NEW_ENQUIRIES_OFFER_APPROVED = false;
+/** First hard red flag for the automatic offer, or null. Owner declarations only. */
+export function newEnquiryRedFlag(f: { lifeSupport: string | null; buildDecade: string | null; overFiveYears: string | null; state: string | null; propertyType: string | null }): string | null {
+  if (f.lifeSupport === "yes") return "Life support declared — office first";
+  if (f.buildDecade === "last_5_years" || f.overFiveYears === "no") return "Built in the last 5 years";
+  if (f.state && f.state.trim().toUpperCase() !== "VIC") return "Outside Victoria";
+  const t = (f.propertyType ?? "").toLowerCase();
+  if (t && !/house|townhouse/.test(t)) return "Not a house or townhouse";
+  return null;
+}
 export function automaticLeadEmail(x: {
   source: string | null; channel: string | null; decisionSource: string | null; reviewRequired: boolean;
   outcome: string | null; intakeWorkActive: boolean; declaredInsulation: "none" | "present" | "unknown" | null;
@@ -279,6 +290,10 @@ export function automaticLeadEmail(x: {
   insulationDetailRoute?: "likely_save_spot" | "more_photos" | null;
   /** A recorded Office photo review exists; it always outranks the owner's own answers. */
   officeReviewed?: boolean;
+  /** Jo 23 Oct 6:13pm: hard red flag (life support yes, built in last 5 years, outside VIC, not a house/townhouse). */
+  redFlag?: string | null;
+  /** Code switch ALL_NEW_ENQUIRIES_OFFER_APPROVED (passed by the router; OFF until Jo says go). */
+  offerAllApproved?: boolean;
 }): { email: AutomaticLeadEmail; blocker: string | null; assumedArea?: true; existingInsulation?: true } {
   if (x.source === "qa_test") return { email: "none", blocker: "TEST enquiry" };
   if (x.source !== "base44" || x.channel !== "hivic_sourced") return { email: "none", blocker: "Not a website owner enquiry" };
@@ -291,6 +306,12 @@ export function automaticLeadEmail(x: {
     return { email: "offer_spot", blocker: null, ...(x.ownerEnteredArea ? {} : { assumedArea: true }) };
   }
   const openOutcome = x.outcome === "likely_eligible" || x.outcome === "needs_onsite_confirmation";
+  // Jo 23 Oct 6:13pm (preview, OFF): every new website enquiry gets Save my spot unless a hard red flag;
+  // present OR don't know gets the removal range line. Office reviews keep the reviewed paths below.
+  if (x.offerAllApproved && openOutcome && !x.officeReviewed) {
+    if (x.redFlag) return { email: "none", blocker: x.redFlag };
+    return { email: "offer_spot", blocker: null, ...(x.declaredInsulation === "none" ? {} : { existingInsulation: true as const }), ...(x.ownerEnteredArea ? {} : { assumedArea: true as const }) };
+  }
   // Jo 23 Oct 2026 4:10pm: owner says insulation is present (any type/thickness/coverage answer, incl. unknown) and
   // no Office review yet -> the existing-insulation Save my spot email with the "if needed: up to" removal line.
   // Never the photo/details request. An Office review keeps the reviewed paths below.
