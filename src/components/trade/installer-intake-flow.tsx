@@ -379,7 +379,7 @@ function Received({ saved, preview = false }: { saved: Saved; preview?: boolean 
       <p className="text-xs font-bold uppercase tracking-wide text-sub">Preview only</p>
       <h2 className="font-display text-xl font-bold">This is where the installer would see "Job received"</h2>
       <p className="text-sm">Nothing was saved or sent. No job was created and nobody was contacted.</p>
-      {!saved.quoted && <p className="text-sm" data-add-when-ready>A real installer would see: "Add your measurements and quote on this job when ready."</p>}
+      {!saved.quoted && <p className="text-sm" data-add-when-ready>A real installer would see: "This job's Mitti Ready Check form will appear in your Mitti list shortly — fill in the measurements and your price there."</p>}
       {saved.next && <p className="text-sm" data-received-next>Next: {saved.next}</p>}
       {saved.feeHeld && <p className="text-sm" data-fee-held>Owner quote would wait until the owner fee confirmation is recorded.</p>}
     </section>
@@ -392,7 +392,7 @@ function Received({ saved, preview = false }: { saved: Saved; preview?: boolean 
       {saved.feeHeld && <p className="text-sm font-semibold" data-fee-held>The owner quote waits until you confirm the owner has been advised of the fees — you can do this on the job.</p>}
       <p className="text-sm" data-attendance-saved>Site visit: {saved.attended === "attended" ? "attended and assessed" : saved.attended === "not_attended" ? "not attended yet — Ready Check required" : "not answered yet"}</p>
       {saved.quoted === null && <p className="text-sm font-semibold" data-quote-unknown>Quote status: not answered yet — answer it on the job.</p>}
-      {saved.quoted === false && <p className="text-sm font-semibold" data-add-when-ready>{saved.attended === "attended" ? "Your measurements are saved. Add your quote on this job when ready." : "Add your measurements and quote on this job when ready."}</p>}
+      {saved.quoted === false && <p className="text-sm font-semibold" data-add-when-ready>{saved.attended === "attended" ? "Your measurements are saved. We'll set up this job's Mitti Ready Check form for your price and let you know." : "This job's Mitti Ready Check form will appear in your Mitti list shortly — fill in the measurements and your price there."}</p>}
       {saved.quoted && saved.insulation === "unknown" && <p className="text-sm font-semibold">The owner quote waits until the existing insulation is confirmed as none or below R2.0.</p>}
       {data?.coordination && <p className="text-sm" data-coordination-saved>Organised by: {data.coordination === "self_managed" ? "you" : "Home Insulation Victoria"}</p>}
       {data && <p className="text-sm" data-rc-outstanding>Ready Check: {data.readyCheck.outstandingCount} item{data.readyCheck.outstandingCount === 1 ? "" : "s"} outstanding</p>}
