@@ -129,6 +129,9 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
     if (quoteLineSignature(items ?? [], (q as { discount_note?: string | null }).discount_note) === sig) { same = q; break; }
   }
   if (same) {
+    // Re-syncing fixed facts must refresh the hold reasons, not strand the identical-price draft.
+    const { error: holdError } = await admin.from("quotes").update({ release_hold_reason: holdReason }).eq("id", same.id).eq("status", "draft");
+    if (holdError) throw new Error("Quote hold reasons could not be refreshed.");
     if (mittiElectrician) {
       const { data: snapshot, error: se } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "mitti_quote_electrician_snapshot").contains("details", { quote_id: same.id }).limit(1).maybeSingle();
       if (se) throw new Error("Could not check the quote electrician snapshot.");
