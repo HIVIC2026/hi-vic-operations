@@ -185,7 +185,9 @@ export type PrefillCtx = {
   /** Official PIESA life-support question, from the owner's DECLARED enquiry answer ("Yes"/"No"); blank when unknown. */ lifeSupportDeclared?: string | null;
 };
 const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; datetime?: boolean }[] = [
-  { key: "jobNumber", aliases: ["Portal Job Number", "Job Reference ID"], mandatory: true },
+  // Not mandatory on the TEMPLATE (Jo 23 Oct): A1 drops "Portal Job Number"; A2 keeps it and still gets it prefilled.
+  // The job number itself stays required data (createOrReuseAudit blank check).
+  { key: "jobNumber", aliases: ["Portal Job Number", "Job Reference ID"] },
   { key: "address", aliases: ["Property Address", "Site address", "Site Address", "Address including postcode"], mandatory: true },
   { key: "ownerName", aliases: ["Owner name", "Homeowner name", "Owner full name", "Client name", "Property owner name"], mandatory: true },
   { key: "ownerEmail", aliases: ["Owner email", "Homeowner email"] },
@@ -243,6 +245,9 @@ export function buildPrefill(template: Any, ctx: PrefillCtx) {
     let vStr = String(v);
     // A1 now asks "Life support equipment at property?" as Yes/No: map the office result onto that option.
     if (f.key === "lifeSupport" && /choice|question|switch|list/i.test(e.type)) vStr = /^yes/i.test(vStr) ? "Yes" : /^(none|no)\b/i.test(vStr) ? "No" : vStr;
+    // Jo 23 Oct: A2 Property type / 5-year are tap choices now. Map the owner's declared answer; unknown → blank.
+    if (f.key === "propertyType" && /choice|question|switch|list/i.test(e.type)) { const o = propertyTypeOption(vStr); if (!o) continue; vStr = o; }
+    if (f.key === "builtLast5Years" && /choice|question|switch|list/i.test(e.type)) { const o = /^y/i.test(vStr) ? "Yes" : /^n/i.test(vStr) ? "No" : null; if (!o) continue; vStr = o; }
     const choiceLike = /choice|question|switch|list/i.test(e.type);
     let type = e.type, responses: Any;
     if (f.datetime) responses = { datetime: vStr };
@@ -515,6 +520,8 @@ export function parseAudit(audit: Any) {
     auditId, patch, issues, others, completed,
     templateId: String(audit?.template_id ?? audit?.audit_data?.template_id ?? ""),
     jobNumber: val(entries, ["Portal Job Number", "Job Reference ID"]),
+    jobNumberField: !!find(entries, ["Portal Job Number", "Job Reference ID"]),
+    photoGaps,
     modifiedAt: audit?.modified_at ?? audit?.audit_data?.date_modified ?? null,
     snapshot: entries.filter((e) => e.label).map((e) => ({ id: e.id, label: e.label, section: e.section, value: e.value })),
   };
@@ -556,6 +563,9 @@ export function validateStoredMittiAudit(audit: Any, ctx: { storedAuditId: strin
   const p = parseAudit(audit);
   if (!p.auditId || p.auditId !== ctx.storedAuditId) throw new MittiError("Mitti returned a different audit or no verifiable audit ID for this job.");
   if (!sameMittiTemplateId(p.templateId, ctx.templateId ?? MITTI_TEMPLATE_ID)) throw new MittiError("This Mitti audit does not use the expected Home Insulation Victoria assessment template.");
+  // A1 no longer has a Portal Job Number question (Jo 23 Oct): the stored audit ID match above is the link.
+  // When the field IS on the form (A2, older A1), it must match exactly as before.
+  if (!p.jobNumberField) return p;
   if (!ctx.jobNumber?.trim() || !p.jobNumber || p.jobNumber.trim().toUpperCase() !== ctx.jobNumber.trim().toUpperCase())
     throw new MittiError(`Mitti Portal Job Number (${p.jobNumber ?? "missing"}) does not match ${ctx.jobNumber}.`);
   return p;
