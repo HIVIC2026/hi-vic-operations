@@ -37,7 +37,7 @@ export type PickupDuplicate = {
 
 export type ReadyCheckPickup = MittiPickupItem & {
   /** Installer business matched from the Mitti form owner's portal email; null when unknown. */
-  business: { id: string; name: string } | null;
+  business: { id: string; name: string; userId?: string } | null;
   duplicates: PickupDuplicate[];
 };
 

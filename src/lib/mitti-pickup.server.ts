@@ -35,9 +35,9 @@ async function templateIds() {
   return { readyCheck: data?.mitti_ready_check_template_id?.trim() || null, readyCheckPriced: data?.mitti_ready_check_priced_template_id?.trim() || null };
 }
 
-/** Mitti user id → installer business, matched by each Mitti-invited business member's portal email. */
+/** Mitti user id → installer business (+ that member's portal user), matched by each Mitti-invited business member's portal email. */
 async function mittiBusinessMap(api: ReturnType<typeof mittiApi>) {
-  const map = new Map<string, { id: string; name: string }>();
+  const map = new Map<string, { id: string; name: string; userId: string }>();
   const { data: biz } = await admin.from("businesses").select("id,name").eq("mitti_account_invited", true);
   const ids = (biz ?? []).map((b) => b.id);
   if (!ids.length) return map;
@@ -51,7 +51,7 @@ async function mittiBusinessMap(api: ReturnType<typeof mittiApi>) {
         if (String(u.email ?? "").toLowerCase() === email) {
           const uid = String(u.id ?? u.user_id ?? "");
           const b = (biz ?? []).find((x) => x.id === p.business_id);
-          if (uid && b) map.set(uid, { id: b.id, name: b.name });
+          if (uid && b) map.set(uid, { id: b.id, name: b.name, userId: p.id });
         }
       }
     } catch { /* one user lookup failing must not hide the other forms */ }
@@ -59,8 +59,15 @@ async function mittiBusinessMap(api: ReturnType<typeof mittiApi>) {
   return map;
 }
 
+export type PickupScanOpts = {
+  /** Restrict to these audit ids (TEST runs). */
+  onlyAuditIds?: string[];
+  /** TEST harness only: Mitti user id → business/user, used instead of the email match. */
+  businessOverride?: Map<string, { id: string; name: string; userId: string }>;
+};
+
 /** Office scan: recent Ready Check audits in Mitti that are not linked to a portal job. Read-only. */
-export async function scanMittiReadyCheckPickups(actorId: string | null, call: MittiCall = realMittiCall): Promise<{ rows: ReadyCheckPickup[] }> {
+export async function scanMittiReadyCheckPickups(actorId: string | null, call: MittiCall = realMittiCall, opts: PickupScanOpts = {}): Promise<{ rows: ReadyCheckPickup[] }> {
   const ids = await templateIds();
   if (!ids.readyCheck && !ids.readyCheckPriced) throw new WorkflowError("No Ready Check Mitti template is configured in workflow settings.");
   const api = mittiApi(call);
@@ -68,9 +75,15 @@ export async function scanMittiReadyCheckPickups(actorId: string | null, call: M
   const res = (await api.searchAudits(after)) as { audits?: { audit_id?: string; template_id?: string }[] };
   const candidates = (res?.audits ?? []).filter((a) => {
     const t = String(a.template_id ?? "");
+    if (opts.onlyAuditIds && !opts.onlyAuditIds.includes(String(a.audit_id ?? ""))) return false;
     return pickupTemplateMatches(t, ids.readyCheck) || pickupTemplateMatches(t, ids.readyCheckPriced);
   });
   if (!candidates.length) return { rows: [] };
+
+  // Jo 23 Oct: a form already linked to any portal job (A1 has no Portal Job Number to carry the HV number) is skipped.
+  const candIds = candidates.map((c) => String(c.audit_id ?? "")).filter(Boolean);
+  const { data: linkedRows } = await admin.from("ceiling_measurements").select("external_id").eq("external_source", "mitti").in("external_id", candIds);
+  const linked = new Set((linkedRows ?? []).map((r) => String(r.external_id)));
 
   const { data: jobs } = await admin.from("jobs")
     .select("id, job_number, stage, owners(full_name), properties(address_line, suburb)")
@@ -82,10 +95,11 @@ export async function scanMittiReadyCheckPickups(actorId: string | null, call: M
     suburb: (j.properties as { suburb: string | null } | null)?.suburb ?? null,
   }));
 
+  let bizMap: Awaited<ReturnType<typeof mittiBusinessMap>> | null = opts.businessOverride ?? null;
   const rows: ReadyCheckPickup[] = [];
   for (const c of candidates) {
     const auditId = String(c.audit_id ?? "");
-    if (!auditId) continue;
+    if (!auditId || linked.has(auditId)) continue;
     let audit: Any;
     try { audit = await api.getAudit(auditId); } catch { continue; } // one unreadable form must not hide the rest
     if (audit?.archived) continue; // completed-but-unlinked forms still need linking, so they stay listed
@@ -95,7 +109,8 @@ export async function scanMittiReadyCheckPickups(actorId: string | null, call: M
     if (!p.siteAddress?.trim() && !p.homeownerName?.trim()) continue;
     if (classifyPortalJobNumber(p.mittiRef) === "linked") continue; // already carries an HV number
     p.templateKind = templateKindFor(p.templateId, ids);
-    const business = p.mittiOwnerUserId ? (await mittiBusinessMap(api)).get(p.mittiOwnerUserId) ?? null : null;
+    if (!bizMap) bizMap = await mittiBusinessMap(api);
+    const business = p.mittiOwnerUserId ? bizMap.get(p.mittiOwnerUserId) ?? null : null;
     rows.push({ ...p, business, duplicates: pickupDuplicates(p, dupJobs) });
   }
   rows.sort((a, b) => String(b.modifiedAt ?? "").localeCompare(String(a.modifiedAt ?? "")));
