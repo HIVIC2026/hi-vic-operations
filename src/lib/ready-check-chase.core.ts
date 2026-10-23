@@ -14,8 +14,7 @@ export function installerMissing(f: ReadyCheckFacts): string[] {
   if (!f.formComplete) out.push("finish and submit the form");
   if (!f.priceKnown) out.push("your total quoted price (inc GST)");
   if (!f.electricianDecided) out.push("who is doing the electrical safety check");
-  if (!f.depthPhoto) out.push("a photo showing the insulation depth");
-  if (!f.overviewPhoto) out.push("an overview photo of the ceiling space");
+  // Photos are optional in Mitti (Jo 23 Oct) — missing ones are taken on install day instead.
   if (f.contactPermission === null) out.push("whether the homeowner agrees to be contacted");
   return out;
 }
@@ -42,7 +41,20 @@ export const missingSignature = (missing: string[]) => [...missing].sort().join(
 
 // ---------- install-day photo lock ----------
 /** Ready Check photos the quote doesn't need, carried to install day (taken before work starts). */
-export const INSTALL_DAY_PHOTO_CATEGORIES = ["access_manhole", "before_ceiling_space"] as const;
+export const INSTALL_DAY_PHOTO_CATEGORIES = ["access_manhole", "before_ceiling_space", "existing_insulation_r_value"] as const;
+
+/** Jo 23 Oct: each photo missing from the Ready Check form becomes a required install-day photo. Already on the form = not asked again. */
+export type PhotoGaps = { access: boolean; areas: { area: number; insulated: boolean; depth: boolean; overview: boolean }[] };
+export type InstallDayPhotoSpec = { category: (typeof INSTALL_DAY_PHOTO_CATEGORIES)[number]; label: string };
+export function installDayPhotoNeeds(g: PhotoGaps): InstallDayPhotoSpec[] {
+  const out: InstallDayPhotoSpec[] = [];
+  if (!g.access) out.push({ category: "access_manhole", label: "Install day: ceiling access photo" });
+  for (const a of g.areas) {
+    if (a.insulated && !a.depth) out.push({ category: "existing_insulation_r_value", label: `Install day: Area ${a.area} existing insulation depth photo` });
+    if (!a.overview) out.push({ category: "before_ceiling_space", label: `Install day: Area ${a.area} overview photo` });
+  }
+  return out;
+}
 export const INSTALL_PHOTO_LOCK = "Installation complete stays locked until these install-day photos are in";
 type Req = { category: string; label: string | null; gate: string | null; required: boolean; status: string };
 export function installDayPhotosOutstanding(reqs: Req[]): string[] {
