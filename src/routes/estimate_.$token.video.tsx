@@ -10,6 +10,9 @@ import { type InsulationReviewOption } from "@/lib/insulation-review.core";
 import { submitInsulationTapAnswers } from "@/lib/insulation-details.functions";
 import { INSULATION_DETAIL_QUESTIONS, type InsulationTapAnswers } from "@/lib/insulation-details.core";
 import { Button } from "@/components/ui/button";
+import { getLaunchCampaignPage, saveMySpot, takeMeOffList } from "@/lib/launch-campaign.functions";
+import { removalUpToLine } from "@/lib/estimate-removal-upto.core";
+import { NOT_INTERESTED_REASONS, NOT_INTERESTED_THANKS, type NotInterestedReason } from "@/lib/not-interested.core";
 
 // Public no-login optional homeowner video. The token is the only credential; nothing is fetched during SSR.
 export const Route = createFileRoute("/estimate_/$token/video")({
@@ -42,10 +45,19 @@ function VideoPage() {
   const [declared, setDeclared] = useState(false);
   const [savedRoute,setSavedRoute]=useState<string|null>(null);
   const [declarationError, setDeclarationError] = useState<string | null>(null);
+  const getPage = useServerFn(getLaunchCampaignPage);
+  const saveSpot = useServerFn(saveMySpot);
+  const notInterested = useServerFn(takeMeOffList);
+  const quote = useQuery({ queryKey: ["capture-quote", token], queryFn: () => getPage({ data: { token } }), retry: false, refetchOnWindowFocus: false });
+  const [leaving, setLeaving] = useState(false);
+  const [reason, setReason] = useState<NotInterestedReason | null>(null);
+  const [note, setNote] = useState("");
+  const [closed, setClosed] = useState(false);
   const submitDeclaration = async () => {
     if (declaring || !answers.insulation_type || !answers.insulation_thickness || !answers.house_built_period) return;
     setDeclaring(true); setDeclarationError(null);
-    try { const result=await declare({ data: { token, answers: answers as InsulationTapAnswers } }); setSavedRoute(result.route);setDeclared(true); }
+    // Jo 23 Oct 08:36 UTC: SAVE MY SPOT saves answers and the spot together; the normal Spot saved confirmation follows.
+    try { const result=await declare({ data: { token, answers: answers as InsulationTapAnswers } }); await saveSpot({ data: { token } }); setSavedRoute(result.route);setDeclared(true); }
     catch (e) { setDeclarationError(e instanceof Error ? e.message : "Please try again."); }
     finally { setDeclaring(false); }
   };
@@ -93,17 +105,19 @@ function VideoPage() {
             <p className="mt-3">{data.mediaReview === "below_r2" ? "Your evidence has been reviewed. Return to your savings to see your next step." : data.mediaReview === "over_r2" ? "Our office has assessed your existing insulation as not eligible. Please contact us with any questions." : data.mediaReview === "unclear" ? "Your evidence has been reviewed. Our office will help with the next check." : data.originalMedia.received ? "Your existing evidence is with our office for review. You do not need to upload it again." : "You do not need to answer these questions or upload again while we check your original enquiry."}</p>
             <Button asChild variant="link" className="mt-3"><Link to="/estimate/$token/campaign" params={{ token }}>Return to my savings</Link></Button>
           </section>
-        ) : declared || !!savedRoute || data.detailsRoute === 'thin_patchy' || data.detailsRoute === 'existing_save_spot' ? <section className="mt-6 space-y-3" role="status"><h1 className="font-display text-3xl font-bold">Answers received</h1><p>Thank you — your answers are saved. Final eligibility is confirmed at your free Ready Check.</p></section> : data.resume === "spot_saved" || data.resume === "declared" ? (
+        ) : declared || !!savedRoute || data.detailsRoute === 'thin_patchy' || data.detailsRoute === 'existing_save_spot' ? <section className="mt-6 space-y-3" role="status"><h1 className="font-display text-3xl font-bold">Your spot is saved</h1><p>Thank you — your no-obligation place in the queue is saved. We've emailed your confirmation. Final eligibility is confirmed at your free Ready Check.</p></section> : data.resume === "spot_saved" || data.resume === "declared" ? (
           <section className="mt-6 p-6" role="status">
             <h1 className="font-display text-3xl font-bold">{data.resume === "spot_saved" ? "Your spot is saved" : "Answer received"}</h1>
             <p className="mt-3">{data.resume === "spot_saved" ? "You don't need to answer these questions again." : "Your Yes is recorded as a owner declaration, not verified insulation. You can now save your spot."}</p>
             <Button asChild className="mt-4 h-12"><Link to="/estimate/$token/campaign" params={{ token }}>{data.resume === "spot_saved" ? "Return to my savings" : "Continue to Save my spot"}</Link></Button>
           </section>
+        ) : closed ? (
+          <section className="mt-6 space-y-3 rounded-2xl border bg-card p-6" role="status"><h1 className="font-display text-3xl font-bold">Thank you</h1><p>{NOT_INTERESTED_THANKS}</p></section>
         ) : (
           <div className="mt-6 space-y-5">
-            <h1 className="font-display text-3xl font-bold">Tell us about your insulation</h1>
-            {/* Jo 23 Oct 08:32 UTC: the 3 questions are required; photos/video are an optional extra underneath. Send = Save my spot. */}
-            <p>Three quick taps — no typing.</p>
+            <QuoteBox p={quote.data?.pricing ?? null} name={quote.data?.owner.firstName ?? null} />
+            {/* Jo 23 Oct 08:36 UTC final design: quote, 3 required questions, optional photos, SAVE MY SPOT. */}
+            <h2 className="font-display text-2xl font-bold">To get your free Ready Check, we need you to answer 3 quick questions:</h2>
             {INSULATION_DETAIL_QUESTIONS.map(q=><fieldset key={q.key} className="space-y-2"><legend className="mb-2 font-semibold">{q.label}</legend>{q.options.map(o=><Button key={o.value} className="h-auto min-h-12 w-full justify-start whitespace-normal text-left" role="radio" aria-checked={answers[q.key]===o.value} variant={answers[q.key]===o.value?"default":"outline"} disabled={declaring||declared} onClick={()=>setAnswers(a=>({...a,[q.key]:o.value}))}>{o.label}</Button>)}</fieldset>)}
             <section className="space-y-3 rounded-2xl border bg-card p-4">
               <h2 className="font-semibold">Got photos? Add them here — it helps</h2>
