@@ -41,12 +41,16 @@ export function removalTotalM2(entries: E[]): number | null {
   return ns.length ? Math.round(ns.reduce((a, b) => a + b, 0) * 100) / 100 : null;
 }
 
-/** Difficult access fee: only when access = Difficult AND the extra-fee question = Yes. */
+/** A2 difficult access charge (Ready Check Outcome, Jo 23 Oct): "Is there a difficult access charge?" Yes → amount. */
 export function difficultAccessFee(entries: E[]): { amountIncGst: number | null; reason: string | null } {
-  const difficult = vals(entries, ["How would you rate the ceiling access?", "How easy is the ceiling access?"]).some((v) => /difficult/i.test(v));
-  const charged = vals(entries, ["Is an extra fee being charged for difficult access?"]).some((v) => yesNo(v) === true);
-  if (!difficult || !charged) return { amountIncGst: null, reason: null };
+  const charged = vals(entries, ["Is there a difficult access charge?"]).some((v) => yesNo(v) === true);
+  if (!charged) return { amountIncGst: null, reason: null };
   const fees = vals(entries, ["Difficult access fee ($ inc GST)"]).map((v) => num(v));
   if (!fees.length || fees.some((n) => n == null || n <= 0)) return { amountIncGst: null, reason: "Office needs to: confirm the difficult access fee – the amount is missing or not a number" };
   return { amountIncGst: Math.round((fees as number[]).reduce((a, b) => a + b, 0) * 100) / 100, reason: null };
+}
+
+/** A1: the installer ticked "Difficult access charge" in "What's included in your quote?" (already inside their total). */
+export function a1DifficultAccessIncluded(entries: E[]): boolean {
+  return vals(entries, ["What's included in your quote?", "What's included in your price (tick all that apply)"]).some((v) => v.split(/\s*,\s*/).some((x) => /^difficult access( charge)?$/i.test(x.trim())));
 }

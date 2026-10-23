@@ -62,7 +62,6 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
     await (await import("./ready-check-quote.server")).recordNeedsOffice(jobId, actorId, null, stops);
     return { ready: false, blockers: stops, lines: [], subtotal: 0, discount: 0, afterDiscount: 0, discountNote: null };
   }
-  const accessFee = !intakePrice ? answers.difficultAccessFee(entries) : { amountIncGst: null, reason: null };
   const mittiElectrician = !intakePrice ? await (await import("./usual-electrician.server")).mittiElectricianForJob(jobId, actorId, entries, auditId) : null;
   const mittiProduct = !intakePrice ? await (await import("./insulation-product.server")).mittiProductForJob(jobId, actorId, entries, auditId) : null;
 
@@ -79,7 +78,7 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   const draftInput = {
     price: intakePrice ? { ok: true, issues: [], price: { included: [intakePrice.exclusions ? `${intakePrice.includes} (excludes: ${intakePrice.exclusions})` : intakePrice.includes], otherDescription: "", totalIncGst: Math.round(intakePrice.totalIncGst * 100) / 100, agreedWithOwner: false } } : quotedPriceFromEntries(entries, m?.removal_required ?? null), measuredM2: m2, wholeVeec,
     // CURRENT recorded payer (Jo, 9 Oct 2026): own electrician = no HIV PIESA line; HIV = standard; undecided = held.
-    separateLines: intakePrice?.separateLines ?? [], // A1: difficult access fee is INSIDE the installer total (Jo 23 Oct) — shown, never added
+    separateLines: intakePrice?.separateLines ?? [], // A1: difficult access charge is INSIDE the installer total (Jo 23 Oct) — shown, never added
     piesaIncGst: piesaChargeIncGst(job.electrician_choice ?? null, rs ? Number(rs.piesa_assessment_inc_gst) : null), apFeeIncGst: apFee,
     caps: {
       metropolitan: loc ? (loc as unknown as LocationVariables).metropolitan_or_regional === "Metropolitan" : null,
@@ -99,11 +98,9 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   if (!intakePrice) {
     const { applyMittiRemoval } = await import("./mitti-installer-quote.core");
     applyMittiRemoval(draft, answers.removalTotalM2(entries));
-    (await import("./mitti-installer-quote.core")).applyMittiAccessFeeIncluded(draft, accessFee.amountIncGst);
-    if (accessFee.reason) { draft.blockers.push(accessFee.reason); draft.ready = false; }
+    (await import("./mitti-installer-quote.core")).applyMittiAccessFeeIncluded(draft, answers.a1DifficultAccessIncluded(entries));
   }
   if (!draft.ready) {
-    if (accessFee.reason) await (await import("./ready-check-quote.server")).recordNeedsOffice(jobId, actorId, null, [accessFee.reason]);
     if (mittiProduct && !mittiProduct.ready) await (await import("./ready-check-quote.server")).recordNeedsOffice(jobId, actorId, null, mittiProduct.reasons);
     if (mittiElectrician?.needsProfile) {
       await (await import("./ready-check-quote.server")).recordNeedsOffice(jobId, actorId, null, mittiElectrician.reasons);
