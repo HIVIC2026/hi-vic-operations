@@ -290,6 +290,11 @@ function renderBelowR2Reviewed(r: JoRecipient, f: JoEstimateFigures): string {
 
 /** Jo 23 Oct 2026 (DRAFT, awaiting Jo's final wording): "Tell us about your insulation" campaign variant of T5/T6 —
  *  same price box plus the "up to" removal line, one button to the three tap questions. */
+export function questionsHeadline(firstName: string, veuRebate?: number | null): string {
+  return typeof veuRebate === "number" && Number.isFinite(veuRebate) && veuRebate > 0
+    ? `${firstName}, you could save ${money(veuRebate)} on ceiling insulation`
+    : `${firstName}, you could save on ceiling insulation`;
+}
 export const INSULATION_QUESTIONS_CTA_LABEL = "Answer 3 questions & save my spot";
 function renderPotentiallyEligible(r: JoRecipient, f: JoEstimateFigures, questions = false): string {
   const removalBox = questions && f.removalUpTo != null && f.removalUpTo > 0;
@@ -298,7 +303,8 @@ function renderPotentiallyEligible(r: JoRecipient, f: JoEstimateFigures, questio
     : "These figures assume the property qualifies. We’ll confirm eligibility and the ceiling measurements at your free Ready Check.";
   return [
     `Hi ${r.firstName},`, "",
-    "Your home could qualify—there’s just a little more to check.", "",
+    // Jo 23 Oct 08:40 UTC: the campaign leads with THEIR rebate, same headline as Save my spot.
+    questions ? questionsHeadline(r.firstName, f.veuRebate) : "Your home could qualify—there’s just a little more to check.", "",
     "Based on what you’ve told us, your home could qualify for a VEU ceiling insulation rebate. Before we can move your enquiry into the eligible queue, we need to check whether there is any existing insulation and what’s installed.", "",
     "In the meantime, here’s your preliminary quote to help you decide whether you’d like to take the next step.", "",
     "### Your preliminary quote", "",
@@ -440,7 +446,8 @@ export function renderJoEstimateEmail(
       body = renderPotentiallyEligible(recipient, figures, opts.insulationQuestions === true);
       break;
   }
-  return { templateId: id, subject: subjectForTemplate(id, recipient.firstName, figures.veuRebate), body, ctas: ctasForTemplate(id) };
+  const subject = opts.insulationQuestions === true ? questionsHeadline(recipient.firstName, figures.veuRebate) : subjectForTemplate(id, recipient.firstName, figures.veuRebate);
+  return { templateId: id, subject, body, ctas: ctasForTemplate(id) };
 }
 
 export function renderJoIneligibleEmail(recipient: JoRecipient, reason: string): JoRenderResult {
