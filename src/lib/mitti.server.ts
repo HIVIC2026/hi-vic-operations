@@ -231,7 +231,12 @@ async function applyContactAnswers(jobId: string, actorId: string | null, entrie
   if (Object.keys(patch).length) await admin.from("owners").update(patch).eq("id", job.owner_id);
   // New choices have a separate compliance/billing snapshot; never auto-assign or verify a nominated electrician.
   if ((a.electricianChoice === "own" || a.electricianChoice === "hivic") && !job.electrician_choice) await admin.from("jobs").update({ electrician_choice: a.electricianChoice === "own" ? "installer_own" : "hivic_organise" }).eq("id", jobId);
-  await logEvent(jobId, actorId, "mitti_contact_answers", `Ready Check form answers recorded (owner contact permission: ${a.contactPermission == null ? "not on form" : a.contactPermission ? "yes" : "no"})`, { has_phone: !!a.phone, has_email: !!a.email, permission: a.contactPermission, electrician_choice: a.electricianChoice, electrician_price_inc_gst: a.electricianPriceIncGst, electrician_name: a.electricianName, electrician_licence: a.electricianLicence }, { internal: true });
+  const details = { has_phone: !!a.phone, has_email: !!a.email, permission: a.contactPermission ?? null, electrician_choice: a.electricianChoice ?? null, electrician_price_inc_gst: a.electricianPriceIncGst ?? null, electrician_name: a.electricianName ?? null, electrician_licence: a.electricianLicence ?? null };
+  // Jo 23 Oct (fix): only record when the answers changed — unchanged re-syncs every 15 minutes added a row each time.
+  const { data: lastAns } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_contact_answers").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const prev = (lastAns?.details ?? null) as Record<string, unknown> | null;
+  if (prev && (Object.keys(details) as (keyof typeof details)[]).every((k) => (prev[k] ?? null) === details[k])) return;
+  await logEvent(jobId, actorId, "mitti_contact_answers", `Ready Check form answers recorded (owner contact permission: ${a.contactPermission == null ? "not on form" : a.contactPermission ? "yes" : "no"})`, details, { internal: true });
 }
 
 /** Save Mitti's finished PDF report to the job's private files, once per completed audit version. Never throws. */
@@ -391,10 +396,13 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         }).catch(() => undefined);
         // History only on change (Jo 23 Oct): an unchanged re-sync (same answers, same modified time)
         // adds no new event row.
-        const { data: lastEv } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_measureup_synced").order("created_at", { ascending: false }).limit(1).maybeSingle();
-        const lastMod = (lastEv?.details as { modified_at?: string | null } | null)?.modified_at ?? null;
-        const changed = mp.action !== "skip" || (plan.completed && (plan.modifiedAt ?? null) !== lastMod);
-        if (changed) await logEvent(jobId, actorId, "mitti_measureup_synced", plan.completed ? "Mitti Ready Check synced (completed in Mitti)" : "Mitti Ready Check partial data synced", { audit_id: measureAudit, measurement: mp.action, issues: mIssues, modified_at: plan.modifiedAt ?? null });
+        // A later "synced" row is what clears an earlier failure / Mitti-access flag, so always record one after those.
+        const { data: lastEv } = await admin.from("workflow_events").select("event_type, details").eq("job_id", jobId).in("event_type", ["mitti_measureup_synced", "mitti_measureup_sync_failed", "mitti_access_needed"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
+        // Jo 23 Oct (fix): a partial form re-synced with the same answers used to add a row every 15 minutes, because the
+        // measurement step reports "update" even when nothing changed. Compare a fingerprint of what was synced instead.
+        const fingerprint = JSON.stringify({ m: mp.action === "skip" ? null : ("values" in mp ? mp.values : null), c: plan.completed, t: plan.modifiedAt ?? null, i: mIssues });
+        const changed = lastEv?.event_type !== "mitti_measureup_synced" || (lastEv?.details as { fingerprint?: string } | null)?.fingerprint !== fingerprint;
+        if (changed) await logEvent(jobId, actorId, "mitti_measureup_synced", plan.completed ? "Mitti Ready Check synced (completed in Mitti)" : "Mitti Ready Check partial data synced", { audit_id: measureAudit, measurement: mp.action, issues: mIssues, modified_at: plan.modifiedAt ?? null, fingerprint });
       }
     } catch (e) {
       // Recorded so the office can retry (never auto-retried in a loop); the rest of the sync still lands.
