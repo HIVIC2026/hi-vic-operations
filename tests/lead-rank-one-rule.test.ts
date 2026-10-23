@@ -46,4 +46,10 @@ describe("leadRank — one rule everywhere", () => {
     expect(insulationTapRoute({ insulation_type: "batts", insulation_thickness: "thicker" })).toBe("existing_save_spot");
   });
   it("8 labels", () => expect(Object.keys(SPOT_RANK_LABEL)).toHaveLength(8));
+  it("rank 3 label is Jo's wording (23 Oct 08:59 UTC)", () => {
+    expect(SPOT_RANK_LABEL[3]).toBe("🟡 Under R2 (their word only)");
+    expect(SPOT_RANK_LABEL[2]).toBe("✅ Under R2 (photos checked)");
+    expect(SPOT_RANK_LABEL[4]).toBe("🟡 No insulation (their word only)");
+    expect(Object.values(SPOT_RANK_LABEL).some((l) => l.includes("approved, no clear photos"))).toBe(false);
+  });
 });
