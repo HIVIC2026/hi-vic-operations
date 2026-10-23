@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { AppShell } from "@/components/portal/AppShell";
+import { OwnerReadyCheckBookingSetting } from "@/components/portal/ready-check-booking-access";
 import { Section } from "@/components/portal/panels";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -78,6 +79,7 @@ function SaveMySpotRulesPage() {
         Choose which enquiries may receive an automatic Save My Spot email. Every rule below only narrows the existing automatic
         route. Turning selection on never sends an email by itself and never switches customer communications on.
       </p>
+      <OwnerReadyCheckBookingSetting />
       <Rules />
       <Preview />
     </AppShell>
