@@ -26,7 +26,7 @@ mock.module("../src/integrations/supabase/client.server", () => ({ supabaseAdmin
     then(resolve: any, reject: any) { return Promise.resolve(result()).then(resolve, reject); },
   };
   function result(): { data: any; error: null; count?: number } {
-    if (table === "customer_estimate_links") return { data: { id: filters.purpose === "preliminary_save_spot" ? "preliminary-link" : "estimate-link", token: filters.purpose === "preliminary_save_spot" ? token : estimateToken, job_id: "job", status: "active", expires_at: null }, error: null };
+    if (table === "customer_estimate_links") return { data: { id: filters.purpose === "preliminary_save_spot" ? "preliminary-link" : "estimate-link", token: filters.purpose === "preliminary_save_spot" ? token : estimateToken, job_id: "job", status: "active", expires_at: "2099-01-01T00:00:00Z" }, error: null };
     if (table === "jobs") return { data: job, error: null };
     if (table === "lead_campaign_responses") {
       if (op === "upsert" && !response) { response = payload; return { data: [{ id: "response" }], error: null }; }
