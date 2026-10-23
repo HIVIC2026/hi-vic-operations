@@ -187,7 +187,7 @@ export function melbourneDay(v: string | null): string | null {
 
 // ---------- prefill ----------
 export type PrefillCtx = {
-  jobNumber: string; address: string; ownerName: string; ownerEmail?: string | null; ownerPhone?: string | null;
+  jobNumber: string; address: string; /** Jo 23 Oct: A1 "Title address" text question, shown in the inspection title after the job number. */ titleAddress?: string | null; ownerName: string; ownerEmail?: string | null; ownerPhone?: string | null;
   assessorName: string; assessmentAt?: string | null; estimatedAreaM2?: number | null; occupancy?: string | null;
   lifeSupport?: string | null; propertyType?: string | null;
   /** Official PIESA "Date of inspection" default (today, Melbourne); the electrician can change it. */ inspectionDate?: string | null;
@@ -199,6 +199,8 @@ const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; 
   // The job number itself stays required data (createOrReuseAudit blank check).
   { key: "jobNumber", aliases: ["Portal Job Number", "Job Reference ID"] },
   { key: "address", aliases: ["Property Address", "Site address", "Site Address", "Address including postcode"], mandatory: true },
+  // Mitti titles can't use the location-type Site address, so A1 carries a plain-text copy for the title.
+  { key: "titleAddress", aliases: ["Title address"] },
   { key: "ownerName", aliases: ["Owner name", "Homeowner name", "Owner full name", "Client name", "Property owner name"], mandatory: true },
   { key: "ownerEmail", aliases: ["Owner email", "Homeowner email"] },
   { key: "ownerPhone", aliases: ["Owner phone", "Owner mobile", "Homeowner mobile", "Homeowner phone"] },

@@ -119,6 +119,13 @@ describe("8 A2 prefill tap choices; A1 without Portal Job Number", () => {
     const a1 = { template: { ...tpl.template, items: tpl.template.items.filter((i) => i.id !== "pj") } };
     expect(buildPrefill(a1, base).missing).toEqual([]);
   });
+  test("A1 Title address gets the site address (for the inspection title); Site address still filled", () => {
+    const a1 = { template: { ...tpl.template, items: [...tpl.template.items, { id: "ta", label: "Title address", textsingle: {} }] } };
+    const p = buildPrefill(a1, { ...base, titleAddress: "1 Test St, Essendon VIC 3040" });
+    const text = (id: string) => [...p.header_items, ...p.items].find((i: { item_id: string }) => i.item_id === id)?.responses.text;
+    expect([text("ta"), text("ad"), text("pj"), p.missing.length, p.ambiguous.length]).toEqual(["1 Test St, Essendon VIC 3040", "1 Test St", "HV-1", 0, 0]);
+    expect(buildPrefill(tpl, { ...base, titleAddress: "1 Test St" }).missing).toEqual([]); // older forms without it are fine
+  });
   test("A1 audit without Portal Job Number validates by stored form ID; A2 mismatch still blocks", () => {
     expect(() => validateStoredMittiAudit({ audit_id: "a1", template_id: "template_01ee0428be6d4435b34d8b738935f099", items: [] }, { storedAuditId: "a1", jobNumber: "HV-1", templateId: "template_01ee0428be6d4435b34d8b738935f099" })).not.toThrow();
     expect(() => validateStoredMittiAudit({ audit_id: "a2", template_id: "template_01ee0428be6d4435b34d8b738935f099", header_items: [{ item_id: "h", label: "Portal Job Number", responses: { text: "HV-9" } }], items: [] }, { storedAuditId: "a2", jobNumber: "HV-1", templateId: "template_01ee0428be6d4435b34d8b738935f099" })).toThrow();

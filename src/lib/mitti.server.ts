@@ -136,7 +136,7 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
       businessUnit: job.business_unit, stage: job.stage, jobNumber: job.job_number, existingAuditId,
       electricianEmail: prof?.email ?? null, templateId, assigneeRole: role,
       prefill: {
-        jobNumber: job.job_number, address, ownerName: owner?.full_name ?? "", ownerEmail: owner?.email ?? null, ownerPhone: owner?.phone ?? null,
+        jobNumber: job.job_number, address, titleAddress: address, ownerName: owner?.full_name ?? "", ownerEmail: owner?.email ?? null, ownerPhone: owner?.phone ?? null,
         assessorName: prof?.full_name || prof?.email || "", assessmentAt: (measureOnly ? rcBooking?.scheduled_start : booking?.scheduled_start) ?? null,
         estimatedAreaM2: job.estimated_area_m2 != null ? Number(job.estimated_area_m2) : null,
         occupancy: prop?.occupancy ? prop.occupancy.replace("_", " ") : null, lifeSupport: job.life_support ? "Yes – life support recorded" : "None recorded by office",
