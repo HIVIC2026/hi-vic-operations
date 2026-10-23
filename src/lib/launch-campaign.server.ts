@@ -1,8 +1,8 @@
 import { SPOT_RANK_LABEL, compareSpots, spotSavedRank, spotSummary, type SpotRankFacts } from "./spot-saved-rank.core";
-import { houseAgeLabel, onsiteInsulationLine } from "./onsite-assessment.core";
+import { houseAgeLabel } from "./onsite-assessment.core";
 import { savedInsulationTap } from "./insulation-details.core";
 import { normaliseInsulation as normaliseInsulationRank } from "./eligibility.core";
-import { declaredExtras as declaredExtrasRank, declaredInsulationDetail as declaredInsulationDetailRank, insulationDetailRoute as insulationDetailRouteRank, insulationDetailText as insulationDetailTextRank } from "./enquiry.core";
+import { declaredExtras as declaredExtrasRank, declaredInsulationDetail as declaredInsulationDetailRank, insulationDetailRoute as insulationDetailRouteRank } from "./enquiry.core";
 import { fullAddress } from "./address";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { declaredExtras } from "./enquiry.core";

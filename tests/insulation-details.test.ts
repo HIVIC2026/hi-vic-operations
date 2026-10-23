@@ -45,7 +45,7 @@ test('house age never changes the wording (rank only)',()=>{
   expect(insulationTapRoute({insulation_type:'loose_fill',insulation_thickness:'thicker',house_built_period:age})).toBe('thin_patchy');
  }
 });
-test('photos never send anyone to photo review first',()=>{
+test('wording route ignores photos (photo owners are held by the office review, not this route)',()=>{
  for(const type of ['loose_fill','batts','unknown'] as const)for(const thickness of ['thin','hand','thicker','unknown'] as const)
   expect(insulationTapRoute({insulation_type:type,insulation_thickness:thickness},true)).not.toBe('photo_review' as never);
 });
@@ -65,13 +65,10 @@ test('practice: non-thin answers qualify for the standard Save my spot, no parki
  expect((await db.query('SELECT next_action FROM jobs')).rows[0]?.next_action).not.toBe('Needs onsite assessment');
  expect((await db.query('SELECT count(*)::int n FROM customer_email_sends')).rows[0]?.n).toBe(0);
 });
-test('practice: owners with uploaded photos can still answer; media kept, nothing sent by the database',async()=>{
- await db.query('INSERT INTO evidence_files(job_id,storage_path) VALUES($1,$2)',[job,job+'/intake/video.mp4']);
+test('practice: owners with photos stay in office photo review (Jo 08:23) — answering is refused, media kept, nothing sent',async()=>{
  await db.query("INSERT INTO documents(job_id,kind,storage_path) VALUES($1,'intake_media','private/photo.jpg')",[job]);
- const result=await save({insulation_type:'batts',insulation_thickness:'thin',house_built_period:'2010_or_later'});
- expect(result.rows[0]?.result).toMatchObject({route:'thin_patchy'});
+ await expect(save({insulation_type:'batts',insulation_thickness:'thin',house_built_period:'1990_or_earlier'})).rejects.toThrow('Photos require existing review');
  expect((await db.query('SELECT count(*)::int n FROM documents')).rows[0]?.n).toBe(1);
- expect((await db.query('SELECT count(*)::int n FROM evidence_files')).rows[0]?.n).toBe(1);
  expect((await db.query('SELECT count(*)::int n FROM customer_email_sends')).rows[0]?.n).toBe(0);
 });
 test('RPC denies public/client execution and expired links',async()=>{
