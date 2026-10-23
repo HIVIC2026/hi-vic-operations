@@ -17,7 +17,7 @@ export function QuotesToCheck() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0 flex-1 break-words"><p className="font-semibold">{row.jobNumber} · {row.owner ?? "Owner"}</p><p className="text-sm">{row.address ?? "Address missing"}</p><p className="text-sm text-muted-foreground">{row.installer ?? "Installer not assigned"}</p></div>
           <span className="shrink-0 font-semibold tabular-nums">{row.total == null ? "—" : row.total.toLocaleString("en-AU", { style: "currency", currency: "AUD" })}</span>
-          <Button variant="outline" size="sm" disabled={!row.quoteId} onClick={() => setSelected(row)}>{row.quoteId ? "Open quote" : "No draft yet"}<span className="sr-only"> {row.jobNumber}</span></Button>
+          <Button variant="outline" size="sm" onClick={() => setSelected(row)}>{row.quoteId ? "Open quote" : "See what's missing"}<span className="sr-only"> {row.jobNumber}</span></Button>
         </div>
         {row.reasons.length > 0 && <ul className="mt-2 text-sm text-destructive">{row.reasons.map(r => <li key={r}>{r}</li>)}</ul>}
         {row.notes.length > 0 && <ul className="mt-1 text-sm text-muted-foreground">{row.notes.map(n => <li key={n}>{n}</li>)}</ul>}
