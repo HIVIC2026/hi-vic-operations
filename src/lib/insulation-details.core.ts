@@ -1,15 +1,17 @@
 export const INSULATION_DETAIL_QUESTIONS = [
   { key: "insulation_type", label: "What type is it?", options: [{value:"loose_fill",label:"Loose fill (fluffy or crumbly)"},{value:"batts",label:"Batts (blanket strips)"},{value:"unknown",label:"Not sure"}] },
   { key: "insulation_thickness", label: "About how thick is it?", options: [{value:"thin",label:"Less than a finger's length"},{value:"hand",label:"About a hand's width"},{value:"thicker",label:"Thicker"},{value:"unknown",label:"Can't tell"}] },
-  { key: "house_built_period", label: "When was the house built?", options: [{value:"before_1980",label:"Before 1980"},{value:"1980s",label:"1980s"},{value:"1990s",label:"1990s"},{value:"2000s",label:"2000s"},{value:"2010_or_later",label:"2010 or later"},{value:"unknown",label:"Not sure"}] },
+  { key: "house_built_period", label: "When was the house built?", options: [{value:"1990_or_earlier",label:"1990 or earlier"},{value:"1991_1999",label:"1991–1999"},{value:"2000_2009",label:"2000–2009"},{value:"2010_or_later",label:"2010 or later"},{value:"unknown",label:"Not sure"}] },
 ] as const;
-export type InsulationTapAnswers = { insulation_type: "loose_fill"|"batts"|"unknown"; insulation_thickness: "thin"|"hand"|"thicker"|"unknown"; house_built_period: "before_1980"|"1980s"|"1990s"|"2000s"|"2010_or_later"|"unknown" };
+export type InsulationTapAnswers = { insulation_type: "loose_fill"|"batts"|"unknown"; insulation_thickness: "thin"|"hand"|"thicker"|"unknown"; house_built_period: "1990_or_earlier"|"1991_1999"|"2000_2009"|"2010_or_later"|"unknown" };
 export function insulationDraftSaveAllowed(preview:boolean,source:string|null|undefined){return preview&&source==='qa_test';}
-export function insulationTapRoute(a: Pick<InsulationTapAnswers,"insulation_type"|"insulation_thickness"> & Partial<Pick<InsulationTapAnswers,"house_built_period">>): "thin_patchy"|"needs_onsite_assessment" {
+export function insulationTapRoute(a: Pick<InsulationTapAnswers,"insulation_type"|"insulation_thickness"> & Partial<Pick<InsulationTapAnswers,"house_built_period">>, hasPhotos = false): "thin_patchy"|"needs_onsite_assessment"|"photo_review" {
   // Jo-approved declared-age proxy: Victoria introduced mandatory minimum insulation standards
-  // for new houses in 1991 (Sustainability Victoria 2016 report). Photos still require Office review.
-  const olderHouse = a.house_built_period === "before_1980" || a.house_built_period === "1980s";
-  return olderHouse || a.insulation_type === "loose_fill" || a.insulation_thickness === "thin" ? "thin_patchy" : "needs_onsite_assessment";
+  // for new houses in 1991 (Sustainability Victoria 2016 report). Jo's 07:36 replacement:
+  // 1990 or earlier overrides type, thickness AND uploaded photos; later/unknown retains photo review.
+  if (a.house_built_period === "1990_or_earlier") return "thin_patchy";
+  if (hasPhotos) return "photo_review";
+  return a.insulation_type === "loose_fill" || a.insulation_thickness === "thin" ? "thin_patchy" : "needs_onsite_assessment";
 }
 /** Original website handoff stays immutable; newer declared answers are a separate provenance overlay. */
 export function ownerInsulationAnswers(enrichment: Record<string,unknown>|null|undefined): Record<string,unknown> {
