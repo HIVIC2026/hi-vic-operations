@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { WAITING_ON_INSTALLER, mittiAuditUrl, splitQuotesToCheck, waitingStatus } from "@/lib/installer-quote-approval.core";
 
 describe("Quotes to check layout rules", () => {
