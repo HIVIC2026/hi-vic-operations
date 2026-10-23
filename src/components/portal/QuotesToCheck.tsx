@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ChevronDown, ExternalLink } from "lucide-react";
-import { getInstallerQuotesToCheck } from "@/lib/installer-quote-review.functions";
+import { getInstallerQuotesToCheck, reopenDeclinedQuote } from "@/lib/installer-quote-review.functions";
 import { WAITING_ON_INSTALLER, mittiAuditUrl, waitingStatus } from "@/lib/installer-quote-approval.core";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -26,7 +26,9 @@ export function QuotesToCheck() {
   const [selected, setSelected] = useState<Row | null>(null);
   const [popup, setPopup] = useState<{ title: string; items: string[] } | null>(null);
   const [open, setOpen] = useState(false);
-  const ready = q.data?.rows ?? [], waiting = q.data?.waiting ?? [];
+  const ready = q.data?.rows ?? [], waiting = q.data?.waiting ?? [], declined = q.data?.declined ?? [];
+  const reopen = useServerFn(reopenDeclinedQuote);
+  const [reopening, setReopening] = useState<string | null>(null);
   const line = (r: Row) => [r.jobNumber, r.owner ?? "Owner", r.suburb ?? "Suburb missing", r.installer ?? "Installer"].join(" · ");
   return <section aria-label="Quotes to check" className="space-y-3 border-y py-4">
     <h2 className="font-display text-lg font-bold">Quotes to check</h2>
@@ -44,6 +46,15 @@ export function QuotesToCheck() {
           </li>)}
         </ul>}
       </div>
+      {declined.length > 0 && <div data-declined-by-owner>
+        <h3 className="text-sm font-semibold">Declined by the owner ({declined.length})</h3>
+        <ul className="divide-y">{declined.map(d => <li key={d.quoteId} className="flex flex-wrap items-center gap-2 py-2 text-sm">
+          <span className="min-w-0 basis-full break-words sm:flex-1 sm:basis-auto">{[d.jobNumber, d.owner ?? "Owner", d.suburb ?? "Suburb missing", d.installer ?? "Installer"].join(" · ")}</span>
+          <span className="text-xs text-muted-foreground">{d.reason ? `Reason: ${d.reason}` : "No reason given"}</span>
+          <span className="text-sm font-semibold tabular-nums">{money(d.total)}</span>
+          <Button size="sm" variant="outline" disabled={reopening === d.quoteId} onClick={async () => { setReopening(d.quoteId); try { await reopen({ data: { jobId: d.jobId, quoteId: d.quoteId } }); await q.refetch(); } finally { setReopening(null); } }}>Reopen<span className="sr-only"> {d.jobNumber}</span></Button>
+        </li>)}</ul>
+      </div>}
       <div data-waiting-on-installer>
         <button type="button" aria-expanded={open} onClick={() => setOpen(o => !o)} className="flex w-full items-center justify-between py-2 text-sm font-semibold text-muted-foreground">
           Waiting on installer ({waiting.length})<ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />

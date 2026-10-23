@@ -25,7 +25,7 @@ export const getMyQuoteToCheck = createServerFn({ method: "POST" }).middleware([
       subtotal: Number(q.subtotal_inc_gst), rebate: Number(q.veec_discount_inc_gst), total: Number(q.customer_total_inc_gst),
       blockers, state: a.state, sent: a.sent, approvedAt: a.approvedAt,
       buttonLabel: core.approveButtonLabel(a.channel), canApprove: !a.installerJob && !a.sent && a.state !== "approved" && core.canApprove(blockers),
-      line: core.approvalCardLine(a.state, a.sent, a.accepted === true, a.installerJob ? { held: a.held === true } : undefined),
+      line: core.approvalCardLine(a.state, a.sent, a.accepted === true, a.installerJob ? { held: a.held === true, declined: a.declined === true } : undefined),
       installerJob: a.installerJob === true,
     };
   });

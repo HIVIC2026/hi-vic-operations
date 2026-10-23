@@ -18,6 +18,8 @@ export const FLAG_EVENTS = ["mitti_pickup_clash", "mitti_pickup_installer_starte
 export const HELD_EVENTS = ["installer_quote_held", "ready_check_needs_office", "quote_auto_send_held"] as const;
 /** A quote going to the owner clears an earlier "Quote held" warning. */
 export const QUOTE_SENT_EVENTS = ["quote_sent_by_office", "quote_sent_automatically"] as const;
+/** Jo 24 Oct: owner said "Not for me"; cleared when the office reopens it. */
+export const QUOTE_DECLINE_EVENTS = ["quote_declined", "quote_reopened_by_office"] as const;
 /** Office correction that withdraws an earlier A2 note ("recorded in error"). */
 export const A2_CORRECTION_EVENT = "mitti_pickup_note_correction";
 /** Form creation problems (automatic sweep, earlier flows); cleared by a later created form. */
@@ -79,6 +81,8 @@ export function classifyNewInstallerJob(f: NewJobFacts, now: Date): NewJobItem |
     const reasons = ((d["blockers"] as string[] | undefined) ?? (d["reasons"] as string[] | undefined) ?? []).map((r) => r.replace(/^Quote held:\s*/i, ""));
     warnings.push(`Quote held${reasons.length ? `: ${reasons.join("; ")}` : ""}`);
   }
+  const dec = f.events.find((e) => (QUOTE_DECLINE_EVENTS as readonly string[]).includes(e.type));
+  if (dec?.type === "quote_declined") { const r = (dec.details?.["reason"] as string | undefined) ?? null; warnings.push(`Owner declined the quote${r ? `: ${r}` : ""}`); }
   if (!started && ageDays >= NOT_STARTED_REMINDER_DAYS) warnings.push(`Ready Check not started after ${ageDays} days`);
 
   if (!isNew && !warnings.length) return null;

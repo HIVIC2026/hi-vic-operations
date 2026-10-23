@@ -54,7 +54,8 @@ export const PRESS_COMPLETE_LINE = "You: when the Ready Check is finished, press
 export const QUOTE_HELD_LINE = "Waiting on office: checking your quote";
 
 /** One line for the installer's job card. */
-export function approvalCardLine(state: ApprovalState, sent: boolean, accepted = false, installerJob?: { held: boolean }): string {
+export function approvalCardLine(state: ApprovalState, sent: boolean, accepted = false, installerJob?: { held: boolean; declined?: boolean }): string {
+  if (installerJob?.declined) return "Waiting on office: the owner declined the quote";
   if (accepted) return "Waiting on owner: quote accepted – waiting for owner's payment";
   if (sent) return "Waiting on owner: to accept the quote";
   if (installerJob) return installerJob.held ? QUOTE_HELD_LINE : PRESS_COMPLETE_LINE;

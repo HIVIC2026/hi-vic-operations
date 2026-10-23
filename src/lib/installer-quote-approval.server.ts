@@ -12,14 +12,14 @@ export type QuoteApproval = {
   applies: boolean; quote: any | null; state: ApprovalState; sent: boolean; accepted?: boolean; quoteFp: string; formFp: string; channel: string | null; readyAt: string | null; approvedAt: string | null;
   /** Jo 24 Oct: no installer approval step on ANY Ready Check quote (installer jobs, then our leads too) — the
    *  installer presses Complete in Mitti instead. held = the automatic send on Complete was held. */
-  installerJob?: boolean; held?: boolean;
+  installerJob?: boolean; held?: boolean; declined?: boolean;
 };
 
 /** Latest unsent or just-sent installer quote and its approval state. */
 export async function loadQuoteApproval(jobId: string): Promise<QuoteApproval> {
   const [{ data: job }, { data: qs, error }, { data: m }, { data: ev }] = await Promise.all([
     admin.from("jobs").select("channel").eq("id", jobId).maybeSingle(),
-    admin.from("quotes").select(QUOTE_COLS).eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]).order("created_at", { ascending: false }).limit(1),
+    admin.from("quotes").select(QUOTE_COLS).eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued", "accepted", "declined"]).order("created_at", { ascending: false }).limit(1),
     admin.from("ceiling_measurements").select("raw_snapshot,external_source,external_id").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
     admin.from("workflow_events").select("created_at, actor_id, details").eq("job_id", jobId).eq("event_type", "installer_quote_approved").order("created_at", { ascending: false }),
   ]);
@@ -45,7 +45,7 @@ export async function loadQuoteApproval(jobId: string): Promise<QuoteApproval> {
     if (he) throw new WorkflowError("Quote hold could not be checked.");
     held = !!count;
   }
-  return { applies: true, quote: { ...q, quote_items: lines }, state, sent: !!q.sent_at, accepted: q.status === "accepted", quoteFp, formFp, channel, readyAt: q.created_at, approvedAt: state === "approved" && !installerJob ? latest?.at ?? null : null, installerJob, held };
+  return { applies: true, quote: { ...q, quote_items: lines }, state, sent: !!q.sent_at, accepted: q.status === "accepted", quoteFp, formFp, channel, readyAt: q.created_at, approvedAt: state === "approved" && !installerJob ? latest?.at ?? null : null, installerJob, held, declined: q.status === "declined" };
 }
 
 /** Office Send is blocked until the installer approves the current version. */

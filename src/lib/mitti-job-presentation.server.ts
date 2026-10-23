@@ -15,7 +15,7 @@ export async function mittiJobPresentation(jobId: string, userId: string) {
   if (m?.external_source !== "mitti" || !m.external_id) return { applies: false as const };
   const a = await (await import("./installer-quote-approval.server")).loadQuoteApproval(jobId);
   const f = (await (await import("./job-status.server")).statusFactsFor(c, [jobId])).get(jobId);
-  const next = a.applies ? approvalCardLine(a.state, a.sent, a.accepted === true, a.installerJob ? { held: a.held === true } : undefined)
+  const next = a.applies ? approvalCardLine(a.state, a.sent, a.accepted === true, a.installerJob ? { held: a.held === true, declined: a.declined === true } : undefined)
     : needsFinishingTask(j?.next_action ?? "") ?? (f ? jobCardLine((await import("./job-status.server")).statusView(c, f)) : "You: finish the Ready Check in Mitti");
   const electrical = e?.details as unknown as import("./usual-electrician.core").MittiElectricianResolution | null;
   const electrician = electrical?.choice === "hivic" ? "Home Insulation Victoria electrician"

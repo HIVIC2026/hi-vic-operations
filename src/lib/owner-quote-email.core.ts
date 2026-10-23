@@ -124,6 +124,7 @@ export function renderOwnerQuoteEmail(i: OwnerQuoteEmailInput): {
   const validity = i.validUntil ? `Your price is held until ${formatQuoteValidUntil(i.validUntil)}.` : null;
   const phone = cleanName(i.officePhone);
   const questions = phone ? `Questions? Reply to this email or call us on ${phone}.` : "Questions? Just reply to this email.";
+  const notForYou = "Not ready, or not for you? You can let us know on the same page.";
   const button = "View and accept your quote";
   const about = "Home Insulation Victoria is an Accredited Person under the Victorian Government's Victorian Energy Upgrades (VEU) program. We take your rebate straight off the price, organise the licensed electrician, check the installer's work and handle all the paperwork. Lower bills for years.";
   const legal = "Home Insulation Victoria · DC Construction Solutions Pty Ltd · ABN 44 671 613 979 · VEU Accredited Person A003654";
@@ -161,7 +162,7 @@ ${lines.length ? `<p style="font-size:17px;font-weight:bold;margin:18px 0 6px;">
 <p style="font-size:14px;line-height:1.5;margin:0;">${escape(piesaAfter)}</p>
 </td></tr></table>
 ${btn}
-<p style="font-size:14px;line-height:1.5;margin:10px 0 0;color:${SUB};">${escape([validity, questions].filter(Boolean).join(" "))}</p>
+<p style="font-size:14px;line-height:1.5;margin:10px 0 0;color:${SUB};">${escape([validity, notForYou, questions].filter(Boolean).join(" "))}</p>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;border-top:1px solid ${LINE};"><tr><td style="padding-top:14px;">
 <p style="font-size:14px;font-weight:bold;margin:0 0 6px;">Who we are</p>
 <p style="font-size:14px;line-height:1.5;margin:0;color:${NAVY};">${escape(about)}</p>
@@ -195,7 +196,7 @@ ${btn}
     "",
     `${button}: ${i.quoteUrl}`,
     "",
-    [validity, questions].filter(Boolean).join(" "),
+    [validity, notForYou, questions].filter(Boolean).join(" "),
     "",
     "Who we are",
     about,

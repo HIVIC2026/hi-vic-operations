@@ -17,7 +17,8 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { OwnerPaperwork } from "@/components/owner/OwnerPaperwork";
 import { OwnerCodeGate, SignerFields, Tick, signBtn } from "@/components/owner/OwnerSign";
-import { ownerAcceptQuoteFn, ownerAgreementFn, ownerBookingStateFn, ownerChooseInstallDaysFn, ownerChoosePiesaFn, ownerSignConsentFn } from "@/lib/owner-link.functions";
+import { ownerAcceptQuoteFn, ownerAgreementFn, ownerBookingStateFn, ownerChooseInstallDaysFn, ownerChoosePiesaFn, ownerDeclineQuoteFn, ownerSignConsentFn } from "@/lib/owner-link.functions";
+import { DECLINE_REASONS, OWNER_DECLINED_SCREEN, type DeclineReason } from "@/lib/quote-decline.core";
 import { melbourneToday, addYmd } from "@/lib/melbourne-time.core";
 
 // Owner "My job" — no login. The secure link token is the only credential; nothing fetched during SSR.
@@ -198,6 +199,31 @@ function AcceptQuote({ token, quote }: { token: string; quote: { id: string; ver
   );
 }
 
+/** Jo 24 Oct: "Not for me" — no code needed (it signs nothing); an optional reason helps the office. */
+function DeclineQuote({ token, quoteId }: { token: string; quoteId: string }) {
+  const decline = useServerFn(ownerDeclineQuoteFn);
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState<DeclineReason | null>(null);
+  const [note, setNote] = useState("");
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  if (!open) return <button type="button" data-decline-open className="mt-3 w-full py-2 text-center text-sm font-semibold text-estimate-navy underline" onClick={() => setOpen(true)}>Not for me</button>;
+  return (
+    <div data-decline className="mt-4 space-y-3 rounded-2xl border border-estimate-line p-4">
+      <p className="font-bold">No problem. Can you tell us why? (optional)</p>
+      <div className="space-y-2">{DECLINE_REASONS.map((r) => (
+        <label key={r.key} className="flex min-h-11 items-center gap-3 text-sm"><input type="radio" name="decline-reason" checked={reason === r.key} onChange={() => setReason(r.key)} />{r.label}</label>
+      ))}</div>
+      <textarea aria-label="Anything else you'd like to tell us" maxLength={800} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Anything else you'd like to tell us" className="min-h-20 w-full rounded-xl border border-estimate-line bg-card p-2 text-sm" />
+      {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
+      <div className="flex gap-2">
+        <button type="button" className={`${signBtn} flex-1`} disabled={busy} onClick={async () => { setErr(""); setBusy(true); try { await decline({ data: { token, quoteId, reason, note: note.trim() || null } }); await qc.invalidateQueries({ queryKey: ["my-job", token] }); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } }}>{busy ? "Sending…" : "Decline this quote"}</button>
+        <button type="button" className="px-3 text-sm font-semibold underline" disabled={busy} onClick={() => setOpen(false)}>Go back</button>
+      </div>
+    </div>
+  );
+}
+
 const SLOTS = [["8-10", "8–10am"], ["10-12", "10am–12"], ["12-14", "12–2pm"], ["14-16", "2–4pm"]] as const;
 function nextDays(n: number, from = 1) { const out: string[] = []; let ymd = addYmd(melbourneToday(), from); while (out.length < n) { if (new Date(`${ymd}T12:00:00Z`).getUTCDay() !== 0) out.push(ymd); ymd = addYmd(ymd, 1); } return out; }
 
@@ -336,8 +362,10 @@ function QuoteScreen({ v, token }: { v: View; token: string }) {
         </ul>
         <p className="mt-2 text-xs text-estimate-navy/70">{PAYMENT_OPTION_SUMMARY}</p>
         {q.status === "issued"
-          ? <AcceptQuote token={token} quote={q} />
-          : <p className="mt-4 rounded-full bg-estimate-mint px-4 py-3 text-center text-sm font-bold text-estimate-green">You said yes. Thanks!</p>}
+          ? <><AcceptQuote token={token} quote={q} /><DeclineQuote token={token} quoteId={q.id} /></>
+          : q.status === "declined"
+            ? <p data-quote-declined className="mt-4 rounded-2xl bg-estimate-mist px-4 py-3 text-sm">{OWNER_DECLINED_SCREEN}</p>
+            : <p className="mt-4 rounded-full bg-estimate-mint px-4 py-3 text-center text-sm font-bold text-estimate-green">You said yes. Thanks!</p>}
       </section>
     </>}
   </>;

@@ -738,7 +738,7 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
     if (!expected.includes(stage)) throw new WorkflowError("This quote can't be actioned at the current stage.");
     if (!data.accept) {
       await admin.from("quotes").update({ status: "declined" }).eq("id", q.id);
-      await logEvent(q.job_id, context.userId, "quote_declined", `${q.option_label} declined`, { reason: data.reason });
+      await logEvent(q.job_id, context.userId, "quote_declined", `${q.option_label} declined by the owner${data.reason ? ` — ${data.reason}` : ""}`, { reason: data.reason, quote_id: q.id, needs_office: true });
       return { ok: true };
     }
     // Installation acceptance is the commercial agreement only. ESC consent and VEEC assignment are later forms.

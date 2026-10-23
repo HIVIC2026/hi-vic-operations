@@ -72,3 +72,13 @@ export async function releaseQuoteToOwner(jobId: string, quoteId: string, actorI
   const notification = await (await import("./quote-ready-notify.server")).notifyOwnerQuoteReady(jobId, quoteId, quote.kind);
   return { delivery: "ready_to_send" as const, notification };
 }
+/** Jo 24 Oct: a declined quote back to a draft on Quotes to check (fresh 14 days once sent again). Never sends. */
+export async function reopenDeclinedQuoteImpl(jobId: string, quoteId: string, actorId: string) {
+  const { data, error } = await admin.from("quotes").update({ status: "draft", sent_at: null, release_state: "held", release_hold_reason: "Waiting for office review before sending" })
+    .eq("id", quoteId).eq("job_id", jobId).eq("status", "declined").select("id").maybeSingle();
+  if (error) throw new WorkflowError(error.message);
+  if (!data) throw new WorkflowError("This quote isn't declined any more. Reload it.");
+  const { QUOTE_DECLINED_REOPENED } = await import("./quote-decline.core");
+  await logEvent(jobId, actorId, "quote_reopened_by_office", QUOTE_DECLINED_REOPENED, { quote_id: quoteId }, { internal: true });
+  return { reopened: true as const };
+}

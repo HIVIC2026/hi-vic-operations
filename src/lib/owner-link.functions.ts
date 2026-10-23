@@ -52,6 +52,22 @@ export const ownerAcceptQuoteFn = createServerFn({ method: "POST" }).middleware(
     });
   });
 
+/** Jo 24 Oct: "Not for me" on the secure link — no 6-digit code (it signs nothing). Same quote/stage checks as accept. */
+export const ownerDeclineQuoteFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token, quoteId: z.string().uuid(), reason: z.enum(["price", "timing", "changed_mind", "other"]).nullable(), note: z.string().trim().max(800).nullable() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const jobId = await ownerJobId(data.token);
+    const { WorkflowError } = await import("./workflow.server");
+    if (!jobId) throw new WorkflowError("This link isn't working any more. Please reply to our email.");
+    const { declineReasonText } = await import("./quote-decline.core");
+    const { respondToQuoteImpl } = await import("./portal.functions");
+    return respondToQuoteImpl({ quoteId: data.quoteId, accept: false, reason: declineReasonText(data.reason, data.note) ?? undefined }, {
+      userId: null as unknown as string, ip: context.ip, userAgent: context.userAgent,
+      authorize: async (j) => { if (j !== jobId) throw new WorkflowError("This quote isn't on your job."); },
+      isOwner: async (j) => j === jobId,
+    });
+  });
+
 export const ownerBookingStateFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
   .inputValidator((d) => z.object({ token }).parse(d))
   .handler(async ({ data }) => {

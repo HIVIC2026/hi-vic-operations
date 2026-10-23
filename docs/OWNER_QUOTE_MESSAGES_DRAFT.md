@@ -1,3 +1,5 @@
+> **Superseded 24 Oct 2026:** the owner quote email was redesigned (v2) and approved by Jo — see `src/lib/owner-quote-email.core.ts` and `docs/OWNER_QUOTE_EMAIL_SAMPLE.png`. The text message below is still a draft.
+
 # Owner quote email and text: DRAFT for Jo's approval (24 Oct 2026)
 
 Sent once a quote is released to the owner, for both our leads and installer jobs. Words in {braces} are filled in from the job. Nothing is sent until Jo approves this wording **and** the sending is built and tested on TEST jobs.
