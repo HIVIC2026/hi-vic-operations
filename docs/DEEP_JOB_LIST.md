@@ -10,8 +10,6 @@ Hi Deep, here's every job you have with us and the one thing each needs from you
 
 **"Owner's permission" below means** ticking *Homeowner agrees to be contacted by Home Insulation Victoria* on the form. We can't send the owner their quote without it.
 
-**Every form** also has a new question: *"Has this home had ceiling insulation done under the VEU program before?"* Please ask the owner and answer Yes, No or Unsure. A home can only get the rebate once.
-
 ### 1. Finished, one thing to fix (1 job)
 
 | Job | Owner | Address | What to do |
@@ -30,7 +28,7 @@ Hi Deep, here's every job you have with us and the one thing each needs from you
 
 ### 3. Your uploaded jobs, form ready but not started (15 jobs)
 
-Each of these needs the **ceiling area, insulation product, your price, the owner's permission** and the new question **"Has this home had ceiling insulation done under the VEU program before?"**. The ones marked ⚠️ also have a detail to check. (We've tidied the addresses on your forms already.)
+Each of these needs the **ceiling area, insulation product, your price and the owner's permission**. The ones marked ⚠️ also have a detail to check. (We've tidied the addresses on your forms already.)
 
 | Job | Owner | Address | Check |
 |---|---|---|---|

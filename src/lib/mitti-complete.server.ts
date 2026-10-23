@@ -36,7 +36,7 @@ export async function finishMittiReadyCheck(jobId: string, i: { auditId: string;
     if (done) {
       await logEvent(jobId, null, "measurement_completed", `Ready Check marked Complete in Mitti — measurements recorded automatically (${Number(m!.measured_area_m2)} m²)`, { measurement_id: m!.id, audit_id: i.auditId, basis: "mitti_complete", filled: plan.fill }, { internal: true });
       const { FORM_ELIGIBLE_EVENT } = await import("./verified-eligibility.server");
-      await logEvent(jobId, null, FORM_ELIGIBLE_EVENT, "Eligible from the Ready Check form answers (below R2.0, no previous VEU ceiling insulation, contact agreed)", { audit_id: i.auditId, modified_at: i.modifiedAt, basis: "mitti_form_answers", ruleset: "mitti-form-eligibility-v1" }, { internal: true });
+      await logEvent(jobId, null, FORM_ELIGIBLE_EVENT, "Eligible from the Ready Check form answers (below R2.0, owner agreed to be contacted)", { audit_id: i.auditId, modified_at: i.modifiedAt, basis: "mitti_form_answers", ruleset: "mitti-form-eligibility-v1" }, { internal: true });
     }
   }
 

@@ -166,14 +166,3 @@ describe("A2 uses the owner's website answers for life support / 5 years", () =>
   });
 });
 
-import { PREVIOUS_VEU_QUESTION, STOP_PREVIOUS_VEU, STOP_PREVIOUS_VEU_UNSURE, previousVeuAnswer, readyCheckStopReasons as stops24 } from "../src/lib/ready-check-answers.core";
-test("Jo 24 Oct: previous VEU ceiling insulation — Yes or Unsure stops the quote for the office; No passes; old forms read as not answered", () => {
-  const e = (v: string) => [{ label: PREVIOUS_VEU_QUESTION, value: v }];
-  expect(previousVeuAnswer(e("No"))).toBe("no");
-  expect(previousVeuAnswer(e("Yes"))).toBe("yes");
-  expect(previousVeuAnswer(e("Unsure"))).toBe("unsure");
-  expect(previousVeuAnswer([])).toBeNull();
-  expect(stops24(e("Yes"))).toEqual([STOP_PREVIOUS_VEU]);
-  expect(stops24(e("Unsure"), { ownerAnsweredOnWebsite: true })).toEqual([STOP_PREVIOUS_VEU_UNSURE]);
-  expect(stops24(e("No"))).toEqual([]);
-});

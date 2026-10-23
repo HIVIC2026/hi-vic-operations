@@ -3,12 +3,11 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { completionPlan } from "../src/lib/mitti-complete.core";
-import { PREVIOUS_VEU_QUESTION, VEU_NOT_ANSWERED, STOP_PREVIOUS_VEU, STOP_NO_CONTACT } from "../src/lib/ready-check-answers.core";
+import { STOP_NO_CONTACT } from "../src/lib/ready-check-answers.core";
 
 const m = (over: Record<string, unknown> = {}) => ({ id: "m1", status: "draft", external_source: "mitti", external_id: "audit_1", provenance: "hivic_onsite", review_flags: [],
   measured_area_m2: 137.61, insulation_present: false, existing_r_value: null, removal_required: null, removal_m2: null, access_difficulty: "moderate", ...over });
-const veuNo = [{ label: PREVIOUS_VEU_QUESTION, value: "No" }];
-const base = { auditId: "audit_1", completed: true, modifiedAt: "2026-10-24T01:00:00Z", entries: veuNo, ourLead: false, websiteFacts: null };
+const base = { auditId: "audit_1", completed: true, modifiedAt: "2026-10-24T01:00:00Z", entries: [] as { label: string; value: unknown }[], ourLead: false, websiteFacts: null };
 
 describe("completionPlan", () => {
   test("HV-3117 shape: no existing insulation means no removal — completes", () =>
@@ -19,11 +18,9 @@ describe("completionPlan", () => {
     expect(completionPlan({ ...base, measurement: null })).toEqual({ kind: "skip" });
   });
   test("already complete continues to the quote steps", () => expect(completionPlan({ ...base, measurement: m({ status: "complete" }) as never })).toEqual({ kind: "already" }));
-  test("previous VEU: Yes holds, unanswered holds", () => {
-    expect(completionPlan({ ...base, entries: [{ label: PREVIOUS_VEU_QUESTION, value: "Yes" }], measurement: m() as never })).toEqual({ kind: "hold", reasons: [STOP_PREVIOUS_VEU] });
-    expect(completionPlan({ ...base, entries: [], measurement: m() as never })).toEqual({ kind: "hold", reasons: [VEU_NOT_ANSWERED] });
-  });
-  test("owner said No to contact holds", () => expect(completionPlan({ ...base, entries: [...veuNo, { label: "Homeowner agrees to be contacted by Home Insulation Victoria", value: "No" }], measurement: m() as never }).kind).toBe("hold"));
+  test("no previous-VEU question is asked (Jo 24 Oct): an answered form without it completes", () =>
+    expect(completionPlan({ ...base, entries: [], measurement: m() as never }).kind).toBe("complete"));
+  test("owner said No to contact holds", () => expect(completionPlan({ ...base, entries: [{ label: "Homeowner agrees to be contacted by Home Insulation Victoria", value: "No" }], measurement: m() as never }).kind).toBe("hold"));
   test("missing area holds with the field named", () => {
     const r = completionPlan({ ...base, measurement: m({ measured_area_m2: null }) as never });
     expect(r.kind).toBe("hold");
@@ -38,7 +35,7 @@ describe("completionPlan", () => {
   test("our lead: website life support / built in last 5 years holds", () =>
     expect(completionPlan({ ...base, ourLead: true, websiteFacts: { lifeSupportStatus: "yes", overFiveYears: "yes" }, measurement: m() as never }).kind).toBe("hold"));
   test("answers flagged for office review hold", () => expect(completionPlan({ ...base, measurement: m({ review_flags: ["measured_area_m2"] }) as never }).kind).toBe("hold"));
-  void STOP_NO_CONTACT;
+  test("owner contact No is the hard stop it always was", () => expect(STOP_NO_CONTACT).toContain("contacted"));
 });
 
 test("wiring: one completion step for both forms, behind the switch; retry/watch sweep on the tick; eligibility from the form counts", () => {
