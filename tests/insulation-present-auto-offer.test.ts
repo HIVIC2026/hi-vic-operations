@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { automaticLeadEmail } from "../src/lib/enquiry-groups.core";
-import { existingInsulationRules, defaultAutomaticRules } from "../src/lib/save-spot-rules.core";
+import { existingInsulationRules, DEFAULT_FILTERS } from "../src/lib/save-spot-rules.core";
 import { PRESENT_AUTO_OFFER_EVENT, presentAutoOfferDetails, qualifyingDeclaration } from "../src/lib/insulation-review.core";
 
 const base = { source: "base44", channel: "hivic_sourced", decisionSource: "system", reviewRequired: false, outcome: "needs_onsite_confirmation", intakeWorkActive: false, declaredInsulation: "present" as const, ownerEnteredArea: true };
@@ -17,7 +17,7 @@ describe("Jo 23 Oct 4:10pm: insulation present -> existing-insulation Save my sp
   test("no-insulation owners are unchanged", () => expect(automaticLeadEmail({ ...base, outcome: "likely_eligible", declaredInsulation: "none" })).toEqual({ email: "offer_spot", blocker: null }));
   test("TEST enquiries never auto-email", () => expect(automaticLeadEmail({ ...base, source: "qa_test" }).email).toBe("none"));
   test("rules no longer hold present insulation or onsite-confirmation on this route; others unchanged", () => {
-    const r = defaultAutomaticRules();
+    const r = DEFAULT_FILTERS;
     const live = { ...r, insulation: { enabled: true, values: ["none"] as never }, eligibility: { enabled: true, outcomes: ["likely_eligible"] as never } };
     const w = existingInsulationRules(live);
     expect(w.insulation.values).toEqual(["none", "present"] as never);
