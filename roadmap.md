@@ -495,4 +495,6 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Removal box: state $15 per m² only for areas needing removal (Jo 22 Oct)
 - [x] Jo 23 Oct: verify published A1/A2 Ready Check templates; prefill no longer requires Assessor; A1 life support Yes/No mapped; tests vs new + old template versions (`tests/mitti-ready-check-published-templates.test.ts`)
 - [ ] A2 still has the 5-year question, "Are the property details correct?", text life-support and no phone/email/consent — awaiting Jo (Mitti edit is Jo's)
-- [ ] Send Save My Spot to HV-2246 (standard), HV-2635 + HV-2569 (existing_insulation_save_spot) via existing sender; report status/keys
+- [x] Send Save My Spot to HV-2246 (standard), HV-2635 + HV-2569 (existing_insulation_save_spot) via existing sender; report status/keys
+- [x] Deep jobs next steps + Ready Check basics drafting (preview)
+- [ ] HV-1538 make Deep's lead + Active — blocked: permanent job-source lock, needs Jo's decision
