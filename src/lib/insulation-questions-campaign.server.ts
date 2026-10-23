@@ -100,3 +100,12 @@ export async function questionsCampaignSendBatch(jobIds: string[], actorId: stri
   for (const id of jobIds) results.push(...(await sendSaveMySpot([id], actorId, { mode: "send", insulationQuestions: true })));
   return { refused: false as const, detail: "", results };
 }
+
+/** Jo 23 Oct 08:14 UTC: after an owner answers the questions or uploads photos/video, send Save my spot
+ *  (thin/patchy wording for thin/loose fill, otherwise the standard existing-insulation wording) through the
+ *  same guarded automatic route. Refused while the campaign switch is off. */
+export async function sendAnsweredOwnerSaveSpot(jobId: string) {
+  if (!INSULATION_QUESTIONS_SEND_APPROVED) return { sent: false, reason: "Sending is off until Jo says go." };
+  const { maybeAutoRouteLeadEmail } = await import("./lead-email-routing.server");
+  return maybeAutoRouteLeadEmail(jobId);
+}
