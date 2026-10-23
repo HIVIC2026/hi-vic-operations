@@ -11,12 +11,17 @@ export type OnsiteInput = {
   contact_permission: boolean;
   /** The installer confirms Gate A consent on site. */
   consent_by?: "owner" | "installer" | null | undefined;
+  /** Jo 24 Oct: true only when the address was picked from the Google address list (street, suburb and postcode
+   *  all come from the lookup). Typing anything afterwards clears it. */
+  address_verified?: boolean | undefined;
 };
 
 /** On-site Gate A clears when the installer confirms consent. */
 export const ONSITE_CONSENT_SOURCE = "onsite_ready_check";
 /** TEST jobs only: the Ready Check form goes to Jo's own Mitti account (Jo, 8 Oct). */
 export const TEST_MITTI_ASSIGNEE = "jo@actpropertyinspections.com.au";
+
+import { lookupLocation } from "./activity48.core";
 
 const digits = (s: string) => s.replace(/\D/g, "");
 
@@ -28,14 +33,23 @@ export function isAuMobile(s: string): boolean {
 export const isVicPostcode = (p: string) => /^(3\d{3}|8\d{3})$/.test(p.trim());
 const isEmail = (s: string) => /^[^\s@;,]+@[^\s@;,]+\.[^\s@;,]+$/.test(s.trim());
 
+/** Jo 24 Oct: the owner's name goes on the quote, so first and last name (two words of 2+ letters each). */
+export const OWNER_FULL_NAME = "Add the owner's first and last name — it goes on their quote";
+export const hasFullName = (name: string) => name.trim().split(/\s+/).filter((w) => (w.match(/\p{L}/gu)?.length ?? 0) >= 2).length >= 2;
+/** "18 Dixie Street", "27/274 Poath Road", "2A Chatfield Street", "Unit 3 12 Smith St", "Lot 5 …". */
+export const hasStreetNumber = (line: string) => /^\s*(?:(?:unit|apt|apartment|shop|suite|level|lot)\s*)?\d/i.test(line);
+export const PICK_ADDRESS = "Choose the address from the list so the suburb and postcode are right — the rebate depends on them";
+
 /** One plain problem per field, in screen order. Empty = ready to start. */
 export function onsiteProblems(i: OnsiteInput): string[] {
   const out: string[] = [];
-  if (i.full_name.trim().length < 2) out.push("Add the owner's name");
+  if (!hasFullName(i.full_name)) out.push(OWNER_FULL_NAME);
   if (i.address_line.trim().length < 3) out.push("Add the street address");
+  else if (!hasStreetNumber(i.address_line)) out.push("Add the street number to the address");
   if (i.suburb.trim().length < 2) out.push("Add the suburb");
   if (!i.postcode.trim()) out.push("Add the postcode");
   else if (!isVicPostcode(i.postcode)) out.push("We can only take Victorian jobs — this one can't be added");
+  else if (!lookupLocation(i.postcode.trim())) out.push("Check the postcode — it isn't on the Victorian rebate postcode list");
   if (!i.phone.trim()) out.push("Add the owner's mobile");
   else if (!isAuMobile(i.phone)) out.push("Check the mobile — it should look like 0412 345 678");
   if (!i.email.trim()) out.push("Add the owner's email");
@@ -54,7 +68,8 @@ export function addressFromReverse(r: unknown): { address_line: string; suburb: 
   return { address_line: street, suburb, postcode: (a["postcode"] ?? "").trim(), state: a["state"] ?? "" };
 }
 
-export const mittiFormUrl = (auditId: string) => `https://app.au.mitti.com/inspections/${auditId}`;
+export { mittiFormUrl } from "./mitti-link.core";
+import { mittiFormUrl } from "./mitti-link.core";
 
 export type OnsiteFacts = {
   mittiInvited: boolean; templateSet: boolean; autoSend?: boolean; gateADone: boolean; booked: boolean;

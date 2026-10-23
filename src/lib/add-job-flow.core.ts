@@ -1,6 +1,6 @@
 // Installer Add job: one phone-first flow Customer -> Job details -> Review & save (Jo, 8 Oct 2026).
 // Pure presentation/state rules only. Validation comes from the existing validators; no new lifecycle.
-import { onsiteProblems, type OnsiteInput, type OnsiteState } from "./onsite-ready-check.core";
+import { PICK_ADDRESS, onsiteProblems, type OnsiteInput, type OnsiteState } from "./onsite-ready-check.core";
 import { laterReadyCheckProblems, type LaterReadyCheck } from "./later-ready-check.core";
 import { quotedIntakeProblems } from "./installer-quote-intake.core";
 
@@ -18,10 +18,12 @@ export const blankCustomer = (): OnsiteInput => ({ full_name: "", address_line: 
 export const restoreCustomer = (raw: unknown): OnsiteInput => {
   const d = (raw && typeof raw === "object" ? raw : {}) as Partial<Record<keyof OnsiteInput, unknown>>;
   const s = (k: keyof OnsiteInput) => (typeof d[k] === "string" ? (d[k] as string) : "");
-  return { full_name: s("full_name"), address_line: s("address_line"), suburb: s("suburb"), postcode: s("postcode"), phone: s("phone"), email: s("email"), contact_permission: false, consent_by: null };
+  return { full_name: s("full_name"), address_line: s("address_line"), suburb: s("suburb"), postcode: s("postcode"), phone: s("phone"), email: s("email"), contact_permission: false, consent_by: null, address_verified: d.address_verified === true };
 };
 
-export const customerProblems = (c: OnsiteInput) => onsiteProblems(c);
+/** On the phone the address must also be picked from the Google list (Jo 24 Oct); sample screens type freely. */
+export const customerProblems = (c: OnsiteInput, opts: { requirePicked?: boolean } = {}) =>
+  opts.requirePicked === false || c.address_verified === true ? onsiteProblems(c) : [PICK_ADDRESS, ...onsiteProblems(c)];
 
 export type ExistingDetails = { area: string; method: string; amount: string; includes: string };
 export const parseAmount = (s: string): number | null => { const t = s.trim(); if (!t) return null; const n = Number(t.replace(/[$,\s]/g, "")); return Number.isFinite(n) ? n : NaN; };

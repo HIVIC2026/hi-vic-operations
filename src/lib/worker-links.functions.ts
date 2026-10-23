@@ -207,7 +207,7 @@ export const getWorkerJobView = createServerFn({ method: "POST" })
       worker: { name: w.full_legal_name, firstName: firstName(w.full_legal_name), role: w.trade_role, business: bizName },
       job: { ...j, owner_first_name: firstName(j.owner_name), owner_name: undefined },
       ownerContact: oc ? { name: oc.owner_name, phone: oc.owner_phone, email: oc.owner_email } : null,
-      mittiUrl: mittiId ? `https://app.au.mitti.com/inspections/${mittiId}` : null,
+      mittiUrl: mittiId ? (await import("./mitti-link.core")).mittiFormUrl(mittiId) : null,
       bookings: books ?? [],
       timeline: events ?? [],
       messages: (msgs ?? []).map((x) => ({ id: x.id, body: x.body, created_at: x.created_at, mine: x.worker_id === l.worker_id, from: x.sender_label ?? (x.profiles as { full_name: string | null } | null)?.full_name ?? "Home Insulation Victoria" })),

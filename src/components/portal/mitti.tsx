@@ -8,6 +8,7 @@ import { Pill } from "./badges";
 import { Section } from "./panels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { mittiFormUrl } from "@/lib/mitti-link.core";
 
 export function useMittiState(jobId: string) {
   return useQuery({
@@ -49,7 +50,7 @@ export function MittiCard({ jobId, isAdmin }: { jobId: string; isAdmin: boolean 
   // measurement row, so show the Ready Check card — never PIESA framing.
   const mAudit = !a?.external_mitti_id && data.m?.external_source === "mitti" ? String(data.m.external_id ?? "") : null;
   if (mAudit) {
-    const mUrl = `https://app.au.mitti.com/inspections/${mAudit}`;
+    const mUrl = mittiFormUrl(mAudit);
     const mDone = data.m?.status === "complete";
     return (
       <Section title="Ready Check (Mitti)" action={<Pill t={mDone ? "good" : "warn"}>{mDone ? "Complete" : "In progress in Mitti"}</Pill>}>
@@ -69,7 +70,7 @@ export function MittiCard({ jobId, isAdmin }: { jobId: string; isAdmin: boolean 
       </Section>
     );
   }
-  const mittiUrl = a?.external_mitti_id ? `https://app.au.mitti.com/inspections/${a.external_mitti_id}` : null;
+  const mittiUrl = a?.external_mitti_id ? mittiFormUrl(a.external_mitti_id) : null;
   return (
     <Section title={a?.mitti_scope === "MEASURE_UP_ONLY" ? "Mitti installer measurements" : "Mitti electrical assessment · PIESA"} action={<Pill t={tone as never}>{label}</Pill>}>
       <dl className="grid grid-cols-2 gap-1 text-sm">

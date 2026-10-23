@@ -1,6 +1,7 @@
 // Jo 23 Oct 2026: installer approves the drafted owner quote before the office may send it. Pure rules only.
 // Approval is an append-only `installer_quote_approved` workflow event carrying the quote and form fingerprints;
 // it counts only while both still match (office Adjust or a changed Mitti form cancel it automatically).
+import { mittiFormUrl } from "./mitti-link.core";
 
 export const INSTALLER_QUOTE_APPROVAL_CODE = "INSTALLER_A1";
 /** Reminder email to the installer (never SMS). OFF until Jo says go. */
@@ -80,4 +81,4 @@ export function waitingStatus(reasons: string[]): string {
   const n = reasons.filter((r) => r !== WAITING_ON_INSTALLER).length;
   return n === 0 ? "Waiting for installer to approve" : `${n} thing${n === 1 ? "" : "s"} missing`;
 }
-export const mittiAuditUrl = (id: string | null | undefined) => (id ? `https://app.au.mitti.com/inspections/${id}` : null);
+export const mittiAuditUrl = (id: string | null | undefined) => (id ? mittiFormUrl(id) : null);

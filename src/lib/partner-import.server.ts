@@ -143,6 +143,10 @@ export async function confirmClaimed(userId: string, data: ConfirmImportInput, i
       if (!want || intake.fee_awareness.text !== want || intake.fee_awareness.payer !== intake.electrician_payer) blockers.push("The owner fee confirmation doesn't match the electrician choice — tick it again");
     }
     if (intake.evidence_ack !== true) blockers.push("Tick that all required evidence must be supplied and accepted before the rebate");
+    // Jo 24 Oct: the owner's full name goes on the quote and the postcode sets the rebate — same rules as the phone screen.
+    { const oc = await import("./onsite-ready-check.core");
+      const t = (k: string) => String((c as Record<string, unknown>)[k] ?? "");
+      blockers.push(...oc.onsiteProblems({ full_name: t("full_name"), address_line: t("address_line"), suburb: t("suburb"), postcode: t("postcode"), phone: t("phone"), email: t("email"), contact_permission: true, consent_by: "installer" })); }
     if (typeof imp.raw_text === "string") { const { multiCustomerAmbiguity } = await import("./installer-intake.core"); if (multiCustomerAmbiguity(imp.raw_text)) blockers.push("The uploaded file names more than one customer — upload one customer's quote per job"); }
   } else {
     const { quotedIntakeProblems } = await import("./installer-quote-intake.core");

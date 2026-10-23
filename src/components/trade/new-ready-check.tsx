@@ -7,7 +7,6 @@ import { useServerFn } from "@tanstack/react-start";
 import { getMyMittiInvited } from "@/lib/trade-view.functions";
 import { Button } from "@/components/ui/button";
 
-export const MITTI_APP_URL = "https://app.au.mitti.com/inspections";
 export const NEW_READY_CHECK_PROMPT = "Start a new 'Ready Check' form";
 
 export function NewReadyCheckButton() {

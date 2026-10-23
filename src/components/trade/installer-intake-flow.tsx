@@ -143,7 +143,7 @@ export function InstallerIntakeFlow({ businessId, preview }: { businessId: strin
   const branches = intakeBranches(d.attended, d.quoteStatus);
   const live = applicableIntakeDetails(d); // hidden Yes-branch facts never validate or save when No is chosen
   const problems = (): string[] => {
-    const c = customerProblems(customer);
+    const c = customerProblems(customer, { requirePicked: !preview });
     if (step === "customer") return c;
     const org = coordinationProblems(coord, selfAck);
     if (step === "organise") return org;
