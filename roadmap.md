@@ -1,8 +1,8 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Urgent owner link and photo-review layout (Jo 23 Oct 09:13 UTC)
-- [ ] Investigate slow TEST text-link loading and correct code-only bottlenecks; no sends or publication.
-- [ ] Lead owner quote with actual saving, never a fabricated $0 rebate; simplify missing-price state.
-- [ ] Remove obsolete more-photos email panel and simplify phone photo review; verify both screens.
+- [x] Removed sequential owner-read round trips and duplicate settings query; six-slot read waves and 30-second same-link cache. Existing TEST link opens in preview at 430×706 in 1.51 seconds, return 0.10 seconds; published SMS loading speed remains unverified, no publication.
+- [x] Savings-first quote heading when a real rebate exists; missing TEST quote shows neutral heading, never fake $0 or price-ready claim. Existing TEST link and no-overflow phone screenshot checked; privacy/held-quote guards unchanged.
+- [x] Removed obsolete photo-email editors and changed phone enquiry rows to screen-width layout; four shared rank buttons verified, obsolete prompt absent, no overflow. 18 focused tests pass including six-slot read/settings/rebate/cancellation and rank/practice regressions. No sends or live writes.
 ## URGENT six existing-insulation replies (Jo 23 Oct 09:00 UTC)
 - [x] Inspect and preserve six failed not-sent attempts; exact scoped key recovery + complete old-row audit proven on PGlite, then applied; Jo's exact Office reason retained, no fabricated photo review.
 - [ ] HV-3152 send blocked: unchanged live renderer has no approved template for its unknown thickness/coverage; cannot send preview's unapproved new removal wording or claim photos were checked. Five other jobs provider-accepted via existing live sender; HV-3131 was already accepted by concurrent sweep and explicit call safely skipped.
