@@ -30,7 +30,7 @@ test('practice review outcomes persist only manual audit next actions, never com
  }
  const rows=await db.query<{outcome:string;next_action:string;manual_only:boolean}>('select * from reviews');
  expect(rows.rows).toHaveLength(4);
- expect(rows.rows.filter(r=>r.next_action==='Offer Save My Spot').map(r=>r.outcome)).toEqual(['no_insulation','below_r2']);
+ expect(rows.rows.every(r=>r.next_action==='Rank only (Spots saved)')).toBe(true); // Jo 23 Oct 08:51: photo review never offers an email
  expect(rows.rows.every(r=>r.manual_only)).toBe(true);
  expect((await db.query<{n:number}>('select count(*)::int as n from communications')).rows[0]?.n).toBe(0);
  await db.close();
