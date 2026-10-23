@@ -12,6 +12,7 @@ import {
   saveDesktopInsulationCheck,
 } from "@/lib/launch-campaign.functions";
 import { InsulationQuestionsCampaign } from "./InsulationQuestionsCampaign";
+import { SpotPhotoCheck } from "./SpotPhotoCheck";
 
 const LABEL: Record<string, string> = {
   pending: "Needs desk check",
@@ -127,6 +128,7 @@ export function CampaignsPanel() {
                 <Link to="/admin/jobs/$jobId" params={{ jobId: r.jobId }} className="min-w-0 flex-1 hover:underline">
                   {r.summary ?? r.owner ?? r.jobNumber ?? "Enquiry"}
                 </Link>
+                {r.mediaCount > 0 && <SpotPhotoCheck jobId={r.jobId} owner={r.owner} count={r.mediaCount} onDone={() => void refetch()} />}
                 {r.priceChanged && <span className="w-full text-xs font-semibold text-destructive">{r.priceChanged}</span>}
               </li>
             ))}

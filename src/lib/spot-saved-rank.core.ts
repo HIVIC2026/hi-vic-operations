@@ -54,3 +54,11 @@ export function spotSummary(x: { owner: string | null; suburb: string | null; ho
     days == null ? null : `waiting ${days} day${days === 1 ? "" : "s"}`,
   ].filter(Boolean).join(" · ");
 }
+
+/** Jo 08:27 UTC: photo-check choices on a Spots saved row and the rank each one gives. */
+export const SPOT_PHOTO_CHOICES = [
+  { outcome: "no_insulation", label: "No insulation", rank: 1 },
+  { outcome: "below_r2", label: "Under R2", rank: 2 },
+  { outcome: "over_r2", label: "Thicker / over R2", rank: 6 },
+  { outcome: "unclear", label: "Can't tell", rank: 7 },
+] as const;
