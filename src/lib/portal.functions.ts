@@ -850,6 +850,9 @@ export async function respondToQuoteImpl(data: z.infer<typeof respondToQuoteSche
  *  owner's completed acceptance into an error they cannot retry (the quote is no longer "issued"); record it for office,
  *  which recovers with Retry Xero push (local invoice row exists) or Sync. */
 async function invoiceAfterAcceptance(quoteId: string, jobId: string, actorId: string) {
+  // Jo 24 Oct: tell the installer (best-effort; never affects the owner's acceptance).
+  try { await (await import("./installer-accepted-email.server")).emailInstallerQuoteAccepted(jobId, quoteId); }
+  catch (e) { console.error("installer accepted email skipped", (e as Error).message); }
   try { await createInvoiceForQuote(quoteId, actorId); }
   catch (e) {
     const { data: inv } = await admin.from("invoices").select("id").eq("quote_id", quoteId).maybeSingle();
