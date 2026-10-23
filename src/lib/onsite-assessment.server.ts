@@ -2,7 +2,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { declaredExtras } from "./enquiry.core";
 import { normaliseInsulation } from "./eligibility.core";
 import { savedInsulationTap } from "./insulation-details.core";
-import { houseAgeLabel, onsiteAssessmentMember, onsiteInsulationLine } from "./onsite-assessment.core";
+import { houseAgeLabel, onsiteInsulationLine } from "./onsite-assessment.core";
 import { qualifiesOutcome } from "./enquiry-review-custom.core";
 
 export type OnsiteRow = { id: string; jobNumber: string | null; owner: string | null; suburb: string | null; houseAge: string; said: string; declared: "none" | "present" | "unknown" | null };
@@ -43,7 +43,7 @@ export async function offerOnsiteSaveSpot(jobIds: string[], actorId: string | nu
   for (const id of [...new Set(jobIds)]) {
     const row = members.get(id);
     if (!row) { out.push({ jobId: id, jobNumber: null, outcome: "blocked", detail: "No longer in Needs onsite assessment. Nothing sent." }); continue; }
-    if (!onsiteAssessmentMember({ tap: null, declaredInsulation: row.declared === "none" ? "none" : "unknown", mediaCount: 0 }) && row.declared === "none") { out.push({ jobId: id, jobNumber: row.jobNumber, outcome: "blocked", detail: "Owner said no insulation. Nothing sent." }); continue; }
+    if (row.declared === "none") { out.push({ jobId: id, jobNumber: row.jobNumber, outcome: "blocked", detail: "Owner said no insulation. Nothing sent." }); continue; }
     try {
       const review = qualifiesOutcome(row.declared);
       await reviewLeadMedia(id, review, actorId, "Office offered Save my spot from Needs onsite assessment");
