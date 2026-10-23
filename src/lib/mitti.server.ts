@@ -346,6 +346,9 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
       if (!plan.locked) {
         const mp = await applyMeasure(jobId, actorId, measureAudit, "installer", splitPatch(plan.patch).measure, plan.snapshot);
         await applyContactAnswers(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[]);
+        // Jo 23 Oct: draft for "Quotes to check" as soon as the basics are in — no need to wait for the whole form.
+        const basics = await (await import("./ready-check-basics.server")).checkReadyCheckBasics(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], plan.completed, measureAudit).catch(() => null);
+        const draftNow = plan.completed || !!basics?.ready;
         const mIssues = plan.issues.filter((i) => !/PIESA|Switchboard/.test(i));
         issues = [...issues, ...mIssues, ...(mp.action === "skip" ? [mp.reason] : [])];
         completed = completed || plan.completed;
@@ -365,7 +368,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
           }
         }
         // Our leads (Jo 22 Oct): record the installer's chosen product/R-value so the rate-card quote uses it.
-        if (plan.completed && job.channel !== "installer_sourced") {
+        if (draftNow && job.channel !== "installer_sourced") {
           try { await (await import("./insulation-product.server")).mittiProductForJob(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], measureAudit); }
           catch (e) { issues = [...issues, `Insulation product not recorded: ${e instanceof Error ? e.message : "error"}`]; }
           try {
@@ -374,7 +377,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
           } catch (e) { issues = [...issues, `Owner quote could not be drafted: ${e instanceof Error ? e.message : "error"}`]; }
         }
         // Installer-brought jobs: draft (never send) the co-branded owner quote from the installer's ticked price.
-        if (plan.completed && readyCheckVariant(job.channel) === "ready_check_priced") {
+        if (draftNow && readyCheckVariant(job.channel) === "ready_check_priced") {
           try {
             const d = await draftInstallerQuoteFromReadyCheck(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], measureAudit);
             if (d && !d.ready) issues = [...issues, ...d.blockers.map((b) => `Owner quote: ${b}`)];
