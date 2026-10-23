@@ -24,16 +24,17 @@ export const getInstallerQuotesToCheck = createServerFn({ method: "POST" }).midd
     for (let from = 0; from < ids.length; from += 50) batches.push(ids.slice(from, from + 50));
     const parts = [];
     for (let from = 0; from < batches.length; from += 4) parts.push(...await Promise.all(batches.slice(from, from + 4).map(async batch => {
-      const [quotes, held, assigned, basics] = await Promise.all([
+      const [quotes, held, assigned, basics, forms] = await Promise.all([
         admin.from("quotes").select("id, job_id, status, sent_at, release_state, customer_total_inc_gst, created_at, release_hold_reason").in("job_id", batch).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]),
         admin.from("workflow_events").select("job_id, created_at, details").in("job_id", batch).in("event_type", ["installer_quote_held", "ready_check_needs_office"]).order("created_at", { ascending: false }),
         admin.from("job_assignments").select("job_id, business_id").in("job_id", batch).eq("role", "installer").eq("active", true),
         admin.from("workflow_events").select("job_id, created_at, details").in("job_id", batch).eq("event_type", "ready_check_basics").order("created_at", { ascending: false }),
+        admin.from("ceiling_measurements").select("job_id, external_id").in("job_id", batch).eq("is_current", true).eq("external_source", "mitti"),
       ]);
-      if (quotes.error || held.error || assigned.error || basics.error) throw new Error("Quotes to check could not be read.");
-      return { quotes: quotes.data ?? [], held: held.data ?? [], assigned: assigned.data ?? [], basics: basics.data ?? [] };
+      if (quotes.error || held.error || assigned.error || basics.error || forms.error) throw new Error("Quotes to check could not be read.");
+      return { quotes: quotes.data ?? [], held: held.data ?? [], assigned: assigned.data ?? [], basics: basics.data ?? [], forms: forms.data ?? [] };
     })));
-    const quotes = parts.flatMap(p => p.quotes), held = parts.flatMap(p => p.held).sort((a,b) => b.created_at.localeCompare(a.created_at)), assigned = parts.flatMap(p => p.assigned), basicsEv = parts.flatMap(p => p.basics).sort((a,b) => b.created_at.localeCompare(a.created_at));
+    const quotes = parts.flatMap(p => p.quotes), held = parts.flatMap(p => p.held).sort((a,b) => b.created_at.localeCompare(a.created_at)), assigned = parts.flatMap(p => p.assigned), forms = parts.flatMap(p => p.forms), basicsEv = parts.flatMap(p => p.basics).sort((a,b) => b.created_at.localeCompare(a.created_at));
     const { data: businesses, error: be } = await admin.from("businesses").select("id, name");
     if (be) throw new Error("Installer names could not be read.");
     const { quoteNeedsOfficeReview, quoteReviewReasons } = await import("./office-quote-review.core");
@@ -46,7 +47,7 @@ export const getInstallerQuotesToCheck = createServerFn({ method: "POST" }).midd
       const owner = j.owners as { full_name: string | null } | null;
       const p = j.properties as { address_line: string | null; suburb: string | null } | null;
       const bizId = assigned?.find(a => a.job_id === j.id)?.business_id ?? j.originating_installer_business_id;
-      const base = { jobId: j.id, jobNumber: j.job_number, owner: owner?.full_name ?? null, address: [p?.address_line, p?.suburb].filter(Boolean).join(", ") || null, installer: businesses?.find(b => b.id === bizId)?.name ?? null };
+      const base = { jobId: j.id, jobNumber: j.job_number, owner: owner?.full_name ?? null, address: [p?.address_line, p?.suburb].filter(Boolean).join(", ") || null, suburb: p?.suburb ?? null, mittiAuditId: forms.find(f => f.job_id === j.id)?.external_id ?? null, installer: businesses?.find(b => b.id === bizId)?.name ?? null };
       const details = h?.details as { blockers?: string[]; reasons?: string[] } | null;
       const reasons = quoteReviewReasons(draft?.release_hold_reason, h ? { at: h.created_at, reasons: details?.blockers ?? details?.reasons ?? [] } : null, draft?.created_at ?? null);
       // Jo 23 Oct: every Ready Check comes here — a draft once the basics are in, otherwise exactly what is missing.
