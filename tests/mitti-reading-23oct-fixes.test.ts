@@ -36,3 +36,10 @@ describe("Mitti reading fixes 23 Oct", () => {
     expect(p.patch.notes).toContain("Installer confirmed pricing not discussed or agreed with the homeowner: Yes");
   });
 });
+
+describe("address-type Site address (Jo 23 Oct)", () => {
+  it("reads location_text", () => {
+    const p = parsePickupAudit({ audit_id: "a1", header_items: [{ item_id: "x", label: "Site address (please edit street number if incorrect address shows)", type: "address", responses: { location_text: "1 Test Street, Testville, Victoria, 3999", location: {} } }] });
+    expect(p!.siteAddress).toBe("1 Test Street, Testville, Victoria, 3999");
+  });
+});
