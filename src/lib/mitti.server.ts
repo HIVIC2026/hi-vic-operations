@@ -350,6 +350,16 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         issues = [...issues, ...mIssues, ...(mp.action === "skip" ? [mp.reason] : [])];
         completed = completed || plan.completed;
         if (plan.completed) await saveMittiReport(jobId, actorId, measureAudit, plan.modifiedAt ?? null, "Ready Check", call);
+        if (plan.completed) {
+          // Jo 23 Oct: photos missing from the form become required install-day photos (already on the form = not asked again).
+          try { await ensureInstallDayPhotos(jobId, plan.photoGaps); }
+          catch (e) { issues = [...issues, `Install-day photo list not updated: ${e instanceof Error ? e.message : "error"}`]; }
+          // Hard stops on our leads too (installer jobs record them in the quote step): no quote, office list.
+          if (job.channel !== "installer_sourced") {
+            const stops = (await import("./ready-check-answers.core")).readyCheckStopReasons((plan.snapshot ?? []) as { label: string; value: string | null }[]);
+            if (stops.length) await (await import("./ready-check-quote.server")).recordNeedsOffice(jobId, actorId, null, stops);
+          }
+        }
         // Our leads (Jo 22 Oct): record the installer's chosen product/R-value so the rate-card quote uses it.
         if (plan.completed && job.channel !== "installer_sourced") {
           try { await (await import("./insulation-product.server")).mittiProductForJob(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], measureAudit); }
@@ -537,4 +547,16 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string, call
   await api.shareAudit(String(auditId), String(userId)); await api.setAuditOwner(String(auditId), String(userId));
   await logEvent(jobId, actorId, "mitti_piisa_audit_created", `Installer safety form sent to ${email} with ${p.count} pre-filled answers`, { audit_id: String(auditId), prefill_count: p.count, skipped: p.skipped, template: MITTI_PIISA_TEMPLATE_ID, prefill_notes: prefillNotes, native_version: resolved?.version ?? null });
   return { auditId: String(auditId), reused: false, skipped: p.skipped };
+}
+
+/** Idempotent: one required install-day requirement per missing Ready Check photo, matched by label. */
+async function ensureInstallDayPhotos(jobId: string, gaps: import("./ready-check-chase.core").PhotoGaps) {
+  const { installDayPhotoNeeds } = await import("./ready-check-chase.core");
+  const needs = installDayPhotoNeeds(gaps);
+  if (!needs.length) return;
+  const { data: have, error } = await admin.from("evidence_requirements").select("label").eq("job_id", jobId).eq("gate", "installation");
+  if (error) throw new Error(error.message);
+  const labels = new Set((have ?? []).map((r) => r.label));
+  const rows = needs.filter((n) => !labels.has(n.label)).map((n) => ({ job_id: jobId, category: n.category, label: n.label, gate: "installation", required: true, status: "outstanding" as const, responsible_role: "installer" as const }));
+  if (rows.length) { const { error: ie } = await admin.from("evidence_requirements").insert(rows as never); if (ie) throw new Error(ie.message); }
 }

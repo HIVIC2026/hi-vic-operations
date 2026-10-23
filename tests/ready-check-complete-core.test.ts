@@ -62,7 +62,7 @@ describe("readyCheckCompletionChecks", () => {
   test("insulation R2 or above is an office item telling the office to tell the owner", () => {
     const r = readyCheckCompletionChecks({ ...clean, belowR2: false });
     expect(r.ready).toBe(false);
-    expect(r.reasons).toEqual(["Office needs to: existing insulation is R2 or above — this home does not appear eligible; tell the owner"]);
+    expect(r.reasons).toEqual(["Fails: existing insulation is R2 or above"]);
   });
 
   test("an unestablished insulation level is a different item from R2 or above", () => {
@@ -74,20 +74,20 @@ describe("readyCheckCompletionChecks", () => {
   test("contact permission 'No' and 'not asked' are both office items, and both name the owner's choice", () => {
     const no = readyCheckCompletionChecks({ ...clean, contactPermission: false });
     const missing = readyCheckCompletionChecks({ ...clean, contactPermission: null });
-    expect(no.reasons.join("|")).toContain("did not agree to be contacted");
+    expect(no.reasons.join("|")).toContain("Owner hasn't agreed to be contacted – can't proceed");
     expect(missing.reasons.join("|")).toContain("contact permission is not on the form");
   });
 
   test("every failure is listed at once, so the office sees the whole picture", () => {
     const r = readyCheckCompletionChecks({ ...clean, formComplete: false, depthPhoto: false, overviewPhoto: false });
     expect(r.ready).toBe(false);
-    expect(r.reasons.length).toBe(3);
+    expect(r.reasons.length).toBe(1); // photos no longer block (Jo 23 Oct)
     expect(r.reasons.every((x) => x.startsWith("Office needs to: "))).toBe(true);
   });
 
   test("life support declared and unreviewed blocks the quote", () => {
     const r = readyCheckCompletionChecks({ ...clean, lifeSupportReviewed: false });
-    expect(r.reasons.join("|")).toContain("life support equipment is declared and has not been reviewed");
+    expect(r.reasons.join("|")).toContain("Life support at property – office to check");
   });
 
   test("no price and no electrician decision are both office items", () => {

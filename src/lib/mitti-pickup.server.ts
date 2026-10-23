@@ -140,11 +140,11 @@ export async function linkMittiReadyCheckToJob(actorId: string | null, input: { 
 
   // Portal Job Number write-back: overwriting an installer's own Mitti reference is the point of linking.
   const pitem = portalJobNumberItem(audit);
-  if (!pitem) throw new WorkflowError("This Ready Check form has no Portal Job Number field to write into.");
-  const existing = classifyPortalJobNumber(pitem.current);
-  if (existing === "linked" && String(pitem.current).trim().toUpperCase() !== job.job_number.trim().toUpperCase())
+  // A1 no longer has a Portal Job Number question (Jo 23 Oct): link by the stored form ID, no write-back.
+  const existing = pitem ? classifyPortalJobNumber(pitem.current) : null;
+  if (pitem && existing === "linked" && String(pitem.current).trim().toUpperCase() !== job.job_number.trim().toUpperCase())
     throw new WorkflowError(`This form is already linked to ${pitem.current}. Nothing was changed.`);
-  if (existing !== "linked" || String(pitem.current).trim().toUpperCase() !== job.job_number.trim().toUpperCase()) {
+  if (pitem && (existing !== "linked" || String(pitem.current).trim().toUpperCase() !== job.job_number.trim().toUpperCase())) {
     const payload = [{ item_id: pitem.itemId, type: pitem.type, responses: { text: job.job_number } }];
     try { await api.updateAuditHeader(auditId, payload); }
     catch { await api.updateAuditText(auditId, payload); } // older Mitti route takes header items under "items"
