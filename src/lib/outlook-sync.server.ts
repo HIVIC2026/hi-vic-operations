@@ -1,8 +1,5 @@
-// Outlook correspondence sync (read-only on the mailbox — it never sends). Pulls the whole mailbox
-// (folder-agnostic, so mail moved to Archive or custom folders is never skipped), stores each homeowner
-// email once per relevant job (job_communications, provider=outlook), preserves attachments in private
-// storage, queues ambiguous ones for Office, and closes early-stage records only on an explicit
-// "not proceeding" email. Historical catch-up is record-only before backfill_from.
+// Record-only Outlook copier: matched human inbound and outbound mail plus private attachments.
+// Unmatched/junk stays in Outlook; copying never closes, flags or creates an Enquiries row.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isHumanOwnerEmail } from "./owner-email-presentation.core";
