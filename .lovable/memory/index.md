@@ -12,3 +12,5 @@
 - [Reviewed no-size estimate](mem://features/reviewed-no-size-estimate) — Jo 19 Oct: below-R2 reviewed emails may use labelled 150 m² when no owner size
 - [Owner paperwork + one pile](mem://features/owner-paperwork-21oct.md) — Jo 21 Oct: Gate A retired, no cooling-off, every job in ONE pile only, uploads show "Photos to check"
 - [Owner price by R-value](mem://features/owner-r-value-pricing.md) — Jo 22 Oct: R5 $30 / R6 $32 / R7 $33; product asked on every Mitti form, NO profile product; installer rate above owner → hold
+
+- [Insulation present auto offer](mem://features/insulation-present-auto-offer.md) — Jo 23 Oct 4:10pm: any declared-present insulation → automatic existing-insulation Save my spot with removal line; supersedes thin/patchy routing

@@ -147,7 +147,7 @@ describe("one office status per enquiry", () => {
 describe("one automatic email route", () => {
   const baseRoute = { source: "base44", channel: "hivic_sourced", decisionSource: "system", reviewRequired: false, intakeWorkActive: false, outcome: "likely_eligible", declaredInsulation: "none" as const, ownerEnteredArea: true };
   test("eligible no-insulation owner with entered size gets the spot offer", () => expect(automaticLeadEmail(baseRoute)).toEqual({ email: "offer_spot", blocker: null }));
-  test("existing insulation gets the details request", () => expect(automaticLeadEmail({ ...baseRoute, outcome: "needs_onsite_confirmation", declaredInsulation: "present" })).toEqual({ email: "request_insulation", blocker: null }));
+  test("existing insulation gets the existing-insulation offer (Jo 23 Oct)", () => expect(automaticLeadEmail({ ...baseRoute, outcome: "needs_onsite_confirmation", declaredInsulation: "present" })).toEqual({ email: "offer_spot", blocker: null, existingInsulation: true }));
   test("unsure insulation also gets the details request", () => expect(automaticLeadEmail({ ...baseRoute, outcome: "needs_onsite_confirmation", declaredInsulation: "unknown" })).toEqual({ email: "request_insulation", blocker: null }));
   test("official ineligible gets the ineligible email", () => expect(automaticLeadEmail({ ...baseRoute, outcome: "does_not_appear_eligible", declaredInsulation: "unknown" })).toEqual({ email: "ineligible", blocker: null }));
   test.each([
