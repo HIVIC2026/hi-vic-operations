@@ -53,3 +53,26 @@ describe("leadRank — one rule everywhere", () => {
     expect(Object.values(SPOT_RANK_LABEL).some((l) => l.includes("approved, no clear photos"))).toBe(false);
   });
 });
+
+import { compareSpots as cmpAudit, leadRank as rankAudit } from "../src/lib/spot-saved-rank.core";
+import { pickupDuplicates as dupAudit } from "../src/lib/mitti-pickup.core";
+describe("audit 23 Oct ranking fixes", () => {
+  it("latest Under R2 review with photos is rank 2 even after an earlier unclear review", () => {
+    expect(rankAudit({ reviewOutcome: "below_r2", hadUnclearReview: true, mediaCount: 2 })).toBe(2);
+  });
+  it("desk approval never overrides a latest Over R2 or Can't tell review", () => {
+    expect(rankAudit({ reviewOutcome: "over_r2", deskLooksEligible: true })).toBe(6);
+    expect(rankAudit({ reviewOutcome: "unclear", deskLooksEligible: true })).toBe(7);
+    expect(rankAudit({ deskLooksEligible: true })).toBe(3);
+  });
+  it("missing or zero rank sorts last", () => {
+    const rows = [{ rank: 0, spotSavedAt: "2026-01-01" }, { rank: null, spotSavedAt: "2026-01-01" }, { rank: 8, spotSavedAt: "2026-02-01" }];
+    expect(rows.sort(cmpAudit).map((r) => r.rank)).toEqual([8, 0, null]);
+  });
+});
+describe("audit 23 Oct pickup matching", () => {
+  const item = { siteAddress: "1 Test St, Reservoir VIC 3073", homeownerName: "Sam Smith" } as never;
+  it("same owner name at a different address is not a duplicate", () => {
+    expect(dupAudit(item, [{ id: "a", job_number: "HV-1", stage: null, owner: "Sam Smith", addressLine: "9 Other Rd", suburb: "Preston" }])).toEqual([]);
+  });
+});

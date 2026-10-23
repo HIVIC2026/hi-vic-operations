@@ -63,7 +63,7 @@ mock.module("../src/lib/estimatelink.server", () => ({ syncStep3: async () => ({
 const realComms = await import("../src/lib/comms.server");
 mock.module("../src/lib/comms.server", () => ({ ...realComms, recordCommunication: async () => "comm-1" }));
 
-const { realSendingOn, sendSaveMySpot, maybeAutoSendSaveSpot } = await import("../src/lib/hot-leads-send.server");
+const { realSendingOn, sendSaveMySpot } = await import("../src/lib/hot-leads-send.server");
 const { testRecipientBoundary, commsEnvironment, parseTestRecipientAllowlist, allowlistIsInvalid, isReservedTestRecipient, COMMS_ENV_VAR, TEST_RECIPIENT_ENV } = await import("../src/lib/comms-test-recipient.core");
 const { emailSuppression, reservationAllowed } = await import("../src/lib/emailsafety.core");
 const { serviceCoverageEstablished } = await import("../src/lib/service-coverage.server");
@@ -205,17 +205,9 @@ describe("sendSaveMySpot (Office manual, Resend path) — recipient + switch gat
 });
 
 // ---------------- PART 5-C 27-30: automatic path stays gated ----------------
-describe("maybeAutoSendSaveSpot (automatic) — never bypasses gates", () => {
-  test("switches OFF => automatic trigger sends NOTHING, ZERO provider calls", async () => {
-    seedJob("real.customer@example.com.au"); switches(false, false); process.env[TEST_RECIPIENT_ENV] = "jo@allow.test";
-    await maybeAutoSendSaveSpot(J);
-    expect(fetchCalls).toBe(0);
-  });
-  test("qa_test job is never auto-sent (PART 5-C: neither mode bypasses opt-out/idempotency)", async () => {
-    seedJob("jo@allow.test", "qa_test"); switches(true, true); process.env[TEST_RECIPIENT_ENV] = "jo@allow.test";
-    await maybeAutoSendSaveSpot(J);
-    expect(fetchCalls).toBe(0);
-  });
+test("audit 23 Oct: there is no second automatic Save my spot sender", async () => {
+  const m = (await import("../src/lib/hot-leads-send.server")) as Record<string, unknown>;
+  expect(m.maybeAutoSendSaveSpot).toBeUndefined();
 });
 
 // ---------------- PART 5-A filter evidence (pure rules reused by the sender) ----------------

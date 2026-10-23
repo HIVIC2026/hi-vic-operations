@@ -21,12 +21,15 @@ mock.module("../src/lib/pilot.server", () => ({ applyCobrand: async () => {} }))
 mock.module("../src/lib/quote-ready-notify.server", () => ({ notifyOwnerQuoteReady: async () => { notifications++; return { email: "test accepted", sms: "test accepted" }; } }));
 const { sendOfficeReviewedQuote } = await import("../src/lib/office-quote-review.server");
 const { releaseQueuedQuotes } = await import("../src/lib/quotes.server");
-const { maybeAutoQueueReadyCheckQuote } = await import("../src/lib/ready-check-quote.server");
 beforeEach(() => { channel = "installer_sourced"; blockers = []; notifications = 0; writes = 0; consent = true; quote = { id: "q", job_id: "j", kind: "installation", status: "draft", release_state: "held", release_hold_reason: "Waiting for office review before sending", sent_at: null, option_code: "INSTALLER_A1", created_at: "2026-10-23T00:00:00Z" }; });
 test.each(["INSTALLER_A1", "R5_BATTS"])("timer/tick never writes or sends %s", async code => {
   quote.option_code = code;
   expect(await releaseQueuedQuotes()).toEqual({ released: 0 });
-  expect(await maybeAutoQueueReadyCheckQuote("j", null, [], true)).toEqual({ action: "off" });
+  expect(writes).toBe(0); expect(notifications).toBe(0);
+});
+test("audit 23 Oct: old held-quote Approve can never release a quote", async () => {
+  const { approveHeldQuote } = await import("../src/lib/quotes.server");
+  await expect(approveHeldQuote("q", "a")).rejects.toThrow(/Send quote/);
   expect(writes).toBe(0); expect(notifications).toBe(0);
 });
 test.each(["INSTALLER_A1", "R5_BATTS"])("only explicit office send calls both-channel notifier for %s once", async code => {
