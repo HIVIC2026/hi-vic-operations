@@ -33,14 +33,15 @@ describe("Spot saved email removal (Jo 23 Oct)", () => {
 });
 
 describe("Version 2 (no estimate)", () => {
-  const v2 = (removal: "excluded" | "included" | "unknown" | null) => renderPreliminarySpotSavedEmail({ firstName: "Vic", myJobUrl: null, removal });
-  test("unknown or included → budget note", () => {
-    for (const k of ["unknown", "included"] as const) { const e = v2(k); expect(e.text).toContain(REMOVAL_BUDGET_EMAIL_NOTE); expect(plainHtml(e.html)).toContain("Please budget $15 per m²"); }
-  });
-  test("excluded or no fact → no removal note", () => {
-    for (const k of ["excluded", null] as const) expect(v2(k).text).not.toContain("budget");
+  const v2 = () => renderPreliminarySpotSavedEmail({ firstName: "Vic", myJobUrl: null });
+  test("Jo 23 Oct correction: never prices or m² – no removal budget note", () => {
+    const e = v2();
+    expect(e.text).not.toContain(REMOVAL_BUDGET_EMAIL_NOTE);
+    expect(e.text).not.toMatch(/budget|removal|removed/i);
+    expect(e.html).not.toMatch(/\$|m²/);
+    expect(e.text).not.toMatch(/\$|m²/);
   });
   test("electrical-fix sentence for everyone", () => {
-    const e = v2(null); expect(e.text).toContain(SPOT_SAVED_NOT_INCLUDED); expect(plainHtml(e.html)).toContain("will be quoted separately.");
+    const e = v2(); expect(e.text).toContain(SPOT_SAVED_NOT_INCLUDED); expect(plainHtml(e.html)).toContain("will be quoted separately.");
   });
 });

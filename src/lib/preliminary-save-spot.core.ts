@@ -54,6 +54,7 @@ export function renderPreliminarySpotSavedEmail(i: { firstName: string | null; m
   const text = [greeting, "", SPOT_SAVED_HEADING + ".", SPOT_SAVED_BODY, ...extra.flatMap((t) => ["", t]), ...link, "", PRELIMINARY_BRAND].join("\n");
   const linkHtml = i.myJobUrl ? `<p><a href="${escape(i.myJobUrl)}">See my job</a></p>` : "";
   const html = `<div style="font-family:'Figtree','Segoe UI',Helvetica,Arial,sans-serif;color:${CUSTOMER_BRAND.colors.navy};font-size:15px;line-height:1.6;"><p>${escape(greeting)}</p><h1 style="font-size:24px;">${escape(SPOT_SAVED_HEADING)}</h1><p>${escape(SPOT_SAVED_BODY)}</p>${extra.map((t) => `<p>${escape(t)}</p>`).join("")}${linkHtml}<p>${escape(PRELIMINARY_BRAND)}</p></div>`;
+  assertNoPricingContent([subject, text, html].join("\n"));
   return { subject, html, text };
 }
 
