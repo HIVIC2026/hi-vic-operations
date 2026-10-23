@@ -29,6 +29,7 @@ import { OFFICE_ENQUIRY_LABEL } from "@/lib/office-nav";
 import { RESPONSE_STATE_LABEL, showingRange, enquiryRowTag } from "@/lib/enquiry-response.core";
 import { followupSendMessage, followupRequestError, uncertainAttempt } from '@/lib/followup-result.core';
 import { cn } from "@/lib/utils";
+import { QuotesToCheck } from "./QuotesToCheck";
 
 export type EnquiryView = EnquiryStatus | "all" | "new" | "photos" | "removed";
 
@@ -451,6 +452,7 @@ export function EnquiriesWorkspace({
         </div>
       </header>
 
+      <QuotesToCheck />
       {isLoading ? (
         <p role="status" className="rounded-md border bg-card p-6 text-sm">
           Loading enquiries…
