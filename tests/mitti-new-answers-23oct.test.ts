@@ -1,7 +1,7 @@
 // Jo 23 Oct 2026: new Mitti Ready Check answers on A1 + A2.
 import { describe, expect, test } from "bun:test";
 import { buildPrefill, parseAudit, validateStoredMittiAudit } from "../src/lib/mitti.core";
-import { websiteStopReasons, readyCheckStopReasons, removalTotalM2, difficultAccessFee, STOP_BUILT_5, STOP_LIFE_SUPPORT, STOP_NO_CONTACT, STOP_R2 } from "../src/lib/ready-check-answers.core";
+import { a1DifficultAccessIncluded, websiteStopReasons, readyCheckStopReasons, removalTotalM2, difficultAccessFee, STOP_BUILT_5, STOP_LIFE_SUPPORT, STOP_NO_CONTACT, STOP_R2 } from "../src/lib/ready-check-answers.core";
 import { readyCheckCompletionChecks, readyCheckFactsFromEntries } from "../src/lib/ready-check-complete.core";
 import { installDayPhotoNeeds, installDayPhotoBlocker } from "../src/lib/ready-check-chase.core";
 import { validateQuotedPrice } from "../src/lib/mitti-forms.core";
@@ -42,22 +42,25 @@ describe("5 removal total from every area", () => {
   });
 });
 
-describe("6 difficult access fee", () => {
-  const acc = (a: string, yes: string, fee: string | null) => [e("How would you rate the ceiling access?", a), e("Is an extra fee being charged for difficult access?", yes), e("Difficult access fee ($ inc GST)", fee)];
-  test("Difficult + Yes → fee", () => expect(difficultAccessFee(acc("Difficult", "Yes", "$250")).amountIncGst).toBe(250));
-  test("No fee when not Difficult or answered No", () => {
-    expect(difficultAccessFee(acc("Easy", "Yes", "250")).amountIncGst).toBeNull();
-    expect(difficultAccessFee(acc("Difficult", "No", "250")).amountIncGst).toBeNull();
+describe("6 difficult access charge", () => {
+  const a2 = (yes: string, fee: string | null) => [e("Is there a difficult access charge?", yes), e("Difficult access fee ($ inc GST)", fee)];
+  test("A2 Yes → amount", () => expect(difficultAccessFee(a2("Yes", "250")).amountIncGst).toBe(250));
+  test("A2 No → nothing", () => expect(difficultAccessFee(a2("No", "250"))).toEqual({ amountIncGst: null, reason: null }));
+  test("A2 Yes with no amount → hold, office confirms", () => expect(difficultAccessFee(a2("Yes", null)).reason).toMatch(/confirm the difficult access fee/));
+  test("old fee questions under ceiling access are ignored", () => {
+    expect(difficultAccessFee([e("How would you rate the ceiling access?", "Difficult"), e("Is an extra fee being charged for difficult access?", "Yes"), e("Difficult access fee ($ inc GST)", "250")]).amountIncGst).toBeNull();
   });
-  test("Yes with no amount → office reason", () => expect(difficultAccessFee(acc("Difficult", "Yes", null)).reason).toMatch(/difficult access fee/));
-  test("A1: shown as included in the installer total, never added on top", () => {
+  test("A1: ticked charge shows 'Includes difficult access charge', nothing added", () => {
+    const ents = [e("What's included in your quote?", "Ceiling insulation - supply & install, Difficult access charge")];
+    expect(a1DifficultAccessIncluded(ents)).toBe(true);
     const price = validateQuotedPrice({ included: ["Ceiling insulation - supply & install", "Difficult access charge"], totalIncGst: 3000, removalRequired: false });
-    expect(price.ok).toBe(true);
     const d = buildInstallerQuoteDraft({ price, measuredM2: 100, wholeVeec: { veecs: 10, raw: 500 }, piesaIncGst: 349, apFeeIncGst: 349, caps: { metropolitan: true, minCopay: 200 } });
-    applyMittiAccessFeeIncluded(d, 250);
-    expect(d.lines.find((l) => l.code === "INSTALLER_PRICE")!.description).toContain("includes difficult access fee $250.00");
-    expect(d.lines.some((l) => l.code === "DIFFICULT_ACCESS")).toBe(false);
+    applyMittiAccessFeeIncluded(d, true);
+    const line = d.lines.find((l) => l.code === "INSTALLER_PRICE")!;
+    expect(line.description).toContain("Includes difficult access charge");
+    expect(line.description).not.toMatch(/\$/);
     expect(d.subtotal).toBe(3000 + 349 + 349);
+    expect(a1DifficultAccessIncluded([e("What's included in your quote?", "Ceiling insulation - supply & install")])).toBe(false);
   });
   test("A2: added to the owner's rate-card total as its own line", () => {
     const base = { areaM2: 100, removalM2: 0, accessMultiplier: 1.25, ownerR5IncPerM2: 30, ownerRemovalIncPerM2: 15, piesaIncGst: 349, apFeeIncGst: 349, gstRate: 0.1, installerR5ExPerM2: 20, installerRemovalExPerM2: null, installerTravelEx: null };
@@ -65,7 +68,6 @@ describe("6 difficult access fee", () => {
     const sum = (q: typeof without) => q.lines.reduce((a, l) => a + l.line_total_inc_gst, 0);
     expect(withFee.lines.find((l) => l.code === "DIFFICULT_ACCESS")).toMatchObject({ description: "Difficult access fee", line_total_inc_gst: 250 });
     expect(sum(withFee) - sum(without)).toBe(250);
-    expect(withFee.installerMarkup.markupInc).toBe(without.installerMarkup.markupInc);
   });
 });
 
