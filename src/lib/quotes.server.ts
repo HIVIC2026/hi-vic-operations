@@ -247,31 +247,11 @@ async function requireUnsentQueuedQuote(quote: { id: string; job_id: string; sen
 }
 
 /** Office approval clears an exception hold; previously queued unsent quotes return to the guarded sender. */
-export async function approveHeldQuote(quoteId: string, actorId: string) {
-  const [quoteRead, workflowRead] = await Promise.all([
-    admin.from("quotes").select("id, job_id, kind, status, release_state, release_hold_reason, sent_at, accepted_at, accepted_by").eq("id", quoteId).maybeSingle(),
-    admin.from("workflow_settings").select("auto_send_quote, customer_comms_enabled").eq("id", 1).maybeSingle(),
-  ]);
-  if (quoteRead.error || workflowRead.error || !workflowRead.data) throw new WorkflowError("Quote approval details could not be checked. Please retry.");
-  const quote = quoteRead.data, workflow = workflowRead.data;
-  if (!quote || quote.release_state !== "held" || !["draft", "issued"].includes(quote.status)) throw new WorkflowError("Only a held draft or a previously queued unsent quote can be approved.");
-  const recovery = quote.status === "issued";
-  if (recovery) await requireUnsentQueuedQuote(quote);
-  { const ib = await (await import("./installer-intake.server")).intakeSendBlockers(quote.job_id); if (ib.length) throw new WorkflowError(ib.join(" • ")); }
-  { const bb = await (await import("./installer-quote.server")).quoteBillingBlocker(quote.id); if (bb) throw new WorkflowError(bb); }
-  // Recovery only requeues. releaseQueuedQuotes must re-check the live guards before any release.
-  const releaseNow = !recovery && workflow.auto_send_quote === true && workflow.customer_comms_enabled === true;
-  const now = new Date().toISOString();
-  let update = admin.from("quotes").update({ release_state: releaseNow ? "released" : "queued", release_hold_reason: null, status: "issued", sent_at: releaseNow ? now : null, office_reviewed_at: now, office_reviewed_by: actorId }).eq("id", quote.id).eq("status", quote.status).eq("release_state", "held");
-  if (recovery) update = update.is("sent_at", null).is("accepted_at", null).is("accepted_by", null);
-  const { data: updated, error } = await update.select("id").maybeSingle();
-  if (error) throw new WorkflowError(error.message);
-  if (!updated) throw new WorkflowError("The quote changed during review. Reload it before approving.");
-  await logEvent(quote.job_id, actorId, recovery ? "quote_requeued_after_review" : "quote_hold_approved", recovery ? "Office reviewed the unsent quote and returned it to the guarded send queue" : releaseNow ? "Office approved the held quote and released it to the owner" : "Office approved the held quote — queued behind the launch switches", { quote_id: quote.id, prior_reason: quote.release_hold_reason });
-  return { releaseState: releaseNow ? "released" as const : "queued" as const };
+/** Audit 23 Oct: owner quotes are released ONLY by Office "Send quote" (sendOfficeReviewedQuote) after installer approval. */
+export async function approveHeldQuote(_quoteId: string, _actorId: string): Promise<never> {
+  throw new WorkflowError('Use Office "Send quote" after the installer approves the current quote. Nothing sent.');
 }
 
-/** Admin manual adjustment with mandatory reason; before/after snapshot kept for audit. */
 export async function adjustQuote(quoteId: string, actorId: string, reason: string, changes: { id: string; quantity: number; unit_price_inc_gst: number }[], veecDiscount?: number, discountOverride = false) {
   const { data: before } = await admin.from("quotes").select("*, quote_items(*)").eq("id", quoteId).single();
   if (!before) throw new WorkflowError("Quote not found");
