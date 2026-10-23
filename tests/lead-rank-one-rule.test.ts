@@ -11,10 +11,10 @@ const built = [undefined, "1990_or_earlier", "2000_2009"];
 function expected(f: any): number {
   const t = f.tap;
   if (f.reviewOutcome === "no_insulation") return 1;
-  if (f.reviewOutcome === "below_r2") return f.mediaCount > 0 && !f.hadUnclearReview ? 2 : 3;
-  if (f.deskLooksEligible) return 3;
+  if (f.reviewOutcome === "below_r2") return f.mediaCount > 0 ? 2 : 3;
   if (f.reviewOutcome === "over_r2") return 6;
   if (f.reviewOutcome === "unclear") return 7;
+  if (f.deskLooksEligible) return 3;
   if (f.declared === "none") return 4;
   if (f.buildDecade === "1990_or_earlier" || t?.house_built_period === "1990_or_earlier" || t?.insulation_type === "loose_fill" || t?.insulation_thickness === "thin" || f.declaredThinPatchy) return 5;
   if (t?.insulation_thickness === "hand" || t?.insulation_thickness === "thicker") return 6;

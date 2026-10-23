@@ -7,7 +7,7 @@ const b = { reviewOutcome: null, hadUnclearReview: false, deskLooksEligible: fal
 test("Jo 08:23 ranks 1-8", () => {
   expect(spotSavedRank({ ...b, reviewOutcome: "no_insulation", mediaCount: 2 })).toBe(1);
   expect(spotSavedRank({ ...b, reviewOutcome: "below_r2", mediaCount: 2 })).toBe(2);
-  expect(spotSavedRank({ ...b, reviewOutcome: "below_r2", hadUnclearReview: true, mediaCount: 2 })).toBe(3);
+  expect(spotSavedRank({ ...b, reviewOutcome: "below_r2", hadUnclearReview: true, mediaCount: 2 })).toBe(2);
   expect(spotSavedRank({ ...b, deskLooksEligible: true })).toBe(3);
   expect(spotSavedRank({ ...b, declared: "none" })).toBe(4);
   expect(spotSavedRank({ ...b, tap: { insulation_type: "batts", insulation_thickness: "thicker", house_built_period: "1990_or_earlier" } })).toBe(5);

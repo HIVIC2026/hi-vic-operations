@@ -67,7 +67,7 @@ describe("mitti pickup core", () => {
       .not.toBe(propertyAddressKey("2A Chatfield Street", "Kingsville"));
   });
 
-  test("flags same-address and same-owner duplicates without blocking", () => {
+  test("flags same-address duplicates only — never owner name alone", () => {
     const jobs = [
       { id: "j1", job_number: "HV-2303", stage: "new_enquiry", owner: "Someone Else", addressLine: "2a Chatfield St", suburb: "Kingsville" },
       { id: "j2", job_number: "HV-9999", stage: "complete", owner: "Courtney Daniels", addressLine: "1 Other Street", suburb: "Mulgrave" },
@@ -75,7 +75,7 @@ describe("mitti pickup core", () => {
     ];
     const p = parsePickupAudit(audit())!;
     const d = pickupDuplicates(p, jobs);
-    expect(d.map((x) => x.jobNumber).sort()).toEqual(["HV-2303", "HV-9999"]);
+    expect(d.map((x) => x.jobNumber).sort()).toEqual(["HV-2303"]);
   });
 
   test("no duplicate flag when nothing matches", () => {
