@@ -7,9 +7,17 @@ export const getInstallerQuotesToCheck = createServerFn({ method: "POST" }).midd
   .handler(async ({ context }) => {
     await requireAdmin(context.supabase);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
-    const { data: jobs, error } = await admin.from("jobs").select("id, job_number, stage, originating_installer_business_id, owners(full_name), properties(address_line, suburb)")
-      .is("deleted_at", null).not("stage", "in", "(cancelled,complete)").or("source.is.null,source.neq.qa_test").is("qa_archived_at", null).limit(2000);
-    if (error) throw new Error("Could not read installer jobs.");
+    const readPage = (from: number) => admin.from("jobs").select("id, job_number, stage, originating_installer_business_id, owners(full_name), properties(address_line, suburb)")
+      .is("deleted_at", null).not("stage", "in", "(cancelled,complete)").or("source.is.null,source.neq.qa_test").is("qa_archived_at", null).order("id").range(from, from + 499);
+    const first = await readPage(0);
+    if (first.error) throw new Error("Could not read installer jobs.");
+    const jobs = [...(first.data ?? [])];
+    if (jobs.length === 500) for (let from = 500; ; from += 500) {
+      const page = await readPage(from);
+      if (page.error) throw new Error("Could not read installer jobs.");
+      jobs.push(...(page.data ?? []));
+      if (!page.data || page.data.length < 500) break;
+    }
     const ids = (jobs ?? []).map((j) => j.id);
     if (!ids.length) return { rows: [] };
     const batches = [];
@@ -43,7 +51,6 @@ export const getInstallerQuotesToCheck = createServerFn({ method: "POST" }).midd
       if (draft) rows.push({ ...base, quoteId: draft.id, total: Number(draft.customer_total_inc_gst), reasons, kind: reasons.length ? "missing" as const : "ready" as const, at: draft.created_at, note: reasons.join(" · ") || "Quote drafted — check it and send it to the owner" });
       else if (h) rows.push({ ...base, quoteId: null, total: null, reasons, kind: "missing" as const, at: h.created_at, note: reasons.join(" · ") || "details missing" });
     }
-    rows.sort((a, b) => (a.kind === b.kind ? b.at.localeCompare(a.at) : a.kind === "ready" ? -1 : 1));
     const { officeQuoteBlockers } = await import("./office-quote-review.server");
     // Bound parallel readiness reads; each row and its opened draft use the same guards.
     for (let from = 0; from < rows.length; from += 10) await Promise.all(rows.slice(from, from + 10).map(async row => {
@@ -53,5 +60,6 @@ export const getInstallerQuotesToCheck = createServerFn({ method: "POST" }).midd
       row.kind = row.reasons.length ? "missing" : "ready";
       row.note = row.reasons.join(" · ") || "Quote drafted — check it and send it to the owner";
     }));
+    rows.sort((a, b) => (a.kind === b.kind ? b.at.localeCompare(a.at) : a.kind === "ready" ? -1 : 1));
     return { rows };
   });

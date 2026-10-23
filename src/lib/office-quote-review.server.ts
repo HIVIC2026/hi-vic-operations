@@ -35,7 +35,7 @@ export async function sendOfficeReviewedQuote(jobId: string, quoteId: string, ac
   if (quote.option_code === "INSTALLER_A1") await (await import("./pilot.server")).applyCobrand(jobId);
   const now = new Date().toISOString();
   const { data: claimed, error: ce } = await admin.from("quotes").update({ status: "issued", release_state: "released", release_hold_reason: null, sent_at: now, office_reviewed_at: now, office_reviewed_by: actorId })
-    .eq("id", quoteId).eq("status", quote.status).is("sent_at", null).select("id").maybeSingle();
+    .eq("id", quoteId).eq("job_id", jobId).eq("status", quote.status).eq("release_state", quote.release_state ?? "held").is("sent_at", null).select("id").maybeSingle();
   if (ce) throw new WorkflowError(ce.message);
   if (!claimed) throw new WorkflowError("The quote changed or was already sent. Reload it.");
   await logEvent(jobId, actorId, "quote_sent_by_office", "Office checked the draft and pressed Send quote", { quote_id: quoteId }, { internal: true });
