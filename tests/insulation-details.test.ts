@@ -37,7 +37,17 @@ test('loose fill wins over every thickness; thin wins over every type',()=>{
  for(const type of ['batts','loose_fill','unknown'] as const)expect(insulationTapRoute({insulation_type:type,insulation_thickness:'thin'})).toBe('thin_patchy');
 });
 test('hand, thicker and cannot tell without loose fill need onsite only',()=>{for(const t of ['hand','thicker','unknown'] as const)expect(insulationTapRoute({insulation_type:'batts',insulation_thickness:t})).toBe('needs_onsite_assessment');});
-test('house age never changes routing',()=>{for(const age of ['before_1980','1980s','1990s','2000s','2010_or_later','unknown'] as const){const a:InsulationTapAnswers={insulation_type:'batts',insulation_thickness:'hand',house_built_period:age};expect(insulationTapRoute(a)).toBe('needs_onsite_assessment');}});
+test('Before 1980 and 1980s override hand, thicker and cannot tell for batts or unknown type',()=>{
+ for(const age of ['before_1980','1980s'] as const)for(const type of ['batts','unknown'] as const)for(const thickness of ['hand','thicker','unknown'] as const)
+  expect(insulationTapRoute({insulation_type:type,insulation_thickness:thickness,house_built_period:age})).toBe('thin_patchy');
+});
+test('1990s or later and Not sure retain type/thickness routing',()=>{
+ for(const age of ['1990s','2000s','2010_or_later','unknown'] as const){
+  for(const thickness of ['hand','thicker','unknown'] as const)expect(insulationTapRoute({insulation_type:'batts',insulation_thickness:thickness,house_built_period:age})).toBe('needs_onsite_assessment');
+  expect(insulationTapRoute({insulation_type:'batts',insulation_thickness:'thin',house_built_period:age})).toBe('thin_patchy');
+  expect(insulationTapRoute({insulation_type:'loose_fill',insulation_thickness:'thicker',house_built_period:age})).toBe('thin_patchy');
+ }
+});
 test('practice persisted answers retain original website facts and repeat is idempotent',async()=>{
  const a:InsulationTapAnswers={insulation_type:'loose_fill',insulation_thickness:'thicker',house_built_period:'1980s'};await save(a);await save(a);
  const enrichment=(await db.query<{enrichment:Record<string,unknown>}>('SELECT enrichment FROM properties')).rows[0]?.enrichment;expect(ownerInsulationAnswers(enrichment)).toMatchObject({...a,unrelated:'keep',existing_insulation:'present'});
@@ -45,12 +55,22 @@ test('practice persisted answers retain original website facts and repeat is ide
  expect((await db.query('SELECT eligibility_outcome FROM jobs')).rows[0]?.eligibility_outcome).toBe('needs_onsite_confirmation');
  expect((await db.query('SELECT desk_checked_at FROM lead_campaign_responses')).rows[0]?.desk_checked_at).toBeNull();
 });
-test('onsite-only answers disappear from every Office pile, new photos restore review',async()=>{
+test('practice persistence matches the pre-1990 override for all non-thin thicknesses',async()=>{
+ for(const age of ['before_1980','1980s'] as const)for(const thickness of ['hand','thicker','unknown'] as const){
+  const result=await save({insulation_type:'batts',insulation_thickness:thickness,house_built_period:age});
+  expect(result.rows[0]?.result).toMatchObject({route:'thin_patchy'});
+ }
+ expect((await db.query('SELECT eligibility_outcome FROM jobs')).rows[0]?.eligibility_outcome).toBe('needs_onsite_confirmation');
+ expect((await db.query('SELECT count(*)::int n FROM customer_email_sends')).rows[0]?.n).toBe(0);
+});
+test('onsite-only answers disappear from every Office pile, new photos restore review even for older houses',async()=>{
  await save({insulation_type:'batts',insulation_thickness:'hand',house_built_period:'unknown'});
  for(const view of ['all','new','photos','needs_attention','insulation_requested','offered_spot','spot_saved','ineligible','removed']){const r=await db.query<{r:{total:number}}>('SELECT office_enquiry_page($1,\'\',1) r',[view]);expect(r.rows[0]?.r.total).toBe(0);}
  expect((await db.query('SELECT next_action FROM jobs')).rows[0]?.next_action).toBe('Needs onsite assessment');expect((await db.query('SELECT count(*)::int n FROM customer_email_sends')).rows[0]?.n).toBe(0);
  await db.query("INSERT INTO documents(job_id,kind,storage_path) VALUES($1,'intake_media','private/photo.jpg')",[job]);expect((await db.query<{r:{total:number}}>("SELECT office_enquiry_page('photos','',1) r")).rows[0]?.r.total).toBe(1);
  await expect(save({insulation_type:'batts',insulation_thickness:'thin',house_built_period:'2000s'})).rejects.toThrow('Photos require existing review');
+ for(const age of ['before_1980','1980s'] as const)await expect(save({insulation_type:'batts',insulation_thickness:'thicker',house_built_period:age})).rejects.toThrow('Photos require existing review');
+ expect((await db.query('SELECT count(*)::int n FROM customer_email_sends')).rows[0]?.n).toBe(0);
 });
 test('RPC denies public/client execution and expired links',async()=>{
  expect((await db.query("SELECT has_function_privilege('anon','save_owner_insulation_details(text,jsonb)','EXECUTE') allowed")).rows[0]?.allowed).toBe(false);

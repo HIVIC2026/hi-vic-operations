@@ -1,5 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Insulation details tap questions (Jo 23 Oct 07:13 UTC)
+- [ ] Jo 07:30 addition: pre-1990 declared house age overrides type/thickness to thin/patchy; media review still first. Update pure/pending SQL rules and practice tests only; no activation/sends/publish.
 - [x] Draft insulation-details email/button and secure mobile page; preserve upload flow; 390px isolated phone questions/no overflow verified, email rendered locally with fictional TEST figures.
 - [x] Owner-declared answer overlay/history and onsite-only list exclusion staged; PGlite persistence/idempotency/queue/photo-return/age proof passes. No live migration/sends/publish; submission explicitly TEST-preview-only.
 - [ ] Activate hosted persistence and guarded automatic thin/patchy follow-up only after approval: pending practice-proven migration deliberately unapplied; no hosted save or send claimed. Existing declaration regression fixture has two pre-existing missing-query-method failures.
