@@ -155,7 +155,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     const b = noSizeEstimateBlocker({ areaSource: est?.area_source ?? null, areaM2: price.areaM2, ownerArea: job.estimated_area_unknown ? null : Number(job.estimated_area_m2) || null, insulation: price.insulation, followup, automaticInitial, officeHeld: testOpts.officeHeld === true && !!actorId, insulationEmail: testOpts.group === "onsite" });
     if (b) return r("skipped", b);
   }
-  if (followup && (price.insulation !== "present" || !(await followupAllowed(link.token)))) return r("blocked", "A qualifying declaration or approved below-R2 review and current existing-insulation estimate are required.");
+  if (followup && (!["present", "unknown"].includes(price.insulation ?? "") || !(await followupAllowed(link.token)))) return r("blocked", "A qualifying declaration or approved below-R2 review and current existing-insulation estimate are required.");
   const { discountIsWholeVeecs } = await import("./estimate.core");
   const { data: cfg, error: cfgError } = await admin.from("retail_estimator_settings").select("indicative_veec_value").eq("is_current", true).maybeSingle();
   if (cfgError || !cfg) return r("blocked", "Could not read current estimator settings. Try again; nothing sent.");
@@ -170,7 +170,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   let declaredThinPatchy = false;
   // Jo 23 Oct 08:14 UTC: owner answered the tap questions (non-thin) -> standard existing-insulation wording.
   let declaredExisting = false;
-  if (!office && !questions && price.insulation === "present") {
+  if (!office && !questions && (price.insulation === "present" || price.insulation === "unknown")) {
     const { declaredInsulationDetail, insulationDetailRoute } = await import("./enquiry.core");
     const { data: reviewRows, error: reviewError } = await admin.from("customer_engagement_events").select("metadata").eq("job_id", jobId).eq("event_type", "intake_media_reviewed").order("occurred_at", { ascending: false }).limit(1);
     const reviewOutcome = reviewError ? "error" : ((reviewRows?.[0]?.metadata as { outcome?: string } | null | undefined)?.outcome ?? null);
@@ -178,10 +178,16 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     const {ownerInsulationAnswers,savedInsulationTap}=await import("./insulation-details.core");
     const answers=ownerInsulationAnswers(enrich);
     const tap=savedInsulationTap(enrich);
-    declaredThinPatchy = !reviewError && !reviewOutcome && (tap?.route === "thin_patchy" || insulationDetailRoute(declaredInsulationDetail(answers)) === "likely_save_spot");
+    const detail = declaredInsulationDetail(answers);
+    const { ALL_NEW_ENQUIRIES_OFFER_APPROVED } = await import('./enquiry-groups.core');
+    const { data: offers, error: offerError } = await admin.from('workflow_events').select('event_type,details').eq('job_id',jobId).eq('event_type','owner_insulation_present_auto_offer').limit(1);
+    const { qualifyingDeclaration } = await import('./insulation-review.core');
+    const { existingInsulationTemplateFacts } = await import('./existing-insulation-template.core');
+    const offerFacts = existingInsulationTemplateFacts({ insulation:price.insulation, authorized:ALL_NEW_ENQUIRIES_OFFER_APPROVED || (!offerError && qualifyingDeclaration(offers ?? [])), reviewOutcome, readFailed:!!reviewError || !!offerError, type:detail.insulation_type, thickness:detail.insulation_thickness, coverage:detail.insulation_coverage });
+    declaredThinPatchy = offerFacts.declaredThinPatchy || (!reviewError && !reviewOutcome && (tap?.route === "thin_patchy" || insulationDetailRoute(detail) === "likely_save_spot"));
     // Jo 08:27 UTC: owners who uploaded photos/video (not yet checked, no thin answer) also get the standard wording.
     const { count: ownerUploads, error: uploadError } = tap ? { count: 0, error: null } : await admin.from("documents").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", "intake_media");
-    declaredExisting = !reviewError && !reviewOutcome && !declaredThinPatchy && (tap?.route === "existing_save_spot" || (!tap && !uploadError && (ownerUploads ?? 0) > 0));
+    declaredExisting = offerFacts.declaredExisting || (!reviewError && !reviewOutcome && !declaredThinPatchy && (tap?.route === "existing_save_spot" || (!tap && !uploadError && (ownerUploads ?? 0) > 0)));
   }
   const group = declaredThinPatchy || declaredExisting ? "likely" : launchGroup(job.eligibility_outcome, price.insulation) ?? "likely";
   if (questions && price.insulation === "none") return r("skipped", "Owner said no insulation — they get Save my spot instead.");
@@ -291,7 +297,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
       const desk = (lcr as { desk_check_status?: string | null } | null)?.desk_check_status ?? null;
       const reviewed = !lcrError && !!c && c.criteriaPassed && (c.mediaReview === "below_r2" || desk === "looks_eligible") && desk !== "not_eligible" && desk !== "needs_onsite_check";
       if (!reviewed && !(!lcrError && (declaredThinPatchy || declaredExisting) && c?.criteriaPassed && c?.ownerQualified && desk!=="needs_onsite_check" && desk!=="not_eligible")) return null;
-      facts = reviewed ? { outcome: "likely_eligible", insulation: "present", ceilingSizeKnown: areaBasis.ceilingSizeKnown, deskCheckStatus: "looks_eligible" } : { outcome:"likely_eligible",insulation:"present",ceilingSizeKnown:areaBasis.ceilingSizeKnown,...(declaredExisting?{declaredExisting:true}:{declaredThinPatchy:true}) };
+      facts = reviewed ? { outcome: "likely_eligible", insulation: "present", ceilingSizeKnown: areaBasis.ceilingSizeKnown, deskCheckStatus: "looks_eligible" } : { outcome:"likely_eligible",insulation:price.insulation === 'unknown' ? 'unknown' : 'present',ceilingSizeKnown:areaBasis.ceilingSizeKnown,...(declaredExisting?{declaredExisting:true}:{declaredThinPatchy:true}) };
     } else {
       let deskCheckStatus: "looks_eligible" | "not_eligible" | "needs_onsite_check" | null = null;
       try {
@@ -311,7 +317,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     try {
       // Jo 22 Oct: informational "up to" removal for existing insulation only, from the current removal rate.
       let removalUpToAmount: number | null = null;
-      if (facts.insulation === "present" || (questions && facts.insulation === "unknown")) {
+      if (facts.insulation === "present" || facts.insulation === "unknown") {
         const { data: rs } = await admin.from("retail_estimator_settings").select("removal_inc_gst_per_m2").eq("is_current", true).maybeSingle();
         const { removalUpTo } = await import("./estimate-removal-upto.core");
         removalUpToAmount = removalUpTo({ insulation: "present", areaM2: areaBasis.areaM2, ratePerM2: rs?.removal_inc_gst_per_m2 });
