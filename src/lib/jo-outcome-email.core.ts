@@ -17,6 +17,7 @@
  */
 import {
   ctasForTemplate,
+  INSULATION_QUESTIONS_CTA_LABEL,
   renderJoEstimateEmail,
   renderJoIneligibleEmail,
   renderJoReadyCheckInvitation,
@@ -166,6 +167,8 @@ export type JoOutcomeEmailInput = JoOutcomeFacts & {
   installationRatePerM2?: number | null;
   /** Received-media acknowledgement (Office first reply and the automatic Group B initial for media already received). */
   mediaAlreadyReceived?: boolean;
+  /** Jo 23 Oct 2026 "Tell us about your insulation" campaign (T5/T6 variant, draft wording). */
+  insulationQuestions?: boolean;
 };
 
 export type JoWiredEmail = EstimateEmail & {
@@ -553,7 +556,9 @@ export function renderJoOutcomeEmail(input: JoOutcomeEmailInput): JoWiredEmail |
   }
 
   if (!input.figures) throw new Error("Templates 1–6 require the job's estimate figures; none were supplied.");
-  const rendered = renderJoEstimateEmail(id, input.recipient, input.figures, { declaredThinPatchy: input.declaredThinPatchy === true });
+  const questions = input.insulationQuestions === true;
+  if (questions && !['potentially_eligible_unknown_size_unknown', 'potentially_eligible_unknown_size_known'].includes(id)) throw new Error('The insulation questions email only applies to unconfirmed insulation.');
+  const rendered = renderJoEstimateEmail(id, input.recipient, input.figures, { declaredThinPatchy: input.declaredThinPatchy === true, insulationQuestions: questions });
   const received = input.mediaAlreadyReceived === true;
   if (received && !['potentially_eligible_unknown_size_unknown', 'potentially_eligible_unknown_size_known'].includes(id)) throw new Error('Received-media acknowledgement requires an unreviewed insulation estimate.');
   const copy = received ? rendered.body
@@ -562,7 +567,7 @@ export function renderJoOutcomeEmail(input: JoOutcomeEmailInput): JoWiredEmail |
   const linkedBody = bindLinks(copy, input.links, ctas);
   const missing = missingCta(ctas, linkedBody);
   if (missing) throw new Error(`The ${missing} link is missing for this customer; nothing was prepared.`);
-  const body = received ? linkedBody.replace('Tell us about your insulation', 'Add more photos or video →') : linkedBody;
+  const body = received ? linkedBody.replace('Tell us about your insulation', 'Add more photos or video →') : questions ? linkedBody.replace('|Tell us about your insulation\u0001', `|${INSULATION_QUESTIONS_CTA_LABEL}\u0001`) : linkedBody;
   return assemble(id, rendered.subject, body, ctas, input);
 }
 

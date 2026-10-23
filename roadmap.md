@@ -518,3 +518,4 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Send Save My Spot to HV-2246 (standard), HV-2635 + HV-2569 (existing_insulation_save_spot) via existing sender; report status/keys
 - [x] Deep jobs next steps + Ready Check basics drafting (preview)
 - [ ] HV-1538 make Deep's lead + Active — blocked: permanent job-source lock, needs Jo's decision
+- 23 Oct: Spots saved ranked list + insulation-questions campaign (preview; sending OFF pending Jo's wording + go; page save pending migration 0222)

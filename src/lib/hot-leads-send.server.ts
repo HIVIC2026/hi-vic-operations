@@ -46,7 +46,7 @@ void LAUNCH_COPY_APPROVED;
  *  mode "preview" renders without sending and without creating any link token (missing links become placeholders);
  *  "manual_copy" is the same render but issues the lead's missing unsubscribe/referral links for an Office hand-send (STEP 32);
  *  "test_to_jo" sends a real lead's email to Jo's inbox only, with TEST-job links. */
-export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string; /** TEST only: send the Step 3 likely-eligible email instead, same facts. */ variant?: "likely_estimate"; mode?: "send" | "preview" | "manual_copy" | "test_to_jo" | "test_preview"; automaticInsulation?: boolean; /** Explicit Office request only; binds the approved request to the review shown in preview. */ morePhotosReviewId?: string; /** Jo 22 Oct 2026: Office-edited more-photos wording; body-only swap, upload link appended automatically. */ customText?: string; /** Automatic Group B initial only: render the approved received-media acknowledgement variant. */ mediaAcknowledgement?: boolean; /** Set only by the post-Gate-1 router: the owner's own first reply. */ automaticInitial?: boolean; /** S20-R01: set only by the automatic Group B invitation for a NEW enquiry while the master switch is off; the new-enquiry gate is re-checked before the provider call. */ newEnquiryAutoReply?: boolean; /** Office manual copy only (Jo, 12 Oct): render the approved three-variant email. Never sends. */ officeVariant?: import("./save-spot-offer.core").SaveSpotVariant; /** Set ONLY by the post-intake worker for an ENQ_01 manual-backlog item (unforgeable Symbol). */ manualBacklog?: import("./manual-backlog.core").ManualBacklogTrust; /** Jo 21 Oct: Office-approved send of a held Office review enquiry (sendOfficeHeldEmail only). */ officeHeld?: boolean };
+export type TestSendOptions = { linkBase?: string; group?: "likely" | "onsite"; subjectPrefix?: string; /** TEST only: send the Step 3 likely-eligible email instead, same facts. */ variant?: "likely_estimate"; mode?: "send" | "preview" | "manual_copy" | "test_to_jo" | "test_preview"; automaticInsulation?: boolean; /** Explicit Office request only; binds the approved request to the review shown in preview. */ morePhotosReviewId?: string; /** Jo 22 Oct 2026: Office-edited more-photos wording; body-only swap, upload link appended automatically. */ customText?: string; /** Automatic Group B initial only: render the approved received-media acknowledgement variant. */ mediaAcknowledgement?: boolean; /** Set only by the post-Gate-1 router: the owner's own first reply. */ automaticInitial?: boolean; /** S20-R01: set only by the automatic Group B invitation for a NEW enquiry while the master switch is off; the new-enquiry gate is re-checked before the provider call. */ newEnquiryAutoReply?: boolean; /** Office manual copy only (Jo, 12 Oct): render the approved three-variant email. Never sends. */ officeVariant?: import("./save-spot-offer.core").SaveSpotVariant; /** Set ONLY by the post-intake worker for an ENQ_01 manual-backlog item (unforgeable Symbol). */ manualBacklog?: import("./manual-backlog.core").ManualBacklogTrust; /** Jo 21 Oct: Office-approved send of a held Office review enquiry (sendOfficeHeldEmail only). */ officeHeld?: boolean; /** Jo 23 Oct: "Tell us about your insulation" batch campaign (insulation-questions-campaign.server only). */ insulationQuestions?: boolean };
 /** Jo's own inbox for "send me a test of this lead". */
 export const JO_TEST_INBOX = "jolowexo@hotmail.com";
 /** TEST job whose links go into Jo's test copies, so pressing them never touches the real lead. */
@@ -96,7 +96,15 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   if (!job) return { jobId, jobNumber: null, outcome: "failed", detail: "Job not found" };
   const r = (outcome: HotSendResult["outcome"], detail: string): HotSendResult => ({ jobId, jobNumber: job.job_number, outcome, detail });
   const isTest = job.source === "qa_test";
-  if (mode === "send" && !isTest && !followup && !morePhotos && !realOn) return r("blocked", "Sending is switched off.");
+  const questions = testOpts.insulationQuestions === true;
+  if (mode === "send" && !isTest && !followup && !morePhotos && !questions && !realOn) return r("blocked", "Sending is switched off.");
+  if (questions && mode === "send") {
+    const { INSULATION_QUESTIONS_SEND_APPROVED } = await import("./insulation-questions-campaign.core");
+    if (!isTest && !INSULATION_QUESTIONS_SEND_APPROVED) return r("blocked", "Awaiting Jo's final wording approval and go — nothing sent.");
+    if (!(await (await import("./comms.server")).customerCommsEnabled())) return r("blocked", "Customer emails are switched off — nothing sent.");
+    const blocker = await (await import("./insulation-questions-campaign.server")).questionsCampaignJobBlocker(jobId);
+    if (blocker) return r("skipped", blocker);
+  }
   if (followup && !["base44", "qa_test"].includes(job.source)) return r("blocked", "Follow-up is only for website owner enquiries.");
   if (followup && mode === "send" && !(await (await import("./comms.server")).customerCommsEnabled())) return r("blocked", "Customer emails are switched off — nothing sent.");
   if (morePhotos && mode === 'send' && !(await groupBGlobalsOn())) return r('blocked', GROUP_B_GLOBALS_OFF);
@@ -160,7 +168,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   // Save my spot email and counts as the Group A ("likely") send. A recorded Office review always wins; any
   // unreadable review record fails closed to the existing behaviour.
   let declaredThinPatchy = false;
-  if (!office && price.insulation === "present") {
+  if (!office && !questions && price.insulation === "present") {
     const { declaredInsulationDetail, insulationDetailRoute } = await import("./enquiry.core");
     const { data: reviewRows, error: reviewError } = await admin.from("customer_engagement_events").select("metadata").eq("job_id", jobId).eq("event_type", "intake_media_reviewed").order("occurred_at", { ascending: false }).limit(1);
     const reviewOutcome = reviewError ? "error" : ((reviewRows?.[0]?.metadata as { outcome?: string } | null | undefined)?.outcome ?? null);
@@ -171,17 +179,18 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     declaredThinPatchy = !reviewError && !reviewOutcome && (tap?.route === "thin_patchy" || insulationDetailRoute(declaredInsulationDetail(answers)) === "likely_save_spot");
   }
   const group = declaredThinPatchy ? "likely" : launchGroup(job.eligibility_outcome, price.insulation) ?? "likely";
-  if (group !== "likely" && !isTest && !testOpts.automaticInsulation && !followup && !morePhotos) return r("blocked", "Only the approved Group A email can be sent from this list.");
+  if (questions && price.insulation === "none") return r("skipped", "Owner said no insulation — they get Save my spot instead.");
+  if (group !== "likely" && !isTest && !testOpts.automaticInsulation && !followup && !morePhotos && !questions) return r("blocked", "Only the approved Group A email can be sent from this list.");
 
   // Once per home, ever: the idempotency key is the job, not the batch.
-  const sendGroup = morePhotos ? "onsite" : followup ? "likely" : isTest || testOpts.automaticInsulation ? (testOpts.group ?? group) : "likely";
-  if (sendGroup === "onsite" && !followup) {
+  const sendGroup = morePhotos || questions ? "onsite" : followup ? "likely" : isTest || testOpts.automaticInsulation ? (testOpts.group ?? group) : "likely";
+  if (sendGroup === "onsite" && !followup && !questions) {
     const blocker = morePhotos ? (await morePhotosRequestReview(jobId, testOpts.morePhotosReviewId)).blocker : await onsiteInitialBlocker(jobId, testOpts.mediaAcknowledgement === true);
     if (blocker) return r("blocked", blocker);
     const { INSULATION_DETAILS_REAL_SEND_APPROVED } = await import("./hot-leads.core");
     if (!isTest && mode === "send" && !INSULATION_DETAILS_REAL_SEND_APPROVED) return r("blocked", "Insulation email awaits final visual approval");
   }
-  const key = morePhotos ? morePhotosRequestKey(jobId, testOpts.morePhotosReviewId!) : `${LAUNCH_CAMPAIGN}:${followup ? "existing_insulation_save_spot" : sendGroup === "onsite" ? "insulation_details" : "save_my_spot"}:${jobId}${isTest && testOpts.subjectPrefix ? `:preview-test:${testOpts.variant ?? "savespot"}:${Date.now()}` : ""}`;
+  const key = morePhotos ? morePhotosRequestKey(jobId, testOpts.morePhotosReviewId!) : `${LAUNCH_CAMPAIGN}:${questions ? "insulation_questions" : followup ? "existing_insulation_save_spot" : sendGroup === "onsite" ? "insulation_details" : "save_my_spot"}:${jobId}${isTest && testOpts.subjectPrefix ? `:preview-test:${testOpts.variant ?? "savespot"}:${Date.now()}` : ""}`;
   const { data: ex, error: existingSendError } = await admin.from("customer_email_sends").select("id, status").eq("idempotency_key", key).maybeSingle();
   if (existingSendError) return r("blocked", "Could not check previous delivery. Nothing sent; try again.");
   if ((followup || morePhotos) && mode === "send" && ex) return r("skipped", "A follow-up attempt already exists. Check its delivery record before any further action.");
@@ -291,18 +300,19 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
       // This sender never sends the ineligible result (T7 belongs to the ineligible sender).
       if (outcome === "does_not_appear_eligible" || outcome === null) return null;
       const insulation = price.insulation === "none" || price.insulation === "present" ? price.insulation : "unknown";
-      facts = { outcome, insulation, ceilingSizeKnown: areaBasis.ceilingSizeKnown, deskCheckStatus: morePhotos ? null : deskCheckStatus, ...(declaredThinPatchy ? { declaredThinPatchy: true } : {}), ...(sendGroup === "onsite" && testOpts.mediaAcknowledgement === true ? { mediaAlreadyReceived: true } : {}) };
+      if (questions) facts = { outcome, insulation: insulation === "none" ? "unknown" : insulation, ceilingSizeKnown: areaBasis.ceilingSizeKnown, deskCheckStatus: null };
+      else facts = { outcome, insulation, ceilingSizeKnown: areaBasis.ceilingSizeKnown, deskCheckStatus: morePhotos ? null : deskCheckStatus, ...(declaredThinPatchy ? { declaredThinPatchy: true } : {}), ...(sendGroup === "onsite" && testOpts.mediaAcknowledgement === true ? { mediaAlreadyReceived: true } : {}) };
     }
     try {
       // Jo 22 Oct: informational "up to" removal for existing insulation only, from the current removal rate.
       let removalUpToAmount: number | null = null;
-      if (facts.insulation === "present") {
+      if (facts.insulation === "present" || (questions && facts.insulation === "unknown")) {
         const { data: rs } = await admin.from("retail_estimator_settings").select("removal_inc_gst_per_m2").eq("is_current", true).maybeSingle();
         const { removalUpTo } = await import("./estimate-removal-upto.core");
         removalUpToAmount = removalUpTo({ insulation: "present", areaM2: areaBasis.areaM2, ratePerM2: rs?.removal_inc_gst_per_m2 });
       }
       const rendered = jo.renderJoOutcomeEmail({
-        ...facts,
+        ...facts, ...(questions ? { insulationQuestions: true } : {}),
         recipient: { firstName: firstName ?? "there", propertyAddress: fullAddress ?? "", enquiryReference: job.job_number ?? "" },
         figures: { veuRebate: Number(price.discount), customerTotal: Number(price.total), totalBeforeRebate: Number(price.gross), installation: Number(installation), piesaFee: Number(assessmentFee), apFee: Number(apFee), ceilingAreaM2: areaBasis.areaM2, areaEstimated: areaBasis.areaEstimated, removalUpTo: removalUpToAmount },
         links: { saveMySpotUrl: campaignUrl, uploadMediaUrl: `${base}/estimate/${linkToken}/video`, reviewResultUrl: `${base}/estimate/${linkToken}`, calculatorUrl: `${base}/estimate/${linkToken}/calculator` },
