@@ -91,7 +91,7 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     const malformed = await h.server.checkOutlookConnection();
     assert.equal(malformed.status, "failed"); assert.doesNotMatch(malformed.problem, /private-provider-response/);
   })],
-  ["an attachment page failure retains new pending work and retries all metadata before one closure", practice(async h => {
+  ["an attachment page failure retains new pending work and retries all metadata without changing the job", practice(async h => {
     const message = graphMessage("attachment-retry", "We will not be proceeding.", { hasAttachments: true });
     let fail = true;
     h.control.fetch = async url => url.includes("skiptoken=2")
@@ -102,53 +102,13 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     assert.deepEqual((await row(h, "outlook_message_work")).attachment_refs, []);
     fail = false;
     const second = h.counts(); await h.server.processMessages([message], TEST_MAILBOX, second, COMPLETE_WINDOW);
-    assert.equal(second.errors, 0); assert.equal(second.stored, 1); assert.equal(second.closed, 1);
+    assert.equal(second.errors, 0); assert.equal(second.stored, 1); assert.equal(second.closed, 0);
     assert.deepEqual((await row(h, "job_communications")).attachment_refs.map((a: any) => a.id), ["a1", "a2"]);
     assert.equal((await row(h, "outlook_message_work")).status, "complete");
-    assert.equal(await total(h, "workflow_events"), 1);
+    assert.equal(await total(h, "workflow_events"), 0);
     const replay = h.counts(); await h.server.processMessages([message], TEST_MAILBOX, replay, COMPLETE_WINDOW);
-    assert.equal(replay.duplicate, 1); assert.equal(await total(h, "workflow_events"), 1);
+    assert.equal(replay.duplicate, 1); assert.equal(await total(h, "workflow_events"), 0);
     assert.ok(h.requests.every(r => r.url.startsWith("https://connector-gateway.lovable.dev/microsoft_outlook/users/shared%40example.test/")));
-  })],
-  ...(["job read error", "later inbound count error", "later inbound count absent"] as const).map((kind): [string, () => Promise<void>] =>
-    [`${kind} fails closed and leaves retryable new processing`, practice(async h => {
-      const message = graphMessage(`unreadable-${kind}`, "Please cancel my enquiry.");
-      h.control.fault = op => kind === "job read error" && op.table === "jobs" && op.fields === "stage"
-        ? { data: null, error: { message: "injected job read failure" } }
-        : kind !== "job read error" && op.table === "job_communications" && op.head
-          ? { data: null, error: kind === "later inbound count error" ? { message: "injected history read failure" } : null, count: null }
-          : null;
-      const first = h.counts(); await h.server.processMessages([message], TEST_MAILBOX, first, COMPLETE_WINDOW);
-      assert.equal(first.errors, 1); await expectPending(h);
-      h.control.fault = null;
-      const retry = h.counts(); await h.server.processMessages([message], TEST_MAILBOX, retry, COMPLETE_WINDOW);
-      assert.equal(retry.closed, 1); assert.equal(await total(h, "workflow_events"), 1);
-    })]),
-  ["audit failure rolls back correspondence and closure; the pending queue retries without provider replay", practice(async h => {
-    await configured(h);
-    await h.db.exec(`CREATE FUNCTION reject_outlook_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected audit failure'; END $$;
-      CREATE TRIGGER fail_audit BEFORE INSERT ON workflow_events FOR EACH ROW EXECUTE FUNCTION reject_outlook_audit();`);
-    const first = h.counts(); await h.server.processMessages([graphMessage("audit-retry", "Please cancel my enquiry.")], TEST_MAILBOX, first, COMPLETE_WINDOW);
-    assert.equal(first.errors, 1); await expectPending(h); assert.equal(await total(h, "workflow_events"), 0);
-    await h.db.exec(`DROP TRIGGER fail_audit ON workflow_events`);
-    await h.db.exec(`UPDATE outlook_sync_state SET all_inbound_cursor='2026-10-20T08:30:00Z'`);
-    h.control.fetch = async url => readOnlyResponses(url);
-    const retry = await h.server.runOutlookSync({ maxPages: 1 });
-    assert.equal(retry.ok, true, retry.blocker); assert.equal(retry.counts.closed, 1);
-    assert.equal(await total(h, "job_communications"), 1); assert.equal(await total(h, "workflow_events"), 1);
-    const replay = await h.server.runOutlookSync({ maxPages: 1 });
-    assert.equal(replay.ok, true, replay.blocker); assert.equal(await total(h, "workflow_events"), 1);
-  })],
-  ["review insertion failure is atomic and retry creates one correspondence/review pair", practice(async h => {
-    await h.db.exec(`CREATE FUNCTION reject_outlook_review() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected review failure'; END $$;
-      CREATE TRIGGER fail_review BEFORE INSERT ON correspondence_reviews FOR EACH ROW EXECUTE FUNCTION reject_outlook_review();`);
-    const message = graphMessage("review-retry", "We might not proceed if the price stays high.");
-    const first = h.counts(); await h.server.processMessages([message], TEST_MAILBOX, first, COMPLETE_WINDOW);
-    assert.equal(first.errors, 1); await expectPending(h);
-    await h.db.exec(`DROP TRIGGER fail_review ON correspondence_reviews`);
-    const retry = h.counts(); await h.server.processMessages([message], TEST_MAILBOX, retry, COMPLETE_WINDOW);
-    assert.equal(retry.flagged, 1); assert.equal(retry.closed, 0);
-    assert.equal(await total(h, "job_communications"), 1); assert.equal(await total(h, "correspondence_reviews"), 1);
   })],
   ["legacy communications/reviews never become pending and are never retrospectively closed", practice(async h => {
     await h.db.query(`INSERT INTO job_communications(job_id,direction,channel,provider,provider_message_id,body) VALUES($1,'inbound','email','outlook','legacy-comm','original historical text')`, [TEST_JOB]);
@@ -167,7 +127,7 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
       graphMessage("older-decline", "Please cancel my enquiry."),
       graphMessage("later-reply", "Actually please continue.", { receivedDateTime: "2026-10-20T09:00:00Z" }),
     ], TEST_MAILBOX, counts, COMPLETE_WINDOW);
-    assert.equal(counts.errors, 0); assert.equal(counts.closed, 0); assert.equal(counts.flagged, 1);
+    assert.equal(counts.errors, 0); assert.equal(counts.closed, 0); assert.equal(counts.flagged, 0);
     assert.equal((await row(h, "jobs")).stage, "new_enquiry"); assert.equal(await total(h, "job_communications"), 2);
   })],
   ["a bounded cursor preserves the provider continuation across equal-timestamp pages", practice(async h => {
@@ -196,77 +156,6 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     assert.equal(result.ok, false); assert.equal(await total(h, "outlook_message_work"), 0);
     assert.equal((await h.state()).all_inbound_cursor, null);
     assert.ok(h.requests.every(r => new URL(r.url).origin === "https://connector-gateway.lovable.dev"));
-  })],
-  ["an early-page decline followed by a future-page inbound reply creates review without closure", practice(async h => {
-    await configured(h);
-    h.control.fetch = async url => {
-      if (url.includes("/me?") || url.includes("$select=id,body")) return readOnlyResponses(url);
-      if (url.includes("/attachments")) return jsonResponse({ value: [] });
-      if (filterField(url) === "sentDateTime") return jsonResponse({ value: [] });
-      if (url.includes("$skiptoken=later")) return jsonResponse({ value: [graphMessage("future-page-reply", "Actually, please continue.", { receivedDateTime: "2026-10-20T09:00:00Z" })] });
-      return jsonResponse({ value: [graphMessage("early-page-decline", "Please cancel my enquiry.")],
-        "@odata.nextLink": "https://graph.microsoft.com/v1.0/users/shared%40example.test/messages?$skiptoken=later" });
-    };
-    const result = await h.server.runOutlookSync({ maxPages: 2, pageSize: 1 });
-    assert.equal(result.ok, true, result.blocker); assert.equal(result.counts.closed, 0); assert.equal(result.counts.flagged, 1);
-    assert.equal((await row(h, "jobs")).stage, "new_enquiry"); assert.equal(await total(h, "job_communications"), 2);
-    assert.match((await row(h, "correspondence_reviews")).reason, /later Inbox correspondence has not been fully checked/);
-    assert.equal(await total(h, "workflow_events"), 0);
-  })],
-  ["a complete fresh Inbox window retains explicit-decline closure and records its fixed cutoff", practice(async h => {
-    await configured(h);
-    h.control.fetch = async url => url.includes("/attachments") ? jsonResponse({ value: [] }) : url.includes("/me?") || url.includes("$select=id,body") ? readOnlyResponses(url)
-      : jsonResponse({ value: filterField(url) === "receivedDateTime" ? [graphMessage("complete-window-decline", "Please cancel my enquiry.")] : [] });
-    const result = await h.server.runOutlookSync({ maxPages: 2 });
-    assert.equal(result.ok, true, result.blocker); assert.equal(result.counts.closed, 1);
-    const event = await row(h, "workflow_events");
-    assert.ok(event.details.inbox_complete_through);
-    const pages = h.requests.filter(r => new URL(r.url).searchParams.get("$filter")?.includes(" le "));
-    assert.equal(pages.length, 2);
-    for (const page of pages) assert.ok(new URL(page.url).searchParams.get("$filter")!.endsWith(` le ${event.details.inbox_complete_through}`));
-    assert.ok(pages[0]!.url.includes("receivedDateTime")); assert.ok(pages[1]!.url.includes("sentDateTime"));
-  })],
-  ["an older continuation cannot prove current completeness; subsequent fresh scans preserve its review", practice(async h => {
-    await configured(h);
-    await h.db.exec(`UPDATE outlook_sync_state SET all_inbound_next_link='https://graph.microsoft.com/v1.0/users/shared%40example.test/messages?$skiptoken=older-cutoff'`);
-    h.control.fetch = async url => {
-      if (url.includes("/me?") || url.includes("$select=id,body")) return readOnlyResponses(url);
-      if (url.includes("/attachments")) return jsonResponse({ value: [] });
-      if (filterField(url) === "sentDateTime") return jsonResponse({ value: [] });
-      return jsonResponse({ value: url.includes("older-cutoff")
-        ? [graphMessage("old-window-decline", "Please cancel my enquiry.")]
-        : [graphMessage("new-window-reply", "Please continue after all.", { receivedDateTime: "2026-10-20T09:00:00Z" })] });
-    };
-    const older = await h.server.runOutlookSync({ maxPages: 1 });
-    assert.equal(older.ok, true, older.blocker); assert.equal(older.counts.closed, 0); assert.equal(older.counts.flagged, 1);
-    assert.equal((await h.state()).all_inbound_next_link, null);
-    const fresh = await h.server.runOutlookSync({ maxPages: 1 });
-    assert.equal(fresh.ok, true, fresh.blocker); assert.equal(fresh.counts.closed, 0);
-    assert.equal((await row(h, "jobs")).stage, "new_enquiry");
-    assert.equal(await total(h, "correspondence_reviews"), 1); assert.equal(await total(h, "workflow_events"), 0);
-  })],
-  ["Inbox completion and newer correspondence are considered before a closure-capable Sent Items record", practice(async h => {
-    await configured(h);
-    h.control.fetch = async url => url.includes("/attachments") ? jsonResponse({ value: [] }) : url.includes("/me?") || url.includes("$select=id,body") ? readOnlyResponses(url)
-      : jsonResponse({ value: filterField(url) === "receivedDateTime"
-        ? [graphMessage("new-inbox-reply", "Please continue.", { receivedDateTime: "2026-10-20T09:00:00Z" })]
-        : [graphMessage("older-sent-folder-record", "Please cancel my enquiry.")] });
-    const result = await h.server.runOutlookSync({ maxPages: 1 });
-    assert.equal(result.ok, true, result.blocker); assert.equal(result.counts.closed, 0); assert.equal(result.counts.flagged, 1);
-    assert.equal((await row(h, "jobs")).stage, "new_enquiry"); assert.equal(await total(h, "workflow_events"), 0);
-  })],
-  ["failed cursor/status writes do not report success or repeat completed closure/audit", practice(async h => {
-    await configured(h);
-    h.control.fetch = async url => url.includes("/attachments") ? jsonResponse({ value: [] }) : url.includes("/me?") || url.includes("$select=id,body") ? readOnlyResponses(url)
-      : jsonResponse({ value: filterField(url) === "receivedDateTime" ? [graphMessage("cursor-failure", "Please cancel my enquiry.")] : [] });
-    h.control.fault = op => op.table === "outlook_sync_state" && op.mode === "update" ? { data: null, error: { message: "injected state write failure" } } : null;
-    const first = await h.server.runOutlookSync({ maxPages: 1 });
-    assert.equal(first.ok, false); assert.match(first.blocker, /state was not saved/);
-    assert.equal((await h.state()).all_inbound_cursor, null); assert.equal(await total(h, "workflow_events"), 1);
-    h.control.fault = null;
-    const retry = await h.server.runOutlookSync({ maxPages: 1 });
-    assert.equal(retry.ok, true, retry.blocker); assert.equal(retry.counts.closed, 0);
-    assert.equal(await total(h, "job_communications"), 1); assert.equal(await total(h, "workflow_events"), 1);
   })],
   ["SQL rejects stale closure decisions, completed-work mutation, unsafe mailbox switches, and public execution", practice(async h => {
     const message = { providerMessageId: "sql-guard", direction: "inbound", from: "owner@example.test", to: [TEST_MAILBOX], cc: [], body: "Please cancel my enquiry.", at: "2026-10-20T08:00:00Z", hasAttachments: false };
@@ -330,20 +219,19 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     assert.equal(replay.duplicate, 1); assert.equal(await total(h, "job_communications"), 2);
     await assert.rejects(h.db.exec(rollback()), /preserve its queue/);
   })],
-  ["a family reply in a known thread links to the job (staff-visible); an unknown sender is preserved in Office review", practice(async h => {
+  ["a family reply in a known thread links to the job (staff-visible); an unknown sender stays in Outlook", practice(async h => {
     await h.db.query(`INSERT INTO job_communications(job_id,direction,channel,provider,provider_message_id,provider_thread_id,body) VALUES($1,'outbound','email','outlook','orig-msg','thread-1','original')`, [TEST_JOB]);
     const reply = graphMessage("family-reply", "Grandma here — all good thanks", { conversationId: "thread-1", subject: "Re: insulation", from: { emailAddress: { address: "family@example.test" } } });
     const stranger = graphMessage("stranger", "Buy now", { subject: "Deal", from: { emailAddress: { address: "news@vendor.example" } } });
     const result = h.counts(); await h.server.processMessages([reply, stranger], TEST_MAILBOX, result, COMPLETE_WINDOW);
-    assert.equal(result.errors, 0); assert.equal(result.stored, 1); assert.equal(result.unmatched, 1); assert.equal(result.notHomeowner, 0);
+    assert.equal(result.errors, 0); assert.equal(result.stored, 1); assert.equal(result.unmatched, 0); assert.equal(result.notHomeowner, 1);
     const stored = await h.db.query<{ job_id: string; source_event: string; visibility: string }>(`SELECT job_id, source_event, visibility FROM job_communications WHERE provider_message_id='family-reply'`);
     assert.equal(stored.rows.length, 1); assert.equal(stored.rows[0]!.job_id, TEST_JOB);
     assert.equal(stored.rows[0]!.source_event, "outlook_sync:thread");
     // The family address is not the confirmed owner, so this mail is staff-visible, never on the owner view.
     assert.equal(stored.rows[0]!.visibility, "internal");
     const review = await h.db.query<{ reason: string }>(`SELECT reason FROM correspondence_reviews WHERE provider_message_id='stranger'`);
-    assert.equal(review.rows.length, 1);
-    assert.match(review.rows[0]!.reason, /review and assign or dismiss/);
+    assert.equal(review.rows.length, 0);
   })],
   ["a family reply in the same batch as its first matched thread message is retained", practice(async h => {
     const first = graphMessage("first-thread-msg", "Hi, about our insulation", { conversationId: "new-thread", subject: "Insulation" });
