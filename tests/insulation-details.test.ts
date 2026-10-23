@@ -26,11 +26,12 @@ beforeAll(async()=>{
 });
 afterAll(()=>db.close());
 const save=(a:InsulationTapAnswers)=>db.query('SELECT save_owner_insulation_details($1,$2) result',[token,JSON.stringify(a)]);
-test('preview draft cannot save real owners or activate on a published host',()=>{
+test('preview saves only TEST enquiries; published site saves real website owners (Jo 24 Oct)',()=>{
  expect(insulationDraftSaveAllowed(true,'qa_test')).toBe(true);
  expect(insulationDraftSaveAllowed(true,'base44')).toBe(false);
- expect(insulationDraftSaveAllowed(false,'qa_test')).toBe(false);
- expect(insulationDraftSaveAllowed(false,'base44')).toBe(false);
+ expect(insulationDraftSaveAllowed(false,'base44')).toBe(true);
+ expect(insulationDraftSaveAllowed(false,'qa_test')).toBe(true);
+ expect(insulationDraftSaveAllowed(false,'installer_import')).toBe(false);
 });
 test('loose fill wins over every thickness; thin wins over every type',()=>{
  for(const thickness of ['thin','hand','thicker','unknown'] as const)expect(insulationTapRoute({insulation_type:'loose_fill',insulation_thickness:thickness})).toBe('thin_patchy');
