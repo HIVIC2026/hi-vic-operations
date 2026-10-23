@@ -13,7 +13,7 @@ export const spotSavedEmailKey = (email: string) => `spot_saved_confirmation:v1:
 export const spotSavedSmsKey = (e164: string) => `spot-saved-confirmation:v1:${e164}`;
 
 /** Jo's own inboxes are TEST recipients, never real owners. */
-const JO_TEST_ADDRESSES = ["jolowexo@hotmail.com", "sweet_sunshine231@hotmail.com"];
+const JO_TEST_ADDRESSES = ["jolowexo@hotmail.com"];
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export type SpotSavedFacts = {
