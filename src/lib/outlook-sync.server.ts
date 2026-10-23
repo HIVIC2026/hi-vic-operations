@@ -71,6 +71,18 @@ async function attachmentBytes(mailbox: string, messageId: string, attachmentId:
   return res.arrayBuffer();
 }
 
+/** Account identity. Mail-only connections (no profile permission) cannot read /me; then the identity is
+ *  the shared mailbox itself, and access is still proven by reading its Inbox and Sent Items. */
+async function accountIdentity(mailbox: string | null): Promise<{ id?: string; mail?: string | null; userPrincipalName?: string | null; displayName?: string | null }> {
+  try { return await graph("/me?$select=id,mail,userPrincipalName,displayName"); }
+  catch (e) {
+    const target = normaliseMailbox(mailbox);
+    if (!target || !(e instanceof Error) || !/HTTP 403/.test(e.message)) throw e;
+    await verifyMailboxReadAccess(target);
+    return { id: `mailbox:${target}`, mail: target, displayName: null };
+  }
+}
+
 export async function readOutlookSyncState(): Promise<SyncState> {
   const { data, error } = await syncAdmin.from("outlook_sync_state").select("*").eq("id", 1).single();
   if (error || !data) throw new Error(`Outlook sync settings unavailable: ${error?.message ?? "state row missing"}`);
@@ -87,7 +99,7 @@ export async function checkOutlookConnection(candidateMailbox?: string): Promise
   const target = normaliseMailbox(candidateMailbox ?? state.expected_mailbox);
   let health: OutlookHealth = { ...unchecked, targetMailbox: target, checkedAt };
   try {
-    const me = await graph<{ id?: string; mail?: string | null; userPrincipalName?: string | null; displayName?: string | null }>("/me?$select=id,mail,userPrincipalName,displayName");
+    const me = await accountIdentity(target);
     health = checkedOutlookHealth(configured, state.expected_mailbox ?? null, me, checkedAt);
     if (!target) return health;
     await verifyMailboxReadAccess(target);
@@ -481,7 +493,7 @@ export async function runOutlookSync(opts: { maxPages?: number; pageSize?: numbe
     state = await readOutlookSyncState();
     if (!outlookConfigured()) throw new Error("Outlook credentials are not configured for this project.");
     if (!state.expected_mailbox) throw new Error("Enter, check and confirm the intended shared business mailbox address before importing correspondence.");
-    const me = await graph<{ id?: string; mail?: string; userPrincipalName?: string; displayName?: string }>("/me?$select=id,mail,userPrincipalName,displayName");
+    const me = await accountIdentity(state.expected_mailbox);
     await verifyMailboxReadAccess(state.expected_mailbox);
     const health = checkedOutlookHealth(true, state.expected_mailbox, me, now, state.expected_mailbox);
     if (!health.readyForSync || !health.targetMailbox) throw new Error(health.problem ?? "Shared mailbox access could not be verified.");
