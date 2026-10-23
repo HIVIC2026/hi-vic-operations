@@ -34,6 +34,11 @@ describe("spot saved confirmation plan", () => {
   test("test addresses are never real owners", () => {
     for (const e of ["a@example.com", "qa.someone@gmail.com", "jolowexo@hotmail.com"]) expect(planSpotSaved({ ...ok, email: e }).email).toEqual({ send: false, reason: "Test address" });
   });
+  test("Jo's removed address is no longer classified as a Spot saved TEST address", () => {
+    const email = "sweet_sunshine231@hotmail.com";
+    expect(planSpotSaved({ ...ok, email }).email).toEqual({ send: true, to: email, key: spotSavedEmailKey(email) });
+    expect(planSpotSaved({ ...ok, source: "qa_test", email }).email).toEqual({ send: false, reason: "TEST job" });
+  });
   test("each channel has its own switch", () => {
     expect(planSpotSaved({ ...ok, emailSwitchOn: false }).email).toEqual({ send: false, reason: "Spot saved emails are switched off" });
     expect(planSpotSaved({ ...ok, smsSwitchOn: false }).sms).toEqual({ send: false, reason: "Spot saved texts are switched off" });
