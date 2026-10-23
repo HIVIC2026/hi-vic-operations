@@ -10,6 +10,7 @@ import { StatusLineView } from "@/components/trade/job-status";
 import { getTradeHome } from "@/lib/trade-view.functions";
 import { dayTile, goneIn, tradeGreeting } from "@/lib/trade-view.core";
 import { SourceBadge } from "@/components/portal/badges";
+import { jobCardLine, needsFinishingTask } from "@/lib/trade-view.core";
 import { INSTALLER_TABS, type InstallerTab } from "@/lib/installer-progress.core";
 
 export const Route = createFileRoute("/_authenticated/field/")({
@@ -108,6 +109,8 @@ export function InstallerJobs({ jobs, done, moves, offers, initialTab = "action"
   const count = (k: InstallerTab) => (k === "done" ? done.length : jobs.filter((j) => j.tab === k).length);
   const shown = jobs.filter((j) => j.tab === tab);
   const nextOf = (j: HomeJob) => {
+    const finishing = needsFinishingTask(j.status);
+    if (finishing) return { who: null, text: finishing };
     const m = moves.find((x) => x.jobId === j.jobId);
     if (m) return { who: "You", text: m.title };
     if (j.line) return { who: j.line.who, text: j.line.text };
@@ -136,7 +139,7 @@ export function InstallerJobs({ jobs, done, moves, offers, initialTab = "action"
                 <span className="block font-bold">{j.jobNumber} · {j.owner ?? "Owner"}</span>
                 <span className="mt-1 block"><SourceBadge channel={j.channel} /></span>
                 <span className="block truncate text-sm text-sub">{j.address}</span>
-                <span className="mt-1 block text-sm"><span className="font-semibold text-estimate-navy">Next{n.who ? ` — ${n.who}` : ""}:</span> {n.text}</span>
+                <span className="mt-1 block truncate text-sm font-semibold text-estimate-navy" data-card-line>{jobCardLine(n)}</span>
               </span><ChevronRight className="h-5 w-5" />
             </Link>); };
           return (<>
@@ -154,7 +157,7 @@ export function InstallerJobs({ jobs, done, moves, offers, initialTab = "action"
               <span className="block font-bold">{j.jobNumber} · {j.owner ?? "Owner"}</span>
               <span className="mt-1 block"><SourceBadge channel={j.channel} /></span>
               <span className="block truncate text-sm text-sub">{j.address}</span>
-              <span className="mt-1 block text-sm"><span className="font-semibold text-estimate-navy">Next{n.who ? ` — ${n.who}` : ""}:</span> {n.text}</span>
+              <span className="mt-1 block truncate text-sm font-semibold text-estimate-navy" data-card-line>{jobCardLine(n)}</span>
               {j.place === "coming_up" && <span className="mt-1 inline-block rounded-full bg-estimate-mist px-2 py-0.5 text-[11px] font-semibold text-estimate-navy" data-upcoming-badge>Upcoming visit</span>}
             </span><ChevronRight className="h-5 w-5" />
           </Link>); })}

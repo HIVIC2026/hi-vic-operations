@@ -181,9 +181,10 @@ export const INSTALLER_TABS: { key: InstallerTab; label: string }[] = [
   { key: "action", label: "Action needed" }, { key: "progress", label: "In progress" }, { key: "done", label: "Done" },
 ];
 /** Done only from an actual final stage; Action needed only when the trade has a real task or offer. */
-export function installerTab(place: "offers" | "needs_me" | "coming_up" | "moving", stage: string): InstallerTab {
+export function installerTab(place: "offers" | "needs_me" | "coming_up" | "moving", stage: string, formNeedsFinishing = false): InstallerTab {
   if (stage === "complete" || stage === "cancelled") return "done";
-  if (place === "offers" || place === "needs_me") return "action";
+  // Jo 23 Oct: Mitti/installer-led jobs with missing form info are the installer's task.
+  if (place === "offers" || place === "needs_me" || formNeedsFinishing) return "action";
   return "progress";
 }
 export function doneReason(stage: string): string {

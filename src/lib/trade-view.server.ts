@@ -99,7 +99,7 @@ export async function tradeHome(userId: string) {
   // Done tab: only actual final stages. Active-assignment jobs keep their link; ended assignments get a read-only summary
   // (job number, suburb, terminal reason) — no owner, address, contact or price, and no reopened access.
   const { installerTab, doneReason } = await import("./installer-progress.core");
-  const jobsTabbed = allJobs.map((j) => ({ ...j, stage: byId.get(j.jobId)!.stage, tab: installerTab(j.place, byId.get(j.jobId)!.stage) }));
+  const jobsTabbed = allJobs.map((j) => ({ ...j, stage: byId.get(j.jobId)!.stage, tab: installerTab(j.place, byId.get(j.jobId)!.stage, (j as { channel?: string | null }).channel === "installer_sourced" && /^Needs finishing/.test(String(byId.get(j.jobId)!.next_action ?? ""))) }));
   const histQ = admin.from("job_assignments").select("job_id").eq("business_id", c.biz.id).eq("active", false);
   const { data: ended } = await (c.boss ? histQ : histQ.eq("user_id", userId));
   const histIds = [...new Set([...(ended ?? []).map((a) => a.job_id), ...(jobs ?? []).filter((j) => j.stage === "cancelled").map((j) => j.id)])].filter((id) => !byId.has(id));

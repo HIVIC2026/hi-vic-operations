@@ -148,3 +148,25 @@ export function contactVisible(myBookings: { status: string }[]): boolean {
   if (!live.length) return true;
   return live.some((b) => b.status !== "completed");
 }
+
+/** Jo 23 Oct 2026: ONE plain line on each installer job card — what's happening and who it's waiting on. */
+export function jobCardLine(n: { who: string | null; text: string }): string {
+  const text = n.text.trim().replace(/\.$/, "");
+  const lead = n.who === "You" ? "You" : n.who === "Owner" ? "Waiting on owner" : n.who === "Electrician" ? "Waiting on electrician"
+    : n.who === "Regulator" ? "Waiting on regulator" : n.who ? "Waiting on office" : null;
+  if (!lead) return text;
+  const body = text.replace(/^(you|owner|electrician|office|home insulation victoria)\s*(to|:|—|-)\s*/i, "");
+  return `${lead}: ${body.charAt(0).toLowerCase()}${body.slice(1)}`;
+}
+
+/** "Needs finishing: price, owner mobile/email/permission on the Mitti form" → the installer's own task wording. */
+export function needsFinishingTask(nextAction: string | null | undefined): string | null {
+  const m = /^Needs finishing:\s*(.+?)\s*(on the Mitti form)?\.?$/i.exec(nextAction ?? "");
+  if (!m) return null;
+  const parts = m[1]!.split(/,\s*/).map((p) => p.trim()).filter(Boolean).map((p) =>
+    /^price$/i.test(p) ? "your price"
+    : /^owner\s+(.+)$/i.test(p) ? `the owner's ${p.replace(/^owner\s+/i, "").split("/").join(", ").replace(/mobile/, "phone").replace(/, ([^,]+)$/, " and $1")}`
+    : /^ceiling area$/i.test(p) ? "the ceiling area" : /^insulation product$/i.test(p) ? "the insulation product" : p);
+  const list = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0]!;
+  return `You: add ${list} in Mitti`;
+}
