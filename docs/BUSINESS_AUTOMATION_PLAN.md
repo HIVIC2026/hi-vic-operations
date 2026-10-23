@@ -41,8 +41,8 @@ The good news: the hard parts are already built and well guarded. Eligibility, M
 
 **Where our rules differ from the law:**
 - **Business choices, fine to keep:** Ready Check, quote approval before payment, $349 safety-check payment before PIESA, 48h booking rules. We just shouldn't describe them as regulation.
-- **Missing from our source of truth:** the statutory gates (consent, notification window, PIESA copies, installer safety assessment, assignment form, VEEC deadline), both contracts, the $200 minimum, the 5-year and downlight exclusions, personnel checks, newer evidence items, QA sign-off and 6-year retention.
-- **Bug:** the 30-day check measures install **completion**, but the rule is **commencement**. A job that runs past the deadline could be failed wrongly. (`compliance-timeline.core.ts`)
+- **Missing from our source of truth** (the code has the $200 minimum, but the document doesn't say so): the statutory gates (consent, notification window, PIESA copies, installer safety assessment, assignment form, VEEC deadline), both contracts, the 5-year and downlight exclusions, personnel checks, newer evidence items, QA sign-off and 6-year retention.
+- **Bug (✅ fixed on branch):** the 30-day check measured install **completion**, but the rule is **commencement**. A job that ran past the deadline could be failed wrongly. (`compliance-timeline.core.ts`)
 - **Needs legal sign-off:**
   - Direct billing by an own electrician or installer, when the tax invoice must name the AP.
   - Taking the $349 during a cooling-off period.
@@ -89,8 +89,8 @@ Two ways in, then the same automatic path for both:
 | 8 | Installers and electricians never told about offers or acceptance | Approved texts plus emails | Wording |
 | 9 | Our-lead Ready Check booking switched off | Turn on once offers and texts are ready | **Yes** |
 | 10 | ESC notification and VEEC lodgement typed in by hand | Due-date reminders now; Registry API later (check what the API supports) | Later |
-| 11 | 30-day rule uses completion | Fix to commencement | No |
-| 12 | $200 minimum co-payment not enforced | Add the check to every quote path | No |
+| 11 | 30-day rule uses completion | ✅ Fixed on branch: uses commencement | No |
+| 12 | $200 minimum co-payment | ✅ Already enforced on both quote formulas (`estimate.core` / `installer-led.core:43`). The source of truth should just name it | No |
 | 13 | Legal gaps (contracts, personnel checks, evidence items, QA sign-off, retention) | Build them as checks in the existing evidence and compliance lists | Some wording |
 
 ---
@@ -180,7 +180,7 @@ Everything else goes into a closed **Full details** section, grouped in workflow
 
 ## 8. Suggested order
 
-1. **This week: unblock.** Decisions 1–4. Fix blockers 1–4, 11 and 12. Run a full TEST job through both routes, end to end.
+1. **This week: unblock.** Decisions 1–4. Fix blockers 1–4. Run a full TEST job through both routes, end to end.
 2. **Next: automate.** Blockers 5–10. Automatic quote, messages to everyone, Complete moves the job, reminders for every legal deadline.
 3. **Then: compliance gaps.** Contracts, personnel checks, the new evidence items, QA sign-off, retention, Registry API.
 4. **Alongside: redesign the pages** in the order office job page → installer app → owner My job → lists → navigation. Clean-up goes in the same changes.
