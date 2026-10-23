@@ -5,9 +5,10 @@
 import { campaignButton, escape } from "./estimate-email";
 import { aud } from "./workflow";
 
-/** Jo has not approved the final wording yet. Flip only on her written approval. */
-export const OWNER_QUOTE_EMAIL_APPROVED = false as boolean;
-export const OWNER_QUOTE_EMAIL_VERSION = "v2-draft";
+/** Jo approved v2 on 24 Oct 2026 ("really happy with the layout and wording"; no phone; 14 days; replies to
+ *  info@homeinsulationvictoria.com.au). Office Send still needs every delivery guard, incl. customer_comms_enabled. */
+export const OWNER_QUOTE_EMAIL_APPROVED = true as boolean;
+export const OWNER_QUOTE_EMAIL_VERSION = "v2-approved-2026-10-24";
 
 export type OwnerQuoteLine = { description: string; lineTotalIncGst: number };
 export type OwnerQuoteEmailInput = {
@@ -106,7 +107,7 @@ export function renderOwnerQuoteEmail(i: OwnerQuoteEmailInput): {
     `Pay the ${safety ? `${safety} ` : ""}electrical safety check. We send the invoice once you accept.`,
     "A licensed electrician checks your ceiling wiring is safe, at a time you choose.",
     "Your installation is booked within 30 days of the safety check.",
-    "The balance is due in two halves, or in full if you prefer.",
+    // Jo 24 Oct: the installation payment terms are being worked out (deposit rules) — no balance line until decided.
   ];
   const validity = i.validUntil ? `Your price is held until ${formatQuoteValidUntil(i.validUntil)}.` : null;
   const phone = cleanName(i.officePhone);

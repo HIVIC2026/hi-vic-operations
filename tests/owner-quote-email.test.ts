@@ -102,9 +102,10 @@ test("refuses a bad total or non-https link", () => {
   expect(() => renderOwnerQuoteEmail({ ...base, quoteUrl: "/my-job/tok" })).toThrow();
 });
 
-test("wording is not approved yet", () => {
-  expect(OWNER_QUOTE_EMAIL_APPROVED).toBe(false);
-  expect(OWNER_QUOTE_EMAIL_VERSION).toBe("v2-draft");
+test("Jo approved v2 on 24 Oct; no balance-payment line until the payment terms are decided", () => {
+  expect(OWNER_QUOTE_EMAIL_APPROVED).toBe(true);
+  expect(OWNER_QUOTE_EMAIL_VERSION).toBe("v2-approved-2026-10-24");
+  expect(renderOwnerQuoteEmail(base).text).not.toMatch(/balance|two halves/i);
 });
 
 test("TEST pill only when asked", () => {

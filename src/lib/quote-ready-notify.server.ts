@@ -42,11 +42,13 @@ async function loadOwnerQuoteFacts(jobId: string, quoteId: string, ownerName: st
   const lines = ie ? [] : [...(items ?? [])].sort((a, b) => Number(a.sort ?? 0) - Number(b.sort ?? 0)).map((l) => ({ description: String(l.description ?? ""), lineTotalIncGst: Number(l.line_total_inc_gst) }));
   const address = pe || !prop ? null : fullAddress(prop.address_line, prop.suburb, prop.postcode) || null;
   // Jo 24 Oct: what the owner is getting — area, removal, product and the (approved, so EEC-certified) installer.
-  const [{ data: m }, { data: prod }, { data: asg }] = await Promise.all([
+  // Best-effort like the lines above: a failed read leaves a detail out, never stops the email.
+  const extra = await (async () => Promise.all([
     admin.from("ceiling_measurements").select("measured_area_m2, verified_area_m2, removal_required, removal_m2").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
     admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_product_recorded").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("job_assignments").select("businesses(name, trading_name, onboarding_status, is_active)").eq("job_id", jobId).eq("role", "installer").eq("active", true).limit(1).maybeSingle(),
-  ]);
+  ]))().catch(() => [{ data: null }, { data: null }, { data: null }] as const);
+  const [{ data: m }, { data: prod }, { data: asg }] = extra as unknown as [{ data: { measured_area_m2: unknown; verified_area_m2: unknown; removal_required: boolean | null; removal_m2: unknown } | null }, { data: { details: unknown } | null }, { data: { businesses: unknown } | null }];
   const biz = (asg?.businesses ?? null) as { name: string | null; trading_name: string | null; onboarding_status: string | null; is_active: boolean | null } | null;
   const area = m ? Number(m.verified_area_m2 ?? m.measured_area_m2) || null : null;
   const product = ((prod?.details as { product?: { option?: string } } | null)?.product?.option ?? null);
