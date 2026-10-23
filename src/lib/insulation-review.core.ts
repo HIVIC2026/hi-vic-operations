@@ -18,12 +18,17 @@ export function declarationCriteriaPassed(x: { outcome: string | null; decisionS
     ["system", "admin"].includes(x.decisionSource ?? "") && (x.decisionSource !== "system" || x.audit?.ruleset_version === GATE1_RULESET_VERSION) &&
     !(x.audit?.hard_failures?.length || x.audit?.review_reasons?.length || x.audit?.rules?.some((r) => r.result === "fail")) && insulationOnly(x.audit, x.insulation).ok;
 }
+/** Jo 23 Oct 2026: owner said insulation is present -> automatic existing-insulation offer qualification. */
+export const PRESENT_AUTO_OFFER_EVENT = "owner_insulation_present_auto_offer";
+export function presentAutoOfferDetails() {
+  return { answer: "yes", preliminary_queue_qualification: true, basis: "owner_declared", declaration_type: "present_auto_offer", rule: "jo_2026_10_23_insulation_present" };
+}
 export function qualifyingDeclaration(events: { event_type: string; details: unknown }[]): boolean {
   return events.some((event) => {
     if (!event.details || typeof event.details !== "object") return false;
     const m = event.details as Record<string, unknown>;
     return m['answer'] === "yes" && m['preliminary_queue_qualification'] === true && m['basis'] === "owner_declared" &&
-      ((event.event_type === "owner_insulation_loose_fill_only_declared" && m['declaration_type'] === "loose_fill_only") || (event.event_type === "owner_insulation_below_r2_declared" && m['declaration_type'] === "below_r2"));
+      ((event.event_type === "owner_insulation_loose_fill_only_declared" && m['declaration_type'] === "loose_fill_only") || (event.event_type === "owner_insulation_below_r2_declared" && m['declaration_type'] === "below_r2") || (event.event_type === PRESENT_AUTO_OFFER_EVENT && m['declaration_type'] === "present_auto_offer"));
   });
 }
 export const INSULATION_REVIEW_INVITATION = "Help us check your existing insulation. Choose one option below. Is your existing insulation loose-fill only (no batts)? Is your existing insulation less than R2? If you answer Yes to either question and the other initial checks pass, you can save your spot. Alternatively, upload photos of your existing insulation or take a video from the manhole for office review. Record from the manhole opening. Please do not climb into the roof space. Not sure? You can upload photos or a video, or we can check onsite. Final onsite and compliance verification still apply.";

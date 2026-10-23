@@ -277,7 +277,9 @@ export function automaticLeadEmail(x: {
   ownerEnteredArea: boolean;
   /** Jo 22 Oct: route from the owner's type/thickness/coverage answers (insulationDetailRoute); null = current behaviour. */
   insulationDetailRoute?: "likely_save_spot" | "more_photos" | null;
-}): { email: AutomaticLeadEmail; blocker: string | null; assumedArea?: true } {
+  /** A recorded Office photo review exists; it always outranks the owner's own answers. */
+  officeReviewed?: boolean;
+}): { email: AutomaticLeadEmail; blocker: string | null; assumedArea?: true; existingInsulation?: true } {
   if (x.source === "qa_test") return { email: "none", blocker: "TEST enquiry" };
   if (x.source !== "base44" || x.channel !== "hivic_sourced") return { email: "none", blocker: "Not a website owner enquiry" };
   if (x.intakeWorkActive) return { email: "none", blocker: "Initial checks are still running" };
@@ -289,12 +291,13 @@ export function automaticLeadEmail(x: {
     return { email: "offer_spot", blocker: null, ...(x.ownerEnteredArea ? {} : { assumedArea: true }) };
   }
   const openOutcome = x.outcome === "likely_eligible" || x.outcome === "needs_onsite_confirmation";
-  // Thin or patchy (declared present): the Save my spot offer with Jo's approved thin/patchy wording (22 Oct 2026),
-  // never the "tell us about your insulation" email. No owner size keeps the existing typical-size hold in the sender.
-  if (openOutcome && x.declaredInsulation === "present" && x.insulationDetailRoute === "likely_save_spot") {
-    return { email: "offer_spot", blocker: null, ...(x.ownerEnteredArea ? {} : { assumedArea: true }) };
+  // Jo 23 Oct 2026 4:10pm: owner says insulation is present (any type/thickness/coverage answer, incl. unknown) and
+  // no Office review yet -> the existing-insulation Save my spot email with the "if needed: up to" removal line.
+  // Never the photo/details request. An Office review keeps the reviewed paths below.
+  if (openOutcome && x.declaredInsulation === "present" && !x.officeReviewed) {
+    return { email: "offer_spot", blocker: null, existingInsulation: true, ...(x.ownerEnteredArea ? {} : { assumedArea: true }) };
   }
-  // Hand-thick or thicker, whole ceiling: the existing photo request (approved T5/T6 upload email) — same as today.
+  // Unsure whether there is insulation, or Office-reviewed: the existing request / reviewed follow-up.
   if (openOutcome && (x.declaredInsulation === "present" || x.declaredInsulation === "unknown")) return { email: "request_insulation", blocker: null };
   return { email: "none", blocker: "Eligibility or insulation details need office review" };
 }

@@ -43,7 +43,7 @@ export async function campaignLink(token: unknown) {
     if (!["new_enquiry", "eligibility_review", "preliminary_estimate_ready", "ready_check_ready_to_schedule"].includes(job.stage)) return null;
     const { data: work, error: workError } = await admin.from("post_intake_work").select("job_id").eq("job_id", job.id).in("status", ["queued", "processing", "retry"]);
     criteriaPassed = !workError && declarationCriteriaPassed({ outcome: job.eligibility_outcome, decisionSource: job.eligibility_decision_source, reviewRequired: job.eligibility_review_required, audit: job.eligibility_decision_rules as import("./enquiry-groups.core").StoredAudit, insulation, intakeActive: !!work?.length });
-    const { data: events, error: eventsError } = await admin.from("workflow_events").select("event_type, details").eq("job_id", job.id).in("event_type", ["owner_insulation_loose_fill_only_declared", "owner_insulation_below_r2_declared"]);
+    const { data: events, error: eventsError } = await admin.from("workflow_events").select("event_type, details").eq("job_id", job.id).in("event_type", ["owner_insulation_loose_fill_only_declared", "owner_insulation_below_r2_declared", "owner_insulation_present_auto_offer"]);
     if (eventsError) throw new Error("We couldn't check your declaration. Please try again.");
     ownerQualified = criteriaPassed && qualifyingDeclaration(events ?? []);
   }

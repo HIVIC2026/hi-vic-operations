@@ -324,6 +324,17 @@ export function lifecycleExclusion(stage: string | null | undefined): string | n
   return null;
 }
 
+/** Jo 23 Oct 2026 4:10pm: the existing-insulation offer route is never held by the chosen insulation answers or the
+ *  open eligibility outcome it needs. Every other configured filter is unchanged. */
+export function existingInsulationRules(rules: AutomaticRuleFilters): AutomaticRuleFilters {
+  const add = <T,>(xs: readonly T[], v: T) => (xs.includes(v) ? [...xs] : [...xs, v]);
+  return {
+    ...rules,
+    insulation: { ...rules.insulation, values: add(rules.insulation.values, "present") },
+    eligibility: { ...rules.eligibility, outcomes: add(add(rules.eligibility.outcomes, "likely_eligible"), "needs_onsite_confirmation") },
+  };
+}
+
 /** The manually-approved backlog run only: the same filters without the enquiry-date window or job-status filter (Jo, 19 Oct). The mandatory lifecycle exclusion still applies. */
 export function backlogRules(rules: AutomaticRuleFilters): AutomaticRuleFilters {
   return { ...rules, enquiryDate: { ...rules.enquiryDate, enabled: false }, jobStatus: { ...rules.jobStatus, enabled: false } };

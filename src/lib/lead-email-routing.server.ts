@@ -27,6 +27,7 @@ export async function selectLeadEmailRoute(jobId: string) {
     ownerEnteredArea: !job.estimated_area_unknown && Number(job.estimated_area_m2) > 0,
     // A recorded Office photo review always outranks the owner's own description.
     insulationDetailRoute: latestOutcome ? null : insulationDetailRoute(declaredInsulationDetail(base44.raw?.answers ?? null)),
+    officeReviewed: !!latestOutcome,
   });
 }
 
@@ -77,8 +78,22 @@ export async function maybeAutoRouteLeadEmail(jobId: string, ctx: import("./manu
       // never authorises delivery on its own — the COM-04 switches and every sender guard still apply
       // inside sendSaveMySpot, and it never widens what the single selector above already allows.
       const { automaticSaveSpotGate } = await import("./save-spot-rules.server");
-      const gate = await automaticSaveSpotGate(jobId, { route: "offer_spot", coverageVerified: true, ...(manualBacklog ? { manualBacklog: ctx.manualBacklog } : {}) });
+      const gate = await automaticSaveSpotGate(jobId, { route: "offer_spot", coverageVerified: true, ...(route.existingInsulation ? { existingInsulationOffer: true } : {}), ...(manualBacklog ? { manualBacklog: ctx.manualBacklog } : {}) });
       if (!gate.allowed) return { route: "none", sent: false, reason: gate.reason };
+      if (route.existingInsulation) {
+        // Jo 23 Oct 2026: record the owner-declared qualification (system, never an Office review), then reuse the
+        // guarded existing-insulation sender exactly as the Office-approved sends; all its checks still run.
+        const { PRESENT_AUTO_OFFER_EVENT, presentAutoOfferDetails } = await import("./insulation-review.core");
+        const prior = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", PRESENT_AUTO_OFFER_EVENT).limit(1);
+        if (prior.error) return { route: "none", sent: false, reason: "Could not verify the insulation qualification record." };
+        if (!prior.data?.length) {
+          const ins = await admin.from("workflow_events").insert({ job_id: jobId, actor_id: null, event_type: PRESENT_AUTO_OFFER_EVENT, summary: "Owner declared existing insulation — automatic existing-insulation Save my spot offer (Jo 23 Oct). Final onsite verification required.", details: presentAutoOfferDetails() as never, internal: true });
+          if (ins.error) return { route: "none", sent: false, reason: "Could not record the insulation qualification." };
+        }
+        const { sendExistingInsulationSaveSpot } = await import("./hot-leads-send.server");
+        const result = await sendExistingInsulationSaveSpot(jobId, null, false);
+        return { route: "offer_spot", sent: result.outcome === "sent", reason: result.detail };
+      }
       const { sendSaveMySpot } = await import("./hot-leads-send.server");
       const result = (await sendSaveMySpot([jobId], null, { automaticInitial: true, ...(manualBacklog ? { manualBacklog: ctx.manualBacklog } : {}) }))[0];
       return { route: route.email, sent: result?.outcome === "sent", reason: result?.detail ?? "No send result" };
