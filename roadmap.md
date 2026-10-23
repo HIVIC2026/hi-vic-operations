@@ -1,4 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Website-aligned year answers (Jo 23 Oct 09:19 UTC)
+- [ ] Share six website year options/values and last-five-years ineligibility across page, validation and pending persistence; preserve raw website history.
+- [ ] Verify agreed removal/price ranges; focused/practice tests and phone check; no live writes, sends or publication.
 ## Urgent owner link and photo-review layout (Jo 23 Oct 09:13 UTC)
 - [x] Removed sequential owner-read round trips and duplicate settings query; six-slot read waves and 30-second same-link cache. Existing TEST link opens in preview at 430×706 in 1.51 seconds, return 0.10 seconds; published SMS loading speed remains unverified, no publication.
 - [x] Savings-first quote heading when a real rebate exists; missing TEST quote shows neutral heading, never fake $0 or price-ready claim. Existing TEST link and no-overflow phone screenshot checked; privacy/held-quote guards unchanged.

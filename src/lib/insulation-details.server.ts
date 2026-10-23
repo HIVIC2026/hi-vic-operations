@@ -13,7 +13,7 @@ export async function saveInsulationTapAnswers(token:string,answers:InsulationTa
   const route=insulationTapRoute(answers);
   // Jo 23 Oct 08:14 UTC: everyone who answers gets Save my spot automatically — OFF until Jo approves wording and says go.
   const { INSULATION_QUESTIONS_SEND_APPROVED } = await import("./insulation-questions-campaign.core");
-  if (INSULATION_QUESTIONS_SEND_APPROVED && !preview) {
+  if (route !== "ineligible" && INSULATION_QUESTIONS_SEND_APPROVED && !preview) {
     const { sendAnsweredOwnerSaveSpot } = await import("./insulation-questions-campaign.server");
     await sendAnsweredOwnerSaveSpot(c.job.id).catch(() => null);
   }
