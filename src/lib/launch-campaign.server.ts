@@ -294,7 +294,7 @@ function spotRankRow(d: RankData, r: { job_id: string; spot_saved_at: string | n
   const area = (job?.indicative_estimates ?? []).find((x) => x.status === "current")?.area_m2 ?? null;
   return {
     rank, rankLabel: SPOT_RANK_LABEL[rank] ?? null,
-    summary: spotSummary({ owner: job?.owners?.full_name ?? null, suburb: job?.properties?.suburb || suburbFromAddress(job?.properties?.address_line) , houseAge: tap ? houseAgeLabel(tap.answers) : null, said: tap ? onsiteInsulationLine(tap.answers) : insulationDetailTextRank(declaredInsulationDetailRank(answers)) || null, declared, mediaCount, areaM2: area == null ? null : Number(area), spotSavedAt: r.spot_saved_at }),
+    summary: spotSummary({ owner: job?.owners?.full_name ?? null, suburb: job?.properties?.suburb || suburbFromAddress(job?.properties?.address_line) , houseAge: tap ? houseAgeLabel(tap.answers) : null, mediaCount, areaM2: area == null ? null : Number(area), spotSavedAt: r.spot_saved_at }),
   };
 }
 
