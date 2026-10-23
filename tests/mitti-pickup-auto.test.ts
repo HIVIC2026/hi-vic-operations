@@ -93,10 +93,19 @@ describe("pickupAutoDecision", () => {
     expect(pickupAutoDecision({ ...clean, ownerPhone: null, businessMatched: false }).action).toBe("office_review");
     expect(pickupAutoDecision({ ...clean, ownerEmail: null, homeownerName: null }).action).toBe("office_review");
   });
-  test("duplicates are flagged, never auto-adopted", () => {
+  test("existing owner/address links to that job and flags the office, never a new job (Jo 23 Oct)", () => {
     const d = pickupAutoDecision({ ...clean, duplicates: [{ jobNumber: "HV-1101" }] });
-    expect(d.action).toBe("office_review");
-    expect(d.reasons.join(" ")).toContain("HV-1101");
+    expect(d.action).toBe("link_existing");
+    expect(d.officeFlag).toContain("HV-1101");
+  });
+  test("A1 vs A2 history labels", () => {
+    const { pickupFormLabel } = require("../src/lib/mitti-pickup.core");
+    expect(pickupFormLabel("installer_form")).toBe("A1");
+    expect(pickupFormLabel("hivic_form")).toBe("A2");
+  });
+  test("unknown ceiling size never stops a Mitti installer job", async () => {
+    const { intakeJobFacts } = await import("../src/lib/enquiry.server");
+    expect(() => intakeJobFacts({ estimated_area_m2: null }, "installer_mitti", { channel: "installer_sourced", businessId: "b", userId: "u" } as never)).not.toThrow();
   });
 });
 
