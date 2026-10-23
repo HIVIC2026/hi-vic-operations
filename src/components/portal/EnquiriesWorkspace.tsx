@@ -17,6 +17,8 @@ import {
   morePhotosRequestFn,
   removeLeadsFn,
   reviewLeadMediaFn,
+  getOwnerEmailsToReview,
+  markOwnerEmailReviewedFn,
 } from "@/lib/enquiry-groups.functions";
 import { qualifiesOutcome } from "@/lib/enquiry-review-custom.core";
 import {
@@ -365,6 +367,50 @@ const VIEW_LABEL: Record<EnquiryView | EnquiryStatus, string> = {
   removed: "Removed",
 };
 
+/** Jo 23 Oct 2026: owner emails to info@ that still need a review or reply, with the three review buttons. */
+function OwnerEmailsToReview() {
+  const load = useServerFn(getOwnerEmailsToReview);
+  const markDone = useServerFn(markOwnerEmailReviewedFn);
+  const q = useQuery({ queryKey: ["owner-emails-to-review"], queryFn: () => load(), staleTime: 60_000 });
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const rows = q.data?.rows ?? [];
+  return (
+    <section aria-label="Owner emails to review" className="space-y-3 border-b pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-display text-lg font-bold">Owner emails to review ({rows.length})</h2>
+        <Button asChild size="sm" variant="outline">
+          <Link to="/admin/communications" search={{ tab: "inbox" }}>Unmatched emails ({q.data?.unmatched ?? 0})</Link>
+        </Button>
+      </div>
+      {q.isPending ? <p role="status" className="text-sm text-muted-foreground">Loading owner emails…</p>
+        : q.error ? <p role="alert" className="text-sm text-destructive">{q.error.message}</p>
+        : !rows.length ? <p className="text-sm text-muted-foreground">No owner emails waiting.</p>
+        : <ul className="divide-y">{rows.map((r) => (
+          <li key={r.jobId} className="space-y-2 py-3">
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <Link to="/admin/jobs/$jobId" params={{ jobId: r.jobId }} className="font-semibold underline">{r.jobNumber}</Link>
+              <span>· {r.owner ?? "Owner"} · {r.suburb ?? "Suburb missing"}</span>
+              <span className="text-xs text-muted-foreground">{when(r.at)}</span>
+            </div>
+            <details className="rounded-md border bg-muted/20 p-2 text-sm">
+              <summary className="cursor-pointer font-medium">{r.subject || "(no subject)"}</summary>
+              <p className="mt-1 text-xs text-muted-foreground">From {r.from}</p>
+              <p className="mt-2 whitespace-pre-wrap">{r.body}</p>
+            </details>
+            <div className="flex flex-wrap gap-2">
+              {r.mediaCount > 0 && <Button size="sm" variant="outline" onClick={() => setOpenId(openId === r.jobId ? null : r.jobId)}>{openId === r.jobId ? "Hide photos" : `View ${r.mediaCount} photo${r.mediaCount === 1 ? "" : "s"}/video`}</Button>}
+              <Button size="sm" variant="ghost" disabled={busy === r.jobId} onClick={async () => { setBusy(r.jobId); try { await markDone({ data: { jobId: r.jobId } }); await q.refetch(); } finally { setBusy(null); } }}>Done – no reply needed</Button>
+            </div>
+            {r.canReview
+              ? <MediaReview row={{ id: r.jobId, name: r.owner } as unknown as Row} optionsOnly={openId !== r.jobId} onDone={() => void q.refetch()} />
+              : <p className="text-xs text-muted-foreground">This job is past the enquiry stage — open the job to reply.</p>}
+          </li>
+        ))}</ul>}
+    </section>
+  );
+}
+
 export function EnquiriesWorkspace({
   view: viewProp,
   q,
@@ -453,6 +499,7 @@ export function EnquiriesWorkspace({
       </header>
 
       <QuotesToCheck />
+      <OwnerEmailsToReview />
       {isLoading ? (
         <p role="status" className="rounded-md border bg-card p-6 text-sm">
           Loading enquiries…

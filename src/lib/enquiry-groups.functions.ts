@@ -119,3 +119,18 @@ export const reviewedIneligibleEmailFn = createServerFn({ method: "POST" }).midd
     const r = await f.sendPreliminaryIneligibleEmail(data.jobId, context.userId ?? null, undefined, { ...(data.customText ? { customText: data.customText } : {}) });
     return r.sent ? { outcome: "sent", detail: "Sent" } : { outcome: r.reason === "delivered_unrecorded" ? "uncertain" : "blocked", detail: r.reason };
   });
+
+export const getOwnerEmailsToReview = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireAdmin(context.supabase);
+    const { listOwnerEmailsToReview } = await import("./owner-email-review.server");
+    return listOwnerEmailsToReview();
+  });
+
+export const markOwnerEmailReviewedFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { markOwnerEmailReviewed } = await import("./owner-email-review.server");
+    return markOwnerEmailReviewed(data.jobId, context.userId ?? null);
+  });

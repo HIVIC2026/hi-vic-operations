@@ -7100,6 +7100,7 @@ export type Database = {
           message: Json
           message_at: string
           provider_message_id: string
+          record_only: boolean
           result: Json | null
           route: Json
           status: string
@@ -7115,6 +7116,7 @@ export type Database = {
           message: Json
           message_at: string
           provider_message_id: string
+          record_only?: boolean
           result?: Json | null
           route: Json
           status?: string
@@ -7130,6 +7132,7 @@ export type Database = {
           message?: Json
           message_at?: string
           provider_message_id?: string
+          record_only?: boolean
           result?: Json | null
           route?: Json
           status?: string
@@ -7175,7 +7178,16 @@ export type Database = {
       }
       outlook_sync_state: {
         Row: {
+          all_inbound_cursor: string | null
+          all_inbound_next_link: string | null
+          all_outbound_cursor: string | null
+          all_outbound_next_link: string | null
           backfill_from: string
+          catchup_from: string | null
+          catchup_inbound_cursor: string | null
+          catchup_inbound_next_link: string | null
+          catchup_outbound_cursor: string | null
+          catchup_outbound_next_link: string | null
           expected_mailbox: string | null
           id: number
           inbox_cursor: string | null
@@ -7190,7 +7202,16 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          all_inbound_cursor?: string | null
+          all_inbound_next_link?: string | null
+          all_outbound_cursor?: string | null
+          all_outbound_next_link?: string | null
           backfill_from?: string
+          catchup_from?: string | null
+          catchup_inbound_cursor?: string | null
+          catchup_inbound_next_link?: string | null
+          catchup_outbound_cursor?: string | null
+          catchup_outbound_next_link?: string | null
           expected_mailbox?: string | null
           id?: number
           inbox_cursor?: string | null
@@ -7205,7 +7226,16 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          all_inbound_cursor?: string | null
+          all_inbound_next_link?: string | null
+          all_outbound_cursor?: string | null
+          all_outbound_next_link?: string | null
           backfill_from?: string
+          catchup_from?: string | null
+          catchup_inbound_cursor?: string | null
+          catchup_inbound_next_link?: string | null
+          catchup_outbound_cursor?: string | null
+          catchup_outbound_next_link?: string | null
           expected_mailbox?: string | null
           id?: number
           inbox_cursor?: string | null
@@ -13373,7 +13403,12 @@ export type Database = {
         Returns: string
       }
       begin_outlook_message: {
-        Args: { _mailbox: string; _message: Json; _route: Json }
+        Args: {
+          _mailbox: string
+          _message: Json
+          _record_only?: boolean
+          _route: Json
+        }
         Returns: Json
       }
       begin_quarantine_validation: {
