@@ -1,4 +1,8 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Urgent owner link and photo-review layout (Jo 23 Oct 09:13 UTC)
+- [ ] Investigate slow TEST text-link loading and correct code-only bottlenecks; no sends or publication.
+- [ ] Lead owner quote with actual saving, never a fabricated $0 rebate; simplify missing-price state.
+- [ ] Remove obsolete more-photos email panel and simplify phone photo review; verify both screens.
 ## URGENT six existing-insulation replies (Jo 23 Oct 09:00 UTC)
 - [x] Inspect and preserve six failed not-sent attempts; exact scoped key recovery + complete old-row audit proven on PGlite, then applied; Jo's exact Office reason retained, no fabricated photo review.
 - [ ] HV-3152 send blocked: unchanged live renderer has no approved template for its unknown thickness/coverage; cannot send preview's unapproved new removal wording or claim photos were checked. Five other jobs provider-accepted via existing live sender; HV-3131 was already accepted by concurrent sweep and explicit call safely skipped.
