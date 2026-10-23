@@ -123,6 +123,16 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           out['ok'] = false;
         }
         try {
+          // Jo 23 Oct: installer jobs get their Mitti Ready Check form automatically (same guarded create path as
+          // the office button). Never sends to owners or changes stage.
+          const { sweepReadyCheckForms } = await import("@/lib/mitti-autoform.server");
+          const f = await sweepReadyCheckForms();
+          (out as Record<string, unknown>)['readyCheckForms'] = { checked: f.checked, created: f.results.filter((x) => x.outcome === "created").length, failed: f.results.filter((x) => x.outcome !== "created").length };
+        } catch (e) {
+          console.error("allocation tick: ready check form sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['readyCheckForms'] = "failed";
+        }
+        try {
           // Data only: same sync as the manual button. Never completes gates, moves stages or sends quotes.
           const { syncPendingMitti } = await import("@/lib/mitti.server");
           const r = await syncPendingMitti(null);
