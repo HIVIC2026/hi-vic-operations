@@ -9,7 +9,10 @@ import { PRE_READY_CHECK_STAGES } from "./installer-new-jobs.core";
 
 export type AutoFormResult = { jobId: string; jobNumber: string; outcome: "created" | "held" | "uncertain" | "failed"; message?: string };
 
-export async function sweepReadyCheckForms(opts: { call?: MittiCall; now?: Date; dryRun?: boolean } = {}) {
+export async function sweepReadyCheckForms(opts: { call?: MittiCall; now?: Date; dryRun?: boolean; enabled?: boolean } = {}) {
+  const { AUTOFORM_ENABLED } = await import("./mitti-autoform.core");
+  const enabled = opts.enabled ?? AUTOFORM_ENABLED;
+  if (!enabled) return { checked: 0, results: [] as AutoFormResult[], wouldCreate: [] as string[], paused: true };
   const now = opts.now ?? new Date();
   const since = new Date(now.getTime() - AUTOFORM_WINDOW_DAYS * 86_400_000).toISOString();
   const { data: jobs, error } = await admin.from("jobs")
@@ -44,7 +47,7 @@ export async function sweepReadyCheckForms(opts: { call?: MittiCall; now?: Date;
       mittiInvited: biz?.mitti_account_invited === true, templateSet: !!ws.data?.mitti_ready_check_priced_template_id?.trim(),
       autoSendMitti: ws.data?.auto_send_mitti === true,
       lastFailureAt: failures.data?.find((f) => f.job_id === j.id)?.created_at ?? null,
-    }, now);
+    }, now, true);
     if (d.action !== "create") continue;
     if (opts.dryRun) { wouldCreate.push(j.job_number); continue; }
     // Practice jobs (qa_test or a TEST partner's job) only ever reach the TEST Mitti account.

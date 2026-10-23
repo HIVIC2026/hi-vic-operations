@@ -3,7 +3,7 @@ import { describe, expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import { postgrestShim } from "./helpers/pglite-postgrest-shim";
-import { AUTOFORM_MAX_PER_TICK, autoFormDecision, type AutoFormFacts } from "../src/lib/mitti-autoform.core";
+import { AUTOFORM_ENABLED, AUTOFORM_MAX_PER_TICK, autoFormDecision, type AutoFormFacts } from "../src/lib/mitti-autoform.core";
 
 const now = new Date("2026-10-23T09:00:00Z");
 const ok: AutoFormFacts = {
@@ -12,7 +12,7 @@ const ok: AutoFormFacts = {
 };
 
 describe("autoFormDecision", () => {
-  test("a fresh bulk-uploaded installer job with no form gets one", () => expect(autoFormDecision(ok, now)).toEqual({ action: "create" }));
+  test("a fresh bulk-uploaded installer job with no form gets one", () => expect(autoFormDecision(ok, now, true)).toEqual({ action: "create" }));
   test.each([
     [{ channel: "hivic_sourced" }, "not an installer job"],
     [{ deleted: true }, "removed"],
@@ -24,8 +24,8 @@ describe("autoFormDecision", () => {
     [{ mittiInvited: false }, "installer not set up in Mitti"],
     [{ installerUserId: null }, "no installer assigned"],
     [{ lastFailureAt: "2026-10-23T08:00:00Z" }, "last attempt failed – retrying tomorrow"],
-  ] as [Partial<AutoFormFacts>, string][])("skips %o", (over, reason) => expect(autoFormDecision({ ...ok, ...over }, now)).toEqual({ action: "skip", reason }));
-  test("a failure more than a day old is retried", () => expect(autoFormDecision({ ...ok, lastFailureAt: "2026-10-22T08:00:00Z" }, now).action).toBe("create"));
+  ] as [Partial<AutoFormFacts>, string][])("skips %o", (over, reason) => expect(autoFormDecision({ ...ok, ...over }, now, true)).toEqual({ action: "skip", reason }));
+  test("a failure more than a day old is retried", () => expect(autoFormDecision({ ...ok, lastFailureAt: "2026-10-22T08:00:00Z" }, now, true).action).toBe("create"));
 });
 
 // ---- sweep against real rows (PGlite), Mitti mocked ----
@@ -72,14 +72,21 @@ mock.module("../src/lib/mitti.server", () => ({
 const { sweepReadyCheckForms } = await import("../src/lib/mitti-autoform.server");
 
 describe("sweepReadyCheckForms", () => {
+  test("paused (A1 being republished): creates nothing", async () => {
+    expect(AUTOFORM_ENABLED).toBe(false);
+    expect(autoFormDecision(ok, now)).toEqual({ action: "skip", reason: "automatic Ready Check forms are paused" });
+    const r = await sweepReadyCheckForms({ now });
+    expect([r.results, r.wouldCreate, calls.length]).toEqual([[], [], 0]);
+  });
+
   test("dry run lists exactly the installer jobs that still need a form", async () => {
-    const r = await sweepReadyCheckForms({ now, dryRun: true });
+    const r = await sweepReadyCheckForms({ now, dryRun: true, enabled: true });
     expect(r.wouldCreate.sort()).toEqual(["HV-3121", "HV-3136", "HV-3137"]);
     expect(calls).toHaveLength(0);
   });
 
   test("creates forms through the guarded create path; TEST partner jobs go only to the TEST Mitti account; failures flag the office once", async () => {
-    const r = await sweepReadyCheckForms({ now });
+    const r = await sweepReadyCheckForms({ now, enabled: true });
     expect(Object.fromEntries(r.results.map((x) => [x.jobNumber, x.outcome]))).toEqual({ "HV-3121": "created", "HV-3136": "created", "HV-3137": "failed" });
     expect(calls.every((c) => c.opts.readyCheck === true)).toBe(true);
     expect(calls.find((c) => c.jobId === j(5))!.opts.assignee!.email).toBe("jo@actpropertyinspections.com.au");
@@ -91,10 +98,10 @@ describe("sweepReadyCheckForms", () => {
   test("the next tick creates nothing new and does not retry the failure for a day", async () => {
     calls.length = 0;
     await db.query("update workflow_events set created_at = $1 where event_type = 'mitti_autoform_failed'", [now.toISOString()]); // pin to the test clock
-    const r = await sweepReadyCheckForms({ now: new Date(now.getTime() + 15 * 60_000) });
+    const r = await sweepReadyCheckForms({ now: new Date(now.getTime() + 15 * 60_000), enabled: true });
     expect(r.results).toEqual([]);
     expect(calls).toHaveLength(0);
-    const later = await sweepReadyCheckForms({ now: new Date(now.getTime() + 25 * 3_600_000), dryRun: true });
+    const later = await sweepReadyCheckForms({ now: new Date(now.getTime() + 25 * 3_600_000), dryRun: true, enabled: true });
     expect(later.wouldCreate).toEqual(["HV-3137"]);
   });
 

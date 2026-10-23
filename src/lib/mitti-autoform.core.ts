@@ -2,6 +2,9 @@
 // click). Pure decision only; creation reuses createAssignMittiAudit and its atomic per-job claim.
 import { PRE_READY_CHECK_STAGES } from "./installer-new-jobs.core";
 
+/** Jo 23 Oct: PAUSED while the A1 template is republished with optional photos, so no form is made from the old
+ *  version (a Mitti form keeps the template version it was created from). Turn back on once Jo confirms. */
+export const AUTOFORM_ENABLED = false;
 export const AUTOFORM_WINDOW_DAYS = 30;
 export const AUTOFORM_RETRY_AFTER_HOURS = 24;
 /** The tick has a 55s HTTP limit and runs other Mitti work too; a few forms per tick keeps it well inside. */
@@ -17,8 +20,9 @@ export type AutoFormFacts = {
 
 export type AutoFormDecision = { action: "create" } | { action: "skip"; reason: string };
 
-export function autoFormDecision(f: AutoFormFacts, now: Date): AutoFormDecision {
+export function autoFormDecision(f: AutoFormFacts, now: Date, enabled = AUTOFORM_ENABLED): AutoFormDecision {
   const skip = (reason: string): AutoFormDecision => ({ action: "skip", reason });
+  if (!enabled) return skip("automatic Ready Check forms are paused");
   if (f.channel !== "installer_sourced") return skip("not an installer job");
   if (f.deleted || f.archived) return skip("removed");
   if (!(PRE_READY_CHECK_STAGES as readonly string[]).includes(f.stage)) return skip("past the Ready Check");
