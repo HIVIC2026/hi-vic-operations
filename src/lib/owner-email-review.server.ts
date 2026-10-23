@@ -35,11 +35,10 @@ export async function listOwnerEmailsToReview() {
         laterReviewAt: max((events.data ?? []).filter((e) => e.job_id === j.id).map((e) => e.occurred_at)),
         doneAt: max((done.data ?? []).filter((e) => e.job_id === j.id).map((e) => e.created_at)),
       });
-      if (!needs) continue;
       const owner = (Array.isArray(j.owners) ? j.owners[0] : j.owners) as { full_name: string | null } | null;
       const prop = (Array.isArray(j.properties) ? j.properties[0] : j.properties) as { suburb: string | null; address_line: string | null } | null;
       rows.push({
-        ownerId: j.owner_id, jobId: j.id, jobNumber: j.job_number, owner: owner?.full_name ?? null, suburb: emailSuburb(prop?.suburb,prop?.address_line), stage: j.stage,
+        needs, ownerId: j.owner_id, jobId: j.id, jobNumber: j.job_number, owner: owner?.full_name ?? null, suburb: emailSuburb(prop?.suburb,prop?.address_line), stage: j.stage,
         canReview: canUseReviewButtons(j.stage), from: c.sender_text, subject: c.subject, body: emailPreview(c.body), at: c.received_at,
         mediaCount: new Set((inbound ?? []).filter(m => m.job_id === j.id && isHumanOwnerEmail({...m,provider:"outlook",direction:"inbound",from:m.sender_text})).flatMap(m => emailOwnerMedia((m.attachment_refs ?? []) as EmailAttachment[]).filter(a => a.path).map(a => a.path))).size,
       });
@@ -49,7 +48,7 @@ export async function listOwnerEmailsToReview() {
   const { count, error: ue } = await admin.from("correspondence_reviews").select("id", { count: "exact", head: true })
     .eq("provider", "outlook").eq("kind", "unmatched").eq("direction", "inbound").eq("status", "open");
   if (ue) throw new Error(`Unmatched emails unavailable: ${ue.message}`);
-  return { rows: latestPerOwner(rows), unmatched: count ?? 0 };
+  return { rows: latestPerOwner(rows).filter(r => r.needs).map(r => ({...r,reviewJobIds:rows.filter(j => j.ownerId === r.ownerId && j.needs).map(j => j.jobId),mediaCount:rows.filter(j => j.ownerId === r.ownerId).reduce((n,j) => n+j.mediaCount,0)})), unmatched: count ?? 0 };
 }
 
 /** Office marks an owner email handled without a reply (permanent history entry). */

@@ -3,6 +3,7 @@ import { cleanOwnerEmail, emailSuburb, isHumanOwnerEmail, latestPerOwner } from 
 test('strips HTML, signature, quoted reply and disclaimer without changing the reply', () => {
   expect(cleanOwnerEmail('<p>My ceiling photos are attached &amp; ready.</p><p>Kind regards</p><p>Sam</p><blockquote>Old quote</blockquote>')).toBe('My ceiling photos are attached & ready.');
   expect(cleanOwnerEmail('Can you call tomorrow?\n\nOn Friday, Jo wrote:\nOld reply')).toBe('Can you call tomorrow?');
+  expect(cleanOwnerEmail('When do I get the free ready check?\n\nOn Wed, Oct 21, 2026 at 6:35 PM Home\nInsulation Victoria\nwrote:\nOld text')).toBe('When do I get the free ready check?');
   expect(cleanOwnerEmail('Please check the attached photos.\nThis email is confidential.')).toBe('Please check the attached photos.');
 });
 test('real owner reply to Spot saved remains visible; our automation never does', () => {

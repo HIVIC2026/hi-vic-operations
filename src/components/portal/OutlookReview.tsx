@@ -48,7 +48,7 @@ export function OutlookReview() {
   const mailbox = mailboxInput ?? s.expected_mailbox ?? "";
   const target = normaliseMailbox(mailbox);
   const counts = (s?.last_counts ?? {}) as Record<string, number>;
-  const unmatched = data.reviews.filter((r) => r.kind === "unmatched" && isHumanOwnerEmail({...r,provider:"outlook",channel:"email"}));
+  const unmatched = data.reviews.filter((r) => r.kind === "unmatched" && r.direction === "inbound" && isHumanOwnerEmail({...r,provider:"outlook",channel:"email"}));
   const intent = data.reviews.filter((r) => r.kind !== "unmatched");
   return (
     <div className="space-y-5">
@@ -125,7 +125,7 @@ export function UnmatchedOwnerEmails() {
   const load = useServerFn(getOutlookCorrespondenceOverview);
   const q = useQuery({queryKey:["outlook-correspondence"],queryFn:() => load(),staleTime:60_000});
   const resolve = useAction(resolveCorrespondenceReview);
-  const items = q.data?.reviews.filter(r => r.kind === "unmatched" && isHumanOwnerEmail({...r,provider:"outlook",channel:"email"})) ?? [];
+  const items = q.data?.reviews.filter(r => r.kind === "unmatched" && r.direction === "inbound" && isHumanOwnerEmail({...r,provider:"outlook",channel:"email"})) ?? [];
   return <details className="border-t pt-3"><summary className="cursor-pointer text-sm font-semibold">Unmatched emails ({items.length})</summary>{q.error ? <p role="alert">Could not load unmatched emails.</p> : <ReviewList title="" empty="No emails waiting to be matched." items={items} resolve={resolve} />}</details>;
 }
 function ReviewList({ title, empty, items, resolve }: { title: string; empty: string; items: Review[]; resolve: ReturnType<typeof useAction<{ reviewId: string; action: "assign" | "dismiss" | "close_job"; jobNumber?: string; reason?: string }, { ok: boolean }>> }) {

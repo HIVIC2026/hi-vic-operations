@@ -396,7 +396,7 @@ function OwnerEmailsToReview() {
       {rows.map(r => openId === r.jobId && <Dialog key={r.jobId} open onOpenChange={open => {if(!open)setOpenId(null);}}><DialogContent className="max-h-[90dvh] max-w-lg overflow-y-auto"><DialogHeader><DialogTitle>{r.owner ?? "Owner"} · {r.jobNumber}</DialogTitle><DialogDescription>{r.suburb}</DialogDescription></DialogHeader>
         <OwnerEmailConversation jobIds={r.jobIds} />
         <div className="space-y-3 border-t pt-3">{r.canReview && <MediaReview row={{id:r.jobId,name:r.owner} as unknown as Row} optionsOnly onDone={() => void q.refetch()} />}
-        <Button variant="outline" className="h-12 w-full" disabled={busy === r.jobId} onClick={async () => {setBusy(r.jobId);try {for(const jobId of r.jobIds) await markDone({data:{jobId}});setOpenId(null);await q.refetch();} finally {setBusy(null);}}}>Done – no reply needed</Button></div>
+        <Button variant="outline" className="h-12 w-full" disabled={busy === r.jobId} onClick={async () => {setBusy(r.jobId);try {for(const jobId of r.reviewJobIds) await markDone({data:{jobId}});setOpenId(null);await q.refetch();} finally {setBusy(null);}}}>Done – no reply needed</Button></div>
       </DialogContent></Dialog>)}
       <UnmatchedOwnerEmails />
     </section>

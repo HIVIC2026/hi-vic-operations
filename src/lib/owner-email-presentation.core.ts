@@ -3,7 +3,7 @@ export function cleanOwnerEmail(value: string | null | undefined): string {
   const text = (value ?? "").replace(/<(script|style)[\s\S]*?<\/\1>/gi, "").replace(/<blockquote\b[\s\S]*?<\/blockquote>/gi, "")
     .replace(/<(?:br\s*\/?|\/p|\/div|\/tr)>/gi, "\n").replace(/<[^>]+>/g, "")
     .replace(/&nbsp;|&#160;/gi, " ").replace(/&amp;/gi, "&").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'");
-  const lines = text.replace(/\r/g, "").split("\n");
+  const lines = text.replace(/\r/g, "").replace(/(?:^|\n)On [^\n]*(?:\n[^\n]*){0,4}?wrote:\s*(?:\n|$)[\s\S]*$/i, "").split("\n");
   const kept: string[] = [];
   for (const line of lines) {
     const s = line.trim();
