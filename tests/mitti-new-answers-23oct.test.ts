@@ -1,7 +1,7 @@
 // Jo 23 Oct 2026: new Mitti Ready Check answers on A1 + A2.
 import { describe, expect, test } from "bun:test";
 import { buildPrefill, parseAudit, validateStoredMittiAudit } from "../src/lib/mitti.core";
-import { readyCheckStopReasons, removalTotalM2, difficultAccessFee, STOP_BUILT_5, STOP_LIFE_SUPPORT, STOP_NO_CONTACT, STOP_R2 } from "../src/lib/ready-check-answers.core";
+import { websiteStopReasons, readyCheckStopReasons, removalTotalM2, difficultAccessFee, STOP_BUILT_5, STOP_LIFE_SUPPORT, STOP_NO_CONTACT, STOP_R2 } from "../src/lib/ready-check-answers.core";
 import { readyCheckCompletionChecks, readyCheckFactsFromEntries } from "../src/lib/ready-check-complete.core";
 import { installDayPhotoNeeds, installDayPhotoBlocker } from "../src/lib/ready-check-chase.core";
 import { validateQuotedPrice } from "../src/lib/mitti-forms.core";
@@ -136,5 +136,13 @@ describe("10 fail reasons multi pick list", () => {
     ] });
     expect(p.failReasons).toEqual(["No safe access", "Existing insulation R2.0 or above"]);
     expect(p.patch.notes).toMatch(/No safe access, Existing insulation R2.0 or above/);
+  });
+});
+
+describe("A2 uses the owner's website answers for life support / 5 years", () => {
+  test("website Yes → same office items; A2 form answers ignored", () => {
+    expect(websiteStopReasons({ lifeSupportStatus: "yes", overFiveYears: "no" })).toEqual([STOP_LIFE_SUPPORT, STOP_BUILT_5]);
+    expect(websiteStopReasons({ lifeSupportStatus: "no", overFiveYears: "yes" })).toEqual([]);
+    expect(readyCheckStopReasons([e("Life support equipment at property?", "Yes"), e("Was the ceiling or roof built or replaced in the last 5 years?", "Yes")], { ownerAnsweredOnWebsite: true })).toEqual([]);
   });
 });

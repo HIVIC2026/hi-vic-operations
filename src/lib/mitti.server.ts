@@ -356,7 +356,11 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
           catch (e) { issues = [...issues, `Install-day photo list not updated: ${e instanceof Error ? e.message : "error"}`]; }
           // Hard stops on our leads too (installer jobs record them in the quote step): no quote, office list.
           if (job.channel !== "installer_sourced") {
-            const stops = (await import("./ready-check-answers.core")).readyCheckStopReasons((plan.snapshot ?? []) as { label: string; value: string | null }[]);
+            const ra = await import("./ready-check-answers.core");
+            const { data: w } = await admin.from("jobs").select("life_support_status, properties(enrichment)").eq("id", jobId).maybeSingle();
+            const overFive = ((w?.properties as { enrichment?: Any } | null)?.enrichment as Any)?.base44?.declared?.over_five_years ?? null;
+            const stops = [...ra.readyCheckStopReasons((plan.snapshot ?? []) as { label: string; value: string | null }[], { ownerAnsweredOnWebsite: true }),
+              ...ra.websiteStopReasons({ lifeSupportStatus: (w?.life_support_status as string | null) ?? null, overFiveYears: overFive })];
             if (stops.length) await (await import("./ready-check-quote.server")).recordNeedsOffice(jobId, actorId, null, stops);
           }
         }
