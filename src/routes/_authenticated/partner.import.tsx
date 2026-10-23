@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { INSTALLER_BULK_UPLOAD_ENABLED } from "@/lib/bulk-upload-switch.core";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { TradeShell } from "@/components/trade/TradeShell";
@@ -21,7 +22,7 @@ function ImportPage() {
     <TradeShell installer>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="font-display text-[26px] font-bold leading-tight">Add a job</h1>
-        <Link to="/partner/bulk-import" data-bulk-upload-link className="inline-flex h-12 items-center rounded-[10px] border-2 border-estimate-blue px-4 text-sm font-bold text-estimate-blue md:h-[42px]">Upload multiple jobs</Link>
+        {INSTALLER_BULK_UPLOAD_ENABLED && <Link to="/partner/bulk-import" data-bulk-upload-link className="inline-flex h-12 items-center rounded-[10px] border-2 border-estimate-blue px-4 text-sm font-bold text-estimate-blue md:h-[42px]">Upload multiple jobs</Link>}
       </div>
       <div className="mt-3"><NewReadyCheckButton /></div>
       {isLoading ? <p className="text-sm text-sub">Loading…</p>

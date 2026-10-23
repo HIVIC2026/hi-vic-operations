@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { INSTALLER_BULK_UPLOAD_ENABLED } from "@/lib/bulk-upload-switch.core";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
@@ -37,7 +38,7 @@ function Business() {
       {data.boss && <section className={`${card} space-y-3`} data-boss-actions>
         <h2 className="font-bold">Grow your business</h2>
         <Link to="/partner/workers" className="flex h-12 w-full items-center justify-center rounded-[10px] bg-action px-4 text-[13px] font-bold text-action-foreground">Add team members</Link>
-        {installer && <Link to="/partner/bulk-import" className="flex h-12 w-full items-center justify-center rounded-[10px] border-2 border-estimate-blue px-4 text-[13px] font-bold text-estimate-blue">Upload multiple jobs</Link>}
+        {installer && INSTALLER_BULK_UPLOAD_ENABLED && <Link to="/partner/bulk-import" className="flex h-12 w-full items-center justify-center rounded-[10px] border-2 border-estimate-blue px-4 text-[13px] font-bold text-estimate-blue">Upload multiple jobs</Link>}
       </section>}
       {alert && <section className="rounded-[18px] bg-owner-house-pink p-5"><p className="font-bold">{alert.doc} runs out in {alert.d} days. Upload the renewed certificate to keep receiving job offers</p><Link to="/field/business/insurance" className="mt-3 flex h-12 w-full items-center justify-center rounded-[10px] bg-estimate-navy font-bold text-estimate-canvas">Upload</Link></section>}
       <section>

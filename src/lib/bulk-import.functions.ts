@@ -11,6 +11,7 @@ import type { Json } from "@/integrations/supabase/types";
 import { hashToken, newToken } from "./worker-links.core";
 import { allBulkRows, bulkBatchAccess, bulkBusinessAccess, bulkRowAccess, bulkRpc, checkedBulk } from "./bulk-import-access.server";
 import { bulkCounts, type BulkCounts } from "./bulk-import.core";
+import { BULK_UPLOAD_OFF_MESSAGE, INSTALLER_BULK_UPLOAD_ENABLED } from "./bulk-upload-switch.core";
 
 const uuid = z.string().uuid();
 const rawRow = z.record(z.string(), z.string());
@@ -24,8 +25,14 @@ const manifestFile = z.object({
 });
 const fileRead = z.object({ name: z.string().max(1000), status: z.enum(["ok", "warn", "error"]), message: z.string().max(500) });
 
+/** Installer batch upload is OFF (bulk-upload-switch.core); only the office may create or confirm batches. */
+function requireBulkUploadOpen(isAdmin: boolean) {
+  if (!isAdmin && !INSTALLER_BULK_UPLOAD_ENABLED) throw new WorkflowError(BULK_UPLOAD_OFF_MESSAGE);
+}
+
 async function canUseBulkImport(userId: string, businessId: string, onBehalf: boolean) {
   const { isAdmin } = await bulkBusinessAccess(userId,businessId,true);
+  requireBulkUploadOpen(!!isAdmin);
   if (onBehalf) {
     if (!isAdmin) throw new WorkflowError("Only the office can upload on behalf of an installer.");
   } else {
@@ -81,7 +88,8 @@ export const confirmBulkBatch = createServerFn({ method: "POST" }).middleware([r
     batchId: uuid, skipRowIds: z.array(uuid).default([]),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    await bulkBatchAccess(data.batchId,context.userId,true);
+    const { isAdmin } = await bulkBatchAccess(data.batchId,context.userId,true);
+    requireBulkUploadOpen(!!isAdmin);
     const { confirmBatch } = await import("./bulk-import.server");
     return confirmBatch(data.batchId, context.userId, data.skipRowIds);
   });
@@ -92,7 +100,8 @@ export const setBulkReviewPlan = createServerFn({ method: "POST" }).middleware([
     siteCheck: z.enum(["yes", "no"]).nullable().optional(), siteCheckDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
     quoted: z.enum(["yes", "no"]).nullable().optional(), quotedPrice: z.number().positive().max(1_000_000).nullable().optional(), consent: z.boolean().optional() })).max(5000) }).parse(d))
   .handler(async ({ data, context }) => {
-    const { batch } = await bulkBatchAccess(data.batchId,context.userId,true);
+    const { batch, isAdmin } = await bulkBatchAccess(data.batchId,context.userId,true);
+    requireBulkUploadOpen(!!isAdmin);
     if (!batch || batch.status !== "analysed") throw new WorkflowError("This upload can no longer be changed.");
     await bulkRpc("set_bulk_import_plan", { _batch: data.batchId, _actor: context.userId, _plan: data.batchPlan });
     const { stageForSiteCheck, quotedGap, quotedPrice } = await import("./bulk-import.core");
