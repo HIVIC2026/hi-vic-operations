@@ -41,17 +41,19 @@ test("v2 leads with the saving and says exactly what they get (Jo 24 Oct)", () =
     expect(body).toContain("You could save $1,850 on ceiling insulation");
     expect(body).toContain("$2,347.00");
     expect(body).toContain("$4,197.00"); // full price before the rebate
+    expect(body).toContain("save you up to 20% on your heating and cooling costs (Sustainability Victoria)");
     expect(body).toContain("Taken off upfront – nothing for you to claim.");
     expect(body).toContain("Bradford Gold R5.0 supplied and installed – 120 m²");
-    expect(body).toContain("Your old insulation removed and taken away – 40 m²");
-    expect(body).toContain("Installed by Reinsulate, an EEC-certified installer we have checked and approved");
+    expect(body).toContain("Old insulation removed and taken away – 40 m²");
+    expect(body).toMatch(/Installed by Reinsulate, an EEC-certified installer we(&#39;|&#x27;|')ve checked and approved/);
     expect(body).toContain("licensed electrician");
     expect(body).toContain("2A Chatfield Street, Kingsville VIC 3012");
     expect(body).toContain("6 November 2026");
     expect(body).toContain("call us on 03 9000 0000");
-    expect(body).toContain("Pay the $349.00 electrical safety check.");
-    expect(body).toContain("Accredited Person");
+    expect(body).toContain("Accept your quote and pay the $349.00 electrical safety check.");
+    expect(body).toContain("VEU Accredited Person A003654");
     expect(body).toContain("ABN 44 671 613 979");
+    expect(body).not.toContain("Who we are"); // v3: shorter, no repeats
     expect(body).not.toMatch(/6-digit|code/i); // no signing code in the email
   }
   expect(m.html).toContain(`href="${url}"`);
@@ -71,7 +73,7 @@ test("null expiry and phone drop their sentences", () => {
     expect(body).not.toContain("held until");
     expect(body).not.toContain("call us");
     expect(body).toContain("Questions? Just reply to this email.");
-    expect(body).toContain("Pay the electrical safety check.");
+    expect(body).toContain("Accept your quote and pay the electrical safety check.");
     expect(body).not.toContain("Unsubscribe");
   }
 });
@@ -102,9 +104,9 @@ test("refuses a bad total or non-https link", () => {
   expect(() => renderOwnerQuoteEmail({ ...base, quoteUrl: "/my-job/tok" })).toThrow();
 });
 
-test("Jo approved v2 on 24 Oct; no balance-payment line until the payment terms are decided", () => {
-  expect(OWNER_QUOTE_EMAIL_APPROVED).toBe(true);
-  expect(OWNER_QUOTE_EMAIL_VERSION).toBe("v2-approved-2026-10-24");
+test("v3 (shorter) waits for Jo's OK; no balance-payment line", () => {
+  expect(OWNER_QUOTE_EMAIL_APPROVED).toBe(false);
+  expect(OWNER_QUOTE_EMAIL_VERSION).toBe("v3-draft-2026-10-24");
   expect(renderOwnerQuoteEmail(base).text).not.toMatch(/balance|two halves/i);
 });
 
@@ -220,19 +222,15 @@ test("qa_test notify sends the rendered owner quote email via sendTestEmail", as
   expect(m.subject).toMatch(/^Courtney, your quote is ready/);
   expect(m.html).toContain(`href="${CUSTOMER_BASE}/my-job/test-token?screen=quote"`);
   expect(m.text).toContain("2A Chatfield Street, Kingsville VIC 3012");
-  expect(m.text.indexOf("R5.0 install")).toBeLessThan(m.text.indexOf("Removal"));
   expect(m.text).toContain("$2,347.00");
   expect(m.html).toContain("TEST — only sent to Jo");
   expect(sentSms[0]).toContain("$2,347.00 after the VEU rebate");
   expect(sentSms[0]).toContain(`${CUSTOMER_BASE}/my-job/test-token?screen=quote`);
 });
 
-test("Jo 24 Oct: explains the PIESA — what it checks, repairs quoted and charged separately", () => {
+test("Jo 24 Oct: the safety check in a few lines — what it checks, repairs quoted separately", () => {
   for (const body of [renderOwnerQuoteEmail(base).html, renderOwnerQuoteEmail(base).text]) {
-    expect(body).toContain("About your electrical safety check");
-    expect(body).toContain("Pre-Insulation Electrical Safety Assessment (PIESA) and costs $349.00");
-    expect(body).toContain("Downlights and other recessed lights");
-    expect(body).toContain("Repairs are charged separately to this quote, and nothing is done without your OK.");
-    expect(body).toContain("Certificate of Electrical Safety");
+    expect(body).toContain("checks your switchboard, ceiling wiring and downlights are safe to insulate over");
+    expect(body).toContain("we quote it separately – nothing is done without your OK");
   }
 });
