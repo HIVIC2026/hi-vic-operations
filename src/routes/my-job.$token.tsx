@@ -8,7 +8,7 @@ import { OwnerHouse } from "@/components/owner/OwnerHouse";
 import { PIESA_FIXES_NOTE, agreedWithLabel, ownerPriceTitle } from "@/lib/owner-confirm.core";
 import { CUSTOMER_BRAND } from "@/lib/customer-quote-system";
 import { HOUSE_LEVEL } from "@/lib/owner-house.core";
-import { ownerHeadline, quoteKicker } from "@/lib/owner-headlines.core";
+import { ownerHeadline } from "@/lib/owner-headlines.core";
 import { gateACard, SPOT_SAVED_PROGRESS } from "@/lib/owner-myjob.core";
 import { ownerPaperworkFn } from "@/lib/owner-gates.functions";
 import { earliestInstall, installDeadline, TWO_HOUR_WINDOWS, visitPill, type OwnerScreen } from "@/lib/owner-myjob.core";

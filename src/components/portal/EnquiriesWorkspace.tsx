@@ -9,10 +9,8 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  existingInsulationSaveSpotFn,
   getEnquiryGroups,
   getLeadMedia,
-  noInsulationSaveSpotFn,
   removeLeadsFn,
 } from "@/lib/enquiry-groups.functions";
 import {
@@ -22,7 +20,6 @@ import {
 } from "@/lib/enquiry-groups.core";
 import { OFFICE_ENQUIRY_LABEL } from "@/lib/office-nav";
 import { RESPONSE_STATE_LABEL, showingRange, enquiryRowTag } from "@/lib/enquiry-response.core";
-import { followupSendMessage, followupRequestError, uncertainAttempt } from '@/lib/followup-result.core';
 import { cn } from "@/lib/utils";
 import { QuotesToCheck } from "./QuotesToCheck";
 
@@ -51,104 +48,6 @@ const INSULATION_LABEL: Record<string, string> = {
   present: "Has insulation",
   unknown: "Not sure",
 };
-
-type SendResult = { outcome: string; detail: string; preview?: { subject: string; html: string; plainText?: string }; needsEstimate?: boolean };
-
-/** Preview → (optional estimate update) → Send. Send is enabled only after the server's own preview validation passed. */
-function GuardedFollowup({ jobId, title, run, onDone, deliveryUncertain = false }: { jobId: string; title: string; run: (mode: "preview" | "prepare" | "send") => Promise<SendResult>; onDone: () => void; deliveryUncertain?: boolean }) {
-  const [busy, setBusy] = useState<null | "preview" | "prepare" | "send">(null);
-  const [message, setMessage] = useState<{ text: string; tone: "ok" | "error" | "info" } | null>(null);
-  const [preview, setPreview] = useState<{ subject: string; html: string } | null>(null);
-  const [needsEstimate, setNeedsEstimate] = useState(false);
-  const [sent, setSent] = useState(false);
-  const [locked, setLocked] = useState(false);
-  const go = async (mode: "preview" | "prepare" | "send") => {
-    if (busy || locked || deliveryUncertain || sent) return;
-    if (mode === "send" && !confirm(`Send the ${title} email to this owner now? It is checked again before sending.`)) return;
-    setBusy(mode);
-    setMessage(null);
-    try {
-      let r = await run(mode);
-      if (mode === "preview" && r.needsEstimate && !r.preview) {
-        // One tap: update the reviewed estimate and secure link (no email), then preview again.
-        const p = await run("prepare");
-        if (p.outcome === "blocked" || p.outcome === "failed") r = p;
-        else r = await run("preview");
-      }
-      if (mode === "preview") {
-        setNeedsEstimate(!!r.needsEstimate && !r.preview);
-        setPreview(r.preview ?? null);
-        setMessage(r.preview ? { text: "Preview only — not sent. Check it, then press Send.", tone: "info" } : { text: r.detail, tone: "error" });
-      } else if (mode === "prepare") {
-        setNeedsEstimate(!!r.needsEstimate);
-        setPreview(null);
-        setMessage({ text: r.detail, tone: r.outcome === 'blocked' || r.outcome === 'failed' ? 'error' : 'info' });
-        onDone();
-      } else {
-        const status = followupSendMessage(r.outcome, r.detail);
-        setSent(r.outcome === 'sent');
-        setLocked(status.lock);
-        setPreview(null);
-        setMessage(status);
-        onDone();
-      }
-    } catch {
-      const status = followupRequestError(mode);
-      setPreview(null);
-      setLocked(status.lock);
-      setMessage(status);
-      onDone();
-    } finally {
-      setBusy(null);
-    }
-  };
-  return (
-    <div className="space-y-2">
-      <p className="text-xs text-muted-foreground">
-        Preliminary only. The free Ready Check confirms insulation, eligibility and price.
-      </p>
-      {!sent && !locked && !deliveryUncertain && (
-        <div className="flex flex-wrap gap-2">
-          {needsEstimate && (
-            <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => go("prepare")}>
-              {busy === "prepare" ? "Updating…" : "Update estimate (no email)"}
-            </Button>
-          )}
-          <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => go("preview")}>
-            {busy === "preview" ? "Preparing…" : `Preview ${title}`}
-          </Button>
-          <Button size="sm" disabled={busy !== null || !preview} onClick={() => go("send")}
-            title={preview ? undefined : "Preview first — Send unlocks only when the server confirms this email can go out."}>
-            {busy === "send" ? "Sending…" : `Send ${title}`}
-          </Button>
-        </div>
-      )}
-      {message && (
-        <p role={message.tone === "error" ? "alert" : "status"} className={cn("text-sm", message.tone === "error" && "text-destructive", message.tone === "ok" && "font-semibold text-primary")}>
-          {message.text}
-        </p>
-      )}
-      {deliveryUncertain && !message && <p role="alert" className="text-sm text-destructive">An earlier email attempt is pending or uncertain. Check communication history before any further send.</p>}
-      {(locked || deliveryUncertain) && !sent && <Link to="/admin/jobs/$jobId" params={{ jobId }} className="text-sm text-primary underline">Open enquiry communication history</Link>}
-      {preview && (
-        <>
-          <p className="text-sm font-semibold">{preview.subject}</p>
-          <iframe title={`${title} email preview`} sandbox="" srcDoc={preview.html} className="h-[650px] w-full border" />
-        </>
-      )}
-    </div>
-  );
-}
-
-function ExistingInsulationFollowup({ jobId, onDone, deliveryUncertain }: { jobId: string; onDone: () => void; deliveryUncertain: boolean }) {
-  const action = useServerFn(existingInsulationSaveSpotFn);
-  return <GuardedFollowup jobId={jobId} deliveryUncertain={deliveryUncertain} title="Save your spot" onDone={onDone} run={(mode) => action({ data: { jobId, mode } })} />;
-}
-
-function NoInsulationFollowup({ jobId, onDone, deliveryUncertain }: { jobId: string; onDone: () => void; deliveryUncertain: boolean }) {
-  const action = useServerFn(noInsulationSaveSpotFn);
-  return <GuardedFollowup jobId={jobId} deliveryUncertain={deliveryUncertain} title="Save your spot offer" onDone={onDone} run={(mode) => action({ data: { jobId, mode } })} />;
-}
 
 function MediaReview({ row, onDone, optionsOnly = false }: { row: Row; onDone: () => void; optionsOnly?: boolean }) {
   const loadMedia = useServerFn(getLeadMedia);
