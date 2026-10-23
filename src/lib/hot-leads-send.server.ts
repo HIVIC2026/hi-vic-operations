@@ -343,7 +343,8 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     }
   })();
   if (!joMail) {
-    const held = renderError ? `Could not prepare the approved email: ${renderError.slice(0, 200)} — nothing sent.` : areaBasis.ok ? "No approved Jo template applies to this enquiry — held for manual review; nothing sent." : areaBasis.reason;
+    const renderMsg = renderError as string | null;
+    const held = renderMsg ? `Could not prepare the approved email: ${renderMsg.slice(0, 200)} — nothing sent.` : areaBasis.ok ? "No approved Jo template applies to this enquiry — held for manual review; nothing sent." : areaBasis.reason;
     // A reservation made above is released as a clean pre-delivery failure (never left "sending").
     if (mode === "send" && sendId) await admin.from("customer_email_sends").update({ status: "failed", provider: "not_sent", error: held }).eq("id", sendId);
     return r("blocked", held);
