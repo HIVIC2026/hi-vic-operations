@@ -1142,6 +1142,13 @@
       "when": 1792626388334,
       "tag": "0162_office_ready_check_booking",
       "breakpoints": true
+    },
+    {
+      "idx": 163,
+      "version": "7",
+      "when": 1792724992838,
+      "tag": "0163_mitti_pickup_auto_switch",
+      "breakpoints": true
     }
   ]
 }
