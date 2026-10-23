@@ -1,7 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Owner email cleanup (Jo 23 Oct 06:51 UTC)
-- [ ] Verify manual-redirect copier compatibility and read-only mailbox access; report publish blockers, no sync or sends.
-- [ ] Clean owner-grouped review, shared job conversation, private thumbnails and collapsed unmatched list; phone before/after evidence in docs/emails-2026-10-23; no publish, data changes or sends.
+- [x] Verify manual-redirect copier compatibility and read-only mailbox access; 34 PGlite recovery tests pass, live stored last success 06:40 UTC/no error/no pending work. No known additional blocker; actual post-publish sync not run.
+- [x] Clean owner-grouped review, shared job conversation, private thumbnails and collapsed unmatched list; 47 focused tests pass, authenticated 390×844 phone evidence in docs/emails-2026-10-23, both private thumbnails loaded and job history verified. No publish, database changes, sync or sends.
 ## Jo's 13-item phone quote checklist (23 Oct 06:33 UTC)
 - [x] Fix installer missing-info control, Office Adjust/reapproval, TEST notification total/link and phone quote wrapping; phone walkthrough verified Adjust → reapproval → explicit TEST send → owner quote and 25-cent form-change invalidation.
 - [x] Run checklist in 390×844 TEST Reinsulate/Office/owner screens; screenshots and pass/fail report in docs/e2e-2026-10-23. Complete end-to-end PASS withheld: native TEST Mitti login/form choice edits unavailable; actual inbox/SMS receipt not observable. No publish or real-recipient sends.
