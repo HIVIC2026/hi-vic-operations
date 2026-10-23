@@ -109,6 +109,18 @@ export function renderOwnerQuoteEmail(i: OwnerQuoteEmailInput): {
     "Your installation is booked within 30 days of the safety check.",
     // Jo 24 Oct: the installation payment terms are being worked out (deposit rules) — no balance line until decided.
   ];
+  // Jo 24 Oct: what the PIESA is, what it checks, and what happens (and costs) if repairs are needed. Taken from the
+  // official PIESA form items (docs/MITTI_PIESA_FORM_SPEC.md); repairs are quoted and charged separately.
+  const piesaIntro = `Victorian Government rules require a licensed electrician to check your ceiling is safe before any insulation goes in. It's called a Pre-Insulation Electrical Safety Assessment (PIESA)${safety ? ` and costs ${safety}` : ""}.`;
+  const piesaChecks = [
+    "Your switchboard and main switch, so power to the ceiling can be safely turned off, and that safety switches (RCDs) protect the ceiling circuits",
+    "The cables, connections and fittings in your ceiling, so they're safe to work around and cover with insulation",
+    "Downlights and other recessed lights, to see whether they're rated to be covered with insulation",
+    "Exhaust fans, flues and appliances in the ceiling space",
+    "Solar, battery or generator cables, if you have them",
+  ];
+  const piesaRepairs = "Common fixes are old downlights that can't be covered (replaced with IC-rated LED lights), missing safety switches, or old or damaged wiring. If any repairs are needed, we send you a separate quote for them first. Repairs are charged separately to this quote, and nothing is done without your OK. Once they're done, the electrician gives you a Certificate of Electrical Safety and your installation goes ahead. If a repair isn't possible, we'll explain your options before anything goes ahead.";
+  const piesaAfter = "After the check, please don't let anyone go into your ceiling before the installation – it can cancel the safety check.";
   const validity = i.validUntil ? `Your price is held until ${formatQuoteValidUntil(i.validUntil)}.` : null;
   const phone = cleanName(i.officePhone);
   const questions = phone ? `Questions? Reply to this email or call us on ${phone}.` : "Questions? Just reply to this email.";
@@ -139,6 +151,15 @@ ${btn}
 ${lines.length ? `<p style="font-size:17px;font-weight:bold;margin:18px 0 6px;">Your price in full</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid ${LINE};">${lines.map((l) => row(escape(l.description.trim()), escape(l.lineTotalIncGst < 0 ? `−${money(-l.lineTotalIncGst)}` : money(l.lineTotalIncGst)), `border-bottom:1px solid ${LINE};`)).join("")}${rebate ? row("Government VEU rebate", `−${escape(money(rebate))}`, `border-bottom:1px solid ${LINE};`) : ""}${row("<strong>You pay (inc GST)</strong>", `<strong>${escape(total)}</strong>`, "font-size:15px;")}</table>` : ""}
 <p style="font-size:17px;font-weight:bold;margin:22px 0 10px;">What happens next</p>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${steps.map((t, n) => `<tr><td valign="top" style="padding:0 10px 10px 0;width:24px;"><span style="display:inline-block;width:22px;height:22px;line-height:22px;border-radius:11px;background:${BLUE};color:#fff;font-size:12px;font-weight:bold;text-align:center;">${n + 1}</span></td><td style="padding:1px 0 10px;font-size:15px;line-height:1.45;">${escape(t)}</td></tr>`).join("")}</table>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${MIST};border-radius:16px;margin-top:8px;"><tr><td style="padding:16px 18px;">
+<p style="font-size:16px;font-weight:bold;margin:0 0 8px;">About your electrical safety check</p>
+<p style="font-size:14px;line-height:1.5;margin:0 0 8px;">${escape(piesaIntro)}</p>
+<p style="font-size:14px;font-weight:bold;margin:0 0 6px;">What the electrician checks</p>
+<ul style="font-size:14px;line-height:1.5;margin:0 0 8px;padding-left:18px;">${piesaChecks.map((c) => `<li style="margin:0 0 4px;">${escape(c)}</li>`).join("")}</ul>
+<p style="font-size:14px;font-weight:bold;margin:0 0 6px;">If something needs fixing</p>
+<p style="font-size:14px;line-height:1.5;margin:0 0 8px;">${escape(piesaRepairs)}</p>
+<p style="font-size:14px;line-height:1.5;margin:0;">${escape(piesaAfter)}</p>
+</td></tr></table>
 ${btn}
 <p style="font-size:14px;line-height:1.5;margin:10px 0 0;color:${SUB};">${escape([validity, questions].filter(Boolean).join(" "))}</p>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;border-top:1px solid ${LINE};"><tr><td style="padding-top:14px;">
@@ -163,6 +184,16 @@ ${btn}
     "",
     "What happens next",
     ...steps.map((t, n) => `${n + 1}. ${t}`),
+    "",
+    "About your electrical safety check",
+    piesaIntro,
+    "What the electrician checks:",
+    ...piesaChecks.map((c) => `- ${c}`),
+    "If something needs fixing:",
+    piesaRepairs,
+    piesaAfter,
+    "",
+    `${button}: ${i.quoteUrl}`,
     "",
     [validity, questions].filter(Boolean).join(" "),
     "",

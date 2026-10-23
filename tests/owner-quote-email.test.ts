@@ -226,3 +226,13 @@ test("qa_test notify sends the rendered owner quote email via sendTestEmail", as
   expect(sentSms[0]).toContain("$2,347.00 after the VEU rebate");
   expect(sentSms[0]).toContain(`${CUSTOMER_BASE}/my-job/test-token?screen=quote`);
 });
+
+test("Jo 24 Oct: explains the PIESA — what it checks, repairs quoted and charged separately", () => {
+  for (const body of [renderOwnerQuoteEmail(base).html, renderOwnerQuoteEmail(base).text]) {
+    expect(body).toContain("About your electrical safety check");
+    expect(body).toContain("Pre-Insulation Electrical Safety Assessment (PIESA) and costs $349.00");
+    expect(body).toContain("Downlights and other recessed lights");
+    expect(body).toContain("Repairs are charged separately to this quote, and nothing is done without your OK.");
+    expect(body).toContain("Certificate of Electrical Safety");
+  }
+});
