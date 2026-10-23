@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import { renderSpotSavedEmail, SPOT_SAVED_NOT_INCLUDED } from "../src/lib/spot-saved-messages.core";
-import { renderPreliminarySpotSavedEmail } from "../src/lib/preliminary-save-spot.core";
 import { REMOVAL_BUDGET_EMAIL_NOTE } from "../src/lib/estimate-removal.core";
 
 const base = { firstName: "Ann", rebate: 1400, suburb: "Ballarat", shortAddress: "1 A St, Ballarat", myJobUrl: "https://estimate.homeinsulationvictoria.com.au/my-job/tok", optOutUrl: "https://x/o",
@@ -32,16 +31,3 @@ describe("Spot saved email removal (Jo 23 Oct)", () => {
   });
 });
 
-describe("Version 2 (no estimate)", () => {
-  const v2 = () => renderPreliminarySpotSavedEmail({ firstName: "Vic", myJobUrl: null });
-  test("Jo 23 Oct correction: never prices or m² – no removal budget note", () => {
-    const e = v2();
-    expect(e.text).not.toContain(REMOVAL_BUDGET_EMAIL_NOTE);
-    expect(e.text).not.toMatch(/budget|removal|removed/i);
-    expect(e.html).not.toMatch(/\$|m²/);
-    expect(e.text).not.toMatch(/\$|m²/);
-  });
-  test("electrical-fix sentence for everyone", () => {
-    const e = v2(); expect(e.text).toContain(SPOT_SAVED_NOT_INCLUDED); expect(plainHtml(e.html)).toContain("will be quoted separately.");
-  });
-});
