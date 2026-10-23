@@ -29,6 +29,8 @@ export type HivQuoteInput = {
   /** Agreed installer rate (ex GST) for rValue; required when rValue is R6.0/R7.0. */
   installerRExPerM2?: number | null;
   product?: InsulationProduct | null;
+  /** Jo 23 Oct (A2): installer's difficult access fee from the Ready Check — added as its own owner line, passed through. */
+  difficultAccessFeeIncGst?: number | null;
 };
 
 export type HivLine = { code: string; description: string; quantity: number; unit: string; unit_price_inc_gst: number; line_total_inc_gst: number; is_other: false; explanation: null; sort: number };
@@ -52,6 +54,8 @@ export function priceHivQuote(i: HivQuoteInput) {
     lines.push({ code, description, quantity, unit, unit_price_inc_gst: r2(unitInc), line_total_inc_gst: r2(unitInc * quantity), is_other: false, explanation: null, sort: lines.length });
   add(R_VALUE_CODE[rv], i.product ? productQuoteDescription(i.product, null) : `${rv} ceiling insulation supply & install`, i.areaM2, "m2", ownerR5);
   if (i.removalM2 > 0) add("REMOVAL", "Removal & disposal of existing insulation", i.removalM2, "m2", i.ownerRemovalIncPerM2);
+  const accessFee = i.difficultAccessFeeIncGst && i.difficultAccessFeeIncGst > 0 ? r2(i.difficultAccessFeeIncGst) : 0;
+  if (accessFee) add("DIFFICULT_ACCESS", "Difficult access fee", 1, "flat", accessFee);
   add("PIESA", "Mandatory Pre Insulation Electrical Safety Assessment (PIESA)", 1, "flat", i.piesaIncGst);
   add("AP_FEE", "Accredited Provider fee (Home Insulation Victoria)", 1, "flat", i.apFeeIncGst);
 
@@ -59,7 +63,7 @@ export function priceHivQuote(i: HivQuoteInput) {
   const removalMarkupInc = r2((i.ownerRemovalIncPerM2 - instRemInc) * i.removalM2);
   const travelInc = r2((i.installerTravelEx ?? 0) * gst);
   const markupInc = r2(r5MarkupInc + removalMarkupInc - travelInc);
-  const installerCostEx = r2(instRateEx * i.areaM2 + (i.removalM2 > 0 ? i.installerRemovalExPerM2! * i.removalM2 : 0) + (i.installerTravelEx ?? 0));
+  const installerCostEx = r2(instRateEx * i.areaM2 + (i.removalM2 > 0 ? i.installerRemovalExPerM2! * i.removalM2 : 0) + (i.installerTravelEx ?? 0) + accessFee / gst);
   return {
     lines, rValue: rv, holdReasons,
     installerMarkup: { r5MarkupInc, removalMarkupInc, travelInc, markupInc, markupEx: r2(markupInc / gst), ownerR5IncPerM2: ownerR5, installerR5IncPerM2: instR5Inc, installerRemovalIncPerM2: instRemInc },
