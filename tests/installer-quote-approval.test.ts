@@ -29,8 +29,8 @@ describe("Jo 23 Oct: installer approves the owner quote", () => {
   });
   it("4. only approved quotes are on the office list; others wait greyed", () => {
     const s = splitQuotesToCheck([{ quoteId: "a", waitingOnInstaller: false }, { quoteId: "b", waitingOnInstaller: true }, { quoteId: null, waitingOnInstaller: false }]);
-    expect(s.ready.map((r) => r.quoteId)).toEqual(["a", null]);
-    expect(s.waiting.map((r) => r.quoteId)).toEqual(["b"]);
+    expect(s.ready.map((r) => r.quoteId)).toEqual(["a"]);
+    expect(s.waiting.map((r) => r.quoteId)).toEqual(["b", null]);
     expect(approvalCardLine("approved", false)).toBe("Waiting on office: checking your quote");
     expect(approvalCardLine("approved", true)).toBe("Waiting on owner: to accept the quote");
   });

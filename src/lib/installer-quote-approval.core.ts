@@ -69,5 +69,13 @@ export function readApprovalEvents(rows: { created_at: string; actor_id?: string
 
 /** Office list: drafts the installer hasn't approved go to a separate "Waiting on installer" section. */
 export function splitQuotesToCheck<T extends { quoteId: string | null; waitingOnInstaller?: boolean }>(rows: T[]): { ready: T[]; waiting: T[] } {
-  return { ready: rows.filter((r) => !(r.quoteId && r.waitingOnInstaller)), waiting: rows.filter((r) => !!(r.quoteId && r.waitingOnInstaller)) };
+  const ready = (r: T) => !!r.quoteId && !r.waitingOnInstaller;
+  return { ready: rows.filter(ready), waiting: rows.filter((r) => !ready(r)) };
 }
+
+/** One short grey status for a "Waiting on installer" row. */
+export function waitingStatus(reasons: string[]): string {
+  const n = reasons.filter((r) => r !== WAITING_ON_INSTALLER).length;
+  return n === 0 ? "Waiting for installer to approve" : `${n} thing${n === 1 ? "" : "s"} missing`;
+}
+export const mittiAuditUrl = (id: string | null | undefined) => (id ? `https://app.au.mitti.com/inspections/${id}` : null);
