@@ -124,3 +124,12 @@ describe("installer-started A2 form (Jo 22 Oct 23:30)", () => {
     expect(d({ ...base, templateKind: "installer_form" }).officeFlag).toBeUndefined();
   });
 });
+
+test("Jo 23 Oct: a picked-up Mitti job is marked installer-led (else commercialBlocker stops owner acceptance)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync("src/lib/mitti-pickup-auto.server.ts", "utf8");
+  const create = src.indexOf("await upsertEnquiry("), mark = src.indexOf('update({ installer_led: true })'), link = src.indexOf("await linkMittiReadyCheckToJob(null, { auditId: r.auditId, jobId: created.job_id }");
+  expect(create).toBeGreaterThan(0);
+  expect(mark).toBeGreaterThan(create);
+  expect(mark).toBeLessThan(link);
+});

@@ -127,6 +127,9 @@ export async function sweepMittiPickupAuto(opts: { dryRun?: boolean; call?: Mitt
         address_line: parts?.addressLine ?? (r.siteAddress?.trim() || "Address to confirm"), suburb: parts?.suburb ?? null, postcode: parts?.postcode ?? null,
         estimated_area_m2: null,
       } as never, source, null, { channel: "installer_sourced", businessId: r.business!.id, userId: member });
+      // Installer-led like bulk/on-site jobs: otherwise commercialBlocker (not_configured) stops owner acceptance later.
+      const { error: le } = await admin.from("jobs").update({ installer_led: true }).eq("id", created.job_id);
+      if (le) await logEvent(created.job_id, null, "mitti_pickup_installer_led_failed", `Could not mark the picked-up job installer-led: ${le.message}`, { audit_id: r.auditId, needs_office: true }, { internal: true });
       const { error: ae } = await admin.from("job_assignments").insert({ job_id: created.job_id, user_id: member, role: "installer", business_id: r.business!.id, assigned_by: null, first_response_at: new Date().toISOString() });
       if (ae) await logEvent(created.job_id, null, "mitti_pickup_assign_failed", `Installer assignment failed after auto-pickup: ${ae.message}`, { audit_id: r.auditId }, { internal: true });
       // Finish the initial checks now so their stage default cannot overwrite "Needs finishing…" afterwards.
