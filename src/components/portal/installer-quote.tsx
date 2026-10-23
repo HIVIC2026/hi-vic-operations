@@ -49,12 +49,13 @@ export function InstallerQuoteDraftPanel({ jobId }: { jobId: string }) {
           {partner ? `${partner} with ` : ""}Home Insulation Victoria as the Accredited Person. All prices inc GST.{d.channel === "installer_sourced" ? " No lead fee, no margin." : ""}
         </p>
       </div>
-      {d.heldBlockers.length > 0 && (
+      {d.heldBlockers.filter(b => b !== "Waiting on installer to approve the quote").length > 0 && (
         <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
           <p className="font-medium text-destructive">{quote ? "Held — fix before sending:" : "Not drafted — needs office review:"}</p>
-          <ul className="list-disc pl-5 text-destructive">{d.heldBlockers.map((b) => <li key={b}>{b}</li>)}</ul>
+          <ul className="list-disc pl-5 text-destructive">{d.heldBlockers.filter(b => b !== "Waiting on installer to approve the quote").map((b) => <li key={b}>{b}</li>)}</ul>
         </div>
       )}
+      {d.heldBlockers.includes("Waiting on installer to approve the quote") && <p className="text-sm text-muted-foreground">Waiting on installer to approve the quote.</p>}
       {!quote ? (
         d.heldBlockers.length === 0 && <p className="text-sm text-muted-foreground">Waiting for the installer to finish the Ready Check in Mitti.</p>
       ) : (
