@@ -1,4 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Outlook-first replacement (Jo 23 Oct 07:06 UTC)
+- [x] Remove portal email/unmatched queues; matched record-only two-way copying, clean job history/media, automated/junk/unmatched excluded and redirect fix preserved. 68 tests pass including PGlite two-direction/idempotency/no-decisions/no-unmatched cases; authenticated phone Enquiries/job screenshots verified. No live sync, sends, database changes or publish.
 ## Owner email cleanup (Jo 23 Oct 06:51 UTC)
 - [x] Verify manual-redirect copier compatibility and read-only mailbox access; 34 PGlite recovery tests pass, live stored last success 06:40 UTC/no error/no pending work. No known additional blocker; actual post-publish sync not run.
 - [x] Clean owner-grouped review, shared job conversation, private thumbnails and collapsed unmatched list; 47 focused tests pass, authenticated 390×844 phone evidence in docs/emails-2026-10-23, both private thumbnails loaded and job history verified. No publish, database changes, sync or sends.
