@@ -3,7 +3,6 @@ import { PhotoRankButtons } from "./SpotPhotoCheck";
 // Reuses the existing enquiry-groups read + actions. Presentation only: the office-facing outcomes are a
 // single label per enquiry (mapped from the canonical enquiryStatus), never a competing status system.
 import { Link } from "@tanstack/react-router";
-import { setEligibility } from "@/lib/portal.functions";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
@@ -11,27 +10,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   existingInsulationSaveSpotFn,
-  reviewedIneligibleEmailFn,
   getEnquiryGroups,
   getLeadMedia,
   noInsulationSaveSpotFn,
-  morePhotosRequestFn,
   removeLeadsFn,
-  reviewLeadMediaFn,
 } from "@/lib/enquiry-groups.functions";
-import { qualifiesOutcome } from "@/lib/enquiry-review-custom.core";
 import {
   MEDIA_OUTCOME_LABEL,
   STATUS_ORDER,
   type EnquiryStatus,
-  type MediaReviewOutcome,
 } from "@/lib/enquiry-groups.core";
 import { OFFICE_ENQUIRY_LABEL } from "@/lib/office-nav";
 import { RESPONSE_STATE_LABEL, showingRange, enquiryRowTag } from "@/lib/enquiry-response.core";
 import { followupSendMessage, followupRequestError, uncertainAttempt } from '@/lib/followup-result.core';
 import { cn } from "@/lib/utils";
 import { QuotesToCheck } from "./QuotesToCheck";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 export type EnquiryView = EnquiryStatus | "all" | "new" | "photos" | "removed";
 
@@ -159,9 +152,6 @@ function NoInsulationFollowup({ jobId, onDone, deliveryUncertain }: { jobId: str
 
 function MediaReview({ row, onDone, optionsOnly = false }: { row: Row; onDone: () => void; optionsOnly?: boolean }) {
   const loadMedia = useServerFn(getLeadMedia);
-  const review = useServerFn(reviewLeadMediaFn);
-  const decide = useServerFn(setEligibility);
-  const ineligibleEmail = useServerFn(reviewedIneligibleEmailFn);
   const query = useQuery({
     queryKey: ["lead-media", row.id],
     queryFn: () => loadMedia({ data: { jobId: row.id } }),
@@ -170,31 +160,8 @@ function MediaReview({ row, onDone, optionsOnly = false }: { row: Row; onDone: (
   const data = optionsOnly ? undefined : query.data;
   const isLoading = optionsOnly ? false : query.isLoading;
   const error = optionsOnly ? null : query.error;
-  const [busy, setBusy] = useState<MediaReviewOutcome | null>(null);
-  const [saved, setSaved] = useState<string | null>(null);
-  const [savedOutcome, setSavedOutcome] = useState<MediaReviewOutcome | null>(null);
-  const [failed, setFailed] = useState<string | null>(null);
-  const act = async (outcome: MediaReviewOutcome) => {
-    setBusy(outcome);
-    setFailed(null);
-    try {
-      const res = await review({ data: { jobId: row.id, outcome } });
-      // Jo 08:27 UTC: a saved spot's photo check only moves its Spots saved rank — no email, no eligibility change.
-      if (res.spotSaved) { setSaved(`${MEDIA_OUTCOME_LABEL[outcome]} — spot already saved, rank updated, no email sent`); setSavedOutcome(null); onDone(); return; }
-      // R2 or above: record the Office ineligible decision (default reason; the editable email comes next) so the approved ineligible email can be sent.
-      if (outcome === "over_r2") await decide({ data: { jobId: row.id, outcome: "does_not_appear_eligible", reason: "R2 or above – reviewed by office", nextAction: "Send ineligible response" } });
-      setSaved(MEDIA_OUTCOME_LABEL[outcome]);
-      setSavedOutcome(outcome);
-      // Keep the row open so the follow-up email can be sent right here; refresh after that.
-      if (outcome === "unclear") onDone();
-    } catch (e) {
-      setFailed(e instanceof Error ? e.message : "The review could not be saved.");
-    } finally {
-      setBusy(null);
-    }
-  };
   return (
-    <div className="space-y-3 rounded-md border bg-muted/20 p-3">
+    <div className="space-y-3">
       {isLoading ? (
         <p role="status" className="text-sm">
           Loading photos…
@@ -236,116 +203,7 @@ function MediaReview({ row, onDone, optionsOnly = false }: { row: Row; onDone: (
               <p className="text-sm text-muted-foreground">No files found.</p>
             )}
           </div>
-          {saved && (savedOutcome === "below_r2" || savedOutcome === "no_insulation") ? (
-            <div className="space-y-2">
-              <p role="status" className="text-sm font-semibold text-primary">Review saved: {saved}. Now send the Save your spot email:</p>
-              {savedOutcome === "below_r2"
-                ? <ExistingInsulationFollowup jobId={row.id} deliveryUncertain={uncertainAttempt(row.latestAttemptStatus)} onDone={onDone} />
-                : <NoInsulationFollowup jobId={row.id} deliveryUncertain={uncertainAttempt(row.latestAttemptStatus)} onDone={onDone} />}
-            </div>
-          ) : saved && savedOutcome === "over_r2" ? (
-            <div className="space-y-2">
-              <p role="status" className="text-sm font-semibold text-primary">Marked ineligible — the enquiry is closed. Nothing has been sent yet:</p>
-              <EditableReviewEmail
-                title="ineligible email"
-                load={async () => {
-                  const r = await ineligibleEmail({ data: { jobId: row.id, mode: "preview" } });
-                  return r.outcome === "preview" && r.preview ? { ok: true as const, subject: r.preview.subject, plainText: r.preview.plainText ?? "" } : { ok: false as const, detail: r.detail };
-                }}
-                send={(text, unedited) => ineligibleEmail({ data: { jobId: row.id, mode: "send", ...(unedited ? {} : { customText: text }) } })}
-                onDone={onDone}
-                closeLabel="Close without email"
-                onClose={onDone}
-              />
-            </div>
-          ) : saved ? (
-            <p role="status" className="text-sm font-semibold text-primary">
-              Review saved: {saved}. No email has been sent — the next action now shows on this row.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {/* Jo 23 Oct 08:51 UTC: rank buttons only (no email); "Not eligible – close" asks a reason, email only if ticked. */}
-              <PhotoRankButtons jobId={row.id} onDone={onDone} />
-            </div>
-          )}
-          {failed && <p role="alert" className="text-sm text-destructive">{failed}</p>}
-        </>
-      )}
-    </div>
-  );
-}
-
-type ReviewEmailLoad = { ok: true; subject: string; plainText: string; reviewId?: string } | { ok: false; detail: string };
-
-/** Editable office review email (Jo, 22 Oct 2026): loads the existing approved wording as the draft,
- *  the office can edit it and add anything they want, then Send. Sending always re-runs the server's
- *  full guard stack (switch, consent, opt-out, one-offer, logging); an unedited draft sends the
- *  approved template exactly as before. */
-function EditableReviewEmail({ title, load, send, onDone, closeLabel, onClose }: {
-  title: string;
-  load: () => Promise<ReviewEmailLoad>;
-  send: (text: string, unedited: boolean, reviewId?: string) => Promise<SendResult>;
-  onDone: () => void;
-  closeLabel?: string;
-  onClose?: () => void;
-}) {
-  const [draft, setDraft] = useState<(ReviewEmailLoad & { ok: true }) | null>(null);
-  const [text, setText] = useState("");
-  const [busy, setBusy] = useState<null | "load" | "send">("load");
-  const [msg, setMsg] = useState<{ text: string; tone: "ok" | "error" | "info" } | null>(null);
-  const [sent, setSent] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    load()
-      .then((r) => {
-        if (!alive) return;
-        if (r.ok) { setDraft(r); setText(r.plainText); } else setMsg({ text: r.detail, tone: "error" });
-      })
-      .catch((e) => { if (alive) setMsg({ text: e instanceof Error ? e.message : "Could not load the email.", tone: "error" }); })
-      .finally(() => { if (alive) setBusy(null); });
-    return () => { alive = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  const go = async () => {
-    if (busy || sent || !draft || !text.trim()) return;
-    if (!confirm(`Send the ${title} email to this owner now? It is checked again before sending.`)) return;
-    setBusy("send");
-    setMsg(null);
-    try {
-      const unedited = text.trim() === draft.plainText.trim();
-      const r = await send(text, unedited, draft.reviewId);
-      setSent(r.outcome === "sent");
-      setMsg(followupSendMessage(r.outcome, r.detail));
-    } catch {
-      setMsg(followupRequestError("send"));
-    } finally {
-      setBusy(null);
-      onDone();
-    }
-  };
-  return (
-    <div className="space-y-2 rounded-md border bg-muted/20 p-3">
-      <p className="text-sm font-semibold text-primary">{title}: check the wording — edit it or add anything you want — then Send.</p>
-      {msg && (
-        <p role={msg.tone === "error" ? "alert" : "status"} className={cn("text-sm", msg.tone === "error" && "text-destructive", msg.tone === "ok" && "font-semibold text-primary")}>
-          {msg.text}
-        </p>
-      )}
-      {!sent && draft && (
-        <>
-          <textarea
-            aria-label={`${title} email text`}
-            className="min-h-40 w-full rounded-md border bg-background p-2 text-sm"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            disabled={busy !== null}
-          />
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" disabled={busy !== null || !text.trim()} onClick={go}>
-              {busy === "send" ? "Sending…" : "Send email"}
-            </Button>
-            {onClose && <Button size="sm" variant="ghost" disabled={busy !== null} onClick={onClose}>{closeLabel ?? "Close without email"}</Button>}
-          </div>
+          <PhotoRankButtons jobId={row.id} onDone={onDone} />
         </>
       )}
     </div>
@@ -394,7 +252,6 @@ export function EnquiriesWorkspace({
   const setPage = onPage;
   const [openId, setOpenId] = useState<string | null>(null);
   const remove = useServerFn(removeLeadsFn);
-  const morePhotosRequest = useServerFn(morePhotosRequestFn);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [removing, setRemoving] = useState(false);
   const [removeMsg, setRemoveMsg] = useState<string | null>(null);
@@ -593,8 +450,8 @@ export function EnquiriesWorkspace({
           )}
 
           <div className={cn("overflow-x-auto rounded-md border bg-card", stale && "pointer-events-none opacity-50")} aria-busy={stale} inert={stale || undefined}>
-            <table className="w-full min-w-[1100px] text-left text-sm">
-              <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
+            <table className="block w-full text-left text-sm md:table md:min-w-[1100px]">
+              <thead className="hidden bg-muted/40 text-xs uppercase text-muted-foreground md:table-header-group">
                 <tr>
                   <th className="w-10 p-3">
                     {view !== "removed" && (
@@ -624,7 +481,7 @@ export function EnquiriesWorkspace({
                   <th className="p-3">Next office action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className="block divide-y md:table-row-group">
                 {visible.length === 0 && (
                   <tr>
                     <td colSpan={8} className="p-8 text-center text-muted-foreground">
@@ -635,8 +492,8 @@ export function EnquiriesWorkspace({
                 {visible.map((row) => {
                   const age = ageDays(row.createdAt);
                   return (
-                    <tr key={row.id} className="align-top hover:bg-muted/30">
-                      <td className="p-3">
+                    <tr key={row.id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-2 p-3 align-top hover:bg-muted/30 md:table-row md:p-0">
+                      <td className="col-start-2 row-start-1 p-1 md:p-3">
                         {view !== "removed" && row.kind === "job" && (
                           <input
                             type="checkbox"
@@ -653,7 +510,7 @@ export function EnquiriesWorkspace({
                           />
                         )}
                       </td>
-                      <td className="p-3">
+                      <td className="col-start-1 row-start-1 min-w-0 break-words p-1 md:p-3">
                         <Link
                           to="/admin/jobs/$jobId"
                           params={{ jobId: row.id }}
@@ -666,8 +523,8 @@ export function EnquiriesWorkspace({
                           {row.phone ? ` · ${row.phone}` : ""}
                         </div>
                       </td>
-                      <td className="p-3">{row.address ?? "—"}</td>
-                      <td className="p-3 font-semibold">
+                      <td className="col-span-2 p-1 md:p-3">{row.address ?? "—"}</td>
+                      <td className="col-span-2 p-1 font-semibold md:p-3">
                         {enquiryRowTag(row.status, row.mediaToReview === true, VIEW_LABEL)}
                         <div className="text-xs font-normal text-muted-foreground">
                           {RESPONSE_STATE_LABEL[row.responseState]}
@@ -679,7 +536,7 @@ export function EnquiriesWorkspace({
                           </div>
                         )}
                       </td>
-                      <td className="p-3 text-xs">
+                      <td className="col-span-2 p-1 text-xs md:p-3">
                         <div className="font-semibold">
                           {row.declaredInsulation
                             ? (INSULATION_LABEL[row.declaredInsulation] ?? row.declaredInsulation)
@@ -690,12 +547,12 @@ export function EnquiriesWorkspace({
                           {row.area.m2 != null ? `${row.area.m2} m²` : "Area unknown"}
                         </div>
                       </td>
-                      <td className="p-3 text-xs">
+                      <td className="col-span-2 p-1 text-xs md:p-3">
                         {row.mediaCount > 0
                           ? `${row.mediaCount} received${row.mediaChecked ? " · checked" : " · to check"}`
                           : "None received"}
                       </td>
-                      <td className="p-3 text-xs">
+                      <td className="col-span-2 p-1 text-xs md:p-3">
                         <div
                           className={cn(
                             "font-semibold",
@@ -706,7 +563,7 @@ export function EnquiriesWorkspace({
                         </div>
                         <div className="text-muted-foreground">{when(row.createdAt)}</div>
                       </td>
-                      <td className="p-3">
+                      <td className="col-span-2 min-w-0 pt-3 md:p-3">
                         {view === "photos" || row.mediaToReview || row.mediaOutcome != null ? (
                           <div className="space-y-2">
                             {row.mediaCount > 0 && (
@@ -726,23 +583,6 @@ export function EnquiriesWorkspace({
                             {/* Jo 23 Oct 2026: no photos/video → the same three review buttons, no photo loading. */}
                             {row.mediaCount === 0 && row.mediaOutcome == null && (
                               <MediaReview row={row} onDone={() => refetch()} optionsOnly />
-                            )}
-                            {row.mediaOutcome === "no_insulation" && !["spot_saved", "ineligible", "offered_spot"].includes(row.status) && (
-                              <NoInsulationFollowup jobId={row.id} deliveryUncertain={uncertainAttempt(row.latestAttemptStatus)} onDone={() => void refetch()} />
-                            )}
-                            {row.mediaOutcome === "below_r2" && !["spot_saved", "ineligible", "offered_spot"].includes(row.status) && (
-                              <ExistingInsulationFollowup jobId={row.id} deliveryUncertain={uncertainAttempt(row.latestAttemptStatus)} onDone={() => void refetch()} />
-                            )}
-                            {row.mediaOutcome === "unclear" && row.nextParty === "office" && (
-                              <EditableReviewEmail
-                                title="more photos request"
-                                load={async () => {
-                                  const r = await morePhotosRequest({ data: { jobId: row.id, mode: "preview" } });
-                                  return r.outcome !== "blocked" && r.preview ? { ok: true as const, subject: r.preview.subject, plainText: r.preview.plainText ?? "", ...(r.reviewId ? { reviewId: r.reviewId } : {}) } : { ok: false as const, detail: r.detail };
-                                }}
-                                send={(text, unedited, reviewId) => morePhotosRequest({ data: { jobId: row.id, mode: "send", reviewId, ...(unedited ? {} : { customText: text }) } })}
-                                onDone={() => void refetch()}
-                              />
                             )}
                             {row.mediaOutcome === "unclear" && openId !== row.id && (
                               <MediaReview row={row} onDone={() => refetch()} optionsOnly />
