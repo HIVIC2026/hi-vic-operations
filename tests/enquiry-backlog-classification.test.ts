@@ -190,7 +190,7 @@ describe("G. template unification (source guarantees)", () => {
   test("an automatic send with no Jo template is blocked, never sent with legacy copy", () => {
     // P1-S77: the hold now covers EVERY path (automatic, Office copy, follow-up, previews) — no legacy mailBase exists.
     expect(send).toContain("if (!joMail) {");
-    expect(send).toContain("const mail = joMail;");
+    expect(send).toContain("let mail: { subject: string; html: string; plainText: string } = joMail;");
     expect(send).not.toContain("mailBase");
     expect(send).toContain("No approved Jo template applies");
   });
