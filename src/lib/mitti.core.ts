@@ -155,6 +155,12 @@ export function num(v: string | null): number | null {
 }
 type Parsed = { value: number | null; issue: string | null };
 /** Nonnegative finite physical value; malformed/negative → issue, never coerced. */
+/** Jo 23 Oct: the R-value is now a pick list. "Below R2.0" = OK to proceed; "Above R2.0" = the R2-or-above stop
+ *  (readyCheckStopReasons). Neither is a number, so neither raises "not a valid number". */
+export const isRValueBand = (v: string | null) => v != null && /^(below|above)\s*r?\s*2(\.0)?$/i.test(v.trim());
+function rValue(v: string | null, what: string): Parsed {
+  return isRValueBand(v) ? { value: null, issue: null } : physical(v, what);
+}
 function physical(v: string | null, what: string): Parsed {
   if (v == null) return { value: null, issue: null };
   const n = num(v);
@@ -385,7 +391,7 @@ export function parseAudit(audit: Any) {
     const tickTypes = ["Batts", "Loose fill"].filter((l) => { const e = find(kids, [l]); return e?.value != null && !/^(false|no|n a|na)$/.test(norm(e.value)); });
     const mc = val(kids, ["Insulation type (tick all that apply)", "What type of existing insulation is installed? Select all that apply", "Existing insulation type", "Insulation type to remove"]);
     const removalType = [mc, ...tickTypes].filter(Boolean).join(", ") || null;
-    const rv = physical(val(kids, ["What is the determined R value of the existing ceiling insulation?", "Existing R-value", "Measured R-value"]), "R value").value;
+    const rv = rValue(val(kids, ["What is the determined R value of the existing ceiling insulation?", "Existing R-value", "Measured R-value"]), "R value").value;
     // Jo 23 Oct: photos are optional in Mitti — note which are missing so they move to the install-day lock.
     const has = (labels: string[]) => !!find(kids, labels, { withValue: true });
     const photos = { depth: has(["Upload a photo clearly showing the measured insulation depth", "Photo with tape measure showing depth"]), overview: has(["Upload an overview photo of this ceiling area", "Photo of the empty ceiling space"]) };
@@ -439,7 +445,7 @@ export function parseAudit(audit: Any) {
     const remM2 = note(physical(val(entries, ["Total removal area m2", "Removal area", "Removal m2", "Area to remove"]), "Removal area"));
     if (rem && remM2 != null) patch.removal_m2 = remM2;
   }
-  const rv = note(physical(val(entries, ["Existing R-value", "Measured R-value", "Confirmed R-value", "Existing insulation R-value", "What is the determined R value of the existing ceiling insulation?"]), "Existing R-value"));
+  const rv = note(rValue(val(entries, ["Existing R-value", "Measured R-value", "Confirmed R-value", "Existing insulation R-value", "What is the determined R value of the existing ceiling insulation?"]), "Existing R-value"));
   if (rv != null && patch.existing_r_value == null && patch.insulation_present !== false) patch.existing_r_value = rv;
   // Measurement provenance: whole-job question (A2) or per-area questions (A1). Aerial/online estimates are never accepted.
   const methodWhole = val(entries, ["How was the ceiling measured?", "How the ceiling was measured", "Measurement method"]);
@@ -529,6 +535,9 @@ export function parseAudit(audit: Any) {
     access: !!find(entries, ["Upload a clear photo of the ceiling access point"], { withValue: true }),
     areas: rooms.map((r, i) => ({ area: i + 1, insulated: r.insulated, depth: r.photos.depth, overview: r.photos.overview })),
   };
+  // A2 tick (Jo 23 Oct): installer confirms pricing was not discussed with the homeowner — recorded on the Ready Check record.
+  const noPricing = val(entries, ["I confirm I have not discussed or agreed pricing with the homeowner"]);
+  if (noPricing) patch.notes = [patch.notes, `Installer confirmed pricing not discussed or agreed with the homeowner: ${noPricing}`].filter(Boolean).join(". ").slice(0, 4000);
   const readyFlag = yesNo(val(entries, ["Ready for office review"]));
   const completed = !!(audit?.completed || audit?.audit_data?.date_completed || audit?.completed_at || readyFlag);
   return {
@@ -570,7 +579,7 @@ export function contactAnswersFromEntries(entries: { label: string; value: strin
     electricianName: find(["Electrician name"]),
     electricianLicence: find(["Electrician licence number"]),
     // Jo 23 Oct product questions (A1 + A2); absent on older forms → null.
-    productOption: find(["Insulation product"]),
+    productOption: find(["What insulation product will you be using on this job?", "Insulation product"]),
   };
 }
 

@@ -58,7 +58,8 @@ export function parsePickupAudit(audit: Any): MittiPickupItem | null {
     templateKind: "unknown",
     modifiedAt: audit?.modified_at ?? audit?.audit_data?.date_modified ?? null,
     mittiRef: head("Portal Job Number") ?? head("Job Reference ID"),
-    siteAddress: head("Site address"),
+    // Jo 23 Oct: the address question may carry an instruction suffix ("Site address (please edit street number…)").
+    siteAddress: head("Site address") ?? (entries.find((e) => e.header && e.norm.startsWith(norm("Site address")))?.value ?? null),
     homeownerName: head("Homeowner name") ?? head("Owner name"),
     assessorName: head("Assessor"),
     mittiOwnerUserId: String(authorship.owner_id ?? "") || null,
