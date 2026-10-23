@@ -17,10 +17,19 @@ export const STOP_LIFE_SUPPORT = "Life support at property – office to check";
 export const STOP_BUILT_5 = "Ceiling/roof built or replaced in last 5 years – office to check";
 
 /** Hard stops: any one means no quote, and the office list gets the exact reason. */
-export function readyCheckStopReasons(entries: E[]): string[] {
+/** A2 (our leads, Jo 23 Oct): life support and 5-year come from the owner's website answers, never the form. */
+export function websiteStopReasons(w: { lifeSupportStatus: string | null; overFiveYears: string | null }): string[] {
+  const out: string[] = [];
+  if (w.lifeSupportStatus === "yes") out.push(STOP_LIFE_SUPPORT);
+  if (w.overFiveYears === "no") out.push(STOP_BUILT_5);
+  return out;
+}
+
+export function readyCheckStopReasons(entries: E[], opts: { ownerAnsweredOnWebsite?: boolean } = {}): string[] {
   const out: string[] = [];
   if (vals(entries, ["Homeowner agrees to be contacted by Home Insulation Victoria"]).some((v) => yesNo(v) === false)) out.push(STOP_NO_CONTACT);
   if (vals(entries, ["What is the determined R value of the existing ceiling insulation?"]).some((v) => /^above\s*r?\s*2/i.test(v))) out.push(STOP_R2);
+  if (opts.ownerAnsweredOnWebsite) return out;
   if (vals(entries, ["Life support equipment at property?"]).some((v) => yesNo(v) === true)) out.push(STOP_LIFE_SUPPORT);
   if (vals(entries, ["Was the ceiling or roof built or replaced in the last 5 years?"]).some((v) => yesNo(v) === true)) out.push(STOP_BUILT_5);
   return out;
