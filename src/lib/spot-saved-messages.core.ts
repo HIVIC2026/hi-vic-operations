@@ -7,6 +7,10 @@ import { CUSTOMER_BRAND } from "./customer-quote-system";
 import { applyCampaignFonts, campaignArtImg, campaignButton, PRIVACY_URL, V2_THEME } from "./estimate-email";
 import { emailArtUrl } from "./email-art.core";
 import { dedupeAddress, shortAddress } from "./address";
+import { EXISTING_PRELIMINARY, REMOVAL_BUDGET_EMAIL_NOTE, removalNote, type EstimateRemoval } from "./estimate-removal.core";
+
+/** Jo 23 Oct 2026: shown to everyone in both Spot saved confirmations. */
+export const SPOT_SAVED_NOT_INCLUDED = "Not included: if the electrical safety check finds anything that needs fixing, that work is extra and will be quoted separately.";
 
 const LOGO_GREEN = "#00BF63";
 const BLUE = "#3C51C4";
@@ -21,7 +25,9 @@ export type SpotSavedInput = { firstName: string | null; rebate: number; suburb:
   /** Owner's referral link to the public eligibility checker (Jo, 7 Oct): shown as a "Send to a friend" card. */
   referralUrl?: string | null;
   /** Saved-spot snapshot: when present the email shows the same itemised breakdown as the likely-eligible email. */
-  estimate?: { gross: number; customer: number; areaM2: number; address: string | null; calculatorUrl: string } | null };
+  estimate?: { gross: number; customer: number; areaM2: number; address: string | null; calculatorUrl: string } | null;
+  /** Removal fact from the owner's saved estimate (removalFromScenario), same as Save my spot. Excluded = nothing shown. */
+  removal?: EstimateRemoval | null };
 
 // Jo's "smart move" wording (7 Oct) replaces the old "waiting list is huge" message.
 export const SPOT_SAVED_BATCH_TEXT = "Demand is high and installer capacity is limited, so we're approving homes in batches, in the order spots were saved. You've locked in your place, so there's nothing more you need to do.";
@@ -50,7 +56,9 @@ export function renderSpotSavedEmail(i: SpotSavedInput) {
   const est = i.estimate && i.estimate.gross > 0 ? i.estimate : null;
   const assessment = 349, apFee = 349, veecValue = 70;
   const veecs = Math.round(i.rebate / veecValue);
-  const savings = est ? T.savings({ address: dedupeAddress(est.address), area: est.areaM2, discount: i.rebate, customer: est.customer, gross: est.gross, rebateLabel: "Your estimated VEU rebate", costLabel: "Your estimated cost after rebate", qualifier: "Estimate only. Eligibility, measurements and final pricing confirmed after assessment.", hasBreakdown: true, installation: est.gross - assessment - apFee, assessment, apFee, calculatorUrl: est.calculatorUrl, ...(Math.abs(veecs * veecValue - i.rebate) < 0.01 ? { totals: { veecs, veecValue } } : {}) }).html : "";
+  const removal = i.removal && i.removal.kind !== "excluded" ? i.removal : null;
+  const removalAmt = removal?.kind === "included" ? removal.amount : 0;
+  const savings = est ? T.savings({ address: dedupeAddress(est.address), area: est.areaM2, discount: i.rebate, customer: est.customer, gross: est.gross, rebateLabel: "Your estimated VEU rebate", costLabel: "Your estimated cost after rebate", qualifier: "Estimate only. Eligibility, measurements and final pricing confirmed after assessment.", hasBreakdown: true, installation: est.gross - assessment - apFee - removalAmt, assessment, apFee, calculatorUrl: est.calculatorUrl, ...(removal ? { removal } : {}), ...(Math.abs(veecs * veecValue - i.rebate) < 0.01 ? { totals: { veecs, veecValue } } : {}) }).html : "";
   // v6 (Jo, 6 Oct): logo, pill, caps line and headline are one per-owner image; alt carries the headline.
   const headlinePlain = `Spot saved${name ? `, ${name}` : ""}. Your ${rebate} rebate is waiting.`;
   const jobUrl = new URL(i.myJobUrl); const token = jobUrl.pathname.split("/")[2] ?? "";
@@ -74,8 +82,10 @@ export function renderSpotSavedEmail(i: SpotSavedInput) {
     : "";
   const link = (href: string, t: string) => `<a href="${esc(href)}" style="color:${BLUE};text-decoration:underline;">${t}</a>`;
   const footer = `<p style="margin:0 0 5px;${T.F}color:${NAVY};font-size:14px;line-height:1.4;font-weight:800;text-align:center;">Home Insulation Victoria</p><p style="margin:0 0 9px;${T.F}color:#5A6785;font-size:12px;line-height:1.5;text-align:center;">DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.</p><p style="margin:0;${T.F}font-size:12px;line-height:1.5;text-align:center;">${link(`${PRIVACY_URL}`, "Privacy")}&nbsp;·&nbsp;${link(i.myJobUrl, "See my job")}&nbsp;·&nbsp;${link(i.optOutUrl, "Remove my enquiry")}</p>`;
-  const html = T.shell(`${art}${row(hero, "0 36px 24px")}${est ? row(savings, "0 28px 22px") : ""}${referral}${T.footerRow(footer)}`, subject, null);
+  const removalAlone = !est && removal ? p(esc(REMOVAL_BUDGET_EMAIL_NOTE), "font-weight:700;") : "";
+  const notIncluded = p(esc(SPOT_SAVED_NOT_INCLUDED));
+  const html = T.shell(`${art}${row(hero, "0 36px 24px")}${est ? row(savings, "0 28px 22px") : ""}${row(removalAlone + notIncluded, "0 36px 22px")}${referral}${T.footerRow(footer)}`, subject, null);
   void LOGO_GREEN; void CUSTOMER_BRAND;
-  const text = [subject, "", "YOU'RE ON THE LIST", `Spot saved${name ? `, ${name}` : ""}. Your ${rebate} rebate is waiting.`, smartMove.replace(/<[^>]+>/g, ""), rebateLine, "", SPOT_SAVED_BATCH_TEXT, "", spotSavedTeamText(i.suburb), "", `See my job: ${i.myJobUrl}`, "No payment · no obligation", ...(est ? ["", `Price before discount: $${est.gross.toLocaleString("en-AU")}`, `VEU discount (${veecs} VEECs × $70): −${rebate}`, `You pay about: $${est.customer.toLocaleString("en-AU")}`, `Try a different size: ${est.calculatorUrl}`] : []), ...(i.referralUrl ? ["", "HAVE A FRIEND WHO NEEDS A SPOT SAVED?", "Send them our free eligibility checker. It takes a minute.", `Send to a friend: ${i.referralUrl}`] : []), "", "DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.", `Privacy: ${PRIVACY_URL}`, `Remove my enquiry: ${i.optOutUrl}`].join("\n");
+  const text = [subject, "", "YOU'RE ON THE LIST", `Spot saved${name ? `, ${name}` : ""}. Your ${rebate} rebate is waiting.`, smartMove.replace(/<[^>]+>/g, ""), rebateLine, "", SPOT_SAVED_BATCH_TEXT, "", spotSavedTeamText(i.suburb), "", `See my job: ${i.myJobUrl}`, "No payment · no obligation", ...(est ? ["", `Price before discount: $${est.gross.toLocaleString("en-AU")}`, `VEU discount (${veecs} VEECs × $70): −${rebate}`, `You pay about: $${est.customer.toLocaleString("en-AU")}`, ...(removal?.kind === "included" ? [`Removal of existing insulation: $${removal.amount.toLocaleString("en-AU", { maximumFractionDigits: 2 })} inc GST (${removal.areaM2.toLocaleString("en-AU")} m² included in this estimate; scope confirmed at your free Ready Check.)`] : []), ...(removal ? [removalNote(removal), EXISTING_PRELIMINARY] : []), `Try a different size: ${est.calculatorUrl}`] : removal ? ["", REMOVAL_BUDGET_EMAIL_NOTE] : []), "", SPOT_SAVED_NOT_INCLUDED, ...(i.referralUrl ? ["", "HAVE A FRIEND WHO NEEDS A SPOT SAVED?", "Send them our free eligibility checker. It takes a minute.", `Send to a friend: ${i.referralUrl}`] : []), "", "DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.", `Privacy: ${PRIVACY_URL}`, `Remove my enquiry: ${i.optOutUrl}`].join("\n");
   return { subject, html: applyCampaignFonts(html), text };
 }

@@ -299,7 +299,8 @@ async function queuePreliminarySpotSavedConfirmation(jobId: string) {
   // the preliminary token itself would 404 there. Never invent a working link.
   const { data: estLink } = await admin.from("customer_estimate_links").select("token, status, expires_at").eq("job_id", jobId).eq("purpose", "step3_estimate").eq("status", "active").maybeSingle();
   const usable = estLink && (!estLink.expires_at || new Date(estLink.expires_at).getTime() > Date.now()) ? (estLink.token as string) : null;
-  const email = renderPreliminarySpotSavedEmail({ firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null, myJobUrl: usable ? `${CUSTOMER_BASE}/my-job/${usable}` : null });
+  const { declaredRemovalKind } = await import("./preliminary-removal.server");
+  const email = renderPreliminarySpotSavedEmail({ firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null, myJobUrl: usable ? `${CUSTOMER_BASE}/my-job/${usable}` : null, removal: await declaredRemovalKind(jobId) });
   const now = new Date().toISOString();
   // Real homes (Jo 23 Oct): the approved rebate-free email really goes while the Spot saved email switch is on.
   if (job.source !== "qa_test") {
