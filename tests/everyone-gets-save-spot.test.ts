@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { spotSavedRank, compareSpots, spotSummary } from "../src/lib/spot-saved-rank.core";
+import { spotSavedRank, compareSpots, spotSummary, SPOT_PHOTO_CHOICES } from "../src/lib/spot-saved-rank.core";
 import { insulationTapRoute } from "../src/lib/insulation-details.core";
 import { renderJoEstimateEmail, EXISTING_SAVE_SPOT_LINE, THIN_PATCHY_SAVE_SPOT_LINE } from "../src/lib/jo-email-templates.core";
 
@@ -19,13 +19,15 @@ test("Jo 08:23 ranks 1-8", () => {
   expect(spotSavedRank({ ...b, declared: "unknown" })).toBe(7);
   expect(spotSavedRank({ ...b })).toBe(8);
 });
-test("no 'photos not checked' rank: unchecked photos rank by what the owner said", () => {
+test("Jo 08:27: unchecked photos rank by tap answers, or Missing info if no answers", () => {
   expect(spotSavedRank({ ...b, mediaCount: 3 })).toBe(8);
-  expect(spotSavedRank({ ...b, declared: "none", mediaCount: 3 })).toBe(4);
+  expect(spotSavedRank({ ...b, mediaCount: 3, tap: { insulation_type: "batts", insulation_thickness: "thin" } })).toBe(5);
+  expect(spotSavedRank({ ...b, mediaCount: 3, tap: { insulation_type: "batts", insulation_thickness: "hand" } })).toBe(6);
 });
-test("a later photo review moves the rank", () => {
-  expect(spotSavedRank({ ...b, declared: "none", mediaCount: 3, reviewOutcome: "no_insulation" })).toBe(1);
-  expect(spotSavedRank({ ...b, mediaCount: 3, reviewOutcome: "below_r2" })).toBe(2);
+test("Jo 08:27: each photo-check choice moves the rank to Jo's number", () => {
+  const start = { ...b, mediaCount: 3, tap: { insulation_type: "batts", insulation_thickness: "thin" } };
+  for (const c of SPOT_PHOTO_CHOICES) expect(spotSavedRank({ ...start, reviewOutcome: c.outcome })).toBe(c.rank);
+  expect(SPOT_PHOTO_CHOICES.map((c) => [c.outcome, c.rank])).toEqual([["no_insulation", 1], ["below_r2", 2], ["over_r2", 6], ["unclear", 7]]);
 });
 test("one-line facts", () => {
   expect(spotSummary({ owner: "Sam Lee", suburb: "Preston", houseAge: "1990 or earlier", mediaCount: 2, areaM2: 150, spotSavedAt: "2026-10-20T00:00:00Z" }, Date.parse("2026-10-23T08:00:00Z"))).toBe("Sam Lee · Preston · built 1990 or earlier · 150 m² · 📷 2 · waiting 3 days");
