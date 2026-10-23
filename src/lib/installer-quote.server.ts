@@ -113,7 +113,10 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   const rangeReason = installerPriceRangeReason(installerPrice != null && m2 ? installerPrice / m2 : null, workflow?.installer_quote_min_inc_gst_per_m2 == null ? null : Number(workflow.installer_quote_min_inc_gst_per_m2), workflow?.installer_quote_max_inc_gst_per_m2 == null ? null : Number(workflow.installer_quote_max_inc_gst_per_m2));
   // Honest status: the automatic step only ever creates a DRAFT held for office review. Nothing is issued,
   // marked sent or released here; the office sends via sendInstallerQuote, which checks consent/fees/switches.
-  const holdReason = [rangeReason, ...installerQuoteReleaseBlockers({ consentStatus: "granted", feeAwarenessRecorded: !!feeConfirmation, feeAwarenessPayer: ((feeConfirmation?.details as { payer?: "hivic" | "own" } | null)?.payer ?? null), electricianPayer: payer }), "Waiting for office review before sending"].filter(Boolean).join(" · ");
+  const releaseBlockers = !intakePrice
+    ? (await import("./mitti-quote-release.core")).mittiQuoteReleaseBlockers("granted", mittiElectrician)
+    : installerQuoteReleaseBlockers({ consentStatus: "granted", feeAwarenessRecorded: !!feeConfirmation, feeAwarenessPayer: ((feeConfirmation?.details as { payer?: "hivic" | "own" } | null)?.payer ?? null), electricianPayer: payer });
+  const holdReason = [rangeReason, ...releaseBlockers, "Waiting for office review before sending"].filter(Boolean).join(" · ");
   void workflow?.auto_send_quote;
   // Dedup only on identical figures AND identical lines (a payer change can keep totals but change scope/lines).
   // Identity is part of scope even if the selected electrician has the same price.

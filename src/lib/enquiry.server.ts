@@ -100,9 +100,11 @@ export function intakeJobFacts(input: { estimated_area_m2: number | null | undef
 export async function upsertEnquiry(input: Omit<EnquiryInput, "estimated_area_m2" | "email"> & { estimated_area_m2: number | null; email: string | null }, source: string, actorId: string | null, origin: JobOrigin = { channel: "hivic_sourced" }) {
   const facts = intakeJobFacts(input, source, origin);
   // Email may be null only for Mitti pick-ups marked "Needs finishing" (Jo 22 Oct): a fresh owner row, never matched.
-  if (input.email == null && source !== "installer_mitti") throw new Error("Owner email is required.");
+  if (input.email == null && source !== "installer_mitti" && !(source === "qa_test" && origin.channel === "installer_sourced")) throw new Error("Owner email is required.");
   const email = input.email?.toLowerCase() ?? null;
-  const fullName = properName(input.full_name);
+  const preserveEntered = origin.channel === "installer_sourced";
+  const enteredText = (await import("./mitti-quote-release.core")).installerEnteredText;
+  const fullName = preserveEntered ? enteredText(input.full_name) : properName(input.full_name);
   let { data: owner } = email ? await admin.from("owners").select("id").ilike("email", exactLike(email)).maybeSingle() : { data: null };
   if (owner) {
     await admin.from("owners").update({ full_name: fullName, phone: input.phone ?? null }).eq("id", owner.id);
@@ -131,7 +133,8 @@ export async function upsertEnquiry(input: Omit<EnquiryInput, "estimated_area_m2
     if (repeat) { existingJob = repeat; repeatOf = input.external_enquiry_id ?? "unknown"; repeatArea = repeat.area; }
   }
 
-  const propFields = { owner_id: owner!.id, address_line: properAddress(input.address_line), suburb: input.suburb ? properAddress(input.suburb) : null, postcode: input.postcode ?? null, occupancy: input.occupancy ?? null, ...(normaliseState(input.state) ? { state: normaliseState(input.state)! } : {}) };
+  if (!owner) throw new Error("Owner could not be saved.");
+  const propFields = { owner_id: owner.id, address_line: preserveEntered ? enteredText(input.address_line) : properAddress(input.address_line), suburb: input.suburb ? preserveEntered ? enteredText(input.suburb) : properAddress(input.suburb) : null, postcode: input.postcode ?? null, occupancy: input.occupancy ?? null, ...(normaliseState(input.state) ? { state: normaliseState(input.state)! } : {}) };
   const jobFields = facts;
   // Preliminary eligibility / life-support status are accepted only from the signed Base44 webhook.
   const plan = source === "base44" ? planBase44Job(input, existingJob ? { stage: existingJob.stage } : null) : null;

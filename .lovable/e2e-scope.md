@@ -1,0 +1,1 @@
+Approved scope: Mitti quote holds, installer presentation, TEST classification and Office TEST visibility; no publication or real sends. TEST-only provider exercise through existing allowlist guards. Do not invite real or TEST users to Mitti.

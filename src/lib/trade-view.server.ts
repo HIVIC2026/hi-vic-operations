@@ -102,14 +102,14 @@ export async function tradeHome(userId: string) {
   // Jo 23 Oct: installer quote check — one plain card line and "Action needed" while it's the installer's turn.
   const quoteLine = new Map<string, string>();
   if (c.kind === "installer") {
-    const { data: a1 } = await admin.from("quotes").select("job_id").in("job_id", live.map((j) => j.id).length ? live.map((j) => j.id) : none).eq("kind", "installation").eq("option_code", "INSTALLER_A1").in("status", ["draft", "issued"]);
+    const { data: a1 } = await admin.from("quotes").select("job_id").in("job_id", live.map((j) => j.id).length ? live.map((j) => j.id) : none).eq("kind", "installation").in("status", ["draft", "issued"]);
     const { loadQuoteApproval } = await import("./installer-quote-approval.server");
     const { approvalCardLine } = await import("./installer-quote-approval.core");
     for (const id of [...new Set((a1 ?? []).map((q) => q.job_id))]) { const ap = await loadQuoteApproval(id).catch(() => null); if (ap?.applies) quoteLine.set(id, approvalCardLine(ap.state, ap.sent)); }
   }
   const jobsTabbed0 = allJobs.map((j) => ({ ...j, quoteLine: quoteLine.get(j.jobId) ?? null }));
   const jobsTabbed1 = jobsTabbed0.map((j) => ({ ...j, stage: byId.get(j.jobId)!.stage, tab: installerTab(j.place, byId.get(j.jobId)!.stage, (j as { channel?: string | null }).channel === "installer_sourced" && /^Needs finishing/.test(String(byId.get(j.jobId)!.next_action ?? ""))) }));
-  const jobsTabbed = jobsTabbed1.map((j) => ({ ...j, tab: j.tab !== "done" && j.quoteLine?.startsWith("You:") ? "action" as const : j.tab }));
+  const jobsTabbed = jobsTabbed1.map((j) => ({ ...j, tab: j.tab === "done" ? j.tab : j.quoteLine ? j.quoteLine.startsWith("You:") ? "action" as const : "progress" as const : j.tab }));
   const histQ = admin.from("job_assignments").select("job_id").eq("business_id", c.biz.id).eq("active", false);
   const { data: ended } = await (c.boss ? histQ : histQ.eq("user_id", userId));
   const histIds = [...new Set([...(ended ?? []).map((a) => a.job_id), ...(jobs ?? []).filter((j) => j.stage === "cancelled").map((j) => j.id)])].filter((id) => !byId.has(id));
@@ -493,7 +493,9 @@ export async function tradeRequestLoginInvite(userId: string, workerId: string) 
 /** Whether the caller's business has been invited to Mitti by the office (false when unknown). */
 export async function tradeMittiInvited(userId: string) {
   const c = await tradeContext(userId);
-  return { invited: c?.biz.mitti_account_invited === true };
+  const { data: settings } = c?.kind === "installer" ? await admin.from("workflow_settings").select("mitti_ready_check_priced_template_id").eq("id", 1).maybeSingle() : { data: null };
+  const template = settings?.mitti_ready_check_priced_template_id;
+  return { invited: c?.biz.mitti_account_invited === true, newReadyCheckUrl: template ? `https://app.au.mitti.com/inspection/new?templateId=${encodeURIComponent(template)}` : null };
 }
 
 /** Office only: tick/untick "Mitti account invited" for a partner. */

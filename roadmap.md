@@ -1,4 +1,9 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Approved installer E2E repairs (Jo, 23 Oct 06:12 UTC)
+- [x] Repair Mitti quote fee/electrician holds; keep non-Mitti guards unchanged. Current owner consent remains required.
+- [x] Repair installer home/job actions, casing, and TEST pickup/Office visibility; Deep linked/invited, TEST membership unconfirmed; no invitations.
+- [x] Repeat TEST-only portal approval → Office Send → installer readback; form-price edit cancels approval, missing-info job/popup verified. TEST HV-3134 automatically qa_test; repeat pickup empty. TEST notification email/SMS accepted at 06:27 UTC. Screenshots/report in docs/e2e-2026-10-23; focused tests pass; no publish or real recipients; Spot saved list untouched.
+- [ ] Complete New Ready Check creation under the actual TEST Mitti installer login: blocked by unconfirmed TEST Mitti membership and no authenticated Mitti session. Button opens A1 launch URL then Mitti login; API-created TEST form/pickup is not claimed an installer-created onscreen form.
 ## Office-only quote sending (Jo, 23 Oct 03:30 UTC)
 - [x] Removed automatic quote release and Ready Check timer; A1 keeps installer drafting, A2 completed sync now prepares owner-rate drafts without accepting measurements. Manual Office Send quote rechecks holds/contact guards and calls existing email/SMS notifier; placeholders/approval and sending locks unchanged.
 - [x] Shared Quotes to check at Office Home/Enquiries/Today/Active jobs, full draft opening, required row fields and disabled held-quote Send quote; no office notifications. Paginated job reads and bounded ID batches avoid oversized requests.

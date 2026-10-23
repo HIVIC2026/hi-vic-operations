@@ -75,6 +75,10 @@ export const requestTeamLoginInvite = createServerFn({ method: "POST" }).middlew
 export const getMyMittiInvited = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
   .handler(async ({ context }) => (await import("./trade-view.server")).tradeMittiInvited(context.userId));
 
+export const getMittiJobPresentation = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ context, data }) => (await import("./mitti-job-presentation.server")).mittiJobPresentation(data.jobId, context.userId));
+
 export const setPartnerMittiInvited = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ businessId: z.string().uuid(), invited: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => {

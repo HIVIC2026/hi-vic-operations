@@ -163,10 +163,13 @@ export function jobCardLine(n: { who: string | null; text: string }): string {
 export function needsFinishingTask(nextAction: string | null | undefined): string | null {
   const m = /^Needs finishing:\s*(.+?)\s*(on the Mitti form)?\.?$/i.exec(nextAction ?? "");
   if (!m) return null;
-  const parts = m[1]!.split(/,\s*/).map((p) => p.trim()).filter(Boolean).map((p) =>
+  const captured = m[1];
+  if (!captured) return null;
+  const parts = captured.replace(/^add\s+/i, "").split(/,\s*/).map((p) => p.trim()).filter(Boolean).map((p) =>
     /^price$/i.test(p) ? "your price"
     : /^owner\s+(.+)$/i.test(p) ? `the owner's ${p.replace(/^owner\s+/i, "").split("/").join(", ").replace(/mobile/, "phone").replace(/, ([^,]+)$/, " and $1")}`
     : /^ceiling area$/i.test(p) ? "the ceiling area" : /^insulation product$/i.test(p) ? "the insulation product" : p);
-  const list = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0]!;
+  const list = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0];
+  if (!list) return null;
   return `You: add ${list} in Mitti`;
 }
