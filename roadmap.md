@@ -1,8 +1,8 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## URGENT six existing-insulation replies (Jo 23 Oct 09:00 UTC)
-- [ ] Inspect and preserve six failed not-sent attempts; practice-prove targeted recovery and Office approval reason.
-- [ ] Send only HV-3127/3131/3132/3133/3135/3152 through existing guarded sender with approved live up-to-removal wording; verify provider records and keys.
-- [ ] Fix all present/unknown template coverage in preview; run focused tests; no publication or live rule activation.
+- [x] Inspect and preserve six failed not-sent attempts; exact scoped key recovery + complete old-row audit proven on PGlite, then applied; Jo's exact Office reason retained, no fabricated photo review.
+- [ ] HV-3152 send blocked: unchanged live renderer has no approved template for its unknown thickness/coverage; cannot send preview's unapproved new removal wording or claim photos were checked. Five other jobs provider-accepted via existing live sender; HV-3131 was already accepted by concurrent sweep and explicit call safely skipped.
+- [x] Fix authorized present/unknown template coverage in preview; exhaustive description/CTA tests and focused checks pass; no publication or live rule activation.
 ## Insulation details tap questions (Jo 23 Oct 07:13 UTC)
 - [x] Jo 07:36 replacement: five new house-age options; 1990-or-earlier overrides type/thickness AND uploaded photos; later/unknown unchanged. Preview resolver, validator, media-page question access and pending SQL updated; 32 focused/practice tests pass, five phone age choices verified without overflow, build OK. No activation, live database changes, sends or publish.
 - [x] Jo 07:30 addition: Before 1980/1980s overrides type/thickness to thin/patchy; photos still require Office review. Pure/pending SQL rules updated with Jo's 1991 standards rationale; 16 focused/practice tests pass, build OK. No activation, live database changes, sends or publish.
