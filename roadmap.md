@@ -1,5 +1,6 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Insulation details tap questions (Jo 23 Oct 07:13 UTC)
+- [ ] Jo 07:36 replacement: five new house-age options; 1990-or-earlier overrides type/thickness AND uploaded photos; later/unknown unchanged. Update preview resolver, pending SQL and tests only; no activation, sends or publish.
 - [x] Jo 07:30 addition: Before 1980/1980s overrides type/thickness to thin/patchy; photos still require Office review. Pure/pending SQL rules updated with Jo's 1991 standards rationale; 16 focused/practice tests pass, build OK. No activation, live database changes, sends or publish.
 - [x] Draft insulation-details email/button and secure mobile page; preserve upload flow; 390px isolated phone questions/no overflow verified, email rendered locally with fictional TEST figures.
 - [x] Owner-declared answer overlay/history and onsite-only list exclusion staged; PGlite persistence/idempotency/queue/photo-return/age proof passes. No live migration/sends/publish; submission explicitly TEST-preview-only.
