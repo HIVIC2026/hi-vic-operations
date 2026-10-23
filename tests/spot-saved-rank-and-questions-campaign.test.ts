@@ -38,8 +38,9 @@ test('email shows price, removal up-to line and the one questions button',()=>{
   recipient:{firstName:'Sam',propertyAddress:'1 Test St, Mulgrave VIC 3170',enquiryReference:'HV-0000'},
   figures:{veuRebate:1200,customerTotal:2349,totalBeforeRebate:3549,installation:2851,piesaFee:349,apFee:349,ceilingAreaM2:120,areaEstimated:false,removalUpTo:1800},
   links:{saveMySpotUrl:null,uploadMediaUrl:'https://x/estimate/t/video',reviewResultUrl:'https://x',calculatorUrl:'https://x/c'}} as never)!;
- expect(m.html).toContain('Answer 3 quick questions to save your spot');
+ expect(m.html).toContain('Answer 3 questions & save my spot');
  expect(m.html).toContain('$1,800');
  expect(m.html).toContain('$2,349');
  expect(m.html).not.toContain('Save my spot →');
+ expect(m.subject).toBe('Sam, you could save $1,200 on ceiling insulation');
 });

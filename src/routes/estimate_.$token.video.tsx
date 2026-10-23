@@ -144,12 +144,22 @@ type QuotePricing = { gross: number; discount: number; total: number; areaM2: nu
 function QuoteBox({ p, name }: { p: QuotePricing; name: string | null }) {
   if (!p) return null;
   const $ = (n: number) => `$${Math.floor(Number(n)).toLocaleString("en-AU")}`;
-  return <section aria-label="Your preliminary quote" className="rounded-2xl border bg-card p-5">
-    <p className="text-sm font-semibold text-muted-foreground">{name ? `${name}, your preliminary quote` : "Your preliminary quote"}</p>
-    <p className="mt-1 font-display text-3xl font-extrabold">Potential VEU rebate: {$(p.discount)}</p>
-    <p className="mt-2">Estimated cost if eligible: <strong>{$(p.total)}</strong> including GST</p>
-    <p className="text-sm text-muted-foreground">Before rebate: {$(p.gross)} including GST · {Math.round(p.areaM2)} m²</p>
-    {p.removalUpTo != null && p.removalUpTo > 0 && <p className="mt-3 text-sm">{removalUpToLine(p.removalUpTo, p.areaM2)}</p>}
-    <p className="mt-3 text-sm font-semibold">No payment · no obligation</p>
-  </section>;
+  // Jo 23 Oct 08:40 UTC: lead with THEIR rebate (same hero as Save my spot), price box underneath.
+  return <div className="text-estimate-navy">
+    <p className="text-[11px] font-extrabold uppercase tracking-[0.13em] text-estimate-logo-green">🎉 Your rebate is waiting</p>
+    <h1 className="mt-2 font-display text-[32px] font-extrabold leading-[1.15]">{name ? `${name}, you` : "You"} could save <span className="text-estimate-logo-green">{$(p.discount)}</span> on ceiling insulation</h1>
+    <section aria-label="Your preliminary quote" className="mt-5 rounded-[22px] bg-estimate-mist p-5">
+      <div className="rounded-[18px] border-2 border-estimate-green bg-estimate-mint px-3 py-[18px] text-center">
+        <p className="text-[10px] font-extrabold uppercase tracking-[0.13em]">Your estimated VEU rebate</p>
+        <p className="mt-1 font-display text-[38px] font-extrabold leading-[42px] text-estimate-green">You could save {$(p.discount)}</p>
+      </div>
+      <div className="pb-2 pt-[18px] text-center">
+        <p className="text-[10px] font-extrabold uppercase tracking-[0.13em]">Your estimated cost after rebate</p>
+        <p className="mt-1 font-display text-[46px] font-extrabold leading-[50px] text-estimate-blue">{$(p.total)}</p>
+        <p className="text-sm">Before rebate: {$(p.gross)} including GST · {Math.round(p.areaM2)} m²</p>
+      </div>
+      {p.removalUpTo != null && p.removalUpTo > 0 && <p className="rounded-xl bg-card p-3 text-sm">{removalUpToLine(p.removalUpTo, p.areaM2)}</p>}
+      <p className="mt-3 text-center text-sm font-extrabold">No payment · no obligation</p>
+    </section>
+  </div>;
 }
