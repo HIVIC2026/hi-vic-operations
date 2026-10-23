@@ -34,43 +34,44 @@ const base: OwnerQuoteEmailInput = {
   safetyCheckPrice: 349,
 };
 
-test("numbers, lines, link and address appear in html and text", () => {
-  const m = renderOwnerQuoteEmail(base);
-  expect(m.subject).toBe("Your ceiling insulation quote is ready, Courtney");
+test("v2 leads with the saving and says exactly what they get (Jo 24 Oct)", () => {
+  const m = renderOwnerQuoteEmail({ ...base, subtotalIncGst: 4197, areaM2: 120, removalM2: 40, product: "Bradford Gold R5.0", installerName: "Reinsulate", installerCertified: true });
+  expect(m.subject).toBe("Courtney, your quote is ready – save $1,850 on ceiling insulation");
   for (const body of [m.html, m.text]) {
+    expect(body).toContain("You could save $1,850 on ceiling insulation");
     expect(body).toContain("$2,347.00");
-    expect(body).toContain("$1,850.00");
-    expect(body).toContain("$3,000.00");
-    expect(body).toContain("$150.00");
-    expect(body).toContain("Removal of existing insulation (40 m²)");
-    expect(body).toContain("Government VEU rebate – minus $1,850.00");
+    expect(body).toContain("$4,197.00"); // full price before the rebate
+    expect(body).toContain("Taken off upfront – nothing for you to claim.");
+    expect(body).toContain("Bradford Gold R5.0 supplied and installed – 120 m²");
+    expect(body).toContain("Your old insulation removed and taken away – 40 m²");
+    expect(body).toContain("Installed by Reinsulate, an EEC-certified installer we have checked and approved");
+    expect(body).toContain("licensed electrician");
     expect(body).toContain("2A Chatfield Street, Kingsville VIC 3012");
-    expect(body).toContain("tok123?screen=quote");
     expect(body).toContain("6 November 2026");
     expect(body).toContain("call us on 03 9000 0000");
-    expect(body).toContain("You pay the $349.00 electrical safety check.");
+    expect(body).toContain("Pay the $349.00 electrical safety check.");
+    expect(body).toContain("Accredited Person");
+    expect(body).toContain("ABN 44 671 613 979");
+    expect(body).not.toMatch(/6-digit|code/i); // no signing code in the email
   }
   expect(m.html).toContain(`href="${url}"`);
   expect(m.text).toContain(`View and accept your quote: ${url}`);
-  expect(m.text).toContain(
-    "Unsubscribe: https://estimate.homeinsulationvictoria.com.au/unsubscribe/abc",
-  );
   expect(m.html).not.toContain("TEST — only sent to Jo");
 });
 
+test("EEC line only for an approved installer; removal only when there is removal", () => {
+  const m = renderOwnerQuoteEmail({ ...base, installerName: "X", installerCertified: false, removalM2: null });
+  expect(m.text).not.toContain("EEC-certified");
+  expect(m.text).not.toContain("removed and taken away");
+});
+
 test("null expiry and phone drop their sentences", () => {
-  const m = renderOwnerQuoteEmail({
-    ...base,
-    validUntil: null,
-    officePhone: null,
-    safetyCheckPrice: null,
-    unsubscribeUrl: null,
-  });
+  const m = renderOwnerQuoteEmail({ ...base, validUntil: null, officePhone: null, safetyCheckPrice: null, unsubscribeUrl: null });
   for (const body of [m.html, m.text]) {
-    expect(body).not.toContain("valid until");
+    expect(body).not.toContain("held until");
     expect(body).not.toContain("call us");
     expect(body).toContain("Questions? Just reply to this email.");
-    expect(body).toContain("You pay the electrical safety check.");
+    expect(body).toContain("Pay the electrical safety check.");
     expect(body).not.toContain("Unsubscribe");
   }
 });
@@ -78,12 +79,8 @@ test("null expiry and phone drop their sentences", () => {
 test("no name, no address and no rebate fall back cleanly", () => {
   const m = renderOwnerQuoteEmail({ ...base, firstName: "  ", address: null, rebateIncGst: 0 });
   expect(m.subject).toBe("Your ceiling insulation quote is ready");
-  expect(m.text).toContain("Hi there,");
-  expect(m.text).toContain(
-    "Thanks for having us out for your free Ready Check. Your ceiling insulation quote is ready.",
-  );
-  expect(m.text).toContain("(including GST).");
-  expect(m.text).not.toContain("VEU rebate");
+  expect(m.text.startsWith("Your quote is ready.")).toBe(true);
+  expect(m.text).not.toContain("VEU rebate −");
 });
 
 test("owner-supplied text is HTML-escaped", () => {
@@ -107,7 +104,7 @@ test("refuses a bad total or non-https link", () => {
 
 test("wording is not approved yet", () => {
   expect(OWNER_QUOTE_EMAIL_APPROVED).toBe(false);
-  expect(OWNER_QUOTE_EMAIL_VERSION).toBe("v1-draft");
+  expect(OWNER_QUOTE_EMAIL_VERSION).toBe("v2-draft");
 });
 
 test("TEST pill only when asked", () => {
@@ -175,6 +172,12 @@ mock.module("../src/integrations/supabase/client.server", () => ({
         eq() {
           return q;
         },
+        order() {
+          return q;
+        },
+        limit() {
+          return q;
+        },
         maybeSingle() {
           return Promise.resolve({ data: rows[table] ?? null, error: null });
         },
@@ -213,7 +216,7 @@ test("qa_test notify sends the rendered owner quote email via sendTestEmail", as
   expect(r).toEqual({ email: "sent: TEST accepted", sms: "sent: TEST accepted" });
   expect(sentEmails).toHaveLength(1);
   const m = sentEmails[0]!;
-  expect(m.subject).toBe("Your ceiling insulation quote is ready, Courtney");
+  expect(m.subject).toMatch(/^Courtney, your quote is ready/);
   expect(m.html).toContain(`href="${CUSTOMER_BASE}/my-job/test-token?screen=quote"`);
   expect(m.text).toContain("2A Chatfield Street, Kingsville VIC 3012");
   expect(m.text.indexOf("R5.0 install")).toBeLessThan(m.text.indexOf("Removal"));

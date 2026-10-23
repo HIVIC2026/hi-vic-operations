@@ -25,7 +25,7 @@ type OwnerQuoteFacts = {
 /** Everything the owner quote email needs, read-only. A missing secure link or total returns `missing`, never a guess. */
 async function loadOwnerQuoteFacts(jobId: string, quoteId: string, ownerName: string | null, propertyId: string | null): Promise<OwnerQuoteFacts> {
   const [{ data: quote, error: qe }, { data: items, error: ie }, { data: link, error: le }, { data: prop, error: pe }] = await Promise.all([
-    admin.from("quotes").select("customer_total_inc_gst, veec_discount_inc_gst, sent_at, kind").eq("id", quoteId).eq("job_id", jobId).maybeSingle(),
+    admin.from("quotes").select("customer_total_inc_gst, veec_discount_inc_gst, subtotal_inc_gst, sent_at, kind").eq("id", quoteId).eq("job_id", jobId).maybeSingle(),
     admin.from("quote_items").select("description, line_total_inc_gst, sort").eq("quote_id", quoteId),
     admin.from("customer_estimate_links").select("token,status,expires_at").eq("job_id", jobId).eq("purpose", "step3_estimate").eq("status", "active").maybeSingle(),
     propertyId ? admin.from("properties").select("address_line, suburb, postcode").eq("id", propertyId).maybeSingle() : Promise.resolve({ data: null, error: null }),
@@ -41,6 +41,15 @@ async function loadOwnerQuoteFacts(jobId: string, quoteId: string, ownerName: st
   // Lines/address are best-effort presentation: a failed read shows fewer details, never a wrong number.
   const lines = ie ? [] : [...(items ?? [])].sort((a, b) => Number(a.sort ?? 0) - Number(b.sort ?? 0)).map((l) => ({ description: String(l.description ?? ""), lineTotalIncGst: Number(l.line_total_inc_gst) }));
   const address = pe || !prop ? null : fullAddress(prop.address_line, prop.suburb, prop.postcode) || null;
+  // Jo 24 Oct: what the owner is getting — area, removal, product and the (approved, so EEC-certified) installer.
+  const [{ data: m }, { data: prod }, { data: asg }] = await Promise.all([
+    admin.from("ceiling_measurements").select("measured_area_m2, verified_area_m2, removal_required, removal_m2").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
+    admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_product_recorded").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("job_assignments").select("businesses(name, trading_name, onboarding_status, is_active)").eq("job_id", jobId).eq("role", "installer").eq("active", true).limit(1).maybeSingle(),
+  ]);
+  const biz = (asg?.businesses ?? null) as { name: string | null; trading_name: string | null; onboarding_status: string | null; is_active: boolean | null } | null;
+  const area = m ? Number(m.verified_area_m2 ?? m.measured_area_m2) || null : null;
+  const product = ((prod?.details as { product?: { option?: string } } | null)?.product?.option ?? null);
   return {
     missing: null,
     input: {
@@ -50,6 +59,9 @@ async function loadOwnerQuoteFacts(jobId: string, quoteId: string, ownerName: st
       lines, quoteUrl: `${CUSTOMER_BASE}/my-job/${link.token}?screen=quote`,
       validUntil: quote.kind === "installation" && quote.sent_at ? lastValidInstant(quoteExpiresAt(quote.sent_at)) : null,
       officePhone: null, safetyCheckPrice: safetyCheckPriceFromLines(lines),
+      subtotalIncGst: quote.subtotal_inc_gst == null ? null : Number(quote.subtotal_inc_gst),
+      areaM2: area, removalM2: m?.removal_required ? Number(m.removal_m2) || null : null, product,
+      installerName: biz?.trading_name ?? biz?.name ?? null, installerCertified: biz?.onboarding_status === "approved" && biz.is_active === true,
     },
   };
 }

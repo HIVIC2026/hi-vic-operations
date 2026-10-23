@@ -1,14 +1,13 @@
 // Owner "your quote is ready" email + text. PURE: no I/O.
 // Wording from docs/OWNER_QUOTE_MESSAGES_DRAFT.md (draft, 24 Oct 2026). NOT approved by Jo yet:
 // real owners never receive this until OWNER_QUOTE_EMAIL_APPROVED is true (TEST jobs may).
-// Presentation reuses the welcome `simpleEmail` shell and the campaign `campaignButton`; neither is changed.
-import { simpleEmail } from "./simple-email.core";
+// v2 (Jo 24 Oct "it doesn't sell"): own branded layout; reuses the campaign `campaignButton` unchanged.
 import { campaignButton, escape } from "./estimate-email";
 import { aud } from "./workflow";
 
 /** Jo has not approved the final wording yet. Flip only on her written approval. */
 export const OWNER_QUOTE_EMAIL_APPROVED = false as boolean;
-export const OWNER_QUOTE_EMAIL_VERSION = "v1-draft";
+export const OWNER_QUOTE_EMAIL_VERSION = "v2-draft";
 
 export type OwnerQuoteLine = { description: string; lineTotalIncGst: number };
 export type OwnerQuoteEmailInput = {
@@ -29,8 +28,18 @@ export type OwnerQuoteEmailInput = {
   unsubscribeUrl: string | null;
   /** Electrical safety check price for "What happens next" step 1 (null = no amount shown). */
   safetyCheckPrice?: number | null;
-  /** Shows the welcome template's "TEST — only sent to Jo" pill. */
+  /** Shows the "TEST — only sent to Jo" pill. */
   test?: boolean;
+  /** Full price before the rebate (quotes.subtotal_inc_gst). */
+  subtotalIncGst?: number | null;
+  /** Measured ceiling area and removal area (m²) from the Ready Check. */
+  areaM2?: number | null;
+  removalM2?: number | null;
+  /** e.g. "Bradford Gold R5.0" (the product recorded from the Ready Check). */
+  product?: string | null;
+  /** Assigned installer business; EEC wording only when the installer is approved (CII verification is required for that). */
+  installerName?: string | null;
+  installerCertified?: boolean;
 };
 
 const P = "font-size:15px;line-height:1.55;margin:0 0 12px;";
@@ -58,6 +67,14 @@ export function safetyCheckPriceFromLines(lines: OwnerQuoteLine[]): number | nul
   return m.length === 1 ? m[0]!.lineTotalIncGst : null;
 }
 
+/** Brand colours (portal tokens). */
+const NAVY = "#22376B", BLUE = "#3C51C4", GREEN = "#07BF61", MIST = "#F2F4FC", LINE = "#E4E9F5", SUB = "#5A6785";
+const TICK = `<span style="display:inline-block;width:20px;height:20px;line-height:20px;border-radius:10px;background:${GREEN};color:#fff;font-size:13px;font-weight:bold;text-align:center;">&#10003;</span>`;
+const fmtM2 = (n: number) => `${Number.isInteger(n) ? n : Math.round(n * 10) / 10} m²`;
+const whole = (n: number) => `$${Math.round(n).toLocaleString("en-AU")}`;
+
+/** Jo 24 Oct: v2 — leads with the saving and the price after the rebate, says exactly what they get (product, m²,
+ *  removal, EEC-certified installer, licensed electrician), explains who we are, and never mentions the signing code. */
 export function renderOwnerQuoteEmail(i: OwnerQuoteEmailInput): {
   subject: string;
   html: string;
@@ -68,94 +85,94 @@ export function renderOwnerQuoteEmail(i: OwnerQuoteEmailInput): {
   if (!/^https:\/\//.test(i.quoteUrl)) throw new Error("Owner quote link is unavailable.");
   const name = cleanName(i.firstName);
   const address = cleanName(i.address);
-  const rebate =
-    i.rebateIncGst != null && Number.isFinite(i.rebateIncGst) && i.rebateIncGst > 0
-      ? i.rebateIncGst
-      : null;
+  const rebate = i.rebateIncGst != null && Number.isFinite(i.rebateIncGst) && i.rebateIncGst > 0 ? i.rebateIncGst : null;
+  const full = i.subtotalIncGst != null && Number.isFinite(i.subtotalIncGst) && i.subtotalIncGst > 0 ? i.subtotalIncGst : rebate ? i.totalIncGst + rebate : null;
   const total = money(i.totalIncGst);
-  const subject = `Your ceiling insulation quote is ready${name ? `, ${name}` : ""}`;
-  const heading = "Your ceiling insulation quote is ready";
-
-  const greeting = `Hi ${name ?? "there"},`;
-  const intro = `Thanks for having us out for your free Ready Check${address ? ` at ${address}` : ""}. Your ceiling insulation quote is ready.`;
-  const priceTail = rebate
-    ? `(including GST, after the government VEU rebate of ${money(rebate)})`
-    : "(including GST)";
-  const lineText = (l: OwnerQuoteLine) =>
-    `${l.description.trim()} – ${l.lineTotalIncGst < 0 ? `minus ${money(-l.lineTotalIncGst)}` : money(l.lineTotalIncGst)}`;
-  const included = [
-    ...i.lines
-      .filter((l) => l.description?.trim() && Number.isFinite(l.lineTotalIncGst))
-      .map(lineText),
-    ...(rebate ? [`Government VEU rebate – minus ${money(rebate)}`] : []),
+  const headline = rebate ? `You could save ${whole(rebate)} on ceiling insulation` : "Your ceiling insulation quote is ready";
+  const subject = rebate ? `${name ? `${name}, your` : "Your"} quote is ready – save ${whole(rebate)} on ceiling insulation` : `Your ceiling insulation quote is ready${name ? `, ${name}` : ""}`;
+  const area = i.areaM2 != null && i.areaM2 > 0 ? i.areaM2 : null;
+  const removal = i.removalM2 != null && i.removalM2 > 0 ? i.removalM2 : null;
+  const installer = cleanName(i.installerName ?? null);
+  const gets = [
+    `${cleanName(i.product ?? null) ?? "Ceiling insulation"} supplied and installed${area ? ` – ${fmtM2(area)}` : ""}`,
+    ...(removal ? [`Your old insulation removed and taken away – ${fmtM2(removal)}`] : []),
+    ...(i.installerCertified ? [`Installed by ${installer ? `${installer}, ` : ""}an EEC-certified installer we have checked and approved`] : []),
+    "Electrical safety check (PIESA) by a licensed electrician, required before any ceiling insulation goes in",
+    "We look after the program compliance, the paperwork and your rebate – nothing for you to claim",
   ];
-  const accept =
-    "How to accept: open your quote, and we'll text or email you a 6-digit code to confirm it's you. Then read the agreement and sign on screen. Take your time, there's no pressure to decide today. You'll find your rights as a customer on the same page.";
-  const safety =
-    i.safetyCheckPrice != null && i.safetyCheckPrice > 0 ? money(i.safetyCheckPrice) : null;
+  const safety = i.safetyCheckPrice != null && i.safetyCheckPrice > 0 ? money(i.safetyCheckPrice) : null;
   const steps = [
-    `You pay the ${safety ? `${safety} ` : ""}electrical safety check. We send the invoice after you accept.`,
-    "A licensed electrician checks your ceiling wiring is safe. You choose a time that suits you.",
-    "We book your installation within 30 days of the safety check.",
+    "Accept your quote online – it takes about 2 minutes.",
+    `Pay the ${safety ? `${safety} ` : ""}electrical safety check. We send the invoice once you accept.`,
+    "A licensed electrician checks your ceiling wiring is safe, at a time you choose.",
+    "Your installation is booked within 30 days of the safety check.",
     "The balance is due in two halves, or in full if you prefer.",
   ];
-  const validity = i.validUntil
-    ? `This quote is valid until ${formatQuoteValidUntil(i.validUntil)}.`
-    : null;
+  const validity = i.validUntil ? `Your price is held until ${formatQuoteValidUntil(i.validUntil)}.` : null;
   const phone = cleanName(i.officePhone);
-  const questions = phone
-    ? `Questions? Just reply to this email or call us on ${phone}.`
-    : "Questions? Just reply to this email.";
+  const questions = phone ? `Questions? Reply to this email or call us on ${phone}.` : "Questions? Just reply to this email.";
   const button = "View and accept your quote";
+  const about = "Home Insulation Victoria is an Accredited Person under the Victorian Government's Victorian Energy Upgrades (VEU) program. We take your rebate straight off the price, organise the licensed electrician, check the installer's work and handle all the paperwork. Lower bills for years.";
+  const legal = "Home Insulation Victoria · DC Construction Solutions Pty Ltd · ABN 44 671 613 979 · VEU Accredited Person A003654";
+  const lines = i.lines.filter((l) => l.description?.trim() && Number.isFinite(l.lineTotalIncGst));
 
-  const p = (t: string, extra = "") => `<p style="${P}${extra}">${t}</p>`;
-  const list = included.map((t) => `<li style="margin:0 0 6px;">${escape(t)}</li>`).join("");
-  const bodyHtml =
-    p(escape(greeting)) +
-    p(escape(intro)) +
-    p(`<strong>Your price: ${escape(total)}</strong> ${escape(priceTail)}.`) +
-    (included.length
-      ? `<p style="${H2}">What's included</p><ul style="font-size:15px;line-height:1.55;margin:0 0 12px;padding-left:20px;">${list}</ul>`
-      : "") +
-    `<div style="margin:20px 0 12px;">${campaignButton(i.quoteUrl, button, 470)}</div>`;
-  const afterButtonHtml =
-    p(`<strong>How to accept:</strong> ${escape(accept.replace(/^How to accept: /, ""))}`) +
-    `<p style="${H2}">What happens next</p><ol style="font-size:15px;line-height:1.55;margin:0 0 12px;padding-left:20px;">${steps.map((s) => `<li style="margin:0 0 6px;">${escape(s)}</li>`).join("")}</ol>` +
-    p(escape([validity, questions].filter(Boolean).join(" "))) +
-    p("Home Insulation Victoria", "font-weight:bold;margin-top:18px;");
-  const footerHtml = i.unsubscribeUrl
-    ? `<p style="font-size:12px;line-height:1.5;margin:16px 0 0;color:#5A6785;"><a href="${escape(i.unsubscribeUrl)}" style="color:#3C51C4;text-decoration:underline;">Unsubscribe</a></p>`
-    : "";
-
-  const textLines = [
-    greeting,
+  const btn = `<div style="margin:18px 0 6px;">${campaignButton(i.quoteUrl, button, 470)}</div>`;
+  const row = (l: string, r: string, style = "") => `<tr><td style="padding:7px 0;font-size:14px;line-height:1.4;color:${NAVY};${style}">${l}</td><td align="right" style="padding:7px 0 7px 12px;font-size:14px;white-space:nowrap;color:${NAVY};${style}">${r}</td></tr>`;
+  const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body style="margin:0;background:#ffffff;font-family:Arial,Helvetica,sans-serif;color:${NAVY};">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escape(`Your price ${total}${rebate ? ` after a ${whole(rebate)} government rebate` : ""}.`)}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:20px 10px;">
+<table role="presentation" width="100%" style="max-width:540px;background:#FBFCFA;border:1px solid ${LINE};border-radius:22px;" cellpadding="0" cellspacing="0"><tr><td style="padding:26px 22px;">
+<div style="font-size:13px;font-weight:bold;color:${BLUE};">Home Insulation Victoria</div>
+${i.test === true ? `<div style="display:inline-block;margin-top:6px;background:#FDF2F6;color:${NAVY};font-size:11px;font-weight:bold;padding:3px 8px;border-radius:999px;">TEST — only sent to Jo</div>` : ""}
+<p style="font-size:15px;margin:16px 0 4px;">${escape(name ? `Hi ${name}, your quote is ready.` : "Your quote is ready.")}</p>
+<h1 style="font-size:26px;line-height:1.2;margin:4px 0 16px;color:${NAVY};">${escape(headline)}</h1>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${MIST};border-radius:16px;"><tr><td style="padding:18px 18px 16px;">
+<div style="font-size:13px;color:${SUB};">Your price${address ? ` for ${escape(address)}` : ""}</div>
+<div style="font-size:34px;font-weight:bold;color:${GREEN};margin:4px 0 2px;">${escape(total)}</div>
+<div style="font-size:13px;color:${SUB};">including GST${rebate ? ", after the government rebate" : ""}</div>
+${rebate && full ? `<div style="font-size:14px;margin-top:10px;color:${NAVY};">Full price <span style="text-decoration:line-through;">${escape(money(full))}</span> &nbsp;·&nbsp; <strong>VEU rebate −${escape(money(rebate))}</strong></div><div style="font-size:13px;color:${SUB};margin-top:4px;">Taken off upfront – nothing for you to claim.</div>` : ""}
+</td></tr></table>
+${btn}
+<p style="font-size:17px;font-weight:bold;margin:22px 0 10px;">What you're getting</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0">${gets.map((g) => `<tr><td valign="top" style="padding:0 10px 10px 0;width:22px;">${TICK}</td><td style="padding:0 0 10px;font-size:15px;line-height:1.45;">${escape(g)}</td></tr>`).join("")}</table>
+${lines.length ? `<p style="font-size:17px;font-weight:bold;margin:18px 0 6px;">Your price in full</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid ${LINE};">${lines.map((l) => row(escape(l.description.trim()), escape(l.lineTotalIncGst < 0 ? `−${money(-l.lineTotalIncGst)}` : money(l.lineTotalIncGst)), `border-bottom:1px solid ${LINE};`)).join("")}${rebate ? row("Government VEU rebate", `−${escape(money(rebate))}`, `border-bottom:1px solid ${LINE};`) : ""}${row("<strong>You pay (inc GST)</strong>", `<strong>${escape(total)}</strong>`, "font-size:15px;")}</table>` : ""}
+<p style="font-size:17px;font-weight:bold;margin:22px 0 10px;">What happens next</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0">${steps.map((t, n) => `<tr><td valign="top" style="padding:0 10px 10px 0;width:24px;"><span style="display:inline-block;width:22px;height:22px;line-height:22px;border-radius:11px;background:${BLUE};color:#fff;font-size:12px;font-weight:bold;text-align:center;">${n + 1}</span></td><td style="padding:1px 0 10px;font-size:15px;line-height:1.45;">${escape(t)}</td></tr>`).join("")}</table>
+${btn}
+<p style="font-size:14px;line-height:1.5;margin:10px 0 0;color:${SUB};">${escape([validity, questions].filter(Boolean).join(" "))}</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;border-top:1px solid ${LINE};"><tr><td style="padding-top:14px;">
+<p style="font-size:14px;font-weight:bold;margin:0 0 6px;">Who we are</p>
+<p style="font-size:14px;line-height:1.5;margin:0;color:${NAVY};">${escape(about)}</p>
+</td></tr></table>
+<p style="font-size:11px;line-height:1.5;margin:18px 0 0;color:${SUB};">${escape(legal)}${i.unsubscribeUrl ? ` · <a href="${escape(i.unsubscribeUrl)}" style="color:${BLUE};text-decoration:underline;">Unsubscribe</a>` : ""}</p>
+</td></tr></table></td></tr></table></body></html>`;
+  const text = [
+    name ? `Hi ${name}, your quote is ready.` : "Your quote is ready.",
     "",
-    intro,
+    headline,
     "",
-    `Your price: ${total} ${priceTail}.`,
-    ...(included.length ? ["", "What's included", ...included.map((t) => `- ${t}`)] : []),
+    `Your price${address ? ` for ${address}` : ""}: ${total} including GST${rebate ? ", after the government rebate" : ""}.`,
+    ...(rebate && full ? [`Full price ${money(full)} · VEU rebate −${money(rebate)}. Taken off upfront – nothing for you to claim.`] : []),
     "",
     `${button}: ${i.quoteUrl}`,
     "",
-    accept,
+    "What you're getting",
+    ...gets.map((g) => `- ${g}`),
+    ...(lines.length ? ["", "Your price in full", ...lines.map((l) => `- ${l.description.trim()}: ${l.lineTotalIncGst < 0 ? `−${money(-l.lineTotalIncGst)}` : money(l.lineTotalIncGst)}`), ...(rebate ? [`- Government VEU rebate: −${money(rebate)}`] : []), `You pay (inc GST): ${total}`] : []),
     "",
     "What happens next",
-    ...steps.map((s, n) => `${n + 1}. ${s}`),
+    ...steps.map((t, n) => `${n + 1}. ${t}`),
     "",
     [validity, questions].filter(Boolean).join(" "),
     "",
-    "Home Insulation Victoria",
-    ...(i.unsubscribeUrl ? ["", `Unsubscribe: ${i.unsubscribeUrl}`] : []),
-  ];
-  const mail = simpleEmail(heading, [], undefined, {
-    bodyHtml,
-    afterButtonHtml,
-    footerHtml,
-    textLines,
-    previewText: `Your price: ${total}${rebate ? " after the VEU rebate" : ""}.`,
-    testLabel: i.test === true,
-  });
-  return { subject, html: mail.html, text: mail.text };
+    "Who we are",
+    about,
+    "",
+    legal,
+    ...(i.unsubscribeUrl ? [`Unsubscribe: ${i.unsubscribeUrl}`] : []),
+    ...(i.test === true ? ["", "TEST — only sent to Jo."] : []),
+  ].join("\n");
+  return { subject, html, text };
 }
 
 /** SMS draft wording (docs/OWNER_QUOTE_MESSAGES_DRAFT.md). Not approved for real sends. */
