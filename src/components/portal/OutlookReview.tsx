@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { useAction } from "@/hooks/use-me";
 import { checkOutlookConnectionHealth, confirmOutlookSyncMailbox, getOutlookCorrespondenceOverview, resolveCorrespondenceReview, runOutlookSyncNow, setOutlookCatchup } from "@/lib/outlook-correspondence.functions";
 import { normaliseMailbox, type OutlookHealth } from "@/lib/outlook-connection.core";
-import { emailPreview, isHumanOwnerEmail } from "@/lib/owner-email-presentation.core";
+import { cleanOwnerEmail, emailPreview, isHumanOwnerEmail } from "@/lib/owner-email-presentation.core";
 
 const fmt = (v: string | null | undefined) => (v ? new Date(v).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "—");
 const CONNECTION_LABEL = {
@@ -158,7 +158,7 @@ function ReviewItem({ r, resolve }: { r: Review; resolve: Parameters<typeof Revi
       </div>
       <p className="mt-1 text-xs">{r.reason}</p>
       {r.subject && <div className="mt-1 font-medium">{r.subject}</div>}
-      <p className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap text-sub">{r.body}</p>
+      <p className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap text-sub">{cleanOwnerEmail(r.body)}</p>
       <div className="mt-2 flex flex-wrap items-center gap-2">
           <Input aria-label="Closure reason" className="h-9 w-full" value={reason} onChange={(e) => setReason(e.target.value)} />
           <Button size="sm" variant="destructive" onClick={() => { if (window.confirm(`Close ${r.jobNumber ?? "this job"} with reason “${reason}”? Nothing is deleted.`)) void resolve({ reviewId: r.id, action: "close_job", reason }, "Job closed"); }}>Close job</Button>

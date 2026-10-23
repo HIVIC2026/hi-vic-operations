@@ -27,11 +27,15 @@ export function isHumanOwnerEmail(c: EmailDisplayFacts): boolean {
   if (c.direction === "inbound" && /(?:@homeinsulationvictoria\.com\.au|mailer-daemon|postmaster|no[-_]?reply|notifications?@|newsletter)/i.test(from)) return false;
   if (/^(?:automatic reply:|auto(?:matic)?[- ]?response:|out of office\b|undeliverable:|delivery (?:status|failure)|mail delivery (?:failed|subsystem))/i.test(c.subject ?? "")) return false;
   const body = cleanOwnerEmail(c.body);
+  if (c.direction === "outbound" && /(?:we have been inundated|we are expanding our network|your (?:spot is saved|preliminary quote is ready)|save (?:your|my) spot|your.*rebate is waiting|this is (?:an automatic|a reminder))/i.test(body)) return false;
   if (/\b(?:click (?:here )?to unsubscribe|manage (?:your )?(?:email )?preferences|view (?:this email )?in (?:your )?browser|unsubscribe from (?:this|our) (?:list|newsletter|emails))\b/i.test(body)) return false;
   if (/^(?:I am (?:currently )?(?:out of (?:the )?office|away)|Thank you for (?:your email|contacting).*(?:automatic|out of office)|This is an automated|Your message (?:could not|was not) be delivered)/i.test(body)) return false;
   return c.direction === "inbound" || c.direction === "outbound";
 }
 export const emailPreview = (body: string | null | undefined) => cleanOwnerEmail(body).replace(/\s+/g, " ").slice(0, 180);
+export function emailSuburb(suburb: string | null | undefined, address: string | null | undefined): string | null {
+  return suburb || address?.match(/,\s*([^,]+?)\s+(?:VIC|Victoria)\s+\d{4}\s*$/i)?.[1]?.trim() || null;
+}
 export function emailAge(at: string | null | undefined, now = Date.now()): string {
   const mins = Math.max(0, Math.floor((now - Date.parse(at ?? "")) / 60000));
   if (!Number.isFinite(mins)) return "emailed";

@@ -1,7 +1,7 @@
 // Office "Owner emails to review": latest owner email per job with no reply/decision after it. Read-only except "Done".
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { emailNeedsOffice, emailOwnerMedia, canUseReviewButtons, type EmailAttachment } from "./owner-email-review.core";
-import { emailPreview, isHumanOwnerEmail, latestPerOwner } from "./owner-email-presentation.core";
+import { emailPreview, emailSuburb, isHumanOwnerEmail, latestPerOwner } from "./owner-email-presentation.core";
 
 const SINCE = "2026-10-19T13:00:00Z"; // 20 Oct 2026, Melbourne — the copier's live window for this list
 
@@ -18,7 +18,7 @@ export async function listOwnerEmailsToReview() {
   for (let i = 0; i < ids.length; i += 100) {
     const batch = ids.slice(i, i + 100);
     const [jobs, out, events, done] = await Promise.all([
-      admin.from("jobs").select("id, owner_id, job_number, stage, source, deleted_at, owners(full_name), properties(suburb)").in("id", batch),
+      admin.from("jobs").select("id, owner_id, job_number, stage, source, deleted_at, owners(full_name), properties(suburb, address_line)").in("id", batch),
       admin.from("job_communications").select("job_id, created_at, sent_at, provider, channel, sender_text, subject, body, direction").in("job_id", batch).eq("direction", "outbound").gte("created_at", SINCE),
       admin.from("customer_engagement_events").select("job_id, occurred_at").in("job_id", batch).eq("event_type", "intake_media_reviewed").gte("occurred_at", SINCE),
       admin.from("workflow_events").select("job_id, created_at").in("job_id", batch).eq("event_type", "owner_email_reviewed").gte("created_at", SINCE),
@@ -37,11 +37,11 @@ export async function listOwnerEmailsToReview() {
       });
       if (!needs) continue;
       const owner = (Array.isArray(j.owners) ? j.owners[0] : j.owners) as { full_name: string | null } | null;
-      const prop = (Array.isArray(j.properties) ? j.properties[0] : j.properties) as { suburb: string | null } | null;
+      const prop = (Array.isArray(j.properties) ? j.properties[0] : j.properties) as { suburb: string | null; address_line: string | null } | null;
       rows.push({
-        ownerId: j.owner_id, jobId: j.id, jobNumber: j.job_number, owner: owner?.full_name ?? null, suburb: prop?.suburb ?? null, stage: j.stage,
+        ownerId: j.owner_id, jobId: j.id, jobNumber: j.job_number, owner: owner?.full_name ?? null, suburb: emailSuburb(prop?.suburb,prop?.address_line), stage: j.stage,
         canReview: canUseReviewButtons(j.stage), from: c.sender_text, subject: c.subject, body: emailPreview(c.body), at: c.received_at,
-        mediaCount: emailOwnerMedia((c.attachment_refs ?? []) as EmailAttachment[]).filter((a) => a.path).length,
+        mediaCount: new Set((inbound ?? []).filter(m => m.job_id === j.id && isHumanOwnerEmail({...m,provider:"outlook",direction:"inbound",from:m.sender_text})).flatMap(m => emailOwnerMedia((m.attachment_refs ?? []) as EmailAttachment[]).filter(a => a.path).map(a => a.path))).size,
       });
     }
   }

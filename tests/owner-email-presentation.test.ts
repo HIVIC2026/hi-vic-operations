@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { cleanOwnerEmail, isHumanOwnerEmail, latestPerOwner } from '../src/lib/owner-email-presentation.core';
+import { cleanOwnerEmail, emailSuburb, isHumanOwnerEmail, latestPerOwner } from '../src/lib/owner-email-presentation.core';
 test('strips HTML, signature, quoted reply and disclaimer without changing the reply', () => {
   expect(cleanOwnerEmail('<p>My ceiling photos are attached &amp; ready.</p><p>Kind regards</p><p>Sam</p><blockquote>Old quote</blockquote>')).toBe('My ceiling photos are attached & ready.');
   expect(cleanOwnerEmail('Can you call tomorrow?\n\nOn Friday, Jo wrote:\nOld reply')).toBe('Can you call tomorrow?');
@@ -9,6 +9,11 @@ test('real owner reply to Spot saved remains visible; our automation never does'
   expect(isHumanOwnerEmail({provider:'outlook',direction:'inbound',from:'sam@example.com',subject:'RE: Spot saved. Your rebate is waiting',body:'Can you call tomorrow?'})).toBe(true);
   expect(isHumanOwnerEmail({provider:'resend',direction:'outbound',body:'Spot saved'})).toBe(false);
   expect(isHumanOwnerEmail({provider:'outlook',direction:'inbound',from:'info@homeinsulationvictoria.com.au',body:'Spot saved'})).toBe(false);
+  expect(isHumanOwnerEmail({provider:'outlook',direction:'outbound',body:'Hi there, We have been inundated with enquiries. We are expanding our network.'})).toBe(false);
+});
+test('suburb uses stored address when separate suburb is blank', () => {
+  expect(emailSuburb(null,'56 Country Club Dr, Safety Beach VIC 3936')).toBe('Safety Beach');
+  expect(emailSuburb(null,'Unknown address')).toBe(null);
 });
 test('auto replies, bounces and marketing are excluded', () => {
   for(const c of [{subject:'Automatic reply: Hello'}, {subject:'Undeliverable: quote'}, {body:'Buy now. Click to unsubscribe'}, {from:'no-reply@example.com'}]) expect(isHumanOwnerEmail({provider:'outlook',direction:'inbound',from:'sam@example.com',body:'Hello',...c})).toBe(false);

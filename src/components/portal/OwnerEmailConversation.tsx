@@ -8,8 +8,8 @@ import type { Correspondence } from "@/lib/jobfile.core";
 export function CleanEmailConversation({ items }: { items: Correspondence[] }) {
   const end = useRef<HTMLDivElement>(null);
   const messages = items.filter(isHumanOwnerEmail).sort((a,b) => a.at.localeCompare(b.at));
-  useEffect(() => { end.current?.scrollIntoView({ block: "nearest" }); }, [items]);
-  return <div aria-label="Owner email conversation" className="space-y-3 py-2">
+  useEffect(() => { const container=end.current?.parentElement; if(container)container.scrollTop=container.scrollHeight; }, [items]);
+  return <div aria-label="Owner email conversation" className="max-h-[50dvh] space-y-3 overflow-y-auto py-2">
     {!messages.length && <p className="text-sm text-muted-foreground">No owner messages.</p>}
     {messages.map(c => <article key={c.id} className={`max-w-[94%] rounded-lg border p-3 ${c.direction === "outbound" ? "ml-auto bg-success-soft" : "mr-auto bg-muted/30"}`}>
       <div className="mb-2 flex flex-wrap items-center justify-between gap-1 text-xs text-muted-foreground"><span className="font-semibold">{c.direction === "outbound" ? "Office" : c.from?.replace(/\s*<[^>]+>/, "") || "Owner"}</span><time>{new Date(c.at).toLocaleString("en-AU", {timeZone:"Australia/Melbourne",day:"numeric",month:"short",hour:"numeric",minute:"2-digit"})}</time></div>
