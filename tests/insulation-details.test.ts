@@ -90,3 +90,11 @@ test('RPC denies public/client execution and expired links',async()=>{
  expect((await db.query("SELECT has_function_privilege('anon','save_owner_insulation_details(text,jsonb)','EXECUTE') allowed")).rows[0]?.allowed).toBe(false);
  await db.exec("UPDATE customer_estimate_links SET expires_at=now()-interval '1 day'");await expect(save({insulation_type:'batts',insulation_thickness:'thin',house_built_period:'2000_2009'})).rejects.toThrow('Link unavailable');
 });
+test('website "not sure" insulation without photos sits only in the onsite group',async()=>{
+ const j2='00000000-0000-4000-8000-0000000000a1',p2='00000000-0000-4000-8000-0000000000a2';
+ await db.exec(`INSERT INTO properties(id,enrichment) VALUES('${p2}','{"base44":{"raw":{"answers":{"existing_insulation":"Not sure"}}}}');
+ INSERT INTO jobs(id,property_id,source,channel,stage,eligibility_outcome,job_number) VALUES('${j2}','${p2}','base44','hivic_sourced','preliminary_estimate_ready','needs_onsite_confirmation','HV-TEST2');`);
+ expect((await db.query<{b:string}>(`SELECT office_bucket b FROM office_enquiry_index WHERE id='${j2}'`)).rows[0]?.b).toBe('onsite_wait');
+ await db.exec(`INSERT INTO documents(job_id,kind,storage_path) VALUES('${j2}','intake_media','${j2}/intake/a.jpg')`);
+ expect((await db.query<{b:string}>(`SELECT office_bucket b FROM office_enquiry_index WHERE id='${j2}'`)).rows[0]?.b).toBe('enquiry');
+});
