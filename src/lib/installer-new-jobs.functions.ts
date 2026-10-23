@@ -1,12 +1,12 @@
-// Office "New from installers" (Jo 23 Oct 2026). Read-only list of installer-brought jobs, plus one office
-// acknowledgement ("Mark seen") recorded as an internal event. Never changes stage, next step, quotes or sends.
+// Office "New from installers" (Jo 23 Oct 2026). Read-only list of installer-brought jobs; nothing to tick off.
+// Never changes stage, next step, quotes or sends.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin } from "./workflow.server";
-import { A2_CORRECTION_EVENT, FLAG_EVENTS, FORM_STARTED_EVENTS, HELD_EVENTS, OFFICE_SEEN_EVENT, classifyNewInstallerJob, sortNewInstallerJobs, type NewJobFacts } from "./installer-new-jobs.core";
+import { A2_CORRECTION_EVENT, FLAG_EVENTS, FORM_CREATED_EVENTS, FORM_PROBLEM_EVENTS, FORM_STARTED_EVENTS, HELD_EVENTS, classifyNewInstallerJob, sortNewInstallerJobs, type NewJobFacts } from "./installer-new-jobs.core";
 
-const EVENT_TYPES = [OFFICE_SEEN_EVENT, A2_CORRECTION_EVENT, ...FLAG_EVENTS, ...FORM_STARTED_EVENTS, ...HELD_EVENTS];
+const EVENT_TYPES = [A2_CORRECTION_EVENT, ...FLAG_EVENTS, ...FORM_CREATED_EVENTS, ...FORM_PROBLEM_EVENTS, ...FORM_STARTED_EVENTS, ...HELD_EVENTS];
 
 export const getNewInstallerJobs = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ showTestJobs: z.boolean().optional() }).optional().parse(d))
@@ -24,7 +24,7 @@ export const getNewInstallerJobs = createServerFn({ method: "POST" }).middleware
       jobs.push(...(page.data ?? []));
       if (!page.data || page.data.length < 500) break;
     }
-    if (!jobs.length) return { fresh: [], stale: [] };
+    if (!jobs.length) return { attention: [], fresh: [] };
     // Bulk lookups by job id are batched (50 ids per request, 4 at a time) so no URL grows unbounded.
     const batches: string[][] = [];
     for (let i = 0; i < jobs.length; i += 50) batches.push(jobs.slice(i, i + 50).map((j) => j.id));
@@ -71,28 +71,4 @@ export const getNewInstallerJobs = createServerFn({ method: "POST" }).middleware
       if (item) items.push(item);
     }
     return sortNewInstallerJobs(items);
-  });
-
-/** Office acknowledgement only: one internal event per job, no last-activity bump, nothing else changes. */
-export const markInstallerJobsSeen = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobIds: z.array(z.string().uuid()).min(1).max(200) }).parse(d))
-  .handler(async ({ context, data }) => {
-    await requireAdmin(context.supabase);
-    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
-    const ids = [...new Set(data.jobIds)];
-    const [{ data: jobs, error: je }, { data: seen, error: se }] = await Promise.all([
-      admin.from("jobs").select("id, job_number").in("id", ids).eq("channel", "installer_sourced"),
-      admin.from("workflow_events").select("job_id").in("job_id", ids).eq("event_type", OFFICE_SEEN_EVENT),
-    ]);
-    if (je || se) throw new Error("Could not check these jobs.");
-    const already = new Set((seen ?? []).map((s) => s.job_id));
-    const rows = (jobs ?? []).filter((j) => !already.has(j.id)).map((j) => ({
-      job_id: j.id, actor_id: context.userId ?? null, event_type: OFFICE_SEEN_EVENT,
-      summary: `Office has seen this installer job (${j.job_number})`, details: { seen_by: context.userId ?? null }, internal: true,
-    }));
-    if (rows.length) {
-      const { error } = await admin.from("workflow_events").insert(rows as never);
-      if (error) throw new Error("Could not mark these jobs as seen.");
-    }
-    return { marked: rows.length };
   });

@@ -14,6 +14,7 @@ export function postgrestShim(db: PGlite, options: { jsonColumns?: Record<string
         update(p: Record<string, unknown>) { op = "update"; patch = p; return b; },
         eq(c: string, v: unknown) { filters.push({ sql: `"${c}" = $?`, vals: [v] }); return b; },
         neq(c: string, v: unknown) { filters.push({ sql: `"${c}" <> $?`, vals: [v] }); return b; },
+        gte(c: string, v: unknown) { filters.push({ sql: `"${c}" >= $?`, vals: [v] }); return b; },
         is(c: string, v: null) { filters.push({ sql: `"${c}" IS ${v === null ? "NULL" : "NOT NULL"}`, vals: [] }); return b; },
         contains(c: string, v: unknown) { filters.push({ sql: `"${c}" @> $?::jsonb`, vals: [JSON.stringify(v)] }); return b; },
         ilike(c: string, v: string) { filters.push({ sql: `"${c}" ILIKE $?`, vals: [v] }); return b; },
