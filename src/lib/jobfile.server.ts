@@ -45,9 +45,9 @@ async function withAttachmentLinks<T extends { id: string; attachmentFiles?: { n
     if (!c.attachmentFiles?.length) { out.push(c); continue; }
     const files = [] as { name: string; path: string | null; url: string | null }[];
     for (const f of c.attachmentFiles) {
-      if (!f.path) { files.push({ name: f.name, path: null, url: null }); continue; }
+      if (!f.path) { files.push({ ...f, name: f.name, path: null, url: null }); continue; }
       const { data } = await signFile(BUCKET, f.path, 7 * 86400);
-      files.push({ name: f.name, path: f.path, url: data?.signedUrl ?? null });
+      files.push({ ...f, name: f.name, path: f.path, url: data?.signedUrl ?? null });
     }
     out.push({ ...c, attachmentFiles: files });
   }

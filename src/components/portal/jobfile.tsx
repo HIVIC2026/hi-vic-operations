@@ -16,6 +16,8 @@ import { exportJobPackFn, getJobFile, getJobFileHeader, logCommunication, openJo
 import { DOC_CATEGORIES, inCategory, searchItems, type Correspondence, type DocCategory, type DocItem, type TimelineFilter } from "@/lib/jobfile.core";
 import { fmtDate } from "@/lib/workflow";
 import { openFileViewer } from "@/components/portal/file-viewer";
+import { CleanEmailConversation } from "./OwnerEmailConversation";
+import { isHumanOwnerEmail } from "@/lib/owner-email-presentation.core";
 
 type JobFile = Awaited<ReturnType<typeof import("@/lib/jobfile.server").buildJobFile>>;
 type JobRow = import("@/integrations/supabase/types").Database["public"]["Views"]["job_overview"]["Row"];
@@ -131,14 +133,16 @@ export function Correspondence({ jobId }: { jobId: string }) {
   const { data } = useJobFile(jobId);
   const [q, setQ] = useState("");
   const items = searchItems(data?.correspondence ?? [], q, (c) => [c.body, c.subject, c.channel, c.from, c.at]);
+  const other = items.filter(c => !isHumanOwnerEmail(c));
   return (
     <div className="space-y-4">
       <LogCommunication jobId={jobId} />
-      <Section title="All correspondence">
-        <p className="mb-2 text-xs text-muted-foreground">Oldest first. Emails from the Outlook mailbox, emails the portal sent, portal messages and logged calls together. Nothing here sends anything.</p>
-        <Input className="mb-3 w-64" placeholder="Search correspondence…" value={q} onChange={(e) => setQ(e.target.value)} />
-        {items.length === 0 ? <p className="text-sm text-muted-foreground">Nothing yet.</p> : (
-          <ul className="space-y-2">{items.map((c) => (
+      <Section title="Owner conversation">
+        <Input className="mb-3 w-full" placeholder="Search conversation…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <CleanEmailConversation items={items} />
+        <details className="mt-3 border-t pt-3"><summary className="cursor-pointer text-sm text-muted-foreground">Other correspondence ({other.length})</summary>
+        {other.length === 0 ? <p className="text-sm text-muted-foreground">Nothing yet.</p> : (
+          <ul className="space-y-2">{other.map((c) => (
             <li key={c.id} className={`rounded-lg border p-2 text-sm ${c.direction === "inbound" ? "mr-8 border-l-4 border-l-primary" : c.direction === "outbound" ? "ml-8 border-r-4 border-r-success" : ""}`}>
               <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                 <Pill t={c.direction === "inbound" ? "info" : c.direction === "outbound" ? "good" : "warn"}>{c.direction === "inbound" ? "Owner sent" : c.direction === "outbound" ? "We sent" : "Internal note"}</Pill>
@@ -151,7 +155,7 @@ export function Correspondence({ jobId }: { jobId: string }) {
               <p className="mt-1 whitespace-pre-wrap">{c.body}</p>
               <AttachmentList c={c} />
             </li>))}
-          </ul>)}
+          </ul>)}</details>
       </Section>
     </div>
   );

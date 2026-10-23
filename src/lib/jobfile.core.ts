@@ -171,7 +171,7 @@ export function searchItems<T>(items: T[], q: string, fields: (i: T) => (string 
 }
 
 // ---------- Correspondence ----------
-export type CorrespondenceAttachment = { name: string; path: string | null; url?: string | null; skipped?: string | null };
+export type CorrespondenceAttachment = { name: string; path: string | null; url?: string | null; skipped?: string | null; contentType?: string | null; isInline?: boolean };
 export type Correspondence = { id: string; at: string; direction: "inbound" | "outbound" | "internal"; channel: string; from: string | null; subject: string | null; body: string; status: string; source: "portal_message" | "job_communication"; audience: Audience[]; internal: boolean; provider?: string | null; to?: string[]; attachments?: string[]; attachmentFiles?: CorrespondenceAttachment[] };
 
 export function buildCorrespondence(messages: Row[], comms: Row[], senderRole: (userId: string | null) => Role | null): Correspondence[] {
@@ -190,7 +190,7 @@ export function buildCorrespondence(messages: Row[], comms: Row[], senderRole: (
       provider: s(c["provider"]), to: Array.isArray(c["recipients"]) ? (c["recipients"] as unknown[]).map(String) : [],
       attachments: Array.isArray(c["attachment_refs"]) ? (c["attachment_refs"] as { name?: unknown }[]).map((a) => String(a?.name ?? "attachment")) : [],
       attachmentFiles: Array.isArray(c["attachment_refs"])
-        ? (c["attachment_refs"] as { name?: unknown; path?: unknown; skipped?: unknown }[]).map((a) => ({ name: String(a?.name ?? "attachment"), path: typeof a?.path === "string" && a.path ? a.path : null, skipped: typeof a?.skipped === "string" && a.skipped ? a.skipped : null }))
+        ? (c["attachment_refs"] as { name?: unknown; path?: unknown; skipped?: unknown; contentType?: string; isInline?: boolean }[]).map((a) => ({ name: String(a?.name ?? "attachment"), path: typeof a?.path === "string" && a.path ? a.path : null, skipped: typeof a?.skipped === "string" && a.skipped ? a.skipped : null, contentType: a.contentType ?? null, isInline:a.isInline === true }))
         : [] });
   }
   return out.sort((a, b) => a.at.localeCompare(b.at));
