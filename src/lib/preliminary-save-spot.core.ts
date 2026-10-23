@@ -3,13 +3,12 @@
 // an Office reviewer records an append-only preliminary review bound to the owner's genuine inbound
 // communication, then Jo's approved short invitation is previewed and individually sent through the
 // existing guarded delivery. This is NOT a photo review, a known R-value, a statutory eligibility
-// decision or an owner declaration. No estimate, no area, no price and no rebate may appear anywhere
-// in the invitation, landing page, saved confirmation or saved snapshots.
+// decision or an owner declaration. Invitation wording stays unchanged; saved confirmations and
+// snapshots use the owner's normal address/ceiling-size estimate (Jo, 23 Oct 2026).
 import { CUSTOMER_BRAND } from "./customer-quote-system";
 import { campaignButton, escape, preheader, PRIVACY_URL, TEST_BANNER_SLOT } from "./estimate-email";
 import { UNSUBSCRIBE_LINK_SLOT, withUnsubscribe } from "./emailsafety.core";
-import { SPOT_SAVED_BODY, SPOT_SAVED_HEADING } from "./save-spot-offer.core";
-import { SPOT_SAVED_NOT_INCLUDED } from "./spot-saved-messages.core";
+import { savedPriceFromEstimate } from "./launch-campaign.core";
 
 export const PRELIMINARY_SAVE_SPOT_SUBJECT = (firstName: string | null) => `${firstName?.trim() ? firstName.trim() : "There"}, save your spot`;
 
@@ -43,19 +42,17 @@ export function renderPreliminarySaveSpotEmail(i: PreliminarySaveSpotInput) {
   return withUnsubscribe({ subject, html, plainText }, i.unsubscribeUrl);
 }
 
-/** Rebate-free saved confirmation for this path. Approved wording only; never a "$0 rebate is waiting" line. */
-export function renderPreliminarySpotSavedEmail(i: { firstName: string | null; myJobUrl: string | null }) {
-  const name = i.firstName?.trim() || null;
-  const subject = "Your spot is saved";
-  const greeting = name ? `Hi ${name},` : "Hi there,";
-  const link = i.myJobUrl ? [``, `See my job: ${i.myJobUrl}`] : [];
-  // Jo 23 Oct: this path must never show prices or m², so no removal budget note; only the electrical-fix exclusion.
-  const extra = [SPOT_SAVED_NOT_INCLUDED];
-  const text = [greeting, "", SPOT_SAVED_HEADING + ".", SPOT_SAVED_BODY, ...extra.flatMap((t) => ["", t]), ...link, "", PRELIMINARY_BRAND].join("\n");
-  const linkHtml = i.myJobUrl ? `<p><a href="${escape(i.myJobUrl)}">See my job</a></p>` : "";
-  const html = `<div style="font-family:'Figtree','Segoe UI',Helvetica,Arial,sans-serif;color:${CUSTOMER_BRAND.colors.navy};font-size:15px;line-height:1.6;"><p>${escape(greeting)}</p><h1 style="font-size:24px;">${escape(SPOT_SAVED_HEADING)}</h1><p>${escape(SPOT_SAVED_BODY)}</p>${extra.map((t) => `<p>${escape(t)}</p>`).join("")}${linkHtml}<p>${escape(PRELIMINARY_BRAND)}</p></div>`;
-  assertNoPricingContent([subject, text, html].join("\n"));
-  return { subject, html, text };
+/** Same primary-scenario figures saved by the normal campaign; never fabricate missing figures. */
+export function preliminarySavedEstimateSnapshot(row: Parameters<typeof savedPriceFromEstimate>[0], token: string) {
+  const price = savedPriceFromEstimate(row);
+  if (!price || !Number.isFinite(price.gross) || price.gross <= 0 || !Number.isFinite(price.total)
+    || price.total < 0 || !Number.isFinite(price.discount) || price.discount < 0
+    || price.areaM2 == null || !Number.isFinite(price.areaM2) || price.areaM2 <= 0) {
+    throw new Error("Your estimate is not ready. Please contact our office before saving your spot.");
+  }
+  return { saved_estimate_id: price.estimateId, saved_total: price.total, saved_veu_discount: price.discount,
+    saved_gross_total: price.gross, saved_area_m2: price.areaM2, saved_insulation: price.insulation,
+    saved_estimate_url: `/estimate/${token}/calculator` };
 }
 
 // ---------- Pending-review / consent binding facts (pure) ----------

@@ -5,9 +5,8 @@ import { describe, expect, test } from "bun:test";
 import {
   PRELIMINARY_BUTTON, PRELIMINARY_INTRO, PRELIMINARY_NEXT_STEP, PRELIMINARY_READY_CHECK,
   assertNoPricingContent, preliminaryConsentKey, preliminaryConsentSnapshot, preliminaryReviewMetadata,
-  preliminarySendBlocker, renderPreliminarySaveSpotEmail, renderPreliminarySpotSavedEmail,
+  preliminarySendBlocker, renderPreliminarySaveSpotEmail, preliminarySavedEstimateSnapshot,
 } from "../src/lib/preliminary-save-spot.core";
-import { SPOT_SAVED_BODY, SPOT_SAVED_HEADING } from "../src/lib/save-spot-offer.core";
 import { intakeJobFacts } from "../src/lib/enquiry.server";
 import { enquirySchema } from "../src/lib/enquiry.server";
 
@@ -46,14 +45,13 @@ describe("preliminary invitation rendering (Jo's approved short copy)", () => {
   });
 });
 
-describe("rebate-free saved confirmation", () => {
-  const mail = renderPreliminarySpotSavedEmail({ firstName: "Victor", myJobUrl: "https://estimate.homeinsulationvictoria.com.au/my-job/tok" });
-  test("approved wording, no rebate and no made-up figures", () => {
-    expect(mail.text).toContain(SPOT_SAVED_HEADING);
-    expect(mail.text).toContain(SPOT_SAVED_BODY);
-    expect(mail.text).not.toContain("$");
-    expect(mail.text).not.toMatch(/rebate is waiting/i);
-    expect(mail.subject).toBe("Your spot is saved");
+describe("preliminary save uses the normal priced snapshot", () => {
+  test("entered area, price and rebate are preserved", () => {
+    const snapshot = preliminarySavedEstimateSnapshot({ id: "estimate-100", area_m2: 100, insulation_declared: "unknown", scenarios: [{ by_access: { standard: { estimated_customer_total: 2598, applied_discount: 1400, pre_discount_total: 3998 } } }] }, "tok");
+    expect(snapshot).toEqual({ saved_estimate_id: "estimate-100", saved_total: 2598, saved_veu_discount: 1400, saved_gross_total: 3998, saved_area_m2: 100, saved_insulation: "unknown", saved_estimate_url: "/estimate/tok/calculator" });
+  });
+  test("missing estimate never becomes fabricated prices or area", () => {
+    expect(() => preliminarySavedEstimateSnapshot(null, "tok")).toThrow("Your estimate is not ready");
   });
 });
 

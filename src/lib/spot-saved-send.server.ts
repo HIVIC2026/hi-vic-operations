@@ -13,7 +13,7 @@ const OWNER_BASE = "https://estimate.homeinsulationvictoria.com.au";
 export async function buildSpotSavedMessages(jobId: string, token: string) {
   const [{ data: job }, { data: r }] = await Promise.all([
     admin.from("jobs").select("source, owners(full_name, phone, email), properties(address_line, suburb, postcode)").eq("id", jobId).maybeSingle(),
-    admin.from("lead_campaign_responses").select("saved_veu_discount, saved_gross_total, saved_total, saved_area_m2").eq("job_id", jobId).maybeSingle(),
+    admin.from("lead_campaign_responses").select("saved_estimate_id, saved_veu_discount, saved_gross_total, saved_total, saved_area_m2").eq("job_id", jobId).maybeSingle(),
   ]);
   if (!job) return null;
   const { renderSpotSavedEmail, renderSpotSavedSms, addressBits } = await import("./spot-saved-messages.core");
@@ -29,20 +29,12 @@ export async function buildSpotSavedMessages(jobId: string, token: string) {
     estimate: r?.saved_gross_total ? { gross: Number(r.saved_gross_total), customer: Number(r.saved_total), areaM2: Number(r.saved_area_m2), address: bits.short ? `${bits.short} VIC${prop?.postcode ? ` ${prop.postcode}` : ""}` : null, calculatorUrl: `${OWNER_BASE}/estimate/${token}/calculator` } : null,
   };
   // Jo 23 Oct: removal fact from the owner's saved estimate, same as the Save my spot email.
-  const { data: est } = await admin.from("indicative_estimates").select("scenarios").eq("job_id", jobId).eq("status", "current").maybeSingle();
+  let estimateQuery = admin.from("indicative_estimates").select("scenarios").eq("job_id", jobId);
+  estimateQuery = r?.saved_estimate_id ? estimateQuery.eq("id", r.saved_estimate_id) : estimateQuery.eq("status", "current");
+  const { data: est } = await estimateQuery.maybeSingle();
   const { removalFromScenario } = await import("./estimate-removal.core");
   const email = renderSpotSavedEmail({ ...input, removal: removalFromScenario(Array.isArray(est?.scenarios) ? est.scenarios[0] : null) }) as { subject: string; text: string; html?: string };
   return { job, owner, sms: renderSpotSavedSms(input), email, optOutUrl, rebate: input.rebate };
-}
-
-async function buildPreliminaryMessages(jobId: string, token: string | null) {
-  const { data: job } = await admin.from("jobs").select("source, owners(full_name, phone, email)").eq("id", jobId).maybeSingle();
-  if (!job) return null;
-  const owner = job.owners as { full_name: string | null; phone: string | null; email: string | null } | null;
-  const { renderPreliminarySpotSavedEmail } = await import("./preliminary-save-spot.core");
-  const email = renderPreliminarySpotSavedEmail({ firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null, myJobUrl: token ? `${OWNER_BASE}/my-job/${token}` : null }) as { subject: string; text: string; html?: string };
-  const { unsubscribeUrlForJob } = await import("./emailsafety.server");
-  return { job, owner, sms: "", email, optOutUrl: await unsubscribeUrlForJob(jobId), rebate: 0 };
 }
 
 async function activeEstimateToken(jobId: string): Promise<string | null> {
@@ -53,7 +45,7 @@ async function activeEstimateToken(jobId: string): Promise<string | null> {
 export type SpotSavedSendResult = { jobId: string; email: { status: string; detail: string }; sms: { status: string; detail: string } };
 
 /** Send (or, with dry, only plan) the confirmation for one job. Never throws for an individual channel. */
-export async function sendSpotSavedConfirmation(jobId: string, opts: { dry?: boolean; token?: string | undefined } = {}): Promise<SpotSavedSendResult> {
+export async function sendSpotSavedConfirmation(jobId: string, opts: { dry?: boolean; token?: string | undefined; emailOnly?: boolean } = {}): Promise<SpotSavedSendResult> {
   const [{ data: job }, { data: resp }, { data: ws }, { data: eopt }, { count: supp }] = await Promise.all([
     admin.from("jobs").select("source, stage, deleted_at, qa_archived_at, owners(phone, email)").eq("id", jobId).maybeSingle(),
     admin.from("lead_campaign_responses").select("spot_saved_at, opted_out_at").eq("job_id", jobId).maybeSingle(),
@@ -79,25 +71,22 @@ export async function sendSpotSavedConfirmation(jobId: string, opts: { dry?: boo
     emailSwitchOn: sw[SPOT_SAVED_EMAIL_SWITCH] === true, smsSwitchOn: sw[SPOT_SAVED_SMS_SWITCH] === true, hasLink: !!token,
   });
   const out: SpotSavedSendResult = { jobId, email: skipOf(plan.email), sms: skipOf(plan.sms) };
+  if (opts.emailOnly) out.sms = { status: "skipped", detail: "Email-only confirmation path" };
   if (!job) return out;
   if (opts.dry) {
     if (plan.email.send) out.email = await alreadyCheck("email", plan.email.key) ?? { status: "would_send", detail: plan.email.to };
-    if (plan.sms.send) out.sms = await alreadyCheck("sms", plan.sms.key) ?? { status: "would_send", detail: plan.sms.to };
+    if (plan.sms.send && !opts.emailOnly) out.sms = await alreadyCheck("sms", plan.sms.key) ?? { status: "would_send", detail: plan.sms.to };
     return out;
   }
   if (!plan.email.send && !plan.sms.send) return out;
-  let msgs: Msgs | null = token ? await buildSpotSavedMessages(jobId, token) : null;
-  // No saved estimate (preliminary-email saves): the approved rebate-free email; there is no approved rebate-free text.
+  const msgs: Msgs | null = token ? await buildSpotSavedMessages(jobId, token) : null;
   if (!msgs || !(msgs.rebate > 0)) {
-    msgs = await buildPreliminaryMessages(jobId, token);
-    if (!msgs) return out;
-    if (plan.sms.send) out.sms = { status: "skipped", detail: "No saved rebate – no approved text for this case" };
-    if (plan.email.send) out.email = await sendEmail(jobId, plan.email, msgs).catch((e) => ({ status: "failed", detail: (e as Error).message }));
-    await logEvent(jobId, null, "spot_saved_confirmation_sent", `Spot saved confirmation – email: ${out.email.status}; text: ${out.sms.status}`, { email: out.email, sms: out.sms, preliminary: true }, { internal: true }).catch(() => null);
+    if (plan.email.send) out.email = { status: "skipped", detail: "Saved estimate is not ready" };
+    if (plan.sms.send && !opts.emailOnly) out.sms = { status: "skipped", detail: "No saved rebate – no approved text for this case" };
     return out;
   }
   if (plan.email.send) out.email = await sendEmail(jobId, plan.email, msgs).catch((e) => ({ status: "failed", detail: (e as Error).message }));
-  if (plan.sms.send) {
+  if (plan.sms.send && !opts.emailOnly) {
     const { sendRealSms } = await import("./sms.server");
     out.sms = await sendRealSms({ type: "spot_saved", idempotencyKey: plan.sms.key, to: plan.sms.to, body: msgs.sms, jobId })
       .then((r) => ({ status: r.status, detail: r.detail }), (e) => ({ status: "failed", detail: (e as Error).message }));

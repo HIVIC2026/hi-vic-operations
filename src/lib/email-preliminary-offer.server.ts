@@ -5,7 +5,7 @@
 // sent through the existing guarded delivery (Resend via the connector gateway, reservation,
 // idempotency, uncertain-result handling, immutable job history). Sending is NOT triggered by the
 // review alone; spot_saved_at is only ever set by the owner's explicit POST on their secure link.
-// Nothing here touches Gate 1, prices, estimates, media reviews or campaigns.
+// Gate 1 and invitation wording stay unchanged; saves prepare the normal estimate and freeze its figures.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { CUSTOMER_BASE } from "./engagement.core";
@@ -18,7 +18,7 @@ import { LAUNCH_CAMPAIGN } from "./launch-campaign.core";
 import {
   EMAIL_PRELIMINARY_CONSENT_SOURCE, EMAIL_PRELIMINARY_REVIEW_EVENT, PRELIMINARY_LINK_PURPOSE, PRELIMINARY_SEND_PURPOSE,
   preliminaryConsentKey, preliminaryConsentSnapshot, preliminaryReviewMetadata, preliminarySendBlocker, preliminarySendKey,
-  renderPreliminarySaveSpotEmail, renderPreliminarySpotSavedEmail,
+  renderPreliminarySaveSpotEmail, preliminarySavedEstimateSnapshot,
 } from "./preliminary-save-spot.core";
 
 export type PreliminarySendResult = { jobId: string; jobNumber: string | null; outcome: "sent" | "skipped" | "blocked" | "failed" | "uncertain"; detail: string; preview?: { to: string; subject: string; html: string; plainText: string; linksReady: boolean }; reviewId?: string; linkToken?: string };
@@ -37,7 +37,7 @@ async function activePreliminaryLink(jobId: string) {
   return data ?? null;
 }
 
-/** Creates the dedicated no-estimate secure link on demand. Idempotent while an active link exists. */
+/** Creates the dedicated preliminary secure link on demand. Idempotent while an active link exists. */
 async function issuePreliminaryLink(jobId: string) {
   const cur = await activePreliminaryLink(jobId);
   if (cur && linkUsable(cur)) return cur;
@@ -240,9 +240,8 @@ export async function preliminarySavePage(token: unknown) {
 }
 
 /**
- * Owner's explicit POST on their secure link. Saves the spot exactly once; records NO estimate,
- * area or rebate snapshot (there is none for this path) and never a made-up figure. The owner
- * receives the approved rebate-free confirmation.
+ * Owner's explicit POST on their secure link. Saves the normal estimate figures exactly once;
+ * repeated saves never reprice the saved snapshot. Confirmation uses the normal Version 1 email.
  */
 export async function savePreliminarySpot(token: unknown) {
   if (!isWellFormedToken(token)) throw new Error("This link is no longer available.");
@@ -263,10 +262,19 @@ export async function savePreliminarySpot(token: unknown) {
   const now = new Date().toISOString();
   let firstSave = false;
   if (!resp?.spot_saved_at) {
-    const ins = await admin.from("lead_campaign_responses").upsert({ job_id: jobId, estimate_link_id: l.id, campaign: LAUNCH_CAMPAIGN, spot_saved_at: now, video_requested: false, desk_check_status: "not_needed", updated_at: now }, { onConflict: "job_id", ignoreDuplicates: true }).select("id");
+    // Normal preparation uses the address, entered ceiling size and current pricing; it never sends.
+    const { syncStep3 } = await import("./estimatelink.server");
+    await syncStep3(jobId);
+    const [{ data: est, error: estimateError }, { data: estLink, error: linkError }] = await Promise.all([
+      admin.from("indicative_estimates").select("id, area_m2, insulation_declared, scenarios").eq("job_id", jobId).eq("status", "current").maybeSingle(),
+      admin.from("customer_estimate_links").select("id, token, status, expires_at").eq("job_id", jobId).eq("purpose", "step3_estimate").eq("status", "active").maybeSingle(),
+    ]);
+    if (estimateError || linkError || !estLink || !linkUsable(estLink)) throw new Error("Your estimate is not ready. Please contact our office before saving your spot.");
+    const snapshot = preliminarySavedEstimateSnapshot(est ?? null, estLink.token);
+    const ins = await admin.from("lead_campaign_responses").upsert({ job_id: jobId, estimate_link_id: estLink.id, campaign: LAUNCH_CAMPAIGN, spot_saved_at: now, video_requested: false, desk_check_status: "not_needed", updated_at: now, ...snapshot }, { onConflict: "job_id", ignoreDuplicates: true }).select("id");
     firstSave = !ins.error && (ins.data?.length ?? 0) > 0;
     if (!firstSave) {
-      const upd = await admin.from("lead_campaign_responses").update({ spot_saved_at: now, updated_at: now }).eq("job_id", jobId).is("opted_out_at", null).is("spot_saved_at", null).select("id");
+      const upd = await admin.from("lead_campaign_responses").update({ spot_saved_at: now, updated_at: now, estimate_link_id: estLink.id, ...snapshot }).eq("job_id", jobId).is("opted_out_at", null).is("spot_saved_at", null).select("id");
       firstSave = !upd.error && (upd.data?.length ?? 0) > 0;
     }
   }
@@ -274,7 +282,7 @@ export async function savePreliminarySpot(token: unknown) {
   if (row?.opted_out_at) throw new Error("This enquiry has already been taken off the list.");
   if (!row?.spot_saved_at) throw new Error("We couldn't save your place. Please try again.");
   if (firstSave) {
-    await logEvent(jobId, null, "campaign_spot_saved", "Owner saved a place for a free Ready Check (preliminary email invitation)", { campaign: LAUNCH_CAMPAIGN, preliminary_email: true, no_estimate: true }, { internal: true });
+    await logEvent(jobId, null, "campaign_spot_saved", "Owner saved a place for a free Ready Check (preliminary email invitation)", { campaign: LAUNCH_CAMPAIGN, preliminary_email: true }, { internal: true });
     // Spot saved → free Ready Check next, same transition as every other save.
     const { data: j } = await admin.from("jobs").select("stage").eq("id", jobId).maybeSingle();
     if (j && ["preliminary_estimate_ready", "new_enquiry", "eligibility_review"].includes(j.stage)) {
@@ -288,7 +296,7 @@ export async function savePreliminarySpot(token: unknown) {
   return { ok: true as const };
 }
 
-/** Rebate-free "spot saved" confirmation for this path. Queued once; TEST homes go to the allowlist. */
+/** Normal saved-estimate email for this path. Queued once; TEST homes go to the allowlist. */
 async function queuePreliminarySpotSavedConfirmation(jobId: string) {
   const { data: done } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "spot_saved_confirmation_queued").limit(1).maybeSingle();
   if (done) return;
@@ -299,12 +307,15 @@ async function queuePreliminarySpotSavedConfirmation(jobId: string) {
   // the preliminary token itself would 404 there. Never invent a working link.
   const { data: estLink } = await admin.from("customer_estimate_links").select("token, status, expires_at").eq("job_id", jobId).eq("purpose", "step3_estimate").eq("status", "active").maybeSingle();
   const usable = estLink && (!estLink.expires_at || new Date(estLink.expires_at).getTime() > Date.now()) ? (estLink.token as string) : null;
-  const email = renderPreliminarySpotSavedEmail({ firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null, myJobUrl: usable ? `${CUSTOMER_BASE}/my-job/${usable}` : null });
+  const { buildSpotSavedMessages } = await import("./spot-saved-send.server");
+  const msgs = usable ? await buildSpotSavedMessages(jobId, usable) : null;
+  if (!msgs) throw new Error("The saved estimate confirmation could not be prepared.");
+  const email = msgs.email;
   const now = new Date().toISOString();
-  // Real homes (Jo 23 Oct): the approved rebate-free email really goes while the Spot saved email switch is on.
+  // Retain this path's email-only delivery and every existing confirmation safeguard.
   if (job.source !== "qa_test") {
     await logEvent(jobId, null, "spot_saved_confirmation_queued", "Spot saved email prepared", { email: !!owner?.email, preliminary_email: true }, { internal: true });
-    const r = await (await import("./spot-saved-send.server")).sendSpotSavedConfirmation(jobId, { token: usable ?? undefined }).catch((e) => ({ email: { status: "failed", detail: (e as Error).message } }));
+    const r = await (await import("./spot-saved-send.server")).sendSpotSavedConfirmation(jobId, { token: usable ?? undefined, emailOnly: true }).catch((e) => ({ email: { status: "failed", detail: (e as Error).message } }));
     if (r.email.status === "skipped") await admin.from("job_communications").insert({ job_id: jobId, direction: "outbound", channel: "email", recipients: owner?.email ? [owner.email] : [], subject: email.subject, body: email.text, provider: "not_sent", sent_at: null, delivery_status: "blocked_prelaunch", visibility: "customer", source_event: "spot_saved:email", source_reference: `Not sent: ${r.email.detail}`.slice(0, 200), created_at: now } as never);
     return;
   }
@@ -317,7 +328,7 @@ async function queuePreliminarySpotSavedConfirmation(jobId: string) {
   } as never);
   if (job.source === "qa_test" && owner?.email) {
     const { sendTestEmail } = await import("./test-send.server");
-    const t = await sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: true, label: "preliminary_spot_saved_confirmation", actorId: null } as never, owner.email, email.subject, email.html, email.text).catch((e) => ({ status: "failed", detail: (e as Error).message }));
+    const t = await sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: true, label: "preliminary_spot_saved_confirmation", actorId: null } as never, owner.email, email.subject, email.html ?? "", email.text).catch((e) => ({ status: "failed", detail: (e as Error).message }));
     await logEvent(jobId, null, "spot_saved_test_email", `Spot saved confirmation (TEST) ${t.status}: ${t.detail}`, {}, { internal: true }).catch(() => null);
   }
   await logEvent(jobId, null, "spot_saved_confirmation_queued", "Spot saved email queued (sending is off)", { email: !!owner?.email, preliminary_email: true }, { internal: true });
