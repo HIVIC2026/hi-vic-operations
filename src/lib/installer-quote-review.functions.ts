@@ -12,13 +12,21 @@ export const getInstallerQuotesToCheck = createServerFn({ method: "POST" }).midd
     if (error) throw new Error("Could not read installer jobs.");
     const ids = (jobs ?? []).map((j) => j.id);
     if (!ids.length) return { rows: [] };
-    const [{ data: quotes, error: qe }, { data: held, error: he }, { data: assigned, error: ae }, { data: businesses, error: be }] = await Promise.all([
-      admin.from("quotes").select("id, job_id, status, sent_at, release_state, customer_total_inc_gst, created_at, release_hold_reason").in("job_id", ids).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]),
-      admin.from("workflow_events").select("job_id, created_at, details").in("job_id", ids).in("event_type", ["installer_quote_held", "ready_check_needs_office"]).order("created_at", { ascending: false }),
-      admin.from("job_assignments").select("job_id, business_id").in("job_id", ids).eq("role", "installer").eq("active", true),
-      admin.from("businesses").select("id, name"),
-    ]);
-    if (qe || he || ae || be) throw new Error("Quotes to check could not be read.");
+    const batches = [];
+    for (let from = 0; from < ids.length; from += 50) batches.push(ids.slice(from, from + 50));
+    const parts = [];
+    for (let from = 0; from < batches.length; from += 4) parts.push(...await Promise.all(batches.slice(from, from + 4).map(async batch => {
+      const [quotes, held, assigned] = await Promise.all([
+        admin.from("quotes").select("id, job_id, status, sent_at, release_state, customer_total_inc_gst, created_at, release_hold_reason").in("job_id", batch).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]),
+        admin.from("workflow_events").select("job_id, created_at, details").in("job_id", batch).in("event_type", ["installer_quote_held", "ready_check_needs_office"]).order("created_at", { ascending: false }),
+        admin.from("job_assignments").select("job_id, business_id").in("job_id", batch).eq("role", "installer").eq("active", true),
+      ]);
+      if (quotes.error || held.error || assigned.error) throw new Error("Quotes to check could not be read.");
+      return { quotes: quotes.data ?? [], held: held.data ?? [], assigned: assigned.data ?? [] };
+    })));
+    const quotes = parts.flatMap(p => p.quotes), held = parts.flatMap(p => p.held).sort((a,b) => b.created_at.localeCompare(a.created_at)), assigned = parts.flatMap(p => p.assigned);
+    const { data: businesses, error: be } = await admin.from("businesses").select("id, name");
+    if (be) throw new Error("Installer names could not be read.");
     const { quoteNeedsOfficeReview, quoteReviewReasons } = await import("./office-quote-review.core");
     const rows = [];
     for (const j of jobs ?? []) {
