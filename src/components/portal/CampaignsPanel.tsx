@@ -11,6 +11,7 @@ import {
   getLaunchCampaignOffice,
   saveDesktopInsulationCheck,
 } from "@/lib/launch-campaign.functions";
+import { InsulationQuestionsCampaign } from "./InsulationQuestionsCampaign";
 
 const LABEL: Record<string, string> = {
   pending: "Needs desk check",
@@ -109,58 +110,27 @@ export function CampaignsPanel() {
         automatic rules, and the wording lives in Templates › Email.
       </div>
 
+      <InsulationQuestionsCampaign />
       <section>
-        <h2 className="font-display text-xl font-bold">Spot saved</h2>
+        <h2 className="font-display text-xl font-bold">Spots saved</h2>
         <p className="text-sm text-sub">
-          Video priority first, then oldest saved spot. Saving a spot does not book a visit.
+          Most likely eligible first, then longest waiting. Saving a spot does not book a visit.
         </p>
-        <div className="mt-3 overflow-x-auto rounded-md border bg-card">
-          <table className="w-full min-w-[680px] text-sm">
-            <thead className="bg-muted/40 text-left">
-              <tr>
-                <th className="p-3">Owner</th>
-                <th className="p-3">Property</th>
-                <th className="p-3">Saved</th>
-                <th className="p-3">Saved price</th>
-                <th className="p-3">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {data.rows
-                .filter((r) => r.spotSavedAt && !r.optedOutAt)
-                .map((r) => (
-                  <tr key={r.id}>
-                    <td className="p-3 font-semibold">
-                      <Link
-                        to="/admin/jobs/$jobId"
-                        params={{ jobId: r.jobId }}
-                        className="hover:underline"
-                      >
-                        {r.owner ?? r.jobNumber ?? "Enquiry"}
-                      </Link>
-                    </td>
-                    <td className="p-3">{r.property || "—"}</td>
-                    <td className="p-3">
-                      {r.spotSavedAt ? new Date(r.spotSavedAt).toLocaleString("en-AU") : "—"}
-                    </td>
-                    <td className="p-3">
-                      {r.savedPrice ?? "—"}
-                      {r.priceChanged && (
-                        <span className="block text-xs font-semibold text-destructive">
-                          {r.priceChanged}
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-3">
-                      {r.queuePriority === "video"
-                        ? "Spot saved · video sent"
-                        : "Spot saved, needs an installer"}
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
+        <ul className="mt-3 divide-y rounded-md border bg-card">
+          {data.rows
+            .filter((r) => r.spotSavedAt && !r.optedOutAt)
+            .map((r) => (
+              <li key={r.id} className="flex flex-wrap items-start gap-2 p-3 text-sm">
+                <span className="shrink-0 rounded-full border px-2 py-0.5 text-xs font-semibold" title={r.rankLabel ?? undefined}>
+                  {r.rank ?? "–"} · {r.rankLabel ?? "—"}
+                </span>
+                <Link to="/admin/jobs/$jobId" params={{ jobId: r.jobId }} className="min-w-0 flex-1 hover:underline">
+                  {r.summary ?? r.owner ?? r.jobNumber ?? "Enquiry"}
+                </Link>
+                {r.priceChanged && <span className="w-full text-xs font-semibold text-destructive">{r.priceChanged}</span>}
+              </li>
+            ))}
+        </ul>
       </section>
 
       <section>

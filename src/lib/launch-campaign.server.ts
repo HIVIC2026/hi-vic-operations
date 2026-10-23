@@ -1,3 +1,8 @@
+import { SPOT_RANK_LABEL, compareSpots, spotSavedRank, spotSummary, type SpotRankFacts } from "./spot-saved-rank.core";
+import { houseAgeLabel, onsiteInsulationLine } from "./onsite-assessment.core";
+import { savedInsulationTap } from "./insulation-details.core";
+import { normaliseInsulation as normaliseInsulationRank } from "./eligibility.core";
+import { declaredExtras as declaredExtrasRank, declaredInsulationDetail as declaredInsulationDetailRank, insulationDetailRoute as insulationDetailRouteRank, insulationDetailText as insulationDetailTextRank } from "./enquiry.core";
 import { fullAddress } from "./address";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { declaredExtras } from "./enquiry.core";
@@ -229,12 +234,13 @@ export async function recordInsulationDeclaration(token: unknown, declarationTyp
 
 export async function launchCampaignOffice() {
   const [{ data: rows, error }, { data: sends }, { data: events }, spotSaved] = await Promise.all([
-    admin.from("lead_campaign_responses").select("id, job_id, spot_saved_at, opted_out_at, media_received_at, desk_check_status, desk_check_reason, queue_priority, queue_rank, saved_total, saved_veu_discount, saved_estimate_id, created_at, jobs!inner(job_number, source, owners(full_name), properties(address_line, suburb, postcode), indicative_estimates(id, status, area_m2, insulation_declared, scenarios))").neq("jobs.source", "qa_test").order("queue_rank", { ascending: false }).order("spot_saved_at", { ascending: true, nullsFirst: false }),
+    admin.from("lead_campaign_responses").select("id, job_id, spot_saved_at, opted_out_at, media_received_at, desk_check_status, desk_check_reason, queue_priority, queue_rank, saved_total, saved_veu_discount, saved_estimate_id, created_at, jobs!inner(job_number, source, owners(full_name), properties(address_line, suburb, postcode, enrichment), indicative_estimates(id, status, area_m2, insulation_declared, scenarios))").neq("jobs.source", "qa_test").order("queue_rank", { ascending: false }).order("spot_saved_at", { ascending: true, nullsFirst: false }),
     admin.from("customer_email_sends").select("status, idempotency_key, jobs!inner(source)").eq("purpose", LAUNCH_CAMPAIGN),
     admin.from("customer_engagement_events").select("event_type").eq("source", "launch_campaign"),
     officeSpotsSaved(),
   ]);
   if (error) throw new Error(error.message);
+  const rank = await spotRankFacts((rows ?? []).filter((r) => r.spot_saved_at && !r.opted_out_at).map((r) => r.job_id));
   const count = (xs: { status?: string; event_type?: string }[] | null, key: "status" | "event_type", value: string) => (xs ?? []).filter((x) => x[key] === value).length;
   return {
     sendingLocked: !LAUNCH_COPY_APPROVED,
@@ -249,11 +255,46 @@ export async function launchCampaignOffice() {
       needsOnsite: (rows ?? []).filter((r) => r.desk_check_status === "needs_onsite_check").length,
     },
     rows: (rows ?? []).map((r) => {
-      const job = r.jobs as { job_number: string | null; owners: { full_name: string | null } | null; properties: { address_line: string | null; suburb: string | null; postcode: string | null } | null; indicative_estimates?: { id: string; status: string; area_m2: number | null; insulation_declared: string | null; scenarios: unknown }[] | null } | null;
+      const job = r.jobs as { job_number: string | null; owners: { full_name: string | null } | null; properties: { address_line: string | null; suburb: string | null; postcode: string | null; enrichment?: Record<string, unknown> | null } | null; indicative_estimates?: { id: string; status: string; area_m2: number | null; insulation_declared: string | null; scenarios: unknown }[] | null } | null;
       const cur = savedPriceFromEstimate((job?.indicative_estimates ?? []).find((e) => e.status === "current") ?? null);
       const price = savedPriceLabel({ total: r.saved_total == null ? null : Number(r.saved_total), discount: r.saved_veu_discount == null ? null : Number(r.saved_veu_discount), savedAt: r.spot_saved_at, estimateId: r.saved_estimate_id }, cur);
-      return { id: r.id, jobId: r.job_id, jobNumber: job?.job_number ?? null, owner: job?.owners?.full_name ?? null, property: fullAddress(job?.properties?.address_line, job?.properties?.suburb, job?.properties?.postcode), spotSavedAt: r.spot_saved_at, optedOutAt: r.opted_out_at, mediaReceivedAt: r.media_received_at, queuePriority: r.queue_priority, savedPrice: price?.text ?? null, priceChanged: price?.changeNote ?? null, deskCheckStatus: r.desk_check_status, deskCheckReason: r.desk_check_reason };
-    }),
+      return { id: r.id, jobId: r.job_id, jobNumber: job?.job_number ?? null, owner: job?.owners?.full_name ?? null, property: fullAddress(job?.properties?.address_line, job?.properties?.suburb, job?.properties?.postcode), spotSavedAt: r.spot_saved_at, optedOutAt: r.opted_out_at, mediaReceivedAt: r.media_received_at, queuePriority: r.queue_priority, savedPrice: price?.text ?? null, priceChanged: price?.changeNote ?? null, deskCheckStatus: r.desk_check_status, deskCheckReason: r.desk_check_reason, ...spotRankRow(rank, r, job) };
+    }).sort((a, b) => (a.rank && b.rank ? compareSpots({ rank: a.rank, spotSavedAt: a.spotSavedAt }, { rank: b.rank, spotSavedAt: b.spotSavedAt }) : 0)),
+  };
+}
+
+type RankData = { media: Map<string, number>; reviews: Map<string, string[]> };
+async function spotRankFacts(jobIds: string[]): Promise<RankData> {
+  const media = new Map<string, number>(), reviews = new Map<string, string[]>();
+  for (let i = 0; i < jobIds.length; i += 200) {
+    const c = jobIds.slice(i, i + 200);
+    const [docs, ev, rv] = await Promise.all([
+      admin.from("documents").select("job_id").in("job_id", c).eq("kind", "intake_media"),
+      admin.from("evidence_files").select("job_id, storage_path").in("job_id", c),
+      admin.from("customer_engagement_events").select("job_id, metadata, occurred_at").in("job_id", c).eq("event_type", "intake_media_reviewed").eq("source", "office").order("occurred_at"),
+    ]);
+    if (docs.error || ev.error || rv.error) throw new Error("Could not read saved spot details.");
+    for (const d of docs.data ?? []) if (d.job_id) media.set(d.job_id, (media.get(d.job_id) ?? 0) + 1);
+    for (const e of ev.data ?? []) if (e.job_id && e.storage_path?.startsWith(`${e.job_id}/intake/`)) media.set(e.job_id, (media.get(e.job_id) ?? 0) + 1);
+    for (const r of rv.data ?? []) { const o = (r.metadata as { outcome?: string } | null)?.outcome; if (r.job_id && o) reviews.set(r.job_id, [...(reviews.get(r.job_id) ?? []), o]); }
+  }
+  return { media, reviews };
+}
+
+function spotRankRow(d: RankData, r: { job_id: string; spot_saved_at: string | null; opted_out_at: string | null; desk_check_status: string | null }, job: { owners: { full_name: string | null } | null; properties: { suburb: string | null; enrichment?: Record<string, unknown> | null } | null; indicative_estimates?: { status: string; area_m2: number | null }[] | null } | null) {
+  if (!r.spot_saved_at || r.opted_out_at) return { rank: null as number | null, rankLabel: null as string | null, summary: null as string | null };
+  const e = job?.properties?.enrichment ?? null;
+  const answers = ((e?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } }).raw?.answers ?? null;
+  const declared = normaliseInsulationRank(declaredExtrasRank(answers).existing_insulation);
+  const tap = savedInsulationTap(e);
+  const outs = d.reviews.get(r.job_id) ?? [];
+  const latest = (outs.at(-1) ?? null) as SpotRankFacts["reviewOutcome"];
+  const mediaCount = d.media.get(r.job_id) ?? 0;
+  const rank = spotSavedRank({ reviewOutcome: latest, hadUnclearReview: outs.includes("unclear"), deskLooksEligible: r.desk_check_status === "looks_eligible", declared, mediaCount, tapRoute: tap?.route ?? null, declaredThinPatchy: insulationDetailRouteRank(declaredInsulationDetailRank(answers)) === "likely_save_spot" });
+  const area = (job?.indicative_estimates ?? []).find((x) => x.status === "current")?.area_m2 ?? null;
+  return {
+    rank, rankLabel: SPOT_RANK_LABEL[rank] ?? null,
+    summary: spotSummary({ owner: job?.owners?.full_name ?? null, suburb: job?.properties?.suburb ?? null, houseAge: tap ? houseAgeLabel(tap.answers) : null, said: tap ? onsiteInsulationLine(tap.answers) : insulationDetailTextRank(declaredInsulationDetailRank(answers)) || null, declared, mediaCount, areaM2: area == null ? null : Number(area), spotSavedAt: r.spot_saved_at }),
   };
 }
 

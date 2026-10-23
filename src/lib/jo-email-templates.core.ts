@@ -284,7 +284,11 @@ function renderBelowR2Reviewed(r: JoRecipient, f: JoEstimateFigures): string {
   ].join("\n");
 }
 
-function renderPotentiallyEligible(r: JoRecipient, f: JoEstimateFigures): string {
+/** Jo 23 Oct 2026 (DRAFT, awaiting Jo's final wording): "Tell us about your insulation" campaign variant of T5/T6 —
+ *  same price box plus the "up to" removal line, one button to the three tap questions. */
+export const INSULATION_QUESTIONS_CTA_LABEL = "Answer 3 quick questions to get your spot";
+function renderPotentiallyEligible(r: JoRecipient, f: JoEstimateFigures, questions = false): string {
+  const removalBox = questions && f.removalUpTo != null && f.removalUpTo > 0;
   const assumedNote = f.areaEstimated
     ? "You didn’t provide a ceiling size, so we’ve used 150 m² for this preliminary quote. These figures assume the property qualifies; eligibility and the measured ceiling area still need to be confirmed."
     : "These figures assume the property qualifies. We’ll confirm eligibility and the ceiling measurements at your free Ready Check.";
@@ -297,11 +301,21 @@ function renderPotentiallyEligible(r: JoRecipient, f: JoEstimateFigures): string
     `**Potential VEU rebate: ${money(f.veuRebate)}**`, "",
     `Estimated cost if eligible: ${money(f.customerTotal)} including GST`,
     `Before rebate: ${money(f.totalBeforeRebate)} including GST`, "",
+    ...(removalBox ? [removalUpToLine(f.removalUpTo!, f.ceilingAreaM2), REMOVAL_UPTO_NOTE, ""] : []),
     `Property: ${r.propertyAddress}`,
     ceilingLine(f), "",
     assumedNote, "",
     "Want to explore a different ceiling size? Open the calculator →", "",
     includesTable(true, f), "",
+    ...(questions ? [
+    "### Get your spot in about a minute", "",
+    "Demand is high, and we’re offering spots to homes that look likely to qualify first. Answer three quick tap questions about your existing insulation — no typing — or send photos or a short video if you prefer.", "",
+    "[Tell us about your insulation]", "",
+    "Only take photos or video if you can do so safely, and don’t enter the roof space.", "",
+    "### What could change this price?", "",
+    removalBox ? "Final eligibility, measurements, access and any electrical fixes may affect the price. Electrical fixes are excluded. Any additional costs will be confirmed for your approval before you commit." : "If insulation is present, some may be able to stay and some may need removal. Allow $15 per m² including GST for the areas requiring removal only, assessed at your free Ready Check. Removal and electrical fixes are excluded.", "",
+    "Home Insulation Victoria", "", footer(r.enquiryReference),
+    ] : [
     "### Help us move your enquiry forward", "",
     "Demand is high, and we’re progressing homes with preliminary eligibility confirmed first.", "",
     "Tell us about your existing insulation: upload photos or a short video, or answer three quick tap questions. No typing needed.", "",
@@ -311,6 +325,7 @@ function renderPotentiallyEligible(r: JoRecipient, f: JoEstimateFigures): string
     "If insulation is present, some may be able to stay and some may need removal. Allow $15 per m² including GST for the areas requiring removal only, assessed at your free Ready Check.", "",
     "Removal and electrical fixes are excluded. Final eligibility, measurements, access and any additional costs will be confirmed for your approval before you commit.", "",
     "Home Insulation Victoria", "", footer(r.enquiryReference),
+    ]),
   ].join("\n");
 }
 
@@ -403,7 +418,7 @@ export function renderJoEstimateEmail(
   id: Exclude<JoTemplateId, "ineligible" | "ready_check_invitation">,
   recipient: JoRecipient,
   figures: JoEstimateFigures,
-  opts: { declaredThinPatchy?: boolean } = {},
+  opts: { declaredThinPatchy?: boolean; insulationQuestions?: boolean } = {},
 ): JoRenderResult {
   let body: string;
   switch (id) {
@@ -417,7 +432,7 @@ export function renderJoEstimateEmail(
       break;
     case "potentially_eligible_unknown_size_unknown":
     case "potentially_eligible_unknown_size_known":
-      body = renderPotentiallyEligible(recipient, figures);
+      body = renderPotentiallyEligible(recipient, figures, opts.insulationQuestions === true);
       break;
   }
   return { templateId: id, subject: subjectForTemplate(id, recipient.firstName, figures.veuRebate), body, ctas: ctasForTemplate(id) };

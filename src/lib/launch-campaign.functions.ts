@@ -43,3 +43,28 @@ export const getSavedSpot = createServerFn({ method: "POST" }).middleware([requi
     await requireAdmin(context.supabase);
     return (await import("./launch-campaign.server")).savedSpotForJob(data.jobId);
   });
+
+/** Jo 23 Oct 2026: "Tell us about your insulation" campaign — overview, preview, batch send (send refused until approved). */
+export const insulationQuestionsOverviewFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ batch: z.number().int().min(1).max(1000).default(1) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { requireAdmin } = await import("./workflow.server");
+    await requireAdmin(context.supabase);
+    return (await import("./insulation-questions-campaign.server")).questionsCampaignOverview(data.batch);
+  });
+
+export const insulationQuestionsPreviewFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { requireAdmin } = await import("./workflow.server");
+    await requireAdmin(context.supabase);
+    return (await import("./insulation-questions-campaign.server")).questionsCampaignPreview(data.jobId, context.userId);
+  });
+
+export const insulationQuestionsSendBatchFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobIds: z.array(z.string().uuid()).min(1).max(100) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { requireAdmin } = await import("./workflow.server");
+    await requireAdmin(context.supabase);
+    return (await import("./insulation-questions-campaign.server")).questionsCampaignSendBatch(data.jobIds, context.userId);
+  });
