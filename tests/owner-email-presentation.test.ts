@@ -17,7 +17,7 @@ test('suburb uses stored address when separate suburb is blank', () => {
   expect(emailSuburb(null,'Unknown address')).toBe(null);
 });
 test('auto replies, bounces and marketing are excluded', () => {
-  for(const c of [{subject:'Automatic reply: Hello'}, {subject:'Undeliverable: quote'}, {body:'Buy now. Click to unsubscribe'}, {from:'no-reply@example.com'}]) expect(isHumanOwnerEmail({provider:'outlook',direction:'inbound',from:'sam@example.com',body:'Hello',...c})).toBe(false);
+  for(const c of [{subject:'Automatic reply: Hello'}, {subject:'Undeliverable: quote'}, {subject:'Re: Ceiling Insulation – Contractor Collaboration'}, {body:'Buy now. Click to unsubscribe'}, {from:'no-reply@example.com'}]) expect(isHumanOwnerEmail({provider:'outlook',direction:'inbound',from:'sam@example.com',body:'Hello',...c})).toBe(false);
   expect(isHumanOwnerEmail({provider:'outlook',direction:'inbound',from:'sam@example.com',body:'Please unsubscribe me.'})).toBe(true);
 });
 test('two jobs for the same owner produce one latest owner row', () => {

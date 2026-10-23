@@ -26,6 +26,7 @@ export function isHumanOwnerEmail(c: EmailDisplayFacts): boolean {
   const from = c.from ?? "";
   if (c.direction === "inbound" && /(?:@homeinsulationvictoria\.com\.au|mailer-daemon|postmaster|no[-_]?reply|notifications?@|newsletter)/i.test(from)) return false;
   if (/^(?:automatic reply:|auto(?:matic)?[- ]?response:|out of office\b|undeliverable:|delivery (?:status|failure)|mail delivery (?:failed|subsystem))/i.test(c.subject ?? "")) return false;
+  if (/(?:\bnewsletter\b|\bcontractor collaboration\b|\bmarketing proposal\b)/i.test(c.subject ?? "")) return false;
   const body = cleanOwnerEmail(c.body);
   if (c.direction === "outbound" && /(?:we have been inundated|we are expanding our network|your (?:spot is saved|preliminary quote is ready)|save (?:your|my) spot|your.*rebate is waiting|this is (?:an automatic|a reminder))/i.test(body)) return false;
   if (/\b(?:click (?:here )?to unsubscribe|manage (?:your )?(?:email )?preferences|view (?:this email )?in (?:your )?browser|unsubscribe from (?:this|our) (?:list|newsletter|emails))\b/i.test(body)) return false;

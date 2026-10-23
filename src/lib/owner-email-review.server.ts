@@ -14,7 +14,7 @@ export async function listOwnerEmailsToReview() {
   const latest = new Map<string, NonNullable<typeof inbound>[number]>();
   for (const c of inbound ?? []) if (isHumanOwnerEmail({ ...c, from: c.sender_text, provider: "outlook", direction: "inbound" }) && !latest.has(c.job_id)) latest.set(c.job_id, c);
   const ids = [...latest.keys()];
-  const rows = [];
+  const rows: { needs: boolean; ownerId: string; jobId: string; jobNumber: string; owner: string | null; suburb: string | null; stage: string; canReview: boolean; from: string | null; subject: string | null; body: string; at: string; mediaCount: number }[] = [];
   for (let i = 0; i < ids.length; i += 100) {
     const batch = ids.slice(i, i + 100);
     const [jobs, out, events, done] = await Promise.all([
