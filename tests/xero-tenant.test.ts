@@ -7,7 +7,8 @@ describe("Xero organisation routing", () => {
     expect(pickXeroTenant([real, demo], "test").tenantId).toBe("d");
     expect(() => pickXeroTenant([real], "test")).toThrow(/Demo Company/);
   });
-  test("real jobs blocked while switch off, never Demo", () => {
-    expect(() => pickXeroTenant([real, demo], "live")).toThrow(/switched off/);
+  test("real jobs (live calls on, Jo 24 Oct) go only to DC Construction Solutions, never Demo", () => {
+    expect(pickXeroTenant([demo, real], "live")).toBe(real);
+    expect(() => pickXeroTenant([demo], "live")).toThrow(/not connected/);
   });
 });

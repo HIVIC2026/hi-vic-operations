@@ -32,7 +32,8 @@ describe("external integration network safety", () => {
     expect(read("src/lib/xero.server.ts")).toContain("timeoutSignal(XERO_FETCH_TIMEOUT_MS)");
   });
 
-  test("Xero live calls remain disabled in code", () => {
-    expect(read("src/lib/xero.core.ts")).toContain("export const XERO_LIVE_CALLS_ENABLED = false");
+  test("Xero live calls are on (Jo 24 Oct 2026) and still routed only to the named live organisation", () => {
+    expect(read("src/lib/xero.core.ts")).toContain("export const XERO_LIVE_CALLS_ENABLED = true");
+    expect(read("src/lib/xero.core.ts")).toContain('throw new Error("DC Construction Solutions Xero organisation is not connected.")');
   });
 });

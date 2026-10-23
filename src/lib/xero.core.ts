@@ -132,8 +132,9 @@ export function parseXeroDate(d?: string) {
 export const lockHeld = (lockAt: string | null, now = Date.now()) => !!lockAt && now - Date.parse(lockAt) < LOCK_STALE_MS;
 
 // ---------- Organisation routing (fail closed) ----------
-/** Live jobs may call Xero only when this switch is turned on. Off = no Xero calls for real jobs. */
-export const XERO_LIVE_CALLS_ENABLED = false;
+/** Live jobs may call Xero only when this switch is turned on. Off = no Xero calls for real jobs.
+ *  Jo 24 Oct 2026: ON — the live Xero (DC Construction Solutions, Home Insulation Victoria business unit) is ready. */
+export const XERO_LIVE_CALLS_ENABLED = true;
 export type XeroMode = "test" | "live";
 export type XeroTenant = { tenantId: string; tenantName?: string | null };
 const DEMO = /demo company/i;
