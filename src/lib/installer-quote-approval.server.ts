@@ -30,7 +30,8 @@ export async function loadQuoteApproval(jobId: string): Promise<QuoteApproval> {
   const latest = approvals.find((a) => a.quoteId === q.id);
   let adjustedAfter = false;
   if (latest) {
-    const { data: adj } = await admin.from("quote_adjustments").select("created_at").eq("quote_id", q.id).gt("created_at", latest.at).limit(1);
+    const { data: adj, error: ae } = await admin.from("quote_adjustments").select("created_at").eq("quote_id", q.id).gt("created_at", latest.at).limit(1);
+    if (ae) throw new WorkflowError("Quote adjustment history could not be checked.");
     adjustedAfter = !!adj?.length;
   }
   const state = approvalState({ quoteId: q.id, quoteFp, formFp, approvals, adjustedAfterApproval: adjustedAfter });

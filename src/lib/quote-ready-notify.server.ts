@@ -29,10 +29,17 @@ export async function notifyOwnerQuoteReady(jobId: string, quoteId: string, kind
     if (ae || pe) throw new Error("TEST partner could not be checked.");
     const { isTestPartner } = await import("./test-send.core");
     const { sendTestEmail, sendTestSms } = await import("./test-send.server");
+    const [{ data: quote, error: qe }, { data: link, error: le }] = await Promise.all([
+      admin.from("quotes").select("customer_total_inc_gst").eq("id", quoteId).eq("job_id", jobId).maybeSingle(),
+      admin.from("customer_estimate_links").select("token,status,expires_at").eq("job_id", jobId).eq("purpose", "step3_estimate").eq("status", "active").maybeSingle(),
+    ]);
+    const { linkUsable } = await import("./estimatelink.core");
+    if (qe || le || !quote || !link || !linkUsable(link)) throw new Error("TEST quote total or owner link is unavailable.");
+    const { CUSTOMER_BASE } = await import("./engagement.core");
+    const payload = (await import("./quote-ready-test.core")).testQuoteNotification(String(job.job_number ?? ""), Number(quote.customer_total_inc_gst), `${CUSTOMER_BASE}/my-job/${link.token}?view=quote`);
     const ctx = { jobId, jobSource: job.source, partnerIsTest: isTestPartner(partner), label: `quote_ready:${quoteId}`, actorId: null };
-    const text = `[TEST] ${quoteReadySmsBody(String(job.job_number ?? ""))}`;
-    const email = await sendTestEmail(ctx, owner?.email ?? "", `[TEST] Quote ready — ${job.job_number}`, `<p>${text}</p>`, text);
-    const sms = await sendTestSms(ctx, owner?.phone ?? "", text);
+    const email = await sendTestEmail(ctx, owner?.email ?? "", payload.subject, payload.html, payload.text);
+    const sms = await sendTestSms(ctx, owner?.phone ?? "", payload.text);
     return { email: `${email.status}: ${email.detail}`, sms: `${sms.status}: ${sms.detail}` };
   }
 

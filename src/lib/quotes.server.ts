@@ -285,7 +285,7 @@ export async function adjustQuote(quoteId: string, actorId: string, reason: stri
   const dr = quoteAdjustmentDiscount(veecDiscount ?? Number(before.veec_discount_inc_gst), subtotal, Number(rs?.indicative_veec_value), Number(rs?.minimum_customer_copayment_inc_gst ?? 200), discountOverride);
   if (!dr.ok) throw new WorkflowError(dr.error);
   const veec = dr.discount;
-  const { data: s } = await admin.from("pricing_settings").select("gst_rate").eq("id", before.pricing_settings_id).maybeSingle();
+  const { data: s } = before.pricing_settings_id ? await admin.from("pricing_settings").select("gst_rate").eq("id", before.pricing_settings_id).maybeSingle() : { data: null };
   const gst = 1 + Number(s?.gst_rate ?? 0.1);
   const after = { subtotal_inc_gst: subtotal, gst_amount: r2(subtotal - subtotal / gst), veec_discount_inc_gst: veec, customer_total_inc_gst: r2(subtotal - veec), manually_adjusted: true, ...(veec !== Number(before.veec_discount_inc_gst) ? { veec_count: dr.veecs, veec_unit_value_inc_gst: dr.veecs != null ? Number(rs?.indicative_veec_value) : null } : {}) };
   await admin.from("quotes").update({ ...after, version: before.version + 1 }).eq("id", quoteId);

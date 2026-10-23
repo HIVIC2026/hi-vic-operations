@@ -3,7 +3,7 @@ let source = "qa_test", marked = true, allowed = true;
 const sent: string[] = [];
 mock.module("../src/integrations/supabase/client.server", () => ({ supabaseAdmin: { from(table: string) {
   const q: any = { select() { return q; }, eq() { return q; }, maybeSingle() {
-    return Promise.resolve({ error: null, data: table === "jobs" ? { source,owner_id:"o",job_number:"HV-TEST",stage:"ready_check_scheduled" } : table === "owners" ? {email:"jolowexo@hotmail.com",phone:"0477511901"} : table === "job_assignments" ? { business_id:"b" } : table === "businesses" ? {onboarding_notes:marked?"[TEST PARTNER]":null} : null });
+    return Promise.resolve({ error: null, data: table === "jobs" ? { source,owner_id:"o",job_number:"HV-TEST",stage:"ready_check_scheduled" } : table === "quotes" ? {customer_total_inc_gst:3830.25} : table === "customer_estimate_links" ? {token:"test-token",status:"active",expires_at:"2099-01-01"} : table === "owners" ? {email:"jolowexo@hotmail.com",phone:"0477511901"} : table === "job_assignments" ? { business_id:"b" } : table === "businesses" ? {onboarding_notes:marked?"[TEST PARTNER]":null} : null });
   }};return q;
 }}}));
 mock.module("../src/lib/comms.server", () => ({ assertCustomerDeliveryAllowed: async () => { if(!allowed)throw Error("No contact permission"); } }));
