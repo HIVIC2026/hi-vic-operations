@@ -134,6 +134,9 @@ function candidates(entries: Entry[], aliases: string[]): Entry[] {
   return exact.length ? exact : pool.filter((e) => ns.some((a) => e.norm.startsWith(a)));
 }
 
+/** A pick-list answer → its selected options (Mitti joins multi-select labels with ", "). */
+export const splitSelected = (v: string | null): string[] => (v ?? "").split(/\s*,\s*/).map((x) => x.trim()).filter(Boolean);
+
 export function yesNo(v: string | null): boolean | null {
   if (v == null) return null;
   const n = norm(v);
@@ -383,18 +386,24 @@ export function parseAudit(audit: Any) {
     const mc = val(kids, ["Insulation type (tick all that apply)", "What type of existing insulation is installed? Select all that apply", "Existing insulation type", "Insulation type to remove"]);
     const removalType = [mc, ...tickTypes].filter(Boolean).join(", ") || null;
     const rv = physical(val(kids, ["What is the determined R value of the existing ceiling insulation?", "Existing R-value", "Measured R-value"]), "R value").value;
-    return { parent: p, m2: m2.value, state, removal, removalType, rv };
+    // Jo 23 Oct: photos are optional in Mitti — note which are missing so they move to the install-day lock.
+    const has = (labels: string[]) => !!find(kids, labels, { withValue: true });
+    const photos = { depth: has(["Upload a photo clearly showing the measured insulation depth", "Photo with tape measure showing depth"]), overview: has(["Upload an overview photo of this ceiling area", "Photo of the empty ceiling space"]) };
+    const remAnswer = physical(val(kids, ["How much existing insulation needs to be removed? (m²)", "Area to remove (m2)"]), "How much existing insulation needs to be removed? (m²)");
+    if (remAnswer.issue) issues.push(remAnswer.issue);
+    return { parent: p, m2: m2.value, state, removal, removalType, rv, photos, insulated: present === true || /under-insulated/.test(state), remAnswer: remAnswer.value };
   });
   if (rooms.length > 0) {
     if (rooms.some((r) => r.m2 == null || r.m2 <= 0)) issues.push("A room's measured area was missing or invalid – whole-house area not taken from Mitti; office review required.");
     else patch.measured_area_m2 = r2(rooms.reduce((s, r) => s + (r.m2 ?? 0), 0));
     if (rooms.some((r) => r.state)) patch.insulation_present = rooms.some((r) => /under-insulated/.test(r.state));
-    if (rooms.some((r) => r.removal != null)) {
-      patch.removal_required = rooms.some((r) => r.removal === true);
+    if (rooms.some((r) => r.removal != null || (r.remAnswer ?? 0) > 0)) {
+      patch.removal_required = rooms.some((r) => r.removal === true || (r.remAnswer ?? 0) > 0);
       if (patch.removal_required) {
-        const remRooms = rooms.filter((r) => r.removal === true);
-        // Prefer the per-area "Area to remove (m2)" answer; fall back to the area's full m2.
-        const remM2 = remRooms.map((r) => { const kids = areaKids(r.parent); const v = physical(val(kids, ["Area to remove (m2)", "How much existing insulation needs to be removed? (m²)"]), "Area to remove (m2)"); return v.value != null && v.value > 0 ? v.value : r.m2; });
+        // Jo 23 Oct: every area's "How much existing insulation needs to be removed? (m²)" answer is summed;
+        // an area marked Remove with no answer falls back to that area's full m2.
+        const remRooms = rooms.filter((r) => r.removal === true || (r.remAnswer ?? 0) > 0);
+        const remM2 = remRooms.map((r) => (r.remAnswer != null && r.remAnswer > 0 ? r.remAnswer : r.m2));
       if (remM2.some((m) => m == null || m <= 0)) issues.push("A removal area's size was missing or invalid – removal area not taken from Mitti; office review required.");
         else patch.removal_m2 = r2(remM2.reduce<number>((s, m) => s + (m ?? 0), 0));
         const types = [...new Set(remRooms.flatMap((r) => (r.removalType ?? "").split(/[,;\n]+/)).map((t) => t.trim()).filter(Boolean))];
@@ -507,19 +516,26 @@ export function parseAudit(audit: Any) {
   }
 
   // Installer's Ready Check outcome (Form A1): a failed check is an office matter, never an auto-rejection.
+  // Multi pick list (Jo 23 Oct): every selected option is kept.
+  const failReasons = splitSelected(val(entries, ["Why did the property fail the ready check? Select all that apply", "Why did the property fail the ready check"]));
   const rcOutcome = norm(val(entries, ["Based on your onsite assessment, does this property meet the Ready Check requirements to proceed?"]));
   if (/failed|^no\b/.test(rcOutcome)) {
     issues.push("Installer marked the Ready Check as failed – office review required.");
-    const reason = val(entries, ["Why did the property fail the ready check"]);
+    const reason = failReasons.length ? failReasons.join(", ") : null;
     if (reason) patch.notes = [patch.notes, `Ready Check failed – installer reasons: ${reason}`].filter(Boolean).join(". ").slice(0, 4000);
   }
 
+  const photoGaps = {
+    access: !!find(entries, ["Upload a clear photo of the ceiling access point"], { withValue: true }),
+    areas: rooms.map((r, i) => ({ area: i + 1, insulated: r.insulated, depth: r.photos.depth, overview: r.photos.overview })),
+  };
   const readyFlag = yesNo(val(entries, ["Ready for office review"]));
   const completed = !!(audit?.completed || audit?.audit_data?.date_completed || audit?.completed_at || readyFlag);
   return {
     auditId, patch, issues, others, completed,
     templateId: String(audit?.template_id ?? audit?.audit_data?.template_id ?? ""),
     jobNumber: val(entries, ["Portal Job Number", "Job Reference ID"]),
+    failReasons,
     jobNumberField: !!find(entries, ["Portal Job Number", "Job Reference ID"]),
     photoGaps,
     modifiedAt: audit?.modified_at ?? audit?.audit_data?.date_modified ?? null,
