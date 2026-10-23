@@ -423,15 +423,15 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
             if (d?.ready) await applyCobrand(jobId);
           } catch (e) { issues = [...issues, `Owner quote could not be drafted: ${e instanceof Error ? e.message : "error"}`]; }
         }
-        // Jo 24 Oct: installer marks the form Complete → the quote goes to the owner when every check passes,
-        // otherwise it is held for the office with the reasons. A form changed after sending is flagged.
-        if (readyCheckVariant(job.channel) === "ready_check_priced") {
-          try {
-            const { maybeAutoSendInstallerQuote } = await import("./auto-quote-send.server");
-            const r = await maybeAutoSendInstallerQuote(jobId, { formCompleted: plan.completed, formModifiedAt: plan.modifiedAt ?? null });
-            if (r.sent) issues = [...issues, "Owner quote sent automatically"];
-          } catch (e) { issues = [...issues, `Automatic quote send failed: ${e instanceof Error ? e.message : "error"}`]; }
-        }
+        // Jo 24 Oct: installer marks the form Complete → measurements recorded, eligibility from the form answers, quote
+        // stage, and the owner's quote goes out when every check passes (installer jobs and our leads); otherwise held
+        // for the office with the reasons. A form changed after sending is flagged.
+        try {
+          const { finishMittiReadyCheck } = await import("./mitti-complete.server");
+          const r = await finishMittiReadyCheck(jobId, { auditId: measureAudit, completed: plan.completed, modifiedAt: plan.modifiedAt ?? null,
+            entries: (plan.snapshot ?? []) as { label: string; value: unknown }[], ourLead: readyCheckVariant(job.channel) !== "ready_check_priced" });
+          if (r.done === "sent") issues = [...issues, "Owner quote sent automatically"];
+        } catch (e) { issues = [...issues, `Ready Check completion step failed: ${e instanceof Error ? e.message : "error"}`]; }
         // Stage 7 (Jo 22 Oct): incomplete form → record what the installer must add (dormant text; office chase after 24h).
         await (await import("./ready-check-chase.server")).recordReadyCheckProgress({
           jobId, actorId, auditId: measureAudit, entries: (plan.snapshot ?? []) as { label: string; value: unknown }[],

@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { automaticQuoteSendingAllowed, quoteNeedsOfficeReview, quoteReviewReasons } from "../src/lib/office-quote-review.core";
 import { confirmedQuoteDecision } from "../src/lib/quote-release.core";
-test("A2 (our leads) never auto-send; A1 only on Complete once Jo switches it on (Jo 24 Oct)", () => {
+test("A1 and A2 auto-send only on Complete once Jo switches it on (Jo 24 Oct)", () => {
   expect(automaticQuoteSendingAllowed("A2")).toBe(false);
   expect(automaticQuoteSendingAllowed("A1")).toBe(false); // switch still off
   expect(confirmedQuoteDecision({ estimateTotal: 4000, quoteTotal: 4000, tolerancePct: 15, hasUnratedExtras: false, externalSendingEnabled: true }).status).toBe("draft");

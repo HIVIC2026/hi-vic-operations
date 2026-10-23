@@ -27,10 +27,8 @@ export async function officeQuoteBlockers(jobId: string, quote: { id: string; cr
     if (error) throw new WorkflowError("Ready Check could not be checked.");
     try { (await import("./scope.core")).quoteInputsFromMeasurement(m); } catch (e) { reasons.push(e instanceof Error ? e.message : "Ready Check needs review"); }
   }
-  // Jo 24 Oct: on installer jobs the installer no longer approves the quote (Complete in Mitti + these checks are the
-  // gate). Our own leads keep the installer's "Measurements are final" step.
-  const approval = job.channel === "installer_sourced" ? null : await (await import("./installer-quote-approval.server")).installerApprovalBlocker(jobId, quote);
-  return [...new Set([...reasons, ...intake, ...(billing ? [billing] : []), ...(approval ? [approval] : [])])];
+  // Jo 24 Oct: no installer approval on any Ready Check quote — Complete in Mitti + these checks are the gate.
+  return [...new Set([...reasons, ...intake, ...(billing ? [billing] : [])])];
 }
 
 /** Office "Send quote" (an authenticated button). */
@@ -47,6 +45,17 @@ export async function releaseQuoteToOwner(jobId: string, quoteId: string, actorI
   if (blockers.length) throw new WorkflowError(blockers.join(" • "));
   const { assertCustomerDeliveryAllowed } = await import("./comms.server");
   await assertCustomerDeliveryAllowed(jobId, "Office Send quote");
+  // Jo 24 Oct: release only when the owner can actually accept it — right stage, invoicing settled, and a secure link.
+  const wf = await import("./workflow.server");
+  const { data: st } = await admin.from("jobs").select("stage").eq("id", jobId).single();
+  if (st?.stage === "ready_check_complete") {
+    // Sending the quote IS the move to the quote stage; its entry checks (Ready Check complete, eligibility) still apply.
+    const sb = await wf.stageEntryBlockers(jobId, "measured_estimate_ready");
+    if (sb.length) throw new WorkflowError(sb.join(" • "));
+    await wf.transition(jobId, "measured_estimate_ready", actorId, how === "office" ? "Quote stage: office sending the owner's quote" : "Quote stage: Ready Check complete", { quote_id: quoteId });
+  } else if (!["measured_estimate_ready", "awaiting_quote_acceptance"].includes(String(st?.stage))) throw new WorkflowError(`The job isn't at the quote stage yet (${st?.stage ?? "unknown"}), so the owner couldn't accept it.`);
+  { const cb = await (await import("./workflow.server")).commercialBlocker(jobId); if (cb) throw new WorkflowError(cb); }
+  if (!(await (await import("./estimatelink.server")).ensureOwnerLink(jobId))) throw new WorkflowError("The owner has no secure My job link, so they couldn't open or accept the quote.");
   const { data: source } = await admin.from("jobs").select("source").eq("id", jobId).single();
   if (source?.source === "qa_test") {
     const { data: link, error: le } = await admin.from("customer_estimate_links").select("status,expires_at").eq("job_id", jobId).eq("purpose", "step3_estimate").eq("status", "active").maybeSingle();

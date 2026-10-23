@@ -88,8 +88,8 @@ describe("maybeAutoSendInstallerQuote", () => {
 
 test("wired into the Mitti sync for installer forms only; sends only through the shared guarded release", () => {
   const sync = readFileSync("src/lib/mitti.server.ts", "utf8");
-  expect(sync).toContain('if (readyCheckVariant(job.channel) === "ready_check_priced") {');
-  expect(sync).toContain("maybeAutoSendInstallerQuote(jobId, { formCompleted: plan.completed");
+  expect(sync).toContain("finishMittiReadyCheck(jobId, { auditId: measureAudit, completed: plan.completed");
+  expect(readFileSync("src/lib/mitti-complete.server.ts", "utf8")).toContain("maybeAutoSendInstallerQuote(jobId, { formCompleted: true");
   const src = readFileSync("src/lib/auto-quote-send.server.ts", "utf8");
   expect(src).not.toMatch(/resendSend|sendRealSms|sendTestEmail|notifyOwnerQuoteReady/);
   expect(src).toContain('releaseQuoteToOwner(jobId, draft.id, null, "auto")');

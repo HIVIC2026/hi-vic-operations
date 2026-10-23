@@ -38,7 +38,7 @@ describe("legacy electrician-assessment path retired", () => {
     // (Ready Check measure-up or installer-intake readiness blockers); Ready Check evidence is deferred, never waived.
     const intakeRoute = (r: Stage[]) => { const i = r.indexOf("measured_estimate_ready"); return i > 0 && ["new_enquiry", "eligibility_review"].includes(r[i - 1]!); };
     const w = src("src/lib/workflow.server.ts");
-    expect(w).toContain('if (to === "measured_estimate_ready" && (await (await import("./installer-intake.server")).isIntakeJob(jobId))) {');
+    expect(w).toContain('if (to === "measured_estimate_ready" && !mittiReadyCheck && (await (await import("./installer-intake.server")).isIntakeJob(jobId))) {');
     expect(w).toContain("Ready Check not yet completed by the installer.");
     const bad = all.filter((r) => !r.slice(0, -1).includes("ready_check_complete") && !intakeRoute(r));
     console.log(`route proof: ${all.length - bad.length} of ${all.length} pass through ready_check_complete`);

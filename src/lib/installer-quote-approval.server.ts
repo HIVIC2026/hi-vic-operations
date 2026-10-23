@@ -10,7 +10,8 @@ const QUOTE_COLS = "id, job_id, status, sent_at, release_state, release_hold_rea
 
 export type QuoteApproval = {
   applies: boolean; quote: any | null; state: ApprovalState; sent: boolean; accepted?: boolean; quoteFp: string; formFp: string; channel: string | null; readyAt: string | null; approvedAt: string | null;
-  /** Jo 24 Oct: installer jobs have no installer approval step; held = the automatic send on Complete was held. */
+  /** Jo 24 Oct: no installer approval step on ANY Ready Check quote (installer jobs, then our leads too) — the
+   *  installer presses Complete in Mitti instead. held = the automatic send on Complete was held. */
   installerJob?: boolean; held?: boolean;
 };
 
@@ -36,7 +37,7 @@ export async function loadQuoteApproval(jobId: string): Promise<QuoteApproval> {
     if (ae) throw new WorkflowError("Quote adjustment history could not be checked.");
     adjustedAfter = !!adj?.length;
   }
-  const installerJob = channel === "installer_sourced";
+  const installerJob = true; // Jo 24 Oct: "Measurements are final" is gone for our leads as well
   const state = installerJob ? "approved" : approvalState({ quoteId: q.id, quoteFp, formFp, approvals, adjustedAfterApproval: adjustedAfter });
   let held = false;
   if (installerJob && !q.sent_at) {

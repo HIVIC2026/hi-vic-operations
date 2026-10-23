@@ -15,6 +15,18 @@ export const STOP_NO_CONTACT = "Owner hasn't agreed to be contacted – can't pr
 export const STOP_R2 = "Fails: existing insulation is R2 or above";
 export const STOP_LIFE_SUPPORT = "Life support at property – office to check";
 export const STOP_BUILT_5 = "Ceiling/roof built or replaced in last 5 years – office to check";
+/** Jo 24 Oct: new question on both Mitti Ready Check forms (A1 + A2). A home can't get the Activity 48 rebate twice. */
+export const PREVIOUS_VEU_QUESTION = "Has this home had ceiling insulation done under the VEU program before?";
+export const STOP_PREVIOUS_VEU = "Home has had ceiling insulation under the VEU program before – office to check (likely not eligible)";
+export const STOP_PREVIOUS_VEU_UNSURE = "Installer unsure whether this home has had VEU ceiling insulation before – office to check";
+/** "no" | "yes" | "unsure" | null (not answered / older form without the question). */
+export function previousVeuAnswer(entries: E[]): "no" | "yes" | "unsure" | null {
+  const v = vals(entries, [PREVIOUS_VEU_QUESTION], true);
+  if (!v.length) return null;
+  if (v.some((x) => /^y/i.test(x))) return "yes";
+  if (v.some((x) => /unsure|not sure|don.?t know|unknown/i.test(x))) return "unsure";
+  return v.some((x) => /^n/i.test(x)) ? "no" : null;
+}
 
 /** Hard stops: any one means no quote, and the office list gets the exact reason. */
 /** A2 (our leads, Jo 23 Oct): life support and 5-year come from the owner's website answers, never the form. */
@@ -29,6 +41,7 @@ export function readyCheckStopReasons(entries: E[], opts: { ownerAnsweredOnWebsi
   const out: string[] = [];
   if (vals(entries, ["Homeowner agrees to be contacted by Home Insulation Victoria"]).some((v) => yesNo(v) === false)) out.push(STOP_NO_CONTACT);
   if (vals(entries, ["What is the determined R value of the existing ceiling insulation?"]).some((v) => /^above\s*r?\s*2/i.test(v))) out.push(STOP_R2);
+  { const veu = previousVeuAnswer(entries); if (veu === "yes") out.push(STOP_PREVIOUS_VEU); else if (veu === "unsure") out.push(STOP_PREVIOUS_VEU_UNSURE); }
   if (opts.ownerAnsweredOnWebsite) return out;
   if (vals(entries, ["Life support equipment at property?"]).some((v) => yesNo(v) === true)) out.push(STOP_LIFE_SUPPORT);
   if (vals(entries, ["Was the ceiling or roof built or replaced in the last 5 years?"]).some((v) => yesNo(v) === true)) out.push(STOP_BUILT_5);
@@ -53,4 +66,13 @@ export function difficultAccessFee(entries: E[]): { amountIncGst: number | null;
 /** A1: the installer ticked "Difficult access charge" in "What's included in your quote?" (already inside their total). */
 export function a1DifficultAccessIncluded(entries: E[]): boolean {
   return vals(entries, ["What's included in your quote?", "What's included in your price (tick all that apply)"]).some((v) => v.split(/\s*,\s*/).some((x) => /^difficult access( charge)?$/i.test(x.trim())));
+}
+
+/** Jo 24 Oct: eligibility is decided from the Mitti form answers (no manual office record). Any reason holds the
+ *  quote for the office; an empty list means the form says eligible. Never decides "not eligible" on its own. */
+export const VEU_NOT_ANSWERED = "Previous VEU ceiling insulation question not answered on the form";
+export function formEligibilityReasons(entries: E[], opts: { ownerAnsweredOnWebsite?: boolean } = {}): string[] {
+  const out = readyCheckStopReasons(entries, opts);
+  if (previousVeuAnswer(entries) === null) out.push(VEU_NOT_ANSWERED);
+  return out;
 }

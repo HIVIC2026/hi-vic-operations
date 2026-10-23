@@ -1,6 +1,8 @@
 // Pure auto-progression planner. No database / network: the server wrapper injects facts and actions.
 // Rule: only objective, already-recorded facts move a job. Human judgement (eligibility decision,
 // contractor selection, quote acceptance, measure-up approval, AP judgement, overrides, VEEC data) is never automated.
+// Jo 24 Oct exception, outside this planner: a Mitti Ready Check marked Complete with clean answers records its own
+// measurements and form eligibility and moves to the quote stage (mitti-complete.server.ts, guarded transitions).
 import type { Stage } from "./workflow";
 
 export type AdvanceFacts = {
