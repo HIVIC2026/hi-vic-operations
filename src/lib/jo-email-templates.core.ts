@@ -290,7 +290,7 @@ function renderBelowR2Reviewed(r: JoRecipient, f: JoEstimateFigures): string {
 
 /** Jo 23 Oct 2026 (DRAFT, awaiting Jo's final wording): "Tell us about your insulation" campaign variant of T5/T6 —
  *  same price box plus the "up to" removal line, one button to the three tap questions. */
-export const INSULATION_QUESTIONS_CTA_LABEL = "Answer 3 quick questions to save your spot";
+export const INSULATION_QUESTIONS_CTA_LABEL = "Answer 3 questions & save my spot";
 function renderPotentiallyEligible(r: JoRecipient, f: JoEstimateFigures, questions = false): string {
   const removalBox = questions && f.removalUpTo != null && f.removalUpTo > 0;
   const assumedNote = f.areaEstimated
@@ -312,8 +312,9 @@ function renderPotentiallyEligible(r: JoRecipient, f: JoEstimateFigures, questio
     "Want to explore a different ceiling size? Open the calculator →", "",
     includesTable(true, f), "",
     ...(questions ? [
-    "### Get your spot in about a minute", "",
-    "Demand is high, and we’re offering spots to homes that look likely to qualify first. Answer three quick tap questions about your existing insulation — no typing. Got photos or a short video? You can add them too.", "",
+    // Jo 23 Oct 08:36 UTC final design: one sentence, one button.
+    "### Save your spot", "",
+    "To get your free Ready Check, answer 3 quick questions and save your spot.", "",
     "[Tell us about your insulation]", "",
     "Only take photos or video if you can do so safely, and don’t enter the roof space.", "",
     "### What could change this price?", "",

@@ -171,7 +171,9 @@ export async function savedSpotForJob(jobId: string) {
   return { savedAt: r.spot_saved_at, video: r.queue_priority === "video", label: label?.text ?? null, changeNote: label?.changeNote ?? null, areaM2: r.saved_area_m2 == null ? null : Number(r.saved_area_m2), insulation: r.saved_insulation, gross: r.saved_gross_total == null ? null : Number(r.saved_gross_total) };
 }
 
-export async function optOutCampaign(token: unknown) {
+export async function optOutCampaign(token: unknown, reason?: import("./not-interested.core").NotInterestedReason, note?: string) {
+  const { notInterestedText } = await import("./not-interested.core");
+  const why = notInterestedText(reason, note);
   const c = await campaignLink(token);
   if (!c) throw new Error("This link is no longer available.");
   const now = new Date().toISOString();
@@ -184,11 +186,11 @@ export async function optOutCampaign(token: unknown) {
     video_requested: c.group === "onsite", desk_check_status: "not_needed", updated_at: now,
   }, { onConflict: "job_id" });
   if (error) throw new Error("We couldn't update your preference. Please try again.");
-  await admin.from("jobs").update({ stage: "cancelled", prior_stage: c.job.stage, cancelled_reason: "Owner opted out" }).eq("id", c.job.id).neq("stage", "cancelled");
+  await admin.from("jobs").update({ stage: "cancelled", prior_stage: c.job.stage, cancelled_reason: why }).eq("id", c.job.id).neq("stage", "cancelled");
   const { recordEngagement, suppressFollowups } = await import("./engagement.server");
   await suppressFollowups(c.job.id, "owner_opted_out");
-  await recordEngagement({ jobId: c.job.id, linkId: c.link.id, type: "opted_out", source: "launch_campaign", metadata: { reason: "owner_opted_out" }, dedupeKey: `launch_optout:${c.job.id}` });
-  await logEvent(c.job.id, null, "stage_changed", "Cancelled: owner opted out", { campaign: LAUNCH_CAMPAIGN }, { from: c.job.stage as never, to: "cancelled" });
+  await recordEngagement({ jobId: c.job.id, linkId: c.link.id, type: "opted_out", source: "launch_campaign", metadata: { reason: "owner_opted_out", not_interested: reason ?? null, note: note ?? null }, dedupeKey: `launch_optout:${c.job.id}` });
+  await logEvent(c.job.id, null, "stage_changed", `Closed: ${why}`, { campaign: LAUNCH_CAMPAIGN, reason: reason ?? null, note: note ?? null }, { from: c.job.stage as never, to: "cancelled" });
   return { ok: true as const };
 }
 
