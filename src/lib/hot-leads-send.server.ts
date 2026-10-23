@@ -179,9 +179,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     const answers=ownerInsulationAnswers(enrich);
     const tap=savedInsulationTap(enrich);
     declaredThinPatchy = !reviewError && !reviewOutcome && (tap?.route === "thin_patchy" || insulationDetailRoute(declaredInsulationDetail(answers)) === "likely_save_spot");
-    // Photos/video uploaded from the insulation-questions page (no tap answers, not yet reviewed) also use this wording.
-    const { count: ownerUploads, error: uploadError } = tap ? { count: 0, error: null } : await admin.from("documents").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", "intake_media");
-    declaredExisting = !reviewError && !reviewOutcome && !declaredThinPatchy && (tap?.route === "existing_save_spot" || (!tap && !uploadError && (ownerUploads ?? 0) > 0));
+    declaredExisting = !reviewError && !reviewOutcome && !declaredThinPatchy && tap?.route === "existing_save_spot";
   }
   const group = declaredThinPatchy || declaredExisting ? "likely" : launchGroup(job.eligibility_outcome, price.insulation) ?? "likely";
   if (questions && price.insulation === "none") return r("skipped", "Owner said no insulation — they get Save my spot instead.");
