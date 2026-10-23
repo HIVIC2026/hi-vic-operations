@@ -177,7 +177,9 @@ function MediaReview({ row, onDone, optionsOnly = false }: { row: Row; onDone: (
     setBusy(outcome);
     setFailed(null);
     try {
-      await review({ data: { jobId: row.id, outcome } });
+      const res = await review({ data: { jobId: row.id, outcome } });
+      // Jo 08:27 UTC: a saved spot's photo check only moves its Spots saved rank — no email, no eligibility change.
+      if (res.spotSaved) { setSaved(`${MEDIA_OUTCOME_LABEL[outcome]} — spot already saved, rank updated, no email sent`); setSavedOutcome(null); onDone(); return; }
       // R2 or above: record the Office ineligible decision (default reason; the editable email comes next) so the approved ineligible email can be sent.
       if (outcome === "over_r2") await decide({ data: { jobId: row.id, outcome: "does_not_appear_eligible", reason: "R2 or above – reviewed by office", nextAction: "Send ineligible response" } });
       setSaved(MEDIA_OUTCOME_LABEL[outcome]);
