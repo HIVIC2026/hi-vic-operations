@@ -1,14 +1,32 @@
-Read-only answers (no changes made). Approving this plan does nothing; there is nothing to build.
+Read-only answer — nothing to build. Approving changes nothing.
 
-1. Editing a draft quote: yes, partly. On the job page (Office > job > Quotes), "Adjust" changes each line's quantity and price, and the rebate discount. A reason is required, and before/after is saved in history. Adjusted drafts go back to "held". You cannot add or remove lines or change line wording there.
+Live switches right now: Ready Check booking OFF, offers "automatic", Mitti auto-create ON, installer offers ON, customer emails ON, installer booking/daily text OFF, Mitti auto-pickup OFF. Reinsulate is approved, invited to Mitti and has a mobile.
 
-2. When a draft is made: only when the Mitti form is marked complete. Nothing is drafted while a form is in progress.
-Minimum for an installer's own lead (A1) to be "ready": a total quoted price, a measured area, the insulation product (one of the six), a clear electrician choice (plus a saved usual electrician if "My usual electrician" is picked), and no hard stop (contact No, Above R2.0, life support Yes, built in last 5 years). Anything missing still makes a held draft with reasons.
-For our leads (A2): a measured area, the product, plus no hard stops (life support and 5-year come from the website).
+## Best path on LIVE today: assign Deep directly
+1. Office > open the job (stage "Ready to schedule").
+2. In the Installer box, pick Deep (Reinsulate) and press Assign.
+   - Automatic: Deep is assigned. The next step becomes "Assigned Installer to contact owner and arrange Ready Check".
+   - Deep sees the job in his app (Jobs > Needs action) with a "Book" option.
+   - Deep gets no text. The owner gets no text or email. No Mitti form yet.
+3. Deep phones the owner, agrees a time, and in his app taps the button for a time agreed with the owner (enters the date/time).
+   - Automatic: the Ready Check is booked. Nothing goes to the owner.
+   - Mitti A2 form: created in the background, assigned to Deep. It's pre-filled from the owner's website answers (allowed because Mitti auto-create is ON and Reinsulate is invited).
+   - Deep's "Ready Check booked: …" text: NOT sent (installer text switch is OFF). He finds the form link in his app.
+4. Deep fills the Mitti form. The 15-minute sync reads it into the job.
 
-3. Deep's installer app (live database; the live app may run slightly older code than preview):
-- HV-3066, HV-3116, HV-3117, HV-3118, HV-3119: actively assigned to Deep (Reinsulate). They show on his Jobs list, most likely under "Needs action" because their "Quoted?" / "Site check?" answers are blank. HV-3116 to 3119 show the status "Needs finishing: add owner mobile, owner email, contact permission".
-- HV-1538: yes, the assignment was done (active installer assignment to Deep/Reinsulate, 22 Oct 22:35 UTC). It shows "no installer business" because it is our lead: the "brought by" business is only set on installer-sourced jobs. Deep still sees it, under "In progress".
-Not confirmed by a live screen check.
+## The other path is blocked on LIVE: "Choose trades" / offers
+- On the job page: "Offer Ready Check booking", then "Choose trades for this job", tick Reinsulate, Send.
+- This fails with "Ready Check offers cannot start", because Ready Check booking is OFF. No offer, text or owner email.
+- Same reason the "offers automatic" setting does nothing for Ready Checks today.
 
-4. Office: all six are at the early stage with no sent quote. They show under Leads (Enquiries), not Active jobs; none is in "Quotes to check", because none has a quote yet. I haven't checked which exact pile each is in.
+## Owner messages
+- Nothing goes to the owner on the direct path.
+- Only if Deep chooses "ask the owner for times" in his app would the owner get a pick-your-times link. That also needs Ready Check booking ON, so it's blocked today.
+
+## What's different in the unpublished preview
+- Steps 1–4 are the same.
+- After the form syncs: a quote draft is made once the basics are in (area, product, owner mobile/email/permission, no stop), without waiting for the full form. It goes to "Quotes to check"; it is never sent automatically. On live, the draft is only made when the form is completed.
+- "Needs finishing…" next steps are kept up to date and protected (live only does this while auto-pickup is ON, which it isn't).
+- The newer A2 pre-fill (life support and 5-year questions taken from the website instead of the form) is in preview. Live may still use the older version.
+
+Caveat: these steps come from reading the code and the live settings. I didn't click through the live app.
