@@ -8,8 +8,9 @@ for(const outcome of ['no_insulation','below_r2','over_r2','unclear'] as const)t
  expect(events).toHaveLength(before+1);expect(tables).toEqual(['jobs','lead_campaign_responses','customer_engagement_events']);
  expect(events.at(-1)?.metadata).toMatchObject({outcome,manualOnly:true});
 });
-test('real R2+ action without reason rejects before any persistence',async()=>{
- const n=events.length;await expect(reviewLeadMedia('TEST','over_r2','TEST_ACTOR')).rejects.toThrow();expect(events.length).toBe(n);
+test('Jo 23 Oct: R2+ rank without a reason records only a manual audit',async()=>{
+ tables.length=0;const n=events.length;await reviewLeadMedia('TEST','over_r2','TEST_ACTOR');expect(events).toHaveLength(n+1);
+ expect(events.at(-1)?.metadata).toMatchObject({outcome:'over_r2',manualOnly:true});
 });
 test('Jo 08:27: a saved spot photo check is rank-only (manual, no email route)',async()=>{
  const m=await import('@/integrations/supabase/client.server') as unknown as {supabaseAdmin:{from:(t:string)=>unknown}};
