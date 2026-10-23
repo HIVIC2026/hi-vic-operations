@@ -1,0 +1,1 @@
+alter table public.workflow_settings add column if not exists mitti_pickup_auto_enabled boolean not null default false;

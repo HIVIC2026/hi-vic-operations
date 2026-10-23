@@ -37,7 +37,7 @@ export type PickupDuplicate = {
 
 export type ReadyCheckPickup = MittiPickupItem & {
   /** Installer business matched from the Mitti form owner's portal email; null when unknown. */
-  business: { id: string; name: string } | null;
+  business: { id: string; name: string; userId?: string } | null;
   duplicates: PickupDuplicate[];
 };
 
@@ -158,7 +158,11 @@ export function pickupAddressParts(address: string | null): { addressLine: strin
 
 /** Jo 22 Oct 22:57: forms missing ONLY owner contact details (phone/email/permission) still become the installer's job,
  *  marked "Needs finishing" with exactly what is missing. Any other problem still goes to office review. */
-export type PickupAutoDecision = ({ action: "create_job" | "office_review"; reasons: string[] } | { action: "create_job_needs_finishing"; reasons: []; missing: string[] }) & { officeFlag?: string };
+export type PickupAutoDecision = ({ action: "create_job" | "office_review"; reasons: string[] } | { action: "create_job_needs_finishing"; reasons: []; missing: string[] } | { action: "link_existing"; reasons: []; jobNumbers: string[] }) & { officeFlag?: string };
+
+/** Jo 23 Oct: A1 = installer's own priced form, A2 = Home Insulation Victoria's form. */
+export const pickupFormLabel = (kind: PickupTemplateKind): "A1" | "A2" | "unknown form" => kind === "installer_form" ? "A1" : kind === "hivic_form" ? "A2" : "unknown form";
+export const pickupClashFlag = (jobNumbers: string[]) => `Mitti Ready Check matches an existing job or lead (${jobNumbers.join(", ")}) — linked, not duplicated; office to check`;
 
 /** Jo 22 Oct 23:30: an A2 (HIV) form started in Mitti by an installer — not created by the portal (no HV number) —
  *  is that installer's own lead: installer-led job for their business, flagged for office review. */
@@ -184,8 +188,9 @@ export function pickupAutoDecision(input: {
   if (!input.businessMatched) reasons.push("Mitti user not matched to an installer business");
   if (!input.homeownerName?.trim()) reasons.push("Owner name missing on the form");
   if (!input.siteAddress?.trim()) reasons.push("Address missing on the form");
-  if (input.duplicates.length) reasons.push(`Same owner or address already in the portal: ${input.duplicates.map((d) => d.jobNumber).join(", ")}`);
   if (reasons.length) return { action: "office_review", reasons };
+  // Jo 23 Oct: same owner/address already in the portal → link to that job and flag the office; never block or duplicate.
+  if (input.duplicates.length) return { action: "link_existing", reasons: [], jobNumbers: input.duplicates.map((d) => d.jobNumber), officeFlag: pickupClashFlag(input.duplicates.map((d) => d.jobNumber)) };
   const missing: string[] = [];
   if (!input.ownerPhone?.trim()) missing.push("owner phone");
   if (!input.ownerEmail?.trim()) missing.push("owner email");
