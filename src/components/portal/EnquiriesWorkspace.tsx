@@ -1,3 +1,4 @@
+import { PhotoRankButtons } from "./SpotPhotoCheck";
 // ONE authoritative Enquiries workspace.
 // Reuses the existing enquiry-groups read + actions. Presentation only: the office-facing outcomes are a
 // single label per enquiry (mapped from the canonical enquiryStatus), never a competing status system.
@@ -263,15 +264,8 @@ function MediaReview({ row, onDone, optionsOnly = false }: { row: Row; onDone: (
             </p>
           ) : (
             <div className="space-y-2">
-              {/* Jo 22 Oct 2026: three buttons replace the previous seven. Qualifies records the existing
-                  below-R2 / no-insulation outcome (reports unchanged) then confirms with the email preview;
-                  Not eligible records R2-or-above and closes the enquiry, then offers the editable ineligible
-                  email; Needs more photos or info opens the editable request with the owner's upload link kept. */}
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" className="bg-action text-action-foreground hover:bg-action/90" disabled={busy !== null} onClick={() => act(qualifiesOutcome(row.declaredInsulation))}>🟢 Qualifies – send Save my spot email</Button>
-                <Button size="sm" variant="destructive" disabled={busy !== null} onClick={() => act("over_r2")}>🔴 Not eligible – close (option to email)</Button>
-                <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => act("unclear")}>⚪ Needs more photos or info – send email</Button>
-              </div>
+              {/* Jo 23 Oct 08:51 UTC: rank buttons only (no email); "Not eligible – close" asks a reason, email only if ticked. */}
+              <PhotoRankButtons jobId={row.id} onDone={onDone} />
             </div>
           )}
           {failed && <p role="alert" className="text-sm text-destructive">{failed}</p>}

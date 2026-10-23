@@ -16,8 +16,10 @@ test('confirmed first response excludes New; unrelated sent purpose does not',()
  expect(isNewEnquiry({sentPurposes:['office_notification']})).toBe(true);
 });
 test('R2 or above requires a confirmed reason',()=>{
- expect(()=>mediaReviewPlan('over_r2')).toThrow();
- expect(mediaReviewPlan('over_r2','R2 confirmed')).toMatchObject({reason:'R2 confirmed',nextAction:'Send ineligible response'});
+ expect(()=>mediaReviewPlan('over_r2',undefined,true)).toThrow();
+ expect(mediaReviewPlan('over_r2','R2 confirmed',true)).toMatchObject({reason:'R2 confirmed',close:true,manualOnly:true});
+ expect(mediaReviewPlan('over_r2')).toMatchObject({close:false,rankOnly:true,manualOnly:true});
+ expect(()=>mediaReviewPlan('below_r2','x',true)).toThrow();
 });
 test('practice review outcomes persist only manual audit next actions, never communications',async()=>{
  const db=new PGlite();
@@ -28,7 +30,7 @@ test('practice review outcomes persist only manual audit next actions, never com
  }
  const rows=await db.query<{outcome:string;next_action:string;manual_only:boolean}>('select * from reviews');
  expect(rows.rows).toHaveLength(4);
- expect(rows.rows.filter(r=>r.next_action==='Offer Save My Spot').map(r=>r.outcome)).toEqual(['no_insulation','below_r2']);
+ expect(rows.rows.every(r=>r.next_action==='Rank only (Spots saved)')).toBe(true); // Jo 23 Oct 08:51: photo review never offers an email
  expect(rows.rows.every(r=>r.manual_only)).toBe(true);
  expect((await db.query<{n:number}>('select count(*)::int as n from communications')).rows[0]?.n).toBe(0);
  await db.close();
