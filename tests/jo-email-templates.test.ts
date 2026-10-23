@@ -243,7 +243,7 @@ describe("module safety", () => {
   });
   test("potentially-eligible body requests upload and does not offer Save my spot", () => {
     const out = renderJoEstimateEmail("potentially_eligible_unknown_size_known", recipient, liveFigures({ areaEstimated: false, ceilingAreaM2: 175 }));
-    expect(out.body).toContain("[Upload my photos or video →]");
+    expect(out.body).toContain("[Tell us about your insulation]");
     expect(out.body).not.toContain("[Save my spot →]");
   });
 });

@@ -164,8 +164,11 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     const { declaredInsulationDetail, insulationDetailRoute } = await import("./enquiry.core");
     const { data: reviewRows, error: reviewError } = await admin.from("customer_engagement_events").select("metadata").eq("job_id", jobId).eq("event_type", "intake_media_reviewed").order("occurred_at", { ascending: false }).limit(1);
     const reviewOutcome = reviewError ? "error" : ((reviewRows?.[0]?.metadata as { outcome?: string } | null | undefined)?.outcome ?? null);
-    const answers = ((job.properties as { enrichment?: Record<string, unknown> } | null)?.enrichment?.["base44"] as { raw?: { answers?: Record<string, unknown> } } | undefined)?.raw?.answers ?? null;
-    declaredThinPatchy = !reviewError && !reviewOutcome && insulationDetailRoute(declaredInsulationDetail(answers)) === "likely_save_spot";
+    const enrich=(job.properties as {enrichment?:Record<string,unknown>}|null)?.enrichment;
+    const {ownerInsulationAnswers,savedInsulationTap}=await import("./insulation-details.core");
+    const answers=ownerInsulationAnswers(enrich);
+    const tap=savedInsulationTap(enrich);
+    declaredThinPatchy = !reviewError && !reviewOutcome && (tap?.route === "thin_patchy" || insulationDetailRoute(declaredInsulationDetail(answers)) === "likely_save_spot");
   }
   const group = declaredThinPatchy ? "likely" : launchGroup(job.eligibility_outcome, price.insulation) ?? "likely";
   if (group !== "likely" && !isTest && !testOpts.automaticInsulation && !followup && !morePhotos) return r("blocked", "Only the approved Group A email can be sent from this list.");
@@ -273,8 +276,8 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
       const { data: lcr, error: lcrError } = await admin.from("lead_campaign_responses").select("desk_check_status").eq("job_id", jobId).maybeSingle();
       const desk = (lcr as { desk_check_status?: string | null } | null)?.desk_check_status ?? null;
       const reviewed = !lcrError && !!c && c.criteriaPassed && (c.mediaReview === "below_r2" || desk === "looks_eligible") && desk !== "not_eligible" && desk !== "needs_onsite_check";
-      if (!reviewed) return null;
-      facts = { outcome: "likely_eligible", insulation: "present", ceilingSizeKnown: areaBasis.ceilingSizeKnown, deskCheckStatus: "looks_eligible" };
+      if (!reviewed && !(!lcrError && declaredThinPatchy && c?.criteriaPassed && c?.ownerQualified && desk!=="needs_onsite_check" && desk!=="not_eligible")) return null;
+      facts = reviewed ? { outcome: "likely_eligible", insulation: "present", ceilingSizeKnown: areaBasis.ceilingSizeKnown, deskCheckStatus: "looks_eligible" } : { outcome:"likely_eligible",insulation:"present",ceilingSizeKnown:areaBasis.ceilingSizeKnown,declaredThinPatchy:true };
     } else {
       let deskCheckStatus: "looks_eligible" | "not_eligible" | "needs_onsite_check" | null = null;
       try {

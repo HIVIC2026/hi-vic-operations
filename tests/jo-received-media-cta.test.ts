@@ -28,6 +28,6 @@ test('received media with missing secure upload link fails closed', () => {
 test('ordinary media request retains its existing mandatory upload action', () => {
   const mail = renderJoOutcomeEmail({ ...input, mediaAlreadyReceived: false });
   expect(mail?.ctas).toEqual(['upload_media']);
-  expect(mail?.plainText).toContain('Upload my photos or video');
+  expect(mail?.plainText).toContain('Tell us about your insulation');
   expect(mail?.plainText).not.toContain('Add more photos or video');
 });

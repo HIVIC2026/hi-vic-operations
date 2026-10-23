@@ -183,7 +183,7 @@ const TOKEN_INLINE = new RegExp(`\\u0001(cta|link)\\|([^|]+)\\|(.+?)\\u0001`);
 /** Jo's placeholder per CTA, in the exact wording of her copy. */
 const PLACEHOLDER: Record<JoCta, string> = {
   save_my_spot: "[Save my spot →]",
-  upload_media: "[Upload my photos or video →]",
+  upload_media: "[Tell us about your insulation]",
   review_result: "[Review my result →]",
   book_ready_check: "[Book my Ready Check →]",
 };
@@ -557,12 +557,12 @@ export function renderJoOutcomeEmail(input: JoOutcomeEmailInput): JoWiredEmail |
   const received = input.mediaAlreadyReceived === true;
   if (received && !['potentially_eligible_unknown_size_unknown', 'potentially_eligible_unknown_size_known'].includes(id)) throw new Error('Received-media acknowledgement requires an unreviewed insulation estimate.');
   const copy = received ? rendered.body
-    .replace('Please upload clear photos or a short video showing what’s above your ceiling, including any visible insulation labels. This will help us assess your enquiry sooner. If it looks eligible, we’ll invite you to save your spot.', 'Thank you for sending your photos or video. We already have your media — you do not need to upload it again. Our Office will review it and contact you about the next step. Final eligibility will be confirmed at your free Ready Check. If you want or need to add more evidence, you can optionally add multiple photos and/or videos using the link below.') : rendered.body;
+    .replace('Tell us about your existing insulation: upload photos or a short video, or answer three quick tap questions. No typing needed.', 'Thank you for sending your photos or video. We already have your media — you do not need to upload it again. Our Office will review it and contact you about the next step. Final eligibility will be confirmed at your free Ready Check. If you want or need to add more evidence, you can optionally add multiple photos and/or videos using the link below.') : rendered.body;
   const ctas = rendered.ctas;
   const linkedBody = bindLinks(copy, input.links, ctas);
   const missing = missingCta(ctas, linkedBody);
   if (missing) throw new Error(`The ${missing} link is missing for this customer; nothing was prepared.`);
-  const body = received ? linkedBody.replace('Upload my photos or video →', 'Add more photos or video →') : linkedBody;
+  const body = received ? linkedBody.replace('Tell us about your insulation', 'Add more photos or video →') : linkedBody;
   return assemble(id, rendered.subject, body, ctas, input);
 }
 

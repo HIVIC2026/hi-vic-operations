@@ -52,9 +52,10 @@ export async function captureStatus(token: unknown) {
   const { data: resp, error: respError } = await admin.from("lead_campaign_responses").select("spot_saved_at, opted_out_at").eq("job_id", r.link.job_id).maybeSingle();
   if (respError) throw new Error("Saved spot check unavailable. Please try again.");
   const c = await (await import("./launch-campaign.server")).campaignLink(token);
+  const tap=(await import("./insulation-details.core")).savedInsulationTap((c?.job.properties as {enrichment?:Record<string,unknown>}|null)?.enrichment);
   const resume = captureResume({ spotSaved: !!resp?.spot_saved_at && !resp?.opted_out_at, ownerQualified: !!c?.ownerQualified });
   const morePhotosUploadAllowed = await requestedUploads(r.link.job_id, media);
-  return { state: "ok" as const, suburb, reference: r.job.job_number, originalMedia: media, mediaReview, morePhotosUploadAllowed, resume, received: files.length, remaining: Math.max(0, CAPTURE_MAX_FILES - files.length) };
+  return { state: "ok" as const, suburb, reference: r.job.job_number, originalMedia: media, mediaReview, morePhotosUploadAllowed, resume, detailsRoute:tap?.route??null, received: files.length, remaining: Math.max(0, CAPTURE_MAX_FILES - files.length) };
 }
 
 export async function startCapture(token: unknown, f: { fileName: string; mime: string; size: number }) {
