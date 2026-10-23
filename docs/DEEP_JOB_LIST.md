@@ -26,7 +26,7 @@ Hi Deep, here's every job you have with us and the one thing each needs from you
 | HV-3116 | Courtney Daniels | 2A Chatfield Street, Kingsville | Ceiling area, insulation product, your price, owner's mobile, owner's email |
 | HV-3118 | Mike (surname?) | 13 The Quadrangle, Glen Waverley 3150 | **Owner's surname**, ceiling area, insulation product, your price, owner's mobile, owner's email |
 | HV-3119 | Elijabeth (surname?) | 27/262-274 Poath Road, Hughesdale 3166 | **Owner's surname**, insulation product, your price, owner's mobile, owner's email, owner's permission |
-| HV-1538 | Janet Lyttle | 7 Belair Court, Taylors Lakes | Insulation product, your price (this is one of our leads, on our A2 form) |
+| HV-1538 | Janet Lyttle | 7 Belair Court, Taylors Lakes 3038 | Insulation product, your price |
 
 ### 3. Your uploaded jobs, form ready but not started (15 jobs)
 
@@ -68,5 +68,5 @@ For anything marked ⚠️, just reply with the correct details and we'll fix th
 - **HV-3151 and HV-3164** get their form or link only after the branch goes live (the "I've visited" fix).
 - **HV-3117** logs a "quote held" note every 15 minutes while the electrician is missing. It's only noise in the history and clears once he saves the electrician.
 - **Bulk jobs HV-3136–3150** have no owner permission on record: bulk upload never asked for it. The form tick is what records it.
-- **HV-1538** is our own lead (A2 form), assigned to Reinsulate.
+- **HV-1538** is Deep's job (it first came in through the website). Its invoicing setting differs from his other jobs — see the chat.
 - **Addresses:** 16 tidied or corrected on 24 Oct (job and Mitti form both, history kept). HV-3119, 3136, 3148 and 3150 were worked out from property listings.
