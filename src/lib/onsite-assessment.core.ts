@@ -1,23 +1,5 @@
-// Jo 23 Oct 2026: "Needs onsite assessment" holding group on Office Enquiries. NOT a to-do list.
-// Pure membership + display rules only; sending reuses the normal guarded Save my spot path.
-import { INSULATION_DETAIL_QUESTIONS, insulationTapRoute, type InsulationTapAnswers } from "./insulation-details.core";
-
-export type OnsiteMemberInput = {
-  tap: Partial<InsulationTapAnswers> | null;
-  declaredInsulation: "none" | "present" | "unknown" | null;
-  mediaCount: number;
-  spotOffered?: boolean;
-};
-
-/** Members: tap answers routed onsite (hand/thicker/can't tell, 1991+/not sure, incl. type Not sure only),
- *  or website "don't know" insulation with no tap answers. Any photos/video → existing office photo review. */
-export function onsiteAssessmentMember(x: OnsiteMemberInput): boolean {
-  if (x.mediaCount > 0 || x.spotOffered) return false;
-  if (x.tap && x.tap.insulation_type) {
-    return insulationTapRoute({ insulation_type: x.tap.insulation_type, insulation_thickness: x.tap.insulation_thickness ?? "unknown", ...(x.tap.house_built_period ? { house_built_period: x.tap.house_built_period } : {}) }) === "needs_onsite_assessment";
-  }
-  return x.declaredInsulation === "unknown";
-}
+// Jo 23 Oct 2026: owner insulation-answer display helpers (the "Needs onsite assessment" group was dropped 08:14 UTC).
+import { INSULATION_DETAIL_QUESTIONS, type InsulationTapAnswers } from "./insulation-details.core";
 
 const label = (key: string, value: string | undefined) =>
   INSULATION_DETAIL_QUESTIONS.find((q) => q.key === key)?.options.find((o) => o.value === value)?.label ?? null;
