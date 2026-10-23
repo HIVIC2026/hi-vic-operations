@@ -1,7 +1,7 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
 ## Website-aligned year answers (Jo 23 Oct 09:19 UTC)
-- [ ] Share six website year options/values and last-five-years ineligibility across page, validation and pending persistence; preserve raw website history.
-- [ ] Verify agreed removal/price ranges; focused/practice tests and phone check; no live writes, sends or publication.
+- [x] Shared six website year options/values and mapping across page/validation/answer overlay; last-five-years overrides thin/loose fill, refuses saved-spot path and records ineligibility in pending SQL. Original website history retained; practice proof passes, SQL unapplied.
+- [x] Agreed removal/price range helper already shared by active email and estimate pages; 37 focused/practice checks pass. Isolated 430×706 phone verifies all six labels and ineligible result with no spot-save call/overflow; preview build OK. Hosted answer saving remains blocked by pending activation; no live writes, sends or publication.
 ## Urgent owner link and photo-review layout (Jo 23 Oct 09:13 UTC)
 - [x] Removed sequential owner-read round trips and duplicate settings query; six-slot read waves and 30-second same-link cache. Existing TEST link opens in preview at 430×706 in 1.51 seconds, return 0.10 seconds; published SMS loading speed remains unverified, no publication.
 - [x] Savings-first quote heading when a real rebate exists; missing TEST quote shows neutral heading, never fake $0 or price-ready claim. Existing TEST link and no-overflow phone screenshot checked; privacy/held-quote guards unchanged.
