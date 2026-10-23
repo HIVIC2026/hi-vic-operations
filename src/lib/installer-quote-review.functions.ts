@@ -36,5 +36,14 @@ export const getInstallerQuotesToCheck = createServerFn({ method: "POST" }).midd
       else if (h) rows.push({ ...base, quoteId: null, total: null, reasons, kind: "missing" as const, at: h.created_at, note: reasons.join(" · ") || "details missing" });
     }
     rows.sort((a, b) => (a.kind === b.kind ? b.at.localeCompare(a.at) : a.kind === "ready" ? -1 : 1));
+    const { officeQuoteBlockers } = await import("./office-quote-review.server");
+    // Bound parallel readiness reads; each row and its opened draft use the same guards.
+    for (let from = 0; from < rows.length; from += 10) await Promise.all(rows.slice(from, from + 10).map(async row => {
+      const draft = (quotes ?? []).find(q => q.id === row.quoteId);
+      if (!draft) return;
+      row.reasons = await officeQuoteBlockers(row.jobId, { ...draft, id: draft.id });
+      row.kind = row.reasons.length ? "missing" : "ready";
+      row.note = row.reasons.join(" · ") || "Quote drafted — check it and send it to the owner";
+    }));
     return { rows };
   });
