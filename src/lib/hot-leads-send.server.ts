@@ -168,6 +168,8 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   // Save my spot email and counts as the Group A ("likely") send. A recorded Office review always wins; any
   // unreadable review record fails closed to the existing behaviour.
   let declaredThinPatchy = false;
+  // Jo 23 Oct 08:14 UTC: owner answered the tap questions (non-thin) -> standard existing-insulation wording.
+  let declaredExisting = false;
   if (!office && !questions && price.insulation === "present") {
     const { declaredInsulationDetail, insulationDetailRoute } = await import("./enquiry.core");
     const { data: reviewRows, error: reviewError } = await admin.from("customer_engagement_events").select("metadata").eq("job_id", jobId).eq("event_type", "intake_media_reviewed").order("occurred_at", { ascending: false }).limit(1);
@@ -177,8 +179,11 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     const answers=ownerInsulationAnswers(enrich);
     const tap=savedInsulationTap(enrich);
     declaredThinPatchy = !reviewError && !reviewOutcome && (tap?.route === "thin_patchy" || insulationDetailRoute(declaredInsulationDetail(answers)) === "likely_save_spot");
+    // Photos/video uploaded from the insulation-questions page (no tap answers, not yet reviewed) also use this wording.
+    const { count: ownerUploads, error: uploadError } = tap ? { count: 0, error: null } : await admin.from("documents").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", "intake_media");
+    declaredExisting = !reviewError && !reviewOutcome && !declaredThinPatchy && (tap?.route === "existing_save_spot" || (!tap && !uploadError && (ownerUploads ?? 0) > 0));
   }
-  const group = declaredThinPatchy ? "likely" : launchGroup(job.eligibility_outcome, price.insulation) ?? "likely";
+  const group = declaredThinPatchy || declaredExisting ? "likely" : launchGroup(job.eligibility_outcome, price.insulation) ?? "likely";
   if (questions && price.insulation === "none") return r("skipped", "Owner said no insulation — they get Save my spot instead.");
   if (group !== "likely" && !isTest && !testOpts.automaticInsulation && !followup && !morePhotos && !questions) return r("blocked", "Only the approved Group A email can be sent from this list.");
 
@@ -285,8 +290,8 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
       const { data: lcr, error: lcrError } = await admin.from("lead_campaign_responses").select("desk_check_status").eq("job_id", jobId).maybeSingle();
       const desk = (lcr as { desk_check_status?: string | null } | null)?.desk_check_status ?? null;
       const reviewed = !lcrError && !!c && c.criteriaPassed && (c.mediaReview === "below_r2" || desk === "looks_eligible") && desk !== "not_eligible" && desk !== "needs_onsite_check";
-      if (!reviewed && !(!lcrError && declaredThinPatchy && c?.criteriaPassed && c?.ownerQualified && desk!=="needs_onsite_check" && desk!=="not_eligible")) return null;
-      facts = reviewed ? { outcome: "likely_eligible", insulation: "present", ceilingSizeKnown: areaBasis.ceilingSizeKnown, deskCheckStatus: "looks_eligible" } : { outcome:"likely_eligible",insulation:"present",ceilingSizeKnown:areaBasis.ceilingSizeKnown,declaredThinPatchy:true };
+      if (!reviewed && !(!lcrError && (declaredThinPatchy || declaredExisting) && c?.criteriaPassed && c?.ownerQualified && desk!=="needs_onsite_check" && desk!=="not_eligible")) return null;
+      facts = reviewed ? { outcome: "likely_eligible", insulation: "present", ceilingSizeKnown: areaBasis.ceilingSizeKnown, deskCheckStatus: "looks_eligible" } : { outcome:"likely_eligible",insulation:"present",ceilingSizeKnown:areaBasis.ceilingSizeKnown,...(declaredExisting?{declaredExisting:true}:{declaredThinPatchy:true}) };
     } else {
       let deskCheckStatus: "looks_eligible" | "not_eligible" | "needs_onsite_check" | null = null;
       try {
@@ -301,7 +306,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
       if (outcome === "does_not_appear_eligible" || outcome === null) return null;
       const insulation = price.insulation === "none" || price.insulation === "present" ? price.insulation : "unknown";
       if (questions) facts = { outcome, insulation: insulation === "none" ? "unknown" : insulation, ceilingSizeKnown: areaBasis.ceilingSizeKnown, deskCheckStatus: null };
-      else facts = { outcome, insulation, ceilingSizeKnown: areaBasis.ceilingSizeKnown, deskCheckStatus: morePhotos ? null : deskCheckStatus, ...(declaredThinPatchy ? { declaredThinPatchy: true } : {}), ...(sendGroup === "onsite" && testOpts.mediaAcknowledgement === true ? { mediaAlreadyReceived: true } : {}) };
+      else facts = { outcome, insulation, ceilingSizeKnown: areaBasis.ceilingSizeKnown, deskCheckStatus: morePhotos ? null : deskCheckStatus, ...(declaredThinPatchy ? { declaredThinPatchy: true } : declaredExisting ? { declaredExisting: true } : {}), ...(sendGroup === "onsite" && testOpts.mediaAcknowledgement === true ? { mediaAlreadyReceived: true } : {}) };
     }
     try {
       // Jo 22 Oct: informational "up to" removal for existing insulation only, from the current removal rate.

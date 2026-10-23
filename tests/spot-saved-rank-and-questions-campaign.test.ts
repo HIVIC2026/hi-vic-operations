@@ -3,18 +3,7 @@ import {spotSavedRank,compareSpots,type SpotRankFacts} from '../src/lib/spot-sav
 import {questionsExclusion,batchSlice,INSULATION_QUESTIONS_SEND_APPROVED,type QuestionsFacts} from '../src/lib/insulation-questions-campaign.core';
 import {renderJoOutcomeEmail} from '../src/lib/jo-outcome-email.core';
 const base:SpotRankFacts={reviewOutcome:null,hadUnclearReview:false,deskLooksEligible:false,declared:null,mediaCount:0,tapRoute:null,declaredThinPatchy:false};
-test('Jo rank order 1–9',()=>{
- expect(spotSavedRank({...base,reviewOutcome:'no_insulation',mediaCount:2})).toBe(1);
- expect(spotSavedRank({...base,declared:'none',mediaCount:1})).toBe(2);
- expect(spotSavedRank({...base,reviewOutcome:'below_r2',mediaCount:3,declared:'present'})).toBe(3);
- expect(spotSavedRank({...base,reviewOutcome:'below_r2',mediaCount:3,hadUnclearReview:true})).toBe(4);
- expect(spotSavedRank({...base,reviewOutcome:'below_r2'})).toBe(4);
- expect(spotSavedRank({...base,declared:'none'})).toBe(5);
- expect(spotSavedRank({...base,declared:'present',tapRoute:'thin_patchy'})).toBe(6);
- expect(spotSavedRank({...base,declared:'present'})).toBe(7);
- expect(spotSavedRank({...base,declared:'unknown'})).toBe(8);
- expect(spotSavedRank(base)).toBe(9);
-});
+// Rank order 1–10 (Jo 08:14 UTC) lives in tests/everyone-gets-save-spot.test.ts.
 test('within a rank, longest waiting first',()=>{
  const xs=[{rank:2,spotSavedAt:'2026-10-20'},{rank:1,spotSavedAt:'2026-10-22'},{rank:2,spotSavedAt:'2026-10-01'}].sort(compareSpots);
  expect(xs.map(x=>x.spotSavedAt)).toEqual(['2026-10-22','2026-10-01','2026-10-20']);

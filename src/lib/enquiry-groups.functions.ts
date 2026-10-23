@@ -135,19 +135,3 @@ export const markOwnerEmailReviewedFn = createServerFn({ method: "POST" }).middl
     return markOwnerEmailReviewed(data.jobId, context.userId ?? null);
   });
 
-/** Jo 23 Oct 2026: "Needs onsite assessment" holding group (not a to-do list). */
-export const onsiteAssessmentListFn = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    await requireAdmin(context.supabase);
-    const { listOnsiteAssessment } = await import("./onsite-assessment.server");
-    return listOnsiteAssessment();
-  });
-
-/** Explicit Office press only: normal Save my spot email with every usual check. */
-export const onsiteAssessmentOfferFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ jobIds: z.array(z.string().uuid()).min(1).max(100) }).parse(d))
-  .handler(async ({ data, context }) => {
-    await requireAdmin(context.supabase);
-    const { offerOnsiteSaveSpot } = await import("./onsite-assessment.server");
-    return offerOnsiteSaveSpot(data.jobIds, context.userId ?? null);
-  });

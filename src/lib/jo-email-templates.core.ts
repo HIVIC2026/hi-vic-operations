@@ -56,6 +56,7 @@ export type JoRoutingInput = {
    * approved thin/patchy wording. Absent/false keeps every existing rule untouched.
    */
   declaredThinPatchy?: boolean;
+  declaredExisting?: boolean;
 };
 
 /** Money/line-item inputs. For templates 1–6 these are live calculated values; for template 8 they are the saved snapshot. */
@@ -132,7 +133,7 @@ export function selectJoTemplate(input: JoRoutingInput): JoTemplateId | null {
   // Jo 22 Oct 2026: declared thin/patchy existing insulation (no photo review) uses the eligible Save my
   // spot email (templates 1/2) with the approved thin/patchy wording. Only ever set from the owner's
   // website follow-up answers; a recorded Office review takes precedence and never reaches this branch.
-  if (eligible && input.insulation === "present" && input.declaredThinPatchy) {
+  if (eligible && input.insulation === "present" && (input.declaredThinPatchy || input.declaredExisting)) {
     return input.ceilingSizeKnown
       ? "eligible_no_insulation_size_known"
       : "eligible_no_insulation_size_unknown";
@@ -209,9 +210,12 @@ function includesTable(withExistingAssessment: boolean, f: JoEstimateFigures): s
 /** Jo's approved thin/patchy sentence (22 Oct 2026), verbatim. Replaces the "no existing insulation" price
  *  assumption in the eligible Save my spot email when the owner's website answers said thin or patchy.
  *  It must never be paired with "we've reviewed your photos" or "assumes there is no existing insulation". */
+/** DRAFT (Jo 23 Oct 08:14 UTC, awaiting Jo's wording approval): standard existing-insulation Save my spot line. */
+export const EXISTING_SAVE_SPOT_LINE = "You told us there is some existing insulation in your ceiling. Your free Ready Check checks what’s there and confirms whether you qualify before anything goes ahead.";
 export const THIN_PATCHY_SAVE_SPOT_LINE = "You told us your existing insulation is thin or only covers part of the ceiling, so you look likely to qualify for the rebate. Your free Ready Check confirms this on site before anything goes ahead.";
 
-function renderEligibleNoInsulation(r: JoRecipient, f: JoEstimateFigures, declaredThinPatchy = false): string {
+function renderEligibleNoInsulation(r: JoRecipient, f: JoEstimateFigures, thinPatchy = false, declaredExisting = false): string {
+  const declaredThinPatchy = thinPatchy || declaredExisting;
   const assumedNote = f.areaEstimated
     ? "You didn’t provide a ceiling size, so we’ve used 150 m² for this preliminary quote. Your final price will depend on the measured ceiling area."
     : "We’ll confirm the ceiling measurements at your free Ready Check.";
@@ -241,7 +245,7 @@ function renderEligibleNoInsulation(r: JoRecipient, f: JoEstimateFigures, declar
     "We’ll contact you to arrange your free Ready Check. No payment is required to save your spot, and there’s no obligation to proceed with installation.", "",
     "### What could change this price?", "",
     ...(declaredThinPatchy
-      ? [THIN_PATCHY_SAVE_SPOT_LINE, changePrice]
+      ? [declaredExisting ? EXISTING_SAVE_SPOT_LINE : THIN_PATCHY_SAVE_SPOT_LINE, changePrice]
       : ["This quote is based on the information you supplied and assumes there is no existing ceiling insulation. Final measurements, ceiling access and any electrical fixes may affect the price. Insulation removal and electrical fixes are excluded."]),
     "",
     "We’ll confirm eligibility and your final quote, including any additional costs, for your approval before you commit.", "",
@@ -418,13 +422,13 @@ export function renderJoEstimateEmail(
   id: Exclude<JoTemplateId, "ineligible" | "ready_check_invitation">,
   recipient: JoRecipient,
   figures: JoEstimateFigures,
-  opts: { declaredThinPatchy?: boolean; insulationQuestions?: boolean } = {},
+  opts: { declaredThinPatchy?: boolean; declaredExisting?: boolean; insulationQuestions?: boolean } = {},
 ): JoRenderResult {
   let body: string;
   switch (id) {
     case "eligible_no_insulation_size_unknown":
     case "eligible_no_insulation_size_known":
-      body = renderEligibleNoInsulation(recipient, figures, opts.declaredThinPatchy === true);
+      body = renderEligibleNoInsulation(recipient, figures, opts.declaredThinPatchy === true, opts.declaredExisting === true);
       break;
     case "eligible_below_r2_reviewed_size_unknown":
     case "eligible_below_r2_reviewed_size_known":
