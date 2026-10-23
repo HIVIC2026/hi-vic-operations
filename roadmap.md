@@ -1,4 +1,8 @@
 # Roadmap (preview only; external actions only where Jo explicitly authorises them)
+## Monitoring findings (Jo 23 Oct 21:24 UTC)
+- [ ] Restore owner insulation-question saving without bypassing pending persistence activation; confirmed real-owner gate blocks submission. Await approval of the repair plan; no live writes or sends.
+- [ ] Make explicit photo-review closure record the audited Office ineligible decision, preserving rank-only buttons and optional guarded email. Await approval of the repair plan; existing eligibility setter invokes automation and must not be called unchanged.
+- [x] Read-only verification: 17 focused isolated/practice tests pass; no application code changes, database changes, sends or publication.
 ## Website-aligned year answers (Jo 23 Oct 09:19 UTC)
 - [x] Shared six website year options/values and mapping across page/validation/answer overlay; last-five-years overrides thin/loose fill, refuses saved-spot path and records ineligibility in pending SQL. Original website history retained; practice proof passes, SQL unapplied.
 - [x] Agreed removal/price range helper already shared by active email and estimate pages; 37 focused/practice checks pass. Isolated 430×706 phone verifies all six labels and ineligible result with no spot-save call/overflow; preview build OK. Hosted answer saving remains blocked by pending activation; no live writes, sends or publication.
