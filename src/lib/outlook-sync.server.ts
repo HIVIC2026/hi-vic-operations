@@ -5,7 +5,7 @@
 // "not proceeding" email. Historical catch-up is record-only before backfill_from.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { checkedOutlookHealth, normaliseMailbox, outlookGatewayUrl, outlookMailboxPath, uncheckedOutlookHealth, type OutlookHealth } from "./outlook-connection.core";
+import { checkedOutlookHealth, normaliseMailbox, outlookGatewayUrl, outlookMailboxPath, uncheckedOutlookHealth, OUTLOOK_REQUEST_REDIRECT, type OutlookHealth } from "./outlook-connection.core";
 import {
   attachmentIdentityKey, attachmentStoragePath, ATTACHMENT_MAX_FILE_BYTES, ATTACHMENT_MAX_MESSAGE_BYTES,
   classifyIntent, closureDecision, counterpartEmails, extractJobNumbers, isPortalDuplicate, matchMessage, normaliseMessage,
@@ -46,7 +46,7 @@ export function outlookConfigured(): boolean {
 async function graph<T>(path: string): Promise<T> {
   // Never follow redirects with connector credentials, or use an arbitrary provider next-link origin.
   const res = await fetch(outlookGatewayUrl(path), {
-    method: "GET", redirect: "manual", signal: AbortSignal.timeout(20_000),
+    method: "GET", redirect: OUTLOOK_REQUEST_REDIRECT, signal: AbortSignal.timeout(20_000),
     headers: {
       Authorization: `Bearer ${process.env["LOVABLE_API_KEY"]}`,
       "X-Connection-Api-Key": process.env["MICROSOFT_OUTLOOK_API_KEY"]!,
@@ -62,7 +62,7 @@ async function graph<T>(path: string): Promise<T> {
 /** Raw bytes of one attachment ($value). Never follows redirects; the URL goes through the approved-gateway check. */
 async function attachmentBytes(mailbox: string, messageId: string, attachmentId: string): Promise<ArrayBuffer> {
   const res = await fetch(outlookGatewayUrl(`${outlookMailboxPath(mailbox)}/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}/$value`), {
-    method: "GET", redirect: "manual", signal: AbortSignal.timeout(30_000),
+    method: "GET", redirect: OUTLOOK_REQUEST_REDIRECT, signal: AbortSignal.timeout(30_000),
     headers: {
       Authorization: `Bearer ${process.env["LOVABLE_API_KEY"]}`,
       "X-Connection-Api-Key": process.env["MICROSOFT_OUTLOOK_API_KEY"]!,

@@ -55,7 +55,7 @@ export const outlookRecoveryCases: [string, () => Promise<void>][] = [
     assert.ok(h.operations.every(op => op.mode === "read"));
     assert.equal(await total(h, "outlook_message_work"), 0);
     assert.equal(await total(h, "admin_config_events"), 0);
-    assert.ok(h.requests.every(r => r.options.method === "GET" && r.options.redirect === "error"));
+    assert.ok(h.requests.every(r => r.options.method === "GET" && r.options.redirect === "manual"));
     assert.equal(h.requests.filter(r => r.url.includes(`/users/shared%40example.test/mailFolders/`)).length, 2);
     await h.server.confirmOutlookMailbox(TEST_MAILBOX, TEST_ACTOR);
     assert.equal((await h.state()).expected_mailbox, TEST_MAILBOX);

@@ -1,5 +1,7 @@
 // Pure Outlook connection and continuation rules. Credentials belong only on the connector gateway.
 export const OUTLOOK_GATEWAY = "https://connector-gateway.lovable.dev/microsoft_outlook";
+// Workers only support manual/follow. Manual prevents forwarding connector credentials to a redirect target.
+export const OUTLOOK_REQUEST_REDIRECT = "manual" as const;
 
 export type OutlookIdentity = { id: string; email: string; displayName: string | null };
 export type OutlookHealth = {
