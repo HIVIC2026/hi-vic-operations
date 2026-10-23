@@ -46,13 +46,14 @@ export function outlookConfigured(): boolean {
 async function graph<T>(path: string): Promise<T> {
   // Never follow redirects with connector credentials, or use an arbitrary provider next-link origin.
   const res = await fetch(outlookGatewayUrl(path), {
-    method: "GET", redirect: "error", signal: AbortSignal.timeout(20_000),
+    method: "GET", redirect: "manual", signal: AbortSignal.timeout(20_000),
     headers: {
       Authorization: `Bearer ${process.env["LOVABLE_API_KEY"]}`,
       "X-Connection-Api-Key": process.env["MICROSOFT_OUTLOOK_API_KEY"]!,
       Prefer: 'IdType="ImmutableId", outlook.body-content-type="text"',
     },
   });
+  if (res.status >= 300 && res.status < 400) throw new Error("Outlook tried to redirect; the request was not followed.");
   if (!res.ok) throw new Error(`Outlook request failed (HTTP ${res.status}). Check the connector account and permissions.`);
   try { return (await res.json()) as T; }
   catch { throw new Error("Outlook returned an unreadable response."); }
@@ -61,12 +62,13 @@ async function graph<T>(path: string): Promise<T> {
 /** Raw bytes of one attachment ($value). Never follows redirects; the URL goes through the approved-gateway check. */
 async function attachmentBytes(mailbox: string, messageId: string, attachmentId: string): Promise<ArrayBuffer> {
   const res = await fetch(outlookGatewayUrl(`${outlookMailboxPath(mailbox)}/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}/$value`), {
-    method: "GET", redirect: "error", signal: AbortSignal.timeout(30_000),
+    method: "GET", redirect: "manual", signal: AbortSignal.timeout(30_000),
     headers: {
       Authorization: `Bearer ${process.env["LOVABLE_API_KEY"]}`,
       "X-Connection-Api-Key": process.env["MICROSOFT_OUTLOOK_API_KEY"]!,
     },
   });
+  if (res.status >= 300 && res.status < 400) throw new Error("Outlook tried to redirect an attachment download; it was not followed.");
   if (!res.ok) throw new Error(`Outlook attachment download failed (HTTP ${res.status}).`);
   return res.arrayBuffer();
 }
