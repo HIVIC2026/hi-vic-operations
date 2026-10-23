@@ -11,3 +11,11 @@ for(const outcome of ['no_insulation','below_r2','over_r2','unclear'] as const)t
 test('real R2+ action without reason rejects before any persistence',async()=>{
  const n=events.length;await expect(reviewLeadMedia('TEST','over_r2','TEST_ACTOR')).rejects.toThrow();expect(events.length).toBe(n);
 });
+test('Jo 08:27: a saved spot photo check is rank-only (manual, no email route)',async()=>{
+ const m=await import('@/integrations/supabase/client.server') as unknown as {supabaseAdmin:{from:(t:string)=>unknown}};
+ const orig=m.supabaseAdmin.from;m.supabaseAdmin.from=(t:string)=>t==='lead_campaign_responses'?{select:()=>({eq:()=>({maybeSingle:async()=>({data:{spot_saved_at:'2026-10-20'},error:null})})})}:orig(t);
+ const {reviewLeadMedia}=await import('../src/lib/enquiry-groups.server');
+ const r=await reviewLeadMedia('TEST','below_r2','TEST');m.supabaseAdmin.from=orig;
+ expect(r.spotSaved).toBe(true);const last=events.at(-1) as {metadata:{manualOnly?:boolean;spotSavedRankOnly?:boolean}};
+ expect(last.metadata.manualOnly).toBe(true);expect(last.metadata.spotSavedRankOnly).toBe(true);
+});
