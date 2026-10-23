@@ -17,8 +17,8 @@ describe("Office 'No insulation visible' review", () => {
     expect(r.email).toBe("offer_spot");
     expect(r.assumedArea).toBeUndefined();
   });
-  test("unreviewed present/unknown stays request_insulation (T5/T6)", () => {
-    expect(automaticLeadEmail({ ...base, declaredInsulation: effectiveInsulation("present", null) }).email).toBe("request_insulation");
+  test("unreviewed present gets the existing-insulation offer (Jo 23 Oct); unknown stays request_insulation", () => {
+    expect(automaticLeadEmail({ ...base, declaredInsulation: effectiveInsulation("present", null) }).email).toBe("offer_spot");
     expect(automaticLeadEmail({ ...base, declaredInsulation: effectiveInsulation("unknown", null) }).email).toBe("request_insulation");
   });
   test("grouping places reviewed job in Save my spot lane, not insulation check", () => {
