@@ -133,7 +133,7 @@ export function selectJoTemplate(input: JoRoutingInput): JoTemplateId | null {
   // Jo 22 Oct 2026: declared thin/patchy existing insulation (no photo review) uses the eligible Save my
   // spot email (templates 1/2) with the approved thin/patchy wording. Only ever set from the owner's
   // website follow-up answers; a recorded Office review takes precedence and never reaches this branch.
-  if (eligible && input.insulation === "present" && (input.declaredThinPatchy || input.declaredExisting)) {
+  if ((eligible || potentially) && (input.insulation === "present" || input.insulation === "unknown") && (input.declaredThinPatchy || input.declaredExisting)) {
     return input.ceilingSizeKnown
       ? "eligible_no_insulation_size_known"
       : "eligible_no_insulation_size_unknown";
