@@ -125,11 +125,31 @@ function VideoPage() {
               <div className="flex gap-2"><Button className="h-12" variant={option==="photos"?"default":"outline"} disabled={uploading} onClick={()=>setOption("photos")}>Photos</Button><Button className="h-12" variant={option==="video"?"default":"outline"} disabled={uploading} onClick={()=>setOption("video")}>Video</Button></div>
               {(option==="photos"||option==="video")&&<CaptureUploads kind={option} remaining={data.remaining} received={data.received} uploadFile={upload} onSaved={refetch} onBusyChange={setUploading}/>}
             </section>
-            <Button className="h-12 w-full" disabled={uploading||declaring||declared||!answers.insulation_type||!answers.insulation_thickness||!answers.house_built_period} onClick={()=>void submitDeclaration()}>{declaring?"Sending…":"Send"}</Button>
+            <Button className="h-12 w-full" disabled={uploading||declaring||declared||!answers.insulation_type||!answers.insulation_thickness||!answers.house_built_period} onClick={()=>void submitDeclaration()}>{declaring?"Saving…":"SAVE MY SPOT"}</Button>
             {declarationError&&<p role="alert" className="text-sm text-destructive">{declarationError}</p>}
+            <div className="text-center">{!leaving ? <Button variant="link" className="h-12 text-sm text-muted-foreground" onClick={()=>setLeaving(true)}>No longer interested</Button> : (
+              <fieldset className="space-y-2 rounded-2xl border bg-card p-4 text-left"><legend className="mb-2 font-semibold">Sorry to see you go. What's the main reason?</legend>
+                {NOT_INTERESTED_REASONS.map(r=><Button key={r.value} role="radio" aria-checked={reason===r.value} variant={reason===r.value?"default":"outline"} className="h-12 w-full justify-start" onClick={()=>setReason(r.value)}>{r.label}</Button>)}
+                <textarea aria-label="Anything else? (optional)" placeholder="Anything else? (optional)" maxLength={500} value={note} onChange={e=>setNote(e.target.value)} className="min-h-20 w-full rounded-md border bg-background p-3 text-sm" />
+                <Button className="h-12 w-full" variant="secondary" disabled={!reason||declaring} onClick={async()=>{ if(!reason) return; setDeclaring(true); setDeclarationError(null); try { await notInterested({ data: { token, reason, note: note.trim()||undefined } }); setClosed(true); } catch(e){ setDeclarationError(e instanceof Error?e.message:"Please try again."); } finally { setDeclaring(false); } }}>Close my enquiry</Button>
+              </fieldset>)}</div>
           </div>
         )}
       </main>
     </div>
   );
+}
+
+type QuotePricing = { gross: number; discount: number; total: number; areaM2: number; removalUpTo?: number | null } | null;
+function QuoteBox({ p, name }: { p: QuotePricing; name: string | null }) {
+  if (!p) return null;
+  const $ = (n: number) => `$${Math.floor(Number(n)).toLocaleString("en-AU")}`;
+  return <section aria-label="Your preliminary quote" className="rounded-2xl border bg-card p-5">
+    <p className="text-sm font-semibold text-muted-foreground">{name ? `${name}, your preliminary quote` : "Your preliminary quote"}</p>
+    <p className="mt-1 font-display text-3xl font-extrabold">Potential VEU rebate: {$(p.discount)}</p>
+    <p className="mt-2">Estimated cost if eligible: <strong>{$(p.total)}</strong> including GST</p>
+    <p className="text-sm text-muted-foreground">Before rebate: {$(p.gross)} including GST · {Math.round(p.areaM2)} m²</p>
+    {p.removalUpTo != null && p.removalUpTo > 0 && <p className="mt-3 text-sm">{removalUpToLine(p.removalUpTo, p.areaM2)}</p>}
+    <p className="mt-3 text-sm font-semibold">No payment · no obligation</p>
+  </section>;
 }
