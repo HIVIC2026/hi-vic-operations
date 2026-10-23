@@ -24,15 +24,16 @@ export const getInstallerQuotesToCheck = createServerFn({ method: "POST" }).midd
     for (let from = 0; from < ids.length; from += 50) batches.push(ids.slice(from, from + 50));
     const parts = [];
     for (let from = 0; from < batches.length; from += 4) parts.push(...await Promise.all(batches.slice(from, from + 4).map(async batch => {
-      const [quotes, held, assigned] = await Promise.all([
+      const [quotes, held, assigned, basics] = await Promise.all([
         admin.from("quotes").select("id, job_id, status, sent_at, release_state, customer_total_inc_gst, created_at, release_hold_reason").in("job_id", batch).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]),
         admin.from("workflow_events").select("job_id, created_at, details").in("job_id", batch).in("event_type", ["installer_quote_held", "ready_check_needs_office"]).order("created_at", { ascending: false }),
         admin.from("job_assignments").select("job_id, business_id").in("job_id", batch).eq("role", "installer").eq("active", true),
+        admin.from("workflow_events").select("job_id, created_at, details").in("job_id", batch).eq("event_type", "ready_check_basics").order("created_at", { ascending: false }),
       ]);
-      if (quotes.error || held.error || assigned.error) throw new Error("Quotes to check could not be read.");
-      return { quotes: quotes.data ?? [], held: held.data ?? [], assigned: assigned.data ?? [] };
+      if (quotes.error || held.error || assigned.error || basics.error) throw new Error("Quotes to check could not be read.");
+      return { quotes: quotes.data ?? [], held: held.data ?? [], assigned: assigned.data ?? [], basics: basics.data ?? [] };
     })));
-    const quotes = parts.flatMap(p => p.quotes), held = parts.flatMap(p => p.held).sort((a,b) => b.created_at.localeCompare(a.created_at)), assigned = parts.flatMap(p => p.assigned);
+    const quotes = parts.flatMap(p => p.quotes), held = parts.flatMap(p => p.held).sort((a,b) => b.created_at.localeCompare(a.created_at)), assigned = parts.flatMap(p => p.assigned), basicsEv = parts.flatMap(p => p.basics).sort((a,b) => b.created_at.localeCompare(a.created_at));
     const { data: businesses, error: be } = await admin.from("businesses").select("id, name");
     if (be) throw new Error("Installer names could not be read.");
     const { quoteNeedsOfficeReview, quoteReviewReasons } = await import("./office-quote-review.core");
@@ -48,8 +49,13 @@ export const getInstallerQuotesToCheck = createServerFn({ method: "POST" }).midd
       const base = { jobId: j.id, jobNumber: j.job_number, owner: owner?.full_name ?? null, address: [p?.address_line, p?.suburb].filter(Boolean).join(", ") || null, installer: businesses?.find(b => b.id === bizId)?.name ?? null };
       const details = h?.details as { blockers?: string[]; reasons?: string[] } | null;
       const reasons = quoteReviewReasons(draft?.release_hold_reason, h ? { at: h.created_at, reasons: details?.blockers ?? details?.reasons ?? [] } : null, draft?.created_at ?? null);
-      if (draft) rows.push({ ...base, quoteId: draft.id, total: Number(draft.customer_total_inc_gst), reasons, kind: reasons.length ? "missing" as const : "ready" as const, at: draft.created_at, note: reasons.join(" · ") || "Quote drafted — check it and send it to the owner" });
-      else if (h) rows.push({ ...base, quoteId: null, total: null, reasons, kind: "missing" as const, at: h.created_at, note: reasons.join(" · ") || "details missing" });
+      // Jo 23 Oct: every Ready Check comes here — a draft once the basics are in, otherwise exactly what is missing.
+      const bEv = basicsEv.find((e) => e.job_id === j.id);
+      const bd = bEv?.details as { missing?: string[]; stops?: string[]; notes?: string[]; ready?: boolean } | null;
+      const notes = bd?.notes ?? [];
+      if (draft) rows.push({ ...base, quoteId: draft.id, total: Number(draft.customer_total_inc_gst), reasons, notes, kind: reasons.length ? "missing" as const : "ready" as const, at: draft.created_at, note: reasons.join(" · ") || "Quote drafted — check it and send it to the owner" });
+      else if (bEv && bd && !bd.ready) { const r2 = [...(bd.missing ?? []).map((m) => `Missing: ${m}`), ...(bd.stops ?? [])]; rows.push({ ...base, quoteId: null, total: null, reasons: r2, notes, kind: "missing" as const, at: bEv.created_at, note: r2.join(" · ") }); }
+      else if (h) rows.push({ ...base, quoteId: null, total: null, reasons, notes, kind: "missing" as const, at: h.created_at, note: reasons.join(" · ") || "details missing" });
     }
     const { officeQuoteBlockers } = await import("./office-quote-review.server");
     // Bound parallel readiness reads; each row and its opened draft use the same guards.
