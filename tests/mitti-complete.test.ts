@@ -45,7 +45,9 @@ test("wiring: one completion step for both forms, behind the switch; retry/watch
   const sync = readFileSync("src/lib/mitti.server.ts", "utf8");
   expect(sync).toContain('ourLead: readyCheckVariant(job.channel) !== "ready_check_priced"');
   const srv = readFileSync("src/lib/mitti-complete.server.ts", "utf8");
-  expect(srv).toContain("const enabled = i.enabled ?? AUTO_QUOTE_SEND_ENABLED;");
+  // Jo 24 Oct "manual for the first few weeks": preparation on, automatic send off (office presses Send).
+  expect(srv).toContain("const enabled = i.enabled ?? READY_CHECK_AUTO_PREP_ENABLED;");
+  expect(srv).toContain("enabled: sendEnabled });");
   expect(srv).toContain(".neq(\"status\", \"complete\")"); // completes once (compare-and-swap)
   expect(srv).toContain("stageEntryBlockers(jobId, to)"); // guarded stage moves, held with reasons
   expect(readFileSync("src/routes/api/public/hooks/allocation-tick.ts", "utf8")).toContain("sweepCompletedMittiReadyChecks()");
@@ -54,4 +56,9 @@ test("wiring: one completion step for both forms, behind the switch; retry/watch
   const rel = readFileSync("src/lib/office-quote-review.server.ts", "utf8");
   expect(rel).toContain("ensureOwnerLink(jobId)");
   expect(rel).toContain("commercialBlocker(jobId)");
+});
+
+test("first few weeks: Complete prepares everything, the send stays with the office", async () => {
+  const { READY_CHECK_AUTO_PREP_ENABLED, AUTO_QUOTE_SEND_ENABLED } = await import("../src/lib/auto-quote-send.core");
+  expect([READY_CHECK_AUTO_PREP_ENABLED, AUTO_QUOTE_SEND_ENABLED]).toEqual([true, false]);
 });

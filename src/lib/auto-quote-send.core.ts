@@ -3,7 +3,11 @@
 // AP fee − VEU rebate) goes to the owner automatically. Anything that fails a check is held for the office with the reason.
 // A form edited after a quote was sent is flagged for the office; the sent quote is never changed. Pure rules only.
 
-/** Switch: ON only after Jo approves the owner quote email and the full TEST run passes. */
+/** Jo 24 Oct: "manual for the first few weeks". Pressing Complete in Mitti prepares everything automatically
+ *  (measurements, eligibility from the form, quote stage, quote) — this switch is ON — and the quote then waits on
+ *  Quotes to check for the office to press Send. */
+export const READY_CHECK_AUTO_PREP_ENABLED = true;
+/** The automatic SEND to the owner: OFF for the first few weeks; Jo switches it on later. */
 export const AUTO_QUOTE_SEND_ENABLED = false;
 
 /** Jo 24 Oct: normal installer prices inc GST per m² (difficult access fee excluded). */

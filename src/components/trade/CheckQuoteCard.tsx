@@ -34,7 +34,7 @@ export function CheckQuoteCard({ jobId, hideStatus = false }: { jobId: string; h
         {d.blockers.length > 0 && <ul data-quote-blockers className="space-y-1 text-sm font-semibold text-destructive">{d.blockers.map((b) => <li key={b}>{b}</li>)}</ul>}
         {!d.sent && !d.installerJob && d.state !== "approved" && <Button className={btnClass("primary", "h-12 w-full")} disabled={!d.canApprove || busy}
           onClick={async () => { setBusy(true); setErr(null); try { await approve({ data: { jobId, quoteId: d.quoteId } }); await Promise.all([qc.invalidateQueries({ queryKey: ["my-quote-to-check", jobId] }), qc.invalidateQueries({ queryKey: ["mitti-job-presentation", jobId] }), qc.invalidateQueries({ queryKey: ["trade-home"] })]); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); } }}>{d.buttonLabel}</Button>}
-        {d.installerJob && !d.sent && <p className="text-sm text-sub">When your Ready Check is finished, press Complete in Mitti. If everything checks out, this quote goes straight to the owner; if not, the office checks it first.</p>}
+        {d.installerJob && !d.sent && <p className="text-sm text-sub">When your Ready Check is finished, press Complete in Mitti. We check the quote and send it to the owner.</p>}
         {!d.installerJob && d.state === "approved" && !d.sent && <p className="text-sm text-sub">You approved this quote. The office will check it and send it to the owner.</p>}
         {err && <p role="alert" className="text-sm text-destructive">{err}</p>}
       </div>}

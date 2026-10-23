@@ -50,7 +50,7 @@ export function canApprove(blockers: string[]): boolean {
 }
 
 /** Jo 24 Oct: installer jobs — no approval; Complete in Mitti sends the quote unless a check holds it for the office. */
-export const PRESS_COMPLETE_LINE = "You: when the Ready Check is finished, press Complete in Mitti — the quote then goes to the owner";
+export const PRESS_COMPLETE_LINE = "You: when the Ready Check is finished, press Complete in Mitti — we then send the owner their quote";
 export const QUOTE_HELD_LINE = "Waiting on office: checking your quote";
 
 /** One line for the installer's job card. */

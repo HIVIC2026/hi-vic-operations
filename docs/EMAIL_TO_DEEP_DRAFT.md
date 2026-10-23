@@ -35,11 +35,9 @@ For your price:
 
 **4. Only press Complete when it's 100% ready**
 
-**When you press Complete in Mitti, the owner's quote is created and sent to the owner automatically.** So please don't press Complete until everything is finished and correct.
+**Pressing Complete in Mitti tells us the Ready Check is finished, and the owner's quote is created straight away.** So please don't press Complete until everything is finished and correct.
 
-The quote the owner receives is: **your total price + the electrical safety check (PIESA) + our $349 fee − the government VEU rebate.** They get it by email with a secure link to view and accept it.
-
-If anything doesn't look right (details missing, or a price outside our normal range), we hold the quote and check it with you first. Nothing odd goes to the owner. If you change the form after the quote has gone out, we'll check the change before anything else happens.
+The quote is: **your total price + the electrical safety check (PIESA) + our $349 fee − the government VEU rebate.** For the first few weeks we check every quote in the office before it goes to the owner by email, with a secure link to view and accept it. If anything doesn't look right (details missing, or a price outside our normal range), we'll sort it out with you first. If you change the form after the quote has gone out, we'll check the change before anything else happens.
 
 **5. After that**
 

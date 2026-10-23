@@ -67,7 +67,7 @@ it("Jo 23 Oct: an accepted quote never still reads 'to accept the quote'", () =>
 });
 
 it("Jo 24 Oct: installer jobs have no approval step — the card says press Complete, or office checking when held", () => {
-  expect(approvalCardLine("approved", false, false, { held: false })).toBe("You: when the Ready Check is finished, press Complete in Mitti — the quote then goes to the owner");
+  expect(approvalCardLine("approved", false, false, { held: false })).toBe("You: when the Ready Check is finished, press Complete in Mitti — we then send the owner their quote");
   expect(approvalCardLine("approved", false, false, { held: true })).toBe("Waiting on office: checking your quote");
   expect(approvalCardLine("approved", true, false, { held: false })).toBe("Waiting on owner: to accept the quote");
 });

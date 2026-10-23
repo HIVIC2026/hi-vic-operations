@@ -1,16 +1,18 @@
 // Jo 24 Oct 2026: the installer marks the Mitti Ready Check Complete → with no office steps in between, the
 // measurements are recorded, eligibility is decided from the form's answers, the job moves to the quote stage and
 // the owner's quote goes out (A1 installer jobs and A2 our leads alike). Any failed check holds the job for the
-// office with the reason (one note per situation). Switched off with AUTO_QUOTE_SEND_ENABLED until Jo says go.
+// office with the reason (one note per situation). Jo 24 Oct: preparation runs (READY_CHECK_AUTO_PREP_ENABLED); the send
+// itself stays with the office for the first few weeks (AUTO_QUOTE_SEND_ENABLED off → quote waits on Quotes to check).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent, transition, stageEntryBlockers, getStage } from "./workflow.server";
-import { AUTO_QUOTE_SEND_ENABLED } from "./auto-quote-send.core";
+import { AUTO_QUOTE_SEND_ENABLED, READY_CHECK_AUTO_PREP_ENABLED } from "./auto-quote-send.core";
 import { completionPlan, type CompletionInput } from "./mitti-complete.core";
 
 export type FinishResult = { done: "off" | "waiting" | "held" | "sent" | "stage_ready"; reasons: string[] };
 
-export async function finishMittiReadyCheck(jobId: string, i: { auditId: string; completed: boolean; modifiedAt: string | null; entries: { label: string; value: unknown }[]; ourLead: boolean; enabled?: boolean }): Promise<FinishResult> {
-  const enabled = i.enabled ?? AUTO_QUOTE_SEND_ENABLED;
+export async function finishMittiReadyCheck(jobId: string, i: { auditId: string; completed: boolean; modifiedAt: string | null; entries: { label: string; value: unknown }[]; ourLead: boolean; enabled?: boolean; sendEnabled?: boolean }): Promise<FinishResult> {
+  const enabled = i.enabled ?? READY_CHECK_AUTO_PREP_ENABLED;
+  const sendEnabled = i.sendEnabled ?? AUTO_QUOTE_SEND_ENABLED;
   if (!enabled) return { done: "off", reasons: [] };
   if (!i.completed) return { done: "waiting", reasons: [] };
   const { held } = await import("./auto-quote-send.server");
@@ -51,14 +53,15 @@ export async function finishMittiReadyCheck(jobId: string, i: { auditId: string;
 
   // 3. The owner's quote.
   const { maybeAutoSendInstallerQuote } = await import("./auto-quote-send.server");
-  const r = await maybeAutoSendInstallerQuote(jobId, { formCompleted: true, formModifiedAt: i.modifiedAt, enabled });
+  const r = await maybeAutoSendInstallerQuote(jobId, { formCompleted: true, formModifiedAt: i.modifiedAt, enabled: sendEnabled });
   return r.sent ? { done: "sent", reasons: [] } : { done: (await getStage(jobId)) === "measured_estimate_ready" ? "stage_ready" : "held", reasons: r.reasons };
 }
 
 /** Every tick: retry completed Mitti Ready Checks still short of a sent quote (after the office fixed a held reason),
  *  and watch forms whose quote went out for later edits (the regular sync stops reading a completed form). */
-export async function sweepCompletedMittiReadyChecks(opts: { enabled?: boolean; limit?: number; call?: import("./mitti.core").MittiCall } = {}): Promise<{ retried: number; watched: number }> {
-  const enabled = opts.enabled ?? AUTO_QUOTE_SEND_ENABLED;
+export async function sweepCompletedMittiReadyChecks(opts: { enabled?: boolean; sendEnabled?: boolean; limit?: number; call?: import("./mitti.core").MittiCall } = {}): Promise<{ retried: number; watched: number }> {
+  const enabled = opts.enabled ?? READY_CHECK_AUTO_PREP_ENABLED;
+  const sendEnabled = opts.sendEnabled ?? AUTO_QUOTE_SEND_ENABLED;
   if (!enabled) return { retried: 0, watched: 0 };
   const { data: rows, error } = await admin.from("ceiling_measurements").select("job_id, external_id, completed_at, jobs!inner(stage, channel, deleted_at, qa_archived_at, business_unit)")
     .eq("is_current", true).eq("external_source", "mitti").eq("status", "complete").eq("jobs.business_unit", "hivic").is("jobs.deleted_at", null)
@@ -75,10 +78,10 @@ export async function sweepCompletedMittiReadyChecks(opts: { enabled?: boolean; 
     try { const a = await mittiApi(call).getAudit(String(r.external_id)); modifiedAt = a?.modified_at ?? a?.audit_data?.date_modified ?? null; watched++; } catch { /* Mitti unavailable: retry next tick */ }
     if (j.stage === "awaiting_quote_acceptance") {
       const { maybeAutoSendInstallerQuote } = await import("./auto-quote-send.server");
-      await maybeAutoSendInstallerQuote(r.job_id, { formCompleted: true, formModifiedAt: modifiedAt, enabled }).catch(() => undefined);
+      await maybeAutoSendInstallerQuote(r.job_id, { formCompleted: true, formModifiedAt: modifiedAt, enabled: sendEnabled }).catch(() => undefined);
       continue;
     }
-    await finishMittiReadyCheck(r.job_id, { auditId: String(r.external_id), completed: true, modifiedAt, entries: [], ourLead: j.channel !== "installer_sourced", enabled }).catch(() => undefined);
+    await finishMittiReadyCheck(r.job_id, { auditId: String(r.external_id), completed: true, modifiedAt, entries: [], ourLead: j.channel !== "installer_sourced", enabled, sendEnabled }).catch(() => undefined);
     retried++;
   }
   return { retried, watched };
