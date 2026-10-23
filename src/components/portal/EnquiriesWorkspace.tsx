@@ -306,8 +306,8 @@ export function EnquiriesWorkspace({
           {view === "photos" && (
             <div className="rounded-md border border-warning/40 bg-warning/5 p-3 text-sm">
               <strong>Owners who sent photos or videos.</strong> Open each one, look at the
-              pictures, then choose: no insulation or below R2 makes them ready to offer Save My Spot, R2 or above moves
-              them to Ineligible, and unclear records need more pictures.
+              pictures, then choose No insulation, Under R2, Thicker / over R2 or Can't tell to set their Spots saved
+              rank. These buttons never send an email. "Not eligible – close" closes the enquiry.
             </div>
           )}
 

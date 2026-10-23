@@ -23,7 +23,7 @@ export async function loadQuoteApproval(jobId: string): Promise<QuoteApproval> {
   if (error) throw new WorkflowError("Quote could not be read.");
   const q = qs?.[0] ?? null;
   const channel = job?.channel ?? null;
-  if (!q || (q.option_code !== INSTALLER_QUOTE_APPROVAL_CODE && !(m?.external_source === "mitti" && m.external_id))) return { applies: false, quote: null, state: "needs_check", sent: false, quoteFp: "", formFp: "", channel, readyAt: null, approvedAt: null };
+  if (!q || (q.option_code !== INSTALLER_QUOTE_APPROVAL_CODE && !["R5_BATTS", "R6_BATTS", "R7_BATTS"].includes(q.option_code ?? "") && !(m?.external_source === "mitti" && m.external_id))) return { applies: false, quote: null, state: "needs_check", sent: false, quoteFp: "", formFp: "", channel, readyAt: null, approvedAt: null };
   const lines = [...(q.quote_items ?? [])].sort((a, b) => a.sort - b.sort);
   const quoteFp = quoteFingerprint(q, lines), formFp = formFingerprint(m?.raw_snapshot);
   const approvals = readApprovalEvents(ev ?? []);

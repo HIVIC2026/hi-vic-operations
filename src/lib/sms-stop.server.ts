@@ -4,21 +4,32 @@ import { toAuE164 } from "./sms.core";
 export const SMS_STOP_CLOSED_REASON = "Opted out (replied STOP)";
 
 /** Use the existing Office classifier: saved/progressed/removed/deleted jobs are not open enquiries. */
+/** Audit 23 Oct: a saved spot still waiting for its Ready Check booking also closes on STOP. */
+export const STOP_SAVED_SPOT_STAGE = "ready_check_ready_to_schedule";
+
 export async function closeStoppedEnquiries(db: any, phone: string, sid: string | null, now: string) {
-  const matches: Array<{ id: string; stage: string; owner_phone: string }> = [];
-  for (let offset = 0; ; offset += 500) {
-    const { data, error } = await db.from("office_enquiry_index")
-      .select("id,stage,owner_phone").eq("office_bucket", "enquiry")
-      .neq("source", "qa_test").is("deleted_at", null).order("id")
-      .range(offset, offset + 499);
-    if (error) throw new Error("Could not read open enquiries for STOP closure");
-    for (const row of data ?? []) if (toAuE164(row.owner_phone) === phone) matches.push(row);
-    if ((data ?? []).length < 500) break;
+  const matches: Array<{ id: string; stage: string; owner_phone: string; bucket: string }> = [];
+  for (const [bucket, stage] of [["enquiry", null], ["active", STOP_SAVED_SPOT_STAGE]] as const) {
+    for (let offset = 0; ; offset += 500) {
+      let q = db.from("office_enquiry_index").select("id,stage,owner_phone").eq("office_bucket", bucket);
+      if (stage) q = q.eq("stage", stage);
+      const { data, error } = await q.neq("source", "qa_test").is("deleted_at", null).order("id").range(offset, offset + 499);
+      if (error) throw new Error("Could not read open enquiries for STOP closure");
+      const hits = (data ?? []).filter((row: { owner_phone: string }) => toAuE164(row.owner_phone) === phone);
+      if (bucket === "active" && hits.length) {
+        // Only saved spots — never other active (progressed) work.
+        const { data: saved, error: savedError } = await db.from("lead_campaign_responses").select("job_id").in("job_id", hits.map((h: { id: string }) => h.id)).not("spot_saved_at", "is", null);
+        if (savedError) throw new Error("Could not read saved spots for STOP closure");
+        const ids = new Set((saved ?? []).map((x: { job_id: string }) => x.job_id));
+        for (const row of hits) if (ids.has(row.id)) matches.push({ ...row, bucket });
+      } else for (const row of hits) matches.push({ ...row, bucket });
+      if ((data ?? []).length < 500) break;
+    }
   }
   for (const row of matches) {
     // Re-read the shared classifier before the conditional update; never overwrite a changed stage.
     const { data: current, error: readError } = await db.from("office_enquiry_index")
-      .select("id,stage,owner_phone").eq("id", row.id).eq("office_bucket", "enquiry").maybeSingle();
+      .select("id,stage,owner_phone").eq("id", row.id).eq("office_bucket", row.bucket).maybeSingle();
     if (readError) throw new Error("Could not recheck enquiry for STOP closure");
     if (!current || current.stage !== row.stage || toAuE164(current.owner_phone) !== phone) continue;
     const { data: changed, error } = await db.from("jobs").update({

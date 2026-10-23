@@ -40,7 +40,7 @@ import { useAction } from "@/hooks/use-me";
 import { useServerFn } from "@tanstack/react-start";
 import { RECORD_LABELS, type RecordKey } from "@/lib/compliance-timeline.core";
 import {
-  adjustQuote, approveHeldQuote, assignContractor, generateInstallerQuotes, regenerateRectificationQuote, runComplianceReview,
+  adjustQuote, assignContractor, generateInstallerQuotes, regenerateRectificationQuote, runComplianceReview,
   setCommercialModel, setComplianceCheck, setEligibility, setHold, updateVeec, draftVeecReply, markVeecReplySent, listComplianceRecords, recordComplianceItem,
 } from "@/lib/portal.functions";
 import { ELIGIBILITY_LABEL, aud, fmtDate, type EligibilityOutcome } from "@/lib/workflow";
@@ -376,7 +376,6 @@ function AdminQuotes({ jobId }: { jobId: string }) {
   const gen = useAction(generateInstallerQuotes);
   const regen = useAction(regenerateRectificationQuote);
   const adjust = useAction(adjustQuote);
-  const approve = useAction(approveHeldQuote);
   const queryClient = useQueryClient();
   const { data } = useQuery({
     queryKey: ["adminquotes", jobId],
@@ -405,7 +404,7 @@ function AdminQuotes({ jobId }: { jobId: string }) {
                       <td className="p-2">{q.option_label} {q.manually_adjusted && <Pill t="warn">adjusted</Pill>}{q.release_hold_reason && <p className="mt-1 text-xs font-medium text-danger">{q.release_hold_reason}</p>}</td><td className="p-2">{officeQuoteStatusLabel(q)}</td>
                       <td className="p-2">{aud(int?.cost_ex_gst)}</td><td className="p-2">{aud(int?.ap_margin_ex_gst)}</td><td className="p-2">{aud(int?.ap_fee_ex_gst)}</td>
                       <td className="p-2 font-semibold">{aud(q.customer_total_inc_gst)}</td>
-                      <td className="p-2"><div className="flex gap-2">{q.status === "issued" && <Button size="sm" variant="outline" onClick={() => { setEditing(editing === q.id ? null : q.id); setEdits({}); setReason(""); }}>Adjust</Button>}{q.release_state === "held" && <Button size="sm" onClick={async () => { await approve({ quoteId: q.id }, "Quote approved"); await queryClient.invalidateQueries({ queryKey: ["adminquotes", jobId] }); }}>Approve</Button>}</div></td>
+                      <td className="p-2"><div className="flex gap-2">{q.status === "issued" && <Button size="sm" variant="outline" onClick={() => { setEditing(editing === q.id ? null : q.id); setEdits({}); setReason(""); }}>Adjust</Button>}</div></td>
                     </tr>
                     {editing === q.id && (
                       <tr><td colSpan={7} className="bg-muted p-3">

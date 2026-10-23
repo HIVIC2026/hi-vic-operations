@@ -131,12 +131,11 @@ export function pickupDuplicates(
 ): PickupDuplicate[] {
   const key = pickupAddressKey(item.siteAddress);
   if (!key) return [];
-  const nameKey = norm(item.homeownerName);
+  // Audit 23 Oct: never link on owner name alone — the address must match.
   return jobs
     .filter((j) => {
       const jk = propertyAddressKey(j.addressLine, j.suburb);
-      if (jk && jk === key) return true;
-      return !!nameKey && !!j.owner && norm(j.owner) === nameKey;
+      return !!jk && jk === key;
     })
     .map((j) => ({ jobId: j.id, jobNumber: j.job_number, stage: j.stage, owner: j.owner, address: [j.addressLine, j.suburb].filter(Boolean).join(", ") || null }));
 }

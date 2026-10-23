@@ -204,7 +204,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   const key = morePhotos ? morePhotosRequestKey(jobId, testOpts.morePhotosReviewId!) : `${LAUNCH_CAMPAIGN}:${questions ? "insulation_questions" : followup ? "existing_insulation_save_spot" : sendGroup === "onsite" ? "insulation_details" : "save_my_spot"}:${jobId}${isTest && testOpts.subjectPrefix ? `:preview-test:${testOpts.variant ?? "savespot"}:${Date.now()}` : ""}`;
   const { data: ex, error: existingSendError } = await admin.from("customer_email_sends").select("id, status").eq("idempotency_key", key).maybeSingle();
   if (existingSendError) return r("blocked", "Could not check previous delivery. Nothing sent; try again.");
-  if ((followup || morePhotos) && mode === "send" && ex) return r("skipped", "A follow-up attempt already exists. Check its delivery record before any further action.");
+  if ((followup || morePhotos) && mode === "send" && ex && !reservationAllowed(ex)) return r("skipped", "A follow-up attempt already exists. Check its delivery record before any further action.");
   if (mode === "send" && ex && !reservationAllowed(ex)) return r("skipped", "Already sent to this home.");
   if (mode === "send") {
     // STEP 17: Office already sent this email by hand (recorded "Sent manually") – the portal never sends it again.
@@ -281,6 +281,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   // labelled 150 m² assumption only. Any other basis (research area, mismatch) fails closed.
   const { joAreaBasis } = await import("./jo-area-basis.core");
   const areaBasis = joAreaBasis({ areaSource: est?.area_source ?? null, areaM2: price.areaM2, ownerAreaM2: job.estimated_area_unknown ? null : Number(job.estimated_area_m2) || null });
+  let renderError: string | null = null;
   const joMail = await (async () => {
     if (!figuresOk || !areaBasis.ok) return null;
     const jo = await import("./jo-outcome-email.core");
@@ -335,10 +336,15 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
       if (sendGroup === "onsite" && !office && !followup && !upload) return null;
       const m = withUnsubscribe(rendered, unsubscribeUrl);
       return isTest && testOpts.subjectPrefix ? { ...m, subject: `${testOpts.subjectPrefix} ${m.subject}` } : m;
-    } catch { return null; }
+    } catch (error) {
+      renderError = error instanceof Error ? error.message : String(error);
+      console.error("Jo email preparation failed", { jobId, error: renderError });
+      return null;
+    }
   })();
   if (!joMail) {
-    const held = areaBasis.ok ? "No approved Jo template applies to this enquiry — held for manual review; nothing sent." : areaBasis.reason;
+    const renderMsg = renderError as string | null;
+    const held = renderMsg ? `Could not prepare the approved email: ${renderMsg.slice(0, 200)} — nothing sent.` : areaBasis.ok ? "No approved Jo template applies to this enquiry — held for manual review; nothing sent." : areaBasis.reason;
     // A reservation made above is released as a clean pre-delivery failure (never left "sending").
     if (mode === "send" && sendId) await admin.from("customer_email_sends").update({ status: "failed", provider: "not_sent", error: held }).eq("id", sendId);
     return r("blocked", held);
@@ -456,18 +462,6 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
   return r("sent", isTest ? "Sent to Jo's test inbox" : "Sent");
 }
 
-/** Automatic send after an official Gate 1 decision + Step 3 prep (Jo, 8 Oct 2026): real jobs only —
- *  sendOne re-checks likely-eligible + no insulation + size entered, consent, opt-out and once-per-home.
- *  TEST (qa_test) jobs never auto-email. Best-effort: never throws, never blocks intake. */
-export async function maybeAutoSendSaveSpot(jobId: string): Promise<void> {
-  try {
-    const { data: job } = await admin.from("jobs").select("source").eq("id", jobId).maybeSingle();
-    if (!job || job.source === "qa_test") return;
-    await sendSaveMySpot([jobId], null);
-  } catch (e) {
-    console.warn("auto save-my-spot send failed (ignored)", (e as Error).message.slice(0, 200));
-  }
-}
 
 /** Group B real delivery requires BOTH global switches on (customer_comms_enabled + delivery enabled). Unreadable = off. */
 /** Jo 21 Oct: Office sends the right held email for one Office review enquiry. Every normal guard still runs. */

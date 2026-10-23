@@ -1,6 +1,7 @@
 import { beforeEach, expect, mock, test } from "bun:test";
 
 type Row = { id: string; stage: string; owner_phone: string; office_bucket: string; source: string; deleted_at: string | null; cancelled_reason?: string; prior_stage?: string };
+let savedIds: string[] = [];
 let rows: Row[] = [], optouts: Record<string, unknown>[] = [], events: Record<string, unknown>[] = [], failOptout = false, failClose = false;
 const client = { from(table: string) {
   const filters: Array<(r: any) => boolean> = [];
@@ -12,6 +13,7 @@ const client = { from(table: string) {
     }
     if (table === "workflow_events") { events.push(payload); return { data: null, error: null }; }
     if (table === "sms_messages" || table === "job_communications") return { data: null, error: null };
+    if (table === "lead_campaign_responses") return { data: savedIds.map((job_id) => ({ job_id })), error: null };
     let selected = rows.filter(r => filters.every(f => f(r)));
     if (operation === "update") {
       if (failClose) return { data: null, error: { message: "isolated failure" } };
@@ -23,7 +25,7 @@ const client = { from(table: string) {
     select: () => q, eq: (k: string, v: any) => { filters.push(r => r[k] === v); return q; },
     neq: (k: string, v: any) => { filters.push(r => r[k] !== v); return q; },
     is: (k: string, v: any) => { filters.push(r => r[k] === v); return q; },
-    not: () => q, order: () => q, limit: () => q,
+    not: () => q, in: () => q, order: () => q, limit: () => q,
     range: (a: number, b: number) => { start = a; end = b; return q; },
     upsert: (v: any) => { payload = v; operation = "upsert"; return q; },
     update: (v: any) => { payload = v; operation = "update"; return q; },
@@ -37,7 +39,7 @@ mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: cli
 mock.module("../src/lib/comms.server", () => ({ customerCommsEnabled: () => { throw new Error("No outbound calls allowed"); }, hasCurrentOwnerContactConsent: () => false }));
 const { recordInboundReply } = await import("../src/lib/sms.server");
 const enquiry = (id = "open"): Row => ({ id, stage: "preliminary_estimate_ready", owner_phone: "0491 234 567", office_bucket: "enquiry", source: "base44", deleted_at: null });
-beforeEach(() => { rows = [enquiry()]; optouts = []; events = []; failOptout = false; failClose = false; });
+beforeEach(() => { savedIds = []; rows = [enquiry()]; optouts = []; events = []; failOptout = false; failClose = false; });
 test("actual STOP handler records opt-out and closes the open enquiry with Jo's exact reason", async () => {
   await recordInboundReply("+61491234567", "STOP", "isolated-stop");
   expect(optouts[0]?.phone).toBe("+61491234567");
@@ -68,4 +70,11 @@ test("failed opt-out persistence cannot close an enquiry", async () => {
 test("failed closure is surfaced rather than acknowledging success", async () => {
   failClose = true; await expect(recordInboundReply("0491234567", "STOP")).rejects.toThrow("Could not close enquiry after STOP");
   expect(optouts).toHaveLength(1); expect(rows[0]?.stage).toBe("preliminary_estimate_ready");
+});
+test("audit 23 Oct: STOP also closes a saved spot waiting for its Ready Check, never booked work", async () => {
+  rows = [{ ...enquiry("saved"), stage: "ready_check_ready_to_schedule", office_bucket: "active" }, { ...enquiry("notsaved"), stage: "ready_check_ready_to_schedule", office_bucket: "active" }, { ...enquiry("booked"), stage: "ready_check_scheduled", office_bucket: "active" }];
+  savedIds = ["saved"];
+  await recordInboundReply("0491234567", "STOP");
+  expect(rows.filter(r => r.stage === "cancelled").map(r => r.id)).toEqual(["saved"]);
+  expect(rows[0]?.cancelled_reason).toBe("Opted out (replied STOP)");
 });
