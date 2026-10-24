@@ -2,8 +2,8 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
 import { logEvent, piesaStatus, WorkflowError } from "./workflow.server";
-import { buildEscPayload, escDueBy, escEarliest, readyToInstall, staleReasons, submissionBlockers, submissionPatch, type EscConfig, type EscField, type EscFacts } from "./esc.core";
-import { consentValidityBlockers } from "./consent.core";
+import { buildEscPayload, escDueBy, escEarliest, readyToInstall, registryFacts, staleReasons, submissionBlockers, submissionPatch, withdrawalPatch, type EscConfig, type EscField, type EscFacts } from "./esc.core";
+import { consentCompletedAt, consentValidityBlockers, type ConsentRecord } from "./consent.core";
 import { formatPropertyAddress } from "./address";
 
 /** Submission adapter slot. No ESC endpoint is configured – adapter always reports not configured. */
@@ -31,15 +31,27 @@ async function person(jobId: string, role: "installer" | "electrician") {
   return { name: p?.full_name ?? null, licence: p?.licence_number ?? b?.licence_number ?? null, business: b?.name ?? null, abn: b?.abn ?? null };
 }
 
-/** Known notification facts – filled automatically; conditional ones only matter when their condition applies. */
-async function notificationFacts(jobId: string, extra: Record<string, string>) {
+/** Known notification facts – filled automatically from job records (never guessed); conditional ones only matter when
+ *  their condition applies. Registry facts (decision 121): AP, premises, owner, date/time, installer + CII number,
+ *  electrician + licence, PIESA date, PIISA done, consent date, job number. */
+async function notificationFacts(jobId: string, extra: Record<string, string>, ctx: { jobNumber: string; address: string; ownerName: string | null; start: string; end: string | null; consent: ConsentRecord }) {
   const inst = await person(jobId, "installer");
   const elec = await person(jobId, "electrician");
   const piesa = await piesaStatus(jobId);
   const { count } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", jobId).neq("status", "cancelled");
   const rectification = (count ?? 0) > 0;
+  const lead = await import("./prestart.server").then((m) => m.leadInstallerCert(jobId)).catch(() => null);
+  const piesaDone = await import("./allocation.server").then((m) => m.clearanceFacts(jobId)).then((c) => c.piesaCompletedAt).catch(() => null);
+  const piisa = await import("./official-forms.server").then((m) => m.currentCopy(jobId, "piisa")).then((r) => r.copy?.signatureDate ?? null).catch(() => null);
+  const registry = registryFacts({
+    jobNumber: ctx.jobNumber, premisesAddress: ctx.address, ownerName: ctx.ownerName, scheduledStart: ctx.start, scheduledEnd: ctx.end,
+    installerBusiness: inst?.business ?? null, leadInstaller: lead?.name ?? inst?.name ?? null, leadInstallerCii: lead?.certificateNumber ?? null,
+    electricianName: elec?.name ?? null, electricianLicence: extra["rec_number"] ?? elec?.licence ?? null,
+    piesaCompletedOn: piesaDone ?? piesa?.piesa_date ?? null, piisaSignedOn: piisa, consentCompletedAt: ctx.consent ? consentCompletedAt(ctx.consent) : null,
+  });
   const facts: EscFacts = {
-    lead_installer: inst?.name ?? null, installer_business: inst?.business ?? null, installer_abn_acn: inst?.abn ?? null,
+    ...registry,
+    installer_abn_acn: inst?.abn ?? null,
     piesa_outcome: piesa?.piesa_outcome ?? null, coes_number: extra["coes_number"] ?? null, rec_number: extra["rec_number"] ?? elec?.licence ?? null,
   };
   return { facts, conditions: { rectification, recRequired: rectification } };
@@ -62,7 +74,7 @@ export async function regenerateEscNotification(jobId: string, actorId: string |
   const consentReference = consentOk ? `${consent.id}:${consent.signed_sha256}` : null;
   const cfg = await activeEscConfig();
   const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(new Date(b.scheduled_start));
-  const nf = await notificationFacts(jobId, extra);
+  const nf = await notificationFacts(jobId, extra, { jobNumber: s.jobNumber, address: s.address, ownerName: s.owner.name, start: b.scheduled_start, end: b.scheduled_end, consent: consentOk ? consent : null });
   const built = buildEscPayload(cfg, { jobNumber: s.jobNumber, installationDays: [day], scheduledStart: b.scheduled_start, scheduledEnd: b.scheduled_end, premisesAddress: s.address, owner: s.owner, extra, facts: { ...nf.facts, owner_consent_reference: consentReference }, conditions: nf.conditions, consentReference });
   const fields = {
     consent_id: consentOk ? consent.id : null, consent_template_version: consent?.template_version ?? null, consent_signed_at: consentOk ? consent.ap_signed_at : null,
@@ -78,11 +90,14 @@ export async function regenerateEscNotification(jobId: string, actorId: string |
     await admin.from("esc_notifications").update({ status: "stale", last_error: `Stale: ${why.join(", ") || "booking replaced"}`, updated_at: new Date().toISOString() }).eq("id", prev.id);
     await logEvent(jobId, actorId, "esc_notification_stale", `Previous ESC notification is STALE (${why.join(", ") || "booking replaced"}) – re-notification required${prev.sent_at ? " (it had been sent)" : ""}`, { notification_id: prev.id, reasons: why }, { internal: true });
   }
+  // Version numbers never repeat for a job: stale/cancelled/withdrawn notices stay as history and still count.
+  const { data: top } = await admin.from("esc_notifications").select("version").eq("job_id", jobId).order("version", { ascending: false }).limit(1).maybeSingle();
+  const nextVersion = Math.max(prev?.version ?? 0, top?.version ?? 0) + 1;
   const { data: ins } = await admin.from("esc_notifications").insert({
-    job_id: jobId, booking_id: b.id, version: (prev?.version ?? 0) + 1, scheduled_start: b.scheduled_start, scheduled_end: b.scheduled_end, installation_days: [day] as Json,
+    job_id: jobId, booking_id: b.id, version: nextVersion, scheduled_start: b.scheduled_start, scheduled_end: b.scheduled_end, installation_days: [day] as Json,
     premises_address: s.address, owner_contact: s.owner as Json, ...fields,
   }).select("id").single();
-  await logEvent(jobId, actorId, "esc_notification_prepared", `ESC notification v${(prev?.version ?? 0) + 1} prepared (${built.status.replace("_", " ")}) – send window ${new Date(escEarliest(b.scheduled_start)).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })} to ${new Date(escDueBy(b.scheduled_start)).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })}. NOT yet sent.`, { notification_id: ins?.id, missing: built.missing }, { internal: true });
+  await logEvent(jobId, actorId, "esc_notification_prepared", `ESC notification v${nextVersion} prepared (${built.status.replace("_", " ")}) – send window ${new Date(escEarliest(b.scheduled_start)).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })} to ${new Date(escDueBy(b.scheduled_start)).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })}. NOT yet sent.`, { notification_id: ins?.id, missing: built.missing }, { internal: true });
   return ins?.id ?? null;
 }
 
@@ -132,3 +147,42 @@ export async function installReadiness(jobId: string) {
     piesa: piesa ? { date: piesa.piesa_date ?? null, deadline: piesa.install_deadline ?? null, outcome: piesa.piesa_outcome ?? null } : null,
   });
 }
+
+/** Office records that a SUBMITTED notification was withdrawn in the Registry (install slipped outside its window or key
+ *  details changed). The row is kept as history (status stale + withdrawal record); the current booking's notice is then
+ *  re-prepared so the office can submit a fresh one. Never deletes, never sends. */
+export async function withdrawEscNotification(p: { notificationId: string; reason: string; withdrawnAt: string; actorId: string }) {
+  const { data: n } = await admin.from("esc_notifications").select("id, job_id, status, sent_at, submission_reference, response, scheduled_start").eq("id", p.notificationId).single();
+  if (!n) throw new WorkflowError("Notification not found");
+  let patch;
+  try { patch = withdrawalPatch({ notice: n, reason: p.reason, withdrawnAt: p.withdrawnAt, actorId: p.actorId }, new Date().toISOString()); } catch (e) { throw new WorkflowError((e as Error).message); }
+  const { error } = await admin.from("esc_notifications").update({ response: patch.response as unknown as Json, status: patch.status, last_error: `Withdrawn in the Registry: ${patch.response.withdrawal.reason}`, updated_at: new Date().toISOString() }).eq("id", n.id);
+  if (error) throw new WorkflowError(error.message);
+  await logEvent(n.job_id, p.actorId, "esc_notification_withdrawn", `ESC notification (ref ${n.submission_reference}) withdrawn in the VEU Registry at ${p.withdrawnAt}: ${patch.response.withdrawal.reason}. A new notification must be submitted and recorded.`, { notification_id: n.id, ...patch.response.withdrawal }, { internal: true });
+  const next = await regenerateEscNotification(n.job_id, p.actorId);
+  await import("./prestart.server").then((m) => m.runPrestart(n.job_id, "esc_withdrawn")).catch((e) => console.error("pre-start re-run skipped", (e as Error).message));
+  return { ok: true, nextNotificationId: next };
+}
+
+/** Timer (15-min tick): raise each Office ESC reminder ONCE per booking start + stage — window open (5 days before),
+ *  urgent (48h), blocked (24h, not recorded) and reopened (install moved after a recorded submission). Reminders are
+ *  internal workflow events feeding the Needs me list and the job history; no customer or trade message is ever sent. */
+export async function sweepEscReminders(now = new Date()) {
+  const { escReminder, ESC_REMINDER_TITLES } = await import("./prestart.core");
+  const { latestNotices } = await import("./prestart.server");
+  const { data: bk } = await admin.from("bookings").select("job_id, scheduled_start").eq("kind", "installation").eq("status", "confirmed").gt("scheduled_start", now.toISOString()).lt("scheduled_start", new Date(now.getTime() + EARLIEST_MS_PLUS).toISOString());
+  let checked = 0, raised = 0;
+  for (const b of bk ?? []) {
+    checked++;
+    const n = await latestNotices(b.job_id);
+    const r = escReminder({ start: b.scheduled_start, current: n.current, previousSent: n.previousSent, now });
+    if (!r) continue;
+    const { data: already } = await admin.from("workflow_events").select("id").eq("job_id", b.job_id).eq("event_type", "esc_reminder").contains("details", { key: r.key }).limit(1).maybeSingle();
+    if (already) continue;
+    await logEvent(b.job_id, null, "esc_reminder", `${ESC_REMINDER_TITLES[r.code]}. ${r.detail} Needs Home Insulation Victoria`, { key: r.key, code: r.code, scheduled_start: b.scheduled_start, notification_id: n.current?.id ?? null }, { internal: true });
+    raised++;
+  }
+  return { checked, raised };
+}
+// Bookings further out than the 5-day window plus one day can have no reminder yet; keeps the sweep bounded.
+const EARLIEST_MS_PLUS = 6 * 24 * 3600_000;

@@ -287,6 +287,7 @@ export function setupStatus(templates: Template[], escConfigReady: boolean): Set
     card("installer", "Installer declaration (post-install)", "installer", "Installers can sign their declaration electronically after installation."),
     card("final_assignment", "Final Activity 48 VEEC assignment (post-install)", "final", "Final assignment can be prepared in Final check and signed installer → AP → customer."),
     { key: "ap", label: "AP declaration (if required)", ready: !(apActive && apActive.required && !apActive.approved), message: activeTemplate(templates, "ap_declaration") ? "AP declaration wording approved." : "No separate AP declaration configured – AP representative signs the final assignment form." },
-    { key: "esc_config", label: "ESC notification fields", ready: escConfigReady, message: escConfigReady ? "ESC notice fields are approved." : "ESC notices are not ready: approve the current ESC notification field list." },
+    // Jo 24 Oct 2026 (decision 121): no approval is needed to PREPARE the Registry notice — the default field list applies until Jo confirms the real fields.
+    { key: "esc_config", label: "ESC notification fields", ready: true, message: escConfigReady ? "ESC notice fields are approved." : "Default VEU Registry field list in use; approve a field list here once Jo confirms the real Registry fields." },
   ];
 }

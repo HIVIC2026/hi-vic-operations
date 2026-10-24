@@ -100,6 +100,16 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['prestart'] = "failed";
         }
         try {
+          // Jo 24 Oct (decision 121): ESC install-notification reminders — window open (5 days), urgent (48h), blocked
+          // (24h), reopened after a date change. Internal Office alerts only; nothing goes to owners or trades.
+          const { sweepEscReminders } = await import("@/lib/esc.server");
+          (out as Record<string, unknown>)['escReminders'] = await sweepEscReminders();
+        } catch (e) {
+          console.error("allocation tick: ESC reminder sweep failed", (e as Error).message);
+          out['ok'] = false;
+          (out as Record<string, unknown>)['escReminders'] = "failed";
+        }
+        try {
           // Jo 24 Oct: the install-day PIISA Mitti form is created the day(s) before the install (same guarded path as
           // the office button, one per job) so the 6:30am text below can link it. Runs BEFORE the daily text.
           const { sweepPiisaAutoSend } = await import("@/lib/piisa-autosend.server");

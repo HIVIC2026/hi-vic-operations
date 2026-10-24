@@ -9,7 +9,7 @@ export const PIISA_FROM_PIESA_DAYS = 30;
 const fmt = (iso: string) => new Date(iso).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 function addDays(ymd: string, n: number) { const d = new Date(`${ymd}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
 
-export type EscNotice = { status: string; sent_at: string | null; submission_reference: string | null; scheduled_start: string };
+export type EscNotice = { status: string; sent_at: string | null; submission_reference: string | null; scheduled_start: string; response?: unknown };
 export type EscTaskCode = "esc_submit_due" | "esc_submit_urgent" | "esc_update_registry" | "esc_withdraw_resubmit";
 
 /** What the AP must do for the ESC notification right now, if anything. */
@@ -27,10 +27,30 @@ export function escTask(i: { start: string; current: EscNotice | null; previousS
       : { code: "esc_withdraw_resubmit", detail: `Install moved to ${fmt(i.start)}, outside the original notification's window. Withdraw it and resubmit by ${fmt(by)}.` };
   }
   if (now < s - EARLIEST_MS) return null;
+  if (now >= s - LEAD_MS) return { code: "esc_submit_urgent", detail: `ESC notification was not recorded 24 hours before the start (${fmt(by)}). The installation form and evidence stay locked until it is recorded or the install is rebooked.` };
   return now >= s - ESC_URGENT_MS
     ? { code: "esc_submit_urgent", detail: `Submit ESC notification by ${fmt(by)} — install is in 2 days or less.` }
-    : { code: "esc_submit_due", detail: `Submit ESC notification by ${fmt(by)}.` };
+    : { code: "esc_submit_due", detail: `Submit ESC notification in the VEU Registry by ${fmt(by)} (window is open now).` };
 }
+
+export type EscReminderCode = "esc_window_open" | "esc_urgent_48h" | "esc_blocked_24h" | "esc_reopened";
+/** Office reminder to raise right now for this booking (once per key). Derived from escTask: window open at 5 days,
+ *  urgent at 48h, blocked at 24h, reopened when the install moved after a recorded submission. */
+export function escReminder(i: { start: string; current: EscNotice | null; previousSent: EscNotice | null; now: Date }): { code: EscReminderCode; key: string; detail: string } | null {
+  const t = escTask(i);
+  if (!t) return null;
+  const s = Date.parse(i.start), now = i.now.getTime();
+  const code: EscReminderCode = t.code === "esc_submit_due" ? "esc_window_open"
+    : t.code === "esc_submit_urgent" ? (now >= s - LEAD_MS ? "esc_blocked_24h" : "esc_urgent_48h")
+    : "esc_reopened";
+  return { code, key: `${new Date(s).toISOString()}:${code}`, detail: t.detail };
+}
+export const ESC_REMINDER_TITLES: Record<EscReminderCode, string> = {
+  esc_window_open: "ESC notification can be sent now",
+  esc_urgent_48h: "ESC notification urgent — install in 48 hours or less",
+  esc_blocked_24h: "ESC notification not recorded 24 hours before start — installation locked",
+  esc_reopened: "Install date changed after the ESC notification — update, or withdraw and resubmit",
+};
 
 /** 12pm Melbourne on the day before the install. */
 export function prestartRunAt(startIso: string): string {

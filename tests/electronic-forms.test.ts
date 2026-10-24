@@ -30,7 +30,8 @@ describe("electronic forms – prefill, no duplicate entry", () => {
   });
   test("setup status cards", () => {
     const s = setupStatus([T("consumer_declaration"), T("consumer_rights")], false);
-    expect(s.map((c) => [c.key, c.ready])).toEqual([["agreement", true], ["esc_consent", false], ["installer", false], ["final_assignment", true], ["ap", true], ["esc_config", false]]);
-    expect(setupStatus([], false).filter((c) => c.ready).map((c) => c.key)).toEqual(["ap"]); // nothing claims Ready without approved wording
+    // Jo 24 Oct 2026 (decision 121): the ESC notice is prepared from the default Registry field list without approval, so esc_config is always ready.
+    expect(s.map((c) => [c.key, c.ready])).toEqual([["agreement", true], ["esc_consent", false], ["installer", false], ["final_assignment", true], ["ap", true], ["esc_config", true]]);
+    expect(setupStatus([], false).filter((c) => c.ready).map((c) => c.key)).toEqual(["ap", "esc_config"]); // nothing else claims Ready without approved wording
   });
 });

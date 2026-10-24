@@ -1777,6 +1777,15 @@ export const recordEscSubmissionFn = createServerFn({ method: "POST" }).middlewa
     return { ok: true };
   });
 
+/** Office: a submitted notification was withdrawn in the VEU Registry (date slipped outside its window / key details changed). History kept. */
+export const withdrawEscNotificationFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ notificationId: uuid, reason: z.string().trim().min(3).max(500), withdrawnAt: z.string().datetime({ offset: true }) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { withdrawEscNotification } = await import("./esc.server");
+    return withdrawEscNotification({ ...data, actorId: context.userId });
+  });
+
 export const addEscConfig = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ version: z.string().trim().min(1).max(50), fields: z.array(z.object({ key: z.string().regex(/^[a-z0-9_]{2,60}$/), label: z.string().trim().min(2).max(200) })).max(50), source_note: z.string().trim().min(5).max(1000) }).parse(d))
   .handler(async ({ data, context }) => {
