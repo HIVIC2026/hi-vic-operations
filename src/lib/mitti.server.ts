@@ -4,7 +4,7 @@
 import type { Json } from "@/integrations/supabase/types";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
-import { MITTI_TEMPLATE_ID, MittiError, builtLast5YearsOption, createOrReuseAudit, mittiApi, planSync, propertyTypeOption, readyCheckFormStageAllowed, splitPatch, validateStoredMittiAudit, type MittiCall } from "./mitti.core";
+import { MITTI_TEMPLATE_ID, MittiError, builtLast5YearsOption, createOrReuseAudit, mittiApi, parseAudit, pickUser, planSync, propertyTypeOption, readyCheckFormStageAllowed, splitPatch, validateStoredMittiAudit, type MittiCall } from "./mitti.core";
 import { canonicalMittiTemplateId, mittiTemplateIdentity, sameMittiTemplateId } from "./mitti-identity.core";
 const MITTI_BASE_URL = "https://api.mitti.com"; // network boundary lives only here
 import { planMeasurementUpdate, type MeasurementLike } from "./scope.core";
@@ -615,4 +615,43 @@ async function ensureInstallDayPhotos(jobId: string, gaps: import("./ready-check
   const labels = new Set((have ?? []).map((r) => r.label));
   const rows = needs.filter((n) => !labels.has(n.label)).map((n) => ({ job_id: jobId, category: n.category, label: n.label, gate: "installation", required: true, status: "outstanding" as const, responsible_role: "installer" as const }));
   if (rows.length) { const { error: ie } = await admin.from("evidence_requirements").insert(rows as never); if (ie) throw new Error(ie.message); }
+}
+
+// ---------- visit allocation (decision 161, Jo 24 Oct 2026) ----------
+/** Resolve the Mitti user a staff member's email belongs to (null = not in Mitti under the business → "Add them in Mitti first"). */
+export async function findMittiUserByEmail(email: string, call: MittiCall = realMittiCall): Promise<string | null> {
+  const e = email.trim();
+  if (!e) return null;
+  const u = pickUser(await mittiApi(call).searchUsers(e), e);
+  const id = u?.id ?? u?.user_id;
+  return id == null || id === "" ? null : String(id);
+}
+
+/**
+ * Hand an EXISTING Mitti form to the allocated person: preflight the stored audit (same id, a configured template for
+ * this visit kind), then the same share + set-owner calls every creation path uses. Never creates a form, never
+ * touches the create claim (nothing non-idempotent happens here); repeating it is harmless.
+ */
+export async function reassignMittiFormTo(p: { jobId: string; auditId: string; kind: "ready_check" | "install"; mittiUserId: string; email: string; actorId: string | null }, call: MittiCall = realMittiCall) {
+  const [{ data: job }, { data: ws }] = await Promise.all([
+    admin.from("jobs").select("job_number").eq("id", p.jobId).single(),
+    admin.from("workflow_settings").select("mitti_ready_check_template_id,mitti_ready_check_priced_template_id,mitti_piisa_template_id").eq("id", 1).maybeSingle(),
+  ]);
+  if (!job) throw new WorkflowError("Job not found.");
+  const allowed = (p.kind === "install" ? [ws?.mitti_piisa_template_id] : [ws?.mitti_ready_check_template_id, ws?.mitti_ready_check_priced_template_id]).filter((t): t is string => !!t?.trim());
+  if (!allowed.length) throw new WorkflowError(p.kind === "install" ? PIESA_TEMPLATE_MISSING.replace("PIESA", "PIISA") : MEASUREUP_TEMPLATE_MISSING);
+  const api = mittiApi(call);
+  let audit: Any;
+  try { audit = await api.getAudit(p.auditId); } catch (e) { throw wrap(e); }
+  const parsed = parseAudit(audit);
+  const templateId = allowed.find((t) => sameMittiTemplateId(parsed.templateId, t));
+  if (!templateId) throw new WorkflowError("This job's Mitti form is not one of the configured Home Insulation Victoria forms, so it was not handed over.");
+  try {
+    validateStoredMittiAudit(audit, { storedAuditId: p.auditId, jobNumber: job.job_number, templateId });
+    await api.shareAudit(p.auditId, p.mittiUserId);
+    await api.setAuditOwner(p.auditId, p.mittiUserId);
+  } catch (e) { throw wrap(e); }
+  await logEvent(p.jobId, p.actorId, p.kind === "install" ? "mitti_piisa_audit_reshared" : "mitti_audit_reshared",
+    `${p.kind === "install" ? "Installer safety form" : "Mitti Ready Check form"} handed to ${p.email} (visit allocation)`, { audit_id: p.auditId, mitti_user_id: p.mittiUserId, reason: "visit_allocated" });
+  return { auditId: p.auditId };
 }
