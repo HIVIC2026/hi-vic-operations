@@ -16,7 +16,8 @@ import { renderFixesQuoteEmail, FIXES_QUOTE_EMAIL_APPROVED } from "../src/lib/re
 import { renderPiesaCopyEmail, PIESA_COPY_EMAIL_APPROVED } from "../src/lib/piesa-delivery.core";
 import { renderInstallDaysEmail, renderInstallDayChangedEmail, INSTALL_DAYS_EMAIL_APPROVED } from "../src/lib/install-days-email.core";
 import { renderInstallBookedEmail, INSTALL_BOOKED_EMAIL_APPROVED } from "../src/lib/install-booked-email.core";
-import { renderInstallCompleteEmail, renderFinalInvoiceEmail, renderCompletionPackEmail, renderReviewRequestEmail, COMPLETION_EMAILS_APPROVED } from "../src/lib/completion-emails.core";
+import { renderInstallCompleteEmail, renderFinalInvoiceEmail, renderCompletionPackEmail, renderReviewRequestEmail, COMPLETION_EMAILS_APPROVED, INSTALL_COMPLETE_EMAIL_APPROVED } from "../src/lib/completion-emails.core";
+import { renderVeecReminderEmail, renderVeecCopyEmail, VEEC_SIGN_EMAIL_APPROVED, VEEC_COPY_EMAIL_APPROVED } from "../src/lib/veec-emails.core";
 import { renderInstallerAcceptedEmail, renderInstallerDeclinedEmail, INSTALLER_ACCEPTED_EMAIL_APPROVED, INSTALLER_DECLINED_EMAIL_APPROVED } from "../src/lib/installer-accepted-email.core";
 import { renderApplicationReceivedEmail, APPLICATION_RECEIVED_EMAIL_APPROVED } from "../src/lib/application-review.core";
 import { partnerWelcomeEmail } from "../src/lib/partner-email.core";
@@ -154,6 +155,30 @@ describe("approved owner email designs", () => {
     shell(m.html, m.text, false);
     has(m.html, ["All done, Helen. Enjoy a warmer home!", "137.6 m² Bradford Gold R5.0", "$1,850 off", "Paid in full ✓", "One last thing: sign your rebate form", ">Sign your rebate form<", "What you'll get from us", "Your completion pack", "1-year workmanship warranty and the 5-year product warranty", "A copy of your signed rebate form", "Contact Reinsulate first on 0400 000 000"]);
     expect(COMPLETION_EMAILS_APPROVED).toBe(false);
+    expect(INSTALL_COMPLETE_EMAIL_APPROVED).toBe(true); // decision 169: O44 is the day-0 rebate-form request
+  });
+  const UNSUB = "https://estimate.homeinsulationvictoria.com.au/u/x";
+  /** Lines 5–10 of the approved file (headline → footer) with its placeholder links filled in. */
+  const approvedLines = (file: string, href: string) => readFileSync(`docs/templates/approved/${file}`, "utf8").split("\n").slice(4, 10)
+    .map((l) => l.replace(/<a href="#" style="color:#3C51C4;">Unsubscribe<\/a>/, `<a href="${UNSUB}" style="color:#3C51C4;">Unsubscribe</a>`).replace(/href="#"/g, `href="${href}"`));
+  test("O61 VEEC reminder (days 1/3/7) matches the approved file line for line", () => {
+    const m = renderVeecReminderEmail({ firstName: "Helen", rebate: 1850, signUrl: `${JOB}?screen=done`, unsubscribeUrl: UNSUB });
+    shell(m.html, m.text, true);
+    for (const line of approvedLines("O61-veec-reminder.html", `${JOB}?screen=done`)) expect(m.html).toContain(line);
+    has(m.html, [">Helen, your rebate form still needs your signature</h1>", "We can't claim your <strong>$1,850</strong> Victorian Energy Upgrades rebate", ">Sign your rebate form</a>", "Something on the form look wrong? Reply to this email before signing."]);
+    expect(m.subject).toBe("Helen, your rebate form still needs your signature");
+    has(m.text, ["$1,850", `Sign your rebate form: ${JOB}?screen=done`, `Unsubscribe: ${UNSUB}`]);
+    expect((m.html.match(/Sign your rebate form/g) ?? []).length).toBe(2); // VML + HTML button only, no second ask
+    expect(VEEC_SIGN_EMAIL_APPROVED).toBe(true);
+  });
+  test("O62 VEEC signed copy matches the approved file line for line", () => {
+    const m = renderVeecCopyEmail({ firstName: "Helen", jobNumber: "HV-3117", signedAt: "2026-11-21T03:00:00.000Z", myJobUrl: `${JOB}?screen=done`, unsubscribeUrl: UNSUB });
+    shell(m.html, m.text, true);
+    for (const line of approvedLines("O62-veec-copy.html", `${JOB}?screen=done`)) expect(m.html).toContain(line);
+    has(m.html, [">Here's your signed rebate form, Helen</h1>", "for <strong>HV-3117</strong> is attached and also on your job page", ">Signed on 21 November 2026.</p>", ">See my job</a>", "veu@esc.vic.gov.au"]);
+    expect(m.subject).toBe("Here's your signed rebate form, Helen");
+    has(m.text, ["HV-3117", "Signed on 21 November 2026.", `See my job: ${JOB}?screen=done`]);
+    expect(VEEC_COPY_EMAIL_APPROVED).toBe(true);
   });
   test("O45 Final invoice", () => {
     const m = renderFinalInvoiceEmail({ firstName: "Helen", ownerName: "Helen Yang", address: "824 High Street Road, Glen Waverley VIC 3150", installer: REINSULATE, invoiceNumber: "HIV-3117", invoiceDate: "11 November 2026", lines: [{ description: "Bradford Gold R5.0 ceiling batts, 137.6 m² supplied and installed", amount: 2752 }, { description: "Old insulation removed and taken away, 40 m²", amount: 600 }, { description: "Electrical safety check (PIESA)", amount: 349 }, { description: "Accredited Provider fee", amount: 349 }], totalIncGst: 4050, gst: 368.18, rebate: 1850, payments: [{ label: "safety check (24 Oct)", amount: 349 }, { label: "deposit (4 Nov)", amount: 185.1 }], balanceDue: 1665.9, payUrl: `${JOB}?pay=balance` });
@@ -211,6 +236,18 @@ describe("senders stay behind their flags (nothing new is sent to real people)",
     for (const flag of ["QUOTE_REMINDER_EMAIL_APPROVED", "ACCEPTANCE_EMAIL_APPROVED", "SAFETY_CHECK_EMAILS_APPROVED", "FIXES_QUOTE_EMAIL_APPROVED", "INSTALL_DAYS_EMAIL_APPROVED", "COMPLETION_EMAILS_APPROVED"]) expect(a).toContain(flag);
     const d = readFileSync("src/lib/installer-declined-email.server.ts", "utf8");
     expect(d).toContain("if (!test && !INSTALLER_DECLINED_EMAIL_APPROVED)");
+  });
+  test("VEEC emails (decision 169): day 0 = the All done email once per job; O61/O62 only through test-send or the guarded path", () => {
+    const r = readFileSync("src/lib/veec-reminders.server.ts", "utf8");
+    expect(r).toContain("emailOwnerInstallComplete(jobId, {");
+    expect(r).toContain("if (!request) {"); // no separate day-0 request email
+    for (const t of ["sendTestEmail", "assertCustomerDeliveryAllowed", "sendGuardedOwnerEmail", "sendRealSms", "renderVeecReminderEmail"]) expect(r).toContain(t);
+    expect(r).not.toMatch(/resend|fetch\(/i);
+    expect(readFileSync("src/lib/approved-owner-emails.server.ts", "utf8")).toContain("key: `install-complete:v1:${jobId}`, approved: INSTALL_COMPLETE_EMAIL_APPROVED");
+    const c = readFileSync("src/lib/veec-copy-email.server.ts", "utf8");
+    for (const t of ["sendTestEmail", "assertCustomerDeliveryAllowed", "sendGuardedOwnerEmail", "renderVeecCopyEmail", "attachments: [attachment]", 'storage.from("job-files").download']) expect(c).toContain(t);
+    expect(c).not.toMatch(/resend|fetch\(/i);
+    expect(readFileSync("src/lib/veec-assignment-form.core.ts", "utf8")).not.toMatch(/veecSignEmail|veecCopyEmail/);
   });
   test("the touchpoint master marks the applied designs", () => {
     const html = readFileSync("docs/TOUCHPOINTS_MASTER.html", "utf8");

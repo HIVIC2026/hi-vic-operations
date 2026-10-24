@@ -1,7 +1,7 @@
 // Server functions for the approved owner emails whose workflow step is still being built (decision 137: designs applied,
 // nothing sent). Each one renders the approved design and goes through `sendOwnerTemplateEmail`, so a real owner can only
 // receive it once its *_APPROVED flag is true and customer messages are on; TEST jobs get it through test-send now.
-// Nothing here is called from a workflow yet; Office/QA may call these for TEST jobs.
+// Only `emailOwnerInstallComplete` is called from a workflow (the VEEC day-0 request); Office/QA may call the rest for TEST jobs.
 import { sendOwnerTemplateEmail } from "./owner-template-send.server";
 
 export async function emailOwnerQuoteReminder(jobId: string, quoteId: string, kind: "day3" | "expiry", quote: Omit<import("./owner-quote-email.core").OwnerQuoteEmailInput, "firstName" | "unsubscribeUrl" | "test">) {
@@ -53,8 +53,9 @@ export async function emailOwnerInstallDayChanged(jobId: string, startIso: strin
 }
 
 export async function emailOwnerInstallComplete(jobId: string, i: Omit<import("./completion-emails.core").InstallCompleteInput, "firstName" | "installer" | "test">) {
-  const { COMPLETION_EMAILS_APPROVED, renderInstallCompleteEmail } = await import("./completion-emails.core");
-  return sendOwnerTemplateEmail({ jobId, purpose: "install_complete", key: `install-complete:v1:${jobId}`, approved: COMPLETION_EMAILS_APPROVED, label: "Install complete email", notSentEvent: "install_complete_email_not_sent",
+  // Decision 169: this is the day-0 VEEC signing request (one per job by key), sent from veec-reminders.server.ts.
+  const { INSTALL_COMPLETE_EMAIL_APPROVED, renderInstallCompleteEmail } = await import("./completion-emails.core");
+  return sendOwnerTemplateEmail({ jobId, purpose: "install_complete", key: `install-complete:v1:${jobId}`, approved: INSTALL_COMPLETE_EMAIL_APPROVED, label: "Install complete email", notSentEvent: "install_complete_email_not_sent",
     render: (f) => renderInstallCompleteEmail({ ...i, firstName: f.firstName, installer: { name: f.installerName, phone: f.installerPhone }, test: f.test }) });
 }
 

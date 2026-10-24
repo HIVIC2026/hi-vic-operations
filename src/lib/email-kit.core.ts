@@ -18,6 +18,9 @@ export const ABN_LINE = "ABN 44 671 613 979";
 export const FOOTER_TEXT = `Home Insulation Victoria · VEU Accredited Person ${AP_NUMBER} · ${ENTITY_LINE} · ${ABN_LINE}`;
 export const LOGO_DATA_URI = `data:image/png;base64,${LOGO_PNG}`;
 
+/** A file sent with an email (Resend `attachments`): base64 content, a filename the owner will see, and its media type. */
+export type EmailAttachment = { filename: string; content: string; contentType: string };
+
 /** Escapes text for HTML. Apostrophes stay literal, as in the approved files. */
 export const esc = (s: string | number | null | undefined) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
@@ -66,8 +69,8 @@ export const p = (text: string, margin = "0 0 16px", html = false) => `<p style=
 export const sectionTitle = (text: string, margin = "24px 0 8px") => `<p style="font-size:16px;font-weight:bold;margin:${margin};">${esc(text)}</p>`;
 /** Green 17px line under a headline ("Your $1,610 rebate is waiting."). */
 export const greenLead = (text: string) => `<p style="font-size:17px;font-weight:bold;color:${KIT.GREEN};margin:0 0 14px;">${esc(text)}</p>`;
-/** Grey 13px note (small print / "Questions? Just reply"). */
-export const small = (text: string, margin = "14px 0 0", opts: { center?: boolean; html?: boolean } = {}) => `<p style="font-size:13px;line-height:1.5;margin:${margin};color:${KIT.SUB};${opts.center ? "text-align:center;" : ""}">${opts.html ? text : esc(text)}</p>`;
+/** Grey 13px note (small print / "Questions? Just reply"); `size: 14` is the grey 14px line under a button (O61/O62). */
+export const small = (text: string, margin = "14px 0 0", opts: { center?: boolean; html?: boolean; size?: 13 | 14 } = {}) => `<p style="font-size:${opts.size ?? 13}px;line-height:1.5;margin:${margin};color:${KIT.SUB};${opts.center ? "text-align:center;" : ""}">${opts.html ? text : esc(text)}</p>`;
 /** 14px navy paragraph (e.g. "Next: accept and pay…"); `html` for <strong>. */
 export const note = (text: string, margin = "16px 0 0", html = false) => `<p style="font-size:14px;line-height:1.55;margin:${margin};color:${KIT.NAVY};">${html ? text : esc(text)}</p>`;
 export const strong = (text: string) => `<strong>${esc(text)}</strong>`;
