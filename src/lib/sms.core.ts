@@ -22,6 +22,9 @@ export const SMS_MESSAGE_TYPES = {
   daily_mitti_update: { audience: "partner", label: "Daily Mitti links update (job added/moved/cancelled)", wordingApproved: true, quietHours: false },
   // Decision 130: each installer person's secure link to the ESC privacy collection notice (+ 3/7-day reminders). Wording with Jo.
   esc_notice_link: { audience: "partner", label: "ESC privacy collection notice link to an installer", wordingApproved: false, quietHours: true },
+  // Decision 158: 20/10 days left in the 30-day install window, to the owner and the installer. Wording with Jo (thirty-day-rule.core.ts).
+  install_window_reminder: { audience: "owner", label: "30-day install window reminder (20/10 days left) to the owner", wordingApproved: false, quietHours: true },
+  install_window_reminder_installer: { audience: "partner", label: "30-day install window reminder (20/10 days left) to the installer", wordingApproved: false, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 

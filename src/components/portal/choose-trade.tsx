@@ -45,7 +45,8 @@ export function ChooseTradePanel({ jobId }: { jobId: string }) {
         <Checkbox className="mt-1 h-5 w-5" checked={ticked.has(t.id)} disabled={!!t.alreadyOffered || !!t.blocker} onCheckedChange={() => toggle(t.id)} aria-label={`Choose ${t.business}`} />
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2"><span className="font-semibold">{t.business}</span>{t.contact && <span className="text-xs text-muted-foreground">{t.contact}</span>}
-            {t.alreadyOffered && <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold">Already offered · {t.alreadyOffered}</span>}</div>
+            {t.alreadyOffered && <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold">Already offered · {t.alreadyOffered}</span>}
+            {t.usualElectrician && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-900">Installer's usual electrician · onboarding rate</span>}</div>
           <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-muted-foreground sm:grid-cols-3">
             <span>Distance: {t.distanceKm != null ? `${t.distanceKm} km` : t.areaNote}</span>
             <span>Rate: {t.rate != null ? `${money(t.rate)} ${t.rateUnit}` : "not recorded"}</span>
@@ -72,6 +73,7 @@ export function ChooseTradePanel({ jobId }: { jobId: string }) {
               <label className="flex items-center gap-2 font-semibold"><Checkbox checked={d.jobOverride} onCheckedChange={async (v) => { await override({ data: { jobId, on: !!v } }); void qc.invalidateQueries(); }} />Office picks for this job</label>
             </div>
           )}
+          {d?.usualElectricianNote && <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">{d.usualElectricianNote}</p>}
           {q.isLoading && <p className="text-muted-foreground">Finding matching trades…</p>}
           {q.error && <p className="text-destructive">{(q.error as Error).message}</p>}
           {d && (

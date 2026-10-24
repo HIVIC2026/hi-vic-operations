@@ -85,6 +85,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['installDays'] = "failed";
         }
         try {
+          // Decision 158: 20/10-day reminders to owner + installer (held until approved; TEST → test sender) and the
+          // repeat-PIESA payer record when the 30-day window lapses with nothing booked.
+          const { sweepInstallWindowRule } = await import("@/lib/thirty-day-rule.server");
+          (out as Record<string, unknown>)['installWindowRule'] = await sweepInstallWindowRule();
+        } catch (e) {
+          console.error("allocation tick: 30-day rule sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['installWindowRule'] = "failed";
+        }
+        try {
           // Decision 139: Xero payment poll fallback (env XERO_PAYMENT_POLL_ENABLED=true) and the 48h provisional
           // install-booking release (deposit unpaid). Office alerts only; the owner notice is held behind approval.
           const { sweepProvisionalBookings } = await import("@/lib/payments.server");

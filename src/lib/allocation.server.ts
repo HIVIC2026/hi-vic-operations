@@ -222,6 +222,9 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
   ]);
   const batchNo = Math.max(0, ...(prior ?? []).map((o) => o.batch)) + 1;
   const rates = await agreedElectricianRates(candidates.map((c) => c.business_id), kind);
+  // Decision 157: on our leads the installer's usual electrician is paid their onboarding rate for the PIESA (owner price unchanged).
+  const usualSel = kind === "piesa" ? await (await import("./our-lead-piesa-electrician.server")).ourLeadPiesaSelection(jobId, candidates) : null;
+  if (usualSel?.mode === "usual") rates.set(usualSel.businessId, { id: usualSel.rateId, rate: usualSel.rateIncGst });
   const { offerRateBlocker } = await import("./allocation.core");
   const summary = await offerFacts(jobId);
   const expires = offerExpiryBusinessHours(new Date(), businessHours);
@@ -241,6 +244,7 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
     await (await import("./offer-guard.server")).assertOfferPairsAllowed(jobId, chosen.map((c) => c.business_id));
     const { error } = await admin.from("partner_offers").insert(chosen.map((c) => ({ ...row(c.business_id, true), expires_at: exp })));
     if (error) throw new Error(error.message);
+    if (usualSel?.mode === "usual" && chosen.some((c) => c.business_id === usualSel.businessId)) await (await import("./our-lead-piesa-electrician.server")).noteUsualElectricianApplied(jobId, actorId, usualSel);
     await logEvent(jobId, actorId, "trade_chosen_by_office", `Office chose ${chosen.map((c) => c.name).join(", ")} for the ${kind === "piesa" ? "PIESA" : "fix-up"} — offer sent only to ${chosen.length === 1 ? "them" : `these ${chosen.length}`}`, { kind, business_ids: chosen.map((c) => c.business_id), business_names: chosen.map((c) => c.name), business_id: chosen[0]?.business_id, business_name: chosen[0]?.name, expires_at: exp }, { internal: true });
     return { offered: chosen.length, exhausted: false };
   }
@@ -261,6 +265,7 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
   await (await import("./offer-guard.server")).assertOfferPairsAllowed(jobId, batch.map((b) => b.business_id));
   const { error } = await admin.from("partner_offers").insert(batch.map((b) => row(b.business_id, false)));
   if (error) throw new Error(error.message);
+  if (usualSel?.mode === "usual" && batch.some((c) => c.business_id === usualSel.businessId)) await (await import("./our-lead-piesa-electrician.server")).noteUsualElectricianApplied(jobId, actorId, usualSel);
   await logEvent(jobId, actorId, "rec_offers_made", `${kind === "piesa" ? "PIESA" : "Electrical fixes"} offered to ${batch.length} approved electrician(s), batch ${batchNo}`, { kind, batch: batchNo, businesses: batch.map((b) => b.business_id), expires_at: expires }, { internal: true });
   return { offered: batch.length, exhausted: false };
 }

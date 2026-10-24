@@ -27,6 +27,8 @@ async function context(jobId: string) {
 }
 
 type Ctx = Awaited<ReturnType<typeof context>>;
+/** Read-only window facts for the 30-day rule sweep (decision 158, thirty-day-rule.server.ts). */
+export const installDayContext = (jobId: string) => context(jobId);
 const view = (c: Ctx) => ({
   turn: c.turn, deadline: c.deadline, daysLeft: c.deadline ? installDaysLeft(c.deadline) : null, booked: c.booked, bookedAt: c.bookedAt, expired: c.expired,
   open: c.open.map((p) => ({ id: p.id, starts_at: p.starts_at, by: p.proposer_role === "installer" ? "installer" as const : "owner" as const })),
@@ -168,7 +170,7 @@ export async function changeInstallDay(jobId: string, userId: string, who: "inst
   await clearInstallDueDate(jobId, userId);
   const { regenerateEscNotification } = await import("./esc.server");
   await regenerateEscNotification(jobId, userId);
-  await logEvent(jobId, userId, "install_day_changed", `${who === "owner" ? "Owner" : "Installer"} changed the booked install day (${c.bookedAt ? new Date(c.bookedAt).toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne" }) : "booked day"})`, { booking_ids: rows.map((r) => r.id), was: c.bookedAt }, { internal: true });
+  await logEvent(jobId, userId, "install_day_changed", `${who === "owner" ? "Owner" : "Installer"} changed the booked install day (${c.bookedAt ? new Date(c.bookedAt).toLocaleDateString("en-AU", { timeZone: "Australia/Melbourne" }) : "booked day"})`, { booking_ids: rows.map((r) => r.id), was: c.bookedAt, who }, { internal: true });
   await admin.from("jobs").update({ next_action: "Waiting for the installer to offer new install days" }).eq("id", jobId);
   return { ok: true };
 }
