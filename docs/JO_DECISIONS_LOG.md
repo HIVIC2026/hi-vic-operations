@@ -242,3 +242,5 @@ Newest first. Each line is settled; anything still open is under "Open".
 173. **Decisions 141–162 reviewed by Jo (24 Oct).** All confirmed, with one clarification to 157: the installer's usual electrician is used only if that electrician is onboarded with HIV as an approved REC; otherwise HIV's own electrician. (Built that way: matched by licence/REC number to onboarded REC businesses, else office pick.)
 174. **Text use-by limits (Jo, 24 Oct).** Login code 10 min; spot saved 24h; job offer 24h and still open; quote ready 72h and still live; Ready Check gaps 24h. Older = held as too late.
 175. **Decisions 163–172 confirmed by Jo (24 Oct).**
+176. **Xero (Jo, 24 Oct).** Real jobs must go to the NEW Xero organisation (name to be pinned once read from the connection list); the portal keeps creating the owner's invoice at acceptance. TEST → Demo Company unchanged.
+177. **Before the PR (Jo, 24 Oct).** Apply the approved page designs P1–P5 to the real pages; flip every approved message switch on; build staff allocation (161). TEST run: HIV plays the electrician on a TEST REC login.
