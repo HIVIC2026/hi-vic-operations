@@ -24,8 +24,26 @@ export function installWindowDeadline(timingDate: string | null, storedDeadline?
   return own ?? storedDeadline ?? null;
 }
 
-export function installDayBounds(ymd: string): { starts_at: string; ends_at: string } {
-  return { starts_at: melbourneAt(ymd, INSTALL_DAY_START_HOUR).toISOString(), ends_at: melbourneAt(ymd, INSTALL_DAY_END_HOUR).toISOString() };
+/** Jo 24 Oct: the installer selects the arrival time for each offered day (exact time, no window). */
+export const INSTALL_TIMES = ["06:30", "07:00", "07:30", "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "13:00", "13:30", "14:00"] as const;
+export type InstallTime = (typeof INSTALL_TIMES)[number];
+export const isInstallTime = (t: string): t is InstallTime => (INSTALL_TIMES as readonly string[]).includes(t);
+
+/** The Melbourne instant for a day + "HH:MM" arrival time. */
+export function installStartAt(ymd: string, time: string): Date {
+  const [h, m] = time.split(":").map(Number);
+  return new Date(melbourneAt(ymd, h!).getTime() + (m ?? 0) * 60_000);
+}
+
+/** Proposal bounds. Without a time (owner-suggested days) the day reads from 8am; the installer sets the time on taking it. */
+export function installDayBounds(ymd: string, time?: string): { starts_at: string; ends_at: string } {
+  return { starts_at: (time ? installStartAt(ymd, time) : melbourneAt(ymd, INSTALL_DAY_START_HOUR)).toISOString(), ends_at: melbourneAt(ymd, INSTALL_DAY_END_HOUR).toISOString() };
+}
+
+/** "6:30am" style label for an INSTALL_TIMES value. */
+export function installTimeLabel(time: string): string {
+  const [h, m] = time.split(":").map(Number);
+  return `${((h! + 11) % 12) + 1}${m ? `:${String(m).padStart(2, "0")}` : ""}${h! < 12 ? "am" : "pm"}`;
 }
 
 /** Days the owner may choose: business days, 24h+ away, on or before the deadline. Trades manage their own diaries — no capacity check. */
@@ -98,6 +116,11 @@ export function dayOfferBlockers(picks: string[], allowed: string[], who: "insta
 }
 
 export const NEW_PIESA_NEEDED = "New PIESA needed";
-export function formatInstallDay(startIso: string): string {
-  return new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", weekday: "long", day: "numeric", month: "long" }).format(new Date(startIso)) + " (8am–4pm)";
+/** "Tuesday 27 October at 7:30am" (installer's day and time), or the day only for an owner-suggested day. */
+export function formatInstallDay(startIso: string, withTime = true): string {
+  const d = new Date(startIso);
+  const day = new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", weekday: "long", day: "numeric", month: "long" }).format(d);
+  if (!withTime) return day;
+  const t = new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", hour: "numeric", minute: "2-digit", hour12: true }).format(d).replace(/\s/g, "").replace(":00", "").toLowerCase();
+  return `${day} at ${t}`;
 }

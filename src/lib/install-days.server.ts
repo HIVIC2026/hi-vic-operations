@@ -4,7 +4,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent, piesaStatus } from "./workflow.server";
 import {
-  allowedInstallDays, dayOfferBlockers, installDayBounds, installDayOutsideWindow, installDayTurn, installDaysLeft, installWindowDeadline, shouldFlagTenDaysLeft,
+  INSTALL_DAY_LEAD_HOURS, allowedInstallDays, dayOfferBlockers, installDayBounds, installStartAt, isInstallTime, installDayOutsideWindow, installDayTurn, installDaysLeft, installWindowDeadline, shouldFlagTenDaysLeft,
 } from "./install-days.core";
 import { melbourneYmd } from "./piesa-windows.core";
 
@@ -56,17 +56,19 @@ export async function installerInstallDayState(jobId: string, userId: string) {
   return { ...view(c), days: canOffer ? allowedInstallDays({ deadline: c.deadline }) : [] };
 }
 
-async function propose(jobId: string, userId: string, role: "installer" | "owner", picks: string[], allowed: string[]) {
-  const b = dayOfferBlockers(picks, allowed, role);
+async function propose(jobId: string, userId: string, role: "installer" | "owner", picks: { day: string; time?: string }[], allowed: string[]) {
+  const b = dayOfferBlockers(picks.map((p) => p.day), allowed, role);
+  if (role === "installer" && picks.some((p) => !p.time || !isInstallTime(p.time))) b.push("Please choose an arrival time for each day.");
+  if (picks.some((p) => p.time && installStartAt(p.day, p.time).getTime() < Date.now() + INSTALL_DAY_LEAD_HOURS * 3_600_000)) b.push("Each time must be at least 24 hours away.");
   if (b.length) throw new WorkflowError(b.join(" "));
   await admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", jobId).eq("install_day", true).eq("status", "proposed");
-  const rows = picks.map((d) => ({ job_id: jobId, kind: "installation" as const, proposed_by: userId, proposer_role: role, install_day: true, ...installDayBounds(d) }));
+  const rows = picks.map((p) => ({ job_id: jobId, kind: "installation" as const, proposed_by: userId, proposer_role: role, install_day: true, ...installDayBounds(p.day, p.time) }));
   const { error } = await admin.from("appointment_proposals").insert(rows as never);
   if (error) throw new Error(error.message);
 }
 
 /** Installer offers 3 days (first offer, or instead of the owner's suggested days). */
-export async function installerOfferDays(jobId: string, userId: string, picks: string[]) {
+export async function installerOfferDays(jobId: string, userId: string, picks: { day: string; time: string }[]) {
   await requireInstaller(jobId, userId);
   const c = await context(jobId);
   if (c.expired) throw new WorkflowError("New PIESA needed: the 30-day installation window has passed.");
@@ -82,7 +84,7 @@ export async function ownerSuggestDays(jobId: string, userId: string, picks: str
   const c = await context(jobId);
   if (c.expired) throw new WorkflowError("New PIESA needed: the 30-day installation window has passed.");
   if (c.turn !== "owner_to_answer") throw new WorkflowError("Install days can't be suggested right now.");
-  await propose(jobId, userId, "owner", picks, allowedInstallDays({ deadline: c.deadline }));
+  await propose(jobId, userId, "owner", picks.map((day) => ({ day })), allowedInstallDays({ deadline: c.deadline }));
   await logEvent(jobId, userId, "install_days_offered", `Owner suggested ${picks.length} other install day${picks.length === 1 ? "" : "s"} for the installer`, { days: picks }, { internal: true });
   await admin.from("jobs").update({ next_action: "Waiting for the installer to take one of the owner's days or offer new ones" }).eq("id", jobId);
   return { ok: true };
@@ -108,8 +110,9 @@ async function bookAgreedDay(jobId: string, proposalId: string, startsAt: string
   }
 }
 
-/** Installer takes one of the owner's suggested days (locked take) = booked. */
-export async function installerTakeDay(jobId: string, proposalId: string, userId: string) {
+/** Installer takes one of the owner's suggested days (locked take) at the arrival time they select = booked. */
+export async function installerTakeDay(jobId: string, proposalId: string, userId: string, time: string) {
+  if (!isInstallTime(time)) throw new WorkflowError("Please choose an arrival time.");
   const a = await requireInstaller(jobId, userId);
   const c = await context(jobId);
   if (!c.clearance.cleared) throw new WorkflowError(`Installation cannot be arranged yet: ${c.clearance.blocker}`);
@@ -119,7 +122,9 @@ export async function installerTakeDay(jobId: string, proposalId: string, userId
   const { data, error } = await admin.rpc("accept_install_day", { _proposal: proposalId, _assignment: a.id, _user: userId, _deadline: c.deadline as string });
   if (error) throw new Error(error.message);
   if (data !== "accepted") throw new WorkflowError(TAKE_OUTCOME[data as string] ?? "That day could not be booked.");
-  return bookAgreedDay(jobId, proposalId, p.starts_at, userId, "installer (owner's suggested day)");
+  const start = installStartAt(melbourneYmd(new Date(p.starts_at)), time).toISOString();
+  await admin.from("appointment_proposals").update({ starts_at: start }).eq("id", proposalId);
+  return bookAgreedDay(jobId, proposalId, start, userId, "installer (owner's suggested day)");
 }
 
 /** Owner takes one of the installer's offered days = booked. Compare-and-swap on the proposal so a day is taken once. */

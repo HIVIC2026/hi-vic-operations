@@ -20,6 +20,7 @@ import { OwnerCodeGate, SignerFields, Tick, signBtn } from "@/components/owner/O
 import { ownerAcceptQuoteFn, ownerAgreementFn, ownerBookingStateFn, ownerChoosePiesaFn, ownerDeclineQuoteFn, ownerChangeInstallDayFn, ownerSignConsentFn, ownerSuggestInstallDaysFn, ownerTakeInstallDayFn } from "@/lib/owner-link.functions";
 import { DECLINE_REASONS, OWNER_DECLINED_SCREEN, type DeclineReason } from "@/lib/quote-decline.core";
 import { melbourneToday, addYmd } from "@/lib/melbourne-time.core";
+import { formatInstallDay } from "@/lib/install-days.core";
 
 // Owner "My job" — no login. The secure link token is the only credential; nothing fetched during SSR.
 export const Route = createFileRoute("/my-job/$token")({
@@ -256,17 +257,17 @@ function BookPickers({ token }: { token: string }) {
     </section>}
     {any && session && installMove && <section className="rounded-[22px] bg-card p-5 shadow-sm">
       <h3 className="font-display text-lg font-extrabold">Choose your install day</h3>
-      <p className="mt-1 text-sm">Your installer can do these days (8am–4pm). Tap one to book it.</p>
+      <p className="mt-1 text-sm">Your installer can come at these times. Tap one to book it.</p>
       {data.install.deadline && <p className="mt-1 text-sm font-semibold">Your install must be on or before {day(data.install.deadline + "T02:00:00Z")}{data.install.daysLeft != null ? ` (${data.install.daysLeft} day${data.install.daysLeft === 1 ? "" : "s"} left)` : ""}.</p>}
-      <div className="mt-3 grid gap-2">{(data.install.open as { id: string; starts_at: string }[]).map((o) => <button key={o.id} className={tile(false)} disabled={busy} onClick={() => go(() => takeDay({ data: { token, session, proposalId: o.id } }))}>{day(o.starts_at)}</button>)}</div>
+      <div className="mt-3 grid gap-2">{(data.install.open as { id: string; starts_at: string }[]).map((o) => <button key={o.id} className={tile(false)} disabled={busy} onClick={() => go(() => takeDay({ data: { token, session, proposalId: o.id } }))}>{formatInstallDay(o.starts_at)}</button>)}</div>
       {!suggesting ? <button className="mt-3 min-h-12 w-full rounded-2xl border border-estimate-line px-3 text-sm font-bold" disabled={busy} onClick={() => setSuggesting(true)}>None of these suit – suggest other days</button> : <>
-        <p className="mt-4 text-sm font-semibold">Pick up to 5 days that suit you. Your installer will take one or offer new days.</p>
+        <p className="mt-4 text-sm font-semibold">Pick up to 5 days that suit you. Your installer will take one and choose the time, or offer new days.</p>
         <div className="mt-2 grid grid-cols-2 gap-2">{(data.install.days as string[]).map((d) => { const on = days.includes(d); return <button key={d} className={tile(on)} onClick={() => setDays(on ? days.filter((x) => x !== d) : days.length < 5 ? [...days, d] : days)}>{day(d + "T02:00:00Z")}</button>; })}</div>
         <button className={`${signBtn} mt-4`} disabled={busy || !days.length} onClick={() => go(() => suggestDays({ data: { token, session, days } }))}>Send my {days.length || ""} day{days.length === 1 ? "" : "s"}</button>
       </>}
     </section>}
     {data.install.turn === "booked" && <section className="rounded-[22px] bg-card p-5 text-sm shadow-sm">
-      <p className="font-bold">Your install is booked{data.install.bookedAt ? ` for ${day(data.install.bookedAt)} (8am–4pm)` : ""}.</p>
+      <p className="font-bold">Your install is booked{data.install.bookedAt ? ` for ${formatInstallDay(data.install.bookedAt)}` : ""}.</p>
       {!changing ? <button className="mt-3 min-h-12 w-full rounded-2xl border border-estimate-line px-3 text-sm font-bold" onClick={() => setChanging(true)}>Change day</button> : session ? <>
         <p className="mt-3">This cancels the booked day. Your installer will then offer you 3 new days{data.install.deadline ? `, on or before ${day(data.install.deadline + "T02:00:00Z")}` : ""}.</p>
         <button className={`${signBtn} mt-3`} disabled={busy} onClick={() => go(async () => { await changeDay({ data: { token, session } }); setChanging(false); })}>Yes, change the day</button>

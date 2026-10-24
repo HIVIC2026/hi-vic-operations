@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { allowedInstallDays, dayOfferBlockers, installDayOutsideWindow, installDayTurn, installWindowDeadline, shouldFlagTenDaysLeft } from "../src/lib/install-days.core";
+import { INSTALL_TIMES, allowedInstallDays, dayOfferBlockers, formatInstallDay, installDayBounds, installStartAt, installTimeLabel, installDayOutsideWindow, installDayTurn, installWindowDeadline, shouldFlagTenDaysLeft } from "../src/lib/install-days.core";
 import { buildNeedsHivic } from "../src/lib/allocation.core";
 
 const now = new Date("2026-10-05T00:00:00Z"); // Mon 5 Oct, 11am Melbourne
@@ -54,6 +54,17 @@ describe("install days", () => {
     expect(srv).toMatch(/update\(\{ status: "confirmed" \}\)/); // booking restored if the stage can't move back
     expect(readFileSync("src/components/portal/install-days.tsx", "utf8")).toContain("Change day");
     expect(readFileSync("src/routes/my-job.$token.tsx", "utf8")).toContain("ownerChangeInstallDayFn");
+  });
+  test("installer selects an exact arrival time; owner sees day and time (Jo 24 Oct)", () => {
+    expect(installStartAt("2026-10-27", "07:30").toISOString()).toBe("2026-10-26T20:30:00.000Z"); // 7:30am AEDT
+    expect(installDayBounds("2026-10-27", "07:30").starts_at).toBe("2026-10-26T20:30:00.000Z");
+    expect(installDayBounds("2026-10-27").starts_at).toBe("2026-10-26T21:00:00.000Z"); // owner-suggested day: 8am placeholder
+    expect(formatInstallDay("2026-10-26T20:30:00.000Z")).toBe("Tuesday 27 October at 7:30am");
+    expect(formatInstallDay("2026-10-27T02:00:00.000Z")).toBe("Tuesday 27 October at 1pm");
+    expect(formatInstallDay("2026-10-26T20:30:00.000Z", false)).toBe("Tuesday 27 October");
+    expect(installTimeLabel("06:30")).toBe("6:30am");
+    expect(installTimeLabel("12:00")).toBe("12pm");
+    expect(INSTALL_TIMES[0]).toBe("06:30");
   });
   test("no office step: the decline/none-suit office paths are gone", async () => {
     const { readFileSync } = await import("node:fs");
