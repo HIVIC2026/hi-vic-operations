@@ -1,6 +1,8 @@
 // Installer screen pieces for the approved mock-ups M2/M4/M5/M6 (Jo 24 Oct 2026). Presentation only: tokens navy
-// #22376B (ink), blue #3C51C4 (hiv-blue), green #07BF61 (hiv-green), mist #F2F4FC, line #E4E9F5, sub #5A6785;
+// #22376B (ink), blue #3C51C4 (hiv-blue), green #07BF61 (hiv-green), mist #F2F4FC, line #E4E9F5, sub #4B5A7C;
 // 44px targets; one primary button per screen. Pages pass in facts they already have.
+// Decision 277 (Jo 25 Oct 2026): group headings are ink (navy) and row labels use the darkened sub token so both read
+// clearly on white (≥ 4.5:1); values stay ink.
 import * as React from "react";
 import { Link } from "@tanstack/react-router";
 
@@ -69,11 +71,11 @@ export function QuietButton({ className, ...p }: React.ButtonHTMLAttributes<HTML
   return <button type="button" {...p} className={cx("flex min-h-11 w-full items-center justify-center rounded-xl border border-line bg-paper px-4 text-[15px] font-semibold text-hiv-blue disabled:opacity-45", className)} />;
 }
 
-/** Uppercase grey group heading with a thin line, then rows. */
+/** Uppercase navy group heading with a thin line, then rows. */
 export function Group({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section data-group={title}>
-      <h2 className="border-b border-line pb-2 text-xs font-bold uppercase tracking-[1.1px] text-sub">{title}</h2>
+      <h2 className="border-b border-line pb-2 text-xs font-bold uppercase tracking-[1.1px] text-ink">{title}</h2>
       {children}
     </section>
   );

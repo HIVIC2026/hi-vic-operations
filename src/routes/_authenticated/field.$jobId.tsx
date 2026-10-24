@@ -1,5 +1,6 @@
 // Installer Job page = approved mock-up M2 (Jo 24 Oct 2026, decisions 196/198): one Next panel, Quote, Ready Check,
-// Who's doing this, Messages, More. The electrician's visit flow shares this route unchanged.
+// Who's doing this, More. Decision 277 (Jo 25 Oct 2026): no in-portal Messages section — the installer uses Call/Text
+// and the portal sends its own automatic texts. The electrician's visit flow shares this route unchanged.
 import { RectPlanFields, rectPlanProblems, type RectPlan } from "@/components/portal/rectification-times";
 import { VisitContactsCard } from "@/components/portal/allocation";
 import { TradeVisitCard } from "@/components/portal/visit-changes";
@@ -41,8 +42,8 @@ import { OwnerQuoteCard } from "@/components/trade/OwnerQuoteCard";
 import { SafetyPlanCard } from "@/components/trade/SafetyPlanCard";
 import { InstallerReadyCheckTimesCard, useInstallerReadyCheckTimes } from "@/components/portal/ready-check-times-installer";
 import { OneTapAction } from "@/components/trade/one-tap-action";
-import { addApprovedRectItem, addOtherRectItem, completeAssessment, completeInstallation, getAssignedRecRates, recordPiesa, removeRectItem, saveAssessment, sendMessage } from "@/lib/portal.functions";
-import { aud, fmtDateTime } from "@/lib/workflow";
+import { addApprovedRectItem, addOtherRectItem, completeAssessment, completeInstallation, getAssignedRecRates, recordPiesa, removeRectItem, saveAssessment } from "@/lib/portal.functions";
+import { aud } from "@/lib/workflow";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -52,7 +53,6 @@ import { InstallerInstallDays, useInstallerInstallDays } from "@/components/port
 import { WhosDoingThis } from "@/components/trade/visit-allocation";
 import { ContactButtons, Group, LinkRow, NextPanel, Note, PrimaryButton, Row, Screen, ScreenHead, primaryLinkClass } from "@/components/trade/installer-kit";
 import { completeView, electricianRow, firstName, installRow, jobNext, payNote, quoteStatusRow, readyCheckRows, sourceLabel, type ReadyCheckTurn } from "@/lib/installer-screens.core";
-import { QUICK_ACTIONS } from "@/lib/messaging.core";
 
 export const Route = createFileRoute("/_authenticated/field/$jobId")({
   head: () => ({ meta: [{ title: "Job – Home Insulation Victoria Field" }, { name: "description", content: "Onsite job workflow." }, { property: "og:title", content: "Job – Home Insulation Victoria Field" }, { property: "og:description", content: "Onsite job workflow." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
@@ -371,43 +371,10 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
 
       <WhosDoingThis jobId={jobId} readyCheckDone={!!page?.readyCheck.done} visitAt={page?.install.bookedAt ?? page?.readyCheck.bookedAt ?? null} suburb={(job.property_address ?? "").split(",").slice(-1)[0]?.replace(/\b(VIC|Victoria)\b.*$/i, "").trim() || null} />
 
-      <InstallerMessages jobId={jobId} />
-
       <details>
         <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between border-y border-line text-[15px] text-sub"><span>More · staff job links</span><span className="text-xl">›</span></summary>
         <div className="py-3"><WorkerLinksPanel jobId={jobId} /></div>
       </details>
     </Screen>
-  );
-}
-
-/** Messages (decisions 36/40): the latest message, the three quick replies, and "Write a message". Direct contact is
- *  by Call/Text above — this is the shared job conversation the office can also see. */
-function InstallerMessages({ jobId }: { jobId: string }) {
-  const [writing, setWriting] = useState(false);
-  const [body, setBody] = useState("");
-  const [busy, setBusy] = useState(false);
-  const send = useAction(sendMessage);
-  const { data: me } = useQuery({ queryKey: ["me-id"], queryFn: async () => (await supabase.auth.getUser()).data.user?.id ?? null });
-  const { data, refetch } = useQuery({ queryKey: ["messages", jobId], refetchInterval: 60_000, queryFn: async () => (await supabase.from("messages").select("*, profiles(full_name)").eq("job_id", jobId).eq("internal", false).order("created_at")).data ?? [] });
-  const submit = async (text: string) => { if (!text.trim() || busy) return; setBusy(true); try { await send({ jobId, body: text, internal: false }); setBody(""); setWriting(false); await refetch(); } finally { setBusy(false); } };
-  const shown = writing ? (data ?? []).slice(-5) : (data ?? []).slice(-1);
-  return (
-    <Group title="Messages">
-      {shown.length === 0 && <p className="py-2.5 text-[15px] text-sub">No messages yet.</p>}
-      {shown.map((m) => { const mine = me && m.sender_id === me; return (
-        <div key={m.id} className="border-b border-line py-2.5">
-          <p className="text-[13px] text-sub">{mine ? "You" : m.sender_label ?? (m.profiles as { full_name: string | null } | null)?.full_name ?? "Home Insulation Victoria"} · {fmtDateTime(m.created_at)}</p>
-          <p className="mt-0.5 whitespace-pre-wrap text-[15px] leading-[1.45]">{m.body}</p>
-        </div>
-      ); })}
-      <div className="mt-2.5 flex flex-wrap gap-2">{QUICK_ACTIONS.installer.map((q) => <button key={q} type="button" disabled={busy} className="inline-flex min-h-10 items-center rounded-full border border-line px-3.5 text-sm disabled:opacity-50" onClick={() => void submit(q)}>{q}</button>)}</div>
-      {!writing ? <div className="mt-1.5"><LinkRow onClick={() => setWriting(true)}>Write a message</LinkRow></div> : (
-        <div className="mt-3 space-y-2">
-          <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={3} maxLength={4000} placeholder="Your message to the owner" />
-          <div className="flex gap-2"><button type="button" disabled={busy || !body.trim()} className="min-h-11 flex-1 rounded-xl border border-hiv-blue text-[15px] font-semibold text-hiv-blue disabled:opacity-45" onClick={() => void submit(body)}>{busy ? "Sending…" : "Send"}</button><button type="button" className="min-h-11 px-4 text-[15px] font-semibold text-sub" onClick={() => setWriting(false)}>Cancel</button></div>
-        </div>
-      )}
-    </Group>
   );
 }

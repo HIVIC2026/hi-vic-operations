@@ -137,6 +137,24 @@ describe("M2 states", () => {
     expect(allocationSheet({ kind: "install", visitAt: null, suburb: null, chosen: "tom", options: s.rows.map((r) => ({ workerId: r.workerId, name: r.name, mobile: null, allowed: r.allowed, reason: null, picked: false })) }).button).toBeNull();
     expect(allocationSheet({ kind: "ready_check", visitAt: null, suburb: null, chosen: null, options: [] }).title).toBe("Who does the Ready Check?");
   });
+  test("decision 277: no Messages section or quick replies on the installer job page; headings navy, labels readable", () => {
+    const page = readFileSync("src/routes/_authenticated/field.$jobId.tsx", "utf8");
+    expect(page).not.toMatch(/InstallerMessages|QUICK_ACTIONS|title="Messages"|Write a message/);
+    expect(page).toMatch(/<ContactButtons phone=/); // the installer still contacts the owner by Call / Text / Directions
+    const core = readFileSync("src/lib/messaging.core.ts", "utf8");
+    expect(core).not.toMatch(/installer:\s*\[|sent you 3 days|Running 15 min late/);
+    const kit = readFileSync("src/components/trade/installer-kit.tsx", "utf8");
+    expect(kit).toMatch(/uppercase tracking-\[1\.1px\] text-ink/); // Group heading
+    const css = readFileSync("src/styles.css", "utf8");
+    expect(css).toMatch(/\.installer-redesign \{ --hiv-sub: #4b5a7c;/);
+    const mockups = ["docs/templates/approved/installer-redesign/M2-job-page.html", ...["change-allocation", "complete", "install-booked", "needs-finishing", "own-before-ready-check", "piesa-booked", "quote-declined", "quote-held", "quote-sent", "sign-rebate-form"].map((s) => `docs/templates/approved/installer-redesign/states/M2-${s}.html`)];
+    for (const f of mockups) {
+      const html = readFileSync(f, "utf8");
+      expect(html, f).not.toMatch(/>Messages<|Write a message|sent you 3 days|Running 15 min late|I'm on my way/);
+      expect(html, f).not.toMatch(/text-transform:uppercase;color:#5A6785/);
+      expect(html, f).not.toMatch(/font-size:15px;"><span style="color:#5A6785;/);
+    }
+  });
 });
 
 describe("M4 states", () => {

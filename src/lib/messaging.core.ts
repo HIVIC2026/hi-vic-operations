@@ -15,7 +15,8 @@ export function maskContactDetails(body: string): { body: string; masked: boolea
   return { body: out, masked: out !== body };
 }
 
-export const QUICK_ACTIONS: Record<Exclude<ThreadRole, "admin">, string[]> = {
+// Decision 277 (Jo 25 Oct 2026): the installer job page has no Messages section, so there are no installer quick replies.
+export const QUICK_ACTIONS: Record<Exclude<ThreadRole, "admin" | "installer">, string[]> = {
   owner: [
     "Hi, I'm happy to book a time — please propose a few options in the portal.",
     "Weekday mornings suit me best.",
@@ -27,11 +28,5 @@ export const QUICK_ACTIONS: Record<Exclude<ThreadRole, "admin">, string[]> = {
     "I'm on my way.",
     "Running about 15 minutes late — sorry.",
     "I'm outside now.",
-  ],
-  // Jo 24 Oct 2026 (mock-up M2): three short chips.
-  installer: [
-    "I've sent you 3 days",
-    "I'm on my way",
-    "Running 15 min late",
   ],
 };
