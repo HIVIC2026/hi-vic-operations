@@ -373,6 +373,20 @@ export async function prepareFinalAssignment(jobId: string, actorId: string, fie
   return row.id;
 }
 
+/** The ONE write for Section 3 Part A (manual office fallback and the automatic signature, decision 271). Conditional on the
+ *  signature not being there yet, so the 15-minute tick and the installer-sign hook can never record it twice. Returns false when already signed. */
+export async function writeApSignature(p: { assignmentId: string; templates: Template[]; officialVersion: string; sig: Record<string, unknown>; hash: string; signatureName: string; actorId: string | null; method: "manual" | "automatic" }): Promise<boolean> {
+  const { AP_DECLARATION } = await import("./veec-assignment-form.core");
+  const ap = activeTemplate(p.templates, "ap_declaration");
+  const now = String(p.sig["at"] ?? new Date().toISOString());
+  const { data } = await admin.from("customer_assignments").update({
+    ap_declaration_version: ap?.version ?? p.officialVersion,
+    ap_details: { ...p.sig, part: "Section 3 Part A", method: p.method, declaration: AP_DECLARATION.replace("<insert name>", p.signatureName.trim()), prerequisites_checked_at: now } as unknown as Json,
+    ap_signed_at: now, ap_signed_by: p.actorId, ap_signature_name: p.signatureName.trim(), ap_snapshot_sha256: p.hash,
+  }).eq("id", p.assignmentId).is("ap_signed_at", null).select("id");
+  return (data ?? []).length > 0;
+}
+
 /** Signs the official form for one party, strictly in order: lead installer (Part B) -> AP representative (Part A) -> consumer (Section 4 Part B). */
 export async function signFinalAssignment(p: { jobId: string; actorId: string; party: Party; signatureName: string; ip: string | null; userAgent: string | null; signatoryName?: string | undefined; authorityType?: "owner" | "authorised_representative" | undefined; over18?: boolean | undefined; confirmsSection2?: boolean | undefined }) {
   let a = await currentAssignment(p.jobId);
@@ -398,11 +412,11 @@ export async function signFinalAssignment(p: { jobId: string; actorId: string; p
     const { INSTALLER_DECLARATION } = await import("./veec-assignment-form.core");
     await admin.from("customer_assignments").update({ installer_signature_name: p.signatureName, installer_signed_at: now, installer_ip: p.ip, installer_user_agent: p.userAgent, installer_snapshot: { ...sig, part: "Section 3 Part B", declaration: INSTALLER_DECLARATION } as unknown as Json, installer_snapshot_sha256: hash }).eq("id", a.id);
   } else if (p.party === "ap") {
+    // Manual fallback (decision 271: Part A normally signs itself from veec-ap-auto.server.ts) — same prerequisites, same write.
     const pre = await apPrerequisites(p.jobId);
     if (pre.length) throw new WorkflowError(`The AP declaration can't be signed yet: ${pre.join(" ")}`);
-    const { AP_DECLARATION } = await import("./veec-assignment-form.core");
-    const ap = activeTemplate(templates, "ap_declaration");
-    await admin.from("customer_assignments").update({ ap_declaration_version: ap?.version ?? official.version, ap_details: { ...sig, part: "Section 3 Part A", declaration: AP_DECLARATION.replace("<insert name>", p.signatureName.trim()), prerequisites_checked_at: now } as unknown as Json, ap_signed_at: now, ap_signed_by: p.actorId, ap_signature_name: p.signatureName, ap_snapshot_sha256: hash }).eq("id", a.id);
+    const written = await writeApSignature({ assignmentId: a.id, templates, officialVersion: official.version, sig, hash, signatureName: p.signatureName, actorId: p.actorId, method: "manual" });
+    if (!written) throw new WorkflowError("The AP representative signature was already recorded.");
   } else {
     const { data: isOwner } = await admin.rpc("is_job_owner", { _job: p.jobId, _user: p.actorId });
     if (!isOwner) throw new WorkflowError("Only the customer can sign.");

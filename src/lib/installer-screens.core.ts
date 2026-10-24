@@ -240,7 +240,7 @@ export function completeView(f: CompleteFacts): CompleteView {
   return {
     heading: [f.jobNumber, f.suburb].filter(Boolean).join(" · "),
     sub: [sourceLabel(f.channel), f.completedAt ? `Job complete ${shortDay(f.completedAt)}` : "Job complete"].filter(Boolean).join(" · "),
-    done: { title: "Nothing more to do", body: `${bothSigned ? "Rebate form signed by you and the owner." : f.installerSignedAt ? "Your part of the rebate form is signed." : "The job is closed."} ${f.apSignedAt ? "The office has checked the photos." : "The office checks the photos and signs it off."} Owner contact details are no longer shown.` },
+    done: { title: "Nothing more to do", body: `${bothSigned ? "Rebate form signed by you and the owner." : f.installerSignedAt ? "Your part of the rebate form is signed." : "The job is closed."} ${f.apSignedAt ? "Part A of the rebate form is signed." : "Part A of the rebate form signs itself once every check is recorded; the office does the final check."} Owner contact details are no longer shown.` },
     summary: [
       ["Installed", [f.product, f.areaM2 ? `${Number(f.areaM2)} m²` : null].filter(Boolean).join(" · ") || "To be confirmed"],
       ["Removed", f.removalM2 ? `${Number(f.removalM2)} m²` : "None"],
@@ -299,7 +299,7 @@ export function leadInstallerDeclaration(f: { address: string | null; installedO
 }
 export function signRebateThen(ownerFirstName: string | null, pay: number | null, channel: string | null): [string, string][] {
   const owner = ownerFirstName ?? "The owner";
-  const rows: [string, string][] = [["Owner", `${owner} signs their part by secure link`], ["Office", "Checks the photos and signs it off"]];
+  const rows: [string, string][] = [["Owner", `${owner} signs their part by secure link`], ["Office", "Does the final check; Part A of the form signs itself"]];
   if (pay != null) rows.push(["Your pay", `$${Math.round(pay).toLocaleString("en-AU")} · ${channel === "installer_sourced" ? "when the owner pays their balance" : "within 7 days of our approval"}`]);
   return rows;
 }

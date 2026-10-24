@@ -1585,7 +1585,11 @@ export const getAssignment = createServerFn({ method: "POST" }).middleware([requ
     const { veecPreparation, apPrerequisites } = await import("./assignment.server");
     const prep = job?.installation_completed_at && !templateBlockers(templates, "final").length ? await veecPreparation(data.jobId).catch((e: Error) => ({ blockers: [e.message], values: {}, missing: [] as string[], fields: [] as ReturnType<typeof parseFormFields> })) : null;
     const apPrereqs = role === "admin" && job?.installation_completed_at ? await apPrerequisites(data.jobId).catch((e: Error) => [e.message]) : [];
+    // Decision 271: Part A signs itself; the office sees why it is held (prerequisites + owner consent) and how it was signed.
+    const apAutoHeld = role === "admin" && cur?.status === "awaiting_ap_signature" ? await (await import("./veec-ap-auto.server")).apAutoHoldReasons(data.jobId).catch((e: Error) => [e.message]) : [];
+    const apSignMethod = (cur?.ap_details as { method?: string } | null)?.method ?? (cur?.ap_signed_at ? "manual" : null);
     const common = {
+      apAuto: { heldReasons: apAutoHeld, method: apSignMethod },
       consentForm,
       stage: job?.stage ?? null, installationCompleted: !!job?.installation_completed_at,
       installerBlockers: templateBlockers(templates, "installer"), finalBlockers: templateBlockers(templates, "final"),
@@ -1645,6 +1649,8 @@ export const signFinalAssignmentFn = createServerFn({ method: "POST" }).middlewa
     else await requireJobRole(context.supabase, data.jobId, [data.party === "installer" ? "installer" : "owner"]);
     await signFinalAssignment({ ...data, actorId: context.userId, ip: context.ip, userAgent: context.userAgent });
     await autoAdvanceJob(data.jobId, context.userId, "final assignment signed");
+    // Decision 271: Part A signs itself straight after the installer's Part B when every prerequisite is recorded (else held, retried by the tick).
+    if (data.party === "installer") { try { await (await import("./veec-ap-auto.server")).tryAutoApSignature(data.jobId); } catch (e) { console.error("automatic AP signature failed", (e as Error).message); } }
     if (data.party === "consumer") { try { await (await import("./veec-copy-email.server")).sendVeecCopyEmail(data.jobId); } catch (e) { console.error("VEEC copy email failed", (e as Error).message); } }
     return { ok: true };
   });

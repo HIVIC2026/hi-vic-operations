@@ -293,12 +293,19 @@ export function AdminAssignmentPanel({ jobId, sections = [1, 2, 4] }: { jobId: s
             <div className="flex flex-wrap items-center gap-2"><StatusPill s={a.status} />{a.final_copy_path && <CopyLink id={a.id} which="final" label="Final copy" />}{a.delivery_status === "pending_comms_lock" && <Pill t="warn">Delivery pending – communications locked</Pill>}</div>
             <ol className="list-decimal pl-5">
               <li>Lead installer (Section 3 Part B, from their job screen): {a.installer_signed_at ? `${a.installer_signature_name} · ${fmtDateTime(a.installer_signed_at)}` : "pending"}</li>
-              <li>AP representative (Section 3 Part A, after the prerequisites above): {a.ap_signed_at ? `${a.ap_signature_name} · ${fmtDateTime(a.ap_signed_at)}` : "pending"}</li>
+              <li>AP representative (Section 3 Part A, signs itself once the prerequisites above are recorded — decision 271): {a.ap_signed_at ? `${a.ap_signature_name} · ${fmtDateTime(a.ap_signed_at)}${data.apAuto?.method === "automatic" ? " · applied automatically" : ""}` : "pending"}</li>
               <li>Owner (Section 4 Part B, via their secure My job link; asked by email + text, reminders days 1/3/7, office alert day 10): {a.consumer_signed_at ? `${a.consumer_signature_name} · ${fmtDateTime(a.consumer_signed_at)}` : "pending"}</li>
             </ol>
-            {a.status === "awaiting_ap_signature" && <div className="space-y-2 rounded border p-2">
-              <Official title="Section 3 Part A – Accredited person declaration (signing this asserts every line)" body={AP_DECLARATION} />
-              <div className="flex gap-2"><Input placeholder="Type your full name to sign as AP representative" value={apSig} onChange={(e) => setApSig(e.target.value)} /><Button disabled={apSig.trim().length < 2 || (data.apPrerequisites ?? []).length > 0} onClick={() => signFinal({ jobId, party: "ap", signatureName: apSig }, "Signed")}>Sign</Button></div>
+            {a.status === "awaiting_ap_signature" && !a.ap_signed_at && <div className="space-y-2 rounded border p-2">
+              {/* Decision 271: Part A is applied by the portal (installer-sign hook + 15-minute tick) once every prerequisite is recorded. */}
+              {(data.apAuto?.heldReasons ?? []).length > 0
+                ? <div><p className="font-medium">Part A signs itself once these are recorded:</p><ul className="list-disc pl-5 text-warning">{(data.apAuto?.heldReasons ?? []).map((b) => <li key={b}>{b}</li>)}</ul></div>
+                : <p className="text-muted-foreground">Everything is recorded — Part A will be signed automatically within 15 minutes as the AP representative.</p>}
+              <details>
+                <summary className="cursor-pointer text-muted-foreground">Sign by hand instead (fallback, same prerequisites)</summary>
+                <Official title="Section 3 Part A – Accredited person declaration (signing this asserts every line)" body={AP_DECLARATION} />
+                <div className="flex gap-2"><Input placeholder="Type your full name to sign as AP representative" value={apSig} onChange={(e) => setApSig(e.target.value)} /><Button disabled={apSig.trim().length < 2 || (data.apPrerequisites ?? []).length > 0} onClick={() => signFinal({ jobId, party: "ap", signatureName: apSig }, "Signed")}>Sign</Button></div>
+              </details>
             </div>}
             <Button variant="outline" size="sm" disabled={a.status === "effective_complete"} onClick={() => prepare({ jobId, fieldValues: {} }, "Rechecked final facts")}>Recheck final facts</Button>
             {(data.variations ?? []).length > 0 && <ul className="space-y-1">{data.variations.map((v) => <li key={v.id} className="rounded border p-2">{(v.reasons as string[]).join(", ")} · <b>{v.status}</b> · {fmtDateTime(v.raised_at)}</li>)}</ul>}
@@ -366,7 +373,7 @@ function ApPrerequisites({ jobId, items, signed }: { jobId: string; items: strin
   if (signed) return null;
   return (
     <div className="mb-3 space-y-2 rounded border p-3 text-sm">
-      <p className="font-medium">Before the AP signs Part A (decision 119) {items.length === 0 ? <span className="text-success">— all four prerequisites recorded</span> : null}</p>
+      <p className="font-medium">Before Part A signs itself (decisions 119/271) {items.length === 0 ? <span className="text-success">— all four prerequisites recorded</span> : null}</p>
       {items.length > 0 && <ul className="list-disc pl-5 text-warning">{items.map((b) => <li key={b}>{b}</li>)}</ul>}
       <Input placeholder="Note (how / when it was given)" value={note} onChange={(e) => setNote(e.target.value)} />
       <div className="flex flex-wrap gap-2">

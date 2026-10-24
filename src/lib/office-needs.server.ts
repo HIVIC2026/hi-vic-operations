@@ -7,6 +7,7 @@ import { sendFailedRows } from "./send-failed.core";
 import { AUTO_OFFER_RETURNED_EVENT } from "./auto-offer.core";
 import { surnameOf } from "./office-jobs.core";
 import { VEEC_OFFICE_ALERT_EVENT } from "./veec-assignment-form.core";
+import { apAutoHoldAlert } from "./veec-ap-auto.core";
 
 type Row = Record<string, unknown>;
 const s = (v: unknown) => (v == null ? null : String(v));
@@ -99,11 +100,12 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     }
   }
   for (const c of consents) { const x = f(String(c["job_id"])); if (x && !["cancelled", "stale", "superseded"].includes(String(c["status"]))) { const start = s(c["scheduled_start"]); x.consentToSign = { at: String(c["owner_signed_at"]), dueAt: start ? new Date(Date.parse(start) - DAY).toISOString() : null }; } }
-  const partA = veecForms.filter((v) => v["installer_signed_at"] && !v["ap_signed_at"]);
+  // Decision 271: Part A signs itself; the office sees a row only once the automatic signature has been held >24h, with the reasons.
+  const partA = veecForms.filter((v) => v["installer_signed_at"] && !v["ap_signed_at"] && apAutoHoldAlert({ installerSignedAt: String(v["installer_signed_at"]), now, reasons: ["pending"] }).alert);
   if (partA.length && partA.length <= 40) {
-    const { apPrerequisites } = await import("./assignment.server");
-    await Promise.all(partA.map(async (v) => { const x = f(String(v["job_id"])); if (!x) return; const missing = await apPrerequisites(String(v["job_id"])).catch(() => ["unknown"]); x.veecPartA = { at: String(v["installer_signed_at"]), missing: missing.length }; }));
-  } else for (const v of partA) { const x = f(String(v["job_id"])); if (x) x.veecPartA = { at: String(v["installer_signed_at"]), missing: 0 }; }
+    const { apAutoHoldReasons } = await import("./veec-ap-auto.server");
+    await Promise.all(partA.map(async (v) => { const x = f(String(v["job_id"])); if (!x) return; const reasons = await apAutoHoldReasons(String(v["job_id"])).catch(() => ["Prerequisites could not be read."]); if (reasons.length) x.veecApHeld = { at: String(v["installer_signed_at"]), reasons }; }));
+  } else for (const v of partA) { const x = f(String(v["job_id"])); if (x) x.veecApHeld = { at: String(v["installer_signed_at"]), reasons: ["Prerequisites still to record (open the job)."] }; }
   for (const e of escRows) {
     const x = f(String(e["job_id"])); if (!x || ["cancelled", "withdrawn", "superseded", "stale"].includes(String(e["status"]))) continue;
     const opens = s(e["earliest_send_at"]);
