@@ -5,10 +5,15 @@ Jo: "not sure the Mitti forms are great, go check." This is the check, done agai
 Read-only: no code and no Mitti template was changed. It reconciles `docs/MITTI_TEMPLATES_AUDIT_2026-10-24.md`
 (written earlier the same day WITHOUT the live definitions) in §8.
 
-| Code | Live template | Modified | Questions / items |
-|---|---|---|---|
-| A1 | `A1 – Ready Check \| Installer-Supplied Customer` (`template_01ee0428…`) | 24 Oct 09:31 UTC | 140 questions / **601 items** |
-| A2 | `A2 – Ready Check \| HIVIC Sourced Customer` (`template_dbaf67a2…`) | 24 Oct 09:41 UTC | 131 questions / **561 items** |
+| Code | Live template | Modified | Distinct askable questions | Raw items in the definition |
+|---|---|---|---|---|
+| A1 | `A1 – Ready Check \| Installer-Supplied Customer` (`template_01ee0428…`) | 24 Oct 09:31 UTC | **49** | 601 (the per-area block copied 22×) |
+| A2 | `A2 – Ready Check \| HIVIC Sourced Customer` (`template_dbaf67a2…`) | 24 Oct 09:41 UTC | **37** | 561 (copied 21×) |
+
+**Counting rule for this audit (Jo, 24 Oct):** the raw item counts are misleading — the same 18-item ceiling-area block is
+pasted into every logic branch, and an installer only ever sees the branch that matches their answer. Every count and
+verdict below is therefore based on **distinct questions** and on **what an installer actually sees** for a typical
+one-area and two-area job (§1.4). Raw item counts appear only where the repetition itself is the problem.
 
 **What the live dump could and could not show.** The item lists give path, label (cut at 110 characters), kind and
 nesting. They do **not** carry option lists, the Required flag or the "show when" conditions (every `req` is null).
@@ -32,47 +37,47 @@ The build sheet / validator is `FORMS.ready_check` + `FORMS.ready_check_priced` 
 
 ## 0. The one-paragraph answer
 
-The forms are not 140 questions long for the tradie — they are **17 questions copied 21 or 22 times**. The per-area block
-("Which part of the home… / How was it measured… / sketch / m² / existing insulation… / downlights / issues") is pasted
-once into every fixed branch of "How many ceiling areas?" (1 copy for "1", 2 for "2" … 6 for "6+"), and on A1 once more
-inside a dynamic "CLICK ON ME to add a ceiling area" field. That block is 396 of A1's 427 answerable items (93 %) and
-378 of A2's 397 (95 %). A tradie doing a one-area house sees about 25 items, so the 20-minute target is not the problem;
-the problems are: every edit has to be made 21–22 times (and the two forms already disagree), the retired floor-plan
-sketch (decision 211) is still asked 22 times, nine labels are answered and read by nobody (including the **area name**,
-which decision 211 now needs), the R-value choice says "Above R2.0" where the rule is "R2.0 or above", a failed or
-"no safe access" result does not stop the form, and the portal's own build sheet (`READY_CHECK_FIELDS`) no longer matches
-either live form, so form health cannot prove the questions the quote actually depends on. A lean rebuild is in §6
-(A1 = 40 questions, A2 = 34, one repeating area group) and the ChatGPT prompt to build both is in §7.
+A1 asks **49 distinct questions** and A2 **37**; an installer doing a typical one-area house with no existing insulation
+sees about **27 items on A1 (22 needing a tap) and 20 on A2**, and a two-area house with old insulation about **47 / 40**
+(§1.4). So the visit length is not the problem. The problems are in what is asked: **9 distinct questions on each form are
+answered and read by nobody** (including the **area name**, which decision 211 now needs, and the per-area
+**sketch / floor-plan upload, retired by decision 211**); the R-value choice says "Above R2.0" where the rule is "R2.0 or
+above"; "No safe access" and "owner says No" do not end the form; A1 prices the job before asking whether it passed; and
+the per-area block is pasted 22× (A1) / 21× (A2) into logic branches so every edit must be made 22 times and the two forms
+have already drifted — it should be **one repeating group** (or at most the 1–4 branches, §3.1). The portal's own build
+sheet (`READY_CHECK_FIELDS`) no longer matches either live form, so form health cannot prove the questions the quote
+depends on. A lean rebuild is in §6 (A1 = 40 distinct questions, A2 = 34, one repeating area group), the delete list for
+Jo's Mitti pass is §6.5, and the ChatGPT prompt to rebuild both is §7.
 
 ---
 
 ## 1. Section-by-section map of the live forms
 
-Counts are **answerable items** (text, choice, photo, tick, signature; sections, logic containers and "── Ceiling Area N ──"
-headings excluded). "Unique" = distinct question texts. Verdict key: **PORTAL** = read by the portal · **RULE** = required
+The "Distinct" column is what matters: distinct question texts in the section. The raw item count is in brackets only to
+show where the copying is (sections, logic containers and "── Ceiling Area N ──" headings excluded). Verdict key: **PORTAL** = read by the portal · **RULE** = required
 by a Jo decision or the regulator even if the portal only files it · **NICE** = useful, not required · **BLOAT** = asked,
 read by nobody, adds nothing · **RETIRED** = contradicts a decision.
 
-### 1.1 A1 — Ready Check | Installer-Supplied Customer (5 sections, 427 answerable items, 49 unique)
+### 1.1 A1 — Ready Check | Installer-Supplied Customer (5 sections, 49 distinct questions; 427 raw items)
 
-| # | Section | Items (unique) | What it asks | Verdict |
+| # | Section | Distinct (raw items) | What it asks | Verdict |
 |---|---|---|---|---|
-| 001 | Title Page | 10 (10) | Portal Job Number, Site address, Homeowner name, phone, email (all prefilled), "Homeowner agrees to be contacted by Home Insulation Victoria" (Yes/No), Property type (+ "What is the property type?" text on Other), "Life support equipment at property?" (Yes/No, prefilled from the office record), "Was the ceiling or roof built or replaced in the last 5 years?" (prefilled from the owner's declared answer) | PORTAL for 8 of 10 (job number link, phone/email/permission = quote basics, life support + 5-year = hard stops, property type = prefill). BLOAT: "What is the property type?" (nobody reads it; `propertyTypeOption` only knows House/Townhouse/Unit). |
-| 002 | Site Verification | 8 (8) | Roof type (Tiles/Metal sheet/Other + "Describe the roof type"), "How would you rate the ceiling access?" (Easy/Standard/Difficult/No safe access) → on Difficult: "Please explain why the access is difficult" + "Is there a difficult access charge?" → "Difficult access fee ($ inc GST)"; on No safe access: "Please explain why there is no safe access"; access-point photo | PORTAL: roof (notes), access rating (`access_difficulty`), charge + fee (owner quote line, decision 24 Oct), access photo (install-day photo lock). BLOAT: the three free-text "explain/describe" boxes — unread, and Mitti's logic already *requires a note* on Difficult / No safe access (22 Oct definition), so the tradie is asked to explain twice. **STOP problem:** "No safe access" is not recognised by the reader (§3.4) and the form carries on into the whole Ceiling Assessment. |
-| 003 | Ceiling Assessment | 398 (20) | "How many ceiling areas need to be measured separately?" (1–6+), then the 18-item area block ×22: part of the home (name), how measured (+ "Tell us how"), **sketch or floor plan upload**, measured m², existing insulation? → type (Batts/Loose fill/Other + describe), depth (mm), R value (Below R2.0 / Above R2.0), depth photo, what is required (Remove/Top up/Not sure) → m² to remove; overview photo; downlights? → how many; issues? → "Please explain" | PORTAL: m² (sum = `measured_area_m2`, quote basic), existing Yes/No, type (removal pricing), R value (STOP_R2 / `belowR2`), depth + overview photos (install-day lock), required + removal m² (`removal_m2`), downlight count, issues Yes (office flag), how measured + "tell us" (provenance note). **RETIRED:** sketch/floor plan upload ×22 (decision 211). **BLOAT:** depth (mm) ×22, "Please describe the existing insulation type" ×22, "Please explain" (issues) ×22 — none read. **PORTAL-SHOULD-BUT-DOESN'T:** "Which part of the home does this ceiling area cover?" ×22 — the area name is read by nothing, yet decision 211 draws the diagram from "one box per area: name, length × width, m², product". Structure: 7 branches (dynamic field + fixed 1…6) — see §3.1. |
-| 004 | Your quote to the homeowner | 7 (7) | "What's included in your quote?" (multi) + "What else is included?"; "Total quoted price (inc GST)"; "Who is doing the electrical safety check?" (HIV electrician / My usual electrician / A different electrician) → name, licence, price | PORTAL, all seven (installer line of the co-branded quote, `BASIC_PRICE`, electrician snapshot). Correct that A1 asks the installer's price; no owner price is shown anywhere on A1 (good). Order problem: priced **before** the outcome question in 005. |
-| 005 | Ready Check Outcome | 4 (4) | "Based on your onsite assessment, does this property meet the Ready Check requirements to proceed?" → on failed: "Why did the property fail the ready check? Select all that apply" (multi); on passed: "What insulation product will you be using on this job?"; signature | PORTAL: outcome (failed = office review issue, never a stop), fail reasons (notes), **product (quote basic; the 8 options, decision 150)**. NICE: the outcome question itself — the hard stops are already derived from the answers; see §3.5 for the contradiction risk. Signature = Mitti completion. |
+| 001 | Title Page | 10 | Portal Job Number, Site address, Homeowner name, phone, email (all prefilled), "Homeowner agrees to be contacted by Home Insulation Victoria" (Yes/No), Property type (+ "What is the property type?" text on Other), "Life support equipment at property?" (Yes/No, prefilled from the office record), "Was the ceiling or roof built or replaced in the last 5 years?" (prefilled from the owner's declared answer) | PORTAL for 8 of 10 (job number link, phone/email/permission = quote basics, life support + 5-year = hard stops, property type = prefill). BLOAT: "What is the property type?" (nobody reads it; `propertyTypeOption` only knows House/Townhouse/Unit). |
+| 002 | Site Verification | 8 | Roof type (Tiles/Metal sheet/Other + "Describe the roof type"), "How would you rate the ceiling access?" (Easy/Standard/Difficult/No safe access) → on Difficult: "Please explain why the access is difficult" + "Is there a difficult access charge?" → "Difficult access fee ($ inc GST)"; on No safe access: "Please explain why there is no safe access"; access-point photo | PORTAL: roof (notes), access rating (`access_difficulty`), charge + fee (owner quote line, decision 24 Oct), access photo (install-day photo lock). BLOAT: the three free-text "explain/describe" boxes — unread, and Mitti's logic already *requires a note* on Difficult / No safe access (22 Oct definition), so the tradie is asked to explain twice. **STOP problem:** "No safe access" is not recognised by the reader (§3.4) and the form carries on into the whole Ceiling Assessment. |
+| 003 | Ceiling Assessment | 20 (398: block ×22) | "How many ceiling areas need to be measured separately?" (1–6+), then the 18-item area block ×22: part of the home (name), how measured (+ "Tell us how"), **sketch or floor plan upload**, measured m², existing insulation? → type (Batts/Loose fill/Other + describe), depth (mm), R value (Below R2.0 / Above R2.0), depth photo, what is required (Remove/Top up/Not sure) → m² to remove; overview photo; downlights? → how many; issues? → "Please explain" | PORTAL: m² (sum = `measured_area_m2`, quote basic), existing Yes/No, type (removal pricing), R value (STOP_R2 / `belowR2`), depth + overview photos (install-day lock), required + removal m² (`removal_m2`), downlight count, issues Yes (office flag), how measured + "tell us" (provenance note). **RETIRED:** sketch/floor plan upload ×22 (decision 211). **BLOAT:** depth (mm) ×22, "Please describe the existing insulation type" ×22, "Please explain" (issues) ×22 — none read. **PORTAL-SHOULD-BUT-DOESN'T:** "Which part of the home does this ceiling area cover?" ×22 — the area name is read by nothing, yet decision 211 draws the diagram from "one box per area: name, length × width, m², product". Structure: 7 branches (dynamic field + fixed 1…6) — see §3.1. |
+| 004 | Your quote to the homeowner | 7 | "What's included in your quote?" (multi) + "What else is included?"; "Total quoted price (inc GST)"; "Who is doing the electrical safety check?" (HIV electrician / My usual electrician / A different electrician) → name, licence, price | PORTAL, all seven (installer line of the co-branded quote, `BASIC_PRICE`, electrician snapshot). Correct that A1 asks the installer's price; no owner price is shown anywhere on A1 (good). Order problem: priced **before** the outcome question in 005. |
+| 005 | Ready Check Outcome | 4 | "Based on your onsite assessment, does this property meet the Ready Check requirements to proceed?" → on failed: "Why did the property fail the ready check? Select all that apply" (multi); on passed: "What insulation product will you be using on this job?"; signature | PORTAL: outcome (failed = office review issue, never a stop), fail reasons (notes), **product (quote basic; the 8 options, decision 150)**. NICE: the outcome question itself — the hard stops are already derived from the answers; see §3.5 for the contradiction risk. Signature = Mitti completion. |
 
-### 1.2 A2 — Ready Check | HIVIC Sourced Customer (4 sections, 397 answerable items, 37 unique)
+### 1.2 A2 — Ready Check | HIVIC Sourced Customer (4 sections, 37 distinct questions; 397 raw items)
 
-| # | Section | Items (unique) | What it asks | Verdict |
+| # | Section | Distinct (raw items) | What it asks | Verdict |
 |---|---|---|---|---|
-| 001 | Title Page | 5 (5) | Portal Job Number, Site address, Homeowner name (prefilled), Property type (+ "What is the property type?") | PORTAL: job number (exact match in `validateStoredMittiAudit`), prefill of the rest. Phone / email / contact permission / life support / 5-year are **not** asked on A2 — correct for our leads: `checkReadyCheckBasics` takes mobile/email from the job, permission from `owner_contact_consents`, and `websiteStopReasons` takes life support + 5-year from the website (`ownerAnsweredOnWebsite: true`). BLOAT: "What is the property type?". |
-| 002 | Site Verification | 8 (8) | Same as A1 (order of the Difficult sub-questions differs: charge first, then explain) | As A1. Note: the **access fee is a price question on our lead** — see §3.6. |
-| 003 | Ceiling Assessment | 379 (19) | Same 18-item block ×21 (fixed branches 1…6 only; no dynamic field) | As A1 (sketch ×21 RETIRED; depth/describe/explain ×21 BLOAT; area name unread). |
-| 004 | Ready Check Outcome | 5 (5) | Outcome → fail reasons (multi) / product; "I confirm I have not discussed or agreed pricing with the homeowner during this Ready Check…" tick; signature | PORTAL: outcome, reasons, product, no-pricing tick (recorded in notes; Jo decision 28 keeps it). |
+| 001 | Title Page | 5 | Portal Job Number, Site address, Homeowner name (prefilled), Property type (+ "What is the property type?") | PORTAL: job number (exact match in `validateStoredMittiAudit`), prefill of the rest. Phone / email / contact permission / life support / 5-year are **not** asked on A2 — correct for our leads: `checkReadyCheckBasics` takes mobile/email from the job, permission from `owner_contact_consents`, and `websiteStopReasons` takes life support + 5-year from the website (`ownerAnsweredOnWebsite: true`). BLOAT: "What is the property type?". |
+| 002 | Site Verification | 8 | Same as A1 (order of the Difficult sub-questions differs: charge first, then explain) | As A1. Note: the **access fee is a price question on our lead** — see §3.6. |
+| 003 | Ceiling Assessment | 19 (379: block ×21) | Same 18-item block ×21 (fixed branches 1…6 only; no dynamic field) | As A1 (sketch ×21 RETIRED; depth/describe/explain ×21 BLOAT; area name unread). |
+| 004 | Ready Check Outcome | 5 | Outcome → fail reasons (multi) / product; "I confirm I have not discussed or agreed pricing with the homeowner during this Ready Check…" tick; signature | PORTAL: outcome, reasons, product, no-pricing tick (recorded in notes; Jo decision 28 keeps it). |
 
-### 1.3 Verdict totals (unique question texts)
+### 1.3 Verdict totals (distinct questions)
 
 | | A1 (49) | A2 (37) |
 |---|---|---|
@@ -83,7 +88,19 @@ read by nobody, adds nothing · **RETIRED** = contradicts a decision.
 | **Nobody reads** | **9** | **9** |
 | of which RETIRED by decision 211 | 1 (sketch, ×22 instances) | 1 (sketch, ×21) |
 
-Per instance, A1 carries **114 answerable items nobody reads** (5 per-area labels ×22 + 4 singles) out of 427; A2 carries 109 of 397.
+(In raw items that is 114 unread items on A1 and 109 on A2, but an installer only meets 5 of those per area they enter.)
+
+### 1.4 What an installer actually sees (walking the logic: only the matching branch shows)
+
+| Typical job | A1 items shown (needing a tap/typing) | A2 items shown |
+|---|---|---|
+| 1 area, no existing insulation, Easy access, passed, HIV electrician | Title 9 (5 prefilled → 1 real tap: permission) + Site 3 + "How many" 1 + area block 8 (name, how measured, **sketch**, m², existing?, overview photo, downlights?, issues?) + quote 3 + outcome 2 + signature = **27 (≈22 to act on)** | Title 4 + Site 3 + 1 + 8 + outcome 2 + tick + signature = **20** |
+| 1 area, old insulation to remove | + type, depth (mm), R value, depth photo, required, m² to remove = **33** | **26** |
+| 2 areas, old insulation in both, Difficult access with a charge | + explain, charge, fee (3) + second block 8 + 2×6 = **50** | **43** |
+| Any job: of the per-area items shown, unread or retired | 5 of 8 base items per area (name*, sketch, depth mm, describe type, explain) — *name should be read | same |
+
+The A1 "CLICK ON ME to add a ceiling area" dynamic field may also appear for some "How many" answers (§3.1), adding a
+second, unlabelled copy of the block on screen.
 
 ---
 
@@ -167,9 +184,14 @@ Consequences:
    and the house is measured twice. **Check in Mitti which answers show "CLICK ON ME".**
 3. "6+" gives exactly six copies — a seventh area cannot be entered on A2.
 4. The portal reader (`parseAudit` grouping by the parent of each m² answer) does not care which way repetition is
-   done, so the fix is purely a Mitti one: one repeating group (§6) — but a dynamic repeater must be **tested** with a
-   2-area TEST form to prove each instance has its own parent id (otherwise `roomParents` collapses to one and only the
-   first m² is read).
+   done, so the fix is purely a Mitti one — but a dynamic repeater must be **tested** with a 2-area TEST form to prove
+   each instance has its own parent id (otherwise `roomParents` collapses to one and only the first m² is read).
+
+**Should it be 22, 6 or fewer?** Recommendation, in order: (a) **one** repeating group ("Add a ceiling area") — one copy
+to maintain, no "How many" question, any number of areas; (b) if Mitti's repeater cannot hold the show-when logic the
+block needs, keep fixed branches for **1–4 areas only** (10 copies instead of 21/22; homes with more than four
+separately-roofed ceilings are rare and can be split by the office) and drop the "5" and "6+" branches and the A1 dynamic
+field; (c) never both a dynamic field and fixed copies on the same form.
 
 ### 3.2 Duplicates and near-duplicates
 
@@ -253,7 +275,7 @@ also retired by decision 211 — out of scope here.)
 
 ## 4. Everything else found (numbered for the top-10 list)
 
-1. **Ceiling-area block ×21/22** (§3.1) — 93–95 % of all items; edit-in-22-places; A1 dynamic + fixed double-count risk.
+1. **Ceiling-area block ×21/22** (§3.1) — the 18 distinct per-area questions are pasted 22×; edit-in-22-places; the two forms have drifted; A1 dynamic + fixed double-count risk. Should be one repeating group, or 1–4 branches at most.
 2. **Retired sketch/floor-plan upload** still asked 22 + 21 times (§3.7).
 3. **Build sheet ≠ live forms**: `validateTemplate` fails both; readers' labels not in the spec (§3.3).
 4. **"Above R2.0" wording** lets an exact R2.0 be marked Below — eligibility error (§3.4).
@@ -372,6 +394,24 @@ are counted once; a two-area house adds 14 taps, not a second form.
 | Read `Who lives at the property?` to the job record (Appendix C premises type) | `parseAudit` → notes / job field | new question 10 (optional) |
 | Nothing else: every other label is read today. | | |
 
+### 6.5 Delete in the same Mitti pass (every item the portal no longer needs) — both A1 and A2 unless noted
+
+| Item (exact live label) | Copies | Why it can go |
+|---|---|---|
+| `Upload your area sketch or floor plan. Rough is fine. Mark this ceiling area and show the measurements used.` | 22 (A1) / 21 (A2), one per area block | **Decision 211** — the portal draws the diagram; never read |
+| `What is the measured insulation depth (mm)?` | 22 / 21 | never read or stored; the Below/Above R2.0 choice and depth photo are what count |
+| `Please describe the existing insulation type` | 22 / 21 | never read; "Other" already raises an office note |
+| `Please explain` (under "Are there any issues…") | 22 / 21 | never read; replace with the single photo-with-note `Describe the issue and add a photo` (§6 q30) |
+| `How many ceiling areas need to be measured separately? …` + all fixed branches "── Ceiling Area 1…6 ──" | 1 + 6 branches | replaced by the one repeating group (or 1–4 only, §3.1) |
+| `CLICK ON ME to add a ceiling area` (A1) | 1 | replaced by the repeating group's own button `Add a ceiling area` |
+| `What is the property type?` (Other text under Property type) | 1 | never read; options cover every case the portal knows |
+| `Describe the roof type` | 1 | never read |
+| `Please explain why the access is difficult` | 1 | never read; Mitti's note-required on the answer already captures it |
+| `Please explain why there is no safe access` | 1 | same |
+| "Difficult access" as an option inside `What’s included in your quote?` (A1, if still present) | — | superseded by the charge/fee pair (23 Oct) |
+
+Everything else on the live forms is read by the portal or required by a decision and stays (with the wording fixes in §6).
+
 **Must-test before switching templates:** one TEST job per form, two ceiling areas via the repeater, marked Complete:
 `measured_area_m2` = sum of both areas (proves distinct parent ids), product recognised, A1 quote drafted, A2 quote
 drafted with the access fee line, "Needs finishing…" cleared.
@@ -434,6 +474,13 @@ Photo = photo/attachment; Checkbox = single checkbox that must be ticked; Signat
 15. `Upload a clear photo of the ceiling access point` — Photo — Not required
 
 ## Group 4: Ceiling areas (repeating section, button `Add a ceiling area`; the installer adds one per area)
+**REMOVE, and do not carry over from the old templates (both A1 and A2):** the per-area photo item `Upload your area
+sketch or floor plan. Rough is fine. Mark this ceiling area and show the measurements used.` (it exists once in every
+one of the 22 old area blocks — the software now draws the diagram itself), `What is the measured insulation depth (mm)?`,
+`Please describe the existing insulation type`, `Please explain`, the question `How many ceiling areas need to be measured
+separately?` with its six "── Ceiling Area N ──" branches, and the A1 `CLICK ON ME to add a ceiling area` field. Also do
+not carry over `What is the property type?`, `Describe the roof type`, `Please explain why the access is difficult` or
+`Please explain why there is no safe access`. The new group below is complete as written.
 16. `Which part of the home does this ceiling area cover?` — Text — Required — help text: `Name it the way it will be named on install day, e.g. Main house, Rear extension, Garage.`
 17. `Enter the measured ceiling area (m²)` — Number — Required
 18. `How was this ceiling area measured?` — Pick one: `Laser measure` / `Tape measure` / `Floor plan` / `Other` — Required
