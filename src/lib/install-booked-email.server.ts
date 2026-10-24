@@ -4,7 +4,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 
-export async function emailOwnerInstallBooked(jobId: string, startIso: string): Promise<string> {
+export async function emailOwnerInstallBooked(jobId: string, startIso: string, opts: { depositReceived?: boolean } = {}): Promise<string> {
   const { data: job } = await admin.from("jobs").select("owner_id, property_id, source").eq("id", jobId).maybeSingle();
   if (!job) return "skipped";
   const [{ data: owner }, { data: prop }, { data: asg }, { data: m }, { data: link }] = await Promise.all([
@@ -31,8 +31,10 @@ export async function emailOwnerInstallBooked(jobId: string, startIso: string): 
   const deposit = pay && depositStep && (depositStep.state === "requested" || depositStep.state === "overdue") && pay.provisional.decision === "provisional"
     ? { amount: `$${(depositStep.outstandingCents / 100).toFixed(2)}`, holdUntil: pay.provisional.expiresAt ? formatInstallDay(pay.provisional.expiresAt) : null, bankLines: (await import("./payments.core")).bankDetailLines(pay.bank, pay.reference) }
     : null;
+  // Decision 151: once the deposit has cleared, the same email says "Deposit received ✓" with the balance due on the day.
+  const paidDeposit = opts.depositReceived && pay && depositStep ? { depositPaid: depositStep.amountCents / 100, balanceDue: Math.max(0, (pay.plan.grandTotalCents - pay.paidCents) / 100) } : null;
   const input = {
-    firstName: firstName(owner?.full_name ?? null), when: formatInstallDay(startIso), deposit,
+    firstName: firstName(owner?.full_name ?? null), when: formatInstallDay(startIso), deposit: opts.depositReceived ? null : deposit, payment: paidDeposit,
     address: prop ? fullAddress(prop.address_line, prop.suburb, prop.postcode) || null : null,
     installerName: biz?.trading_name ?? biz?.name ?? null, installerPhone: biz?.phone ?? null,
     removal: m?.removal_required === true, myJobUrl: `${CUSTOMER_BASE}/my-job/${link.token}`,
@@ -41,7 +43,7 @@ export async function emailOwnerInstallBooked(jobId: string, startIso: string): 
     const { isTestPartner } = await import("./test-send.core");
     const { sendTestEmail } = await import("./test-send.server");
     const mail = renderInstallBookedEmail({ ...input, test: true });
-    const r = await sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: isTestPartner(biz), label: `install_booked:${startIso}`, actorId: null }, owner?.email ?? "", mail.subject, mail.html, mail.text);
+    const r = await sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: isTestPartner(biz), label: `install_booked:${startIso}${opts.depositReceived ? ":deposit-received" : ""}`, actorId: null }, owner?.email ?? "", mail.subject, mail.html, mail.text);
     return `${r.status}: ${r.detail}`;
   }
   if (!INSTALL_BOOKED_EMAIL_APPROVED) {
@@ -52,7 +54,7 @@ export async function emailOwnerInstallBooked(jobId: string, startIso: string): 
   const { assertCustomerDeliveryAllowed } = await import("./comms.server");
   try { await assertCustomerDeliveryAllowed(jobId, "Install booked email"); } catch (e) { return `not sent — ${(e as Error).message}`; }
   return (await import("./owner-email-send.server")).sendGuardedOwnerEmail({
-    jobId, jobSource: job.source, to: owner.email, purpose: "install_booked", key: `install-booked:v1:${jobId}:${startIso}`,
+    jobId, jobSource: job.source, to: owner.email, purpose: "install_booked", key: `install-booked:v1:${jobId}:${startIso}${opts.depositReceived ? ":deposit-received" : ""}`,
     build: () => renderInstallBookedEmail({ ...input, test: false }),
   });
 }

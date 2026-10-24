@@ -107,8 +107,13 @@ export async function afterPaymentsChanged(jobId: string, invoiceId: string, act
   const once = async (eventType: string, summary: string, details: Record<string, unknown>) => {
     const { data: prior } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", eventType).contains("details", { invoice_id: invoiceId }).limit(1).maybeSingle();
     if (!prior) await logEvent(jobId, actorId, eventType, summary, { invoice_id: invoiceId, ...details }, { internal: true });
+    return !prior;
   };
-  if (v.provisional.decision === "confirmed" && v.provisional.bookedAt) await once("install_booking_confirmed", "Install deposit received – the provisional install booking is confirmed", { booked_at: v.provisional.bookedAt });
+  if (v.provisional.decision === "confirmed" && v.provisional.bookedAt && await once("install_booking_confirmed", "Install deposit received – the provisional install booking is confirmed", { booked_at: v.provisional.bookedAt })) {
+    // Jo 24 Oct 2026 (decision 151): the "Deposit received ✓ Your day is locked in" version of Your install is booked.
+    const { data: book } = await admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "installation").in("status", ["confirmed", "completed"]).order("scheduled_start", { ascending: false }).limit(1).maybeSingle();
+    if (book?.scheduled_start) await (await import("./install-booked-email.server")).emailOwnerInstallBooked(jobId, book.scheduled_start, { depositReceived: true }).catch((e) => console.error("deposit-received email skipped", (e as Error).message));
+  }
   if (v.plan.fixesCents > 0 && isStepCleared(v.steps, "fixes")) await once("fixes_payment_received", "Electrical fixes paid – the fixes can be scheduled", { amount_cents: v.plan.fixesCents });
   if (v.paidCents >= v.plan.grandTotalCents && v.plan.grandTotalCents > 0) await once("completion_pack_due", "Invoice fully paid – completion pack can be sent once the install is complete", { paid_cents: v.paidCents });
   const { autoAdvanceJob } = await import("./autoadvance.server");
