@@ -146,6 +146,40 @@ export const ownerSignConsentFn = createServerFn({ method: "POST" }).middleware(
     return { ok: true };
   });
 
+/** Official VEEC assignment form (decision 119): read-only Section 2 + declarations for the owner's job, with signing state. */
+export const ownerVeecAssignmentFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token }).parse(d))
+  .handler(async ({ data }) => {
+    const jobId = await ownerJobId(data.token);
+    if (!jobId) return null;
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const { data: a } = await admin.from("customer_assignments").select("id, status, final_facts, installer_signed_at, ap_signed_at, consumer_signed_at, consumer_declaration_version, final_copy_path, copy_sent_at").eq("job_id", jobId).eq("record_kind", "final_veec_assignment").neq("status", "cancelled").maybeSingle();
+    const { data: job } = await admin.from("jobs").select("installation_completed_at").eq("id", jobId).maybeSingle();
+    if (!job?.installation_completed_at) return null;
+    const F = await import("./veec-assignment-form.core");
+    const facts = (a?.final_facts ?? null) as { form_values?: Record<string, string | number | boolean | null> } | null;
+    return JSON.parse(JSON.stringify({
+      status: a?.status ?? "not_prepared", canSign: a?.status === "awaiting_consumer_signature", signedAt: a?.consumer_signed_at ?? null, copyReady: !!a?.final_copy_path, copySentAt: a?.copy_sent_at ?? null,
+      waitingOn: !a ? "installer" : !a.installer_signed_at ? "installer" : !a.ap_signed_at ? "ap" : null,
+      version: a?.consumer_declaration_version ?? F.VEEC_FORM_VERSION, rows: facts?.form_values ? F.veecFormRows(facts.form_values) : [],
+      rights: F.SECTION_1_CONSUMER_RIGHTS, apDeclaration: F.AP_DECLARATION, installerDeclaration: F.INSTALLER_DECLARATION, consumerDeclaration: F.CONSUMER_DECLARATION,
+    }));
+  });
+
+/** Owner signs Section 4 Part B via the secure link after a fresh 6-digit code (the last signature; copy within 10 business days). */
+export const ownerSignVeecAssignmentFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token, session, ...signer, over18: z.boolean(), confirmsSection2: z.boolean() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const s = await (await import("./owner-verify.server")).ownerSession(data.token, data.session);
+    const { signFinalAssignment } = await import("./assignment.server");
+    await signFinalAssignment({ jobId: s.jobId, actorId: s.userId, party: "consumer", signatureName: data.signatureName, signatoryName: data.signatoryName, authorityType: data.authorityType, over18: data.over18, confirmsSection2: data.confirmsSection2, ip: context.ip, userAgent: context.userAgent });
+    const { autoAdvanceJob } = await import("./autoadvance.server");
+    await autoAdvanceJob(s.jobId, s.userId, "owner signed the VEEC assignment form");
+    // Executed copy to the owner (within 10 business days): best-effort now, the 15-minute tick retries until sent.
+    try { await (await import("./veec-copy-email.server")).sendVeecCopyEmail(s.jobId); } catch (e) { console.error("VEEC copy email failed", (e as Error).message); }
+    return { ok: true };
+  });
+
 async function ownerJobId(t: string): Promise<string | null> {
   const { isWellFormedToken, LINK_PURPOSE, linkUsable } = await import("./estimatelink.core");
   if (!isWellFormedToken(t)) return null;

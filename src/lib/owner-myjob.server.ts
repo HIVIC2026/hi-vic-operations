@@ -23,12 +23,14 @@ export async function resolveOwnerJob(token: unknown) {
     admin.from("workflow_settings").select("office_time_limits, piesa_install_window_days, safety_check_payment_inc_gst").eq("id", 1).maybeSingle(),
   ]);
   if (!j) return null;
-  const [{ data: rc }, { data: spot }, { data: consent }, { data: cancellableBookings }] = await Promise.all([
+  const [{ data: rc }, { data: spot }, { data: consent }, { data: cancellableBookings }, { data: veecRows }] = await Promise.all([
     admin.from("ready_check_acceptances").select("accepted_at").eq("job_id", jobId).limit(1).maybeSingle(),
     admin.from("lead_campaign_responses").select("spot_saved_at, opted_out_at, media_received_at, video_requested, saved_veu_discount, saved_total").eq("job_id", jobId).maybeSingle(),
     admin.from("owner_esc_consents").select("status, scheduled_start").eq("job_id", jobId).eq("status", "awaiting_owner").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("bookings").select("kind").eq("job_id", jobId).in("status", ["proposed", "confirmed"]),
+    admin.from("customer_assignments").select("status, consumer_signed_at").eq("job_id", jobId).eq("record_kind", "final_veec_assignment").order("created_at", { ascending: false }),
   ]);
+  const veec = ((veecRows ?? []) as { status: string; consumer_signed_at: string | null }[]).find((a) => a.status !== "cancelled") ?? null;
   const stage = j.stage as string;
   // Held/queued quotes are office-only until released (source of truth: nothing goes to the owner while queued).
   const { ownerVisibleQuotes } = await import("./owner-quote-visibility.core");
@@ -85,6 +87,8 @@ export async function resolveOwnerJob(token: unknown) {
     } : null,
     piesaInstallGapDays: n(limits["piesa_install_gap_days"] ?? DEFAULT_PIESA_INSTALL_GAP_DAYS),
     canCancel: ownerCanCancel(stage, (cancellableBookings ?? []).map((b) => b.kind)),
+    // Decision 119: after the install the owner signs the official VEEC assignment form here (never before install).
+    veecAssignment: ["evidence_outstanding", "ap_review", "ready_for_veec", "complete"].includes(stage) ? { status: veec?.status ?? "not_prepared", signedAt: veec?.consumer_signed_at ?? null } : null,
   };
 }
 

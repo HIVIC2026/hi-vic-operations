@@ -326,8 +326,8 @@ function InstallerFlow({ jobId, stage, linkedMitti = false }: { jobId: string; s
         <p className="text-sm">Install ceiling insulation to {Number(a.measured_area_m2)} m²{a.removal_required ? `, remove ${a.removal_m2} m² existing` : ""}. Access: {a.access_difficulty}.</p></Section>}
       {["installation_booked", "evidence_outstanding", "ap_review"].includes(stage) && <EvidencePanel jobId={jobId} role="installer" gates={["installation"]} />}
       {stage === "installation_booked" && <OneTapAction label={<><Check /> Installation complete</>} busyLabel="Recording…" confirm="Mark this installation as complete? Only do this once the work is finished on site." confirmLabel="Yes, it's complete" run={() => done({ jobId }, "Installation complete")} />}
-      {stage === "evidence_outstanding" && (
-        <Section title="Declaration & submit">
+      {["evidence_outstanding", "ap_review"].includes(stage) && (
+        <Section title="Rebate form (your part) & submit">
           <div className="mb-3"><InstallerFinalDeclaration jobId={jobId} /></div>
           <OneTapAction label="Submit for Home Insulation Victoria review" busyLabel="Submitting…" run={() => submit({ jobId }, "Submitted for review")} />
           <p className="mt-2 text-xs text-sub">If anything is still missing, you'll see exactly which item when you submit.</p>

@@ -69,6 +69,14 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['piesaCopies'] = "failed";
         }
         try {
+          // Decision 120: owner asked to sign the VEEC assignment form (email + text) at install completion, days 1/3/7, office alert day 10.
+          const { sweepVeecReminders } = await import("@/lib/veec-reminders.server");
+          (out as Record<string, unknown>)['veecReminders'] = await sweepVeecReminders();
+        } catch (e) {
+          console.error("allocation tick: VEEC reminder sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['veecReminders'] = "failed";
+        }
+        try {
           const { sweepInstallDays } = await import("@/lib/install-days.server");
           (out as Record<string, unknown>)['installDays'] = await sweepInstallDays();
         } catch (e) {

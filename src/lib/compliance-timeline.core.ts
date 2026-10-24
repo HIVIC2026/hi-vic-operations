@@ -22,6 +22,7 @@ export type TimelineFacts = {
   now: string;
   piesaWindowDays?: number | null;
   acceptanceSignedAt: string | null;
+  /** Consumer's Section 4 Part B signature on the official ESC VEEC assignment form (FINAL_ASSIGNMENT_SIGNED party=consumer). */
   assignmentSignedAt: string | null;
   depositCleared: boolean;
   piesaCompletedAt: string | null;
@@ -74,10 +75,10 @@ export function buildComplianceTimeline(f: TimelineFacts): Gate[] {
   const push = (g: Gate) => gates.push(g);
 
   push({ key: "acceptance_signed", label: "Customer Acceptance signed", when: "At quote acceptance", status: f.acceptanceSignedAt ? "done" : "open", dueAt: null, detail: null, blocks: "Invoice, deposit and REC request" });
-  push({ key: "veec_assignment_signed", label: "Completed Activity 48 VEEC assignment signed", when: "After installation and final facts are confirmed", status: f.assignmentSignedAt ? "done" : f.installCompletedAt ? "open" : "not_yet", dueAt: null, detail: null, blocks: "VEEC lodgement" });
+  push({ key: "veec_assignment_signed", label: "Official ESC VEEC assignment form v1.1 signed by the owner (Section 4 Part B, secure link)", when: "After installation: lead installer → AP (four prerequisites) → owner; reminders days 1/3/7, office alert day 10", status: f.assignmentSignedAt ? "done" : f.installCompletedAt ? "open" : "not_yet", dueAt: null, detail: null, blocks: "VEEC lodgement" });
   push({ key: "deposit_cleared", label: "Approved payment option verified (Xero) or audited override", when: "Before any booking", status: f.depositCleared ? "done" : signed ? "open" : "blocked", dueAt: null, detail: signed ? null : "Waiting for signed acceptance", blocks: "REC and installer scheduling" });
 
-  push({ key: "assignment_copy_to_consumer", label: "Copy of signed VEEC assignment form given to owner", when: "At written signing, or within 10 business days if signed electronically", status: deadline(f.assignmentCopyGivenAt ?? null, f.assignmentSignedAt ? addBusinessDays(f.assignmentSignedAt, 10) : null, f.now), dueAt: f.assignmentSignedAt ? addBusinessDays(f.assignmentSignedAt, 10) : null, detail: null, blocks: "VEEC lodgement record" });
+  push({ key: "assignment_copy_to_consumer", label: "Copy of the executed VEEC assignment form given to the owner", when: "Within 10 business days of the owner's electronic signature (veec-copy-email.server.ts)", status: deadline(f.assignmentCopyGivenAt ?? null, f.assignmentSignedAt ? addBusinessDays(f.assignmentSignedAt, 10) : null, f.now), dueAt: f.assignmentSignedAt ? addBusinessDays(f.assignmentSignedAt, 10) : null, detail: null, blocks: "VEEC lodgement record" });
   if (f.lifeSupport) push({ key: "life_support_plan", label: "Life support written consent / medical plan", when: "Before PIESA starts", status: f.lifeSupportPlanAt ? "done" : "open", dueAt: null, detail: null, blocks: "PIESA and installation" });
   const piesaStatus: GateStatus = f.piesaCompletedAt ? (f.piesaOutcome === "pass" ? "done" : "blocked") : f.depositCleared ? "open" : "blocked";
   push({ key: "piesa_completed", label: "VEU Pre Insulation Electrical Safety Assessment (PIESA) completed, signed and passed", when: "No earlier than 30 days before installation", status: piesaStatus, dueAt: null, detail: f.piesaCompletedAt && f.piesaOutcome !== "pass" ? `Assessment outcome: ${f.piesaOutcome ?? "not recorded"} — electrical fixes required` : null, blocks: "Ready to install" });
@@ -103,7 +104,7 @@ export function buildComplianceTimeline(f: TimelineFacts): Gate[] {
   const installed = !!f.installCompletedAt;
   push({ key: "co_payment_paid", label: "Minimum $200 inc GST co-payment paid by the energy consumer to the Accredited Person", when: "Before VEEC creation; must not be reimbursed", status: f.coPaymentPaidAt ? "done" : installed ? "open" : "not_yet", dueAt: null, detail: null, blocks: "VEEC creation" });
   push({ key: "completion_consumer_docs", label: "Owner given tax invoice, dispute info, instructions, contacts and 5-year warranty", when: "On completion", status: f.completionDocsGivenAt ? "done" : installed ? "open" : "not_yet", dueAt: null, detail: null, blocks: "Final check" });
-  push({ key: "installer_declaration", label: "Installer declaration", when: "After install", status: f.installerDeclarationAt ? "done" : installed ? "open" : "not_yet", dueAt: null, detail: null, blocks: "Final check" });
+  push({ key: "installer_declaration", label: "Installer declaration (Mitti PIISA before work; Part B of the assignment form after)", when: "Before and after install", status: f.installerDeclarationAt ? "done" : installed ? "open" : "not_yet", dueAt: null, detail: null, blocks: "Final check" });
   push({ key: "evidence_complete", label: "Installation evidence complete", when: "After install", status: f.evidenceComplete ? "done" : installed ? "open" : "not_yet", dueAt: null, detail: null, blocks: "Final check" });
   push({ key: "assignment_effective", label: "VEEC assignment final facts + installer, AP and customer signatures", when: "After install", status: f.assignmentEffective ? "done" : installed ? "open" : "not_yet", dueAt: null, detail: null, blocks: "Ready for VEEC" });
   const apReady = !!f.coPaymentPaidAt && !!f.completionDocsGivenAt && f.installerDeclarationAt && f.evidenceComplete && f.assignmentEffective;

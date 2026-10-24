@@ -61,7 +61,8 @@ const PIESA_WINDOW_STAGES: Stage[] = ["installation_scheduling", "installation_b
  * ESC owner consent is a separate pre-install record; the final VEEC assignment is prepared and signed only post-install.
  */
 export const CONSUMER_SIGN_BLOCKER = "Customer Agreement / Quote Acceptance not signed by the customer.";
-export const ASSIGNMENT_VEEC_BLOCKER = "Final Activity 48 VEEC assignment not yet effective.";
+export { ASSIGNMENT_VEEC_BLOCKER } from "./assignment.core";
+import { ASSIGNMENT_VEEC_BLOCKER } from "./assignment.core";
 
 export async function agreementSigned(jobId: string): Promise<boolean> {
   const { data } = await admin.from("customer_agreements").select("id").eq("job_id", jobId).eq("status", "signed").maybeSingle();
