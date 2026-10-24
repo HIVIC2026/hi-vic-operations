@@ -43,3 +43,9 @@ Newest first. Each line is settled; anything still open is under "Open".
 
 ## Open
 - Lawyer: cooling-off for unsolicited sales (no payment in 10 business days?) and the domestic building deposit limits (10% under $20k, 5% at $20k or more), since $349 plus 10% of the total can be more than 10% of the price.
+
+## 24 Oct 2026 (later)
+19. Reschedule a booked install day: either side taps "Change day", and it's the same back-and-forth (the installer offers 3 new days inside the 30). No office.
+20. Testing setup: put the branch on the Lovable test copy (not published) for the screen review and the TEST run. Messages stay off and quotes wait for office Send.
+21. **Many installers, not just Deep.** Everything is built for every installer. The Deep email becomes a standard "How it works" guide: emailed to each installer when approved, and kept as a help page in their portal. Deep's job list is a one-off extra for him.
+22. To check: whether Mitti can invite a new installer automatically on approval (today it's a manual office step).
