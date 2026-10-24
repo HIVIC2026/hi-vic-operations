@@ -81,3 +81,8 @@ Newest first. Each line is settled; anything still open is under "Open".
 42. **No spreadsheet upload for installers.** They add jobs one at a time with a picked address. Bulk import is for the office only: a new installer sends us their list, and the office imports it and checks every address.
 43. **Install days include a time.** For each offered day the installer **selects an arrival time**, and the owner sees that exact time (e.g. "Tue 27 Oct at 7:30am"). No window. (Jo corrected 24 Oct.)
 44. New owner email **"Your install is booked"**, sent once a day and time are agreed. It covers: when, installer, address; before the day (sign the install consent 24 hours before, pay the 10% or the full amount); on the day (an adult home, clear the hatch area, parking, pets); what happens (before and after photos for the VEU, a few hours, balance due on the day); Change day link. A draft is in the chat; the wording is finalised in the template review.
+45. Install-booked email: on removal jobs, add a line about extra dust and a longer day.
+46. Install-booked email includes the installer's phone number.
+47. **Installer mock-up screens 1–7 approved**: build them in Style A (mock-ups at the link in 41; source in the session scratchpad mock/project/*.dc.html).
+
+**Working rule (Jo):** ask every question as tap-boxes, always.
