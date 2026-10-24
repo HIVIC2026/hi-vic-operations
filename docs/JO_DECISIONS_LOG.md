@@ -107,3 +107,10 @@ Newest first. Each line is settled; anything still open is under "Open".
 58. O17 Spot saved text: **add "Reply STOP to opt out."**
 59. O3 and O10: Jo wants changes (details to follow).
 60. **Master touchpoint list** (62 items: enquiry → Ready Check → quote → PIESA → install → after install and aftercare → trades). Saved as docs/TOUCHPOINTS_MASTER.html. Each item gets reviewed one at a time, wording and design. Style direction for owner emails: premium, value-first, built around **"we bring the right people together so you get the rebate"** (Save my spot redesign v3).
+61. Our-lead Ready Check times:
+    - The owner taps a time with the **secure link only** (no 6-digit code).
+    - The installer's 3 times must be on **3 different days**.
+    - Times up to **21 days ahead, 7am–5pm**.
+62. New-offer texts to installers are **held overnight (8pm–7am) and sent at 7am**. The 24-hour clock starts when the text is sent.
+63. When an offer closes after 24 hours with no answer, only the office is alerted; the installer is not texted.
+64. When the installer's Ready Check times are ready, the owner gets an **email and a text** (wording in the template review).
