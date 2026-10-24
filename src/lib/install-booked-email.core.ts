@@ -15,6 +15,8 @@ export type InstallBookedInput = {
   payment?: { depositPaid: number; cardLast4?: string | null; balanceDue: number; payInFullUrl?: string | null } | null;
   /** True once the owner has signed the install consent (decision 97). */
   consentSigned?: boolean;
+  /** Decision 139: 10% install deposit by bank transfer / PayID within 48h (day held meanwhile); omitted when already paid or not under the payment rule. */
+  deposit?: { amount: string; holdUntil: string | null; bankLines: string[] } | null;
 };
 
 export function renderInstallBookedEmail(i: InstallBookedInput) {
@@ -22,7 +24,8 @@ export function renderInstallBookedEmail(i: InstallBookedInput) {
   const first = K.cleanName(i.firstName) ?? "there";
   const headline = `Your install is booked, ${first}`;
   const pay = i.payment && i.payment.depositPaid > 0 ? i.payment : null;
-  const lead = pay && i.consentSigned ? "Consent signed and deposit received ✓ Your day is locked in." : pay ? "Deposit received ✓ Your day is locked in." : i.consentSigned ? "Consent signed ✓ Your day is locked in." : "Your day is locked in.";
+  const owed = !pay && i.deposit ? i.deposit : null;
+  const lead = owed ? `Your day is held${owed.holdUntil ? ` until ${owed.holdUntil}` : " for 48 hours"}. Pay your deposit to lock it in.` : pay && i.consentSigned ? "Consent signed and deposit received ✓ Your day is locked in." : pay ? "Deposit received ✓ Your day is locked in." : i.consentSigned ? "Consent signed ✓ Your day is locked in." : "Your day is locked in.";
   const { day, time } = splitDayTime(i.when);
   const installer = i.installerName?.trim() || null;
   const phone = i.installerPhone?.trim() || null;
@@ -43,6 +46,7 @@ export function renderInstallBookedEmail(i: InstallBookedInput) {
     K.h1(headline),
     K.p(lead),
     K.dateCard({ label: "Your install", day, time: time ? `Arriving ${time}` : "", lines, extraHtml: payRows }),
+    ...(owed ? [K.mistBox(`Pay your ${K.esc(owed.amount)} deposit within 48 hours`, `<div style="font-size:14px;color:${K.KIT.NAVY};line-height:1.5;margin-top:4px;">By bank transfer or PayID.${owed.bankLines.map((l) => `<br>${K.esc(l)}`).join("")}</div>`, { marginTop: 16, padding: "14px 16px", radius: 14 }).replace("margin-bottom:6px;", "")] : []),
     K.mistBox("⚡ Your power will be off", `<div style="font-size:14px;color:${K.KIT.NAVY};line-height:1.5;margin-top:4px;">${K.esc(power)}</div>`, { marginTop: 16, padding: "14px 16px", radius: 14 }).replace("margin-bottom:6px;", ""),
     K.sectionTitle("On the day", "24px 0 10px"),
     K.checkList(onTheDay),
@@ -54,6 +58,7 @@ export function renderInstallBookedEmail(i: InstallBookedInput) {
   const text = K.plainText([
     headline, "", lead, `When: ${i.when}`, ...(i.address ? [`Address: ${i.address}`] : []), ...(installer ? [`Installer: ${installer}${phone ? `, ${phone}` : ""}`] : []),
     ...(pay ? [`Deposit paid: ${K.cents(pay.depositPaid)}${pay.cardLast4 ? ` (card ending ${pay.cardLast4})` : ""}`, `Balance due on install day: ${K.cents(pay.balanceDue)}`, ...(pay.payInFullUrl ? [`Pay in full: ${pay.payInFullUrl}`] : [])] : []), "",
+    ...(owed ? [`PAY YOUR ${owed.amount} DEPOSIT WITHIN 48 HOURS`, "By bank transfer or PayID.", ...owed.bankLines, ""] : []),
     "YOUR POWER WILL BE OFF", power, "",
     "ON THE DAY", ...onTheDay.map((b) => `✓ ${K.stripTags(b)}`), "",
     K.stripTags(happens), "",
