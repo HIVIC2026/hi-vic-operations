@@ -1,13 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { ADD_JOB_STEPS, FORM_WITHIN_15, NEUTRAL_SAVE_ERROR, SAVE_LABEL, VISIT_FIELD_LABEL, formLabel, nextStep, outcomeFor, prevStep, restoreCustomer, saveErrorMessage, visitPayload, visitProblems, visitSummary } from "../src/lib/add-job-flow.core";
+import { ADD_JOB_LEAD, FORM_WITHIN_15, NEUTRAL_SAVE_ERROR, SAVE_LABEL, VISIT_FIELD_HINT, VISIT_FIELD_LABEL, WHAT_HAPPENS_NEXT, dayOptionLabel, formLabel, outcomeFor, restoreCustomer, saveErrorMessage, visitPayload, visitProblems, visitSummary } from "../src/lib/add-job-flow.core";
 import { onsiteProblems } from "../src/lib/onsite-ready-check.core";
 
 describe("Add job flow (Jo 8 Oct; basics only since decision 34, 24 Oct)", () => {
-  test("two steps in order, back from customer exits", () => {
-    expect(ADD_JOB_STEPS.map((s) => s.label)).toEqual(["Customer", "Review & save"]);
-    expect(nextStep("customer")).toBe("review");
-    expect(prevStep("review")).toBe("customer"); expect(prevStep("customer")).toBeNull();
+  test("mock-up M3 (decision 198): one screen, the approved words", () => {
+    expect(ADD_JOB_LEAD).toBe("Just the owner's details. Everything else goes in the Ready Check form in Mitti.");
+    expect(VISIT_FIELD_HINT).toBe("Skip it or fill it. A time puts the visit in your 6:30am text. No time = no reminder.");
+    expect(WHAT_HAPPENS_NEXT).toContain("within about 15 minutes");
+    expect(dayOptionLabel("2026-10-26")).toBe("Mon 26 Oct");
+    const ui = readFileSync("src/components/trade/add-job-flow.tsx", "utf8");
+    for (const gone of ["Review & save", "data-step-review", "Next</Button>", "Upload multiple jobs"]) expect(ui).not.toContain(gone);
   });
   test("restored phone draft keeps typed values but never the consent tick", () => {
     const r = restoreCustomer({ full_name: "TEST Owner", postcode: "3000", contact_permission: true, consent_by: "installer" });

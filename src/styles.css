@@ -448,6 +448,9 @@
 .portal-theme [data-slot="input"], .portal-theme [data-slot="textarea"], .portal-theme [data-slot="select-trigger"] { border-color: var(--hiv-field-line); border-radius: 9px; }
 .portal-theme [data-slot="input"] { min-height: 42px; padding: 11px 12px; }
 
+/* Installer redesign, Style A (approved mock-ups M1–M3, decision 198): mock-up tokens for the opted-in trade screens. */
+.estimate-brand.portal-theme.installer-redesign { --hiv-sub: #5a6785; --hiv-mist: #f2f4fc; --hiv-green: #07bf61; --hiv-canvas: #ffffff; --estimate-green: #07bf61; }
+
 /* Trade portal — approved design (7 Oct 2026): older trade page classes pick up the approved look. */
 .estimate-brand.portal-theme { --estimate-green: #07864b; --estimate-accent: #07864b; --estimate-line: var(--hiv-line); }
 .estimate-brand.portal-theme .rounded-\[22px\] { border-radius: 18px; }

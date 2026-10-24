@@ -60,11 +60,11 @@ function OfferPage() {
         {took && <section className="rounded-[19px] border border-line bg-mint p-5 text-ink md:p-[23px]">
           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-action text-action-foreground"><Check className="h-6 w-6" /></span>
           <p className="mt-2 font-display text-[26px] font-bold leading-tight">Job accepted</p>
-          <p className="mt-2 text-sm font-bold">{t.day} · {t.window}</p>
+          <p className="mt-2 text-sm font-bold">{t.day} · {t.time}</p>
         </section>}
         <section className="rounded-[19px] border border-mist-line bg-mist p-5 text-ink md:p-[23px]">
           <span className="inline-block rounded-[18px] bg-mint px-2.5 py-0.5 text-[11px] font-semibold text-hiv-green">Booked</span>
-          <h1 className="mt-3 font-display text-2xl font-bold">{what} · {t.day} · {t.window}</h1>
+          <h1 className="mt-3 font-display text-2xl font-bold">{what} · {t.day} · {t.time}</h1>
           <p className="mt-2 font-bold">{data.locked.owner}</p>
           <p className="text-sm text-sub">{data.locked.address}</p>
           <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
@@ -145,7 +145,7 @@ function OfferPage() {
         {fail && <p role="alert" className="rounded-[12px] border border-danger/40 bg-paper p-3 text-sm text-danger" data-offer-error>{fail}</p>}
         {data.windows.length === 0 && <p className={`${card} text-sm`} data-no-times>No times are open on this offer right now. Suggest a time or check back soon.</p>}
         <div className="grid grid-cols-2 gap-2">{data.windows.map((w) => { const t = dayTile(w.start); return (
-          <button key={w.id} type="button" disabled={!!busy || sending} onClick={() => tap(w.id, w.start)} className="flex min-h-20 flex-col items-center justify-center rounded-[18px] border border-line bg-paper hover:border-action p-3 font-bold"><span className="text-sm">{t.day}</span><span className="font-display text-lg font-bold">{busy === w.id ? "Booking…" : t.window}</span></button>); })}</div>
+          <button key={w.id} type="button" disabled={!!busy || sending} onClick={() => tap(w.id, w.start)} className="flex min-h-20 flex-col items-center justify-center rounded-[18px] border border-line bg-paper hover:border-action p-3 font-bold"><span className="text-sm">{t.day}</span><span className="font-display text-lg font-bold">{busy === w.id ? "Booking…" : t.time}</span></button>); })}</div>
         <div className="flex justify-between gap-2 pt-1 text-sm font-bold text-estimate-blue">
           {data.canSuggest ? <button type="button" className="min-h-11 px-1" disabled={sending || !!busy} onClick={() => setMode("cant")}>Suggest another time</button> : <span />}
           <button type="button" className="min-h-11 px-1" disabled={sending || !!busy} data-not-for-me onClick={() => send("not_for_me", async () => { setMode("declined"); await refetch(); })}>{sending && mode !== "cant" ? "Sending…" : "Not for me"}</button>
