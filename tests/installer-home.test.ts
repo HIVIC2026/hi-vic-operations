@@ -109,8 +109,8 @@ describe("groups: every job in exactly one; Done only from a final stage", () =>
 
 describe("offer panel and This month strip words", () => {
   test("offer panel", () => {
-    expect(offerPanelWords({ suburb: "Glen Waverley", areaM2: 120 }, 1)).toEqual({ eyebrow: "1 new job offer", title: "Ready Check in Glen Waverley", detail: "About 120 m² · Home Insulation Victoria lead" });
-    expect(offerPanelWords({ suburb: null, areaM2: null }, 2)).toEqual({ eyebrow: "2 new job offers", title: "Ready Check in Victoria", detail: "Home Insulation Victoria lead" });
+    expect(offerPanelWords({ suburb: "Glen Waverley", areaM2: 120 }, 1)).toEqual({ eyebrow: "1 new job offer", title: "Ready Check in Glen Waverley", detail: "Owner says ~120 m² · Home Insulation Victoria lead" });
+    expect(offerPanelWords({ suburb: null, areaM2: null }, 2)).toEqual({ eyebrow: "2 new job offers", title: "Ready Check in Victoria", detail: "No size yet · Home Insulation Victoria lead" });
   });
   test("This month: own pay only, installs done and paid", () => {
     expect(monthStripWords({ jobs: 4, paid: 6840 })).toEqual({ installs: "4 installs done", paid: "$6,840 paid" });

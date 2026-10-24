@@ -21,10 +21,11 @@ function ImportPage() {
   const businessId = (profile?.business as { id?: string } | undefined)?.id;
   return (
     <TradeShell installer redesign>
+      {/* Approved heavier design (decision 237): 24px title, bold 15px lead, 14px detail. */}
       <div data-add-job-heading>
-        <h1 className="font-display text-[22px] font-semibold leading-[1.2]">Add a job</h1>
-        <p className="mt-1 text-sm leading-[1.45] text-sub">{ADD_JOB_LEAD}</p>
-        <p className="mt-1.5 text-[13px] leading-[1.45] text-sub">{ADD_JOB_DETAIL}</p>
+        <h1 className="font-display text-2xl font-bold leading-[1.2]">Add a job</h1>
+        <p className="mt-1.5 text-[15px] font-semibold leading-[1.45]">{ADD_JOB_LEAD}</p>
+        <p className="mt-0.5 text-sm leading-[1.45] text-sub">{ADD_JOB_DETAIL}</p>
       </div>
       {isLoading ? <p className="text-sm text-sub">Loading…</p>
         : isError ? <div className="space-y-3"><p className="text-sm" role="alert">Your business details couldn't load. Check your signal and try again.</p><button type="button" className={PRIMARY_BTN} disabled={isFetching} onClick={() => refetch()}>{isFetching ? "Retrying…" : "Retry"}</button></div>
