@@ -651,12 +651,11 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string | nul
     if (crew.problems.length) throw new WorkflowError(`Crew could not be filled in on the Mitti form: ${crew.problems.join("; ")}`);
     p.items.push(...crew.items); p.count += crew.items.length;
     prefillNotes.push(...crew.notes);
-    // Decisions 206/210 e: zone names from the Ready Check ("Area N – name"), SWMS header and crew sign-on names —
-    // text items matched by exact wording; a template without the question simply gets nothing for it.
+    // Decision 210 e: zone names from the Ready Check ("Area N – name") — text items matched by exact wording; a
+    // template without the question simply gets nothing for it. Decision 256: the SWMS has no prefilled items.
     {
-      const nameOf = (pick: import("./piisa-a3.core").CrewPick | string | null | undefined) => typeof pick === "string" ? staff.find((s) => s.workerId === pick)?.name ?? null : pick && "workerId" in pick ? staff.find((s) => s.workerId === pick.workerId)?.name ?? null : pick && "other" in pick ? pick.other.name.trim() || null : null;
       const ie = await import("./install-evidence.server");
-      const ctx = await ie.installPrefillContext(jobId, bname || null, { leadName: nameOf(selection.lead), crewNames: selection.additional.map(nameOf).filter((n): n is string => !!n) });
+      const ctx = await ie.installPrefillContext(jobId);
       const extra = (await import("./install-evidence.core")).installEvidencePrefillItems(template, ctx).filter((x) => !p.items.some((i: { item_id: string }) => i.item_id === x.item_id));
       p.items.push(...extra); p.count += extra.length;
     }

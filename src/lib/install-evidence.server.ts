@@ -70,11 +70,12 @@ export async function installEvidenceContext(jobId: string, audit: unknown): Pro
   const crew = a3.a3CrewChoices(audit);
   const nameOf = (c: (typeof crew)[number]) => (c.kind === "other" ? c.name : c.kind === "option" ? c.optionLabel : null);
   const leadName = nameOf(crew[0]!) ?? null;
-  const crewNames = crew.slice(1).map(nameOf).filter((n): n is string => !!n);
+  // Decision 256: each filled "Additional installer N" row (by position) signs the SWMS inside its own block.
+  const additionalInstallers = crew.slice(1, 4).map((c, i) => (c.kind === "none" ? null : nameOf(c) ?? `Additional installer ${i + 1}`));
   const iso = a3.a3MediaFiles(audit).isolation_photo.map((f) => f.capturedAt).filter((t): t is string => !!t).sort()[0] ?? null;
   const yn = (k: string): boolean | null => (str(k) === "Yes" ? true : str(k) === "No" ? false : null);
   const p3 = (k: string): "Yes" | "No" | null => (str(k) === "Yes" ? "Yes" : str(k) === "No" ? "No" : null);
-  return { installDate, zones: await jobUpgradeZones(jobId), multiDay: days > 1, daysOnSite: days, leadName, crewNames, isolationCapturedAt: iso, solarPresent: yn("p4.present"), existingInsulation: yn("p6.present"), p3Swms: p3("p3.swms"), p3Table1: p3("p3.table1") };
+  return { installDate, zones: await jobUpgradeZones(jobId), multiDay: days > 1, daysOnSite: days, leadName, additionalInstallers, isolationCapturedAt: iso, solarPresent: yn("p4.present"), existingInsulation: yn("p6.present"), p3Swms: p3("p3.swms"), p3Table1: p3("p3.table1") };
 }
 
 /** Read the audit, evaluate, and record the result when it changed. Returns the summary. */
@@ -91,10 +92,10 @@ export async function syncInstallEvidence(jobId: string, actorId: string | null,
   return summary;
 }
 
-/** Prefill facts for a new Install day audit (zone names from the Ready Check, SWMS header, crew names). */
-export async function installPrefillContext(jobId: string, businessName: string | null, crew: { leadName: string | null; crewNames: string[] }): Promise<InstallPrefillCtx> {
+/** Prefill facts for a new Install day audit: zone names from the Ready Check (decision 256: the SWMS has no prefilled items). */
+export async function installPrefillContext(jobId: string): Promise<InstallPrefillCtx> {
   const zones = await jobUpgradeZones(jobId);
-  return { zoneNames: zones.map((z) => z.name), businessName, leadName: crew.leadName, crewNames: crew.crewNames };
+  return { zoneNames: zones.map((z) => z.name) };
 }
 
 /**
@@ -107,7 +108,11 @@ export async function fileSwmsRecord(jobId: string, actorId: string | null, audi
   if (!job) return { filed: false, path: null, reason: "Job not found." };
   const prop = job.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
   const address = [prop?.address_line, prop?.suburb, prop?.postcode].filter(Boolean).join(", ") || null;
-  const text = swmsRecordText(read.swms, { jobNumber: job.job_number, address, auditId });
+  // Decision 256: prepared by / for / work / date come from job facts (installer business, fixed texts, signed-at).
+  const { data: asg } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
+  const { data: biz } = asg?.business_id ? await admin.from("businesses").select("name").eq("id", asg.business_id).maybeSingle() : { data: null };
+  const ctx = await installEvidenceContext(jobId, audit);
+  const text = swmsRecordText(read.swms, { jobNumber: job.job_number, address, auditId, preparedBy: biz?.name ?? null, leadName: ctx.leadName ?? null, additionalInstallers: ctx.additionalInstallers ?? [] });
   const { createHash } = await import("node:crypto");
   const sha = createHash("sha256").update(text).digest("hex");
   const key = `swms:${auditId}:${sha.slice(0, 16)}`;
@@ -118,7 +123,7 @@ export async function fileSwmsRecord(jobId: string, actorId: string | null, audi
   const base = `${jobId}/official/swms-${auditId}-${sha.slice(0, 8)}`;
   const up = await admin.storage.from("job-files").upload(`${base}.pdf`, pdf, { contentType: "application/pdf", upsert: false });
   if (up.error && !/exists/i.test(up.error.message)) return { filed: false, path: null, reason: `SWMS could not be stored: ${up.error.message}` };
-  const sigs = [read.swms.leadSignature, ...read.swms.workers.map((w) => w.signature)].filter((s) => s.present && s.mediaId);
+  const sigs = [read.swms.leadSignature, ...read.swms.installers.map((w) => w.signature)].filter((s) => s.present && s.mediaId);
   const images: string[] = [];
   for (const s of sigs) {
     try {

@@ -1,6 +1,6 @@
 // Decisions 205/206/210/211/213: install-day evidence, SWMS, sign-off and Mitti-complete recording (pure rules).
 import { describe, expect, test } from "bun:test";
-import { A3_RELABELS, AFTER_INSTALL_QUESTIONS as A, FOIL_QUESTIONS as F, INSTALL_EVIDENCE_EFFECTIVE_DATE, INSTALL_EVIDENCE_QUESTIONS as Q, MAX_FORM_ZONES, SWMS_CREW_ROWS, SWMS_HAZARDS, SWMS_HRCW_NONE, SWMS_HRCW_OPTIONS, SWMS_OTHER_CONTROL, SWMS_PERSON_OTHER, SWMS_PREPARED_FOR, SWMS_QUESTIONS as S, VIDEO_MAX_BYTES, ZONE_PRODUCT_OPTIONS, afterInstallBlockers, declaredProductProblems, evaluateInstallEvidence, foilBlockers, installCompletionDecision, installEvidenceApplies, installEvidenceGateLines, installEvidenceMissingQuestions, installEvidencePrefillItems, installEvidenceQuestionList, installerNextLine, jobProductOptions, readInstallEvidence, swmsBlockers, swmsCrossCheck, swmsRecordText, zoneNameValue } from "../src/lib/install-evidence.core";
+import { A3_RELABELS, AFTER_INSTALL_QUESTIONS as A, FOIL_QUESTIONS as F, INSTALL_EVIDENCE_EFFECTIVE_DATE, INSTALL_EVIDENCE_QUESTIONS as Q, MAX_FORM_ZONES, SWMS_ADDITIONAL_INSTALLERS, SWMS_HAZARDS, SWMS_COMPLIANCE_MEASURES, SWMS_HOW_IMPLEMENTED, SWMS_HOW_IN_PLACE, SWMS_HRCW_NONE, SWMS_RECORD_TASK, SWMS_HRCW_OPTIONS, SWMS_PREPARED_FOR, SWMS_QUESTIONS as S, SWMS_WORK_DEFAULT, VIDEO_MAX_BYTES, ZONE_PRODUCT_OPTIONS, afterInstallBlockers, declaredProductProblems, evaluateInstallEvidence, foilBlockers, installCompletionDecision, installEvidenceApplies, installEvidenceGateLines, installEvidenceMissingQuestions, installEvidencePrefillItems, installEvidenceQuestionList, installerNextLine, jobProductOptions, readInstallEvidence, swmsBlockers, swmsCrossCheck, swmsRecordText, zoneNameValue } from "../src/lib/install-evidence.core";
 import { A3_EVIDENCE_LABELS, A3_INSTRUCTION_LABELS_2026_10_09, A3_MEDIA_IDS, a3AcceptedMediaLabels, a3EvidenceChecklist, a3MissingFields } from "../src/lib/piisa-a3.core";
 import { evidenceStageBlockers } from "../src/lib/ap-review-evidence.core";
 import { validateSavedDefinition } from "../src/lib/mitti-form-schema.core";
@@ -19,21 +19,16 @@ const tick = (label: string) => item(label, { type: "checkbox", responses: { val
 const sign = (label: string, name: string, at: string) => item(label, { type: "signature", responses: { image: { media_id: "0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b", name, timestamp: at } } });
 const dt = (label: string, v: string) => item(label, { type: "datetime", responses: { datetime: v } });
 
-/** A complete SWMS section signed before work start. */
-function swmsItems(opts: { lead?: string; crew?: string[]; signedAt?: string; present?: string[]; hrcw?: string[]; multiDay?: boolean } = {}) {
+/** A complete SWMS section (decision 256) signed before work start; `crew` = additional installers who sign. */
+function swmsItems(opts: { lead?: string; crew?: string[]; signedAt?: string; hazards?: string[]; hrcw?: string[]; multiDay?: boolean; controls?: boolean } = {}) {
   const lead = opts.lead ?? "Bhavdeep Singh", crew = opts.crew ?? [], signedAt = opts.signedAt ?? "2026-11-03T19:40:00Z";
-  const present = new Set(opts.present ?? ["Electrical", "Heat and heat stress", "Falls and falling through the ceiling"]);
   const items: Record<string, unknown>[] = [
-    text(S.preparedBy, "Reinsulate Pty Ltd"), text(S.preparedFor, SWMS_PREPARED_FOR), text(S.work, "Ceiling insulation"), dt(S.preparedAt, "2026-11-03T19:30:00Z"),
     tickAll(S.hrcw, opts.hrcw ?? [SWMS_HRCW_OPTIONS[0], SWMS_HRCW_OPTIONS[1]]),
+    tickAll(S.hazards, opts.hazards ?? [SWMS_HAZARDS[0]!.name, SWMS_HAZARDS[3]!.name, SWMS_HAZARDS[7]!.name]),
+    ...(opts.controls === false ? [] : [tick(S.standardControls)]),
+    text(S.changes, "None"),
   ];
-  for (const h of SWMS_HAZARDS) {
-    const yes = present.has(h.name);
-    items.push(pick(S.hazardPresent(h.name), yes ? "Yes" : "No"));
-    if (yes) items.push(tickAll(S.hazardControls(h.name), [h.controls[0]!]), pick(S.hazardPerson(h.name), "Lead installer"));
-  }
-  items.push(tickAll(S.controlsCheck, ["Lead installer checks each control before the first entry"]), text(S.changes, "None"), text(S.firstAidKit, "Ute"), text(S.firstAider, lead), text(S.hospital, "Box Hill"), pick(S.reception, "Yes"), text(S.assembly, "Front nature strip"), text(S.electricalEmergency, "Lead isolates at the garage switchboard"));
-  [lead, ...crew].forEach((n, i) => items.push(text(S.workerName(i + 1), n), tick(S.workerRead(i + 1)), sign(S.workerSignature(i + 1), n, signedAt)));
+  crew.forEach((n, i) => items.push(tick(S.installerRead(i + 1)), sign(S.installerSignature(i + 1), n, signedAt)));
   items.push(tick(S.leadDeclaration), sign(S.leadSignature, lead, signedAt), dt(S.signedAt, signedAt));
   if (opts.multiDay) items.push(text(S.day2Recheck, "4 Nov 7:30 BS — no change"));
   return items;
@@ -58,7 +53,7 @@ function cleanAudit(zones = 2, opts: { under?: boolean[]; multiDay?: boolean; re
   items.push(...swmsItems({ multiDay: opts.multiDay, ...(opts.swms ?? {}) }), ...afterItems(opts.after ?? {}));
   return { items };
 }
-const ctx2 = { installDate: "2026-11-03", zones: [{ name: "Main ceiling", underInsulated: false }, { name: "Zone 2 area", underInsulated: false }], multiDay: false, leadName: "Bhavdeep Singh", crewNames: [], isolationCapturedAt: T0, solarPresent: false, existingInsulation: false, p3Swms: "Yes" as const, p3Table1: "Yes" as const };
+const ctx2 = { installDate: "2026-11-03", zones: [{ name: "Main ceiling", underInsulated: false }, { name: "Zone 2 area", underInsulated: false }], multiDay: false, leadName: "Bhavdeep Singh", additionalInstallers: [] as (string | null)[], isolationCapturedAt: T0, solarPresent: false, existingInsulation: false, p3Swms: "Yes" as const, p3Table1: "Yes" as const };
 const evalClean = (zones = 2, o: Parameters<typeof cleanAudit>[1] = {}, c: Partial<typeof ctx2> = {}) => evaluateInstallEvidence(readInstallEvidence(cleanAudit(zones, o)), { ...ctx2, zones: ctx2.zones.slice(0, zones), ...c }, T0);
 
 describe("effective date (grandfathering)", () => {
@@ -76,10 +71,11 @@ describe("effective date (grandfathering)", () => {
 });
 
 describe("question wording and reading", () => {
-  test("133 new questions in form order; relabels are the four A3 photo items; zone product options are the Ready Check eight", () => {
+  test("52 new questions in form order; relabels are the four A3 photo items; zone product options are the Ready Check eight", () => {
     const list = installEvidenceQuestionList();
-    expect(list).toHaveLength(6 + SWMS_HAZARDS.length * 5 + 9 + SWMS_CREW_ROWS * 3 + 3 + 1 + MAX_FORM_ZONES * 8 + 4 + 2 + 7);
-    expect(list[0]!.label).toBe("SWMS — prepared by (installer business name)");
+    expect(list).toHaveLength(SWMS_ADDITIONAL_INSTALLERS * 2 + 8 + 1 + MAX_FORM_ZONES * 8 + 4 + 2 + 7);
+    expect(list[0]!.label).toBe("SWMS — additional installer 1: I have read this SWMS, understand the hazards and controls, and will follow it");
+    expect(list.find((q) => q.label === S.hazards)!.options).toEqual(SWMS_HAZARDS.map((h) => h.name));
     expect(list.filter((q) => q.zone === 2).every((q) => q.label.startsWith("Zone 2 — "))).toBe(true);
     expect(new Set(list.map((q) => q.label)).size).toBe(list.length);
     expect(Object.keys(A3_RELABELS)).toEqual(["installer_photos", "electrician_photo", "isolation_photo", "product_photos"]);
@@ -98,8 +94,10 @@ describe("question wording and reading", () => {
     const r = readInstallEvidence(a);
     expect(r.formZoneCount).toBe(2); expect(r.zones[0]!.name).toBe("Area 1 – Main"); expect(r.zones[0]!.areaM2).toBe(88.5); expect(r.zones[1]!.name).toBeNull();
     expect(r.multiDay).toBe(true); expect(r.dailyRecheck).toBe(true);
-    expect(r.swms.hazards[0]).toMatchObject({ name: "Electrical", present: true, controls: [SWMS_HAZARDS[0]!.controls[0]], person: "Lead installer" });
-    expect(r.swms.workers[1]).toMatchObject({ name: "Dominic Doherty", read: true });
+    expect(r.swms.hazards).toEqual([SWMS_HAZARDS[0]!.name, SWMS_HAZARDS[3]!.name, SWMS_HAZARDS[7]!.name]);
+    expect(r.swms.standardControls).toBe(true); expect(r.swms.changes).toBe("None");
+    expect(r.swms.installers[0]).toMatchObject({ row: 1, read: true, signature: { present: true, name: "Dominic Doherty" } });
+    expect(r.swms.installers[1]).toMatchObject({ row: 2, read: false, signature: { present: false } });
     expect(r.swms.leadSignature).toMatchObject({ present: true, name: "Bhavdeep Singh", signedAt: "2026-11-03T19:40:00Z" });
     expect(r.after.finishedAt).toBe("2026-11-04T04:05:00Z");
     expect(readInstallEvidence({ items: [] })).toMatchObject({ questionsOnForm: false, swms: { onForm: false }, after: { onForm: false }, foil: { onForm: false } });
@@ -129,7 +127,8 @@ describe("Table 4 zones, videos, ruler photos, product and m²", () => {
   });
   test("form without the new questions fails closed with plain pointers to the build prompt", () => {
     const s = evaluateInstallEvidence(readInstallEvidence(a3Template()), ctx2);
-    expect(s.blockers.filter((b) => b.includes("MITTI_INSTALL_FORM_CHATGPT_PROMPT"))).toHaveLength(2);
+    expect(s.blockers.filter((b) => b.includes("MITTI_INSTALL_FORM_CHATGPT_PROMPT"))).toHaveLength(1);
+    expect(s.blockers.filter((b) => b.includes("MITTI_INSTALL_FORM_FIX_PROMPT"))).toHaveLength(1);
     expect(s.blockers.some((b) => b.includes("no after-install sign-off yet"))).toBe(true);
   });
   test("every missing, ungeotagged, untimed and oversized item is listed in plain words", () => {
@@ -178,36 +177,59 @@ describe("Table 4 zones, videos, ruler photos, product and m²", () => {
   });
 });
 
-describe("SWMS section (decision 206)", () => {
-  test("a complete SWMS has no blockers and renders as the 6-year record", () => {
+describe("SWMS section (decisions 206/256)", () => {
+  const meta = { jobNumber: "HV-3100", address: "1 Test St, Box Hill", auditId: "audit_1", preparedBy: "Reinsulate Pty Ltd", leadName: "Bhavdeep Singh", additionalInstallers: ["Dominic Doherty", null, null] };
+  test("a complete SWMS has no blockers; the filed record takes the header from job facts and prints each ticked hazard's own control sentence", () => {
     const r = readInstallEvidence({ items: swmsItems({ crew: ["Dominic Doherty"] }) });
-    expect(swmsBlockers(r.swms, { leadName: "Bhavdeep Singh", crewNames: ["Dominic Doherty"], isolationCapturedAt: T0, multiDay: false })).toEqual([]);
-    const txt = swmsRecordText(r.swms, { jobNumber: "HV-3100", address: "1 Test St, Box Hill", auditId: "audit_1" });
-    expect(txt).toContain("Job HV-3100 — 1 Test St, Box Hill");
-    expect(txt).toContain("- Electrical: PRESENT");
-    expect(txt).toContain("Worker 2: Dominic Doherty");
-    expect(txt).toContain("Bhavdeep Singh at 2026-11-03T19:40:00Z");
+    expect(swmsBlockers(r.swms, { leadName: "Bhavdeep Singh", additionalInstallers: ["Dominic Doherty", null, null], isolationCapturedAt: T0, multiDay: false })).toEqual([]);
+    const txt = swmsRecordText(r.swms, meta);
+    expect(txt).toContain("Job HV-3100 — Mitti Install day form audit_1");
+    for (const line of ["Direct employer: Reinsulate Pty Ltd", `Principal contractor: ${SWMS_PREPARED_FOR}`, "Work supervisor: Bhavdeep Singh", "Site location/address: 1 Test St, Box Hill", `Work activity: ${SWMS_WORK_DEFAULT}`, "Date SWMS prepared: 2026-11-03T19:40:00Z", "Person responsible for ensuring compliance with SWMS: Bhavdeep Singh", `Measures to ensure compliance: ${SWMS_COMPLIANCE_MEASURES}`, "How control measures will be reviewed: Specific to this house / changes during the job: None", "Tasks | Hazard | Control measures | How implemented | Responsible", "Name | Signature | Date"]) expect(txt, line).toContain(line);
+    expect(txt).toContain(`${SWMS_RECORD_TASK} | ${SWMS_HAZARDS[0]!.name} | ${SWMS_HAZARDS[0]!.short}: ${SWMS_HAZARDS[0]!.control}. | ${SWMS_HOW_IMPLEMENTED} | Bhavdeep Singh (lead installer)`);
+    expect(txt).toContain(`| ${SWMS_HAZARDS[7]!.name} | ${SWMS_HAZARDS[7]!.short}: ${SWMS_HAZARDS[7]!.control}. |`);
+    expect(txt).not.toContain(SWMS_HAZARDS[1]!.control); // unticked hazard not printed
+    expect(txt).toContain(SWMS_HOW_IN_PLACE);
+    expect(txt).toContain("Bhavdeep Singh (lead installer) | signed (signature image 0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b) | 2026-11-03T19:40:00Z");
+    expect(txt).toContain("Dominic Doherty (additional installer 1; read and will follow: Yes) | signed (signature image 0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b) | 2026-11-03T19:40:00Z");
+    const multi = swmsRecordText(readInstallEvidence({ items: swmsItems({ multiDay: true }) }).swms, meta);
+    expect(multi).toContain("How control measures will be reviewed: Day 2 re-check: 4 Nov 7:30 BS — no change · Specific to this house / changes during the job: None");
   });
-  test("every gap is a plain line: hazards unanswered, present without control, Other without text, blank sheet, emergency items, crew rows, lead signature", () => {
-    const items = swmsItems({ present: ["Electrical"], hrcw: [SWMS_HRCW_NONE] });
-    const r = readInstallEvidence({ items: items.filter((i) => ![S.hazardPresent("Lighting"), S.hazardControls("Electrical"), S.firstAider, S.hrcwNone].includes((i as { label: string }).label)) });
-    const b = swmsBlockers(r.swms, { leadName: "Bhavdeep Singh", crewNames: ["Dominic Doherty"], isolationCapturedAt: T0, multiDay: false });
-    expect(b).toContain("SWMS — Lighting: present on this job? not answered");
-    expect(b).toContain("SWMS — Electrical: present but no control ticked");
-    expect(b).toContain(`${S.hrcwNone}: not entered`);
-    expect(b).toContain(`${S.firstAider}: not entered`);
-    expect(b).toContain("SWMS — worker 2 (additional installer 1): name not entered");
-    const otherNoText = readInstallEvidence({ items: [...swmsItems(), tickAll(S.hazardControls("Electrical"), [SWMS_OTHER_CONTROL]), pick(S.hazardPerson("Electrical"), SWMS_PERSON_OTHER)].filter((i, idx, all) => all.findIndex((x) => (x as { label: string }).label === (i as { label: string }).label) === idx || idx >= swmsItems().length) });
-    void otherNoText;
-    const blank = readInstallEvidence({ items: swmsItems({ present: [], hrcw: [SWMS_HRCW_NONE] }).concat(text(S.hrcwNone, "Just a small job")) });
-    expect(swmsBlockers(blank.swms, { leadName: "Bhavdeep Singh", crewNames: [], isolationCapturedAt: null, multiDay: false }).join()).toContain("every hazard is No and no high-risk work applies");
+  test("solo crew: no additional installer named = no crew sign-off needed", () => {
+    const r = readInstallEvidence({ items: swmsItems() });
+    expect(swmsBlockers(r.swms, { leadName: "Bhavdeep Singh", additionalInstallers: [null, null, null], isolationCapturedAt: T0, multiDay: false })).toEqual([]);
+    expect(swmsRecordText(r.swms, { ...meta, additionalInstallers: [] }).split("Name | Signature | Date\n")[1]).toBe("Bhavdeep Singh (lead installer) | signed (signature image 0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b) | 2026-11-03T19:40:00Z");
+  });
+  test("each named additional installer must tick and sign; an unnamed row is not asked", () => {
+    const r = readInstallEvidence({ items: swmsItems({ crew: ["Dominic Doherty"] }) });
+    const b = swmsBlockers(r.swms, { leadName: "Bhavdeep Singh", additionalInstallers: ["Dominic Doherty", null, "Third Person"], isolationCapturedAt: T0, multiDay: false });
+    expect(b).toEqual(["SWMS — additional installer 3 (Third Person): has not ticked that they read the SWMS", "SWMS — additional installer 3 (Third Person): signature missing"]);
+    const unsigned = readInstallEvidence({ items: swmsItems().concat(tick(S.installerRead(1)), sign(S.installerSignature(1), "Dominic Doherty", "")) });
+    expect(swmsBlockers(unsigned.swms, { leadName: "Bhavdeep Singh", additionalInstallers: ["Dominic Doherty"], isolationCapturedAt: T0, multiDay: false })).toEqual(["SWMS — additional installer 1 (Dominic Doherty): signature has no time recorded"]);
+  });
+  test("every gap is a plain line: high-risk work, hazards, controls tick, specific/changes box, lead declaration and signature", () => {
+    const none = readInstallEvidence({ items: [tickAll(S.hrcw, [SWMS_HRCW_NONE, SWMS_HRCW_OPTIONS[0]]), item(S.hazards, { type: "list", responses: {} })] });
+    expect(swmsBlockers(none.swms, { leadName: "Bhavdeep Singh", additionalInstallers: [], isolationCapturedAt: null, multiDay: false })).toEqual([
+      "SWMS — high-risk work: \"None of these apply\" cannot be ticked with another type",
+      `${S.hrcwNone}: not entered`,
+      `${S.hazards}: nothing ticked`,
+      `${S.standardControls}: not ticked`,
+      `${S.changes}: not entered`,
+      "SWMS — lead installer declaration not ticked",
+      `${S.leadSignature}: missing`,
+      `${S.signedAt}: not entered`,
+    ]);
+    const noTicks = readInstallEvidence({ items: [item(S.hazards, { type: "list", responses: {} })] });
+    expect(swmsBlockers(noTicks.swms, { additionalInstallers: [], multiDay: false })[0]).toBe(`${S.hrcw}: nothing ticked`);
+  });
+  test("a form still on the old SWMS (no hazards question) fails closed with a pointer to the fix prompt", () => {
+    const old = readInstallEvidence({ items: [text("SWMS — prepared by (installer business name)", "X")] });
+    expect(swmsBlockers(old.swms, { multiDay: false })).toEqual([`The Mitti Install day form does not have the current SWMS yet ("${S.hazards}" not found) — apply docs/MITTI_INSTALL_FORM_FIX_PROMPT.md to the template.`]);
   });
   test("lead signature must be the lead's own and before the isolation photo; a different signer or a late signature blocks", () => {
     const late = readInstallEvidence({ items: swmsItems({ signedAt: "2026-11-03T20:30:00Z" }) });
-    expect(swmsBlockers(late.swms, { leadName: "Bhavdeep Singh", crewNames: [], isolationCapturedAt: T0, multiDay: false })).toEqual(["SWMS was signed after the power-isolation photo was taken — the SWMS must be completed before work starts; office review"]);
+    expect(swmsBlockers(late.swms, { leadName: "Bhavdeep Singh", additionalInstallers: [], isolationCapturedAt: T0, multiDay: false })).toEqual(["SWMS was signed after the power-isolation photo was taken — the SWMS must be completed before work starts; office review"]);
     const other = readInstallEvidence({ items: swmsItems({ lead: "Someone Else" }) });
-    const b = swmsBlockers(other.swms, { leadName: "Bhavdeep Singh", crewNames: [], isolationCapturedAt: T0, multiDay: false });
-    expect(b.some((x) => x.includes("not the lead installer on the safety form"))).toBe(true);
+    const b = swmsBlockers(other.swms, { leadName: "Bhavdeep Singh", additionalInstallers: [], isolationCapturedAt: T0, multiDay: false });
     expect(b.some((x) => x.includes("signing on behalf is not accepted"))).toBe(true);
   });
   test("official Part 3 ticks are cross-checked, never removed: Yes on a half-done SWMS contradicts; No on a complete one must be corrected", () => {
@@ -215,12 +237,13 @@ describe("SWMS section (decision 206)", () => {
     expect(swmsCrossCheck(done, [], "Yes", "Yes")).toEqual([]);
     expect(swmsCrossCheck(done, ["x"], "Yes", "Yes")[0]).toContain("says the SWMS is complete, but the SWMS section on the form is not");
     expect(swmsCrossCheck(done, [], "No", "Yes")[0]).toContain("installer must correct Part 3");
-    const half = readInstallEvidence({ items: swmsItems().filter((i) => (i as { label: string }).label !== S.hazardControls("Electrical")) }).swms;
+    const half = readInstallEvidence({ items: swmsItems({ controls: false }) }).swms;
     expect(swmsCrossCheck(half, ["x"], "Yes", "Yes").some((l) => l.includes("Table 1"))).toBe(true);
     expect(swmsCrossCheck({ ...done, onForm: false }, ["x"], "Yes", "Yes")).toEqual([]);
   });
   test("SWMS gaps are prestart blockers; after-install gaps are not", () => {
-    const s = evalClean(1, { swms: { present: ["Electrical"] }, after: { lockout: "No" } }, { zones: [ctx2.zones[0]!] });
+    const s = evalClean(1, { swms: { controls: false }, after: { lockout: "No" } }, { zones: [ctx2.zones[0]!] });
+    expect(s.prestartBlockers).toContain(`${S.standardControls}: not ticked`);
     expect(s.prestartBlockers.some((b) => b.includes("Lock-out"))).toBe(false);
     expect(s.blockers).toContain("Lock-out still in place — the premises must be re-energised and the lock-out removed before leaving site");
   });
@@ -265,12 +288,11 @@ describe("gates, prefill and products", () => {
     expect(installEvidenceGateLines(s, "2026-11-03")).toEqual(["Install evidence: Daily pre-start re-check not ticked for this multi-day installation"]);
     expect(installEvidenceGateLines({ ...s, applies: false }, "2026-11-03")).toEqual([]);
   });
-  test("prefill sends zone names ('Area N – name', single area = Main ceiling), SWMS header and crew names only for questions on the template", () => {
-    const tpl = { items: [item(Q.zoneName(1)), item(Q.zoneName(2)), item(S.preparedBy), item(S.preparedFor), item(S.workerName(1)), item(S.workerName(2))] };
-    const items = installEvidencePrefillItems(tpl, { zoneNames: [null], businessName: "Reinsulate", leadName: "Bhavdeep Singh", crewNames: ["Dominic Doherty", "Third Person"] });
-    expect(items.map((i) => i.responses.text)).toEqual(["Area 1 – Main ceiling", "Reinsulate", SWMS_PREPARED_FOR, "Bhavdeep Singh", "Dominic Doherty"]);
-    expect(installEvidencePrefillItems(tpl, { zoneNames: ["Main house", "Garage"], businessName: null, leadName: null, crewNames: [] }).map((i) => i.responses.text)).toEqual(["Area 1 – Main house", "Area 2 – Garage", SWMS_PREPARED_FOR]);
-    expect(installEvidencePrefillItems(a3Template(), { zoneNames: ["X"], businessName: "B", leadName: "L", crewNames: [] })).toEqual([]);
+  test("prefill sends zone names only ('Area N – name', single area = Main ceiling), only for questions on the template; the SWMS has no prefilled items", () => {
+    const tpl = { items: [item(Q.zoneName(1)), item(Q.zoneName(2)), item("SWMS — prepared by (installer business name)"), item(S.changes)] };
+    expect(installEvidencePrefillItems(tpl, { zoneNames: [null] }).map((i) => i.responses.text)).toEqual(["Area 1 – Main ceiling"]);
+    expect(installEvidencePrefillItems(tpl, { zoneNames: ["Main house", "Garage"] }).map((i) => i.responses.text)).toEqual(["Area 1 – Main house", "Area 2 – Garage"]);
+    expect(installEvidencePrefillItems(a3Template(), { zoneNames: ["X"] })).toEqual([]);
   });
   test("declared product: register + date + R5.0 on install and VEEC-creation dates; zone products win over the Ready Check option", () => {
     expect(declaredProductProblems(null, { installDate: "2026-11-03", veecCreationDate: "2026-11-10" })).toEqual([]);
@@ -349,7 +371,7 @@ describe("live Mitti structure (24 Oct 10:07 UTC: Parts A and B already on the A
     const missing = installEvidenceMissingQuestions(liveTemplate());
     expect(missing.some((m) => m.startsWith("Zone ") && !/product installed|area insulated/.test(m))).toBe(false);
     expect(missing).not.toContain(Q.zoneCount); expect(missing).not.toContain(Q.multiDay); expect(missing).not.toContain(Q.dailyRecheck);
-    expect(missing).toContain(Q.zoneProduct(1)); expect(missing).toContain(S.preparedBy); expect(missing).toContain(A.lockoutRemoved); expect(missing).toContain(F.foil);
+    expect(missing).toContain(Q.zoneProduct(1)); expect(missing).toContain(S.hazards); expect(missing).toContain(A.lockoutRemoved); expect(missing).toContain(F.foil);
     const health = validateSavedDefinition("piisa", liveTemplate());
     expect(health.ok).toBe(true);
     expect(health.issues.filter((i) => i.startsWith("Native A3:"))).toEqual([]);
