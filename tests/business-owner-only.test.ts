@@ -102,7 +102,6 @@ describe("every owner-only server function uses the owner check", () => {
     const imp = readFileSync(new URL("../src/lib/partner-import.server.ts", import.meta.url), "utf8");
     expect(imp).toContain("requireMember(context.userId, data.businessId, true)");
     expect(imp).toContain("requireMember(context.userId, imp.business_id, true)");
-    expect(block(pilotSrc, "createImport")).toContain("createImportFor(context.userId, data)");
   });
   test("pilot getPartnerProfile, listDraftImports, myInstallerRateItems", () => {
     expect(block(pilotSrc, "getPartnerProfile")).toContain('mine.get(id) !== "business_admin"');

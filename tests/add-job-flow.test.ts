@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { ADD_JOB_STEPS, FORM_WITHIN_15, NEUTRAL_SAVE_ERROR, SAVE_LABEL, VISIT_FIELD_LABEL, formLabel, nextStep, outcomeFor, prevStep, restoreCustomer, saveErrorMessage, visitPayload, visitProblems, visitSummary } from "../src/lib/add-job-flow.core";
 import { onsiteProblems } from "../src/lib/onsite-ready-check.core";
 
@@ -47,6 +47,11 @@ describe("Add job flow (Jo 8 Oct; basics only since decision 34, 24 Oct)", () =>
     for (const h of ["startOnsiteReadyCheck", "READY_CHECK_CONTACT_PERMISSION", "VisitField", "visitPayload(visit)", "Open Mitti form"]) expect(ui).toContain(h);
     for (const gone of ["AttachFiles", "ElectricianPicker", "confirmImport", "createImport", "datetime-local", "Ceiling area", "quoted price", 'mode === "onsite"', "I'm at the property now", "A job for later"]) expect(ui).not.toContain(gone);
     expect(readFileSync("src/routes/_authenticated/partner.import.tsx", "utf8")).toContain("<AddJobFlow businessId={businessId}");
+  });
+  test("decision 185: the old 4-step intake (Who organises?) and its /installer-preview page are gone", () => {
+    for (const f of ["src/components/trade/installer-intake-flow.tsx", "src/components/trade/intake-preview-adapter.ts", "src/routes/installer-preview.tsx"]) expect(existsSync(f)).toBe(false);
+    expect(readFileSync("src/routeTree.gen.ts", "utf8")).not.toContain("installer-preview");
+    expect(readFileSync("src/lib/installer-intake.core.ts", "utf8")).not.toContain("How would you like to organise this job?");
   });
   test("old /partner/add still redirects", () => expect(readFileSync("src/routes/_authenticated/partner.add.tsx", "utf8")).toContain('redirect({ to: "/partner/import"'));
 });

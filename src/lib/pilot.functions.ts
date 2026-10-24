@@ -282,25 +282,8 @@ export const getPartnerProfile = createServerFn({ method: "POST" }).middleware([
   });
 
 // ---------- Import ----------
-export const createImport = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({
-    businessId: uuid, sourceSystem: z.enum(["easymate", "manual_import", "csv", "email"]).default("manual_import"),
-    text: z.string().max(100_000).optional(), csv: z.string().max(500_000).optional(), csvRow: z.number().int().min(0).max(5000).default(0),
-    sourceUrl: z.string().trim().url().max(1000).optional(), externalRefs: z.record(z.string(), z.string().max(200)).optional(),
-    files: z.array(z.object({ path: z.string().max(500), name: z.string().max(200), type: z.string().max(100), purpose: z.enum(["quote", "supporting"]).optional() })).max(30).default([]),
-  }).parse(d))
-  .handler(async ({ data, context }) => {
-    const { createImportFor } = await import("./partner-import.server");
-    return createImportFor(context.userId, data);
-  });
-
-export const getImportDraft = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ importId: uuid, businessId: uuid }).parse(d))
-  .handler(async ({ data, context }) => {
-    const { getImportDraftFor } = await import("./partner-import.server");
-    return getImportDraftFor(context.userId, data.importId, data.businessId);
-  });
-
+// createImport/getImportDraft/confirmImport/addImportFiles/removeImportFile were only called by the retired 4-step
+// installer intake (decision 185, 24 Oct 2026). The `*For` server paths stay in partner-import.server.ts for QA scripts and history.
 export const discardImport = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ importId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
@@ -309,66 +292,6 @@ export const discardImport = createServerFn({ method: "POST" }).middleware([requ
     await requireMember(context.userId, imp.business_id);
     await admin.from("job_imports").update({ status: "discarded", updated_at: new Date().toISOString() }).eq("id", data.importId);
     return { ok: true };
-  });
-
-const factValue = z.union([z.string().max(5000), z.number(), z.boolean(), z.null()]);
-export const confirmImport = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({
-    importId: uuid, facts: z.record(z.string(), factValue),
-    // Staged "Add your own customer" form: where the installer is up to, occupancy and the Ready Check A1 summary.
-    progress: z.enum(["not_visited", "measured", "quoted"]).optional(),
-    occupancy: z.enum(["owner_occupied", "rental"]).optional(),
-    details: z.record(z.string(), z.unknown()).refine((v) => JSON.stringify(v).length < 60_000, "Too much detail").optional(),
-    // Add one job (Jo, 7 Oct): same three facts as bulk upload — his quoted price exactly as given, what it includes, site check Y/N.
-    installer: z.object({
-      site_check: z.enum(["yes", "no"]),
-      site_check_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
-      quoted_price_inc_gst: z.number().positive().max(1_000_000).nullish(),
-      price_includes: z.string().trim().max(1000).nullish(),
-      contact_permission: z.boolean().optional(),
-      fee_awareness: z.boolean().optional(),
-      existing_below_r2: z.boolean().optional(),
-      owner_agreed: z.boolean().optional(),
-      quoted: z.enum(["yes", "no"]).nullable().optional(),
-      // Approved single intake (Jo, 8 Oct 2026).
-      intake: z.object({
-        existing_insulation: z.enum(["none", "below_r2", "unknown"]),
-        evidence_ack: z.boolean(),
-        proposed_r_value: z.number().positive().max(10).nullish(),
-        removal_quote: z.object({ answer: z.enum(["yes", "no", "unknown"]), areaM2: z.number().positive().max(5000).nullable(), chargeIncGst: z.number().min(0).max(1_000_000).nullable() }).optional(),
-        commercial: z.object({ basis: z.enum(["before_discount", "after_discount", "unsure"]).nullable(), gst: z.enum(["inc_gst", "ex_gst", "unsure"]).nullable(), inclusions: z.string().trim().max(1000).nullable(), exclusions: z.string().trim().max(1000).nullable(), originalStatus: z.enum(["prepared", "sent", "accepted_by_customer"]).nullable(), removalPricing: z.enum(["included", "additional", "not_priced"]).nullable(), removalAmountIncGst: z.number().min(0).max(1_000_000).nullable(), extras: z.array(z.object({ description: z.string().trim().min(1).max(300), pricing: z.enum(["included", "additional", "not_priced"]), amountIncGst: z.number().min(0).max(1_000_000).nullable() })).max(20) }).optional(),
-        version: z.string().max(60),
-        coordination: z.enum(["hivic_managed", "self_managed"]),
-        self_managed_ack: z.boolean(),
-        measured_required: z.boolean().optional(),
-        electrician_payer: z.enum(["hivic", "own", "undecided"]).optional(),
-        fee_awareness: z.object({ declared: z.boolean(), payer: z.enum(["hivic", "own", "undecided"]), text: z.string().max(400), version: z.string().max(80) }).optional(),
-        // Before visit / before quote (Jo, 8 Oct): optional on older clients = "have_quote" (previous behaviour).
-        quote_status: z.enum(["not_quoted", "have_quote"]).optional(),
-        attended: z.enum(["attended", "not_attended"]).nullish(),
-        attended_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
-      }).optional(),
-    }).optional(),
-    electrician: z.object({ mode: z.enum(["mine", "hivic", "later"]), business_id: uuid.nullish(), nomination_id: uuid.nullish() }).optional(),
-  }).parse(d))
-  .handler(async ({ data, context }) => {
-    const { confirmImportFor } = await import("./partner-import.server");
-    return confirmImportFor(context.userId, data);
-  });
-
-const importFile = z.object({ path: z.string().max(500), name: z.string().max(200), type: z.string().max(100), purpose: z.enum(["quote", "supporting"]).optional() });
-export const addImportFiles = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ importId: uuid, files: z.array(importFile).min(1).max(20) }).parse(d))
-  .handler(async ({ data, context }) => {
-    const { addImportFilesFor } = await import("./partner-import.server");
-    return addImportFilesFor(context.userId, data.importId, data.files);
-  });
-
-export const removeImportFile = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ importId: uuid, path: z.string().max(500) }).parse(d))
-  .handler(async ({ data, context }) => {
-    const { removeImportFileFor } = await import("./partner-import.server");
-    return removeImportFileFor(context.userId, data.importId, data.path);
   });
 
 // ---------- Electrician selection ----------

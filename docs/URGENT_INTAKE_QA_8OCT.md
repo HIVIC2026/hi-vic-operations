@@ -17,7 +17,7 @@ Fresh focused checks: 37 pure/input/claim tests passed; the 11 persistence tests
 ## Implemented files
 - `src/lib/intake-quote-details.core.ts`: proposed R parsing and provisional quoted-removal validation/readback.
 - `src/components/trade/intake-quote-fields.tsx`: shared R5.0/R6.0/R7.0/Other and quote-removal fields.
-- `src/components/trade/installer-intake-flow.tsx`: creation, review, draft persistence and Retry button.
+- `src/components/trade/installer-intake-flow.tsx`: creation, review, draft persistence and Retry button. _Superseded (decision 185, 24 Oct 2026): the 4-step installer intake and `/installer-preview` are removed; Add a job is the basics-only `AddJobFlow` at `/partner/import`._
 - `src/components/trade/intake-details-editor.tsx`: same-job edits, saved removal facts and shared inputs.
 - `src/lib/installer-intake.core.ts`: strict R-prefixed normalization with existing range/readiness rules retained.
 - `src/lib/add-job-flow.core.ts`: actionable interrupted-confirmation message.

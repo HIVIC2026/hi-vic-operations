@@ -1,5 +1,7 @@
 # Installer Add job — two-route attendance/quote (Jo "Ok fix", 20 Oct 2026)
 
+> Superseded in part (decision 185, 24 Oct 2026): `installer-intake-flow.tsx` and `/installer-preview` no longer exist; Add a job is the basics-only `AddJobFlow` at `/partner/import`. The existing-job editor (`intake-details-editor.tsx`) findings still apply.
+
 Preview/code only. Nothing published, sent, or written to Mitti/Xero/VEEC. No schema migration (uses existing `jobs.installer_site_check` / `installer_site_check_date`).
 
 ## IMPLEMENTED
