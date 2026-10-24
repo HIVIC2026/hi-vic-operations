@@ -398,6 +398,36 @@ export function readyCheckPartPrefill(areas: RcArea[]): { values: Record<string,
   return { values, notes };
 }
 
+/**
+ * Decision 262: official PIISA Part 6 (existing insulation) filled by the portal from the job's Ready Check record — the
+ * install day form no longer asks it. `extra` carries facts the Ready Check record may hold beyond the area columns
+ * (condition / suitability, reason for retaining, foil or conductive). Every fact the record does not establish is listed
+ * in `missing` (a pre-start blocker), never guessed.
+ */
+export function readyCheckPart6Answers(areas: RcArea[], extra: { suitable: boolean | null; conductive: boolean | null; reason: string | null }): { answers: Record<string, string | string[]>; missing: string[]; conductive: boolean | null } {
+  const answers: Record<string, string | string[]> = {}, missing: string[] = [];
+  if (!areas.length) return { answers, missing: ["Ready Check: no current measure-up on this job — existing insulation (official Part 6) can't be filled in"], conductive: null };
+  const pres = areas.map((a) => a.present);
+  if (pres.some((x) => x == null)) { missing.push("Ready Check: existing insulation present or not is not recorded for every area"); return { answers, missing, conductive: null }; }
+  const present = pres.some(Boolean);
+  answers["p6.present"] = present ? "Yes" : "No";
+  if (!present) return { answers, missing, conductive: null };
+  const withIns = areas.filter((a) => a.present === true);
+  const depths = [...new Set(withIns.map((a) => a.depthMm).filter((x): x is number => x != null && Number.isFinite(x)))];
+  if (depths.length === 1 && withIns.every((a) => a.depthMm != null)) answers["p6.height"] = String(depths[0]);
+  else missing.push(depths.length > 1 ? `Ready Check: existing insulation depth differs between areas (${depths.join(", ")} mm) — office to record one average` : "Ready Check: existing insulation depth (mm) not recorded");
+  const rs = [...new Set(withIns.map((a) => a.rValue).filter((x): x is number => x != null && Number.isFinite(x)))];
+  if (rs.length === 1) answers["p6.rValue"] = String(rs[0]);
+  if (withIns.every((a) => a.removal != null)) {
+    const rem = withIns.some((a) => a.removal === true), top = withIns.some((a) => a.removal === false);
+    answers["p6.treatment"] = [...(rem ? ["Removed"] : []), ...(top ? ["Topped Up"] : [])];
+    if (top) { if (extra.reason?.trim()) answers["p6.reason"] = extra.reason.trim(); else missing.push("Ready Check: reason the existing insulation is being kept not recorded"); }
+  } else missing.push("Ready Check: removal or top-up not recorded for every area with existing insulation");
+  if (extra.suitable != null) answers["p6.suitable"] = extra.suitable ? "Yes" : "No"; else missing.push("Ready Check: condition of the existing insulation (suitable to lay over) not recorded");
+  if (extra.conductive == null) missing.push("Ready Check: whether the existing insulation is foil, metallic or conductive is not recorded");
+  return { answers, missing, conductive: extra.conductive };
+}
+
 // ---------- crew ----------
 export type StaffOption = {
   workerId: string; name: string; eec: string | null; eecVerified: boolean;
@@ -704,19 +734,24 @@ export type A3PrestartSnapshot = {
   media: Record<A3EvidenceKey, A3MediaFile[]>; blockers: string[];
 };
 /** Builds the immutable prestart snapshot from the CURRENT audit. Signature time = the signature's own timestamp only. */
-export function a3PrestartSnapshot(auditId: string, audit: unknown, ctx: A3EvidenceCtx, opts: { completed: boolean }): { ok: true; snapshot: A3PrestartSnapshot } | { ok: false; reason: string } {
+/** `portal` = official answers the portal fills itself on the install day form (decision 262: Part 5 lights / cables from the
+ *  PIESA, Part 6 existing insulation from the Ready Check) with the facts it could not establish (each one a blocker). */
+export function a3PrestartSnapshot(auditId: string, audit: unknown, ctx: A3EvidenceCtx, opts: { completed: boolean; portal?: { answers: Record<string, string | string[]>; missing: string[] } }): { ok: true; snapshot: A3PrestartSnapshot } | { ok: false; reason: string } {
   const sig = a3Signature(audit);
   if (!sig.present || !sig.mediaId) return { ok: false, reason: "The installer has not signed the PIISA yet (no signature image)." };
   if (!sig.signedAt) return { ok: false, reason: "The PIISA signature has no time recorded, so it can't be used." };
-  if (a3AuditUsesDirectCrew(audit)) {
-    const lead = flatten(audit).find((e) => e.id === A3_CREW_OTHER_FIELDS[0]?.name)?.value ?? null;
+  const installDay = isInstallDayDoc(audit);
+  if (a3AuditUsesDirectCrew(audit) || installDay) {
+    const lead = installDay ? installDayOfficialAnswers(audit).crew[0]?.name ?? null : flatten(audit).find((e) => e.id === A3_CREW_OTHER_FIELDS[0]?.name)?.value ?? null;
     const problem = directLeadSignatureProblem(audit, lead);
     if (problem) return { ok: false, reason: problem };
   }
-  const { answers, crew } = parseA3Answers(audit);
+  const parsed = parseA3Answers(audit);
+  const answers: OfficialAnswers = { ...(opts.portal?.answers ?? {}), ...parsed.answers } as OfficialAnswers;
+  const crew = parsed.crew;
   const files = a3MediaFiles(audit);
   const prestartFiles = Object.fromEntries(Object.entries(files).map(([k, v]) => [k, A3_PRESTART_KEYS.includes(k as A3EvidenceKey) ? v : []])) as Record<A3EvidenceKey, A3MediaFile[]>;
-  const blockers = a3PrestartBlockers(answers, { ...ctx, crewCount: Math.max(ctx.crewCount, 1 + crew.length) }, a3MediaSummary(prestartFiles), sig.signedAt);
+  const blockers = [...a3PrestartBlockers(answers, { ...ctx, crewCount: Math.max(ctx.crewCount, 1 + crew.length) }, a3MediaSummary(prestartFiles), sig.signedAt), ...(opts.portal?.missing ?? [])];
   return { ok: true, snapshot: { audit_id: auditId, captured_from: opts.completed ? "completed_audit" : "in_progress_audit", answers, crew, signature: { media_id: sig.mediaId, item_id: sig.itemId, signer_name: sig.name, signed_at: sig.signedAt }, media: prestartFiles, blockers } };
 }
 

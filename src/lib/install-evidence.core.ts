@@ -15,7 +15,7 @@
 import { norm } from "./mitti.core";
 import { melbourneToday } from "./melbourne-time.core";
 import type { MittiMediaFile } from "./piesa-evidence.core";
-import { INSTALL_DAY_Q as ID, INSTALL_DAY_SOLAR_BACK_OPTIONS, allWithLabel, labelKey as key, labelledItems, NO_SIGNATURE, type Labelled, type ReadSignature } from "./install-day.core";
+import { INSTALL_DAY_Q as ID, INSTALL_DAY_SOLAR_BACK_OPTIONS, allWithLabel, isInstallDayDoc, labelKey as key, labelledItems, NO_SIGNATURE, type Labelled, type ReadSignature } from "./install-day.core";
 import { activity48ProductProblems, modelsForMittiOption } from "./esc-approved-products.core";
 import { APPROVED_PRODUCTS } from "./insulation-product.core";
 
@@ -42,12 +42,14 @@ export function installEvidenceApplies(installDate: string | null | undefined, t
 // Exact Mitti question wording (character for character)
 // ======================================================================================================
 
-/** Areas and Table 4 evidence (decision 205) + per-area product and m² (decision 210 d): the "A3 – Install day" wording. */
+/** Areas and Table 4 evidence (decision 205) + per-area product and m² (decision 210 d): the "A3 – Install day" wording.
+ *  The two existing-insulation items are on the OLD A3 only: on the install day form the Ready Check depth photos are the
+ *  existing-insulation evidence and official Part 6 comes from the Ready Check record (decision 262). */
 export const INSTALL_EVIDENCE_QUESTIONS = {
   zoneCount: ID.areaCount,
   zoneName: ID.areaName,
-  zoneUnderInsulated: ID.areaOld,
-  zoneExistingPhoto: ID.areaOldPhoto,
+  zoneUnderInsulated: (z: number) => `Zone ${z} — is there existing insulation in this area (under-insulated)?`,
+  zoneExistingPhoto: (z: number) => `Zone ${z} — photo of the existing insulation with a ruler placed vertically showing its depth, and any brand, model or R-value markings (geotagged)`,
   zoneBeforeVideo: ID.areaBeforeVideo,
   zoneAfterVideo: ID.areaAfterVideo,
   zoneDepthPhoto: ID.areaNewPhoto,
@@ -112,12 +114,9 @@ export const SOLAR_RESTARTED_OPTIONS = INSTALL_DAY_SOLAR_BACK_OPTIONS;
 /** "There isn't one" (install day) or the old "N/A – none at this property". */
 export const solarNoneAnswer = (v: string) => /^(n\/?a\b|none\b|there isn.t one)/i.test(v.trim());
 
-/** Foil / conductive existing insulation (decision 210 c; audit A3-10), feeding the official P6 foil rule. */
+/** Foil / conductive existing insulation (decision 210 c; audit A3-10) — OLD A3 only. On the install day form the
+ *  conductive answer comes from the Ready Check record (official Part 6, decision 262). */
 export const FOIL_QUESTIONS = {
-  foil: ID.foil,
-  foilPhoto: ID.foilPhoto,
-} as const;
-export const FOIL_QUESTIONS_LONG = {
   foil: "Is any of the existing insulation foil-backed, metallic or electrically conductive?",
   foilPhoto: "Photo of the existing insulation showing the facing (geotagged)",
 } as const;
@@ -128,9 +127,8 @@ export const LABEL_ALIASES: Readonly<Record<string, readonly string[]>> = (() =>
   const add = (cur: string, ...old: readonly string[]) => { out[cur] = [...(out[cur] ?? []), ...old]; };
   const Q = INSTALL_EVIDENCE_QUESTIONS, QL = INSTALL_EVIDENCE_QUESTIONS_LONG;
   add(Q.zoneCount, QL.zoneCount); add(Q.multiDay, QL.multiDay); add(Q.dailyRecheck, QL.dailyRecheck);
-  for (let z = 1; z <= MAX_FORM_ZONES; z++) for (const k of ["zoneName", "zoneUnderInsulated", "zoneExistingPhoto", "zoneBeforeVideo", "zoneAfterVideo", "zoneDepthPhoto", "zoneProduct", "zoneAreaM2"] as const) add(Q[k](z), QL[k](z));
+  for (let z = 1; z <= MAX_FORM_ZONES; z++) for (const k of ["zoneName", "zoneBeforeVideo", "zoneAfterVideo", "zoneDepthPhoto", "zoneProduct", "zoneAreaM2"] as const) add(Q[k](z), QL[k](z));
   for (const k of Object.keys(AFTER_INSTALL_QUESTIONS) as (keyof typeof AFTER_INSTALL_QUESTIONS)[]) add(AFTER_INSTALL_QUESTIONS[k], AFTER_INSTALL_QUESTIONS_LONG[k]);
-  add(FOIL_QUESTIONS.foil, FOIL_QUESTIONS_LONG.foil); add(FOIL_QUESTIONS.foilPhoto, FOIL_QUESTIONS_LONG.foilPhoto);
   return out;
 })();
 
@@ -163,8 +161,6 @@ export function installEvidenceQuestionList(): QuestionSpec[] {
     const show = z === 1 ? undefined : `${Q.zoneCount} is ${ZONE_COUNT_OPTIONS.slice(z - 1).join(" or ")}`;
     out.push(
       { part: "B", label: Q.zoneName(z), type: "text", zone: z, showWhen: show, prefill: "<Ready Check area name>" },
-      { part: "B", label: Q.zoneUnderInsulated(z), type: "yes_no", zone: z, showWhen: show },
-      { part: "B", label: Q.zoneExistingPhoto(z), type: "photo", zone: z, showWhen: `${Q.zoneUnderInsulated(z)} = Yes` },
       { part: "B", label: Q.zoneBeforeVideo(z), type: "video", zone: z, showWhen: show },
       { part: "B", label: Q.zoneProduct(z), type: "pick_one", zone: z, options: ZONE_PRODUCT_OPTIONS, showWhen: show },
       { part: "B", label: Q.zoneAreaM2(z), type: "number", zone: z, showWhen: show },
@@ -175,11 +171,6 @@ export function installEvidenceQuestionList(): QuestionSpec[] {
   out.push(
     { part: "B", label: Q.multiDay, type: "yes_no", zone: null },
     { part: "B", label: Q.dailyRecheck, type: "checkbox", zone: null, showWhen: `${Q.multiDay} = Yes` },
-  );
-  // Part E — foil (with the existing-insulation part of the PIISA).
-  out.push(
-    { part: "E", label: F.foil, type: "yes_no", showWhen: `${ID.existing} = Yes` },
-    { part: "E", label: F.foilPhoto, type: "photo", showWhen: `${F.foil} = Yes` },
   );
   // Part D — after-install sign-off (end of the form).
   out.push(
@@ -224,7 +215,7 @@ export function installEvidenceMissingQuestions(template: unknown): string[] {
 export type InstallEvidenceZoneRead = { zone: number; name: string | null; underInsulated: boolean | null; existingPhoto: MittiMediaFile[]; beforeVideo: MittiMediaFile[]; afterVideo: MittiMediaFile[]; depthPhoto: MittiMediaFile[]; product: string | null; areaM2: number | null };
 export type AfterInstallRead = { onForm: boolean; lockoutRemoved: boolean | null; lockoutRemovedBy: string | null; switchboardAfterPhoto: MittiMediaFile[]; solarRestarted: string | null; finishedAt: string | null; leadPresent: boolean; completionSignature: ReadSignature };
 export type FoilRead = { onForm: boolean; foil: boolean | null; foilPhoto: MittiMediaFile[] };
-export type InstallEvidenceRead = { formZoneCount: number | null; zones: InstallEvidenceZoneRead[]; multiDay: boolean | null; dailyRecheck: boolean; questionsOnForm: boolean; after: AfterInstallRead; foil: FoilRead };
+export type InstallEvidenceRead = { /** The "A3 – Install day" template (decision 262), not the old A3. */ installDay: boolean; formZoneCount: number | null; zones: InstallEvidenceZoneRead[]; multiDay: boolean | null; dailyRecheck: boolean; questionsOnForm: boolean; after: AfterInstallRead; foil: FoilRead };
 
 /** Everything the Install day audit holds for the new items. Missing question = nothing read, never a neighbour's answer. */
 export function readInstallEvidence(audit: unknown): InstallEvidenceRead {
@@ -246,7 +237,7 @@ export function readInstallEvidence(audit: unknown): InstallEvidenceRead {
   const completionSignature = sig(A.completionSignature);
   const after: AfterInstallRead = { onForm: !!find(items, A.lockoutRemoved), lockoutRemoved: yn(v(A.lockoutRemoved)), lockoutRemovedBy: t(A.lockoutRemovedBy), switchboardAfterPhoto: m(A.switchboardAfterPhoto), solarRestarted: t(A.solarRestarted), finishedAt: t(LEGACY_FINISHED_AT_LABEL) ?? completionSignature.signedAt, leadPresent: !!v(A.leadPresent), completionSignature };
   const foil: FoilRead = { onForm: !!find(items, F.foil), foil: yn(v(F.foil)), foilPhoto: m(F.foilPhoto) };
-  return { formZoneCount: Number.isInteger(n) && n > 0 ? n : null, zones, multiDay: yn(v(Q.multiDay)), dailyRecheck: !!v(Q.dailyRecheck), questionsOnForm: !!find(items, Q.zoneCount), after, foil };
+  return { installDay: isInstallDayDoc(audit), formZoneCount: Number.isInteger(n) && n > 0 ? n : null, zones, multiDay: yn(v(Q.multiDay)), dailyRecheck: !!v(Q.dailyRecheck), questionsOnForm: !!find(items, Q.zoneCount), after, foil };
 }
 
 /**
@@ -375,9 +366,11 @@ export function evaluateInstallEvidence(read: InstallEvidenceRead, ctx: InstallE
       if (!fz.name) before.push(`${zoneLabel}: area name not entered on the form`);
       else if (jobZone.name?.trim() && zoneNameCore(fz.name) !== zoneNameCore(jobZone.name)) before.push(`${zoneLabel}: the form names this area "${fz.name}" — Table 4 needs the same name on every record; office review`);
       // Under-insulated: the job's recorded fact OR the installer's answer on the day; the old "below R2.0" tick is not enough.
+      // Install day form (decision 262): the existing-insulation photo is the Ready Check depth photo, not asked here.
       const under = jobZone.underInsulated === true || fz.underInsulated === true;
-      if (jobZone.underInsulated == null && fz.underInsulated == null) before.push(`${Q.zoneUnderInsulated(z)}: not answered`);
-      if (under) add(before, "zone_existing_photo", z, Q.zoneExistingPhoto(z), mediaProblems(`${zoneLabel} existing insulation ruler/brand photo`, fz.existingPhoto, { min: 1, video: false, workStartAt, phase: "before" }), fz.existingPhoto.length);
+      if (!read.installDay && jobZone.underInsulated == null && fz.underInsulated == null) before.push(`${Q.zoneUnderInsulated(z)}: not answered`);
+      if (read.installDay) items.push({ id: "zone_existing_photo", zone: z, label: Q.zoneExistingPhoto(z), state: "not_required", count: 0, problems: [] });
+      else if (under) add(before, "zone_existing_photo", z, Q.zoneExistingPhoto(z), mediaProblems(`${zoneLabel} existing insulation ruler/brand photo`, fz.existingPhoto, { min: 1, video: false, workStartAt, phase: "before" }), fz.existingPhoto.length);
       else items.push({ id: "zone_existing_photo", zone: z, label: Q.zoneExistingPhoto(z), state: "not_required", count: fz.existingPhoto.length, problems: [] });
       add(before, "zone_before_video", z, Q.zoneBeforeVideo(z), mediaProblems(`${zoneLabel} before 360° video`, fz.beforeVideo, { min: 1, video: true, workStartAt, phase: "before" }), fz.beforeVideo.length);
       add(after, "zone_after_video", z, Q.zoneAfterVideo(z), mediaProblems(`${zoneLabel} after 360° video`, fz.afterVideo, { min: 1, video: true, phase: "after" }), fz.afterVideo.length);
@@ -400,7 +393,8 @@ export function evaluateInstallEvidence(read: InstallEvidenceRead, ctx: InstallE
   }
   // Foil (before work), after-install sign-off. The safety plan is checked by the pre-start check (decision 261).
   const existing = ctx.existingInsulation === true || ctx.zones.some((z) => z.underInsulated === true) || read.zones.some((z) => z.underInsulated === true);
-  before.push(...foilBlockers(read.foil, existing, workStartAt));
+  // Install day form (decision 262): foil / conductive is official Part 6 from the Ready Check record (pre-start check).
+  if (!read.installDay) before.push(...foilBlockers(read.foil, existing, workStartAt));
   after.push(...afterInstallBlockers(read.after, ctx, workStartAt));
   const prestartBlockers = [...new Set(before)];
   return { ...base, items, blockers: [...new Set([...before, ...after])], prestartBlockers };
