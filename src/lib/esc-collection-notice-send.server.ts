@@ -142,7 +142,7 @@ export async function sweepCollectionNoticeLinks(now = new Date()) {
   return { checked: workers.length, pending: pending.length, sent, failed };
 }
 
-/** Emailed copy of the notice on acknowledgement (decision 170: approved, partner kit design I62). TEST partners go through the test sender (allowlist decides). */
+/** Emailed copy of the notice on acknowledgement. Off until Jo approves; TEST partners go through the test sender (allowlist decides). */
 export async function sendNoticeCopy(p: { actorId: string | null; businessId: string; partnerIsTest: boolean; to: string; name: string | null; acknowledgedAt: string }): Promise<{ status: "sent" | "blocked" | "failed"; detail: string }> {
   const { partnerEmailLayout } = await import("./partner-email.core");
   const copy = collectionNoticeEmail({ firstName: p.name?.trim().split(/\s+/)[0] ?? null, acknowledgedAt: p.acknowledgedAt });

@@ -10,8 +10,8 @@ import {
 } from "./payments.core";
 
 export const PAYMENT_EVENT = "owner_payment_recorded";
-/** Owner notice when an unpaid provisional booking is released: approved by Jo 24 Oct 2026 (decision 170; wording in deposit-release-notice.core.ts). */
-export { PROVISIONAL_RELEASE_OWNER_NOTICE_APPROVED } from "./deposit-release-notice.core";
+/** Owner notice when an unpaid provisional booking is released: wording not approved yet (office alert only). */
+export const PROVISIONAL_RELEASE_OWNER_NOTICE_APPROVED = false as boolean;
 
 /** Bank details for owner pages/emails: Jo's NAB account (decision 152), env vars override. */
 export function bankDetails(): BankDetails {
@@ -128,10 +128,7 @@ export async function noteProvisionalBooking(jobId: string, actorId: string | nu
 }
 
 /** 15-minute tick: release install bookings whose 10% deposit is still unpaid 48h after booking (decision 139).
- *  Only jobs under the payment rule with an invoice. The office is alerted and the owner is told once per released
- *  booking (decision 170, deposit-release-notice.server.ts: text + email, TEST → test-send). With the booking cancelled
- *  and the job back in installation_scheduling, `installDayTurn` is the installer's move again (installer_to_offer), so
- *  the installer's job screen asks for 3 new days; the owner wording says that happens once the deposit is paid. */
+ *  Only jobs under the payment rule with an invoice; the office is alerted, the owner only once the wording is approved. */
 export async function sweepProvisionalBookings(now = new Date()) {
   const cutoff = new Date(now.getTime() - 48 * 3_600_000).toISOString();
   const { data: bookings } = await admin.from("bookings").select("id, job_id, created_at, scheduled_start").eq("kind", "installation").eq("status", "confirmed").lt("created_at", cutoff).gt("scheduled_start", now.toISOString()).limit(200);
@@ -154,15 +151,8 @@ export async function sweepProvisionalBookings(now = new Date()) {
     const { clearInstallDueDate } = await import("./install-balance.server");
     await clearInstallDueDate(b.job_id, null).catch(() => undefined);
     await logEvent(b.job_id, null, "install_booking_released_unpaid", `Install booking released: the ${v.plan.installDepositCents / 100} install deposit was not received within 48 hours. Needs Home Insulation Victoria`, { invoice_id: v.invoiceId, booking_id: b.id, was: b.scheduled_start }, { internal: true });
-    // Decision 170: owner told by text + email, once per released booking (best-effort; never undoes the release).
-    try {
-      const { sendDepositReleaseNotice } = await import("./deposit-release-notice.server");
-      const r = await sendDepositReleaseNotice({ jobId: b.job_id, bookingId: b.id, wasStart: b.scheduled_start, depositCents: v.plan.installDepositCents, bank: v.bank, reference: v.reference, releasedAt: now.toISOString() });
-      await logEvent(b.job_id, null, "install_booking_released_owner_notice_result", `Owner notice about the released install day: ${r}`, { booking_id: b.id }, { internal: true });
-    } catch (e) {
-      await logEvent(b.job_id, null, "install_booking_released_owner_notice_result", `Owner notice about the released install day failed: ${(e as Error).message}`, { booking_id: b.id }, { internal: true });
-    }
-    await admin.from("jobs").update({ next_action: "Install day released (deposit unpaid after 48h) – owner told; the installer offers 3 new days once the deposit is paid" }).eq("id", b.job_id);
+    if (!PROVISIONAL_RELEASE_OWNER_NOTICE_APPROVED) await logEvent(b.job_id, null, "install_booking_released_owner_notice_not_sent", "Owner notice about the released booking is awaiting wording approval – nothing was sent", { booking_id: b.id }, { internal: true });
+    await admin.from("jobs").update({ next_action: "Install day released (deposit unpaid after 48h) – contact the owner, then the installer offers new days" }).eq("id", b.job_id);
     released++;
   }
   return { checked, released };
