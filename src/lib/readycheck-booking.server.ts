@@ -91,7 +91,8 @@ export async function installerCandidatesFor(jobId: string) {
   const windowDays = new Set(windows.map((x) => x.day));
   const [{ data: creds }, { data: workers }, { data: offers }, { data: bks }] = await Promise.all([
     admin.from("business_credentials").select("business_id,kind,label,expires_at,critical,verification").in("business_id", inIds),
-    admin.from("partner_workers").select("id, business_id, email, full_legal_name, removed_at, trade_role, piisa_status, piisa_certificate_path, piisa_verified_at").eq("trade_role", "installer").eq("approval_status", "approved").is("removed_at", null).in("business_id", inIds),
+    // Decision 153: clearance is derived below from the verified certification + recorded level/expiry; approval_status (logins only) is not a filter.
+    admin.from("partner_workers").select("id, business_id, email, full_legal_name, removed_at, trade_role, piisa_status, piisa_certificate_path, piisa_verified_at").eq("trade_role", "installer").is("removed_at", null).in("business_id", inIds),
     admin.from("partner_offers").select("business_id, status, offered_at, responded_at").eq("kind", "ready_check").gte("offered_at", since).in("business_id", inIds),
     windows.length
       ? admin.from("bookings").select("business_id, scheduled_start, scheduled_end, jobs!inner(deleted_at, properties(postcode))").is("jobs.deleted_at", null).eq("status", "confirmed").in("business_id", inIds)

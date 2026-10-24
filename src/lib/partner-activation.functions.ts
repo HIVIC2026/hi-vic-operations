@@ -201,6 +201,11 @@ export const sendPartnerLoginLink = createServerFn({ method: "POST" }).middlewar
     const { partnerWelcomeEmail } = await import("./partner-email.core");
     const m = partnerWelcomeEmail({ firstName: r.name?.trim().split(/\s+/)[0] ?? null, businessName: r.businessName, trade: r.role, email: r.email, link: r.link, test: false });
     const res = await sendOfficeEmail({ actorId: context.userId, recipient: "partner", to: r.email, contactName: r.name, subject: m.subject, message: m.text, html: m.html, text: m.text, label: "partner_login_link", record: { applicationId: data.applicationId, businessId: r.businessId } });
+    // The welcome email IS the approval message: a real send clears the "queued" status set at activation (TEST path does the same in test-approval.server).
+    if (res.status === "sent") {
+      const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+      await admin.from("businesses").update({ approval_message_status: "sent" }).eq("id", r.businessId).or("approval_message_status.is.null,approval_message_status.eq.queued");
+    }
     return { ...res, link: r.link };
   });
 

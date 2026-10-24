@@ -6,7 +6,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError } from "./workflow.server";
 import { hashToken, isTokenShape } from "./worker-links.core";
 import {
-  COLLECTION_NOTICE_EVENT, COLLECTION_NOTICE_LINK_EVENT, COLLECTION_NOTICE_SEND_EVENT, ackFromEventDetails, acksFromApplicationData, collectionNoticeStatus, noticeAckByWorkerId,
+  COLLECTION_NOTICE_EVENT, COLLECTION_NOTICE_LINK_EVENT, COLLECTION_NOTICE_SEND_EVENT, ackFromEventDetails, acksFromApplicationData, collectionNoticeStatus, noticeAckByWorkerId, noticeAttemptHeld,
   noticeEmailKey, noticeLinkState, type NoticeAck, type NoticeStatus, type NoticeWorker,
 } from "./esc-collection-notice.core";
 
@@ -88,17 +88,19 @@ export async function noticeLinkPage(token: string, now = new Date()) {
 }
 
 /** Send history per worker (attempt numbers and times), for the reminder plan and the manual re-send button. */
-export async function noticeSendHistory(workerIds: readonly string[]): Promise<Map<string, { attempt: number; at: string }[]>> {
-  const out = new Map<string, { attempt: number; at: string }[]>();
+/** Send attempts per worker. `held` = neither the text nor the email left (every sender blocked/failed/"already"), so the
+ *  person never got that attempt (decision 154: held attempts don't count towards the three for a manual re-send). */
+export async function noticeSendHistory(workerIds: readonly string[]): Promise<Map<string, { attempt: number; at: string; held: boolean }[]>> {
+  const out = new Map<string, { attempt: number; at: string; held: boolean }[]>();
   if (!workerIds.length) return out;
   const { data, error } = await admin.from("admin_config_events").select("details").eq("event_type", COLLECTION_NOTICE_SEND_EVENT);
   if (error) throw new WorkflowError("Could not read the ESC notice send history.");
   const want = new Set(workerIds);
   for (const e of data ?? []) {
-    const d = e.details as { worker_id?: string; attempt?: number; at?: string } | null;
+    const d = e.details as { worker_id?: string; attempt?: number; at?: string; sms?: { status?: string }; email?: { status?: string } } | null;
     if (!d?.worker_id || !want.has(d.worker_id) || typeof d.attempt !== "number" || !d.at) continue;
     if (!out.has(d.worker_id)) out.set(d.worker_id, []);
-    out.get(d.worker_id)!.push({ attempt: d.attempt, at: d.at });
+    out.get(d.worker_id)!.push({ attempt: d.attempt, at: d.at, held: noticeAttemptHeld(d) });
   }
   return out;
 }

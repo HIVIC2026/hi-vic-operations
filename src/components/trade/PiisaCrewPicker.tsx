@@ -6,8 +6,9 @@ import { card, ghostBtn, greenBtn } from "@/components/trade/TradeShell";
 import { getPiisaCrew, savePiisaCrew } from "@/lib/piisa-a3.functions";
 import { A3_NATIVE_CREW_LOOKUP, crewSelectionProblems, type CrewPick, type CrewSelection, type StaffOption } from "@/lib/piisa-a3.core";
 
-const ready = (s: StaffOption) => s.approved !== false && s.eecVerified && !!s.eec;
-const tag = (s: StaffOption) => s.approved === false ? " · waiting for office approval" : s.eecVerified ? ` · EEC ${s.eec}` : " · EEC not verified";
+// Decision 153: ready = cleared (verified CII + recorded level + not expired); office login approval is not the gate.
+const ready = (s: StaffOption) => s.cleared !== false && s.eecVerified && !!s.eec;
+const tag = (s: StaffOption) => s.cleared === false ? ` · ${s.clearanceReason ?? "not cleared yet"}` : s.eecVerified ? ` · EEC ${s.eec}` : " · EEC not verified";
 
 export function PiisaCrewPicker({ jobId }: { jobId: string }) {
   const get = useServerFn(getPiisaCrew), save = useServerFn(savePiisaCrew);

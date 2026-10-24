@@ -5,7 +5,7 @@ import {
   COLLECTION_NOTICE_ACK_TEXT, COLLECTION_NOTICE_BLOCK_MESSAGE, COLLECTION_NOTICE_EMAIL_APPROVED, COLLECTION_NOTICE_PARAGRAPHS, COLLECTION_NOTICE_SEND_APPROVED, COLLECTION_NOTICE_SHA256,
   COLLECTION_NOTICE_SOURCE_FILE, COLLECTION_NOTICE_SOURCE_SHA256, COLLECTION_NOTICE_TEXT, COLLECTION_NOTICE_VERSION, ackFromEventDetails, acksFromApplicationData, collectionNoticeBlockers,
   collectionNoticeEmail, collectionNoticeFlags, collectionNoticeLabel, collectionNoticeStatus, noticeAckByWorkerId, noticeAckSubmissionErrors, noticeEventDetails, noticeLinkDetails,
-  noticeLinkEmail, noticeLinkState, noticeSendPlan, stampOnboardingNoticeAcks, type NoticeAck,
+  noticeAttemptHeld, noticeLinkEmail, noticeLinkState, noticeSendPlan, stampOnboardingNoticeAcks, type NoticeAck,
 } from "../src/lib/esc-collection-notice.core";
 import { firstIncompleteStep, stepErrors, type InstData } from "../src/lib/installer-onboarding.core";
 import { approvalFlags, buildPartnerProfile } from "../src/lib/partner-profile.core";
@@ -30,10 +30,10 @@ describe("ESC collection notice text (v1.0, 1 Oct 2026)", () => {
     if (!existsSync(COLLECTION_NOTICE_SOURCE_FILE)) return;
     expect(createHash("sha256").update(readFileSync(COLLECTION_NOTICE_SOURCE_FILE)).digest("hex")).toBe(COLLECTION_NOTICE_SOURCE_SHA256);
   });
-  test("the one tick (decision 130 wording), flags off, emails carry the notice", () => {
+  test("the one tick (decision 130 wording), link sends on (decision 154) / copy email still off, emails carry the notice", () => {
     expect(COLLECTION_NOTICE_ACK_TEXT).toBe("I have read the Essential Services Commission's VEU Scheme Participant Privacy Collection Notice and understand my details may be disclosed to the commission and shared with the Energy Efficiency Council.");
     expect(COLLECTION_NOTICE_EMAIL_APPROVED).toBe(false);
-    expect(COLLECTION_NOTICE_SEND_APPROVED).toBe(false);
+    expect(COLLECTION_NOTICE_SEND_APPROVED).toBe(true);
     const m = collectionNoticeEmail({ firstName: "Sam", acknowledgedAt: "2026-10-24T01:00:00.000Z" });
     expect(m.blocks.flatMap((b) => (b.kind === "p" ? [b.text] : b.kind === "list" ? b.items : [])).join("\n")).toContain(COLLECTION_NOTICE_PARAGRAPHS[2]!.text);
     const l = noticeLinkEmail({ firstName: "Sam", businessName: "Biz", url: "https://x/notice/t", reminder: true });
@@ -80,14 +80,16 @@ describe("enforcement (decision 130): no lead or crew without acknowledgement", 
   test("PIISA crew: lead and additional refused until acknowledged", () => {
     const cert = { id: "11111111-1111-4111-8111-111111111111", status: "verified", certificate_number: "C1", issuer: "EEC" };
     const row = (id: string, name: string) => ({ id, full_legal_name: name, approval_status: "approved", removed_at: null, trade_role: "installer", certification: { verification_id: cert.id } });
-    const staff = staffFromRecords([row("w1", "Lead One"), row("w2", "Crew Two")] as never, [cert] as never, [], new Map([["w1", false], ["w2", true]]));
+    // Decision 153: both are cleared (verified + recorded level + current expiry) so only the notice stands in the way.
+    const lv = { certification_id: cert.id, level: "full", expires_on: "2028-01-01", recorded_at: "2026-10-01T00:00:00Z" };
+    const staff = staffFromRecords([row("w1", "Lead One"), row("w2", "Crew Two")] as never, [cert] as never, [lv], new Map([["w1", false], ["w2", true]]), "2026-10-24");
     expect(staff.find((s) => s.workerId === "w1")!.noticeAcknowledged).toBe(false);
     expect(staff.find((s) => s.workerId === "w2")!.noticeAcknowledged).toBe(true);
     const r = crewSelectionProblems({ lead: "w1", additional: [{ workerId: "w2" }] }, staff);
     expect(r.problems).toEqual([`Lead One: ${COLLECTION_NOTICE_BLOCK_MESSAGE}`]);
     expect(crewSelectionProblems({ lead: "w2", additional: [{ workerId: "w1" }] }, staff).problems).toEqual([`Crew Two: ${COLLECTION_NOTICE_BLOCK_MESSAGE}`.replace("Crew Two", "Lead One")]);
     // Not loaded (older callers): no new problem.
-    expect(crewSelectionProblems({ lead: "w2", additional: [] }, staffFromRecords([row("w2", "Crew Two")] as never, [cert] as never)).problems).toEqual([]);
+    expect(crewSelectionProblems({ lead: "w2", additional: [] }, staffFromRecords([row("w2", "Crew Two")] as never, [cert] as never, [lv], undefined, "2026-10-24")).problems).toEqual([]);
   });
   test("pre-start lead check", () => {
     const facts = { start: "2026-11-10T22:00:00.000Z", clearance: { cleared: true, blocker: null }, deadline: "2026-12-01", esc: { status: "sent", sent_at: "2026-11-08T00:00:00.000Z", submission_reference: "R1", scheduled_start: "2026-11-10T22:00:00.000Z" }, consentBlockers: [], piesaCompletedAt: "2026-11-01" };
@@ -95,9 +97,14 @@ describe("enforcement (decision 130): no lead or crew without acknowledgement", 
     expect(prestartFailures({ ...facts, lead })).toEqual([]);
     expect(prestartFailures({ ...facts, lead: { ...lead, noticeAcknowledged: false } })).toEqual([`Lead installer Lead One: ${COLLECTION_NOTICE_BLOCK_MESSAGE}`]);
   });
-  test("real link texts are a partner SMS type whose wording is not approved yet", () => {
+  test("real link texts are a partner SMS type: wording on (decision 154), still behind the master switch, its own switch and partner approval", () => {
     expect(SMS_MESSAGE_TYPES.esc_notice_link.audience).toBe("partner");
-    expect(smsBlocker({ type: "esc_notice_link", to: "0412345678", commsEnabled: true, typeSwitchOn: true, senderConfigured: true, optedOut: false, consent: true, isTestRecord: false, nowIso: "2026-10-24T02:00:00.000Z" })).toBe("Wording not approved yet");
+    const gate = { type: "esc_notice_link", to: "0412345678", commsEnabled: true, typeSwitchOn: true, senderConfigured: true, optedOut: false, consent: true, isTestRecord: false, nowIso: "2026-10-24T02:00:00.000Z" };
+    expect(smsBlocker(gate)).toBeNull();
+    expect(smsBlocker({ ...gate, commsEnabled: false })).toBe("Customer communications are switched off");
+    expect(smsBlocker({ ...gate, typeSwitchOn: false })).toContain("switched off");
+    expect(smsBlocker({ ...gate, consent: false })).toBe("Partner is not approved and active");
+    expect(smsBlocker({ ...gate, nowIso: "2026-10-24T11:00:00.000Z" })).toMatch(/quiet|8pm|7am/i); // 10pm Melbourne
   });
 });
 
@@ -125,6 +132,20 @@ describe("secure links and reminders", () => {
     expect(noticeSendPlan([first, second], d(5))).toBeNull();
     expect(noticeSendPlan([first, second], d(7))).toEqual({ attempt: 3, reminder: true });
     expect(noticeSendPlan([first, second, { attempt: 3, at: d(7).toISOString() }], d(30))).toBeNull();
+  });
+  test("decision 154: an attempt every channel held/blocked never reached the person; one that left (text or email) did", () => {
+    expect(noticeAttemptHeld({ sms: { status: "blocked" }, email: { status: "blocked" } })).toBe(true);
+    expect(noticeAttemptHeld({ sms: { status: "already" }, email: { status: "failed" } })).toBe(true);
+    expect(noticeAttemptHeld({})).toBe(true);
+    expect(noticeAttemptHeld({ sms: { status: "sent" }, email: { status: "blocked" } })).toBe(false);
+    expect(noticeAttemptHeld({ sms: { status: "blocked" }, email: { status: "sent" } })).toBe(false);
+    expect(noticeAttemptHeld({ sms: { status: "sent_unknown" } })).toBe(false);
+  });
+  test("decision 154: manual re-send counts only attempts that left and uses a one-off text key (source)", () => {
+    const src = readFileSync(new URL("../src/lib/esc-collection-notice-send.server.ts", import.meta.url), "utf8");
+    expect(src).toContain("const delivered = (history.get(worker.id) ?? []).filter((h) => !h.held).length;");
+    expect(src).toContain("manual: true });");
+    expect(src).toContain("`esc-notice-link:v1:${p.worker.id}:manual:${link.token_hash.slice(0, 16)}`");
   });
   test("acknowledgement event carries time, IP, user agent, link and notice sha; reads back as a status", () => {
     const ev = noticeEventDetails({ businessId: "biz", workerId: "w1", workerEmail: "C@x.au", byName: "C D", source: "secure_link", ip: "203.0.113.9", userAgent: "UA", linkId: "ev-link", now });

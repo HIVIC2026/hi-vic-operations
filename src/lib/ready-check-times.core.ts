@@ -162,7 +162,9 @@ export function readyCheckOfficeItem(f: { channel: string | null; stage: string;
   return { code: "choose_installer" }; // withdrawn/superseded: nothing open, office chooses again
 }
 
-/** DRAFT text to the installer (decision 50; wording is settled in the template review). */
-export function readyCheckOfferText(suburb: string | null, url: string): string {
-  return `New job offer near ${suburb?.trim() || "you"} – tap to see times: ${url}`;
+/** Job offer text to the installer — decision 76 wording, approved by Jo 24 Oct 2026 (switched on by decision 154).
+ *  "(about {area} m²)" is left out when no area is known; nothing is invented. No STOP line: partner job texts don't carry one. */
+export function readyCheckOfferText(suburb: string | null, url: string, areaM2: number | null = null): string {
+  const area = typeof areaM2 === "number" && areaM2 > 0 ? ` (about ${Math.round(areaM2)} m²)` : "";
+  return `Home Insulation Victoria: New Ready Check job near ${suburb?.trim() || "you"}${area}. Offer the owner 3 times within 24 hours to take it: ${url}`;
 }

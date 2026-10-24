@@ -20,16 +20,18 @@ const levels = [
 ];
 
 describe("crew roster from the real certification object", () => {
-  const staff = staffFromRecords(workers as never, certs, levels);
+  const staff = staffFromRecords(workers as never, certs, levels, undefined, "2026-10-24");
   test("verified number comes from the linked certification row, never the typed declared value", () => {
     const ann = staff.find((s) => s.workerId === "w-ok")!;
-    expect(ann).toMatchObject({ eec: "EEC-900", eecVerified: true, approved: true, level: "Level 2", expiresOn: "2028-01-01" });
+    expect(ann).toMatchObject({ eec: "EEC-900", eecVerified: true, approved: true, cleared: true, level: "Level 2", expiresOn: "2028-01-01" });
     const dom = staff.find((s) => s.name === "Dominic Doherty")!;
-    expect(dom).toMatchObject({ eec: "4546", eecVerified: true, approved: false, level: null, expiresOn: null });
-    expect(staff.find((s) => s.workerId === "w-train")).toMatchObject({ eec: null, eecVerified: false });
+    expect(dom).toMatchObject({ eec: "4546", eecVerified: true, approved: false, cleared: false, level: null, expiresOn: null });
+    expect(staff.find((s) => s.workerId === "w-train")).toMatchObject({ eec: null, eecVerified: false, cleared: false });
   });
-  test("pending approval stays a separate gate from a verified EEC (not changed)", () => {
-    expect(crewSelectionProblems({ lead: "d22a6ed2-7a47-4bbd-b293-9636c5e74740", additional: [] }, staff).problems.join()).toContain("waiting for office approval");
+  test("decision 153: a verified EEC without a recorded level/expiry is not cleared (approval_status is not the gate)", () => {
+    expect(crewSelectionProblems({ lead: "d22a6ed2-7a47-4bbd-b293-9636c5e74740", additional: [] }, staff).problems.join()).toContain("level and expiry");
+    const withLevel = staffFromRecords(workers as never, certs, [...levels, { certification_id: "f13f7aad-9f80-4af4-9c1f-197b6f4a7d05", level: "full", expires_on: "2027-06-30", recorded_at: "2026-10-20T00:00:00Z" }], undefined, "2026-10-24");
+    expect(crewSelectionProblems({ lead: "d22a6ed2-7a47-4bbd-b293-9636c5e74740", additional: [] }, withLevel).problems).toEqual([]);
   });
   test("lead may be Other: name + EEC required, flagged for office verification, prefilled as typed", () => {
     expect(crewSelectionProblems({ lead: { other: { name: "", eec: "1" } }, additional: [] }, staff).problems.join()).toContain("full name");

@@ -2,13 +2,15 @@
 // Jo 24 Oct 2026: on our leads the office picks one installer and the installer offers the owner times
 // (ready-check-times.core.ts); there are no automatic batches and owners no longer give Ready Check windows.
 import { rankRecCandidates, recEligibilityBlocker, type RecCandidate } from "./allocation.core";
+import { crewClearance } from "./worker-compliance.core";
 
 export const READY_CHECK_UNPAID_NOTE = "Free Ready Check — unpaid. No payment is made to installers for Ready Checks.";
 export const READY_CHECK_WINDOW_STAGES = ["preliminary_estimate_ready", "ready_check_awaiting_acceptance", "ready_check_ready_to_schedule"] as const;
 
 /** Full, current EEC certification: latest record verified AND office-recorded level Full with expiry on/after today. Missing level = NOT confirmed. */
 export function fullCurrentCert(c: { status: string | null; level: string | null; expiresOn: string | null }, today: string): boolean {
-  return c.status === "verified" && c.level === "full" && !!c.expiresOn && c.expiresOn >= today;
+  // Decision 153: the shared crew clearance (verified + recorded level + not expired) plus the Full level for offers.
+  return crewClearance({ certStatus: c.status, level: c.level, expiresOn: c.expiresOn }, today).cleared && c.level === "full";
 }
 
 export type InstallerFacts = Omit<RecCandidate, "has_valid_licence" | "approved_workers"> & {

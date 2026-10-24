@@ -537,7 +537,7 @@ async function ensureTestTrades(actorId: string, installerBiz: string, electrici
       ...(id === installerBiz ? { free_measureups_for_hivic_quote_leads: true } : {}),
     }).eq("id", id);
   }
-  const { data: workers } = await admin.from("partner_workers").select("id, email").eq("business_id", installerBiz).eq("trade_role", "installer").eq("approval_status", "approved").is("removed_at", null);
+  const { data: workers } = await admin.from("partner_workers").select("id, email").eq("business_id", installerBiz).eq("trade_role", "installer").is("removed_at", null); // decision 153: clearance comes from the certification, not approval_status
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(new Date());
   for (const w of (workers ?? []).filter((x) => x.email.endsWith(TEST_DOMAIN))) {
     const { data: c } = await admin.from("partner_worker_certifications").select("id, status").or(`worker_id.eq.${w.id},worker_email.eq.${w.email}`).order("recorded_at", { ascending: false }).limit(1).maybeSingle();
