@@ -92,3 +92,9 @@ Newest first. Each line is settled; anything still open is under "Open".
 49. **The office picks the installer** for each of our leads, on the job in the office screen. A "Choose installer" list shows nearby approved installers with their area and rates; tapping one sends the offer to that installer only. There is no automatic batch offering.
 50. The installer is told by **text and in the app**. Text (wording in the template review): "New job offer near [suburb] – tap to see times", with a link straight to the offer.
 51. An offer stays open **24 hours**. If the installer says "Not for me" or doesn't answer, it **goes back to the office** (one alert on the job) to pick another installer.
+52. **Our-lead Ready Check: the installer offers the times.**
+    1. The office picks the installer, who gets a text.
+    2. The installer accepts by offering the owner **3 Ready Check times (day and time)** within 24 hours.
+    3. The owner picks one (booked) or suggests other days, back and forth like install days.
+    No answer or "Not for me" goes back to the office.
+53. **Remove the owner's "pick Ready Check times" step** from Save my spot. The owner waits for the installer's times (a link by email or text; wording in the template review).
