@@ -9,6 +9,8 @@ import { WorkflowError, logEvent } from "./workflow.server";
 import { verifiedServiceAreaMatch, partnerWorkBlocker, type BusinessLike } from "./pilot.core";
 import { melbourneYmd, piesaWindowBlockers, windowBounds, PIESA_MAX_ROUNDS } from "./piesa-windows.core";
 import { READY_CHECK_WINDOW_STAGES, fullCurrentCert, installerCandidate, installerEligibilityBlocker } from "./readycheck-booking.core";
+import { publicLiabilityBlocker } from "./worker-compliance.core";
+import { latestExpiry } from "./trade-view.core";
 
 const NONE = ["00000000-0000-0000-0000-000000000000"];
 type Pick = { date: string; slot: import("./piesa-windows.core").PiesaSlot };
@@ -133,7 +135,9 @@ export async function installerCandidatesFor(jobId: string) {
       accepting_new_jobs: b.accepting_new_jobs ?? null, receives_hivic_leads: b.receives_hivic_leads ?? null,
       coverage_verified: !!b.coverage_verified_at, covers_postcode: verifiedServiceAreaMatch(b, postcode),
       exact_postcode: !!postcode && !!b.service_postcodes?.includes(postcode),
-      credentialsOk: !partnerWorkBlocker(b as unknown as BusinessLike, (creds ?? []).filter((x) => x.business_id === b.id)),
+      // H3 (24 Oct 2026): a lapsed public liability certificate blocks new offers like an expired CII, whatever its `critical` flag.
+      credentialsOk: !partnerWorkBlocker(b as unknown as BusinessLike, (creds ?? []).filter((x) => x.business_id === b.id))
+        && !publicLiabilityBlocker(latestExpiry((creds ?? []).filter((x) => x.business_id === b.id).map((x) => ({ kind: x.kind, label: x.label, expires: x.expires_at, verified: x.verification === "verified" })), "public_liability_insurance"), today),
       fullCertifiedInstallers: wk.filter((x) => x.business_id === b.id && fullWorker(x)).length,
       freeMeasureUps: b.free_measureups_for_hivic_quote_leads ?? null,
       weekly_capacity: null, open_jobs: 0, recent_offers_30d: mine.length,

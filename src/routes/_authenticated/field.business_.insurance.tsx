@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,8 +12,14 @@ import { Button } from "@/components/trade/trade-ui";
 
 export const Route = createFileRoute("/_authenticated/field/business_/insurance")({
   head: () => ({ meta: [{ title: "Insurance & licences – Home Insulation Victoria" }, { name: "description", content: "Your insurance, licences and certificates on file." }, { property: "og:title", content: "Insurance & licences – Home Insulation Victoria" }, { property: "og:description", content: "Your insurance, licences and certificates on file." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
-  component: () => <BizPage title="Insurance & licences" intro="Keep these current to keep receiving job offers.">{(d, refetch) => <Docs d={d} onDone={refetch} />}</BizPage>,
+  component: Insurance,
 });
+
+/** Upload re-checks expiry: the summary (NEXT panel, insurance row) is re-read from the new record, never from the page's own state. */
+function Insurance() {
+  const qc = useQueryClient();
+  return <BizPage title="Insurance and licences" intro="Keep these current to keep receiving job offers. Lapsed public liability stops offers and install starts until the renewed certificate is uploaded.">{(d, refetch) => <Docs d={d} onDone={() => { refetch(); void qc.invalidateQueries({ queryKey: ["trade-business"] }); }} />}</BizPage>;
+}
 
 const KINDS = [["public_liability_insurance", "Public liability"], ["workers_comp_insurance", "Workers comp"], ["electrical_licence", "Electrical licence"], ["installer_certification", "Installer certificate"], ["other", "Something else"]] as const;
 

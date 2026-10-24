@@ -1,33 +1,56 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronLeft } from "lucide-react";
-import { TradeShell, card } from "@/components/trade/TradeShell";
 import { useState } from "react";
+import { TradeShell, card } from "@/components/trade/TradeShell";
+import { BackToBusiness, Chevron, M7, SectionHead } from "@/components/trade/business-kit";
 import { getTradeBusiness, requestTeamLoginInvite } from "@/lib/trade-view.functions";
-import { EEC_TEAM_LABEL } from "@/lib/worker-compliance.core";
-import { CertLinkInline } from "@/components/portal/worker-compliance";
+import { ROLE_LABEL, TEAM_RULE, teamCiiLine, teamFactsLine } from "@/lib/trade-view.core";
+import { melbourneToday } from "@/lib/melbourne-time.core";
+import { CertLinkInline, SendNoticeLinkInline } from "@/components/portal/worker-compliance";
 
 export const Route = createFileRoute("/_authenticated/field/business_/team")({
-  head: () => ({ meta: [{ title: "Team – Home Insulation Victoria" }, { name: "description", content: "The people in your business who can see Home Insulation Victoria jobs." }, { property: "og:title", content: "Team – Home Insulation Victoria" }, { property: "og:description", content: "The people in your business who can see Home Insulation Victoria jobs." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
+  head: () => ({ meta: [{ title: "Team – Home Insulation Victoria" }, { name: "description", content: "The people in your business who can take Ready Checks and install days." }, { property: "og:title", content: "Team – Home Insulation Victoria" }, { property: "og:description", content: "The people in your business who can take Ready Checks and install days." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
   component: Team,
 });
 
+/** Same rows as My business (mock-up M7), plus each person's actions: login invite, privacy notice link, CII certificate link. */
 function Team() {
   const load = useServerFn(getTradeBusiness);
   const { data, error } = useQuery({ queryKey: ["trade-business"], queryFn: () => load() });
   const invite = useServerFn(requestTeamLoginInvite);
   const [asked, setAsked] = useState<Record<string, string>>({});
   const installer = data?.kind !== "electrician";
+  const today = melbourneToday();
   return (
     <TradeShell installer={installer} boss={data?.boss}>
-      <Link to="/field/business" className="inline-flex items-center gap-1 text-sm font-bold text-estimate-blue"><ChevronLeft className="h-4 w-4" />My business</Link>
-      <h1 className="font-display text-[26px] font-bold leading-tight">Team</h1>
-      {data?.boss && <Link to="/partner/workers" data-add-team className="flex h-12 w-full items-center justify-center rounded-[10px] bg-action px-4 text-[13px] font-bold text-action-foreground md:w-auto">Add or manage team members</Link>}
-      {error ? <p role="alert" className={card}>{(error as Error).message}</p> : !data ? <p className="text-sm">Loading…</p> : (<>
-        <ul className="divide-y divide-line overflow-hidden rounded-[18px] border border-line bg-paper shadow-card">{data.team.map((t, i) => <li key={t.name + i} className="flex flex-wrap items-center justify-between gap-3 p-4"><span className="min-w-0"><span className="block font-bold">{t.name}</span><span className="block text-sm text-sub">{t.role}{t.hasLogin && t.role !== "Business owner" ? " · Has a login" : ""}</span>{t.eec && t.eec !== "not_applicable" && <span className={t.eec === "verified" ? "block text-xs font-bold text-estimate-green" : t.eec === "awaiting_check" ? "block text-xs text-sub" : "block text-xs font-bold text-danger"}>{EEC_TEAM_LABEL[t.eec as keyof typeof EEC_TEAM_LABEL]}</span>}</span><span className="flex flex-wrap items-center gap-2">{data.boss && t.id && t.eec && t.eec !== "not_applicable" && t.eec !== "verified" && <CertLinkInline workerId={t.id} name={t.name} />}{data.boss && t.id && !t.hasLogin && (asked[t.id] ? <span className="text-sm font-bold text-estimate-green">{asked[t.id]}</span> : <button type="button" className="h-12 shrink-0 rounded-[10px] border-2 border-estimate-blue px-4 text-sm font-bold text-estimate-blue" onClick={async () => { const id = t.id!; try { await invite({ data: { workerId: id } }); setAsked((a) => ({ ...a, [id]: "Invite requested" })); } catch (e) { setAsked((a) => ({ ...a, [id]: (e as Error).message })); } }}>Send login invite</button>)}</span></li>)}</ul>
+      <BackToBusiness />
+      <div><h1 className={M7.title}>Team</h1><p className={`${M7.sub} mt-1`}>Everyone listed here can be given a Ready Check. Install days only go to CII-cleared installers who've acknowledged the privacy notice.</p></div>
+      {error ? <p role="alert" className={card}>{(error as Error).message}</p> : !data ? <p className="text-sm">Loading…</p> : !data.boss ? <p className={card}>Only the business owner can see the team.</p> : (<>
+        <section>
+          <SectionHead>People</SectionHead>
+          <ul>
+            {data.team.map((m) => {
+              const cii = teamCiiLine(m.cii, today);
+              const id = m.id;
+              return (
+                <li key={id ?? `owner-${m.email ?? m.name}`} id={id ? `w-${id}` : "owner"} className="border-b border-estimate-line py-3">
+                  <p className="text-base font-semibold text-estimate-navy">{m.name} <span className="text-[13px] font-medium text-estimate-sub">· {ROLE_LABEL[m.role]}</span></p>
+                  <p className="mt-0.5 text-[13px] text-estimate-sub">{teamFactsLine(m)}{m.email ? ` · ${m.email}` : ""}</p>
+                  {cii && <p className={`mt-0.5 text-[13px] font-semibold ${cii.tone === "green" ? "text-estimate-green" : "text-[#8A3B4A]"}`}>{cii.text}</p>}
+                  {id && <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {!m.hasLogin && (asked[id] ? <span className="text-[13px] font-semibold text-estimate-green">{asked[id]}</span> : <button type="button" className="min-h-11 rounded-[10px] border border-estimate-line bg-white px-3 text-[13px] font-semibold text-estimate-blue" onClick={async () => { try { await invite({ data: { workerId: id } }); setAsked((a) => ({ ...a, [id]: "Login invite requested" })); } catch (e) { setAsked((a) => ({ ...a, [id]: (e as Error).message })); } }}>Send login invite</button>)}
+                    {m.noticeAcknowledged === false && <SendNoticeLinkInline workerId={id} />}
+                    {m.cii && cii?.tone === "rose" && <CertLinkInline workerId={id} name={m.name} />}
+                  </div>}
+                </li>
+              );
+            })}
+          </ul>
+          <Link to="/partner/workers" data-add-team className="flex min-h-12 items-center justify-between text-[15px] font-semibold text-estimate-blue"><span>Add a team member</span><Chevron /></Link>
+          {installer && <p className="text-[13px] leading-[1.45] text-estimate-sub">{TEAM_RULE}</p>}
+        </section>
       </>)}
     </TradeShell>
   );
 }
-

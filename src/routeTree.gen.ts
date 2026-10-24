@@ -108,6 +108,7 @@ import { Route as AuthenticatedAdminJobsClosedRouteImport } from './routes/_auth
 import { Route as AuthenticatedFieldBusinessAgreementRouteImport } from './routes/_authenticated/field.business_.agreement'
 import { Route as AuthenticatedFieldBusinessBankRouteImport } from './routes/_authenticated/field.business_.bank'
 import { Route as AuthenticatedFieldBusinessDetailsRouteImport } from './routes/_authenticated/field.business_.details'
+import { Route as AuthenticatedFieldBusinessElectricianRouteImport } from './routes/_authenticated/field.business_.electrician'
 import { Route as AuthenticatedFieldBusinessEscNoticeRouteImport } from './routes/_authenticated/field.business_.esc-notice'
 import { Route as AuthenticatedFieldBusinessInsuranceRouteImport } from './routes/_authenticated/field.business_.insurance'
 import { Route as AuthenticatedFieldBusinessRatesRouteImport } from './routes/_authenticated/field.business_.rates'
@@ -666,6 +667,12 @@ const AuthenticatedFieldBusinessDetailsRoute =
     path: '/business/details',
     getParentRoute: () => AuthenticatedFieldRoute,
   } as any)
+const AuthenticatedFieldBusinessElectricianRoute =
+  AuthenticatedFieldBusinessElectricianRouteImport.update({
+    id: '/business_/electrician',
+    path: '/business/electrician',
+    getParentRoute: () => AuthenticatedFieldRoute,
+  } as any)
 const AuthenticatedFieldBusinessEscNoticeRoute =
   AuthenticatedFieldBusinessEscNoticeRouteImport.update({
     id: '/business_/esc-notice',
@@ -872,6 +879,7 @@ export interface FileRoutesByFullPath {
   '/field/business/agreement': typeof AuthenticatedFieldBusinessAgreementRoute
   '/field/business/bank': typeof AuthenticatedFieldBusinessBankRoute
   '/field/business/details': typeof AuthenticatedFieldBusinessDetailsRoute
+  '/field/business/electrician': typeof AuthenticatedFieldBusinessElectricianRoute
   '/field/business/esc-notice': typeof AuthenticatedFieldBusinessEscNoticeRoute
   '/field/business/insurance': typeof AuthenticatedFieldBusinessInsuranceRoute
   '/field/business/rates': typeof AuthenticatedFieldBusinessRatesRoute
@@ -986,6 +994,7 @@ export interface FileRoutesByTo {
   '/field/business/agreement': typeof AuthenticatedFieldBusinessAgreementRoute
   '/field/business/bank': typeof AuthenticatedFieldBusinessBankRoute
   '/field/business/details': typeof AuthenticatedFieldBusinessDetailsRoute
+  '/field/business/electrician': typeof AuthenticatedFieldBusinessElectricianRoute
   '/field/business/esc-notice': typeof AuthenticatedFieldBusinessEscNoticeRoute
   '/field/business/insurance': typeof AuthenticatedFieldBusinessInsuranceRoute
   '/field/business/rates': typeof AuthenticatedFieldBusinessRatesRoute
@@ -1106,6 +1115,7 @@ export interface FileRoutesById {
   '/_authenticated/field/business_/agreement': typeof AuthenticatedFieldBusinessAgreementRoute
   '/_authenticated/field/business_/bank': typeof AuthenticatedFieldBusinessBankRoute
   '/_authenticated/field/business_/details': typeof AuthenticatedFieldBusinessDetailsRoute
+  '/_authenticated/field/business_/electrician': typeof AuthenticatedFieldBusinessElectricianRoute
   '/_authenticated/field/business_/esc-notice': typeof AuthenticatedFieldBusinessEscNoticeRoute
   '/_authenticated/field/business_/insurance': typeof AuthenticatedFieldBusinessInsuranceRoute
   '/_authenticated/field/business_/rates': typeof AuthenticatedFieldBusinessRatesRoute
@@ -1226,6 +1236,7 @@ export interface FileRouteTypes {
     | '/field/business/agreement'
     | '/field/business/bank'
     | '/field/business/details'
+    | '/field/business/electrician'
     | '/field/business/esc-notice'
     | '/field/business/insurance'
     | '/field/business/rates'
@@ -1340,6 +1351,7 @@ export interface FileRouteTypes {
     | '/field/business/agreement'
     | '/field/business/bank'
     | '/field/business/details'
+    | '/field/business/electrician'
     | '/field/business/esc-notice'
     | '/field/business/insurance'
     | '/field/business/rates'
@@ -1459,6 +1471,7 @@ export interface FileRouteTypes {
     | '/_authenticated/field/business_/agreement'
     | '/_authenticated/field/business_/bank'
     | '/_authenticated/field/business_/details'
+    | '/_authenticated/field/business_/electrician'
     | '/_authenticated/field/business_/esc-notice'
     | '/_authenticated/field/business_/insurance'
     | '/_authenticated/field/business_/rates'
@@ -2223,6 +2236,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFieldBusinessDetailsRouteImport
       parentRoute: typeof AuthenticatedFieldRoute
     }
+    '/_authenticated/field/business_/electrician': {
+      id: '/_authenticated/field/business_/electrician'
+      path: '/business/electrician'
+      fullPath: '/field/business/electrician'
+      preLoaderRoute: typeof AuthenticatedFieldBusinessElectricianRouteImport
+      parentRoute: typeof AuthenticatedFieldRoute
+    }
     '/_authenticated/field/business_/esc-notice': {
       id: '/_authenticated/field/business_/esc-notice'
       path: '/business/esc-notice'
@@ -2471,6 +2491,7 @@ interface AuthenticatedFieldRouteChildren {
   AuthenticatedFieldBusinessAgreementRoute: typeof AuthenticatedFieldBusinessAgreementRoute
   AuthenticatedFieldBusinessBankRoute: typeof AuthenticatedFieldBusinessBankRoute
   AuthenticatedFieldBusinessDetailsRoute: typeof AuthenticatedFieldBusinessDetailsRoute
+  AuthenticatedFieldBusinessElectricianRoute: typeof AuthenticatedFieldBusinessElectricianRoute
   AuthenticatedFieldBusinessEscNoticeRoute: typeof AuthenticatedFieldBusinessEscNoticeRoute
   AuthenticatedFieldBusinessInsuranceRoute: typeof AuthenticatedFieldBusinessInsuranceRoute
   AuthenticatedFieldBusinessRatesRoute: typeof AuthenticatedFieldBusinessRatesRoute
@@ -2492,6 +2513,8 @@ const AuthenticatedFieldRouteChildren: AuthenticatedFieldRouteChildren = {
   AuthenticatedFieldBusinessBankRoute: AuthenticatedFieldBusinessBankRoute,
   AuthenticatedFieldBusinessDetailsRoute:
     AuthenticatedFieldBusinessDetailsRoute,
+  AuthenticatedFieldBusinessElectricianRoute:
+    AuthenticatedFieldBusinessElectricianRoute,
   AuthenticatedFieldBusinessEscNoticeRoute:
     AuthenticatedFieldBusinessEscNoticeRoute,
   AuthenticatedFieldBusinessInsuranceRoute:
