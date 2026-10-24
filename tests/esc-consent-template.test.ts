@@ -129,13 +129,15 @@ describe("rendering the executed form", () => {
 });
 
 describe("executed copy to the owner (ESC recommends providing a copy)", () => {
-  test("real sends stay off until Jo approves the wording; TEST jobs get the draft", () => {
-    expect(CONSENT_COPY_EMAIL_APPROVED).toBe(false);
+  test("wording approved (decision 170): kit design, approved sentence, form text in the body, TEST label on TEST jobs", () => {
+    expect(CONSENT_COPY_EMAIL_APPROVED).toBe(true);
     const mail = renderConsentCopyEmail({ firstName: "Mary", installationDays: ["2026-11-11"], address: facts.premises_address, templateVersion: esc, formText: "Section 1: Information to be shared\nFirst Name: Mary Anne", sha256: "abc", myJobUrl: null, test: true });
-    expect(mail.subject).toContain("2026-11-11");
+    expect(mail.subject).toBe("Your signed consent form");
+    expect(mail.text).toContain(`Hi Mary, here's your copy of the owner's consent form you signed for the ceiling insulation at ${facts.premises_address}. It's also on your job page.`);
     expect(mail.text).toContain("First Name: Mary Anne");
-    expect(mail.text).toContain("Essential Services Commission");
-    expect(mail.html).toContain("TEST");
+    expect(mail.html).toContain("TEST — only sent to Jo");
+    expect(mail.html).not.toContain("See my job");
+    expect(renderConsentCopyEmail({ firstName: "Mary", installationDays: [], address: facts.premises_address, templateVersion: esc, formText: "x", sha256: "abc", myJobUrl: "https://estimate.homeinsulationvictoria.com.au/my-job/t" }).html).toContain(">See my job<");
   });
   test("server wiring: AP signing renders the template, stores ticks/rep and emails through the guarded owner path", () => {
     const server = readFileSync("src/lib/consent.server.ts", "utf8");
@@ -150,6 +152,8 @@ describe("executed copy to the owner (ESC recommends providing a copy)", () => {
     expect(copy).toContain("assertCustomerDeliveryAllowed(");
     expect(copy).toContain("sendGuardedOwnerEmail(");
     expect(copy).not.toMatch(/resendSend\(|fetch\(/);
+    for (const t of ["storage.from(\"job-files\").download", "attachments", "copyPath"]) expect(copy).toContain(t);
+    expect(server).toContain("copyPath: path");
   });
   test("the staged migration cites the ESC file and its hash, Jo's admin user, and keeps the lawyer row", () => {
     const sql = readFileSync("docs/pending-migrations/0226_esc_consent_template_v1.sql", "utf8");
