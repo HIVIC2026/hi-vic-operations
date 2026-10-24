@@ -1,11 +1,11 @@
-# Go-live TEST run (phone), 24 Oct 2026
+# Go-live TEST run (phone), updated 25 Oct 2026
 
 Account: **deep-test@hivic.test** (TEST Reinsulate). Everything on this account is practice: forms go to the TEST Mitti
 account, emails and texts go to the TEST inbox/phone only, real owners are never touched. Do it on your phone. I watch
 the database at every step and tell you what I see.
 
-Before you start: the PR is merged, the site has rebuilt (about 5 minutes after merge), and you have the Mitti app and
-the TEST Mitti login handy.
+Before you start: the PR is merged, the site has rebuilt (about 5 minutes after merge), the install form ID points at
+"A3 – Install day", and you have the Mitti app and the TEST Mitti login handy.
 
 | # | You do | You should see | I check |
 |---|---|---|---|
@@ -18,11 +18,11 @@ the TEST Mitti login handy.
 | 7 | Office (Chris or you on a laptop): Office → the job → **Choose trades** → send the PIESA to the TEST electrician. TEST electrician: accept, offer times. Owner: tap a time. | Safety check booked email | PIESA booking, PIESA copies queued for 24h-before rule |
 | 8 | TEST electrician completes the PIESA on the portal form with **no fixes**. | Owner: PIESA copy email; installer: PIESA copy email | piesa_deliveries rows, clearance = cleared, 30-day deadline set |
 | 9 | Installer (your phone): open the job → **Offer 3 install days**. Owner email: tap one. | Owner: "Your install is booked", day held 48h, deposit box with bank details. Installer: booked text | provisional booking, deposit step requested |
-| 10 | Office: Record payment → deposit amount, bank transfer. | Owner: "Deposit received ✓ Your day is locked in" | booking confirmed, install_booking_confirmed event |
-| 11 | Next morning 6:30am (or I trigger the daily text): the install-day text with the Mitti link. In Mitti: SWMS → PIISA → photos → Complete. | — | PIISA recorded, evidence rows |
-| 12 | Office: **Complete installation**. | Owner: "All done" email with the sign-rebate-form box + text | VEEC request step recorded once; O44 sent once |
+| 10 | Office → More → Test Centre → the job → **Simulate payment** (deposit). No Xero, no money (decision 240: the Money card never records payments). | Owner: "Deposit received ✓ Your day is locked in" | owner_payment_recorded event, booking confirmed |
+| 11 | Installer phone: open the job → **Safety plan** card → add a site note if you like → **Sign** (one tap per person). Then the install-day text (I trigger the 6:30am text) with the Mitti link. In Mitti: the new **A3 – Install day** form top to bottom (photos, safety checks, declaration, after videos, depth photos, sign-off) → **Complete**. | Safety plan shows "Signed"; Mitti marks the form complete; the job page says the install is done | swms_signed events + SWMS PDF in the job file; install sync; installation recorded from Mitti (decision 213) or held with the reason |
+| 12 | Nothing: completion is automatic from step 11. (If it was held, the job page shows why; fix it in Mitti and press Complete again.) | Owner: "All done" email with the sign-rebate-form box + text | O44 sent once; VEEC request step recorded once |
 | 13 | Owner email: tap **Sign your rebate form**, enter the 6-digit code, tick, type name, sign. | "Signed" + "Here's your signed rebate form" email with the PDF attached | consumer_signed_at, copy email with attachment |
-| 14 | Office: Record balance paid. | Completion pack email (flag permitting) | invoice paid, completion_pack_due |
+| 14 | Test Centre → **Simulate payment** (balance). | Completion pack email (flag permitting) | invoice paid, completion_pack_due |
 
 Stop and tell me at any step where what you see doesn't match the middle column. Nothing in this run reaches a real
 customer or installer.
