@@ -63,13 +63,14 @@ function DayPage() {
               ? <NextPanel title="Sign the rebate form" sub="The install form is Complete. Sign your declaration as lead installer (Section 3 Part B)."><SignRebate jobId={jobId} recorded={!!x.installationRecorded} onDone={() => done({ jobId }, "Install recorded")} /></NextPanel>
               : <Result good title="That's a wrap. Done and dusted." body="We'll check the photos and sign it off." />)}
             {o.kind === "missing" && <Result title={`Nearly there. ${o.items.length} photo${o.items.length === 1 ? "" : "s"} missing.`} body="Add these in the install form and this page updates itself." items={o.items} />}
-            {o.kind === "couldnt_get_in" && <Result title="Thanks. We'll rebook it." body={couldntGetInMessage(o.reason)} />}
+            {o.kind === "couldnt_get_in" && <Result title={o.visit === "install" ? "Thanks. Offer 3 new days when you're ready." : "Thanks. We'll rebook it."} body={couldntGetInMessage(o.reason, o.visit)} />}
+            {o.kind === "couldnt_get_in" && o.visit === "install" && <Link to="/field/$jobId" params={{ jobId }} className={primaryLinkClass}>Offer 3 new install days</Link>}
             {back}
           </>
         ) : asking ? (
           <section className="rounded-[18px] border border-line p-4">
             <h2 className="text-[17px] font-semibold">Couldn't get in?</h2>
-            <p className="mt-1 text-sm text-sub">Pick what happened. We'll take it from here.</p>
+            <p className="mt-1 text-sm text-sub">{data.kind === "install" ? "Pick what happened. The owner is told, nobody is charged, and you offer 3 new days inside the 30-day window." : "Pick what happened. We'll take it from here."}</p>
             <div className="mt-3 space-y-2">{COULDNT_GET_IN.map((r) => <QuietButton key={r} disabled={busy} onClick={async () => { setBusy(true); try { await cgi({ data: { jobId, reason: r } }); await refetch(); } finally { setBusy(false); setAsking(false); } }}>{r}</QuietButton>)}</div>
             <button type="button" className="mt-3 min-h-11 w-full text-center text-sm font-semibold text-hiv-blue" onClick={() => setAsking(false)}>Go back</button>
           </section>
@@ -107,7 +108,7 @@ function DayPage() {
 
             {data.kind === "install" && <PiisaCrewPicker jobId={jobId} />}
 
-            {data.kind === "ready_check" && <LinkRow muted border onClick={() => setAsking(true)}>Couldn't get in?</LinkRow>}
+            {(data.kind === "ready_check" || data.kind === "install") && <LinkRow muted border onClick={() => setAsking(true)}>Couldn't get in?</LinkRow>}
           </>
         )}
       </Screen>
