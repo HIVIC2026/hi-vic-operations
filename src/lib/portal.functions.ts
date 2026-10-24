@@ -1043,6 +1043,9 @@ export const completeInstallation = createServerFn({ method: "POST" }).middlewar
     // Gap 4: record exactly which confirmed install booking unlocked installation (AP review requires it completed).
     await logEvent(data.jobId, context.userId, "install_unlocked_by_booking", "Installation recorded against the confirmed install booking", { booking_id: unlockBooking.id, scheduled_start: unlockBooking.scheduled_start }, { internal: true });
     await logEvent(data.jobId, context.userId, ASSIGNMENT_EVENTS.INSTALLATION_COMPLETED, "Eligible installation undertaken");
+    // Decision 211: the final installation plan is generated from the recorded areas (install-day per-zone confirmations once
+    // install-evidence supplies them; the Ready Check areas until then). Best-effort, never blocks.
+    try { await (await import("./area-diagram.server")).fileFinalAreaDiagram(data.jobId, context.userId); } catch (e) { console.error("Final area diagram failed", (e as Error).message); }
     await autoAdvanceJob(data.jobId, context.userId, "installation completed");
     // Decision 120/169: the owner is asked to sign the VEEC assignment form at completion — the approved All done email (O44,
     // once per job) plus the approved text, from veec-reminders.server.ts. Best-effort, never blocks.

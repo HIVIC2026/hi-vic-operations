@@ -496,7 +496,15 @@ export type A3EvidenceCtx = {
   mandatoryCurrentPostwork?: boolean;
   /** Life-support consent/plan already on file (reused, never uploaded twice). */
   lifeSupportConsentOnFile: boolean;
+  /** Decision 211: the portal's generated final installation plan (kind `final_area_diagram`) is on the job file. */
+  generatedFinalPlan?: boolean;
 };
+/** Decision 211 (Jo 24 Oct 2026): the generated final plan replaces the install-day "final plan" upload. Old jobs keep
+ *  their uploaded plan (existingPlanMatchesInstall) as an accepted alternative. */
+export function generatedPlanSatisfiesFinalPlan(ctx: Pick<A3EvidenceCtx, "generatedFinalPlan" | "existingPlanMatchesInstall" | "mandatoryCurrentPostwork">): boolean {
+  if (ctx.generatedFinalPlan === true) return true;
+  return ctx.existingPlanMatchesInstall && !ctx.mandatoryCurrentPostwork;
+}
 /** capturedAt = LATEST recorded capture time; timed = files with a recorded time (undefined = legacy, treated as all). */
 export type A3Media = { key: A3EvidenceKey; count: number; geotagged: number; timed?: number; capturedAt?: string | null };
 /** Before-work media are checked at prestart; after-work media only at completion (never block the prestart check). */
@@ -514,7 +522,7 @@ export function a3EvidenceRequired(answers: OfficialAnswers, ctx: A3EvidenceCtx)
     { key: "before_video", min: 1 },
     { key: "product_photos", min: 1 },
     { key: "completed_video", min: 1 },
-    ...(ctx.existingPlanMatchesInstall && !ctx.mandatoryCurrentPostwork ? [] : [{ key: "final_plan" as const, min: 1 }]),
+    ...(generatedPlanSatisfiesFinalPlan(ctx) ? [] : [{ key: "final_plan" as const, min: 1 }]),
   ];
   return req.map((r) => ({ ...r, label: A3_EVIDENCE_LABELS[r.key] }));
 }
