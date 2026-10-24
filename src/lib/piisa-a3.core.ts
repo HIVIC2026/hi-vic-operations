@@ -9,6 +9,7 @@ type Any = any;
 import { flatten, norm, type Entry, type NativeMapping } from "./mitti.core";
 import type { OfficialAnswers } from "./official-forms.core";
 import { COLLECTION_NOTICE_BLOCK_MESSAGE } from "./esc-collection-notice.core";
+import { crewClearance, melbourneToday } from "./worker-compliance.core";
 
 export { PIISA_A3_TEMPLATE_ID } from "./mitti.core";
 
@@ -373,8 +374,10 @@ export function readyCheckPartPrefill(areas: RcArea[]): { values: Record<string,
 // ---------- crew ----------
 export type StaffOption = {
   workerId: string; name: string; eec: string | null; eecVerified: boolean;
-  /** Worker approved by the office. Unapproved workers are shown but can't go on the form (gate unchanged). */
+  /** Office login approval (shown only; decision 153: it no longer gates the crew — clearance does). */
   approved?: boolean;
+  /** Decision 153: cleared for crews = verified CII certificate + recorded level + expiry not passed. Undefined = not derived (legacy shape, not blocking). */
+  cleared?: boolean; clearanceReason?: string | null;
   issuer?: string | null; certificationId?: string | null;
   /** Recorded level/expiry only — null when not recorded; never invented. */
   level?: string | null; expiresOn?: string | null;
@@ -392,7 +395,7 @@ export const certificationRef = (c: unknown): string | null => { const v = (c as
 
 /** Roster from RECORDED facts: EEC verified only through a linked verified certification row (declared text never counts). */
 export type LevelRow = { certification_id: string; level: string | null; expires_on: string | null; recorded_at: string };
-export function staffFromRecords(workers: WorkerRow[], certs: CertRow[], levels: LevelRow[] = [], noticeAck?: Map<string, boolean>): StaffOption[] {
+export function staffFromRecords(workers: WorkerRow[], certs: CertRow[], levels: LevelRow[] = [], noticeAck?: Map<string, boolean>, today: string = melbourneToday()): StaffOption[] {
   const byId = new Map(certs.map((c) => [c.id, c]));
   const lv = new Map<string, LevelRow>();
   for (const l of [...levels].sort((a, b) => a.recorded_at.localeCompare(b.recorded_at))) lv.set(l.certification_id, l); // latest recorded wins
@@ -400,7 +403,10 @@ export function staffFromRecords(workers: WorkerRow[], certs: CertRow[], levels:
     const ref = certificationRef(w.certification);
     const c = ref ? byId.get(ref) : undefined;
     const ok = !!c && c.status === "verified" && !!c.certificate_number?.trim() && (!c.worker_id || c.worker_id === w.id);
-    return { workerId: w.id, name: w.full_legal_name.trim(), eec: ok ? c!.certificate_number!.trim() : null, eecVerified: ok, approved: w.approval_status === "approved", issuer: ok ? c!.issuer?.trim() || null : null, certificationId: ok ? c!.id : null, level: ok ? lv.get(c!.id)?.level ?? null : null, expiresOn: ok ? lv.get(c!.id)?.expires_on ?? null : null, ...(noticeAck ? { noticeAcknowledged: noticeAck.get(w.id) === true } : {}) };
+    const level = ok ? lv.get(c!.id)?.level ?? null : null, expiresOn = ok ? lv.get(c!.id)?.expires_on ?? null : null;
+    // Decision 153: clearance is derived from the verified check + recorded level/expiry, never from approval_status.
+    const cl = crewClearance({ removed_at: w.removed_at, certStatus: ok ? "verified" : c?.status === "rejected" ? "rejected" : null, level, expiresOn }, today);
+    return { workerId: w.id, name: w.full_legal_name.trim(), eec: ok ? c!.certificate_number!.trim() : null, eecVerified: ok, approved: w.approval_status === "approved", cleared: cl.cleared, clearanceReason: cl.reason, issuer: ok ? c!.issuer?.trim() || null : null, certificationId: ok ? c!.id : null, level, expiresOn, ...(noticeAck ? { noticeAcknowledged: noticeAck.get(w.id) === true } : {}) };
   }).sort((a, b) => a.name.localeCompare(b.name));
 }
 export type CrewPick = { workerId: string } | { other: { name: string; eec: string } };
@@ -408,14 +414,16 @@ export type CrewPick = { workerId: string } | { other: { name: string; eec: stri
 export type CrewSelection = { lead: string | { other: { name: string; eec: string } } | null; additional: CrewPick[] };
 export const leadWorkerId = (sel: CrewSelection): string | null => typeof sel.lead === "string" ? sel.lead : null;
 
-/** Lead = verified staff of the assigned installer business; ≤3 additional; no duplicates; "Other" needs name + EEC and office verification. */
+/** Lead = cleared staff (decision 153: verified CII + recorded level + not expired) of the assigned installer business; ≤3 additional; no duplicates; "Other" needs name + EEC and office verification. */
 export function crewSelectionProblems(sel: CrewSelection, staff: StaffOption[]): { problems: string[]; needsVerification: string[] } {
   const p: string[] = [], nv: string[] = [];
   const byId = new Map(staff.map((s) => [s.workerId, s]));
   const leadId = leadWorkerId(sel);
   const lead = leadId ? byId.get(leadId) : undefined;
   const leadOther = sel.lead && typeof sel.lead === "object" ? { name: sel.lead.other.name.trim(), eec: sel.lead.other.eec.trim() } : null;
-  const unapproved = (s: StaffOption) => s.approved === false;
+  // Not cleared (derived) blocks; a legacy shape without `cleared` falls through to the EEC check below.
+  const notCleared = (s: StaffOption) => s.cleared === false;
+  const clearMsg = (s: StaffOption) => `${s.name}: ${s.clearanceReason ?? "not cleared for the crew yet"} — can't go on the safety form yet`;
   const seenIds = new Set<string>(leadId ? [leadId] : []);
   const seenEec = new Set<string>();
   const seenName = new Set<string>();
@@ -429,7 +437,7 @@ export function crewSelectionProblems(sel: CrewSelection, staff: StaffOption[]):
     }
   } else if (leadId && !lead) p.push("The lead installer is not on your staff list");
   else if (!lead) p.push("Choose the lead installer from your staff, or Other");
-  else if (unapproved(lead)) p.push(`${lead.name}: waiting for office approval — can't go on the safety form yet`);
+  else if (notCleared(lead)) p.push(clearMsg(lead));
   else if (!lead.eecVerified || !lead.eec) p.push(`${lead.name}: EEC certification not verified`);
   else if (lead.noticeAcknowledged === false) p.push(`${lead.name}: ${COLLECTION_NOTICE_BLOCK_MESSAGE}`);
   if (lead) { seenName.add(norm(lead.name)); if (lead.eec) seenEec.add(norm(lead.eec)); }
@@ -440,7 +448,7 @@ export function crewSelectionProblems(sel: CrewSelection, staff: StaffOption[]):
       if (!s) { p.push("An additional installer is not on your verified staff list"); continue; }
       if (seenIds.has(a.workerId)) { p.push(`${s.name} is listed twice`); continue; }
       seenIds.add(a.workerId); seenName.add(norm(s.name)); if (s.eec) seenEec.add(norm(s.eec));
-      if (unapproved(s)) p.push(`${s.name}: waiting for office approval — can't go on the safety form yet`);
+      if (notCleared(s)) p.push(clearMsg(s));
       else if (!s.eecVerified || !s.eec) p.push(`${s.name}: EEC certification not verified`);
       else if (s.noticeAcknowledged === false) p.push(`${s.name}: ${COLLECTION_NOTICE_BLOCK_MESSAGE}`);
     } else {
@@ -648,12 +656,12 @@ export function a3PrestartSnapshot(auditId: string, audit: unknown, ctx: A3Evide
 /** Composite label a native staff dropdown shows: exact "Name — EEC <no> — <Business>". Built from records, never parsed by regex. */
 export const staffCompositeLabel = (s: StaffOption, business: string) => `${s.name} — EEC ${s.eec ?? ""} — ${business}`;
 /**
- * Each crew value from the audit (plain name, or a native composite label) must equal a CURRENT approved staff member with
+ * Each crew value from the audit (plain name, or a native composite label) must equal a CURRENT cleared (decision 153) staff member with
  * a verified EEC whose number matches. Stale, mismatched or "Other" entries block AP approval — never trusted by pattern.
  */
 export function a3CrewResolution(crew: { name: string; eec: string | null }[], staff: StaffOption[], business: string): { resolved: string[]; blockers: string[] } {
   const resolved: string[] = [], blockers: string[] = [];
-  const ok = staff.filter((s) => s.approved !== false && s.eecVerified && s.eec);
+  const ok = staff.filter((s) => s.cleared !== false && s.eecVerified && s.eec);
   for (const c of crew) {
     const raw = c.name.trim();
     const hit = ok.find((s) => raw === staffCompositeLabel(s, business)) ?? ok.find((s) => norm(s.name) === norm(raw));
@@ -735,10 +743,10 @@ export function optionForStaff(opts: Opt[], s: StaffOption, business: string): O
   const tail = ` — EEC ${s.eec} — ${business}`;
   return opts.find((o) => o.id !== A3_CREW_OTHER_OPTION && o.label.endsWith(tail) && o.label.slice(0, -tail.length).trim().toLowerCase() === s.name.trim().toLowerCase()) ?? null;
 }
-/** Roster upkeep: verified+approved staff without a native option, and native options matching no current verified staff. */
+/** Roster upkeep: verified+cleared staff without a native option, and native options matching no current verified staff. */
 export function a3RosterStatus(template: unknown, staff: StaffOption[], business: string): { missingOptions: string[]; staleOptions: string[]; alert: string | null } {
   const opts = a3CrewOptions(template) ?? [];
-  const ok = staff.filter((s) => s.approved !== false && s.eecVerified && s.eec);
+  const ok = staff.filter((s) => s.cleared !== false && s.eecVerified && s.eec);
   const matched = new Set<string>();
   const missingOptions: string[] = [];
   for (const s of ok) { const o = optionForStaff(opts, s, business); if (o) matched.add(o.id); else missingOptions.push(s.name); }
@@ -773,7 +781,7 @@ export function a3CrewNativeItems(template: unknown, sel: CrewSelection, staff: 
     };
     if ("workerId" in pick) {
       const s = byId.get(pick.workerId);
-      if (!s || !s.eecVerified || !s.eec || s.approved === false) { problems.push(`Crew row ${row + 1}: not a verified, approved installer of this company`); return; }
+      if (!s || !s.eecVerified || !s.eec || s.cleared === false) { problems.push(`Crew row ${row + 1}: not a verified, cleared installer of this company`); return; }
       // PRIVACY (Jo 8 Oct 2026): the A3 template is shared by every company, so it must hold no named staff. Known,
       // verified staff of the ASSIGNED company always go in as Other + their recorded name/certificate (never retyped),
       // and a named option is never selected even if one appears in the shared list.
@@ -783,7 +791,7 @@ export function a3CrewNativeItems(template: unknown, sel: CrewSelection, staff: 
   return { items, notes, problems };
 }
 /**
- * Completed audit crew -> official Part 2 answers + blockers. Known option: resolved ONLY to a current verified, approved
+ * Completed audit crew -> official Part 2 answers + blockers. Known option: resolved ONLY to a current verified, cleared
  * staff member of the assigned company whose built label equals the option label; the certificate comes from the DB
  * record. Other: typed branch values, always office verification.
  */
@@ -803,8 +811,8 @@ export function a3ResolveCrewChoices(choices: CrewChoice[], template: unknown | 
     }
     const opts = optsFromTemplate ?? (c.optionLabel ? [{ id: c.optionId, label: c.optionLabel }] : []);
     const opt = opts.find((o) => o.id === c.optionId);
-    const s = opt ? staff.find((x) => x.approved !== false && optionForStaff([opt], x, business)) : undefined;
-    if (!s) { blockers.push(`${label}: chosen option does not match a current verified, approved installer of ${business} — office review`); continue; }
+    const s = opt ? staff.find((x) => x.cleared !== false && optionForStaff([opt], x, business)) : undefined;
+    if (!s) { blockers.push(`${label}: chosen option does not match a current verified, cleared installer of ${business} — office review`); continue; }
     if (seen.has(s.workerId)) { blockers.push(`${s.name} is listed twice`); continue; } seen.add(s.workerId);
     put(s.name, s.eec!);
   }

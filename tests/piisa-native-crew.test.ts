@@ -3,10 +3,10 @@ import { buildOfficialPrefill } from "../src/lib/mitti.core";
 import { A3_CREW_NAME_IDS, A3_CREW_OTHER_FIELDS, A3_CREW_OTHER_OPTION, A3_NATIVE_IDS, PIISA_A3_MAPPING, a3CrewChoices, a3CrewNativeItems, a3CrewSchemaProblems, a3MissingFields, a3ResolveCrewChoices, a3RosterStatus, readyCheckPartPrefill, type StaffOption } from "../src/lib/piisa-a3.core";
 import { OPT_BHAVDEEP, OPT_DOMINIC, OPT_OTHER, a3Template } from "./helpers/a3-template";
 
-// Current records as stored (name lower-case "singh"); Dominic still waiting for office approval.
-const BH: StaffOption = { workerId: "db4727ae-f390-4136-9c22-3242a806cc0b", name: "Bhavdeep singh", eec: "CII-027", eecVerified: true, approved: true };
-const DOM: StaffOption = { workerId: "d22a6ed2-7a47-4bbd-b293-9636c5e74740", name: "Dominic Doherty", eec: "4546", eecVerified: true, approved: false };
-const NEW: StaffOption = { workerId: "w-new", name: "Nia New", eec: "EEC-77", eecVerified: true, approved: true };
+// Current records as stored (name lower-case "singh"); Dominic verified but not yet cleared (decision 153: no recorded level/expiry).
+const BH: StaffOption = { workerId: "db4727ae-f390-4136-9c22-3242a806cc0b", name: "Bhavdeep singh", eec: "CII-027", eecVerified: true, approved: true, cleared: true };
+const DOM: StaffOption = { workerId: "d22a6ed2-7a47-4bbd-b293-9636c5e74740", name: "Dominic Doherty", eec: "4546", eecVerified: true, approved: false, cleared: false, clearanceReason: "CII certificate verified but the level and expiry date haven't been recorded yet." };
+const NEW: StaffOption = { workerId: "w-new", name: "Nia New", eec: "EEC-77", eecVerified: true, approved: true, cleared: true };
 const sel = (items: { item_id: string; responses: unknown }[]) => ({ items });
 const pick = (id: string, label: string) => ({ selected: [{ id, label }] });
 
@@ -66,11 +66,11 @@ describe("completed audit crew resolved against CURRENT records", () => {
     expect(r.blockers).toEqual([]);
     expect(r.needsVerification[0]).toContain("Ann Extra");
   });
-  test("forged client label, unapproved worker, stale option and certificate change all block", () => {
+  test("forged client label, uncleared worker, stale option and certificate change all block", () => {
     const forged = sel([{ item_id: A3_CREW_NAME_IDS[0], responses: pick("not-a-real-option", "Bhavdeep Singh — EEC CII-027 — Reinsulate") }]);
     expect(a3ResolveCrewChoices(a3CrewChoices(forged), a3Template(), [BH], "Reinsulate").blockers.length).toBe(1);
     const dom = sel([{ item_id: A3_CREW_NAME_IDS[0], responses: pick(OPT_DOMINIC.id, OPT_DOMINIC.label) }]);
-    expect(a3ResolveCrewChoices(a3CrewChoices(dom), a3Template(), [DOM], "Hic").blockers.join()).toContain("current verified, approved");
+    expect(a3ResolveCrewChoices(a3CrewChoices(dom), a3Template(), [DOM], "Hic").blockers.join()).toContain("current verified, cleared");
     const changed = { ...BH, eec: "CII-999" };
     expect(a3ResolveCrewChoices(a3CrewChoices(audit), a3Template(), [changed], "Reinsulate").blockers.join()).toContain("Lead installer");
   });

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { approvalFlags, licenceState, licenceWarning, missingItems, piisaState, workerOfferBlocker } from "../src/lib/worker-compliance.core";
+import { CREW_CLEARANCE_REASON, approvalFlags, crewClearance, licenceState, licenceWarning, missingItems, piisaState, workerOfferBlocker } from "../src/lib/worker-compliance.core";
 import { stepErrors as recErrors } from "../src/lib/rec-onboarding.core";
 import { stepErrors as instErrors } from "../src/lib/installer-onboarding.core";
 const T = "2026-10-06";
@@ -31,6 +31,29 @@ describe("electrician licence expiry", () => {
     const base = { works_under_rec: false, primary_contact_name: "Sam", contact_is_licensed_electrician: true, licence_number: "A1", business_phone: "0412345678", business_email: "sam@sparky.com.au" } as never;
     expect(recErrors("about" as never, base)).toContain("Enter your licence expiry date.");
     expect(recErrors("about" as never, { ...(base as object), licence_expiry: "2028-01-01" } as never)).not.toContain("Enter your licence expiry date.");
+  });
+});
+describe("crew clearance (decision 153, Jo 24 Oct 2026)", () => {
+  const ok = { certStatus: "verified", level: "full", expiresOn: "2028-01-01" };
+  test("verified CII + recorded level + unexpired = cleared; approval_status plays no part", () => {
+    expect(crewClearance(ok, T)).toEqual({ cleared: true, reason: null });
+    expect(crewClearance({ ...ok, level: "provisional" }, T).cleared).toBe(true);
+    expect(crewClearance({ ...ok, expiresOn: T }, T).cleared).toBe(true); // expires today still counts today
+  });
+  test("each missing fact blocks on its own, fail closed", () => {
+    expect(crewClearance({ ...ok, certStatus: null }, T).reason).toBe(CREW_CLEARANCE_REASON.unverified);
+    expect(crewClearance({ ...ok, certStatus: "rejected" }, T).reason).toBe(CREW_CLEARANCE_REASON.withdrawn);
+    expect(crewClearance({ ...ok, level: null }, T).reason).toBe(CREW_CLEARANCE_REASON.noLevel);
+    expect(crewClearance({ ...ok, expiresOn: null }, T).reason).toBe(CREW_CLEARANCE_REASON.noLevel);
+    expect(crewClearance({ ...ok, expiresOn: "2026-10-05" }, T).reason).toBe(CREW_CLEARANCE_REASON.expired);
+    expect(crewClearance({ ...ok, removed_at: "2026-10-01T00:00:00Z" }, T).reason).toBe(CREW_CLEARANCE_REASON.removed);
+  });
+  test("office flags: verified without level, or expired, is called out; undefined level facts never invent a flag", () => {
+    const v = { trade_role: "installer", certification_status: "verified" as const, piisa_status: "done" as const, piisa_certificate_path: "p", piisa_verified_at: "2026-10-01" };
+    expect(approvalFlags(v, T)).toEqual([]);
+    expect(approvalFlags({ ...v, cii_level: null, cii_expires_on: null }, T)).toEqual(["CII level and expiry to record"]);
+    expect(approvalFlags({ ...v, cii_level: "full", cii_expires_on: "2026-10-01" }, T)).toEqual(["CII certificate expired"]);
+    expect(approvalFlags({ ...v, cii_level: "full", cii_expires_on: "2028-01-01" }, T)).toEqual([]);
   });
 });
 describe("installer PIISA training", () => {

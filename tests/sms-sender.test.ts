@@ -14,7 +14,15 @@ describe("real SMS gate", () => {
   test("no AU number", () => expect(smsBlocker({ ...ok, senderConfigured: false })).toContain("Australian sending number"));
   test("non-AU mobile", () => expect(smsBlocker({ ...ok, to: "+1 415 555 0100" })).toContain("Australian mobile"));
   test("TEST records stay on the test sender", () => expect(smsBlocker({ ...ok, isTestRecord: true })).toContain("TEST"));
-  test("unapproved wording never sends", () => expect(smsBlocker({ ...ok, type: "job_offer" })).toContain("Wording"));
+  test("unapproved wording never sends", () => expect(smsBlocker({ ...ok, type: "quote_ready" })).toContain("Wording"));
+  test("decision 154: job_offer and esc_notice_link wording approved — still behind the master switch and their own switches", () => {
+    expect(smsBlocker({ ...ok, type: "job_offer" })).toBeNull();
+    expect(smsBlocker({ ...ok, type: "job_offer", commsEnabled: false })).toContain("switched off");
+    expect(smsBlocker({ ...ok, type: "job_offer", typeSwitchOn: false })).toContain("switched off");
+    expect(smsBlocker({ ...ok, type: "job_offer", consent: false })).toContain("not approved and active");
+    expect(smsBlocker({ ...ok, type: "esc_notice_link", nowIso: "2026-10-22T02:00:00Z" })).toBeNull();
+    expect(smsBlocker({ ...ok, type: "esc_notice_link", nowIso: "2026-10-22T02:00:00Z", commsEnabled: false })).toContain("switched off");
+  });
   test("usual-electrician reminder remains blocked without approved wording", () => expect(smsBlocker({ ...ok, type: "usual_electrician_missing" })).toContain("Wording"));
   test("unknown type fails closed", () => expect(smsBlocker({ ...ok, type: "nope" })).toContain("Unknown"));
   test("AU formatting", () => {

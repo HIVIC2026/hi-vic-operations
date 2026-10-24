@@ -2,7 +2,8 @@
 // module on the autoAdvanceJob graph can reach a sender (tests/comms.test.ts). Writes: one acknowledgement event by the
 // person themself (secure link or own sign-in), link-issued events (token SHA-256 only) and link-sent events. Every send
 // goes through the existing guarded senders: TEST partners → test-send.server; real partners → sendRealSms (type
-// `esc_notice_link`, wording unapproved) / sendOfficeEmail behind COLLECTION_NOTICE_SEND_APPROVED (false).
+// `esc_notice_link`, decision 146 wording, gated by customer_comms_enabled + its switch) / sendOfficeEmail behind
+// COLLECTION_NOTICE_SEND_APPROVED (on since decision 154; the office email master switch still applies).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError } from "./workflow.server";
 import { hashToken, newToken } from "./worker-links.core";
@@ -59,9 +60,10 @@ async function recordAcknowledgement(p: { worker: NoticeWorkerRow; actorId: stri
 
 /**
  * Issue a fresh link for one installer person and send it by text + email (attempt number from the send history).
- * `actorId` null = the scheduled sweep. Business owner / office use this for a manual re-send too.
+ * `actorId` null = the scheduled sweep. Business owner / office use this for a manual re-send too (`manual`: the text gets its
+ * own one-off idempotency key, so a key consumed by an earlier held attempt can never turn a re-send into "already" — decision 154).
  */
-export async function issueAndSendNoticeLink(p: { worker: NoticeWorkerRow; actorId: string | null; attempt: 1 | 2 | 3; reminder: boolean; now?: Date }) {
+export async function issueAndSendNoticeLink(p: { worker: NoticeWorkerRow; actorId: string | null; attempt: 1 | 2 | 3; reminder: boolean; manual?: boolean; now?: Date }) {
   const now = p.now ?? new Date();
   const { data: b } = await admin.from("businesses").select("name, trading_name, onboarding_notes").eq("id", p.worker.business_id).maybeSingle();
   const test = isTestPartner(b);
@@ -83,7 +85,8 @@ export async function issueAndSendNoticeLink(p: { worker: NoticeWorkerRow; actor
     email = await sendTestEmail(ctx, p.worker.email, mail.subject, rendered.html, rendered.text);
   } else {
     const { sendRealSms } = await import("./sms.server");
-    const r = await sendRealSms({ type: COLLECTION_NOTICE_SMS_TYPE, idempotencyKey: `esc-notice-link:v1:${p.worker.id}:${p.attempt}`, to: p.worker.mobile, body: noticeLinkSmsBody(first, url), businessId: p.worker.business_id });
+    const key = p.manual ? `esc-notice-link:v1:${p.worker.id}:manual:${link.token_hash.slice(0, 16)}` : `esc-notice-link:v1:${p.worker.id}:${p.attempt}`;
+    const r = await sendRealSms({ type: COLLECTION_NOTICE_SMS_TYPE, idempotencyKey: key, to: p.worker.mobile, body: noticeLinkSmsBody(first, url), businessId: p.worker.business_id });
     sms = { status: r.status, detail: r.detail };
     if (!COLLECTION_NOTICE_SEND_APPROVED) email = { status: "blocked", detail: "Email wording waiting for Jo's approval (COLLECTION_NOTICE_SEND_APPROVED)." };
     else {
@@ -92,11 +95,13 @@ export async function issueAndSendNoticeLink(p: { worker: NoticeWorkerRow; actor
     }
   }
   await admin.from("admin_config_events").insert({ actor_id: p.actorId, event_type: COLLECTION_NOTICE_SEND_EVENT, summary: `ESC notice link to ${p.worker.full_legal_name}: text ${sms.status}, email ${email.status} (attempt ${p.attempt}${p.reminder ? ", reminder" : ""})`,
-    details: { business_id: p.worker.business_id, worker_id: p.worker.id, worker_email: noticeEmailKey(p.worker.email), attempt: p.attempt, reminder: p.reminder, at: now.toISOString(), sms, email, is_test: test } });
+    details: { business_id: p.worker.business_id, worker_id: p.worker.id, worker_email: noticeEmailKey(p.worker.email), attempt: p.attempt, reminder: p.reminder, manual: p.manual === true, at: now.toISOString(), sms, email, is_test: test } });
   return { sms, email, attempt: p.attempt };
 }
 
-/** Business owner (own business) or office: send / re-send one person's link now. Counted as the next attempt. */
+/** Business owner (own business) or office: send / re-send one person's link now. Counted as the next attempt that actually
+ *  LEFT (held attempts — every channel blocked — don't count, decision 154); the text uses a one-off key, so it always goes
+ *  when the guards allow it. */
 export async function sendNoticeLinkFor(actorId: string, workerId: string, isAdmin: boolean) {
   const { data: w, error } = await admin.from("partner_workers").select(NOTICE_WORKER_COLS).eq("id", workerId).maybeSingle();
   if (error || !w || (w as NoticeWorkerRow).removed_at || (w as NoticeWorkerRow).trade_role !== "installer") throw new WorkflowError("That installer wasn't found.");
@@ -105,8 +110,9 @@ export async function sendNoticeLinkFor(actorId: string, workerId: string, isAdm
   const [status] = await businessNoticeStatuses(worker.business_id, [worker]);
   if (status?.state === "acknowledged") throw new WorkflowError(`${worker.full_legal_name} has already acknowledged the notice.`);
   const history = await noticeSendHistory([worker.id]);
-  const n = Math.min(3, (history.get(worker.id)?.length ?? 0) + 1) as 1 | 2 | 3;
-  return issueAndSendNoticeLink({ worker, actorId, attempt: n, reminder: n > 1 });
+  const delivered = (history.get(worker.id) ?? []).filter((h) => !h.held).length;
+  const n = Math.min(3, delivered + 1) as 1 | 2 | 3;
+  return issueAndSendNoticeLink({ worker, actorId, attempt: n, reminder: n > 1, manual: true });
 }
 
 /**

@@ -70,8 +70,10 @@ export const COLLECTION_NOTICE_BLOCK_MESSAGE = "ESC privacy collection notice no
 export const COLLECTION_NOTICE_EVENT = "esc_collection_notice_acknowledged";
 export const COLLECTION_NOTICE_LINK_EVENT = "esc_collection_notice_link_issued";
 export const COLLECTION_NOTICE_SEND_EVENT = "esc_collection_notice_link_sent";
-/** Real (non-TEST) link texts/emails and the emailed copy stay off until Jo approves the wording. TEST partners use the test senders. */
-export const COLLECTION_NOTICE_SEND_APPROVED = false;
+/** Real (non-TEST) link texts/emails: on since decision 154 (Jo 24 Oct 2026; wording decisions 146/147). Delivery still waits on
+ *  customer_comms_enabled + the esc_notice_link switch / the office email master switch. The emailed COPY of the notice on
+ *  acknowledgement is still waiting for Jo. TEST partners use the test senders. */
+export const COLLECTION_NOTICE_SEND_APPROVED = true;
 export const COLLECTION_NOTICE_EMAIL_APPROVED = false;
 export const COLLECTION_NOTICE_LINK_DAYS = 30;
 /** Reminder schedule (decision 130): first send, then 3 and 7 days after the first send while not acknowledged. */
@@ -226,6 +228,12 @@ export function noticeLinkEmail(i: { firstName: string | null; businessName: str
     ],
   };
 }
+
+/** A recorded send attempt that never reached the person: no channel reports sent/sent_unknown (decision 154). */
+export const noticeAttemptHeld = (d: { sms?: { status?: string } | null; email?: { status?: string } | null }): boolean => {
+  const left = (s: string | undefined) => s === "sent" || s === "sent_unknown" || s === "queued" || s === "delivered";
+  return !left(d.sms?.status) && !left(d.email?.status);
+};
 
 /**
  * What to send now for one unacknowledged person, from their send history (attempt numbers already recorded, and when the

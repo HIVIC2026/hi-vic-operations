@@ -83,8 +83,16 @@ export const officeWorkerCompliance = createServerFn({ method: "POST" }).middlew
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { data } = await admin.from("partner_workers").select(`${COLS}, businesses(name, trading_name)`).is("removed_at", null);
     const t = today();
-    return (await withNoticeAck(data ?? [])).map((w) => ({ id: w.id, name: w.full_legal_name, role: w.trade_role, business: (w.businesses as { trading_name: string | null; name: string } | null)?.trading_name ?? (w.businesses as { name: string } | null)?.name ?? null, flags: approvalFlags(w as never, t), warning: licenceWarning(w as never, t), piisa: piisaState(w as never), hasPiisaFile: !!w.piisa_certificate_path, eec: eecState(w as never), escNotice: w.collection_notice_acknowledged }))
-      .filter((r) => r.flags.length || r.warning);
+    // Decision 153: verified installers also need a recorded level + unexpired date to be cleared; surface what is missing.
+    const { crewClearance } = await import("./worker-compliance.core");
+    const facts = await latestCertFacts(admin as never, (data ?? []).filter((w) => w.trade_role === "installer"));
+    return (await withNoticeAck(data ?? [])).map((w) => {
+      const f = facts.get(w.id);
+      const row = f ? { ...w, cii_level: f.level, cii_expires_on: f.expiresOn } : w;
+      const cl = f && eecState(w as never) === "verified" ? crewClearance({ certStatus: f.certStatus ?? "verified", level: f.level, expiresOn: f.expiresOn }, t) : null;
+      return { id: w.id, name: w.full_legal_name, role: w.trade_role, business: (w.businesses as { trading_name: string | null; name: string } | null)?.trading_name ?? (w.businesses as { name: string } | null)?.name ?? null, flags: approvalFlags(row as never, t), warning: licenceWarning(w as never, t), piisa: piisaState(w as never), hasPiisaFile: !!w.piisa_certificate_path, eec: eecState(w as never), escNotice: w.collection_notice_acknowledged,
+        cii: cl ? { level: f!.level, expiresOn: f!.expiresOn, cleared: cl.cleared, reason: cl.reason } : null, certNumber: (w.certification as { eec_upload?: { number?: string | null } } | null)?.eec_upload?.number ?? null };
+    }).filter((r) => r.flags.length || r.warning);
   });
 
 /** Office: short-lived signed link to the worker's uploaded EEC/CII certificate (never a public URL). */
@@ -102,26 +110,57 @@ export const officeEecFileUrl = createServerFn({ method: "POST" }).middleware([r
     return { url: s?.signedUrl ?? null };
   });
 
-/** Office: verify an uploaded EEC/CII certificate. Sets certification_status='verified' and keeps the
- *  upload metadata + any other certification JSON fields. Worker approval stays a separate gate. */
+/** Decision 153: latest certification check per worker (by id or email) + the latest recorded level/expiry against it. Read-only. */
+async function latestCertFacts(admin: { from: (t: string) => any }, workers: { id: string; email: string }[]) {
+  const out = new Map<string, { certStatus: string | null; certId: string | null; level: string | null; expiresOn: string | null }>();
+  if (!workers.length) return out;
+  const emails = workers.map((w) => w.email.trim().toLowerCase());
+  const { data: certs } = await admin.from("partner_worker_certifications").select("id, worker_id, worker_email, status, recorded_at")
+    .or(`worker_id.in.(${workers.map((w) => w.id).join(",")}),worker_email.in.(${emails.map((e) => `"${e}"`).join(",")})`).order("recorded_at", { ascending: false });
+  const ids = ((certs ?? []) as { id: string }[]).map((c) => c.id);
+  const { data: levels } = ids.length ? await admin.from("worker_certification_levels").select("certification_id, level, expires_on, recorded_at").in("certification_id", ids).order("recorded_at", { ascending: false }) : { data: [] };
+  for (const w of workers) {
+    const c = ((certs ?? []) as { id: string; worker_id: string | null; worker_email: string; status: string }[]).find((r) => r.worker_id === w.id || r.worker_email.trim().toLowerCase() === w.email.trim().toLowerCase()) ?? null;
+    const l = c ? ((levels ?? []) as { certification_id: string; level: string; expires_on: string }[]).find((r) => r.certification_id === c.id) ?? null : null;
+    out.set(w.id, { certStatus: c?.status ?? null, certId: c?.id ?? null, level: l?.level ?? null, expiresOn: l?.expires_on ?? null });
+  }
+  return out;
+}
+
+/** Office: verify an uploaded EEC/CII certificate and record its level + expiry from the check (decision 153). Writes the
+ *  permanent certification check row + level row (append-only), links it on the worker (`certification.verification_id`) and sets
+ *  certification_status='verified'. That recorded check is what clears the person for crews/offers — approval_status (logins) is untouched.
+ *  Also used to re-record a renewed certificate once the recorded one has expired. */
 export const officeVerifyEec = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ workerId: uuid }).parse(d))
+  .inputValidator((d) => z.object({ workerId: uuid, certificateNumber: z.string().trim().min(1).max(80), level: z.enum(["full", "provisional"]), expiresOn: ymd }).parse(d))
   .handler(async ({ data, context }) => {
     const { requireAdmin } = await import("./workflow.server");
     await requireAdmin(context.supabase);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
-    const { data: w } = await admin.from("partner_workers").select("id, trade_role, certification_status, certification").eq("id", data.workerId).is("removed_at", null).maybeSingle();
+    const { data: w } = await admin.from("partner_workers").select("id, email, trade_role, certification_status, certification").eq("id", data.workerId).is("removed_at", null).maybeSingle();
     if (!w || w.trade_role !== "installer") throw new Error("EEC certificate checks are only for installer workers.");
     const upload = (w.certification as { eec_upload?: { path?: string | null; uploaded_at?: string; number?: string | null } } | null)?.eec_upload;
     if (!upload?.path) throw new Error("No certificate uploaded to verify.");
-    if (w.certification_status === "verified") throw new Error("This certificate is already verified.");
+    const t = today();
+    if (data.expiresOn < t) throw new Error("That expiry date has passed. Enter the expiry date shown on the certificate.");
+    const { crewClearance } = await import("./worker-compliance.core");
+    const cur = (await latestCertFacts(admin as never, [w])).get(w.id)!;
+    if (crewClearance({ certStatus: cur.certStatus, level: cur.level, expiresOn: cur.expiresOn }, t).cleared) throw new Error(`This certificate is already verified and current (${cur.level}, expires ${cur.expiresOn}).`);
     const now = new Date().toISOString();
+    const email = w.email.trim().toLowerCase();
+    const { data: cert, error: ce } = await admin.from("partner_worker_certifications").insert({
+      worker_id: w.id, worker_email: email, status: "verified", certificate_number: data.certificateNumber, issuer: null,
+      evidence_source: "certificate_sighted", evidence_note: `Office verified the uploaded EEC/CII certificate (${data.level}, expires ${data.expiresOn}).`, recorded_by: context.userId,
+    }).select("id").single();
+    if (ce || !cert) throw new Error("Couldn't record the certificate check. Please try again.");
+    const { error: le } = await admin.from("worker_certification_levels").insert({ certification_id: cert.id, worker_email: email, level: data.level, expires_on: data.expiresOn, recorded_by: context.userId });
+    if (le) throw new Error("Certificate check recorded, but the level/expiry didn't save. Please try again.");
     const { error } = await admin.from("partner_workers").update({
       certification_status: "verified",
-      certification: mergeEec(w.certification, { ...eecUploadMeta(upload.path, upload.uploaded_at ?? now, upload.number), eec_verified_at: now, eec_verified_by: context.userId } as never) as never,
+      certification: mergeEec(w.certification, { ...eecUploadMeta(upload.path, upload.uploaded_at ?? now, upload.number ?? data.certificateNumber), verification_id: cert.id, eec_verified_at: now, eec_verified_by: context.userId } as never) as never,
     }).eq("id", w.id);
     if (error) throw new Error("Couldn't verify the certificate. Please try again.");
-    await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: "eec_certificate_verified", summary: "EEC/CII certificate verified", details: { worker_id: w.id } });
+    await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: "eec_certificate_verified", summary: `EEC/CII certificate verified (${data.level}, expires ${data.expiresOn})`, details: { worker_id: w.id, certification_id: cert.id, level: data.level, expires_on: data.expiresOn } });
     return { ok: true };
   });
 

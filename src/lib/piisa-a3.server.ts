@@ -13,7 +13,7 @@ export async function assignedInstallerBusiness(jobId: string): Promise<string> 
   return data.business_id;
 }
 
-/** Approved, current installer staff of THIS business only. EEC counts only when office-verified. */
+/** Current installer staff of THIS business only. EEC counts only when office-verified; decision 153: cleared = verified + recorded level + not expired (approval_status shown, never a gate). */
 export async function crewStaff(businessId: string): Promise<StaffOption[]> {
   // All current installer workers of THIS business (approval shown, never changed), with their linked certification rows.
   const { data, error } = await admin.from("partner_workers").select("id, business_id, email, full_legal_name, certification, approval_status, removed_at, trade_role, licence_expires_on").eq("business_id", businessId).eq("trade_role", "installer").is("removed_at", null);
