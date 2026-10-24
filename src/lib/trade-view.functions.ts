@@ -150,3 +150,15 @@ export const askTradeReminder = createServerFn({ method: "POST" }).middleware([r
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => (await import("./job-status.server")).tradeAskReminder(context.userId, data.jobId));
 
+/** Installer Job page (M2), Today's job extras (M4) and Money extras (M6) — decisions 196–203. Business-scoped reads. */
+export const getTradeJobPage = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeJobPage(data.jobId, context.userId)));
+
+export const getTradeDayExtras = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeDayExtras(data.jobId, context.userId)));
+
+export const getTradeMoneyExtras = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => plain(await (await import("./trade-view.server")).tradeMoneyExtras(context.userId)));
+

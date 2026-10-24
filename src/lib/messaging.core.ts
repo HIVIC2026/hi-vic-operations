@@ -28,10 +28,10 @@ export const QUICK_ACTIONS: Record<Exclude<ThreadRole, "admin">, string[]> = {
     "Running about 15 minutes late — sorry.",
     "I'm outside now.",
   ],
+  // Jo 24 Oct 2026 (mock-up M2): three short chips.
   installer: [
-    "Hi, I'm your insulation installer. I've proposed some times in the portal — please pick one that suits.",
-    "I'm on my way.",
-    "Running about 15 minutes late — sorry.",
-    "I'm outside now.",
+    "I've sent you 3 days",
+    "I'm on my way",
+    "Running 15 min late",
   ],
 };

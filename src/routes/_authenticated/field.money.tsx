@@ -1,111 +1,98 @@
+// Money = approved mock-up M6 (Jo 24 Oct 2026, decision 203): the installer's own pay only — Coming / Being checked /
+// This month / Last month, per-job rows with payPill states, how pay works by job type, bank account on file,
+// Download statement. Pay states come from trade-view.core payPill; totals from installer-screens.core.
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { TradeShell, aud, card } from "@/components/trade/TradeShell";
-import { getTradeMoneyView } from "@/lib/trade-view.functions";
+import { useState } from "react";
+import { TradeShell, aud } from "@/components/trade/TradeShell";
+import { getTradeMoneyExtras, getTradeMoneyView } from "@/lib/trade-view.functions";
 import { payPill } from "@/lib/trade-view.core";
-
-type Tab = "checking" | "coming" | "paid";
-const TABS: { key: Tab; label: string; title: string; note: string }[] = [
-  { key: "checking", label: "Awaiting approval", title: "Awaiting office approval", note: "The office checks the paperwork first." },
-  { key: "coming", label: "Approved", title: "Approved · to be paid", note: "Paid within 7 days of approval." },
-  { key: "paid", label: "Paid", title: "Paid jobs", note: "Sent to your account." },
-];
+import { HOW_PAY_WORKS, READY_CHECKS_FREE, bankLine, moneyRowSub, moneyTotals, shortDay } from "@/lib/installer-screens.core";
+import { Group, LinkRow, Note, Pill, Screen, outlineLinkClass } from "@/components/trade/installer-kit";
 
 export const Route = createFileRoute("/_authenticated/field/money")({
-  validateSearch: (s: Record<string, unknown>): { tab?: Tab | undefined; pay?: string | undefined } => {
-    const t = s["tab"], p = s["pay"];
-    return { tab: t === "checking" || t === "coming" || t === "paid" ? t : undefined, pay: typeof p === "string" ? p : undefined };
-  },
-  head: () => ({ meta: [{ title: "Money – Home Insulation Victoria" }, { name: "description", content: "What's landing in your account and what you've earned." }, { property: "og:title", content: "Money – Home Insulation Victoria" }, { property: "og:description", content: "What's landing in your account and what you've earned." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
+  validateSearch: (s: Record<string, unknown>): { all?: boolean | undefined } => ({ all: s["all"] === true || s["all"] === "1" ? true : undefined }),
+  head: () => ({ meta: [{ title: "Money – Home Insulation Victoria" }, { name: "description", content: "Your pay: what's coming, what's being checked and what's been paid." }, { property: "og:title", content: "Money – Home Insulation Victoria" }, { property: "og:description", content: "Your pay: what's coming, what's being checked and what's been paid." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
   component: Money,
 });
 
-const TONE = { blue: "bg-mist text-hiv-blue", blush: "bg-pink text-rose", mint: "bg-mint text-hiv-green" } as const;
-const day = (iso: string) => new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "long", timeZone: "Australia/Melbourne" });
-
-function Pair({ k, v }: { k: string; v: React.ReactNode }) {
-  return <div className="flex items-start justify-between gap-4 border-b border-line py-3 last:border-0"><dt className="text-sm text-sub">{k}</dt><dd className="text-right text-sm font-bold">{v}</dd></div>;
-}
+const PAID_SHOWN = 3;
 
 function Money() {
   const load = useServerFn(getTradeMoneyView);
-  const { tab: tabParam, pay } = Route.useSearch();
+  const loadExtras = useServerFn(getTradeMoneyExtras);
+  const { all } = Route.useSearch();
+  const [showAll, setShowAll] = useState(!!all);
   const { data, error } = useQuery({ queryKey: ["trade-money-v2"], queryFn: () => load(), retry: false }); // a refusal (staff) shows at once, not after retries
-  if (error) return <TradeShell installer={false}><p role="alert" className={card}>{(error as Error).message}</p></TradeShell>;
+  const { data: x } = useQuery({ queryKey: ["trade-money-extras"], queryFn: () => loadExtras(), retry: false });
+  if (error) return <TradeShell installer={false}><p role="alert" className="rounded-[18px] border border-line bg-paper p-4 text-sm">{(error as Error).message}</p></TradeShell>;
   if (!data) return <TradeShell installer={false}><p className="text-sm">Loading…</p></TradeShell>;
-  const key = (r: (typeof data.rows)[number]) => `${r.jobId}:${r.kind}`;
-  const shell = (c: React.ReactNode) => <TradeShell installer={data.kind === "installer"} boss={data.boss}>{c}</TradeShell>;
-
-  // ---- Job payment detail ----
-  const detail = pay ? data.rows.find((r) => key(r) === pay) : undefined;
-  if (pay) {
-    if (!detail) return shell(<><Link to="/field/money" className="inline-flex items-center gap-1 text-sm font-bold text-estimate-blue"><ChevronLeft className="h-4 w-4" />Money</Link><p className={`${card} text-sm`}>This payment isn't in your list any more.</p></>);
-    const p = payPill(detail.state);
-    const status = detail.state.kind === "paid" ? "Paid" : detail.state.kind === "coming" ? "Approved · to be paid" : "Awaiting office approval";
-    return shell(<>
-      <Link to="/field/money" search={{ tab: detail.state.kind }} className="inline-flex items-center gap-1 text-sm font-bold text-estimate-blue"><ChevronLeft className="h-4 w-4" />Money</Link>
-      <div><h1 className="font-display text-[26px] font-bold leading-tight">Job payment</h1><p className="text-sm text-sub">{detail.surname}, {detail.suburb} · {detail.jobNumber}</p></div>
-      <section className={card} data-payment-detail>
-        <dl>
-          <Pair k="Business" v={data.business.replace(/^\[TEST PARTNER\]\s*/, "")} />
-          <Pair k="Work" v={detail.what} />
-          <Pair k="Amount · inc GST" v={aud(detail.amount)} />
-          <Pair k="Status" v={<span className={`inline-block rounded-[18px] px-2.5 py-0.5 text-[11px] font-semibold ${TONE[p.tone]}`}>{status}</span>} />
-          {detail.approvedAt && <Pair k="Approved" v={day(detail.approvedAt)} />}
-          {detail.state.kind === "coming" && <Pair k="Expected pay date" v={day(detail.state.on)} />}
-          {detail.state.kind === "paid" && <Pair k="Paid" v={day(detail.state.on)} />}
-          <Pair k="Bank account" v={data.bankEnding ? `Account ending ${data.bankEnding}` : "Not saved yet"} />
-        </dl>
-        {detail.state.kind === "checking" && <p className="mt-3 border-t border-line pt-3 text-xs text-sub">Payment is confirmed once the office approves the job paperwork{data.kind === "installer" ? " and the owner has paid in full" : ""}.</p>}
-      </section>
-    </>);
-  }
-
-  // ---- Overview ----
-  if (!data.rows.length && !(data.ownerDirect ?? []).length) return shell(<>
-    <h1 className="font-display text-[26px] font-bold leading-tight">Money</h1>
-    <section className={`${card} text-center`} data-money-empty><h2 className="font-display text-xl font-bold">No completed jobs yet.</h2><p className="mt-1 text-sm text-sub">Approved jobs and expected payment dates will appear here.</p></section>
-  </>);
-  const tab: Tab = tabParam ?? (data.rows.some((r) => r.state.kind === "coming") ? "coming" : data.rows.some((r) => r.state.kind === "checking") ? "checking" : "paid");
-  const t = TABS.find((x) => x.key === tab)!;
-  const rows = data.rows.filter((r) => r.state.kind === tab);
-  const comingTotal = data.rows.filter((r) => r.state.kind === "coming").reduce((s, r) => s + (r.amount ?? 0), 0);
+  const business = data.business.replace(/^\[TEST PARTNER\]\s*/, "");
+  const t = moneyTotals(data.rows);
+  const open = data.rows.filter((r) => r.state.kind !== "paid").sort((a, b) => (a.state.kind === "checking" ? -1 : 1) - (b.state.kind === "checking" ? -1 : 1));
+  const paid = data.rows.filter((r) => r.state.kind === "paid").sort((a, b) => ((b.state as { on: string }).on).localeCompare((a.state as { on: string }).on));
+  const rows = [...open, ...(showAll ? paid : paid.slice(0, PAID_SHOWN))];
   const csv = () => {
     const lines = [["Job", "Owner", "Suburb", "What", "Amount", "Status"], ...data.rows.map((r) => [r.jobNumber, r.surname, r.suburb ?? "", r.what, String(r.amount ?? ""), payPill(r.state).label])];
-    return `data:text/csv;charset=utf-8,${encodeURIComponent(lines.map((l) => l.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
+    return `data:text/csv;charset=utf-8,${encodeURIComponent(lines.map((l) => l.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n"))}`;
   };
-  return shell(<>
-    <div><h1 className="font-display text-[26px] font-bold leading-tight">Money</h1><p className="text-sm text-sub">{data.business}</p></div>
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-      <div className={card.replace("bg-paper", "bg-mint")}><p className="text-xs font-semibold">Approved · to be paid</p><p className="mt-2 font-display text-[25px] font-bold leading-none">{aud(comingTotal)}</p><p className="mt-2 text-xs text-sub">{data.next ? `Next payment ${day(data.next.on)}` : "Expected date shown per job"}</p></div>
-      <div className={card}><p className="text-xs font-semibold">This month</p><p className="mt-2 font-display text-[25px] font-bold leading-none">{aud(data.month)}</p></div>
-      <div className={card}><p className="text-xs font-semibold">All time</p><p className="mt-2 font-display text-[25px] font-bold leading-none">{aud(data.allTime)}</p></div>
-    </div>
-    <div role="tablist" aria-label="Payments" className="flex gap-1 border-b border-line pb-2">
-      {TABS.map((x) => { const n = data.rows.filter((r) => r.state.kind === x.key).length; return (
-        <Link key={x.key} role="tab" aria-selected={tab === x.key} to="/field/money" search={{ tab: x.key }} className={`flex min-h-11 items-center rounded-[10px] px-3 text-center text-sm font-semibold text-estimate-blue ${tab === x.key ? "bg-estimate-mist" : ""}`}>{x.label}{n ? ` (${n})` : ""}</Link>); })}
-    </div>
-    <section aria-labelledby="money-section" className="space-y-2">
-      <div className="flex items-end justify-between gap-3 px-1"><h2 id="money-section" className="font-display text-lg font-bold">{t.title}</h2><span className="font-display text-xl font-bold">{aud(rows.reduce((s, r) => s + (r.amount ?? 0), 0))}</span></div>
-      <p className="px-1 text-xs text-sub">{t.note}</p>
-      {rows.length ? <ul className="divide-y divide-line overflow-hidden rounded-[18px] border border-line bg-paper shadow-card">{rows.map((r) => { const p = payPill(r.state); return (
-        <li key={key(r)}><Link to="/field/money" search={{ pay: key(r) }} className="flex min-h-[64px] items-center gap-3 p-4">
-          <span className="min-w-0 flex-1"><span className="block font-bold">{r.surname}, {r.suburb}</span><span className="block text-sm text-sub">{r.jobNumber} · {r.what} · {aud(r.amount)} inc GST</span></span>
-          <span className={`shrink-0 rounded-[18px] px-2.5 py-0.5 text-[11px] font-semibold ${TONE[p.tone]}`}>{r.state.kind === "coming" ? `Expected ${day(r.state.on)}` : r.state.kind === "checking" ? "In review" : `Paid ${day(r.state.on)}`}</span>
-          <ChevronRight className="h-4 w-4 shrink-0 text-sub" aria-hidden />
-        </Link></li>); })}</ul> : <p className={`${card} text-sm`}>None right now.</p>}
-    </section>
-    {(data.ownerDirect ?? []).length > 0 && (
-      <section data-owner-direct className="space-y-2">
-        <h2 className="px-1 font-display text-lg font-bold">Invoice the owner directly</h2>
-        <p className="px-1 text-xs text-sub">The installer's customer chose you as their own electrician. You invoice and collect payment from the owner at your agreed price — Home Insulation Victoria doesn't pay this work and hasn't recorded the owner's payment.</p>
-        <ul className="divide-y divide-line overflow-hidden rounded-[18px] border border-line bg-paper">{data.ownerDirect.map((r) => (
-          <li key={r.jobId + r.what} className="flex min-h-[56px] items-center gap-3 p-4"><span className="min-w-0 flex-1"><span className="block font-bold">{r.surname}, {r.suburb}</span><span className="block text-sm text-sub">{r.jobNumber} · {r.what}</span></span><span className="shrink-0 text-[11px] font-semibold text-sub">Owner payment: not recorded</span></li>
-        ))}</ul>
-      </section>
-    )}
-    <a href={csv()} download="statement.csv" className="block text-center text-sm font-bold text-estimate-blue">Download statements ›</a>
-  </>);
+  const tile = (label: string, value: string, sub: string, tone: "mist" | "line", color = "") => <div className={`rounded-[14px] px-3.5 py-3 ${tone === "mist" ? "bg-mist" : "border border-line"}`}><p className="text-xs text-sub">{label}</p><p className={`mt-0.5 text-xl font-semibold ${color}`}>{value}</p><p className="mt-0.5 text-xs text-sub">{sub}</p></div>;
+  return (
+    <TradeShell installer={data.kind === "installer"} boss={data.boss}>
+      <Screen>
+        <div>
+          <h1 className="font-display text-[22px] font-semibold leading-[1.2]">Money</h1>
+          <p className="mt-1 text-sm text-sub">Your pay, {business}. Amounts include GST.</p>
+        </div>
+
+        {!data.rows.length && !(data.ownerDirect ?? []).length ? (
+          <section className="rounded-[18px] bg-mist p-4 text-center" data-money-empty><h2 className="text-[17px] font-semibold">No completed jobs yet.</h2><p className="mt-1 text-sm text-sub">Your pay for each install appears here once the install is done.</p></section>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-2" data-money-totals>
+              {tile("Coming", aud(t.coming.total), t.coming.next ? `Next ${shortDay(t.coming.next)}` : "Nothing due yet", "mist", "text-hiv-blue")}
+              {tile("Being checked", aud(t.checking.total), `${t.checking.jobs} job${t.checking.jobs === 1 ? "" : "s"}`, "line")}
+              {tile("This month", `${aud(t.thisMonth.total)} paid`, `${t.thisMonth.installs} install${t.thisMonth.installs === 1 ? "" : "s"}`, "line", "text-hiv-green")}
+              {tile("Last month", `${aud(t.lastMonth.total)} paid`, `${t.lastMonth.installs} install${t.lastMonth.installs === 1 ? "" : "s"}`, "line")}
+            </div>
+
+            <Group title="Jobs">
+              {rows.map((r) => { const p = payPill(r.state); return (
+                <Link key={`${r.jobId}:${r.kind}`} to="/field/$jobId" params={{ jobId: r.jobId }} className="flex min-h-[60px] items-center gap-3 border-b border-line py-2.5">
+                  <span className="min-w-0 flex-1"><span className="block text-base font-semibold">{r.jobNumber} · {r.suburb ?? r.surname}</span><span className="mt-0.5 block text-[13px] text-sub">{data.kind === "installer" ? moneyRowSub({ channel: r.channel, doneAt: r.doneAt }) : `${r.what}${r.doneAt ? ` · ${shortDay(r.doneAt)}` : ""}`}</span></span>
+                  <span className="text-right"><span className="block text-base font-semibold">{aud(r.amount)}</span><span className="mt-1 block"><Pill tone={p.tone}>{p.label}</Pill></span></span>
+                </Link>
+              ); })}
+              {!rows.length && <p className="py-3 text-sm text-sub">None right now.</p>}
+              {paid.length > PAID_SHOWN && !showAll && <LinkRow onClick={() => setShowAll(true)}>All paid jobs</LinkRow>}
+            </Group>
+          </>
+        )}
+
+        {(data.ownerDirect ?? []).length > 0 && (
+          <Group title="Invoice the owner directly">
+            <Note>The installer's customer chose you as their own electrician. You invoice and collect payment from the owner at your agreed price — Home Insulation Victoria doesn't pay this work and hasn't recorded the owner's payment.</Note>
+            {data.ownerDirect.map((r) => <div key={r.jobId + r.what} className="flex min-h-12 items-center justify-between gap-3 border-b border-line text-[15px]"><span><span className="block font-semibold">{r.jobNumber} · {r.suburb ?? r.surname}</span><span className="block text-[13px] text-sub">{r.what}</span></span><span className="text-[13px] text-sub">Owner payment: not recorded</span></div>)}
+          </Group>
+        )}
+
+        <Group title="How pay works">
+          {data.kind === "installer" ? <>
+            {HOW_PAY_WORKS.map((h) => <div key={h.who} className="flex min-h-12 items-center justify-between gap-3 border-b border-line text-sm leading-[1.45]"><span className="shrink-0 text-sub">{h.who}</span><span className="text-right">{h.how}</span></div>)}
+            <Note className="mt-2">{READY_CHECKS_FREE}</Note>
+          </> : <div className="flex min-h-12 items-center justify-between gap-3 border-b border-line text-sm"><span className="text-sub">Your visits</span><span className="text-right">Paid within 7 days of our approval</span></div>}
+        </Group>
+
+        <Group title="Paid to">
+          <Link to="/field/business/bank" className="flex min-h-[52px] items-center justify-between gap-3 text-[15px]">
+            <span><span className="block font-medium">{x?.accountName ?? business}</span><span className="mt-0.5 block text-[13px] text-sub">{x ? bankLine(x) : data.bankEnding ? `account ending ${data.bankEnding}` : "No bank account saved yet"}</span></span>
+            <span className="font-semibold text-hiv-blue">Change</span>
+          </Link>
+        </Group>
+
+        {data.rows.length > 0 && <a href={csv()} download="statement.csv" className={outlineLinkClass}>Download statement</a>}
+      </Screen>
+    </TradeShell>
+  );
 }
